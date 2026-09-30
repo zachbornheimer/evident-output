@@ -44,8 +44,6 @@ Three override rules take precedence over the concept column:
 - `Output.Context` lives in `run.go`, because it is the run-scoped context.
 - Package-level `Next` and `NextCommand` live in `problem.go`, because they return `ProblemOption`.
 
-Until series R finishes, the catch-all files `api.go`, `facade.go`, `glyph.go`, `jsonout.go`, `output.go`, `printer.go`, `release.go`, `state.go` and `types.go` still exist; the guard tolerates them and each slice that empties one deletes it.
-
 ## Internal packages
 
 - `internal/core`: domain types (Snapshot, Problem, Action, Event, state, conclusion) and the closed Effect verb set

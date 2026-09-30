@@ -1,8 +1,10 @@
 package evo_test
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -88,10 +90,17 @@ var symbolFile = map[string]string{
 	"Output.Context": "run.go", "Next": "problem.go", "NextCommand": "problem.go",
 }
 
-// legacyFiles are catch-all files the ZYS-1190 series R slices still have to
-// delete. A symbol declared in one of them is exempt from the placement
-// check, and each slice that deletes a file removes it from this set.
-var legacyFiles = map[string]bool{}
+// rootFiles is the sorted set of non-test root files: one per concept
+// family, plus doc.go.
+func rootFiles() []string {
+	set := map[string]bool{"doc.go": true}
+	for _, files := range []map[string]string{conceptFile, receiverFile, symbolFile} {
+		for _, file := range files {
+			set[file] = true
+		}
+	}
+	return slices.Sorted(maps.Keys(set))
+}
 
 // rootHome is the file that must declare ident, given its concept.
 func rootHome(ident, concept string) (string, bool) {
@@ -145,7 +154,7 @@ func TestVocabulary_RootFileOwnsConcept(t *testing.T) {
 			usedConcept[entry.Concept] = true
 		}
 		got, isDeclared := declared[ident]
-		if !isDeclared || legacyFiles[got] {
+		if !isDeclared {
 			continue // methods on aliased engine types are not declared here
 		}
 		if got != home {
@@ -153,27 +162,18 @@ func TestVocabulary_RootFileOwnsConcept(t *testing.T) {
 		}
 	}
 
-	allowed := map[string]bool{"doc.go": true}
-	for _, files := range []map[string]string{conceptFile, receiverFile, symbolFile} {
-		for _, file := range files {
-			allowed[file] = true
-		}
-	}
-	for file := range legacyFiles {
-		allowed[file] = true
-		if _, err := os.Stat(file); err != nil {
-			t.Errorf("legacyFiles lists %s, which no longer exists; remove it", file)
-		}
-	}
 	paths, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
+	var got []string
 	for _, path := range paths {
-		if strings.HasSuffix(path, "_test.go") || allowed[path] {
-			continue
+		if !strings.HasSuffix(path, "_test.go") {
+			got = append(got, path)
 		}
-		t.Errorf("%s is not a concept file; add the concept to conceptFile or move its declarations", path)
+	}
+	if want := rootFiles(); !slices.Equal(got, want) {
+		t.Errorf("root non-test files = %v; want %v", got, want)
 	}
 
 	for concept := range conceptFile {
