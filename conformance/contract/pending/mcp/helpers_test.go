@@ -1,5 +1,3 @@
-//go:build evopending
-
 // Pending MCP pit-of-success rules (ZYS-1368, ZYS-1369). Each rule is a bad
 // source that must be flagged with a finding that teaches the fix, and a good
 // source that must review clean. Rule ids are not fixed yet, so a rule is

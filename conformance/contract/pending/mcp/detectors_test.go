@@ -1,5 +1,3 @@
-//go:build evopending
-
 // Package mcp_test holds contract §21 MCP detectors that are not built yet.
 // Each test fails today and turns green when review can detect the pattern.
 package mcp_test

@@ -1,5 +1,3 @@
-//go:build evopending
-
 package mcp_test
 
 import "testing"
