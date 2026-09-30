@@ -241,7 +241,29 @@ type ChangesSnapshot struct {
 	// NewChangesSnapshot). Unexported: identity for presentation policy,
 	// never part of the public snapshot.
 	owner string
+	// containers is the owner's container chain (see ContainerPath).
+	containers ContainerPath
 }
+
+// ContainerRef names one Group or Sequence.
+type ContainerRef struct {
+	ID   string
+	Name string
+}
+
+// ContainerPath is a Task's enclosing containers, nearest first. Empty for
+// a root Task. It is how the human ledger knows which sections share a
+// container (evo-rec.md "ledger fold"); never part of machine output.
+type ContainerPath []ContainerRef
+
+// WithChangesContainers is c placed under path.
+func WithChangesContainers(c ChangesSnapshot, path ContainerPath) ChangesSnapshot {
+	c.containers = path
+	return c
+}
+
+// ChangesContainers is the container chain of the Task c belongs to.
+func ChangesContainers(c ChangesSnapshot) ContainerPath { return c.containers }
 
 // NewChangesSnapshot is c owned by the Task ownerID.
 func NewChangesSnapshot(c ChangesSnapshot, ownerID string) ChangesSnapshot {
@@ -263,7 +285,18 @@ type PlanSnapshot struct {
 
 	// owner mirrors ChangesSnapshot's.
 	owner string
+	// containers mirrors ChangesSnapshot's.
+	containers ContainerPath
 }
+
+// WithPlanContainers is p placed under path.
+func WithPlanContainers(p PlanSnapshot, path ContainerPath) PlanSnapshot {
+	p.containers = path
+	return p
+}
+
+// PlanContainers is the container chain of the Task p belongs to.
+func PlanContainers(p PlanSnapshot) ContainerPath { return p.containers }
 
 // NewPlanSnapshot is p owned by the Task ownerID.
 func NewPlanSnapshot(p PlanSnapshot, ownerID string) PlanSnapshot {

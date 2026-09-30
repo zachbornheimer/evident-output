@@ -215,14 +215,18 @@ func (o *Output) commitNamedEffectsLocked(owner string) {
 // effectSectionLocked is s laid out for render.WriteEffects — the one
 // shape both the streamed and the Finish ledger render.
 func (o *Output) effectSectionLocked(s *ledgerSection, nameWidth int) render.EffectSection {
-	width := o.cfg.width
-	if width <= 0 {
-		width = defaultWidth
-	}
 	return render.EffectSection{
 		Kind: s.tense.String(), Subject: s.subject, Records: s.records,
-		IntendedVerb: s.intendedVerb, NameWidth: nameWidth, Width: width,
+		IntendedVerb: s.intendedVerb, NameWidth: nameWidth, Width: o.ledgerWidthLocked(),
 	}
+}
+
+// ledgerWidthLocked is the terminal width the ledger lays out for.
+func (o *Output) ledgerWidthLocked() int {
+	if o.cfg.width <= 0 {
+		return defaultWidth
+	}
+	return o.cfg.width
 }
 
 // humanStyle is how this Output paints human rows.
@@ -432,16 +436,25 @@ func (o *Output) writeResidualEntitiesLocked(b *strings.Builder, snap Snapshot, 
 }
 
 // writeResidualLedgerLocked writes every [changed] then [planned] section
-// that did not already stream at its Task's resolution.
+// that did not already stream at its Task's resolution, sibling same-effect
+// sections folded into one row (render.FoldEffectSections).
 func (o *Output) writeResidualLedgerLocked(b *strings.Builder, style render.Style) {
-	for _, sections := range []*[]*ledgerSection{&o.changes, &o.plans} {
-		nameWidth := maxSubjectWidth(*sections)
-		for _, s := range *sections {
-			if !s.namedRowsEmitted {
-				render.WriteEffects(b, o.effectSectionLocked(s, nameWidth), style)
-			}
+	for _, tense := range []ledgerTense{tenseChanged, tensePlanned} {
+		for _, sec := range o.foldedSectionsLocked(tense) {
+			render.WriteEffects(b, sec, style)
 		}
 	}
+}
+
+// foldedSectionsLocked is tense's not-yet-streamed ledger, laid out for
+// render.WriteEffects.
+func (o *Output) foldedSectionsLocked(tense ledgerTense) []render.EffectSection {
+	sections := *o.sectionsLocked(tense)
+	sources := make([]render.SectionSource, len(sections))
+	for i, s := range sections {
+		sources[i] = s.foldSource()
+	}
+	return render.FoldEffectSections(tense.String(), o.ledgerWidthLocked(), sources)
 }
 
 // writeDebugTailLocked writes the pane-mode diagnostic tail under the final
