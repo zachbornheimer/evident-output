@@ -111,47 +111,26 @@ func writeCancellationBand(b *strings.Builder, c core.Conclusion, s Style) {
 	}
 }
 
-func StateColor(s core.EntityState) string {
-	switch s {
-	case core.Done:
-		return txt.SGRGreen
-	case core.Failed:
-		return txt.SGRRed
-	case core.Blocked:
-		return txt.SGRRed
-	case core.Running:
-		return txt.SGRCyan
-	case core.Pending, core.Skipped, core.Cancelled, core.Incomplete, core.NotStarted:
-		return txt.SGRDim
-	default:
-		return ""
-	}
-}
+// dryRunMarkerText is the fixed announcement body for a dry-run run's
+// opening line (evo-rec.md core.Problem 1: "a dry run must announce itself").
+const dryRunMarkerText = "no changes will be made"
 
-func conclusionColor(s core.ConclusionState) string {
-	switch s {
-	case core.StateReady, core.StateChanged:
-		return txt.SGRGreen
-	case core.StatePlanned:
-		return txt.SGRBlue
-	case core.StateFailed:
-		return txt.SGRRed
-	case core.StateBlocked:
-		return txt.SGRRed
-	case core.StateCancelled:
-		return txt.SGRDim
-	default:
-		return txt.SGRCyan
-	}
-}
+// conclusionPartialModifier is the literal suffix that marks the printed
+// band as evo-rec.md's completeness axis rather than a new headline: a run
+// that never invented a State of its own (StatePartial is dead precisely
+// because Partial is a modifier, not a root verdict) still needs an honest
+// band when core.Conclusion.Partial is true (release-gate round 4 finding 1) — an
+// abandoned per-item loop or a forgotten terminal verb on an otherwise clean
+// finish must not read as silently complete.
+const conclusionPartialModifier = " · partial"
 
-func effectColor(kind string) string {
-	switch kind {
-	case "changed":
-		return txt.SGRGreen
-	case "planned":
-		return txt.SGRBlue
-	default:
-		return txt.SGRCyan
-	}
-}
+// conclusionWarnedModifier marks the printed band with the same "modifier,
+// not a new headline" treatment as conclusionPartialModifier (release-gate
+// round 8 finding 3): a run that carries at least one warning-severity
+// Problem (P2: a warning never resolves its own lifecycle state; Warn was
+// removed in 1.1) while its
+// headline settled on an OK-family state (e.g. [ready]) must not read as
+// silently clean — the exit code is unchanged, only the band gains this
+// suffix. core.Conclusion.Warned is already false when State is itself
+// core.StateWarning, so the two never double up.
+const conclusionWarnedModifier = " · warned"

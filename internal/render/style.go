@@ -45,3 +45,48 @@ func (s Style) emphasized(text string, emphasize bool) string {
 	}
 	return s.dim(text)
 }
+
+func StateColor(s core.EntityState) string {
+	switch s {
+	case core.Done:
+		return txt.SGRGreen
+	case core.Failed:
+		return txt.SGRRed
+	case core.Blocked:
+		return txt.SGRRed
+	case core.Running:
+		return txt.SGRCyan
+	case core.Pending, core.Skipped, core.Cancelled, core.Incomplete, core.NotStarted:
+		return txt.SGRDim
+	default:
+		return ""
+	}
+}
+
+func conclusionColor(s core.ConclusionState) string {
+	switch s {
+	case core.StateReady, core.StateChanged:
+		return txt.SGRGreen
+	case core.StatePlanned:
+		return txt.SGRBlue
+	case core.StateFailed:
+		return txt.SGRRed
+	case core.StateBlocked:
+		return txt.SGRRed
+	case core.StateCancelled:
+		return txt.SGRDim
+	default:
+		return txt.SGRCyan
+	}
+}
+
+func effectColor(kind string) string {
+	switch kind {
+	case "changed":
+		return txt.SGRGreen
+	case "planned":
+		return txt.SGRBlue
+	default:
+		return txt.SGRCyan
+	}
+}
