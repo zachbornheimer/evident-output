@@ -1,0 +1,302 @@
+[
+  {
+    "id": "C21-001",
+    "section": "21",
+    "quote": "MCP guidance must match the exact installed/target Evo version.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./cmd/evident-output-mcp",
+        "run": "TestReview_DesiredVersionV029DoesNotFlagNew"
+      },
+      {
+        "pkg": "./cmd/evident-output-mcp",
+        "run": "TestReviewDirectory_FillsPinFields"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestGoPackageAtHonorsPinnedDialect"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-002",
+    "section": "21",
+    "quote": "Teaching order:",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/mcp",
+        "run": "TestC21_002_TeachingLadderFollowsTheContractOrder"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-003",
+    "section": "21",
+    "quote": "success or result claimed without work (Summary carrying mutation, dry-run, or already-satisfied narration; a Verify that returns a constant; a Task never Defined or resolved);",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI060_SummaryWroteNarration_Fires"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI063_ConstantVerify_Fires"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestDOM021_TaskNeverResolved_Fires"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-004",
+    "section": "21",
+    "quote": "duplicate sibling Task labels;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI047_CrossKindDuplicateSiblingName_Fires"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-005",
+    "section": "21",
+    "quote": "information represented as fake Task success;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI045_SubjectOnlyTaskName_Fires"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI051_FakeTaskPerFinding_Fires"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-006",
+    "section": "21",
+    "quote": "planned mutation narrated through Done;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI032_RemovedDoneRewritesToDefineAndSummary"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-007",
+    "section": "21",
+    "quote": "any name listed under Vocabulary \"Not part of evo\", each with a migration rule to its canonical form",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestMigration1_1EveryRemovedNameHasDirtyRewriteCleanFixture"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestMigration1_1_DirtyFiresAndRewriteIsClean"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-008",
+    "section": "21",
+    "quote": "manual file compare/write/report code that should use `evo.File`;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestEVOFILE001_ManualWriteAndChmod_EmitsSimplificationFinding"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-009",
+    "section": "21",
+    "quote": "caller goroutines used only for Evo concurrency;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI041_GoroutineResolvesPredeclaredTask_Fires"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestEVODAG001_GoroutineWrapsDefine_Fires"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-010",
+    "section": "21",
+    "quote": "After chains better represented by Sequence;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestEVODAG002_AfterChainDuplicatesSequence_Fires"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-011",
+    "section": "21",
+    "quote": "routine Facts/passing Evidence manually printed;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestGoSource_EvoUI001_FactPrintedManually"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestGoSource_EvoUI002_PassingVerificationPrinted"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-012",
+    "section": "21",
+    "quote": "caller-chosen glyph/color/status;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/mcp",
+        "run": "TestC21_012_MCPDetectsACallerChosenGlyphColorOrStatus"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-013",
+    "section": "21",
+    "quote": "direct terminal output competing with the live renderer;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestGoSource_EvoLive001_PrintCompetesWithLiveRendering"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-014",
+    "section": "21",
+    "quote": "breaking wire-schema edits;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/mcp",
+        "run": "TestC21_014_MCPDetectsABreakingWireSchemaEdit"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-015",
+    "section": "21",
+    "quote": "`os.Exit` bypassing Evo conclusion handling.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestGoSource_EvoExit001_OsExitBypassesConclusion"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestExitBypass_OneFixThatCompiles"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-016",
+    "section": "21",
+    "quote": "Findings should include severity, file/line, violated rule, why it matters, smallest migration, corrected syntax, and required target version.",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "DECISION: Finding carries rule_id, severity, message, file, line, suggestion and required_version; the `why it matters` text lives in the rules catalog behind evident_output_explain, not inline. Decide whether `why` must be inline before writing a test.",
+    "default": false
+  },
+  {
+    "id": "C21-017",
+    "section": "21",
+    "quote": "The review loop is mandatory: review, apply every suggestion, review the same source again, and stop only when findings are empty and `recheck_required=false`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI060_RecheckAfterRemediation_FindingDisappears"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI046_RecheckAfterRemediation_FindingDisappears"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-018",
+    "section": "21",
+    "quote": "Tools: `evident_output_list_sections`, `evident_output_get_documentation`, `evident_output_adopt_plan`, `evident_output_review`, `evident_output_explain` (argument `rule_id`), `evident_output_preview`, `evident_output_update`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./cmd/evident-output-mcp",
+        "run": "TestNewMCPToolsAdvertised"
+      },
+      {
+        "pkg": "./cmd/evident-output-mcp",
+        "run": "TestToolRegistryMatchesToolList"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-019",
+    "section": "21",
+    "quote": "When extracted Tasks are referenced later, MCP should recommend typed variables and `var (...)` when it reduces typo/duplicate-label risk:",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI048_RedeclaredTaskLiteralForAfter_Fires"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-020",
+    "section": "21",
+    "quote": "Do not mechanically require this for trivial one-off Tasks.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI048_TrivialOneOffTask_StaysSilent"
+      }
+    ],
+    "default": false
+  }
+]
