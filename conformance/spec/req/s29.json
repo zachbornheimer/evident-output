@@ -1,0 +1,53 @@
+[
+  {
+    "id": "C29-001",
+    "section": "29",
+    "quote": "A resource conflict is not automatically a semantic dependency edge.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/resources",
+        "run": "TestC30_080_AClaimNeverCreatesAnAfterEdge"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestEffectsOnOneLogicalResourceNeverOverlap"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C29-002",
+    "section": "29",
+    "quote": "A Basis relationship is not merely a lock.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileManifestBasisDriftForcesReconciliation"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestBasisObservationCannotRaceFileCommit"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C29-003",
+    "section": "29",
+    "quote": "A File write is not merely exclusive access.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileManifestCommittedEffectRecordedOnMutation"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesDryRunPlansWithoutMutation"
+      }
+    ],
+    "default": false
+  }
+]

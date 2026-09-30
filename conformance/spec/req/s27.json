@@ -1,0 +1,180 @@
+[
+  {
+    "id": "C27-001",
+    "section": "27",
+    "quote": "`Patch` is pure with respect to the real workspace.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPatchPerformsNoWorkspaceMutation"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPatchThroughPublicAPI"
+      },
+      {
+        "pkg": "./conformance/contract/patch",
+        "run": "TestC28_001_NativeDiffFlowDerivesThenCommitsThroughFile"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C27-002",
+    "section": "27",
+    "quote": "retains the Basis relationship with those desired states;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPatchOneFileDerivesDesiredStateWithSourceBasis"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPatchMultiFileDerivesEachDesiredStateWithSourceBasis"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C27-003",
+    "section": "27",
+    "quote": "A multi-file patch is sugar over multiple desired file states. It does not introduce another mutation engine.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPatchMultiFileDerivesEachDesiredStateWithSourceBasis"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesAppliesAndRecordsOnlyChangedFiles"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C27-004",
+    "section": "27",
+    "quote": "`FileSet` is opaque for exactly this reason.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestFileSetCannotBeUnpacked"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C27-005",
+    "section": "27",
+    "quote": "If the source state changed, Evo must not overwrite the newer state. That file fails with `ErrStaleBasis`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesRefusesToOverwriteStaleSource"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesStaleCreationRefusesToOverwrite"
+      },
+      {
+        "pkg": "./conformance/contract/patch",
+        "run": "TestC30_071_FilesIsNotATransaction"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C27-006",
+    "section": "27",
+    "quote": "Dry-run, already-satisfied behavior, verification, planned/changed Effects, and manifest updates come from File rather than from a second patch-specific mutation path.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesDryRunPlansWithoutMutation"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesAlreadySatisfiedIsSuccessfulAndCompact"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesAppliesAndRecordsOnlyChangedFiles"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C27-007",
+    "section": "27",
+    "quote": "`Patch → Files → File` expresses every rewrite. File is the only file-mutation engine.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/patch",
+        "run": "TestC28_001_NativeDiffFlowDerivesThenCommitsThroughFile"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesAppliesAndRecordsOnlyChangedFiles"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C27-008",
+    "section": "27",
+    "quote": "Do not expose caller-managed multi-file locks.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesClaimsEachPathWithoutCallerLocks"
+      },
+      {
+        "pkg": "./conformance/contract/resources",
+        "run": "TestC26_001_PublicVocabularyHasNoLockTerms"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C27-009",
+    "section": "27",
+    "quote": "Patch supports modification and file creation.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPatchOneFileDerivesDesiredStateWithSourceBasis"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesStaleCreationRefusesToOverwrite"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C27-010",
+    "section": "27",
+    "quote": "It rejects deletion, rename, and binary forms,",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPatchThroughPublicAPI"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPatchUnsupportedFormsFailExplicitly"
+      }
+    ],
+    "default": false
+  }
+]
