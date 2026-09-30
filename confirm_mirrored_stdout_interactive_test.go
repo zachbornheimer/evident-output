@@ -9,10 +9,10 @@ import (
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
-// TestFinish_InteractiveWithAlsoWrite_MirrorsPlainProjection proves the
+// TestFinish_InteractiveWithMultiWriterStdout_MirrorsPlainProjection proves the
 // interactive branch of Finish honors alsoWrite: each extra writer receives
 // the plain projection on Finish, with no carve-out for interactive runs.
-func TestFinish_InteractiveWithAlsoWrite_MirrorsPlainProjection(t *testing.T) {
+func TestFinish_InteractiveWithMultiWriterStdout_MirrorsPlainProjection(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	var mirror bytes.Buffer
 

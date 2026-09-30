@@ -34,11 +34,11 @@ func warnSubjectRun(t *testing.T, count int) (human string, doc map[string]any) 
 	return buf.String(), doc
 }
 
-// TestWarn_OnSubjectReachesEveryProjection pins E-109: Warn("x",
+// TestProblemWarning_OnSubjectReachesEveryProjection pins E-109: Warn("x",
 // evo.On("job")) rendered "✓ check jobs  ! x" — the subject dropped from
 // the inline row — and the run.v2 task entry carried no trace of the
 // warning. Every projection now carries the warning with its subject.
-func TestWarn_OnSubjectReachesEveryProjection(t *testing.T) {
+func TestProblemWarning_OnSubjectReachesEveryProjection(t *testing.T) {
 	for _, count := range []int{1, 2} {
 		human, doc := warnSubjectRun(t, count)
 		if !strings.Contains(human, "job  x") {

@@ -29,11 +29,11 @@ func keptWithFactsRun(t *testing.T, v evo.Verbosity) string {
 	return buf.String()
 }
 
-// TestKeptItemFacts_KeepTheFold pins E-100: a Fact on a kept child broke
+// TestSkippedItemFacts_KeepTheFold pins E-100: a Fact on a kept child broke
 // the kept fold under verbose, so each child rendered its own "✓ name
 // why …" row and "! kept 1 (…)". The fold holds; verbose lists each item
 // once with its Facts at one column, whatever the name width.
-func TestKeptItemFacts_KeepTheFold(t *testing.T) {
+func TestSkippedItemFacts_KeepTheFold(t *testing.T) {
 	for _, v := range []evo.Verbosity{evo.VerbosityNormal, evo.VerbosityVerbose} {
 		got := keptWithFactsRun(t, v)
 		if strings.Count(got, "- skipped") != 1 || !strings.Contains(got, "- skipped 3 (in use)") {
@@ -77,12 +77,12 @@ func manyKeptOneFactRun(t *testing.T, n int, name string) string {
 	return buf.String()
 }
 
-// TestKeptItemFacts_StayBounded pins E-107/E-104: one Fact on one of 1000
+// TestSkippedItemFacts_StayBounded pins E-107/E-104: one Fact on one of 1000
 // kept items switched the verbose reason list from the bounded
 // "a, b, c … +N more" to one unbounded line per item (1005 lines), and a
 // value-only Fact rendered with a stray leading separator. Only the items
 // with Facts get their own rows; the rest fold into the bounded list.
-func TestKeptItemFacts_StayBounded(t *testing.T) {
+func TestSkippedItemFacts_StayBounded(t *testing.T) {
 	got := manyKeptOneFactRun(t, 1000, "why")
 	if lines := strings.Count(got, "\n"); lines > 12 {
 		t.Errorf("verbose kept list of 1000 items with one Fact is %d lines; want it bounded:\n%.600s", lines, got)
