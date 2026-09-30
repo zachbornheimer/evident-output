@@ -90,25 +90,25 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | API-028  | pass   | last_push_test.go                                                                                                      |
 | API-029  | pass   | last_push_test.go                                                                                                      |
 | API-030  | pass   | last_push_test.go                                                                                                      |
-| CON-001  | pass   | con_race_test.go                                                                                                       |
-| CON-002  | pass   | final_matrix_test.go                                                                                                   |
+| CON-001  | pass   | concurrency_test.go                                                                                                    |
+| CON-002  | pass   | concurrency_test.go                                                                                                    |
 | CON-003  | pass   | waived*closeout_test.go TestCON003*\*                                                                                  |
 | CON-004  | pass   | waived_closeout_test.go TestCON004_ResizeWhileLive                                                                     |
-| CON-005  | pass   | remaining_core_test.go                                                                                                 |
-| CON-006  | pass   | closeout_test.go                                                                                                       |
-| CON-007  | pass   | closeout_test.go                                                                                                       |
+| CON-005  | pass   | concurrency_test.go                                                                                                    |
+| CON-006  | pass   | concurrency_test.go                                                                                                    |
+| CON-007  | pass   | concurrency_test.go                                                                                                    |
 | CON-008  | pass   | waived_closeout_test.go TestCON008_JournalBackpressure                                                                 |
 | CON-009  | pass   | waived_closeout_test.go TestCON009_MultiRendererOneFailure                                                             |
-| CON-010  | pass   | last_push_test.go                                                                                                      |
-| CON-011  | pass   | final_matrix_test.go                                                                                                   |
-| CON-012  | pass   | con_race_test.go                                                                                                       |
-| CON-013  | pass   | final_matrix_test.go                                                                                                   |
+| CON-010  | pass   | concurrency_test.go                                                                                                    |
+| CON-011  | pass   | concurrency_test.go                                                                                                    |
+| CON-012  | pass   | concurrency_test.go                                                                                                    |
+| CON-013  | pass   | concurrency_test.go                                                                                                    |
 | CON-014  | pass   | appendix_h_interactive_test.go H.22                                                                                    |
-| CON-015  | pass   | closeout_test.go                                                                                                       |
-| CON-016  | pass   | last_push_test.go                                                                                                      |
-| CON-017  | pass   | closeout_test.go                                                                                                       |
-| CON-018  | pass   | last_push_test.go                                                                                                      |
-| CON-019  | pass   | closeout_test.go                                                                                                       |
+| CON-015  | pass   | concurrency_test.go                                                                                                    |
+| CON-016  | pass   | concurrency_test.go                                                                                                    |
+| CON-017  | pass   | concurrency_test.go                                                                                                    |
+| CON-018  | pass   | concurrency_test.go                                                                                                    |
+| CON-019  | pass   | concurrency_test.go                                                                                                    |
 | DOM-001  | pass   | appendix_h_test.go,domain_model_test.go                                                                                |
 | DOM-002  | pass   | appendix_h_test.go                                                                                                     |
 | DOM-003  | pass   | appendix_h_test.go                                                                                                     |

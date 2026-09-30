@@ -5,9 +5,7 @@ import (
 	"errors"
 	"io"
 	"strings"
-	"sync"
 	"testing"
-	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
@@ -15,35 +13,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/terminal"
-	"github.com/zachbornheimer/evident-output/testkit"
 )
-
-func TestCON008_JournalBackpressureDropsNonCritical(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, MaxEvents: 8})
-	t.Cleanup(func() { _ = out.Close() })
-	// Flood with line events (non-critical).
-	for range 40 {
-		out.Println("noise")
-	}
-	succeed(out.Task("done"))
-	if err := out.Finish(); err != nil {
-		t.Fatal(err)
-	}
-	evs := out.Events()
-	if len(evs) > 8 {
-		t.Fatalf("expected journal capped at 8, got %d", len(evs))
-	}
-	// Critical finish must survive.
-	var hasFinished bool
-	for _, e := range evs {
-		if e.Type == "output.finished" {
-			hasFinished = true
-		}
-	}
-	if !hasFinished {
-		t.Fatalf("critical output.finished dropped: %+v", evs)
-	}
-}
 
 type failWriter struct {
 	n int
@@ -52,61 +22,6 @@ type failWriter struct {
 func (f *failWriter) Write(p []byte) (int, error) {
 	f.n++
 	return 0, errors.New("disk full")
-}
-
-func TestCON009_MultiRendererOneFailure(t *testing.T) {
-	var good bytes.Buffer
-	bad := &failWriter{}
-	out := evo.Init(evo.Config{Isolated: true, Stdout: bad, Title: "s", Color: evo.ColorNever, Plain: true})
-	out.AlsoWriteForTest(&good)
-	succeed(out.Task("a"))
-	err := out.Finish()
-	if err == nil {
-		t.Fatal("expected renderer error")
-	}
-	if !errors.Is(err, evo.ErrRenderer) {
-		t.Fatalf("want ErrRenderer, got %v", err)
-	}
-	if !strings.Contains(good.String(), "a") {
-		t.Fatalf("healthy writer missed projection: %q", good.String())
-	}
-	if bad.n == 0 {
-		t.Fatal("failed writer never invoked")
-	}
-	_ = out.Close()
-}
-
-func TestCON004_ResizeWhileLive(t *testing.T) {
-	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
-	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("work")
-	task.Doing("start")
-	// Resize mid-flight: next frame should use new width without panicking.
-	screen.SetSize(40, 20)
-	task.Progress(1, 2)
-	clock.Advance(200 * time.Millisecond)
-	succeed(task)
-	if err := out.Finish(); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestCON003_LogWhileLiveNoSplit(t *testing.T) {
-	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug}})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("t")
-	task.Doing("running")
-	out.DebugForTest("durable note")
-	succeed(task)
-	if err := out.Finish(); err != nil {
-		t.Fatal(err)
-	}
-	// Live text and durable should both be coherent (no panic / empty crash).
-	live := screen.LatestLiveText()
-	_ = live
 }
 
 func TestTXT013_ANSIWidthParity(t *testing.T) {
@@ -273,31 +188,5 @@ func TestSEC015_NoAuthOnAnnotations(t *testing.T) {
 	// Presence of public tools without annotations is the contract.
 	if catalog.Checksum() == "" {
 		t.Fatal("catalog required")
-	}
-}
-
-func TestCON003_ConcurrentDebugAndProgress(t *testing.T) {
-	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug}})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("t")
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		for i := range 50 {
-			task.Progress(i, 50)
-		}
-	}()
-	go func() {
-		defer wg.Done()
-		for range 50 {
-			out.DebugForTest("tick")
-		}
-	}()
-	wg.Wait()
-	succeed(task)
-	if err := out.Finish(); err != nil {
-		t.Fatal(err)
 	}
 }

@@ -2,10 +2,8 @@ package evo_test
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/render"
@@ -79,56 +77,6 @@ func TestAPI030_CompatMatrixSmoke(t *testing.T) {
 	out.DebugForTest("d")
 	_ = out.Finish()
 	_, _ = render.EncodeJSON(out.Snapshot())
-}
-
-func TestCON016_ChildOrderPreserved(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	g := out.Group("g")
-	t1, t2, t3 := g.Task("a"), g.Task("b"), g.Task("c")
-	var wg sync.WaitGroup
-	wg.Go(func() { succeed(t3) })
-	wg.Go(func() { succeed(t1) })
-	wg.Go(func() { succeed(t2) })
-	wg.Wait()
-	snap := g.Snapshot()
-	if snap.Tasks[0].Name != "a" || snap.Tasks[1].Name != "b" || snap.Tasks[2].Name != "c" {
-		t.Fatalf("%v", []string{snap.Tasks[0].Name, snap.Tasks[1].Name, snap.Tasks[2].Name})
-	}
-}
-
-// TestCON018_DuplicateChildNames proves §3.1: a repeated Group.Task name
-// under the same parent is a duplicate sibling declaration, not a
-// get-or-create — the second call reports a distinct, Failed handle instead
-// of silently merging into the first.
-func TestCON018_DuplicateChildNames(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	g := out.Group("g")
-	a := g.Task("same")
-	b := g.Task("same")
-	if a.Snapshot().ID == b.Snapshot().ID {
-		t.Fatal("expected a distinct handle for the duplicate declaration")
-	}
-	if !errors.Is(out.Err(), evo.ErrDuplicateSiblingName) {
-		t.Fatalf("Err() = %v, want ErrDuplicateSiblingName", out.Err())
-	}
-	succeed(a)
-}
-
-func TestCON010_CancelVsDoneRace(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("t")
-	var wg sync.WaitGroup
-	wg.Go(func() { succeed(task) })
-	wg.Go(func() { task.Cancel("nope") })
-	wg.Wait()
-	// first terminal wins
-	st := task.Snapshot().State
-	if st != evo.Done && st != evo.Cancelled {
-		t.Fatal(st)
-	}
 }
 
 func TestLOG003_FieldOrderStable(t *testing.T) {

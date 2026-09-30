@@ -10,7 +10,6 @@ import (
 
 	evo "github.com/zachbornheimer/evident-output"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
-	"github.com/zachbornheimer/evident-output/testkit"
 )
 
 func TestTXT012_LongPathTruncationPolicy(t *testing.T) {
@@ -51,69 +50,6 @@ func TestTXT018_BidiInNames(t *testing.T) {
 	it := out.Task("ok\u202Ebad")
 	if strings.ContainsRune(it.Snapshot().Name, '\u202e') {
 		t.Fatal(it.Snapshot().Name)
-	}
-}
-
-func TestCON006_NoDeadlockOnRecursiveLog(t *testing.T) {
-	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug}})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Task("t").Doing("p")
-	// Debug during live (recursive-ish path)
-	out.DebugForTest("while live")
-	succeed(out.Task("t"))
-	_ = out.Finish()
-}
-
-func TestCON007_DirtyCoalesce(t *testing.T) {
-	// H.22 already covers; assert pending doesn't grow unbounded
-	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("t")
-	for i := range 100 {
-		task.Progress(i, 100)
-	}
-	if screen.LiveFrameCount() >= 100 {
-		t.Fatal(screen.LiveFrameCount())
-	}
-}
-
-func TestCON015_NoLeakAfterClose(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	succeed(out.Task("a"))
-	_ = out.Close()
-	// second close idempotent
-	_ = out.Close()
-}
-
-func TestCON017_ConcurrentDeclareSafe(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	done := make(chan struct{})
-	go func() {
-		for range 50 {
-			succeed(out.Task("n"))
-		}
-		close(done)
-	}()
-	<-done
-	_ = out.Finish()
-}
-
-func TestCON019_HighFrequencyChildProgress(t *testing.T) {
-	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
-	t.Cleanup(func() { _ = out.Close() })
-	g := out.Group("g")
-	t1 := g.Task("a")
-	for i := 0; i <= 200; i++ {
-		t1.Progress(i, 200)
-	}
-	succeed(t1)
-	if t1.Snapshot().Progress.Completed != 200 {
-		t.Fatal(t1.Snapshot().Progress)
 	}
 }
 

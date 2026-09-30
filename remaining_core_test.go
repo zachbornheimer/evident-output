@@ -40,19 +40,6 @@ func TestLOG008_ConcurrentDebugWriters(t *testing.T) {
 	_ = out.Finish()
 }
 
-func TestCON005_CloseDuringUpdates(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	var wg sync.WaitGroup
-	for range 20 {
-		wg.Go(func() {
-			succeed(out.Task("x"))
-		})
-	}
-	wg.Wait()
-	_ = out.Close()
-	_ = out.Close()
-}
-
 func TestAPI010_DonefFormatting(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })

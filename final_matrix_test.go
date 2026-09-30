@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/render"
@@ -44,65 +43,6 @@ func TestTXT020_EmptyNameStillCreates(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	succeed(out.Task(""))
 	_ = out.Finish()
-}
-
-func TestCON002_DisplayOrderStable(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	a, b, c := out.Task("a"), out.Task("b"), out.Task("c")
-	var wg sync.WaitGroup
-	wg.Go(func() { succeed(c) })
-	wg.Go(func() { succeed(a) })
-	wg.Go(func() { succeed(b) })
-	wg.Wait()
-	_ = out.Finish()
-	items := out.Conclusion().Tasks
-	if items[0].Name != "a" || items[1].Name != "b" || items[2].Name != "c" {
-		t.Fatalf("%v", []string{items[0].Name, items[1].Name, items[2].Name})
-	}
-}
-
-func TestCON011_SequenceIncreasing(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	var wg sync.WaitGroup
-	for range 50 {
-		wg.Go(func() {
-			succeed(out.Task("x"))
-		})
-	}
-	wg.Wait()
-	_ = out.Finish()
-	var last uint64
-	for _, e := range out.Events() {
-		if e.Sequence <= last {
-			t.Fatalf("seq %d after %d", e.Sequence, last)
-		}
-		last = e.Sequence
-	}
-}
-
-func TestCON013_SnapshotConsistentUnderLoad(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	stop := make(chan struct{})
-	var wg sync.WaitGroup
-	wg.Go(func() {
-		for {
-			select {
-			case <-stop:
-				return
-			default:
-				succeed(out.Task("x"))
-			}
-		}
-	})
-	for range 100 {
-		_ = out.Snapshot()
-	}
-	close(stop)
-	wg.Wait()
-	_ = out.Close()
 }
 
 func TestLOG012_DebugDisabledOmitsHuman(t *testing.T) {
