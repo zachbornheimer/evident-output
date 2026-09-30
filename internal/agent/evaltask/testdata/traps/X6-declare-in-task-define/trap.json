@@ -1,0 +1,6 @@
+{
+  "id": "X6",
+  "task": "T1-zq-prune",
+  "banned_pattern": "declare-in-callback",
+  "expected_flag_pending": true
+}

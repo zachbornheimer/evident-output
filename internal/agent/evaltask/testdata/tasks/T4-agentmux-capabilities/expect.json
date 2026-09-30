@@ -1,0 +1,56 @@
+{
+  "id": "T4-agentmux-capabilities",
+  "blocked_api": [
+    "Attempts (bounded retry of a Task)"
+  ],
+  "tree": [
+    {
+      "name": "capabilities",
+      "kind": "sequence",
+      "state": "done",
+      "children": [
+        {
+          "name": "compute goals",
+          "kind": "task",
+          "state": "done"
+        },
+        {
+          "name": "execute goals",
+          "kind": "group",
+          "state": "done",
+          "children": [
+            {
+              "name": "execute index",
+              "kind": "task",
+              "state": "done"
+            },
+            {
+              "name": "execute review",
+              "kind": "task",
+              "state": "done"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "order": [
+    {
+      "before": "compute goals",
+      "after": "execute index"
+    },
+    {
+      "before": "compute goals",
+      "after": "execute review"
+    }
+  ],
+  "banned_patterns": [
+    "outer-mutable-handoff",
+    "goroutine-concurrency",
+    "redundant-after-in-sequence",
+    "giant-loop-task",
+    "presentation-only-task",
+    "declare-in-callback",
+    "local-container-interface"
+  ]
+}

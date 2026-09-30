@@ -1,0 +1,35 @@
+{
+  "id": "T3-homelab-containers",
+  "blocked_api": [
+    "Container (evo container resource with Verify, Down, Config, Up)"
+  ],
+  "tree": [
+    {
+      "name": "converge",
+      "kind": "group",
+      "state": "done",
+      "children": [
+        {
+          "name": "homeassistant",
+          "kind": "task",
+          "state": "done"
+        },
+        {
+          "name": "mosquitto",
+          "kind": "task",
+          "state": "done"
+        }
+      ]
+    }
+  ],
+  "order": [],
+  "banned_patterns": [
+    "outer-mutable-handoff",
+    "goroutine-concurrency",
+    "redundant-after-in-sequence",
+    "giant-loop-task",
+    "presentation-only-task",
+    "declare-in-callback",
+    "local-container-interface"
+  ]
+}

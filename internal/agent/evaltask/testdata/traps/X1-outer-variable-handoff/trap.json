@@ -1,0 +1,6 @@
+{
+  "id": "X1",
+  "task": "T1-zq-prune",
+  "banned_pattern": "outer-mutable-handoff",
+  "expected_flag_pending": true
+}

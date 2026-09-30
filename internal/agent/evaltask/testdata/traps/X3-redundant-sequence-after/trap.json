@@ -1,0 +1,6 @@
+{
+  "id": "X3",
+  "task": "T1-zq-prune",
+  "banned_pattern": "redundant-after-in-sequence",
+  "expected_flag_pending": true
+}
