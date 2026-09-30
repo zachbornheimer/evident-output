@@ -5,13 +5,8 @@ import "github.com/zachbornheimer/evident-output/internal/engine"
 // Engine-owned types. Domain model aliases (Snapshot, Problem, Action)
 // stay in their existing files and point at internal/core, not through engine.
 
-type DebugPaneOption = engine.DebugPaneOption
-type DebugPresentation = engine.DebugPresentation
-type DebugConfig = engine.DebugConfig
 type Format = engine.Format
 type Projection = engine.Projection
-type LogLevel = engine.LogLevel
-type LogRecord = engine.LogRecord
 
 const (
 	FormatHuman    = engine.FormatHuman
@@ -31,37 +26,4 @@ const (
 	ProjectionJSON       = engine.ProjectionJSON
 	ProjectionJSONL      = engine.ProjectionJSONL
 	ProjectionStreamJSON = engine.ProjectionStreamJSON
-)
-
-const (
-	LevelUnset = engine.LevelUnset
-	LevelTrace = engine.LevelTrace
-	LevelDebug = engine.LevelDebug
-	LevelInfo  = engine.LevelInfo
-	LevelWarn  = engine.LevelWarn
-	LevelError = engine.LevelError
-)
-
-const (
-	DebugPresentationHistory = engine.DebugPresentationHistory
-	DebugPresentationPane    = engine.DebugPresentationPane
-)
-
-var (
-	ErrClosed               = engine.ErrClosed
-	ErrAlreadyResolved      = engine.ErrAlreadyResolved
-	ErrUnresolvedTask       = engine.ErrUnresolvedTask
-	ErrDuplicateKey         = engine.ErrDuplicateKey
-	ErrInvalidConfig        = engine.ErrInvalidConfig
-	ErrRenderer             = engine.ErrRenderer
-	ErrLimitExceeded        = engine.ErrLimitExceeded
-	ErrConcurrentRunning    = engine.ErrConcurrentRunning
-	ErrDryRunDeclaredLate   = engine.ErrDryRunDeclaredLate
-	ErrTerminalWithoutSink  = engine.ErrTerminalWithoutSink
-	ErrNotStarted           = engine.ErrNotStarted
-	ErrWaitDeadlock         = engine.ErrWaitDeadlock
-	ErrDuplicateSiblingName = engine.ErrDuplicateSiblingName
-	ErrKeyAfterDefine       = engine.ErrKeyAfterDefine
-	ErrNoTaskContext        = engine.ErrNoTaskContext
-	ErrTaskClosed           = engine.ErrTaskClosed
 )
