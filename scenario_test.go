@@ -23,7 +23,7 @@ import (
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
-// TestV8_DryRunPlanOnly is the golden for the "Dry-run (plan-only)" tab: a
+// TestScenario_DryRunPlanOnly is the golden for the "Dry-run (plan-only)" tab: a
 // Config.Subject header, three checked/kept summary tasks, and a
 // three-section [planned] ledger.
 //
@@ -41,7 +41,7 @@ import (
 //     deliberately keeps the trailing band whenever a warned task's
 //     modifier would otherwise vanish along with it — true here too, since
 //     inline "! kept" lines are evidence, not a "· warned" outcome marker.
-func TestV8_DryRunPlanOnly(t *testing.T) {
+func TestScenario_DryRunPlanOnly(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
 		Isolated: true, DryRun: true, Color: evo.ColorNever, Plain: true,
@@ -86,18 +86,18 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 	}
 }
 
-// TestV8_NothingToClean is the golden for the "Nothing to clean" tab: three
+// TestScenario_NothingToClean is the golden for the "Nothing to clean" tab: three
 // checked subjects, none with any effect, and a closing summary line.
 //
 // The frame's closing "prune  nothing to clean" line (no bracket tag, no
 // glyph) is not evo's own conclusion band shape — every other tab's closing
 // band is bracket-tagged ("[dry-run]", "[cancelled]", "[planned · warned]"),
 // and a warned run (branches did warn "kept 1") always keeps its own
-// "· warned" band per the same rule TestV8_DryRunPlanOnly documents. Read
+// "· warned" band per the same rule TestScenario_DryRunPlanOnly documents. Read
 // as the application's own convenience Println of its "nothing to clean"
 // verdict — layered on top of, not instead of, evo's own standard
 // conclusion band, which the mockup's frame simply did not also transcribe.
-func TestV8_NothingToClean(t *testing.T) {
+func TestScenario_NothingToClean(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
 		Isolated: true, Color: evo.ColorNever, Plain: true, Title: "prune",
@@ -134,8 +134,8 @@ func TestV8_NothingToClean(t *testing.T) {
 
 // newFailedChmodFile returns a FileSpec/testkit.FileFS pair that reconciles
 // for real (a genuine temp-directory write) and then fails only the chmod
-// step with an EPERM-shaped error — the fixture both TestV8_PartialFailure
-// and TestV8_Stress script evo.File's chmod failure through, per spec
+// step with an EPERM-shaped error — the fixture both TestScenario_PartialFailure
+// and TestScenario_Stress script evo.File's chmod failure through, per spec
 // §8.2's worked example: contents write cleanly, permissions alone fails.
 // displayPath is deliberately the frame's own "~/Library/LaunchAgents/..."
 // text — a relative FileSpec.Path resolves against the workspace directory
@@ -153,12 +153,12 @@ func newFailedChmodFile(t *testing.T, dir, displayPath string) (evo.FileSpec, *t
 	return spec, fsys
 }
 
-// TestV8_PartialFailure is the golden for the "Partial failure" tab: one
+// TestScenario_PartialFailure is the golden for the "Partial failure" tab: one
 // evo.File reconciliation whose contents write succeeds and whose chmod
 // then fails, rendering the spec §2/§8.2/§20-21/§41 per-attribute
 // verification-detail shape — a satisfied attribute beside a failed one,
 // the failed one's own error/path/mode Facts nested beneath it.
-func TestV8_PartialFailure(t *testing.T) {
+func TestScenario_PartialFailure(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 	displayPath := "~/Library/LaunchAgents/com.acme.prod.agent.plist"
@@ -194,17 +194,17 @@ func TestV8_PartialFailure(t *testing.T) {
 	}
 }
 
-// TestV8_Stress is the golden for the "Stress" tab's one genuinely new
-// piece: TestV8_PartialFailure's verification-detail block, this time
+// TestScenario_Stress is the golden for the "Stress" tab's one genuinely new
+// piece: TestScenario_PartialFailure's verification-detail block, this time
 // composed alongside pieces every other tab already proves on their own —
 // a resolved Group, a standalone Done task with a committed Changes ledger
 // entry, and the failed evo.File task. The frame's live bars/timers/
-// warning-under-Running-child shapes are exactly TestV8_LiveParallelPrune's
+// warning-under-Running-child shapes are exactly TestScenario_LiveParallelPrune's
 // and the appendix-H live tests' own proven territory, not re-asserted
 // here — recombining already-proven durable rows would test the same
 // rendering paths those goldens already pin; only the verification block's
 // composition alongside a resolved Group and a ledger is new.
-func TestV8_Stress(t *testing.T) {
+func TestScenario_Stress(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 	displayPath := "~/Library/LaunchAgents/com.acme.prod.agent.plist"
@@ -251,7 +251,7 @@ func TestV8_Stress(t *testing.T) {
 	}
 }
 
-// TestV8_CancelledAfterMutation is the golden for the "Cancelled after
+// TestScenario_CancelledAfterMutation is the golden for the "Cancelled after
 // mutation" tab: one task completes with a committed effect before
 // cancellation, one is interrupted mid-work, and one never starts.
 //
@@ -277,7 +277,7 @@ func TestV8_Stress(t *testing.T) {
 // spec §43's own example and the glyph table (§41) both use "■" for
 // Cancelled, distinct from "-" for NotStarted — the frame's own two rows
 // use the same glyph for two different states, which the spec resolves.
-func TestV8_CancelledAfterMutation(t *testing.T) {
+func TestScenario_CancelledAfterMutation(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
 		Isolated: true, Color: evo.ColorNever, Plain: true, Title: "prune",
@@ -312,7 +312,7 @@ func TestV8_CancelledAfterMutation(t *testing.T) {
 	}
 }
 
-// TestV8_AlreadySatisfied is the golden for the "Already satisfied" tab: a
+// TestScenario_AlreadySatisfied is the golden for the "Already satisfied" tab: a
 // Group whose already-satisfied children carry the muted suffix spec §19
 // describes, and one Fact nested under its owning child.
 //
@@ -327,7 +327,7 @@ func TestV8_CancelledAfterMutation(t *testing.T) {
 // child's nested Fact/warning/taxonomy line, a much larger behavior change
 // than this single tab warrants; the golden follows the actual, tested
 // convention.
-func TestV8_AlreadySatisfied(t *testing.T) {
+func TestScenario_AlreadySatisfied(t *testing.T) {
 	// "deploy production" has no Summary, so its header is not a row, and
 	// its zero-information children (discover, prepare hosts, services:
 	// nothing to say, nothing changed) are hidden while other content
@@ -386,14 +386,14 @@ func renderV8AlreadySatisfied(t *testing.T, verbosity evo.Verbosity) string {
 	return buf.String()
 }
 
-// TestV8_StressLive is the golden for the HTML "Stress case" Replay tab's
+// TestScenario_StressLive is the golden for the HTML "Stress case" Replay tab's
 // live shape: a still-running Group with mixed done/running/failed children,
 // a warning on a running child, and a real evo.File permissions failure.
 // Spec wins vs the HTML where they disagree: elapsed only after 5s Running
 // (this golden advances 8s, past that threshold); empty bar cells are
 // spaces; the live region does not invent a [changed]/[planned] ledger
 // unless LiveRegion itself paints one.
-func TestV8_StressLive(t *testing.T) {
+func TestScenario_StressLive(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 	displayPath := "~/Library/LaunchAgents/com.acme.prod.agent.plist"
@@ -480,10 +480,10 @@ func TestV8_StressLive(t *testing.T) {
 	}
 }
 
-// TestV8_DependencyInstall is the golden for the "Dependency install" tab:
+// TestScenario_DependencyInstall is the golden for the "Dependency install" tab:
 // one Running task's stable parent line (bar/count/timer) plus its one
 // activity child, on the fake clock/screen.
-func TestV8_DependencyInstall(t *testing.T) {
+func TestScenario_DependencyInstall(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
 	out := evo.Init(evo.Config{
@@ -533,7 +533,7 @@ func firstRune(s string) string {
 	return ""
 }
 
-// TestV8_LiveParallelPrune is the golden for the "Live parallel prune" tab:
+// TestScenario_LiveParallelPrune is the golden for the "Live parallel prune" tab:
 // three standalone Running siblings, each with its own stable parent line
 // (bar/count/timer) and one activity child, name-column aligned.
 //
@@ -543,7 +543,7 @@ func firstRune(s string) string {
 // elapsedAfter threshold (internal/render/live.go) matches the spec's own
 // normative text, not the frame's illustrative "2s". This golden advances
 // the clock 5s instead.
-func TestV8_LiveParallelPrune(t *testing.T) {
+func TestScenario_LiveParallelPrune(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
 	out := evo.Init(evo.Config{
@@ -580,7 +580,7 @@ func TestV8_LiveParallelPrune(t *testing.T) {
 	}
 }
 
-// TestV8_GenericSuccessPlusActiveWork is the golden for the "Generic clean
+// TestScenario_GenericSuccessPlusActiveWork is the golden for the "Generic clean
 // success + active work" tab: a fully-resolved Group alongside a still-
 // Running standalone task, both visible in the same live frame.
 //
@@ -590,7 +590,7 @@ func TestV8_LiveParallelPrune(t *testing.T) {
 // agent  3/3 complete") — writeLiveCollection only shows "N/total complete"
 // while the group is still unresolved, the same way an unresolved row's
 // count is diagnostic and a resolved row's ✓ glyph already says "done".
-func TestV8_GenericSuccessPlusActiveWork(t *testing.T) {
+func TestScenario_GenericSuccessPlusActiveWork(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
 	out := evo.Init(evo.Config{
