@@ -5,9 +5,6 @@ import "github.com/zachbornheimer/evident-output/internal/engine"
 // Engine-owned types. Domain model aliases (Snapshot, Problem, Action)
 // stay in their existing files and point at internal/core, not through engine.
 
-// Output, TaskHandle, and the other presentation handles are wrappers, not
-// aliases: engine test helpers must not appear in go doc or the rec surface.
-type Output struct{ inner *engine.Output }
 type TaskHandle struct{ inner *engine.TaskHandle }
 type SequenceHandle struct{ inner *engine.SequenceHandle }
 type GroupHandle struct{ inner *engine.GroupHandle }

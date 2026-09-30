@@ -66,7 +66,7 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | API-004  | pass   | last_push_test.go                                                                                                      |
 | API-005  | pass   | last_push_test.go                                                                                                      |
 | API-006  | pass   | agent/review                                                                                                           |
-| API-007  | pass   | config.go NewWithConfig                                                                                                |
+| API-007  | pass   | internal/engine/construct.go Init(Config)                                                                              |
 | API-008  | pass   | last_push_test.go                                                                                                      |
 | API-009  | pass   | remaining_core_test.go                                                                                                 |
 | API-010  | pass   | remaining_core_test.go                                                                                                 |

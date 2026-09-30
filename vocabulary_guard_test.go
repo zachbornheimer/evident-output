@@ -92,7 +92,7 @@ var symbolFile = map[string]string{
 // delete. A symbol declared in one of them is exempt from the placement
 // check, and each slice that deletes a file removes it from this set.
 var legacyFiles = map[string]bool{
-	"api.go": true, "conclusion.go": true, "config.go": true, "event.go": true,
+	"api.go": true, "conclusion.go": true, "event.go": true,
 	"facade.go": true, "fingerprint.go": true, "glyph.go": true,
 	"jsonout.go": true, "output.go": true, "printer.go": true,
 	"release.go": true, "state.go": true, "types.go": true,

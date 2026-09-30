@@ -42,3 +42,35 @@ func Run(ctx context.Context, run RunFunc) Result { return engine.Run(ctx, run) 
 func Main(run RunFunc) int { return engine.Main(run) }
 
 func DefaultConfig() Config { return engine.DefaultConfig() }
+
+// Output, TaskHandle, and the other presentation handles are wrappers, not
+// aliases: engine test helpers must not appear in go doc or the rec surface.
+type Output struct{ inner *engine.Output }
+
+func wrapOutput(inner *engine.Output) *Output {
+	return wrap(inner, func() *Output { return &Output{inner: inner} })
+}
+
+// facaded is an engine handle that keeps its own public wrapper.
+type facaded interface {
+	comparable
+	Facade() *engine.FacadeSlot
+}
+
+// wrap returns inner's one public wrapper, creating it on first use, so a
+// handle compares equal to itself however many calls hand it out. The
+// wrapper lives in inner's own slot, so it never outlives inner.
+func wrap[I facaded, W any](inner I, newWrapper func() *W) *W {
+	var zero I
+	if inner == zero {
+		return nil
+	}
+	return inner.Facade().Wrapper(func() any { return newWrapper() }).(*W)
+}
+
+func (o *Output) impl() *engine.Output {
+	if o == nil {
+		return nil
+	}
+	return o.inner
+}
