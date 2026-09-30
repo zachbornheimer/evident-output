@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/docexamples"
+	"github.com/zachbornheimer/evident-output/internal/gitenv"
 )
 
 const packageDocFixture = "fixtures/package_doc_quickstart"
@@ -71,11 +72,12 @@ func TestPackageDocQuickstartRuns(t *testing.T) {
 		t.Fatalf("build quickstart: %v\n%s", err, out)
 	}
 	workTree := t.TempDir()
-	if out, err := exec.Command("git", "init", "--quiet", workTree).CombinedOutput(); err != nil {
+	if out, err := gitenv.Command("", "init", "--quiet", workTree).CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v\n%s", err, out)
 	}
 	cmd := exec.Command(binary)
 	cmd.Dir = workTree
+	cmd.Env = gitenv.Scrub(os.Environ())
 	got, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("quickstart: %v\n%s", err, got)

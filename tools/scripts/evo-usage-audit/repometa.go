@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/zachbornheimer/evident-output/internal/gitenv"
 	"github.com/zachbornheimer/evident-output/internal/modpin"
 )
 
@@ -61,23 +61,9 @@ func gitBranchAndSHA(root string) (branch, sha string, ok bool) {
 // environment, and without stripping them a scanned dir with no .git of its
 // own would silently resolve to the hook's repository instead.
 func runGit(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	cmd.Env = withoutGitDirEnv(os.Environ())
-	out, err := cmd.Output()
+	out, err := gitenv.Command(dir, args...).Output()
 	if err != nil {
 		return "", fmt.Errorf("git -C %s %s: %w", dir, strings.Join(args, " "), err)
 	}
 	return strings.TrimSpace(string(out)), nil
-}
-
-func withoutGitDirEnv(env []string) []string {
-	kept := env[:0]
-	for _, kv := range env {
-		if strings.HasPrefix(kv, "GIT_DIR=") || strings.HasPrefix(kv, "GIT_WORK_TREE=") {
-			continue
-		}
-		kept = append(kept, kv)
-	}
-	return kept
 }

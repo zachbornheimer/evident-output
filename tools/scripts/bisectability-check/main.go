@@ -21,6 +21,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/gitenv"
 )
 
 func main() {
@@ -41,7 +43,7 @@ func run(args []string) error {
 	base := firstNonEmpty(argAt(args, 0), os.Getenv("BISECTABILITY_BASE"), defaultBase)
 	head := firstNonEmpty(argAt(args, 1), "HEAD")
 
-	commits, err := firstParentCommits(base, head)
+	commits, err := firstParentCommits(".", base, head)
 	if err != nil {
 		return err
 	}
@@ -50,7 +52,7 @@ func run(args []string) error {
 		return nil
 	}
 
-	worktree, cleanup, err := newScratchWorktree()
+	worktree, cleanup, err := newScratchWorktree(".")
 	if err != nil {
 		return err
 	}
@@ -70,9 +72,10 @@ func run(args []string) error {
 }
 
 // firstParentCommits returns base..head's first-parent commits, oldest
-// first — the exact chain `git bisect --first-parent` walks.
-func firstParentCommits(base, head string) ([]string, error) {
-	out, err := runGit("", "rev-list", "--first-parent", "--reverse", base+".."+head)
+// first — the exact chain `git bisect --first-parent` walks. repo names the
+// repository explicitly; nothing is taken from the environment.
+func firstParentCommits(repo, base, head string) ([]string, error) {
+	out, err := runGit(repo, "rev-list", "--first-parent", "--reverse", base+".."+head)
 	if err != nil {
 		return nil, fmt.Errorf("rev-list %s..%s: %w", base, head, err)
 	}
@@ -88,17 +91,18 @@ func firstParentCommits(base, head string) ([]string, error) {
 // newScratchWorktree adds a detached, disposable git worktree this tool
 // repeatedly re-checks-out to a different commit — one worktree reused
 // across every commit, rather than one per commit, keeps a long range cheap.
-func newScratchWorktree() (dir string, cleanup func(), err error) {
+// The worktree is added to repo.
+func newScratchWorktree(repo string) (dir string, cleanup func(), err error) {
 	dir, err = os.MkdirTemp("", "evo-bisectability-")
 	if err != nil {
 		return "", nil, fmt.Errorf("create scratch dir: %w", err)
 	}
-	if _, err := runGit("", "worktree", "add", "--detach", "--force", dir, "HEAD"); err != nil {
+	if _, err := runGit(repo, "worktree", "add", "--detach", "--force", dir, "HEAD"); err != nil {
 		_ = os.RemoveAll(dir)
 		return "", nil, fmt.Errorf("worktree add %s: %w", dir, err)
 	}
 	cleanup = func() {
-		_, _ = runGit("", "worktree", "remove", "--force", dir)
+		_, _ = runGit(repo, "worktree", "remove", "--force", dir)
 		_ = os.RemoveAll(dir)
 	}
 	return dir, cleanup, nil
@@ -119,11 +123,7 @@ func buildAll(worktree string) (string, error) {
 }
 
 func runGit(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	if dir != "" {
-		cmd.Dir = dir
-	}
-	out, err := cmd.CombinedOutput()
+	out, err := gitenv.Command(dir, args...).CombinedOutput()
 	if err != nil {
 		return string(out), fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, out)
 	}
