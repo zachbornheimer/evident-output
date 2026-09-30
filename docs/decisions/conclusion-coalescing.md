@@ -100,4 +100,4 @@ their aggregate conclusion.
 
 ## Tests
 
-`coalesce_test.go`, updated `appendix_h_test.go` Changes goldens.
+`coalesce_test.go`, updated `reference_scenarios_test.go` Changes goldens.

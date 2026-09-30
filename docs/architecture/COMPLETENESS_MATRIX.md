@@ -61,8 +61,8 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | A11Y-009 | pass   | accessibility_test.go                                                                                                  |
 | A11Y-010 | pass   | accessibility_test.go                                                                                                  |
 | API-001  | pass   | api_shape_test.go                                                                                                      |
-| API-002  | pass   | appendix_h_test.go                                                                                                     |
-| API-003  | pass   | appendix_h_test.go                                                                                                     |
+| API-002  | pass   | reference_scenarios_test.go                                                                                            |
+| API-003  | pass   | reference_scenarios_test.go                                                                                            |
 | API-004  | pass   | api_shape_test.go                                                                                                      |
 | API-005  | pass   | api_shape_test.go                                                                                                      |
 | API-006  | pass   | agent/review                                                                                                           |
@@ -86,7 +86,7 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | API-024  | pass   | api_shape_test.go                                                                                                      |
 | API-025  | pass   | api_shape_test.go                                                                                                      |
 | API-026  | pass   | api_shape_test.go                                                                                                      |
-| API-027  | pass   | appendix_h_test.go                                                                                                     |
+| API-027  | pass   | reference_scenarios_test.go                                                                                            |
 | API-028  | pass   | api_shape_test.go                                                                                                      |
 | API-029  | pass   | api_shape_test.go                                                                                                      |
 | API-030  | pass   | api_shape_test.go                                                                                                      |
@@ -103,52 +103,52 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | CON-011  | pass   | concurrency_test.go                                                                                                    |
 | CON-012  | pass   | concurrency_test.go                                                                                                    |
 | CON-013  | pass   | concurrency_test.go                                                                                                    |
-| CON-014  | pass   | appendix_h_interactive_test.go H.22                                                                                    |
+| CON-014  | pass   | reference_scenarios_interactive_test.go H.22                                                                           |
 | CON-015  | pass   | concurrency_test.go                                                                                                    |
 | CON-016  | pass   | concurrency_test.go                                                                                                    |
 | CON-017  | pass   | concurrency_test.go                                                                                                    |
 | CON-018  | pass   | concurrency_test.go                                                                                                    |
 | CON-019  | pass   | concurrency_test.go                                                                                                    |
-| DOM-001  | pass   | appendix_h_test.go,domain_model_test.go                                                                                |
-| DOM-002  | pass   | appendix_h_test.go                                                                                                     |
-| DOM-003  | pass   | appendix_h_test.go                                                                                                     |
+| DOM-001  | pass   | reference_scenarios_test.go,domain_model_test.go                                                                       |
+| DOM-002  | pass   | reference_scenarios_test.go                                                                                            |
+| DOM-003  | pass   | reference_scenarios_test.go                                                                                            |
 | DOM-004  | pass   | domain_model_test.go                                                                                                   |
 | DOM-005  | pass   | domain_model_test.go                                                                                                   |
 | DOM-006  | pass   | domain_model_test.go                                                                                                   |
-| DOM-007  | pass   | appendix_h_test.go                                                                                                     |
-| DOM-008  | pass   | appendix_h_test.go                                                                                                     |
-| DOM-009  | pass   | appendix_h_test.go                                                                                                     |
+| DOM-007  | pass   | reference_scenarios_test.go                                                                                            |
+| DOM-008  | pass   | reference_scenarios_test.go                                                                                            |
+| DOM-009  | pass   | reference_scenarios_test.go                                                                                            |
 | DOM-010  | pass   | domain_model_test.go                                                                                                   |
-| DOM-011  | pass   | appendix_h_test.go                                                                                                     |
+| DOM-011  | pass   | reference_scenarios_test.go                                                                                            |
 | DOM-012  | pass   | domain_model_test.go                                                                                                   |
 | DOM-013  | pass   | domain_model_test.go                                                                                                   |
 | DOM-014  | pass   | domain_model_test.go                                                                                                   |
 | DOM-015  | pass   | domain_model_test.go                                                                                                   |
-| DOM-016  | pass   | appendix_h_test.go + live                                                                                              |
-| DOM-017  | pass   | appendix_h_test.go                                                                                                     |
-| DOM-018  | pass   | appendix_h_test.go                                                                                                     |
+| DOM-016  | pass   | reference_scenarios_test.go + live                                                                                     |
+| DOM-017  | pass   | reference_scenarios_test.go                                                                                            |
+| DOM-018  | pass   | reference_scenarios_test.go                                                                                            |
 | DOM-019  | pass   | domain_model_test.go                                                                                                   |
-| DOM-020  | pass   | appendix_h_test.go                                                                                                     |
+| DOM-020  | pass   | reference_scenarios_test.go                                                                                            |
 | DOM-021  | pass   | domain_model_test.go                                                                                                   |
-| DOM-022  | pass   | appendix_h_test.go                                                                                                     |
+| DOM-022  | pass   | reference_scenarios_test.go                                                                                            |
 | DOM-023  | pass   | domain_model_test.go                                                                                                   |
 | DOM-024  | pass   | domain_model_test.go                                                                                                   |
-| DOM-025  | pass   | appendix_h_interactive_test.go H.2                                                                                     |
-| DOM-026  | pass   | appendix_h_interactive_test.go H.17                                                                                    |
+| DOM-025  | pass   | reference_scenarios_interactive_test.go H.2                                                                            |
+| DOM-026  | pass   | reference_scenarios_interactive_test.go H.17                                                                           |
 | DOM-027  | pass   | Donef H.17                                                                                                             |
-| DOM-028  | pass   | appendix_h_test.go                                                                                                     |
-| DOM-029  | pass   | appendix_h_test.go                                                                                                     |
+| DOM-028  | pass   | reference_scenarios_test.go                                                                                            |
+| DOM-029  | pass   | reference_scenarios_test.go                                                                                            |
 | DOM-030  | pass   | H.11 warning path                                                                                                      |
 | DOM-031  | pass   | H.11 all done                                                                                                          |
-| DOM-032  | pass   | appendix_h_test.go                                                                                                     |
+| DOM-032  | pass   | reference_scenarios_test.go                                                                                            |
 | DOM-033  | pass   | domain_model_test.go                                                                                                   |
-| DOM-034  | pass   | appendix_h_test.go                                                                                                     |
+| DOM-034  | pass   | reference_scenarios_test.go                                                                                            |
 | DOM-035  | pass   | domain_model_test.go                                                                                                   |
 | DOM-036  | pass   | domain_model_test.go                                                                                                   |
 | DOM-037  | pass   | domain_model_test.go                                                                                                   |
 | DOM-038  | pass   | domain_model_test.go                                                                                                   |
 | DOM-039  | pass   | domain_model_test.go                                                                                                   |
-| DOM-040  | pass   | appendix_h_test.go                                                                                                     |
+| DOM-040  | pass   | reference_scenarios_test.go                                                                                            |
 | DOM-041  | pass   | domain_model_test.go                                                                                                   |
 | DOM-042  | pass   | domain_model_test.go                                                                                                   |
 | DOM-043  | pass   | domain_model_test.go                                                                                                   |
@@ -159,7 +159,7 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | DOM-048  | pass   | errgroup nil pattern docs                                                                                              |
 | DOM-049  | pass   | Output.Fail                                                                                                            |
 | DOM-050  | pass   | common/advanced ItemWith                                                                                               |
-| LOG-001  | pass   | appendix_h_interactive_test.go H.17                                                                                    |
+| LOG-001  | pass   | reference_scenarios_interactive_test.go H.17                                                                           |
 | LOG-002  | pass   | debug_journal_test.go                                                                                                  |
 | LOG-003  | pass   | debug_journal_test.go                                                                                                  |
 | LOG-004  | pass   | sensitive field                                                                                                        |
@@ -227,8 +227,8 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | OUT-001  | pass   | DataProjection                                                                                                         |
 | OUT-002  | pass   | machine_output_test.go                                                                                                 |
 | OUT-003  | pass   | DataProjection                                                                                                         |
-| OUT-004  | pass   | appendix_h H.18                                                                                                        |
-| OUT-005  | pass   | appendix_h_test.go                                                                                                     |
+| OUT-004  | pass   | reference_scenarios H.18                                                                                               |
+| OUT-005  | pass   | reference_scenarios_test.go                                                                                            |
 | OUT-006  | pass   | machine_output_test.go                                                                                                 |
 | OUT-007  | pass   | deterministic JSON                                                                                                     |
 | OUT-008  | pass   | machine_output_test.go                                                                                                 |
@@ -241,7 +241,7 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | OUT-015  | pass   | machine_output_test.go                                                                                                 |
 | OUT-016  | pass   | machine_output_test.go                                                                                                 |
 | OUT-017  | pass   | machine_output_test.go                                                                                                 |
-| OUT-018  | pass   | appendix_h_test.go RenderPlain/EncodeJSON                                                                              |
+| OUT-018  | pass   | reference_scenarios_test.go RenderPlain/EncodeJSON                                                                     |
 | OUT-019  | pass   | machine_output_test.go                                                                                                 |
 | OUT-020  | pass   | machine_output_test.go                                                                                                 |
 | OUT-021  | pass   | projection_test.go                                                                                                     |
@@ -278,12 +278,12 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | SEC-013  | pass   | security_test.go                                                                                                       |
 | SEC-014  | pass   | mcp_sec_test.go + security_test.go TestSEC014                                                                          |
 | SEC-015  | pass   | security_test.go TestSEC015_NoAuthOnAnnotations                                                                        |
-| TERM-001 | pass   | appendix_h_interactive_test.go H.2                                                                                     |
-| TERM-002 | pass   | appendix_h_interactive_test.go H.2/H.17                                                                                |
-| TERM-003 | pass   | appendix_h_interactive_test.go H.17                                                                                    |
+| TERM-001 | pass   | reference_scenarios_interactive_test.go H.2                                                                            |
+| TERM-002 | pass   | reference_scenarios_interactive_test.go H.2/H.17                                                                       |
+| TERM-003 | pass   | reference_scenarios_interactive_test.go H.17                                                                           |
 | TERM-004 | pass   | terminal/ansi_test.go                                                                                                  |
-| TERM-005 | pass   | appendix_h + live                                                                                                      |
-| TERM-006 | pass   | appendix_h_interactive_test.go H.17                                                                                    |
+| TERM-005 | pass   | reference_scenarios + live                                                                                             |
+| TERM-006 | pass   | reference_scenarios_interactive_test.go H.17                                                                           |
 | TERM-007 | pass   | terminal_test.go TestTERM007_ShortWriteDisablesInteractive                                                             |
 | TERM-008 | pass   | terminal/ansi_test.go cursor                                                                                           |
 | TERM-009 | pass   | conformance/gates/release_matrix_test.go TestTERM009_CancelCleanupPath (SIGINT→Cancel library path; full PTY host-depe |
@@ -295,8 +295,8 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | TERM-015 | pass   | slog_test.go                                                                                                           |
 | TERM-016 | pass   | terminal_test.go                                                                                                       |
 | TERM-017 | pass   | terminal_test.go                                                                                                       |
-| TERM-018 | pass   | appendix_h_interactive_test.go H.20                                                                                    |
-| TERM-019 | pass   | appendix_h_interactive_test.go H.21                                                                                    |
+| TERM-018 | pass   | reference_scenarios_interactive_test.go H.20                                                                           |
+| TERM-019 | pass   | reference_scenarios_interactive_test.go H.21                                                                           |
 | TERM-020 | pass   | terminal_test.go                                                                                                       |
 | TERM-021 | pass   | terminal_test.go                                                                                                       |
 | TERM-022 | pass   | terminal/ansi.go                                                                                                       |
