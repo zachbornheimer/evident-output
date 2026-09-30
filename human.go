@@ -1,6 +1,8 @@
 package evo
 
 import (
+	"io"
+
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/engine"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
@@ -69,3 +71,94 @@ const (
 	// GlyphsASCII forces the ASCII vocabulary regardless of locale.
 	GlyphsASCII = txt.GlyphsASCII
 )
+
+func wrapPrinter(inner *engine.Printer) *Printer {
+	return wrap(inner, func() *Printer { return &Printer{inner: inner} })
+}
+
+func (p *Printer) impl() *engine.Printer {
+	if p == nil {
+		return nil
+	}
+	return p.inner
+}
+
+func (p *Printer) Print(args ...any) { p.impl().Print(args...) }
+
+func (p *Printer) Printf(format string, args ...any) { p.impl().Printf(format, args...) }
+
+func (p *Printer) Println(args ...any) { p.impl().Println(args...) }
+
+func (p *Printer) Writer() io.Writer {
+	if p == nil || p.inner == nil {
+		return io.Discard
+	}
+	return p.inner.Writer()
+}
+
+// Print formats like fmt.Sprint and enqueues human-facing text on the default instance.
+func Print(args ...any) { engine.Print(args...) }
+
+// Printf formats like fmt.Sprintf and enqueues human-facing text on the default instance.
+func Printf(format string, args ...any) { engine.Printf(format, args...) }
+
+// Println formats like fmt.Sprintln and enqueues a complete line on the default instance.
+func Println(args ...any) { engine.Println(args...) }
+
+// Verbose returns a Printer scoped to Verbose visibility on the default instance.
+func Verbose() *Printer { return wrapPrinter(engine.Verbose()) }
+
+// Confirm asks question on the default instance and returns whether the user accepted.
+func Confirm(question string, opts ...ConfirmOption) bool {
+	return engine.Confirm(question, opts...)
+}
+
+func AssumeYes(v bool) ConfirmOption              { return engine.AssumeYes(v) }
+func ConfirmDetail(lines ...string) ConfirmOption { return engine.ConfirmDetail(lines...) }
+func Destructive() ConfirmOption                  { return engine.Destructive() }
+func PolicyFlag(flag string) ConfirmOption        { return engine.PolicyFlag(flag) }
+func PolicyHint(command string, args ...string) ConfirmOption {
+	return engine.PolicyHint(command, args...)
+}
+
+func IsCharDevice(w io.Writer) bool { return engine.IsCharDevice(w) }
+func Pluralize(quantity int64, singular string) string {
+	return engine.Pluralize(quantity, singular)
+}
+func TruncateNames(names []string, visible int) string {
+	return engine.TruncateNames(names, visible)
+}
+
+func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
+	if o == nil || o.inner == nil {
+		return false
+	}
+	return o.inner.Confirm(question, opts...)
+}
+
+func (o *Output) Print(args ...any) { o.impl().Print(args...) }
+
+func (o *Output) Printf(format string, args ...any) { o.impl().Printf(format, args...) }
+
+func (o *Output) Println(args ...any) { o.impl().Println(args...) }
+
+func (o *Output) ResultWriter() io.Writer {
+	if o == nil || o.inner == nil {
+		return io.Discard
+	}
+	return o.inner.ResultWriter()
+}
+
+func (o *Output) Suspend(fn func() error) error {
+	if o == nil || o.inner == nil {
+		return nil
+	}
+	return o.inner.Suspend(fn)
+}
+
+func (o *Output) Writer() io.Writer {
+	if o == nil || o.inner == nil {
+		return io.Discard
+	}
+	return o.inner.Writer()
+}
