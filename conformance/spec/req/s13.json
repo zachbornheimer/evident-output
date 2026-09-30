@@ -1,0 +1,176 @@
+[
+  {
+    "id": "C13-001",
+    "section": "13",
+    "quote": "Per-item Skipped child Tasks aggregate into one tally under the Group's row, with per-reason counts:",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/projection",
+        "run": "TestC13_001_SkippedChildrenFoldIntoOnePerReasonTally"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C13-002",
+    "section": "13",
+    "quote": "A lone skipped item folds into its Group's tally like any other count",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/projection",
+        "run": "TestC13_002_LoneSkippedItemFoldsIntoItsGroupTally"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C13-003",
+    "section": "13",
+    "quote": "Skipped uses the `-` glyph and never sets `warned`. A fold of policy exclusions produces no warned band.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/projection",
+        "run": "TestC13_001_SkippedChildrenFoldIntoOnePerReasonTally"
+      },
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_008_SkippedIsAResolutionNotSatisfaction"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C13-004",
+    "section": "13",
+    "quote": "A Group without a Summary has no header row; its children render as siblings.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/projection",
+        "run": "TestC13_003_GroupWithoutSummaryHasNoHeaderAndSequenceKeepsOne"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C13-005",
+    "section": "13",
+    "quote": "A header-less child whose name another visible row also shows is named by its container path (`g › build`).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/projection",
+        "run": "TestC13_004_DuplicateNamedHeaderlessChildUsesContainerPath"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C13-006",
+    "section": "13",
+    "quote": "A finished no-op child (Done, no work or already satisfied, carrying nothing) is hidden when other content is visible and the run did not fail, block, or cancel.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/projection",
+        "run": "TestC13_005_FinishedNoOpChildIsHiddenBesideVisibleContent"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C13-007",
+    "section": "13",
+    "quote": "Problems nest under their own row. Human output shows at most 5 inline, then `and N more failures`; machine output keeps every one.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/projection",
+        "run": "TestC13_006_HumanShowsFiveProblemsThenCountMachineKeepsAll"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C13-008",
+    "section": "13",
+    "quote": "JSON and JSONL keep every Group, Task, Fact, and Problem regardless of these rules.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/projection",
+        "run": "TestC13_007_JSONKeepsWhatHumanOutputHides"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C13-009",
+    "section": "13",
+    "quote": "A warning renders its `On` subject on every row (`✓ check jobs  ! job  x`).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/projection",
+        "run": "TestC13_008_WarningRendersItsOnSubjectOnEveryRow"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C13-010",
+    "section": "13",
+    "quote": "JSON/JSONL keep every child, with `dispositions` (`{disposition, reason, name, causes}`) on each `evo.run` task and `disposition.recorded` events.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/projection",
+        "run": "TestC13_007_JSONKeepsWhatHumanOutputHides"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C13-011",
+    "section": "13",
+    "quote": "A Task's settled row shows one headline: its Summary (with the count it reached if it failed mid-loop), else its first Problem.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/projection",
+        "run": "TestC13_011_SettledRowShowsSummaryElseFirstProblem"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C13-012",
+    "section": "13",
+    "quote": "Verbose lists the items under each reason, bounded (`a, b, c … +N more`); items carrying Facts get their own row, at most three.",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "UNCLASSIFIED: verbose per-reason item lists were not exercised; TruncateNames is unit-covered (C02 text helpers) but the verbose fold render has no bound test.",
+    "default": false
+  },
+  {
+    "id": "C13-013",
+    "section": "13",
+    "quote": "Implementation phases such as `classify` should collapse automatically unless independently meaningful.",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "UNCLASSIFIED: phase collapse is covered by existing internal phase-name tests that were not opened; WP2 must bind them.",
+    "default": false
+  },
+  {
+    "id": "C13-014",
+    "section": "13",
+    "quote": "Default projection hierarchy:",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "UNCLASSIFIED: the 12-row projection table is not mapped row by row to goldens (muted timer/labels, determinate bar need color/live render); WP2 must bind per-row goldens.",
+    "default": false
+  }
+]

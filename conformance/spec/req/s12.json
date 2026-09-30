@@ -1,0 +1,110 @@
+[
+  {
+    "id": "C12-001",
+    "section": "12",
+    "quote": "is invalid. `Effect` refuses an empty `Object`, a non-positive `Quantity`, an unknown `Verb`, or a nil callback, and records nothing.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/facts",
+        "run": "TestC12_001_ContentFreeEffectIsRefusedAndRecordsNothing"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C12-002",
+    "section": "12",
+    "quote": "An aggregate Effect row reads `<subject>  <verb> <quantity> <pluralized object>`. Its subject is the owning Task's name.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/facts",
+        "run": "TestC12_002_AggregateRowsUseSubjectVerbQuantityObject"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C12-003",
+    "section": "12",
+    "quote": "Rows print in Task declaration order, whatever order the Tasks finished in.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/facts",
+        "run": "TestC12_003_RowsPrintInDeclarationOrderNotFinishOrder"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C12-004",
+    "section": "12",
+    "quote": "Two same-named Tasks in different containers get separate rows, qualified by container path (`alpha › prune`) when the bare name is ambiguous.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/facts",
+        "run": "TestC12_004_AmbiguousSectionNamesAreQualifiedByContainerPath"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C12-005",
+    "section": "12",
+    "quote": "Subject columns align to the widest subject in the block, followed by exactly two spaces (§30).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/facts",
+        "run": "TestC12_005_SubjectColumnsAlignWithExactlyTwoSpaces"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C12-006",
+    "section": "12",
+    "quote": "Named rows (File's `write <path>`, Exec's `run <executable>`) stream when their owning Task resolves.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestNamedRow_StreamsAtTaskResolution_PlainProfile"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C12-007",
+    "section": "12",
+    "quote": "Both share one viewport cap with a `… +N more (not shown)` overflow line.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestNamedRow_CapsPerTaskRowsWithExactOverflow"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C12-008",
+    "section": "12",
+    "quote": "Dry-run must be structural. The same workflow model should produce:",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC04_006_FileEmitsPlannedThenChangedRows"
+      },
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC02_034_DryRunAnnouncesHeaderAndNeverRunsMutations"
+      }
+    ],
+    "default": false
+  }
+]

@@ -1,0 +1,41 @@
+[
+  {
+    "id": "C09-001",
+    "section": "9",
+    "quote": "Freshness propagation follows actual changed resources, not merely the fact that an upstream Task executed.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/freshness",
+        "run": "TestC09_001_FreshnessFollowsChangedOutputsNotExecutedUpstream"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C09-002",
+    "section": "9",
+    "quote": "If `normalize` must be revalidated but produces the same `normalized.json` fingerprint, downstream work should remain satisfied where safe.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/freshness",
+        "run": "TestC09_001_FreshnessFollowsChangedOutputsNotExecutedUpstream"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C09-003",
+    "section": "9",
+    "quote": "These are separate graphs.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/freshness",
+        "run": "TestC09_001_FreshnessFollowsChangedOutputsNotExecutedUpstream"
+      }
+    ],
+    "default": false
+  }
+]

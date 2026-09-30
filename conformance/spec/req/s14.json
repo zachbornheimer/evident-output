@@ -1,0 +1,37 @@
+[
+  {
+    "id": "C14-001",
+    "section": "14",
+    "quote": "While work is Running on a live TTY, the visible frame must change within 100ms of entering Running and at least every 100ms thereafter.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestLive_QuietRunningTaskKeepsChangingFrames"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C14-002",
+    "section": "14",
+    "quote": "Evo owns a shared animation heartbeat independent of application event frequency.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestLiveHeartbeat_RunningNoPhaseZeroTotalAnimates"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C14-003",
+    "section": "14",
+    "quote": "The parent owns progress and timer. The changing concrete item appears beneath it.",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "UNCLASSIFIED: stable-parent-row layout needs a live-render golden; not bound.",
+    "default": false
+  }
+]

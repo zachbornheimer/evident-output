@@ -1,0 +1,76 @@
+[
+  {
+    "id": "C03-001",
+    "section": "3",
+    "quote": "Eligible siblings may run concurrently. Declaration order must not silently serialize them.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/scheduler",
+        "run": "TestC03_001_GroupSiblingsRunConcurrently"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C03-002",
+    "section": "3",
+    "quote": "A Sequence contains ordered children.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/scheduler",
+        "run": "TestC03_002_SequenceRunsChildrenInOrderOneAtATime"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C03-003",
+    "section": "3",
+    "quote": "`After` is the advanced explicit dependency escape hatch.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/scheduler",
+        "run": "TestC03_003_AfterDelaysATaskUntilItsPredecessorSettles"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C03-004",
+    "section": "3",
+    "quote": "Evo owns goroutines, bounded concurrency, cancellation propagation, dependency readiness, lifecycle transitions, and failure propagation.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/scheduler",
+        "run": "TestC03_004_SchedulerBoundsConcurrencyToConfig"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C03-005",
+    "section": "3",
+    "quote": "A Task is one independently meaningful schedulable promise. It does not contain child Tasks.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/surface",
+        "run": "TestC02_021_OnlyContainersDeclareChildren"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C03-006",
+    "section": "3",
+    "quote": "This is a semantic rule, not a grammar linter",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "JUDGMENT: Task naming (verb + concrete object) is a semantic convention the contract itself says is not mechanically checkable.",
+    "default": false
+  }
+]

@@ -1,0 +1,124 @@
+[
+  {
+    "id": "C04-001",
+    "section": "4",
+    "quote": "Declaring the file establishes the requested file state.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC01_003_FileEstablishesDesiredStateAndIsQuietWhenSatisfied"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C04-002",
+    "section": "4",
+    "quote": "`Contents: nil` leaves contents alone and cannot create a missing file (`ErrFileUnmanagedContentsMissing`).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC04_001_UnmanagedContentsCannotCreateAMissingFile"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C04-003",
+    "section": "4",
+    "quote": "`Mode: 0` keeps an existing file's permissions, and a new file gets 0666 less the umask.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC04_002_ModeZeroKeepsExistingPermissionsAndNewFilesUseUmask"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C04-004",
+    "section": "4",
+    "quote": "mutate only managed attributes;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC04_003_FileMutatesOnlyManagedAttributes"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C04-005",
+    "section": "4",
+    "quote": "File refuses a symlink at the path (`ErrFilePathIsSymlink`) and a path of the wrong type (`ErrFilePathTypeMismatch`).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC04_004_FileRefusesSymlinkAndWrongType"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C04-006",
+    "section": "4",
+    "quote": "`File`, `Files`, `Patch`, `Exec`, and `Effect` must be called with the context a Define callback received (`ErrNoTaskContext` otherwise).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC04_005_OperationsRequireTheDefineContext"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C04-007",
+    "section": "4",
+    "quote": "emit planned/changed Effects;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC04_006_FileEmitsPlannedThenChangedRows"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C04-008",
+    "section": "4",
+    "quote": "avoid unnecessary mutation;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC01_003_FileEstablishesDesiredStateAndIsQuietWhenSatisfied"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C04-009",
+    "section": "4",
+    "quote": "record useful Facts;",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "UNCLASSIFIED: the contract does not say which Facts File records, and no public observable for them was located; needs decision on the Fact set.",
+    "default": false
+  },
+  {
+    "id": "C04-010",
+    "section": "4",
+    "quote": "preserve partial truth on failure.",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "UNCLASSIFIED: no public partial-File-failure seam found (only Effect has PartialEffect); needs a failing-FileFS scenario via testkit.FileFS (WP2).",
+    "default": false
+  }
+]

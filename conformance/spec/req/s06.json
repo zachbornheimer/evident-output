@@ -1,0 +1,45 @@
+[
+  {
+    "id": "C06-001",
+    "section": "6",
+    "quote": "Never whole-Task skip opaque code based only on yesterday’s dynamically discovered manifest.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/freshness",
+        "run": "TestC06_001_OpaqueCodeIsNeverSkippedFromTheManifest"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C06-002",
+    "section": "6",
+    "quote": "**operation freshness** may make `evo.File` itself a no-op;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC01_003_FileEstablishesDesiredStateAndIsQuietWhenSatisfied"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C06-003",
+    "section": "6",
+    "quote": "requires sufficient proof before `Define` starts.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC05_002_BeforeChecksAreANDedAndAllTrueSkipsTheCallback"
+      },
+      {
+        "pkg": "./conformance/contract/freshness",
+        "run": "TestC06_001_OpaqueCodeIsNeverSkippedFromTheManifest"
+      }
+    ],
+    "default": false
+  }
+]

@@ -1,0 +1,218 @@
+[
+  {
+    "id": "C16-001",
+    "section": "16",
+    "quote": "`Config.Format: FormatJSON` writes exactly one `evo.run` document to stdout at Finish.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC16_001_FormatJSONWritesExactlyOneRunDocumentToStdout"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C16-002",
+    "section": "16",
+    "quote": "`FormatJSONL` streams `evo.event` lines to stdout as they occur (`seq` strictly monotonic and the only ordering authority), ending with `run.finished` on every terminal path, including failure and cancellation.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC16_002_FormatJSONLStreamsMonotonicEventsEndingWithRunFinished"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C16-003",
+    "section": "16",
+    "quote": "Human presentation goes to stderr in both.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC16_001_FormatJSONWritesExactlyOneRunDocumentToStdout"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C16-004",
+    "section": "16",
+    "quote": "Explicit Config wins over the environment; the environment wins over TTY inference.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC16_003_ExplicitConfigWinsOverEnvironmentWhichWinsOverInference"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C16-005",
+    "section": "16",
+    "quote": "Evo never infers machine output because stdout is a pipe. The caller states it.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC16_004_PipedStdoutNeverInfersMachineOutput"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C16-006",
+    "section": "16",
+    "quote": "Every wire document carries `schema_version`: `evo.run` is `2.0` (`schema/run.v2.json`) and `evo.event` is `1.0`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC16_001_FormatJSONWritesExactlyOneRunDocumentToStdout"
+      },
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC16_002_FormatJSONLStreamsMonotonicEventsEndingWithRunFinished"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C16-007",
+    "section": "16",
+    "quote": "Additive optional fields are compatible. An incompatible change requires a new major schema.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/wire",
+        "run": "TestSchemaCompat_PublishedSchemaStaysPermissiveForFutureAdditions"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C16-008",
+    "section": "16",
+    "quote": "The `evo.run` task entry carries `id`, `key`, `parent_id`, `name`, `state`, `resolution`, `definition_executed`, `evidence`, `progress`, `activity`, `timing`, `verification`, `tracked_resources`, `basis`, `facts`, `dispositions`, `problems`, `warnings`, `operations`, and `summary`",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC16_005_TaskEntryCarriesEveryContractField"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C16-009",
+    "section": "16",
+    "quote": "Collections carry `kind`, `state`, `summary`, `progress`, and `children`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/machine",
+        "run": "TestC16_010_CollectionsCarryProgress"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C16-010",
+    "section": "16",
+    "quote": "Top-level `data` carries `tasks`, `collections`, `effects` (each tagged `planned` or `changed`), `facts`, `problems`, and `actions`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC16_006_CollectionsAndTopLevelDataCarryTheContractedKeys"
+      },
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC16_008_EffectsAreTaggedPlannedOrChanged"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C16-011",
+    "section": "16",
+    "quote": "No projection invents state unavailable to the others.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC16_009_PlainJSONAndJSONLAgreeOnTheRunOutcome"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C16-012",
+    "section": "16",
+    "quote": "Machine output should preserve, where applicable:",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC16_007_RunDocumentPreservesIdentityTimingModeAndOutcome"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C16-013",
+    "section": "16",
+    "quote": "warnings/problems with stable codes;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/machine",
+        "run": "TestC16_011_MisuseLinesCarryStableCodes"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C16-014",
+    "section": "16",
+    "quote": "One typed runtime truth drives:",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC01_001_OneTruthDrivesEveryProjection"
+      },
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC16_009_PlainJSONAndJSONLAgreeOnTheRunOutcome"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C16-015",
+    "section": "16",
+    "quote": "With no `Format` chosen, `EVO_OUTPUT=json` selects `FormatJSON` and `EVO_OUTPUT=jsonl` selects `FormatJSONL`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC16_003_ExplicitConfigWinsOverEnvironmentWhichWinsOverInference"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C16-016",
+    "section": "16",
+    "quote": "`summary` is pending implementation, §30",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "STALE-SPEC: the evo.run task entry already emits `summary` (internal/wire/run.go); WP2 must delete the 'pending implementation' clause.",
+    "default": false
+  }
+]

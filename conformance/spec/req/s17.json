@@ -1,0 +1,136 @@
+[
+  {
+    "id": "C17-001",
+    "section": "17",
+    "quote": "`evo.Run` returns a Result and never exits.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC02_032_RunResultCarriesConclusionAndError"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C17-002",
+    "section": "17",
+    "quote": "A bare `evo.Main(run)` statement exits 0 after a failed run (review EVO-EXIT-002).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestDiscardedMainCode"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C17-003",
+    "section": "17",
+    "quote": "`evo.Main` returns the exit code and never exits.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC02_031_MainReturnsTheExitCodeWithoutExiting"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C17-004",
+    "section": "17",
+    "quote": "A Task Blocked anywhere, including inside a Group or Sequence, concludes `[blocked]`, exit 1.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestBlockedInsideContainer_ConcludesBlocked"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C17-005",
+    "section": "17",
+    "quote": "A Confirm decline concludes Blocked, exit 1.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/exitcodes",
+        "run": "TestC17_001_ConfirmDeclineConcludesBlocked"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C17-006",
+    "section": "17",
+    "quote": "Failed exits 2 unless `Config.FailedExitCode` overrides it.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/exitcodes",
+        "run": "TestC17_002_FailedExitCodeOverridesExitTwo"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C17-007",
+    "section": "17",
+    "quote": "they never change the exit code.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_005_WarningSetsWarnedAndNeverChangesExit"
+      },
+      {
+        "pkg": "./conformance/contract/exitcodes",
+        "run": "TestC17_003_PartialModifiesTheHeadlineNeverTheExitCode"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C17-008",
+    "section": "17",
+    "quote": "Skipped does not warn.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_008_SkippedIsAResolutionNotSatisfaction"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C17-009",
+    "section": "17",
+    "quote": "A non-nil error from `run` is recorded as a failure only when nothing already failed.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/exitcodes",
+        "run": "TestC17_004_RunErrorIsRecordedOnlyWhenNothingFailed"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C17-010",
+    "section": "17",
+    "quote": "One Conclusion drives UI + exit:",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC01_001_OneTruthDrivesEveryProjection"
+      }
+    ],
+    "default": false
+  }
+]
