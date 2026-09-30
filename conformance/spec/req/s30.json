@@ -1,0 +1,28 @@
+[
+  {
+    "id": "C30-001",
+    "section": "30",
+    "quote": "Every `TaskHandle` method is a safe no-op on a nil handle.",
+    "tier": "1.1",
+    "tests": [{ "pkg": ".", "run": "TestNilTaskHandleIsSafeForEveryMethod" }],
+    "default": false
+  },
+  {
+    "id": "C30-002",
+    "section": "30",
+    "quote": "An After cycle settles each member Blocked with one `dependency cycle: a → b → a` line.",
+    "tier": "1.1",
+    "tests": [
+      { "pkg": "./internal/engine", "run": "TestAfterCycle_SettlesBlockedInsteadOfHanging" }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-003",
+    "section": "30",
+    "quote": "Severity defaults to `SeverityError`: an error Problem fails the owning Define if the callback otherwise returns nil.",
+    "tier": "1.1",
+    "tests": [{ "pkg": ".", "run": "TestProblem_DefaultSeverityFailsTaskAndRun" }],
+    "default": false
+  }
+]
