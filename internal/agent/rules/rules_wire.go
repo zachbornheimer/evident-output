@@ -37,12 +37,6 @@ func wireRules() []Rule {
 			VerificationIDs: []string{"EVO-WIRE-002"},
 			Since:           "1.0.0",
 			Certainty:       CertaintyHeuristic,
-			// No cheap, honest static detector: telling a schema-affecting
-			// edit apart from a comment/refactor requires diffing the
-			// encoder across two revisions, which a single-source review
-			// call never sees. Guidance-only; enforced by review discipline
-			// (goldens must stay byte-identical unless the version moves).
-			Detection: DetectionGuidance,
 		},
 		{
 			ID:        "EVO-WIRE-003",

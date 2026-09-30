@@ -78,11 +78,6 @@ task.Fact("commit", sha)`,
 			VerificationIDs: []string{"EVO-UI-004"},
 			Since:           "1.0.0",
 			Certainty:       CertaintyHeuristic,
-			// No cheap, honest static detector: a hand-picked glyph/color
-			// word is plain formatted text, indistinguishable by AST alone
-			// from ordinary output (same reasoning as OUT-004's raw-ANSI
-			// case). Guidance-only; catalog + Explain teach it by example.
-			Detection: DetectionGuidance,
 		},
 	}
 }
