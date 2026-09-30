@@ -1,8 +1,6 @@
 package render
 
 import (
-	"fmt"
-
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
@@ -105,7 +103,7 @@ func FoldEffectSections(kind string, width int, sources []SectionSource) []Effec
 	for _, src := range sources {
 		target, key, folded := survey.target(src)
 		if !folded {
-			shown = append(shown, shownSubject{text: src.Subject, out: -1})
+			shown = append(shown, shownSubject{text: src.Subject, out: -1, owner: src.ownContainerID()})
 			if !src.Streamed {
 				shown[len(shown)-1].out = len(out)
 				out = append(out, EffectSection{Kind: kind, Subject: src.Subject, Records: src.Records, IntendedVerb: src.IntendedVerb, Width: width})
@@ -117,48 +115,13 @@ func FoldEffectSections(kind string, width int, sources []SectionSource) []Effec
 			continue
 		}
 		foldedAt[key] = len(out)
-		shown = append(shown, shownSubject{text: target[0].Name, out: len(out), container: target})
+		shown = append(shown, shownSubject{text: target[0].Name, out: len(out), container: target, owner: target[0].ID})
 		out = append(out, EffectSection{Kind: kind, Subject: target[0].Name, Width: width,
 			Records: []core.EffectRecord{{Verb: key.kind.verb, Object: key.kind.object, HasQty: true, Quantity: quantityOf(src.Records)}}})
 	}
 	qualifyDuplicates(out, shown)
 	alignSubjects(out, shown)
 	return out
-}
-
-// shownSubject is one row's subject as the ledger shows it. out is its
-// index in the written sections, -1 for a streamed row that only aligns.
-// container is set for a folded row: the path from the container it names.
-type shownSubject struct {
-	text      string
-	out       int
-	container core.ContainerPath
-}
-
-// qualifyDuplicates names a folded row by its container path when another
-// row, folded or not, shows the same subject: two "branches" categories
-// under different repos read "alpha › branches" and "beta › branches". Rows
-// of one container (one per Effect) already share a subject knowingly.
-func qualifyDuplicates(out []EffectSection, shown []shownSubject) {
-	owner := map[string]string{}
-	duplicated := map[string]bool{}
-	for i, s := range shown {
-		id := fmt.Sprintf("row %d", i)
-		if len(s.container) > 0 {
-			id = s.container[0].ID
-		}
-		if first, seen := owner[s.text]; seen && first != id {
-			duplicated[s.text] = true
-		}
-		owner[s.text] = id
-	}
-	for i, s := range shown {
-		if len(s.container) == 0 || !duplicated[s.text] {
-			continue
-		}
-		shown[i].text = s.container[1:].Qualify(s.text)
-		out[s.out].Subject = shown[i].text
-	}
 }
 
 // quantityOf is the total quantity a foldable section records.
@@ -168,6 +131,54 @@ func quantityOf(records []core.EffectRecord) int64 {
 		total += r.Quantity
 	}
 	return total
+}
+
+// ownContainerID is the ID of the container src is the own Task of (the
+// Task named for its Group), or "" for any other section.
+func (s SectionSource) ownContainerID() string {
+	if len(s.Containers) > 0 && s.Subject == s.Containers[0].Name {
+		return s.Containers[0].ID
+	}
+	return ""
+}
+
+// shownSubject is one row's subject as the ledger shows it. out is its
+// index in the written sections, -1 for a streamed row that only aligns.
+// owner is the container the row speaks for, "" when it speaks for none;
+// container is set for a folded row: the path from the container it names.
+type shownSubject struct {
+	text      string
+	out       int
+	owner     string
+	container core.ContainerPath
+}
+
+// qualifyDuplicates names a folded row by its container path when a row of
+// another owner shows the same subject: two "branches" categories under
+// different repos read "alpha › branches" and "beta › branches". Rows of
+// one container (its own Task and its folded items) share a subject
+// knowingly, so they are not duplicates of each other. A root container's
+// path adds nothing, so its row keeps its bare name.
+func qualifyDuplicates(out []EffectSection, shown []shownSubject) {
+	first := map[string]string{}
+	duplicated := map[string]bool{}
+	for _, s := range shown {
+		prior, seen := first[s.text]
+		if !seen {
+			first[s.text] = s.owner
+			continue
+		}
+		if s.owner == "" || prior != s.owner {
+			duplicated[s.text] = true
+		}
+	}
+	for i, s := range shown {
+		if len(s.container) < 2 || !duplicated[s.text] {
+			continue
+		}
+		shown[i].text = s.container[1:].Qualify(s.text)
+		out[s.out].Subject = shown[i].text
+	}
 }
 
 // surveyFold tallies what every container above a section holds: one pass,
