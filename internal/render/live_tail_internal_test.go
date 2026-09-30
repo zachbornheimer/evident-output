@@ -16,17 +16,17 @@ func tailedTask(state core.EntityState, tail core.LiveTail) core.TaskSnapshot {
 func TestWriteLiveTaskLine_RunningTailRendersUnderOwnerWithFooter(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
-	tail := core.LiveTail{Lines: []string{"a", "b", "c", "d", "e", "f"}, Older: 42}
+	tail := core.LiveTail{Lines: []string{"a", "b", "c", "d", "e", "f"}, Evidence: 214}
 
 	rows := writeLiveTaskLine(&b, tailedTask(core.Running, tail), 0, 0, testLiveStyle)
 
-	want := "⠋ build\n   a\n   b\n   c\n   d\n   e\n   f\n   …  42 earlier lines retained\n"
+	want := "⠋ build\n   a\n   b\n   c\n   d\n   e\n   f\n   … 214 lines in evidence\n"
 	if got := b.String(); got != want || rows != 8 {
 		t.Fatalf("rows=%d\n%s\nwant 8 rows:\n%s", rows, got, want)
 	}
 }
 
-func TestWriteLiveTaskLine_TailWithoutOlderLinesHasNoFooter(t *testing.T) {
+func TestWriteLiveTaskLine_TailHoldingAllEvidenceHasNoFooter(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
 
@@ -43,7 +43,7 @@ func TestWriteLiveTaskLine_TailLinesFitTheFrameWidth(t *testing.T) {
 	st := testLiveStyle
 	st.width = 30
 	long := strings.Repeat("compiling a very long path ", 20)
-	tail := core.LiveTail{Lines: []string{long, long + "1", long + "2"}, Older: 7}
+	tail := core.LiveTail{Lines: []string{long, long + "1", long + "2"}, Evidence: 7}
 
 	rows := writeLiveTaskLine(&b, tailedTask(core.Running, tail), 0, 0, st)
 
@@ -55,7 +55,7 @@ func TestWriteLiveTaskLine_TailLinesFitTheFrameWidth(t *testing.T) {
 			t.Fatalf("row %q is %d cells, want <= %d", line, cells, st.width)
 		}
 	}
-	if owner := strings.SplitN(b.String(), "\n", 2)[0]; owner != "⠋ build" {
+	if owner, _, _ := strings.Cut(b.String(), "\n"); owner != "⠋ build" {
 		t.Fatalf("owner row = %q, want it unstretched by the tail", owner)
 	}
 }
@@ -63,11 +63,11 @@ func TestWriteLiveTaskLine_TailLinesFitTheFrameWidth(t *testing.T) {
 func TestWriteLiveTaskLine_SettledTaskDropsItsTail(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
-	tail := core.LiveTail{Lines: []string{"x"}, Older: 3}
+	tail := core.LiveTail{Lines: []string{"x"}, Evidence: 3}
 
 	rows := writeLiveTaskLine(&b, tailedTask(core.Done, tail), 0, 0, testLiveStyle)
 
-	if rows != 1 || strings.Contains(b.String(), "retained") {
+	if rows != 1 || strings.Contains(b.String(), "evidence") {
 		t.Fatalf("settled row kept its live tail:\n%s", b.String())
 	}
 }
@@ -82,5 +82,27 @@ func TestWriteLiveTaskLine_DistinctPhaseStaysOnOwnerRow(t *testing.T) {
 
 	if got, want := b.String(), "⠋ build  50%\n   fetching\n"; got != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestWriteLiveTaskLine_FooterSingularAndFitsNarrowFrame(t *testing.T) {
+	t.Parallel()
+	var b strings.Builder
+
+	writeLiveTaskLine(&b, tailedTask(core.Running, core.LiveTail{Lines: []string{"a"}, Evidence: 2}), 0, 0, testLiveStyle)
+	if got, want := b.String(), "⠋ build\n   a\n   … 2 lines in evidence\n"; got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+	if got := evidenceLinesText(1); got != "1 line in evidence" {
+		t.Fatalf("singular = %q", got)
+	}
+
+	b.Reset()
+	st := testLiveStyle
+	st.width = 12
+	writeLiveTaskLine(&b, tailedTask(core.Running, core.LiveTail{Lines: []string{"a"}, Evidence: 214}), 0, 0, st)
+	footer := strings.Split(strings.TrimSuffix(b.String(), "\n"), "\n")[2]
+	if cells := txt.VisibleCells(footer); cells > st.width {
+		t.Fatalf("footer %q is %d cells, want <= %d", footer, cells, st.width)
 	}
 }

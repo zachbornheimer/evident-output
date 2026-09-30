@@ -126,7 +126,7 @@ func (t *TaskHandle) appendLiveTail(line string, retained int) {
 
 // liveTailLines is how many completed Writer lines a live frame shows under
 // a Running row. Fixed: the tail never grows with uptime; the Capture ring
-// keeps the full record and the footer counts what the tail left out.
+// keeps the full record and the footer reports how many lines it holds.
 const liveTailLines = 6
 
 // liveTail is a Task's most recent completed Writer lines, oldest first, at
@@ -155,7 +155,7 @@ func (t *liveTail) push(line string, retained int) {
 // view is the tail as a snapshot sees it, sharing t's lines (see
 // taskState.view).
 func (t *liveTail) view() core.LiveTail {
-	return core.LiveTail{Lines: t.lines, Older: max(t.retained-len(t.lines), 0)}
+	return core.LiveTail{Lines: t.lines, Evidence: t.retained}
 }
 
 var _ io.Writer = (*phaseWriter)(nil)

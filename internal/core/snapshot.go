@@ -138,12 +138,12 @@ type TaskSnapshot struct {
 }
 
 // LiveTail is a Running Task's most recent completed Writer lines, oldest
-// first, bounded by the engine however long the child runs. Older counts the
-// retained Capture lines that are not among Lines — evidence a reader can
-// still reach through DetailTail, which the live frame only summarizes.
+// first, bounded by the engine however long the child runs. Evidence is the
+// total number of lines the Task's Capture ring holds, Lines included — what
+// the live frame's footer reports and a reader can reach through DetailTail.
 type LiveTail struct {
-	Lines []string
-	Older int
+	Lines    []string
+	Evidence int
 }
 
 // WithLiveTail is t carrying tail for the live frame.

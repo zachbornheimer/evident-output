@@ -50,8 +50,8 @@ func TestWriter_LiveTailStaysBoundedWhileCaptureKeepsTheStream(t *testing.T) {
 	if want := numberedLines(tailTestLines-defaultCaptureLines+1, tailTestLines); !slices.Equal(retained[len(retained)-len(want):], want) {
 		t.Fatalf("Capture lost the stream: retained %d lines ending %q", len(retained), retained[len(retained)-1])
 	}
-	if want := defaultCaptureLines - liveTailLines; tail.Older != want {
-		t.Fatalf("tail.Older = %d, want %d retained lines above the tail", tail.Older, want)
+	if want := defaultCaptureLines; tail.Evidence != want {
+		t.Fatalf("tail.Evidence = %d, want %d lines in the ring", tail.Evidence, want)
 	}
 	out.mu.Lock()
 	capacity := cap(out.taskByRef[task.id].tail.lines)
@@ -61,9 +61,9 @@ func TestWriter_LiveTailStaysBoundedWhileCaptureKeepsTheStream(t *testing.T) {
 	}
 }
 
-// TestWriter_ShortStreamHasNoOlderLines proves the footer count is zero
+// TestWriter_ShortStreamFooterCountsWholeRing proves the footer count is zero
 // while every retained line is already visible.
-func TestWriter_ShortStreamHasNoOlderLines(t *testing.T) {
+func TestWriter_ShortStreamFooterCountsWholeRing(t *testing.T) {
 	out := newOutput("job", to(&bytes.Buffer{}), withNoColor())
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("build")
@@ -71,7 +71,7 @@ func TestWriter_ShortStreamHasNoOlderLines(t *testing.T) {
 	writeNumberedLines(t, task, 3)
 
 	tail := core.LiveTailOf(task.Snapshot())
-	if !slices.Equal(tail.Lines, numberedLines(1, 3)) || tail.Older != 0 {
+	if !slices.Equal(tail.Lines, numberedLines(1, 3)) || tail.Evidence != 3 {
 		t.Fatalf("tail = %+v, want 3 lines and no older count", tail)
 	}
 }
@@ -100,8 +100,8 @@ func TestWriter_DuplicateLinesEachEnterTheTail(t *testing.T) {
 	if !slices.Equal(tail.Lines, want) {
 		t.Fatalf("tail = %q, want %q", tail.Lines, want)
 	}
-	if wantOlder := liveTailLines*3 + 2 - liveTailLines; tail.Older != wantOlder {
-		t.Fatalf("tail.Older = %d, want %d", tail.Older, wantOlder)
+	if wantEvidence := liveTailLines*3 + 2; tail.Evidence != wantEvidence {
+		t.Fatalf("tail.Evidence = %d, want %d", tail.Evidence, wantEvidence)
 	}
 }
 
@@ -148,8 +148,8 @@ func TestWriter_LiveFrameShowsOwnerTailAndFooter(t *testing.T) {
 			t.Fatalf("tail row %d = %q, want %q", i, got, want)
 		}
 	}
-	if !strings.Contains(frame[len(frame)-1], "4 earlier lines retained") {
-		t.Fatalf("footer = %q, want the 4 retained lines above the tail", frame[len(frame)-1])
+	if !strings.Contains(frame[len(frame)-1], "… 10 lines in evidence") {
+		t.Fatalf("footer = %q, want the ring's 10 lines", frame[len(frame)-1])
 	}
 }
 
@@ -166,7 +166,7 @@ func TestWriter_PlainOutputDoesNotRepeatTailRows(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if strings.Contains(primary.String(), "line 0") || strings.Contains(primary.String(), "earlier lines") {
+	if strings.Contains(primary.String(), "line 0") || strings.Contains(primary.String(), "in evidence") {
 		t.Fatalf("plain output repeated Writer tail rows:\n%s", primary.String())
 	}
 }

@@ -321,7 +321,7 @@ func runningTail(t core.TaskSnapshot) core.LiveTail {
 
 // writeLiveTail writes tail's lines beneath their owner row, dim and cut to
 // the frame width so a long child line never wraps, then one footer line
-// counting the retained evidence the tail leaves out.
+// with the Task's total evidence count when the tail shows only part of it.
 func writeLiveTail(b *strings.Builder, tail core.LiveTail, indent string, st liveStyle) {
 	if len(tail.Lines) == 0 {
 		return
@@ -329,8 +329,9 @@ func writeLiveTail(b *strings.Builder, tail core.LiveTail, indent string, st liv
 	for _, line := range tail.Lines {
 		b.WriteString(indent + st.dim(fitTailLine(line, len(indent), st.width)) + "\n")
 	}
-	if tail.Older > 0 {
-		fmt.Fprintf(b, "%s%s  %s\n", indent, st.overflowGlyph(), st.dim(olderLinesText(tail.Older)))
+	if tail.Evidence > len(tail.Lines) {
+		footer := indent + txt.GlyphOverflow.Render(st.Profile) + " " + evidenceLinesText(tail.Evidence)
+		b.WriteString(st.dim(fitTailLine(footer, 0, st.width)) + "\n")
 	}
 }
 
@@ -342,12 +343,13 @@ func fitTailLine(line string, indent, width int) string {
 	return txt.TruncateVisible(line, max(width-indent, 1))
 }
 
-// olderLinesText is the tail footer's count of retained lines above it.
-func olderLinesText(n int) string {
+// evidenceLinesText is the tail footer's count of lines in the Task's
+// evidence. No EVO_VERBOSE hint: verbose only reveals Facts, not Capture.
+func evidenceLinesText(n int) string {
 	if n == 1 {
-		return "1 earlier line retained"
+		return "1 line in evidence"
 	}
-	return fmt.Sprintf("%d earlier lines retained", n)
+	return fmt.Sprintf("%d lines in evidence", n)
 }
 
 // padRootName right-pads a standalone (indent == 0) row's name to nameWidth
