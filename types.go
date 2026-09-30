@@ -24,7 +24,6 @@ type LiveSurface = engine.LiveSurface
 type Redactor = engine.Redactor
 type NoopRedactor = engine.NoopRedactor
 type LogRecord = engine.LogRecord
-type PlainOptions = engine.PlainOptions
 
 const (
 	ColorAuto   = engine.ColorAuto

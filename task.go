@@ -90,13 +90,6 @@ func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
 	return t
 }
 
-func (t *TaskHandle) Snapshot() TaskSnapshot {
-	if t == nil || t.inner == nil {
-		return TaskSnapshot{}
-	}
-	return t.inner.Snapshot()
-}
-
 // Summary sets one line of result text rendered after the Task name on its
 // terminal row, and exposed as "summary" in Snapshot and JSON/JSONL. The
 // last call wins and an empty string clears it. It never resolves the Task

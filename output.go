@@ -24,13 +24,6 @@ func (o *Output) ResultWriter() io.Writer {
 	return o.inner.ResultWriter()
 }
 
-func (o *Output) Snapshot() Snapshot {
-	if o == nil || o.inner == nil {
-		return Snapshot{}
-	}
-	return o.inner.Snapshot()
-}
-
 func (o *Output) Suspend(fn func() error) error {
 	if o == nil || o.inner == nil {
 		return nil

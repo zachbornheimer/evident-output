@@ -3,6 +3,7 @@ package evo
 import (
 	"context"
 
+	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/engine"
 )
 
@@ -21,6 +22,9 @@ const (
 	EffectUninstall = engine.EffectUninstall
 	EffectUpdate    = engine.EffectUpdate
 )
+
+// EffectRecord is one semantic change or plan row.
+type EffectRecord = core.EffectRecord
 
 // EffectSpec describes one aggregate opaque mutation Evo cannot model as
 // desired state. Constructing an EffectSpec performs no I/O.
