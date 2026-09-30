@@ -15,16 +15,21 @@ import (
 //
 // Fold rule. A section is foldable when it sits under a container, is
 // not already streamed, and every record is a counted Effect sharing one
-// (verb, object). Foldable sections fold into the HIGHEST enclosing
-// container whose whole subtree of ledger sections is foldable with that
-// same pair, provided that container holds at least two such sections.
-// So two manager Groups under one category Group fold to the category,
-// while a category that also holds a different verb, a File or Exec row,
-// or another object keeps its uniform sub-Groups as separate rows. A
-// section that does not fold renders exactly as before. Sections with no
-// rows never block a fold, so a failed item's empty section does not
-// hide its siblings' row; the failure itself surfaces as its own Failed
-// Task row.
+// (verb, object). Two levels, tried in order:
+//
+//  1. Uniform lift. A foldable section folds into the HIGHEST enclosing
+//     container whose whole subtree of ledger sections is foldable with
+//     that same pair, provided that container holds at least two. Two
+//     manager Groups under one category Group fold to the category.
+//  2. Direct siblings. In a container that is not uniform, the foldable
+//     sections that are its own direct children fold per (verb, object):
+//     each pair with two or more members is one row named for the
+//     container. A single different sibling therefore never stops the rest
+//     folding.
+//
+// A section that does not fold renders exactly as before. Sections with no
+// rows never block a fold, so a failed item's empty section does not hide
+// its siblings' row; the failure itself surfaces as its own Failed Task row.
 
 // SectionSource is one ledger section as the fold reads it.
 type SectionSource struct {
@@ -68,20 +73,35 @@ type containerFold struct {
 	mixed bool
 }
 
+// foldKey names one folded row: a container and the Effect it counts.
+type foldKey struct {
+	container string
+	kind      effectKind
+}
+
+// foldSurvey is what the fold learns about the ledger before laying it out.
+type foldSurvey struct {
+	// subtrees is what every container above a section holds.
+	subtrees map[string]*containerFold
+	// direct counts the foldable sections that are a container's own
+	// children, per Effect.
+	direct map[foldKey]int
+}
+
 // FoldEffectSections lays sources out as ledger sections of kind ("changed"
 // or "planned"), in source order, with sibling same-effect sections folded
 // per the rule above and every row aligned to one subject column. A folded
 // row takes the place of its first member and keeps one record however
 // many items it counts.
 func FoldEffectSections(kind string, width int, sources []SectionSource) []EffectSection {
-	folds := surveyContainers(sources)
+	survey := surveyFold(sources)
 	var (
 		out      []EffectSection
-		foldedAt = map[string]int{}
+		foldedAt = map[foldKey]int{}
 		subjects []string
 	)
 	for _, src := range sources {
-		target, folded := foldTarget(src, folds)
+		target, key, folded := survey.target(src)
 		if !folded {
 			subjects = append(subjects, src.Subject)
 			if !src.Streamed {
@@ -89,14 +109,14 @@ func FoldEffectSections(kind string, width int, sources []SectionSource) []Effec
 			}
 			continue
 		}
-		if at, seen := foldedAt[target.ID]; seen {
+		if at, seen := foldedAt[key]; seen {
 			out[at].Records[0].Quantity += quantityOf(src.Records)
 			continue
 		}
-		k, _ := src.foldKind()
-		foldedAt[target.ID] = len(out)
+		foldedAt[key] = len(out)
 		subjects = append(subjects, target.Name)
-		out = append(out, EffectSection{Kind: kind, Subject: target.Name, Width: width, Records: []core.EffectRecord{{Verb: k.verb, Object: k.object, HasQty: true, Quantity: quantityOf(src.Records)}}})
+		out = append(out, EffectSection{Kind: kind, Subject: target.Name, Width: width,
+			Records: []core.EffectRecord{{Verb: key.kind.verb, Object: key.kind.object, HasQty: true, Quantity: quantityOf(src.Records)}}})
 	}
 	alignSubjects(out, subjects)
 	return out
@@ -111,45 +131,61 @@ func quantityOf(records []core.EffectRecord) int64 {
 	return total
 }
 
-// surveyContainers tallies what every container above a section holds: one
-// pass, O(depth) per section.
-func surveyContainers(sources []SectionSource) map[string]*containerFold {
-	folds := map[string]*containerFold{}
+// surveyFold tallies what every container above a section holds: one pass,
+// O(depth) per section.
+func surveyFold(sources []SectionSource) foldSurvey {
+	survey := foldSurvey{subtrees: map[string]*containerFold{}, direct: map[foldKey]int{}}
 	for _, src := range sources {
 		if src.inert() {
 			continue
 		}
 		k, foldable := src.foldKind()
+		if foldable {
+			survey.direct[foldKey{src.Containers[0].ID, k}]++
+		}
 		for _, c := range src.Containers {
-			f, seen := folds[c.ID]
+			f, seen := survey.subtrees[c.ID]
 			if !seen {
 				f = &containerFold{kind: k}
-				folds[c.ID] = f
+				survey.subtrees[c.ID] = f
 			}
 			f.count++
 			f.mixed = f.mixed || !foldable || f.kind != k
 		}
 	}
-	return folds
+	return survey
 }
 
-// foldTarget is the container src folds into: the highest one above it
-// whose subtree is uniform, when that subtree holds two or more sections.
-func foldTarget(src SectionSource, folds map[string]*containerFold) (core.ContainerRef, bool) {
-	if _, ok := src.foldKind(); !ok {
-		return core.ContainerRef{}, false
+// target is the container src folds into and the row it joins, when it
+// folds at all.
+func (v foldSurvey) target(src SectionSource) (core.ContainerRef, foldKey, bool) {
+	kind, ok := src.foldKind()
+	if !ok {
+		return core.ContainerRef{}, foldKey{}, false
 	}
-	var target core.ContainerRef
+	if top, lifted := v.highestUniform(src); lifted {
+		return top, foldKey{top.ID, kind}, true
+	}
+	if nearest := src.Containers[0]; v.direct[foldKey{nearest.ID, kind}] >= 2 {
+		return nearest, foldKey{nearest.ID, kind}, true
+	}
+	return core.ContainerRef{}, foldKey{}, false
+}
+
+// highestUniform is the highest container above src whose whole subtree is
+// foldable with src's Effect, when it holds two or more sections.
+func (v foldSurvey) highestUniform(src SectionSource) (core.ContainerRef, bool) {
+	var top core.ContainerRef
 	for _, c := range src.Containers {
-		if folds[c.ID].mixed {
+		if v.subtrees[c.ID].mixed {
 			break
 		}
-		target = c
+		top = c
 	}
-	if target.ID == "" || folds[target.ID].count < 2 {
+	if top.ID == "" || v.subtrees[top.ID].count < 2 {
 		return core.ContainerRef{}, false
 	}
-	return target, true
+	return top, true
 }
 
 // alignSubjects sets the shared subject column to the widest subject the
