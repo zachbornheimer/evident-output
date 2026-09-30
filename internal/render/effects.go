@@ -165,15 +165,21 @@ func writeAlignedEffects(b *strings.Builder, visible []core.EffectRecord, s Styl
 }
 
 // WriteLedger writes every [changed] then [planned] section of snap, each
-// kind aligned to its own subject column.
+// kind folded (FoldEffectSections) and aligned to its own subject column.
 func WriteLedger(b *strings.Builder, snap core.Snapshot, width int, s Style) {
-	changeNameWidth := maxEffectSubjectWidth(snap.Changes, func(c core.ChangesSnapshot) string { return c.Subject })
-	for _, ch := range snap.Changes {
-		WriteEffects(b, EffectSection{Kind: "changed", Subject: ch.Subject, Records: ch.Records, IntendedVerb: ch.IntendedVerb, NameWidth: changeNameWidth, Width: width}, s)
+	changes := make([]SectionSource, len(snap.Changes))
+	for i, c := range snap.Changes {
+		changes[i] = SectionSource{Subject: c.Subject, Records: c.Records, IntendedVerb: c.IntendedVerb, Containers: core.ChangesContainers(c)}
 	}
-	planNameWidth := maxEffectSubjectWidth(snap.Plans, func(p core.PlanSnapshot) string { return p.Subject })
-	for _, p := range snap.Plans {
-		WriteEffects(b, EffectSection{Kind: "planned", Subject: p.Subject, Records: p.Records, IntendedVerb: p.IntendedVerb, NameWidth: planNameWidth, Width: width}, s)
+	plans := make([]SectionSource, len(snap.Plans))
+	for i, p := range snap.Plans {
+		plans[i] = SectionSource{Subject: p.Subject, Records: p.Records, IntendedVerb: p.IntendedVerb, Containers: core.PlanContainers(p)}
+	}
+	for _, sec := range FoldEffectSections("changed", width, changes) {
+		WriteEffects(b, sec, s)
+	}
+	for _, sec := range FoldEffectSections("planned", width, plans) {
+		WriteEffects(b, sec, s)
 	}
 }
 

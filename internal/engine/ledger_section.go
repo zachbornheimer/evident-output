@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -90,11 +91,21 @@ func (s *ledgerSection) record(verb string, e ledgerEntry) bool {
 }
 
 func (s *ledgerSection) changesSnapshot() ChangesSnapshot {
-	return core.NewChangesSnapshot(ChangesSnapshot{ID: s.id, Subject: s.subject, Records: append([]EffectRecord(nil), s.records...), IntendedVerb: s.intendedVerb}, s.owner.id)
+	c := core.NewChangesSnapshot(ChangesSnapshot{ID: s.id, Subject: s.subject, Records: append([]EffectRecord(nil), s.records...), IntendedVerb: s.intendedVerb}, s.owner.id)
+	return core.WithChangesContainers(c, s.owner.containerPath())
 }
 
 func (s *ledgerSection) planSnapshot() PlanSnapshot {
-	return core.NewPlanSnapshot(PlanSnapshot{ID: s.id, Subject: s.subject, Records: append([]EffectRecord(nil), s.records...), IntendedVerb: s.intendedVerb}, s.owner.id)
+	p := core.NewPlanSnapshot(PlanSnapshot{ID: s.id, Subject: s.subject, Records: append([]EffectRecord(nil), s.records...), IntendedVerb: s.intendedVerb}, s.owner.id)
+	return core.WithPlanContainers(p, s.owner.containerPath())
+}
+
+// foldSource is s as the renderer's ledger fold sees it.
+func (s *ledgerSection) foldSource() render.SectionSource {
+	return render.SectionSource{
+		Subject: s.subject, Records: s.records, IntendedVerb: s.intendedVerb,
+		Containers: s.owner.containerPath(), Streamed: s.namedRowsEmitted,
+	}
 }
 
 // ledgerSectionKey identifies a section: one per owning Task per tense.

@@ -170,6 +170,9 @@ type tasksState struct {
 
 	// parent is the container this one is nested in, nil at the root.
 	parent *tasksState
+	// path caches containerPath: a container's place in the tree is fixed at
+	// declaration, and every child's ledger section shares the one slice.
+	path core.ContainerPath
 	// entry is what everything declared in this container starts after:
 	// the step before it when it is a step of a Sequence (see
 	// nextStepPreds).
@@ -191,4 +194,24 @@ type tasksState struct {
 	// hasNamesake records that a child Task carries this container's own
 	// name, the only way it can render as its own Task (liveOwnRow).
 	hasNamesake bool
+}
+
+// containerPath is the chain of containers enclosing st, nearest first;
+// nil for a root Task.
+func (st *taskState) containerPath() core.ContainerPath {
+	if st.collection == nil {
+		return nil
+	}
+	return st.collection.containerPath()
+}
+
+// containerPath is c then every container above it.
+func (c *tasksState) containerPath() core.ContainerPath {
+	if c.path == nil {
+		c.path = core.ContainerPath{{ID: c.id, Name: c.name}}
+		if c.parent != nil {
+			c.path = append(c.path, c.parent.containerPath()...)
+		}
+	}
+	return c.path
 }
