@@ -111,3 +111,18 @@ func TestLedgerFoldQualifiesDuplicateContainerSubjects(t *testing.T) {
 		t.Errorf("ledger = %q, want it to contain %q", got, want)
 	}
 }
+
+// TestLedgerFoldOwnTaskAndItemsShareOneSubject proves a Group's own Task row
+// (the Task named for its Group) and the folded row of its mixed items read
+// as one category: same subject, not "branches" beside "clean › branches".
+func TestLedgerFoldOwnTaskAndItemsShareOneSubject(t *testing.T) {
+	got, _ := runPlain(t, Config{}, func(o *Output) {
+		g := o.Group("clean").Group("branches")
+		g.Task("branches").Define(effectOf(EffectDelete, "worktree", 1))
+		for i := range 3 {
+			g.Task(fmt.Sprintf("b%d", i)).Define(effectOf(EffectDelete, "branch", 1))
+		}
+	})
+	assertFrame(t, got, "✓ branches\n✓ b0\n✓ b1\n✓ b2\n\n"+
+		"[changed] branches  deleted 1 worktree\n[changed] branches  deleted 3 branches\n\n[changed]\n")
+}
