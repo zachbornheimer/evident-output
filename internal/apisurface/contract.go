@@ -39,10 +39,10 @@ func (r Report) OK() bool {
 // String renders only the non-empty labeled sections.
 func (r Report) String() string {
 	var b strings.Builder
-	writeSection(&b, "extra", r.Extra)
-	writeSection(&b, "missing", r.Missing)
-	writeSection(&b, "required-missing", r.RequiredMissing)
-	writeSection(&b, "retired-present", r.RetiredPresent)
+	WriteSection(&b, "extra", r.Extra)
+	WriteSection(&b, "missing", r.Missing)
+	WriteSection(&b, "required-missing", r.RequiredMissing)
+	WriteSection(&b, "retired-present", r.RetiredPresent)
 	return strings.TrimSuffix(b.String(), "\n")
 }
 
@@ -51,7 +51,8 @@ func (r Report) Error() string {
 	return r.String()
 }
 
-func writeSection(b *strings.Builder, label string, lines []string) {
+// WriteSection appends a labeled, indented list to b; empty lists write nothing.
+func WriteSection(b *strings.Builder, label string, lines []string) {
 	if len(lines) == 0 {
 		return
 	}

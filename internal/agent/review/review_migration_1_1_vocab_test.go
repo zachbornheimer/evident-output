@@ -8,7 +8,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
 	"github.com/zachbornheimer/evident-output/internal/agent/rules"
-	"github.com/zachbornheimer/evident-output/internal/apisurface"
+	"github.com/zachbornheimer/evident-output/internal/agent/vocabulary"
 )
 
 func vocabularyPath(t *testing.T) string {
@@ -21,7 +21,7 @@ func vocabularyPath(t *testing.T) string {
 }
 
 func TestMigration1_1EveryRemovedNameHasDirtyRewriteCleanFixture(t *testing.T) {
-	entries, err := apisurface.LoadVocabulary(vocabularyPath(t))
+	entries, err := vocabulary.LoadVocabulary(vocabularyPath(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestMigration1_1EveryRemovedNameHasDirtyRewriteCleanFixture(t *testing.T) {
 	var missing []string
 	var nRemoved int
 	for _, e := range entries {
-		if e.Class != apisurface.ClassRemoved {
+		if e.Class != vocabulary.ClassRemoved {
 			continue
 		}
 		nRemoved++

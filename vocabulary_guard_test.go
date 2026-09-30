@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/agent/vocabulary"
 	"github.com/zachbornheimer/evident-output/internal/apisurface"
 )
 
@@ -28,11 +29,11 @@ var freezeRemoved = []string{
 }
 
 func TestVocabulary(t *testing.T) {
-	entries, err := apisurface.LoadVocabulary("testdata/api_vocabulary.txt")
+	entries, err := vocabulary.LoadVocabulary("testdata/api_vocabulary.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
-	byName := make(map[string]apisurface.Entry, len(entries))
+	byName := make(map[string]vocabulary.Entry, len(entries))
 	for _, e := range entries {
 		byName[e.Name] = e
 	}
@@ -42,7 +43,7 @@ func TestVocabulary(t *testing.T) {
 			t.Errorf("%s missing from %s", name, "testdata/api_vocabulary.txt")
 			continue
 		}
-		if e.Class != apisurface.ClassRemoved {
+		if e.Class != vocabulary.ClassRemoved {
 			t.Errorf("%s reclassified as %s; freeze class is removed", name, e.Class)
 		}
 	}
@@ -51,7 +52,7 @@ func TestVocabulary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report := apisurface.CheckVocabulary(live, entries); !report.OK() {
+	if report := vocabulary.CheckVocabulary(live, entries); !report.OK() {
 		t.Errorf("live surface failed vocabulary freeze:\n%s", report)
 	}
 
@@ -60,7 +61,7 @@ func TestVocabulary(t *testing.T) {
 		t.Fatal(err)
 	}
 	golden := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
-	if report := apisurface.CheckVocabulary(golden, entries); !report.OK() {
+	if report := vocabulary.CheckVocabulary(golden, entries); !report.OK() {
 		t.Errorf("%s failed vocabulary freeze:\n%s", apisurface.GoldenRelPath, report)
 	}
 }
@@ -117,11 +118,11 @@ func rootHome(ident, concept string) (string, bool) {
 }
 
 func TestVocabulary_RootFileOwnsConcept(t *testing.T) {
-	entries, err := apisurface.LoadVocabulary("testdata/api_vocabulary.txt")
+	entries, err := vocabulary.LoadVocabulary("testdata/api_vocabulary.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
-	byName := make(map[string]apisurface.Entry, len(entries))
+	byName := make(map[string]vocabulary.Entry, len(entries))
 	for _, e := range entries {
 		byName[e.Name] = e
 	}
@@ -139,7 +140,7 @@ func TestVocabulary_RootFileOwnsConcept(t *testing.T) {
 	for line := range strings.SplitSeq(strings.TrimRight(string(raw), "\n"), "\n") {
 		ident := apisurface.Ident(line)
 		entry, ok := byName[ident]
-		if !ok || entry.Class == apisurface.ClassRemoved {
+		if !ok || entry.Class == vocabulary.ClassRemoved {
 			continue
 		}
 		if _, ok := symbolFile[ident]; ok {

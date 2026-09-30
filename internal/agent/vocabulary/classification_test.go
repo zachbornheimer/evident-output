@@ -1,4 +1,4 @@
-package apisurface
+package vocabulary
 
 import (
 	"strings"
@@ -48,26 +48,6 @@ func TestParseVocabulary_RejectsMalformedRow(t *testing.T) {
 	_, err := ParseVocabulary([]byte("Init canonical Run\n"))
 	if err == nil || !strings.Contains(err.Error(), "want name") {
 		t.Fatalf("err = %v, want field-count error", err)
-	}
-}
-
-func TestIdent_WalkLines(t *testing.T) {
-	cases := []struct {
-		line, want string
-	}{
-		{"type Option", "Option"},
-		{"type Config.Stdout", "Config.Stdout"},
-		{"value EventSchemaVersion", "EventSchemaVersion"},
-		{"func AlsoWrite(w io.Writer)  Option", "AlsoWrite"},
-		{"func (Output) Cancel(reason string)", "Output.Cancel"},
-		{"func (Failure) Error()  string", "Failure.Error"},
-		{"func (TaskHandle) After(preds ...any)  *TaskHandle", "TaskHandle.After"},
-		{"not a walk line", ""},
-	}
-	for _, c := range cases {
-		if got := Ident(c.line); got != c.want {
-			t.Errorf("Ident(%q) = %q, want %q", c.line, got, c.want)
-		}
 	}
 }
 

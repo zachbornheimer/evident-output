@@ -1,4 +1,4 @@
-package apisurface
+package vocabulary
 
 import (
 	"bufio"
@@ -7,6 +7,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/apisurface"
 )
 
 // VocabularyRelPath is the module-root-relative freeze of every exported
@@ -46,9 +48,9 @@ func (r VocabReport) OK() bool {
 // String renders only the non-empty labeled sections.
 func (r VocabReport) String() string {
 	var b strings.Builder
-	writeSection(&b, "removed-present", r.RemovedPresent)
-	writeSection(&b, "unclassified", r.Unclassified)
-	writeSection(&b, "missing", r.Missing)
+	apisurface.WriteSection(&b, "removed-present", r.RemovedPresent)
+	apisurface.WriteSection(&b, "unclassified", r.Unclassified)
+	apisurface.WriteSection(&b, "missing", r.Missing)
 	return strings.TrimSuffix(b.String(), "\n")
 }
 
@@ -102,35 +104,6 @@ func ParseVocabulary(raw []byte) ([]Entry, error) {
 	return entries, nil
 }
 
-// Ident is the vocabulary name on one Walk/golden line: "type Foo" and
-// "value Foo" and "func Foo(" become Foo; "func (Bar) Baz(" and
-// "type Bar.Baz" become Bar.Baz.
-func Ident(line string) string {
-	line = strings.TrimSpace(line)
-	switch {
-	case strings.HasPrefix(line, "type "):
-		return strings.TrimSpace(strings.TrimPrefix(line, "type "))
-	case strings.HasPrefix(line, "value "):
-		return strings.TrimSpace(strings.TrimPrefix(line, "value "))
-	case strings.HasPrefix(line, "func ("):
-		rest := strings.TrimPrefix(line, "func (")
-		typ, rest, ok := strings.Cut(rest, ")")
-		if !ok {
-			return ""
-		}
-		name, _, _ := strings.Cut(strings.TrimSpace(rest), "(")
-		if typ == "" || name == "" {
-			return ""
-		}
-		return typ + "." + name
-	case strings.HasPrefix(line, "func "):
-		name, _, _ := strings.Cut(strings.TrimPrefix(line, "func "), "(")
-		return strings.TrimSpace(name)
-	default:
-		return ""
-	}
-}
-
 // CheckVocabulary compares a Walk/golden surface to the freeze.
 func CheckVocabulary(surface []string, entries []Entry) VocabReport {
 	byName := make(map[string]Entry, len(entries))
@@ -142,7 +115,7 @@ func CheckVocabulary(surface []string, entries []Entry) VocabReport {
 	seenRemoved := make(map[string]struct{})
 	seenUnclassified := make(map[string]struct{})
 	for _, line := range surface {
-		name := Ident(line)
+		name := apisurface.Ident(line)
 		if name == "" {
 			continue
 		}

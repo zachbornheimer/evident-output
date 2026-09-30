@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/agent/vocabulary"
 	"github.com/zachbornheimer/evident-output/internal/apisurface"
 )
 
@@ -40,7 +41,7 @@ func TestAPIGolden_PublicSurfaceMatchesCommittedGolden(t *testing.T) {
 // testdata/api_vocabulary.txt as canonical or helper with a concept. A
 // removed classification still present on the surface fails.
 func TestAPIGolden_VocabularyFreeze(t *testing.T) {
-	entries, err := apisurface.LoadVocabulary("testdata/api_vocabulary.txt")
+	entries, err := vocabulary.LoadVocabulary("testdata/api_vocabulary.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +56,7 @@ func TestAPIGolden_VocabularyFreeze(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report := apisurface.CheckVocabulary(live, entries); !report.OK() {
+	if report := vocabulary.CheckVocabulary(live, entries); !report.OK() {
 		t.Fatalf("live surface failed testdata/api_vocabulary.txt freeze:\n%s", report)
 	}
 	goldenRaw, err := os.ReadFile(apisurface.GoldenRelPath)
@@ -63,7 +64,7 @@ func TestAPIGolden_VocabularyFreeze(t *testing.T) {
 		t.Fatal(err)
 	}
 	golden := strings.Split(strings.TrimRight(string(goldenRaw), "\n"), "\n")
-	if report := apisurface.CheckVocabulary(golden, entries); !report.OK() {
+	if report := vocabulary.CheckVocabulary(golden, entries); !report.OK() {
 		t.Fatalf("testdata/api_golden.txt failed testdata/api_vocabulary.txt freeze:\n%s", report)
 	}
 }
