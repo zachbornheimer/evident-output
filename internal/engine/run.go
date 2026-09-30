@@ -7,6 +7,10 @@ import (
 	"syscall"
 )
 
+// errRunExitedWithoutReturn is the application error recorded when the run
+// callback's goroutine ended without returning.
+var errRunExitedWithoutReturn = errors.New("run callback exited without returning (runtime.Goexit)")
+
 // Run executes a CLI presentation lifecycle against this Output and returns
 // the Result (Conclusion plus the application error, if any) — the
 // Isolated-instance counterpart of Main, for a caller holding its own
@@ -111,11 +115,23 @@ func runInterruptible(ctx context.Context, out *Output, run RunFunc) Result {
 
 	done := make(chan error, 1)
 	go func() {
-		var err error
+		// Delivered from a defer so a callback that ends its goroutine via
+		// runtime.Goexit (directly, or through a library such as
+		// testing.T.FailNow) still releases the waiter below.
+		var (
+			err      error
+			returned bool
+		)
+		defer func() {
+			if !returned {
+				err = errRunExitedWithoutReturn
+			}
+			done <- err
+		}()
 		if run != nil {
 			err = run(runCtx)
 		}
-		done <- err
+		returned = true
 	}()
 
 	select {
