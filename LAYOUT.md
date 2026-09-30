@@ -51,8 +51,9 @@ Three override rules take precedence over the concept column:
 - `internal/render`: shared row model for human, JSON, and live projection; `render/live` and `render/plain` as they land
 - `internal/text`: glyphs, sanitize, width, conjugate, name truncation
 - `internal/wire`, `internal/wireschema`: wire documents and JSON schema validation
-- `internal/apisurface`: public API golden/required/retired contract walk and declaration-file lookup
-- `internal/agent/*`: MCP tools (adopt, review, catalog, preview, sections, harness, rules incl. the retired-symbol table); `vocabulary` for classification and layout
+- `internal/apisurface`: public API golden walk, contract check against the retired table, declaration-file lookup, and `Ident`; reads the retired table from `agent/rules` and never imports `agent/vocabulary`
+- `internal/agent/*`: MCP tools (adopt, review, catalog, preview, sections, harness, rules, which also owns the retired-symbol table)
+- `internal/agent/vocabulary`: vocabulary classification and the root file layout table (`CheckLayout`); imports `internal/apisurface`, never the reverse
 - `internal/fingerprint`, `internal/patch`, `internal/resource`, `internal/manifest`, `internal/modpin`, `internal/architecture`, `internal/docexamples`: one owner per invariant, named by the package
 
 ## Tests
