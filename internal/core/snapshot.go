@@ -11,7 +11,11 @@
 // pkg.go.dev-visible one (see EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md §38).
 package core
 
-import "time"
+import (
+	"slices"
+	"strings"
+	"time"
+)
 
 // Snapshot is an immutable complete presentation state at a version.
 type Snapshot struct {
@@ -255,6 +259,16 @@ type ContainerRef struct {
 // a root Task. It is how the human ledger knows which sections share a
 // container (evo-rec.md "ledger fold"); never part of machine output.
 type ContainerPath []ContainerRef
+
+// Qualify is name under p, outermost container first ("alpha › prune"): how
+// a ledger row is told apart from a same-named row in another container.
+func (p ContainerPath) Qualify(name string) string {
+	parts := make([]string, 0, len(p)+1)
+	for _, v := range slices.Backward(p) {
+		parts = append(parts, v.Name)
+	}
+	return strings.Join(append(parts, name), QualifiedSubjectSeparator)
+}
 
 // WithChangesContainers is c placed under path.
 func WithChangesContainers(c ChangesSnapshot, path ContainerPath) ChangesSnapshot {
