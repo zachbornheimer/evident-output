@@ -258,14 +258,14 @@ type pruneCategory struct {
 }
 
 // declare submits the category under parent and returns its own Task.
-// Every annotation happens inside Define, before the Task resolves.
+// Kept children are declared up front; annotations happen inside Define.
 func (c pruneCategory) declare(parent *evo.GroupHandle) *evo.TaskHandle {
 	items := parent.Group(c.name)
 	work := items.Task(c.name)
+	for _, item := range c.kept {
+		items.Task(item.name).Skipped(item.reason)
+	}
 	work.Define(func(ctx context.Context) error {
-		for _, item := range c.kept {
-			items.Task(item.name).Skipped(item.reason)
-		}
 		if c.onDisk != "" {
 			work.Fact("on disk", c.onDisk)
 		}

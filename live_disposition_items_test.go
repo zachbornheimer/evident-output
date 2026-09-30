@@ -28,10 +28,10 @@ func TestLiveGroup_KeptChildrenAggregateInTheLiveFrame(t *testing.T) {
 	work := branches.Task("branches")
 	release := make(chan struct{})
 	kept := make(chan struct{})
+	for i := range 5 {
+		branches.Task(fmt.Sprintf("feat/%d", i)).Skipped(evo.Reason("unpushed"))
+	}
 	work.Define(func(context.Context) error {
-		for i := range 5 {
-			branches.Task(fmt.Sprintf("feat/%d", i)).Skipped(evo.Reason("unpushed"))
-		}
 		work.Doing("deleting")
 		close(kept)
 		<-release

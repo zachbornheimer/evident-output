@@ -1,5 +1,8 @@
+func (Computed) Get()  T
 func (Failure) Error()  string
 func (Failure) Unwrap()  error
+func (GroupHandle) After(preds ...any)  *GroupHandle
+func (GroupHandle) Define(build func(*GroupHandle))
 func (GroupHandle) Group(name string)  *GroupHandle
 func (GroupHandle) Sequence(name string)  *SequenceHandle
 func (GroupHandle) Snapshot()  TasksSnapshot
@@ -33,6 +36,8 @@ func (Printer) Print(args ...any)
 func (Printer) Printf(format string, args ...any)
 func (Printer) Println(args ...any)
 func (Printer) Writer()  io.Writer
+func (SequenceHandle) After(preds ...any)  *SequenceHandle
+func (SequenceHandle) Define(build func(*SequenceHandle))
 func (SequenceHandle) Group(name string)  *GroupHandle
 func (SequenceHandle) Sequence(name string)  *SequenceHandle
 func (SequenceHandle) Snapshot()  TasksSnapshot
@@ -65,6 +70,7 @@ func App()  Fingerprint
 func AssumeYes(v bool)  ConfirmOption
 func Code(value string)  ProblemOption
 func Command(executable string, args ...string)  Action
+func Compute(task *TaskHandle, fn func(context.Context) (T, error))  *Computed[T]
 func Confirm(question string, opts ...ConfirmOption)  bool
 func ConfirmDetail(lines ...string)  ConfirmOption
 func Count(value int64, unit ...string)  ProblemOption
@@ -124,6 +130,7 @@ type CaptureStream
 type ChangesSnapshot
 type ColorMode
 type CommandSpec
+type Computed
 type Conclusion
 type ConclusionState
 type Config
@@ -213,7 +220,10 @@ value EffectUpdate
 value Empty
 value ErrAlreadyResolved
 value ErrClosed
+value ErrComputedUnordered
+value ErrComputedUnsettled
 value ErrConcurrentRunning
+value ErrDeclaredInCallback
 value ErrDryRunDeclaredLate
 value ErrDuplicateKey
 value ErrDuplicateSiblingName

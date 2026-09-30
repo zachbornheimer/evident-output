@@ -23,6 +23,14 @@ type taskState struct {
 	handle      *TaskHandle
 	// sched is where this Task stands with the scheduler.
 	sched taskSchedule
+	// gateFor is set on a container builder's gate: the scheduler's entity
+	// for the container's deferred declaration work. It is no row and in no
+	// collection (see containerBuilder).
+	gateFor *tasksState
+	// after is every edge After declared on this Task. sched.preds forgets
+	// a satisfied Task predecessor; this keeps it, so Computed.Get can tell
+	// an ordered reader from an unordered one.
+	after []predecessor
 
 	// activityAt is the domain-clock time of the most recent Phase, Progress,
 	// or work-callback-starting call — kept for the public
@@ -171,6 +179,9 @@ type tasksState struct {
 	tally collectionTally
 	// census counts its descendant Tasks for the live frame (liveCensus).
 	census liveCensus
+	// builder is the deferred declaration work Define gave this container;
+	// nil for one whose children are declared directly.
+	builder *containerBuilder
 	// hasNamesake records that a child Task carries this container's own
 	// name, the only way it can render as its own Task (liveOwnRow).
 	hasNamesake bool

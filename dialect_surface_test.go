@@ -24,6 +24,7 @@ import (
 // A new export, a dropped rec verb, or a signature change fails this test.
 var dialectSurface = map[string][]string{
 	"pkg": {
+		"Compute(task *TaskHandle, fn func(context.Context) (T, error))",
 		"AssumeYes(v bool)",
 		"Code(value string)",
 		"Command(executable string, args ...string)",
@@ -129,6 +130,8 @@ var dialectSurface = map[string][]string{
 		"Writer()",
 	},
 	"*SequenceHandle": {
+		"After(preds ...any)",
+		"Define(build func(*SequenceHandle))",
 		"Group(name string)",
 		"Sequence(name string)",
 		"Snapshot()",
@@ -137,6 +140,8 @@ var dialectSurface = map[string][]string{
 		"Wait()",
 	},
 	"*GroupHandle": {
+		"After(preds ...any)",
+		"Define(build func(*GroupHandle))",
 		"Group(name string)",
 		"Sequence(name string)",
 		"Snapshot()",

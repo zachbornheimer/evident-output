@@ -28,8 +28,9 @@ func (g *GroupHandle) Wait() error {
 	if err := g.out.refuseWaitUnderClaim(g.id, &stack); err != nil {
 		return err
 	}
+	builderErr := g.out.awaitBuilders(g.id, &stack)
 	g.out.sealCollection(g.id)
-	return waitDescendants(g.out.collectDescendantTasks(g.id), &stack)
+	return withBuilderOutcome(builderErr, waitDescendants(g.out.collectDescendantTasks(g.id), &stack))
 }
 
 // Wait is Sequence's counterpart to GroupHandle.Wait: the ordered container
