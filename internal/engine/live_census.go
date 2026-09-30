@@ -5,7 +5,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/render/live"
 )
 
 // liveCensus counts every Task at or below one collection by what a live
@@ -35,7 +35,7 @@ func (c *liveCensus) counts() core.ChildCounts {
 
 // rank is the attention rank of the census' most urgent Task.
 func (c *liveCensus) rank() int {
-	return render.AttentionRank(c.failed > 0, c.warned > 0, c.running > 0, c.pending > 0)
+	return live.AttentionRank(c.failed > 0, c.warned > 0, c.running > 0, c.pending > 0)
 }
 
 // count moves the per-state counts of one Task in state by delta.
@@ -132,5 +132,5 @@ func (g *tasksState) liveOwnRow() string {
 	if !g.hasNamesake {
 		return ""
 	}
-	return render.OwnRowName(g.view())
+	return live.OwnRowName(g.view())
 }

@@ -23,7 +23,7 @@ func writeProblem(b *strings.Builder, p core.Problem, indent string, emphasize b
 		if p.Count != 0 {
 			extra = fmt.Sprintf("%s (%d)", p.Summary, p.Count)
 		}
-		fmt.Fprintf(b, "%s%s%s %s  %s\n", indent, problemTreeIndent, s.Dim("├─"), p.Subject, extra)
+		fmt.Fprintf(b, "%s%s%s %s  %s\n", indent, ProblemTreeIndent, s.Dim("├─"), p.Subject, extra)
 		if detail != "" {
 			writeProblemDetailLines(b, detail, indent, emphasize, s)
 		}
@@ -42,7 +42,7 @@ func writeProblem(b *strings.Builder, p core.Problem, indent string, emphasize b
 		}
 		return
 	}
-	fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, s.EvidenceGlyph(), s.Emphasized(p.Summary, emphasize))
+	fmt.Fprintf(b, "%s%s%s %s\n", indent, ProblemTreeIndent, s.EvidenceGlyph(), s.Emphasized(p.Summary, emphasize))
 }
 
 // dedupeEvidenceTailAgainstRow is P7's addition (user-13-problems.md
@@ -110,7 +110,7 @@ func writeProblemDetailBlock(b *strings.Builder, summary, detail, indent string,
 		}
 		summary, lines = lines[0], lines[1:]
 	}
-	fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, s.EvidenceGlyph(), s.Emphasized(summary, emphasize))
+	fmt.Fprintf(b, "%s%s%s %s\n", indent, ProblemTreeIndent, s.EvidenceGlyph(), s.Emphasized(summary, emphasize))
 	for _, line := range lines {
 		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, s.Emphasized(line, emphasize))
 	}
@@ -120,7 +120,7 @@ func writeProblemDetailBlock(b *strings.Builder, summary, detail, indent string,
 func writeProblemDetailLines(b *strings.Builder, detail, indent string, emphasize bool, s Style) {
 	pipe := s.Dim("│")
 	for _, line := range splitPresentationLines(detail) {
-		fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, pipe, s.Emphasized(line, emphasize))
+		fmt.Fprintf(b, "%s%s%s %s\n", indent, ProblemTreeIndent, pipe, s.Emphasized(line, emphasize))
 	}
 }
 

@@ -1,6 +1,9 @@
-package render
+package live
 
-import "github.com/zachbornheimer/evident-output/internal/core"
+import (
+	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/render"
+)
 
 // LiveChildren projects one collection's child Tasks for a live frame of
 // at most rows rows. A frame never shows more child rows than it has
@@ -27,7 +30,7 @@ type LiveChildren struct {
 
 	all, work core.ChildCounts
 	items     core.Dispositions
-	census    ChildCensus
+	census    render.ChildCensus
 }
 
 // NewLiveChildren starts the projection of the children of the collection
@@ -41,14 +44,14 @@ func NewLiveChildren(group string, rows int) *LiveChildren {
 func (c *LiveChildren) Admit(t *core.TaskSnapshot) bool {
 	c.all.Add(t)
 	switch {
-	case IsOwnTask(c.group, t):
+	case render.IsOwnTask(c.group, t):
 		c.census.OwnTask = true
-	case IsDispositionItem(c.group, t):
+	case render.IsDispositionItem(c.group, t):
 		c.census.Items++
 		c.items.AddTask(t)
 		c.keptItems++
 		return c.keptItems <= c.rows+1
-	case IsWorkPeer(t):
+	case render.IsWorkPeer(t):
 		c.census.WorkPeer = true
 	}
 	c.work.Add(t)
@@ -153,7 +156,7 @@ func (c *LiveCollections) Omit(tasks core.ChildCounts, ownRow string) {
 // OwnRowName is the name col renders its one row under when it renders
 // as its own Task, or "".
 func OwnRowName(col core.TasksSnapshot) string {
-	name, _ := OwnTaskRowName(col)
+	name, _ := render.OwnTaskRowName(col)
 	return name
 }
 

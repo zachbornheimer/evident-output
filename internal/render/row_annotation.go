@@ -260,10 +260,10 @@ func writeTaxonomyCauses(b *strings.Builder, indent string, causes []string, s S
 		if more := len(causes) - 1; more > 0 {
 			line = fmt.Sprintf("%s (+%d more)", line, more)
 		}
-		fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, evidence, line)
+		fmt.Fprintf(b, "%s%s%s %s\n", indent, ProblemTreeIndent, evidence, line)
 		return
 	}
-	fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, evidence, causes[0])
+	fmt.Fprintf(b, "%s%s%s %s\n", indent, ProblemTreeIndent, evidence, causes[0])
 	for _, c := range causes[1:] {
 		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, c)
 	}

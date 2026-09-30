@@ -26,7 +26,7 @@ func RootRow(t core.TaskSnapshot, nameWidth int) TaskRow {
 
 // ChildRow is t as a row under its Group's header.
 func ChildRow(t core.TaskSnapshot, nameWidth int) TaskRow {
-	return TaskRow{t: t, nameWidth: nameWidth, prefix: GroupChildIndent, nested: problemTreeIndent}
+	return TaskRow{t: t, nameWidth: nameWidth, prefix: GroupChildIndent, nested: ProblemTreeIndent}
 }
 
 // rowHead is what a row's own line settled on: its detail text, the

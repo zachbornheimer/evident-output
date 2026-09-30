@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/render/live"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -463,7 +463,7 @@ func (o *Output) finishLiveLocked(final string) {
 
 // liveSnapshotLocked is what a live frame of rows rows draws from: the
 // effect sections, and every collection and standalone root Task as far
-// as the frame could show it (render.LiveChildren), so building a frame
+// as the frame could show it (live.LiveChildren), so building a frame
 // snapshots the rows on screen rather than every Task in the run. A root
 // Task already durably flushed by commitResolvedTaskLocked (a never-ran
 // "fact-check" resolution — see its doc comment) is left out: it would
@@ -479,7 +479,7 @@ func (o *Output) liveSnapshotLocked(rows int, now time.Time) Snapshot {
 	cols := liveCollections(o.collections, rows, now)
 	s.Collections = cols.Kept()
 	s = core.WithRootCollectionTally(s, cols.Tally())
-	root := render.NewLiveChildren("", rows)
+	root := live.NewLiveChildren("", rows)
 	for _, t := range o.tasks {
 		if t.collection != nil {
 			continue
@@ -516,15 +516,15 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 		}
 		bodyHeight = max(height-paneRows, 1)
 	}
-	body := render.LiveRegion(o.liveSnapshotLocked(bodyHeight, now), bodyHeight, width, now, style)
+	body := live.LiveRegion(o.liveSnapshotLocked(bodyHeight, now), bodyHeight, width, now, style)
 	if body == "" && o.armedTitleLiveLocked() {
-		body = render.ArmedTitleLine(o.cfg.subject, now, style)
+		body = live.ArmedTitleLine(o.cfg.subject, now, style)
 	}
 	if o.cfg.debugPresentation != DebugPresentationPane || len(o.debugRecords) == 0 {
-		return render.FitLiveRegion(body, width)
+		return live.FitLiveRegion(body, width)
 	}
 	var b strings.Builder
 	b.WriteString(body)
 	writeDebugPane(&b, o.debugRecords, o.cfg.debugPane, width, style.Color)
-	return render.FitLiveRegion(strings.TrimRight(b.String(), "\n"), width)
+	return live.FitLiveRegion(strings.TrimRight(b.String(), "\n"), width)
 }

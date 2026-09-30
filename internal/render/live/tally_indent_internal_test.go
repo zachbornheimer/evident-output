@@ -1,8 +1,10 @@
-package render
+package live
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/render"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
@@ -29,7 +31,7 @@ func branchesWithWorkChild(work core.TaskSnapshot) core.TasksSnapshot {
 func TestGroupTallies_ShareTheChildColumn(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
-	WriteCollection(&b, branchesWithWorkChild(core.TaskSnapshot{Name: "deleted", State: core.Done, Summary: "14 deleted"}), Style{Profile: txt.GlyphsUnicode})
+	render.WriteCollection(&b, branchesWithWorkChild(core.TaskSnapshot{Name: "deleted", State: core.Done, Summary: "14 deleted"}), render.Style{Profile: txt.GlyphsUnicode})
 	want := "✓ branches  14 deleted\n" +
 		"   - skipped 2 (protected)\n" +
 		"   ! kept 2 (unpushed)\n" +
@@ -51,7 +53,7 @@ func TestLiveGroupTallies_ShareTheChildColumn(t *testing.T) {
 		t.Fatalf("live frame: want header, two tallies, one child:\n%s", b.String())
 	}
 	for _, line := range lines[1:] {
-		if !strings.HasPrefix(line, problemTreeIndent) || strings.HasPrefix(line, problemTreeIndent+" ") {
+		if !strings.HasPrefix(line, render.ProblemTreeIndent) || strings.HasPrefix(line, render.ProblemTreeIndent+" ") {
 			t.Fatalf("live row %q is not in the child column:\n%s", line, b.String())
 		}
 	}

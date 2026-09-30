@@ -69,8 +69,8 @@ const maxVisibleProblems = 5
 
 // Plain problem indent widths (fixed presentation dialect, not operational knobs).
 const (
-	// problemTreeIndent prefixes ├─ / └─ / │ problem rows.
-	problemTreeIndent = "   "
+	// ProblemTreeIndent prefixes ├─ / └─ / │ problem rows.
+	ProblemTreeIndent = "   "
 	// problemDetailIndent continues multi-line Detail under a └─ / │ opener.
 	problemDetailIndent = "      "
 	// TaskAnnotationIndent nests a standalone task's annotations — taxonomy

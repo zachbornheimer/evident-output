@@ -1,4 +1,4 @@
-package render
+package live
 
 import (
 	"fmt"

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/render/live"
 )
 
 // Snapshot returns an immutable copy of current state.
@@ -291,10 +291,10 @@ func (g *tasksState) header() TasksSnapshot {
 
 // liveSnapshot is g as a live frame of rows rows can show it: the
 // children it could select, snapshotted, and a tally of the rest (see
-// render.LiveChildren).
+// live.LiveChildren).
 func (g *tasksState) liveSnapshot(rows int, now time.Time) TasksSnapshot {
 	ts := g.header()
-	children := render.NewLiveChildren(g.name, rows)
+	children := live.NewLiveChildren(g.name, rows)
 	for _, t := range g.tasks {
 		t.stampLiveFirstSeen(now)
 		if view := t.view(); children.Admit(&view) {
@@ -307,9 +307,9 @@ func (g *tasksState) liveSnapshot(rows int, now time.Time) TasksSnapshot {
 
 // liveCollections projects cols for a live frame of rows rows: the ones
 // the frame can reach through liveSnapshot, the rest tallied from views
-// (see render.LiveCollections).
-func liveCollections(cols []*tasksState, rows int, now time.Time) *render.LiveCollections {
-	projected := render.NewLiveCollections(rows)
+// (see live.LiveCollections).
+func liveCollections(cols []*tasksState, rows int, now time.Time) *live.LiveCollections {
+	projected := live.NewLiveCollections(rows)
 	for _, col := range cols {
 		if projected.Admit(col.census.rank()) {
 			projected.Keep(col.liveSnapshot(rows, now))

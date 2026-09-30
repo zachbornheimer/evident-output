@@ -1,9 +1,11 @@
-package render
+package live
 
 import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/render"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
@@ -70,7 +72,7 @@ func TestLiveRegion_ProjectsChangedAndPlannedLedger(t *testing.T) {
 			Records: []core.EffectRecord{{Verb: "fetch-prune", Quantity: 12, HasQty: true, Object: "stale origin/*"}},
 		}},
 	}
-	got := LiveRegion(snap, 24, 80, time.Time{}, Style{Profile: txt.GlyphsUnicode})
+	got := LiveRegion(snap, 24, 80, time.Time{}, render.Style{Profile: txt.GlyphsUnicode})
 	if !strings.Contains(got, "[changed] branches") || !strings.Contains(got, "deleted 5 local tips") {
 		t.Fatalf("missing [changed] ledger:\n%s", got)
 	}
