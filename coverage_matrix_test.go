@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
-
 	evo "github.com/zachbornheimer/evident-output"
 )
 
@@ -56,29 +54,6 @@ func TestTXT001_ASCIIWidthStable(t *testing.T) {
 	}
 	if !strings.Contains(narrow.String(), "added 1 x") {
 		t.Fatal(narrow.String())
-	}
-}
-
-func TestOUT006_JSONLOneObjectPerLine(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	succeed(out.Task("a"))
-	_ = out.Finish()
-	raw, err := render.EncodeJSONL(out.Events())
-	if err != nil {
-		t.Fatal(err)
-	}
-	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
-	if len(lines) < 2 {
-		t.Fatal(len(lines))
-	}
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		if !strings.HasPrefix(line, "{") {
-			t.Fatalf("not object: %s", line)
-		}
 	}
 }
 

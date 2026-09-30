@@ -40,38 +40,6 @@ func TestLOG008_ConcurrentDebugWriters(t *testing.T) {
 	_ = out.Finish()
 }
 
-func TestOUT007_DeterministicJSONWithFixedClock(t *testing.T) {
-	// same semantic state → same conclusion fields (IDs differ by construction)
-	mk := func() evo.Conclusion {
-		out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-		succeed(out.Task("a"))
-		out.Task("b").Block("x")
-		_ = out.Finish()
-		c := out.Conclusion()
-		_ = out.Close()
-		return c
-	}
-	a, b := mk(), mk()
-	if a.State != b.State || a.ExitCode != b.ExitCode {
-		t.Fatalf("%+v vs %+v", a, b)
-	}
-}
-
-func TestOUT011_EventTimestampsPresent(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	succeed(out.Task("a"))
-	_ = out.Finish()
-	for _, e := range out.Events() {
-		if e.Timestamp.IsZero() {
-			t.Fatal("zero timestamp")
-		}
-		if e.SchemaVersion != "0.3" {
-			t.Fatal(e.SchemaVersion)
-		}
-	}
-}
-
 func TestCON005_CloseDuringUpdates(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	var wg sync.WaitGroup

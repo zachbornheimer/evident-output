@@ -2,7 +2,6 @@ package evo_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"io"
 	"strings"
@@ -45,70 +44,6 @@ func TestTXT020_EmptyNameStillCreates(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	succeed(out.Task(""))
 	_ = out.Finish()
-}
-
-func TestOUT008_InferenceInEvents(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	succeed(out.Task("a"))
-	_ = out.Finish()
-	raw, _ := render.EncodeJSONL(out.Events())
-	if !strings.Contains(string(raw), "output.finished") {
-		t.Fatal(string(raw))
-	}
-}
-
-func TestOUT009_UnknownJSONFieldsIgnoredByConsumers(t *testing.T) {
-	// Older reader: unmarshal known fields; ignore extras if present.
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	succeed(out.Task("a"))
-	_ = out.Finish()
-	b, err := render.EncodeJSON(out.Snapshot())
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Inject an unknown field as a consumer would see from a newer encoder.
-	var m map[string]any
-	if err := json.Unmarshal(b, &m); err != nil {
-		t.Fatal(err)
-	}
-	m["future_field"] = "x"
-	raw, _ := json.Marshal(m)
-	var slim struct {
-		SchemaVersion string `json:"schema_version"`
-		Conclusion    struct {
-			State string `json:"state"`
-		} `json:"conclusion"`
-	}
-	if err := json.Unmarshal(raw, &slim); err != nil {
-		t.Fatal(err)
-	}
-	if slim.SchemaVersion != "0.4" || slim.Conclusion.State == "" {
-		t.Fatalf("%+v", slim)
-	}
-}
-
-func TestOUT020_NoSubjectOmitsGuess(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	succeed(out.Task("a"))
-	_ = out.Finish()
-	// should not invent a subject name
-	if strings.Contains(buf.String(), "unknown-subject") {
-		t.Fatal(buf.String())
-	}
-	_ = out.Close()
-}
-
-func TestOUT022_PlanVsChanges(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, DryRun: true})
-	p := out.Task("p")
-	p.Define(effectOf(evo.EffectDelete, "x", 1))
-	_ = out.Finish()
-	if out.Conclusion().Changed {
-		t.Fatal("plan must not set changed")
-	}
-	_ = out.Close()
 }
 
 func TestCON002_DisplayOrderStable(t *testing.T) {

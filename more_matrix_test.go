@@ -25,29 +25,6 @@ func TestLOG002_DebugUsesClock(t *testing.T) {
 	_ = time.Second
 }
 
-func TestOUT012_ExitCodes(t *testing.T) {
-	cases := []struct {
-		name string
-		fn   func(*evo.Output)
-		code int
-	}{
-		{"ok", func(o *evo.Output) { succeed(o.Task("a")) }, 0},
-		{"blocked", func(o *evo.Output) { o.Task("a").Block("b") }, 1},
-		{"failed", func(o *evo.Output) { o.Task("a").Fail("f") }, 2},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-			tc.fn(out)
-			_ = out.Finish()
-			if out.Conclusion().ExitCode != tc.code {
-				t.Fatalf("got %d", out.Conclusion().ExitCode)
-			}
-			_ = out.Close()
-		})
-	}
-}
-
 func TestAPI026_NoRunAllSymbol(t *testing.T) {
 	// Behavioral: core package has no execution helpers — we can only call presentation APIs.
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})

@@ -225,29 +225,29 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | MCP-049  | pass   | agent/harness TestMCP049_StopOnlyWhenRecheckFalse                                                                      |
 | MCP-050  | pass   | catalog.ApplyTokenBudget + mcp_hardening_test.go                                                                       |
 | OUT-001  | pass   | DataProjection                                                                                                         |
-| OUT-002  | pass   | closeout_test.go                                                                                                       |
+| OUT-002  | pass   | machine_output_test.go                                                                                                 |
 | OUT-003  | pass   | DataProjection                                                                                                         |
 | OUT-004  | pass   | appendix_h H.18                                                                                                        |
 | OUT-005  | pass   | appendix_h_test.go                                                                                                     |
-| OUT-006  | pass   | coverage_matrix_test.go                                                                                                |
+| OUT-006  | pass   | machine_output_test.go                                                                                                 |
 | OUT-007  | pass   | deterministic JSON                                                                                                     |
-| OUT-008  | pass   | final_matrix_test.go                                                                                                   |
-| OUT-009  | pass   | final_matrix_test.go                                                                                                   |
-| OUT-010  | pass   | closeout_test.go                                                                                                       |
-| OUT-011  | pass   | remaining_core_test.go                                                                                                 |
-| OUT-012  | pass   | more_matrix_test.go                                                                                                    |
-| OUT-013  | pass   | closeout_test.go                                                                                                       |
+| OUT-008  | pass   | machine_output_test.go                                                                                                 |
+| OUT-009  | pass   | machine_output_test.go                                                                                                 |
+| OUT-010  | pass   | machine_output_test.go                                                                                                 |
+| OUT-011  | pass   | machine_output_test.go                                                                                                 |
+| OUT-012  | pass   | machine_output_test.go                                                                                                 |
+| OUT-013  | pass   | machine_output_test.go                                                                                                 |
 | OUT-014  | pass   | final_matrix_test.go                                                                                                   |
-| OUT-015  | pass   | closeout_test.go                                                                                                       |
-| OUT-016  | pass   | closeout_test.go                                                                                                       |
-| OUT-017  | pass   | last_push_test.go                                                                                                      |
+| OUT-015  | pass   | machine_output_test.go                                                                                                 |
+| OUT-016  | pass   | machine_output_test.go                                                                                                 |
+| OUT-017  | pass   | machine_output_test.go                                                                                                 |
 | OUT-018  | pass   | appendix_h_test.go RenderPlain/EncodeJSON                                                                              |
 | OUT-019  | pass   | closeout_test.go                                                                                                       |
-| OUT-020  | pass   | final_matrix_test.go                                                                                                   |
+| OUT-020  | pass   | machine_output_test.go                                                                                                 |
 | OUT-021  | pass   | projection_test.go                                                                                                     |
-| OUT-022  | pass   | final_matrix_test.go                                                                                                   |
-| OUT-023  | pass   | last_push_test.go                                                                                                      |
-| OUT-024  | pass   | last_push_test.go                                                                                                      |
+| OUT-022  | pass   | machine_output_test.go                                                                                                 |
+| OUT-023  | pass   | machine_output_test.go                                                                                                 |
+| OUT-024  | pass   | machine_output_test.go                                                                                                 |
 | PORT-001 | pass   | port_pty_unix_test.go                                                                                                  |
 | PORT-002 | pass   | port_pty_unix_test.go                                                                                                  |
 | PORT-003 | waived | Windows ConPTY — release-candidate manual checklist                                                                    |

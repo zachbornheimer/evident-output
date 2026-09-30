@@ -14,29 +14,6 @@ import (
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
-func TestOUT023_LineWhileLive(t *testing.T) {
-	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor(), testkit.Width(80))
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug}})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Task("t").Doing("p")
-	out.Println("durable hello")
-	// Line currently doesn't trigger debugLive path — call Debug for insert-above
-	// Spec OUT-023: Line while live — ensure no panic and finish works
-	_ = out.Finish()
-}
-
-func TestOUT024_Linef(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Printf("count=%d", 3)
-	succeed(out.Task("a"))
-	_ = out.Finish()
-	if !strings.Contains(buf.String(), "count=3") {
-		t.Fatal(buf.String())
-	}
-}
-
 func TestAPI028_AbsoluteProgress(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
@@ -175,20 +152,6 @@ func TestLOG015_LogBurstPreservesOrder(t *testing.T) {
 	}
 	_ = out.Finish()
 	// sequences strictly increasing already tested
-}
-
-func TestOUT017_FinalProgressExact(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("t")
-	for i := int64(0); i <= 100; i++ {
-		task.Progress(int(i), 100)
-	}
-	succeed(task)
-	_ = out.Finish()
-	if task.Snapshot().Progress.Completed != 100 {
-		t.Fatal(task.Snapshot().Progress)
-	}
 }
 
 func TestSEC012_PathCanBeInDetail(t *testing.T) {
