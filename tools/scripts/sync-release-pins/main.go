@@ -1,5 +1,5 @@
 // Command sync-release-pins rewrites install pins on portable surfaces to
-// match evo.PublishedRelease. Run after changing PublishedRelease in release.go.
+// match evo.PublishedRelease. Run after changing PublishedRelease in format.go.
 //
 //	go run ./tools/scripts/sync-release-pins
 package main

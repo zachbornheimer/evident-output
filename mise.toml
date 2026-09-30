@@ -96,7 +96,7 @@ run = [
   "test -f go.mod",
   "test -f conformance/TRACEABILITY.md",
   "test -f conformance/schema/scenario.v1.json",
-  "test -f release.go",
+  "rg -q '^const PublishedRelease = ' format.go",
   "go test . -run 'PublishedRelease|VersionDrift' -count=1",
   "echo doctor ok",
 ]
