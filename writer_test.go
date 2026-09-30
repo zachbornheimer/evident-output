@@ -11,7 +11,7 @@ import (
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
-func TestPhaseWriter_SplitsOnLF_AcrossWrites(t *testing.T) {
+func TestWriter_SplitsOnLF_AcrossWrites(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
 	task := out.Task("push")
@@ -34,7 +34,7 @@ func TestPhaseWriter_SplitsOnLF_AcrossWrites(t *testing.T) {
 	}
 }
 
-func TestPhaseWriter_UnterminatedWriteBecomesDoing(t *testing.T) {
+func TestWriter_UnterminatedWriteBecomesDoing(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
 	t.Cleanup(func() { _ = out.Close() })
@@ -49,7 +49,7 @@ func TestPhaseWriter_UnterminatedWriteBecomesDoing(t *testing.T) {
 	}
 }
 
-func TestPhaseWriter_CRDelimitsProgressFrames(t *testing.T) {
+func TestWriter_CRDelimitsProgressFrames(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
 	task := out.Task("download")
@@ -69,7 +69,7 @@ func TestPhaseWriter_CRDelimitsProgressFrames(t *testing.T) {
 	}
 }
 
-func TestPhaseWriter_BlankLinesIgnored(t *testing.T) {
+func TestWriter_BlankLinesIgnored(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
 	task := out.Task("sync")
@@ -88,7 +88,7 @@ func TestPhaseWriter_BlankLinesIgnored(t *testing.T) {
 	}
 }
 
-func TestPhaseWriter_BytesLandInCapture_DetailTailAfterFail(t *testing.T) {
+func TestWriter_BytesLandInCapture_DetailTailAfterFail(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("push")
@@ -109,12 +109,12 @@ func TestPhaseWriter_BytesLandInCapture_DetailTailAfterFail(t *testing.T) {
 	}
 }
 
-// TestPhaseWriter_UnboundedPendingFragmentIsCapped is the red-first case for
+// TestWriter_UnboundedPendingFragmentIsCapped is the red-first case for
 // phase_writer.go's unbounded buffer: a child that emits far more than one
 // screen's worth of bytes with no line terminator must not grow the
 // pending-fragment buffer without limit — once it exceeds the cap, the
 // fragment flushes as a phase line on its own.
-func TestPhaseWriter_UnboundedPendingFragmentIsCapped(t *testing.T) {
+func TestWriter_UnboundedPendingFragmentIsCapped(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
 	task := out.Task("build")
@@ -143,7 +143,7 @@ func TestPhaseWriter_UnboundedPendingFragmentIsCapped(t *testing.T) {
 	}
 }
 
-func TestPhaseWriter_SanitizesHostileLines(t *testing.T) {
+func TestWriter_SanitizesHostileLines(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("push")
