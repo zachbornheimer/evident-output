@@ -30,6 +30,7 @@
 !/docs/**
 !/conformance/
 !/conformance/**
+/conformance/spec/score.json
 !/testdata/
 !/testdata/**
 !/testkit/
