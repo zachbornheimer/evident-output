@@ -2,7 +2,9 @@ package evo
 
 import (
 	"context"
+	"time"
 
+	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/engine"
 )
 
@@ -74,3 +76,65 @@ func (o *Output) impl() *engine.Output {
 	}
 	return o.inner
 }
+
+func (o *Output) Close() error {
+	if o == nil || o.inner == nil {
+		return nil
+	}
+	return o.inner.Close()
+}
+
+func (o *Output) Conclusion() Conclusion {
+	if o == nil || o.inner == nil {
+		return Conclusion{}
+	}
+	return o.inner.Conclusion()
+}
+
+func (o *Output) Context() context.Context {
+	if o == nil || o.inner == nil {
+		return context.Background()
+	}
+	return o.inner.Context()
+}
+
+func (o *Output) Err() error {
+	if o == nil || o.inner == nil {
+		return nil
+	}
+	return o.inner.Err()
+}
+
+func (o *Output) Finish() error {
+	if o == nil || o.inner == nil {
+		return nil
+	}
+	return o.inner.Finish()
+}
+
+// Run executes run against o and returns the Result (Conclusion plus the
+// application error, if any); it never exits the process.
+func (o *Output) Run(ctx context.Context, run RunFunc) Result {
+	if o == nil || o.inner == nil {
+		return Result{Conclusion: Conclusion{State: StateFailed, ExitCode: ExitFailed}}
+	}
+	return o.inner.Run(ctx, run)
+}
+
+// Events returns a copy of this instance's durable event journal, for
+// EncodeJSONL and other machine-projection call sites that need the raw
+// event stream rather than a point-in-time Snapshot.
+func (o *Output) Events() []Event {
+	if o == nil || o.inner == nil {
+		return nil
+	}
+	return o.inner.Events()
+}
+
+// Result is the outcome of Run/Main/Output.Run — the finished Conclusion
+// plus the application error the run callback returned, if any. Run and
+// Output.Run return it directly; Main derives its int exit code from it.
+// See EVIDENT_OUTPUT_ARCHITECTURE spec §1.1, §32.2.
+type Result = core.Result
+
+func Delay(d time.Duration) *time.Duration { return engine.Delay(d) }

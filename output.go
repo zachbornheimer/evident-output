@@ -1,25 +1,10 @@
 package evo
 
 import (
-	"context"
 	"io"
 )
 
 func (o *Output) Cancel(reason string) { o.impl().Cancel(reason) }
-
-func (o *Output) Close() error {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return o.inner.Close()
-}
-
-func (o *Output) Conclusion() Conclusion {
-	if o == nil || o.inner == nil {
-		return Conclusion{}
-	}
-	return o.inner.Conclusion()
-}
 
 func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 	if o == nil || o.inner == nil {
@@ -28,31 +13,10 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 	return o.inner.Confirm(question, opts...)
 }
 
-func (o *Output) Context() context.Context {
-	if o == nil || o.inner == nil {
-		return context.Background()
-	}
-	return o.inner.Context()
-}
-
-func (o *Output) Err() error {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return o.inner.Err()
-}
-
 func (o *Output) Fact(name, value string) { o.impl().Fact(name, value) }
 
 func (o *Output) Fail(summary string, options ...ProblemOption) {
 	o.impl().Fail(summary, options...)
-}
-
-func (o *Output) Finish() error {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return o.inner.Finish()
 }
 
 func (o *Output) Group(name string) *GroupHandle { return wrapGroup(o.impl().Group(name)) }
@@ -76,15 +40,6 @@ func (o *Output) ResultWriter() io.Writer {
 	return o.inner.ResultWriter()
 }
 
-// Run executes run against o and returns the Result (Conclusion plus the
-// application error, if any); it never exits the process.
-func (o *Output) Run(ctx context.Context, run RunFunc) Result {
-	if o == nil || o.inner == nil {
-		return Result{Conclusion: Conclusion{State: StateFailed, ExitCode: ExitFailed}}
-	}
-	return o.inner.Run(ctx, run)
-}
-
 func (o *Output) Sequence(name string) *SequenceHandle {
 	return wrapSequence(o.impl().Sequence(name))
 }
@@ -94,16 +49,6 @@ func (o *Output) Snapshot() Snapshot {
 		return Snapshot{}
 	}
 	return o.inner.Snapshot()
-}
-
-// Events returns a copy of this instance's durable event journal, for
-// EncodeJSONL and other machine-projection call sites that need the raw
-// event stream rather than a point-in-time Snapshot.
-func (o *Output) Events() []Event {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return o.inner.Events()
 }
 
 func (o *Output) Suspend(fn func() error) error {

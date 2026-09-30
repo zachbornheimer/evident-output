@@ -17,12 +17,6 @@ const (
 	ExitCancelled = core.ExitCancelled
 )
 
-// Result is the outcome of Run/Main/Output.Run — the finished Conclusion
-// plus the application error the run callback returned, if any. Run and
-// Output.Run return it directly; Main derives its int exit code from it.
-// See EVIDENT_OUTPUT_ARCHITECTURE spec §1.1, §32.2.
-type Result = core.Result
-
 // Resolution names why a Task settled successfully (§29/§30).
 type Resolution = core.Resolution
 
