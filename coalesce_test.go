@@ -153,8 +153,9 @@ func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "tool", Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("tool").Define(effectOf(evo.EffectAdd, "x", 1))
-	out.NextCommand("git", "status")
+	tool := out.Task("tool")
+	tool.Define(effectOf(evo.EffectAdd, "x", 1))
+	tool.Problem("working tree state not checked", evo.Severity(evo.SeverityWarning), evo.NextCommand("git", "status"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

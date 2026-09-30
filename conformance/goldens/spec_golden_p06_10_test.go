@@ -378,8 +378,7 @@ func TestSpecP8_Error(t *testing.T) {
 	g := out.Group("remotes")
 	g.Task("origin/feat/a").Define(effectOf(evo.EffectDelete, "origin tip", 1))
 	failed := g.Task("origin/feat/b")
-	failed.Fail("HTTP 401", evo.Detail("Authorization: token expired"))
-	failed.NextCommand("gh", "auth", "refresh")
+	failed.Fail("HTTP 401", evo.Detail("Authorization: token expired"), evo.NextCommand("gh", "auth", "refresh"))
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}

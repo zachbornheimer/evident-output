@@ -52,9 +52,8 @@ func TestSEC006_CommandArgvPreservedInAction(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	item := out.Task("x")
-	item.Block("b")
-	item.NextCommand("tool", "--flag", "value")
-	acts := out.Task("x").Snapshot().Actions
+	item.Block("b", evo.NextCommand("tool", "--flag", "value"))
+	acts := item.Snapshot().Problems[0].Actions
 	// re-get from first item via snapshot after finish
 	_ = out.Finish()
 	snap := out.Snapshot()
@@ -170,8 +169,7 @@ func TestSEC007_DestructiveActionFlag(t *testing.T) {
 		Command:     &evo.CommandSpec{Executable: "rm", Args: []string{"-rf", "/"}},
 	}
 	item := out.Task("x")
-	item.Block("danger")
-	item.Next(a)
+	item.Block("danger", evo.Next(a))
 	_ = out.Finish()
 	c := out.Conclusion()
 	found := false

@@ -272,7 +272,10 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 	for _, name := range eachSkipNames("unpushed", 3) {
 		g.Task(name).Skipped(unpushed)
 	}
-	out.NextCommand("repo-retire", "salvage", "--dry-run")
+	salvage := out.Task("salvage")
+	salvage.Problem("unpushed branches kept", evo.Severity(evo.SeverityWarning),
+		evo.NextCommand("repo-retire", "salvage", "--dry-run"))
+	succeed(salvage)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

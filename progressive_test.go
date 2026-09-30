@@ -26,11 +26,12 @@ func TestProgressive_ItemResolutionsStreamBeforeFinish(t *testing.T) {
 	}
 	beforeBranches := buf.String()
 
-	b.Block("local-only", evo.On("feat/x"), evo.Count(1))
-	// NextCommand attaches a Task-level action, surfaced once at Finish's
-	// conclusion (deduplicated across every task) — not a per-row stream,
-	// unlike the terminal outcome and its Problem evidence above.
-	b.NextCommand("git", "push", "-u", "origin", "feat/x")
+	// The NextCommand option attaches the remedy to the Problem; it is
+	// surfaced once at Finish's conclusion (deduplicated across every task) —
+	// not a per-row stream, unlike the terminal outcome and its Problem
+	// evidence above.
+	b.Block("local-only", evo.On("feat/x"), evo.Count(1),
+		evo.NextCommand("git", "push", "-u", "origin", "feat/x"))
 
 	afterBranches := buf.String()
 	if !strings.Contains(afterBranches, "branches") {
