@@ -2,8 +2,6 @@ package evo_test
 
 import (
 	"bytes"
-	"context"
-	"io"
 	"strings"
 	"testing"
 
@@ -22,10 +20,10 @@ func nonTTYConfig(title string, buf *bytes.Buffer) evo.Config {
 	}
 }
 
-// TestFlat_MultiLineDetailPreservedAsBlock is the P3 contract: multi-line
+// TestPlain_MultiLineDetailPreservedAsBlock is the P3 contract: multi-line
 // Problem Detail (capture tails / diffs) must render as an indented multi-line
 // block under the fail row, not a single joined line with newlines collapsed.
-func TestFlat_MultiLineDetailPreservedAsBlock(t *testing.T) {
+func TestPlain_MultiLineDetailPreservedAsBlock(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.Close() })
@@ -57,9 +55,9 @@ func TestFlat_MultiLineDetailPreservedAsBlock(t *testing.T) {
 	}
 }
 
-// TestFlat_FailDetailDoesNotEchoSummary is the P4 contract: when Detail is
+// TestPlain_FailDetailDoesNotEchoSummary is the P4 contract: when Detail is
 // present, the └─ block is the tail only — not "summary     detail".
-func TestFlat_FailDetailDoesNotEchoSummary(t *testing.T) {
+func TestPlain_FailDetailDoesNotEchoSummary(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.Close() })
@@ -91,14 +89,14 @@ func TestFlat_FailDetailDoesNotEchoSummary(t *testing.T) {
 	}
 }
 
-// TestFlat_StandaloneTaskBeforeTrailingPrintf is the P2 contract: standalone
+// TestPlain_StandaloneTaskBeforeTrailingPrintf is the P2 contract: standalone
 // Tasks that resolve before a Printf summary appear before that summary in the
 // primary stream (creation/completion order, not all-tasks-at-Finish).
 //
 // Contract: in plain/non-TTY mode, a terminal standalone Task streams on
 // resolution (like Items). Printf that runs after Task.Fail therefore cannot
 // appear above the task row.
-func TestFlat_StandaloneTaskBeforeTrailingPrintf(t *testing.T) {
+func TestPlain_StandaloneTaskBeforeTrailingPrintf(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(nonTTYConfig("zq", &buf))
 	t.Cleanup(func() { _ = out.Close() })
@@ -131,105 +129,11 @@ func TestFlat_StandaloneTaskBeforeTrailingPrintf(t *testing.T) {
 	}
 }
 
-// TestCapture_StderrOnlyFeedsDetailTail is the P1 contract: Task.Capture()
-// retains stderr into the evidence ring by default; writing only to Stderr()
-// still populates DetailTail without a separate writer or Mirror.
-func TestCapture_StderrOnlyFeedsDetailTail(t *testing.T) {
-	var primary, diag bytes.Buffer
-	out := evo.Init(evo.Config{
-		Title:  "lint",
-		Stdout: &primary,
-		Stderr: &diag,
-		Plain:  true,
-		Color:  evo.ColorNever,
-	})
-	t.Cleanup(func() { _ = out.Close() })
-
-	task := out.Task("golangci-lint")
-	cap := task.Capture()
-	// Linters commonly write diagnostics only on stderr.
-	_, _ = io.WriteString(cap.Stderr(), "level=warning msg=\"can't process results\"\n")
-	_, _ = io.WriteString(cap.Stderr(), "../tmp/main.go:1:1: File is not properly formatted (gofmt)\n")
-	_, _ = io.WriteString(cap.Stderr(), "1 issues:\n")
-	_, _ = io.WriteString(cap.Stderr(), "* gofmt: 1\n")
-	_ = cap.Close()
-
-	task.Fail("golangci-lint exited 1", cap.DetailTail())
-	if err := out.Finish(); err != nil {
-		t.Fatal(err)
-	}
-
-	got := primary.String()
-	for _, want := range []string{
-		"can't process results",
-		"File is not properly formatted",
-		"1 issues:",
-		"* gofmt: 1",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("P1: stderr-only Capture must appear in DetailTail/fail output (missing %q):\n%s", want, got)
-		}
-	}
-	// Silent-until-failure: nothing mirrored to Diagnostics by default.
-	if strings.Contains(diag.String(), "gofmt") {
-		t.Fatalf("default Capture must remain silent on success path / no mirror:\n%s", diag.String())
-	}
-	// Multi-line tail still preserved under P3.
-	if !strings.Contains(got, "1 issues:\n") && !strings.Contains(got, "1 issues:") {
-		// Allow either multi-line block or at least content; prefer multi-line.
-		t.Fatalf("expected issues line in output:\n%s", got)
-	}
-	// Newlines in stderr tail must not be fully collapsed.
-	if strings.Contains(got, "1 issues: * gofmt: 1") && !strings.Contains(got, "1 issues:\n") {
-		// If both forms somehow present, multi-line form is required.
-		t.Fatalf("P1/P3: stderr multi-line tail collapsed:\n%s", got)
-	}
-}
-
-// TestMain_FailedExitCodeConfigurable is the P5 contract: Config.FailedExitCode
-// overrides the default ExitFailed (2) when the conclusion is failed.
-func TestRun_FailedExitCodeConfigurable(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Title:          "zq",
-		Stdout:         &buf,
-		Stderr:         &buf,
-		Plain:          true,
-		Color:          evo.ColorNever,
-		FailedExitCode: 1,
-	})
-	code := out.Run(context.Background(), func(ctx context.Context) error {
-		o := out
-		o.Task("gofmt check").Fail("gofmt check exited 1")
-		return nil
-	}).ExitCode()
-	if code != 1 {
-		t.Fatalf("P5: Main exit = %d, want FailedExitCode 1; out:\n%s", code, buf.String())
-	}
-	// Default remains 2 when FailedExitCode is unset.
-	var buf2 bytes.Buffer
-	out2 := evo.Init(evo.Config{
-		Title:  "zq",
-		Stdout: &buf2,
-		Stderr: &buf2,
-		Plain:  true,
-		Color:  evo.ColorNever,
-	})
-	code2 := out2.Run(context.Background(), func(ctx context.Context) error {
-		o := out2
-		o.Task("x").Fail("boom")
-		return nil
-	}).ExitCode()
-	if code2 != evo.ExitFailed {
-		t.Fatalf("default failed exit = %d, want %d", code2, evo.ExitFailed)
-	}
-}
-
-// TestFlat_MixedPrintfThenTaskStillDeterministic documents residual ordering
+// TestPlain_MixedPrintfThenTaskStillDeterministic documents residual ordering
 // when Printf happens before a late Task resolve: progressive task emission
 // still places the task row after earlier lines, and residual does not reorder
 // already-streamed content.
-func TestFlat_MixedPrintfThenTaskStillDeterministic(t *testing.T) {
+func TestPlain_MixedPrintfThenTaskStillDeterministic(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.Close() })

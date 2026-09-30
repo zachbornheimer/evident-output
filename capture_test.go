@@ -278,3 +278,58 @@ func TestCaptureTruncateUTF8Safe(t *testing.T) {
 		}
 	}
 }
+
+// TestCapture_StderrOnlyFeedsDetailTail is the P1 contract: Task.Capture()
+// retains stderr into the evidence ring by default; writing only to Stderr()
+// still populates DetailTail without a separate writer or Mirror.
+func TestCapture_StderrOnlyFeedsDetailTail(t *testing.T) {
+	var primary, diag bytes.Buffer
+	out := evo.Init(evo.Config{
+		Title:  "lint",
+		Stdout: &primary,
+		Stderr: &diag,
+		Plain:  true,
+		Color:  evo.ColorNever,
+	})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("golangci-lint")
+	cap := task.Capture()
+	// Linters commonly write diagnostics only on stderr.
+	_, _ = io.WriteString(cap.Stderr(), "level=warning msg=\"can't process results\"\n")
+	_, _ = io.WriteString(cap.Stderr(), "../tmp/main.go:1:1: File is not properly formatted (gofmt)\n")
+	_, _ = io.WriteString(cap.Stderr(), "1 issues:\n")
+	_, _ = io.WriteString(cap.Stderr(), "* gofmt: 1\n")
+	_ = cap.Close()
+
+	task.Fail("golangci-lint exited 1", cap.DetailTail())
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+
+	got := primary.String()
+	for _, want := range []string{
+		"can't process results",
+		"File is not properly formatted",
+		"1 issues:",
+		"* gofmt: 1",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("P1: stderr-only Capture must appear in DetailTail/fail output (missing %q):\n%s", want, got)
+		}
+	}
+	// Silent-until-failure: nothing mirrored to Diagnostics by default.
+	if strings.Contains(diag.String(), "gofmt") {
+		t.Fatalf("default Capture must remain silent on success path / no mirror:\n%s", diag.String())
+	}
+	// Multi-line tail still preserved under P3.
+	if !strings.Contains(got, "1 issues:\n") && !strings.Contains(got, "1 issues:") {
+		// Allow either multi-line block or at least content; prefer multi-line.
+		t.Fatalf("expected issues line in output:\n%s", got)
+	}
+	// Newlines in stderr tail must not be fully collapsed.
+	if strings.Contains(got, "1 issues: * gofmt: 1") && !strings.Contains(got, "1 issues:\n") {
+		// If both forms somehow present, multi-line form is required.
+		t.Fatalf("P1/P3: stderr multi-line tail collapsed:\n%s", got)
+	}
+}

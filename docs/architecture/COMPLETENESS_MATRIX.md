@@ -248,8 +248,8 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | OUT-022  | pass   | machine_output_test.go                                                                                                 |
 | OUT-023  | pass   | machine_output_test.go                                                                                                 |
 | OUT-024  | pass   | machine_output_test.go                                                                                                 |
-| PORT-001 | pass   | port_pty_unix_test.go                                                                                                  |
-| PORT-002 | pass   | port_pty_unix_test.go                                                                                                  |
+| PORT-001 | pass   | portability_pty_unix_test.go                                                                                           |
+| PORT-002 | pass   | portability_pty_unix_test.go                                                                                           |
 | PORT-003 | waived | Windows ConPTY — release-candidate manual checklist                                                                    |
 | PORT-004 | waived | tmux — manual RC                                                                                                       |
 | PORT-005 | waived | SSH — manual RC                                                                                                        |
