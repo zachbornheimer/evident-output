@@ -9,75 +9,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/render"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/testkit"
 )
-
-func TestAPI028_AbsoluteProgress(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Task("t").Progress(3, 10).Bytes(100, 200)
-	// last wins as absolute
-	s := out.Snapshot().Tasks[0]
-	if s.Progress.Kind != evo.BytesKind || s.Progress.Total != 200 {
-		t.Fatal(s.Progress)
-	}
-}
-
-func TestAPI025_PackageNameEvo(t *testing.T) {
-	// Import path uses evo package name — compile proof via this test package.
-	var _ = evo.Done
-}
-
-func TestAPI005_NoPublicIntentEnum(t *testing.T) {
-	// Construction uses For(subject) without IntentReport ceremony.
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "s"})
-	t.Cleanup(func() { _ = out.Close() })
-	succeed(out.Task("a"))
-	_ = out.Finish()
-}
-
-func TestAPI004_CommonPathReadsAsFacts(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "repo"})
-	t.Cleanup(func() { _ = out.Close() })
-	succeed(out.Task("working tree"))
-	out.Task("branches").Block("local-only")
-	_ = out.Finish()
-}
-
-func TestAPI008_CommonAdvancedParity(t *testing.T) {
-	// Item with and without stable ID → same conclusion shape for simple OK.
-	a := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	succeed(a.Task("x"))
-	_ = a.Finish()
-	b := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	succeed(b.Task("x"))
-	_ = b.Finish()
-	if a.Conclusion().State != b.Conclusion().State {
-		t.Fatal(a.Conclusion().State, b.Conclusion().State)
-	}
-	_ = a.Close()
-	_ = b.Close()
-}
-
-func TestAPI012_StandardFlagStyleEmbed(t *testing.T) {
-	// Ordinary Go main can embed Output — no base class required.
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	succeed(out.Task("flag-demo"))
-	_ = out.Finish()
-}
-
-func TestAPI030_CompatMatrixSmoke(t *testing.T) {
-	// pipe + plain + json + slog-ish debug + terminal surface
-	var buf bytes.Buffer
-	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug}, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-	succeed(out.Task("a"))
-	out.DebugForTest("d")
-	_ = out.Finish()
-	_, _ = render.EncodeJSON(out.Snapshot())
-}
 
 func TestLOG003_FieldOrderStable(t *testing.T) {
 	var buf bytes.Buffer
@@ -100,18 +32,6 @@ func TestLOG015_LogBurstPreservesOrder(t *testing.T) {
 	}
 	_ = out.Finish()
 	// sequences strictly increasing already tested
-}
-
-func TestSEC012_PathCanBeInDetail(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Task("i").Fail("read failed", evo.Detail("/example/path/x"))
-	_ = out.Finish()
-	// detail may show path
-	if !strings.Contains(buf.String(), "read failed") {
-		t.Fatal(buf.String())
-	}
 }
 
 func TestTERM023_SplitStreamsNoCrossCursor(t *testing.T) {

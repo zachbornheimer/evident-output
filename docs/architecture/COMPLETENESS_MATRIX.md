@@ -51,45 +51,45 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | ID       | Status | Evidence                                                                                                               |
 | -------- | ------ | ---------------------------------------------------------------------------------------------------------------------- |
 | A11Y-001 | pass   | accessibility_test.go                                                                                                  |
-| A11Y-002 | pass   | coverage_matrix_test.go                                                                                                |
+| A11Y-002 | pass   | accessibility_test.go                                                                                                  |
 | A11Y-003 | pass   | capability NoColor                                                                                                     |
-| A11Y-004 | pass   | coverage_matrix_test.go                                                                                                |
+| A11Y-004 | pass   | accessibility_test.go                                                                                                  |
 | A11Y-005 | pass   | accessibility_test.go                                                                                                  |
 | A11Y-006 | waived | light/dark theme manual contrast review                                                                                |
 | A11Y-007 | waived | screen-reader manual review                                                                                            |
 | A11Y-008 | pass   | no blink static                                                                                                        |
 | A11Y-009 | pass   | accessibility_test.go                                                                                                  |
 | A11Y-010 | pass   | accessibility_test.go                                                                                                  |
-| API-001  | pass   | dom_test.go                                                                                                            |
+| API-001  | pass   | api_shape_test.go                                                                                                      |
 | API-002  | pass   | appendix_h_test.go                                                                                                     |
 | API-003  | pass   | appendix_h_test.go                                                                                                     |
-| API-004  | pass   | last_push_test.go                                                                                                      |
-| API-005  | pass   | last_push_test.go                                                                                                      |
+| API-004  | pass   | api_shape_test.go                                                                                                      |
+| API-005  | pass   | api_shape_test.go                                                                                                      |
 | API-006  | pass   | agent/review                                                                                                           |
 | API-007  | pass   | internal/engine/construct.go Init(Config)                                                                              |
-| API-008  | pass   | last_push_test.go                                                                                                      |
+| API-008  | pass   | api_shape_test.go                                                                                                      |
 | API-009  | pass   | remaining_core_test.go                                                                                                 |
-| API-010  | pass   | remaining_core_test.go                                                                                                 |
-| API-011  | pass   | closeout_test.go                                                                                                       |
-| API-012  | pass   | last_push_test.go                                                                                                      |
+| API-010  | pass   | api_shape_test.go                                                                                                      |
+| API-011  | pass   | api_shape_test.go                                                                                                      |
+| API-012  | pass   | api_shape_test.go                                                                                                      |
 | API-013  | pass   | examples/framework-adapters + conformance/gates/release_matrix_test.go TestAPI013                                      |
 | API-014  | pass   | slog_test.go                                                                                                           |
 | API-015  | pass   | debug_writer                                                                                                           |
 | API-016  | pass   | projection_test.go                                                                                                     |
-| API-017  | pass   | final_matrix_test.go                                                                                                   |
-| API-018  | pass   | coverage_matrix_test.go                                                                                                |
+| API-017  | pass   | api_shape_test.go                                                                                                      |
+| API-018  | pass   | api_shape_test.go                                                                                                      |
 | API-019  | pass   | no global state race tests                                                                                             |
 | API-020  | pass   | closeout_test.go                                                                                                       |
 | API-021  | pass   | examples compile                                                                                                       |
-| API-022  | pass   | closeout_test.go                                                                                                       |
+| API-022  | pass   | api_shape_test.go                                                                                                      |
 | API-023  | pass   | Line one call                                                                                                          |
-| API-024  | pass   | closeout_test.go                                                                                                       |
-| API-025  | pass   | last_push_test.go                                                                                                      |
-| API-026  | pass   | more_matrix_test.go                                                                                                    |
+| API-024  | pass   | api_shape_test.go                                                                                                      |
+| API-025  | pass   | api_shape_test.go                                                                                                      |
+| API-026  | pass   | api_shape_test.go                                                                                                      |
 | API-027  | pass   | appendix_h_test.go                                                                                                     |
-| API-028  | pass   | last_push_test.go                                                                                                      |
+| API-028  | pass   | api_shape_test.go                                                                                                      |
 | API-029  | pass   | last_push_test.go                                                                                                      |
-| API-030  | pass   | last_push_test.go                                                                                                      |
+| API-030  | pass   | api_shape_test.go                                                                                                      |
 | CON-001  | pass   | concurrency_test.go                                                                                                    |
 | CON-002  | pass   | concurrency_test.go                                                                                                    |
 | CON-003  | pass   | waived*closeout_test.go TestCON003*\*                                                                                  |
@@ -264,18 +264,18 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | PORT-014 | pass   | closeout_test.go                                                                                                       |
 | PORT-015 | pass   | last_push_test.go                                                                                                      |
 | SEC-001  | pass   | sanitize_test.go                                                                                                       |
-| SEC-002  | pass   | sec_limits_test.go                                                                                                     |
-| SEC-003  | pass   | more_matrix_test.go                                                                                                    |
-| SEC-004  | pass   | closeout_test.go                                                                                                       |
-| SEC-005  | pass   | sec_limits_test.go                                                                                                     |
-| SEC-006  | pass   | coverage_matrix_test.go                                                                                                |
-| SEC-007  | pass   | sec_limits_test.go                                                                                                     |
+| SEC-002  | pass   | security_test.go                                                                                                       |
+| SEC-003  | pass   | security_test.go                                                                                                       |
+| SEC-004  | pass   | security_test.go                                                                                                       |
+| SEC-005  | pass   | security_test.go                                                                                                       |
+| SEC-006  | pass   | security_test.go                                                                                                       |
+| SEC-007  | pass   | security_test.go                                                                                                       |
 | SEC-008  | pass   | mise scan + conformance/gates/release_matrix_test.go TestSEC008_GovulncheckWhenInstalled                               |
 | SEC-009  | pass   | LICENSE Apache-2.0 + conformance/gates/release_matrix_test.go TestSEC009                                               |
-| SEC-010  | pass   | closeout_test.go                                                                                                       |
-| SEC-011  | pass   | sec_limits_test.go                                                                                                     |
-| SEC-012  | pass   | last_push_test.go                                                                                                      |
-| SEC-013  | pass   | final_matrix_test.go                                                                                                   |
+| SEC-010  | pass   | security_test.go                                                                                                       |
+| SEC-011  | pass   | security_test.go                                                                                                       |
+| SEC-012  | pass   | security_test.go                                                                                                       |
+| SEC-013  | pass   | security_test.go                                                                                                       |
 | SEC-014  | pass   | mcp_sec_test.go + waived_closeout_test.go TestSEC014                                                                   |
 | SEC-015  | pass   | waived_closeout_test.go TestSEC015_NoAuthOnAnnotations                                                                 |
 | TERM-001 | pass   | appendix_h_interactive_test.go H.2                                                                                     |

@@ -39,26 +39,3 @@ func TestLOG008_ConcurrentDebugWriters(t *testing.T) {
 	wg.Wait()
 	_ = out.Finish()
 }
-
-func TestAPI010_DonefFormatting(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	succeed(out.Task("t"), "n=3")
-	s := out.Snapshot()
-	found := false
-	for _, tsk := range s.Tasks {
-		if tsk.Summary == "n=3" {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("expected a task with Summary %q, got %+v", "n=3", s.Tasks)
-	}
-	// before finish
-	if len(s.Tasks) == 0 {
-		t.Fatal("no tasks")
-	}
-	if s.Tasks[0].Summary != "n=3" {
-		t.Fatal(s.Tasks[0].Summary)
-	}
-}
