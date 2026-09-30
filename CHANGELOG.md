@@ -83,6 +83,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Changed
 
+- **Spinner period** is 50ms, down from 80ms. The live frame must change at
+  least every 100ms while work is Running; at 80ms, 20ms of timer jitter
+  broke that bound under host load. 50ms leaves 50ms of headroom. No API
+  change.
+
 - **`EVO_OUTPUT=json` and `EVO_OUTPUT=jsonl`** (breaking): with no `Format`
   chosen, they now select `FormatJSON` (one `evo.run` document on stdout)
   and `FormatJSONL` (`evo.event` lines on stdout, streamed), with human

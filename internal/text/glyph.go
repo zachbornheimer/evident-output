@@ -86,7 +86,10 @@ var (
 )
 
 // SpinnerPeriod is the wall-clock duration between spinner frame advances.
-const SpinnerPeriod = 80 * time.Millisecond
+// The live frame must change at least every 100ms (§14), and the animator
+// changes it once per slot, so timer jitter eats the margin left by the
+// period. 50ms leaves 50ms of jitter room; 80ms left only 20ms.
+const SpinnerPeriod = 50 * time.Millisecond
 
 // spinnerUnicodeFrames is the braille spinner sequence (common CLI convention).
 var spinnerUnicodeFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}

@@ -1305,7 +1305,7 @@ Default live-motion contract:
 
 > **After a Task enters Running, Evo emits a visibly different live frame within 100ms and at least every 100ms thereafter while any live Task remains Running.**
 
-Implementation: one renderer-owned animation clock shared by all spinners; target period 80ms, never slower than 100ms under normal scheduling. The animation tick is a render invalidation source independent of semantic model version: frame coalescing/deduplication must not suppress a Running repaint merely because no Task field changed. Consecutive frames use different spinner glyphs, so a successful repaint is visibly different.
+Implementation: one renderer-owned animation clock shared by all spinners; target period 50ms (headroom for timer jitter under the 100ms bound), never slower than 100ms under normal scheduling. The animation tick is a render invalidation source independent of semantic model version: frame coalescing/deduplication must not suppress a Running repaint merely because no Task field changed. Consecutive frames use different spinner glyphs, so a successful repaint is visibly different.
 
 Semantic progress is not required every 100ms; spinner motion is sufficient to prove the UI is alive. If terminal writes fail or block, Evo reports/propagates the I/O failure according to its output error policy rather than claiming the visual guarantee was met.
 
