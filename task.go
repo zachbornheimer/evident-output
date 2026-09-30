@@ -126,20 +126,6 @@ func (t *TaskHandle) Wait() error {
 	return t.inner.Wait()
 }
 
-// Verify registers an advanced read-only check that the Task's desired
-// state already holds, ANDed with any earlier check. Call it before Define.
-// Define runs every check before the callback (all true resolves the Task
-// AlreadySatisfied without running it) and again after a successful
-// callback (any false fails the Task with ProblemCodeVerificationUnsatisfied).
-// The after-check is skipped in two cases only: Define resolved the Task
-// itself (Block, or Skipped with no Effect committed first), or a dry
-// run or preview skipped an Effect Define planned. A planned run whose
-// Define planned nothing is checked like a real one.
-func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle {
-	t.impl().Verify(fn)
-	return t
-}
-
 // Writer returns a line-buffered sink for a child process: each complete
 // line becomes the task's live doing-text, and every byte is retained on
 // the same Capture ring Exec and TaskHandle.Capture share.
