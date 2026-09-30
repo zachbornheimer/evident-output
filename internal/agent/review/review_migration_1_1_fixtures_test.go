@@ -55,11 +55,27 @@ func migration1_1Fixtures() map[string]migrationFixture {
 		},
 		"Failure.Next": {
 			dirty: evoBody("func f(fail *evo.Failure) {\n\tfail.Next(evo.Label(\"retry\"))\n}\n"),
-			clean: evoBody("func f(task *evo.TaskHandle) {\n\ttask.Fail(\"failed\")\n\ttask.Next(evo.Label(\"retry\"))\n}\n"),
+			clean: evoBody("func f(task *evo.TaskHandle) {\n\ttask.Fail(\"failed\", evo.Next(evo.Label(\"retry\")))\n}\n"),
+		},
+		"TaskHandle.Next": {
+			dirty: evoBody("func f(task *evo.TaskHandle) {\n\ttask.Fail(\"failed\")\n\ttask.Next(evo.Label(\"retry\"))\n}\n"),
+			clean: evoBody("func f(task *evo.TaskHandle) {\n\ttask.Fail(\"failed\", evo.Next(evo.Label(\"retry\")))\n}\n"),
+		},
+		"TaskHandle.NextCommand": {
+			dirty: evoBody("func f(task *evo.TaskHandle) {\n\ttask.NextCommand(\"git\", \"status\")\n}\n"),
+			clean: evoBody("func f(task *evo.TaskHandle) {\n\ttask.Problem(\"working tree not checked\", evo.Severity(evo.SeverityWarning), evo.NextCommand(\"git\", \"status\"))\n}\n"),
+		},
+		"Output.Next": {
+			dirty: evoBody("func f(out *evo.Output, task *evo.TaskHandle) {\n\ttask.Fail(\"failed\")\n\tout.Next(evo.Label(\"retry\"))\n}\n"),
+			clean: evoBody("func f(out *evo.Output, task *evo.TaskHandle) {\n\ttask.Fail(\"failed\", evo.Next(evo.Label(\"retry\")))\n}\n"),
+		},
+		"Output.NextCommand": {
+			dirty: evoBody("func f(out *evo.Output) {\n\tout.NextCommand(\"git\", \"status\")\n}\n"),
+			clean: evoBody("func f(out *evo.Output) {\n\tout.Task(\"working tree\").Problem(\"working tree not checked\", evo.Severity(evo.SeverityWarning), evo.NextCommand(\"git\", \"status\"))\n}\n"),
 		},
 		"Failure.NextCommand": {
 			dirty: evoBody("func f(fail *evo.Failure) {\n\tfail.NextCommand(\"git\", \"status\")\n}\n"),
-			clean: evoBody("func f(task *evo.TaskHandle) {\n\ttask.Fail(\"failed\")\n\ttask.NextCommand(\"git\", \"status\")\n}\n"),
+			clean: evoBody("func f(task *evo.TaskHandle) {\n\ttask.Fail(\"failed\", evo.NextCommand(\"git\", \"status\"))\n}\n"),
 		},
 		"EncodeJSON": {
 			dirty: evoIOBody("func f(w io.Writer, r evo.Result) {\n\t_ = evo.EncodeJSON(w, r)\n}\n"),

@@ -68,3 +68,39 @@ func TestAPIGolden_VocabularyFreeze(t *testing.T) {
 		t.Fatalf("testdata/api_golden.txt failed testdata/api_vocabulary.txt freeze:\n%s", report)
 	}
 }
+
+// removedRemedyMethodPrefixes are the Task and Output remedy methods ZYS-1182
+// removed: a remedy attaches only through the evo.Next / evo.NextCommand
+// ProblemOptions, so no method on a Task or Output may carry one.
+var removedRemedyMethodPrefixes = []string{
+	"func (TaskHandle) Next(",
+	"func (TaskHandle) NextCommand(",
+	"func (Output) Next(",
+	"func (Output) NextCommand(",
+}
+
+// TestAPIGolden_NoTaskOrOutputRemedyMethods fails if any Action-attachment
+// method exists on TaskHandle or Output, in the live surface or the golden.
+func TestAPIGolden_NoTaskOrOutputRemedyMethods(t *testing.T) {
+	live, err := apisurface.Walk(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	goldenRaw, err := os.ReadFile(apisurface.GoldenRelPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	golden := strings.Split(string(goldenRaw), "\n")
+	for _, source := range []struct {
+		name  string
+		lines []string
+	}{{"live surface", live}, {apisurface.GoldenRelPath, golden}} {
+		for _, line := range source.lines {
+			for _, prefix := range removedRemedyMethodPrefixes {
+				if strings.HasPrefix(line, prefix) {
+					t.Errorf("%s carries removed remedy method %q; attach remedies with evo.Next / evo.NextCommand options on Problem, Fail, or Block", source.name, line)
+				}
+			}
+		}
+	}
+}

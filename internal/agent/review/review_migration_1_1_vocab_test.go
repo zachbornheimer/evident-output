@@ -127,7 +127,9 @@ func hasRetiredSpelling(src, name string) bool {
 		if qual == "Failure" {
 			return strings.Contains(src, "Failure."+method) || strings.Contains(src, "fail."+method+"(")
 		}
-		return strings.Contains(src, "."+method+"(")
+		// evo.Next / evo.NextCommand are the live ProblemOptions, not the
+		// removed methods of the same name.
+		return strings.Contains(strings.ReplaceAll(src, "evo."+method+"(", ""), "."+method+"(")
 	}
 	return containsEvoIdent(src, name)
 }

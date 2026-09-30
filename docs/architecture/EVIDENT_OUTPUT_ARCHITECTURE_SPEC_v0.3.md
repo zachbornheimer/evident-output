@@ -1168,8 +1168,6 @@ func (t *TaskHandle) Problem(summary string, options ...ProblemOption) *TaskHand
 func (t *Task) Fail(summary string, options ...ProblemOption) *Task
 func (t *Task) Cancel(reason string) *Task
 func (t *Task) Skip(reason string) *Task
-func (t *Task) Next(actions ...Action) *Task
-func (t *Task) NextCommand(executable string, args ...string) *Task
 func (t *Task) Snapshot() TaskSnapshot
 ```
 
@@ -1351,8 +1349,6 @@ type CommandSpec struct {
 }
 
 func Command(executable string, args ...string) Action
-func (o *Output) Next(actions ...Action)
-func (o *Output) NextCommand(executable string, args ...string)
 ```
 
 Commands are executable plus argv, not opaque shell strings. Evo never executes an action.

@@ -16,6 +16,9 @@ func (d *recSurfaceDetector) inspectOneOneCall(call *ast.CallExpr, sel *ast.Sele
 	if d.inspectOneOneFailure(call, sel, name) {
 		return true
 	}
+	if d.inspectRemovedRemedyMethod(call, sel, name) {
+		return true
+	}
 	if !isLikelyEvoReceiver(sel.X) {
 		return false
 	}

@@ -78,8 +78,16 @@ var retiredSymbols = []RetiredSymbol{
 	{Contract: "TaskHandle.Blockf(", RemovedIn: RetiredRelease1_1, Replacement: "Block(summary, opts...)", Taught: regexp.MustCompile(`\bBlockf\b`)},
 	{Contract: "TaskHandle.Failf(", RemovedIn: RetiredRelease1_1, Replacement: "Fail(summary, opts...)", Taught: regexp.MustCompile(`\bFailf\b`)},
 	{Contract: "Output.Failf(", RemovedIn: RetiredRelease1_1, Replacement: "Fail(summary, opts...)"},
-	{Contract: "Failure.Next(", RemovedIn: RetiredRelease1_1, Replacement: "TaskHandle.Next after Fail or Block"},
-	{Contract: "Failure.NextCommand(", RemovedIn: RetiredRelease1_1, Replacement: "TaskHandle.NextCommand after Fail or Block"},
+	{Contract: "Failure.Next(", RemovedIn: RetiredRelease1_1, Replacement: "the Next(action) ProblemOption on Fail or Block"},
+	{Contract: "Failure.NextCommand(", RemovedIn: RetiredRelease1_1, Replacement: "the NextCommand(executable, args...) ProblemOption on Fail or Block"},
+
+	// ZYS-1182: a remedy belongs to the Problem it explains, so Next and
+	// NextCommand exist only as ProblemOptions. The Task and Output methods
+	// are gone.
+	{Contract: "TaskHandle.Next(", RemovedIn: RetiredRelease1_1, Replacement: "Problem/Fail/Block(summary, Next(action))", Taught: nextMethodTaught("Next")},
+	{Contract: "TaskHandle.NextCommand(", RemovedIn: RetiredRelease1_1, Replacement: "Problem/Fail/Block(summary, NextCommand(executable, args...))", Taught: nextMethodTaught("NextCommand")},
+	{Contract: "Output.Next(", RemovedIn: RetiredRelease1_1, Replacement: "Problem(summary, Next(action)) on the Task the remedy explains"},
+	{Contract: "Output.NextCommand(", RemovedIn: RetiredRelease1_1, Replacement: "Problem(summary, NextCommand(executable, args...)) on the Task the remedy explains"},
 	{Contract: "TaskHandle.Step(", RemovedIn: RetiredRelease1_1, Replacement: "Progress(completed, total).Doing(item)", Taught: apiSpelling("Step")},
 	{Contract: "TaskHandle.Kept(", RemovedIn: RetiredRelease1_1, Replacement: "Skipped(Reason(...)) for a policy exclusion; Fact/Summary for kept counts", Taught: apiSpelling("Kept")},
 
@@ -171,6 +179,15 @@ func warnTaught() *regexp.Regexp {
 		`|## Warn\b` +
 		`|\*\*Warn\*\*` +
 		`|Done/Warn`)
+}
+
+// nextMethodTaught matches the removed Task/Output remedy method taught as
+// current API: a call on a task or output receiver (task.Next(...),
+// out.NextCommand(...)) or a method signature. It does not match the live
+// evo.Next / evo.NextCommand ProblemOptions, nor unrelated iterators.
+func nextMethodTaught(name string) *regexp.Regexp {
+	return regexp.MustCompile(`\b(?:[Tt]ask\w*|item|it|out|output|Output|TaskHandle)\.` + name + `\(` +
+		`|func \((?:t|o) \*(?:TaskHandle|Output)\) ` + name + `\(`)
 }
 
 // captureMeaningEvidenceTaught matches Evidence as the capture sink or

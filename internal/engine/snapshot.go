@@ -239,7 +239,6 @@ func (o *Output) collectActionsLocked() []Action {
 			out = append(out, a)
 		}
 	}
-	add(o.actions)
 	for _, t := range o.tasks {
 		add(t.actions)
 		// ZYS-848: a remedy attached via evo.Next(...) to an individual

@@ -23,19 +23,3 @@ func Command(executable string, args ...string) Action {
 // Label builds a plain-text recommended next step with no executable command
 // (e.g. a policy hint like "pass --yes to confirm non-interactively").
 func Label(text string) Action { return engine.Label(text) }
-
-func (o *Output) Next(actions ...Action) { o.impl().Next(actions...) }
-
-func (o *Output) NextCommand(executable string, args ...string) {
-	o.impl().NextCommand(executable, args...)
-}
-
-func (t *TaskHandle) Next(actions ...Action) *TaskHandle {
-	t.impl().Next(actions...)
-	return t
-}
-
-func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle {
-	t.impl().NextCommand(executable, args...)
-	return t
-}

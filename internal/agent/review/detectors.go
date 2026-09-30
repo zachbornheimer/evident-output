@@ -115,6 +115,8 @@ var fileDetectors = []detector{
 	{needsEvo: true, run: textRule(detectFailfEmbeddedEvidenceText)},
 	// FP-004: a Doing string with no domain object is an illegible placeholder.
 	{needsEvo: true, run: textRule(detectPlaceholderDoing)},
+	// API-032: the removed-Next rewrite's placeholder summary left in source.
+	{needsEvo: true, run: textRule(detectRemedyPlaceholder)},
 	// API-032: every superseded spelling (evo.New in main, Cause, Capture,
 	// rec-surface Options/To/Plain, the mutation verbs removed in 1.1, Skip/MainWith (removed in 1.0)) gets a derived fix, not a lecture.
 	{needsEvo: true, run: detectDeprecatedSpellings},
