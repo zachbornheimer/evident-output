@@ -92,10 +92,10 @@ var symbolFile = map[string]string{
 // delete. A symbol declared in one of them is exempt from the placement
 // check, and each slice that deletes a file removes it from this set.
 var legacyFiles = map[string]bool{
-	"api.go":    true,
-	"facade.go": true, "glyph.go": true,
+	"api.go":     true,
+	"facade.go":  true,
 	"jsonout.go": true, "output.go": true, "printer.go": true,
-	"release.go": true, "state.go": true, "types.go": true,
+	"release.go": true, "types.go": true,
 }
 
 // rootHome is the file that must declare ident, given its concept.

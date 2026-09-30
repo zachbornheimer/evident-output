@@ -5,31 +5,13 @@ import "github.com/zachbornheimer/evident-output/internal/engine"
 // Engine-owned types. Domain model aliases (Snapshot, Problem, Action)
 // stay in their existing files and point at internal/core, not through engine.
 
-type Printer struct{ inner *engine.Printer }
-
-type ConfirmOption = engine.ConfirmOption
 type DebugPaneOption = engine.DebugPaneOption
 type DebugPresentation = engine.DebugPresentation
 type DebugConfig = engine.DebugConfig
-type ColorMode = engine.ColorMode
 type Format = engine.Format
-type Verbosity = engine.Verbosity
 type Projection = engine.Projection
 type LogLevel = engine.LogLevel
-type TerminalDriver = engine.TerminalDriver
-type TimeSource = engine.TimeSource
-type SystemClock = engine.SystemClock
-type FixedClock = engine.FixedClock
-type LiveSurface = engine.LiveSurface
-type Redactor = engine.Redactor
-type NoopRedactor = engine.NoopRedactor
 type LogRecord = engine.LogRecord
-
-const (
-	ColorAuto   = engine.ColorAuto
-	ColorAlways = engine.ColorAlways
-	ColorNever  = engine.ColorNever
-)
 
 const (
 	FormatHuman    = engine.FormatHuman
@@ -41,11 +23,6 @@ const (
 	// FormatJSONL streams v2 "evo.event" JSON lines to Stdout as they
 	// occur, plus a final run.finished line (spec §32.1).
 	FormatJSONL = engine.FormatJSONL
-)
-
-const (
-	VerbosityNormal  = engine.VerbosityNormal
-	VerbosityVerbose = engine.VerbosityVerbose
 )
 
 const (
@@ -69,8 +46,6 @@ const (
 	DebugPresentationHistory = engine.DebugPresentationHistory
 	DebugPresentationPane    = engine.DebugPresentationPane
 )
-
-const DefaultVisibleNames = engine.DefaultVisibleNames
 
 var (
 	ErrClosed               = engine.ErrClosed
