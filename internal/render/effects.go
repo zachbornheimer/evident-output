@@ -68,6 +68,10 @@ type EffectSection struct {
 	IntendedVerb string
 	NameWidth    int
 	Width        int
+	// GroupDigits writes a single row's count with thousands separators
+	// ("1,663"). Only a folded category row sets it: its count can span a
+	// whole platform, while per-item rows keep the plain digits.
+	GroupDigits bool
 }
 
 // WriteEffects renders one ledger section in the layout its records need:
@@ -117,10 +121,26 @@ func writeNothingToDo(b *strings.Builder, sec EffectSection) {
 func writeEffectLine(b *strings.Builder, tag string, sec EffectSection, r core.EffectRecord) {
 	name := txt.PadRight(sec.Subject, sec.NameWidth)
 	if r.HasQty {
-		fmt.Fprintf(b, "%s %s  %s %d %s\n", tag, name, r.Verb, r.Quantity, ledgerObject(r))
+		fmt.Fprintf(b, "%s %s  %s %s %s\n", tag, name, r.Verb, quantityText(r.Quantity, sec.GroupDigits), ledgerObject(r))
 		return
 	}
 	fmt.Fprintf(b, "%s %s  %s %s\n", tag, name, r.Verb, r.Object)
+}
+
+// quantityText is n as digits, with "," between thousands when grouped.
+func quantityText(n int64, grouped bool) string {
+	digits := strconv.FormatInt(n, 10)
+	if !grouped {
+		return digits
+	}
+	sign := ""
+	if n < 0 {
+		sign, digits = "-", digits[1:]
+	}
+	for i := len(digits) - 3; i > 0; i -= 3 {
+		digits = digits[:i] + "," + digits[i:]
+	}
+	return sign + digits
 }
 
 // writeCompactEffects writes rows without leaders for a narrow terminal

@@ -8,7 +8,7 @@ import (
 // The human ledger states a category once. A Group whose per-item Tasks
 // each record the same Effect (verb and object) would otherwise print one
 // row per item; it prints one row for the container, counted per item:
-// "[changed] centralize packages  centralized 1663 packages". Like the
+// "[changed] centralize packages  centralized 1,663 packages". Like the
 // Kept/Skipped tally (disposition_items.go), this is a renderer concern:
 // JSON and JSONL keep every per-item Effect, and the model keeps every
 // section.
@@ -96,7 +96,7 @@ func FoldEffectSections(kind string, width int, sources []SectionSource) []Effec
 		k, _ := src.foldKind()
 		foldedAt[target.ID] = len(out)
 		subjects = append(subjects, target.Name)
-		out = append(out, EffectSection{Kind: kind, Subject: target.Name, Width: width,
+		out = append(out, EffectSection{Kind: kind, Subject: target.Name, Width: width, GroupDigits: true,
 			Records: []core.EffectRecord{{Verb: k.verb, Object: k.object, HasQty: true, Quantity: quantityOf(src.Records)}}})
 	}
 	alignSubjects(out, subjects)

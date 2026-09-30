@@ -13,7 +13,7 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 - **Ledger fold (ZYS-1370):** per-item Effects that share a verb and object
   under one Group/Sequence render as one `[changed]`/`[planned]` row for the
   highest container whose whole subtree records that same Effect
-  (`[changed] centralize packages  updated 1663 packages`), counted per item.
+  (`[changed] centralize packages  updated 1,663 packages`), counted per item.
   JSON and JSONL still carry every per-item Effect. No API change.
 - **`evo.Compute(task, fn) *Computed[T]` and `Computed[T].Get()`:** a Task
   that produces a value. `fn` is the Task's `Define`; its error fails the
