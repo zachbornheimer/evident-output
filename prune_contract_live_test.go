@@ -50,10 +50,10 @@ func TestPruneContract_LiveCategoriesRenderContract18Frame(t *testing.T) {
 		items := categories.Group(c.name)
 		work := items.Task(c.name)
 		classifying := make(chan struct{})
+		for _, kept := range c.kept {
+			items.Task(kept.name).Skipped(kept.reason)
+		}
 		work.Define(func(context.Context) error {
-			for _, kept := range c.kept {
-				items.Task(kept.name).Skipped(kept.reason)
-			}
 			work.Doing(c.item)
 			work.Progress(c.done, c.total)
 			close(classifying)

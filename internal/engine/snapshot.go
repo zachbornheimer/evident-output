@@ -124,7 +124,13 @@ func cloneTaxonomy(in []TaxonomyRecord) []TaxonomyRecord {
 // Group contributes exactly like one more task would, so a failure
 // three levels deep still surfaces at the root header.
 func (g *tasksState) derivedState() EntityState {
+	if g.builder != nil && g.builder.phase == builderFailed {
+		return Failed
+	}
 	if len(g.tasks) == 0 && len(g.children) == 0 {
+		if g.builder != nil && g.builder.phase == builderNotStarted {
+			return NotStarted
+		}
 		return Empty
 	}
 	// A NotStarted child normally borrows its group's verdict from the

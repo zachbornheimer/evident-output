@@ -8,6 +8,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
+### Added (1.2)
+
+- **`evo.Compute(task, fn) *Computed[T]` and `Computed[T].Get()`:** a Task
+  that produces a value. `fn` is the Task's `Define`; its error fails the
+  Task. Pass the `*Computed` to `After` on a Task, Group, or Sequence, in
+  any container, and call `Get()` from what runs after it. A failed,
+  blocked, cancelled, or skipped producer means its consumers never start
+  (NotStarted). `Get()` before the producer settled records
+  `ErrComputedUnsettled` with a remedy (a panic under `Config.Strict`) and
+  returns the zero value. It is never a data race.
+  Called from a Task or container builder that nothing orders after the
+  producer (no `After` edge, and not a later step of the same Sequence),
+  `Get()` records `ErrComputedUnordered` and returns the zero value. A later
+  Sequence step may `Get()` an earlier step's Computed without `After`.
+- **`GroupHandle.After`, `SequenceHandle.After`, and
+  `GroupHandle.Define(func(*GroupHandle))` /
+  `SequenceHandle.Define(func(*SequenceHandle))`:** a container declares its
+  children once its predecessors succeed. The builder is topology only (no
+  context, no error, runs once, must not `Wait`). If a predecessor failed,
+  the builder never runs and the container settles NotStarted. Per-item
+  Tasks declared inside work with `Skipped(evo.Reason(...))`. Declaring a
+  Task, Group, or Sequence from inside a Task's `Define` callback records
+  `ErrDeclaredInCallback`, whichever container it targets. Declare the
+  children up front or from `Define` on the container instead.
+
 ### Added
 
 - **Review rule EVO-EXIT-002:** flags `evo.Main(run)` written as a bare

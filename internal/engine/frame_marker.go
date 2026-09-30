@@ -67,14 +67,15 @@ func walkStack(visit func(function string)) {
 type stackMarks struct {
 	callbacks int
 	claims    int
+	builders  int
 }
 
 // readStackMarks counts both marks in a single walk, and walks nothing when
 // neither marked function has run yet.
 func readStackMarks() stackMarks {
-	callback, holding := callbackFrames.name.Load(), holdingFrames.name.Load()
+	callback, holding, builder := callbackFrames.name.Load(), holdingFrames.name.Load(), builderFrames.name.Load()
 	var m stackMarks
-	if callback == nil && holding == nil {
+	if callback == nil && holding == nil && builder == nil {
 		return m
 	}
 	walkStack(func(function string) {
@@ -83,6 +84,8 @@ func readStackMarks() stackMarks {
 			m.callbacks++
 		case holding != nil && function == *holding:
 			m.claims++
+		case builder != nil && function == *builder:
+			m.builders++
 		}
 	})
 	return m

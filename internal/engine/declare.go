@@ -66,6 +66,10 @@ func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 		o.recordMisuse(err)
 		return o.rejectedTask(err)
 	}
+	if o.declaredInCallback() {
+		o.recordMisuse(ErrDeclaredInCallback)
+		return o.rejectedTask(ErrDeclaredInCallback)
+	}
 	if err := o.ensureEntityRoomLocked(); err != nil {
 		o.recordMisuse(err)
 		return o.rejectedTask(err)
@@ -138,6 +142,10 @@ func (o *Output) declareContainerLocked(parent *tasksState, name string, sequent
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
 		return o.rejectedGroup(err)
+	}
+	if o.declaredInCallback() {
+		o.recordMisuse(ErrDeclaredInCallback)
+		return o.rejectedGroup(ErrDeclaredInCallback)
 	}
 	st := &tasksState{
 		id:          o.nextID("tasks"),

@@ -121,12 +121,12 @@ func TestScheduler_P16_NestedWaitAtCeilingCompletes(t *testing.T) {
 	var innerRan atomic.Bool
 	var innerErr error
 	outer := group.Task("outer")
+	inner := group.Task("inner")
+	inner.Define(func(ctx context.Context) error {
+		innerRan.Store(true)
+		return nil
+	})
 	outer.Define(func(ctx context.Context) error {
-		inner := group.Task("inner")
-		inner.Define(func(ctx context.Context) error {
-			innerRan.Store(true)
-			return nil
-		})
 		innerErr = inner.Wait()
 		return innerErr
 	})

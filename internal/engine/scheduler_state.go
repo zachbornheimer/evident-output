@@ -34,6 +34,12 @@ type scheduler struct {
 	// running right now. A parked goroutine that one of them started may be
 	// what that callback is blocked on (see heldCallbacksLocked).
 	callbackGoroutines map[goroutineID]int
+	// consumers is, per goroutine, the stack of Tasks and builder gates it
+	// is running (see enterConsumer).
+	consumers map[goroutineID][]*taskState
+	// gates are the container builders' scheduler entities (see
+	// containerBuilder), which no Task list holds.
+	gates []*taskState
 	// draining is set once Finish starts running the queue to empty.
 	draining bool
 	// cancelled stops dispatching anything new: after an interrupt the
