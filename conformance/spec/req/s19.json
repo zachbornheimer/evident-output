@@ -1,0 +1,110 @@
+[
+  {
+    "id": "C19-001",
+    "section": "19",
+    "quote": "a mapping zq discovers is a Fact or domain data;",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "CONSUMER: what zq adopt records as a Fact is decided inside the zq repository; Evo's Fact API is bound in C22-009.",
+    "default": false
+  },
+  {
+    "id": "C19-002",
+    "section": "19",
+    "quote": "an unsupported mapping is a Problem (error or warning severity) with a stable Code;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestProblem_DefaultSeverityFailsTaskAndRun"
+      },
+      {
+        "pkg": ".",
+        "run": "TestProblem_WarningSeveritySettlesDoneAndWarns"
+      },
+      {
+        "pkg": "./conformance/contract/tests22",
+        "run": "TestC22_021_ProblemCodesStayStableAcrossRunsAndWording"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C19-003",
+    "section": "19",
+    "quote": "each house-style file is one `evo.File` declaration;",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "CONSUMER: one evo.File per house-style file is how zq adopt declares its files; verified by the zq repo audit, not by an Evo test.",
+    "default": false
+  },
+  {
+    "id": "C19-004",
+    "section": "19",
+    "quote": "dry run produces planned Effects; apply produces changed Effects;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileManifestDryRunNeverCommitsAndRecordsPlannedEffect"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileManifestCommittedEffectRecordedOnMutation"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C19-005",
+    "section": "19",
+    "quote": "an unchanged file resolves AlreadySatisfied and stays quiet;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesAlreadySatisfiedIsSuccessfulAndCompact"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileManifestFreshnessSkipsUnchangedOperation"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C19-006",
+    "section": "19",
+    "quote": "a file failure shows its verification detail;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScenario_PartialFailure"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPatch_FileVerification_SurvivesEncodeRun"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C19-007",
+    "section": "19",
+    "quote": "zq writes no per-mode narration and no compare/write/report code for files.",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "CONSUMER: what zq adopt writes is verified in the zq repo; Evo's detectors for manual file code are bound in C21-008.",
+    "default": false
+  },
+  {
+    "id": "C19-008",
+    "section": "19",
+    "quote": "Acceptance: the dry-run, apply, and unchanged runs of zq adopt come from one declaration per file, with no application-authored mutation or already-satisfied prose.",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "CONSUMER: acceptance runs the zq adopt fixture against the Evo candidate in the zq repository.",
+    "default": false
+  }
+]
