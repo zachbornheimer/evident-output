@@ -10,40 +10,8 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/render"
 
 	evo "github.com/zachbornheimer/evident-output"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
-
-func TestTXT008_OSCNeutralized(t *testing.T) {
-	// OSC 8 introducer ESC ]
-	s := txt.Text("x\x1b]8;;http://evil\x07y")
-	if strings.Contains(s, "\x1b") {
-		t.Fatal(s)
-	}
-}
-
-func TestTXT009_CRLFNeutralized(t *testing.T) {
-	s := txt.Text("a\rb\bc")
-	if strings.ContainsAny(s, "\r\b") {
-		t.Fatal(s)
-	}
-}
-
-func TestTXT010_NewlineInNameNormalized(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	it := out.Task("a\nb")
-	if strings.Contains(it.Snapshot().Name, "\n") {
-		t.Fatal(it.Snapshot().Name)
-	}
-}
-
-func TestTXT020_EmptyNameStillCreates(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	succeed(out.Task(""))
-	_ = out.Finish()
-}
 
 func TestLOG012_DebugDisabledOmitsHuman(t *testing.T) {
 	var buf bytes.Buffer
@@ -116,19 +84,6 @@ func TestAPI017_PureProjection(t *testing.T) {
 	j, err := render.EncodeJSON(snap)
 	if err != nil || !strings.Contains(string(j), "schema_version") {
 		t.Fatal(err, string(j))
-	}
-	_ = out.Close()
-}
-
-func TestA11Y009_ColorNotRequiredForMeaning(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	succeed(out.Task("ok"))
-	out.Task("bad").Fail("x")
-	_ = out.Finish()
-	// glyphs/text convey state without color
-	if !strings.Contains(buf.String(), "ok") || !strings.Contains(buf.String(), "bad") {
-		t.Fatal(buf.String())
 	}
 	_ = out.Close()
 }

@@ -9,33 +9,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/render"
 
 	evo "github.com/zachbornheimer/evident-output"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
-
-func TestTXT012_LongPathTruncationPolicy(t *testing.T) {
-	long := strings.Repeat("a", 200) + "/file.go"
-	got := txt.Truncate(long, 40)
-	if txt.Cells(got) > 40 {
-		t.Fatal(got, txt.Cells(got))
-	}
-	if !strings.HasSuffix(got, "…") {
-		t.Fatal(got)
-	}
-}
-
-func TestTXT017_DuplicateNamesReadable(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-	// Output.Task get-or-creates by name (L1); two distinct rows sharing a
-	// display name need distinct evo.ID.
-	succeed(out.Task("same"))
-	out.Task("same").Block("x")
-	_ = out.Finish()
-	if strings.Count(buf.String(), "same") < 2 {
-		t.Fatal(buf.String())
-	}
-}
 
 // TestTXT019_ManyProblemsBounded's premise (attach 200 structured Problems
 // via one bulk verb call) no longer has a public construction path — a Task
@@ -43,27 +17,6 @@ func TestTXT017_DuplicateNamesReadable(t *testing.T) {
 // invariant it pinned (Snapshot retains every Problem, not just the plain
 // projection's display bound) is covered directly against a hand-built
 // Snapshot by TestHumanProblemList_IsBounded (problem_bound_test.go).
-
-func TestTXT018_BidiInNames(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	it := out.Task("ok\u202Ebad")
-	if strings.ContainsRune(it.Snapshot().Name, '\u202e') {
-		t.Fatal(it.Snapshot().Name)
-	}
-}
-
-func TestA11Y010_UnknownPaletteSafe(t *testing.T) {
-	// NoColor path uses no SGR — portable
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	succeed(out.Task("a"))
-	_ = out.Finish()
-	if strings.Contains(buf.String(), "\x1b[") {
-		t.Fatal("SGR")
-	}
-	_ = out.Close()
-}
 
 func TestSEC004_RenderTreeBounded(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, MaxEntities: 100})

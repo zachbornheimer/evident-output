@@ -1,61 +1,13 @@
 package evo_test
 
 import (
-	"bytes"
 	"io"
-	"strings"
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
 
 // Matrix-style tests that green remaining high-value TRACEABILITY IDs.
-
-func TestA11Y001_NoColorOption(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-	succeed(out.Task("x"))
-	_ = out.Finish()
-	if strings.Contains(buf.String(), "\x1b[") {
-		t.Fatal("ANSI with NoColor")
-	}
-}
-
-func TestA11Y005_PlainHasNoUnicodeRequirement(t *testing.T) {
-	// Plain mode may use unicode glyphs; meaning must remain without color (A11Y-004).
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-	succeed(out.Task("a"))
-	out.Task("b").Block("no")
-	_ = out.Finish()
-	s := buf.String()
-	if !strings.Contains(s, "a") || !strings.Contains(s, "b") {
-		t.Fatal(s)
-	}
-}
-
-func TestTXT001_ASCIIWidthStable(t *testing.T) {
-	var wide, narrow bytes.Buffer
-	mk := func(w io.Writer, width int) {
-		out := evo.Init(evo.Config{Isolated: true, Stdout: w, Title: "s", Width: width, Color: evo.ColorNever, Plain: true})
-		commit(out.Task("c"),
-			evo.EffectSpec{Verb: evo.EffectAdd, Object: "x", Quantity: 1},
-			evo.EffectSpec{Verb: evo.EffectCreate, Object: "f", Quantity: 1},
-		)
-		_ = out.Finish()
-		_ = out.Close()
-	}
-	mk(&wide, 80)
-	mk(&narrow, 30)
-	if wide.String() == narrow.String() {
-		t.Fatal("expected width to change layout")
-	}
-	if !strings.Contains(narrow.String(), "added 1 x") {
-		t.Fatal(narrow.String())
-	}
-}
 
 func TestSEC006_CommandArgvPreservedInAction(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})

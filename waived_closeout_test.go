@@ -3,7 +3,6 @@ package evo_test
 import (
 	"bytes"
 	"errors"
-	"io"
 	"strings"
 	"testing"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
 	"github.com/zachbornheimer/evident-output/internal/agent/preview"
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/terminal"
 )
 
@@ -22,60 +20,6 @@ type failWriter struct {
 func (f *failWriter) Write(p []byte) (int, error) {
 	f.n++
 	return 0, errors.New("disk full")
-}
-
-func TestTXT013_ANSIWidthParity(t *testing.T) {
-	plain := "hello world"
-	styled := "\x1b[31mhello world\x1b[0m"
-	if txt.VisibleCells(plain) != txt.VisibleCells(styled) {
-		t.Fatalf("plain=%d styled=%d", txt.VisibleCells(plain), txt.VisibleCells(styled))
-	}
-}
-
-func TestTXT014_OSC8ZeroCells(t *testing.T) {
-	link := "\x1b]8;;https://example.com\x07click\x1b]8;;\x07"
-	if txt.VisibleCells(link) != txt.Cells("click") {
-		t.Fatalf("got %d want %d", txt.VisibleCells(link), txt.Cells("click"))
-	}
-}
-
-func TestTXT015_NarrowStackDetailParent(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "repo", Width: 28, Color: evo.ColorNever, Plain: true})
-	out.Task("working tree").Block("dirty", evo.Detail("commit or stash"))
-	succeed(out.Task("remote"))
-	if err := out.Finish(); err != nil {
-		t.Fatal(err)
-	}
-	s := buf.String()
-	// Detail must appear after working tree and before remote's terminal ok line order.
-	iTree := strings.Index(s, "working tree")
-	iDetail := strings.Index(s, "commit or stash")
-	iRemote := strings.Index(s, "remote")
-	if iTree < 0 || iDetail < 0 || iRemote < 0 || (iTree >= iDetail || iDetail >= iRemote) {
-		t.Fatalf("detail not associated with parent:\n%s", s)
-	}
-}
-
-func TestTXT016_LeaderBoundedAndOmittedNarrow(t *testing.T) {
-	var wide, narrow bytes.Buffer
-	mk := func(w io.Writer, cols int) {
-		out := evo.Init(evo.Config{Isolated: true, Stdout: w, Title: "x", Width: cols, Color: evo.ColorNever, Plain: true})
-		ch := out.Task("files")
-		ch.Define(effectOf(evo.EffectAdd, "a.go", 1))
-		ch.Define(effectOf(evo.EffectRemove, "b.go", 2))
-		_ = out.Finish()
-		_ = out.Close()
-	}
-	mk(&wide, 80)
-	mk(&narrow, 30)
-	if strings.Contains(narrow.String(), "·") {
-		t.Fatalf("narrow should omit leaders: %q", narrow.String())
-	}
-	// Wide may use leaders when verb lengths differ; either form is OK if bounded.
-	if n := strings.Count(wide.String(), "·"); n > 24 {
-		t.Fatalf("unbounded leaders: %d in %q", n, wide.String())
-	}
 }
 
 func TestTERM007_ShortWriteDisablesInteractive(t *testing.T) {

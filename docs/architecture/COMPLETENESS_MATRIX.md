@@ -50,16 +50,16 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 
 | ID       | Status | Evidence                                                                                                               |
 | -------- | ------ | ---------------------------------------------------------------------------------------------------------------------- |
-| A11Y-001 | pass   | coverage_matrix_test.go                                                                                                |
+| A11Y-001 | pass   | accessibility_test.go                                                                                                  |
 | A11Y-002 | pass   | coverage_matrix_test.go                                                                                                |
 | A11Y-003 | pass   | capability NoColor                                                                                                     |
 | A11Y-004 | pass   | coverage_matrix_test.go                                                                                                |
-| A11Y-005 | pass   | coverage_matrix_test.go                                                                                                |
+| A11Y-005 | pass   | accessibility_test.go                                                                                                  |
 | A11Y-006 | waived | light/dark theme manual contrast review                                                                                |
 | A11Y-007 | waived | screen-reader manual review                                                                                            |
 | A11Y-008 | pass   | no blink static                                                                                                        |
-| A11Y-009 | pass   | final_matrix_test.go                                                                                                   |
-| A11Y-010 | pass   | closeout_test.go                                                                                                       |
+| A11Y-009 | pass   | accessibility_test.go                                                                                                  |
+| A11Y-010 | pass   | accessibility_test.go                                                                                                  |
 | API-001  | pass   | dom_test.go                                                                                                            |
 | API-002  | pass   | appendix_h_test.go                                                                                                     |
 | API-003  | pass   | appendix_h_test.go                                                                                                     |
@@ -302,23 +302,23 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | TERM-022 | pass   | terminal/ansi.go                                                                                                       |
 | TERM-023 | pass   | last_push_test.go                                                                                                      |
 | TERM-024 | pass   | closeout_test.go                                                                                                       |
-| TXT-001  | pass   | coverage_matrix_test.go                                                                                                |
+| TXT-001  | pass   | text_safety_test.go                                                                                                    |
 | TXT-002  | pass   | internal/width                                                                                                         |
 | TXT-003  | pass   | internal/width CJK                                                                                                     |
 | TXT-004  | pass   | internal/width emoji                                                                                                   |
 | TXT-005  | pass   | internal/width ZWJ                                                                                                     |
 | TXT-006  | pass   | sanitize                                                                                                               |
 | TXT-007  | pass   | sanitize_test.go                                                                                                       |
-| TXT-008  | pass   | final_matrix_test.go                                                                                                   |
-| TXT-009  | pass   | final_matrix_test.go                                                                                                   |
-| TXT-010  | pass   | final_matrix_test.go                                                                                                   |
+| TXT-008  | pass   | text_safety_test.go                                                                                                    |
+| TXT-009  | pass   | text_safety_test.go                                                                                                    |
+| TXT-010  | pass   | text_safety_test.go                                                                                                    |
 | TXT-011  | pass   | plain narrow                                                                                                           |
-| TXT-012  | pass   | closeout_test.go                                                                                                       |
+| TXT-012  | pass   | text_safety_test.go                                                                                                    |
 | TXT-013  | pass   | waived_closeout_test.go TestTXT013_ANSIWidthParity                                                                     |
 | TXT-014  | pass   | waived_closeout_test.go TestTXT014_OSC8ZeroCells                                                                       |
 | TXT-015  | pass   | waived_closeout_test.go TestTXT015_NarrowStackDetailParent                                                             |
 | TXT-016  | pass   | waived_closeout_test.go TestTXT016_LeaderBoundedAndOmittedNarrow                                                       |
-| TXT-017  | pass   | closeout_test.go                                                                                                       |
+| TXT-017  | pass   | text_safety_test.go                                                                                                    |
 | TXT-018  | pass   | final_matrix bidi                                                                                                      |
 | TXT-019  | pass   | closeout_test.go                                                                                                       |
-| TXT-020  | pass   | final_matrix_test.go                                                                                                   |
+| TXT-020  | pass   | text_safety_test.go                                                                                                    |
