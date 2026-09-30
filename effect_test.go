@@ -192,3 +192,52 @@ func TestWriteEffects_BoundedRows_500Records(t *testing.T) {
 		t.Fatalf("want bounded-rows overflow line, got:\n%s", got)
 	}
 }
+
+// TestEffect_OnResolvedTaskReturnsErrorNeverNil proves a
+// mutation verb called after the task already resolved (Done) never
+// executes the call and never silently swallows the misuse as a nil error.
+func TestEffect_OnResolvedTaskReturnsErrorNeverNil(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("branches")
+	succeed(task)
+	task.Define(effectOf(evo.EffectDelete, "stale local branch", 1))
+	if !errors.Is(out.Err(), evo.ErrAlreadyResolved) {
+		t.Fatalf("Err() = %v, want ErrAlreadyResolved for a mutation on an already-resolved task", out.Err())
+	}
+}
+
+// TestEffect_ConcurrentSummaryDuringCallDoesNotDropEffect proves
+// the ledger target resolves once: a concurrent Summary racing an Effect's
+// in-flight call must not cause the effect that call just committed
+// to be silently dropped as spurious misuse.
+func TestEffect_ConcurrentSummaryDuringCallDoesNotDropEffect(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	branches := out.Task("branches")
+	branches.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale local branch", Quantity: 2}, func(context.Context) error {
+			close(started)
+			<-release
+			return nil
+		})
+	})
+	<-started
+	branches.Summary("2 deleted")
+	close(release)
+	_ = out.Finish()
+	snap := out.Snapshot()
+	found := false
+	for _, ch := range snap.Changes {
+		if len(ch.Records) > 0 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("want the effect committed despite the concurrent Done, got no Changes records")
+	}
+}

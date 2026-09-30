@@ -166,3 +166,50 @@ func TestProblemWarning_UnresolvedTaskAutoResolvesDoneAtFinish(t *testing.T) {
 		t.Fatal("Conclusion.Warned = false, want true")
 	}
 }
+
+// TestProblemWarning_InlineRendersBangPrefix proves the inline warning
+// on a ✓ row carries the same "! " signal a nested warning line does (the
+// normative fixture's "! kept 13 (...)" typography) instead of dim text with
+// no bang at all.
+func TestProblemWarning_InlineRendersBangPrefix(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+
+	branches := out.Task("branches")
+	branches.Problem("kept 11 (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
+	succeed(branches)
+
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "✓ branches  ! kept 11 (7 protected, 4 unpushed)") {
+		t.Fatalf("want the inline warning to carry the \"! \" bang prefix, got:\n%s", got)
+	}
+}
+
+// TestProblemWarning_InlineThresholdMeasuresDisplayWidthNotBytes proves the
+// inline-warning length gate measures display cells, not raw bytes — a
+// warning built from multi-byte runes that still fits on the row must not be
+// forced onto a nested line just because its byte length is inflated.
+func TestProblemWarning_InlineThresholdMeasuresDisplayWidthNotBytes(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+
+	// Each "é" is 2 bytes but 1 display cell — 30 of them is 60 bytes but
+	// only 30 cells, comfortably under the 40-cell inline threshold.
+	warning := strings.Repeat("é", 30)
+	branches := out.Task("branches")
+	branches.Problem(warning, evo.Severity(evo.SeverityWarning))
+	succeed(branches)
+
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "✓ branches  ! "+warning) {
+		t.Fatalf("want the warning inlined (display-width under threshold), got:\n%s", got)
+	}
+}

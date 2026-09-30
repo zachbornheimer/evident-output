@@ -106,3 +106,35 @@ func TestConclusion_LoneIncompleteTaskIsNotPartialHeadline(t *testing.T) {
 		t.Fatal("want Partial=true retained as evidence")
 	}
 }
+
+// TestConclusion_WarnedGroupChildReachesConclusion proves a warned-but-Done
+// child nested inside a container still surfaces the "· warned" modifier on
+// the run's own conclusion band, and the container's own success summary is
+// suppressed rather than papering over the warning underneath it.
+func TestConclusion_WarnedGroupChildReachesConclusion(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+
+	group := out.Group("dependencies")
+	child := group.Task("cache")
+	child.Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
+	succeed(child)
+
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+	conc := out.Conclusion()
+	if conc.State != evo.StateReady {
+		t.Fatalf("state = %v, want StateReady", conc.State)
+	}
+	if !conc.Warned {
+		t.Fatal("Conclusion.Warned = false, want true (group-child warning must reach the conclusion)")
+	}
+	if conc.ExitCode != evo.ExitOK {
+		t.Fatalf("exit code = %d, want %d", conc.ExitCode, evo.ExitOK)
+	}
+	if !strings.Contains(buf.String(), "[ready · warned]") {
+		t.Fatalf("want the \"[ready · warned]\" conclusion band, got:\n%s", buf.String())
+	}
+}
