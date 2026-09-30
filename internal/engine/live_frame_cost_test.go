@@ -30,23 +30,13 @@ func liveFrameOutput(tb testing.TB, n int) (*Output, time.Time) {
 // liveFrameFull is one spinner-tick frame: the snapshot under o.mu and the
 // text render after it, as the animator builds it.
 func liveFrameFull(out *Output, now time.Time) string {
-	return out.liveFrameAtLocked(80, 24, now).render()
+	return out.renderLiveRegionWithDebugLocked(80, 24, now)
 }
 
-// BenchmarkLiveFrame is the cost of one spinner-tick repaint of an n-Task
-// Group: it must track the screen's rows, not the Task count.
-func BenchmarkLiveFrame(b *testing.B) {
-	for _, n := range []int{1000, 16000} {
-		b.Run(fmt.Sprint(n), func(b *testing.B) {
-			out, now := liveFrameOutput(b, n)
-			out.mu.Lock()
-			defer out.mu.Unlock()
-			b.ReportAllocs()
-			for b.Loop() {
-				_ = liveFrameFull(out, now)
-			}
-		})
-	}
+// renderLiveRegionWithDebugLocked builds one frame the way the animator does.
+// o.mu is held.
+func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Time) string {
+	return o.liveFrameAtLocked(width, height, now).render()
 }
 
 // liveFrameCost is the fastest of several repaints of an n-Task Group, so
