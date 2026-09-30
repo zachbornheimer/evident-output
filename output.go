@@ -11,14 +11,6 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 	return o.inner.Confirm(question, opts...)
 }
 
-func (o *Output) Fact(name, value string) { o.impl().Fact(name, value) }
-
-func (o *Output) Next(actions ...Action) { o.impl().Next(actions...) }
-
-func (o *Output) NextCommand(executable string, args ...string) {
-	o.impl().NextCommand(executable, args...)
-}
-
 func (o *Output) Print(args ...any) { o.impl().Print(args...) }
 
 func (o *Output) Printf(format string, args ...any) { o.impl().Printf(format, args...) }

@@ -16,3 +16,13 @@ import (
 type FactRecord = core.Fact
 
 func Fact(name, value string) { engine.Fact(name, value) }
+
+func (o *Output) Fact(name, value string) { o.impl().Fact(name, value) }
+
+// Fact records one name/value fact on this Task: information, not a
+// mutation. It never resolves the Task, and returns this *TaskHandle so a
+// call can chain like Problem and Summary.
+func (t *TaskHandle) Fact(name, value string) *TaskHandle {
+	t.impl().Fact(name, value)
+	return t
+}

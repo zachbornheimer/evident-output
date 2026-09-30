@@ -75,14 +75,6 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 	return t
 }
 
-// Fact records one name/value fact on this Task: information, not a
-// mutation. It never resolves the Task, and returns this *TaskHandle so a
-// call can chain like Problem and Summary.
-func (t *TaskHandle) Fact(name, value string) *TaskHandle {
-	t.impl().Fact(name, value)
-	return t
-}
-
 // Key sets an advanced override for this Task's stable identity, so a
 // rename or refactor keeps its manifest history. Call it before Define; a
 // call after Define or after the Task settled records ErrKeyAfterDefine and
@@ -90,16 +82,6 @@ func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 // another Task already claims is ErrDuplicateKey.
 func (t *TaskHandle) Key(key string) *TaskHandle {
 	t.impl().Key(key)
-	return t
-}
-
-func (t *TaskHandle) Next(actions ...Action) *TaskHandle {
-	t.impl().Next(actions...)
-	return t
-}
-
-func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle {
-	t.impl().NextCommand(executable, args...)
 	return t
 }
 
