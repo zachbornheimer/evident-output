@@ -33,7 +33,7 @@ func WritePlannedHeader(b *strings.Builder, color, preview bool, subject string)
 		}
 		return
 	}
-	tag := txt.Style("[dry-run]", effectColor("planned"), color)
+	tag := txt.Style("[dry-run]", EffectColor("planned"), color)
 	body := dryRunMarkerText
 	if subject != "" {
 		body = subject
@@ -63,14 +63,14 @@ func WriteConclusion(b *strings.Builder, c core.Conclusion, s Style) {
 		writeCancellationBand(b, c, s)
 		return
 	}
-	tag := s.paint(conclusionBandTag(c), conclusionColor(c.State))
+	tag := s.Paint(conclusionBandTag(c), ConclusionColor(c.State))
 	// A bare Subject that equals the headline state word itself ("changed",
 	// "failed", ...) says nothing the bracketed tag hasn't already said — it
 	// is what an unconfigured Config.Title falls back to, not a caller's
 	// chosen subject, so printing it stutters the band ("[changed]  changed",
 	// release-gate round 10 finding 1). Suppress it instead of repeating it.
 	if c.Subject != "" && c.Subject != string(c.State) {
-		fmt.Fprintf(b, "\n%s  %s\n", tag, s.paint(c.Subject, txt.SGRBold))
+		fmt.Fprintf(b, "\n%s  %s\n", tag, s.Paint(c.Subject, txt.SGRBold))
 	} else {
 		fmt.Fprintf(b, "\n%s\n", tag)
 	}
@@ -78,10 +78,10 @@ func WriteConclusion(b *strings.Builder, c core.Conclusion, s Style) {
 		fmt.Fprintf(b, "  %s\n", c.Explanation)
 	}
 	if c.State == core.StateFailed {
-		writeAlreadyMutated(b, c.Changes, s)
+		WriteAlreadyMutated(b, c.Changes, s)
 	}
 	for _, a := range c.Actions {
-		writeAction(b, a, s)
+		WriteAction(b, a, s)
 	}
 }
 
@@ -95,19 +95,19 @@ func writeCancellationBand(b *strings.Builder, c core.Conclusion, s Style) {
 	// beside it would only repeat that (the not-started rows say which part).
 	tagged := c
 	tagged.Partial = false
-	line := s.paint(conclusionBandTag(tagged), conclusionColor(c.State))
+	line := s.Paint(conclusionBandTag(tagged), ConclusionColor(c.State))
 	if c.Subject != "" && c.Subject != string(c.State) {
-		line += " " + s.paint(c.Subject, txt.SGRBold)
+		line += " " + s.Paint(c.Subject, txt.SGRBold)
 	}
 	if c.Explanation != "" {
 		line += "  " + c.Explanation
 	}
 	fmt.Fprintf(b, "\n%s\n", line)
-	if _, committed := summarizeAlreadyMutated(c.Changes); committed {
-		fmt.Fprintf(b, "  %s %s\n", s.warningGlyph(), cancellationPartialChangesNote)
+	if _, committed := SummarizeAlreadyMutated(c.Changes); committed {
+		fmt.Fprintf(b, "  %s %s\n", s.WarningGlyph(), CancellationPartialChangesNote)
 	}
 	for _, a := range c.Actions {
-		writeAction(b, a, s)
+		WriteAction(b, a, s)
 	}
 }
 

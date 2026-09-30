@@ -18,8 +18,8 @@ import "github.com/zachbornheimer/evident-output/internal/core"
 // rows. Live and durable output share this rule (docs/reference.md, "own
 // Task").
 
-// isOwnTask reports whether t is the own Task of the Group named group.
-func isOwnTask(group string, t *core.TaskSnapshot) bool {
+// IsOwnTask reports whether t is the own Task of the Group named group.
+func IsOwnTask(group string, t *core.TaskSnapshot) bool {
 	return t.Name == group
 }
 
@@ -32,24 +32,24 @@ func hasOnlyChild(col core.TasksSnapshot) bool {
 	return !col.Sequential && col.Summary == "" && len(col.Tasks) == 1 && len(col.Collections) == 0
 }
 
-// rendersAsOwnTask reports whether col renders as its own Task's row.
-func rendersAsOwnTask(col core.TasksSnapshot) bool {
-	return hasOnlyChild(col) && isOwnTask(col.Name, &col.Tasks[0])
+// RendersAsOwnTask reports whether col renders as its own Task's row.
+func RendersAsOwnTask(col core.TasksSnapshot) bool {
+	return hasOnlyChild(col) && IsOwnTask(col.Name, &col.Tasks[0])
 }
 
-// ownTaskRowName reports the name a child collection renders its one row
+// OwnTaskRowName reports the name a child collection renders its one row
 // under when it renders as its own Task (after its disposition items fold
 // into a tally), so a header-less parent can align that row with its
 // sibling rows.
-func ownTaskRowName(col core.TasksSnapshot) (string, bool) {
-	rest, _ := withoutDispositionItems(col)
-	if !rendersAsOwnTask(rest) {
+func OwnTaskRowName(col core.TasksSnapshot) (string, bool) {
+	rest, _ := WithoutDispositionItems(col)
+	if !RendersAsOwnTask(rest) {
 		return "", false
 	}
 	return rest.Name, true
 }
 
-// promotesLoneChildOntoHeader reports whether a group's one child that is
+// PromotesLoneChildOntoHeader reports whether a group's one child that is
 // not its own Task is still in flight (Running or Pending). The live frame
 // then keeps both names on a single row — `<spin> worktrees  classify
 // [██░░] 24/111  <path> — 12s` while it runs, `○ branches  classify
@@ -58,8 +58,8 @@ func ownTaskRowName(col core.TasksSnapshot) (string, bool) {
 // child. The child's evidence rides the header; the subject survives; a
 // blocked group does not spin. Done/Failed/Skipped children still take the
 // header+child shape when they need their own evidence.
-func promotesLoneChildOntoHeader(col core.TasksSnapshot) bool {
-	if !hasOnlyChild(col) || isOwnTask(col.Name, &col.Tasks[0]) {
+func PromotesLoneChildOntoHeader(col core.TasksSnapshot) bool {
+	if !hasOnlyChild(col) || IsOwnTask(col.Name, &col.Tasks[0]) {
 		return false
 	}
 	switch col.Tasks[0].State {

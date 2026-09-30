@@ -23,7 +23,7 @@ func writeProblem(b *strings.Builder, p core.Problem, indent string, emphasize b
 		if p.Count != 0 {
 			extra = fmt.Sprintf("%s (%d)", p.Summary, p.Count)
 		}
-		fmt.Fprintf(b, "%s%s%s %s  %s\n", indent, problemTreeIndent, s.dim("├─"), p.Subject, extra)
+		fmt.Fprintf(b, "%s%s%s %s  %s\n", indent, problemTreeIndent, s.Dim("├─"), p.Subject, extra)
 		if detail != "" {
 			writeProblemDetailLines(b, detail, indent, emphasize, s)
 		}
@@ -42,7 +42,7 @@ func writeProblem(b *strings.Builder, p core.Problem, indent string, emphasize b
 		}
 		return
 	}
-	fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, s.evidenceGlyph(), s.emphasized(p.Summary, emphasize))
+	fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, s.EvidenceGlyph(), s.Emphasized(p.Summary, emphasize))
 }
 
 // dedupeEvidenceTailAgainstRow is P7's addition (user-13-problems.md
@@ -94,7 +94,7 @@ func effectiveDetailAndTail(p core.Problem) (detail, tail string) {
 // problem rather than a new one.
 func writeAdditionalEvidenceLines(b *strings.Builder, tail, indent string, emphasize bool, s Style) {
 	for _, line := range splitPresentationLines(tail) {
-		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, s.emphasized(line, emphasize))
+		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, s.Emphasized(line, emphasize))
 	}
 }
 
@@ -110,17 +110,17 @@ func writeProblemDetailBlock(b *strings.Builder, summary, detail, indent string,
 		}
 		summary, lines = lines[0], lines[1:]
 	}
-	fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, s.evidenceGlyph(), s.emphasized(summary, emphasize))
+	fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, s.EvidenceGlyph(), s.Emphasized(summary, emphasize))
 	for _, line := range lines {
-		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, s.emphasized(line, emphasize))
+		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, s.Emphasized(line, emphasize))
 	}
 }
 
 // writeProblemDetailLines continues Detail under a subject (├─) row with │ prefixes.
 func writeProblemDetailLines(b *strings.Builder, detail, indent string, emphasize bool, s Style) {
-	pipe := s.dim("│")
+	pipe := s.Dim("│")
 	for _, line := range splitPresentationLines(detail) {
-		fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, pipe, s.emphasized(line, emphasize))
+		fmt.Fprintf(b, "%s%s%s %s\n", indent, problemTreeIndent, pipe, s.Emphasized(line, emphasize))
 	}
 }
 
@@ -139,14 +139,14 @@ func splitPresentationLines(s string) []string {
 	return lines
 }
 
-// writeAction renders one next-action row prefixed by the profile-aware next-
+// WriteAction renders one next-action row prefixed by the profile-aware next-
 // action glyph (→ / >). evo-rec.md's tightened vocabulary gives "next action"
 // its own row so the meaning does not rest on cyan color alone.
-func writeAction(b *strings.Builder, a core.Action, s Style) {
+func WriteAction(b *strings.Builder, a core.Action, s Style) {
 	glyph := txt.StyleGlyph(txt.GlyphNextAction.Render(s.Profile), txt.SGRCyan, s.Color)
 	if a.Command != nil {
 		cmd := a.Command.Executable + " " + strings.Join(a.Command.Args, " ")
-		fmt.Fprintf(b, "%s  %s\n", glyph, s.paint(cmd, txt.SGRCyan))
+		fmt.Fprintf(b, "%s  %s\n", glyph, s.Paint(cmd, txt.SGRCyan))
 		return
 	}
 	if a.Label != "" {

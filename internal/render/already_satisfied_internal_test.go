@@ -41,7 +41,7 @@ func TestAlreadySatisfiedRowDetail_LiveUnit(t *testing.T) {
 		Resolution: core.ResolutionAlreadySatisfied,
 	}
 	unit := liveTaskUnit(snap, 1, liveStyle{Style: Style{Profile: txt.GlyphsUnicode}, width: 80, spin: "⠋"})
-	if unit.Detail != alreadySatisfiedDetail {
-		t.Fatalf("live Detail = %q, want %q", unit.Detail, alreadySatisfiedDetail)
+	if unit.Detail != AlreadySatisfiedDetail {
+		t.Fatalf("live Detail = %q, want %q", unit.Detail, AlreadySatisfiedDetail)
 	}
 }

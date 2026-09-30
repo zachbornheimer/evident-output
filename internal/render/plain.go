@@ -13,7 +13,7 @@ import (
 func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphProfile) string {
 	var b strings.Builder
 	if width <= 0 {
-		width = defaultWidth
+		width = DefaultWidth
 	}
 	st := Style{Color: !noColor, Verbose: verbose, Profile: profile}
 	s = HumanProjection(s, verbose)
@@ -25,7 +25,7 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 	for _, line := range s.Lines {
 		WriteDebugOrLine(&b, line, st.Color)
 	}
-	writeRunAnnotations(&b, s.Warnings, s.Facts, st)
+	WriteRunAnnotations(&b, s.Warnings, s.Facts, st)
 
 	taskNameWidth := maxTaskNameWidth(s.Tasks)
 	for _, t := range s.Tasks {
@@ -36,11 +36,11 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 		WriteCollection(&b, col, st)
 	}
 
-	if hasTaskRows(s) && hasEffectSections(s) {
+	if HasTaskRows(s) && HasEffectSections(s) {
 		b.WriteByte('\n')
 	}
 
-	writeLedger(&b, s, width, st)
+	WriteLedger(&b, s, width, st)
 
 	if s.Conclusion != nil && !ShouldSuppressStandaloneConclusion(s) {
 		WriteConclusion(&b, StandaloneConclusion(s), st)
@@ -93,25 +93,25 @@ func WriteCollection(b *strings.Builder, col core.TasksSnapshot, s Style) {
 // collapsed one-row collection pads to (0 = its own name), so a header-less
 // parent's rows line up (headerlessRowNameWidth).
 func writeCollectionAligned(b *strings.Builder, col core.TasksSnapshot, nameWidth int, s Style) {
-	col, items := withoutDispositionItems(col)
+	col, items := WithoutDispositionItems(col)
 	switch {
-	case rendersAsOwnTask(col):
+	case RendersAsOwnTask(col):
 		WriteTaskAligned(b, col.Tasks[0], nameWidth, s)
-		writeDispositions(b, taskAnnotationIndent, items, noDisposition, s)
-	case flattensHeader(col, items):
+		WriteDispositions(b, TaskAnnotationIndent, items, NoDisposition, s)
+	case FlattensHeader(col, items):
 		writeHeaderlessGroup(b, col, s)
 	default:
 		writeCollectionHeader(b, col, s)
-		writeDispositions(b, headerTallyIndent(col), items, noDisposition, s)
+		WriteDispositions(b, HeaderTallyIndent(col), items, NoDisposition, s)
 		writeCollectionBody(b, col, s)
 	}
 }
 
 // writeCollectionHeader writes a Group or Sequence's own row.
 func writeCollectionHeader(b *strings.Builder, col core.TasksSnapshot, s Style) {
-	unit := DisplayUnit{Glyph: s.stateGlyph(col.State), Name: col.Name}
+	unit := DisplayUnit{Glyph: s.StateGlyph(col.State), Name: col.Name}
 	if col.Summary != "" {
-		unit.Detail = s.dim(col.Summary)
+		unit.Detail = s.Dim(col.Summary)
 	}
 	b.WriteString(unit.Render(""))
 	b.WriteByte('\n')
@@ -122,13 +122,13 @@ func writeCollectionHeader(b *strings.Builder, col core.TasksSnapshot, s Style) 
 func writeCollectionBody(b *strings.Builder, col core.TasksSnapshot, s Style) {
 	childNameWidth := maxTaskNameWidth(col.Tasks)
 	for _, t := range col.Tasks {
-		childRow(t, childNameWidth).write(b, s)
+		ChildRow(t, childNameWidth).Write(b, s)
 	}
 	for _, child := range col.Collections {
 		var nested strings.Builder
 		WriteCollection(&nested, child, s)
 		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
-			fmt.Fprintf(b, "%s%s\n", groupChildIndent, line)
+			fmt.Fprintf(b, "%s%s\n", GroupChildIndent, line)
 		}
 	}
 }

@@ -8,26 +8,26 @@ import (
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
-// compactLayoutMaxWidth switches changes/plans to compact rows.
-const compactLayoutMaxWidth = 40
+// CompactLayoutMaxWidth switches changes/plans to compact rows.
+const CompactLayoutMaxWidth = 40
 
-// defaultWidth mirrors the root package's construction default (80 columns,
+// DefaultWidth mirrors the root package's construction default (80 columns,
 // option.go) — duplicated as a literal here (not imported) because render
 // must never import the root package (see glyph.go's package doc).
-const defaultWidth = 80
+const DefaultWidth = 80
 
-// hasTaskRows reports whether s rendered any task or collection rows above
+// HasTaskRows reports whether s rendered any task or collection rows above
 // the effects ledger — the blank-line separator below only belongs between
 // two real blocks, never floating above an empty task section.
-func hasTaskRows(s core.Snapshot) bool {
+func HasTaskRows(s core.Snapshot) bool {
 	return len(s.Tasks) > 0 || len(s.Collections) > 0
 }
 
-// hasEffectSections reports whether s has a [changed]/[planned] ledger to
+// HasEffectSections reports whether s has a [changed]/[planned] ledger to
 // render — the blank line separating it from the task block above
 // (fixture-repo-retire-dryrun.md: a blank line sits between the last task
 // row and the first ledger row) only belongs when both sides are non-empty.
-func hasEffectSections(s core.Snapshot) bool {
+func HasEffectSections(s core.Snapshot) bool {
 	return len(s.Changes) > 0 || len(s.Plans) > 0
 }
 
@@ -73,16 +73,16 @@ const (
 	problemTreeIndent = "   "
 	// problemDetailIndent continues multi-line Detail under a └─ / │ opener.
 	problemDetailIndent = "      "
-	// taskAnnotationIndent nests a standalone task's annotations — taxonomy
+	// TaskAnnotationIndent nests a standalone task's annotations — taxonomy
 	// tallies, verification details, warnings, facts — under its row
 	// (spec §26/§27: "✓ branches  50 checked" / "  ! kept 13 (...)").
-	taskAnnotationIndent = "  "
-	// groupChildIndent nests a Group header's children: its child rows and
+	TaskAnnotationIndent = "  "
+	// GroupChildIndent nests a Group header's children: its child rows and
 	// the tallies its folded items leave behind, in one column.
-	groupChildIndent = "   "
+	GroupChildIndent = "   "
 )
 
-// writeVerificationDetails renders a Task's per-attribute reconciliation
+// WriteVerificationDetails renders a Task's per-attribute reconciliation
 // outcomes (spec §2, §8.2, §20-21, §41, §49) — evo.File/evo.Exec's third
 // evidence layer, which subconditions were satisfied or failed, not just
 // that the operation as a whole did. A satisfied attribute is a muted "-
@@ -95,16 +95,16 @@ const (
 // row's own nesting indent (matches the value writeNestedTaskFacts/
 // writeNestedTaskWarnings already use at this call site — "  " for a
 // standalone task, problemTreeIndent for a collection child).
-func writeVerificationDetails(b *strings.Builder, details []core.VerificationDetail, indent string, taskFailed bool, s Style) {
+func WriteVerificationDetails(b *strings.Builder, details []core.VerificationDetail, indent string, taskFailed bool, s Style) {
 	if len(details) == 0 || (!taskFailed && !s.Verbose) {
 		return
 	}
 	for _, d := range details {
 		if d.Status == core.VerificationSatisfied {
-			fmt.Fprintf(b, "%s%s %s\n", indent, s.stateGlyph(core.NotStarted), s.dim(d.Name+"  already satisfied"))
+			fmt.Fprintf(b, "%s%s %s\n", indent, s.StateGlyph(core.NotStarted), s.Dim(d.Name+"  already satisfied"))
 			continue
 		}
-		fmt.Fprintf(b, "%s%s %s\n", indent, s.stateGlyph(core.Failed), d.Name)
+		fmt.Fprintf(b, "%s%s %s\n", indent, s.StateGlyph(core.Failed), d.Name)
 		writeVerificationFacts(b, d.Facts, indent+"  ")
 	}
 }
@@ -132,7 +132,7 @@ func writeVerificationFacts(b *strings.Builder, facts []core.Fact, indent string
 // uses for row width, measured in display cells (E2.5 finding 6): a plain
 // byte-length check overcounts multi-byte runes and undercounts wide ones,
 // so it agrees with the compact-layout width check only by coincidence.
-const warningInlineMaxCells = compactLayoutMaxWidth
+const warningInlineMaxCells = CompactLayoutMaxWidth
 
 // bangColumnFiller is as wide as inlineWarningText's "! " glyph+space
 // prefix — a Fact's inline text stands in this much blank space so its own
@@ -154,7 +154,7 @@ func WriteTask(b *strings.Builder, t core.TaskSnapshot, s Style) {
 // tasks with inline warnings/facts line up in one column ("✓ branches
 // ! kept 13...", fixture-repo-retire-dryrun.md). See taskRow.
 func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, s Style) {
-	rootRow(t, nameWidth).write(b, s)
+	RootRow(t, nameWidth).Write(b, s)
 }
 
 // runningTaskDetail composes a core.Running task's plain-mode detail text: its
@@ -164,7 +164,7 @@ func WriteTaskAligned(b *strings.Builder, t core.TaskSnapshot, nameWidth int, s 
 // Returns "" for a core.Running task with neither (never happens through the
 // public API, since every path that promotes core.Pending to core.Running sets one).
 func runningTaskDetail(t core.TaskSnapshot) string {
-	count := progressCountText(t.Progress)
+	count := ProgressCountText(t.Progress)
 	switch {
 	case count != "" && t.Phase != "":
 		return count + "  " + t.Phase
@@ -175,16 +175,16 @@ func runningTaskDetail(t core.TaskSnapshot) string {
 	}
 }
 
-// progressCountText renders p as the fixed "C/T" (Determinate) or
+// ProgressCountText renders p as the fixed "C/T" (Determinate) or
 // byte-fraction (BytesKind) count text a core.Running row shows, or "" when p
 // carries neither — the one place that decides "does this progress have a
 // displayable count," shared by runningTaskDetail (core.Running) and writeTask's
 // core.Failed row (release-gate round 8 finding 4) so both projections agree on
 // where and how the count reads.
-func progressCountText(p core.Progress) string {
+func ProgressCountText(p core.Progress) string {
 	switch {
 	case p.Kind == core.BytesKind && p.Total > 0:
-		return formatByteProgressFixed(p.Completed, p.Total)
+		return FormatByteProgressFixed(p.Completed, p.Total)
 	case p.Kind == core.Determinate && p.Total > 0:
 		return fmt.Sprintf("%d/%d", p.Completed, p.Total)
 	default:

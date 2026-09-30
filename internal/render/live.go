@@ -106,11 +106,11 @@ func LiveRegion(s core.Snapshot, height, width int, now time.Time, style Style) 
 	style.Verbose = false
 	st := liveStyle{Style: style, width: width, spin: txt.SpinnerGlyph(now, style.Profile), now: now}
 
-	writeLiveBody(&b, liveRoot(qualifyFlattenedRows(s, liveHeaderRule(height))), height, atRoot, st)
-	if hasTaskRows(s) && hasEffectSections(s) {
+	writeLiveBody(&b, liveRoot(QualifyFlattenedRows(s, liveHeaderRule(height))), height, atRoot, st)
+	if HasTaskRows(s) && HasEffectSections(s) {
 		b.WriteByte('\n')
 	}
-	writeLedger(&b, s, width, style)
+	WriteLedger(&b, s, width, style)
 	return strings.TrimRight(b.String(), "\n")
 }
 
@@ -139,7 +139,7 @@ func ArmedTitleLine(subject string, now time.Time, s Style) string {
 
 func FitLiveRegion(text string, columns int) string {
 	if columns <= 0 {
-		columns = defaultWidth
+		columns = DefaultWidth
 	}
 	if liveRegionFitsColumns(text, columns) {
 		return text
@@ -192,7 +192,7 @@ func liveGroupHeader(col core.TasksSnapshot, done, total int, st liveStyle) Disp
 }
 
 func anyChildRunning(col core.TasksSnapshot) bool {
-	if ownCounts(col).Running || core.CollectionTallyOf(col).Tasks.Running {
+	if OwnCounts(col).Running || core.CollectionTallyOf(col).Tasks.Running {
 		return true
 	}
 	return slices.ContainsFunc(col.Collections, anyChildRunning)
@@ -206,7 +206,7 @@ func anyChildRunning(col core.TasksSnapshot) bool {
 // core.Incomplete glyph (evo-rec.md core.Problem 9). Recurses into nested
 // containers (P3) so a still-pending grandchild keeps the root header honest.
 func anyChildPendingActive(col core.TasksSnapshot) bool {
-	if counts := ownCounts(col); counts.Running || counts.Pending {
+	if counts := OwnCounts(col); counts.Running || counts.Pending {
 		return true
 	}
 	if left := core.CollectionTallyOf(col).Tasks; left.Running || left.Pending {
@@ -220,7 +220,7 @@ func anyChildPendingActive(col core.TasksSnapshot) bool {
 // this header itself was first actually painted, and so the anchor its own
 // elapsed-time suffix measures from (P5).
 func earliestLiveFirstSeen(col core.TasksSnapshot) time.Time {
-	earliest := earlierSeen(ownCounts(col).EarliestSeen, core.CollectionTallyOf(col).Tasks.EarliestSeen)
+	earliest := earlierSeen(OwnCounts(col).EarliestSeen, core.CollectionTallyOf(col).Tasks.EarliestSeen)
 	for _, child := range col.Collections {
 		earliest = earlierSeen(earliest, earliestLiveFirstSeen(child))
 	}
@@ -346,10 +346,10 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 	// diagnostic parent line (bar/count or failure summary) and nest each
 	// warning underneath — Done still inlines a short warning on the ✓ row.
 	if t.State == core.Running || t.State == core.Failed {
-		writeNestedTaskWarnings(b, t.Warnings, pad+"   ", st.Style)
+		WriteNestedTaskWarnings(b, t.Warnings, pad+"   ", st.Style)
 	}
 	if t.State == core.Failed {
-		writeVerificationDetails(b, t.Verification, pad+"   ", true, st.Style)
+		WriteVerificationDetails(b, t.Verification, pad+"   ", true, st.Style)
 	}
 	return rowsSince(b, start)
 }
@@ -381,18 +381,18 @@ func writeLiveTail(b *strings.Builder, tail core.LiveTail, indent string, st liv
 		return
 	}
 	for _, line := range tail.Lines {
-		b.WriteString(indent + st.dim(fitTailLine(line, len(indent), st.width)) + "\n")
+		b.WriteString(indent + st.Dim(fitTailLine(line, len(indent), st.width)) + "\n")
 	}
 	if tail.Evidence > len(tail.Lines) {
 		footer := indent + txt.GlyphOverflow.Render(st.Profile) + " " + evidenceLinesText(tail.Evidence)
-		b.WriteString(st.dim(fitTailLine(footer, 0, st.width)) + "\n")
+		b.WriteString(st.Dim(fitTailLine(footer, 0, st.width)) + "\n")
 	}
 }
 
 // fitTailLine cuts line to what is left of width after indent cells.
 func fitTailLine(line string, indent, width int) string {
 	if width <= 0 {
-		width = defaultWidth
+		width = DefaultWidth
 	}
 	return txt.TruncateVisible(line, max(width-indent, 1))
 }
@@ -469,17 +469,17 @@ func liveTaskUnit(t core.TaskSnapshot, indent int, st liveStyle) DisplayUnit {
 func liveSettledDetail(t core.TaskSnapshot, st liveStyle) string {
 	switch {
 	case t.State == core.Done && t.Progress.Kind == core.BytesKind:
-		return formatBytes(t.Progress.Completed)
+		return FormatBytes(t.Progress.Completed)
 	case t.Resolution == core.ResolutionAlreadySatisfied:
-		return alreadySatisfiedRowDetail(t, st.Color)
+		return AlreadySatisfiedRowDetail(t, st.Color)
 	case t.State == core.Done && t.Summary != "":
-		return st.dim(t.Summary)
+		return st.Dim(t.Summary)
 	case t.State == core.Done && len(t.Warnings) > 0:
-		msg := warningText(t.Warnings[0])
+		msg := WarningText(t.Warnings[0])
 		if more := len(t.Warnings) - 1; more > 0 {
 			msg = fmt.Sprintf("%s (+%d more)", msg, more)
 		}
-		return st.dim(msg)
+		return st.Dim(msg)
 	default:
 		return ""
 	}
@@ -493,7 +493,7 @@ func liveRunningDetail(t core.TaskSnapshot, st liveStyle) (detail, elapsed strin
 	p := t.Progress
 	switch {
 	case p.Kind == core.BytesKind && p.Total > 0:
-		return progressBar(p.Completed, p.Total, 12) + "  " + formatByteProgressFixed(p.Completed, p.Total) + elapsed, elapsed
+		return ProgressBar(p.Completed, p.Total, 12) + "  " + FormatByteProgressFixed(p.Completed, p.Total) + elapsed, elapsed
 	case p.Kind == core.Determinate && p.Total > 0:
 		return liveCountDetail(t, st) + elapsed, elapsed
 	case p.Kind == core.BytesKind && t.Phase == "":
@@ -511,7 +511,7 @@ func liveRunningDetail(t core.TaskSnapshot, st liveStyle) (detail, elapsed strin
 		if phase == "" {
 			phase = "working…"
 		}
-		return st.dim(phase) + elapsed, elapsed
+		return st.Dim(phase) + elapsed, elapsed
 	}
 }
 
@@ -520,11 +520,11 @@ func liveRunningDetail(t core.TaskSnapshot, st liveStyle) (detail, elapsed strin
 // the count (information): evo-rec.md Problem 16/26's compact dialect.
 func liveCountDetail(t core.TaskSnapshot, st liveStyle) string {
 	detail := fmt.Sprintf("%d/%d", t.Progress.Completed, t.Progress.Total)
-	if st.width <= 0 || st.width >= compactLayoutMaxWidth {
-		detail = progressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " + detail
+	if st.width <= 0 || st.width >= CompactLayoutMaxWidth {
+		detail = ProgressBar(t.Progress.Completed, t.Progress.Total, 12) + "  " + detail
 	}
 	if t.Phase != "" {
-		detail += "  " + st.dim(t.Phase)
+		detail += "  " + st.Dim(t.Phase)
 	}
 	return detail
 }
@@ -537,14 +537,14 @@ func livePendingDetail(t core.TaskSnapshot, st liveStyle) string {
 	if heartbeatSuffix(st.now, activitySince(t)) == "" {
 		return ""
 	}
-	return st.dim("waiting")
+	return st.Dim("waiting")
 }
 
 // liveFailedDetail is a Failed row's headline, after the count it reached
 // when it failed mid-loop (release-gate round 8 finding 4).
 func liveFailedDetail(t core.TaskSnapshot) string {
-	msg := headline(t)
-	count := progressCountText(t.Progress)
+	msg := Headline(t)
+	count := ProgressCountText(t.Progress)
 	switch {
 	case msg != "" && count != "":
 		return count + "  " + msg

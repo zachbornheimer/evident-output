@@ -49,7 +49,7 @@ type liveBodyLevel struct {
 }
 
 var (
-	underHeader = liveBodyLevel{indent: 1, pad: groupChildIndent}
+	underHeader = liveBodyLevel{indent: 1, pad: GroupChildIndent}
 	inPlace     = liveBodyLevel{}
 	atRoot      = liveBodyLevel{groupsFirst: true}
 )
@@ -70,24 +70,24 @@ func writeAlignedLiveCollection(b *strings.Builder, col core.TasksSnapshot, heig
 	// Count before folding: a folded item is still a completed child, so
 	// "N/M complete" never drops when the items fold.
 	done, total := completion(col)
-	col, items := withoutDispositionItems(col)
+	col, items := WithoutDispositionItems(col)
 	switch {
-	case rendersAsOwnTask(col):
+	case RendersAsOwnTask(col):
 		taskRows := writeLiveTaskLine(b, col.Tasks[0], 0, nameWidth, st)
-		writeLiveDispositions(b, taskAnnotationIndent, items, height-taskRows, st.Style)
-	case promotesLoneChildOntoHeader(col):
+		writeLiveDispositions(b, TaskAnnotationIndent, items, height-taskRows, st.Style)
+	case PromotesLoneChildOntoHeader(col):
 		unit := liveTaskUnit(col.Tasks[0], 0, st)
 		unit.Name = col.Name + "  " + unit.Name
 		b.WriteString(unit.Render(""))
 		b.WriteByte('\n')
-		writeLiveDispositions(b, taskAnnotationIndent, items, height-headerRows, st.Style)
+		writeLiveDispositions(b, TaskAnnotationIndent, items, height-headerRows, st.Style)
 	case liveFlattensHeader(col, items, height):
 		writeLiveBody(b, col, height, inPlace, st)
 	default:
 		done, total = liveHeaderProgress(col, done, total)
 		b.WriteString(liveGroupHeader(col, done, total, st).Render(""))
 		b.WriteByte('\n')
-		tallyRows := writeLiveDispositions(b, headerTallyIndent(col), items, height-liveHeaderRows-minLiveChildRows, st.Style)
+		tallyRows := writeLiveDispositions(b, HeaderTallyIndent(col), items, height-liveHeaderRows-minLiveChildRows, st.Style)
 		writeLiveBody(b, col, max(height-headerRows-tallyRows, minLiveChildRows+omissionRows), underHeader, st)
 	}
 	return rowsSince(b, start)
@@ -103,7 +103,7 @@ func writeLiveBody(b *strings.Builder, col core.TasksSnapshot, budget int, level
 		return
 	}
 	omitted := fillLiveBody(b, col, budget-omissionRows, level, st)
-	fmt.Fprintf(b, "%s%s  %d not shown\n", level.pad, st.overflowGlyph(), omitted)
+	fmt.Fprintf(b, "%s%s  %d not shown\n", level.pad, st.OverflowGlyph(), omitted)
 }
 
 // fillLiveBody writes as much of col's body as fits in budget rows and
@@ -111,7 +111,7 @@ func writeLiveBody(b *strings.Builder, col core.TasksSnapshot, budget int, level
 func fillLiveBody(b *strings.Builder, col core.TasksSnapshot, budget int, level liveBodyLevel, st liveStyle) (omitted int) {
 	fill := liveFill{b: b, left: budget, level: level, st: st}
 	if level.indent == 0 {
-		fill.nameWidth = headerlessRowNameWidth(col)
+		fill.nameWidth = HeaderlessRowNameWidth(col)
 	}
 	if level.groupsFirst {
 		fill.groups(col)
@@ -138,7 +138,7 @@ type liveFill struct {
 // tasks writes child Tasks in selectLiveChildren's attention order until
 // the next one's rows (an activity child counts) no longer fit.
 func (f *liveFill) tasks(col core.TasksSnapshot) {
-	selected, omitted := selectLiveChildren(col.Tasks, ownCounts(col).Total, max(f.left, 0))
+	selected, omitted := selectLiveChildren(col.Tasks, OwnCounts(col).Total, max(f.left, 0))
 	f.omitted += omitted
 	for i, t := range selected {
 		var row strings.Builder
@@ -254,7 +254,7 @@ func liveHeaderProgress(col core.TasksSnapshot, done, total int) (int, int) {
 	}
 	done = left.Settled
 	for _, child := range col.Collections {
-		if !hasUnfinishedTask(child) {
+		if !HasUnfinishedTask(child) {
 			done++
 		}
 	}
@@ -265,19 +265,19 @@ func liveHeaderProgress(col core.TasksSnapshot, done, total int) (int, int) {
 // cannot each have one of height rows: its body will leave some out, so
 // only a header can carry what they add up to.
 func liveBodyOverflows(col core.TasksSnapshot, height int) bool {
-	return ownCounts(col).Total+len(col.Collections)+core.CollectionTallyOf(col).Count > height
+	return OwnCounts(col).Total+len(col.Collections)+core.CollectionTallyOf(col).Count > height
 }
 
 // completion is how many of col's own child Tasks have completed (Done or
 // Skipped) out of all of them, folded items included.
 func completion(col core.TasksSnapshot) (done, total int) {
-	counts := ownCounts(col)
+	counts := OwnCounts(col)
 	return counts.Done, counts.Total
 }
 
 // taskCount is every Task at or below col.
 func taskCount(col core.TasksSnapshot) int {
-	n := ownCounts(col).Total + core.CollectionTallyOf(col).Tasks.Total
+	n := OwnCounts(col).Total + core.CollectionTallyOf(col).Tasks.Total
 	for _, child := range col.Collections {
 		n += taskCount(child)
 	}
@@ -308,11 +308,11 @@ func liveRoot(s core.Snapshot) core.TasksSnapshot {
 // themselves (E-111).
 func liveFlattensHeader(col core.TasksSnapshot, items core.Dispositions, height int) bool {
 	_, total := completion(col)
-	return flattensHeader(col, items) && !liveProgressAddsInformation(col, total) && !liveBodyOverflows(col, height)
+	return FlattensHeader(col, items) && !LiveProgressAddsInformation(col, total) && !liveBodyOverflows(col, height)
 }
 
 // liveHeaderRule is liveFlattensHeader for a frame of height rows.
-func liveHeaderRule(height int) headerRule {
+func liveHeaderRule(height int) HeaderRule {
 	return func(col core.TasksSnapshot, items core.Dispositions) bool {
 		return liveFlattensHeader(col, items, height)
 	}
@@ -329,13 +329,13 @@ func writeLiveDispositions(b *strings.Builder, indent string, items core.Disposi
 	}
 	s.Verbose = false
 	var full strings.Builder
-	writeDispositions(&full, indent, items, noDisposition, s)
+	WriteDispositions(&full, indent, items, NoDisposition, s)
 	if rows = strings.Count(full.String(), "\n"); rows <= maxRows {
 		b.WriteString(full.String())
 		return rows
 	}
 	start := b.Len()
-	writeTaxonomyHeadline(b, indent, dispositionSkipped, items.Skipped, s)
-	writeTaxonomyHeadline(b, indent, dispositionKept, items.Kept, s)
+	WriteTaxonomyHeadline(b, indent, DispositionSkipped, items.Skipped, s)
+	WriteTaxonomyHeadline(b, indent, DispositionKept, items.Kept, s)
 	return strings.Count(b.String()[start:], "\n")
 }

@@ -27,7 +27,7 @@ type LiveChildren struct {
 
 	all, work core.ChildCounts
 	items     core.Dispositions
-	census    childCensus
+	census    ChildCensus
 }
 
 // NewLiveChildren starts the projection of the children of the collection
@@ -41,15 +41,15 @@ func NewLiveChildren(group string, rows int) *LiveChildren {
 func (c *LiveChildren) Admit(t *core.TaskSnapshot) bool {
 	c.all.Add(t)
 	switch {
-	case isOwnTask(c.group, t):
-		c.census.ownTask = true
-	case isDispositionItem(c.group, t):
-		c.census.items++
+	case IsOwnTask(c.group, t):
+		c.census.OwnTask = true
+	case IsDispositionItem(c.group, t):
+		c.census.Items++
 		c.items.AddTask(t)
 		c.keptItems++
 		return c.keptItems <= c.rows+1
-	case isWorkPeer(t):
-		c.census.workPeer = true
+	case IsWorkPeer(t):
+		c.census.WorkPeer = true
 	}
 	c.work.Add(t)
 	c.keptWork++
@@ -72,7 +72,7 @@ func (c *LiveChildren) Collection(col core.TasksSnapshot) core.TasksSnapshot {
 		return core.WithoutChildTally(col)
 	}
 	tally := core.ChildTally{All: c.all, Rest: c.all}
-	if !col.Sequential && c.census.folds(col.Summary) {
+	if !col.Sequential && c.census.Folds(col.Summary) {
 		tally.Folded, tally.Items, tally.Rest = true, c.items, c.work
 	}
 	return core.WithChildTally(col, tally)
@@ -153,7 +153,7 @@ func (c *LiveCollections) Omit(tasks core.ChildCounts, ownRow string) {
 // OwnRowName is the name col renders its one row under when it renders
 // as its own Task, or "".
 func OwnRowName(col core.TasksSnapshot) string {
-	name, _ := ownTaskRowName(col)
+	name, _ := OwnTaskRowName(col)
 	return name
 }
 

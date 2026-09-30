@@ -79,7 +79,7 @@ func WriteEffects(b *strings.Builder, sec EffectSection, s Style) {
 		writeNothingToDo(b, sec)
 		return
 	}
-	tag := s.paint(fmt.Sprintf("[%s]", sec.Kind), effectColor(sec.Kind))
+	tag := s.Paint(fmt.Sprintf("[%s]", sec.Kind), EffectColor(sec.Kind))
 	visible := mergeIdenticalEffectRecords(sec.Records)
 	if len(visible) == 1 {
 		writeEffectLine(b, tag, sec, visible[0])
@@ -88,7 +88,7 @@ func WriteEffects(b *strings.Builder, sec EffectSection, s Style) {
 	fmt.Fprintf(b, "%s  %s\n", tag, sec.Subject)
 	omitted := max(len(visible)-maxVisibleEffectRows, 0)
 	visible = visible[:len(visible)-omitted]
-	if sec.Width > 0 && sec.Width < compactLayoutMaxWidth {
+	if sec.Width > 0 && sec.Width < CompactLayoutMaxWidth {
 		writeCompactEffects(b, visible)
 	} else {
 		writeAlignedEffects(b, visible, s)
@@ -157,16 +157,16 @@ func writeAlignedEffects(b *strings.Builder, visible []core.EffectRecord, s Styl
 			continue
 		}
 		if gap := min(maxVerb-len(r.Verb), maxEffectLeader); gap > 2 {
-			fmt.Fprintf(b, "  %s%s %s\n", r.Verb, s.dim(strings.Repeat("·", gap)), r.Object)
+			fmt.Fprintf(b, "  %s%s %s\n", r.Verb, s.Dim(strings.Repeat("·", gap)), r.Object)
 			continue
 		}
 		fmt.Fprintf(b, "  %s  %s %s\n", verb, txt.PadLeft("", maxQty), r.Object)
 	}
 }
 
-// writeLedger writes every [changed] then [planned] section of snap, each
+// WriteLedger writes every [changed] then [planned] section of snap, each
 // kind aligned to its own subject column.
-func writeLedger(b *strings.Builder, snap core.Snapshot, width int, s Style) {
+func WriteLedger(b *strings.Builder, snap core.Snapshot, width int, s Style) {
 	changeNameWidth := maxEffectSubjectWidth(snap.Changes, func(c core.ChangesSnapshot) string { return c.Subject })
 	for _, ch := range snap.Changes {
 		WriteEffects(b, EffectSection{Kind: "changed", Subject: ch.Subject, Records: ch.Records, IntendedVerb: ch.IntendedVerb, NameWidth: changeNameWidth, Width: width}, s)
@@ -185,32 +185,32 @@ func writeEffectOverflow(b *strings.Builder, omitted int, s Style) {
 	if omitted <= 0 {
 		return
 	}
-	fmt.Fprintf(b, "  %s  +%d more (not shown)\n", s.overflowGlyph(), omitted)
+	fmt.Fprintf(b, "  %s  +%d more (not shown)\n", s.OverflowGlyph(), omitted)
 }
 
-// writeAlreadyMutated renders the early-termination "! already mutated: ..."
+// WriteAlreadyMutated renders the early-termination "! already mutated: ..."
 // line. It fires whenever a run concludes core.Cancelled or core.Failed with at least
 // one committed effect — "!" is attention-only (evo-rec.md "Tightened glyph
 // vocabulary"), and an empty ledger earns no attention, so the row is
 // suppressed entirely rather than rendered as "none". The summary is derived
 // mechanically from the Changes ledger, never assembled by the caller
 // (evo-rec.md "Taxonomy and mutation lines are derived, never assembled").
-func writeAlreadyMutated(b *strings.Builder, changes []core.ChangesSnapshot, s Style) {
-	summary, ok := summarizeAlreadyMutated(changes)
+func WriteAlreadyMutated(b *strings.Builder, changes []core.ChangesSnapshot, s Style) {
+	summary, ok := SummarizeAlreadyMutated(changes)
 	if !ok {
 		return
 	}
-	fmt.Fprintf(b, "%s  already mutated: %s\n", s.warningGlyph(), summary)
+	fmt.Fprintf(b, "%s  already mutated: %s\n", s.WarningGlyph(), summary)
 }
 
-// summarizeAlreadyMutated derives the "! already mutated: ..." line's
+// SummarizeAlreadyMutated derives the "! already mutated: ..." line's
 // content. Sections that committed the same effect are one fragment with one
 // count — "1 module created; 1 module created" told the reader nothing twice
 // (P7). When more than one distinct effect survives, a fragment a single task
 // owns is named, so the reader learns where each effect happened; a run with
 // one effect keeps the unqualified spelling. ok is false when nothing
 // committed, telling the caller to suppress the row.
-func summarizeAlreadyMutated(changes []core.ChangesSnapshot) (string, bool) {
+func SummarizeAlreadyMutated(changes []core.ChangesSnapshot) (string, bool) {
 	effects := aggregateMutatedEffects(changes)
 	if len(effects) == 0 {
 		return "", false

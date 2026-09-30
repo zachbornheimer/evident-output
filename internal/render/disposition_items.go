@@ -13,12 +13,12 @@ import (
 // item under its reason. Machine output never calls this; JSON and JSONL
 // keep every child Task.
 
-// isDispositionItem reports whether t is an item of the Group named group
+// IsDispositionItem reports whether t is an item of the Group named group
 // whose only information is its Kept or Skipped record, so its row would
 // say nothing its Group's tally does not. The Group's own Task is never an item: it is
 // the row the tally hangs under.
-func isDispositionItem(group string, t *core.TaskSnapshot) bool {
-	if t.State != core.Done && t.State != core.Skipped || t.Synthetic() || isOwnTask(group, t) {
+func IsDispositionItem(group string, t *core.TaskSnapshot) bool {
+	if t.State != core.Done && t.State != core.Skipped || t.Synthetic() || IsOwnTask(group, t) {
 		return false
 	}
 	if len(t.Kept) == 0 && len(t.Skipped) == 0 {
@@ -43,37 +43,37 @@ const (
 	minFoldedItemsOwnTask = 1
 )
 
-// childCensus is how a Group's child Tasks partition for folding: its own
+// ChildCensus is how a Group's child Tasks partition for folding: its own
 // Task, its disposition items, and whether any other child finished work
 // of its own (a work peer).
-type childCensus struct {
-	items    int
-	ownTask  bool
-	workPeer bool
+type ChildCensus struct {
+	Items    int
+	OwnTask  bool
+	WorkPeer bool
 }
 
-func censusOf(col core.TasksSnapshot) childCensus {
-	var c childCensus
+func censusOf(col core.TasksSnapshot) ChildCensus {
+	var c ChildCensus
 	for i := range col.Tasks {
 		t := &col.Tasks[i]
 		switch {
-		case isOwnTask(col.Name, t):
-			c.ownTask = true
-		case isDispositionItem(col.Name, t):
-			c.items++
-		case isWorkPeer(t):
-			c.workPeer = true
+		case IsOwnTask(col.Name, t):
+			c.OwnTask = true
+		case IsDispositionItem(col.Name, t):
+			c.Items++
+		case IsWorkPeer(t):
+			c.WorkPeer = true
 		}
 	}
 	return c
 }
 
-// isWorkPeer reports whether t, a child that is neither its Group's own
+// IsWorkPeer reports whether t, a child that is neither its Group's own
 // Task nor a disposition item, finished work of its own worth a row. Its
 // presence says the Group's children are peer subjects (categories), not
 // items of one subject. A child still in flight is not one yet: it may
 // still resolve as an item.
-func isWorkPeer(t *core.TaskSnapshot) bool {
+func IsWorkPeer(t *core.TaskSnapshot) bool {
 	return core.IsTerminalTask(t.State) && !core.IsZeroInformationTask(*t)
 }
 
@@ -92,22 +92,22 @@ func foldsItems(col core.TasksSnapshot) bool {
 	if tally, ok := core.ChildTallyOf(col); ok {
 		return tally.Folded
 	}
-	return censusOf(col).folds(col.Summary)
+	return censusOf(col).Folds(col.Summary)
 }
 
-// folds is foldsItems' rule for a Group with this census and summary.
-func (c childCensus) folds(summary string) bool {
-	if c.ownTask {
-		return c.items >= minFoldedItemsOwnTask
+// Folds is foldsItems' rule for a Group with this census and summary.
+func (c ChildCensus) Folds(summary string) bool {
+	if c.OwnTask {
+		return c.Items >= minFoldedItemsOwnTask
 	}
-	return c.items >= minFoldedItems && (summary != "" || !c.workPeer)
+	return c.Items >= minFoldedItems && (summary != "" || !c.WorkPeer)
 }
 
-// withoutDispositionItems returns col without its disposition items, and
+// WithoutDispositionItems returns col without its disposition items, and
 // their summed tallies, when it folds them (foldsItems) — linear in the
 // children, in child order, with no sorting, so a live frame can afford
 // it every tick.
-func withoutDispositionItems(col core.TasksSnapshot) (core.TasksSnapshot, core.Dispositions) {
+func WithoutDispositionItems(col core.TasksSnapshot) (core.TasksSnapshot, core.Dispositions) {
 	var items core.Dispositions
 	if !foldsItems(col) {
 		return col, items
@@ -118,7 +118,7 @@ func withoutDispositionItems(col core.TasksSnapshot) (core.TasksSnapshot, core.D
 	var rest []core.TaskSnapshot
 	for i := range col.Tasks {
 		t := &col.Tasks[i]
-		if isDispositionItem(col.Name, t) {
+		if IsDispositionItem(col.Name, t) {
 			items.AddTask(t)
 			continue
 		}
@@ -135,22 +135,22 @@ func withoutDispositionItems(col core.TasksSnapshot) (core.TasksSnapshot, core.D
 	return core.WithChildTally(col, core.ChildTally{All: tally.Rest, Rest: tally.Rest}), tally.Items
 }
 
-// headerTallyIndent is where a Group header's folded tallies start. Beside
+// HeaderTallyIndent is where a Group header's folded tallies start. Beside
 // surviving child rows they are the header's children too and share the
 // child column; with no child row left they annotate the header itself,
 // as a Task's tallies annotate its row ("✓ branches  6 checked" /
 // "  ! kept 3 (...)", §26/§27).
-func headerTallyIndent(folded core.TasksSnapshot) string {
+func HeaderTallyIndent(folded core.TasksSnapshot) string {
 	if len(folded.Tasks) > 0 || len(folded.Collections) > 0 {
-		return groupChildIndent
+		return GroupChildIndent
 	}
-	return taskAnnotationIndent
+	return TaskAnnotationIndent
 }
 
-// headerlessRowNameWidth is the shared name column of a header-less
+// HeaderlessRowNameWidth is the shared name column of a header-less
 // Group's rows: its own Tasks plus every child collection that collapses
 // into one row. Zero when fewer than two rows share it.
-func headerlessRowNameWidth(col core.TasksSnapshot) int {
+func HeaderlessRowNameWidth(col core.TasksSnapshot) int {
 	rows, width := len(col.Tasks), 0
 	for _, t := range col.Tasks {
 		width = max(width, len([]rune(t.Name)))
@@ -161,7 +161,7 @@ func headerlessRowNameWidth(col core.TasksSnapshot) int {
 		rows, width = tally.All.Total, max(width, tally.All.NameWidth)
 	}
 	for _, child := range col.Collections {
-		if name, ok := ownTaskRowName(child); ok {
+		if name, ok := OwnTaskRowName(child); ok {
 			rows++
 			width = max(width, len([]rune(name)))
 		}

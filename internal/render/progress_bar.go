@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-// progressBar returns a fixed-width ASCII bar for completed/total.
-func progressBar(completed, total int64, width int) string {
+// ProgressBar returns a fixed-width ASCII bar for completed/total.
+func ProgressBar(completed, total int64, width int) string {
 	if width < 4 {
 		width = 4
 	}
@@ -27,7 +27,7 @@ func progressBar(completed, total int64, width int) string {
 	return "[" + strings.Repeat("█", filled) + strings.Repeat(" ", width-filled) + "]"
 }
 
-func formatBytes(n int64) string {
+func FormatBytes(n int64) string {
 	const mb = 1000 * 1000
 	if n >= mb {
 		return fmt.Sprintf("%.1f MB", float64(n)/float64(mb))
@@ -39,7 +39,7 @@ func formatBytes(n int64) string {
 	return fmt.Sprintf("%d B", n)
 }
 
-func formatByteProgressFixed(completed, total int64) string {
+func FormatByteProgressFixed(completed, total int64) string {
 	const mb = 1_000_000.0
 	return fmt.Sprintf("%.1f/%.1f MB", float64(completed)/mb, float64(total)/mb)
 }
