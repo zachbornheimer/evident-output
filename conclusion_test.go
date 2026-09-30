@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/testkit"
 )
 
 // TestWriteCollection_DoneChildrenSurviveWithSummaries is the red-first case
@@ -137,4 +138,13 @@ func TestConclusion_WarnedGroupChildReachesConclusion(t *testing.T) {
 	if !strings.Contains(buf.String(), "[ready · warned]") {
 		t.Fatalf("want the \"[ready · warned]\" conclusion band, got:\n%s", buf.String())
 	}
+}
+
+func TestConclusion_PlanOnlyIsPlanned(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "acct", DryRun: true})
+	t.Cleanup(func() { _ = out.Close() })
+	out.Task("delete").Define(effectOf(evo.EffectDelete, "thing", 1))
+	_ = out.Finish()
+	testkit.RequireConclusion(t, out, evo.StatePlanned)
+	testkit.RequireClean(t, out)
 }

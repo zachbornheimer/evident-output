@@ -1,7 +1,6 @@
 package evo_test
 
 import (
-	"errors"
 	"io"
 	"testing"
 	"time"
@@ -9,79 +8,6 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
-
-func TestDOM014_DetailOnBlock(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	it := out.Task("i")
-	it.Block("b", evo.Detail("user visible"))
-	if it.Snapshot().Problems[0].Detail != "user visible" {
-		t.Fatal(it.Snapshot().Problems)
-	}
-}
-
-// TestDOM023_SealedTotalRejectsChange documents the sealed-total invariant
-// (evo-rec.md "Progress invariants"): once a nonzero total is reported, it
-// cannot change to a different value — 14/40 never becomes 14/53. Earlier
-// behavior allowed the total to grow silently; that is now recorded misuse
-// and the first total is kept.
-func TestDOM023_SealedTotalRejectsChange(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("t")
-	task.Progress(1, 2)
-	task.Progress(2, 5)
-	if task.Snapshot().Progress.Total != 2 {
-		t.Fatalf("sealed total was not preserved: %#v", task.Snapshot().Progress)
-	}
-	if !errors.Is(out.Err(), evo.ErrInvalidProgress) {
-		t.Fatalf("error = %v, want ErrInvalidProgress", out.Err())
-	}
-}
-
-func TestDOM037_FailedConclusion(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Task("i").Fail("no")
-	_ = out.Finish()
-	if out.Conclusion().State != evo.StateFailed {
-		t.Fatal(out.Conclusion().State)
-	}
-	if out.Conclusion().ExitCode != 2 {
-		t.Fatal(out.Conclusion().ExitCode)
-	}
-}
-
-// TestDOM038_WarningOnly is updated for P2: Warn no longer resolves its
-// task, so a task that only ever calls Warn auto-resolves Done at Finish
-// (the same amnesty a recorded effect gets) — the run reads StateReady, with
-// Conclusion.Warned carrying the warning forward instead of a StateWarning
-// headline.
-func TestDOM038_WarningOnly(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Task("i").Problem("careful", evo.Severity(evo.SeverityWarning))
-	_ = out.Finish()
-	if got := out.Conclusion().State; got != evo.StateReady {
-		t.Fatalf("state = %v, want StateReady (Warn auto-resolves Done, P2)", got)
-	}
-	if !out.Conclusion().Warned {
-		t.Fatal("Conclusion.Warned = false, want true")
-	}
-}
-
-func TestDOM041_ActionsPromoted(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	item := out.Task("i")
-	item.Block("b")
-	item.NextCommand("fix", "it")
-	_ = out.Finish()
-	c := out.Conclusion()
-	if len(c.Actions) == 0 {
-		t.Fatal("expected promoted actions")
-	}
-}
 
 func TestLOG002_DebugUsesClock(t *testing.T) {
 	clock := testkit.NewClock()

@@ -109,30 +109,30 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | CON-017  | pass   | closeout_test.go                                                                                                       |
 | CON-018  | pass   | last_push_test.go                                                                                                      |
 | CON-019  | pass   | closeout_test.go                                                                                                       |
-| DOM-001  | pass   | appendix_h_test.go,dom_test.go                                                                                         |
+| DOM-001  | pass   | appendix_h_test.go,domain_model_test.go                                                                                |
 | DOM-002  | pass   | appendix_h_test.go                                                                                                     |
 | DOM-003  | pass   | appendix_h_test.go                                                                                                     |
-| DOM-004  | pass   | coverage_matrix_test.go                                                                                                |
-| DOM-005  | pass   | sec_limits_test.go                                                                                                     |
-| DOM-006  | pass   | dom_test.go                                                                                                            |
+| DOM-004  | pass   | domain_model_test.go                                                                                                   |
+| DOM-005  | pass   | domain_model_test.go                                                                                                   |
+| DOM-006  | pass   | domain_model_test.go                                                                                                   |
 | DOM-007  | pass   | appendix_h_test.go                                                                                                     |
 | DOM-008  | pass   | appendix_h_test.go                                                                                                     |
 | DOM-009  | pass   | appendix_h_test.go                                                                                                     |
-| DOM-010  | pass   | dom_test.go                                                                                                            |
+| DOM-010  | pass   | domain_model_test.go                                                                                                   |
 | DOM-011  | pass   | appendix_h_test.go                                                                                                     |
-| DOM-012  | pass   | dom_test.go                                                                                                            |
-| DOM-013  | pass   | coverage_matrix_test.go                                                                                                |
-| DOM-014  | pass   | more_matrix_test.go                                                                                                    |
-| DOM-015  | pass   | more_matrix_test.go                                                                                                    |
+| DOM-012  | pass   | domain_model_test.go                                                                                                   |
+| DOM-013  | pass   | domain_model_test.go                                                                                                   |
+| DOM-014  | pass   | domain_model_test.go                                                                                                   |
+| DOM-015  | pass   | domain_model_test.go                                                                                                   |
 | DOM-016  | pass   | appendix_h_test.go + live                                                                                              |
 | DOM-017  | pass   | appendix_h_test.go                                                                                                     |
 | DOM-018  | pass   | appendix_h_test.go                                                                                                     |
-| DOM-019  | pass   | dom_test.go                                                                                                            |
+| DOM-019  | pass   | domain_model_test.go                                                                                                   |
 | DOM-020  | pass   | appendix_h_test.go                                                                                                     |
-| DOM-021  | pass   | coverage_matrix_test.go                                                                                                |
+| DOM-021  | pass   | domain_model_test.go                                                                                                   |
 | DOM-022  | pass   | appendix_h_test.go                                                                                                     |
-| DOM-023  | pass   | more_matrix_test.go                                                                                                    |
-| DOM-024  | pass   | sec_limits_test.go                                                                                                     |
+| DOM-023  | pass   | domain_model_test.go                                                                                                   |
+| DOM-024  | pass   | domain_model_test.go                                                                                                   |
 | DOM-025  | pass   | appendix_h_interactive_test.go H.2                                                                                     |
 | DOM-026  | pass   | appendix_h_interactive_test.go H.17                                                                                    |
 | DOM-027  | pass   | Donef H.17                                                                                                             |
@@ -141,20 +141,20 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | DOM-030  | pass   | H.11 warning path                                                                                                      |
 | DOM-031  | pass   | H.11 all done                                                                                                          |
 | DOM-032  | pass   | appendix_h_test.go                                                                                                     |
-| DOM-033  | pass   | dom_test.go                                                                                                            |
+| DOM-033  | pass   | domain_model_test.go                                                                                                   |
 | DOM-034  | pass   | appendix_h_test.go                                                                                                     |
-| DOM-035  | pass   | remaining_core_test.go                                                                                                 |
-| DOM-036  | pass   | dom_test.go                                                                                                            |
-| DOM-037  | pass   | more_matrix_test.go                                                                                                    |
-| DOM-038  | pass   | more_matrix_test.go                                                                                                    |
-| DOM-039  | pass   | dom_test.go                                                                                                            |
+| DOM-035  | pass   | domain_model_test.go                                                                                                   |
+| DOM-036  | pass   | domain_model_test.go                                                                                                   |
+| DOM-037  | pass   | domain_model_test.go                                                                                                   |
+| DOM-038  | pass   | domain_model_test.go                                                                                                   |
+| DOM-039  | pass   | domain_model_test.go                                                                                                   |
 | DOM-040  | pass   | appendix_h_test.go                                                                                                     |
-| DOM-041  | pass   | more_matrix_test.go                                                                                                    |
-| DOM-042  | pass   | more_matrix_test.go                                                                                                    |
-| DOM-043  | pass   | dom_test.go                                                                                                            |
-| DOM-044  | pass   | dom_test.go                                                                                                            |
-| DOM-045  | pass   | dom_test.go                                                                                                            |
-| DOM-046  | pass   | dom_test.go                                                                                                            |
+| DOM-041  | pass   | domain_model_test.go                                                                                                   |
+| DOM-042  | pass   | domain_model_test.go                                                                                                   |
+| DOM-043  | pass   | domain_model_test.go                                                                                                   |
+| DOM-044  | pass   | domain_model_test.go                                                                                                   |
+| DOM-045  | pass   | domain_model_test.go                                                                                                   |
+| DOM-046  | pass   | domain_model_test.go                                                                                                   |
 | DOM-047  | pass   | H.10 order                                                                                                             |
 | DOM-048  | pass   | errgroup nil pattern docs                                                                                              |
 | DOM-049  | pass   | Output.Fail                                                                                                            |

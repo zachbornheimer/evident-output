@@ -2,7 +2,6 @@ package evo_test
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -57,65 +56,6 @@ func TestTXT001_ASCIIWidthStable(t *testing.T) {
 	}
 	if !strings.Contains(narrow.String(), "added 1 x") {
 		t.Fatal(narrow.String())
-	}
-}
-
-// TestDOM004_SameNameIsDuplicateSibling pins §3.1: repeated Output.Task
-// calls with the same name are a duplicate sibling declaration, not a
-// get-or-create — two distinct call sites sharing a name is exactly the
-// ambiguity 1.0 refuses at declaration time (get-or-create merged them into
-// one identity, which is unsound once identity drives manifest
-// reconciliation).
-func TestDOM004_SameNameIsDuplicateSibling(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	a := out.Task("same")
-	b := out.Task("same")
-	succeed(a)
-	if a.Snapshot().ID == b.Snapshot().ID {
-		t.Fatal("expected a distinct handle for the duplicate declaration")
-	}
-	if !errors.Is(out.Err(), evo.ErrDuplicateSiblingName) {
-		t.Fatalf("Err() = %v, want ErrDuplicateSiblingName", out.Err())
-	}
-}
-
-// TestDOM004_DistinctParentsAllowSameDisplayName covers the remaining case
-// the retired DuplicateDisplayNamesAllowed test named: two genuinely
-// distinct entities may still share a display name under different parents.
-func TestDOM004_DistinctParentsAllowSameDisplayName(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	a := out.Group("first").Task("same")
-	b := out.Group("second").Task("same")
-	succeed(a)
-	succeed(b)
-	if a.Snapshot().ID == b.Snapshot().ID {
-		t.Fatal("IDs must differ")
-	}
-}
-
-func TestDOM013_MutationAfterFinishRejected(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	succeed(out.Task("x"))
-	_ = out.Finish()
-	succeed(out.Task("y"))
-	if !errors.Is(out.Err(), evo.ErrClosed) && out.Err() == nil {
-		// ensureOpen records ErrClosed
-		if out.Err() == nil {
-			// Item after finish may still allocate handle but records misuse
-			t.Log("err", out.Err())
-		}
-	}
-}
-
-func TestDOM021_NegativeProgressRejected(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("t")
-	task.Progress(-1, 10)
-	if !errors.Is(out.Err(), evo.ErrInvalidProgress) {
-		t.Fatalf("err=%v", out.Err())
 	}
 }
 

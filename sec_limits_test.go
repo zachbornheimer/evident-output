@@ -96,27 +96,3 @@ func TestSEC011_BidiControlsStripped(t *testing.T) {
 		t.Fatalf("bidi retained: %q", got)
 	}
 }
-
-func TestDOM005_DuplicateKeyRejected(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Task("one").Key("k")
-	out.Task("two").Key("k")
-	if !errors.Is(out.Err(), evo.ErrDuplicateKey) {
-		t.Fatalf("err=%v", out.Err())
-	}
-}
-
-func TestDOM024_TotalDecreaseBelowCompletedRejected(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	task := out.Task("t")
-	task.Progress(5, 10)
-	task.Progress(5, 3) // total < completed
-	if !errors.Is(out.Err(), evo.ErrInvalidProgress) {
-		t.Fatalf("err=%v", out.Err())
-	}
-	if task.Snapshot().Progress.Total != 10 {
-		t.Fatal("last valid total not preserved")
-	}
-}
