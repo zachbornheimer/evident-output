@@ -78,14 +78,6 @@ func (c *LiveChildren) Collection(col core.TasksSnapshot) core.TasksSnapshot {
 	return core.WithChildTally(col, tally)
 }
 
-// ownCounts summarizes col's own child Tasks, left-out ones included.
-func ownCounts(col core.TasksSnapshot) core.ChildCounts {
-	if tally, ok := core.ChildTallyOf(col); ok {
-		return tally.All
-	}
-	return core.CountTasks(col.Tasks)
-}
-
 // LiveCollections projects one collection's child collections for a live
 // frame of at most rows rows. A frame paints nested collections in
 // declaration order while they fit, and otherwise only the ones holding a

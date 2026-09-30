@@ -64,3 +64,11 @@ func writeHeaderlessGroup(b *strings.Builder, col core.TasksSnapshot, s Style) {
 		writeCollectionAligned(b, child, nameWidth, s)
 	}
 }
+
+// ownCounts summarizes col's own child Tasks, left-out ones included.
+func ownCounts(col core.TasksSnapshot) core.ChildCounts {
+	if tally, ok := core.ChildTallyOf(col); ok {
+		return tally.All
+	}
+	return core.CountTasks(col.Tasks)
+}
