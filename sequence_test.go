@@ -3,6 +3,7 @@ package evo_test
 import (
 	"bytes"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -214,5 +215,24 @@ func TestSequence_PackageLevelRepeatIsDuplicateSibling(t *testing.T) {
 	t2 := g1.Task("venv")
 	if t1 == t2 {
 		t.Fatal("Sequence.Task(name) called twice must return distinct handles")
+	}
+}
+
+// TestSequence_TwoRunningChildrenRecordsMisuse is the red-first case for the
+// "one Running child" heart contract on a Sequence: promoting a
+// second sibling to Running while the first is still Running is misuse.
+func TestSequence_TwoRunningChildrenRecordsMisuse(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
+	t.Cleanup(func() { _ = out.Close() })
+
+	setup := out.Sequence("python")
+	scan := setup.Task("scan")
+	venv := setup.Task("venv")
+
+	scan.Doing("scanning")      // promotes scan to Running
+	venv.Doing("creating venv") // second sibling Running while scan still is
+
+	if err := out.Err(); err == nil {
+		t.Fatal("want misuse recorded for two Running siblings in a Sequence")
 	}
 }

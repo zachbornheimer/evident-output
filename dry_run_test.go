@@ -167,3 +167,82 @@ func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 		t.Fatalf("no mutation should have been recorded, got %+v", snap.Changes)
 	}
 }
+
+// TestDryRun_MarkerAnnouncesRunAsFirstLine is the red-first case for
+// evo-rec.md Problem 1: "a dry run must announce itself — library-owned."
+// A DryRun-configured Output cannot finish without an unmissable marker
+// line appearing before anything else in the durable output.
+func TestDryRun_MarkerAnnouncesRunAsFirstLine(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true, DryRun: true})
+	branches := out.Task("branches")
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "[dry-run]") {
+		t.Fatalf("want dry-run marker, got:\n%s", got)
+	}
+	lines := strings.SplitN(got, "\n", 2)
+	if !strings.Contains(lines[0], "[dry-run]") {
+		t.Fatalf("dry-run marker must be the first line, got:\n%s", got)
+	}
+}
+
+// TestDryRun_MarkerAbsentWhenNotDryRun pins the counterpart: an ordinary
+// (non-DryRun) run never emits the marker.
+func TestDryRun_MarkerAbsentWhenNotDryRun(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true})
+	branches := out.Task("branches")
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(buf.String(), "[dry-run]") {
+		t.Fatalf("an applied run must never render the dry-run marker:\n%s", buf.String())
+	}
+}
+
+// TestDryRun_ConclusionReadsPlannedNotDone pins the second half of Problem 1:
+// the trailing conclusion of a dry run must read planned-not-done, never the
+// ✓/StateReady "done" form — including once a run has no Plan section of its
+// own (inferConclusion must not fall through to Ready/Changed for DryRun).
+func TestDryRun_ConclusionReadsPlannedNotDone(t *testing.T) {
+	t.Parallel()
+	out := evo.Init(evo.Config{Title: "retire", Color: evo.ColorNever, DryRun: true})
+	t.Cleanup(func() { _ = out.Close() })
+	branches := out.Task("branches")
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	c := out.Conclusion()
+	if c.State != evo.StatePlanned {
+		t.Fatalf("conclusion state = %v, want StatePlanned for a dry run", c.State)
+	}
+	if c.ExitCode != evo.ExitOK {
+		t.Fatalf("exit code = %d, want unchanged ExitOK", c.ExitCode)
+	}
+}
+
+// TestDryRun_ConclusionReadsPlannedEvenWithoutAPlanSection is the red-first
+// case that isolates the DryRun override itself: a dry run whose only
+// content is a resolved Item (no Plan/Changes section at all) would
+// otherwise fall through to StateReady — DryRun must still keep the
+// headline planned-not-done.
+func TestDryRun_ConclusionReadsPlannedEvenWithoutAPlanSection(t *testing.T) {
+	t.Parallel()
+	out := evo.Init(evo.Config{Title: "retire", Color: evo.ColorNever, DryRun: true})
+	t.Cleanup(func() { _ = out.Close() })
+	succeed(out.Task("scan"))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if c := out.Conclusion(); c.State != evo.StatePlanned {
+		t.Fatalf("conclusion state = %v, want StatePlanned even with no Plan section", c.State)
+	}
+}
