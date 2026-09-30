@@ -5,7 +5,6 @@ import "github.com/zachbornheimer/evident-output/internal/engine"
 // Engine-owned types. Domain model aliases (Snapshot, Problem, Action)
 // stay in their existing files and point at internal/core, not through engine.
 
-type TaskHandle struct{ inner *engine.TaskHandle }
 type SequenceHandle struct{ inner *engine.SequenceHandle }
 type GroupHandle struct{ inner *engine.GroupHandle }
 type Printer struct{ inner *engine.Printer }
@@ -81,8 +80,6 @@ var (
 	ErrClosed               = engine.ErrClosed
 	ErrAlreadyResolved      = engine.ErrAlreadyResolved
 	ErrUnresolvedTask       = engine.ErrUnresolvedTask
-	ErrInvalidProgress      = engine.ErrInvalidProgress
-	ErrProgressRegression   = engine.ErrProgressRegression
 	ErrDuplicateKey         = engine.ErrDuplicateKey
 	ErrInvalidConfig        = engine.ErrInvalidConfig
 	ErrRenderer             = engine.ErrRenderer

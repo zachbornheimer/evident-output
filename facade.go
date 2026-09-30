@@ -4,10 +4,6 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/engine"
 )
 
-func wrapTask(inner *engine.TaskHandle) *TaskHandle {
-	return wrap(inner, func() *TaskHandle { return &TaskHandle{inner: inner} })
-}
-
 func wrapSequence(inner *engine.SequenceHandle) *SequenceHandle {
 	return wrap(inner, func() *SequenceHandle { return &SequenceHandle{inner: inner} })
 }
@@ -18,13 +14,6 @@ func wrapGroup(inner *engine.GroupHandle) *GroupHandle {
 
 func wrapPrinter(inner *engine.Printer) *Printer {
 	return wrap(inner, func() *Printer { return &Printer{inner: inner} })
-}
-
-func (t *TaskHandle) impl() *engine.TaskHandle {
-	if t == nil {
-		return nil
-	}
-	return t.inner
 }
 
 func (g *GroupHandle) impl() *engine.GroupHandle {

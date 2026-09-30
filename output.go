@@ -52,8 +52,6 @@ func (o *Output) Suspend(fn func() error) error {
 	return o.inner.Suspend(fn)
 }
 
-func (o *Output) Task(name string) *TaskHandle { return wrapTask(o.impl().Task(name)) }
-
 func (o *Output) Writer() io.Writer {
 	if o == nil || o.inner == nil {
 		return io.Discard

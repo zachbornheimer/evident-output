@@ -7,9 +7,6 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/engine"
 )
 
-// Task declares a Task on the default instance.
-func Task(name string) *TaskHandle { return wrapTask(engine.Task(name)) }
-
 // Sequence declares a self-managing, ordered task container on the default
 // instance.
 func Sequence(name string) *SequenceHandle {

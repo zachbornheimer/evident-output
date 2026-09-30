@@ -3,7 +3,46 @@ package evo
 import (
 	"context"
 	"io"
+
+	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine"
 )
+
+type TaskHandle struct{ inner *engine.TaskHandle }
+
+var (
+	ErrInvalidProgress    = engine.ErrInvalidProgress
+	ErrProgressRegression = engine.ErrProgressRegression
+)
+
+// Task declares a Task on the default instance.
+func Task(name string) *TaskHandle { return wrapTask(engine.Task(name)) }
+
+func (o *Output) Task(name string) *TaskHandle { return wrapTask(o.impl().Task(name)) }
+
+func wrapTask(inner *engine.TaskHandle) *TaskHandle {
+	return wrap(inner, func() *TaskHandle { return &TaskHandle{inner: inner} })
+}
+
+func (t *TaskHandle) impl() *engine.TaskHandle {
+	if t == nil {
+		return nil
+	}
+	return t.inner
+}
+
+// ProgressKind classifies task measurement.
+type ProgressKind = core.ProgressKind
+
+// ProgressKind values — which measurement a task's Progress reports.
+const (
+	Indeterminate = core.Indeterminate
+	Determinate   = core.Determinate
+	BytesKind     = core.BytesKind
+)
+
+// Progress is absolute measurement for a task.
+type Progress = core.Progress
 
 func (t *TaskHandle) After(preds ...any) *TaskHandle {
 	unwrapped := make([]any, len(preds))
