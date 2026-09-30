@@ -1,0 +1,315 @@
+[
+  {
+    "id": "C31-001",
+    "section": "31",
+    "quote": "`Compute[T]` is the typed-value form of defining exactly one Task.",
+    "tier": "1.2",
+    "tests": [
+      { "pkg": "./conformance/contract/compose", "run": "TestC31_001_ComputeDefinesExactlyOneTask" }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-002",
+    "section": "31",
+    "quote": "no `.Into(&x)` result plumbing;",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/mcp",
+        "run": "TestCMCP_004_IntoResultPlumbingIsFlaggedTowardCompute"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-003",
+    "section": "31",
+    "quote": "no outer mutable result variable as the recommended handoff;",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/mcp",
+        "run": "TestCMCP_003_OuterMutableVariableHandoffIsFlaggedTowardCompute"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-004",
+    "section": "31",
+    "quote": "`Get()` is valid only after the producing Task reached Succeeded or AlreadySatisfied; early access is deterministic misuse;",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_004_GetBeforeProducerSettlesIsMisuse"
+      },
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_004_GetBeforeProducerSettlesPanicsUnderStrict"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-005",
+    "section": "31",
+    "quote": "`After(computed)` means After the producing Task, so ordering and data dependency are not declared twice;",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_005_AfterComputedOrdersConsumerAcrossContainers"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-006",
+    "section": "31",
+    "quote": "Sequence ordering is already sufficient when the consumer is a later Sequence step;",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_006_SequenceOrderSufficesForLaterStep"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-007",
+    "section": "31",
+    "quote": "an upstream Failed/Blocked/Cancelled producer prevents dependent work from starting.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_007_FailedProducerLeavesDependentsNotStarted"
+      },
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_007_BlockedGateLeavesLaterStepsNotStartedAndSiblingCompletes"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-008",
+    "section": "31",
+    "quote": "`TaskHandle` is never a container and never declares children.",
+    "tier": "1.2",
+    "tests": [
+      { "pkg": "./conformance/contract/compose", "run": "TestC31_008_TaskHandleDeclaresNoChildren" }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-009",
+    "section": "31",
+    "quote": "Only `*Output`, `*GroupHandle`, and `*SequenceHandle` satisfy `Container`. A Task does not.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/container",
+        "run": "TestC31_009_OnlyOutputGroupAndSequenceSatisfyContainer"
+      },
+      {
+        "pkg": "./conformance/contract/pending/container",
+        "run": "TestC31_009_TaskHandleDoesNotSatisfyContainer"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-010",
+    "section": "31",
+    "quote": "A topology builder that already knows its shape accepts an `evo.Container` and mounts Tasks/Groups/Sequences onto it.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/container",
+        "run": "TestC31_010_TopologyBuilderMountsOntoAnyContainer"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-011",
+    "section": "31",
+    "quote": "`GroupHandle.Define` and `SequenceHandle.Define` are **topology-only builders**, not work callbacks:",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_011_BuilderCallbacksTakeOnlyTheirContainer"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-012",
+    "section": "31",
+    "quote": "it may read `Computed[T]` values whose producers are proven settled by Sequence ordering or `After(computed)`;",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_012_BuilderMayReadProvenComputedValues"
+      },
+      { "pkg": "./conformance/contract/compose", "run": "TestC31_012_UnorderedGetIsMisuse" },
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_012_UnorderedGetPanicsUnderStrict"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-013",
+    "section": "31",
+    "quote": "it must not perform I/O, mutation, `Exec`, `File`, `Effect`, `Wait`, sleep/polling, or start goroutines.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/mcp",
+        "run": "TestCMCP_006_IOAndGoroutinesInsideTopologyBuilderAreFlagged"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-014",
+    "section": "31",
+    "quote": "A dynamic builder runs exactly once when the container becomes eligible, then the container closes its declaration phase and owns the lifecycle of every child it declared.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_014_BuilderRunsOnceWhenContainerBecomesEligible"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-015",
+    "section": "31",
+    "quote": "If a predecessor Failed/Blocked/Cancelled, the dependent container does not build children and remains NotStarted under ordinary dependency semantics.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_015_FailedPredecessorLeavesBuilderContainerNotStarted"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-016",
+    "section": "31",
+    "quote": "Calling package-level constructors or declaring child topology from inside a Task's `Define` is misuse.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_016_DeclaringTopologyInsideTaskDefineIsMisuse"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-017",
+    "section": "31",
+    "quote": "predeclare the Group or Sequence in the correct place and let **that container** define its children after its predecessor is ready.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_017_BuilderContainerRejectsStaticChildrenAndSecondDefine"
+      },
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_017_PriorAfterDoesNotInvalidateDefine"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-018",
+    "section": "31",
+    "quote": "The intended zq shape is therefore:",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_018_ZqPruneTopologyBuildsRunsAndYieldsExpectedTree"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-019",
+    "section": "31",
+    "quote": "Noun/category names belong naturally on Group/Sequence.",
+    "tier": "1.2",
+    "tests": [{ "pkg": "./internal/agent/review", "run": "TestAPI045_ContainerTaskName_Fires" }],
+    "default": false
+  },
+  {
+    "id": "C31-020",
+    "section": "31",
+    "quote": "If a real consumer cannot express the clean shape in its target Evo version, MCP emits the pit-of-success product-gap event",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/mcpgap",
+        "run": "TestCMCP_009_InexpressibleShapeKeepsRecheckAndEmitsDedupedGapEvent"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-021",
+    "section": "31",
+    "quote": "Attempts: retry a unit until Verify passes; a failed attempt does not fail the parent",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/attempts",
+        "run": "TestC31_021_FailedAttemptDoesNotFailParentAndRetriesUntilVerifyPasses"
+      },
+      {
+        "pkg": "./conformance/contract/pending/attempts",
+        "run": "TestC31_021_FailedAfterCallbackVerifyIsVerificationUnproven"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-022",
+    "section": "31",
+    "quote": "yaegi symbols package shipped by Evo",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/symbols",
+        "run": "TestSymbolsCoverEveryExportedPackageFunction"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C31-023",
+    "section": "31",
+    "quote": "In plain output, a named Group under a Sequence renders no header line; its children appear directly under the Sequence.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_023_PlainOutputHidesGroupHeaderUnderSequence"
+      }
+    ],
+    "default": false
+  }
+]

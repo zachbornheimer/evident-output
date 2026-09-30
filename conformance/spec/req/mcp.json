@@ -1,0 +1,85 @@
+[
+  {
+    "id": "C99-001",
+    "section": "99",
+    "quote": "`Get()` is valid only after the producing Task reached Succeeded or AlreadySatisfied; early access is deterministic misuse;",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/mcp",
+        "run": "TestCMCP_001_UnorderedGetIsFlaggedWithMissingAfterSuggestion"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C99-002",
+    "section": "99",
+    "quote": "Sequence ordering is already sufficient when the consumer is a later Sequence step;",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/mcp",
+        "run": "TestCMCP_002_RedundantAfterInsideSequenceIsFlaggedAndNeverAutoAdded"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C99-003",
+    "section": "99",
+    "quote": "A Task never owns a subtree.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/mcp",
+        "run": "TestCMCP_005_ChildTasksDeclaredInsideTaskDefineAreFlagged"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C99-004",
+    "section": "99",
+    "quote": "Tasks are independently meaningful promises; the strong authoring heuristic remains verb + concrete object.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/mcp",
+        "run": "TestCMCP_007_PresentationOnlyTaskIsFlagged"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C99-005",
+    "section": "99",
+    "quote": "It never starts a second scheduler or waits.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI041_GoroutineResolvesPredeclaredTask_Fires"
+      },
+      { "pkg": "./internal/agent/review", "run": "TestAPI052_CallerWaitLoopSnapshotCount_Fires" },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI052_CallerWaitLoopErrNotStartedFilter_Fires"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C99-006",
+    "section": "99",
+    "quote": "executable work must live in independently meaningful Tasks, normally named as verb + concrete object.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/mcp",
+        "run": "TestCMCP_008_OneTaskLoopingOverItemsThatDeserveAnOutcomeIsFlagged"
+      }
+    ],
+    "default": false
+  }
+]
