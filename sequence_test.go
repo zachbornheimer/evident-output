@@ -236,3 +236,59 @@ func TestSequence_TwoRunningChildrenRecordsMisuse(t *testing.T) {
 		t.Fatal("want misuse recorded for two Running siblings in a Sequence")
 	}
 }
+
+// TestSequence_CascadeFailureNotStartsLaterSiblings proves Sequence's
+// defining behavior: once a child fails, every later-declared unresolved
+// sibling auto-resolves to NotStarted ("-  <name>  not started") with no
+// caller code — the same contract the deleted GroupHandle type carried,
+// now under its P3 name.
+func TestSequence_CascadeFailureNotStartsLaterSiblings(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+
+	setup := out.Sequence("python")
+	scan := setup.Task("scan")
+	venv := setup.Task("venv")
+	install := setup.Task("install")
+
+	succeed(scan)
+	venv.Fail("uv exited 1")
+
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+	if got := install.Snapshot().State; got != evo.NotStarted {
+		t.Fatalf("install state = %v, want NotStarted", got)
+	}
+	if !strings.Contains(buf.String(), "- install  not started") {
+		t.Fatalf("rendered output missing \"- install  not started\":\n%s", buf.String())
+	}
+}
+
+// TestSequence_CascadeNestedSequenceFailurePropagatesToRootHeader
+// proves the recursive nesting P3 adds: a Sequence declared under another
+// Sequence via .Sequence(name) still cascades within itself, and its
+// failure surfaces at the root container's own derived header state.
+func TestSequence_CascadeNestedSequenceFailurePropagatesToRootHeader(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &bytes.Buffer{}, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+
+	root := out.Sequence("release")
+	succeed(root.Task("build"))
+	python := root.Sequence("python")
+	scan := python.Task("scan")
+	venv := python.Task("venv")
+	install := python.Task("install")
+
+	succeed(scan)
+	venv.Fail("uv exited 1")
+	_ = out.Finish()
+
+	if got := install.Snapshot().State; got != evo.NotStarted {
+		t.Fatalf("nested install state = %v, want NotStarted", got)
+	}
+	if got := root.Snapshot().State; got != evo.Failed {
+		t.Fatalf("root sequence state = %v, want Failed (nested failure must surface)", got)
+	}
+}
