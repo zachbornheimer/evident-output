@@ -1,0 +1,37 @@
+[
+  {
+    "id": "C28-001",
+    "section": "28",
+    "quote": "For example, a `go fix -diff <target>` style flow may derive a patch without allowing the tool to mutate the real workspace.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/patch",
+        "run": "TestC28_001_NativeDiffFlowDerivesThenCommitsThroughFile"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C28-002",
+    "section": "28",
+    "quote": "If the fixer requires multiple passes until stable, that convergence remains one user-meaningful Task such as `stabilize Go source`; individual passes are implementation activity, not Tasks.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/patch",
+        "run": "TestC28_002_MultiPassConvergenceStaysOneTask"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C28-003",
+    "section": "28",
+    "quote": "The isolated-workspace fallback is an implementation strategy, not a beginner API.",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "NON-GOAL: settled decision for 1.1, the isolated-workspace fallback (run an opaque mutating command in a copy, derive a filesystem diff) is not built; fixers without a native diff mode are out of scope.",
+    "default": false
+  }
+]
