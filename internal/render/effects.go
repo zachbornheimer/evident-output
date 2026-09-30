@@ -68,10 +68,6 @@ type EffectSection struct {
 	IntendedVerb string
 	NameWidth    int
 	Width        int
-	// GroupDigits writes a single row's count with thousands separators
-	// ("1,663"). Only a folded category row sets it: its count can span a
-	// whole platform, while per-item rows keep the plain digits.
-	GroupDigits bool
 }
 
 // WriteEffects renders one ledger section in the layout its records need:
@@ -121,18 +117,16 @@ func writeNothingToDo(b *strings.Builder, sec EffectSection) {
 func writeEffectLine(b *strings.Builder, tag string, sec EffectSection, r core.EffectRecord) {
 	name := txt.PadRight(sec.Subject, sec.NameWidth)
 	if r.HasQty {
-		fmt.Fprintf(b, "%s %s  %s %s %s\n", tag, name, r.Verb, quantityText(r.Quantity, sec.GroupDigits), ledgerObject(r))
+		fmt.Fprintf(b, "%s %s  %s %s %s\n", tag, name, r.Verb, quantityText(r.Quantity), ledgerObject(r))
 		return
 	}
 	fmt.Fprintf(b, "%s %s  %s %s\n", tag, name, r.Verb, r.Object)
 }
 
-// quantityText is n as digits, with "," between thousands when grouped.
-func quantityText(n int64, grouped bool) string {
+// quantityText is n with "," between thousands: every counted ledger
+// quantity reads the same way ("1,663 packages").
+func quantityText(n int64) string {
 	digits := strconv.FormatInt(n, 10)
-	if !grouped {
-		return digits
-	}
 	sign := ""
 	if n < 0 {
 		sign, digits = "-", digits[1:]
@@ -148,7 +142,7 @@ func quantityText(n int64, grouped bool) string {
 func writeCompactEffects(b *strings.Builder, visible []core.EffectRecord) {
 	for _, r := range visible {
 		if r.HasQty {
-			fmt.Fprintf(b, "  %s %d %s\n", r.Verb, r.Quantity, ledgerObject(r))
+			fmt.Fprintf(b, "  %s %s %s\n", r.Verb, quantityText(r.Quantity), ledgerObject(r))
 		} else {
 			fmt.Fprintf(b, "  %s %s\n", r.Verb, r.Object)
 		}
@@ -166,13 +160,13 @@ func writeAlignedEffects(b *strings.Builder, visible []core.EffectRecord, s Styl
 	for _, r := range visible {
 		maxVerb = max(maxVerb, len(r.Verb))
 		if r.HasQty {
-			maxQty = max(maxQty, len(strconv.FormatInt(r.Quantity, 10)))
+			maxQty = max(maxQty, len(quantityText(r.Quantity)))
 		}
 	}
 	for _, r := range visible {
 		verb := txt.PadRight(r.Verb, maxVerb)
 		if r.HasQty {
-			qty := txt.PadLeft(strconv.FormatInt(r.Quantity, 10), maxQty)
+			qty := txt.PadLeft(quantityText(r.Quantity), maxQty)
 			fmt.Fprintf(b, "  %s  %s %s\n", verb, qty, ledgerObject(r))
 			continue
 		}
@@ -324,7 +318,7 @@ func (e mutatedEffect) text() string {
 		object = txt.Pluralize(e.total, object)
 	}
 	if e.verb == "" {
-		return fmt.Sprintf("%d %s changed", e.total, object)
+		return fmt.Sprintf("%s %s changed", quantityText(e.total), object)
 	}
-	return fmt.Sprintf("%d %s %s", e.total, object, e.verb)
+	return fmt.Sprintf("%s %s %s", quantityText(e.total), object, e.verb)
 }

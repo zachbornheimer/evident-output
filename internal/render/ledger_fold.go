@@ -96,8 +96,7 @@ func FoldEffectSections(kind string, width int, sources []SectionSource) []Effec
 		k, _ := src.foldKind()
 		foldedAt[target.ID] = len(out)
 		subjects = append(subjects, target.Name)
-		out = append(out, EffectSection{Kind: kind, Subject: target.Name, Width: width, GroupDigits: true,
-			Records: []core.EffectRecord{{Verb: k.verb, Object: k.object, HasQty: true, Quantity: quantityOf(src.Records)}}})
+		out = append(out, EffectSection{Kind: kind, Subject: target.Name, Width: width, Records: []core.EffectRecord{{Verb: k.verb, Object: k.object, HasQty: true, Quantity: quantityOf(src.Records)}}})
 	}
 	alignSubjects(out, subjects)
 	return out
