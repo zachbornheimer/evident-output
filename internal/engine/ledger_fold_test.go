@@ -134,6 +134,21 @@ func TestLedgerFoldTerminalRowAlignsToFoldedSubject(t *testing.T) {
 	}
 }
 
+func TestLedgerFoldGroupsThousandsOnlyOnFoldedRows(t *testing.T) {
+	var b strings.Builder
+	for _, sec := range render.FoldEffectSections("changed", 80, foldSources(1663)) {
+		render.WriteEffects(&b, sec, render.Style{})
+	}
+	if want := "[changed] all  updated 1,663 packages\n"; b.String() != want {
+		t.Errorf("folded = %q, want %q", b.String(), want)
+	}
+	b.Reset()
+	render.WriteEffects(&b, render.EffectSection{Kind: "changed", Subject: "one", Records: []core.EffectRecord{{Verb: "updated", Object: "package", Quantity: 1663, HasQty: true}}}, render.Style{})
+	if want := "[changed] one  updated 1663 packages\n"; b.String() != want {
+		t.Errorf("unfolded = %q, want %q", b.String(), want)
+	}
+}
+
 func foldSources(n int) []render.SectionSource {
 	path := core.ContainerPath{{ID: "g", Name: "items"}, {ID: "root", Name: "all"}}
 	sources := make([]render.SectionSource, n)
