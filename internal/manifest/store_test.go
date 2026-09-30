@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -422,5 +423,47 @@ func TestStoreFlushRetriesAWriteThatFailedOnce(t *testing.T) {
 	defer func() { _ = reopened.Close() }()
 	if _, ok := reopened.Task("t"); !ok {
 		t.Fatal(`Task("t") missing after reopen: the retried write never reached disk`)
+	}
+}
+
+// concurrentCommitters is how many Tasks commit their own records at once
+// while others consult prior ones — the shape a parallel Group produces.
+const concurrentCommitters = 16
+
+// TestStoreConsultAndCommitAreSafeConcurrently proves parallel Tasks can
+// consult prior records (Operation, Task) while others commit their own.
+// Unguarded, the document's Tasks map is read and written at once: the
+// runtime's concurrent-map check aborts the test binary, and -race (the CI
+// race job) reports the race.
+func TestStoreConsultAndCommitAreSafeConcurrently(t *testing.T) {
+	s, err := Open(context.Background(), Config{StateDir: t.TempDir()}, fakeEnvironment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	var wg sync.WaitGroup
+	for i := range concurrentCommitters {
+		key := fmt.Sprintf("task-%d", i)
+		wg.Go(func() {
+			task := TaskRecord{Key: key, Operations: []OperationRecord{{Kind: "file", DefinitionFingerprint: key}}}
+			if err := s.CommitTask(context.Background(), ApplicationRecord{ID: "app"}, task); err != nil {
+				t.Error(err)
+			}
+		})
+		wg.Go(func() {
+			for range concurrentCommitters {
+				s.Operation(key, 0)
+				s.Task(key)
+			}
+		})
+	}
+	wg.Wait()
+
+	for i := range concurrentCommitters {
+		key := fmt.Sprintf("task-%d", i)
+		if op, ok := s.Operation(key, 0); !ok || op.DefinitionFingerprint != key {
+			t.Errorf("Operation(%q, 0) = %+v, %v; want the committed record", key, op, ok)
+		}
 	}
 }
