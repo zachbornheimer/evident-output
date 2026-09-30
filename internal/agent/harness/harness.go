@@ -2,6 +2,7 @@
 package harness
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -46,6 +47,23 @@ type RepairLoopResult struct {
 	ReachedClean  bool
 	StoppedReason string
 	Sources       []string // source after each cycle (including initial)
+}
+
+// Fixer proposes a revised source for one round of review findings. The
+// mechanical fixer is the deterministic default; a model-backed driver
+// implements the same seam.
+type Fixer interface {
+	Fix(ctx context.Context, src string, findings []review.Finding) (string, error)
+}
+
+// MechanicalFixer is the deterministic Fixer built on ApplyMechanicalFixes.
+// It returns src unchanged when no rule has a mechanical repair.
+type MechanicalFixer struct{}
+
+// Fix applies the known textual repairs for findings.
+func (MechanicalFixer) Fix(_ context.Context, src string, findings []review.Finding) (string, error) {
+	next, _ := ApplyMechanicalFixes(src, findings)
+	return next, nil
 }
 
 // DefaultScenarios returns the versioned suite from the architecture spec.
@@ -151,6 +169,14 @@ func RunOne(s Scenario) Result {
 // RunRepairLoop applies mechanical fixes and re-reviews until recheck_required
 // is false or maxCycles is exhausted (MCP-022 / MCP-049).
 func RunRepairLoop(src string, maxCycles int) RepairLoopResult {
+	out, _ := RunRepairLoopWith(context.Background(), MechanicalFixer{}, src, maxCycles)
+	return out
+}
+
+// RunRepairLoopWith is RunRepairLoop driven by any Fixer. The loop stops when
+// review is clean, the fixer returns the source unchanged, maxCycles is
+// exhausted, or the fixer fails (the error names the cycle).
+func RunRepairLoopWith(ctx context.Context, fixer Fixer, src string, maxCycles int) (RepairLoopResult, error) {
 	if maxCycles <= 0 {
 		maxCycles = DefaultMaxCycles
 	}
@@ -164,12 +190,16 @@ func RunRepairLoop(src string, maxCycles int) RepairLoopResult {
 		if !rev.RecheckRequired {
 			out.ReachedClean = true
 			out.StoppedReason = "recheck_required=false"
-			return out
+			return out, nil
 		}
-		next, changed := ApplyMechanicalFixes(cur, rev.Findings)
-		if !changed {
+		next, fixErr := fixer.Fix(ctx, cur, rev.Findings)
+		if fixErr != nil {
+			out.StoppedReason = "fixer failed"
+			return out, fmt.Errorf("repair cycle %d: fixer failed: %w", cycle+1, fixErr)
+		}
+		if next == cur {
 			out.StoppedReason = "no mechanical fix available; still recheck_required"
-			return out
+			return out, nil
 		}
 		cur = next
 		out.Sources = append(out.Sources, cur)
@@ -178,10 +208,10 @@ func RunRepairLoop(src string, maxCycles int) RepairLoopResult {
 	if !out.Final.RecheckRequired {
 		out.ReachedClean = true
 		out.StoppedReason = "recheck_required=false"
-		return out
+		return out, nil
 	}
 	out.StoppedReason = fmt.Sprintf("max cycles %d exhausted; recheck_required still true", maxCycles)
-	return out
+	return out, nil
 }
 
 // ApplyMechanicalFixes performs deterministic, safe textual repairs for known
