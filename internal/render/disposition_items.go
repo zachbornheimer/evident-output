@@ -1,8 +1,6 @@
 package render
 
 import (
-	"strings"
-
 	"github.com/zachbornheimer/evident-output/internal/core"
 )
 
@@ -147,28 +145,6 @@ func headerTallyIndent(folded core.TasksSnapshot) string {
 		return groupChildIndent
 	}
 	return taskAnnotationIndent
-}
-
-// writeLiveDispositions writes items' tallies at indent as the live frame
-// shows them (never verbose) within maxRows, and reports how many rows they took, so
-// the frame's height budget can count them. When the cause lines do not
-// fit, each tally keeps its headline and drops its causes: the headline is
-// the count, the durable render still carries the evidence.
-func writeLiveDispositions(b *strings.Builder, indent string, items core.Dispositions, maxRows int, s Style) (rows int) {
-	if items.Empty() {
-		return 0
-	}
-	s.Verbose = false
-	var full strings.Builder
-	writeDispositions(&full, indent, items, noDisposition, s)
-	if rows = strings.Count(full.String(), "\n"); rows <= maxRows {
-		b.WriteString(full.String())
-		return rows
-	}
-	start := b.Len()
-	writeTaxonomyHeadline(b, indent, dispositionSkipped, items.Skipped, s)
-	writeTaxonomyHeadline(b, indent, dispositionKept, items.Kept, s)
-	return strings.Count(b.String()[start:], "\n")
 }
 
 // headerlessRowNameWidth is the shared name column of a header-less

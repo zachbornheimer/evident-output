@@ -299,3 +299,43 @@ func liveRoot(s core.Snapshot) core.TasksSnapshot {
 	}
 	return core.WithCollectionTally(root, core.RootCollectionTallyOf(s))
 }
+
+// liveFlattensHeader is the live frame's rule for a Group given height
+// rows: the header stays while its aggregate "N/M complete" count says
+// something the rows do not (liveProgressAddsInformation) — never "0/0
+// complete" for a Group that holds only nested Groups — and whenever its
+// body overflows height, since then the rows cannot all speak for
+// themselves (E-111).
+func liveFlattensHeader(col core.TasksSnapshot, items core.Dispositions, height int) bool {
+	_, total := completion(col)
+	return flattensHeader(col, items) && !liveProgressAddsInformation(col, total) && !liveBodyOverflows(col, height)
+}
+
+// liveHeaderRule is liveFlattensHeader for a frame of height rows.
+func liveHeaderRule(height int) headerRule {
+	return func(col core.TasksSnapshot, items core.Dispositions) bool {
+		return liveFlattensHeader(col, items, height)
+	}
+}
+
+// writeLiveDispositions writes items' tallies at indent as the live frame
+// shows them (never verbose) within maxRows, and reports how many rows they took, so
+// the frame's height budget can count them. When the cause lines do not
+// fit, each tally keeps its headline and drops its causes: the headline is
+// the count, the durable render still carries the evidence.
+func writeLiveDispositions(b *strings.Builder, indent string, items core.Dispositions, maxRows int, s Style) (rows int) {
+	if items.Empty() {
+		return 0
+	}
+	s.Verbose = false
+	var full strings.Builder
+	writeDispositions(&full, indent, items, noDisposition, s)
+	if rows = strings.Count(full.String(), "\n"); rows <= maxRows {
+		b.WriteString(full.String())
+		return rows
+	}
+	start := b.Len()
+	writeTaxonomyHeadline(b, indent, dispositionSkipped, items.Skipped, s)
+	writeTaxonomyHeadline(b, indent, dispositionKept, items.Kept, s)
+	return strings.Count(b.String()[start:], "\n")
+}

@@ -18,24 +18,6 @@ import (
 // out, renders without its header. Plain and live differ only in this.
 type headerRule func(col core.TasksSnapshot, items core.Dispositions) bool
 
-// liveFlattensHeader is the live frame's rule for a Group given height
-// rows: the header stays while its aggregate "N/M complete" count says
-// something the rows do not (liveProgressAddsInformation) — never "0/0
-// complete" for a Group that holds only nested Groups — and whenever its
-// body overflows height, since then the rows cannot all speak for
-// themselves (E-111).
-func liveFlattensHeader(col core.TasksSnapshot, items core.Dispositions, height int) bool {
-	_, total := completion(col)
-	return flattensHeader(col, items) && !liveProgressAddsInformation(col, total) && !liveBodyOverflows(col, height)
-}
-
-// liveHeaderRule is liveFlattensHeader for a frame of height rows.
-func liveHeaderRule(height int) headerRule {
-	return func(col core.TasksSnapshot, items core.Dispositions) bool {
-		return liveFlattensHeader(col, items, height)
-	}
-}
-
 // qualifyFlattenedRows returns s with every flattened row whose name
 // collides at its level named by its container path. The input is not
 // modified.
