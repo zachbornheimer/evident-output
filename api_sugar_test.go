@@ -141,9 +141,9 @@ func TestAPISugar_TaskFailNextAttachesRemedy(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("validate")
-	task.Fail("validate policy manifest", evo.Detail("manifest missing"))
-	task.Next(evo.Label("re-run with --force"))
-	snap := task.Snapshot()
+	task.Fail("validate policy manifest", evo.Detail("manifest missing"),
+		evo.Next(evo.Label("re-run with --force")))
+	snap := task.Snapshot().Problems[0]
 	if len(snap.Actions) != 1 || snap.Actions[0].Label != "re-run with --force" {
 		t.Fatalf("actions = %#v, want the Next label attached", snap.Actions)
 	}
@@ -154,9 +154,8 @@ func TestAPISugar_TaskBlockNextCommandAttachesRemedy(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("apply")
-	task.Block("dirty working tree")
-	task.NextCommand("git", "status")
-	snap := task.Snapshot()
+	task.Block("dirty working tree", evo.NextCommand("git", "status"))
+	snap := task.Snapshot().Problems[0]
 	if len(snap.Actions) != 1 || snap.Actions[0].Command == nil || snap.Actions[0].Command.Executable != "git" {
 		t.Fatalf("actions = %#v, want the NextCommand attached", snap.Actions)
 	}

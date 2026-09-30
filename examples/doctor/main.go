@@ -58,8 +58,9 @@ func main() {
 		probe("mise tasks", passes)
 		probe("git commit signing", func(it *evo.TaskHandle) {
 			if *strict {
-				it.Block("commit.gpgsign is not enabled", evo.Detail("required in strict mode"))
-				it.NextCommand("git", "config", "--global", "commit.gpgsign", "true")
+				it.Block("commit.gpgsign is not enabled",
+					evo.Detail("required in strict mode"),
+					evo.NextCommand("git", "config", "--global", "commit.gpgsign", "true"))
 			} else {
 				it.Problem("commit signing not verified", evo.Severity(evo.SeverityWarning))
 			}

@@ -159,8 +159,8 @@ func TestWriteAction_NextActionGlyph(t *testing.T) {
 	var uniBuf strings.Builder
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &uniBuf, Glyphs: evo.GlyphsUnicode, Color: evo.ColorNever, Plain: true})
 	done := out.Task("done")
+	done.Problem("repository not retired yet", evo.Severity(evo.SeverityWarning), evo.Next(evo.Label("repo-retire --retire demo")))
 	succeed(done)
-	done.Next(evo.Label("repo-retire --retire demo"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -171,8 +171,8 @@ func TestWriteAction_NextActionGlyph(t *testing.T) {
 	var asciiBuf strings.Builder
 	out2 := evo.Init(evo.Config{Isolated: true, Stdout: &asciiBuf, Glyphs: evo.GlyphsASCII, Color: evo.ColorNever, Plain: true})
 	done2 := out2.Task("done")
+	done2.Problem("repository not retired yet", evo.Severity(evo.SeverityWarning), evo.Next(evo.Label("repo-retire --retire demo")))
 	succeed(done2)
-	done2.Next(evo.Label("repo-retire --retire demo"))
 	if err := out2.Finish(); err != nil {
 		t.Fatal(err)
 	}

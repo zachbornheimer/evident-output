@@ -264,7 +264,7 @@ func TestSpecP3_DryRunTense_Success(t *testing.T) {
 	out := evo.Init(evo.Config{Title: "salvage", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	salvage := out.Task("salvage")
 	salvage.Define(effectOf(evo.EffectPush, "branch", 3))
-	salvage.Next(evo.Label("repo-retire --retire demo"))
+	salvage.Problem("demo not retired yet", evo.Severity(evo.SeverityWarning), evo.Next(evo.Label("repo-retire --retire demo")))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

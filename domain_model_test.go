@@ -74,8 +74,7 @@ func TestDOM041_ActionsPromoted(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	item := out.Task("i")
-	item.Block("b")
-	item.NextCommand("fix", "it")
+	item.Block("b", evo.NextCommand("fix", "it"))
 	_ = out.Finish()
 	c := out.Conclusion()
 	if len(c.Actions) == 0 {
@@ -346,9 +345,8 @@ func TestDOM012_NextActionAfterResolve(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	it := out.Task("x")
-	it.Block("b")
-	it.NextCommand("fix", "it")
-	if len(it.Snapshot().Actions) != 1 {
+	it.Block("b", evo.NextCommand("fix", "it"))
+	if len(it.Snapshot().Problems[0].Actions) != 1 {
 		t.Fatal("expected action")
 	}
 }
