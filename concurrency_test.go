@@ -354,3 +354,12 @@ func TestCON012_ConcurrentItemOK(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+type failWriter struct {
+	n int
+}
+
+func (f *failWriter) Write(p []byte) (int, error) {
+	f.n++
+	return 0, errors.New("disk full")
+}

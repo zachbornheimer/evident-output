@@ -2,7 +2,6 @@ package evo_test
 
 import (
 	"bytes"
-	"errors"
 	"strings"
 	"testing"
 
@@ -10,29 +9,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
 	"github.com/zachbornheimer/evident-output/internal/agent/preview"
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
-	"github.com/zachbornheimer/evident-output/terminal"
 )
-
-type failWriter struct {
-	n int
-}
-
-func (f *failWriter) Write(p []byte) (int, error) {
-	f.n++
-	return 0, errors.New("disk full")
-}
-
-func TestTERM007_ShortWriteDisablesInteractive(t *testing.T) {
-	fw := &failWriter{}
-	drv := terminal.NewANSI(fw, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	drv.WriteLive("line one\nline two")
-	if drv.WriteErr() == nil {
-		t.Fatal("expected write error")
-	}
-	if drv.IsInteractive() {
-		t.Fatal("interactive should disable after write fault")
-	}
-}
 
 func TestMCP016_PartialOnlyWhenAnalysisIncomplete(t *testing.T) {
 	// Consumer feedback: partial=true + recheck_required=false trained people to ignore review.

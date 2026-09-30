@@ -149,3 +149,10 @@ func TestTXT016_LeaderBoundedAndOmittedNarrow(t *testing.T) {
 		t.Fatalf("unbounded leaders: %d in %q", n, wide.String())
 	}
 }
+
+// TestTXT019_ManyProblemsBounded's premise (attach 200 structured Problems
+// via one bulk verb call) no longer has a public construction path — a Task
+// verb now produces exactly one Problem per resolution. The storage-side
+// invariant it pinned (Snapshot retains every Problem, not just the plain
+// projection's display bound) is covered directly against a hand-built
+// Snapshot by TestHumanProblemList_IsBounded (problem_bound_test.go).

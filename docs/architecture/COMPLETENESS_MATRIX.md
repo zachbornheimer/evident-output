@@ -68,7 +68,7 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | API-006  | pass   | agent/review                                                                                                           |
 | API-007  | pass   | internal/engine/construct.go Init(Config)                                                                              |
 | API-008  | pass   | api_shape_test.go                                                                                                      |
-| API-009  | pass   | remaining_core_test.go                                                                                                 |
+| API-009  | pass   | api_shape_test.go                                                                                                      |
 | API-010  | pass   | api_shape_test.go                                                                                                      |
 | API-011  | pass   | api_shape_test.go                                                                                                      |
 | API-012  | pass   | api_shape_test.go                                                                                                      |
@@ -79,7 +79,7 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | API-017  | pass   | api_shape_test.go                                                                                                      |
 | API-018  | pass   | api_shape_test.go                                                                                                      |
 | API-019  | pass   | no global state race tests                                                                                             |
-| API-020  | pass   | closeout_test.go                                                                                                       |
+| API-020  | pass   | api_shape_test.go                                                                                                      |
 | API-021  | pass   | examples compile                                                                                                       |
 | API-022  | pass   | api_shape_test.go                                                                                                      |
 | API-023  | pass   | Line one call                                                                                                          |
@@ -88,17 +88,17 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | API-026  | pass   | api_shape_test.go                                                                                                      |
 | API-027  | pass   | appendix_h_test.go                                                                                                     |
 | API-028  | pass   | api_shape_test.go                                                                                                      |
-| API-029  | pass   | last_push_test.go                                                                                                      |
+| API-029  | pass   | api_shape_test.go                                                                                                      |
 | API-030  | pass   | api_shape_test.go                                                                                                      |
 | CON-001  | pass   | concurrency_test.go                                                                                                    |
 | CON-002  | pass   | concurrency_test.go                                                                                                    |
-| CON-003  | pass   | waived*closeout_test.go TestCON003*\*                                                                                  |
-| CON-004  | pass   | waived_closeout_test.go TestCON004_ResizeWhileLive                                                                     |
+| CON-003  | pass   | concurrency_test.go TestCON003\*\*                                                                                     |
+| CON-004  | pass   | concurrency_test.go TestCON004_ResizeWhileLive                                                                         |
 | CON-005  | pass   | concurrency_test.go                                                                                                    |
 | CON-006  | pass   | concurrency_test.go                                                                                                    |
 | CON-007  | pass   | concurrency_test.go                                                                                                    |
-| CON-008  | pass   | waived_closeout_test.go TestCON008_JournalBackpressure                                                                 |
-| CON-009  | pass   | waived_closeout_test.go TestCON009_MultiRendererOneFailure                                                             |
+| CON-008  | pass   | concurrency_test.go TestCON008_JournalBackpressure                                                                     |
+| CON-009  | pass   | concurrency_test.go TestCON009_MultiRendererOneFailure                                                                 |
 | CON-010  | pass   | concurrency_test.go                                                                                                    |
 | CON-011  | pass   | concurrency_test.go                                                                                                    |
 | CON-012  | pass   | concurrency_test.go                                                                                                    |
@@ -160,20 +160,20 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | DOM-049  | pass   | Output.Fail                                                                                                            |
 | DOM-050  | pass   | common/advanced ItemWith                                                                                               |
 | LOG-001  | pass   | appendix_h_interactive_test.go H.17                                                                                    |
-| LOG-002  | pass   | more_matrix_test.go                                                                                                    |
-| LOG-003  | pass   | last_push_test.go                                                                                                      |
+| LOG-002  | pass   | debug_journal_test.go                                                                                                  |
+| LOG-003  | pass   | debug_journal_test.go                                                                                                  |
 | LOG-004  | pass   | sensitive field                                                                                                        |
 | LOG-005  | pass   | debug_writer_test.go                                                                                                   |
 | LOG-006  | pass   | debug_writer_test.go                                                                                                   |
 | LOG-007  | pass   | debug_writer.go max line                                                                                               |
-| LOG-008  | pass   | remaining_core_test.go                                                                                                 |
+| LOG-008  | pass   | debug_journal_test.go                                                                                                  |
 | LOG-009  | pass   | slog_test.go                                                                                                           |
-| LOG-010  | pass   | final_matrix_test.go                                                                                                   |
-| LOG-011  | pass   | closeout_test.go                                                                                                       |
-| LOG-012  | pass   | final_matrix_test.go                                                                                                   |
-| LOG-013  | pass   | closeout_test.go                                                                                                       |
+| LOG-010  | pass   | debug_journal_test.go                                                                                                  |
+| LOG-011  | pass   | debug_journal_test.go                                                                                                  |
+| LOG-012  | pass   | debug_journal_test.go                                                                                                  |
+| LOG-013  | pass   | debug_journal_test.go                                                                                                  |
 | LOG-014  | pass   | WarnMessage vs item warn                                                                                               |
-| LOG-015  | pass   | last_push_test.go                                                                                                      |
+| LOG-015  | pass   | debug_journal_test.go                                                                                                  |
 | MCP-001  | pass   | mcp_lifecycle_test.go, cmd/evident-output-mcp/mcp_test.go                                                              |
 | MCP-002  | pass   | mcp_test.go                                                                                                            |
 | MCP-003  | pass   | mcp_test.go                                                                                                            |
@@ -189,7 +189,7 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | MCP-013  | pass   | mcp review stream                                                                                                      |
 | MCP-014  | pass   | agent/review TestMCP014\_\* + harness blocked-as-error                                                                 |
 | MCP-015  | pass   | review location                                                                                                        |
-| MCP-016  | pass   | waived_closeout_test.go TestMCP016_PartialOnlyWhenAnalysisIncomplete                                                   |
+| MCP-016  | pass   | mcp_contract_test.go TestMCP016_PartialOnlyWhenAnalysisIncomplete                                                      |
 | MCP-017  | pass   | agent/review.GoPackage + review_test.go TestGoPackage_CrossFileTypes                                                   |
 | MCP-018  | pass   | agent/review.Transcript + review_test.go                                                                               |
 | MCP-019  | pass   | agent/review.StructuredDocument + review_test.go                                                                       |
@@ -198,7 +198,7 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | MCP-022  | pass   | agent/harness TestMCP022_RepairLoopReachesClean + RunAllRepairable                                                     |
 | MCP-023  | pass   | agent/preview                                                                                                          |
 | MCP-024  | pass   | preview profiles                                                                                                       |
-| MCP-025  | pass   | waived_closeout_test.go TestMCP025_PreviewDebugInterleave                                                              |
+| MCP-025  | pass   | mcp_contract_test.go TestMCP025_PreviewDebugInterleave                                                                 |
 | MCP-026  | pass   | preview no exec                                                                                                        |
 | MCP-027  | pass   | agent/rules TestMCP027_ExplainFullPayload                                                                              |
 | MCP-028  | pass   | agent/rules TestMCP028_RuleStabilityVersionPolicy                                                                      |
@@ -210,7 +210,7 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | MCP-034  | pass   | mcp_hardening_test.go TestMCP034_PanicContainedContinues (faultHook panic injection)                                   |
 | MCP-035  | pass   | mcp_sec_test.go                                                                                                        |
 | MCP-036  | pass   | cmd/evident-output-mcp isRemotePath + mcp_hardening_test.go TestMCP036                                                 |
-| MCP-037  | pass   | waived_closeout_test.go TestMCP037_ReviewDoesNotMutateSource                                                           |
+| MCP-037  | pass   | mcp_contract_test.go TestMCP037_ReviewDoesNotMutateSource                                                              |
 | MCP-038  | pass   | mcp_sec_test.go                                                                                                        |
 | MCP-039  | pass   | mcp_sec_test.go                                                                                                        |
 | MCP-040  | pass   | mcp resources                                                                                                          |
@@ -237,12 +237,12 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | OUT-011  | pass   | machine_output_test.go                                                                                                 |
 | OUT-012  | pass   | machine_output_test.go                                                                                                 |
 | OUT-013  | pass   | machine_output_test.go                                                                                                 |
-| OUT-014  | pass   | final_matrix_test.go                                                                                                   |
+| OUT-014  | pass   | machine_output_test.go                                                                                                 |
 | OUT-015  | pass   | machine_output_test.go                                                                                                 |
 | OUT-016  | pass   | machine_output_test.go                                                                                                 |
 | OUT-017  | pass   | machine_output_test.go                                                                                                 |
 | OUT-018  | pass   | appendix_h_test.go RenderPlain/EncodeJSON                                                                              |
-| OUT-019  | pass   | closeout_test.go                                                                                                       |
+| OUT-019  | pass   | machine_output_test.go                                                                                                 |
 | OUT-020  | pass   | machine_output_test.go                                                                                                 |
 | OUT-021  | pass   | projection_test.go                                                                                                     |
 | OUT-022  | pass   | machine_output_test.go                                                                                                 |
@@ -257,12 +257,12 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | PORT-007 | pass   | NO_COLOR option                                                                                                        |
 | PORT-008 | pass   | width 0 fallback                                                                                                       |
 | PORT-009 | pass   | capability height                                                                                                      |
-| PORT-010 | pass   | last_push_test.go                                                                                                      |
-| PORT-011 | pass   | waived_closeout_test.go TestPORT011_Int64ProgressPaths                                                                 |
+| PORT-010 | pass   | portability_test.go                                                                                                    |
+| PORT-011 | pass   | portability_test.go TestPORT011_Int64ProgressPaths                                                                     |
 | PORT-012 | pass   | conformance/gates/release_matrix_test.go TestPORT012_BigEndianCrossCompile (GOARCH=s390x)                              |
-| PORT-013 | pass   | closeout_test.go                                                                                                       |
-| PORT-014 | pass   | closeout_test.go                                                                                                       |
-| PORT-015 | pass   | last_push_test.go                                                                                                      |
+| PORT-013 | pass   | portability_test.go                                                                                                    |
+| PORT-014 | pass   | portability_test.go                                                                                                    |
+| PORT-015 | pass   | portability_test.go                                                                                                    |
 | SEC-001  | pass   | sanitize_test.go                                                                                                       |
 | SEC-002  | pass   | security_test.go                                                                                                       |
 | SEC-003  | pass   | security_test.go                                                                                                       |
@@ -276,32 +276,32 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | SEC-011  | pass   | security_test.go                                                                                                       |
 | SEC-012  | pass   | security_test.go                                                                                                       |
 | SEC-013  | pass   | security_test.go                                                                                                       |
-| SEC-014  | pass   | mcp_sec_test.go + waived_closeout_test.go TestSEC014                                                                   |
-| SEC-015  | pass   | waived_closeout_test.go TestSEC015_NoAuthOnAnnotations                                                                 |
+| SEC-014  | pass   | mcp_sec_test.go + security_test.go TestSEC014                                                                          |
+| SEC-015  | pass   | security_test.go TestSEC015_NoAuthOnAnnotations                                                                        |
 | TERM-001 | pass   | appendix_h_interactive_test.go H.2                                                                                     |
 | TERM-002 | pass   | appendix_h_interactive_test.go H.2/H.17                                                                                |
 | TERM-003 | pass   | appendix_h_interactive_test.go H.17                                                                                    |
 | TERM-004 | pass   | terminal/ansi_test.go                                                                                                  |
 | TERM-005 | pass   | appendix_h + live                                                                                                      |
 | TERM-006 | pass   | appendix_h_interactive_test.go H.17                                                                                    |
-| TERM-007 | pass   | waived_closeout_test.go TestTERM007_ShortWriteDisablesInteractive                                                      |
+| TERM-007 | pass   | terminal_test.go TestTERM007_ShortWriteDisablesInteractive                                                             |
 | TERM-008 | pass   | terminal/ansi_test.go cursor                                                                                           |
 | TERM-009 | pass   | conformance/gates/release_matrix_test.go TestTERM009_CancelCleanupPath (SIGINT→Cancel library path; full PTY host-depe |
 | TERM-010 | pass   | docs: SIGKILL no guarantee (architecture spec + SECURITY.md)                                                           |
-| TERM-011 | pass   | port_env_test.go                                                                                                       |
-| TERM-012 | pass   | port_env_test.go                                                                                                       |
+| TERM-011 | pass   | terminal_test.go                                                                                                       |
+| TERM-012 | pass   | terminal_test.go                                                                                                       |
 | TERM-013 | pass   | frame coalesce H.22                                                                                                    |
 | TERM-014 | pass   | agent/review.Transcript NUL detector + review_test.go                                                                  |
 | TERM-015 | pass   | slog_test.go                                                                                                           |
-| TERM-016 | pass   | last_push_test.go                                                                                                      |
-| TERM-017 | pass   | port_env_test.go                                                                                                       |
+| TERM-016 | pass   | terminal_test.go                                                                                                       |
+| TERM-017 | pass   | terminal_test.go                                                                                                       |
 | TERM-018 | pass   | appendix_h_interactive_test.go H.20                                                                                    |
 | TERM-019 | pass   | appendix_h_interactive_test.go H.21                                                                                    |
-| TERM-020 | pass   | final_matrix_test.go                                                                                                   |
-| TERM-021 | pass   | closeout_test.go                                                                                                       |
+| TERM-020 | pass   | terminal_test.go                                                                                                       |
+| TERM-021 | pass   | terminal_test.go                                                                                                       |
 | TERM-022 | pass   | terminal/ansi.go                                                                                                       |
-| TERM-023 | pass   | last_push_test.go                                                                                                      |
-| TERM-024 | pass   | closeout_test.go                                                                                                       |
+| TERM-023 | pass   | terminal_test.go                                                                                                       |
+| TERM-024 | pass   | terminal_test.go                                                                                                       |
 | TXT-001  | pass   | text_safety_test.go                                                                                                    |
 | TXT-002  | pass   | internal/width                                                                                                         |
 | TXT-003  | pass   | internal/width CJK                                                                                                     |
@@ -314,11 +314,11 @@ These are host/manual release-candidate items. Spec §31 allows waiver with reas
 | TXT-010  | pass   | text_safety_test.go                                                                                                    |
 | TXT-011  | pass   | plain narrow                                                                                                           |
 | TXT-012  | pass   | text_safety_test.go                                                                                                    |
-| TXT-013  | pass   | waived_closeout_test.go TestTXT013_ANSIWidthParity                                                                     |
-| TXT-014  | pass   | waived_closeout_test.go TestTXT014_OSC8ZeroCells                                                                       |
-| TXT-015  | pass   | waived_closeout_test.go TestTXT015_NarrowStackDetailParent                                                             |
-| TXT-016  | pass   | waived_closeout_test.go TestTXT016_LeaderBoundedAndOmittedNarrow                                                       |
+| TXT-013  | pass   | text_safety_test.go TestTXT013_ANSIWidthParity                                                                         |
+| TXT-014  | pass   | text_safety_test.go TestTXT014_OSC8ZeroCells                                                                           |
+| TXT-015  | pass   | text_safety_test.go TestTXT015_NarrowStackDetailParent                                                                 |
+| TXT-016  | pass   | text_safety_test.go TestTXT016_LeaderBoundedAndOmittedNarrow                                                           |
 | TXT-017  | pass   | text_safety_test.go                                                                                                    |
-| TXT-018  | pass   | final_matrix bidi                                                                                                      |
-| TXT-019  | pass   | closeout_test.go                                                                                                       |
+| TXT-018  | pass   | text_safety bidi                                                                                                       |
+| TXT-019  | pass   | text_safety_test.go                                                                                                    |
 | TXT-020  | pass   | text_safety_test.go                                                                                                    |
