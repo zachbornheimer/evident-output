@@ -201,6 +201,10 @@ func (o *Output) inspectFile(fsys FileFS, op fileOperation) (fileDelta, error) {
 // would drop.
 const inheritedModeBits = fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
 
+// ownerRead is the permission bit readExisting adds to open a file whose
+// mode denies even its owner a read.
+const ownerRead fs.FileMode = 0o400
+
 // contentWriteMode is the permission a content write leaves: the managed
 // mode when there is one, otherwise the existing file's own (an unmanaged
 // rewrite never changes it), otherwise ordinary creation semantics.

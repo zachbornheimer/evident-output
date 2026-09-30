@@ -166,9 +166,33 @@ func fileNeedsContentWrite(fsys FileFS, path string, exists, contentsManaged boo
 	if !exists {
 		return true, nil
 	}
-	current, err := fsys.ReadFile(path)
+	current, err := readExisting(fsys, path)
 	if err != nil {
 		return false, err
 	}
 	return !bytes.Equal(current, desired), nil
+}
+
+// readExisting reads path. A mode of 0000 is unreadable, so an existing
+// file that denies the read is opened by adding owner-read, then its mode
+// is put back before the caller decides whether to rewrite. The rewrite
+// itself still uses the original mode, so an unmanaged 0000 stays 0000.
+func readExisting(fsys FileFS, path string) ([]byte, error) {
+	current, err := fsys.ReadFile(path)
+	if err == nil || !errors.Is(err, fs.ErrPermission) {
+		return current, err
+	}
+	info, statErr := fsys.Lstat(path)
+	if statErr != nil {
+		return nil, err
+	}
+	original := info.Mode() & inheritedModeBits
+	if chmodErr := fsys.Chmod(path, original|ownerRead); chmodErr != nil {
+		return nil, err
+	}
+	current, readErr := fsys.ReadFile(path)
+	if chmodErr := fsys.Chmod(path, original); chmodErr != nil && readErr == nil {
+		return nil, chmodErr
+	}
+	return current, readErr
 }

@@ -104,7 +104,7 @@ func fingerprintPath(vfs FS, path string) (Digest, error) {
 	case info.IsDir():
 		return fingerprintDir(vfs, path)
 	case info.Mode().IsRegular():
-		contents, err := vfs.ReadFile(path)
+		contents, err := readRegular(vfs, path, info.Mode())
 		if err != nil {
 			return Digest{}, err
 		}
@@ -136,4 +136,34 @@ func fingerprintDir(vfs FS, path string) (Digest, error) {
 		preimage = append(preimage, childDigest[:]...)
 	}
 	return sum256(preimage), nil
+}
+
+// keptModeBits are the mode bits readRegular puts back: the permissions and
+// setuid, setgid, and sticky.
+const keptModeBits = fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky
+
+// ownerRead is the permission bit readRegular adds to open a file whose
+// mode denies even its owner a read.
+const ownerRead fs.FileMode = 0o400
+
+// readRegular reads a regular file. Mode 0000 denies the read even to the
+// owner, so the real filesystem facade adds owner-read for the read and
+// puts the mode back. A fake FS is left alone.
+func readRegular(vfs FS, path string, mode fs.FileMode) ([]byte, error) {
+	contents, err := vfs.ReadFile(path)
+	if err == nil || !errors.Is(err, fs.ErrPermission) {
+		return contents, err
+	}
+	if _, ok := vfs.(osFS); !ok {
+		return nil, err
+	}
+	original := mode & keptModeBits
+	if chmodErr := os.Chmod(path, original|ownerRead); chmodErr != nil {
+		return nil, err
+	}
+	contents, readErr := vfs.ReadFile(path)
+	if chmodErr := os.Chmod(path, original); chmodErr != nil && readErr == nil {
+		return nil, chmodErr
+	}
+	return contents, readErr
 }

@@ -43,6 +43,28 @@ func TestFileRewriteKeepsExistingModeWhenUnmanaged(t *testing.T) {
 	}
 }
 
+// TestFileRewriteKeepsModeZeroWhenUnmanaged proves Mode 0 means unmanaged,
+// not "create as 0000". An existing file whose mode is 0000 keeps 0000
+// when only its contents are rewritten: reading it to compare contents
+// must not fail, and the rewrite must not recreate it at 0666.
+func TestFileRewriteKeepsModeZeroWhenUnmanaged(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "secret")
+	if err := os.WriteFile(path, []byte("old\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0); err != nil {
+		t.Fatal(err)
+	}
+	out := Init(Config{Isolated: true, StateDir: t.TempDir()})
+	t.Cleanup(func() { _ = out.Close() })
+	if err := runFileTask(t, out, "rewrite-zero", FileSpec{Path: path, Contents: []byte("new\n")}); err != nil {
+		t.Fatalf("File: %v", err)
+	}
+	if got := permOf(t, path); got != 0 {
+		t.Fatalf("mode after unmanaged rewrite = %#o, want 0000", got)
+	}
+}
+
 // TestFileCreateHonorsUmaskWhenUnmanaged proves an unmanaged-mode create
 // uses ordinary creation semantics: 0666 less the umask.
 func TestFileCreateHonorsUmaskWhenUnmanaged(t *testing.T) {
