@@ -242,8 +242,8 @@ Output.Fail	canonical	Failed
 Output.Failf	removed	Fail
 Output.Finish	helper	Run
 Output.Group	canonical	Group
-Output.Next	helper	Action
-Output.NextCommand	helper	Action
+Output.Next	removed	Action
+Output.NextCommand	removed	Action
 Output.Print	helper	Human output
 Output.Printf	helper	Human output
 Output.Println	helper	Human output
@@ -353,8 +353,8 @@ TaskHandle.Fail	canonical	Failed
 TaskHandle.Failf	removed	Fail
 TaskHandle.Kept	removed	Skipped
 TaskHandle.Key	helper	Task
-TaskHandle.Next	helper	Action
-TaskHandle.NextCommand	helper	Action
+TaskHandle.Next	removed	Action
+TaskHandle.NextCommand	removed	Action
 TaskHandle.Problem	canonical	Problem
 TaskHandle.Progress	canonical	Progress
 TaskHandle.Skipped	canonical	Skipped

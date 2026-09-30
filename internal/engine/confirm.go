@@ -164,7 +164,7 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 
 	if o.cfg.plain {
 		gate.Block(confirmPolicyBlockedSummary)
-		gate.Next(cfg.resolvedPolicyHint(o))
+		gate.attachActions(cfg.resolvedPolicyHint(o))
 		o.flushGateNow(gate.id)
 		return false
 	}
@@ -225,7 +225,7 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 			// deliberate policy refused the prompt (release-gate round 4
 			// finding 6).
 			gate.Block(confirmEOFSummary)
-			gate.Next(cfg.resolvedPolicyHint(o))
+			gate.attachActions(cfg.resolvedPolicyHint(o))
 			o.flushGateNow(gate.id)
 			return nil
 		}

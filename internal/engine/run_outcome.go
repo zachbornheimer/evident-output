@@ -57,20 +57,3 @@ func (o *Output) Cancel(reason string) {
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "output.cancelled"})
 }
-
-// Next attaches output-level actions.
-func (o *Output) Next(actions ...Action) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		return
-	}
-	o.actions = append(o.actions, cloneActions(actions)...)
-	o.bumpLocked()
-}
-
-// NextCommand attaches an output-level command action.
-func (o *Output) NextCommand(executable string, args ...string) {
-	o.Next(Command(executable, args...))
-}

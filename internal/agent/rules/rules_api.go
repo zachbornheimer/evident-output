@@ -347,9 +347,9 @@ if err := cmd.Run(); err != nil {
 			GoodCode: `cmd.Stdout = task.Writer()
 cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
-  task.Block("policy check failed", evo.Detail(err.Error()))
-              task.NextCommand("git", "status")
-              return nil
+  task.Block("policy check failed", evo.Detail(err.Error()),
+    evo.NextCommand("git", "status"))
+  return nil
 }`,
 			Remediation:     "Wire the checked command's output through task.Writer() instead of io.Discard, so Block/Fail can attach evidence",
 			RelatedGuidance: []string{"streams"},

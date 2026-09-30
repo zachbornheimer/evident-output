@@ -73,7 +73,6 @@ type Output struct {
 	// rescanning (ledger_order.go).
 	ledger  ledgerIndex
 	lines   []string
-	actions []Action
 	journal journal
 
 	// wireSeq/wireEventErr back the §38 "evo.event" JSONL stream

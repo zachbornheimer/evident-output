@@ -137,12 +137,8 @@ func (t *TaskHandle) SkippedWithErrs(reason TaxonomyReason, name string, errs ..
 	}
 }
 
-func (t *TaskHandle) NextSelfForTest(args ...string) *TaskHandle {
-	if t == nil || t.inner == nil {
-		return t
-	}
-	t.inner.NextSelfForTest(args...)
-	return t
+func (o *Output) NextSelfForTest(args ...string) ProblemOption {
+	return o.inner.NextSelfForTest(args...)
 }
 
 func (t *TaskHandle) SkipForTest(reason string, args ...any) *TaskHandle {

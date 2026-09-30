@@ -20,8 +20,6 @@ func (Output) Fact(name, value string)
 func (Output) Fail(summary string, options ...ProblemOption)
 func (Output) Finish()  error
 func (Output) Group(name string)  *GroupHandle
-func (Output) Next(actions ...Action)
-func (Output) NextCommand(executable string, args ...string)
 func (Output) Print(args ...any)
 func (Output) Printf(format string, args ...any)
 func (Output) Println(args ...any)
@@ -55,8 +53,6 @@ func (TaskHandle) Doing(text string, args ...any)  *TaskHandle
 func (TaskHandle) Fact(name, value string)  *TaskHandle
 func (TaskHandle) Fail(summary string, options ...ProblemOption)
 func (TaskHandle) Key(key string)  *TaskHandle
-func (TaskHandle) Next(actions ...Action)  *TaskHandle
-func (TaskHandle) NextCommand(executable string, args ...string)  *TaskHandle
 func (TaskHandle) Problem(summary string, options ...ProblemOption)  *TaskHandle
 func (TaskHandle) Progress(completed, total int)  *TaskHandle
 func (TaskHandle) Skipped(reason TaxonomyReason)

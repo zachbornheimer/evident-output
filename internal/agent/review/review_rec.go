@@ -43,6 +43,10 @@ type recSurfaceDetector struct {
 	// failures names identifiers typed evo.Failure, so Failure.Next is
 	// not confused with live TaskHandle.Next / Output.Next.
 	failures failureBindings
+	// file and outputs let the removed-Next rewrite find the enclosing
+	// function and prove a receiver is an evo Output.
+	file    *ast.File
+	outputs outputBindings
 }
 
 func detectSupersededRecSurface(in fileInput) []Finding {
@@ -57,6 +61,8 @@ func detectSupersededRecSurface(in fileInput) []Finding {
 		d.doneScope = &scope
 		d.effectDialect = true
 		d.failures = newFailureBindings(f, pkg)
+		d.file = f
+		d.outputs = newOutputBindings(f, pkg)
 	}
 	ast.Inspect(f, d.inspect)
 	ast.Inspect(f, d.inspectLeftover)

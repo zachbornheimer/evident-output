@@ -92,14 +92,12 @@ func (o *Output) ForceLiveVisibleForTest() {
 	o.live.liveActive = true
 	o.live.paintMu.Unlock()
 }
-func (o *Output) DebugWriterForTest() io.WriteCloser { return o.debugWriter() }
-func (o *Output) DeclareDryRunForTest()              { o.declareDryRun() }
-func (o *Output) AboutForTest(text string)           { o.about(text) }
-func (o *Output) SubjectForTest(text string)         { o.subject(text) }
-func (o *Output) SlogHandlerForTest() slog.Handler   { return o.slogHandler() }
-func (t *TaskHandle) NextSelfForTest(args ...string) *TaskHandle {
-	return t.nextSelf(args...)
-}
+func (o *Output) DebugWriterForTest() io.WriteCloser           { return o.debugWriter() }
+func (o *Output) DeclareDryRunForTest()                        { o.declareDryRun() }
+func (o *Output) AboutForTest(text string)                     { o.about(text) }
+func (o *Output) SubjectForTest(text string)                   { o.subject(text) }
+func (o *Output) SlogHandlerForTest() slog.Handler             { return o.slogHandler() }
+func (o *Output) NextSelfForTest(args ...string) ProblemOption { return o.nextSelf(args...) }
 func (t *TaskHandle) SkipForTest(reason string, args ...any) *TaskHandle {
 	return t.skip(reason, args...)
 }

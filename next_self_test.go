@@ -15,14 +15,14 @@ func TestTaskHandle_NextSelf_UsesOwnIdentity(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Title: "clean-repo"})
 
 	task := out.Task("dry run")
-	task.NextSelfForTest("--apply")
+	task.Problem("rerun with --apply", evo.Severity(evo.SeverityWarning), out.NextSelfForTest("--apply"))
 	succeed(task)
 
 	item := out.Snapshot().Tasks[0]
-	if len(item.Actions) == 0 || item.Actions[0].Command == nil {
-		t.Fatalf("actions = %+v, want a Command action", item.Actions)
+	if len(item.Warnings) == 0 || len(item.Warnings[0].Actions) == 0 || item.Warnings[0].Actions[0].Command == nil {
+		t.Fatalf("actions = %+v, want a Command action", item.Warnings[0].Actions)
 	}
-	cmd := item.Actions[0].Command
+	cmd := item.Warnings[0].Actions[0].Command
 	if cmd.Executable != "clean-repo" || len(cmd.Args) != 1 || cmd.Args[0] != "--apply" {
 		t.Fatalf("command = %+v, want executable %q with arg %q", cmd, "clean-repo", "--apply")
 	}

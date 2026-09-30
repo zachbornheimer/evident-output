@@ -137,8 +137,8 @@ func (d *recSurfaceDetector) inspectOneOneFailure(call *ast.CallExpr, sel *ast.S
 		args = d.failureNextArgs(call.Args)
 	}
 	old := d.nodeSrc(call)
-	next := "task." + name + "(" + args + ")"
-	d.report(call, "Failure."+name+" was removed in 1.1; call TaskHandle."+name+" after Fail or Block",
+	next := d.pkg + "." + name + "(" + args + ")"
+	d.report(call, "Failure."+name+" was removed in 1.1; pass "+d.pkg+"."+name+"(...) as an option to Fail or Block",
 		"replace "+old+" with "+next)
 	d.cover(call)
 	return true
