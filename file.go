@@ -34,3 +34,5 @@ var (
 	ErrFilePathIsSymlink            = engine.ErrFilePathIsSymlink
 	ErrFilePathTypeMismatch         = engine.ErrFilePathTypeMismatch
 )
+
+type FileFS = engine.FileFS

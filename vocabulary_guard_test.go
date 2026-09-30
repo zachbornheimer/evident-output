@@ -102,10 +102,9 @@ var legacyFiles = map[string]bool{
 // ZYS-1190 series R slice moves to its concept file. A row exempts the
 // identifier only while it is declared in the named file.
 var pendingMoves = map[string]string{
-	"TaskHandle.After":   "task.go",
-	"TaskHandle.Capture": "task.go",
-	"TaskHandle.Fact":    "task.go",
-	"TaskHandle.Next":    "task.go", "TaskHandle.NextCommand": "task.go",
+	"TaskHandle.After": "task.go",
+	"TaskHandle.Fact":  "task.go",
+	"TaskHandle.Next":  "task.go", "TaskHandle.NextCommand": "task.go",
 	"TaskHandle.Problem":  "task.go",
 	"TaskHandle.Snapshot": "task.go",
 	"RenderPlain":         "format.go", "EffectRecord": "snapshot.go",

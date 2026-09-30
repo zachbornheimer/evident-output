@@ -50,3 +50,7 @@ var (
 	ErrExecNonzeroExit               = engine.ErrExecNonzeroExit
 	ErrExecOutputMissingAfterSuccess = engine.ErrExecOutputMissingAfterSuccess
 )
+
+type ProcessRunner = engine.ProcessRunner
+type ProcessCommand = engine.ProcessCommand
+type ProcessOutcome = engine.ProcessOutcome

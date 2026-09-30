@@ -11,9 +11,6 @@ type GroupHandle struct{ inner *engine.GroupHandle }
 type Printer struct{ inner *engine.Printer }
 type Failure struct{ inner *engine.Failure }
 
-type Capture = engine.Capture
-type CaptureOption = engine.CaptureOption
-type CaptureStream = engine.CaptureStream
 type ConfirmOption = engine.ConfirmOption
 type DebugPaneOption = engine.DebugPaneOption
 type DebugPresentation = engine.DebugPresentation
@@ -32,10 +29,6 @@ type Redactor = engine.Redactor
 type NoopRedactor = engine.NoopRedactor
 type LogRecord = engine.LogRecord
 type PlainOptions = engine.PlainOptions
-type ProcessRunner = engine.ProcessRunner
-type ProcessCommand = engine.ProcessCommand
-type ProcessOutcome = engine.ProcessOutcome
-type FileFS = engine.FileFS
 
 const (
 	ColorAuto   = engine.ColorAuto
@@ -80,12 +73,6 @@ const (
 const (
 	DebugPresentationHistory = engine.DebugPresentationHistory
 	DebugPresentationPane    = engine.DebugPresentationPane
-)
-
-const (
-	CaptureStreamCombined = engine.CaptureStreamCombined
-	CaptureStreamStdout   = engine.CaptureStreamStdout
-	CaptureStreamStderr   = engine.CaptureStreamStderr
 )
 
 const DefaultVisibleNames = engine.DefaultVisibleNames
