@@ -1,6 +1,8 @@
 package render
 
 import (
+	"fmt"
+
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
@@ -98,13 +100,14 @@ func FoldEffectSections(kind string, width int, sources []SectionSource) []Effec
 	var (
 		out      []EffectSection
 		foldedAt = map[foldKey]int{}
-		subjects []string
+		shown    []shownSubject
 	)
 	for _, src := range sources {
 		target, key, folded := survey.target(src)
 		if !folded {
-			subjects = append(subjects, src.Subject)
+			shown = append(shown, shownSubject{text: src.Subject, out: -1})
 			if !src.Streamed {
+				shown[len(shown)-1].out = len(out)
 				out = append(out, EffectSection{Kind: kind, Subject: src.Subject, Records: src.Records, IntendedVerb: src.IntendedVerb, Width: width})
 			}
 			continue
@@ -114,12 +117,48 @@ func FoldEffectSections(kind string, width int, sources []SectionSource) []Effec
 			continue
 		}
 		foldedAt[key] = len(out)
-		subjects = append(subjects, target.Name)
-		out = append(out, EffectSection{Kind: kind, Subject: target.Name, Width: width,
+		shown = append(shown, shownSubject{text: target[0].Name, out: len(out), container: target})
+		out = append(out, EffectSection{Kind: kind, Subject: target[0].Name, Width: width,
 			Records: []core.EffectRecord{{Verb: key.kind.verb, Object: key.kind.object, HasQty: true, Quantity: quantityOf(src.Records)}}})
 	}
-	alignSubjects(out, subjects)
+	qualifyDuplicates(out, shown)
+	alignSubjects(out, shown)
 	return out
+}
+
+// shownSubject is one row's subject as the ledger shows it. out is its
+// index in the written sections, -1 for a streamed row that only aligns.
+// container is set for a folded row: the path from the container it names.
+type shownSubject struct {
+	text      string
+	out       int
+	container core.ContainerPath
+}
+
+// qualifyDuplicates names a folded row by its container path when another
+// row, folded or not, shows the same subject: two "branches" categories
+// under different repos read "alpha › branches" and "beta › branches". Rows
+// of one container (one per Effect) already share a subject knowingly.
+func qualifyDuplicates(out []EffectSection, shown []shownSubject) {
+	owner := map[string]string{}
+	duplicated := map[string]bool{}
+	for i, s := range shown {
+		id := fmt.Sprintf("row %d", i)
+		if len(s.container) > 0 {
+			id = s.container[0].ID
+		}
+		if first, seen := owner[s.text]; seen && first != id {
+			duplicated[s.text] = true
+		}
+		owner[s.text] = id
+	}
+	for i, s := range shown {
+		if len(s.container) == 0 || !duplicated[s.text] {
+			continue
+		}
+		shown[i].text = s.container[1:].Qualify(s.text)
+		out[s.out].Subject = shown[i].text
+	}
 }
 
 // quantityOf is the total quantity a foldable section records.
@@ -158,45 +197,46 @@ func surveyFold(sources []SectionSource) foldSurvey {
 
 // target is the container src folds into and the row it joins, when it
 // folds at all.
-func (v foldSurvey) target(src SectionSource) (core.ContainerRef, foldKey, bool) {
+func (v foldSurvey) target(src SectionSource) (core.ContainerPath, foldKey, bool) {
 	kind, ok := src.foldKind()
 	if !ok {
-		return core.ContainerRef{}, foldKey{}, false
+		return nil, foldKey{}, false
 	}
 	if top, lifted := v.highestUniform(src); lifted {
-		return top, foldKey{top.ID, kind}, true
+		return top, foldKey{top[0].ID, kind}, true
 	}
 	if nearest := src.Containers[0]; v.direct[foldKey{nearest.ID, kind}] >= 2 {
-		return nearest, foldKey{nearest.ID, kind}, true
+		return src.Containers, foldKey{nearest.ID, kind}, true
 	}
-	return core.ContainerRef{}, foldKey{}, false
+	return nil, foldKey{}, false
 }
 
-// highestUniform is the highest container above src whose whole subtree is
-// foldable with src's Effect, when it holds two or more sections.
-func (v foldSurvey) highestUniform(src SectionSource) (core.ContainerRef, bool) {
-	var top core.ContainerRef
-	for _, c := range src.Containers {
+// highestUniform is the path from the highest container above src whose
+// whole subtree is foldable with src's Effect, when it holds two or more
+// sections.
+func (v foldSurvey) highestUniform(src SectionSource) (core.ContainerPath, bool) {
+	top := -1
+	for i, c := range src.Containers {
 		if v.subtrees[c.ID].mixed {
 			break
 		}
-		top = c
+		top = i
 	}
-	if top.ID == "" || v.subtrees[top.ID].count < 2 {
-		return core.ContainerRef{}, false
+	if top < 0 || v.subtrees[src.Containers[top].ID].count < 2 {
+		return nil, false
 	}
-	return top, true
+	return src.Containers[top:], true
 }
 
 // alignSubjects sets the shared subject column to the widest subject the
 // ledger shows; a lone row needs no alignment.
-func alignSubjects(out []EffectSection, subjects []string) {
-	if len(subjects) < 2 {
+func alignSubjects(out []EffectSection, shown []shownSubject) {
+	if len(shown) < 2 {
 		return
 	}
 	widest := 0
-	for _, s := range subjects {
-		widest = max(widest, txt.Cells(s))
+	for _, s := range shown {
+		widest = max(widest, txt.Cells(s.text))
 	}
 	for i := range out {
 		out[i].NameWidth = widest

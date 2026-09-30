@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"strings"
-
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/render"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
@@ -167,14 +165,7 @@ func qualify(s *ledgerSection) {
 
 // qualifiedSubject is st's container path and name ("alpha › prune").
 func qualifiedSubject(st *taskState) string {
-	parts := []string{st.name}
-	for col := st.collection; col != nil; col = col.parent {
-		parts = append(parts, col.name)
-	}
-	for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
-		parts[i], parts[j] = parts[j], parts[i]
-	}
-	return strings.Join(parts, core.QualifiedSubjectSeparator)
+	return st.containerPath().Qualify(st.name)
 }
 
 // hasLedgerSectionLocked reports whether the Task taskID owns a section in

@@ -90,3 +90,24 @@ func TestLedgerFoldLiftsToHighestUniformContainer(t *testing.T) {
 		t.Errorf("ledger = %q, want it to contain %q", got, want)
 	}
 }
+
+// Probe B: two folded rows sharing a container name are told apart.
+func TestLedgerFoldQualifiesDuplicateContainerSubjects(t *testing.T) {
+	got, _ := runPlain(t, Config{}, func(o *Output) {
+		for _, repo := range []string{"alpha", "beta"} {
+			r := o.Group(repo)
+			r.Task(repo).Define(effectOf(EffectDelete, "worktree", 1))
+			b := r.Group("branches")
+			for i := range 3 {
+				b.Task(fmt.Sprintf("%s b%d", repo, i)).Define(effectOf(EffectDelete, "branch", 1))
+			}
+		}
+	})
+	want := "[changed] alpha             deleted 1 worktree\n" +
+		"[changed] alpha › branches  deleted 3 branches\n" +
+		"[changed] beta              deleted 1 worktree\n" +
+		"[changed] beta › branches   deleted 3 branches\n"
+	if !strings.Contains(got, want) {
+		t.Errorf("ledger = %q, want it to contain %q", got, want)
+	}
+}
