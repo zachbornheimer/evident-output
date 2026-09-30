@@ -580,13 +580,19 @@ func TestSpecP26_LiveFrame_ResizeMidRun_DropsToCompactDialect(t *testing.T) {
 	}
 }
 
+// concurrentGroupsBlockedTasks is how many Tasks TestSpecConcurrentGroups_BothRunning
+// holds blocked at once (two Groups of three). The engine's default ceiling is
+// GOMAXPROCS, so the test pins an explicit MaxConcurrency at least this high
+// to stay independent of the host CPU count.
+const concurrentGroupsBlockedTasks = 6
+
 // TestSpecConcurrentGroups_BothRunning covers the dialect's concurrent
 // Group live check: two sibling Groups both Running, each collapsed to one
 // aggregate spinner row.
 func TestSpecConcurrentGroups_BothRunning(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := newLiveScreenOutput(screen)
+	out := newLiveScreenOutputCfg(screen, evo.Config{MaxConcurrency: concurrentGroupsBlockedTasks})
 	t.Cleanup(func() { _ = out.Close() })
 
 	worktrees := out.Group("worktrees")

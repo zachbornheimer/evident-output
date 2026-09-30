@@ -78,9 +78,14 @@ func TestSpecP4_SequenceDefine_DeclarationOrder(t *testing.T) {
 	}
 }
 
+// afterFetchBlockedTasks is how many Tasks TestSpecAfter_FetchWaitsForGroups
+// holds blocked at once (one per Group). Pinned so the test does not depend on
+// the engine's GOMAXPROCS default.
+const afterFetchBlockedTasks = 2
+
 func TestSpecAfter_FetchWaitsForGroups(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Isolated: true, Title: "fetch", Stdout: bytes.NewBuffer(nil), Plain: true, Color: evo.ColorNever, Clock: testkit.NewClock()})
+	out := evo.Init(evo.Config{Isolated: true, MaxConcurrency: afterFetchBlockedTasks, Title: "fetch", Stdout: bytes.NewBuffer(nil), Plain: true, Color: evo.ColorNever, Clock: testkit.NewClock()})
 	t.Cleanup(func() { _ = out.Close() })
 
 	worktrees := out.Group("worktrees")
