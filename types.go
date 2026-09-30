@@ -5,8 +5,6 @@ import "github.com/zachbornheimer/evident-output/internal/engine"
 // Engine-owned types. Domain model aliases (Snapshot, Problem, Action)
 // stay in their existing files and point at internal/core, not through engine.
 
-type SequenceHandle struct{ inner *engine.SequenceHandle }
-type GroupHandle struct{ inner *engine.GroupHandle }
 type Printer struct{ inner *engine.Printer }
 type Failure struct{ inner *engine.Failure }
 

@@ -13,8 +13,6 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 
 func (o *Output) Fact(name, value string) { o.impl().Fact(name, value) }
 
-func (o *Output) Group(name string) *GroupHandle { return wrapGroup(o.impl().Group(name)) }
-
 func (o *Output) Next(actions ...Action) { o.impl().Next(actions...) }
 
 func (o *Output) NextCommand(executable string, args ...string) {
@@ -32,10 +30,6 @@ func (o *Output) ResultWriter() io.Writer {
 		return io.Discard
 	}
 	return o.inner.ResultWriter()
-}
-
-func (o *Output) Sequence(name string) *SequenceHandle {
-	return wrapSequence(o.impl().Sequence(name))
 }
 
 func (o *Output) Snapshot() Snapshot {

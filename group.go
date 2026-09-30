@@ -1,5 +1,77 @@
 package evo
 
+import "github.com/zachbornheimer/evident-output/internal/engine"
+
+type SequenceHandle struct{ inner *engine.SequenceHandle }
+type GroupHandle struct{ inner *engine.GroupHandle }
+
+// Sequence declares a self-managing, ordered task container on the default
+// instance.
+func Sequence(name string) *SequenceHandle {
+	return wrapSequence(engine.Sequence(name))
+}
+
+func Group(name string) *GroupHandle { return wrapGroup(engine.Group(name)) }
+
+func (o *Output) Group(name string) *GroupHandle { return wrapGroup(o.impl().Group(name)) }
+
+func (o *Output) Sequence(name string) *SequenceHandle {
+	return wrapSequence(o.impl().Sequence(name))
+}
+
+func (t *TaskHandle) After(preds ...any) *TaskHandle {
+	unwrapped := make([]any, len(preds))
+	for i, p := range preds {
+		unwrapped[i] = unwrapPred(p)
+	}
+	t.impl().After(unwrapped...)
+	return t
+}
+
+func wrapSequence(inner *engine.SequenceHandle) *SequenceHandle {
+	return wrap(inner, func() *SequenceHandle { return &SequenceHandle{inner: inner} })
+}
+
+func wrapGroup(inner *engine.GroupHandle) *GroupHandle {
+	return wrap(inner, func() *GroupHandle { return &GroupHandle{inner: inner} })
+}
+
+func (g *GroupHandle) impl() *engine.GroupHandle {
+	if g == nil {
+		return nil
+	}
+	return g.inner
+}
+
+func (s *SequenceHandle) impl() *engine.SequenceHandle {
+	if s == nil {
+		return nil
+	}
+	return s.inner
+}
+
+func unwrapPred(p any) any {
+	switch x := p.(type) {
+	case *TaskHandle:
+		if x == nil {
+			return (*engine.TaskHandle)(nil)
+		}
+		return x.inner
+	case *GroupHandle:
+		if x == nil {
+			return (*engine.GroupHandle)(nil)
+		}
+		return x.inner
+	case *SequenceHandle:
+		if x == nil {
+			return (*engine.SequenceHandle)(nil)
+		}
+		return x.inner
+	default:
+		return p
+	}
+}
+
 func (g *GroupHandle) Group(name string) *GroupHandle {
 	return wrapGroup(g.impl().Group(name))
 }

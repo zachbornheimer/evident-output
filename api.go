@@ -7,14 +7,6 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/engine"
 )
 
-// Sequence declares a self-managing, ordered task container on the default
-// instance.
-func Sequence(name string) *SequenceHandle {
-	return wrapSequence(engine.Sequence(name))
-}
-
-func Group(name string) *GroupHandle { return wrapGroup(engine.Group(name)) }
-
 // Print formats like fmt.Sprint and enqueues human-facing text on the default instance.
 func Print(args ...any) { engine.Print(args...) }
 

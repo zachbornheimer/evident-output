@@ -44,15 +44,6 @@ const (
 // Progress is absolute measurement for a task.
 type Progress = core.Progress
 
-func (t *TaskHandle) After(preds ...any) *TaskHandle {
-	unwrapped := make([]any, len(preds))
-	for i, p := range preds {
-		unwrapped[i] = unwrapPred(p)
-	}
-	t.impl().After(unwrapped...)
-	return t
-}
-
 func (t *TaskHandle) Bytes(completed, total int64) *TaskHandle {
 	t.impl().Bytes(completed, total)
 	return t
