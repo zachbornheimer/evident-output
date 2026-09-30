@@ -103,17 +103,6 @@ func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle 
 	return t
 }
 
-// Problem appends one structured diagnostic without resolving the Task.
-// Severity defaults to SeverityError: a nil Define return then settles
-// Failed. Severity(SeverityWarning) uses the warning projection and never
-// fails the Task. An invalid severity is rejected with a context-bearing
-// error. Calling it after the Task resolved is misuse, unless an interrupt
-// resolved it.
-func (t *TaskHandle) Problem(summary string, options ...ProblemOption) *TaskHandle {
-	t.impl().Problem(summary, options...)
-	return t
-}
-
 func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
 	t.impl().Progress(completed, total)
 	return t

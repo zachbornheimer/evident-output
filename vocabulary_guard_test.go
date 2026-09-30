@@ -105,7 +105,6 @@ var pendingMoves = map[string]string{
 	"TaskHandle.After": "task.go",
 	"TaskHandle.Fact":  "task.go",
 	"TaskHandle.Next":  "task.go", "TaskHandle.NextCommand": "task.go",
-	"TaskHandle.Problem":  "task.go",
 	"TaskHandle.Snapshot": "task.go",
 	"RenderPlain":         "format.go", "EffectRecord": "snapshot.go",
 }

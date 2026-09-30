@@ -66,3 +66,37 @@ func Next(action Action) ProblemOption { return engine.Next(action) }
 func NextCommand(executable string, args ...string) ProblemOption {
 	return engine.NextCommand(executable, args...)
 }
+
+type Failure struct{ inner *engine.Failure }
+
+func (f *Failure) Error() string {
+	if f == nil || f.inner == nil {
+		return ""
+	}
+	return f.inner.Error()
+}
+
+func (f *Failure) Unwrap() error {
+	if f == nil || f.inner == nil {
+		return nil
+	}
+	return f.inner.Unwrap()
+}
+
+// Problem codes are stable, machine-readable Problem.Code values a consumer
+// matches on instead of parsing Summary text.
+const (
+	ProblemCodeDuplicateSiblingName    = engine.ProblemCodeDuplicateSiblingName
+	ProblemCodeVerificationUnsatisfied = engine.ProblemCodeVerificationUnsatisfied
+)
+
+// Problem appends one structured diagnostic without resolving the Task.
+// Severity defaults to SeverityError: a nil Define return then settles
+// Failed. Severity(SeverityWarning) uses the warning projection and never
+// fails the Task. An invalid severity is rejected with a context-bearing
+// error. Calling it after the Task resolved is misuse, unless an interrupt
+// resolved it.
+func (t *TaskHandle) Problem(summary string, options ...ProblemOption) *TaskHandle {
+	t.impl().Problem(summary, options...)
+	return t
+}

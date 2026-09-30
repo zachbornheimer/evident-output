@@ -6,7 +6,6 @@ import "github.com/zachbornheimer/evident-output/internal/engine"
 // stay in their existing files and point at internal/core, not through engine.
 
 type Printer struct{ inner *engine.Printer }
-type Failure struct{ inner *engine.Failure }
 
 type ConfirmOption = engine.ConfirmOption
 type DebugPaneOption = engine.DebugPaneOption
@@ -91,11 +90,4 @@ var (
 	ErrKeyAfterDefine       = engine.ErrKeyAfterDefine
 	ErrNoTaskContext        = engine.ErrNoTaskContext
 	ErrTaskClosed           = engine.ErrTaskClosed
-)
-
-// Problem codes are stable, machine-readable Problem.Code values a consumer
-// matches on instead of parsing Summary text.
-const (
-	ProblemCodeDuplicateSiblingName    = engine.ProblemCodeDuplicateSiblingName
-	ProblemCodeVerificationUnsatisfied = engine.ProblemCodeVerificationUnsatisfied
 )

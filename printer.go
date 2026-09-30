@@ -14,17 +14,3 @@ func (p *Printer) Writer() io.Writer {
 	}
 	return p.inner.Writer()
 }
-
-func (f *Failure) Error() string {
-	if f == nil || f.inner == nil {
-		return ""
-	}
-	return f.inner.Error()
-}
-
-func (f *Failure) Unwrap() error {
-	if f == nil || f.inner == nil {
-		return nil
-	}
-	return f.inner.Unwrap()
-}
