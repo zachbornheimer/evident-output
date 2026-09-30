@@ -28,10 +28,57 @@ type LiveChildren struct {
 	keptItems, keptWork int
 	keptByRank          [attentionRankCount]int
 
-	all, work core.ChildCounts
-	items     core.Dispositions
-	census    render.ChildCensus
+	roster ChildRoster
 }
+
+// ChildRoster is what a live projection knows about every child Task of
+// a collection, admitted or not: everything the tally of the ones it left
+// out is built from. LiveChildren counts it in one pass; a caller that
+// keeps the counts current as Tasks change (the engine's child index)
+// supplies it directly to Project.
+type ChildRoster struct {
+	// All counts every child; Work every child that is not a disposition
+	// item.
+	All, Work core.ChildCounts
+	// Items sums the disposition items' Skipped and Kept records.
+	Items  core.Dispositions
+	Census render.ChildCensus
+}
+
+// ChildKind is how a live frame files one child Task of the collection
+// named group.
+type ChildKind struct {
+	// Item reports a disposition item: counted in its collection's
+	// tally, never ranked.
+	Item bool
+	// OwnTask and WorkPeer feed the census that decides whether the
+	// items fold (render.ChildCensus).
+	OwnTask, WorkPeer bool
+	// Rank is the attention rank of a non-item child; AttentionRanks or
+	// more is routine.
+	Rank int
+}
+
+// AttentionRanks is the rank of a child that never fills a frame's rows
+// by attention.
+const AttentionRanks = attentionRankCount
+
+// ClassifyChild files t under the collection named group.
+func ClassifyChild(group string, t *core.TaskSnapshot) ChildKind {
+	switch {
+	case render.IsOwnTask(group, t):
+		return ChildKind{OwnTask: true, Rank: liveRank(*t)}
+	case render.IsDispositionItem(group, t):
+		return ChildKind{Item: true}
+	default:
+		return ChildKind{WorkPeer: render.IsWorkPeer(t), Rank: liveRank(*t)}
+	}
+}
+
+// ChildRows is how many rows of children a frame of rows rows admits by
+// attention rank; it admits one more, in declaration order, of each of
+// the disposition items and the other children.
+func ChildRows(rows int) int { return liveHeight(rows) }
 
 // NewLiveChildren starts the projection of the children of the collection
 // named group for a frame of rows rows.
@@ -42,24 +89,26 @@ func NewLiveChildren(group string, rows int) *LiveChildren {
 // Admit counts t and reports whether the frame could show it, in which
 // case the caller passes its full snapshot to Keep.
 func (c *LiveChildren) Admit(t *core.TaskSnapshot) bool {
-	c.all.Add(t)
+	r := &c.roster
+	r.All.Add(t)
+	kind := ClassifyChild(c.group, t)
 	switch {
-	case render.IsOwnTask(c.group, t):
-		c.census.OwnTask = true
-	case render.IsDispositionItem(c.group, t):
-		c.census.Items++
-		c.items.AddTask(t)
+	case kind.Item:
+		r.Census.Items++
+		r.Items.AddTask(t)
 		c.keptItems++
 		return c.keptItems <= c.rows+1
-	case render.IsWorkPeer(t):
-		c.census.WorkPeer = true
+	case kind.OwnTask:
+		r.Census.OwnTask = true
+	case kind.WorkPeer:
+		r.Census.WorkPeer = true
 	}
-	c.work.Add(t)
+	r.Work.Add(t)
 	c.keptWork++
 	admit := c.keptWork <= c.rows+1
-	if r := liveRank(*t); r < attentionRankCount {
-		c.keptByRank[r]++
-		admit = admit || c.keptByRank[r] <= c.rows
+	if kind.Rank < attentionRankCount {
+		c.keptByRank[kind.Rank]++
+		admit = admit || c.keptByRank[kind.Rank] <= c.rows
 	}
 	return admit
 }
@@ -70,13 +119,19 @@ func (c *LiveChildren) Keep(t core.TaskSnapshot) { c.kept = append(c.kept, t) }
 // Collection is col, whose own fields the caller filled, holding the kept
 // children and, when some were left out, the tally of all of them.
 func (c *LiveChildren) Collection(col core.TasksSnapshot) core.TasksSnapshot {
-	col.Tasks = c.kept
-	if len(c.kept) == c.all.Total {
+	return c.roster.Project(col, c.kept)
+}
+
+// Project is col holding kept, the children a frame could show, and,
+// when some were left out, the tally of all of them.
+func (r ChildRoster) Project(col core.TasksSnapshot, kept []core.TaskSnapshot) core.TasksSnapshot {
+	col.Tasks = kept
+	if len(kept) == r.All.Total {
 		return core.WithoutChildTally(col)
 	}
-	tally := core.ChildTally{All: c.all, Rest: c.all}
-	if !col.Sequential && c.census.Folds(col.Summary) {
-		tally.Folded, tally.Items, tally.Rest = true, c.items, c.work
+	tally := core.ChildTally{All: r.All, Rest: r.All}
+	if !col.Sequential && r.Census.Folds(col.Summary) {
+		tally.Folded, tally.Items, tally.Rest = true, r.Items, r.Work
 	}
 	return core.WithChildTally(col, tally)
 }

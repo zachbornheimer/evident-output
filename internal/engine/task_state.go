@@ -38,6 +38,9 @@ type taskState struct {
 	// including a Pending task, which never calls Phase/Progress.
 	liveFirstSeenAt time.Time
 
+	// filing is where this Task stands in its collection's childIndex.
+	filing filing
+
 	// heartbeat is the §40 plain-mode durable heartbeat's state.
 	heartbeat plainHeartbeat
 
@@ -134,6 +137,9 @@ type tasksState struct {
 	tasks       []*taskState
 	declaration int
 	handle      *GroupHandle
+
+	// kids is what a live frame and the verdict read of tasks.
+	kids childIndex
 
 	// names holds the names this container's child Tasks and containers
 	// claimed (§3.1); see siblings.

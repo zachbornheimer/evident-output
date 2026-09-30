@@ -30,6 +30,7 @@ func (x *ledgerIndex) opened(key ledgerSectionKey, s *ledgerSection) {
 func (o *Output) appendTaskLocked(st *taskState) {
 	o.tasks = append(o.tasks, st)
 	if st.collection == nil {
+		o.rootTasks = append(o.rootTasks, st)
 		o.rootColumn.add(st.name)
 	}
 }

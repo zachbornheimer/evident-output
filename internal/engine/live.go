@@ -254,14 +254,15 @@ func (o *Output) needsSpinnerAnimLocked() bool {
 	if o.armedTitleLiveLocked() {
 		return true
 	}
-	for _, t := range o.tasks {
-		if t.state != Running && t.state != Pending {
-			continue
+	for _, col := range o.collections {
+		if col.census.running+col.census.pending > 0 {
+			return true
 		}
-		if t.collection == nil && t.coreEmitted {
-			continue
+	}
+	for _, t := range o.rootTasks {
+		if (t.state == Running || t.state == Pending) && !t.coreEmitted {
+			return true
 		}
-		return true
 	}
 	return false
 }
@@ -424,6 +425,7 @@ func untilNextSpinnerSlot(now time.Time) time.Duration {
 func (t *taskState) stampLiveFirstSeen(now time.Time) {
 	if t.unstampedIn(t.state) {
 		t.liveFirstSeenAt = now
+		t.markFiling()
 		t.censusStamped()
 	}
 }
@@ -480,10 +482,7 @@ func (o *Output) liveSnapshotLocked(rows int, now time.Time) Snapshot {
 	s.Collections = cols.Kept()
 	s = core.WithRootCollectionTally(s, cols.Tally())
 	root := live.NewLiveChildren("", rows)
-	for _, t := range o.tasks {
-		if t.collection != nil {
-			continue
-		}
+	for _, t := range o.rootTasks {
 		t.stampLiveFirstSeen(now)
 		view := t.view()
 		if t.coreEmitted || o.heldBackAsNoOpLocked(view) {

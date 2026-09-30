@@ -340,6 +340,7 @@ func (o *Output) setResolution(taskID string, r Resolution) {
 	defer o.mu.Unlock()
 	if st := o.taskByRef[taskID]; st != nil {
 		st.resolution = r
+		st.markFiling()
 	}
 }
 

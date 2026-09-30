@@ -135,10 +135,7 @@ func (g *tasksState) derivedState() EntityState {
 	if len(g.children) == 0 && g.allTasksNotStarted() {
 		return NotStarted
 	}
-	var v verdictFold
-	for _, t := range g.tasks {
-		v.add(t.state)
-	}
+	v := g.settled().states.fold()
 	for _, child := range g.children {
 		switch s := child.derivedState(); s {
 		case Empty:
@@ -152,12 +149,7 @@ func (g *tasksState) derivedState() EntityState {
 }
 
 func (g *tasksState) allTasksNotStarted() bool {
-	for _, t := range g.tasks {
-		if t.state != NotStarted {
-			return false
-		}
-	}
-	return len(g.tasks) > 0
+	return len(g.tasks) > 0 && g.settled().states.notStarted == len(g.tasks)
 }
 
 // verdictFold accumulates member states into one container verdict. A
@@ -217,10 +209,8 @@ func (g *tasksState) displaySummary(st EntityState) string {
 // this method already gave Failed/Cancelled, restored and extended to
 // Warnings.
 func (g *tasksState) hasWarnedOrFailedDescendant() bool {
-	for _, t := range g.tasks {
-		if t.state == Failed || t.state == Cancelled || len(t.warnings) > 0 {
-			return true
-		}
+	if s := g.settled().states; s.failed > 0 || s.cancelled > 0 || s.warned > 0 {
+		return true
 	}
 	for _, child := range g.children {
 		if child.hasWarnedOrFailedDescendant() {
@@ -293,16 +283,15 @@ func (g *tasksState) header() TasksSnapshot {
 // children it could select, snapshotted, and a tally of the rest (see
 // live.LiveChildren).
 func (g *tasksState) liveSnapshot(rows int, now time.Time) TasksSnapshot {
+	g.stampDirectTasks(now)
 	ts := g.header()
-	children := live.NewLiveChildren(g.name, rows)
-	for _, t := range g.tasks {
-		t.stampLiveFirstSeen(now)
-		if view := t.view(); children.Admit(&view) {
-			children.Keep(t.snapshot())
-		}
-	}
+	kept, roster := g.settled().project(g, rows)
 	ts = liveCollections(g.children, rows, now).Into(ts)
-	return children.Collection(ts)
+	ts = roster.Project(ts, kept)
+	if liveIndexAudit != nil {
+		liveIndexAudit(g, rows, now, ts)
+	}
+	return ts
 }
 
 // liveCollections projects cols for a live frame of rows rows: the ones
@@ -340,9 +329,7 @@ func (g *tasksState) stampLiveFirstSeen(now time.Time) {
 	if g.census.unstamped == 0 {
 		return
 	}
-	for _, t := range g.tasks {
-		t.stampLiveFirstSeen(now)
-	}
+	g.stampDirectTasks(now)
 	for _, child := range g.children {
 		child.stampLiveFirstSeen(now)
 	}

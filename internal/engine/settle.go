@@ -24,6 +24,7 @@ func (o *Output) settleLocked(st *taskState, state EntityState) {
 	st.state = state
 	st.censusMoved(from)
 	st.phase = ""
+	st.markFiling()
 	o.stopPlainHeartbeatLocked(st)
 	st.closeDoneLocked()
 	if st.sched.awaitingStart() {

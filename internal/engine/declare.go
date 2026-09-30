@@ -88,7 +88,9 @@ func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 		st.sched.preds = o.appendStepPredsLocked(st.sched.preds, col)
 		st.sched.preds = o.joinPassedSequencesLocked(st.sched.preds, col, predecessor{task: st})
 		col.recordStep(predecessor{task: st})
+		st.filing.pos = len(col.tasks)
 		col.tasks = append(col.tasks, st)
+		st.markFiling()
 		col.hasNamesake = col.hasNamesake || name == col.name
 		tallyDeclaredLocked(st)
 		st.censusDeclared()

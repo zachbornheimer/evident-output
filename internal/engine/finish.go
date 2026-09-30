@@ -271,6 +271,7 @@ func (o *Output) abnormalFinishLocked() bool {
 // o.finishing — this runs from inside Finish's own unresolved-task sweep.
 func attachUnresolvedTaskHintLocked(t *taskState) {
 	t.actions = append(t.actions, Label(unresolvedTaskHint))
+	t.markFiling()
 }
 
 // autoResolveGroupsLocked stops each group from implying "still might run"

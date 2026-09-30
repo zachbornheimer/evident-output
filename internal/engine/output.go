@@ -60,7 +60,10 @@ type Output struct {
 	// consistently even if the process CWD changes mid-Run (§8.1).
 	workspaceDir string
 
-	tasks       []*taskState
+	tasks []*taskState
+	// rootTasks are the tasks outside every collection, in declaration
+	// order: the ones a live frame walks beside the collections.
+	rootTasks   []*taskState
 	collections []*tasksState
 	// changes and plans are the run's [changed] and [planned] sections, in
 	// ledger order (ledger_section.go).
@@ -323,6 +326,7 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 	}
 	stored := core.StoreVerificationDetails(details)
 	st.verification = append(st.verification, stored...)
+	st.markFiling()
 	// Emit the sanitized copy evo.run projects, so JSONL and JSON agree.
 	for _, d := range stored {
 		o.emitWireEventLocked(wire.EventVerificationObserved, taskID, wire.ToVerificationDoc(d).EventPayload())
@@ -349,6 +353,7 @@ func (o *Output) promoteRunningLocked(st *taskState) {
 	from := st.state
 	st.state = Running
 	st.censusMoved(from)
+	st.markFiling()
 	o.armPlainHeartbeatLocked(st, o.cfg.clock.Now())
 	// Every promoteRunningLocked call site already guards on st.state ==
 	// Pending before calling it, and this line immediately advances past
