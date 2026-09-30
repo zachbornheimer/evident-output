@@ -178,6 +178,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Fixed
 
+- **`Run` no longer hangs when the run callback exits via `runtime.Goexit`.**
+  The result was sent after the callback returned, so a callback whose
+  goroutine ended through `Goexit` (directly or via a library such as
+  `testing.T.FailNow`) left `Run` waiting forever. The result is now
+  delivered from a defer; such a run concludes Failed with the error
+  "run callback exited without returning (runtime.Goexit)".
 - A live Group holding more per-item Groups than the terminal has rows
   keeps its header with an `N/M complete` count of finished items, shows
   the failed, warned, running and pending items first, and folds the rest
