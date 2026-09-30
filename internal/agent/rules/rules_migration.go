@@ -150,11 +150,19 @@ func Migrations() []MigrationRow {
 		},
 		{
 			From:    "Failure.Next / Failure.NextCommand",
-			To:      "TaskHandle.Next / TaskHandle.NextCommand after Fail or Block",
+			To:      "Next / NextCommand ProblemOptions on Fail or Block",
 			RuleID:  "API-032",
 			Since:   "1.1.0",
 			Removed: true,
-			Notes:   "Failure.Next was removed in 1.1; attach a remedy on the Task after Fail or Block",
+			Notes:   "Failure.Next was removed in 1.1; pass evo.Next(...) as an option to Fail or Block",
+		},
+		{
+			From:    "TaskHandle.Next / TaskHandle.NextCommand / Output.Next / Output.NextCommand",
+			To:      "evo.Next / evo.NextCommand options on Problem, Fail, or Block",
+			RuleID:  "API-032",
+			Since:   "1.1.0",
+			Removed: true,
+			Notes:   "A remedy belongs to the Problem it explains (ZYS-1182); a remedy with no failure becomes a warning-severity Problem on the Task that motivates it",
 		},
 		{
 			From:    "ForSkip / OnTask / ReasonOption / ErrReasonSkipOnly / ErrReasonWrongTask",
