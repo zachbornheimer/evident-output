@@ -51,10 +51,8 @@ func (o *Output) writeDurableTextLocked(text string) {
 	// stays visible. Clear it on the surface's own bookkeeping (o.live.liveActive),
 	// not on a fresh interactive re-check, so durable text is never appended
 	// straight onto whatever line the live region last drew.
-	if live != nil && o.live != nil && o.live.liveActive {
-		live.ClearLive()
-		o.live.liveActive = false
-		o.live.lastLiveText = ""
+	if live != nil && o.live != nil {
+		o.live.clear(live)
 	}
 	interactive := live != nil && live.IsInteractive() && !o.cfg.plain
 	if interactive {
@@ -164,9 +162,7 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 	if o.hasLiveActivityLocked() {
 		o.live.visible = true
 		o.renderLiveLocked(true)
-	} else if o.live != nil && o.live.liveActive {
-		live.ClearLive()
-		o.live.liveActive = false
+	} else if o.live != nil && o.live.clear(live) {
 		o.live.visible = false
 		o.stopSpinnerAnimatorLocked()
 	}

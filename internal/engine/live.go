@@ -3,6 +3,7 @@ package engine
 import (
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
@@ -35,12 +36,30 @@ func asLive(d TerminalDriver) LiveSurface {
 }
 
 type liveEngine struct {
-	surface       LiveSurface
-	visible       bool
-	lastRender    time.Time
-	lastLiveText  string
-	liveActive    bool
-	pendingRedraw bool
+	surface LiveSurface
+	visible bool
+
+	// paintMu serializes writes to the surface and guards what describes
+	// them. Lock order is o.mu, then paintMu; a paint never takes o.mu
+	// while holding it.
+	paintMu      sync.Mutex
+	lastLiveText string
+	liveActive   bool
+	floorSeq     uint64 // frames at or below it were snapshotted before a clear
+	paintedSeq   uint64 // the newest frame that reached paint
+
+	// seq numbers frames in snapshot order; guarded by o.mu.
+	seq uint64
+
+	// lastRender is the domain time of the last write (nil: never painted),
+	// lastWrite the wall time it began.
+	lastRender    atomic.Pointer[time.Time]
+	lastWrite     atomic.Pointer[time.Time]
+	pendingRedraw atomic.Bool
+
+	// meter and skippedGlyph back the animator's overload backpressure.
+	meter        frameMeter
+	skippedGlyph atomic.Int64
 
 	// activitySince is set when live activity first appears; VisibilityDelay
 	// withholds the first paint until the domain clock advances past the delay
@@ -105,14 +124,25 @@ func (o *Output) signalLiveLocked(force bool) {
 	if !o.live.visible {
 		return
 	}
+	lastRender := o.live.lastRender.Load()
+	if lastRender != nil && len(o.tasks) > forcedRenderRowsPerInterval {
+		// Past the forced budget's row count the animator owns painting: it
+		// ticks every spinner period while anything is unresolved, so workers
+		// never render inline. The first paint and every direct
+		// renderLiveLocked caller (finish, suspend, durable redraw) stay
+		// synchronous. The gate counts Tasks, not time, so it is deterministic.
+		o.live.pendingRedraw.Store(true)
+		o.ensureSpinnerAnimatorLocked()
+		return
+	}
 	minGap := time.Second / time.Duration(max(1, o.cfg.maxFrameRate))
 	if force && !o.live.forced.allow(now, minGap, len(o.tasks)) {
 		force = false
 	}
-	if !force && !o.live.lastRender.IsZero() {
-		if now.Sub(o.live.lastRender) < minGap {
+	if !force && lastRender != nil {
+		if now.Sub(*lastRender) < minGap {
 			// The animator paints the coalesced change on its next tick.
-			o.live.pendingRedraw = true
+			o.live.pendingRedraw.Store(true)
 			o.ensureSpinnerAnimatorLocked()
 			return
 		}
@@ -219,28 +249,7 @@ func (o *Output) renderLiveLocked(force bool) {
 	if live == nil || o.live == nil || !o.live.visible {
 		return
 	}
-	// Refresh geometry before layout when the driver supports it (ANSI + real TTY).
-	if r, ok := live.(interface{ RefreshSize() }); ok {
-		r.RefreshSize()
-	}
-	now := o.cfg.clock.Now()
-	cols, rows := live.Columns(), live.Rows()
-	// Keep config width in sync for plain residual paths that still use cfg.text.
-	if cols > 0 {
-		o.cfg.width = cols
-	}
-	text := o.renderLiveRegionWithDebugLocked(cols, rows, now)
-	// force bypasses min-gap coalescing in signalLiveLocked, but identical
-	// bytes still skip WriteLive (spinner ticks pass force=true; glyph
-	// changes alter the rendered string and still paint).
-	if text == o.live.lastLiveText && o.live.liveActive {
-		return
-	}
-	live.WriteLive(text)
-	o.live.lastLiveText = text
-	o.live.lastRender = now
-	o.live.liveActive = true
-	o.live.pendingRedraw = false
+	o.paintFrameLocked(live)
 }
 
 // needsSpinnerAnimLocked reports whether any live row should keep ticking: the
@@ -288,7 +297,7 @@ func (o *Output) ensureSpinnerAnimatorLocked() {
 		// fall through to start animator
 	case !o.live.visible:
 		return
-	case !o.needsSpinnerAnimLocked() && !o.live.pendingRedraw:
+	case !o.needsSpinnerAnimLocked() && !o.live.pendingRedraw.Load():
 		o.stopSpinnerAnimatorLocked()
 		return
 	}
@@ -363,43 +372,66 @@ func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
 		case <-t.C:
 			t.Reset(untilNextSpinnerSlot(time.Now()))
 			o.mu.Lock()
-			if o.closed || o.finished || o.live == nil {
-				o.stopSpinnerAnimatorLocked()
-				o.mu.Unlock()
-				return
+			next := o.animatorTickLocked()
+			if next == tickPaint || next == tickFlush {
+				o.paintFrameUnlocked(o.live.surface)
 			}
-			// Promote visibility after VisibilityDelay using domain clock.
-			if o.live.waitingDelay && o.hasLiveActivityLocked() {
-				delay := o.cfg.visibilityDelay
-				now := o.cfg.clock.Now()
-				if delay <= 0 || now.Sub(o.live.activitySince) >= delay {
-					o.live.visible = true
-					o.live.waitingDelay = false
-					o.renderLiveLocked(true)
-				}
-				o.mu.Unlock()
-				continue
-			}
-			if !o.live.visible {
-				o.stopSpinnerAnimatorLocked()
-				o.mu.Unlock()
-				return
-			}
-			if !o.needsSpinnerAnimLocked() {
-				// Paint the last coalesced change before going quiet, so
-				// the frame on screen is never older than the run.
-				if o.live.pendingRedraw {
-					o.renderLiveLocked(true)
-				}
-				o.stopSpinnerAnimatorLocked()
-				o.mu.Unlock()
-				return
-			}
-			// Force redraw so time-based spinner glyphs advance.
-			o.renderLiveLocked(true)
 			o.mu.Unlock()
+			if next == tickStop || next == tickFlush {
+				return
+			}
 		}
 	}
+}
+
+// animatorStep is what one animator tick decided.
+type animatorStep int
+
+const (
+	tickContinue animatorStep = iota // nothing to paint; keep ticking
+	tickStop                         // nothing to paint; the animator has stopped
+	tickPaint                        // paint a frame, keep ticking
+	tickFlush                        // paint the last coalesced change; the animator has stopped
+)
+
+// animatorTickLocked decides one tick: it settles visibility and stops the
+// animator when nothing is left to animate, and skips a glyph-only repaint
+// while an overloaded surface was written too recently to need it.
+func (o *Output) animatorTickLocked() animatorStep {
+	if o.closed || o.finished || o.live == nil {
+		o.stopSpinnerAnimatorLocked()
+		return tickStop
+	}
+	// Promote visibility after VisibilityDelay using domain clock.
+	if o.live.waitingDelay && o.hasLiveActivityLocked() {
+		delay := o.cfg.visibilityDelay
+		now := o.cfg.clock.Now()
+		if delay <= 0 || now.Sub(o.live.activitySince) >= delay {
+			o.live.visible = true
+			o.live.waitingDelay = false
+			o.renderLiveLocked(true)
+		}
+		return tickContinue
+	}
+	if !o.live.visible {
+		o.stopSpinnerAnimatorLocked()
+		return tickStop
+	}
+	if !o.needsSpinnerAnimLocked() {
+		o.stopSpinnerAnimatorLocked()
+		// Paint the last coalesced change before going quiet, so
+		// the frame on screen is never older than the run.
+		if o.live.pendingRedraw.Load() {
+			return tickFlush
+		}
+		return tickStop
+	}
+	if !o.live.pendingRedraw.Load() && o.live.shouldSkipGlyph() {
+		o.live.skippedGlyph.Add(1)
+		return tickContinue
+	}
+	// Force redraw so time-based spinner glyphs advance.
+	return tickPaint
 }
 
 // spinnerSlotSettle is how far past a glyph-slot boundary the animator
@@ -438,10 +470,7 @@ func (o *Output) debugLiveLocked(line string) {
 	if o.live == nil {
 		o.live = &liveEngine{surface: live}
 	}
-	if o.live.liveActive {
-		live.ClearLive()
-		o.live.liveActive = false
-	}
+	o.live.clear(live)
 	live.WriteDurable(line)
 	if o.live.visible && o.hasLiveActivityLocked() {
 		o.renderLiveLocked(true)
@@ -454,9 +483,7 @@ func (o *Output) finishLiveLocked(final string) {
 		return
 	}
 	o.stopSpinnerAnimatorLocked()
-	if o.live != nil && o.live.liveActive {
-		live.ClearLive()
-		o.live.liveActive = false
+	if o.live != nil && o.live.clear(live) {
 		o.live.visible = false
 	}
 	// H.17 expects a compact final task line, not the full multi-section report.
@@ -498,32 +525,4 @@ func (o *Output) liveSnapshotLocked(rows int, now time.Time) Snapshot {
 		s = core.WithRootTally(s, tally)
 	}
 	return s
-}
-
-// renderLiveRegionWithDebug builds the live ledger plus optional rolling debug pane (§21.3.2).
-func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Time) string {
-	style := o.humanStyle()
-	bodyHeight := height
-	if o.cfg.debugPresentation == DebugPresentationPane && len(o.debugRecords) > 0 {
-		// Reserve rows for pane heading + visible records before budgeting the body.
-		paneRows := debugPaneReservedRows(o.cfg.debugPane, len(o.debugRecords))
-		if paneRows >= height {
-			paneRows = height - 1
-		}
-		if paneRows < 0 {
-			paneRows = 0
-		}
-		bodyHeight = max(height-paneRows, 1)
-	}
-	body := live.LiveRegion(o.liveSnapshotLocked(bodyHeight, now), bodyHeight, width, now, style)
-	if body == "" && o.armedTitleLiveLocked() {
-		body = live.ArmedTitleLine(o.cfg.subject, now, style)
-	}
-	if o.cfg.debugPresentation != DebugPresentationPane || len(o.debugRecords) == 0 {
-		return live.FitLiveRegion(body, width)
-	}
-	var b strings.Builder
-	b.WriteString(body)
-	writeDebugPane(&b, o.debugRecords, o.cfg.debugPane, width, style.Color)
-	return live.FitLiveRegion(strings.TrimRight(b.String(), "\n"), width)
 }

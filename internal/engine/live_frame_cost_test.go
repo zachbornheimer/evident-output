@@ -27,15 +27,25 @@ func liveFrameOutput(tb testing.TB, n int) (*Output, time.Time) {
 	return out, clock.t
 }
 
-// BenchmarkLiveFrame_16kTasks is the cost of one spinner-tick repaint of a
-// 16000-Task Group: it must track the screen's rows, not the Task count.
-func BenchmarkLiveFrame_16kTasks(b *testing.B) {
-	out, now := liveFrameOutput(b, 16000)
-	out.mu.Lock()
-	defer out.mu.Unlock()
-	b.ReportAllocs()
-	for b.Loop() {
-		_ = out.renderLiveRegionWithDebugLocked(80, 24, now)
+// liveFrameFull is one spinner-tick frame: the snapshot under o.mu and the
+// text render after it, as the animator builds it.
+func liveFrameFull(out *Output, now time.Time) string {
+	return out.liveFrameAtLocked(80, 24, now).render()
+}
+
+// BenchmarkLiveFrame is the cost of one spinner-tick repaint of an n-Task
+// Group: it must track the screen's rows, not the Task count.
+func BenchmarkLiveFrame(b *testing.B) {
+	for _, n := range []int{1000, 16000} {
+		b.Run(fmt.Sprint(n), func(b *testing.B) {
+			out, now := liveFrameOutput(b, n)
+			out.mu.Lock()
+			defer out.mu.Unlock()
+			b.ReportAllocs()
+			for b.Loop() {
+				_ = liveFrameFull(out, now)
+			}
+		})
 	}
 }
 
@@ -46,22 +56,27 @@ func liveFrameCost(tb testing.TB, n int) time.Duration {
 	out, now := liveFrameOutput(tb, n)
 	out.mu.Lock()
 	defer out.mu.Unlock()
-	_ = out.renderLiveRegionWithDebugLocked(80, 24, now)
+	_ = liveFrameFull(out, now)
 	best := time.Duration(1<<63 - 1)
 	for range 30 {
 		start := time.Now()
-		_ = out.renderLiveRegionWithDebugLocked(80, 24, now)
+		_ = liveFrameFull(out, now)
 		best = min(best, time.Since(start))
 	}
 	return best
 }
+
+// liveFrameTimerFloor is the noise one timed frame carries on a loaded
+// host: a frame is tens of microseconds, so a single timer tick is a large
+// share of it.
+const liveFrameTimerFloor = 100 * time.Microsecond
 
 // TestLiveFrameCostDoesNotGrowWithOffScreenTasks guards E-091 in time: a
 // repaint that walked every Task would cost 16x more at 16000 than at 1000.
 func TestLiveFrameCostDoesNotGrowWithOffScreenTasks(t *testing.T) {
 	small, large := liveFrameCost(t, 1000), liveFrameCost(t, 16000)
 	t.Logf("per-frame: n=1000 %s, n=16000 %s", small, large)
-	if large > 2*small+time.Millisecond {
+	if large > 2*small+liveFrameTimerFloor {
 		t.Errorf("a frame took %s at 16000 Tasks and %s at 1000; want within 2x", large, small)
 	}
 }

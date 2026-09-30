@@ -88,7 +88,9 @@ func (o *Output) ForceLiveVisibleForTest() {
 		}
 	}
 	o.live.visible = true
+	o.live.paintMu.Lock()
 	o.live.liveActive = true
+	o.live.paintMu.Unlock()
 }
 func (o *Output) DebugWriterForTest() io.WriteCloser { return o.debugWriter() }
 func (o *Output) DeclareDryRunForTest()              { o.declareDryRun() }

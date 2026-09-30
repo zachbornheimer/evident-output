@@ -9,10 +9,8 @@ func (o *Output) Suspend(fn func() error) error {
 	}
 	o.mu.Lock()
 	live := o.liveLocked()
-	wasActive := o.live != nil && o.live.liveActive
-	if live != nil && wasActive {
-		live.ClearLive()
-		o.live.liveActive = false
+	wasActive := live != nil && o.live != nil && o.live.clear(live)
+	if wasActive {
 		// Confirm's prompt/answer must not be overwritten by a sibling
 		// task's live frame. Restored below once fn returns.
 		o.live.visible = false
@@ -22,7 +20,7 @@ func (o *Output) Suspend(fn func() error) error {
 	err := fn()
 
 	o.mu.Lock()
-	if live != nil && wasActive && o.needsSpinnerAnimLocked() {
+	if wasActive && o.needsSpinnerAnimLocked() {
 		o.live.visible = true
 		o.renderLiveLocked(true)
 	}

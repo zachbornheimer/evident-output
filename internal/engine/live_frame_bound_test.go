@@ -119,6 +119,10 @@ func nestedFrameAllocs(tb testing.TB, n, rows int) float64 {
 	}
 	out.mu.Lock()
 	defer out.mu.Unlock()
+	// The animator renders frames outside o.mu, so one it already began
+	// keeps allocating after this lock is taken; stopping it leaves that one
+	// frame to finish inside the first sample.
+	out.stopSpinnerAnimatorLocked()
 	// Scheduler goroutines finishing in the background allocate too, and
 	// AllocsPerRun counts every goroutine: the fewest of several samples is
 	// the frame's own cost.
