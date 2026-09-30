@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
@@ -119,7 +120,7 @@ func (c *evidence) retainedLineCount() int {
 func (t *TaskHandle) appendLiveTail(line string, retained int) {
 	t.annotate(func(st *taskState) {
 		line := txt.Text(line)
-		st.tail.push(line, retained)
+		st.tail.push(line, retained, t.out.cfg.clock.Now())
 		t.out.setLiveOnlyPhaseLocked(st, line)
 	})
 }
@@ -135,12 +136,15 @@ type liveTail struct {
 	lines []string
 	// retained is the Capture ring's line count as of the latest push.
 	retained int
+	// lastLineAt is the domain-clock time of the latest push.
+	lastLineAt time.Time
 }
 
 // push appends line, evicting the oldest once full. Every completed line
 // counts, even one identical to the newest: it is new output, not a redraw.
-func (t *liveTail) push(line string, retained int) {
+func (t *liveTail) push(line string, retained int, at time.Time) {
 	t.retained = retained
+	t.lastLineAt = at
 	if len(t.lines) == liveTailLines {
 		copy(t.lines, t.lines[1:])
 		t.lines[liveTailLines-1] = line
@@ -155,7 +159,7 @@ func (t *liveTail) push(line string, retained int) {
 // view is the tail as a snapshot sees it, sharing t's lines (see
 // taskState.view).
 func (t *liveTail) view() core.LiveTail {
-	return core.LiveTail{Lines: t.lines, Evidence: t.retained}
+	return core.LiveTail{Lines: t.lines, Evidence: t.retained, LastLineAt: t.lastLineAt}
 }
 
 var _ io.Writer = (*phaseWriter)(nil)

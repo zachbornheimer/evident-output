@@ -141,9 +141,12 @@ type TaskSnapshot struct {
 // first, bounded by the engine however long the child runs. Evidence is the
 // total number of lines the Task's Capture ring holds, Lines included — what
 // the live frame's footer reports and a reader can reach through DetailTail.
+// LastLineAt is the domain-clock time the newest completed line arrived; zero
+// when the Task has received none.
 type LiveTail struct {
-	Lines    []string
-	Evidence int
+	Lines      []string
+	Evidence   int
+	LastLineAt time.Time
 }
 
 // WithLiveTail is t carrying tail for the live frame.

@@ -53,6 +53,50 @@ func formatElapsed(d time.Duration) string {
 	return d.String()
 }
 
+// quietAfter is how long a Writer-backed Running row goes without a new
+// completed line before its owner row says so (ZYS-1045, v9b "Quiet").
+const quietAfter = 60 * time.Second
+
+// quietSuffix is " · quiet <duration>" for a Running row whose Writer has
+// produced lines but none for quietAfter, in the warn color; "" for every
+// other row. A row that never received a Writer line carries a zero
+// LastLineAt and is never quiet.
+func quietSuffix(t core.TaskSnapshot, st liveStyle) string {
+	last := runningTail(t).LastLineAt
+	if last.IsZero() {
+		return ""
+	}
+	silent := st.now.Sub(last)
+	if silent < quietAfter {
+		return ""
+	}
+	return " " + txt.Style("· quiet "+formatQuiet(silent), txt.SGRYellow, st.Color)
+}
+
+// withQuietSuffix appends the quiet suffix to a Running row's detail.
+func withQuietSuffix(detail string, t core.TaskSnapshot, st liveStyle) string {
+	quiet := quietSuffix(t, st)
+	if detail == "" {
+		return strings.TrimPrefix(quiet, " ")
+	}
+	return detail + quiet
+}
+
+// formatQuiet renders a silence in whole minutes, or hours and minutes past
+// an hour: "1m", "6m", "2h10m", "2h".
+func formatQuiet(d time.Duration) string {
+	minutes := int(d / time.Minute)
+	hours, minutes := minutes/60, minutes%60
+	switch {
+	case hours == 0:
+		return fmt.Sprintf("%dm", minutes)
+	case minutes == 0:
+		return fmt.Sprintf("%dh", hours)
+	default:
+		return fmt.Sprintf("%dh%dm", hours, minutes)
+	}
+}
+
 // renderLiveRegion builds the interactive ledger text for the current snapshot.
 // now selects spinner frames (inject FixedClock in tests for stable glyphs).
 // color applies SGR to glyphs as rows resolve (✓ green, ✗ red, spinner cyan).
@@ -283,7 +327,7 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 		parent.Phase = ""
 		unit := liveTaskUnit(parent, indent, st)
 		padRootName(&unit, indent, nameWidth)
-		b.WriteString(unit.Render(pad))
+		b.WriteString(renderOwnerRow(unit, pad, t, st))
 		b.WriteByte('\n')
 		child := DisplayUnit{
 			Glyph: txt.StyleGlyph(st.spin, StateColor(core.Running), st.Color),
@@ -294,7 +338,7 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 	} else {
 		unit := liveTaskUnit(t, indent, st)
 		padRootName(&unit, indent, nameWidth)
-		b.WriteString(unit.Render(pad))
+		b.WriteString(renderOwnerRow(unit, pad, t, st))
 		b.WriteByte('\n')
 	}
 	writeLiveTail(b, tail, pad+"   ", st)
@@ -308,6 +352,16 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, nameWidt
 		writeVerificationDetails(b, t.Verification, pad+"   ", true, st.Style)
 	}
 	return rowsSince(b, start)
+}
+
+// renderOwnerRow is unit's line. A quiet row is cut to the frame width from
+// the right, so the suffix is what gives way and the glyph and name stay.
+func renderOwnerRow(unit DisplayUnit, pad string, t core.TaskSnapshot, st liveStyle) string {
+	row := unit.Render(pad)
+	if quietSuffix(t, st) == "" {
+		return row
+	}
+	return fitTailLine(row, 0, st.width)
 }
 
 // runningTail is the live tail a Running row draws beneath itself; a row
@@ -397,6 +451,7 @@ func liveTaskUnit(t core.TaskSnapshot, indent int, st liveStyle) DisplayUnit {
 	switch t.State {
 	case core.Running:
 		unit.Detail, unit.Elapsed = liveRunningDetail(t, st)
+		unit.Detail = withQuietSuffix(unit.Detail, t, st)
 	case core.Pending:
 		unit.Detail = livePendingDetail(t, st)
 	case core.Failed:
