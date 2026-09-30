@@ -1,10 +1,8 @@
 package evo_test
 
 import (
-	"maps"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -66,65 +64,10 @@ func TestVocabulary(t *testing.T) {
 	}
 }
 
-// conceptFile is the root file that owns each vocabulary concept family.
-var conceptFile = map[string]string{
-	"Run": "run.go", "Task": "task.go", "Define": "task.go", "Wait": "task.go",
-	"Summary": "task.go", "Doing": "task.go", "Progress": "task.go",
-	"Group": "group.go", "Sequence": "group.go", "After": "group.go",
-	"Skipped": "outcome.go", "Blocked": "outcome.go", "Failed": "outcome.go",
-	"Cancelled": "outcome.go", "Conclusion": "outcome.go",
-	"Problem": "problem.go", "Action": "action.go", "Fact": "fact.go",
-	"Verify": "verify.go", "Evidence": "verify.go", "Fingerprint": "basis.go",
-	"File": "file.go", "Patch": "patch.go", "Files": "patch.go", "Exec": "exec.go",
-	"Capture": "capture.go", "Effect": "effect.go", "Resource": "resource.go",
-	"Snapshot": "snapshot.go", "Machine output": "format.go",
-	"Human output": "human.go", "Debug journal": "debug.go", "Misuse": "misuse.go",
-}
-
-// receiverFile places every method of a container handle in one file.
-var receiverFile = map[string]string{
-	"GroupHandle": "group.go", "SequenceHandle": "group.go",
-}
-
-// symbolFile overrides the concept placement for single identifiers.
-var symbolFile = map[string]string{
-	"Output.Context": "run.go", "Next": "problem.go", "NextCommand": "problem.go",
-}
-
-// rootFiles is the sorted set of non-test root files: one per concept
-// family, plus doc.go.
-func rootFiles() []string {
-	set := map[string]bool{"doc.go": true}
-	for _, files := range []map[string]string{conceptFile, receiverFile, symbolFile} {
-		for _, file := range files {
-			set[file] = true
-		}
-	}
-	return slices.Sorted(maps.Keys(set))
-}
-
-// rootHome is the file that must declare ident, given its concept.
-func rootHome(ident, concept string) (string, bool) {
-	if file, ok := symbolFile[ident]; ok {
-		return file, true
-	}
-	if recv, _, ok := strings.Cut(ident, "."); ok {
-		if file, ok := receiverFile[recv]; ok {
-			return file, true
-		}
-	}
-	file, ok := conceptFile[concept]
-	return file, ok
-}
-
 func TestVocabulary_RootFileOwnsConcept(t *testing.T) {
 	entries, err := vocabulary.LoadVocabulary("testdata/api_vocabulary.txt")
 	if err != nil {
 		t.Fatal(err)
-	}
-	byName := make(map[string]vocabulary.Entry, len(entries))
-	for _, e := range entries {
-		byName[e.Name] = e
 	}
 	declared, err := apisurface.DeclFiles(".")
 	if err != nil {
@@ -134,62 +77,19 @@ func TestVocabulary_RootFileOwnsConcept(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	usedConcept := make(map[string]bool)
-	usedSymbol := make(map[string]bool)
-	for line := range strings.SplitSeq(strings.TrimRight(string(raw), "\n"), "\n") {
-		ident := apisurface.Ident(line)
-		entry, ok := byName[ident]
-		if !ok || entry.Class == vocabulary.ClassRemoved {
-			continue
-		}
-		if _, ok := symbolFile[ident]; ok {
-			usedSymbol[ident] = true
-		}
-		home, ok := rootHome(ident, entry.Concept)
-		if !ok {
-			t.Errorf("%s: concept %q has no file in conceptFile", ident, entry.Concept)
-			continue
-		}
-		if _, ok := conceptFile[entry.Concept]; ok {
-			usedConcept[entry.Concept] = true
-		}
-		got, isDeclared := declared[ident]
-		if !isDeclared {
-			continue // methods on aliased engine types are not declared here
-		}
-		if got != home {
-			t.Errorf("%s is declared in %s; concept %s lives in %s", ident, got, entry.Concept, home)
-		}
-	}
+	golden := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
 
 	paths, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got []string
+	var rootFiles []string
 	for _, path := range paths {
 		if !strings.HasSuffix(path, "_test.go") {
-			got = append(got, path)
+			rootFiles = append(rootFiles, path)
 		}
 	}
-	if want := rootFiles(); !slices.Equal(got, want) {
-		t.Errorf("root non-test files = %v; want %v", got, want)
-	}
-
-	for concept := range conceptFile {
-		if !usedConcept[concept] {
-			t.Errorf("conceptFile row %q matches no golden identifier", concept)
-		}
-	}
-	for ident := range symbolFile {
-		if !usedSymbol[ident] {
-			t.Errorf("symbolFile row %q matches no golden identifier", ident)
-		}
-	}
-	for ident, file := range declared {
-		if file == "doc.go" {
-			t.Errorf("doc.go declares exported %s; it holds package documentation only", ident)
-		}
+	if report := vocabulary.CheckLayout(golden, entries, declared, rootFiles); !report.OK() {
+		t.Errorf("root layout departs from the vocabulary:\n%s", report)
 	}
 }
