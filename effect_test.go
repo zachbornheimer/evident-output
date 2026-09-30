@@ -164,3 +164,31 @@ func TestEffect_OutsideDefineReturnsErrNoTaskContext(t *testing.T) {
 		t.Fatalf("err = %v invoked = %v, want ErrNoTaskContext and no call", err, invoked)
 	}
 }
+
+// TestWriteEffects_BoundedRows_500Records is red-first for item 3: a plan
+// section with 500 records renders a bounded number of visible rows plus one
+// dim overflow line, while the full 500 remain in the snapshot untouched.
+// Each record names a distinct branch — release-gate round 3 finding 6
+// merges identical (verb, object) records into one summed row, so the
+// bounded-rows overflow this test proves needs 500 distinct rows to exercise.
+func TestWriteEffects_BoundedRows_500Records(t *testing.T) {
+	var buf strings.Builder
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, DryRun: true})
+	const total = 500
+	commit(out.Task("branches"), distinctBranchDeletes(total)...)
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	snap := out.Snapshot()
+	if len(snap.Plans) != 1 || len(snap.Plans[0].Records) != total {
+		t.Fatalf("snapshot must retain all %d records, got %+v", total, snap.Plans)
+	}
+	got := buf.String()
+	visibleRows := strings.Count(got, "feat/branch")
+	if visibleRows >= total {
+		t.Fatalf("human view must bound visible rows, rendered all %d", visibleRows)
+	}
+	if !strings.Contains(got, "+495 more (not shown)") {
+		t.Fatalf("want bounded-rows overflow line, got:\n%s", got)
+	}
+}

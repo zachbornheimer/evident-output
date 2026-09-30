@@ -152,3 +152,66 @@ func TestGlyphWidths_BlockedAndCancelledAreNarrow(t *testing.T) {
 		t.Fatalf("✓ width = %d, want 2", got)
 	}
 }
+
+// TestWriteAction_NextActionGlyph proves a next-action row is prefixed by the
+// profile-aware glyph (→ Unicode, > ASCII) rather than a color-only cue.
+func TestWriteAction_NextActionGlyph(t *testing.T) {
+	var uniBuf strings.Builder
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &uniBuf, Glyphs: evo.GlyphsUnicode, Color: evo.ColorNever, Plain: true})
+	done := out.Task("done")
+	succeed(done)
+	done.Next(evo.Label("repo-retire --retire demo"))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(uniBuf.String(), "→  repo-retire --retire demo") {
+		t.Fatalf("want unicode next-action glyph, got:\n%s", uniBuf.String())
+	}
+
+	var asciiBuf strings.Builder
+	out2 := evo.Init(evo.Config{Isolated: true, Stdout: &asciiBuf, Glyphs: evo.GlyphsASCII, Color: evo.ColorNever, Plain: true})
+	done2 := out2.Task("done")
+	succeed(done2)
+	done2.Next(evo.Label("repo-retire --retire demo"))
+	if err := out2.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(asciiBuf.String(), ">  repo-retire --retire demo") {
+		t.Fatalf("want ASCII next-action glyph, got:\n%s", asciiBuf.String())
+	}
+}
+
+// TestWriteProblem_EvidenceGlyph_ASCII proves a Detail evidence row routes
+// through the ASCII glyph profile ("-") instead of a hardcoded "└─" that
+// would mojibake on a non-UTF-8 terminal.
+func TestWriteProblem_EvidenceGlyph_ASCII(t *testing.T) {
+	var buf strings.Builder
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Glyphs: evo.GlyphsASCII, Color: evo.ColorNever, Plain: true})
+	out.Task("branches").Fail("cannot lock ref", evo.Detail("another git process seems to be running"))
+	if err := out.Finish(); err != nil {
+		t.Log(err)
+	}
+	got := buf.String()
+	if strings.Contains(got, "└─") {
+		t.Fatalf("ASCII profile must not render Unicode evidence connector:\n%s", got)
+	}
+	if !strings.Contains(got, "- another git process seems to be running") {
+		t.Fatalf("want ASCII evidence connector, got:\n%s", got)
+	}
+}
+
+// TestConfirm_ASCIIProfile_PromptGlyph proves the confirm gate's "?" prompt
+// routes through the ASCII glyph profile ("[?]") rather than a hardcoded "?"
+// that would stay Unicode-only regardless of the configured profile.
+func TestConfirm_ASCIIProfile_PromptGlyph(t *testing.T) {
+	var buf strings.Builder
+	restore := evo.MarkWriterAsCharDevice(&buf)
+	t.Cleanup(restore)
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: &buf, Stdin: strings.NewReader("y\n"), Glyphs: evo.GlyphsASCII, Color: evo.ColorNever})
+	if ok := out.Confirm("proceed?"); !ok {
+		t.Fatal("Confirm(\"y\") = false, want true")
+	}
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+}
