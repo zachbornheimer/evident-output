@@ -23,12 +23,13 @@ Prints the retained frame directory on success and on failure.
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import testevo_frames
@@ -39,7 +40,9 @@ EXAMPLE = "./examples/quiet-writer"
 OWNER_ROW = "build"
 QUIET_PHASE = "waiting"
 EVIDENCE_LINES = 6
-EVIDENCE = tuple(f"compile unit {n} of {EVIDENCE_LINES}" for n in range(1, EVIDENCE_LINES + 1))
+EVIDENCE = tuple(
+    f"compile unit {n} of {EVIDENCE_LINES}" for n in range(1, EVIDENCE_LINES + 1)
+)
 QUIET_MS = 900
 MIN_QUIET_SPAN_MS = 700
 MAX_GAP_MS = 100
@@ -84,7 +87,9 @@ def ms(later: datetime, earlier: datetime) -> float:
 
 def parse_stamp(stamp: str) -> datetime:
     # test-evo.py stamps "YYYY-mm-dd HH:MM:SS.hh ZONE"; the zone is constant per run.
-    return datetime.strptime(stamp.rsplit(" ", 1)[0], STAMP_FORMAT)
+    return datetime.strptime(stamp.rsplit(" ", 1)[0], STAMP_FORMAT).replace(
+        tzinfo=timezone.utc
+    )
 
 
 def build_example(workdir: Path) -> Path:
@@ -189,12 +194,14 @@ def span_ms(frames: list[Frame]) -> float:
 
 def verify(frames: list[Frame]) -> dict[str, int]:
     window = running_window(frames)
-    capture_gap = max(ms(cur.at, prev.at) for prev, cur in zip(window, window[1:]))
+    capture_gap = max(ms(cur.at, prev.at) for prev, cur in itertools.pairwise(window))
     if capture_gap >= MAX_GAP_MS:
         raise InconclusiveCapture(f"capture sampling gap {capture_gap:.0f}ms")
     runs = unchanged_runs(window)
     if len(runs) < MIN_CHANGED_FRAMES:
-        raise VerifyError(f"{len(runs)} changed frames, want at least {MIN_CHANGED_FRAMES}")
+        raise VerifyError(
+            f"{len(runs)} changed frames, want at least {MIN_CHANGED_FRAMES}"
+        )
     stalest = max(runs, key=span_ms)
     if span_ms(stalest) >= MAX_GAP_MS:
         raise VerifyError(
@@ -204,24 +211,22 @@ def verify(frames: list[Frame]) -> dict[str, int]:
     # A boundary frame is never quiet, so every quiet frame is Running in the window.
     quiet = [run[0] for run in runs if run[0].quiet]
     if len(quiet) < MIN_QUIET_CHANGES:
-        error = (
-            f"{len(quiet)} changed frames while quiet, want at least {MIN_QUIET_CHANGES}"
-        )
+        error = f"{len(quiet)} changed frames while quiet, want at least {MIN_QUIET_CHANGES}"
         if window[-1].running:
             raise InconclusiveCapture(error + "; capture ended while still Running")
         raise VerifyError(error)
     quiet_span = span_ms(quiet)
     if quiet_span < MIN_QUIET_SPAN_MS:
-        error = (
-            f"quiet changing frames span {quiet_span:.0f}ms, want at least {MIN_QUIET_SPAN_MS}ms"
-        )
+        error = f"quiet changing frames span {quiet_span:.0f}ms, want at least {MIN_QUIET_SPAN_MS}ms"
         if window[-1].running:
             raise InconclusiveCapture(error + "; capture ended while still Running")
         raise VerifyError(error)
     for frame in quiet:
         missing = [line for line in EVIDENCE if line not in frame.text]
         if missing:
-            raise VerifyError(f"quiet frame {frame.name} lost Writer evidence {missing[0]!r}")
+            raise VerifyError(
+                f"quiet frame {frame.name} lost Writer evidence {missing[0]!r}"
+            )
     return {
         "changed_frames": len(runs),
         "quiet_changed_frames": len(quiet),
@@ -239,7 +244,9 @@ def attempt(binary: Path, frames_dir: Path) -> dict[str, int]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
-        "--output-frames", type=Path, help="frame root directory (default: new temp dir)"
+        "--output-frames",
+        type=Path,
+        help="frame root directory (default: new temp dir)",
     )
     args = parser.parse_args()
     root = (
@@ -258,10 +265,16 @@ def main() -> int:
                 result = attempt(binary, frames_dir)
             except InconclusiveCapture as err:
                 last_inconclusive = str(err)
-                print(f"RETRY quiet PTY cadence: {err} (frames: {frames_dir})", file=sys.stderr)
+                print(
+                    f"RETRY quiet PTY cadence: {err} (frames: {frames_dir})",
+                    file=sys.stderr,
+                )
                 continue
             except (VerifyError, subprocess.CalledProcessError) as err:
-                print(f"FAIL quiet PTY cadence: {err} (frames: {frames_dir})", file=sys.stderr)
+                print(
+                    f"FAIL quiet PTY cadence: {err} (frames: {frames_dir})",
+                    file=sys.stderr,
+                )
                 return 1
             summary = " ".join(f"{key}={value}" for key, value in result.items())
             print(f"OK quiet PTY cadence: {summary} frames={frames_dir}")
