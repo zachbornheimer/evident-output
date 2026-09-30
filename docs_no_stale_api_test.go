@@ -9,10 +9,10 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
-	"github.com/zachbornheimer/evident-output/internal/retired"
+	"github.com/zachbornheimer/evident-output/internal/agent/rules"
 )
 
-// Every retired.Symbol with a Taught pattern is checked (spec §46's public
+// Every rules.RetiredSymbol with a Taught pattern is checked (spec §46's public
 // API drift test, mirrored here for prose: docs, README, doc.go, and the
 // agent sections corpus). A hit is only legitimate inside a note that says
 // "removed in <release>" for that symbol's release — teaching it as
@@ -147,7 +147,7 @@ func checkNoUnexplainedStaleAPI(t *testing.T, rel, body string) {
 	t.Helper()
 	lines := strings.Split(body, "\n")
 	for i, line := range lines {
-		for _, hit := range retired.TaughtIn(line) {
+		for _, hit := range rules.TaughtRetired(line) {
 			if allowedNearby(lines, i, removedInPattern(hit.Symbol.RemovedIn)) {
 				continue
 			}
@@ -159,7 +159,7 @@ func checkNoUnexplainedStaleAPI(t *testing.T, rel, body string) {
 
 // removedInPattern is the migration-note marker for release: a retired
 // symbol is only legitimate within staleAPIWindow lines of it.
-func removedInPattern(release retired.Release) *regexp.Regexp {
+func removedInPattern(release rules.RetiredRelease) *regexp.Regexp {
 	return regexp.MustCompile(`(?i)removed in ` + regexp.QuoteMeta(string(release)))
 }
 

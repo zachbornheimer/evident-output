@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/retired"
+	"github.com/zachbornheimer/evident-output/internal/agent/rules"
 )
 
 // detectionKey matches a literal that is a bare identifier or call
@@ -53,7 +53,7 @@ func checkLiteralsTeachNoRetiredSymbol(t *testing.T, path string) {
 		if err != nil || detectionKey.MatchString(text) {
 			return true
 		}
-		for _, h := range retired.UnexplainedIn(text) {
+		for _, h := range rules.UnexplainedRetired(text) {
 			t.Errorf("%s: literal names retired %q without \"removed in %s\" (use %s): %.120q",
 				fset.Position(lit.Pos()), h.Match, h.Symbol.RemovedIn, h.Symbol.Replacement, text)
 		}

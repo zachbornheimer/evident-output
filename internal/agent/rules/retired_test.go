@@ -1,4 +1,4 @@
-package retired
+package rules
 
 import "testing"
 
@@ -22,8 +22,8 @@ func TestUnexplainedInAllowsARemovalNote(t *testing.T) {
 		{"KeepLastLines was removed in 1.1; use MaxCaptureBytes", 0},
 	}
 	for _, c := range cases {
-		if got := len(UnexplainedIn(c.text)); got != c.want {
-			t.Errorf("UnexplainedIn(%q) = %d hits, want %d", c.text, got, c.want)
+		if got := len(UnexplainedRetired(c.text)); got != c.want {
+			t.Errorf("UnexplainedRetired(%q) = %d hits, want %d", c.text, got, c.want)
 		}
 	}
 }
@@ -44,8 +44,8 @@ func TestTaughtWarnAndCaptureEvidenceSpellings(t *testing.T) {
 		"Evidence belongs to the **entity** (a `Task`, whether it ran or was resolved as a",
 	}
 	for _, text := range hits {
-		if len(TaughtIn(text)) == 0 {
-			t.Errorf("TaughtIn(%q) missed a capture-meaning Warn/Evidence listing", text)
+		if len(TaughtRetired(text)) == 0 {
+			t.Errorf("TaughtRetired(%q) missed a capture-meaning Warn/Evidence listing", text)
 		}
 	}
 	misses := []string{
@@ -61,9 +61,9 @@ func TestTaughtWarnAndCaptureEvidenceSpellings(t *testing.T) {
 		"func (i *Item) WarnedBy(problems ...Problem) *Item",
 	}
 	for _, text := range misses {
-		for _, h := range TaughtIn(text) {
+		for _, h := range TaughtRetired(text) {
 			if h.Symbol.Contract == "TaskHandle.Warn(" || h.Symbol.Contract == "Evidence" {
-				t.Errorf("TaughtIn(%q) matched %q (%s); satisfaction-meaning and English must stay", text, h.Match, h.Symbol.Contract)
+				t.Errorf("TaughtRetired(%q) matched %q (%s); satisfaction-meaning and English must stay", text, h.Match, h.Symbol.Contract)
 			}
 		}
 	}
@@ -81,14 +81,14 @@ func TestTaughtFailfBlockfKeepLastLines(t *testing.T) {
 		"Failf/Blockf",
 	}
 	for _, text := range hits {
-		if len(TaughtIn(text)) == 0 {
-			t.Errorf("TaughtIn(%q) missed Failf/Blockf/KeepLastLines", text)
+		if len(TaughtRetired(text)) == 0 {
+			t.Errorf("TaughtRetired(%q) missed Failf/Blockf/KeepLastLines", text)
 		}
 	}
 }
 
 func TestEverySymbolHasAReleaseAndReplacement(t *testing.T) {
-	for _, s := range Symbols() {
+	for _, s := range RetiredSymbols() {
 		if s.Replacement == "" || s.RemovedIn == "" {
 			t.Errorf("%s: Replacement and RemovedIn are required", s.Contract)
 		}

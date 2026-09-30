@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/retired"
+	"github.com/zachbornheimer/evident-output/internal/agent/rules"
 )
 
 // godocStaleAPIExempt holds the one package whose comments must name
 // retired API: the table of retired names itself.
-var godocStaleAPIExempt = []string{"internal/retired/"}
+var godocStaleAPIExempt = []string{"internal/agent/rules/retired"}
 
 // TestGoCommentsCarryNoStaleAPI extends TestDocsCarryNoStaleAPI to Go
 // comments. Engine godoc is read by agents as surely as the docs are, so a
@@ -44,7 +44,7 @@ func TestGoCommentsCarryNoStaleAPI(t *testing.T) {
 			return nil
 		}
 		for _, group := range file.Comments {
-			for _, hit := range retired.UnexplainedIn(group.Text()) {
+			for _, hit := range rules.UnexplainedRetired(group.Text()) {
 				t.Errorf("%s:%d: comment teaches retired API %q without \"removed in %s\" (use %s)",
 					rel, fset.Position(group.Pos()).Line, hit.Match, hit.Symbol.RemovedIn, hit.Symbol.Replacement)
 			}
