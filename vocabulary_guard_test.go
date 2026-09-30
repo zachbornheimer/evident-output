@@ -93,7 +93,7 @@ var symbolFile = map[string]string{
 // check, and each slice that deletes a file removes it from this set.
 var legacyFiles = map[string]bool{
 	"api.go": true, "event.go": true,
-	"facade.go": true, "fingerprint.go": true, "glyph.go": true,
+	"facade.go": true, "glyph.go": true,
 	"jsonout.go": true, "output.go": true, "printer.go": true,
 	"release.go": true, "state.go": true, "types.go": true,
 }
