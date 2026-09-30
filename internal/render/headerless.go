@@ -2,7 +2,6 @@ package render
 
 import (
 	"slices"
-	"strings"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 )
@@ -50,19 +49,6 @@ func HasUnfinishedTask(col core.TasksSnapshot) bool {
 // "categories" Group of category Groups, contract §18's live frame).
 func LiveProgressAddsInformation(col core.TasksSnapshot, total int) bool {
 	return total > 0 && HasUnfinishedTask(col)
-}
-
-// writeHeaderlessGroup renders a Group's children as siblings of the
-// surrounding rows, aligned to one name column, then any nested containers
-// the same way.
-func writeHeaderlessGroup(b *strings.Builder, col core.TasksSnapshot, s Style) {
-	nameWidth := HeaderlessRowNameWidth(col)
-	for _, t := range col.Tasks {
-		WriteTaskAligned(b, t, nameWidth, s)
-	}
-	for _, child := range col.Collections {
-		writeCollectionAligned(b, child, nameWidth, s)
-	}
 }
 
 // OwnCounts summarizes col's own child Tasks, left-out ones included.

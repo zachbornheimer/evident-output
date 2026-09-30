@@ -1,7 +1,9 @@
-package render
+package plain
 
 import (
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/render"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
@@ -15,7 +17,7 @@ import (
 // closes the gap by naming StatePlanned's color explicitly, so the next new
 // ConclusionState can't silently diverge between the two sites either.
 func TestConclusionColor_PlannedIsBlue(t *testing.T) {
-	if got := ConclusionColor(core.StatePlanned); got != txt.SGRBlue {
+	if got := render.ConclusionColor(core.StatePlanned); got != txt.SGRBlue {
 		t.Fatalf("conclusionColor(StatePlanned) = %q, want SGRBlue (%q)", got, txt.SGRBlue)
 	}
 }

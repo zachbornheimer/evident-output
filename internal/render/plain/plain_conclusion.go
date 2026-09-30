@@ -1,8 +1,10 @@
-package render
+package plain
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/render"
 
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 
@@ -33,7 +35,7 @@ func WritePlannedHeader(b *strings.Builder, color, preview bool, subject string)
 		}
 		return
 	}
-	tag := txt.Style("[dry-run]", EffectColor("planned"), color)
+	tag := txt.Style("[dry-run]", render.EffectColor("planned"), color)
 	body := dryRunMarkerText
 	if subject != "" {
 		body = subject
@@ -58,12 +60,12 @@ func conclusionBandTag(c core.Conclusion) string {
 	return fmt.Sprintf("[%s]", tag)
 }
 
-func WriteConclusion(b *strings.Builder, c core.Conclusion, s Style) {
+func WriteConclusion(b *strings.Builder, c core.Conclusion, s render.Style) {
 	if c.State == core.StateCancelled {
 		writeCancellationBand(b, c, s)
 		return
 	}
-	tag := s.Paint(conclusionBandTag(c), ConclusionColor(c.State))
+	tag := s.Paint(conclusionBandTag(c), render.ConclusionColor(c.State))
 	// A bare Subject that equals the headline state word itself ("changed",
 	// "failed", ...) says nothing the bracketed tag hasn't already said — it
 	// is what an unconfigured Config.Title falls back to, not a caller's
@@ -78,10 +80,10 @@ func WriteConclusion(b *strings.Builder, c core.Conclusion, s Style) {
 		fmt.Fprintf(b, "  %s\n", c.Explanation)
 	}
 	if c.State == core.StateFailed {
-		WriteAlreadyMutated(b, c.Changes, s)
+		render.WriteAlreadyMutated(b, c.Changes, s)
 	}
 	for _, a := range c.Actions {
-		WriteAction(b, a, s)
+		render.WriteAction(b, a, s)
 	}
 }
 
@@ -90,12 +92,12 @@ func WriteConclusion(b *strings.Builder, c core.Conclusion, s Style) {
 // when some Effect committed. The cause is the Conclusion's Explanation (for
 // example "by user"), carried on the band line itself instead of a second
 // sentence beneath it.
-func writeCancellationBand(b *strings.Builder, c core.Conclusion, s Style) {
+func writeCancellationBand(b *strings.Builder, c core.Conclusion, s render.Style) {
 	// "cancelled" already says the run stopped short; a "· partial" modifier
 	// beside it would only repeat that (the not-started rows say which part).
 	tagged := c
 	tagged.Partial = false
-	line := s.Paint(conclusionBandTag(tagged), ConclusionColor(c.State))
+	line := s.Paint(conclusionBandTag(tagged), render.ConclusionColor(c.State))
 	if c.Subject != "" && c.Subject != string(c.State) {
 		line += " " + s.Paint(c.Subject, txt.SGRBold)
 	}
@@ -103,11 +105,11 @@ func writeCancellationBand(b *strings.Builder, c core.Conclusion, s Style) {
 		line += "  " + c.Explanation
 	}
 	fmt.Fprintf(b, "\n%s\n", line)
-	if _, committed := SummarizeAlreadyMutated(c.Changes); committed {
-		fmt.Fprintf(b, "  %s %s\n", s.WarningGlyph(), CancellationPartialChangesNote)
+	if _, committed := render.SummarizeAlreadyMutated(c.Changes); committed {
+		fmt.Fprintf(b, "  %s %s\n", s.WarningGlyph(), render.CancellationPartialChangesNote)
 	}
 	for _, a := range c.Actions {
-		WriteAction(b, a, s)
+		render.WriteAction(b, a, s)
 	}
 }
 

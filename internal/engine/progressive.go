@@ -7,6 +7,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/render"
+	renderplain "github.com/zachbornheimer/evident-output/internal/render/plain"
 )
 
 // Progressive emission implements the spirit of §1 (live becomes durable) and
@@ -389,7 +390,7 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 	style := o.humanStyle()
 	var b strings.Builder
 	for i := linesFrom; i < len(snap.Lines); i++ {
-		render.WriteDebugOrLine(&b, snap.Lines[i], style.Color)
+		renderplain.WriteDebugOrLine(&b, snap.Lines[i], style.Color)
 	}
 	if includeEntities {
 		o.writeResidualEntitiesLocked(&b, snap, style)
@@ -404,7 +405,7 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 	}
 	o.writeResidualLedgerLocked(&b, style)
 	if snap.Conclusion != nil && !render.ShouldSuppressStandaloneConclusion(snap) {
-		render.WriteConclusion(&b, render.StandaloneConclusion(snap), style)
+		renderplain.WriteConclusion(&b, render.StandaloneConclusion(snap), style)
 	}
 	o.writeDebugTailLocked(&b, snap, style.Color)
 	return b.String()
@@ -430,7 +431,7 @@ func (o *Output) writeResidualEntitiesLocked(b *strings.Builder, snap Snapshot, 
 		t.coreEmitted = true
 	}
 	for _, col := range human.Collections {
-		render.WriteCollection(b, col, style)
+		renderplain.WriteCollection(b, col, style)
 	}
 }
 

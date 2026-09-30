@@ -10,7 +10,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
-	"github.com/zachbornheimer/evident-output/internal/render"
+	renderplain "github.com/zachbornheimer/evident-output/internal/render/plain"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
@@ -306,7 +306,7 @@ func (o *Output) declareDryRun() {
 // (writeDurableTextLocked) every other library-owned line uses.
 func (o *Output) emitPlannedHeaderLocked() {
 	var b strings.Builder
-	render.WritePlannedHeader(&b, !o.cfg.noColor, o.cfg.preview, o.cfg.dryRunHeaderText)
+	renderplain.WritePlannedHeader(&b, !o.cfg.noColor, o.cfg.preview, o.cfg.dryRunHeaderText)
 	o.writeDurableTextLocked(b.String())
 }
 

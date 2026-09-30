@@ -1,8 +1,10 @@
-package render
+package plain
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/render"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
@@ -13,10 +15,10 @@ import (
 func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphProfile) string {
 	var b strings.Builder
 	if width <= 0 {
-		width = DefaultWidth
+		width = render.DefaultWidth
 	}
-	st := Style{Color: !noColor, Verbose: verbose, Profile: profile}
-	s = HumanProjection(s, verbose)
+	st := render.Style{Color: !noColor, Verbose: verbose, Profile: profile}
+	s = render.HumanProjection(s, verbose)
 
 	if s.DryRun {
 		WritePlannedHeader(&b, st.Color, s.Preview, s.DryRunSubject)
@@ -25,25 +27,25 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 	for _, line := range s.Lines {
 		WriteDebugOrLine(&b, line, st.Color)
 	}
-	WriteRunAnnotations(&b, s.Warnings, s.Facts, st)
+	render.WriteRunAnnotations(&b, s.Warnings, s.Facts, st)
 
 	taskNameWidth := maxTaskNameWidth(s.Tasks)
 	for _, t := range s.Tasks {
-		WriteTaskAligned(&b, t, taskNameWidth, st)
+		render.WriteTaskAligned(&b, t, taskNameWidth, st)
 	}
 
 	for _, col := range s.Collections {
 		WriteCollection(&b, col, st)
 	}
 
-	if HasTaskRows(s) && HasEffectSections(s) {
+	if render.HasTaskRows(s) && render.HasEffectSections(s) {
 		b.WriteByte('\n')
 	}
 
-	WriteLedger(&b, s, width, st)
+	render.WriteLedger(&b, s, width, st)
 
-	if s.Conclusion != nil && !ShouldSuppressStandaloneConclusion(s) {
-		WriteConclusion(&b, StandaloneConclusion(s), st)
+	if s.Conclusion != nil && !render.ShouldSuppressStandaloneConclusion(s) {
+		WriteConclusion(&b, render.StandaloneConclusion(s), st)
 	}
 
 	return b.String()
@@ -52,7 +54,7 @@ func Plain(s core.Snapshot, width int, noColor, verbose bool, profile txt.GlyphP
 // maxTaskNameWidth returns the shared column sibling root tasks pad their
 // name to (fixture-repo-retire-dryrun.md) — the widest name's cell width. A
 // lone task (or none) needs no alignment, so callers pass the result
-// straight to WriteTaskAligned's nameWidth, where 0 means "don't pad".
+// straight to render.WriteTaskAligned's nameWidth, where 0 means "don't pad".
 func maxTaskNameWidth(tasks []core.TaskSnapshot) int {
 	if len(tasks) < 2 {
 		return 0
@@ -85,31 +87,31 @@ func WriteDebugOrLine(b *strings.Builder, line string, color bool) {
 // like "✓  branches   14 deleted" instead of the parent collapsing to one
 // line and erasing the children whose evidence lived only in the live
 // region while it was running.
-func WriteCollection(b *strings.Builder, col core.TasksSnapshot, s Style) {
+func WriteCollection(b *strings.Builder, col core.TasksSnapshot, s render.Style) {
 	writeCollectionAligned(b, col, 0, s)
 }
 
 // writeCollectionAligned is WriteCollection with the name column a
 // collapsed one-row collection pads to (0 = its own name), so a header-less
 // parent's rows line up (headerlessRowNameWidth).
-func writeCollectionAligned(b *strings.Builder, col core.TasksSnapshot, nameWidth int, s Style) {
-	col, items := WithoutDispositionItems(col)
+func writeCollectionAligned(b *strings.Builder, col core.TasksSnapshot, nameWidth int, s render.Style) {
+	col, items := render.WithoutDispositionItems(col)
 	switch {
-	case RendersAsOwnTask(col):
-		WriteTaskAligned(b, col.Tasks[0], nameWidth, s)
-		WriteDispositions(b, TaskAnnotationIndent, items, NoDisposition, s)
-	case FlattensHeader(col, items):
+	case render.RendersAsOwnTask(col):
+		render.WriteTaskAligned(b, col.Tasks[0], nameWidth, s)
+		render.WriteDispositions(b, render.TaskAnnotationIndent, items, render.NoDisposition, s)
+	case render.FlattensHeader(col, items):
 		writeHeaderlessGroup(b, col, s)
 	default:
 		writeCollectionHeader(b, col, s)
-		WriteDispositions(b, HeaderTallyIndent(col), items, NoDisposition, s)
+		render.WriteDispositions(b, render.HeaderTallyIndent(col), items, render.NoDisposition, s)
 		writeCollectionBody(b, col, s)
 	}
 }
 
 // writeCollectionHeader writes a Group or Sequence's own row.
-func writeCollectionHeader(b *strings.Builder, col core.TasksSnapshot, s Style) {
-	unit := DisplayUnit{Glyph: s.StateGlyph(col.State), Name: col.Name}
+func writeCollectionHeader(b *strings.Builder, col core.TasksSnapshot, s render.Style) {
+	unit := render.DisplayUnit{Glyph: s.StateGlyph(col.State), Name: col.Name}
 	if col.Summary != "" {
 		unit.Detail = s.Dim(col.Summary)
 	}
@@ -119,16 +121,16 @@ func writeCollectionHeader(b *strings.Builder, col core.TasksSnapshot, s Style) 
 
 // writeCollectionBody writes a headed container's child rows, then its
 // nested containers indented one level per nesting depth (P3).
-func writeCollectionBody(b *strings.Builder, col core.TasksSnapshot, s Style) {
+func writeCollectionBody(b *strings.Builder, col core.TasksSnapshot, s render.Style) {
 	childNameWidth := maxTaskNameWidth(col.Tasks)
 	for _, t := range col.Tasks {
-		ChildRow(t, childNameWidth).Write(b, s)
+		render.ChildRow(t, childNameWidth).Write(b, s)
 	}
 	for _, child := range col.Collections {
 		var nested strings.Builder
 		WriteCollection(&nested, child, s)
 		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
-			fmt.Fprintf(b, "%s%s\n", GroupChildIndent, line)
+			fmt.Fprintf(b, "%s%s\n", render.GroupChildIndent, line)
 		}
 	}
 }
