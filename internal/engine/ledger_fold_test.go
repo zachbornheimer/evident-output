@@ -12,6 +12,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/scaletest"
 )
 
 // centralizeEffect is one package's Effect in the zq shape.
@@ -173,21 +174,21 @@ func TestLedgerFoldScalesLinearlyAndBoundsRowMemory(t *testing.T) {
 	const small, large = 10_000, 100_000
 	time1 := func(n int) time.Duration {
 		sources := foldSources(n)
-		best := time.Hour
-		for range 7 {
+		return scaletest.Fastest(scaletest.CheapSamples, func() time.Duration {
 			runtime.GC()
-			start := time.Now()
-			rows := render.FoldEffectSections("changed", 80, sources)
-			var b strings.Builder
-			for _, r := range rows {
-				render.WriteEffects(&b, r, render.Style{})
-			}
-			best = min(best, time.Since(start))
+			var rows []render.EffectSection
+			cost := scaletest.Elapsed(func() {
+				rows = render.FoldEffectSections("changed", 80, sources)
+				var b strings.Builder
+				for _, r := range rows {
+					render.WriteEffects(&b, r, render.Style{})
+				}
+			})
 			if len(rows) != 1 || len(rows[0].Records) != 1 || rows[0].Records[0].Quantity != int64(n) {
 				t.Fatalf("n=%d folded to %d rows, want 1 row of 1 record counting %d: %+v", n, len(rows), n, rows)
 			}
-		}
-		return best
+			return cost
+		})
 	}
 	ts, tl := time1(small), time1(large)
 	t.Logf("n=%d %s, n=%d %s", small, ts, large, tl)

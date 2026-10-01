@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/scaletest"
 )
 
 // liveFrameOutput is an interactive Output over n Tasks under one Group,
@@ -47,13 +49,9 @@ func liveFrameCost(tb testing.TB, n int) time.Duration {
 	out.mu.Lock()
 	defer out.mu.Unlock()
 	_ = liveFrameFull(out, now)
-	best := time.Duration(1<<63 - 1)
-	for range 30 {
-		start := time.Now()
-		_ = liveFrameFull(out, now)
-		best = min(best, time.Since(start))
-	}
-	return best
+	return scaletest.Fastest(scaletest.CheapSamples*2, func() time.Duration {
+		return scaletest.Elapsed(func() { _ = liveFrameFull(out, now) })
+	})
 }
 
 // liveFrameTimerFloor is the noise one timed frame carries on a loaded
