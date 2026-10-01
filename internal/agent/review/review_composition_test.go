@@ -7,24 +7,30 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
 )
 
-// compositionRuleCases pairs each composition rule with its bad fixture (the
-// rule must fire wantBad times) and its good fixture (the rule must not).
+// compositionRuleCases lists each composition rule and how often it must fire
+// on its bad fixture. Fixture file names derive from the rule id (see
+// compositionFixtures), so the table holds no file-name strings.
 var compositionRuleCases = []struct {
 	ruleID  string
-	bad     string
-	good    string
 	wantBad int
 }{
-	{"API-064", "api_064_bad.go", "api_064_good.go", 1},
-	{"API-065", "api_065_bad.go", "api_065_good.go", 1},
-	{"API-066", "api_066_bad.go", "api_066_good.go", 1},
-	{"API-067", "api_067_bad.go", "api_067_good.go", 1},
-	{"API-068", "api_068_bad.go", "api_068_good.go", 1},
-	{"API-069", "api_069_bad.go", "api_069_good.go", 4},
-	{"API-070", "api_070_bad.go", "api_070_good.go", 1},
-	{"API-071", "api_071_bad.go", "api_071_good.go", 1},
-	{"EVO-UI-004", "evo_ui_004_bad.go", "evo_ui_004_good.go", 2},
-	{"EVO-WIRE-002", "evo_wire_002_bad.go", "evo_wire_002_good.go", 1},
+	{"API-064", 1},
+	{"API-065", 1},
+	{"API-066", 1},
+	{"API-067", 1},
+	{"API-068", 1},
+	{"API-069", 4},
+	{"API-070", 1},
+	{"API-071", 1},
+	{"EVO-UI-004", 2},
+	{"EVO-WIRE-002", 1},
+}
+
+// compositionFixtures names the bad and good fixture of a rule: the lower-case
+// rule id with underscores, then _bad.go or _good.go.
+func compositionFixtures(ruleID string) (bad, good string) {
+	slug := strings.ToLower(strings.ReplaceAll(ruleID, "-", "_"))
+	return slug + "_bad.go", slug + "_good.go"
 }
 
 func countRule(res review.Result, ruleID string) int {
@@ -40,11 +46,12 @@ func countRule(res review.Result, ruleID string) int {
 func TestCompositionRules_BadFixturesFireAndGoodFixturesStaySilent(t *testing.T) {
 	for _, c := range compositionRuleCases {
 		t.Run(c.ruleID, func(t *testing.T) {
-			bad := review.GoSource(c.bad, readFixture(t, c.bad))
+			badName, goodName := compositionFixtures(c.ruleID)
+			bad := review.GoSource(badName, readFixture(t, badName))
 			if got := countRule(bad, c.ruleID); got != c.wantBad {
-				t.Fatalf("%s on %s: %d findings, want %d: %+v", c.ruleID, c.bad, got, c.wantBad, bad.Findings)
+				t.Fatalf("%s on %s: %d findings, want %d: %+v", c.ruleID, badName, got, c.wantBad, bad.Findings)
 			}
-			good := review.GoSource(c.good, readFixture(t, c.good))
+			good := review.GoSource(goodName, readFixture(t, goodName))
 			assertNoFinding(t, good, c.ruleID)
 		})
 	}
