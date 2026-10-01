@@ -100,7 +100,7 @@ func TestPlainHeartbeat_SilentRunningTaskEmitsEvery30s(t *testing.T) {
 
 	clock.Advance(30 * time.Second) // total 60s since Running.
 	got = buf.String()
-	if !strings.Contains(got, "— 60s") {
+	if !strings.Contains(got, "— 1m0s") {
 		t.Fatalf("want a second heartbeat line at 60s, got:\n%s", got)
 	}
 

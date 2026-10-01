@@ -32,8 +32,8 @@ func TestLiveQuiet_SuffixAppearsPastThreshold(t *testing.T) {
 		want    string
 	}{
 		{59 * time.Second, "⠋ controller"},
-		{61 * time.Second, "⠋ controller  · quiet 1m"},
-		{6 * time.Minute, "⠋ controller  · quiet 6m"},
+		{61 * time.Second, "⠋ controller  · quiet 1m1s"},
+		{6 * time.Minute, "⠋ controller  · quiet 6m0s"},
 		{2*time.Hour + 10*time.Minute, "⠋ controller  · quiet 2h10m"},
 	}
 	for _, tc := range cases {
@@ -73,7 +73,7 @@ func TestLiveQuiet_SuffixIsWarnColoredWhenColorIsOn(t *testing.T) {
 	st := testLiveStyle
 	st.Color = true
 	got := ownerRowAt(quietTask(quietT0), st, 6*time.Minute)
-	if want := txt.Style("· quiet 6m", txt.SGRYellow, true); !strings.Contains(got, want) {
+	if want := txt.Style("· quiet 6m0s", txt.SGRYellow, true); !strings.Contains(got, want) {
 		t.Fatalf("owner row = %q, want it to contain %q", got, want)
 	}
 }

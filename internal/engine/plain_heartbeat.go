@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
@@ -142,17 +141,14 @@ func (o *Output) checkPlainHeartbeat(id string) {
 // §40, e.g. "• generate schema  — 30s" then "— 60s") using the same
 // DisplayUnit line grammar every plain row shares, with a distinct bullet
 // glyph so a heartbeat row is never mistaken for a real Running/Phase
-// update. Elapsed is always rendered in plain seconds — deliberately not
-// render.FormatElapsed's live-timer minute rollover ("1m0s") — because
-// §40's own example is a flat 30/60/90s sequence and a plain/CI log reader
-// should never have to convert units mid-stream.
+// update. Elapsed uses the one contract §32 form (txt.FormatElapsed).
 func (o *Output) emitPlainHeartbeatLocked(st *taskState, now time.Time) {
 	color := !o.cfg.noColor
-	elapsed := now.Sub(st.heartbeat.runningAt).Round(time.Second)
+	elapsed := now.Sub(st.heartbeat.runningAt)
 	unit := render.DisplayUnit{
 		Glyph:  txt.StyleGlyph(txt.GlyphHeartbeat.Render(o.cfg.glyphs), render.StateColor(Running), color),
 		Name:   progressiveRowName(st),
-		Detail: txt.Dim(fmt.Sprintf("— %ds", int(elapsed.Seconds())), color),
+		Detail: txt.Dim("— "+txt.FormatElapsed(elapsed), color),
 	}
 	o.writeDurableTextLocked(unit.Render("") + "\n")
 }
