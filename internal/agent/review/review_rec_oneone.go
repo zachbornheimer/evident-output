@@ -38,6 +38,10 @@ func (d *recSurfaceDetector) inspectOneOneCall(call *ast.CallExpr, sel *ast.Sele
 		next, ok = d.rewriteRemovedPrintfVerb(recv, "Block", call)
 	case "Warn":
 		msg = d.oneOneMethodName("Warn", recv) + " was removed in 1.1; a warning is Problem at SeverityWarning"
+		if d.doneScope == nil || !d.doneScope.tasks.IsTask(sel.X) {
+			d.reportGuidance(call, msg, d.warnGuidance(call))
+			return true
+		}
 		next, ok = d.rewriteRemovedWarn(recv, call)
 	case "Step":
 		msg = d.oneOneMethodName("Step", recv) + " was removed in 1.1; use Progress(completed, total).Doing(item)"
@@ -66,6 +70,35 @@ func (d *recSurfaceDetector) inspectOneOneCall(call *ast.CallExpr, sel *ast.Sele
 	return true
 }
 
+// reportGuidance reports a finding whose fix is not one mechanical edit. The
+// suggestion is guidance, never a "replace ... with ..." line, so applying it
+// cannot produce broken code and the finding persists until the author acts.
+func (d *recSurfaceDetector) reportGuidance(call *ast.CallExpr, msg, guidance string) {
+	d.report(call, msg, guidance)
+	d.cover(call)
+}
+
+// streamEventsGuidance names the Output that replaces a removed Encode*
+// call; the writer and run arguments move into its Config and Run.
+func (d *recSurfaceDetector) streamEventsGuidance(call *ast.CallExpr) string {
+	writer := "<writer>"
+	if len(call.Args) > 0 {
+		writer = d.nodeSrc(call.Args[0])
+	}
+	return "build an Output that streams events, out := " + d.pkg + ".Init(" + d.pkg + ".Config{Stdout: " + writer + ", Format: " + d.pkg +
+		".FormatJSONL}), and record the run's Tasks on it instead of encoding a finished run"
+}
+
+// warnGuidance names the Task that must own a removed Warn: a warning has no
+// run-level home, so the author picks the Task it explains.
+func (d *recSurfaceDetector) warnGuidance(call *ast.CallExpr) string {
+	summary := `"<why>"`
+	if len(call.Args) > 0 {
+		summary = d.nodeSrc(call.Args[0])
+	}
+	return "record the warning on the Task it explains: <task>.Problem(" + summary + ", " + d.pkg + ".Severity(" + d.pkg + ".SeverityWarning))"
+}
+
 func (d *recSurfaceDetector) oneOneMethodName(name, recv string) string {
 	switch recv {
 	case "", d.pkg, "evo":
@@ -89,14 +122,9 @@ func (d *recSurfaceDetector) inspectOneOneRemovedFunc(call *ast.CallExpr, sel *a
 	case "EncodeJSON":
 		msg = "EncodeJSON was removed in 1.1; write the run document with WriteJSON"
 		next, ok = d.renameEvoCall(call, "WriteJSON")
-	case "EncodeJSONL":
-		msg = "EncodeJSONL was removed in 1.1; stream events with FormatJSONL"
-		next = d.pkg + ".Init(" + d.pkg + ".Config{Format: " + d.pkg + ".FormatJSONL})"
-		ok = true
-	case "EncodeEventJSON":
-		msg = "EncodeEventJSON was removed in 1.1; stream events with FormatJSONL"
-		next = d.pkg + ".Init(" + d.pkg + ".Config{Format: " + d.pkg + ".FormatJSONL})"
-		ok = true
+	case "EncodeJSONL", "EncodeEventJSON":
+		d.reportGuidance(call, name+" was removed in 1.1; stream events with FormatJSONL", d.streamEventsGuidance(call))
+		return true
 	case "ForSkip", "OnTask":
 		msg = name + " was removed in 1.1; name the skip with Reason and resolve with Skipped"
 		next = d.pkg + `.Reason("skip")`

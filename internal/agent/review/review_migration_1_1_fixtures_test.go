@@ -33,10 +33,17 @@ var fragmentSuggestions = map[string]string{
 	"Runner": fragmentConfigField, "Stdin": fragmentConfigField, "Strict": fragmentConfigField,
 	"Terminal": fragmentConfigField, "Title": fragmentConfigField, "To": fragmentConfigField,
 	"VisibilityDelay": fragmentConfigField, "Width": fragmentConfigField,
+	"EventSchemaVersion": fragmentNoSuggestion,
+}
+
+// guidanceOnlySuggestions are removed names with no single compile-valid edit.
+// Their suggestion must be guidance (never a "replace ... with ..." line that
+// could be applied into broken code), so the finding stays open until the
+// author acts.
+var guidanceOnlySuggestions = map[string]string{
 	"Failure.Next": fragmentOption, "Failure.NextCommand": fragmentOption,
 	"Warn": fragmentPlaceholderRecv, "Output.Warn": fragmentPlaceholderRecv,
 	"EncodeEventJSON": fragmentRewrittenCall, "EncodeJSONL": fragmentRewrittenCall,
-	"EventSchemaVersion": fragmentNoSuggestion,
 }
 
 func evoBody(body string) string {
