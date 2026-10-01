@@ -43,6 +43,8 @@
 !/schema/**
 !/internal/
 !/internal/**
+!/eval/
+!/eval/**
 !/examples/
 !/examples/**
 !/scripts/
