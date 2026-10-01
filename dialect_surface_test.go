@@ -37,6 +37,7 @@ var dialectSurface = map[string][]string{
 		"Files(ctx context.Context, files FileSet)",
 		"Exec(ctx context.Context, spec ExecSpec)",
 		"Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error)",
+		"MeasuredEffect(ctx context.Context, spec EffectSpec, fn func(context.Context) (int, error))",
 		"PartialEffect(committed int, err error)",
 		"Patch(ctx context.Context, diff []byte)",
 		"Value(name string, v any)",

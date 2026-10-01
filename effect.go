@@ -63,7 +63,20 @@ var (
 	ErrEffectObjectMissing       = engine.ErrEffectObjectMissing
 	ErrEffectQuantityNotPositive = engine.ErrEffectQuantityNotPositive
 	ErrEffectCallbackMissing     = engine.ErrEffectCallbackMissing
+	ErrEffectMeasuredNegative    = engine.ErrEffectMeasuredNegative
 )
+
+// MeasuredEffect is Effect for work whose size is only known once it ran (a
+// prune that finds out how many branches it deleted): fn returns the
+// quantity it really affected. EffectSpec.Quantity stays the plan, which a
+// dry run shows since fn never runs. The changed ledger row and the closing
+// summary record the measured quantity, and the JSON document keeps the
+// Effect with that final quantity. A returned 0 records no Effect; a
+// negative one fails with ErrEffectMeasuredNegative. Errors and
+// PartialEffect behave as in Effect.
+func MeasuredEffect(ctx context.Context, spec EffectSpec, fn func(context.Context) (int, error)) error {
+	return engine.MeasuredEffect(ctx, spec, fn)
+}
 
 // PartialEffect is the error an Effect callback returns when committed of
 // the requested EffectSpec.Quantity really happened before err stopped the

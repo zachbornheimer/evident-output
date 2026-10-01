@@ -88,6 +88,7 @@ ErrDryRunDeclaredLate	helper	Misuse
 ErrDuplicateKey	helper	Misuse
 ErrDuplicateSiblingName	helper	Misuse
 ErrEffectCallbackMissing	helper	Effect
+ErrEffectMeasuredNegative	helper	Effect
 ErrEffectObjectMissing	helper	Effect
 ErrEffectQuantityNotPositive	helper	Effect
 ErrEffectVerbInvalid	helper	Effect
@@ -218,6 +219,7 @@ MaxEntities	removed	Run
 MaxEvents	removed	Run
 MaxEvidenceBytes	removed	Capture
 MaxFrameRate	removed	Run
+MeasuredEffect	canonical	Effect
 MessageSnapshot	helper	Snapshot
 MirrorToDebug	helper	Capture
 MirrorToDiagnostics	helper	Capture

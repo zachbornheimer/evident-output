@@ -58,6 +58,7 @@ var (
 	ErrEffectObjectMissing       = errors.New("evo: EffectSpec.Object is required")
 	ErrEffectQuantityNotPositive = errors.New("evo: EffectSpec.Quantity must be > 0")
 	ErrEffectCallbackMissing     = errors.New("evo: Effect requires a non-nil callback")
+	ErrEffectMeasuredNegative    = errors.New("evo: MeasuredEffect callback returned a negative quantity")
 )
 
 // Effect performs one opaque mutation inside a Task's Define callback
@@ -71,11 +72,34 @@ var (
 // Block) disowned the work, so nothing reaches the ledger (see
 // deniesItsOwnEffect).
 func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error) error {
+	if fn == nil {
+		return effectMeasuring(ctx, spec, nil)
+	}
+	return effectMeasuring(ctx, spec, func(ctx context.Context) (int, error) {
+		return spec.Quantity, fn(ctx)
+	})
+}
+
+// MeasuredEffect is Effect for work whose size is only known once it ran:
+// fn returns the quantity it really affected, and the changed ledger row and
+// the closing summary record that instead of spec.Quantity, which stays the
+// plan a dry run shows. A returned 0 records no Effect, like a callback that
+// found nothing to mutate; a negative quantity fails with
+// ErrEffectMeasuredNegative and records nothing. fn's error and a
+// PartialEffect behave exactly as in Effect (the PartialEffect's committed
+// count, not the returned quantity, is recorded on failure).
+func MeasuredEffect(ctx context.Context, spec EffectSpec, fn func(context.Context) (int, error)) error {
+	return effectMeasuring(ctx, spec, fn)
+}
+
+// effectMeasuring is the one Effect lifecycle: run reports the quantity the
+// ledger records when it succeeds, or nil for a missing callback.
+func effectMeasuring(ctx context.Context, spec EffectSpec, run func(context.Context) (int, error)) error {
 	task, err := beginOperation(ctx, fmt.Sprintf("Effect %s %q", spec.Verb, spec.Object))
 	if err != nil {
 		return err
 	}
-	if err := spec.validate(fn); err != nil {
+	if err := spec.validate(run != nil); err != nil {
 		return err
 	}
 	// Resolve the ledger target once, before fn runs: an interrupt that
@@ -85,9 +109,16 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 	if err != nil {
 		return err
 	}
+	quantity := spec.Quantity
 	if target.tense == tenseChanged {
 		disowned, err := task.out.runEffectCallback(ctx, task.id, func(ctx context.Context) error {
-			return task.out.performEffect(ctx, spec.Resource, fn)
+			return task.out.performEffect(ctx, spec.Resource, func(ctx context.Context) error {
+				measured, err := run(ctx)
+				if err == nil {
+					quantity = measured
+				}
+				return err
+			})
 		})
 		if err != nil {
 			return task.out.recordPartialEffect(task.id, target, spec, err)
@@ -100,7 +131,13 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 			return err
 		}
 	}
-	task.out.recordResolvedEntry(task.id, target, spec.entry(spec.Quantity))
+	if quantity < 0 {
+		return fmt.Errorf("%w: %s %q measured %d", ErrEffectMeasuredNegative, spec.Verb, spec.Object, quantity)
+	}
+	if quantity == 0 {
+		return nil
+	}
+	task.out.recordResolvedEntry(task.id, target, spec.entry(quantity))
 	return nil
 }
 
@@ -129,7 +166,7 @@ func (o *Output) performEffect(ctx context.Context, r Resource, fn func(context.
 
 // validate rejects a content-free Effect: one with no known verb, no
 // object, no positive quantity, or no callback to perform it.
-func (s EffectSpec) validate(fn func(context.Context) error) error {
+func (s EffectSpec) validate(hasCallback bool) error {
 	switch {
 	case !s.Verb.valid():
 		return fmt.Errorf("%w: got %q", ErrEffectVerbInvalid, s.Verb)
@@ -137,7 +174,7 @@ func (s EffectSpec) validate(fn func(context.Context) error) error {
 		return ErrEffectObjectMissing
 	case s.Quantity <= 0:
 		return fmt.Errorf("%w: %s %q has Quantity %d", ErrEffectQuantityNotPositive, s.Verb, s.Object, s.Quantity)
-	case fn == nil:
+	case !hasCallback:
 		return ErrEffectCallbackMissing
 	}
 	return nil

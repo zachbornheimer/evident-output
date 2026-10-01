@@ -96,6 +96,7 @@ func Location(path string, line, column int)  ProblemOption
 func LogicalResource(name string)  Resource
 func Main(run RunFunc)  int
 func MaxCaptureBytes(n int)  CaptureOption
+func MeasuredEffect(ctx context.Context, spec EffectSpec, fn func(context.Context) (int, error))  error
 func NewestFirst()  DebugPaneOption
 func Next(action Action)  ProblemOption
 func NextCommand(executable string, args ...string)  ProblemOption
@@ -231,6 +232,7 @@ value ErrDryRunDeclaredLate
 value ErrDuplicateKey
 value ErrDuplicateSiblingName
 value ErrEffectCallbackMissing
+value ErrEffectMeasuredNegative
 value ErrEffectObjectMissing
 value ErrEffectQuantityNotPositive
 value ErrEffectVerbInvalid

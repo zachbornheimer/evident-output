@@ -34,6 +34,23 @@ func ExampleEffect() {
 	// dryRun=false removed=2 planned=0 changed=1
 }
 
+// ExampleMeasuredEffect declares the plan up front and lets the callback
+// report what it really did: the ledger records the measured quantity.
+func ExampleMeasuredEffect() {
+	var buf strings.Builder
+	out := evo.Init(evo.Config{Isolated: true, Title: "prune", Plain: true, Color: evo.ColorNever, Stdout: &buf})
+	out.Task("branches").Define(func(ctx context.Context) error {
+		plan := evo.EffectSpec{Verb: evo.EffectDelete, Object: "merged branch", Quantity: 5}
+		return evo.MeasuredEffect(ctx, plan, func(context.Context) (int, error) {
+			return 2, nil // only two of the five candidates were still merged
+		})
+	})
+	_ = out.Finish()
+	fmt.Println(out.Snapshot().Changes[0].Records[0].Quantity)
+	// Output:
+	// 2
+}
+
 // ExampleEffectSpec describes one aggregate opaque mutation: Object is the
 // singular noun and Quantity the positive count the ledger pluralizes from.
 // Constructing it performs no I/O — passing it to Effect does.

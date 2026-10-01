@@ -25,6 +25,13 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   The reading Task also carries a Problem with the stable code
   `ProblemCodeComputedUnordered` (`"computed-unordered"`), so the failure is
   machine-readable in the Snapshot and the JSON document.
+- **`evo.MeasuredEffect(ctx, spec, fn)` and `ErrEffectMeasuredNegative`:**
+  `Effect` for work whose size is only known once it ran. `fn` returns the
+  quantity it really affected; `EffectSpec.Quantity` stays the plan a dry
+  run shows. The `[changed]` ledger row, the "already mutated" summary, and
+  the JSON document record the measured quantity. A returned 0 records no
+  Effect; a negative one fails the Task. `PartialEffect` still wins on
+  failure.
 - **`evo.AfterRun(fn)` / `(*Output).AfterRun(fn)` and `AfterRunFunc`:**
   register `func(w io.Writer, r evo.Result)` before `Main`/`Run`; it renders
   after the footer, in registration order, to the human stream only
