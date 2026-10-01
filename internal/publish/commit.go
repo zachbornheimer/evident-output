@@ -62,19 +62,23 @@ func (g Guard) verify(ctx context.Context, dest string) error {
 // swap, before verification or cleanup, leaves the new tree at dest and
 // the original as a Leftover. Either way the coordination is released by
 // the kernel; recovery digests dest and the Leftovers against the digests
-// the caller planned with, then keeps or restores accordingly. Where the
-// OS has no exchange, a crash between moving the original aside and
-// renaming the new tree in leaves dest absent and the original a Leftover.
+// the caller planned with, then keeps or restores accordingly (Recover).
+// Where the OS has no exchange, a crash between moving the original aside
+// and renaming the new tree in leaves dest absent and the original a
+// Leftover. Faults can stop a commit at each of these Steps.
 func (s *Staged) Commit(ctx context.Context, g Guard) error {
 	if s.spent {
 		return ErrSpent
 	}
+	reach(StepStaged, s.dest)
 	hold, err := Lock(ctx, s.dest)
 	if err != nil {
 		_ = s.Discard()
 		return fmt.Errorf("publish: commit %s: %w", s.dest, err)
 	}
+	reach(StepLocked, s.dest)
 	replaced, commitErr := s.commitLocked(ctx, g)
+	reach(StepReleasing, s.dest)
 	releaseErr := hold.Release()
 	if replaced != "" {
 		releaseErr = errors.Join(releaseErr, removeReplaced(replaced))
@@ -110,6 +114,7 @@ func (s *Staged) commitLocked(ctx context.Context, g Guard) (string, error) {
 	}
 	s.spent = true
 	s.created = nil
+	reach(StepSwapped, s.dest)
 	verifyErr := g.verify(ctx, s.dest)
 	if verifyErr == nil || !s.tree {
 		return replaced, verifyErr
@@ -152,13 +157,14 @@ func (s *Staged) moveTree() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("inspect destination: %w", err)
 	}
-	if info.IsDir() && exchange(s.temp, s.dest) == nil {
+	if info.IsDir() && exchangeAllowed() && exchange(s.temp, s.dest) == nil {
 		return s.temp, nil
 	}
 	aside := stagingName(s.dest)
 	if err := os.Rename(s.dest, aside); err != nil {
 		return "", fmt.Errorf("move old entry aside: %w", err)
 	}
+	reach(StepAside, s.dest)
 	if err := os.Rename(s.temp, s.dest); err != nil {
 		if restoreErr := os.Rename(aside, s.dest); restoreErr != nil {
 			// The old entry stays at aside, never deleted: it is the only copy.
