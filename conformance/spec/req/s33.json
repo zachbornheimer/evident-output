@@ -23,7 +23,7 @@
   {
     "id": "C33-002",
     "section": "33",
-    "quote": "After 60 seconds without output the row carries a `· quiet Nm` suffix.",
+    "quote": "After 60 seconds without output the row carries a `· quiet <elapsed>` suffix in the one elapsed format of section 32.",
     "tier": "1.1",
     "tests": [
       {

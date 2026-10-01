@@ -1457,7 +1457,7 @@ Elapsed and quiet durations render in one compact form everywhere: live, plain, 
 
 Evo renders caller-supplied lifecycle state and never supervises processes.
 
-A `Writer()`-backed Running Task shows a bounded live tail of 6 lines under its row, with the footer `… N lines in evidence`. After 60 seconds without output the row carries a `· quiet Nm` suffix. Memory stays bounded for any uptime. The live frame changes at least every 100ms.
+A `Writer()`-backed Running Task shows a bounded live tail of 6 lines under its row, with the footer `… N lines in evidence`. After 60 seconds without output the row carries a `· quiet <elapsed>` suffix in the one elapsed format of section 32. Memory stays bounded for any uptime. The live frame changes at least every 100ms.
 
 Daemon extensions (1.2): `task.Ready(detail)` marks readiness. `task.Restarted(reason, attempt, nextBackoff)` renders a restart. `task.StoppedBy(signals...)` reclassifies the listed signals as a clean stop. SIGTERM and SIGINT are clean stops by default for a Task that opts in. A clean stop concludes with exit code 0 and the `[stopped]` band. Plain (non-TTY) output streams start, ready, log lines, and stop one line per event, without glyphs. JSONL carries every log line as an event. Log lines classified INFO and above appear in the tail; DEBUG lines appear only under `EVO_VERBOSE=1`.
 
