@@ -40,10 +40,14 @@ var staleAPIScanFiles = []string{
 }
 
 // staleAPIHistoricalFragments are the only current-docs scan skip: migration
-// notes and the changelog may name removed spellings as history. Architecture,
-// ADRs, acceptance-reference, and roadmap teach the live API.
+// notes, the changelog, and the contract may name removed spellings as
+// history. The contract is the document that DEFINES the retired set (its
+// "Not part of evo" table and the MCP migration-rule list), so it must name
+// them. Architecture, ADRs, acceptance-reference, and roadmap teach the live
+// API.
 var staleAPIHistoricalFragments = []string{
 	"docs/migration/",
+	"docs/contract.md",
 	"CHANGELOG.md",
 }
 
