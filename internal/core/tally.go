@@ -1,5 +1,7 @@
 package core
 
+import "slices"
+
 // Tally is the counted partition of disposition records (Skipped
 // or TaskHandle.Skipped): how many, split by Reason in first-seen order,
 // with the item names under each reason. It is the one owner of that
@@ -60,6 +62,17 @@ func (t *Tally) addItem(rec TaxonomyRecord, facts []Fact) {
 	t.total++
 }
 
+// Snapshot is a Tally a reader may hold while t keeps counting: it
+// shares no slot t's later records write. Records only ever append past
+// the snapshot's lengths, so the reasons slice is the one thing copied.
+func (t Tally) Snapshot() Tally {
+	return Tally{
+		reasons: slices.Clone(t.reasons),
+		causes:  slices.Clip(t.causes),
+		total:   t.total,
+	}
+}
+
 // AddAll counts every record in records.
 func (t *Tally) AddAll(records []TaxonomyRecord) {
 	for _, rec := range records {
@@ -87,6 +100,11 @@ func TallyOf(records []TaxonomyRecord) Tally {
 type Dispositions struct {
 	Skipped Tally
 	Kept    Tally
+}
+
+// Snapshot is Dispositions a reader may hold while d keeps counting.
+func (d Dispositions) Snapshot() Dispositions {
+	return Dispositions{Skipped: d.Skipped.Snapshot(), Kept: d.Kept.Snapshot()}
 }
 
 // Empty reports whether nothing was skipped or kept.

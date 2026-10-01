@@ -90,3 +90,26 @@ func TestDispositions_AddTaskSumsBothTallies(t *testing.T) {
 		t.Fatalf("kept names = %v, want [main develop]", names)
 	}
 }
+
+// A reader holding a Snapshot while the Tally keeps counting must not race.
+func TestTallySnapshotIsSafeWhileCounting(t *testing.T) {
+	t.Parallel()
+	var live core.Tally
+	live.Add(core.TaxonomyRecord{Reason: "r", Name: "first"})
+	snap := live.Snapshot()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for range 1000 {
+			_ = snap.Reasons()[0].Names
+			_ = snap.Total()
+		}
+	}()
+	for range 1000 {
+		live.Add(core.TaxonomyRecord{Reason: "r", Name: "more", Causes: []string{"c"}})
+	}
+	<-done
+	if snap.Total() != 1 || len(snap.Reasons()[0].Names) != 1 {
+		t.Fatalf("snapshot changed: total %d", snap.Total())
+	}
+}
