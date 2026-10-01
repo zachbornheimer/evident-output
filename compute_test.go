@@ -331,3 +331,31 @@ func TestCompute_CrossContainerGetWithoutAfterIsMisuse(t *testing.T) {
 		t.Fatalf("unordered Get() = %d, want zero value", got)
 	}
 }
+
+func TestCompute_UnorderedGetFailsRunWithStableProblemCode(t *testing.T) {
+	out := newQuietOutput(t, false)
+	makeTask := out.Group("producers").Task("make")
+	producer := evo.Compute(makeTask, func(context.Context) (int, error) { return 1, nil })
+	out.Sequence("consumers").Task("read").Define(func(context.Context) error {
+		_ = makeTask.Wait()
+		_ = producer.Get()
+		return nil
+	})
+	if err := out.Finish(); !errors.Is(err, evo.ErrComputedUnordered) {
+		t.Fatalf("Finish() = %v, want ErrComputedUnordered", err)
+	}
+	if out.Conclusion().ExitCode == 0 {
+		t.Fatalf("exit code = 0, want a failed run")
+	}
+	var codes []string
+	for _, col := range out.Snapshot().Collections {
+		for _, task := range col.Tasks {
+			for _, p := range task.Problems {
+				codes = append(codes, p.Code)
+			}
+		}
+	}
+	if len(codes) != 1 || codes[0] != evo.ProblemCodeComputedUnordered {
+		t.Fatalf("problem codes = %v, want [%q]", codes, evo.ProblemCodeComputedUnordered)
+	}
+}

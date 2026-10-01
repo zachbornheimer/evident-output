@@ -1,6 +1,10 @@
 package engine
 
-import "context"
+import (
+	"context"
+
+	"github.com/zachbornheimer/evident-output/internal/core"
+)
 
 // Computed is the value a Task produces for the Tasks and containers
 // declared After it (see Compute).
@@ -60,6 +64,11 @@ func (c *Computed[T]) Get() T {
 		return zero
 	}
 	if consumer := o.currentConsumerLocked(); consumer != nil && !o.orderedAfterLocked(consumer, st) {
+		consumer.problems = append(consumer.problems, core.StoreProblems([]Problem{{
+			Code:    ProblemCodeComputedUnordered,
+			Subject: st.name,
+			Summary: "read a Computed value with nothing ordering this Task after its producer",
+		}})...)
 		o.recordMisuseFor(st.name, ErrComputedUnordered)
 		return zero
 	}

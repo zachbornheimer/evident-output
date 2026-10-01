@@ -276,6 +276,7 @@ Printer.Writer	helper	Human output
 Printf	helper	Human output
 Println	helper	Human output
 Problem	canonical	Problem
+ProblemCodeComputedUnordered	helper	Problem
 ProblemCodeDuplicateSiblingName	helper	Problem
 ProblemCodeVerificationUnsatisfied	helper	Problem
 ProblemOption	helper	Problem

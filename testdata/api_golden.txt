@@ -284,6 +284,7 @@ value LevelUnset
 value LevelWarn
 value NotStarted
 value Pending
+value ProblemCodeComputedUnordered
 value ProblemCodeDuplicateSiblingName
 value ProblemCodeVerificationUnsatisfied
 value ProjectionHuman

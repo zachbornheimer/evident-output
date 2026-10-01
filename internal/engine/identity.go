@@ -36,6 +36,11 @@ const (
 	// Verify observed that the desired state was not reached (§9.1): the
 	// callback ran but its intended effect could not be confirmed.
 	ProblemCodeVerificationUnsatisfied = "verification-unsatisfied"
+	// ProblemCodeComputedUnordered marks a Task whose callback read
+	// Computed.Get with nothing ordering it after the producing Task. The
+	// read fails the run in every mode (never a silent zero value); the
+	// code is how a machine consumer tells it from any other failure.
+	ProblemCodeComputedUnordered = "computed-unordered"
 )
 
 // declaredName is the single normalization every Task/Group/Sequence

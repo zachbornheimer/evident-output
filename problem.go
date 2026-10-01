@@ -88,6 +88,7 @@ func (f *Failure) Unwrap() error {
 const (
 	ProblemCodeDuplicateSiblingName    = engine.ProblemCodeDuplicateSiblingName
 	ProblemCodeVerificationUnsatisfied = engine.ProblemCodeVerificationUnsatisfied
+	ProblemCodeComputedUnordered       = engine.ProblemCodeComputedUnordered
 )
 
 // Problem appends one structured diagnostic without resolving the Task.
