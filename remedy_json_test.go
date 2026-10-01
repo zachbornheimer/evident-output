@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -108,5 +109,54 @@ func TestRemedy_ConfirmPolicyHintReachesRunJSONActions(t *testing.T) {
 	remedies := doc.Data.Tasks[0].Problems[0].Remedies
 	if len(remedies) != 1 || !strings.Contains(remedies[0].Label, "--yes") {
 		t.Fatalf("remedies = %+v, want the --yes hint on the policy-block Problem", remedies)
+	}
+}
+
+// ZYS-1182 decision: the canonical way for a Define callback to fail with a
+// remedy is Fail(summary, Detail(err), remedy) followed by `return nil`. It
+// records exactly one Problem (summary, detail, remedy), fails the Task, and
+// exits 2.
+func TestRemedy_FailInsideDefineCarriesDetailAndRemedyToRunJSON(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Title: "zq", Stdout: &stdout, Stderr: &stderr, Plain: true, Color: evo.ColorNever, Format: evo.FormatJSON})
+	lint := out.Task("lint")
+	lint.Define(func(context.Context) error {
+		lint.Fail("lint failed", evo.Detail("exit status 1"), evo.NextCommand("zq", "fix"))
+		return nil
+	})
+	if err := lint.Wait(); err == nil {
+		t.Fatal("Wait() = nil, want an error for a failed Task")
+	}
+	_ = out.Finish()
+
+	var doc struct {
+		ExitCode int `json:"exit_code"`
+		Data     struct {
+			Tasks []struct {
+				State    string `json:"state"`
+				Problems []struct {
+					Message  string                 `json:"message"`
+					Detail   string                 `json:"detail"`
+					Remedies []remedyActionDocument `json:"remedies"`
+				} `json:"problems"`
+			} `json:"tasks"`
+			Actions []remedyActionDocument `json:"actions"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &doc); err != nil {
+		t.Fatalf("stdout is not an evo.run document: %v\n%s", err, stdout.String())
+	}
+	if doc.ExitCode != 2 {
+		t.Fatalf("exit_code = %d, want 2", doc.ExitCode)
+	}
+	if len(doc.Data.Tasks) != 1 || doc.Data.Tasks[0].State != "failed" || len(doc.Data.Tasks[0].Problems) != 1 {
+		t.Fatalf("data.tasks = %+v, want one failed task with exactly one Problem", doc.Data.Tasks)
+	}
+	problem := doc.Data.Tasks[0].Problems[0]
+	if problem.Message != "lint failed" || problem.Detail != "exit status 1" || !anyRuns(problem.Remedies, "zq", "fix") {
+		t.Fatalf("problem = %+v, want summary, detail, and the zq fix remedy", problem)
+	}
+	if !anyRuns(doc.Data.Actions, "zq", "fix") {
+		t.Fatalf("data.actions = %+v, want the zq fix remedy", doc.Data.Actions)
 	}
 }
