@@ -49,14 +49,47 @@ func (t Tree) Write(ctx context.Context) error {
 // between the caller's observation and the commit is never overwritten:
 // Replace returns ErrTreeChanged and leaves Path exactly as found. A
 // missing Path has changed too. The original tree is kept beside Path
-// until the new one verifies, then deleted.
+// until the new one verifies, then deleted. A Path that already digests
+// to Content is satisfied and kept as it is; ReplaceTree reports which
+// happened and can publish anyway.
 func (t Tree) Replace(ctx context.Context, expected string) error {
+	_, err := t.ReplaceTree(ctx, expected)
+	return err
+}
+
+// ReplaceTree is Replace that reports whether it published. By default a
+// Path already digesting to Content is satisfied: nothing is swapped and
+// Published is false. Republish swaps Content in anyway, under the same
+// expected-digest check, verification, and rollback.
+func (t Tree) ReplaceTree(ctx context.Context, expected string, opts ...ReplaceOption) (ReplaceResult, error) {
 	src, err := t.source()
 	if err != nil {
-		return err
+		return ReplaceResult{}, err
 	}
-	return engine.TreeReplace(ctx, t.Path, src, expected)
+	republish := false
+	for _, opt := range opts {
+		republish = republish || opt.republish
+	}
+	published, err := engine.TreeReplace(ctx, t.Path, src, expected, republish)
+	return ReplaceResult{Published: published}, err
 }
+
+// ReplaceResult is what ReplaceTree did.
+type ReplaceResult struct {
+	// Published is true when Content was swapped in at Path, false when
+	// Path was left as found (satisfied, refused, failed, or DryRun).
+	Published bool
+}
+
+// ReplaceOption adjusts a ReplaceTree. Obtain one from Republish.
+type ReplaceOption struct{ republish bool }
+
+// Republish makes ReplaceTree swap Content in even when Path already
+// digests to it. A Tree digest counts structure, bytes, and the
+// executable bit only, never block sharing or other permissions, so a
+// byte-identical private copy and a copy-on-write Clone of a shared tree
+// look equal; Republish is how a caller replaces one with the other.
+func Republish() ReplaceOption { return ReplaceOption{republish: true} }
 
 // Recover settles Path after a Replace with the same Content and expected
 // was interrupted, deciding by digest alone, never by a leftover's name,
@@ -165,11 +198,18 @@ type TreeContent interface{ treeContent() }
 // nothing.
 type Clone struct {
 	From Tree
+	// Writable makes the copy owner-writable: directories 0o755, files
+	// 0o644, executables 0o755, whatever From's modes are, so a tool that
+	// owns the destination can update or remove it. From is never changed,
+	// file data is still shared copy-on-write, and the Checksum still
+	// equals From's (it counts only the executable bit). Off, the copy
+	// keeps From's modes: a clone of a read-only tree is read-only.
+	Writable bool
 }
 
 func (Clone) treeContent() {}
 
-func (c Clone) treeSource() engine.TreeSource { return engine.TreeClone(c.From.Path) }
+func (c Clone) treeSource() engine.TreeSource { return engine.TreeClone(c.From.Path, c.Writable) }
 
 // Tree errors.
 var (

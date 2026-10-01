@@ -433,3 +433,36 @@ inside the parent's tree until it commits.
   claim on the staging path: that claim would hold a shared lock on every
   ancestor for the whole stage, so a parent Replace would wait for a
   child's download and extract to finish.
+
+## Rulings (2026-10-01, republish and writable clones)
+
+zq prune replaces a project's private copy of a package with a
+copy-on-write clone of the sealed store tree, to free space. Both trees
+digest the same, so the default compare-and-swap kept the private copy and
+reported success: a silent no-op.
+
+- **Satisfied-skip stays the default.** `Tree.Replace` and `Tree.ReplaceTree`
+  with no option keep a destination that already digests to Content: no
+  rename, the destination keeps its inode, and `ReplaceTree` reports
+  `ReplaceResult{Published: false}`. This is right for anyone who wants
+  the content, which is nearly everyone.
+- **`Republish()` is for callers who want the tree object, not just its
+  content.** `ReplaceTree(ctx, expected, Republish())` swaps the staged tree
+  in even when the digests are equal, still under the destination's lock,
+  the `expected` check (`ErrTreeChanged` when the destination changed),
+  verification, and rollback. `Published` is true only when a tree was
+  swapped in; DryRun, a refusal, or a failure report false.
+- **A tree digest does not capture block sharing or permissions other than
+  the exec bit.** `evo.tree.v2` counts structure, bytes, symlink text, and
+  whether a file is executable. A private copy and a clone, or a read-only
+  and a writable tree, are equal. A caller replacing a tree to save space
+  must use `Republish` and prove the sharing itself (evo's darwin tests use
+  `F_LOG2PHYS_EXT` to compare a file's physical block with the source's).
+- **`Clone.Writable` makes the copy owner-writable.** After cloning, every
+  directory becomes 0o755 and every regular file 0o644 plus its own execute
+  bits (so executables become 0o755); symlinks are untouched. A clone of a
+  sealed store (dirs 0o555, files 0o444) would otherwise land read-only in a
+  project, where npm cannot update or remove it. The change is a `chmod`
+  on the clone: file data stays shared (proven on APFS), the source keeps
+  its modes, and the digest equals the source's. The default keeps the
+  source's modes.

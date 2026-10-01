@@ -81,6 +81,7 @@ func (Tree) Read(ctx context.Context)  []File,  error
 func (Tree) Recover(ctx context.Context, expected string)  RecoverResult,  error
 func (Tree) Remove(ctx context.Context)  error
 func (Tree) Replace(ctx context.Context, expected string)  error
+func (Tree) ReplaceTree(ctx context.Context, expected string, opts ...ReplaceOption)  ReplaceResult,  error
 func (Tree) Verify(ctx context.Context)  error
 func (Tree) Write(ctx context.Context)  error
 func App()  Fingerprint
@@ -128,6 +129,7 @@ func Printf(format string, args ...any)
 func Println(args ...any)
 func Reason(name string)  TaxonomyReason
 func RenderPlain(s Snapshot, opts PlainOptions)  []byte,  error
+func Republish()  ReplaceOption
 func Run(ctx context.Context, run RunFunc)  Result
 func Sequence(name string)  *SequenceHandle
 func SetDefault(out *Output)
@@ -147,6 +149,7 @@ type ChangesSnapshot
 type ChecksumOption
 type Clone
 type Clone.From
+type Clone.Writable
 type ColorMode
 type CommandSpec
 type Computed
@@ -215,6 +218,9 @@ type RecoverResult.Leftovers
 type RecoverResult.State
 type RecoverState
 type Redactor
+type ReplaceOption
+type ReplaceResult
+type ReplaceResult.Published
 type Resolution
 type Resource
 type Result

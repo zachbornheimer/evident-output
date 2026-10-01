@@ -117,7 +117,7 @@ func TreeEqual(ctx context.Context, a, b string, exclude []string) (bool, error)
 // is left alone. A failed or cancelled Write leaves the previous tree and
 // no staging behind.
 func TreeWrite(ctx context.Context, path string, src TreeSource) error {
-	return publishTree(ctx, treePublication{
+	_, err := publishTree(ctx, treePublication{
 		verb: "Write",
 		path: path,
 		src:  src,
@@ -129,6 +129,7 @@ func TreeWrite(ctx context.Context, path string, src TreeSource) error {
 		},
 		skipSatisfied: true,
 	})
+	return err
 }
 
 // ErrTreeChanged is a Tree.Replace whose destination no longer holds the
@@ -138,8 +139,13 @@ var ErrTreeChanged = errors.New("evo: tree changed since it was observed")
 // TreeReplace is Tree.Replace: TreeWrite that commits only if, inside the
 // destination's critical section, the tree at path still digests to
 // expected (a Tree.Checksum result). Otherwise it is ErrTreeChanged and
-// the destination is untouched. A missing destination has changed too.
-func TreeReplace(ctx context.Context, path string, src TreeSource, expected string) error {
+// the destination is untouched. A missing destination has changed too. A
+// destination that already digests to the staged tree is satisfied and
+// kept, unless republish: then the staged tree is swapped in anyway,
+// because a digest cannot see what a caller may replace an equal tree
+// for (block sharing, permissions). published reports whether a tree was
+// swapped in.
+func TreeReplace(ctx context.Context, path string, src TreeSource, expected string, republish bool) (published bool, err error) {
 	return publishTree(ctx, treePublication{
 		verb: "Replace",
 		path: path,
@@ -156,7 +162,7 @@ func TreeReplace(ctx context.Context, path string, src TreeSource, expected stri
 				return err
 			case have.String() != expected:
 				return fmt.Errorf("%w: %s digests to %s, expected %s", ErrTreeChanged, dest, have, expected)
-			case have == want:
+			case have == want && !republish:
 				return publish.ErrSatisfied
 			}
 			return nil
@@ -182,43 +188,50 @@ type treePublication struct {
 
 // publishTree prepares p.src's tree beside the destination outside any
 // lock, then commits it under the destination's coordination: admit,
-// atomic swap, verify against the staged digest, release.
-func publishTree(ctx context.Context, p treePublication) error {
+// atomic swap, verify against the staged digest, release. published is
+// true only when the staged tree was swapped in; a dry run or a satisfied
+// destination publishes nothing.
+func publishTree(ctx context.Context, p treePublication) (published bool, err error) {
 	label := fmt.Sprintf("Tree %q %s", p.path, p.verb)
 	task, err := beginOperation(ctx, label)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if p.path == "" {
-		return ErrPathMissing
+		return false, ErrPathMissing
 	}
 	if p.src == nil {
-		return fmt.Errorf("evo: %s: %w", label, ErrContentMissing)
+		return false, fmt.Errorf("evo: %s: %w", label, ErrContentMissing)
 	}
 	out := task.out
 	abs := out.checksumPath(p.path)
 	if err := p.precheck(out, abs); err != nil {
-		return fmt.Errorf("evo: %s: %w", label, err)
+		return false, fmt.Errorf("evo: %s: %w", label, err)
 	}
 	if out.DryRun() {
-		return nil
+		return false, nil
 	}
 	staged, err := publish.StageTree(ctx, abs, 0, func(ctx context.Context, root string) error { return p.src.Fill(ctx, root) })
 	if err != nil {
-		return fmt.Errorf("evo: %s: %w", label, err)
+		return false, fmt.Errorf("evo: %s: %w", label, err)
 	}
 	want, err := out.treeDigest(ctx, staged.Path(), checksum.Exclusion{})
 	if err != nil {
 		_ = staged.Discard()
-		return fmt.Errorf("evo: %s: digest prepared tree: %w", label, err)
+		return false, fmt.Errorf("evo: %s: digest prepared tree: %w", label, err)
 	}
 	if p.skipSatisfied {
 		if have, err := out.treeDigest(ctx, abs, checksum.Exclusion{}); err == nil && have == want {
-			return staged.Discard()
+			return false, staged.Discard()
 		}
 	}
+	satisfied := false
 	guard := publish.Guard{
-		Revalidate: func(ctx context.Context, dest string) error { return p.admit(ctx, out, dest, want) },
+		Revalidate: func(ctx context.Context, dest string) error {
+			err := p.admit(ctx, out, dest, want)
+			satisfied = errors.Is(err, publish.ErrSatisfied)
+			return err
+		},
 		Verify: func(ctx context.Context, dest string) error {
 			return out.requireTreeDigest(ctx, dest, want)
 		},
@@ -228,11 +241,11 @@ func publishTree(ctx context.Context, p treePublication) error {
 	case errors.Is(err, publish.ErrStagedGone):
 		// An ancestor's commit carried the stage away: the tree this
 		// publication was planned against is gone.
-		return fmt.Errorf("evo: %s: %w: %w", label, ErrTreeChanged, err)
+		return false, fmt.Errorf("evo: %s: %w: %w", label, ErrTreeChanged, err)
 	case err != nil:
-		return fmt.Errorf("evo: %s: %w", label, err)
+		return false, fmt.Errorf("evo: %s: %w", label, err)
 	}
-	return nil
+	return !satisfied, nil
 }
 
 // TreeVerify is Tree.Verify: nil when the tree at path holds exactly src's

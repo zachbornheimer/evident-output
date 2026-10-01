@@ -153,6 +153,8 @@ func TestTreeMethodSetIsExactlyTheSharedVocabulary(t *testing.T) {
 		"Checksum": "(context.Context, ...evo.ChecksumOption) (string, error)",
 		// Replace is Write with compare-and-swap (prune's replacement).
 		"Replace": "(context.Context, string) error",
+		// ReplaceTree is Replace that reports Published and can Republish.
+		"ReplaceTree": "(context.Context, string, ...evo.ReplaceOption) (evo.ReplaceResult, error)",
 		// Recover settles what an interrupted Replace left, by digest.
 		"Recover": "(context.Context, string) (evo.RecoverResult, error)",
 	}

@@ -20,10 +20,26 @@ var ErrCloneUnsupportedEntry = errors.New("evo: Clone cannot copy a special file
 // entry is cloned copy-on-write where the platform offers it (darwin
 // clonefile, linux FICLONE) and copied byte for byte otherwise, never
 // hard-linked, so the copy is independent of its source. The copy must
-// digest to the source's digest, or Fill fails.
-func TreeClone(from string) TreeSource { return cloneSource{from: from} }
+// digest to the source's digest, or Fill fails. A writable copy is made
+// owner-writable after cloning (see makeOwnerWritable); a mode change
+// shares no less data, and the digest, which counts only the exec bit,
+// is unchanged.
+func TreeClone(from string, writable bool) TreeSource {
+	return cloneSource{from: from, writable: writable}
+}
 
-type cloneSource struct{ from string }
+type cloneSource struct {
+	from     string
+	writable bool
+}
+
+// Modes a writable clone gives its entries. A file keeps its execute bits
+// on top of ownerWritableFile, so executables stay executable.
+const (
+	ownerWritableDir  fs.FileMode = 0o755
+	ownerWritableFile fs.FileMode = 0o644
+	executeBits       fs.FileMode = 0o111
+)
 
 // Fill implements TreeSource.
 func (c cloneSource) Fill(ctx context.Context, root string) error {
@@ -45,6 +61,11 @@ func (c cloneSource) Fill(ctx context.Context, root string) error {
 	if err := cloneChildren(ctx, src, root); err != nil {
 		return fmt.Errorf("evo: Clone %s: %w", c.from, err)
 	}
+	if c.writable {
+		if err := makeOwnerWritable(root); err != nil {
+			return fmt.Errorf("evo: Clone %s: make writable: %w", c.from, err)
+		}
+	}
 	have, err := out.treeDigest(ctx, root, checksum.Exclusion{})
 	if err != nil {
 		return fmt.Errorf("evo: Clone %s: digest copy: %w", c.from, err)
@@ -53,6 +74,29 @@ func (c cloneSource) Fill(ctx context.Context, root string) error {
 		return fmt.Errorf("evo: Clone %s: %w: copy digests to %s, source to %s", c.from, ErrVerifyMismatch, have, want)
 	}
 	return nil
+}
+
+// makeOwnerWritable sets every directory beneath root to ownerWritableDir
+// and every regular file to ownerWritableFile plus its own execute bits.
+// A directory is changed before it is read, so a read-only source's
+// subtree opens. Symlinks are left alone; root is the staging directory.
+func makeOwnerWritable(root string) error {
+	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || path == root {
+			return err
+		}
+		switch {
+		case entry.IsDir():
+			return os.Chmod(path, ownerWritableDir)
+		case entry.Type().IsRegular():
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			return os.Chmod(path, ownerWritableFile|info.Mode().Perm()&executeBits)
+		}
+		return nil
+	})
 }
 
 // cloneChildren copies every entry of the directory src into the existing

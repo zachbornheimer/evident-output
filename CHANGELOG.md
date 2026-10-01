@@ -53,6 +53,15 @@ and [`docs/zys-1382/KNOWN_BROKEN.md`](docs/zys-1382/KNOWN_BROKEN.md).
   wrapping `ErrTreeChanged`; nothing changed). It deletes only leftovers
   proven to be the original or the replacement and lists the rest in
   `RecoverResult.Leftovers`; `RecoverResult.State` is a `RecoverState`.
+- **`Tree.ReplaceTree(ctx, expected, opts ...ReplaceOption) (ReplaceResult, error)`**
+  is `Replace` that reports `ReplaceResult.Published`: false when the
+  destination already digested to Content and was kept (the default, and
+  what `Replace` still does). **`Republish()`** swaps Content in anyway,
+  under the same expected-digest check, verification, and rollback, so a
+  byte-identical private copy can be replaced by a copy-on-write `Clone`.
+- **`Clone.Writable`** makes the cloned tree owner-writable (directories
+  0o755, files 0o644, executables 0o755) without copying file data; the
+  source is untouched and the digest is unchanged.
   It never deletes a stage a live writer still owns, runs only inside a
   Task, and under DryRun reports its decision without changing files.
 - `Tree.Checksum` leaves out in-flight publish staging entries (the exact

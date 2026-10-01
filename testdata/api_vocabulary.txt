@@ -25,6 +25,7 @@ ChecksumOption	helper	Checksum
 Clock	removed	Run
 Clone	helper	Tree
 Clone.From	helper	Tree
+Clone.Writable	helper	Tree
 Code	helper	Problem
 ColorAlways	helper	Human output
 ColorAuto	helper	Human output
@@ -350,6 +351,10 @@ RecoverUnrecoverable	helper	Tree
 Redact	removed	Run
 Redactor	helper	Human output
 RenderPlain	helper	Snapshot
+ReplaceOption	helper	Tree
+ReplaceResult	helper	Tree
+ReplaceResult.Published	helper	Tree
+Republish	helper	Tree
 Resolution	helper	Conclusion
 ResolutionAlreadySatisfied	helper	Conclusion
 ResolutionExecuted	helper	Conclusion
@@ -438,6 +443,7 @@ Tree.Read	helper	Tree
 Tree.Recover	helper	Tree
 Tree.Remove	helper	Remove
 Tree.Replace	helper	Tree
+Tree.ReplaceTree	helper	Tree
 Tree.Verify	helper	Tree
 Tree.Write	helper	Tree
 TreeContent	helper	Tree
