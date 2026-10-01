@@ -2,6 +2,7 @@ package review_test
 
 import (
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -134,10 +135,12 @@ func findingAbout(fs []review.Finding, name string) (review.Finding, bool) {
 
 func tryApplyReplace(src, suggestion string) (string, bool) {
 	rest, ok := strings.CutPrefix(suggestion, "replace ")
-	if !ok {
-		return "", false
+	if !ok || strings.Contains(suggestion, "\n") {
+		return "", false // a Suggestion is one line (review.Finding)
 	}
-	// " with " may also occur inside a quoted summary: try each split.
+	// " with " may also occur inside a quoted summary: the left side is the
+	// split whose text occurs in src. A space in it matches any whitespace run,
+	// which is how a one-line suggestion names a multi-line span.
 	for offset := 0; ; {
 		i := strings.Index(rest[offset:], " with ")
 		if i < 0 {
@@ -145,8 +148,9 @@ func tryApplyReplace(src, suggestion string) (string, bool) {
 		}
 		cut := offset + i
 		old, repl := rest[:cut], rest[cut+len(" with "):]
-		if strings.Contains(src, old) {
-			return strings.Replace(src, old, repl, 1), true
+		left := regexp.MustCompile(strings.ReplaceAll(regexp.QuoteMeta(old), " ", `\s+`))
+		if loc := left.FindStringIndex(src); loc != nil {
+			return src[:loc[0]] + repl + src[loc[1]:], true
 		}
 		offset = cut + 1
 	}

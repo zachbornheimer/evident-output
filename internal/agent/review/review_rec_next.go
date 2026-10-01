@@ -61,7 +61,7 @@ func (d *recSurfaceDetector) remedyReceiverKind(x ast.Expr) (remedyKind, bool) {
 // known; it is deliberately not a "replace ... with ..." line.
 func (d *recSurfaceDetector) unprovenRemedyGuidance(name string, call *ast.CallExpr) string {
 	return "if the receiver is an evo Task or Output, move the remedy onto the Problem it explains: " +
-		"Problem(\"<why>\", " + d.pkg + "." + name + "(" + d.callArgsSrc(call.Args) + ")); " +
+		"Problem(\"<why>\", " + d.pkg + "." + name + "(" + d.callArgsSrc(call.Args) + spreadMark(call) + ")); " +
 		"if it is not, the review could not see its type (another file, a call result, a chain): " +
 		"give the variable an explicit non-evo type in this file so the review can prove it"
 }
@@ -98,18 +98,26 @@ func (d *recSurfaceDetector) inspectRemovedRemedyMethod(call *ast.CallExpr, sel 
 // warning Problem.
 func (d *recSurfaceDetector) reportRemedyRewrite(call *ast.CallExpr, sel *ast.SelectorExpr, kind remedyKind, stmt remedyStatement, msg string) {
 	options := d.remedyOptions(sel.Sel.Name, call.Args)
-	if diag := d.siblingDiagnostic(stmt, d.nodeSrc(sel.X)); diag != nil {
+	if diag := d.adjacentDiagnostic(stmt, d.nodeSrc(sel.X)); diag != nil {
 		d.report(call, msg, d.foldSuggestion(diag, call, options))
 		return
 	}
 	if kind == remedyOnTask {
-		if problem, ok := d.errorReturnProblem(call, sel.X, options); ok {
-			d.report(call, msg+"; this path returns an error, so the remedy rides on an error Problem recorded here", "replace "+d.nodeSrc(call)+" with "+problem)
+		if fail, ok := d.defineFailRewrite(call, sel.X, stmt, options); ok {
+			d.report(call, msg+"; this Define callback returns an error right after it, so it fails the Task with the remedy attached and returns nil", fail)
 			return
 		}
 	}
 	fallback, owner := d.warningProblemRewrite(sel.X, kind, options)
-	d.report(call, msg+"; no diagnostic in this block owns it, so "+owner, "replace "+d.nodeSrc(call)+" with "+fallback)
+	d.report(call, msg+"; no adjacent diagnostic owns it, so "+owner, replaceSuggestion(d.nodeSrc(call), fallback))
+}
+
+// spreadMark is "..." when call's last argument is spread.
+func spreadMark(call *ast.CallExpr) string {
+	if call.Ellipsis.IsValid() {
+		return "..."
+	}
+	return ""
 }
 
 // warningProblemRewrite builds the fallback and names the owner it chose.
@@ -138,25 +146,6 @@ func (d *recSurfaceDetector) remedyOptions(name string, args []ast.Expr) []strin
 		options[i] = d.pkg + ".Next(" + action + ")"
 	}
 	return options
-}
-
-// enclosingFuncBody is the body of the innermost function containing n.
-func (d *recSurfaceDetector) enclosingFuncBody(n ast.Node) *ast.BlockStmt {
-	var body *ast.BlockStmt
-	ast.Inspect(d.file, func(x ast.Node) bool {
-		var b *ast.BlockStmt
-		switch f := x.(type) {
-		case *ast.FuncDecl:
-			b = f.Body
-		case *ast.FuncLit:
-			b = f.Body
-		}
-		if b != nil && b.Pos() <= n.Pos() && n.End() <= b.End() {
-			body = b
-		}
-		return true
-	})
-	return body
 }
 
 // remedyPlaceholderLiteral matches the fallback rewrite's placeholder summary
