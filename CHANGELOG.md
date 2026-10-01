@@ -46,6 +46,13 @@ and [`docs/zys-1382/KNOWN_BROKEN.md`](docs/zys-1382/KNOWN_BROKEN.md).
 - **`Tree.Replace(ctx, expected)`** commits only if the destination still
   digests to `expected`, re-checked inside the destination's critical
   section; otherwise `ErrTreeChanged` and the destination is untouched.
+- **`Tree.Recover(ctx, expected) (RecoverResult, error)`** settles what an
+  interrupted `Replace` left, by digest alone: `RecoverIntact`,
+  `RecoverCompletedReplacement`, `RecoverRestoredOriginal` (the original
+  put back over a missing path), or `RecoverUnrecoverable` (an error
+  wrapping `ErrTreeChanged`; nothing changed). It deletes only leftovers
+  proven to be the original or the replacement and lists the rest in
+  `RecoverResult.Leftovers`; `RecoverResult.State` is a `RecoverState`.
 - Tree commits now coordinate per destination: siblings commit concurrently,
   and the same path or an ancestor/descendant pair serializes, across
   goroutines and processes.

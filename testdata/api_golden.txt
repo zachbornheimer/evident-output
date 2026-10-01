@@ -78,6 +78,7 @@ func (TaxonomyReason) Name()  string
 func (Tree) Checksum(ctx context.Context, opts ...ChecksumOption)  string,  error
 func (Tree) Equal(ctx context.Context, other Tree, opts ...ChecksumOption)  bool,  error
 func (Tree) Read(ctx context.Context)  []File,  error
+func (Tree) Recover(ctx context.Context, expected string)  RecoverResult,  error
 func (Tree) Remove(ctx context.Context)  error
 func (Tree) Replace(ctx context.Context, expected string)  error
 func (Tree) Verify(ctx context.Context)  error
@@ -209,6 +210,10 @@ type ProcessRunner
 type Progress
 type ProgressKind
 type Projection
+type RecoverResult
+type RecoverResult.Leftovers
+type RecoverResult.State
+type RecoverState
 type Redactor
 type Resolution
 type Resource

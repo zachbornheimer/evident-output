@@ -339,6 +339,14 @@ ProjectionStreamJSON	helper	Machine output
 PublishedRelease	helper	Machine output
 Reason	helper	Skipped
 ReasonOption	removed	Skipped
+RecoverCompletedReplacement	helper	Tree
+RecoverIntact	helper	Tree
+RecoverRestoredOriginal	helper	Tree
+RecoverResult	helper	Tree
+RecoverResult.Leftovers	helper	Tree
+RecoverResult.State	helper	Tree
+RecoverState	helper	Tree
+RecoverUnrecoverable	helper	Tree
 Redact	removed	Run
 Redactor	helper	Human output
 RenderPlain	helper	Snapshot
@@ -427,6 +435,7 @@ Tree.Content	helper	Tree
 Tree.Equal	helper	Tree
 Tree.Path	helper	Tree
 Tree.Read	helper	Tree
+Tree.Recover	helper	Tree
 Tree.Remove	helper	Remove
 Tree.Replace	helper	Tree
 Tree.Verify	helper	Tree

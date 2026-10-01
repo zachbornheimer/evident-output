@@ -381,5 +381,28 @@ gaps the ownership audit found.
   deleting leftovers; if a leftover digests to `expected`, restore it.
   Coordination needs no cleanup. Platforms with no atomic exchange move the
   original aside first, so a crash between the two renames there leaves the
-  destination absent and the original as a leftover. There is no public
-  recovery API yet (plan Phase 4).
+  destination absent and the original as a leftover.
+- **`Tree.Recover(ctx, expected) (RecoverResult, error)` is that recovery.**
+  Under the destination's coordination it digests the destination and every
+  leftover, then decides by digest alone (the replacement digest comes from
+  `Content`; nil `Content` means unknown):
+
+  | Destination                 | Leftovers                  | State                         | Deleted                                              |
+  | --------------------------- | -------------------------- | ----------------------------- | ---------------------------------------------------- |
+  | digests to `expected`       | any                        | `RecoverIntact`               | leftovers digesting to `expected` or the replacement |
+  | digests to the replacement  | any                        | `RecoverCompletedReplacement` | same                                                 |
+  | missing                     | one digests to `expected`  | `RecoverRestoredOriginal`     | it is renamed back and re-verified; then same        |
+  | missing                     | none digests to `expected` | `RecoverUnrecoverable`        | nothing (`ErrTreeChanged`)                           |
+  | anything else, or not a dir | any                        | `RecoverUnrecoverable`        | nothing (`ErrTreeChanged`)                           |
+
+  Every leftover not deleted is listed in `RecoverResult.Leftovers`. A
+  leftover that is not a real directory (a symlink included) is never
+  restored or deleted.
+
+- **Known gap: a child's staging lives inside its parent's tree.** A child
+  Replace stages beside the child, so outside any lock its uncommitted
+  staging is part of the parent's tree: a parent Replace re-checking then
+  sees a different digest and is refused with `ErrTreeChanged`. The test
+  pins this serial outcome. Excluding staging entries from the digest would
+  instead let the parent's swap carry the child's staging away, failing the
+  child with a non-contract rename error; the fix needs a ruling.

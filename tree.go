@@ -2,8 +2,11 @@ package evo
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/zachbornheimer/evident-output/internal/engine"
+	"github.com/zachbornheimer/evident-output/internal/publish"
 )
 
 // Tree is one directory and everything beneath it: where it lives and,
@@ -55,6 +58,95 @@ func (t Tree) Replace(ctx context.Context, expected string) error {
 		return err
 	}
 	return engine.TreeReplace(ctx, t.Path, src, expected)
+}
+
+// Recover settles Path after a Replace with the same Content and expected
+// was interrupted, deciding by digest alone, never by a leftover's name,
+// age, or presence. Under Path's coordination it digests Path and the
+// hidden trees the interrupted Replace left beside it:
+//
+//   - Path holds expected (RecoverIntact) or Content (RecoverCompletedReplacement):
+//     leftovers holding either are deleted; any other leftover is kept and
+//     listed.
+//   - Path is missing and a leftover holds expected: it is put back at
+//     Path (RecoverRestoredOriginal); leftovers holding either are deleted.
+//   - Otherwise (Path holds something else, or is missing with no original
+//     to restore): RecoverUnrecoverable, an error wrapping ErrTreeChanged,
+//     every leftover listed, and nothing changed.
+//
+// Recover deletes only trees it proved redundant. A nil Content means the
+// replacement is unknown: only Path holding expected settles it, and
+// leftovers that are not expected are kept.
+func (t Tree) Recover(ctx context.Context, expected string) (RecoverResult, error) {
+	if t.Path == "" {
+		return RecoverResult{State: RecoverUnrecoverable}, ErrPathMissing
+	}
+	path := engine.ResolvePath(ctx, t.Path)
+	replacement, err := t.contentChecksum(ctx, path)
+	if err != nil {
+		return RecoverResult{State: RecoverUnrecoverable}, fmt.Errorf("evo: Tree %q Recover: %w", t.Path, err)
+	}
+	got, err := publish.Recover(ctx, path, publish.Evidence{Original: expected, Replacement: replacement, Digest: treeChecksum})
+	result := RecoverResult{State: recoverStates[got.Outcome], Leftovers: got.Kept}
+	switch {
+	case errors.Is(err, publish.ErrUnrecoverable):
+		return result, fmt.Errorf("evo: Tree %q Recover: %w: %w", t.Path, ErrTreeChanged, err)
+	case err != nil:
+		return result, fmt.Errorf("evo: Tree %q Recover: %w", t.Path, err)
+	}
+	return result, nil
+}
+
+// contentChecksum is the Checksum Content would publish at path, or "" for
+// no Content. Content is prepared beside path and discarded.
+func (t Tree) contentChecksum(ctx context.Context, path string) (string, error) {
+	src, err := t.source()
+	if err != nil || src == nil {
+		return "", err
+	}
+	staged, err := publish.StageTree(ctx, path, 0, src.Fill)
+	if err != nil {
+		return "", err
+	}
+	sum, err := treeChecksum(ctx, staged.Path())
+	return sum, errors.Join(err, staged.Discard())
+}
+
+func treeChecksum(ctx context.Context, path string) (string, error) {
+	return engine.TreeChecksum(ctx, path, nil)
+}
+
+// RecoverResult is how Recover settled a Tree.
+type RecoverResult struct {
+	State RecoverState
+	// Leftovers are the hidden trees beside Path that Recover kept: their
+	// digest is neither expected nor Content's, or (RecoverUnrecoverable)
+	// Path was not proven whole.
+	Leftovers []string
+}
+
+// RecoverState is the state Recover left a Tree's Path in.
+type RecoverState int
+
+// Recover states.
+const (
+	// RecoverIntact: Path holds the expected (original) tree.
+	RecoverIntact RecoverState = iota + 1
+	// RecoverRestoredOriginal: Path was missing and the original was put
+	// back.
+	RecoverRestoredOriginal
+	// RecoverCompletedReplacement: Path holds Content.
+	RecoverCompletedReplacement
+	// RecoverUnrecoverable: neither tree could be established at Path;
+	// nothing was changed.
+	RecoverUnrecoverable
+)
+
+var recoverStates = map[publish.Outcome]RecoverState{
+	publish.OutcomeIntact:               RecoverIntact,
+	publish.OutcomeRestoredOriginal:     RecoverRestoredOriginal,
+	publish.OutcomeCompletedReplacement: RecoverCompletedReplacement,
+	publish.OutcomeUnrecoverable:        RecoverUnrecoverable,
 }
 
 // Verify reports whether Path holds Content: nil, or ErrVerifyMismatch.

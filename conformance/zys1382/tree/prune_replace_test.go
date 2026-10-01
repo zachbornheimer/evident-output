@@ -60,23 +60,27 @@ func TestPrune_ReplaceOfAnEditedDestinationIsTreeChangedAndPreservesTheEdit(t *t
 	}
 }
 
-// The edit lands while Replace waits for the destination's coordination:
-// after the caller read expected, before the commit. Only a re-check inside
-// the critical section can catch it.
+// The edit lands after Replace has staged and digested the new tree and
+// before it swaps: only the re-check inside the critical section can catch
+// it.
 func TestPrune_ReplaceRechecksInsideTheCriticalSection(t *testing.T) {
 	f := newPruneReplaceFixture(t)
-	hold, err := publish.Lock(context.Background(), f.dest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	done := make(chan error, 1)
-	go func() { done <- f.replace(t) }()
-	plant(t, f.dest, map[string]string{"index.js": "concurrent edit"})
-	if err := hold.Release(); err != nil {
-		t.Fatal(err)
-	}
-	if err := <-done; !errors.Is(err, evo.ErrTreeChanged) {
+	edits := 0
+	defer publish.InjectFaults(publish.Faults{At: func(step publish.Step, at string) {
+		if step != publish.StepStaged || at != f.dest {
+			return
+		}
+		if staged, err := publish.Leftovers(f.dest); err != nil || len(staged) != 1 {
+			t.Errorf("at StepStaged Leftovers = %v, %v; want the finished staged tree", staged, err)
+		}
+		edits++
+		plant(t, f.dest, map[string]string{"index.js": "concurrent edit"})
+	}})()
+	if err := f.replace(t); !errors.Is(err, evo.ErrTreeChanged) {
 		t.Fatalf("Replace across a concurrent edit = %v, want ErrTreeChanged", err)
+	}
+	if edits != 1 {
+		t.Fatalf("the edit landed %d times, want once between staging and swap", edits)
 	}
 	if got := onDisk(t, f.dest); got["index.js"] != "concurrent edit" {
 		t.Fatalf("destination = %v, want the concurrent edit preserved", got)
@@ -157,11 +161,18 @@ func TestPrune_ParentAndChildDestinationsNeverOverlap(t *testing.T) {
 
 // Process roles for re-executing this test binary.
 const (
-	pruneRoleEnv     = "EVO_PRUNE_TEST_ROLE"
-	pruneDestEnv     = "EVO_PRUNE_TEST_DEST"
-	pruneArgEnv      = "EVO_PRUNE_TEST_ARG"
-	pruneRoleReplace = "replace"
-	pruneRoleCrash   = "crash"
+	pruneRoleEnv = "EVO_PRUNE_TEST_ROLE"
+	pruneDestEnv = "EVO_PRUNE_TEST_DEST"
+	pruneArgEnv  = "EVO_PRUNE_TEST_ARG"
+	pruneStepEnv = "EVO_PRUNE_TEST_STEP"
+	pruneLogEnv  = "EVO_PRUNE_TEST_LOG"
+	// pruneNoExchangeEnv forces the move-aside path of platforms with no
+	// atomic exchange.
+	pruneNoExchangeEnv = "EVO_PRUNE_TEST_NO_EXCHANGE"
+	pruneRoleReplace   = "replace"
+	pruneRoleCrash     = "crash"
+	pruneRoleCrashAt   = "crash-at"
+	pruneRoleGated     = "gated"
 	// pruneExitChanged is the replacer's exit code for ErrTreeChanged.
 	pruneExitChanged = 3
 )
@@ -174,6 +185,10 @@ func TestPrune_ProcessHelper(t *testing.T) {
 		os.Exit(pruneReplaceChild(t))
 	case pruneRoleCrash:
 		pruneCrashChild(t)
+	case pruneRoleCrashAt:
+		os.Exit(pruneCrashAtChild(t))
+	case pruneRoleGated:
+		os.Exit(pruneGatedChild(t))
 	default:
 		t.Skip("helper process only")
 	}
@@ -185,9 +200,13 @@ func pruneReplaceChild(t *testing.T) int {
 	_, _ = io.Copy(io.Discard, os.Stdin)
 	dest := os.Getenv(pruneDestEnv)
 	expected, archivePath, _ := splitPair(os.Getenv(pruneArgEnv))
-	err := contractRun(t, evo.Config{}, func(ctx context.Context) error {
+	return pruneExitCode(contractRun(t, evo.Config{}, func(ctx context.Context) error {
 		return evo.Tree{Path: dest, Content: evo.Extract{File: evo.File{Path: archivePath}}}.Replace(ctx, expected)
-	})
+	}))
+}
+
+// pruneExitCode is a replacer child's exit code for Replace's result.
+func pruneExitCode(err error) int {
 	switch {
 	case err == nil:
 		return 0

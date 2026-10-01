@@ -171,6 +171,7 @@ var dialectSurface = map[string][]string{
 		"Checksum(ctx context.Context, opts ...ChecksumOption)",
 		"Equal(ctx context.Context, other Tree, opts ...ChecksumOption)",
 		"Read(ctx context.Context)",
+		"Recover(ctx context.Context, expected string)",
 		"Remove(ctx context.Context)",
 		"Replace(ctx context.Context, expected string)",
 		"Verify(ctx context.Context)",
