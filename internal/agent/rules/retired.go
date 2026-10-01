@@ -211,13 +211,38 @@ func mutationVerb(verb string) *regexp.Regexp {
 	return regexp.MustCompile(`\bTask\.` + verb + `\b` +
 		`|\.` + verb + `\("[^"]*",\s*(?:func|fn|nil|[a-z]\w*\))` +
 		`|\b` + verb + `\(object, fn` +
-		"|(?:^|[\\s(`/])" + verb + "`?/`?" + removedMutationVerbs + `\b`)
+		"|" + mutationVerbList(verb))
+}
+
+// mutationVerbList matches verb as a member of a removed-verb list. Write
+// and Remove are live File/Tree methods (ZYS-1382), so for them the list
+// must also name a verb File and Tree never had ("Delete/Remove/Write");
+// "Write/Remove" alone is File/Tree vocabulary.
+func mutationVerbList(verb string) string {
+	const (
+		start = "(?:^|[\\s(`/])"
+		sep   = "`?/`?"
+	)
+	if !slices.Contains(fileTreeVerbs, verb) {
+		return start + verb + sep + removedMutationVerbs + `\b`
+	}
+	chain := "(?:" + sep + removedMutationVerbs + ")*"
+	return start + verb + chain + sep + taskOnlyMutationVerbs + `\b` +
+		"|" + start + taskOnlyMutationVerbs + chain + sep + verb + `\b`
 }
 
 // removedMutationVerbs matches any removed TaskHandle mutation or record
 // verb, so a verb list is recognized by its neighbor ("Delete/Create")
 // while an unrelated pair ("Write/WriteString") is not.
 const removedMutationVerbs = `(?:Add|Create|Delete|Push|Record|Remove|Update|Write)`
+
+// taskOnlyMutationVerbs is removedMutationVerbs less fileTreeVerbs: the
+// removed verbs with no live File/Tree method of the same name.
+const taskOnlyMutationVerbs = `(?:Add|Create|Delete|Push|Record|Update)`
+
+// fileTreeVerbs are the removed TaskHandle verbs File and Tree reuse as
+// live methods.
+var fileTreeVerbs = []string{"Remove", "Write"}
 
 // RetiredSymbols returns every retired name, in table order.
 func RetiredSymbols() []RetiredSymbol { return slices.Clone(retiredSymbols) }

@@ -1,6 +1,9 @@
 package rules
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestUnexplainedInAllowsARemovalNote(t *testing.T) {
 	cases := []struct {
@@ -83,6 +86,42 @@ func TestTaughtFailfBlockfKeepLastLines(t *testing.T) {
 	for _, text := range hits {
 		if len(TaughtRetired(text)) == 0 {
 			t.Errorf("TaughtRetired(%q) missed Failf/Blockf/KeepLastLines", text)
+		}
+	}
+}
+
+// File and Tree reuse Write and Remove as live methods (ZYS-1382), so a
+// list of only those is File/Tree vocabulary. A list with any verb File and
+// Tree never had still teaches the retired TaskHandle mutation verbs.
+func TestTaughtMutationVerbListSparesFileTreeVocabulary(t *testing.T) {
+	isMutationVerb := func(h RetiredHit) bool {
+		return h.Symbol.Contract == "TaskHandle.Write(" || h.Symbol.Contract == "TaskHandle.Remove("
+	}
+	hits := []string{
+		"TaskHandle.Add/Create/Delete/Push/Remove/Update/Write",
+		"(`Add`/`Delete`/`Create`/`Update`/`Remove`/`Write`/`Push`)",
+		"`Delete`/`Remove`/`Write`",
+		"Write/Push",
+		"Remove/Update",
+		"Update/Write",
+		"Task.Write",
+	}
+	for _, text := range hits {
+		if !slices.ContainsFunc(TaughtRetired(text), isMutationVerb) {
+			t.Errorf("TaughtRetired(%q) missed the retired Write/Remove mutation verb", text)
+		}
+	}
+	misses := []string{
+		"File and Tree share Write/Remove",
+		"`Write`/`Remove` must run inside Define",
+		"Remove/Write a Tree atomically",
+		"Read/Write/Verify/Remove",
+	}
+	for _, text := range misses {
+		for _, h := range TaughtRetired(text) {
+			if isMutationVerb(h) {
+				t.Errorf("TaughtRetired(%q) matched %q (%s); File/Tree Write/Remove is live", text, h.Match, h.Symbol.Contract)
+			}
 		}
 	}
 }
