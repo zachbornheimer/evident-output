@@ -136,11 +136,9 @@ func (d *recSurfaceDetector) inspectOneOneFailure(call *ast.CallExpr, sel *ast.S
 	if name == "Next" {
 		args = d.failureNextArgs(call.Args)
 	}
-	old := d.nodeSrc(call)
-	next := d.pkg + "." + name + "(" + args + ")"
-	d.report(call, "Failure."+name+" was removed in 1.1; pass "+d.pkg+"."+name+"(...) as an option to Fail or Block",
-		"replace "+old+" with "+next)
-	d.cover(call)
+	option := d.pkg + "." + name + "(" + args + spreadMark(call) + ")"
+	d.reportGuidance(call, "Failure."+name+" was removed in 1.1; pass "+d.pkg+"."+name+"(...) as an option to Fail or Block",
+		"drop this call and pass "+option+" as an option to the Fail or Block call that creates this Failure")
 	return true
 }
 

@@ -94,6 +94,12 @@ func appliedSuggestion(t *testing.T, name string, fx migrationFixture, hit revie
 	if _, fragment := fragmentSuggestions[name]; fragment {
 		return fx.clean
 	}
+	if _, guidance := guidanceOnlySuggestions[name]; guidance {
+		if strings.HasPrefix(hit.Suggestion, "replace ") || hit.Suggestion == "" {
+			t.Fatalf("%s: want guidance, not an applicable replace that could ship broken code: %q", name, hit.Suggestion)
+		}
+		return fx.clean
+	}
 	applied, ok := tryApplyReplace(fx.dirty, hit.Suggestion)
 	if !ok {
 		t.Fatalf("%s: suggestion is not an applicable single replace: %q", name, hit.Suggestion)
