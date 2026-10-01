@@ -29,6 +29,9 @@ type remedyKind string
 const (
 	remedyOnTask   remedyKind = "TaskHandle"
 	remedyOnOutput remedyKind = "Output"
+	// remedyOnUnproven is a receiver the file neither proves is an evo
+	// TaskHandle or Output nor proves is something else.
+	remedyOnUnproven remedyKind = "TaskHandle or Output"
 )
 
 func isRemedyMethod(name string) bool { return name == "Next" || name == "NextCommand" }
@@ -37,18 +40,29 @@ func isDiagnosticVerb(name string) bool {
 	return name == "Fail" || name == "Block" || name == "Problem"
 }
 
-// remedyReceiverKind proves x is a Task or Output binding. Anything else,
-// including the evo package and unrelated local types, is not a remedy call.
+// remedyReceiverKind classifies x. The package-level evo.Next/evo.NextCommand
+// and receivers proven to be non-evo local types are not remedy calls
+// (ok=false). Every other receiver is reported: a Task or Output, or
+// remedyOnUnproven when the file cannot say which (a field declared in another
+// file, a helper's return value, a fluent chain).
 func (d *recSurfaceDetector) remedyReceiverKind(x ast.Expr) (remedyKind, bool) {
 	switch {
-	case isEvoIdent(x, d.pkg):
+	case isEvoIdent(x, d.pkg), d.localTypes.proves(x):
 		return "", false
 	case d.doneScope != nil && d.doneScope.tasks.IsTask(x):
 		return remedyOnTask, true
-	case d.outputs.has(x):
+	case d.outputs.has(x), isOutputConstructor(x, d.pkg):
 		return remedyOnOutput, true
 	}
-	return "", false
+	return remedyOnUnproven, true
+}
+
+// unprovenRemedyGuidance is the suggestion when no single compile-valid edit is
+// known; it is deliberately not a "replace ... with ..." line.
+func (d *recSurfaceDetector) unprovenRemedyGuidance(name string, call *ast.CallExpr) string {
+	return "if the receiver is an evo Task or Output, move the remedy onto the Problem it explains: " +
+		"Problem(\"<why>\", " + d.pkg + "." + name + "(" + d.callArgsSrc(call.Args) + ")); " +
+		"if it is not, declare its type in this file so the review can prove it"
 }
 
 func (d *recSurfaceDetector) inspectRemovedRemedyMethod(call *ast.CallExpr, sel *ast.SelectorExpr, name string) bool {
@@ -59,9 +73,14 @@ func (d *recSurfaceDetector) inspectRemovedRemedyMethod(call *ast.CallExpr, sel 
 	if !ok {
 		return false
 	}
-	options := d.remedyOptions(name, call.Args)
 	msg := string(kind) + "." + name + " was removed in 1.1; attach the remedy to the Problem it explains (" +
 		d.pkg + "." + name + " option on Problem, Fail, or Block)"
+	if kind == remedyOnUnproven {
+		d.report(call, msg, d.unprovenRemedyGuidance(name, call))
+		d.cover(call)
+		return true
+	}
+	options := d.remedyOptions(name, call.Args)
 	if diag := d.nearestDiagnostic(call, sel.X, kind); diag != nil {
 		d.report(call, msg, d.foldSuggestion(diag, call, options))
 	} else {
