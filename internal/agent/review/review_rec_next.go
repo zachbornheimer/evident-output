@@ -80,29 +80,35 @@ func (d *recSurfaceDetector) inspectRemovedRemedyMethod(call *ast.CallExpr, sel 
 		d.cover(call)
 		return true
 	}
-	options := d.remedyOptions(name, call.Args)
-	if diag := d.nearestDiagnostic(call, sel.X, kind); diag != nil {
-		d.report(call, msg, d.foldSuggestion(diag, call, options))
-	} else {
-		fallback, owner := d.warningProblemRewrite(sel.X, kind, options)
-		d.report(call, msg+"; no diagnostic in this function owns it, so "+owner, "replace "+d.nodeSrc(call)+" with "+fallback)
+	stmt, standalone := d.standaloneStatement(call)
+	if !standalone || call.Ellipsis.IsValid() {
+		d.report(call, msg, d.unprovenRemedyGuidance(name, call))
+		d.cover(call)
+		return true
 	}
+	d.reportRemedyRewrite(call, sel, kind, stmt, msg)
 	d.cover(call)
 	return true
 }
 
-// foldSuggestion extends diag with the remedy options and drops the old call.
-func (d *recSurfaceDetector) foldSuggestion(diag, next *ast.CallExpr, options []string) string {
-	folded := d.extendCall(diag, options)
-	return "replace " + d.nodeSrc(diag) + " with " + folded + ", then delete the statement " + d.nodeSrc(next)
-}
-
-// extendCall is call's source with options appended to its argument list.
-func (d *recSurfaceDetector) extendCall(call *ast.CallExpr, options []string) string {
-	src := d.nodeSrc(call)
-	body := strings.TrimRight(strings.TrimSuffix(src, ")"), " \t\r\n")
-	body = strings.TrimSuffix(body, ",")
-	return body + ", " + strings.Join(options, ", ") + ")"
+// reportRemedyRewrite picks the first rewrite that keeps the remedy on the
+// path it belongs to: fold into a sibling diagnostic on the same receiver, a
+// Problem at the error return of the Task's Define callback, or a placeholder
+// warning Problem.
+func (d *recSurfaceDetector) reportRemedyRewrite(call *ast.CallExpr, sel *ast.SelectorExpr, kind remedyKind, stmt remedyStatement, msg string) {
+	options := d.remedyOptions(sel.Sel.Name, call.Args)
+	if diag := d.siblingDiagnostic(stmt, d.nodeSrc(sel.X)); diag != nil {
+		d.report(call, msg, d.foldSuggestion(diag, call, options))
+		return
+	}
+	if kind == remedyOnTask {
+		if problem, ok := d.errorReturnProblem(call, sel.X, options); ok {
+			d.report(call, msg+"; this path returns an error, so the remedy rides on an error Problem recorded here", "replace "+d.nodeSrc(call)+" with "+problem)
+			return
+		}
+	}
+	fallback, owner := d.warningProblemRewrite(sel.X, kind, options)
+	d.report(call, msg+"; no diagnostic in this block owns it, so "+owner, "replace "+d.nodeSrc(call)+" with "+fallback)
 }
 
 // warningProblemRewrite builds the fallback and names the owner it chose.
@@ -131,42 +137,6 @@ func (d *recSurfaceDetector) remedyOptions(name string, args []ast.Expr) []strin
 		options[i] = d.pkg + ".Next(" + action + ")"
 	}
 	return options
-}
-
-// nearestDiagnostic is the Fail/Block/Problem call in next's enclosing
-// function that should own the remedy: for a Task, a call on the same
-// receiver; for an Output, a call on any receiver. A preceding call wins over
-// a following one.
-func (d *recSurfaceDetector) nearestDiagnostic(next *ast.CallExpr, recv ast.Expr, kind remedyKind) *ast.CallExpr {
-	body := d.enclosingFuncBody(next)
-	if body == nil {
-		return nil
-	}
-	recvSrc := d.nodeSrc(recv)
-	var before, after *ast.CallExpr
-	ast.Inspect(body, func(n ast.Node) bool {
-		c, ok := n.(*ast.CallExpr)
-		if !ok || c == next {
-			return true
-		}
-		sel, ok := c.Fun.(*ast.SelectorExpr)
-		if !ok || !isDiagnosticVerb(sel.Sel.Name) || isEvoIdent(sel.X, d.pkg) {
-			return true
-		}
-		if kind == remedyOnTask && d.nodeSrc(sel.X) != recvSrc {
-			return true
-		}
-		if c.Pos() < next.Pos() {
-			before = c
-		} else if after == nil {
-			after = c
-		}
-		return true
-	})
-	if before != nil {
-		return before
-	}
-	return after
 }
 
 // enclosingFuncBody is the body of the innermost function containing n.

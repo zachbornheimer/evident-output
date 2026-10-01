@@ -17,7 +17,7 @@ func TestRemovedRemedy_FoldsIntoFollowingDiagnostic(t *testing.T) {
 	if len(found) != 1 {
 		t.Fatalf("findings = %+v, want one", found)
 	}
-	want := `replace task.Block("refused") with task.Block("refused", evo.Next(evo.Label("retry"))), then delete the statement task.Next(evo.Label("retry"))`
+	want := "replace task.Next(evo.Label(\"retry\"))\n\ttask.Block(\"refused\") with task.Block(\"refused\", evo.Next(evo.Label(\"retry\")))"
 	if found[0].Suggestion != want {
 		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
 	}
@@ -26,10 +26,10 @@ func TestRemovedRemedy_FoldsIntoFollowingDiagnostic(t *testing.T) {
 	}
 }
 
-func TestRemovedRemedy_OutputFoldsIntoAnyDiagnostic(t *testing.T) {
-	found := remedyFindings(t, "func f(out *evo.Output, task *evo.TaskHandle) {\n\ttask.Fail(\"failed\")\n\tout.NextCommand(\"git\", \"status\")\n}\n")
-	if len(found) != 1 || !strings.Contains(found[0].Suggestion, `task.Fail("failed", evo.NextCommand("git", "status"))`) {
-		t.Fatalf("findings = %+v, want a fold into task.Fail", found)
+func TestRemovedRemedy_OutputFoldsIntoItsOwnDiagnostic(t *testing.T) {
+	found := remedyFindings(t, "func f(out *evo.Output) {\n\tout.Fail(\"failed\")\n\tout.NextCommand(\"git\", \"status\")\n}\n")
+	if len(found) != 1 || !strings.Contains(found[0].Suggestion, `out.Fail("failed", evo.NextCommand("git", "status"))`) {
+		t.Fatalf("findings = %+v, want a fold into out.Fail", found)
 	}
 }
 

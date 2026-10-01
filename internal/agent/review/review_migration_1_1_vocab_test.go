@@ -65,13 +65,7 @@ func checkRemovedNameFixture(t *testing.T, name string, fx migrationFixture) {
 		if _, ok := rules.Explain(hit.RuleID); !ok {
 			t.Fatalf("rules.Explain(%q) failed", hit.RuleID)
 		}
-		canonical := fx.clean
-		if applied, ok := tryApplyReplace(fx.dirty, hit.Suggestion); ok {
-			again := review.GoSource(name+".go", applied)
-			if len(migrationFindings(again)) == 0 && !again.RecheckRequired && !hasRetiredSpelling(applied, name) {
-				canonical = applied
-			}
-		}
+		canonical := appliedSuggestion(t, name, fx, hit)
 		if hasRetiredSpelling(fx.clean, name) {
 			t.Fatalf("canonical rewrite for %s still names the retired spelling:\n%s", name, fx.clean)
 		}
@@ -88,6 +82,35 @@ func checkRemovedNameFixture(t *testing.T, name string, fx migrationFixture) {
 			t.Fatalf("canonical rewrite has non-migration findings: %+v\n%s", clean.Findings, fx.clean)
 		}
 	})
+}
+
+// appliedSuggestion applies the finding's own suggestion to the dirty source
+// and requires it to yield exactly the fixture's clean code. It never falls
+// back to the hand-written clean. A suggestion that introduces the remedy
+// placeholder must keep the review open until the fixture's fill replaces it.
+func appliedSuggestion(t *testing.T, name string, fx migrationFixture, hit review.Finding) string {
+	t.Helper()
+	if _, fragment := fragmentSuggestions[name]; fragment {
+		return fx.clean
+	}
+	applied, ok := tryApplyReplace(fx.dirty, hit.Suggestion)
+	if !ok {
+		t.Fatalf("%s: suggestion is not an applicable single replace: %q", name, hit.Suggestion)
+	}
+	if fx.fill != "" {
+		if !strings.Contains(applied, remedyPlaceholder) {
+			t.Fatalf("%s: fixture expects the placeholder fallback; applied:\n%s", name, applied)
+		}
+		if !review.GoSource(name+".go", applied).RecheckRequired {
+			t.Fatalf("%s: placeholder summary shipped with recheck closed:\n%s", name, applied)
+		}
+		applied = strings.Replace(applied, remedyPlaceholder, fx.fill, 1)
+	}
+	if applied != fx.clean {
+		t.Fatalf("%s: applying the suggestion %q does not yield the expected clean code\n got:\n%s\nwant:\n%s",
+			name, hit.Suggestion, applied, fx.clean)
+	}
+	return applied
 }
 
 func migrationFindings(res review.Result) []review.Finding {
@@ -114,11 +137,19 @@ func tryApplyReplace(src, suggestion string) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	old, repl, ok := strings.Cut(rest, " with ")
-	if !ok || !strings.Contains(src, old) {
-		return "", false
+	// " with " may also occur inside a quoted summary: try each split.
+	for offset := 0; ; {
+		i := strings.Index(rest[offset:], " with ")
+		if i < 0 {
+			return "", false
+		}
+		cut := offset + i
+		old, repl := rest[:cut], rest[cut+len(" with "):]
+		if strings.Contains(src, old) {
+			return strings.Replace(src, old, repl, 1), true
+		}
+		offset = cut + 1
 	}
-	return strings.Replace(src, old, repl, 1), true
 }
 
 func hasRetiredSpelling(src, name string) bool {

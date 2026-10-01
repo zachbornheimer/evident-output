@@ -5,6 +5,38 @@ package review_test
 // testdata/api_vocabulary.txt and requires a fixture per name.
 type migrationFixture struct {
 	dirty, clean string
+	// fill is what an author writes over the placeholder summary the
+	// rewrite introduces; empty when the rewrite carries no placeholder.
+	fill string
+}
+
+const (
+	fragmentConfigField     = "suggests a Config field fragment, not a statement-level edit"
+	fragmentOption          = "suggests a ProblemOption fragment to pass to Fail or Block"
+	fragmentPlaceholderRecv = "suggests a Problem on a placeholder `task` receiver"
+	fragmentRewrittenCall   = "suggests the replacement call without its surrounding Init or writer context"
+	fragmentNoSuggestion    = "carries no suggestion; the rule's GoodCode teaches it"
+)
+
+// fragmentSuggestions are removed names whose suggestion is deliberately
+// context-free guidance, so applying it textually cannot reproduce the clean
+// fixture. Every other removed name must round-trip exactly (see
+// appliedSuggestion). Tighten these into applicable edits rather than adding to
+// the list.
+var fragmentSuggestions = map[string]string{
+	"AlsoWrite": fragmentConfigField, "Clock": fragmentConfigField, "DataProjection": fragmentConfigField,
+	"DebugAddSource": fragmentConfigField, "DebugHistory": fragmentConfigField, "DebugLevel": fragmentConfigField,
+	"DebugPane": fragmentConfigField, "Diagnostics": fragmentConfigField, "DryRun": fragmentConfigField,
+	"ExternalProjection": fragmentConfigField, "Glyphs": fragmentConfigField, "MaxEntities": fragmentConfigField,
+	"MaxEvents": fragmentConfigField, "MaxFrameRate": fragmentConfigField, "NoColor": fragmentConfigField,
+	"Plain": fragmentConfigField, "Redact": fragmentConfigField, "ResultStream": fragmentConfigField,
+	"Runner": fragmentConfigField, "Stdin": fragmentConfigField, "Strict": fragmentConfigField,
+	"Terminal": fragmentConfigField, "Title": fragmentConfigField, "To": fragmentConfigField,
+	"VisibilityDelay": fragmentConfigField, "Width": fragmentConfigField,
+	"Failure.Next": fragmentOption, "Failure.NextCommand": fragmentOption,
+	"Warn": fragmentPlaceholderRecv, "Output.Warn": fragmentPlaceholderRecv,
+	"EncodeEventJSON": fragmentRewrittenCall, "EncodeJSONL": fragmentRewrittenCall,
+	"EventSchemaVersion": fragmentNoSuggestion,
 }
 
 func evoBody(body string) string {
@@ -64,14 +96,16 @@ func migration1_1Fixtures() map[string]migrationFixture {
 		"TaskHandle.NextCommand": {
 			dirty: evoBody("func f(task *evo.TaskHandle) {\n\ttask.NextCommand(\"git\", \"status\")\n}\n"),
 			clean: evoBody("func f(task *evo.TaskHandle) {\n\ttask.Problem(\"working tree not checked\", evo.Severity(evo.SeverityWarning), evo.NextCommand(\"git\", \"status\"))\n}\n"),
+			fill:  "working tree not checked",
 		},
 		"Output.Next": {
-			dirty: evoBody("func f(out *evo.Output, task *evo.TaskHandle) {\n\ttask.Fail(\"failed\")\n\tout.Next(evo.Label(\"retry\"))\n}\n"),
-			clean: evoBody("func f(out *evo.Output, task *evo.TaskHandle) {\n\ttask.Fail(\"failed\", evo.Next(evo.Label(\"retry\")))\n}\n"),
+			dirty: evoBody("func f(out *evo.Output) {\n\tout.Fail(\"failed\")\n\tout.Next(evo.Label(\"retry\"))\n}\n"),
+			clean: evoBody("func f(out *evo.Output) {\n\tout.Fail(\"failed\", evo.Next(evo.Label(\"retry\")))\n}\n"),
 		},
 		"Output.NextCommand": {
 			dirty: evoBody("func f(out *evo.Output) {\n\tout.NextCommand(\"git\", \"status\")\n}\n"),
-			clean: evoBody("func f(out *evo.Output) {\n\tout.Task(\"working tree\").Problem(\"working tree not checked\", evo.Severity(evo.SeverityWarning), evo.NextCommand(\"git\", \"status\"))\n}\n"),
+			clean: evoBody("func f(out *evo.Output) {\n\tout.Task(\"next steps\").Problem(\"working tree not checked\", evo.Severity(evo.SeverityWarning), evo.NextCommand(\"git\", \"status\"))\n}\n"),
+			fill:  "working tree not checked",
 		},
 		"Failure.NextCommand": {
 			dirty: evoBody("func f(fail *evo.Failure) {\n\tfail.NextCommand(\"git\", \"status\")\n}\n"),
