@@ -355,6 +355,13 @@ func (o *Output) stopFollowersLocked(c *tasksState, branch int) {
 	}
 }
 
+// stopsSequenceFollowers reports whether a step settling in state keeps
+// every later step of its Sequence from starting: the same states
+// stateOutcome says can never satisfy a dependent.
+func stopsSequenceFollowers(state EntityState) bool {
+	return stateOutcome(state) == predFailed
+}
+
 // stopIfFollowerLocked settles NotStarted a Task declared after a failure
 // already stopped the Sequence step it belongs to: stopFollowersLocked ran
 // before the Task existed, so nothing else would ever settle it.
