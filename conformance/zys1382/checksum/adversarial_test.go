@@ -418,7 +418,9 @@ func TestAdversarial_ConcurrentChecksumsAgree(t *testing.T) {
 func TestAdversarial_ExcludeOptionIsReusable(t *testing.T) {
 	a, b := filepath.Join(t.TempDir(), "a"), filepath.Join(t.TempDir(), "b")
 	advPlant(t, a, map[string]string{"x": "1", ".git/HEAD": "one"})
-	advPlant(t, b, map[string]string{"x": "1", "sub/.git/HEAD": "two"})
+	// b's .git sits at the root like a's: an excluded subtree under a
+	// directory that holds nothing else leaves that directory (pinned rule).
+	advPlant(t, b, map[string]string{"x": "1", ".git/HEAD": "two", ".git/refs/main": "x"})
 	exclude := evo.Exclude(`.*\/\.git\/.*`)
 	first := advMustTreeSum(t, a, exclude)
 	if advMustTreeSum(t, b, exclude) != first || advMustTreeSum(t, a, exclude) != first {

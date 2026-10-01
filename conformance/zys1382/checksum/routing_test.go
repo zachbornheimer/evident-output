@@ -125,7 +125,9 @@ func TestTreeEqualAgreesWithTreeChecksum(t *testing.T) {
 	clean, noisy, forgedTwin := filepath.Join(work, "clean"), filepath.Join(work, "noisy"), filepath.Join(work, "twin")
 	plant(t, clean, baseTree)
 	plant(t, noisy, baseTree)
-	plant(t, noisy, map[string]string{"sub/.git/HEAD": "ref"})
+	// At "src/", which clean also holds: excluding a subtree under an
+	// otherwise empty directory would leave that directory (pinned rule).
+	plant(t, noisy, map[string]string{"src/.git/HEAD": "ref"})
 	plant(t, forgedTwin, baseTree)
 	plant(t, forgedTwin, map[string]string{"src/a.go": "package forged\n"})
 	exclude := evo.Exclude(`.*\/\.git\/.*`)

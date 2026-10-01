@@ -1,6 +1,10 @@
 package evo
 
-import "context"
+import (
+	"context"
+
+	"github.com/zachbornheimer/evident-output/internal/engine"
+)
 
 // ChecksumOption adjusts a Tree checksum or comparison. Obtain one from
 // Exclude.
@@ -14,10 +18,21 @@ func Exclude(pattern string) ChecksumOption { return ChecksumOption{exclude: pat
 
 // Checksum returns the lowercase hex SHA-256 of the file's bytes. It is the
 // same digest Tree.Checksum uses for this file as a leaf.
-func (f File) Checksum(ctx context.Context) (string, error) { return "", errNotImplemented }
+func (f File) Checksum(ctx context.Context) (string, error) {
+	return engine.FileChecksum(ctx, f.Path)
+}
 
 // Checksum returns the tree's Merkle digest in lowercase hex, built from
 // each file's File.Checksum, its path, and the tree structure.
 func (t Tree) Checksum(ctx context.Context, opts ...ChecksumOption) (string, error) {
-	return "", errNotImplemented
+	return engine.TreeChecksum(ctx, t.Path, excludePatterns(opts))
+}
+
+// excludePatterns is the Exclude patterns opts carry, in order.
+func excludePatterns(opts []ChecksumOption) []string {
+	patterns := make([]string, 0, len(opts))
+	for _, opt := range opts {
+		patterns = append(patterns, opt.exclude)
+	}
+	return patterns
 }
