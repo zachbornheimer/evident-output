@@ -9,6 +9,8 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
+
+	"github.com/zachbornheimer/evident-output/internal/publish/stagename"
 )
 
 // treeDomain prefixes every directory digest so a directory can never
@@ -132,7 +134,7 @@ func (w treeWalk) entry(ctx context.Context, parent, rel string, entry fs.DirEnt
 	if child.kind == kindDir {
 		childRel += "/"
 	}
-	if w.exclude.excludes(childRel) {
+	if w.exclude.excludes(childRel) || inFlightStage(child) {
 		return nil, nil
 	}
 	switch child.kind {
@@ -148,6 +150,14 @@ func (w treeWalk) entry(ctx context.Context, parent, rel string, entry fs.DirEnt
 		child.digest = sha256.Sum256([]byte(linkDomain + target))
 	}
 	return child, nil
+}
+
+// inFlightStage reports whether n is another writer's unfinished stage: a
+// directory or regular file named exactly as publish stages. A child
+// tree's stage lives inside its parent until it commits, and is never part
+// of the parent's identity.
+func inFlightStage(n *node) bool {
+	return (n.kind == kindDir || n.kind == kindFile) && stagename.Is(n.name)
 }
 
 // leafAt digests the regular file a directory listing named and records

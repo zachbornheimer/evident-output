@@ -14,6 +14,11 @@ import (
 // is discarded, and the commit succeeds (the destination keeps its inode).
 var ErrSatisfied = errors.New("publish: destination already satisfied")
 
+// ErrStagedGone is a commit whose staged content is no longer at its
+// staging path: something that held an ancestor's lock (a parent tree's
+// commit) moved the directory it lived in. Nothing is published.
+var ErrStagedGone = errors.New("publish: staged content is gone from its staging path")
+
 // Guard is what a commit checks while it holds the destination lock. Both
 // callbacks observe the destination path; either may be nil.
 type Guard struct {
@@ -90,13 +95,17 @@ func (s *Staged) Commit(ctx context.Context, g Guard) error {
 		_ = s.Discard()
 		return fmt.Errorf("publish: commit %s: %w", s.dest, errors.Join(commitErr, releaseErr))
 	}
-	return releaseErr
+	// The lease covered the replaced original until its deletion above.
+	return errors.Join(releaseErr, s.lease.release())
 }
 
 // commitLocked is the part of Commit that runs under the lock. It returns
 // the path a replaced tree was moved to, for deletion after release.
 func (s *Staged) commitLocked(ctx context.Context, g Guard) (string, error) {
 	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if err := s.requireStaged(); err != nil {
 		return "", err
 	}
 	if err := g.revalidate(ctx, s.dest); err != nil {
@@ -121,6 +130,23 @@ func (s *Staged) commitLocked(ctx context.Context, g Guard) (string, error) {
 	}
 	rejected, rollbackErr := rollBackTree(s.dest, replaced)
 	return rejected, errors.Join(verifyErr, rollbackErr)
+}
+
+// requireStaged proves, under the lock, that the staged content is still
+// at its staging path. Only a commit holding an ancestor's lock can have
+// moved it, so it cannot move again before the rename. When it is gone,
+// the directories staging created now belong to whatever replaced them:
+// they are not this commit's to remove.
+func (s *Staged) requireStaged() error {
+	_, err := os.Lstat(s.temp)
+	if errors.Is(err, fs.ErrNotExist) {
+		s.created = nil
+		return fmt.Errorf("%w: %s", ErrStagedGone, s.temp)
+	}
+	if err != nil {
+		return fmt.Errorf("inspect staged %s: %w", s.temp, err)
+	}
+	return nil
 }
 
 // rollBackTree undoes a tree commit whose verification failed: the

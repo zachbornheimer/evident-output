@@ -223,7 +223,13 @@ func publishTree(ctx context.Context, p treePublication) error {
 			return out.requireTreeDigest(ctx, dest, want)
 		},
 	}
-	if err := staged.Commit(ctx, guard); err != nil {
+	err = staged.Commit(ctx, guard)
+	switch {
+	case errors.Is(err, publish.ErrStagedGone):
+		// An ancestor's commit carried the stage away: the tree this
+		// publication was planned against is gone.
+		return fmt.Errorf("evo: %s: %w: %w", label, ErrTreeChanged, err)
+	case err != nil:
 		return fmt.Errorf("evo: %s: %w", label, err)
 	}
 	return nil

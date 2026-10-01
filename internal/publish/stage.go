@@ -2,9 +2,6 @@ package publish
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -13,19 +10,13 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/publish/stagename"
 )
 
-// Staging names: a private sibling of the destination, so the final
-// rename never crosses a filesystem, shaped .evo-<owner>-<random>.tmp. The
-// owner tag binds the entry to its destination's name so Leftovers can
-// find what an interrupted commit left; the random part is unpredictable,
-// so no other user can plant a symlink at a staging name in advance.
+// Staging entries are private siblings of the destination (see stagename),
+// so the final rename never crosses a filesystem.
 const (
-	stagingPrefix = ".evo-"
-	stagingSuffix = ".tmp"
-	// stagingOwnerBytes is how much of the destination name's digest the
-	// owner tag carries.
-	stagingOwnerBytes = 4
 	// stagingAttempts bounds the search for an unused staging name.
 	stagingAttempts = 100
 	// defaultTreeMode is a staged tree root's mode when none is given.
@@ -41,12 +32,11 @@ const (
 // ErrSpent is a Staged whose content was already committed or discarded.
 var ErrSpent = errors.New("publish: staged content already committed or discarded")
 
-// IsStaging reports whether name is a publish staging entry. Readers that
-// enumerate a directory (Find, Tree.Read) skip these: they are another
-// writer's uncommitted state, never part of the tree.
-func IsStaging(name string) bool {
-	return strings.HasPrefix(name, stagingPrefix) && strings.HasSuffix(name, stagingSuffix)
-}
+// IsStaging reports whether name is exactly a publish staging entry.
+// Readers that enumerate a directory (Find, Tree.Read) and tree digests
+// skip these: they are another writer's uncommitted state, never part of
+// the tree.
+func IsStaging(name string) bool { return stagename.Is(name) }
 
 // Staged is content prepared beside its destination and not yet visible
 // there. Commit publishes it; Discard abandons it. Exactly one of the two
@@ -57,6 +47,20 @@ type Staged struct {
 	tree    bool
 	created []string // parent directories staging made, outermost first
 	spent   bool
+	lease   *stageLease
+}
+
+// own leases the fresh staging entry s.temp for this writer.
+func (s *Staged) own() error {
+	lease, ok, err := tryLease(s.temp)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("staging entry %s is already leased", s.temp)
+	}
+	s.lease = lease
+	return nil
 }
 
 // Dest is the absolute destination path.
@@ -81,6 +85,10 @@ func StageFile(ctx context.Context, dest string, mode fs.FileMode, fill func(io.
 		return nil, fmt.Errorf("publish: stage %s: %w", dest, err)
 	}
 	s.temp = f.Name()
+	if err := s.own(); err != nil {
+		_ = f.Close()
+		return nil, s.abandon(err)
+	}
 	if err := fillFile(ctx, f, mode, fill); err != nil {
 		return nil, s.abandon(err)
 	}
@@ -101,6 +109,9 @@ func StageTree(ctx context.Context, dest string, mode fs.FileMode, fill func(ctx
 		return nil, fmt.Errorf("publish: stage %s: %w", dest, err)
 	}
 	s.temp = temp
+	if err := s.own(); err != nil {
+		return nil, s.abandon(err)
+	}
 	if err := fill(ctx, temp); err != nil {
 		return nil, s.abandon(fmt.Errorf("fill staged tree: %w", err))
 	}
@@ -119,11 +130,12 @@ func StageTree(ctx context.Context, dest string, mode fs.FileMode, fill func(ctx
 // Discard removes the staged content and any parents staging created.
 func (s *Staged) Discard() error {
 	if s.spent {
-		return nil
+		return s.lease.release()
 	}
 	s.spent = true
 	err := os.RemoveAll(s.temp)
 	s.discardParents()
+	err = errors.Join(err, s.lease.release())
 	if err != nil {
 		return fmt.Errorf("publish: discard %s: %w", s.temp, err)
 	}
@@ -200,15 +212,7 @@ func makeParents(dir string) ([]string, error) {
 }
 
 // stagingName is a fresh staging path beside dest, owned by dest.
-func stagingName(dest string) string {
-	return filepath.Join(filepath.Dir(dest), stagingOwner(dest)+strings.ToLower(rand.Text())+stagingSuffix)
-}
-
-// stagingOwner is the name prefix every staging entry of dest shares.
-func stagingOwner(dest string) string {
-	sum := sha256.Sum256([]byte(filepath.Base(dest)))
-	return stagingPrefix + hex.EncodeToString(sum[:stagingOwnerBytes]) + "-"
-}
+func stagingName(dest string) string { return stagename.New(dest) }
 
 // Leftovers lists the staging entries beside dest that belong to it: a
 // tree an interrupted commit staged but never published, or the original
@@ -227,7 +231,7 @@ func Leftovers(dest string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("publish: leftovers of %s: %w", abs, err)
 	}
-	owner := stagingOwner(abs)
+	owner := stagename.Owner(abs)
 	var found []string
 	for _, entry := range entries {
 		if name := entry.Name(); IsStaging(name) && strings.HasPrefix(name, owner) {

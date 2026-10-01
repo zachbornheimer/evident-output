@@ -213,6 +213,35 @@ func TestRecoverNeverRestoresThroughASymlinkLeftover(t *testing.T) {
 	requireDigest(t, elsewhere, f.original)
 }
 
+// A stage whose writer is alive is not a leftover, whatever it digests to.
+func TestRecoverKeepsAStageALiveWriterOwns(t *testing.T) {
+	f := newRecoverFixture(t)
+	plantTree(t, f.dest, originalFiles)
+	live := stageTree(t, f.dest, replacementFiles)
+	got, err := f.recover(t, f.evidence())
+	if err != nil || got.Outcome != OutcomeIntact || !slices.Equal(got.Kept, []string{live.Path()}) {
+		t.Fatalf("Recover = %+v, %v; want Intact keeping the live stage %s", got, err, live.Path())
+	}
+	if err := live.Commit(context.Background(), Guard{}); err != nil {
+		t.Fatalf("the live writer's commit after Recover = %v", err)
+	}
+	requireDigest(t, f.dest, f.replacement)
+}
+
+func TestPlanRecoverReportsTheDecisionAndChangesNothing(t *testing.T) {
+	f := newRecoverFixture(t)
+	staged := f.leftover(t, replacementFiles)
+	original := f.leftover(t, originalFiles)
+	got, err := PlanRecover(context.Background(), f.dest, f.evidence())
+	if err != nil || got.Outcome != OutcomeRestoredOriginal || len(got.Kept) != 0 {
+		t.Fatalf("PlanRecover = %+v, %v; want RestoredOriginal keeping nothing", got, err)
+	}
+	if _, err := os.Lstat(f.dest); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("PlanRecover restored the destination: %v", err)
+	}
+	requireLeftovers(t, f.dest, staged, original)
+}
+
 func sameSet(a, b []string) bool {
 	a, b = slices.Clone(a), slices.Clone(b)
 	slices.Sort(a)

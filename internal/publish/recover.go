@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 	"path/filepath"
 )
 
@@ -58,14 +56,8 @@ type Recovery struct {
 	Outcome Outcome
 	// Kept are leftovers left in place: not proven to be a planned tree,
 	// or (when Unrecoverable) not deleted because the destination is not
-	// proven whole.
+	// proven whole, or owned by a live writer.
 	Kept []string
-}
-
-// leftover is a staging entry beside dest and what it digests to; tree is
-// "" for one that is not a real directory or cannot be digested.
-type leftover struct {
-	path, tree string
 }
 
 // Recover settles dest after an interrupted tree commit, under dest's
@@ -81,8 +73,19 @@ type leftover struct {
 //     original to restore): Unrecoverable, ErrUnrecoverable, and nothing
 //     is changed.
 //
-// A leftover that is not a real directory is never restored or deleted.
+// A leftover a live writer still owns (see stageLease), or that is not a
+// real directory, is never restored or deleted.
 func Recover(ctx context.Context, dest string, ev Evidence) (Recovery, error) {
+	return settle(ctx, dest, ev, true)
+}
+
+// PlanRecover is Recover deciding without changing anything: the Recovery
+// it reports is what Recover would do now.
+func PlanRecover(ctx context.Context, dest string, ev Evidence) (Recovery, error) {
+	return settle(ctx, dest, ev, false)
+}
+
+func settle(ctx context.Context, dest string, ev Evidence, apply bool) (Recovery, error) {
 	abs, err := filepath.Abs(dest)
 	if err != nil {
 		return Recovery{Outcome: OutcomeUnrecoverable}, fmt.Errorf("publish: recover %s: %w", dest, err)
@@ -91,121 +94,23 @@ func Recover(ctx context.Context, dest string, ev Evidence) (Recovery, error) {
 	if err != nil {
 		return Recovery{Outcome: OutcomeUnrecoverable}, fmt.Errorf("publish: recover %s: %w", abs, err)
 	}
-	r, recoverErr := recoverLocked(ctx, abs, ev)
-	if err := errors.Join(recoverErr, hold.Release()); err != nil {
+	found, err := inspectLeftovers(ctx, abs, ev)
+	var r Recovery
+	if err == nil {
+		r, err = settleLocked(ctx, abs, ev, found, apply)
+	} else {
+		r = Recovery{Outcome: OutcomeUnrecoverable}
+	}
+	if err := errors.Join(err, found.release(), hold.Release()); err != nil {
 		return r, fmt.Errorf("publish: recover %s: %w", abs, err)
 	}
 	return r, nil
 }
 
-func recoverLocked(ctx context.Context, dest string, ev Evidence) (Recovery, error) {
-	found, err := digestLeftovers(ctx, dest, ev)
-	if err != nil {
-		return Recovery{Outcome: OutcomeUnrecoverable}, err
+func settleLocked(ctx context.Context, dest string, ev Evidence, found leftovers, apply bool) (Recovery, error) {
+	d, err := decide(ctx, dest, ev, found)
+	if err != nil || !apply {
+		return Recovery{Outcome: d.outcome, Kept: d.kept}, err
 	}
-	outcome, err := settleDest(ctx, dest, ev, found)
-	if err != nil {
-		return Recovery{Outcome: OutcomeUnrecoverable, Kept: paths(found)}, err
-	}
-	kept, err := removePlanned(ev, found)
-	return Recovery{Outcome: outcome, Kept: kept}, err
-}
-
-// settleDest proves dest is a planned tree, restoring the original over an
-// absent dest when a leftover is provably it.
-func settleDest(ctx context.Context, dest string, ev Evidence, found []leftover) (Outcome, error) {
-	tree, err := treeDigest(ctx, dest, ev)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return restoreOriginal(ctx, dest, ev, found)
-	case err != nil:
-		return 0, fmt.Errorf("%w: %w", ErrUnrecoverable, err)
-	case ev.isOriginal(tree):
-		return OutcomeIntact, nil
-	case ev.isReplacement(tree):
-		return OutcomeCompletedReplacement, nil
-	}
-	return 0, fmt.Errorf("%w: %s digests to %s, neither the original nor the replacement", ErrUnrecoverable, dest, tree)
-}
-
-// restoreOriginal renames the leftover that digests to ev.Original back to
-// the absent dest, and re-verifies it there.
-func restoreOriginal(ctx context.Context, dest string, ev Evidence, found []leftover) (Outcome, error) {
-	for _, l := range found {
-		if !ev.isOriginal(l.tree) {
-			continue
-		}
-		if err := os.Rename(l.path, dest); err != nil {
-			return 0, fmt.Errorf("restore original from %s: %w", l.path, err)
-		}
-		tree, err := treeDigest(ctx, dest, ev)
-		if err != nil {
-			return 0, fmt.Errorf("verify restored original at %s: %w", dest, err)
-		}
-		if !ev.isOriginal(tree) {
-			return 0, fmt.Errorf("restored original at %s digests to %s, not %s", dest, tree, ev.Original)
-		}
-		return OutcomeRestoredOriginal, nil
-	}
-	return 0, fmt.Errorf("%w: %s is absent and no leftover digests to the original", ErrUnrecoverable, dest)
-}
-
-// removePlanned deletes the leftovers that are planned trees, now that
-// dest is proven whole, and returns the ones it kept.
-func removePlanned(ev Evidence, found []leftover) ([]string, error) {
-	var kept []string
-	var errs []error
-	for _, l := range found {
-		if _, err := os.Lstat(l.path); errors.Is(err, fs.ErrNotExist) {
-			continue // the leftover restored to dest
-		}
-		if !ev.isOriginal(l.tree) && !ev.isReplacement(l.tree) {
-			kept = append(kept, l.path)
-			continue
-		}
-		if err := removeReplaced(l.path); err != nil {
-			kept = append(kept, l.path)
-			errs = append(errs, err)
-		}
-	}
-	return kept, errors.Join(errs...)
-}
-
-// digestLeftovers lists dest's leftovers with their digests. Only a real
-// directory is digested, so a symlinked leftover can never pass for a
-// planned tree.
-func digestLeftovers(ctx context.Context, dest string, ev Evidence) ([]leftover, error) {
-	entries, err := Leftovers(dest)
-	if err != nil {
-		return nil, err
-	}
-	found := make([]leftover, len(entries))
-	for i, path := range entries {
-		found[i].path = path
-		if tree, err := treeDigest(ctx, path, ev); err == nil {
-			found[i].tree = tree
-		}
-	}
-	return found, nil
-}
-
-// treeDigest digests the real directory at path: fs.ErrNotExist when it is
-// absent, an error for anything that is not a directory.
-func treeDigest(ctx context.Context, path string, ev Evidence) (string, error) {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return "", err
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("%s is not a directory (%s)", path, info.Mode().Type())
-	}
-	return ev.Digest(ctx, path)
-}
-
-func paths(found []leftover) []string {
-	out := make([]string, len(found))
-	for i, l := range found {
-		out[i] = l.path
-	}
-	return out
+	return d.apply(ctx, dest, ev)
 }
