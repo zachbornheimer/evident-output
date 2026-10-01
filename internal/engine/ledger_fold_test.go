@@ -177,7 +177,7 @@ func TestLedgerFoldScalesLinearlyAndBoundsRowMemory(t *testing.T) {
 		return scaletest.Fastest(scaletest.CheapSamples, func() time.Duration {
 			runtime.GC()
 			var rows []render.EffectSection
-			cost := scaletest.Elapsed(func() {
+			cost := scaletest.CPUElapsed(func() {
 				rows = render.FoldEffectSections("changed", 80, sources)
 				var b strings.Builder
 				for _, r := range rows {
