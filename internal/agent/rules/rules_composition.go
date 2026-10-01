@@ -1,6 +1,6 @@
 package rules
 
-// compositionRules is the v1.2 composition family (contract §31, ZYS-1368,
+// compositionRules is the v1.1 composition family (contract §31, ZYS-1368,
 // ZYS-1369): callers declare work, topology builders declare structure, Evo
 // owns execution. Each rule names a shape that hands one of those jobs to
 // the wrong owner.
@@ -23,7 +23,7 @@ func init() { registerFamily(compositionRules()) }
 func unorderedComputedGetRule() Rule {
 	return Rule{
 		ID:         "API-064",
-		MinDialect: "1.2.0",
+		MinDialect: "1.1.0",
 		Category:   "API",
 		Severity:   SeverityError,
 		Invariant:  "Computed.Get() is read only by work that is structurally ordered after the producing Task",
@@ -39,7 +39,7 @@ report.Task("print branches").After(branches).Define(func(ctx context.Context) e
 		Remediation:     "Add After(computed) to the Task or Group that reads computed.Get()",
 		RelatedGuidance: []string{"tasks"},
 		VerificationIDs: []string{"API-064"},
-		Since:           "1.2.0",
+		Since:           "1.1.0",
 		Certainty:       CertaintyHeuristic,
 	}
 }
@@ -47,7 +47,7 @@ report.Task("print branches").After(branches).Define(func(ctx context.Context) e
 func redundantSequenceAfterRule() Rule {
 	return Rule{
 		ID:         "API-065",
-		MinDialect: "1.2.0",
+		MinDialect: "1.1.0",
 		Category:   "API",
 		Severity:   SeverityWarning,
 		Invariant:  "a Sequence step never names After(x) for an earlier step of the same Sequence",
@@ -61,7 +61,7 @@ steps.Task("discover installed packages").Define(discover)`,
 		Remediation:     "Delete the After; declaration order inside the Sequence is the ordering",
 		RelatedGuidance: []string{"tasks"},
 		VerificationIDs: []string{"API-065"},
-		Since:           "1.2.0",
+		Since:           "1.1.0",
 		Certainty:       CertaintyDeterministic,
 	}
 }
@@ -69,7 +69,7 @@ steps.Task("discover installed packages").Define(discover)`,
 func outerVariableHandoffRule() Rule {
 	return Rule{
 		ID:         "API-066",
-		MinDialect: "1.2.0",
+		MinDialect: "1.1.0",
 		Category:   "API",
 		Severity:   SeverityWarning,
 		Invariant:  "a Task result reaches another Task through evo.Compute, never through a mutable outer variable",
@@ -86,7 +86,7 @@ out.Task("centralize packages").After(inventory).Define(func(ctx context.Context
 		Remediation:     "Produce the value with evo.Compute and read it with Get() in work declared After(computed)",
 		RelatedGuidance: []string{"tasks"},
 		VerificationIDs: []string{"API-066"},
-		Since:           "1.2.0",
+		Since:           "1.1.0",
 		Certainty:       CertaintyHeuristic,
 	}
 }
@@ -94,7 +94,7 @@ out.Task("centralize packages").After(inventory).Define(func(ctx context.Context
 func intoPlumbingRule() Rule {
 	return Rule{
 		ID:              "API-067",
-		MinDialect:      "1.2.0",
+		MinDialect:      "1.1.0",
 		Category:        "API",
 		Severity:        SeverityError,
 		Invariant:       "Task results are never plumbed through Into(&x)",
@@ -104,7 +104,7 @@ func intoPlumbingRule() Rule {
 		Remediation:     "Replace Into(&x) with x := evo.Compute(task, fn) and read x.Get() after After(x)",
 		RelatedGuidance: []string{"tasks"},
 		VerificationIDs: []string{"API-067"},
-		Since:           "1.2.0",
+		Since:           "1.1.0",
 		Certainty:       CertaintyDeterministic,
 	}
 }
@@ -112,7 +112,7 @@ func intoPlumbingRule() Rule {
 func taskDeclaresChildrenRule() Rule {
 	return Rule{
 		ID:         "API-068",
-		MinDialect: "1.2.0",
+		MinDialect: "1.1.0",
 		Category:   "API",
 		Severity:   SeverityError,
 		Invariant:  "a Task never declares children; structure belongs to a Group or Sequence builder",
@@ -131,7 +131,7 @@ func taskDeclaresChildrenRule() Rule {
 		Remediation:     "Declare a Group (or Sequence) and declare the children in its Define builder",
 		RelatedGuidance: []string{"tasks"},
 		VerificationIDs: []string{"API-068"},
-		Since:           "1.2.0",
+		Since:           "1.1.0",
 		Certainty:       CertaintyHeuristic,
 	}
 }
@@ -139,7 +139,7 @@ func taskDeclaresChildrenRule() Rule {
 func impureTopologyBuilderRule() Rule {
 	return Rule{
 		ID:         "API-069",
-		MinDialect: "1.2.0",
+		MinDialect: "1.1.0",
 		Category:   "API",
 		Severity:   SeverityError,
 		Invariant:  "a topology builder declares structure only: no I/O, mutation, context, goroutines, Wait, or error return",
@@ -156,7 +156,7 @@ group.Define(func(g *evo.GroupHandle) {
 		Remediation:     "Move the work into a predecessor Task exposed with evo.Compute; the builder only reads Get() and declares children",
 		RelatedGuidance: []string{"tasks"},
 		VerificationIDs: []string{"API-069"},
-		Since:           "1.2.0",
+		Since:           "1.1.0",
 		Certainty:       CertaintyHeuristic,
 	}
 }
@@ -182,7 +182,7 @@ for _, b := range branches {
 		Remediation:     "Declare a Group for the category and one Task per item",
 		RelatedGuidance: []string{"tasks"},
 		VerificationIDs: []string{"API-070"},
-		Since:           "1.2.0",
+		Since:           "1.0.0",
 		Certainty:       CertaintyHeuristic,
 	}
 }
@@ -203,7 +203,7 @@ func presentationOnlyTaskRule() Rule {
 		Remediation:     "Delete the Task; name the Group or Sequence for the phase and record information with Fact or Detail on the Task that produced it",
 		RelatedGuidance: []string{"tasks"},
 		VerificationIDs: []string{"API-071"},
-		Since:           "1.2.0",
+		Since:           "1.0.0",
 		Certainty:       CertaintyHeuristic,
 	}
 }
@@ -215,12 +215,12 @@ func inexpressibleShapeRule() Rule {
 		Severity:        SeverityError,
 		Invariant:       "when the pinned release cannot express the canonical shape, review says so and invents no local workaround",
 		Why:             "A missing product feature is a product gap, not a prompt for a hand-rolled substitute. Review keeps recheck_required true, emits one gap event per distinct shape and pin, and suggests nothing until the pin moves to a release that can express the shape.",
-		BadCode:         `// pinned to 1.1.0: inventory := evo.Compute(task, fn)`,
+		BadCode:         `// pinned to 1.0.0: inventory := evo.Compute(task, fn)`,
 		GoodCode:        `// raise the pin to the release that adds Compute, then re-review`,
 		Remediation:     "Raise desired_version to the release the finding names; do not write a local substitute",
 		RelatedGuidance: []string{"common-api"},
 		VerificationIDs: []string{"API-072"},
-		Since:           "1.2.0",
+		Since:           "1.1.0",
 		Certainty:       CertaintyDeterministic,
 	}
 }

@@ -83,6 +83,6 @@ func TestAPI065_NeverSuggestsAddingAnAfterInsideASequence(t *testing.T) {
 }
 
 func TestCompositionRules_OlderPinDropsTheirFindings(t *testing.T) {
-	res := review.GoSourceAt("bad.go", readFixture(t, "api_064_bad.go"), "1.1.0")
+	res := review.GoSourceAt("bad.go", readFixture(t, "api_064_bad.go"), "1.0.0")
 	assertNoFinding(t, res, "API-064")
 }

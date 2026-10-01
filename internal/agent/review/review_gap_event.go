@@ -57,7 +57,7 @@ type gapShape struct {
 
 // gapShapes is every shape review can tell a pin is too old for.
 var gapShapes = []gapShape{
-	{name: "typed dataflow (evo.Compute)", minVersion: "1.2.0", usedIn: callsEvoCompute},
+	{name: "typed dataflow (evo.Compute)", minVersion: dialectCompute, usedIn: callsEvoCompute},
 }
 
 func callsEvoCompute(file *ast.File, evoPkg string) bool {

@@ -21,7 +21,7 @@ func run(out *evo.Output) {
 `
 
 func TestAPI072_OlderPinGetsAGapFindingWithNoSuggestion(t *testing.T) {
-	res := review.GoSourceAt("run.go", computeSrc, "1.1.0")
+	res := review.GoSourceAt("run.go", computeSrc, "1.0.0")
 	f := assertFinding(t, res, "API-072")
 	if f.Suggestion != "" {
 		t.Fatalf("a product gap must not invent a workaround, got suggestion %q", f.Suggestion)
@@ -33,15 +33,15 @@ func TestAPI072_OlderPinGetsAGapFindingWithNoSuggestion(t *testing.T) {
 
 func TestAPI072_CurrentDialectHasNoGap(t *testing.T) {
 	assertNoFinding(t, review.GoSource("run.go", computeSrc), "API-072")
-	assertNoFinding(t, review.GoSourceAt("run.go", computeSrc, "1.2.0"), "API-072")
+	assertNoFinding(t, review.GoSourceAt("run.go", computeSrc, "1.1.0"), "API-072")
 }
 
 func TestGapSink_DedupesPerSinkAndSignature(t *testing.T) {
 	first, second := &review.MemoryGapSink{}, &review.MemoryGapSink{}
 	for range 3 {
-		review.GoSourceWithGapSink("run.go", computeSrc, "1.1.0", first)
+		review.GoSourceWithGapSink("run.go", computeSrc, "1.0.0", first)
 	}
-	review.GoSourceWithGapSink("run.go", computeSrc, "1.1.0", second)
+	review.GoSourceWithGapSink("run.go", computeSrc, "1.0.0", second)
 	if n := len(first.Events()); n != 1 {
 		t.Fatalf("first sink got %d events, want 1", n)
 	}
@@ -57,7 +57,7 @@ func TestGapSink_DedupesPerSinkAndSignature(t *testing.T) {
 func TestGapSink_NoEventWhenTheShapeIsExpressible(t *testing.T) {
 	sink := &review.MemoryGapSink{}
 	review.GoSourceWithGapSink("run.go", computeSrc, "", sink)
-	review.GoSourceWithGapSink("run.go", computeSrc, "1.2.0", sink)
+	review.GoSourceWithGapSink("run.go", computeSrc, "1.1.0", sink)
 	if n := len(sink.Events()); n != 0 {
 		t.Fatalf("got %d events, want none", n)
 	}

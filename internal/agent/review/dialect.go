@@ -22,6 +22,10 @@ const dialectRec = "0.4.7"
 // whole rule needs is its catalog MinDialect, not a constant here.
 const dialectOneOne = "1.1.0"
 
+// dialectCompute is the first release with evo.Compute, Computed.Get and the
+// Group/Sequence builder Define (tag v1.1.0-rc.1).
+const dialectCompute = "1.1.0"
+
 // dialectAtLeast reports whether desired is the current dialect (empty) or
 // a pin at/after cutoff. Pre-cutoff pins do not fire that dialect's findings.
 func dialectAtLeast(desired, cutoff string) bool {

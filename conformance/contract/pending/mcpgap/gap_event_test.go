@@ -15,7 +15,7 @@ type recordingGapSink struct{ events []review.GapEvent }
 
 func (s *recordingGapSink) Emit(e review.GapEvent) { s.events = append(s.events, e) }
 
-// A consumer pinned to 1.1.0 asks for typed dataflow that release cannot
+// A consumer pinned to 1.0.0 asks for typed dataflow that release cannot
 // express: Compute does not exist there.
 const inexpressibleShapeSrc = `package p
 
@@ -31,7 +31,7 @@ func run(out *evo.Output) {
 }
 `
 
-const gapPin = "1.1.0"
+const gapPin = "1.0.0"
 
 func TestCMCP_009_InexpressibleShapeKeepsRecheckAndEmitsDedupedGapEvent(t *testing.T) {
 	sink := &recordingGapSink{}
