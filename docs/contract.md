@@ -1448,3 +1448,27 @@ MCP enforces this composition model (<issue id="2948e4e5-3e19-4810-9034-3145bd0c
 ### Rendering note
 
 In plain output, a named Group under a Sequence renders no header line; its children appear directly under the Sequence. This follows §3 ("the renderer decides whether container labels deserve visible rows"). It hides a meaningful label such as `validate plan`, so it is open for review in v1.2.
+
+## 32. One elapsed format
+
+Elapsed and quiet durations render in one compact form everywhere: live, plain, and durable output. The form is `2s` under a minute, `4m12s` under an hour, `3h04m` under a day, and `2d3h` beyond. Minutes after an hour are zero-padded. A duration never renders without a unit, and never in the Go `Duration.String` form (`1h2m3s`, `4h12m0s`).
+
+## 33. Long-running Tasks (render-only lifecycle)
+
+Evo renders caller-supplied lifecycle state and never supervises processes.
+
+A `Writer()`-backed Running Task shows a bounded live tail of 6 lines under its row, with the footer `… N lines in evidence`. After 60 seconds without output the row carries a `· quiet Nm` suffix. Memory stays bounded for any uptime. The live frame changes at least every 100ms.
+
+Daemon extensions (1.2): `task.Ready(detail)` marks readiness. `task.Restarted(reason, attempt, nextBackoff)` renders a restart. `task.StoppedBy(signals...)` reclassifies the listed signals as a clean stop. SIGTERM and SIGINT are clean stops by default for a Task that opts in. A clean stop concludes with exit code 0 and the `[stopped]` band. Plain (non-TTY) output streams start, ready, log lines, and stop one line per event, without glyphs. JSONL carries every log line as an event. Log lines classified INFO and above appear in the tail; DEBUG lines appear only under `EVO_VERBOSE=1`.
+
+## 34. Ledger fold
+
+Sibling per-item mutating Tasks under one Group whose Effects share a verb and object fold into one aggregated human row, counted per item (for example `deleted 3 branches`). The fold keys on owner Task identity, never on display name. `[planned]` and `[changed]` Effects both fold. A failed item stays visible under the aggregated row. JSON and JSONL keep every per-item Effect. The fold needs no API.
+
+## 35. Pit-of-success eval
+
+A deterministic replay, with no model and no network, proves that every reference answer for each non-blocked eval task compiles, reviews clean with `recheck_required=false`, and runs to its expected topology. Every trap answer is rejected by a detector or recorded as expected-pending.
+
+The driver that calls a model needs an explicit key, a positive `--max-usd`, and `--confirm-spend`. It aborts when accumulated cost reaches the cap. It exposes only the MCP tools plus `go_build` and `submit`, with at most 40 tool turns per sample. It places the prompt-cache breakpoint on the last system block and the last tool. It reports held-out tasks as aggregates only.
+
+A hillclimb step is rejected if it touches a frozen path, edits Go beyond string literals and comments, or contains a distinctive task noun. It is accepted only at +1 or more training samples with no task down 2 or more.
