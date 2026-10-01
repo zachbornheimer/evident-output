@@ -392,6 +392,9 @@ func TestSpecP8_Error(t *testing.T) {
 	if !strings.Contains(got, "Authorization: token expired") {
 		t.Fatalf("want detail, got:\n%s", buf.String())
 	}
+	if !strings.Contains(got, "→ gh auth refresh") {
+		t.Fatalf("want the Fail remedy, got:\n%s", buf.String())
+	}
 }
 
 // TestSpecP8_EarlyTermination covers evo-rec.md Problem 8's early-termination

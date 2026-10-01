@@ -187,6 +187,18 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 ### Removed
 
+- **BREAKING (ZYS-1182): `TaskHandle.Next`, `TaskHandle.NextCommand`,
+  `Output.Next`, and `Output.NextCommand`** were removed with no aliases. A
+  remedy attaches only as the `evo.Next(action)` / `evo.NextCommand(exe,
+args...)` option on `Problem`, `Fail`, or `Block`, so it always belongs to
+  the diagnostic it explains. `TaskSnapshot.Actions` no longer carries caller
+  remedies; read `Problems[].Actions` and `Warnings[].Actions`. A remedy with
+  no failure behind it is a warning-severity Problem, which sets
+  `Conclusion().Warned` (exit code stays 0). Confirm's policy hint now rides
+  on its block Problem, so the `evo.run` JSON Problem carries it in
+  `remedies`. MCP review (API-032) rewrites each call site as one edit, or
+  keeps the review open with a placeholder or guidance when the receiver
+  cannot be proven.
 - **`evo.ForSkip`, `evo.OnTask`, `evo.ReasonOption`, `ErrReasonSkipOnly`,
   and `ErrReasonWrongTask`** were removed (ZYS-1180 freeze). They only
   guarded how the removed `Kept` verb used a Reason. `evo.Reason(name)`
