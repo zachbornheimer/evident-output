@@ -134,6 +134,63 @@ func TestPrune_RecoverNeverInfersTheOriginalFromLeftoversAlone(t *testing.T) {
 	}
 }
 
+func TestPrune_RecoverOutsideATaskIsNoTaskContextAndChangesNothing(t *testing.T) {
+	f := newPruneReplaceFixture(t)
+	f.crashReplace(t, publish.StepAside, true)
+	before, _ := publish.Leftovers(f.dest)
+	if _, err := f.next.Recover(context.Background(), f.expected); !errors.Is(err, evo.ErrNoTaskContext) {
+		t.Fatalf("Recover outside a Task = %v, want ErrNoTaskContext", err)
+	}
+	if after, _ := publish.Leftovers(f.dest); !slices.Equal(after, before) {
+		t.Fatalf("Leftovers = %v after a refused Recover, want %v", after, before)
+	}
+	if _, err := os.Lstat(f.dest); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Recover outside a Task restored the destination: %v", err)
+	}
+}
+
+func TestPrune_RecoverUnderDryRunReportsTheDecisionAndChangesNothing(t *testing.T) {
+	f := newPruneReplaceFixture(t)
+	f.crashReplace(t, publish.StepAside, true)
+	before, _ := publish.Leftovers(f.dest)
+	var got evo.RecoverResult
+	err := contractRun(t, evo.Config{DryRun: true}, func(ctx context.Context) error {
+		var err error
+		got, err = f.next.Recover(ctx, f.expected)
+		return err
+	})
+	if err != nil || got.State != evo.RecoverRestoredOriginal {
+		t.Fatalf("dry-run Recover = %+v, %v; want the RestoredOriginal decision", got, err)
+	}
+	if after, _ := publish.Leftovers(f.dest); !slices.Equal(after, before) {
+		t.Fatalf("Leftovers = %v after a dry run, want %v", after, before)
+	}
+	if _, err := os.Lstat(f.dest); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("dry-run Recover restored the destination: %v", err)
+	}
+}
+
+// A Replace still staging owns its stage: Recover keeps and lists it even
+// though it digests to the replacement.
+func TestPrune_RecoverKeepsTheStageOfALiveReplace(t *testing.T) {
+	f := newPruneReplaceFixture(t)
+	live, err := publish.StageTree(context.Background(), f.dest, 0, func(_ context.Context, root string) error {
+		plant(t, root, map[string]string{"index.js": "new"})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = live.Discard() }()
+	got, err := f.recover(t)
+	if err != nil || got.State != evo.RecoverIntact || !slices.Equal(got.Leftovers, []string{live.Path()}) {
+		t.Fatalf("Recover = %+v, %v; want Intact keeping the live stage %s", got, err, live.Path())
+	}
+	if _, err := os.Lstat(live.Path()); err != nil {
+		t.Fatalf("Recover deleted a live stage: %v", err)
+	}
+}
+
 func contractRunRecover(t *testing.T, tree evo.Tree, expected string) (evo.RecoverResult, error) {
 	t.Helper()
 	var got evo.RecoverResult

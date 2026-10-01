@@ -169,12 +169,21 @@ func readLog(t *testing.T, path string) []string {
 	return strings.Split(strings.TrimSpace(string(body)), "\n")
 }
 
-// Two processes replace a parent tree and a tree inside it at once. Both
-// stage first; then their critical sections never interleave, and the
-// result is a serial one: the parent committed under the child (both
-// commit), or the parent's expected tree was gone by its re-check (it is
-// refused and the child's tree stands in the original parent).
+// Two processes replace a parent tree and a tree inside it at once, in
+// each order. Both stage first (so the child's stage sits inside the
+// parent); the first takes the coordination, the second is released while
+// the first is still inside its critical section. They never interleave,
+// and the result is serial: the first commits and the second is refused
+// with ErrTreeChanged, changing nothing.
 func TestPrune_ParentAndChildReplacesAcrossProcessesSerialize(t *testing.T) {
+	for _, parentFirst := range []bool{true, false} {
+		t.Run(map[bool]string{true: "parent first", false: "child first"}[parentFirst], func(t *testing.T) {
+			pruneParentAndChildInOrder(t, parentFirst)
+		})
+	}
+}
+
+func pruneParentAndChildInOrder(t *testing.T, parentFirst bool) {
 	parent := filepath.Join(t.TempDir(), "node_modules")
 	child := filepath.Join(parent, "pkg", "node_modules", "dep")
 	plant(t, parent, map[string]string{"a.js": "parent old", "pkg/node_modules/dep/index.js": "dep old"})
@@ -190,32 +199,42 @@ func TestPrune_ParentAndChildReplacesAcrossProcessesSerialize(t *testing.T) {
 	for range 2 {
 		await(t, events, gateStaged)
 	}
-	for _, g := range []*gatedReplacer{p, c} {
-		g.next(t)
+	firstG, secondG := p, c
+	if !parentFirst {
+		firstG, secondG = c, p
 	}
-
-	holder := await(t, events, gateLocked)
+	firstG.next(t)
+	if holder := await(t, events, gateLocked); holder != firstG {
+		t.Fatalf("%s took the coordination, want %s", holder.dest, firstG.dest)
+	}
 	// From outside both processes: the holder excludes the parent and the
 	// child alike while it is inside its critical section.
 	pruneMustBeBusy(t, parent)
 	pruneMustBeBusy(t, child)
-	holder.next(t)
-	await(t, events, gateLocked).next(t)
+	secondG.next(t)
+	firstG.next(t)
+	if g := await(t, events, gateLocked); g != secondG {
+		t.Fatalf("%s took the coordination second, want %s", g.dest, secondG.dest)
+	}
+	secondG.next(t)
 	pCode, cCode := p.wait(t), c.wait(t)
 
-	first := holder.dest
-	second := map[string]string{parent: child, child: parent}[first]
+	first, second := firstG.dest, secondG.dest
 	if got, want := readLog(t, logPath), []string{"enter " + first, "exit " + first, "enter " + second, "exit " + second}; !slices.Equal(got, want) {
 		t.Fatalf("critical sections = %v, want %v (no interleaving)", got, want)
 	}
-	bothCommitted := map[string]string{"a.js": "parent new", "pkg/node_modules/dep/index.js": "dep new"}
-	parentRefused := map[string]string{"a.js": "parent old", "pkg/node_modules/dep/index.js": "dep new"}
-	got := onDisk(t, parent)
-	switch {
-	case equalFiles(got, bothCommitted) && first == parent && pCode == 0 && cCode == 0:
-	case equalFiles(got, parentRefused) && pCode == pruneExitChanged && cCode == 0:
-	default:
-		t.Fatalf("first=%s exit codes parent=%d child=%d tree=%v: not a serial outcome", first, pCode, cCode, got)
+	// Whoever commits first changes the other's tree: a parent swap carries
+	// the child's stage away; a child commit changes the parent's digest.
+	// The second is refused and changes nothing.
+	want := map[string]struct {
+		pCode, cCode int
+		tree         map[string]string
+	}{
+		parent: {0, pruneExitChanged, map[string]string{"a.js": "parent new", "pkg/node_modules/dep/index.js": "dep old"}},
+		child:  {pruneExitChanged, 0, map[string]string{"a.js": "parent old", "pkg/node_modules/dep/index.js": "dep new"}},
+	}[first]
+	if got := onDisk(t, parent); pCode != want.pCode || cCode != want.cCode || !equalFiles(got, want.tree) {
+		t.Fatalf("%s first: exit codes parent=%d child=%d tree=%v; want %d/%d %v", first, pCode, cCode, got, want.pCode, want.cCode, want.tree)
 	}
 	for _, dest := range []string{parent, child} {
 		if leftovers, err := publish.Leftovers(dest); err != nil || len(leftovers) != 0 {

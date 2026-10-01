@@ -396,13 +396,40 @@ gaps the ownership audit found.
   | anything else, or not a dir | any                        | `RecoverUnrecoverable`        | nothing (`ErrTreeChanged`)                           |
 
   Every leftover not deleted is listed in `RecoverResult.Leftovers`. A
-  leftover that is not a real directory (a symlink included) is never
-  restored or deleted.
+  leftover that is not a real directory (a symlink included), or that a
+  live writer still owns, is never restored or deleted. Recover runs only
+  inside a Task (else `ErrNoTaskContext`); under DryRun it reports the
+  decision and changes nothing.
 
-- **Known gap: a child's staging lives inside its parent's tree.** A child
-  Replace stages beside the child, so outside any lock its uncommitted
-  staging is part of the parent's tree: a parent Replace re-checking then
-  sees a different digest and is refused with `ErrTreeChanged`. The test
-  pins this serial outcome. Excluding staging entries from the digest would
-  instead let the parent's swap carry the child's staging away, failing the
-  child with a non-contract rename error; the fix needs a ruling.
+## Rulings (2026-10-01, nested staging and recovery)
+
+A child Replace stages beside the child, so its unfinished stage sits
+inside the parent's tree until it commits.
+
+- **Checksums leave out in-flight staging.** A directory or regular file
+  named exactly `.evo-<8 lowercase hex>-<26 lowercase base32>.tmp` (the
+  `stagename` scheme publish creates) is not part of any tree's digest, at
+  any depth, so a parent's digest never sees a child's unfinished stage.
+  Only the exact shape matches: `.evo-foo.tmp`, an uppercase or short
+  random part, or a trailing suffix is real content. Readers (`Find`,
+  `Tree.Read`) use the same exact test.
+- **A carried-away stage is `ErrTreeChanged`.** Under its lock, a commit
+  first proves its stage is still at its staging path. When an ancestor's
+  commit swapped the directory it lived in, the commit fails with
+  `publish.ErrStagedGone`, which a Tree publication reports as
+  `ErrTreeChanged`, never a bare rename error. Nothing is published, and
+  directories at paths staging had created are left alone: they now belong
+  to the tree that replaced them. So a parent and a child replaced at once
+  always serialize: whichever commits first wins, the other is refused.
+- **Recover respects the Task context and DryRun,** like Write and Remove.
+- **Recover never deletes a live writer's stage.** Every stage carries a
+  lease from creation until its commit or discard finishes (and so covers
+  an original the commit is about to delete): an exclusive `flock` on a
+  lock file keyed by the staging path in a namespace apart from destination
+  claims, plus an in-process table. Recover takes each leftover's lease
+  before digesting it; a lease it cannot take marks a live stage, which is
+  kept and listed. The kernel drops a dead writer's lease, so a crash's
+  leftovers are reclaimable. The lease is deliberately not a destination
+  claim on the staging path: that claim would hold a shared lock on every
+  ancestor for the whole stage, so a parent Replace would wait for a
+  child's download and extract to finish.

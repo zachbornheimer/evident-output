@@ -53,6 +53,12 @@ and [`docs/zys-1382/KNOWN_BROKEN.md`](docs/zys-1382/KNOWN_BROKEN.md).
   wrapping `ErrTreeChanged`; nothing changed). It deletes only leftovers
   proven to be the original or the replacement and lists the rest in
   `RecoverResult.Leftovers`; `RecoverResult.State` is a `RecoverState`.
+  It never deletes a stage a live writer still owns, runs only inside a
+  Task, and under DryRun reports its decision without changing files.
+- `Tree.Checksum` leaves out in-flight publish staging entries (the exact
+  `.evo-<owner>-<random>.tmp` shape), so a child's unfinished stage never
+  changes its parent's digest. A Replace whose stage an ancestor's commit
+  carried away returns `ErrTreeChanged`.
 - Tree commits now coordinate per destination: siblings commit concurrently,
   and the same path or an ancestor/descendant pair serializes, across
   goroutines and processes.

@@ -2,8 +2,6 @@ package evo
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/zachbornheimer/evident-output/internal/engine"
 	"github.com/zachbornheimer/evident-output/internal/publish"
@@ -74,46 +72,19 @@ func (t Tree) Replace(ctx context.Context, expected string) error {
 //     to restore): RecoverUnrecoverable, an error wrapping ErrTreeChanged,
 //     every leftover listed, and nothing changed.
 //
-// Recover deletes only trees it proved redundant. A nil Content means the
+// Recover deletes only trees it proved redundant, and never a stage a live
+// writer still owns (those are listed). A nil Content means the
 // replacement is unknown: only Path holding expected settles it, and
-// leftovers that are not expected are kept.
+// leftovers that are not expected are kept. Like Write, it runs only
+// inside a Task (else ErrNoTaskContext); under DryRun it reports the
+// decision and changes nothing.
 func (t Tree) Recover(ctx context.Context, expected string) (RecoverResult, error) {
-	if t.Path == "" {
-		return RecoverResult{State: RecoverUnrecoverable}, ErrPathMissing
-	}
-	path := engine.ResolvePath(ctx, t.Path)
-	replacement, err := t.contentChecksum(ctx, path)
-	if err != nil {
-		return RecoverResult{State: RecoverUnrecoverable}, fmt.Errorf("evo: Tree %q Recover: %w", t.Path, err)
-	}
-	got, err := publish.Recover(ctx, path, publish.Evidence{Original: expected, Replacement: replacement, Digest: treeChecksum})
-	result := RecoverResult{State: recoverStates[got.Outcome], Leftovers: got.Kept}
-	switch {
-	case errors.Is(err, publish.ErrUnrecoverable):
-		return result, fmt.Errorf("evo: Tree %q Recover: %w: %w", t.Path, ErrTreeChanged, err)
-	case err != nil:
-		return result, fmt.Errorf("evo: Tree %q Recover: %w", t.Path, err)
-	}
-	return result, nil
-}
-
-// contentChecksum is the Checksum Content would publish at path, or "" for
-// no Content. Content is prepared beside path and discarded.
-func (t Tree) contentChecksum(ctx context.Context, path string) (string, error) {
 	src, err := t.source()
-	if err != nil || src == nil {
-		return "", err
-	}
-	staged, err := publish.StageTree(ctx, path, 0, src.Fill)
 	if err != nil {
-		return "", err
+		return RecoverResult{State: RecoverUnrecoverable}, err
 	}
-	sum, err := treeChecksum(ctx, staged.Path())
-	return sum, errors.Join(err, staged.Discard())
-}
-
-func treeChecksum(ctx context.Context, path string) (string, error) {
-	return engine.TreeChecksum(ctx, path, nil)
+	got, err := engine.TreeRecover(ctx, t.Path, src, expected)
+	return RecoverResult{State: recoverStates[got.Outcome], Leftovers: got.Kept}, err
 }
 
 // RecoverResult is how Recover settled a Tree.
