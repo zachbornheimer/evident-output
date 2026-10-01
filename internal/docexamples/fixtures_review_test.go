@@ -13,6 +13,7 @@ import (
 // discouraged shape on purpose, so review is expected to flag them.
 var discouragedShapeFixtures = map[string]bool{
 	"migration_1_0_duplicate_sibling": true, // the repeated-call shape beside its fix
+	"migration_1_0_file_spec":         true, // frozen 1.0 FileSpec/FSPath fence, retired in 1.2 (docs/zys-1382/KNOWN_BROKEN.md)
 }
 
 func showsDiscouragedShape(name string) bool {
