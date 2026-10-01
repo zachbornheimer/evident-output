@@ -45,6 +45,7 @@
 !/internal/**
 !/eval/
 !/eval/**
+/eval/results/
 !/examples/
 !/examples/**
 !/scripts/
