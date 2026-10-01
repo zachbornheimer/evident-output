@@ -2,5 +2,7 @@
   "id": "X4",
   "task": "T1-zq-prune",
   "banned_pattern": "giant-loop-task",
-  "expected_flag_pending": true
+  "review_rules": [
+    "API-070"
+  ]
 }
