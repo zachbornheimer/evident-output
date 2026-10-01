@@ -17,7 +17,7 @@ func TestRemovedRemedy_FoldsIntoFollowingDiagnostic(t *testing.T) {
 	if len(found) != 1 {
 		t.Fatalf("findings = %+v, want one", found)
 	}
-	want := "replace task.Next(evo.Label(\"retry\"))\n\ttask.Block(\"refused\") with task.Block(\"refused\", evo.Next(evo.Label(\"retry\")))"
+	want := `replace task.Next(evo.Label("retry")) task.Block("refused") with task.Block("refused", evo.Next(evo.Label("retry")))`
 	if found[0].Suggestion != want {
 		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
 	}
