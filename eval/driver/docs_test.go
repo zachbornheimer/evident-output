@@ -110,7 +110,8 @@ func TestSpawnMCP_RealServerServesCorpusAndTools(t *testing.T) {
 		t.Skip("builds the MCP server binary")
 	}
 	binary := filepath.Join(t.TempDir(), "evident-output-mcp")
-	build := exec.Command("go", "build", "-o", binary, "github.com/zachbornheimer/evident-output/cmd/evident-output-mcp")
+	build := exec.Command("go", "build", "-o", binary, "./cmd/evident-output-mcp")
+	build.Dir = filepath.Join("..", "..") // the library module, which owns the server's dependencies
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build MCP server: %v\n%s", err, out)
 	}

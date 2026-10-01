@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -14,6 +15,9 @@ const (
 	mcpProtocolVersion = "2025-06-18"
 	mcpClientName      = "evident-output-eval"
 	mcpMaxLineBytes    = 16 << 20
+	// mcpNoAutoUpdateEnv stops the server from reinstalling itself mid-run,
+	// which would change the docs the model sees.
+	mcpNoAutoUpdateEnv = "EVO_MCP_NO_AUTO_UPDATE"
 )
 
 // ToolResult is what an MCP tool call returned.
@@ -69,6 +73,7 @@ func NewStdioMCP(ctx context.Context, in io.Reader, out io.Writer, closeFn func(
 // SpawnMCP starts binary as a child process and connects to its stdio.
 func SpawnMCP(ctx context.Context, binary string) (*StdioMCP, error) {
 	proc := exec.CommandContext(ctx, binary)
+	proc.Env = append(os.Environ(), mcpNoAutoUpdateEnv+"=1")
 	stdin, err := proc.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("open stdin of %s: %w", binary, err)

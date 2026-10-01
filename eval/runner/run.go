@@ -56,7 +56,7 @@ func (r Runner) Run(ctx context.Context, cfg Config, tasks []evaltask.Task) (Sum
 	for _, modelID := range cfg.Models {
 		price, err := cfg.Prices.Resolve(modelID)
 		if err != nil {
-			return summary, fmt.Errorf("%w: %w (%s)", ErrRefusedToStart, err, FlagPriceMissing)
+			return summary, fmt.Errorf("%w: %w", ErrRefusedToStart, err)
 		}
 		sink, err := r.SinkFor(modelID)
 		if err != nil {

@@ -58,7 +58,7 @@ func BuildPlan(cfg Config, tasks []evaltask.Task) (Plan, error) {
 	for _, model := range cfg.Models {
 		price, err := cfg.Prices.Resolve(model)
 		if err != nil {
-			return Plan{}, fmt.Errorf("%w: %w (%s)", ErrRefusedToStart, err, FlagPriceMissing)
+			return Plan{}, fmt.Errorf("%w: %w", ErrRefusedToStart, err)
 		}
 		turns := float64(len(tasks) * cfg.Samples * driver.MaxToolTurns)
 		plan.WorstCaseUSD += turns * price.Cost(perTurn)

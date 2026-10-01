@@ -18,7 +18,6 @@ const DefaultSamples = 3
 const (
 	FlagMaxUSD       = "--max-usd"
 	FlagConfirmSpend = "--confirm-spend"
-	FlagPriceMissing = "--price-override"
 	// CredentialEnv names the environment variable the credential is read from.
 	CredentialEnv = "ANTHROPIC_API_KEY"
 )

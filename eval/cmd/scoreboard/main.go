@@ -12,7 +12,6 @@ import (
 	"io/fs"
 	"os"
 
-	"github.com/zachbornheimer/evident-output/eval/runner"
 	"github.com/zachbornheimer/evident-output/eval/scoreboard"
 )
 
@@ -43,25 +42,8 @@ func run(args []string) error {
 	}
 }
 
-func readAll(paths []string) ([]runner.Record, error) {
-	var all []runner.Record
-	for _, path := range paths {
-		file, err := os.Open(path)
-		if err != nil {
-			return nil, fmt.Errorf("open transcript %s: %w", path, err)
-		}
-		records, err := scoreboard.ReadRecords(file)
-		_ = file.Close()
-		if err != nil {
-			return nil, fmt.Errorf("read transcript %s: %w", path, err)
-		}
-		all = append(all, records...)
-	}
-	return all, nil
-}
-
 func heldOut(args []string) error {
-	records, err := readAll(args)
+	records, err := scoreboard.ReadRecordFiles(args)
 	if err != nil {
 		return fmt.Errorf("held-out report: %w", err)
 	}
@@ -80,7 +62,7 @@ func update(args []string) error {
 	if *evoSHA == "" || *tunedSHA == "" {
 		return errors.New("--evo-sha and --tuned-sha are required")
 	}
-	records, err := readAll(flags.Args())
+	records, err := scoreboard.ReadRecordFiles(flags.Args())
 	if err != nil {
 		return fmt.Errorf("update scoreboard: %w", err)
 	}

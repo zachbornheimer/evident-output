@@ -91,27 +91,41 @@ func (s Sample) Run(ctx context.Context) (SampleResult, error) {
 			result.Ended = EndedNoSubmit
 			return result, nil
 		}
-		reply := Message{Role: RoleUser}
-		for _, use := range uses {
-			result.ToolCalls++
-			outcome, err := s.Tools.Dispatch(ctx, use)
-			if err != nil {
-				return result, fmt.Errorf("tool %s on turn %d: %w", use.ToolName, result.Turns, err)
-			}
-			if outcome.Submission != nil {
-				result.Files, result.Submitted, result.Ended = outcome.Submission, true, EndedSubmitted
-				return result, nil
-			}
-			if outcome.ReviewClean != nil {
-				reviews++
-				if *outcome.ReviewClean && result.CyclesToClean < 0 {
-					result.CyclesToClean = reviews
-				}
-			}
-			reply.Blocks = append(reply.Blocks, Block{Kind: BlockToolResult, ToolUseID: use.ToolUseID, Text: outcome.Text, IsError: outcome.IsError})
+		reply, err := s.answerToolCalls(ctx, uses, &result, &reviews)
+		if err != nil {
+			return result, err
+		}
+		if result.Submitted {
+			return result, nil
 		}
 		messages = append(messages, reply)
 	}
 	result.Ended = EndedTurnCap
 	return result, nil
+}
+
+// answerToolCalls dispatches one turn's tool calls and builds the reply
+// message. A submit call ends the sample: result.Submitted is set and the
+// reply is unused.
+func (s Sample) answerToolCalls(ctx context.Context, uses []Block, result *SampleResult, reviews *int) (Message, error) {
+	reply := Message{Role: RoleUser}
+	for _, use := range uses {
+		result.ToolCalls++
+		outcome, err := s.Tools.Dispatch(ctx, use)
+		if err != nil {
+			return Message{}, fmt.Errorf("tool %s on turn %d: %w", use.ToolName, result.Turns, err)
+		}
+		if outcome.Submission != nil {
+			result.Files, result.Submitted, result.Ended = outcome.Submission, true, EndedSubmitted
+			return reply, nil
+		}
+		if outcome.ReviewClean != nil {
+			*reviews++
+			if *outcome.ReviewClean && result.CyclesToClean < 0 {
+				result.CyclesToClean = *reviews
+			}
+		}
+		reply.Blocks = append(reply.Blocks, Block{Kind: BlockToolResult, ToolUseID: use.ToolUseID, Text: outcome.Text, IsError: outcome.IsError})
+	}
+	return reply, nil
 }
