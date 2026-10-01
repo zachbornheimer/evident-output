@@ -3,6 +3,8 @@ package publish
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -14,11 +16,16 @@ import (
 )
 
 // Staging names: a private sibling of the destination, so the final
-// rename never crosses a filesystem. The middle is unpredictable, so no
-// other user can plant a symlink at a staging name in advance.
+// rename never crosses a filesystem, shaped .evo-<owner>-<random>.tmp. The
+// owner tag binds the entry to its destination's name so Leftovers can
+// find what an interrupted commit left; the random part is unpredictable,
+// so no other user can plant a symlink at a staging name in advance.
 const (
 	stagingPrefix = ".evo-"
 	stagingSuffix = ".tmp"
+	// stagingOwnerBytes is how much of the destination name's digest the
+	// owner tag carries.
+	stagingOwnerBytes = 4
 	// stagingAttempts bounds the search for an unused staging name.
 	stagingAttempts = 100
 	// defaultTreeMode is a staged tree root's mode when none is given.
@@ -68,7 +75,7 @@ func StageFile(ctx context.Context, dest string, mode fs.FileMode, fill func(io.
 	if err != nil {
 		return nil, err
 	}
-	f, err := createStagingFile(filepath.Dir(s.dest))
+	f, err := createStagingFile(s.dest)
 	if err != nil {
 		s.discardParents()
 		return nil, fmt.Errorf("publish: stage %s: %w", dest, err)
@@ -88,7 +95,7 @@ func StageTree(ctx context.Context, dest string, mode fs.FileMode, fill func(ctx
 	if err != nil {
 		return nil, err
 	}
-	temp, err := createStagingDir(filepath.Dir(s.dest))
+	temp, err := createStagingDir(s.dest)
 	if err != nil {
 		s.discardParents()
 		return nil, fmt.Errorf("publish: stage %s: %w", dest, err)
@@ -192,13 +199,47 @@ func makeParents(dir string) ([]string, error) {
 	return missing, nil
 }
 
-func stagingName(dir string) string {
-	return filepath.Join(dir, stagingPrefix+strings.ToLower(rand.Text())+stagingSuffix)
+// stagingName is a fresh staging path beside dest, owned by dest.
+func stagingName(dest string) string {
+	return filepath.Join(filepath.Dir(dest), stagingOwner(dest)+strings.ToLower(rand.Text())+stagingSuffix)
 }
 
-func createStagingFile(dir string) (*os.File, error) {
+// stagingOwner is the name prefix every staging entry of dest shares.
+func stagingOwner(dest string) string {
+	sum := sha256.Sum256([]byte(filepath.Base(dest)))
+	return stagingPrefix + hex.EncodeToString(sum[:stagingOwnerBytes]) + "-"
+}
+
+// Leftovers lists the staging entries beside dest that belong to it: a
+// tree an interrupted commit staged but never published, or the original
+// a commit swapped out and had not yet deleted (Commit says which crash
+// leaves which). dest itself is always one whole tree. Presence proves
+// nothing about content: a caller identifies an original by the digest it
+// planned against, and reaps nothing while a writer of dest may still be
+// staging.
+func Leftovers(dest string) ([]string, error) {
+	abs, err := filepath.Abs(dest)
+	if err != nil {
+		return nil, fmt.Errorf("publish: leftovers of %s: %w", dest, err)
+	}
+	dir := filepath.Dir(abs)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("publish: leftovers of %s: %w", abs, err)
+	}
+	owner := stagingOwner(abs)
+	var found []string
+	for _, entry := range entries {
+		if name := entry.Name(); IsStaging(name) && strings.HasPrefix(name, owner) {
+			found = append(found, filepath.Join(dir, name))
+		}
+	}
+	return found, nil
+}
+
+func createStagingFile(dest string) (*os.File, error) {
 	for range stagingAttempts {
-		f, err := os.OpenFile(stagingName(dir), os.O_RDWR|os.O_CREATE|os.O_EXCL, stagingFileMode)
+		f, err := os.OpenFile(stagingName(dest), os.O_RDWR|os.O_CREATE|os.O_EXCL, stagingFileMode)
 		if err == nil {
 			return f, nil
 		}
@@ -206,12 +247,12 @@ func createStagingFile(dir string) (*os.File, error) {
 			return nil, fmt.Errorf("create staging file: %w", err)
 		}
 	}
-	return nil, fmt.Errorf("no unused staging name in %s after %d attempts", dir, stagingAttempts)
+	return nil, fmt.Errorf("no unused staging name beside %s after %d attempts", dest, stagingAttempts)
 }
 
-func createStagingDir(dir string) (string, error) {
+func createStagingDir(dest string) (string, error) {
 	for range stagingAttempts {
-		name := stagingName(dir)
+		name := stagingName(dest)
 		err := os.Mkdir(name, stagingDirMode)
 		if err == nil {
 			return name, nil
@@ -220,5 +261,5 @@ func createStagingDir(dir string) (string, error) {
 			return "", fmt.Errorf("create staging directory: %w", err)
 		}
 	}
-	return "", fmt.Errorf("no unused staging name in %s after %d attempts", dir, stagingAttempts)
+	return "", fmt.Errorf("no unused staging name beside %s after %d attempts", dest, stagingAttempts)
 }

@@ -49,9 +49,22 @@ func (g Guard) verify(ctx context.Context, dest string) error {
 // destination lock: revalidate, atomic rename (a tree replacing a tree is
 // an atomic exchange where the OS offers one), verify, release. The staged
 // bytes were flushed before the lock was taken; the directory entry is not
-// fsynced, which would hold every waiter for a full device flush. A replaced tree is deleted after the lock is released.
-// Whatever happens, nothing staged is left behind. Cancellation is honored
-// until the rename; after it, the commit completes.
+// fsynced, which would hold every waiter for a full device flush. A
+// replaced tree is retained beside dest until the new one verifies, then
+// deleted after the lock is released; a tree that fails verification is
+// rolled back so the original is at dest again. Whatever happens, nothing
+// staged is left behind. Cancellation is honored until the rename; after
+// it, the commit completes.
+//
+// Crash semantics (tree over tree): dest is always one whole tree, because
+// the swap is a single atomic exchange. A crash before the swap leaves the
+// original at dest and the staged tree as a Leftover. A crash after the
+// swap, before verification or cleanup, leaves the new tree at dest and
+// the original as a Leftover. Either way the coordination is released by
+// the kernel; recovery digests dest and the Leftovers against the digests
+// the caller planned with, then keeps or restores accordingly. Where the
+// OS has no exchange, a crash between moving the original aside and
+// renaming the new tree in leaves dest absent and the original a Leftover.
 func (s *Staged) Commit(ctx context.Context, g Guard) error {
 	if s.spent {
 		return ErrSpent
@@ -97,7 +110,34 @@ func (s *Staged) commitLocked(ctx context.Context, g Guard) (string, error) {
 	}
 	s.spent = true
 	s.created = nil
-	return replaced, g.verify(ctx, s.dest)
+	verifyErr := g.verify(ctx, s.dest)
+	if verifyErr == nil || !s.tree {
+		return replaced, verifyErr
+	}
+	rejected, rollbackErr := rollBackTree(s.dest, replaced)
+	return rejected, errors.Join(verifyErr, rollbackErr)
+}
+
+// rollBackTree undoes a tree commit whose verification failed: the
+// original (at replaced, or none when dest was absent) returns to dest and
+// the rejected tree moves aside. It returns where the rejected tree now
+// lives, for deletion after release.
+func rollBackTree(dest, replaced string) (string, error) {
+	if replaced != "" && exchange(replaced, dest) == nil {
+		return replaced, nil
+	}
+	rejected := stagingName(dest)
+	if err := os.Rename(dest, rejected); err != nil {
+		return "", fmt.Errorf("move rejected tree aside: %w", err)
+	}
+	if replaced == "" {
+		return rejected, nil
+	}
+	if err := os.Rename(replaced, dest); err != nil {
+		// The original stays at replaced, never deleted: it is the only copy.
+		return "", fmt.Errorf("restore original from %s: %w", replaced, err)
+	}
+	return rejected, nil
 }
 
 // moveTree puts the staged tree at dest. Over an existing directory it
@@ -115,7 +155,7 @@ func (s *Staged) moveTree() (string, error) {
 	if info.IsDir() && exchange(s.temp, s.dest) == nil {
 		return s.temp, nil
 	}
-	aside := stagingName(filepath.Dir(s.dest))
+	aside := stagingName(s.dest)
 	if err := os.Rename(s.dest, aside); err != nil {
 		return "", fmt.Errorf("move old entry aside: %w", err)
 	}
@@ -183,7 +223,7 @@ func removeLocked(ctx context.Context, dest string, g Guard) (string, error) {
 	}
 	var aside string
 	if info.IsDir() {
-		aside = stagingName(filepath.Dir(dest))
+		aside = stagingName(dest)
 		err = os.Rename(dest, aside)
 	} else {
 		err = os.Remove(dest)

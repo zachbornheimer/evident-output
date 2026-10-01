@@ -249,21 +249,38 @@ func TestConcurrentCommitsSerialize(t *testing.T) {
 	requireOnly(t, dir, "f")
 }
 
+// destLockFile opens dest's own lock file as another process would.
+func destLockFile(t *testing.T, dest string) *os.File {
+	t.Helper()
+	key, err := claimKey(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, err := lockDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.OpenFile(filepath.Join(dir, lockName(key)), lockOpenFlags, lockFileMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
+	return f
+}
+
 // The lock is OS-backed: a second open descriptor (as another process
 // would hold) cannot take it while a Hold is live, and can once released.
+// Nothing is ever created beside the destination.
 func TestLockIsCrossDescriptor(t *testing.T) {
 	dir := t.TempDir()
-	hold, err := Lock(context.Background(), filepath.Join(dir, "f"))
+	dest := filepath.Join(dir, "f")
+	hold, err := Lock(context.Background(), dest)
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := os.Open(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = other.Close() }()
+	other := destLockFile(t, dest)
 	if err := syscall.Flock(int(other.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err == nil {
-		t.Fatal("another descriptor took the directory lock while it was held")
+		t.Fatal("another descriptor took the destination lock while it was held")
 	}
 	if err := hold.Release(); err != nil {
 		t.Fatal(err)
@@ -276,26 +293,48 @@ func TestLockIsCrossDescriptor(t *testing.T) {
 }
 
 func TestLockWaitHonoursCancellation(t *testing.T) {
-	dir := t.TempDir()
-	other, err := os.Open(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = other.Close() }()
+	dest := filepath.Join(t.TempDir(), "f")
+	other := destLockFile(t, dest)
 	if err := syscall.Flock(int(other.Fd()), syscall.LOCK_EX); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
-	if _, err := Lock(ctx, filepath.Join(dir, "f")); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := Lock(ctx, dest); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Lock while another descriptor holds it = %v, want DeadlineExceeded", err)
 	}
 	_ = syscall.Flock(int(other.Fd()), syscall.LOCK_UN)
-	hold, err := Lock(context.Background(), filepath.Join(dir, "f"))
+	hold, err := Lock(context.Background(), dest)
 	if err != nil {
 		t.Fatalf("Lock after release: %v", err)
 	}
 	_ = hold.Release()
+}
+
+// A tree that fails verification after the swap is rolled back: the
+// original is at dest again and nothing else remains beside it.
+func TestTreeCommitRollsBackAFailedVerification(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "tree")
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dest, "old"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	staged, err := StageTree(context.Background(), dest, 0, func(_ context.Context, root string) error {
+		return os.WriteFile(filepath.Join(root, "new"), []byte("new"), 0o644)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	refused := errors.New("refused")
+	err = staged.Commit(context.Background(), Guard{Verify: func(context.Context, string) error { return refused }})
+	if !errors.Is(err, refused) {
+		t.Fatalf("Commit = %v, want the verification error", err)
+	}
+	requireOnly(t, dir, "tree")
+	requireOnly(t, dest, "old")
 }
 
 func TestIsStaging(t *testing.T) {

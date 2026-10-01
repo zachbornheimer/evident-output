@@ -10,99 +10,150 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
-// Hold is a held destination lock. It serializes commits to every entry of
-// one directory: across goroutines through an in-process key, and across
-// processes through an OS lock on the directory itself, which the kernel
-// drops when the holder exits, so a crashed process leaves nothing to
-// clean up and no lock file is ever created.
+// Hold is a held destination claim. Claims on overlapping destinations
+// (the same path, or one inside the other) exclude each other; claims on
+// disjoint destinations, siblings included, never wait for one another.
+// Across goroutines an in-process table enforces this; across processes a
+// lock file per path does (see pathLock), which the kernel releases when
+// the holder exits, so a crash leaves nothing held.
 type Hold struct {
-	dir   string
-	local *localKey
-	os    dirLock
+	key string
+	os  pathLock
 }
 
 // Lock blocks until the destination dest may be committed, or ctx is done.
 // dest's parent directory must exist. Hold it only for the commit itself:
 // revalidate, rename, verify.
 func Lock(ctx context.Context, dest string) (*Hold, error) {
-	abs, err := filepath.Abs(dest)
+	key, err := claimKey(dest)
 	if err != nil {
 		return nil, fmt.Errorf("publish: lock %s: %w", dest, err)
 	}
-	dir := filepath.Dir(abs)
-	local, err := localKeys.acquire(ctx, dir)
-	if err != nil {
-		return nil, fmt.Errorf("publish: lock %s: %w", dir, err)
+	if err := localClaims.claim(ctx, key); err != nil {
+		return nil, fmt.Errorf("publish: lock %s: %w", key, err)
 	}
-	held, err := acquireDirLock(ctx, dir)
+	held, err := acquirePathLock(ctx, key)
 	if err != nil {
-		localKeys.release(dir, local)
-		return nil, fmt.Errorf("publish: lock %s: %w", dir, err)
+		localClaims.release(key)
+		return nil, fmt.Errorf("publish: lock %s: %w", key, err)
 	}
-	return &Hold{dir: dir, local: local, os: held}, nil
+	return &Hold{key: key, os: held}, nil
 }
 
-// Release drops the lock. It is safe to call more than once.
+// TryLock takes dest's claim only if no overlapping claim is held, in this
+// process or another; ok is false when it would have to wait.
+func TryLock(dest string) (hold *Hold, ok bool, err error) {
+	key, err := claimKey(dest)
+	if err != nil {
+		return nil, false, fmt.Errorf("publish: lock %s: %w", dest, err)
+	}
+	if !localClaims.tryClaim(key) {
+		return nil, false, nil
+	}
+	held, ok, err := tryPathLock(key)
+	if err != nil || !ok {
+		localClaims.release(key)
+		if err != nil {
+			return nil, false, fmt.Errorf("publish: lock %s: %w", key, err)
+		}
+		return nil, false, nil
+	}
+	return &Hold{key: key, os: held}, true, nil
+}
+
+// Release drops the claim. It is safe to call more than once.
 func (h *Hold) Release() error {
-	if h == nil || h.local == nil {
+	if h == nil || h.key == "" {
 		return nil
 	}
 	err := h.os.release()
-	localKeys.release(h.dir, h.local)
-	h.local = nil
+	localClaims.release(h.key)
+	h.key = ""
 	if err != nil {
-		return fmt.Errorf("publish: unlock %s: %w", h.dir, err)
+		return fmt.Errorf("publish: unlock: %w", err)
 	}
 	return nil
 }
 
-// localKey is one directory's in-process turn: a one-slot channel, so a
-// waiter can give up when its context ends.
-type localKey struct {
-	turn chan struct{}
-	refs int
-}
-
-// keyedTurns hands out one localKey per directory, dropping it once
-// nobody holds or waits for it.
-type keyedTurns struct {
-	mu   sync.Mutex
-	keys map[string]*localKey
-}
-
-var localKeys = keyedTurns{keys: map[string]*localKey{}}
-
-func (k *keyedTurns) acquire(ctx context.Context, dir string) (*localKey, error) {
-	k.mu.Lock()
-	key := k.keys[dir]
-	if key == nil {
-		key = &localKey{turn: make(chan struct{}, 1)}
-		k.keys[dir] = key
+// claimKey is dest's one spelling: absolute, with its parent's symlinks
+// resolved, so /tmp/x and /private/tmp/x claim the same destination.
+func claimKey(dest string) (string, error) {
+	abs, err := filepath.Abs(dest)
+	if err != nil {
+		return "", err
 	}
-	key.refs++
-	k.mu.Unlock()
-	select {
-	case key.turn <- struct{}{}:
-		return key, nil
-	case <-ctx.Done():
-		k.forget(dir, key)
-		return nil, fmt.Errorf("wait for in-process turn: %w", ctx.Err())
+	parent, err := filepath.EvalSymlinks(filepath.Dir(abs))
+	if err != nil {
+		return "", fmt.Errorf("resolve parent directory: %w", err)
+	}
+	return filepath.Join(parent, filepath.Base(abs)), nil
+}
+
+// overlaps reports whether claims on a and b exclude each other: the same
+// path, or one an ancestor of the other.
+func overlaps(a, b string) bool {
+	return a == b || within(a, b) || within(b, a)
+}
+
+// within reports whether path lies strictly inside dir.
+func within(path, dir string) bool {
+	return strings.HasPrefix(path, strings.TrimSuffix(dir, string(filepath.Separator))+string(filepath.Separator))
+}
+
+// claimTable is this process's held claims. Its mutex guards only the
+// table, never a commit: a waiter sleeps on changed, which closes on every
+// release, then re-checks.
+type claimTable struct {
+	mu      sync.Mutex
+	held    map[string]struct{}
+	changed chan struct{}
+}
+
+var localClaims = claimTable{held: map[string]struct{}{}, changed: make(chan struct{})}
+
+// tryClaim records key unless an overlapping claim is held.
+func (c *claimTable) tryClaim(key string) bool {
+	ok, _ := c.tryClaimOrWait(key)
+	return ok
+}
+
+// tryClaimOrWait records key, or returns the channel that closes when the
+// table next changes.
+func (c *claimTable) tryClaimOrWait(key string) (bool, <-chan struct{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for held := range c.held {
+		if overlaps(held, key) {
+			return false, c.changed
+		}
+	}
+	c.held[key] = struct{}{}
+	return true, nil
+}
+
+// claim blocks until key is recorded or ctx is done.
+func (c *claimTable) claim(ctx context.Context, key string) error {
+	for {
+		ok, changed := c.tryClaimOrWait(key)
+		if ok {
+			return nil
+		}
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			return fmt.Errorf("wait for in-process claim: %w", ctx.Err())
+		}
 	}
 }
 
-func (k *keyedTurns) release(dir string, key *localKey) {
-	<-key.turn
-	k.forget(dir, key)
-}
-
-func (k *keyedTurns) forget(dir string, key *localKey) {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-	key.refs--
-	if key.refs == 0 {
-		delete(k.keys, dir)
-	}
+func (c *claimTable) release(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.held, key)
+	close(c.changed)
+	c.changed = make(chan struct{})
 }
