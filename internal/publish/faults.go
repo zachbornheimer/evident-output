@@ -31,6 +31,9 @@ type Faults struct {
 	// NoExchange makes a tree commit take the move-aside path of platforms
 	// with no atomic exchange.
 	NoExchange bool
+	// StageBeside makes every stage take the fallback of a staging root
+	// on another volume: it is prepared beside its destination.
+	StageBeside bool
 }
 
 var injected atomic.Pointer[Faults]
@@ -53,4 +56,11 @@ func reach(step Step, dest string) {
 func exchangeAllowed() bool {
 	f := injected.Load()
 	return f == nil || !f.NoExchange
+}
+
+// stagingApartAllowed reports whether a stage may be prepared in the
+// staging root.
+func stagingApartAllowed() bool {
+	f := injected.Load()
+	return f == nil || !f.StageBeside
 }

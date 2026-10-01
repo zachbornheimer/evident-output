@@ -419,8 +419,10 @@ inside the parent's tree until it commits.
   `publish.ErrStagedGone`, which a Tree publication reports as
   `ErrTreeChanged`, never a bare rename error. Nothing is published, and
   directories at paths staging had created are left alone: they now belong
-  to the tree that replaced them. So a parent and a child replaced at once
-  always serialize: whichever commits first wins, the other is refused.
+  to the tree that replaced them. Superseded for same-volume stages by the
+  nested-republish ruling below: a stage prepared apart cannot be carried
+  away, so this applies only when stages fall back to beside the
+  destination.
 - **Recover respects the Task context and DryRun,** like Write and Remove.
 - **Recover never deletes a live writer's stage.** Every stage carries a
   lease from creation until its commit or discard finishes (and so covers
@@ -466,3 +468,39 @@ reported success: a silent no-op.
   on the clone: file data stays shared (proven on APFS), the source keeps
   its modes, and the digest equals the source's. The default keeps the
   source's modes.
+
+## Rulings (2026-10-01, nested republish)
+
+zq prune republished a parent package and a dependency nested inside it
+at once. The child's writable clone was being prepared beside the child,
+inside the parent, so the parent's swap carried it away (or deleted it
+mid-fill) and the child failed, though its tree was unchanged.
+
+- **A nested Replace is refused only when the tree it expected changed.**
+  A parent and a child replaced at once both succeed whenever some serial
+  order lets both succeed, and the result equals that order's. Parent
+  first: the child commits into the new parent if it still digests to the
+  child's `expected`. Child first: the parent is refused with
+  `ErrTreeChanged` if the child's commit changed the parent's digest (a
+  republish of an equal tree does not).
+- **Stages are prepared apart, outside every tree.** Staging (download,
+  extract, clone, digest) happens in the staging root,
+  `$(os.UserCacheDir)/evo/stage` beside the lock files, with no lock held.
+  No tree's commit can reach it. Commit makes missing parent directories,
+  takes the destination's lock, and only then renames the stage to a fresh
+  staging name beside the destination (re-leasing it under that name);
+  revalidate, swap, verify, and rollback follow unchanged. Slow work stays
+  outside every lock; the critical section gains one rename.
+- **Same volume, or fall back.** The staging root is used only when it is
+  on the destination's volume (same `st_dev`), so the move beside the
+  destination is one atomic rename and a clone still shares blocks.
+  Otherwise, and where volume identity is not portable (non-unix), the
+  stage is prepared beside the destination as before, and the
+  carried-away rule (`ErrStagedGone` reported as `ErrTreeChanged`)
+  applies. `publish.StagesApart(dest)` says which.
+- **Crash semantics are unchanged from the lock on.** A crash during
+  staging leaves its stage in the staging root, where no `Leftovers` or
+  `Recover` looks; a crash after the lock leaves it beside the destination
+  exactly as before. A stage still filling is never beside the
+  destination, so `Recover` cannot see it; leases still guard a stage
+  beside the destination and the original a commit is about to delete.

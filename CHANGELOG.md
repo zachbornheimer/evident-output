@@ -68,6 +68,14 @@ and [`docs/zys-1382/KNOWN_BROKEN.md`](docs/zys-1382/KNOWN_BROKEN.md).
   `.evo-<owner>-<random>.tmp` shape), so a child's unfinished stage never
   changes its parent's digest. A Replace whose stage an ancestor's commit
   carried away returns `ErrTreeChanged`.
+- Tree and File writes now prepare their stage in a staging root on the
+  destination's volume (`$(os.UserCacheDir)/evo/stage`) and move it beside
+  the destination only under its lock, so a parent and a nested child
+  replaced at once (zq prune's concurrent `Republish` of writable clones)
+  both succeed in some serial order instead of the child failing while its
+  clone was still being prepared. Where the staging root is on another
+  volume, stages fall back to beside the destination and the
+  `ErrTreeChanged` rule above still applies.
 - Tree commits now coordinate per destination: siblings commit concurrently,
   and the same path or an ancestor/descendant pair serializes, across
   goroutines and processes.

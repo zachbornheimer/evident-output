@@ -214,7 +214,9 @@ func TestRecoverNeverRestoresThroughASymlinkLeftover(t *testing.T) {
 }
 
 // A stage whose writer is alive is not a leftover, whatever it digests to.
+// Only a stage prepared beside its destination is ever in Recover's view.
 func TestRecoverKeepsAStageALiveWriterOwns(t *testing.T) {
+	defer InjectFaults(Faults{StageBeside: true})()
 	f := newRecoverFixture(t)
 	plantTree(t, f.dest, originalFiles)
 	live := stageTree(t, f.dest, replacementFiles)

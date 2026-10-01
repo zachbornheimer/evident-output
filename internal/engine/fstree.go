@@ -239,8 +239,9 @@ func publishTree(ctx context.Context, p treePublication) (published bool, err er
 	err = staged.Commit(ctx, guard)
 	switch {
 	case errors.Is(err, publish.ErrStagedGone):
-		// An ancestor's commit carried the stage away: the tree this
-		// publication was planned against is gone.
+		// Only a stage prepared beside dest (the staging root is on
+		// another volume) can be carried away by an ancestor's commit:
+		// the tree this publication was planned against is gone.
 		return false, fmt.Errorf("evo: %s: %w: %w", label, ErrTreeChanged, err)
 	case err != nil:
 		return false, fmt.Errorf("evo: %s: %w", label, err)

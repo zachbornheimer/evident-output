@@ -70,8 +70,13 @@ func TestPrune_ReplaceRechecksInsideTheCriticalSection(t *testing.T) {
 		if step != publish.StepStaged || at != f.dest {
 			return
 		}
-		if staged, err := publish.Leftovers(f.dest); err != nil || len(staged) != 1 {
-			t.Errorf("at StepStaged Leftovers = %v, %v; want the finished staged tree", staged, err)
+		// A stage prepared apart reaches dest only under its lock.
+		want := 1
+		if publish.StagesApart(f.dest) {
+			want = 0
+		}
+		if staged, err := publish.Leftovers(f.dest); err != nil || len(staged) != want {
+			t.Errorf("at StepStaged Leftovers = %v, %v; want %d", staged, err, want)
 		}
 		edits++
 		plant(t, f.dest, map[string]string{"index.js": "concurrent edit"})
@@ -173,6 +178,7 @@ const (
 	pruneRoleCrash     = "crash"
 	pruneRoleCrashAt   = "crash-at"
 	pruneRoleGated     = "gated"
+	pruneRoleRepublish = "republish"
 	// pruneExitChanged is the replacer's exit code for ErrTreeChanged.
 	pruneExitChanged = 3
 )
@@ -189,6 +195,8 @@ func TestPrune_ProcessHelper(t *testing.T) {
 		os.Exit(pruneCrashAtChild(t))
 	case pruneRoleGated:
 		os.Exit(pruneGatedChild(t))
+	case pruneRoleRepublish:
+		os.Exit(pruneRepublishChild(t))
 	default:
 		t.Skip("helper process only")
 	}

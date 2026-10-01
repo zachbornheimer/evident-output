@@ -42,13 +42,15 @@ func TestPrune_ChildStagingIsNotPartOfTheParentChecksum(t *testing.T) {
 }
 
 // A parent commit lands between the child Replace's staging and its swap,
-// carrying the child's stage away with the old parent. The child Replace
-// is ErrTreeChanged, never a bare rename error, and leaves nothing behind.
+// carrying the child's stage away with the old parent. That can happen
+// only when stages fall back to beside their destination (the staging
+// root on another volume). The child Replace is ErrTreeChanged, never a
+// bare rename error, and leaves nothing behind.
 func TestPrune_ReplaceWhoseStageAParentSwapCarriedAwayIsTreeChanged(t *testing.T) {
 	f := newNestedFixture(t)
 	childExpected := pruneChecksum(t, f.child)
 	newParent := map[string]string{"a.js": "parent new", "pkg/node_modules/dep/index.js": "dep old"}
-	defer publish.InjectFaults(publish.Faults{At: func(step publish.Step, at string) {
+	defer publish.InjectFaults(publish.Faults{StageBeside: true, At: func(step publish.Step, at string) {
 		if step != publish.StepStaged || at != f.child {
 			return
 		}

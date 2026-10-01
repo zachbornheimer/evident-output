@@ -170,11 +170,13 @@ func readLog(t *testing.T, path string) []string {
 }
 
 // Two processes replace a parent tree and a tree inside it at once, in
-// each order. Both stage first (so the child's stage sits inside the
-// parent); the first takes the coordination, the second is released while
-// the first is still inside its critical section. They never interleave,
-// and the result is serial: the first commits and the second is refused
-// with ErrTreeChanged, changing nothing.
+// each order. Both stage first; the first takes the coordination, the
+// second is released while the first is still inside its critical
+// section. They never interleave, and the result is serial: the second
+// commits only if the tree it expected is still there. A parent swap that
+// keeps the child's tree leaves the child's stage (prepared apart) intact,
+// so the child commits after it; a child commit changes the parent's
+// digest, so the parent is refused with ErrTreeChanged, changing nothing.
 func TestPrune_ParentAndChildReplacesAcrossProcessesSerialize(t *testing.T) {
 	for _, parentFirst := range []bool{true, false} {
 		t.Run(map[bool]string{true: "parent first", false: "child first"}[parentFirst], func(t *testing.T) {
@@ -223,16 +225,17 @@ func pruneParentAndChildInOrder(t *testing.T, parentFirst bool) {
 	if got, want := readLog(t, logPath), []string{"enter " + first, "exit " + first, "enter " + second, "exit " + second}; !slices.Equal(got, want) {
 		t.Fatalf("critical sections = %v, want %v (no interleaving)", got, want)
 	}
-	// Whoever commits first changes the other's tree: a parent swap carries
-	// the child's stage away; a child commit changes the parent's digest.
-	// The second is refused and changes nothing.
 	want := map[string]struct {
 		pCode, cCode int
 		tree         map[string]string
 	}{
-		parent: {0, pruneExitChanged, map[string]string{"a.js": "parent new", "pkg/node_modules/dep/index.js": "dep old"}},
+		parent: {0, 0, map[string]string{"a.js": "parent new", "pkg/node_modules/dep/index.js": "dep new"}},
 		child:  {pruneExitChanged, 0, map[string]string{"a.js": "parent old", "pkg/node_modules/dep/index.js": "dep new"}},
 	}[first]
+	if first == parent && !publish.StagesApart(child) {
+		// The fallback: the parent swap carried the child's stage away.
+		want.cCode, want.tree = pruneExitChanged, map[string]string{"a.js": "parent new", "pkg/node_modules/dep/index.js": "dep old"}
+	}
 	if got := onDisk(t, parent); pCode != want.pCode || cCode != want.cCode || !equalFiles(got, want.tree) {
 		t.Fatalf("%s first: exit codes parent=%d child=%d tree=%v; want %d/%d %v", first, pCode, cCode, got, want.pCode, want.cCode, want.tree)
 	}

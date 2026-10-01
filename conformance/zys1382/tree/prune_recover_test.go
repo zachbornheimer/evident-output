@@ -171,8 +171,10 @@ func TestPrune_RecoverUnderDryRunReportsTheDecisionAndChangesNothing(t *testing.
 }
 
 // A Replace still staging owns its stage: Recover keeps and lists it even
-// though it digests to the replacement.
+// though it digests to the replacement. Only a stage prepared beside its
+// destination (the staging root on another volume) is in Recover's view.
 func TestPrune_RecoverKeepsTheStageOfALiveReplace(t *testing.T) {
+	defer publish.InjectFaults(publish.Faults{StageBeside: true})()
 	f := newPruneReplaceFixture(t)
 	live, err := publish.StageTree(context.Background(), f.dest, 0, func(_ context.Context, root string) error {
 		plant(t, root, map[string]string{"index.js": "new"})

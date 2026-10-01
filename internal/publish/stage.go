@@ -14,8 +14,10 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/publish/stagename"
 )
 
-// Staging entries are private siblings of the destination (see stagename),
-// so the final rename never crosses a filesystem.
+// Staging entries are prepared apart from the destination, in the staging
+// root on its volume (see stagingDirFor), and become private siblings of
+// it (see stagename) under its lock, so the final rename never crosses a
+// filesystem.
 const (
 	// stagingAttempts bounds the search for an unused staging name.
 	stagingAttempts = 100
@@ -38,13 +40,14 @@ var ErrSpent = errors.New("publish: staged content already committed or discarde
 // the tree.
 func IsStaging(name string) bool { return stagename.Is(name) }
 
-// Staged is content prepared beside its destination and not yet visible
+// Staged is content prepared for its destination and not yet visible
 // there. Commit publishes it; Discard abandons it. Exactly one of the two
 // must run, and either leaves nothing staged behind.
 type Staged struct {
 	dest    string
 	temp    string
 	tree    bool
+	apart   bool     // temp is in the staging root, not yet beside dest
 	created []string // parent directories staging made, outermost first
 	spent   bool
 	lease   *stageLease
@@ -70,7 +73,7 @@ func (s *Staged) Dest() string { return s.dest }
 // it here, before taking the lock.
 func (s *Staged) Path() string { return s.temp }
 
-// StageFile writes a new regular file beside dest through fill, flushes it
+// StageFile writes a new regular file for dest through fill, flushes it
 // to disk, and sets mode's permission bits exactly. Missing parent
 // directories are created (and removed again on Discard). No lock is held:
 // fill may download or compute for as long as it needs.
@@ -79,7 +82,7 @@ func StageFile(ctx context.Context, dest string, mode fs.FileMode, fill func(io.
 	if err != nil {
 		return nil, err
 	}
-	f, err := createStagingFile(s.dest)
+	f, err := createStagingFile(s.stagingPath)
 	if err != nil {
 		s.discardParents()
 		return nil, fmt.Errorf("publish: stage %s: %w", dest, err)
@@ -95,7 +98,7 @@ func StageFile(ctx context.Context, dest string, mode fs.FileMode, fill func(io.
 	return s, nil
 }
 
-// StageTree creates a new directory beside dest, lets fill populate it,
+// StageTree creates a new directory for dest, lets fill populate it,
 // and sets the root's permission bits to mode (0 is 0755). fill receives
 // the staging root and must write only beneath it.
 func StageTree(ctx context.Context, dest string, mode fs.FileMode, fill func(ctx context.Context, root string) error) (*Staged, error) {
@@ -103,7 +106,7 @@ func StageTree(ctx context.Context, dest string, mode fs.FileMode, fill func(ctx
 	if err != nil {
 		return nil, err
 	}
-	temp, err := createStagingDir(s.dest)
+	temp, err := createStagingDir(s.stagingPath)
 	if err != nil {
 		s.discardParents()
 		return nil, fmt.Errorf("publish: stage %s: %w", dest, err)
@@ -150,11 +153,24 @@ func newStaged(ctx context.Context, dest string, tree bool) (*Staged, error) {
 	if err != nil {
 		return nil, fmt.Errorf("publish: stage %s: %w", dest, err)
 	}
-	created, err := makeParents(filepath.Dir(abs))
-	if err != nil {
+	s := &Staged{dest: abs, tree: tree, apart: StagesApart(abs)}
+	if s.apart {
+		return s, nil // parents are made at commit, under no ancestor's swap
+	}
+	if s.created, err = makeParents(filepath.Dir(abs)); err != nil {
 		return nil, fmt.Errorf("publish: stage %s: %w", dest, err)
 	}
-	return &Staged{dest: abs, tree: tree, created: created}, nil
+	return s, nil
+}
+
+// stagingPath is a fresh staging path for s: in the staging root when s is
+// prepared apart, else beside dest.
+func (s *Staged) stagingPath() string {
+	name := stagingName(s.dest)
+	if s.apart {
+		return filepath.Join(stagingRoot(), filepath.Base(name))
+	}
+	return name
 }
 
 // abandon discards s and returns cause wrapped with the destination.
@@ -241,9 +257,9 @@ func Leftovers(dest string) ([]string, error) {
 	return found, nil
 }
 
-func createStagingFile(dest string) (*os.File, error) {
+func createStagingFile(next func() string) (*os.File, error) {
 	for range stagingAttempts {
-		f, err := os.OpenFile(stagingName(dest), os.O_RDWR|os.O_CREATE|os.O_EXCL, stagingFileMode)
+		f, err := os.OpenFile(next(), os.O_RDWR|os.O_CREATE|os.O_EXCL, stagingFileMode)
 		if err == nil {
 			return f, nil
 		}
@@ -251,12 +267,12 @@ func createStagingFile(dest string) (*os.File, error) {
 			return nil, fmt.Errorf("create staging file: %w", err)
 		}
 	}
-	return nil, fmt.Errorf("no unused staging name beside %s after %d attempts", dest, stagingAttempts)
+	return nil, fmt.Errorf("no unused staging name after %d attempts", stagingAttempts)
 }
 
-func createStagingDir(dest string) (string, error) {
+func createStagingDir(next func() string) (string, error) {
 	for range stagingAttempts {
-		name := stagingName(dest)
+		name := next()
 		err := os.Mkdir(name, stagingDirMode)
 		if err == nil {
 			return name, nil
@@ -265,5 +281,5 @@ func createStagingDir(dest string) (string, error) {
 			return "", fmt.Errorf("create staging directory: %w", err)
 		}
 	}
-	return "", fmt.Errorf("no unused staging name beside %s after %d attempts", dest, stagingAttempts)
+	return "", fmt.Errorf("no unused staging name after %d attempts", stagingAttempts)
 }

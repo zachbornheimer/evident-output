@@ -51,7 +51,8 @@ func (g Guard) verify(ctx context.Context, dest string) error {
 }
 
 // Commit publishes the staged content at its destination under the
-// destination lock: revalidate, atomic rename (a tree replacing a tree is
+// destination lock: move a stage prepared apart beside dest, revalidate,
+// atomic rename (a tree replacing a tree is
 // an atomic exchange where the OS offers one), verify, release. The staged
 // bytes were flushed before the lock was taken; the directory entry is not
 // fsynced, which would hold every waiter for a full device flush. A
@@ -76,7 +77,7 @@ func (s *Staged) Commit(ctx context.Context, g Guard) error {
 		return ErrSpent
 	}
 	reach(StepStaged, s.dest)
-	hold, err := Lock(ctx, s.dest)
+	hold, err := s.lockBeside(ctx)
 	if err != nil {
 		_ = s.Discard()
 		return fmt.Errorf("publish: commit %s: %w", s.dest, err)
