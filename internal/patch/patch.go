@@ -30,14 +30,24 @@ var (
 	ErrRenameUnsupported = fmt.Errorf("%w: rename or copy", ErrUnsupported)
 	// ErrBinaryUnsupported is a binary patch.
 	ErrBinaryUnsupported = fmt.Errorf("%w: binary patch", ErrUnsupported)
+	// ErrUnsafePath is a diff path that is absolute, climbs out of the
+	// patch root, names a .git directory, or holds a NUL byte. Only
+	// ParseStandard reports it; Parse keeps the older ErrMalformed.
+	ErrUnsafePath = errors.New("evo: Patch path is unsafe")
 )
 
 // File is one file's edit: the workspace-relative path it targets, whether
 // it creates that file, the permission bits it sets (0 leaves the mode
 // alone), and the hunks that turn the prior bytes into the desired ones.
+//
+// ParseStandard also yields deletions (Delete: the hunks must consume the
+// whole file) and renames (From names the source, whose bytes the hunks, if
+// any, turn into Path's).
 type File struct {
 	Path   string
 	Create bool
+	Delete bool
+	From   string
 	Mode   fs.FileMode
 	Hunks  []Hunk
 }
@@ -46,6 +56,18 @@ type File struct {
 // before the first file header (a commit message, a mail header) is
 // ignored, as git apply ignores it.
 func Parse(diff []byte) ([]File, error) {
+	return parse(diff, header.file)
+}
+
+// ParseStandard is Parse with every standard unified-diff form
+// representable: modify, create, delete, rename (with or without an edit),
+// and mode change. Binary, copy, symlink, and submodule forms stay
+// unsupported, and an unsafe path is ErrUnsafePath.
+func ParseStandard(diff []byte) ([]File, error) {
+	return parse(diff, header.standardFile)
+}
+
+func parse(diff []byte, judge func(header) (File, error)) ([]File, error) {
 	p := &parser{lines: splitLines(diff)}
 	var files []File
 	seen := map[string]bool{}
@@ -58,14 +80,16 @@ func Parse(diff []byte) ([]File, error) {
 			p.next()
 			continue
 		}
-		f, err := header.file()
+		f, err := judge(header)
 		if err != nil {
 			return nil, err
 		}
-		if seen[f.Path] {
-			return nil, fmt.Errorf("%w: %s appears more than once", ErrMalformed, f.Path)
+		for _, touched := range f.touched() {
+			if seen[touched] {
+				return nil, fmt.Errorf("%w: %s appears more than once", ErrMalformed, touched)
+			}
+			seen[touched] = true
 		}
-		seen[f.Path] = true
 		files = append(files, f)
 	}
 	if len(files) == 0 {

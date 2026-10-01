@@ -44,7 +44,7 @@ func (f desiredFile) operation(taskID string) fileOperation {
 		taskID:      taskID,
 		spec:        FileSpec{Path: f.target.rel, Contents: f.contents, Mode: f.mode},
 		path:        path,
-		derivedFrom: &derivation{target: f.target, basis: f.basis, desired: fingerprint.ObservedFile(path, f.contents), edit: f.edit},
+		derivedFrom: &derivation{standard: f.standard, target: f.target, basis: f.basis, desired: fingerprint.ObservedFile(path, f.contents), edit: f.edit},
 	}
 }
 
@@ -52,10 +52,11 @@ func (f desiredFile) operation(taskID string) fileOperation {
 // it targets, the Basis its contents were derived from, the identity of
 // those desired contents, and the edit that derived them.
 type derivation struct {
-	target  workspaceFile
-	basis   fingerprint.FingerprintValue
-	desired fingerprint.FingerprintValue
-	edit    manifest.BasisRecord
+	standard bool
+	target   workspaceFile
+	basis    fingerprint.FingerprintValue
+	desired  fingerprint.FingerprintValue
+	edit     manifest.BasisRecord
 }
 
 // recordedBasis is basis plus d's edit identity, in canonical order: the
@@ -72,7 +73,11 @@ func (d derivation) recordedBasis(basis []manifest.BasisRecord) []manifest.Basis
 // source (ErrStaleBasis otherwise) or already holds the desired contents
 // (an already-satisfied state File then leaves alone).
 func (d derivation) revalidate(fsys FileFS, path string) error {
-	if parentErr := d.target.checkParents(fsys); parentErr != nil {
+	parents := d.target.checkParents
+	if d.standard {
+		parents = d.target.checkStandardParents
+	}
+	if parentErr := parents(fsys); parentErr != nil {
 		return parentErr
 	}
 	current, observeErr := observeSource(fsys, path)

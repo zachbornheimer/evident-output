@@ -8,6 +8,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
+### Changed (1.2, breaking): ZYS-1382 filesystem vocabulary
+
+Skeleton only: the surface below is declared and every new method returns
+a not-implemented error until its primitive lands. See
+[`docs/zys-1382/contract-decisions.md`](docs/zys-1382/contract-decisions.md)
+and [`docs/zys-1382/KNOWN_BROKEN.md`](docs/zys-1382/KNOWN_BROKEN.md).
+
+- **`File` and `Tree` are plain structs** (`File{Path, Content, Mode}`,
+  `Tree{Path, Content}`) with value-receiver methods `Read`, `Write`,
+  `Verify`, `Equal`, `Remove`, and `Checksum`. `Tree.Checksum` and
+  `Tree.Equal` take `ChecksumOption` values from `Exclude(pattern)`.
+- **Content producers:** `FileContent` (`Bytes`, `Download{URL, Integrity}`)
+  and `TreeContent` (`Extract{File, Root}`), both sealed.
+- **`Find(ctx, root, names...)`** discovers regular files by base name.
+- **`Exec` is a struct** `Exec{Path, Args, Dir, Env, Outputs}` with
+  `Run(ctx) (ExecResult, error)`; `Outputs` holds `File` and `Tree` values.
+- **`TaskHandle.Basis(inputs...)`** declares Task freshness from `File`,
+  `Tree`, `Value`, or `App`. `Fingerprint` is now a struct with a
+  `Fingerprint` method, built only by `Value` and `App`.
+- **`Patch(ctx, diff) error`** applies a diff directly.
+- New errors: `ErrPathMissing`, `ErrContentMissing`, `ErrVerifyMismatch`,
+  `ErrTreePathTypeMismatch`, `ErrIntegrityMismatch`, `ErrDownloadFailed`,
+  `ErrDownloadURLMissing`, `ErrExtractMalformed`, `ErrExtractUnsafeEntry`,
+  `ErrFindNamesMissing`, `ErrExecPathMissing`, `ErrBasisAfterDefine`,
+  `ErrPatchUnsafePath`, `ErrPatchStale`.
+- **Removed:** `FileSpec` and the function `File(ctx, spec)`, `ExecSpec` and
+  the function `Exec(ctx, spec)`, `FileSet`, `Files`, `FSPath`,
+  `ErrFileSpecMissingPath`, `ErrFileUnmanagedContentsMissing`,
+  `ErrExecSpecMissingExecutable`, `ErrStaleBasis`,
+  `ErrPatchDeleteUnsupported`, and `ErrPatchRenameUnsupported`.
+
 ### Added (1.2)
 
 - **`evo.Compute(task, fn) *Computed[T]` and `Computed[T].Get()`:** a Task

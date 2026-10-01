@@ -54,11 +54,11 @@ func launchAgent(ctx context.Context, a agent, registeredMarker, runningMarker s
 
 	write := seq.Task("write plist")
 	write.Define(func(ctx context.Context) error {
-		return evo.File(ctx, evo.FileSpec{
-			Path:     a.plistPath,
-			Contents: a.plist,
-			Mode:     a.mode,
-		})
+		return evo.File{
+			Path:    a.plistPath,
+			Content: evo.Bytes(a.plist),
+			Mode:    a.mode,
+		}.Write(ctx)
 	})
 
 	register := seq.Task("register")

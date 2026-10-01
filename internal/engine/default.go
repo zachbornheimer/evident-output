@@ -44,6 +44,7 @@ func finishInit(out *Output, cfg Config, facts []FactRecord) *Output {
 	if !cfg.Isolated {
 		SetDefault(out)
 	}
+	out.workspace() // captured at Run start: relative paths never follow a later chdir
 	out.arm()
 	if cfg.Subject != "" && !cfg.DryRun && !cfg.Preview {
 		out.Println(cfg.Subject)

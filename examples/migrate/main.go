@@ -57,7 +57,7 @@ func main() {
 			})
 		})
 		schema.Task("migration file").Define(func(ctx context.Context) error {
-			return evo.File(ctx, evo.FileSpec{Path: migrationPath, Contents: []byte(migrationSQL), Mode: 0o644})
+			return evo.File{Path: migrationPath, Content: evo.Bytes(migrationSQL), Mode: 0o644}.Write(ctx)
 		})
 		return nil
 	}))

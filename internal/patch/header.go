@@ -27,6 +27,9 @@ type header struct {
 	create   bool
 	delete   bool
 	rename   bool
+	copied   bool
+	from     string // "rename from"
+	to       string // "rename to"
 	binary   bool
 	mode     string // raw octal from "new file mode"/"new mode"
 	hunks    []Hunk
@@ -80,8 +83,12 @@ func (h *header) extendedLine(line string) bool {
 		h.delete = true
 	case strings.HasPrefix(line, "new mode "):
 		h.mode = strings.TrimPrefix(line, "new mode ")
-	case hasAnyPrefix(line, "rename from ", "rename to ", "copy from ", "copy to "):
-		h.rename = true
+	case strings.HasPrefix(line, "rename from "):
+		h.rename, h.from = true, headerPath(strings.TrimPrefix(line, "rename from "))
+	case strings.HasPrefix(line, "rename to "):
+		h.rename, h.to = true, headerPath(strings.TrimPrefix(line, "rename to "))
+	case hasAnyPrefix(line, "copy from ", "copy to "):
+		h.rename, h.copied = true, true
 	case strings.HasPrefix(line, "Binary files "), line == "GIT binary patch":
 		h.binary = true
 	case hasAnyPrefix(line, "old mode ", "index ", "similarity index ", "dissimilarity index "):

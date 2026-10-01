@@ -15,7 +15,7 @@ const identityDomain = "evident-output:patch:edit:v1\x00"
 func (f File) Identity() [sha256.Size]byte {
 	h := sha256.New()
 	_, _ = h.Write([]byte(identityDomain))
-	_, _ = fmt.Fprintf(h, "%q %t %o\x00", f.Path, f.Create, f.Mode)
+	_, _ = fmt.Fprintf(h, "%q %t %t %q %o\x00", f.Path, f.Create, f.Delete, f.From, f.Mode)
 	for _, hunk := range f.Hunks {
 		_, _ = fmt.Fprintf(h, "@@ %d,%d %d,%d\x00", hunk.OldStart, hunk.OldCount, hunk.NewStart, hunk.NewCount)
 		for _, line := range hunk.lines {

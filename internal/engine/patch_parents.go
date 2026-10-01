@@ -47,3 +47,31 @@ func (w workspaceFile) checkParents(fsys FileFS) error {
 	}
 	return nil
 }
+
+// checkStandardParents is checkParents for the standard forms: a symlinked
+// parent is ErrPatchUnsafePath, a non-directory parent does not apply, and
+// a missing parent is fine because Patch creates it (nothing below a
+// missing directory exists to inspect).
+func (w workspaceFile) checkStandardParents(fsys FileFS) error {
+	dir := filepath.Dir(w.rel)
+	if dir == "." {
+		return nil
+	}
+	parent := w.root
+	for part := range strings.SplitSeq(dir, string(filepath.Separator)) {
+		parent = filepath.Join(parent, part)
+		rel, _ := filepath.Rel(w.root, parent)
+		info, err := fsys.Lstat(parent)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			return nil
+		case err != nil:
+			return fmt.Errorf("evo: Patch inspect %q: %w", parent, err)
+		case info.Mode()&fs.ModeSymlink != 0:
+			return fmt.Errorf("%w: %s is beyond symbolic link %s", ErrPatchUnsafePath, w.rel, rel)
+		case !info.IsDir():
+			return fmt.Errorf("%w: %s needs directory %s, which is not a directory", ErrPatchDoesNotApply, w.rel, rel)
+		}
+	}
+	return nil
+}

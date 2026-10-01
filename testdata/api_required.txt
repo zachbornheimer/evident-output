@@ -7,15 +7,15 @@ Sequence
 Define
 File
 Exec
-FSPath
+Tree
 Fact
 Effect
 PartialEffect
 func (TaskHandle) Summary
 Verify
 func (TaskHandle) After
-FileSpec
-ExecSpec
+Find
+func (TaskHandle) Basis
 Capture
 CaptureOption
 CaptureStream
