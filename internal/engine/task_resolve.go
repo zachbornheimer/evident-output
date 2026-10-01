@@ -177,7 +177,7 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 	}
 	submitted := st.sched.submitted()
 	t.out.settleLocked(st, state)
-	if submitted && state == Failed {
+	if submitted && stopsSequenceFollowers(state) {
 		// Same critical section as the failure: whoever sees it terminal
 		// (a Wait returning, a Snapshot) sees its followers settled too.
 		t.out.failSequenceFollowersLocked(st)
