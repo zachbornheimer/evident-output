@@ -22,6 +22,15 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   producer (no `After` edge, and not a later step of the same Sequence),
   `Get()` records `ErrComputedUnordered` and returns the zero value. A later
   Sequence step may `Get()` an earlier step's Computed without `After`.
+  The reading Task also carries a Problem with the stable code
+  `ProblemCodeComputedUnordered` (`"computed-unordered"`), so the failure is
+  machine-readable in the Snapshot and the JSON document.
+- **`evo.AfterRun(fn)` / `(*Output).AfterRun(fn)` and `AfterRunFunc`:**
+  register `func(w io.Writer, r evo.Result)` before `Main`/`Run`; it renders
+  after the footer, in registration order, to the human stream only
+  (machine projections never receive it, so stdout stays parseable). A
+  `Print`/`Println` after the run without a hook is still dropped, but the
+  human stream now says so once and names `AfterRun`.
 - **`GroupHandle.After`, `SequenceHandle.After`, and
   `GroupHandle.Define(func(*GroupHandle))` /
   `SequenceHandle.Define(func(*SequenceHandle))`:** a container declares its

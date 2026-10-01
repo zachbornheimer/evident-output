@@ -25,6 +25,7 @@ import (
 var dialectSurface = map[string][]string{
 	"pkg": {
 		"Compute(task *TaskHandle, fn func(context.Context) (T, error))",
+		"AfterRun(fn AfterRunFunc)",
 		"AssumeYes(v bool)",
 		"Code(value string)",
 		"Command(executable string, args ...string)",
@@ -82,6 +83,7 @@ var dialectSurface = map[string][]string{
 		"WriteJSON(w io.Writer, result Result)",
 	},
 	"*Output": {
+		"AfterRun(fn AfterRunFunc)",
 		"Cancel(reason string)",
 		"Close()",
 		"Conclusion()",

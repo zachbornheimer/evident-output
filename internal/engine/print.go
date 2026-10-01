@@ -152,6 +152,7 @@ func (p *Printer) enqueue(s string) {
 	p.out.mu.Lock()
 	defer p.out.mu.Unlock()
 	if err := p.out.ensureOpen(); err != nil {
+		p.out.reportLateWriteLocked()
 		p.out.recordMisuse(err)
 		return
 	}

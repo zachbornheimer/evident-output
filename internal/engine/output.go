@@ -52,8 +52,13 @@ type Output struct {
 	// (release-gate round 5 finding 4: the band's severity otherwise has no
 	// visible cause beyond "was already resolved").
 	misuseRejectedSummary string
-	conclusion            *Conclusion
-	live                  *liveEngine
+	// afterRun holds the AfterRun hooks that render below the footer;
+	// lateWriteReported records that the "written after the run" notice
+	// was already printed, so one stray write is reported once.
+	afterRun          []AfterRunFunc
+	lateWriteReported bool
+	conclusion        *Conclusion
+	live              *liveEngine
 
 	// workspaceDir is the process working directory, captured once on first
 	// use by File (workspace in file.go) so relative paths resolve

@@ -144,6 +144,7 @@ func concludeRun(out *Output, runErr error) Result {
 		out.Fail(runErr.Error())
 	}
 	finishErr := out.Finish()
+	out.runAfterRun(Result{Conclusion: out.Conclusion(), Err: runErr})
 	closeErr := out.Close()
 	conclusion := out.Conclusion()
 	// Bookkeeping misuse (a leftover unresolved task, a duplicate key, ...)
@@ -164,8 +165,10 @@ func concludeRun(out *Output, runErr error) Result {
 // cancellation, carried through as Result.Err for embedders.
 func concludeCancelled(out *Output, runErr error) Result {
 	_ = out.Finish()
+	result := Result{Conclusion: out.Conclusion(), Err: runErr}
+	out.runAfterRun(result)
 	_ = out.Close()
-	return Result{Conclusion: out.Conclusion(), Err: runErr}
+	return result
 }
 
 // anyBlockedSoFar reports whether any Task is currently in the Blocked

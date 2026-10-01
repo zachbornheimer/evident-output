@@ -43,6 +43,24 @@ func Run(ctx context.Context, run RunFunc) Result { return engine.Run(ctx, run) 
 // os.Exit(evo.Main(run)).
 func Main(run RunFunc) int { return engine.Main(run) }
 
+// AfterRunFunc writes human text that belongs below the run's footer: w is
+// the human stream, r the finished Result.
+type AfterRunFunc = engine.AfterRunFunc
+
+// AfterRun registers fn on the default Output to render after the footer,
+// once Main/Run has finished. Text printed after the run without it is
+// dropped and reported. Machine projections never receive it.
+func AfterRun(fn AfterRunFunc) { engine.AfterRun(fn) }
+
+// AfterRun registers fn to render after the footer of o's Run (see the
+// package-level AfterRun).
+func (o *Output) AfterRun(fn AfterRunFunc) {
+	if o == nil || o.inner == nil {
+		return
+	}
+	o.inner.AfterRun(fn)
+}
+
 func DefaultConfig() Config { return engine.DefaultConfig() }
 
 // Output, TaskHandle, and the other presentation handles are wrappers, not

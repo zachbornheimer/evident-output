@@ -6,6 +6,8 @@
 # The vocabulary guard (vocabulary_guard_test.go) fails when an exported
 # identifier is missing here or classed removed.
 Action	canonical	Action
+AfterRun	canonical	Run
+AfterRunFunc	helper	Run
 AlsoWrite	removed	Run
 App	helper	Fingerprint
 AssumeYes	helper	Human output
@@ -230,6 +232,7 @@ On	helper	Problem
 OnTask	removed	Skipped
 Option	removed	Run
 Output	canonical	Run
+Output.AfterRun	canonical	Run
 Output.Cancel	canonical	Cancelled
 Output.Close	helper	Run
 Output.Conclusion	helper	Run

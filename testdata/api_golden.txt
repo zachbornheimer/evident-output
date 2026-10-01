@@ -9,6 +9,7 @@ func (GroupHandle) Snapshot()  TasksSnapshot
 func (GroupHandle) Summary(text string)  *GroupHandle
 func (GroupHandle) Task(name string)  *TaskHandle
 func (GroupHandle) Wait()  error
+func (Output) AfterRun(fn AfterRunFunc)
 func (Output) Cancel(reason string)
 func (Output) Close()  error
 func (Output) Conclusion()  Conclusion
@@ -66,6 +67,7 @@ func (TaskHandle) Verify(fn func(context.Context) (bool, error))  *TaskHandle
 func (TaskHandle) Wait()  error
 func (TaskHandle) Writer()  io.Writer
 func (TaxonomyReason) Name()  string
+func AfterRun(fn AfterRunFunc)
 func App()  Fingerprint
 func AssumeYes(v bool)  ConfirmOption
 func Code(value string)  ProblemOption
@@ -123,6 +125,7 @@ func Value(name string, v any)  Fingerprint
 func Verbose()  *Printer
 func WriteJSON(w io.Writer, result Result)  error
 type Action
+type AfterRunFunc
 type Attachment
 type Capture
 type CaptureOption
