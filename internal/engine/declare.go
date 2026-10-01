@@ -103,6 +103,9 @@ func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.declared", EntityID: st.id})
 	o.emitWireEventLocked(wire.EventTaskDeclared, st.id, map[string]any{"name": name})
+	if col != nil {
+		o.stopIfFollowerLocked(st)
+	}
 	return h
 }
 

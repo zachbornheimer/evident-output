@@ -316,6 +316,13 @@ func (o *Output) abandonLocked(st *taskState) {
 func (o *Output) failSequenceFollowers(failed *taskState) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	o.failSequenceFollowersLocked(failed)
+}
+
+// failSequenceFollowersLocked is failSequenceFollowers under o.mu, so a
+// failure settles its followers in the same critical section that makes
+// it terminal: nobody who sees the failure sees a follower pending.
+func (o *Output) failSequenceFollowersLocked(failed *taskState) {
 	branch := failed.declaration
 	for c := failed.collection; c != nil; branch, c = c.declaration, c.parent {
 		if !c.sequential {
@@ -344,6 +351,19 @@ func (o *Output) stopFollowersLocked(c *tasksState, branch int) {
 				o.sched.followerChecks++
 				o.stopUnstartedLocked(member)
 			}
+		}
+	}
+}
+
+// stopIfFollowerLocked settles NotStarted a Task declared after a failure
+// already stopped the Sequence step it belongs to: stopFollowersLocked ran
+// before the Task existed, so nothing else would ever settle it.
+func (o *Output) stopIfFollowerLocked(st *taskState) {
+	branch := st.declaration
+	for c := st.collection; c != nil; branch, c = c.declaration, c.parent {
+		if c.sequential && c.stoppedAfter != 0 && branch > c.stoppedAfter {
+			o.stopUnstartedLocked(st)
+			return
 		}
 	}
 }
