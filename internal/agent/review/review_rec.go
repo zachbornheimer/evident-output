@@ -47,8 +47,8 @@ type recSurfaceDetector struct {
 	// function and prove a receiver is an evo Output.
 	file    *ast.File
 	outputs outputBindings
-	// localTypes proves a Next receiver is a non-evo local type.
-	localTypes localRemedyTypes
+	// declaredTypes proves a Next receiver has a known, non-evo type.
+	declaredTypes declaredReceiverTypes
 }
 
 func detectSupersededRecSurface(in fileInput) []Finding {
@@ -65,7 +65,7 @@ func detectSupersededRecSurface(in fileInput) []Finding {
 		d.failures = newFailureBindings(f, pkg)
 		d.file = f
 		d.outputs = newOutputBindings(f, pkg)
-		d.localTypes = newLocalRemedyTypes(f)
+		d.declaredTypes = newDeclaredReceiverTypes(f, pkg)
 	}
 	ast.Inspect(f, d.inspect)
 	ast.Inspect(f, d.inspectLeftover)

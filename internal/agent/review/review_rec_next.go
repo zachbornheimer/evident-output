@@ -47,7 +47,7 @@ func isDiagnosticVerb(name string) bool {
 // file, a helper's return value, a fluent chain).
 func (d *recSurfaceDetector) remedyReceiverKind(x ast.Expr) (remedyKind, bool) {
 	switch {
-	case isEvoIdent(x, d.pkg), d.localTypes.proves(x):
+	case isEvoIdent(x, d.pkg), d.declaredTypes.proves(x):
 		return "", false
 	case d.doneScope != nil && d.doneScope.tasks.IsTask(x):
 		return remedyOnTask, true
@@ -62,7 +62,8 @@ func (d *recSurfaceDetector) remedyReceiverKind(x ast.Expr) (remedyKind, bool) {
 func (d *recSurfaceDetector) unprovenRemedyGuidance(name string, call *ast.CallExpr) string {
 	return "if the receiver is an evo Task or Output, move the remedy onto the Problem it explains: " +
 		"Problem(\"<why>\", " + d.pkg + "." + name + "(" + d.callArgsSrc(call.Args) + ")); " +
-		"if it is not, declare its type in this file so the review can prove it"
+		"if it is not, the review could not see its type (another file, a call result, a chain): " +
+		"give the variable an explicit non-evo type in this file so the review can prove it"
 }
 
 func (d *recSurfaceDetector) inspectRemovedRemedyMethod(call *ast.CallExpr, sel *ast.SelectorExpr, name string) bool {
