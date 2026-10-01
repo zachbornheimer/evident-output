@@ -22,7 +22,8 @@ type TestRunner interface {
 	Run(root, pkg, tags string, names []string) ([]byte, error)
 }
 
-type goTestRunner struct{}
+// goTestRunner runs go test, resolving nested modules through fsys.
+type goTestRunner struct{ fsys FileSystem }
 
 func runPattern(names []string) string {
 	quoted := make([]string, len(names))
@@ -34,10 +35,11 @@ func runPattern(names []string) string {
 
 // Run executes go test. A failing test run exits non-zero yet still emits a
 // usable event stream, so an exit error only counts when nothing was emitted.
-func (goTestRunner) Run(root, pkg, tags string, names []string) ([]byte, error) {
-	args := []string{"test", "-json", "-count=1", "-tags", tags, "-run", runPattern(names), pkg}
+func (r goTestRunner) Run(root, pkg, tags string, names []string) ([]byte, error) {
+	target := resolveTestTarget(r.fsys, root, pkg)
+	args := []string{"test", "-json", "-count=1", "-tags", tags, "-run", runPattern(names), target.Pkg}
 	cmd := exec.Command("go", args...)
-	cmd.Dir = root
+	cmd.Dir = target.Dir
 	out, err := cmd.Output()
 	if err != nil && len(out) == 0 {
 		return nil, fmt.Errorf("go %s: %w", strings.Join(args, " "), err)

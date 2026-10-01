@@ -30,7 +30,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
-	code, err := execute(opts, osFileSystem{}, goTestRunner{}, os.Stdout)
+	code, err := execute(opts, osFileSystem{}, goTestRunner{fsys: osFileSystem{}}, os.Stdout)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
