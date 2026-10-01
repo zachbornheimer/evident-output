@@ -38,6 +38,17 @@ and [`docs/zys-1382/KNOWN_BROKEN.md`](docs/zys-1382/KNOWN_BROKEN.md).
   `ErrFileSpecMissingPath`, `ErrFileUnmanagedContentsMissing`,
   `ErrExecSpecMissingExecutable`, `ErrStaleBasis`,
   `ErrPatchDeleteUnsupported`, and `ErrPatchRenameUnsupported`.
+- **Tree identity counts the exec bit** (digest `evo.tree.v2`): every
+  `Tree.Checksum` differs from earlier builds; recompute stored digests.
+- **`Clone{From: Tree}`** is a `TreeContent`: `Tree.Write` publishes a
+  copy-on-write (or copied, never hard-linked) clone of another tree whose
+  digest must equal the source's.
+- **`Tree.Replace(ctx, expected)`** commits only if the destination still
+  digests to `expected`, re-checked inside the destination's critical
+  section; otherwise `ErrTreeChanged` and the destination is untouched.
+- Tree commits now coordinate per destination: siblings commit concurrently,
+  and the same path or an ancestor/descendant pair serializes, across
+  goroutines and processes.
 
 ### Added (1.2)
 

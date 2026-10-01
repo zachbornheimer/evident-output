@@ -117,26 +117,93 @@ func TreeEqual(ctx context.Context, a, b string, exclude []string) (bool, error)
 // is left alone. A failed or cancelled Write leaves the previous tree and
 // no staging behind.
 func TreeWrite(ctx context.Context, path string, src TreeSource) error {
-	label := fmt.Sprintf("Tree %q Write", path)
+	return publishTree(ctx, treePublication{
+		verb: "Write",
+		path: path,
+		src:  src,
+		precheck: func(o *Output, abs string) error {
+			return o.requireTreeOrAbsent(abs)
+		},
+		admit: func(_ context.Context, o *Output, dest string, _ checksum.Digest) error {
+			return o.requireTreeOrAbsent(dest)
+		},
+		skipSatisfied: true,
+	})
+}
+
+// ErrTreeChanged is a Tree.Replace whose destination no longer holds the
+// expected tree; the destination is left exactly as found.
+var ErrTreeChanged = errors.New("evo: tree changed since it was observed")
+
+// TreeReplace is Tree.Replace: TreeWrite that commits only if, inside the
+// destination's critical section, the tree at path still digests to
+// expected (a Tree.Checksum result). Otherwise it is ErrTreeChanged and
+// the destination is untouched. A missing destination has changed too.
+func TreeReplace(ctx context.Context, path string, src TreeSource, expected string) error {
+	return publishTree(ctx, treePublication{
+		verb: "Replace",
+		path: path,
+		src:  src,
+		precheck: func(o *Output, abs string) error {
+			return o.requireTreeOrAbsent(abs)
+		},
+		admit: func(ctx context.Context, o *Output, dest string, want checksum.Digest) error {
+			have, err := o.treeDigest(ctx, dest, checksum.Exclusion{})
+			switch {
+			case errors.Is(err, fs.ErrNotExist):
+				return fmt.Errorf("%w: %s is gone", ErrTreeChanged, dest)
+			case err != nil:
+				return err
+			case have.String() != expected:
+				return fmt.Errorf("%w: %s digests to %s, expected %s", ErrTreeChanged, dest, have, expected)
+			case have == want:
+				return publish.ErrSatisfied
+			}
+			return nil
+		},
+	})
+}
+
+// treePublication is one Tree publication: what is staged where, and what
+// the destination must still satisfy when the commit runs.
+type treePublication struct {
+	verb string
+	path string
+	src  TreeSource
+	// precheck refuses a destination before any staging work.
+	precheck func(o *Output, abs string) error
+	// admit re-proves, inside the destination's critical section, that
+	// the destination may be replaced by the staged tree digesting to want.
+	admit func(ctx context.Context, o *Output, dest string, want checksum.Digest) error
+	// skipSatisfied discards the staged tree before the critical section
+	// when the destination already holds it.
+	skipSatisfied bool
+}
+
+// publishTree prepares p.src's tree beside the destination outside any
+// lock, then commits it under the destination's coordination: admit,
+// atomic swap, verify against the staged digest, release.
+func publishTree(ctx context.Context, p treePublication) error {
+	label := fmt.Sprintf("Tree %q %s", p.path, p.verb)
 	task, err := beginOperation(ctx, label)
 	if err != nil {
 		return err
 	}
-	if path == "" {
+	if p.path == "" {
 		return ErrPathMissing
 	}
-	if src == nil {
+	if p.src == nil {
 		return fmt.Errorf("evo: %s: %w", label, ErrContentMissing)
 	}
 	out := task.out
-	abs := out.checksumPath(path)
-	if err := out.requireTreeOrAbsent(abs); err != nil {
+	abs := out.checksumPath(p.path)
+	if err := p.precheck(out, abs); err != nil {
 		return fmt.Errorf("evo: %s: %w", label, err)
 	}
 	if out.DryRun() {
 		return nil
 	}
-	staged, err := publish.StageTree(ctx, abs, 0, func(ctx context.Context, root string) error { return src.Fill(ctx, root) })
+	staged, err := publish.StageTree(ctx, abs, 0, func(ctx context.Context, root string) error { return p.src.Fill(ctx, root) })
 	if err != nil {
 		return fmt.Errorf("evo: %s: %w", label, err)
 	}
@@ -145,11 +212,13 @@ func TreeWrite(ctx context.Context, path string, src TreeSource) error {
 		_ = staged.Discard()
 		return fmt.Errorf("evo: %s: digest prepared tree: %w", label, err)
 	}
-	if have, err := out.treeDigest(ctx, abs, checksum.Exclusion{}); err == nil && have == want {
-		return staged.Discard()
+	if p.skipSatisfied {
+		if have, err := out.treeDigest(ctx, abs, checksum.Exclusion{}); err == nil && have == want {
+			return staged.Discard()
+		}
 	}
 	guard := publish.Guard{
-		Revalidate: func(_ context.Context, dest string) error { return out.requireTreeOrAbsent(dest) },
+		Revalidate: func(ctx context.Context, dest string) error { return p.admit(ctx, out, dest, want) },
 		Verify: func(ctx context.Context, dest string) error {
 			return out.requireTreeDigest(ctx, dest, want)
 		},

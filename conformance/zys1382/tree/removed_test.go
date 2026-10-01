@@ -151,6 +151,8 @@ func TestTreeMethodSetIsExactlyTheSharedVocabulary(t *testing.T) {
 		"Equal":    "(context.Context, evo.Tree, ...evo.ChecksumOption) (bool, error)",
 		"Remove":   "(context.Context) error",
 		"Checksum": "(context.Context, ...evo.ChecksumOption) (string, error)",
+		// Replace is Write with compare-and-swap (prune's replacement).
+		"Replace": "(context.Context, string) error",
 	}
 	valueSet := types.NewMethodSet(tree)
 	got := map[string]string{}

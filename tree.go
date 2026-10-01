@@ -42,6 +42,21 @@ func (t Tree) Write(ctx context.Context) error {
 	return engine.TreeWrite(ctx, t.Path, src)
 }
 
+// Replace is Write that commits only if Path still holds the tree whose
+// Tree.Checksum was expected. The check runs inside the destination's
+// critical section, after Content is prepared, so an edit that lands
+// between the caller's observation and the commit is never overwritten:
+// Replace returns ErrTreeChanged and leaves Path exactly as found. A
+// missing Path has changed too. The original tree is kept beside Path
+// until the new one verifies, then deleted.
+func (t Tree) Replace(ctx context.Context, expected string) error {
+	src, err := t.source()
+	if err != nil {
+		return err
+	}
+	return engine.TreeReplace(ctx, t.Path, src, expected)
+}
+
 // Verify reports whether Path holds Content: nil, or ErrVerifyMismatch.
 func (t Tree) Verify(ctx context.Context) error {
 	src, err := t.source()
@@ -70,12 +85,34 @@ func (t Tree) source() (engine.TreeSource, error) {
 	return sourcer.treeSource(), nil
 }
 
-// treeSourcer is implemented by every TreeContent: Extract, in extract.go.
+// treeSourcer is implemented by every TreeContent: Extract (extract.go)
+// and Clone.
 type treeSourcer interface{ treeSource() engine.TreeSource }
 
-// TreeContent is a Tree's desired content: Extract. Callers can hold one
-// but not implement one.
+// TreeContent is a Tree's desired content: Extract or Clone. Callers can
+// hold one but not implement one.
 type TreeContent interface{ treeContent() }
 
-// ErrTreePathTypeMismatch is a Tree whose Path holds a non-directory.
-var ErrTreePathTypeMismatch = engine.ErrTreePathTypeMismatch
+// Clone is tree content copied from another Tree: the same structure,
+// bytes, executable bits, and symlink text, so the written tree's Checksum
+// equals From's. Files are cloned copy-on-write where the filesystem
+// supports it and copied otherwise, never hard-linked: editing either tree
+// afterwards leaves the other untouched. Only From.Path is read. A copy
+// that does not digest to From's digest fails the Write and publishes
+// nothing.
+type Clone struct {
+	From Tree
+}
+
+func (Clone) treeContent() {}
+
+func (c Clone) treeSource() engine.TreeSource { return engine.TreeClone(c.From.Path) }
+
+// Tree errors.
+var (
+	// ErrTreePathTypeMismatch is a Tree whose Path holds a non-directory.
+	ErrTreePathTypeMismatch = engine.ErrTreePathTypeMismatch
+	// ErrTreeChanged is a Replace whose Path no longer holds the expected
+	// tree; Path is left exactly as found.
+	ErrTreeChanged = engine.ErrTreeChanged
+)

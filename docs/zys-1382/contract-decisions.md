@@ -327,3 +327,59 @@ disagrees is changed in the same commit as the behavior.
   Basis inputs; File and Tree are the filesystem identities.
 - **Release:** the removed 1.1 shapes are retired in 1.2
   (`rules.RetiredRelease1_2`), matching the CHANGELOG's "Added (1.2)" section.
+
+## Rulings (2026-10-01, prune on Evo Tree)
+
+zq prune replaces its own tree swap with `evo.Tree`. These rulings close the
+gaps the ownership audit found.
+
+- **Tree identity counts the exec bit (digest version `evo.tree.v2`).** A
+  regular file with any execute bit (`0o111`) is framed as kind `x`, a plain
+  one as `f`, so a chmod'd copy no longer compares equal. Symlinks still count
+  by link text and are never followed; other mode bits, owners, and times
+  still do not count. The domain tag moved from `evo.tree.v1` to
+  `evo.tree.v2`, so **every `Tree.Checksum` differs from before**, even for
+  trees with no executables. A caller holding stored v1 digests (zq) must
+  recompute them and never compare across versions. The bump means no v1
+  digest can equal the v2 digest of a different tree. `File.Checksum` is
+  unchanged (bytes only). **Exclusions:** an excluded entry is never read, so
+  its exec bit does not count either.
+- **`Clone{From Tree}` is a `TreeContent`.** It establishes a tree as a copy
+  of another: copy-on-write where the filesystem offers it (darwin
+  `clonefile`, a whole subtree at a time; linux `FICLONE` per file), byte copy
+  otherwise. It never hard-links, so either tree can be edited without
+  touching the other. Only `From.Path` is read. Fill digests the source, then
+  the copy; a mismatch (or an unreadable source) fails the Write, and
+  publication's staging leaves nothing behind.
+- **`Tree.Replace(ctx, expected string) error` is compare-and-swap.**
+  `expected` is a `Tree.Checksum` result. Content is staged outside any lock.
+  Inside the destination's critical section, the destination is re-read and
+  re-hashed. If it is missing or no longer digests to `expected`, the result
+  is `ErrTreeChanged` and the destination is untouched. If it already equals
+  the staged tree, nothing is renamed. Otherwise the staged tree is swapped
+  in atomically (`renamex_np RENAME_SWAP` / `renameat2 RENAME_EXCHANGE`) and
+  verified. A failed verification swaps the original back. The original is
+  deleted only after the new tree verifies.
+- **Coordination is per destination and hierarchical.** Disjoint
+  destinations (siblings included) commit concurrently. The same destination
+  serializes, and so do an ancestor and its descendant. In-process, a claim
+  table checks overlap; its mutex guards only the table, never a commit.
+  Across processes, a claim takes a shared `flock` on a lock file for every
+  ancestor path and an exclusive one for the destination's own path. The lock
+  files live in `$(os.UserCacheDir)/evo/locks`, named by path digest, never
+  beside the tree. The kernel releases them when a holder dies, and the last
+  holder unlinks them so they do not pile up. Limitation: they coordinate
+  processes of one user (one cache directory).
+- **Crash semantics.** The destination always names one whole tree. A crash
+  before the swap leaves the original in place and the staged tree as a
+  leftover. A crash after the swap, before verification or cleanup, leaves
+  the new tree in place and the original as a leftover. Leftovers are hidden
+  `.evo-<owner>-<random>.tmp` siblings: `<owner>` binds them to the
+  destination's name, readers skip them, and `publish.Leftovers(dest)` lists
+  them. Recovery uses the caller's planned digests, never the leftover's
+  presence: if the destination digests to the planned new tree, finish by
+  deleting leftovers; if a leftover digests to `expected`, restore it.
+  Coordination needs no cleanup. Platforms with no atomic exchange move the
+  original aside first, so a crash between the two renames there leaves the
+  destination absent and the original as a leftover. There is no public
+  recovery API yet (plan Phase 4).

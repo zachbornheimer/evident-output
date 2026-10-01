@@ -23,6 +23,8 @@ CaptureStreamStdout	helper	Capture
 ChangesSnapshot	helper	Snapshot
 ChecksumOption	helper	Checksum
 Clock	removed	Run
+Clone	helper	Tree
+Clone.From	helper	Tree
 Code	helper	Problem
 ColorAlways	helper	Human output
 ColorAuto	helper	Human output
@@ -136,6 +138,7 @@ ErrRenderer	helper	Misuse
 ErrStaleBasis	removed	Patch
 ErrTaskClosed	helper	Misuse
 ErrTerminalWithoutSink	helper	Misuse
+ErrTreeChanged	helper	Tree
 ErrTreePathTypeMismatch	helper	Tree
 ErrUnresolvedTask	helper	Misuse
 ErrVerifyMismatch	helper	File
@@ -425,6 +428,7 @@ Tree.Equal	helper	Tree
 Tree.Path	helper	Tree
 Tree.Read	helper	Tree
 Tree.Remove	helper	Remove
+Tree.Replace	helper	Tree
 Tree.Verify	helper	Tree
 Tree.Write	helper	Tree
 TreeContent	helper	Tree

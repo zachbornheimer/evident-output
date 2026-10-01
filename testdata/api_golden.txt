@@ -79,6 +79,7 @@ func (Tree) Checksum(ctx context.Context, opts ...ChecksumOption)  string,  erro
 func (Tree) Equal(ctx context.Context, other Tree, opts ...ChecksumOption)  bool,  error
 func (Tree) Read(ctx context.Context)  []File,  error
 func (Tree) Remove(ctx context.Context)  error
+func (Tree) Replace(ctx context.Context, expected string)  error
 func (Tree) Verify(ctx context.Context)  error
 func (Tree) Write(ctx context.Context)  error
 func App()  Fingerprint
@@ -143,6 +144,8 @@ type CaptureOption
 type CaptureStream
 type ChangesSnapshot
 type ChecksumOption
+type Clone
+type Clone.From
 type ColorMode
 type CommandSpec
 type Computed
@@ -299,6 +302,7 @@ value ErrProgressRegression
 value ErrRenderer
 value ErrTaskClosed
 value ErrTerminalWithoutSink
+value ErrTreeChanged
 value ErrTreePathTypeMismatch
 value ErrUnresolvedTask
 value ErrVerifyMismatch
