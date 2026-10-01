@@ -29,6 +29,10 @@ const (
 	// scheduling, and running it), so a per-Task memory regression fails
 	// regardless of host load.
 	maxBytesPerTask = 128 << 10
+	// scaleSamples is how many timed runs of each size are taken. Host load
+	// only ever adds wall time, so the fastest run is the lowest-noise
+	// estimate of a size's cost; one sample per size is noise-dominated.
+	scaleSamples = 5
 	// hangGuard is not a performance budget. It only turns a hung run into
 	// a failure with a message; host load cannot plausibly reach it.
 	hangGuard = 10 * time.Minute
@@ -63,15 +67,30 @@ func sampleRun(t *testing.T, tasks int, run func()) scaleSample {
 	return scaleSample{elapsed: elapsed, bytesPerTask: float64(after.TotalAlloc-before.TotalAlloc) / float64(tasks)}
 }
 
+// bestSample takes scaleSamples runs of tasks and returns the fastest
+// elapsed time with the largest bytes per Task seen, so load cannot inflate
+// the time and no run's allocation escapes the memory bound.
+func bestSample(t *testing.T, tasks int, run func()) scaleSample {
+	t.Helper()
+	best := sampleRun(t, tasks, run)
+	for range scaleSamples - 1 {
+		next := sampleRun(t, tasks, run)
+		best.bytesPerTask = max(best.bytesPerTask, next.bytesPerTask)
+		best.elapsed = min(best.elapsed, next.elapsed)
+	}
+	return best
+}
+
 // assertScalesLinearly runs the shape at 1/10 and at full size under the
 // same load and checks cost grows near-linearly in time and memory. Both
-// checks compare the process with itself, so host load cancels out.
+// checks compare the process with itself, and each size is its fastest of
+// scaleSamples runs, so host load cancels out.
 func assertScalesLinearly(t *testing.T, name string, fullTasks int, run func(tasks int)) {
 	t.Helper()
 	smallTasks := fullTasks / scaleSmallDivisor
 	run(smallTasks) // warm-up: first-run costs are not scaling
-	small := sampleRun(t, smallTasks, func() { run(smallTasks) })
-	full := sampleRun(t, fullTasks, func() { run(fullTasks) })
+	small := bestSample(t, smallTasks, func() { run(smallTasks) })
+	full := bestSample(t, fullTasks, func() { run(fullTasks) })
 	ratio := float64(full.elapsed) / float64(small.elapsed)
 	t.Logf("%s: small %s, full %s (ratio %.1f, limit %.0f); %.0f bytes/Task", name, small.elapsed, full.elapsed, ratio, maxScaleRatio, full.bytesPerTask)
 	if ratio > maxScaleRatio {
