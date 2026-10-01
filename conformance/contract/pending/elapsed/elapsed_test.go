@@ -1,5 +1,3 @@
-//go:build evopending
-
 // Pending: ZYS-1046 one elapsed format. Red today because the package does
 // not compile. GUESSED SIGNATURE: internal/text.FormatElapsed(time.Duration)
 // string, the single formatter the live renderer, the plain renderer, and
