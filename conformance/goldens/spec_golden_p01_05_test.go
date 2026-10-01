@@ -252,11 +252,15 @@ func TestSpecP2_RemoteSeparation_Indeterminate_NotTestable(t *testing.T) {
 
 // TestSpecP3_DryRunTense_Success covers evo-rec.md Problem 3's success
 // block: a Changes ledger row, a Done summary on the same task, and a
-// next-action row.
+// next-action row. A next step after success hangs off a diagnostic
+// (ZYS-1182), so the run is honestly warned (exit 0): the Task carries a
+// warning Problem and the band reads [changed · warned].
 //
-//	[changed]  salvage
-//	  pushed  3  branch
-//	✓  salvage
+//	✓  salvage  ! demo not retired yet
+//
+//	[changed] salvage  pushed 3 branches
+//
+//	[changed · warned]  salvage
 //	→  repo-retire --retire demo
 func TestSpecP3_DryRunTense_Success(t *testing.T) {
 	t.Parallel()
@@ -268,16 +272,9 @@ func TestSpecP3_DryRunTense_Success(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	got := buf.String()
-	collapsed := strings.Join(strings.Fields(got), " ")
-	for _, want := range []string{
-		"[changed] salvage",
-		"pushed 3 branch",
-		"✓ salvage",
-		"→ repo-retire --retire demo"} {
-		if !strings.Contains(collapsed, want) {
-			t.Fatalf("want %q in:\n%s", want, got)
-		}
+	const want = "✓ salvage ! demo not retired yet [changed] salvage pushed 3 branches [changed · warned] salvage → repo-retire --retire demo"
+	if got := strings.Join(strings.Fields(buf.String()), " "); got != want {
+		t.Fatalf("collapsed frame:\n got: %s\nwant: %s\nraw:\n%s", got, want, buf.String())
 	}
 }
 

@@ -247,11 +247,15 @@ func TestSpecP17_Taxonomy_Step2(t *testing.T) {
 }
 
 // TestSpecP17_Taxonomy_Success covers Problem 17's success block: the same
-// step2 taxonomy plus a next-action row.
+// step2 taxonomy plus a next-action row. A next step after success hangs off
+// a diagnostic (ZYS-1182), so the run is honestly warned (exit 0): the
+// salvage Task carries a warning Problem and the band reads [ready · warned].
 //
+//	✓  salvage  ! unpushed branches kept
 //	✓  branches  14 deleted
-//	!  skipped 6  (4 protected, 2 dirty)
-//	!  kept 3     (unpushed)
+//	  - skipped 9 (4 protected, 2 dirty, 3 unpushed)
+//
+//	[ready · warned]
 //	→  repo-retire salvage --dry-run
 func TestSpecP17_Taxonomy_Success(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state.
@@ -279,20 +283,11 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	got := collapsed(buf.String())
-	for _, want := range []string{
-		"✓ branches 14 deleted",
-		"repo-retire salvage --dry-run"} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("want %q in:\n%s", want, buf.String())
-		}
-	}
 	// Per-item disposition children fold into one tally under their Group
 	// (contract §25 renderer aggregation), as the spec block above shows.
-	for _, want := range []string{"- skipped 9 (4 protected, 2 dirty, 3 unpushed)"} {
-		if strings.Count(got, want) != 1 {
-			t.Fatalf("want one aggregated %q in:\n%s", want, buf.String())
-		}
+	const want = "✓ salvage ! unpushed branches kept ✓ branches 14 deleted - skipped 9 (4 protected, 2 dirty, 3 unpushed) [ready · warned] → repo-retire salvage --dry-run"
+	if got := collapsed(buf.String()); got != want {
+		t.Fatalf("collapsed frame:\n got: %s\nwant: %s\nraw:\n%s", got, want, buf.String())
 	}
 }
 
