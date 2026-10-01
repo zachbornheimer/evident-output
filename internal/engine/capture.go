@@ -16,7 +16,12 @@ const (
 	defaultCaptureLines = 200
 	defaultCaptureBytes = 256 << 10 // 256 KiB
 	maxCaptureLineLen   = 4096
-	truncationMarker    = "[earlier output truncated]"
+	// maxCaptureChunk is the most raw bytes one retained line is built
+	// from: a pending partial line is flushed past it, and normalization
+	// reads no further, so a flood without newlines costs work in
+	// proportion to what is kept rather than to what the child wrote.
+	maxCaptureChunk  = maxCaptureLineLen * 2
+	truncationMarker = "[earlier output truncated]"
 )
 
 // CaptureStream identifies which process stream a line came from.
@@ -236,7 +241,7 @@ func (c *evidence) Write(p []byte) (int, error) {
 		root.flushPendingLocked(stream)
 		p = p[i+1:]
 	}
-	if buf.Len() > maxCaptureLineLen*2 {
+	if buf.Len() > maxCaptureChunk {
 		root.flushPendingLocked(stream)
 	}
 	return n, nil
@@ -452,6 +457,10 @@ func (c *evidence) pendingNormalizedLocked(stream CaptureStream) string {
 }
 
 func (c *evidence) normalizeCaptureLine(line string) string {
+	cut := len(line) > maxCaptureChunk
+	if cut {
+		line = line[:maxCaptureChunk]
+	}
 	if !utf8.ValidString(line) {
 		line = string(bytes.ToValidUTF8([]byte(line), []byte("\uFFFD")))
 	}
@@ -459,7 +468,11 @@ func (c *evidence) normalizeCaptureLine(line string) string {
 	if c.out != nil {
 		line = c.out.redactString(line)
 	}
-	return txt.TruncateUTF8(line, maxCaptureLineLen, "…")
+	line = txt.TruncateUTF8(line, maxCaptureLineLen, "…")
+	if cut && !strings.HasSuffix(line, "…") {
+		line += "…"
+	}
+	return line
 }
 
 func joinCaptureLines(lines []string, truncated bool) string {

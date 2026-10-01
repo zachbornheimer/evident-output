@@ -155,6 +155,9 @@ type Output struct {
 	// use. manifestOpenErr/manifestOpened distinguish "not yet opened" from
 	// "opened and failed" so a later call does not retry a failed open.
 	manifestStore *manifest.Store
+	// manifestFinishErr is the failure of the save-and-release Finish did;
+	// Close returns it so a write failure is never dropped.
+	manifestFinishErr error
 	// manifestOpening serializes manifestFor's first open without holding
 	// mu across the blocking lock wait (see manifestFor).
 	manifestOpening       sync.Mutex

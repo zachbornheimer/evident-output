@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 )
@@ -38,6 +39,7 @@ func (o *Output) Close() error {
 	o.closed = true
 	cancelRun := o.cancelRun
 	manifestStore := o.manifestStore
+	finishErr := o.manifestFinishErr
 	o.mu.Unlock()
 	if cancelRun != nil {
 		cancelRun()
@@ -46,7 +48,7 @@ func (o *Output) Close() error {
 	// releases the Run's exclusive manifest lock (spec §11.3) and returns
 	// any write or release failure. Already committed Task records on disk
 	// are unaffected — Close never rolls anything back.
-	return manifestStore.Close()
+	return errors.Join(finishErr, manifestStore.Close())
 }
 
 // beginRunContext installs ctx (Run/evo.Run's own ctx parameter) as the

@@ -24,22 +24,51 @@ type File struct {
 }
 
 // Read returns the file's observed bytes. A missing path is fs.ErrNotExist.
-func (f File) Read(ctx context.Context) ([]byte, error) { return nil, errNotImplemented }
+func (f File) Read(ctx context.Context) ([]byte, error) { return engine.FileRead(ctx, f.Path) }
 
 // Write establishes Content (and Mode) at Path: preparation runs outside
 // any lock, the result is published by atomic rename under a short
 // destination lock that revalidates at commit, and the result is verified
 // after commit. Already satisfied is a no-op. nil Content is
 // ErrContentMissing.
-func (f File) Write(ctx context.Context) error { return errNotImplemented }
+func (f File) Write(ctx context.Context) error {
+	src, err := f.source()
+	if err != nil {
+		return err
+	}
+	return engine.FileWrite(ctx, f.Path, src, f.Mode)
+}
 
 // Verify reports whether Path holds Content: nil, or ErrVerifyMismatch.
-func (f File) Verify(ctx context.Context) error { return errNotImplemented }
+func (f File) Verify(ctx context.Context) error {
+	src, err := f.source()
+	if err != nil {
+		return err
+	}
+	return engine.FileVerify(ctx, f.Path, src, f.Mode)
+}
 
 // Equal reports whether f and other hold the same bytes. Mode is ignored.
 func (f File) Equal(ctx context.Context, other File) (bool, error) {
-	return false, errNotImplemented
+	return engine.FileEqual(ctx, f.Path, other.Path)
 }
+
+// source is the engine's view of f.Content: nil for no declared Content.
+// Content producers supply theirs through fileSourcer.
+func (f File) source() (engine.FileSource, error) {
+	if f.Content == nil {
+		return nil, nil
+	}
+	sourcer, ok := f.Content.(fileSourcer)
+	if !ok {
+		return nil, engine.ErrContentMissing
+	}
+	return sourcer.fileSource(), nil
+}
+
+// fileSourcer is implemented by every FileContent: Bytes here, Download in
+// download.go.
+type fileSourcer interface{ fileSource() engine.FileSource }
 
 // FileContent is a File's desired content: Bytes or Download. Callers can
 // hold one but not implement one.
@@ -49,6 +78,8 @@ type FileContent interface{ fileContent() }
 type bytesContent struct{ data []byte }
 
 func (bytesContent) fileContent() {}
+
+func (c bytesContent) fileSource() engine.FileSource { return engine.BytesSource(c.data) }
 
 // Bytes is literal file content. Bytes([]byte(nil)) and Bytes("") are an empty
 // regular file, never an absent one.
@@ -69,10 +100,6 @@ var (
 	// ErrFilePathTypeMismatch is a File whose Path holds a non-regular file.
 	ErrFilePathTypeMismatch = engine.ErrFilePathTypeMismatch
 )
-
-// errNotImplemented is the ZYS-1382 skeleton's answer from a primitive
-// whose behavior has not landed yet.
-var errNotImplemented = engine.ErrNotImplemented
 
 // FileFS is the filesystem facade File and Tree operations read and write
 // through (Config.FileFS).

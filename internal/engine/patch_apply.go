@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
-	"path/filepath"
+	"io"
 
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
 	"github.com/zachbornheimer/evident-output/internal/patch"
+	"github.com/zachbornheimer/evident-output/internal/publish"
 )
 
 // ErrPatchUnsafePath is a diff path outside the workspace, or one that
@@ -179,15 +179,80 @@ func (o *Output) commitPatchStep(ctx context.Context, taskID string, step patchS
 	if step.remove != nil {
 		return o.removePlanned(ctx, taskID, *step.remove)
 	}
-	file := *step.write
-	if !o.DryRun() {
-		if mkdirErr := makeDirectoriesThrough(o.fileFS(), filepath.Dir(file.target.path())); mkdirErr != nil {
-			return fmt.Errorf("evo: Patch create directories for %q: %w", file.target.rel, mkdirErr)
+	return o.publishPatchedFile(ctx, taskID, *step.write)
+}
+
+// publishPatchedFile stages file's bytes outside any lock, then publishes
+// them through the shared destination lock. The guard revalidates the
+// source the diff was validated against under that lock, so a concurrent
+// File.Write or edit is never overwritten.
+func (o *Output) publishPatchedFile(ctx context.Context, taskID string, file desiredFile) error {
+	fsys := o.fileFS()
+	path := file.target.path()
+	desired := fingerprint.ObservedFile(path, file.contents)
+	holdsResult := func(current observedSource) bool {
+		return current.basis == desired && (file.mode == 0 || current.mode == file.mode.Perm())
+	}
+	// check validates the source and parents; it reports whether the file
+	// already holds the diff's result.
+	check := func() (bool, error) {
+		if parentErr := file.target.checkStandardParents(fsys); parentErr != nil {
+			return false, parentErr
+		}
+		current, observeErr := observeSource(fsys, path)
+		if observeErr != nil {
+			return false, observeErr
+		}
+		if holdsResult(current) {
+			return true, nil
+		}
+		if current.basis != file.basis && current.basis != desired {
+			return false, fmt.Errorf("%w: %w: %s", ErrPatchStale, ErrStaleBasis, path)
+		}
+		return false, nil
+	}
+	satisfied, checkErr := check()
+	if checkErr != nil {
+		return fmt.Errorf("evo: Patch %q: %w", file.target.rel, checkErr)
+	}
+	if satisfied {
+		return nil
+	}
+	if o.DryRun() {
+		o.recordLedgerEntry(taskID, namedEntry("write", file.target.rel))
+		return nil
+	}
+	mode := file.mode.Perm()
+	if mode == 0 {
+		if current, observeErr := observeSource(fsys, path); observeErr == nil && current.exists {
+			mode = current.mode
+		} else {
+			mode = defaultFileMode
 		}
 	}
-	if commitErr := o.establishFile(ctx, file.operation(taskID)); commitErr != nil {
+	staged, stageErr := publish.StageFile(ctx, path, mode, func(w io.Writer) error {
+		_, writeErr := w.Write(file.contents)
+		return writeErr
+	})
+	if stageErr != nil {
+		return fmt.Errorf("evo: Patch %q: %w", file.target.rel, stageErr)
+	}
+	commitErr := staged.Commit(ctx, publish.Guard{
+		Revalidate: func(context.Context, string) error {
+			done, err := check()
+			if err != nil {
+				return err
+			}
+			if done {
+				return publish.ErrSatisfied
+			}
+			return nil
+		},
+	})
+	if commitErr != nil {
 		return fmt.Errorf("evo: Patch %q: %w", file.target.rel, commitErr)
 	}
+	o.recordLedgerEntry(taskID, namedEntry("write", file.target.rel))
 	return nil
 }
 
@@ -196,27 +261,27 @@ func (o *Output) commitPatchStep(ctx context.Context, taskID string, step patchS
 // against.
 func (o *Output) removePlanned(ctx context.Context, taskID string, removal plannedRemoval) error {
 	path := removal.target.path()
-	resource := FSResource(path)
-	if nestedErr := checkResourceFree(ctx, resource, resourceWrite); nestedErr != nil {
-		return fmt.Errorf("evo: Patch remove %q: %w", removal.target.rel, nestedErr)
-	}
-	return o.holdResource(ctx, resource, resourceWrite, func(context.Context) error {
-		if parentErr := removal.target.checkStandardParents(o.fileFS()); parentErr != nil {
+	fsys := o.fileFS()
+	check := func(context.Context, string) error {
+		if parentErr := removal.target.checkStandardParents(fsys); parentErr != nil {
 			return parentErr
 		}
-		current, observeErr := observeSource(o.fileFS(), path)
+		current, observeErr := observeSource(fsys, path)
 		switch {
 		case observeErr != nil:
 			return observeErr
 		case current.basis != removal.basis:
 			return fmt.Errorf("%w: %w: %s", ErrPatchStale, ErrStaleBasis, path)
 		}
-		if !o.DryRun() {
-			if rmErr := removeThrough(o.fileFS(), path); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
-				return fmt.Errorf("evo: Patch remove %q: %w", path, rmErr)
-			}
-		}
-		o.recordLedgerEntry(taskID, namedEntry("remove", removal.target.rel))
 		return nil
-	})
+	}
+	if o.DryRun() {
+		if err := check(ctx, path); err != nil {
+			return fmt.Errorf("evo: Patch remove %q: %w", removal.target.rel, err)
+		}
+	} else if err := publish.Remove(ctx, path, publish.Guard{Revalidate: check}); err != nil {
+		return fmt.Errorf("evo: Patch remove %q: %w", removal.target.rel, err)
+	}
+	o.recordLedgerEntry(taskID, namedEntry("remove", removal.target.rel))
+	return nil
 }

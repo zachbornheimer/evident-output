@@ -1,6 +1,10 @@
 package engine
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/zachbornheimer/evident-output/internal/download"
+)
 
 // ZYS-1382 filesystem vocabulary errors: File, Tree, their content
 // producers (Bytes, Download, Extract), Find, Exec, and Task Basis.
@@ -17,11 +21,11 @@ var (
 	ErrTreePathTypeMismatch = errors.New("evo: Tree path is not a directory")
 	// ErrIntegrityMismatch is a Download whose bytes do not match its
 	// Integrity, or whose Integrity is empty or unparseable.
-	ErrIntegrityMismatch = errors.New("evo: Download integrity mismatch")
+	ErrIntegrityMismatch = download.ErrIntegrity
 	// ErrDownloadFailed is a Download whose server did not answer 2xx.
-	ErrDownloadFailed = errors.New("evo: Download failed")
+	ErrDownloadFailed = download.ErrFailed
 	// ErrDownloadURLMissing is a Download whose URL is empty.
-	ErrDownloadURLMissing = errors.New("evo: Download URL is required")
+	ErrDownloadURLMissing = download.ErrURLMissing
 	// ErrExtractMalformed is an Extract archive that is empty or unreadable.
 	ErrExtractMalformed = errors.New("evo: Extract archive is malformed")
 	// ErrExtractUnsafeEntry is an archive entry that would escape the

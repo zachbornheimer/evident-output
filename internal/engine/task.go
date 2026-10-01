@@ -35,3 +35,29 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 	}
 	return st.snapshot()
 }
+
+// Basis declares freshness inputs for this Task. Calls accumulate. Basis is
+// Task configuration frozen at Define: a call after Define records
+// ErrBasisAfterDefine and is ignored.
+func (t *TaskHandle) Basis(inputs ...BasisSource) *TaskHandle {
+	if t == nil || t.out == nil {
+		return t
+	}
+	o := t.out
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	st := o.taskByRef[t.id]
+	if st == nil {
+		return t
+	}
+	if !st.neverDefined() {
+		o.recordMisuseFor(st.name, ErrBasisAfterDefine)
+		return t
+	}
+	for _, in := range inputs {
+		if in != nil {
+			st.basisInputs = append(st.basisInputs, in)
+		}
+	}
+	return t
+}

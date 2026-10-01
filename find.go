@@ -12,7 +12,15 @@ import (
 // concurrent searches, does not follow symlinked directories, and takes no
 // tree-wide lock.
 func Find(ctx context.Context, root string, names ...string) ([]File, error) {
-	return nil, errNotImplemented
+	paths, err := engine.FindFiles(ctx, root, names)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]File, len(paths))
+	for i, p := range paths {
+		files[i] = File{Path: p}
+	}
+	return files, nil
 }
 
 // ErrFindNamesMissing is a Find called with no names.

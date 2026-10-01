@@ -9,11 +9,18 @@ import (
 
 // basisInput is the sealed union TaskHandle.Basis accepts: File, Tree, and
 // Fingerprint (Value, App).
-type basisInput interface{ isBasisInput() }
+type basisInput interface {
+	isBasisInput()
+	basisSource() engine.BasisSource
+}
 
 func (File) isBasisInput()        {}
 func (Tree) isBasisInput()        {}
 func (Fingerprint) isBasisInput() {}
+
+func (f File) basisSource() engine.BasisSource        { return engine.FileBasis(f.Path) }
+func (t Tree) basisSource() engine.BasisSource        { return engine.TreeBasis(t.Path) }
+func (f Fingerprint) basisSource() engine.BasisSource { return engine.FingerprintBasis(f.inner) }
 
 // Basis declares this Task's freshness inputs. With a shared StateDir, a
 // Task whose Basis identities are unchanged since its last success is
@@ -21,7 +28,16 @@ func (Fingerprint) isBasisInput() {}
 // only: it neither orders Tasks (that is After) nor locks anything. Call it
 // before Define; a call after Define records ErrBasisAfterDefine and is
 // ignored.
-func (t *TaskHandle) Basis(inputs ...basisInput) *TaskHandle { return t }
+func (t *TaskHandle) Basis(inputs ...basisInput) *TaskHandle {
+	sources := make([]engine.BasisSource, 0, len(inputs))
+	for _, in := range inputs {
+		if in != nil {
+			sources = append(sources, in.basisSource())
+		}
+	}
+	t.impl().Basis(sources...)
+	return t
+}
 
 // ErrBasisAfterDefine is recorded when Basis is called after Define.
 var ErrBasisAfterDefine = engine.ErrBasisAfterDefine

@@ -132,6 +132,12 @@ type taskState struct {
 	// same order manifest.Store.Operation's ordinal indexes into). Never
 	// populated during dry-run — dry-run commits nothing (§8.2).
 	manifestOps []manifest.OperationRecord
+
+	// basisInputs are the freshness inputs declared by TaskHandle.Basis,
+	// frozen at Define. basisObserved is their identity as observed when
+	// the Task started this Run; it is committed with the Task's record.
+	basisInputs   []BasisSource
+	basisObserved []manifest.BasisRecord
 }
 
 type tasksState struct {

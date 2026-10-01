@@ -119,6 +119,15 @@ func (t *TaskHandle) runDefine(verifiers []verifierFunc, fn func(context.Context
 	o := t.out
 	scope := &taskScopeHandle{out: o, taskID: t.id}
 
+	if current, basisErr := t.basisIsCurrent(o.Context()); basisErr != nil {
+		t.failScheduled(basisErr.Error())
+		return passthroughCallbackOutcome(basisErr)
+	} else if current {
+		o.setResolution(t.id, ResolutionAlreadySatisfied)
+		t.doneScheduled()
+		return nil
+	}
+
 	if len(verifiers) > 0 {
 		allSatisfied, obsErr := evaluateVerifiers(withTaskScope(o.Context(), scope), o, t.id, verifiers)
 		if obsErr != nil {

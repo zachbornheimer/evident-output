@@ -13,6 +13,8 @@ type Download struct {
 
 func (Download) fileContent() {}
 
+func (d Download) fileSource() engine.FileSource { return engine.DownloadSource(d.URL, d.Integrity) }
+
 // Download errors.
 var (
 	// ErrIntegrityMismatch is downloaded bytes that do not match Integrity,

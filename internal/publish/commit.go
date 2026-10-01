@@ -131,7 +131,7 @@ func (s *Staged) moveTree() (string, error) {
 
 // removeReplaced deletes an entry a commit or Remove moved aside.
 func removeReplaced(path string) error {
-	if err := os.RemoveAll(path); err != nil {
+	if err := removeAll(path); err != nil {
 		return fmt.Errorf("publish: delete replaced %s: %w", path, err)
 	}
 	return nil

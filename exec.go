@@ -50,7 +50,28 @@ type ExecResult = engine.ExecResult
 // wraps ErrExecOutputMissingAfterSuccess; the result still carries the
 // captured attempt. ctx must come from a Task's Define callback.
 func (x Exec) Run(ctx context.Context) (ExecResult, error) {
-	return ExecResult{}, errNotImplemented
+	return engine.RunExec(ctx, engine.ExecRequest{
+		Path: x.Path, Args: x.Args, Dir: x.Dir, Env: x.Env,
+		Outputs: x.Outputs.flatten(),
+	})
+}
+
+// flatten reduces the sealed File/Tree union to the engine's output list.
+func (outputs Outputs) flatten() []engine.ExecOutput {
+	out := make([]engine.ExecOutput, 0, len(outputs))
+	for _, state := range outputs {
+		switch v := state.(type) {
+		case File:
+			o := engine.ExecOutput{Path: v.Path}
+			if b, ok := v.Content.(bytesContent); ok {
+				o.WantBytes, o.HasBytes = b.data, true
+			}
+			out = append(out, o)
+		case Tree:
+			out = append(out, engine.ExecOutput{Path: v.Path, Tree: true})
+		}
+	}
+	return out
 }
 
 // Exec usage and outcome errors.
