@@ -284,6 +284,10 @@ func TestFindNormalizesTheRoot(t *testing.T) {
 }
 
 // Hidden directories are searched; Find carries no ignore rules.
+//
+// Settled ZYS-1382 dispute (test was wrong): the contract returns results
+// sorted by path, bytewise. '*' (0x2a) sorts before '.' (0x2e), so "*.json"
+// comes first.
 func TestFindSearchesHiddenAndUnusualDirectories(t *testing.T) {
 	root := t.TempDir()
 	plant(t, root, map[string]string{
@@ -293,7 +297,7 @@ func TestFindSearchesHiddenAndUnusualDirectories(t *testing.T) {
 		"*.json":                        "{}",
 	})
 	got := paths(root, find(t, root, "package.json", "*.json"))
-	want := []string{".git/package.json", ".hidden/package.json", "*.json", "dir with space/ü/package.json"}
+	want := []string{"*.json", ".git/package.json", ".hidden/package.json", "dir with space/ü/package.json"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("Find = %v, want %v", got, want)
 	}

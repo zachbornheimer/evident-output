@@ -200,6 +200,12 @@ func TestAdversarial_ConcurrentWritersPublishWholeTrees(t *testing.T) {
 
 // Structural: an observer polling the destination during repeated
 // replacements only ever sees a whole tree, or nothing.
+//
+// Settled ZYS-1382 dispute (test was wrong): the SPEC's atomic publication
+// promises that the path names a whole tree at every instant. A reader whose
+// open handle outlives a swap is reading the replaced tree while its required
+// cleanup deletes it, which no rename can hide. The observer therefore counts
+// a listing only when the destination still names the directory it read.
 func TestAdversarial_ObserverNeverSeesPartialTree(t *testing.T) {
 	const files = 300
 	work := t.TempDir()
@@ -210,13 +216,15 @@ func TestAdversarial_ObserverNeverSeesPartialTree(t *testing.T) {
 	}
 	var done atomic.Bool
 	var partial atomic.Value
+	var observed atomic.Int64
 	var wg sync.WaitGroup
 	wg.Go(func() {
 		for !done.Load() {
-			entries, err := os.ReadDir(dest)
-			if err != nil {
-				continue // absent between publications is acceptable
+			entries, live, err := advReadLiveDir(dest)
+			if err != nil || !live {
+				continue // absent, or the listing raced a swap and read the replaced tree
 			}
+			observed.Add(1)
 			if msg := advWholeTreeProblem(entries, files); msg != "" {
 				partial.Store(msg)
 				return
@@ -238,6 +246,9 @@ func TestAdversarial_ObserverNeverSeesPartialTree(t *testing.T) {
 	}
 	if msg := partial.Load(); msg != nil {
 		t.Fatalf("observer saw a partial tree: %v", msg)
+	}
+	if observed.Load() == 0 {
+		t.Fatal("observer never listed a live destination; the check proved nothing")
 	}
 }
 
@@ -542,4 +553,28 @@ func BenchmarkTreeWrite_2000Files(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+}
+
+// advReadLiveDir lists dir through one handle and reports whether dir still
+// names that same directory after the listing, so the listing describes the
+// published tree rather than one replaced while it was being read.
+func advReadLiveDir(dir string) ([]os.DirEntry, bool, error) {
+	f, err := os.Open(dir)
+	if err != nil {
+		return nil, false, err
+	}
+	defer func() { _ = f.Close() }()
+	read, err := f.Stat()
+	if err != nil {
+		return nil, false, err
+	}
+	entries, err := f.ReadDir(-1)
+	if err != nil {
+		return nil, false, err
+	}
+	now, err := os.Lstat(dir)
+	if err != nil {
+		return nil, false, nil
+	}
+	return entries, os.SameFile(read, now), nil
 }

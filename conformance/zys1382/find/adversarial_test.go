@@ -510,13 +510,18 @@ func TestAdversarial_DeadlineMidWalkIsReported(t *testing.T) {
 
 // Coalescing must not couple callers' lifetimes: one cancelled searcher
 // sharing a traversal cannot cancel the others.
+//
+// Settled ZYS-1382 dispute (test was wrong): the barrier needs peers+1 Tasks
+// running at once, and the SPEC promises no concurrency beyond
+// Config.MaxConcurrency (default GOMAXPROCS). The Config therefore sizes
+// MaxConcurrency to the barrier instead of depending on the host's CPU count.
 func TestAdversarial_CancelledSearcherDoesNotCancelCoalescedPeers(t *testing.T) {
 	root := t.TempDir()
 	advWideTree(t, root, 2000, 2) // 200 matches
-	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: io.Discard, Stderr: io.Discard, StateDir: t.TempDir()})
+	const peers = 4
+	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: io.Discard, Stderr: io.Discard, StateDir: t.TempDir(), MaxConcurrency: peers + 1})
 	defer func() { _ = out.Close() }()
 	group := out.Group("peers")
-	const peers = 4
 	var (
 		mu      sync.Mutex
 		counts  []int

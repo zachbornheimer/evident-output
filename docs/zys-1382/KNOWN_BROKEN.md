@@ -35,9 +35,6 @@ file's tag and its line here in the same change that migrates it.
 These compile against the new surface and fail at run time. They are not
 tagged; they stay red in `go test ./...` until their owner migrates them.
 
-- `conformance/zys1382/*/contract_test.go` and `adversarial_test.go`: every
-  new primitive returns a not-implemented error until it lands (Patch is
-  already implemented).
 - `internal/agent/review`: `TestMigration1_1EveryRemovedNameHasDirtyRewriteCleanFixture`
   wants a dirty/rewrite/clean migration fixture for each name ZYS-1382 retired
   (`FileSpec`, `ExecSpec`, `FSPath`, `FileSet`, `Files`, `ErrStaleBasis`,

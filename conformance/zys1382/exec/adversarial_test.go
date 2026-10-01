@@ -4,6 +4,7 @@ package exec_test
 // weakness it guards; sources are in docs/zys-1382/adversarial-research.md.
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	osexec "os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -52,6 +54,12 @@ func advRun(tb testing.TB, cfg evo.Config, fn func(context.Context) error) error
 // when the call outlives advLiveness.
 func advExec(t *testing.T, cfg evo.Config, ctxTimeout time.Duration, x evo.Exec) (evo.ExecResult, error) {
 	t.Helper()
+	return advExecWithin(t, cfg, ctxTimeout, advLiveness, x)
+}
+
+// advExecWithin is advExec with an explicit liveness budget.
+func advExecWithin(t *testing.T, cfg evo.Config, ctxTimeout, budget time.Duration, x evo.Exec) (evo.ExecResult, error) {
+	t.Helper()
 	type outcome struct {
 		res evo.ExecResult
 		err error
@@ -74,8 +82,8 @@ func advExec(t *testing.T, cfg evo.Config, ctxTimeout time.Duration, x evo.Exec)
 	select {
 	case o := <-done:
 		return o.res, o.err
-	case <-time.After(advLiveness):
-		t.Fatalf("Exec %s did not return within %v", x.Path, advLiveness)
+	case <-time.After(budget):
+		t.Fatalf("Exec %s did not return within %v", x.Path, budget)
 		return evo.ExecResult{}, nil
 	}
 }
@@ -232,12 +240,33 @@ func TestAdversarial_DeadlineKillsProcessGroup(t *testing.T) {
 }
 
 // Structural: a 64 MiB flood is captured within a bounded tail.
+//
+// Settled ZYS-1382 dispute (test was wrong): the SPEC bounds what Exec
+// retains, and advLiveness bounds how long Exec may take. Piping the flood
+// through tr made the shell itself take over 10s on a loaded host (11s for
+// the bare pipeline at load 35, with Exec adding nothing), so the liveness
+// bound measured tr, not Exec. The same printable flood now comes from two
+// cat processes over 1 MiB chunk files the test writes, which costs the
+// shell milliseconds. Moving 128 MiB through two pipes still costs real CPU,
+// and under -race on a starved host the same transfer through plain os/exec
+// took seconds, so the liveness budget adds a multiple of that measured
+// baseline: a hang still fails, a slow host does not.
 func TestAdversarial_OutputFloodIsBounded(t *testing.T) {
 	const flood = 64 << 20
 	var before, after runtime.MemStats
 	runtime.GC()
 	runtime.ReadMemStats(&before)
-	res, err := advExec(t, evo.Config{}, 0, advSh(t.TempDir(), fmt.Sprintf("head -c %d /dev/zero | tr '\\0' a; head -c %d /dev/zero | tr '\\0' b >&2", flood, flood)))
+	const chunk = 1 << 20
+	dir := t.TempDir()
+	for _, name := range []string{"a", "b"} {
+		if err := os.WriteFile(filepath.Join(dir, name), bytes.Repeat([]byte(name), chunk), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repeat := func(name string) string { return strings.TrimSpace(strings.Repeat(name+" ", flood/chunk)) }
+	script := "cat " + repeat("a") + "; cat " + repeat("b") + " >&2"
+	baseline := advRawExecDuration(t, dir, script)
+	res, err := advExecWithin(t, evo.Config{}, 0, advLiveness+advFloodBaselineFactor*baseline, advSh(dir, script))
 	runtime.ReadMemStats(&after)
 	if err != nil {
 		t.Fatal(err)
@@ -497,4 +526,21 @@ func BenchmarkExec_True(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+}
+
+// advFloodBaselineFactor is how many times slower than plain os/exec Exec
+// may move a flood before the test calls it a hang.
+const advFloodBaselineFactor = 4
+
+// advRawExecDuration is how long plain os/exec takes to run script and
+// drain its output on this host right now.
+func advRawExecDuration(t *testing.T, dir, script string) time.Duration {
+	t.Helper()
+	cmd := osexec.Command("/bin/sh", "-c", script)
+	cmd.Dir, cmd.Stdout, cmd.Stderr = dir, io.Discard, io.Discard
+	start := time.Now()
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("baseline flood: %v", err)
+	}
+	return time.Since(start)
 }
