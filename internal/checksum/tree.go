@@ -12,8 +12,10 @@ import (
 )
 
 // treeDomain prefixes every directory digest so a directory can never
-// collide with a file whose bytes spell the same framing.
-const treeDomain = "evo.tree.v1\x00"
+// collide with a file whose bytes spell the same framing. v2 frames
+// executable regular files apart from plain ones; the version bump keeps a
+// stored v1 digest from ever equalling a v2 digest of a chmod'd tree.
+const treeDomain = "evo.tree.v2\x00"
 
 // linkDomain prefixes a symlink's target text for the same reason.
 const linkDomain = "evo.link.v1\x00"
@@ -24,6 +26,7 @@ type kind byte
 const (
 	kindDir     kind = 'd'
 	kindFile    kind = 'f'
+	kindExec    kind = 'x'
 	kindSymlink kind = 'l'
 	kindFIFO    kind = 'p'
 	kindSocket  kind = 's'
@@ -32,8 +35,14 @@ const (
 	kindOther   kind = '?'
 )
 
+// execBits are the permission bits that make a regular file executable.
+// Any one of them makes it kindExec: identity tracks "runs", not who may.
+const execBits fs.FileMode = 0o111
+
 // kindOf tags a directory entry by its type bits. Only directories,
-// regular files, and symlinks carry content; the rest are structure.
+// regular files, and symlinks carry content; the rest are structure. A
+// regular file's executable bit is known only from its full mode, so the
+// leaf digest upgrades kindFile to kindExec (see leafKind).
 func kindOf(mode fs.FileMode) kind {
 	switch t := mode.Type(); {
 	case t == 0:
@@ -130,7 +139,7 @@ func (w treeWalk) entry(ctx context.Context, parent, rel string, entry fs.DirEnt
 	case kindDir:
 		return child, w.list(ctx, path, childRel, child)
 	case kindFile:
-		w.leaves.digest(ctx, child, func(ctx context.Context) (Digest, error) { return w.engine.leafAt(ctx, path, entry) })
+		w.leaves.digest(ctx, child, func(ctx context.Context) (Digest, error) { return w.engine.leafAt(ctx, path, entry, child) })
 	case kindSymlink:
 		target, err := w.engine.source().Readlink(path)
 		if err != nil {
@@ -141,13 +150,24 @@ func (w treeWalk) entry(ctx context.Context, parent, rel string, entry fs.DirEnt
 	return child, nil
 }
 
-// leafAt digests the regular file a directory listing named.
-func (e Engine) leafAt(ctx context.Context, path string, entry fs.DirEntry) (Digest, error) {
+// leafAt digests the regular file a directory listing named and records
+// its kind from the full mode. It runs on a leaf goroutine; combine reads
+// n.kind only after the pool's wait.
+func (e Engine) leafAt(ctx context.Context, path string, entry fs.DirEntry, n *node) (Digest, error) {
 	info, err := entry.Info()
 	if err != nil {
 		return Digest{}, fmt.Errorf("checksum: stat %s: %w", path, err)
 	}
+	n.kind = leafKind(info.Mode())
 	return e.leaf(ctx, path, info)
+}
+
+// leafKind is a regular file's kind: kindExec when any execute bit is set.
+func leafKind(mode fs.FileMode) kind {
+	if mode&execBits != 0 {
+		return kindExec
+	}
+	return kindFile
 }
 
 // combine is n's directory digest: the domain tag, then each child (already

@@ -5,8 +5,10 @@
 //
 // A file's digest is the SHA-256 of its bytes. A tree's digest is a
 // Merkle digest over each directory's entries sorted by name, each entry
-// framed as (kind, name, child digest), so structure, names, and contents
-// all count while the tree's own location, timestamps, and modes do not.
+// framed as (kind, name, child digest), so structure, names, contents, and
+// whether each regular file is executable all count, while the tree's own
+// location, timestamps, owners, and other mode bits do not. Symlinks count
+// by their link text, never followed.
 package checksum
 
 import (
