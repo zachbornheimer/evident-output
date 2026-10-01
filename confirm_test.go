@@ -82,6 +82,19 @@ func TestConfirm_EmptyAnswer_Declines(t *testing.T) {
 // summary is also distinct from the no-TTY policy-block wording (release-gate
 // round 4 finding 6): the reader was told nothing arrived, not that a
 // deliberate policy refused the prompt.
+// policyBlockActions is the remedy the policy block carries. ZYS-1182: it
+// rides on the block's Problem (Problems[].Actions), not on the Task.
+func policyBlockActions(t *testing.T, item evo.TaskSnapshot) []evo.Action {
+	t.Helper()
+	if len(item.Problems) == 0 {
+		t.Fatalf("task has no Problem to carry the policy hint: %+v", item)
+	}
+	if len(item.Actions) != 0 {
+		t.Fatalf("task-level actions = %+v, want the hint only on the Problem", item.Actions)
+	}
+	return item.Problems[0].Actions
+}
+
 func TestConfirm_ZeroByteEOF_BlocksByPolicyNotDecline(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := evo.Init(evo.Config{Isolated: true, Terminal: screen, Stdout: io.Discard, Stderr: io.Discard, Stdin: strings.NewReader(""), Color: evo.ColorNever})
@@ -98,8 +111,8 @@ func TestConfirm_ZeroByteEOF_BlocksByPolicyNotDecline(t *testing.T) {
 	if len(item.Problems) == 0 || item.Problems[0].Summary != "no answer — stdin closed" {
 		t.Fatalf("problems = %+v, want summary %q (not %q or %q)", item.Problems, "no answer — stdin closed", "blocked by policy", "declined")
 	}
-	if len(item.Actions) == 0 || !strings.Contains(item.Actions[0].Label, "--yes") {
-		t.Fatalf("actions = %+v, want a --yes hint", item.Actions)
+	if actions := policyBlockActions(t, item); len(actions) == 0 || !strings.Contains(actions[0].Label, "--yes") {
+		t.Fatalf("actions = %+v, want a --yes hint", actions)
 	}
 }
 
@@ -138,8 +151,8 @@ func TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin(t *testing.T) 
 	if len(item.Problems) == 0 || item.Problems[0].Summary != "blocked by policy" {
 		t.Fatalf("problems = %+v, want summary %q", item.Problems, "blocked by policy")
 	}
-	if len(item.Actions) == 0 || !strings.Contains(item.Actions[0].Label, "--yes") {
-		t.Fatalf("actions = %+v, want a --yes hint", item.Actions)
+	if actions := policyBlockActions(t, item); len(actions) == 0 || !strings.Contains(actions[0].Label, "--yes") {
+		t.Fatalf("actions = %+v, want a --yes hint", actions)
 	}
 }
 
@@ -152,8 +165,8 @@ func TestConfirm_NonInteractive_DefaultPolicyHint_IsYesFlag(t *testing.T) {
 	out.Confirm("delete origin/production-hotfix?")
 
 	item := out.Snapshot().Tasks[0]
-	if len(item.Actions) == 0 || !strings.Contains(item.Actions[0].Label, "--yes") {
-		t.Fatalf("actions = %+v, want default --yes hint", item.Actions)
+	if actions := policyBlockActions(t, item); len(actions) == 0 || !strings.Contains(actions[0].Label, "--yes") {
+		t.Fatalf("actions = %+v, want default --yes hint", actions)
 	}
 }
 
@@ -167,15 +180,16 @@ func TestConfirm_NonInteractive_PolicyHint_OverridesDefaultYesHint(t *testing.T)
 	out.Confirm("clean the repo?", evo.PolicyHint("zq", "clean-repo", "--apply"))
 
 	item := out.Snapshot().Tasks[0]
-	if len(item.Actions) == 0 || item.Actions[0].Command == nil {
-		t.Fatalf("actions = %+v, want a command action", item.Actions)
+	actions := policyBlockActions(t, item)
+	if len(actions) == 0 || actions[0].Command == nil {
+		t.Fatalf("actions = %+v, want a command action", actions)
 	}
-	got := item.Actions[0].Command
+	got := actions[0].Command
 	if got.Executable != "zq" || strings.Join(got.Args, " ") != "clean-repo --apply" {
 		t.Fatalf("hint command = %+v, want zq clean-repo --apply", got)
 	}
-	if strings.Contains(item.Actions[0].Label, "--yes") {
-		t.Fatalf("actions = %+v, want no --yes hint once PolicyHint is set", item.Actions)
+	if strings.Contains(actions[0].Label, "--yes") {
+		t.Fatalf("actions = %+v, want no --yes hint once PolicyHint is set", actions)
 	}
 }
 

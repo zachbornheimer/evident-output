@@ -4,7 +4,7 @@ package engine
 // summary plus evidence; Unwrap() reaches a wrapped cause so errors.Is/As
 // keep working. Failf and Blockf were removed in 1.1: Fail and Block are
 // statements, and a Define callback returns a plain error. Attach a remedy
-// with TaskHandle.Next / TaskHandle.NextCommand.
+// with the Next / NextCommand ProblemOptions on Fail, Block, or Problem.
 type Failure struct {
 	err   error
 	cause error

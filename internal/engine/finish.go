@@ -267,8 +267,9 @@ func (o *Output) abnormalFinishLocked() bool {
 }
 
 // attachUnresolvedTaskHintLocked attaches unresolvedTaskHint to t directly.
-// It cannot go through TaskHandle.Next, which refuses once Finish has set
-// o.finishing — this runs from inside Finish's own unresolved-task sweep.
+// A Problem cannot carry it: Finish's unresolved-task sweep runs after
+// o.finishing is set, when TaskHandle.Problem refuses new records, and the
+// task has no caller-authored diagnostic to own the hint.
 func attachUnresolvedTaskHintLocked(t *taskState) {
 	t.actions = append(t.actions, Label(unresolvedTaskHint))
 	t.markFiling()
@@ -325,7 +326,7 @@ const unresolvedTaskIncompleteSummary = "incomplete — run concluded before fin
 
 // unresolvedTaskHint names the concrete corrective action for a task Finish
 // found with no final state — rendered as a "→" conclusion action the same
-// way Confirm's own policy hint renders (TaskHandle.Next), replacing the raw
+// way Confirm's own policy hint renders (the Next ProblemOption), replacing the raw
 // "misuse: <name>: evo: ..." sentinel text that told the reader nothing
 // about what to do next (release-gate finding 3).
 const unresolvedTaskHint = "call Define, Fail, Block, or Skipped on this task"

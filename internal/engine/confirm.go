@@ -163,8 +163,7 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 	}
 
 	if o.cfg.plain {
-		gate.Block(confirmPolicyBlockedSummary)
-		gate.attachActions(cfg.resolvedPolicyHint(o))
+		gate.Block(confirmPolicyBlockedSummary, Next(cfg.resolvedPolicyHint(o)))
 		o.flushGateNow(gate.id)
 		return false
 	}
@@ -224,8 +223,7 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 			// wording above: the reader was told nothing arrived, not that a
 			// deliberate policy refused the prompt (release-gate round 4
 			// finding 6).
-			gate.Block(confirmEOFSummary)
-			gate.attachActions(cfg.resolvedPolicyHint(o))
+			gate.Block(confirmEOFSummary, Next(cfg.resolvedPolicyHint(o)))
 			o.flushGateNow(gate.id)
 			return nil
 		}
