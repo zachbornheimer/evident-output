@@ -14,7 +14,7 @@ func verifyRules() []Rule {
   return os.WriteFile(path, data, 0o644)
 })`,
 			GoodCode: `task.Define(func(ctx context.Context) error {
-  return evo.File(ctx, evo.FileSpec{Path: path, Contents: data})
+  return evo.File{Path: path, Content: evo.Bytes(data)}.Write(ctx)
 })`,
 			Remediation:     "Move the mutation into Define; add Verify only when the resulting state can be observed directly",
 			RelatedGuidance: []string{"common-api", "evidence-provenance"},
@@ -53,7 +53,7 @@ func verifyRules() []Rule {
   return os.WriteFile(path, data, 0o644)
 })`,
 			GoodCode: `task.Define(func(ctx context.Context) error {
-  return evo.File(ctx, evo.FileSpec{Path: path, Contents: data})
+  return evo.File{Path: path, Content: evo.Bytes(data)}.Write(ctx)
 })`,
 			Remediation:     "Replace the raw os/exec/db call with evo.File or evo.Exec; wrap a mutation neither models (a database or API change) in evo.Effect so dry-run skips it",
 			RelatedGuidance: []string{"common-api", "evidence-provenance"},

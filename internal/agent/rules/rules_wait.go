@@ -49,7 +49,7 @@ return jobs.Wait()`,
 return evo.Effect(ctx, spec, func(ctx context.Context) error {
   return evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}) // nested: ctx already holds "from"
 })`,
-			GoodCode: `if err := evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}); err != nil {
+			GoodCode: `if err := (evo.File{Path: to, Content: evo.Bytes(marker)}).Write(ctx); err != nil {
   return err
 }
 spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
@@ -82,7 +82,7 @@ func (w *Writer) write(ctx context.Context, contents []byte) error {
   path string
 }
 func (w *Writer) write(ctx context.Context, contents []byte) error {
-  return evo.File(ctx, evo.FileSpec{Path: w.path, Contents: contents})
+  return evo.File{Path: w.path, Content: evo.Bytes(contents)}.Write(ctx)
 }
 // A non-File operation over the same path claims it explicitly instead:
 func (w *Writer) archive(ctx context.Context) error {
@@ -113,10 +113,10 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 // same file — avoid concurrent write race
 cacheWarmTask.After(configTask)`,
 			GoodCode: `configTask.Define(func(ctx context.Context) error {
-  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
+  return evo.File{Path: "config.json", Content: evo.Bytes(cfg)}.Write(ctx)
 })
 cacheWarmTask.Define(func(ctx context.Context) error {
-  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
+  return evo.File{Path: "config.json", Content: evo.Bytes(cfg)}.Write(ctx)
 })
 // no .After: both Tasks write the identical config.json, and File already
 // claims the path and serializes the overlap`,
