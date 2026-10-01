@@ -205,14 +205,5 @@
       }
     ],
     "default": false
-  },
-  {
-    "id": "C16-016",
-    "section": "16",
-    "quote": "`summary` is pending implementation, §30",
-    "tier": "1.1",
-    "tests": [],
-    "waiver": "STALE-SPEC: the evo.run task entry already emits `summary` (internal/wire/run.go); WP2 must delete the 'pending implementation' clause.",
-    "default": false
   }
 ]

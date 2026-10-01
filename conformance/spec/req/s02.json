@@ -166,7 +166,7 @@
   {
     "id": "C02-013",
     "section": "2",
-    "quote": "Actions attach to Block and Fail through one canonical path",
+    "quote": "Actions attach to Block and Fail through one path only: `evo.Next(action)` or `evo.NextCommand(executable, args...)` passed as ProblemOptions to `Problem`, `Block`, or `Fail`.",
     "tier": "1.1",
     "tests": [
       {
@@ -179,10 +179,14 @@
   {
     "id": "C02-014",
     "section": "2",
-    "quote": "`TaskHandle.Next`, `TaskHandle.NextCommand`, `Output.Next`, and `Output.NextCommand` attach one.",
+    "quote": "a recommended next step, attached only by the `Next` and `NextCommand` ProblemOptions.",
     "tier": "1.1",
-    "tests": [],
-    "waiver": "STALE-SPEC: contradicts the settled decision that Next/NextCommand are ProblemOptions only (TaskHandle/Output variants are removed); WP2 must rewrite this sentence. Needs decision recorded in the contract.",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/surface",
+        "run": "TestC02_041_ActionsAttachThroughOnlyTheProblemOptionPath"
+      }
+    ],
     "default": false
   },
   {
@@ -361,10 +365,14 @@
   {
     "id": "C02-028",
     "section": "2",
-    "quote": "Live activity, never terminal: `Doing(text)` names the current activity;",
+    "quote": "`Doing(text string, args ...any)` names the current activity;",
     "tier": "1.1",
-    "tests": [],
-    "waiver": "STALE-SPEC: code signature is Doing(text string, args ...any) (variadic format args); WP2 must state the variadic form in the contract.",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_028_DoingFormatsItsVariadicArguments"
+      }
+    ],
     "default": false
   },
   {
@@ -883,46 +891,31 @@
   {
     "id": "C02-066",
     "section": "2",
-    "quote": "`MaxFrameRate`, `MaxEntities`, `MaxEvents`, `Options`.",
+    "quote": "`ProcessRunner` and `FileFS` are the injection points for process execution and the file system.",
     "tier": "1.1",
-    "tests": [],
-    "waiver": "STALE-SPEC: Config.Options was removed from the exported API (testdata/api_golden.txt); WP2 must drop `Options` from the Config list.",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/exec",
+        "run": "TestC30_060_RanIsFalseWhenExecDidNotSpawn"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileCreateKeepsV10ModeContractForInjectedFileFS"
+      }
+    ],
     "default": false
   },
   {
     "id": "C02-067",
     "section": "2",
-    "quote": "`ProcessRunner`, `ProcessCommand`, `ProcessOutcome`, and `Runner(r)`: the injectable process facade.",
+    "quote": "the injectable process facade, set as `Config.ProcessRunner`.",
     "tier": "1.1",
-    "tests": [],
-    "waiver": "STALE-SPEC: `Runner(r)` is not exported; the facade is Config.ProcessRunner (and Config.FileFS). WP2 must name Config.ProcessRunner/FileFS instead.",
-    "default": false
-  },
-  {
-    "id": "C02-068",
-    "section": "2",
-    "quote": "a second machine encoding beside `evo.run`/`evo.event`, still used for `FormatData`/`FormatExternal` under `EVO_OUTPUT`.",
-    "tier": "1.1",
-    "tests": [],
-    "waiver": "STALE-SPEC: EncodeJSON/EncodeJSONL/EncodeEventJSON/JSONDocument/EventJSON/JSONSchemaVersion/EventSchemaVersion are no longer exported; internal legacy encoder still holds schema 0.4/0.3. Needs decision: delete legacy encoder or keep internal; then fix the text.",
-    "default": false
-  },
-  {
-    "id": "C02-069",
-    "section": "2",
-    "quote": "`Config.Options` with `Option` constructors",
-    "tier": "1.1",
-    "tests": [],
-    "waiver": "STALE-SPEC: no Option type or constructors exist in the exported API; WP2 must delete this bullet.",
-    "default": false
-  },
-  {
-    "id": "C02-070",
-    "section": "2",
-    "quote": "`ReasonOption` (`ForSkip`, `OnTask`, `ErrReasonSkipOnly`, `ErrReasonWrongTask`): exported with no public consumer.",
-    "tier": "1.1",
-    "tests": [],
-    "waiver": "STALE-SPEC: removed from the root API already; internals (engine/export.go ReasonOption, errors.go ErrReasonSkipOnly) remain. Needs decision: delete internals; then drop the bullet.",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/exec",
+        "run": "TestC30_060_RanIsFalseWhenExecDidNotSpawn"
+      }
+    ],
     "default": false
   }
 ]

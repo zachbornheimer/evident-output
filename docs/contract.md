@@ -211,7 +211,7 @@ The rest of this section maps the exported API onto the vocabulary above. No nam
 - `Output`: one run's runtime truth and every projection of it. The package-level default instance is the front door.
 - `Init(Config) *Output`: the only constructor. It installs the default instance unless `Config.Isolated` is set.
 - `Default()`, `SetDefault(out)`, `DefaultConfig()`: read or replace the default instance and its baseline Config.
-- `Config`: ordinary wiring. `Title` names the run in the conclusion band. `Subject` is a durable header line (a repo path, a host). `Facts` are run-scoped Facts known at construction. `Stdout`, `Stderr`, `Result`, `Stdin` are the streams. `Verbosity`, `Color`, `Glyphs`, `Plain`, `Width` shape human output. `Format` routes streams and `Projection` selects encoding. `Debug` configures the debug journal. `DryRun` and `Preview` select planned tense. `Isolated` returns an independent Output. `MaxConcurrency` bounds executing callbacks (zero means GOMAXPROCS). `FailedExitCode` overrides exit 2 for Failed. `StateDir` and `AppID` place the manifest. Advanced: `Clock`, `Redactor`, `Terminal`, `Strict`, `VisibilityDelay` (built with `Delay(d)`), `MaxFrameRate`, `MaxEntities`, `MaxEvents`, `Options`.
+- `Config`: ordinary wiring. `Title` names the run in the conclusion band. `Subject` is a durable header line (a repo path, a host). `Facts` are run-scoped Facts known at construction. `Stdout`, `Stderr`, `Result`, `Stdin` are the streams. `Verbosity`, `Color`, `Glyphs`, `Plain`, `Width` shape human output. `Format` routes streams and `Projection` selects encoding. `Debug` configures the debug journal. `DryRun` and `Preview` select planned tense. `Isolated` returns an independent Output. `MaxConcurrency` bounds executing callbacks (zero means GOMAXPROCS). `FailedExitCode` overrides exit 2 for Failed. `StateDir` and `AppID` place the manifest. Advanced: `Clock`, `Redactor`, `Terminal`, `Strict`, `VisibilityDelay` (built with `Delay(d)`), `MaxFrameRate`, `MaxEntities`, `MaxEvents`. `ProcessRunner` and `FileFS` are the injection points for process execution and the file system.
 - `RunFunc`: `func(context.Context) error`, the application body.
 - `Main(run) int`: runs `run` on the default instance with SIGINT/SIGTERM wired to cancellation, then Finish and Close, and returns the exit code. It never exits the process: `os.Exit(evo.Main(run))` does.
 - `Run(ctx, run) Result` and `Output.Run(ctx, run) Result`: the non-exiting reconciler. `Result` carries the Conclusion and the error `run` returned; `Result.ExitCode()` is the derived code.
@@ -236,7 +236,7 @@ The rest of this section maps the exported API onto the vocabulary above. No nam
 - `TaskHandle.Define(fn) *TaskHandle`: submits the Task's work to the scheduler. It never runs `fn` inline. A nil return succeeds unless an error-severity Problem was recorded.
 - `TaskHandle.Wait()`, `GroupHandle.Wait()`, `SequenceHandle.Wait()`: block until settled and return the aggregate error (§30).
 - `TaskHandle.Context()`: the Task's scheduler-owned context. `TaskHandle.Cancel(reason)`: cancel this Task.
-- Live activity, never terminal: `Doing(text)` names the current activity; `Progress(completed, total)` sets an absolute count, and the current item is `Progress(i, total).Doing(item)`. `Bytes(completed, total)` is Progress formatting sugar.
+- Live activity, never terminal: `Doing(text string, args ...any)` names the current activity; `Progress(completed, total)` sets an absolute count, and the current item is `Progress(i, total).Doing(item)`. `Bytes(completed, total)` is Progress formatting sugar.
 - `TaskHandle.Writer()`: an advanced stream adapter for a child process. Its last line becomes live activity, and a bounded, redacted tail is retained as Capture.
 
 #### Outcomes
@@ -248,7 +248,7 @@ The rest of this section maps the exported API onto the vocabulary above. No nam
 - `Summary(text) *TaskHandle`: non-terminal result headline (§30).
 - `Verify(fn) *TaskHandle`: a read-only Evidence check (§5).
 - `Reason(name) TaxonomyReason`: a named, compile-time-stable reason for Skipped (`TaxonomyReason.Name()`). Each call records one `TaxonomyRecord`.
-- `Failure`: the error a Block or Fail outcome carries; `Unwrap` exposes the cause. Actions attach to Block and Fail through one canonical path (the `Next`/`NextCommand` ProblemOptions or `TaskHandle.Next`), fixed by the 1.1 release blocker.
+- `Failure`: the error a Block or Fail outcome carries; `Unwrap` exposes the cause. Actions attach to Block and Fail through one path only: `evo.Next(action)` or `evo.NextCommand(executable, args...)` passed as ProblemOptions to `Problem`, `Block`, or `Fail`. `TaskHandle.Next`, `TaskHandle.NextCommand`, `Output.Next`, `Output.NextCommand`, `Failure.Next`, and `Failure.NextCommand` do not exist.
 - Run scope: `Output.Fail(summary, opts...)` states a run-level failure. A run-level warning is a Problem with `Severity(SeverityWarning)`. There is no `Output.Failf`, `Output.Warn`, or `evo.Warn`.
 - `EntityState`: `Pending`, `Running`, `Done`, `Failed`, `Blocked`, `Cancelled`, `NotStarted`, `Skipped`, `Incomplete`, `Empty`. These are snapshot states that project the canonical outcomes.
 - `Resolution` of a Done Task: `ResolutionExecuted` (Succeeded), `ResolutionAlreadySatisfied` (AlreadySatisfied), `ResolutionNoWork`.
@@ -260,7 +260,7 @@ The rest of this section maps the exported API onto the vocabulary above. No nam
 - Evidence: the Task-level answer to "is the requested state satisfied now?" (§5). `TaskEvidence` holds the before and after `EvidencePhase` observations.
 - `Fact(name, value)` on `TaskHandle`, `Output`, and the package: structured information learned. Hidden in normal human output, always in machine output (§11). `FactRecord` is its recorded form.
 - `Problem`: one structured diagnostic attached to real work. `ProblemOption`s: `Severity(value)`, `Detail(text)`, `Code(value)`, `On(subject)`, `Location(path, line, column)`, `Count(value, unit...)`, `Next(action)`, `NextCommand(executable, args...)`. `Attachment`, `Field`, and `SourceLocation` are its structured parts.
-- `Action`, built by `Command(executable, args...)` or `Label(text)`: a recommended next step. `TaskHandle.Next`, `TaskHandle.NextCommand`, `Output.Next`, and `Output.NextCommand` attach one. Actions on any Problem reach the run's next-steps output.
+- `Action`, built by `Command(executable, args...)` or `Label(text)`: a recommended next step, attached only by the `Next` and `NextCommand` ProblemOptions. Actions on any Problem reach the run's next-steps output.
 - Stable problem codes: `ProblemCodeVerificationUnsatisfied`, `ProblemCodeDuplicateSiblingName`.
 
 #### Effect
@@ -288,7 +288,7 @@ The rest of this section maps the exported API onto the vocabulary above. No nam
 - `Exec(ctx, ExecSpec) (ExecResult, error)`: run one child process with Evo-owned spawning, capture, live activity, cancellation, redaction, provenance, and output verification.
 - `ExecSpec`: `Executable`, `Args` (literal, no shell), `Dir`, `Env` (explicit entries only enter the fingerprint), `Basis`, `Outputs` (declared outputs; none means always run).
 - `ExecResult`: `Ran`, `ExitCode`, `Stdout`, `Stderr`, `Truncated`. The streams are the bounded, redacted Capture tail, not a data channel.
-- `ProcessRunner`, `ProcessCommand`, `ProcessOutcome`, and `Runner(r)`: the injectable process facade.
+- `ProcessRunner`, `ProcessCommand`, and `ProcessOutcome`: the injectable process facade, set as `Config.ProcessRunner`.
 - Errors: `ErrExecSpecMissingExecutable`, `ErrExecExecutableNotFound`, `ErrExecNonzeroExit`, `ErrExecOutputMissingAfterSuccess`.
 
 #### Resource
@@ -320,9 +320,6 @@ The rest of this section maps the exported API onto the vocabulary above. No nam
 
 Under the freeze rule, these exports are neither canonical words nor helpers of one. Each must justify its existence (a real consumer and one concept it serves) before the 1.1.0 release or be removed in 1.1. They are never taught.
 
-- Snapshot encoding `EncodeJSON`, `EncodeJSONL`, `EncodeEventJSON`, `JSONDocument` and its `JSON*` parts, `EventJSON`, `JSONSchemaVersion` (`0.4`), `EventSchemaVersion` (`0.3`): a second machine encoding beside `evo.run`/`evo.event`, still used for `FormatData`/`FormatExternal` under `EVO_OUTPUT`.
-- `Config.Options` with `Option` constructors (`To`, `AlsoWrite`, `Plain`, `NoColor`, `Stdin`, `DryRun`, `Width`, `Clock`, `Terminal`, `Glyphs`, `Title`, `Redact`, `Runner`, `Strict`, `MaxEntities`, `MaxEvents`, `MaxFrameRate`, `VisibilityDelay`, `Diagnostics`, `ResultStream`, `DataProjection`, `ExternalProjection`, `DebugLevel`, `DebugAddSource`, `DebugHistory`, `DebugPane`): duplicates Config fields. Review already rewrites them to Config fields.
-- `ReasonOption` (`ForSkip`, `OnTask`, `ErrReasonSkipOnly`, `ErrReasonWrongTask`): exported with no public consumer.
 - The capture-oriented `Evidence*` names are covered by the Capture decision above.
 
 #### Misuse and lifecycle errors
@@ -765,7 +762,7 @@ Selection:
 - With no `Format` chosen, `EVO_OUTPUT=json` selects `FormatJSON` and `EVO_OUTPUT=jsonl` selects `FormatJSONL`. `EVO_OUTPUT=human|plain|stream-json`, `EVO_COLOR=auto|always|never`, `EVO_VERBOSE=1`, and `EVO_DEBUG=info|debug|trace` select the rest. Explicit Config wins over the environment; the environment wins over TTY inference.
 - Evo never infers machine output because stdout is a pipe. The caller states it.
 
-The `evo.run` task entry carries `id`, `key`, `parent_id`, `name`, `state`, `resolution`, `definition_executed`, `evidence`, `progress`, `activity`, `timing`, `verification`, `tracked_resources`, `basis`, `facts`, `dispositions`, `problems`, `warnings`, `operations`, and `summary` (`summary` is pending implementation, §30). Collections carry `kind`, `state`, `summary`, `progress`, and `children`. Top-level `data` carries `tasks`, `collections`, `effects` (each tagged `planned` or `changed`), `facts`, `problems`, and `actions`.
+The `evo.run` task entry carries `id`, `key`, `parent_id`, `name`, `state`, `resolution`, `definition_executed`, `evidence`, `progress`, `activity`, `timing`, `verification`, `tracked_resources`, `basis`, `facts`, `dispositions`, `problems`, `warnings`, `operations`, and `summary`. Collections carry `kind`, `state`, `summary`, `progress`, and `children`. Top-level `data` carries `tasks`, `collections`, `effects` (each tagged `planned` or `changed`), `facts`, `problems`, and `actions`.
 
 Machine output should preserve, where applicable:
 
@@ -1169,8 +1166,6 @@ This section states, as normative behavior, the 1.1 API-freeze decisions (2026-0
 ### Task Summary
 
 `Summary(text string) *TaskHandle` is one sanitized single-line result field. The last call wins; empty clears. It never resolves lifecycle and is not live activity. It renders after the Task name on the settled row (`✓ branches  459 checked`). `GroupHandle.Summary` and `SequenceHandle.Summary` share its sanitization and projection. `TaskSnapshot`, `evo.run`, and `evo.event` expose it as `summary`. Summary never carries mutation, dry-run, or already-satisfied narration; those belong to Effect, File, Evidence, and Facts (review API-060).
-
-Pending implementation: the as-built `evo.run` task entry and event stream do not yet carry the Task `summary` (collections do). The contract is the target.
 
 ### Scheduling and MaxConcurrency
 

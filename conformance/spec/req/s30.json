@@ -4,7 +4,12 @@
     "section": "30",
     "quote": "Every `TaskHandle` method is a safe no-op on a nil handle.",
     "tier": "1.1",
-    "tests": [{ "pkg": ".", "run": "TestNilTaskHandleIsSafeForEveryMethod" }],
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestNilTaskHandleIsSafeForEveryMethod"
+      }
+    ],
     "default": false
   },
   {
@@ -13,7 +18,10 @@
     "quote": "An After cycle settles each member Blocked with one `dependency cycle: a → b → a` line.",
     "tier": "1.1",
     "tests": [
-      { "pkg": "./internal/engine", "run": "TestAfterCycle_SettlesBlockedInsteadOfHanging" }
+      {
+        "pkg": "./internal/engine",
+        "run": "TestAfterCycle_SettlesBlockedInsteadOfHanging"
+      }
     ],
     "default": false
   },
@@ -22,7 +30,12 @@
     "section": "30",
     "quote": "Severity defaults to `SeverityError`: an error Problem fails the owning Define if the callback otherwise returns nil.",
     "tier": "1.1",
-    "tests": [{ "pkg": ".", "run": "TestProblem_DefaultSeverityFailsTaskAndRun" }],
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestProblem_DefaultSeverityFailsTaskAndRun"
+      }
+    ],
     "default": false
   },
   {
@@ -244,15 +257,6 @@
         "run": "TestAPI060_SummaryResultMetadataGoodCode_StaysSilent"
       }
     ],
-    "default": false
-  },
-  {
-    "id": "C30-017",
-    "section": "30",
-    "quote": "Pending implementation: the as-built `evo.run` task entry and event stream do not yet carry the Task `summary` (collections do). The contract is the target.",
-    "tier": "1.1",
-    "tests": [],
-    "waiver": "STALE-SPEC: the as-built evo.run task entry and event stream now carry `summary` (internal/wire/run.go:326, schema/run.v2.json, TestSummary_ReachesRunDocumentAndEventStream passes), so this 'Pending implementation' paragraph is out of date; delete it from the contract.",
     "default": false
   },
   {
