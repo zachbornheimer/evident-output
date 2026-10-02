@@ -28,25 +28,29 @@ type liveCategory struct {
 // no information of its own, so it paints no header — never a
 // "categories  0/0 complete" row counting Tasks it does not directly hold.
 func TestPruneContract_LiveCategoriesRenderContract18Frame(t *testing.T) {
+	checkedOut, protected := evo.Reason("checked out"), evo.Reason("protected")
+	dirty, tracked := evo.Reason("dirty"), evo.Reason("tracked")
+	live := []liveCategory{
+		{"branches", "feat/style-contract", 120, 459, []keptItem{{"feat/wt-a", checkedOut}, {"main", protected}}},
+		{"worktrees", "eapp-system-style-contract-heading", 70, 294, []keptItem{{"../wt-a", dirty}, {"../wt-b", dirty}}},
+		{"remote-tracking", "origin/old-style", 1, 4, []keptItem{{"origin/main", tracked}, {"origin/dev", tracked}}},
+	}
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
+	// Every category's work Task blocks until release, so all must run at
+	// once: size the ceiling to them, not to GOMAXPROCS (1 on a loaded gate).
 	out := evo.Init(evo.Config{
 		Isolated: true, Clock: clock, Terminal: screen, Stdout: io.Discard, Stderr: io.Discard,
 		VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever, MaxFrameRate: 1_000_000,
+		MaxConcurrency: len(live),
 	})
 	t.Cleanup(func() { _ = out.Close() })
 
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
-	checkedOut, protected := evo.Reason("checked out"), evo.Reason("protected")
-	dirty, tracked := evo.Reason("dirty"), evo.Reason("tracked")
 	categories := out.Group("categories")
 	var repaint []func()
-	for _, c := range []liveCategory{
-		{"branches", "feat/style-contract", 120, 459, []keptItem{{"feat/wt-a", checkedOut}, {"main", protected}}},
-		{"worktrees", "eapp-system-style-contract-heading", 70, 294, []keptItem{{"../wt-a", dirty}, {"../wt-b", dirty}}},
-		{"remote-tracking", "origin/old-style", 1, 4, []keptItem{{"origin/main", tracked}, {"origin/dev", tracked}}},
-	} {
+	for _, c := range live {
 		items := categories.Group(c.name)
 		work := items.Task(c.name)
 		classifying := make(chan struct{})

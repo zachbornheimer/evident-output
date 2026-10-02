@@ -136,8 +136,11 @@ func TestContainerDefine_BuilderRunsOnceAfterPredecessor(t *testing.T) {
 }
 
 func TestContainerDefine_GroupChildrenRunConcurrently(t *testing.T) {
-	out := newQuietOutput(t, false)
 	const n = 4
+	// The barrier needs all n children running at once; size the ceiling
+	// to it instead of GOMAXPROCS (1 on a loaded gate, a silent hang).
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true, MaxConcurrency: n})
+	t.Cleanup(func() { _ = out.Close() })
 	var ready sync.WaitGroup
 	ready.Add(n)
 	g := out.Group("g")

@@ -80,7 +80,10 @@ func TestSpecP4_SequenceDefine_DeclarationOrder(t *testing.T) {
 
 func TestSpecAfter_FetchWaitsForGroups(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Isolated: true, Title: "fetch", Stdout: bytes.NewBuffer(nil), Plain: true, Color: evo.ColorNever, Clock: testkit.NewClock()})
+	// wt-a and br-a block until released, so both must run at once; size
+	// the ceiling to them instead of GOMAXPROCS (1 on a loaded gate).
+	const blockedTasks = 2
+	out := evo.Init(evo.Config{Isolated: true, Title: "fetch", Stdout: bytes.NewBuffer(nil), Plain: true, Color: evo.ColorNever, Clock: testkit.NewClock(), MaxConcurrency: blockedTasks})
 	t.Cleanup(func() { _ = out.Close() })
 
 	worktrees := out.Group("worktrees")

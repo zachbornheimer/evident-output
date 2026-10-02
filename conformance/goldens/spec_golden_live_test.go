@@ -3,6 +3,7 @@ package goldens_test
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -583,52 +584,42 @@ func TestSpecP26_LiveFrame_ResizeMidRun_DropsToCompactDialect(t *testing.T) {
 // TestSpecConcurrentGroups_BothRunning covers the dialect's concurrent
 // Group live check: two sibling Groups both Running, each collapsed to one
 // aggregate spinner row.
+//
+// Every Task blocks until release, so all six must run at once: the ceiling
+// is sized to them rather than left to GOMAXPROCS, which a loaded host's
+// test runner may set to 1 (a silent hang, not a failure).
 func TestSpecConcurrentGroups_BothRunning(t *testing.T) {
 	t.Parallel()
+	const blockedTasks = 6
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := newLiveScreenOutput(screen)
+	out := newLiveScreenOutputCfg(screen, evo.Config{MaxConcurrency: blockedTasks})
 	t.Cleanup(func() { _ = out.Close() })
 
 	worktrees := out.Group("worktrees")
 	branches := out.Group("branches")
-	wtStarted := make(chan struct{})
-	brStarted := make(chan struct{})
+	// The frame is read only once every Task is running: a Task declared but
+	// not yet started paints ○, so reading earlier races its start.
+	var started sync.WaitGroup
+	started.Add(blockedTasks)
 	release := make(chan struct{})
 	wtDone := make(chan struct{})
 	brDone := make(chan struct{})
 	defer func() { <-wtDone; <-brDone }()
 	defer close(release)
 
-	go func() {
-		defer close(wtDone)
-		for _, name := range []string{"wt-a", "wt-b", "wt-c"} {
-			worktrees.Task(name).Define(func(ctx context.Context) error {
-				select {
-				case <-wtStarted:
-				default:
-					close(wtStarted)
-				}
+	declare := func(group *evo.GroupHandle, names []string, done chan<- struct{}) {
+		defer close(done)
+		for _, name := range names {
+			group.Task(name).Define(func(ctx context.Context) error {
+				started.Done()
 				<-release
 				return nil
 			})
 		}
-	}()
-	go func() {
-		defer close(brDone)
-		for _, name := range []string{"br-a", "br-b", "br-c"} {
-			branches.Task(name).Define(func(ctx context.Context) error {
-				select {
-				case <-brStarted:
-				default:
-					close(brStarted)
-				}
-				<-release
-				return nil
-			})
-		}
-	}()
-	<-wtStarted
-	<-brStarted
+	}
+	go declare(worktrees, []string{"wt-a", "wt-b", "wt-c"}, wtDone)
+	go declare(branches, []string{"br-a", "br-b", "br-c"}, brDone)
+	started.Wait()
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "worktrees") || !strings.Contains(got, "branches") {
