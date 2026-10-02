@@ -523,3 +523,27 @@ mid-fill) and the child failed, though its tree was unchanged.
   runs `MkdirAll` and retries once, and a stage prepared apart makes the
   root before creating its directory. `MkdirAll` is safe under concurrent
   recreation.
+
+## Rulings (2026-10-01, bounded manifest lock)
+
+- **A run never waits on another run's manifest lock forever.** Open
+  retries a non-blocking lock with backoff (5 ms doubling to 200 ms) for
+  at most `Config.LockWait`, default `manifest.DefaultLockWait` (3 s).
+  Cancelling the context ends the wait at once with the context's error.
+  Before this, the lock was a blocking `flock`; with no context deadline,
+  a leaked test binary or a crashed run still holding the lock stalled
+  Evo indefinitely at near-zero CPU.
+- **Past the bound, the run continues without history.** Open returns a
+  Store with an empty document, so every operation checks the live
+  filesystem (safe re-execution, spec §11.3), and with writes discarded,
+  so it never races the run that holds the lock. `Warning()` reports it as
+  `manifest.ErrBusy`, and the engine prints it once as the one-line
+  manifest notice: `manifest: in use by another run: <path>.lock held past
+3s; running without history`.
+- **Manifests share the publish cache root.** The default manifest
+  location derives from `cacheroot.Dir()` (`EVO_CACHE_DIR` when set,
+  otherwise the user cache directory). Test binaries already point that
+  root at scratch space through `cacherootest`, and child processes inherit
+  it, so no test reads, writes, or waits on a manifest under the real
+  user cache. `manifesttest.Run` now delegates to `cacherootest.Run`; the
+  in-process-only `manifest.RedirectCacheDir` is removed.

@@ -17,6 +17,13 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   later publish.
 - The live renderer no longer races the engine on item tallies
   (`Tally.Snapshot`).
+- A run waits at most 3 s (`manifest.DefaultLockWait`) for another run's
+  manifest lock, then continues without history and prints one notice
+  (`manifest: in use by another run: ... running without history`),
+  instead of waiting forever on a leaked or crashed holder.
+- Manifests live under the shared cache root (`EVO_CACHE_DIR` when set),
+  so test binaries and their child processes never touch the real user
+  cache.
 
 ### Changed (1.2, breaking): ZYS-1382 filesystem vocabulary
 
