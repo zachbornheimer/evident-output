@@ -29,7 +29,11 @@ func (o *Output) manifestFor(ctx context.Context) (*manifest.Store, error) {
 	}
 	cfg := manifest.Config{AppID: o.cfg.appID, StateDir: o.cfg.stateDir, Workspace: workspace}
 	store, err := manifest.Open(ctx, cfg, manifest.NewOSEnvironment())
-	return o.publishManifest(store, err, manifestApplication(ctx, o.cfg.appID, err))
+	published, publishErr := o.publishManifest(store, err, manifestApplication(ctx, o.cfg.appID, err))
+	if publishErr == nil {
+		o.emitManifestWarningOnce(published.Warning())
+	}
+	return published, publishErr
 }
 
 // openedManifest reports the cached result of an earlier manifestFor.

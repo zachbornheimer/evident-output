@@ -12,11 +12,9 @@ import (
 // lock before File claims any resource — and observes spec.Basis under
 // read claims (see observeBasis).
 func (o *Output) fileObserveBasis(ctx context.Context, taskID string, spec FileSpec, path string) ([]manifest.BasisRecord, error) {
-	store, openErr := o.manifestFor(ctx)
-	if openErr != nil {
+	if _, openErr := o.manifestFor(ctx); openErr != nil {
 		return nil, fmt.Errorf("evo: File %q: %w", path, openErr)
 	}
-	o.emitManifestWarningOnce(store.Warning())
 
 	basis, observeErr := o.observeBasis(ctx, spec.Basis)
 	if observeErr != nil {

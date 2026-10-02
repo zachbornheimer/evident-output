@@ -134,7 +134,6 @@ func (o *Output) execConsultManifest(ctx context.Context, taskID string, spec Ex
 	if openErr != nil {
 		return false, manifest.OperationRecord{}, "", "", nil, fmt.Errorf("evo: Exec %q: %w", spec.Executable, openErr)
 	}
-	o.emitManifestWarningOnce(store.Warning())
 
 	basis, err = o.execBasisRecords(ctx, spec.Basis)
 	if err != nil {
