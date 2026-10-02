@@ -33,6 +33,9 @@ func TestMigration1_1EveryRemovedNameHasDirtyRewriteCleanFixture(t *testing.T) {
 		if e.Class != vocabulary.ClassRemoved {
 			continue
 		}
+		if retiredIn1_2(e.Name) {
+			continue // covered by TestMigration1_2EveryRetiredNameHasDirtyCleanFixture
+		}
 		nRemoved++
 		fx, ok := fixtures[e.Name]
 		if !ok {

@@ -1,6 +1,12 @@
 package review_test
 
-import "strings"
+import (
+	"strings"
+	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/internal/agent/rules"
+)
 
 // evoDefineBody wraps body as the Define callback of one Task, with ctx,
 // errors, and a diff in scope: where 1.2 File/Tree/Exec/Patch calls live.
@@ -72,4 +78,68 @@ func sentinelRename(call, old, next string) migrationFixture {
 		return "if err := " + call + "; errors.Is(err, evo." + sentinel + ") {\n\treturn err\n}\nreturn nil"
 	}
 	return migrationFixture{dirty: body(old), clean: body(next)}
+}
+
+// retiredIn1_2 reports whether the retired table removed name in 1.2.
+// 1.2 names are migrations (multi-line restructures, sentinel renames), so
+// they have their own test; every other removed name keeps the strict
+// single-replace check of the 1.1 test.
+func retiredIn1_2(name string) bool {
+	for _, s := range rules.RetiredSymbols() {
+		if s.Contract == name && s.RemovedIn == rules.RetiredRelease1_2 {
+			return true
+		}
+	}
+	return false
+}
+
+// TestMigration1_2EveryRetiredNameHasDirtyCleanFixture requires each name
+// the retired table removed in 1.2 to have a dirty fixture that review flags
+// with its migration (a Suggestion or the table's Replacement in the Message), and a clean fixture that passes.
+func TestMigration1_2EveryRetiredNameHasDirtyCleanFixture(t *testing.T) {
+	fixtures := map[string]migrationFixture{}
+	addFileTreeFixtures(fixtures)
+	var retired []string
+	replacement := map[string]string{}
+	for _, s := range rules.RetiredSymbols() {
+		if s.RemovedIn != rules.RetiredRelease1_2 {
+			continue
+		}
+		replacement[s.Contract] = s.Replacement
+		retired = append(retired, s.Contract)
+		if _, ok := fixtures[s.Contract]; !ok {
+			t.Errorf("missing 1.2 fixture for retired name %s", s.Contract)
+		}
+	}
+	if len(retired) == 0 {
+		t.Fatal("retired table holds no names removed in 1.2")
+	}
+	for name := range fixtures {
+		if !retiredIn1_2(name) {
+			t.Errorf("1.2 fixture %s is not retired in 1.2 in the retired table", name)
+		}
+	}
+	for _, name := range retired {
+		fx, ok := fixtures[name]
+		if !ok {
+			continue
+		}
+		t.Run(name, func(t *testing.T) {
+			dirty := review.GoSource(name+".go", fx.dirty)
+			hit, ok := findingAbout(migrationFindings(dirty), name)
+			if !ok {
+				t.Fatalf("dirty %s: no migration finding about it; got %+v", name, dirty.Findings)
+			}
+			if guidance := hit.Suggestion + hit.Message; !strings.Contains(guidance, replacement[name]) {
+				t.Fatalf("dirty %s: finding does not carry the migration %q: %+v", name, replacement[name], hit)
+			}
+			if _, ok := rules.Explain(hit.RuleID); !ok {
+				t.Fatalf("rules.Explain(%q) failed", hit.RuleID)
+			}
+			clean := review.GoSource(name+".go", fx.clean)
+			if len(clean.Findings) != 0 || clean.RecheckRequired {
+				t.Fatalf("clean %s is dirty: recheck=%v findings=%+v", name, clean.RecheckRequired, clean.Findings)
+			}
+		})
+	}
 }
