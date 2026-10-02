@@ -135,7 +135,7 @@ func lockName(path string) string {
 // way out, and a lock on the unlinked inode would be a lock in name only.
 func tryLockFile(path string, op int) (heldLock, bool, error) {
 	for range lockStaleRetry {
-		f, err := os.OpenFile(path, lockOpenFlags, lockFileMode)
+		f, err := openLockFile(path)
 		if err != nil {
 			return heldLock{}, false, fmt.Errorf("open lock file: %w", err)
 		}
@@ -152,6 +152,20 @@ func tryLockFile(path string, op int) (heldLock, bool, error) {
 		_ = f.Close()
 	}
 	return heldLock{}, false, nil
+}
+
+// openLockFile opens (creating) the lock file at path. A lock directory
+// deleted since it was resolved (a cache cleaner, say) is recreated and the
+// open retried once; the resolved path itself is kept.
+func openLockFile(path string) (*os.File, error) {
+	f, err := os.OpenFile(path, lockOpenFlags, lockFileMode)
+	if !errors.Is(err, os.ErrNotExist) {
+		return f, err
+	}
+	if mkErr := os.MkdirAll(filepath.Dir(path), lockDirMode); mkErr != nil {
+		return nil, fmt.Errorf("recreate lock directory: %w", mkErr)
+	}
+	return os.OpenFile(path, lockOpenFlags, lockFileMode)
 }
 
 // tryFlock takes f's flock (op) without blocking.

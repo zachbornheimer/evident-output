@@ -516,3 +516,10 @@ mid-fill) and the child failed, though its tree was unchanged.
   another goroutine. `Tally.Snapshot` and `Dispositions.Snapshot` give
   the reader a copy that shares no slot later records write; no lock is
   added to the hot path.
+
+- **Lock directory and staging root are recreated on demand.** Both
+  paths are resolved once per process (HOME is not re-read). If either
+  directory is deleted later, opening a lock file that fails with ENOENT
+  runs `MkdirAll` and retries once, and a stage prepared apart makes the
+  root before creating its directory. `MkdirAll` is safe under concurrent
+  recreation.

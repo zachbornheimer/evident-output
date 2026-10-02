@@ -169,7 +169,9 @@ func newStaged(ctx context.Context, dest string, tree bool) (*Staged, error) {
 func (s *Staged) stagingPath() string {
 	name := stagingName(s.dest)
 	if s.apart {
-		return filepath.Join(stagingRoot(), filepath.Base(name))
+		root := stagingRoot()
+		_ = os.MkdirAll(root, stagingRootMode) // recreate a root deleted since it was resolved
+		return filepath.Join(root, filepath.Base(name))
 	}
 	return name
 }

@@ -12,6 +12,9 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
 - Staging reaps orphaned stages in `$(os.UserCacheDir)/evo/stage` (older
   than 1h with a free lease; a leased stage is never removed).
+- Publishing recreates the lock directory and the staging root when
+  either is deleted while the process runs, instead of failing every
+  later publish.
 - The live renderer no longer races the engine on item tallies
   (`Tally.Snapshot`).
 
