@@ -16,7 +16,12 @@ func TestElapsedFormatIsOneShapeAcrossRanges(t *testing.T) {
 	cases := map[time.Duration]string{
 		2 * time.Second:                               "2s",
 		4*time.Minute + 12*time.Second:                "4m12s",
+		time.Minute + time.Second:                     "1m01s",
+		4*time.Minute + 2*time.Second:                 "4m02s",
+		time.Minute:                                   "1m",
+		time.Hour:                                     "1h",
 		3*time.Hour + 4*time.Minute:                   "3h04m",
+		24 * time.Hour:                                "1d",
 		2*24*time.Hour + 3*time.Hour + 30*time.Minute: "2d3h",
 	}
 	for d, want := range cases {

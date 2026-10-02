@@ -1897,7 +1897,7 @@ Silent long-running work gets an automatic durable heartbeat no more often than 
 
 ```text
 • generate schema  — 30s
-• generate schema  — 60s
+• generate schema  — 1m
 ```
 
 This is intentionally much slower than the live-TTY 100ms animation contract to avoid log spam.

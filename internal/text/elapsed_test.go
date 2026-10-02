@@ -19,15 +19,25 @@ func TestFormatElapsed(t *testing.T) {
 		{999 * time.Millisecond, "0s"},
 		{1500 * time.Millisecond, "1s"},
 		{59 * time.Second, "59s"},
-		{60 * time.Second, "1m0s"},
+		{60 * time.Second, "1m"},
+		{61 * time.Second, "1m01s"},
+		{125 * time.Second, "2m05s"},
+		{4*time.Minute + 2*time.Second, "4m02s"},
+		{5 * time.Minute, "5m"},
 		{4*time.Minute + 12*time.Second, "4m12s"},
 		{59*time.Minute + 59*time.Second, "59m59s"},
-		{60 * time.Minute, "1h00m"},
+		{60 * time.Minute, "1h"},
+		{64 * time.Minute, "1h04m"},
+		{4*time.Hour + 4*time.Minute, "4h04m"},
+		{3 * time.Hour, "3h"},
 		{3*time.Hour + 4*time.Minute, "3h04m"},
 		{23*time.Hour + 59*time.Minute, "23h59m"},
-		{24 * time.Hour, "1d0h"},
+		{24 * time.Hour, "1d"},
+		{25 * time.Hour, "1d1h"},
+		{90000 * time.Second, "1d1h"},
 		{25*time.Hour + 30*time.Minute, "1d1h"},
-		{48 * time.Hour, "2d0h"},
+		{48 * time.Hour, "2d"},
+		{183600 * time.Second, "2d3h"},
 		{2*24*time.Hour + 3*time.Hour + 30*time.Minute, "2d3h"},
 	}
 	for _, tc := range cases {
@@ -38,7 +48,7 @@ func TestFormatElapsed(t *testing.T) {
 }
 
 var (
-	compactElapsed = regexp.MustCompile(`^(\d+s|\d+m\d+s|\d+h\d{2}m|\d+d\d+h)$`)
+	compactElapsed = regexp.MustCompile(`^(\d+s|\d+m(\d{2}s)?|\d+h(\d{2}m)?|\d+d(\d+h)?)$`)
 	goStringTail   = regexp.MustCompile(`h\d+m\d+s`)
 )
 
@@ -51,6 +61,17 @@ func TestFormatElapsedAlwaysCompactWithUnits(t *testing.T) {
 		}
 		if goStringTail.MatchString(got) {
 			t.Fatalf("FormatElapsed(%v) = %q, has a Duration.String tail", d, got)
+		}
+	}
+}
+
+var zeroSuffix = regexp.MustCompile(`[1-9]m0s|\dh00m|\dd0h`)
+
+func TestFormatElapsedOmitsMeaninglessZeroSuffix(t *testing.T) {
+	t.Parallel()
+	for d := time.Duration(0); d < 72*time.Hour; d += time.Minute {
+		if got := text.FormatElapsed(d); zeroSuffix.MatchString(got) {
+			t.Fatalf("FormatElapsed(%v) = %q, carries a zero suffix", d, got)
 		}
 	}
 }

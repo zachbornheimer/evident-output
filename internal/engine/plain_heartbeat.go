@@ -10,7 +10,7 @@ import (
 
 // plainHeartbeatInterval is how often silent long-running work earns an
 // automatic durable heartbeat line in plain/non-interactive human output
-// (spec §40): "• generate schema  — 30s", then "— 60s", and so on — proof
+// (spec §40): "• generate schema  — 30s", then "— 1m", and so on — proof
 // of life for a CI log between real progress milestones. Deliberately far
 // slower than the live-TTY 100ms animation contract (§23.1); the live
 // renderer proves liveness with spinner motion instead.
@@ -138,7 +138,7 @@ func (o *Output) checkPlainHeartbeat(id string) {
 }
 
 // emitPlainHeartbeatLocked writes one durable "• <name>  — <N>s" line (spec
-// §40, e.g. "• generate schema  — 30s" then "— 60s") using the same
+// §40, e.g. "• generate schema  — 30s" then "— 1m") using the same
 // DisplayUnit line grammar every plain row shares, with a distinct bullet
 // glyph so a heartbeat row is never mistaken for a real Running/Phase
 // update. Elapsed uses the one contract §32 form (txt.FormatElapsed).

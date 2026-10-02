@@ -1451,7 +1451,7 @@ In plain output, a named Group under a Sequence renders no header line; its chil
 
 ## 32. One elapsed format
 
-Elapsed and quiet durations render in one compact form everywhere: live, plain, and durable output. The form is `2s` under a minute, `4m12s` under an hour, `3h04m` under a day, and `2d3h` beyond. Minutes after an hour are zero-padded. A duration never renders without a unit, and never in the Go `Duration.String` form (`1h2m3s`, `4h12m0s`).
+Elapsed and quiet durations render in one compact form everywhere: live, plain, and durable output. The form is `2s` under a minute, `4m12s` under an hour, `3h04m` under a day, and `2d3h` beyond. A smaller unit appears only when it is non-zero, so exact units read `1m` (not `1m0s`), `1h`, and `1d`; `1m01s`, `3h04m`, and `2d3h` keep their smaller unit. A present smaller unit under a minute or an hour is zero-padded to two digits (`1m01s`, `4m02s`, `1h04m`); seconds alone are not (`2s`, `59s`). Examples: `2s`, `1m`, `1m01s`, `4m02s`, `4m12s`, `1h`, `3h04m`, `1d`, `2d3h`. A duration never renders without a unit, and never in the Go `Duration.String` form (`1h2m3s`, `4h12m0s`).
 
 ## 33. Long-running Tasks (render-only lifecycle)
 
@@ -1472,3 +1472,13 @@ A deterministic replay, with no model and no network, proves that every referenc
 The driver that calls a model needs an explicit key, a positive `--max-usd`, and `--confirm-spend`. It aborts when accumulated cost reaches the cap. It exposes only the MCP tools plus `go_build` and `submit`, with at most 40 tool turns per sample. It places the prompt-cache breakpoint on the last system block and the last tool. It reports held-out tasks as aggregates only.
 
 A hillclimb step is rejected if it touches a frozen path, edits Go beyond string literals and comments, or contains a distinctive task noun. It is accepted only at +1 or more training samples with no task down 2 or more.
+
+## 36. Owner decisions, 2026-10-02 (amend sections 17, 30 and 31)
+
+**Failure inside Define (amends 30 Problems; ZYS-1182).** The canonical form is `task.Fail(summary, evo.Detail(err.Error()), evo.NextCommand(...))` followed by `return err`; `Fail` adds structured diagnostics and the returned error remains the real failure seen by `Wait()` and callers. With nothing to add, just `return err`. `task.Fail(...); return nil` is not the pattern, and there is no `evo.Failed`. MCP flags a Fail that adds nothing beyond the returned error and keeps flagging `return nil` that swallows a real failure.
+
+**Unordered `Computed.Get` (amends 31; ZYS-1198/1199).** `Get()` keeps its single return value. An unordered Get (no Sequence order proving the predecessor settled, no `After(computed)`) deterministically fails the current operation/run with `ErrComputedUnordered` in every mode, never returns a usable zero value, and is not visible only under Strict. `After(computed)` on a container before it becomes eligible is valid (the container-owned topology shape); Sequence order needs no redundant After. Mutating dependencies or topology after the container is eligible or while its builder runs is `ErrInvalidConfig`.
+
+**Conclusion-time summary (amends 17; ZYS-1533).** The footer/conclusion stays Evo-owned and final. The application contributes an optional summary to Evo before the Conclusion is rendered; Evo renders Conclusion, then footer, then exit. There is no after-finish writer. Output printed after the run's footer is not a supported path.
+
+**MCP gap tickets (amends 21; ZYS-1369).** The Linear credential lives server-side in the MCP environment only. Until the MCP deployment has a write credential channel, a product-gap event returns `ticket_required=true` plus a paste-ready issue payload and keeps `recheck_required=true`.
