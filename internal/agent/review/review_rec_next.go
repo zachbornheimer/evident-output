@@ -67,7 +67,7 @@ func (d *recSurfaceDetector) unprovenRemedyGuidance(name string, call *ast.CallE
 }
 
 func (d *recSurfaceDetector) inspectRemovedRemedyMethod(call *ast.CallExpr, sel *ast.SelectorExpr, name string) bool {
-	if !isRemedyMethod(name) || len(call.Args) == 0 {
+	if !isRemedyMethod(name) {
 		return false
 	}
 	kind, ok := d.remedyReceiverKind(sel.X)
@@ -76,6 +76,16 @@ func (d *recSurfaceDetector) inspectRemovedRemedyMethod(call *ast.CallExpr, sel 
 	}
 	msg := string(kind) + "." + name + " was removed in 1.1; attach the remedy to the Problem it explains (" +
 		d.pkg + "." + name + " option on Problem, Fail, or Block)"
+	if len(call.Args) == 0 {
+		// A bare Next() is the iterator idiom on any unproven receiver
+		// (sql.Rows, a cursor); only a proven evo receiver is a removed call.
+		if kind == remedyOnUnproven {
+			return false
+		}
+		d.report(call, msg+"; with no action there is no remedy to attach, so delete the call", "delete "+d.nodeSrc(call)+"; add "+d.pkg+"."+name+"(...) to the Problem it explains only if a remedy is intended")
+		d.cover(call)
+		return true
+	}
 	if kind == remedyOnUnproven {
 		d.report(call, msg, d.unprovenRemedyGuidance(name, call))
 		d.cover(call)
@@ -94,22 +104,37 @@ func (d *recSurfaceDetector) inspectRemovedRemedyMethod(call *ast.CallExpr, sel 
 
 // reportRemedyRewrite picks the first rewrite that keeps the remedy on the
 // path it belongs to: fold into a sibling diagnostic on the same receiver, a
-// Problem at the error return of the Task's Define callback, or a placeholder
-// warning Problem.
+// Fail at the error return of the Task's Define callback (which still returns
+// the error), or a placeholder warning Problem.
 func (d *recSurfaceDetector) reportRemedyRewrite(call *ast.CallExpr, sel *ast.SelectorExpr, kind remedyKind, stmt remedyStatement, msg string) {
 	options := d.remedyOptions(sel.Sel.Name, call.Args)
 	if diag := d.adjacentDiagnostic(stmt, d.nodeSrc(sel.X)); diag != nil {
-		d.report(call, msg, d.foldSuggestion(diag, call, options))
+		d.reportEdit(call, msg, d.foldEdit(diag, call, options))
 		return
 	}
 	if kind == remedyOnTask {
-		if fail, ok := d.defineFailRewrite(call, sel.X, stmt, options); ok {
-			d.report(call, msg+"; this Define callback returns an error right after it, so it fails the Task with the remedy attached and returns nil", fail)
+		if edit, ok := d.defineFailRewrite(call, sel.X, stmt, options); ok {
+			d.reportEdit(call, msg+"; this Define callback returns an error right after it, so Fail records the remedy as a diagnostic and the callback still returns the error (Wait() reports it unchanged)", edit)
 			return
 		}
 	}
 	fallback, owner := d.warningProblemRewrite(sel.X, kind, options)
-	d.report(call, msg+"; no adjacent diagnostic owns it, so "+owner, replaceSuggestion(d.nodeSrc(call), fallback))
+	span := d.nodeSpan(call)
+	d.reportEdit(call, msg+"; no adjacent diagnostic owns it, so "+owner, remedyEdit{start: span.start, end: span.end, right: fallback})
+}
+
+// reportEdit reports edit as one single-line replace anchored at the line the
+// replaced text starts on. An edit that cannot be written on one line without
+// altering the code (a comment or a multi-line raw string inside it) is
+// declined: the finding stays open with guidance for a by-hand edit.
+func (d *recSurfaceDetector) reportEdit(call *ast.CallExpr, msg string, edit remedyEdit) {
+	if suggestion, ok := replaceSuggestion(d.src[edit.start:edit.end], edit.right); ok {
+		d.reportAt(edit.start, msg, suggestion)
+		return
+	}
+	name := call.Fun.(*ast.SelectorExpr).Sel.Name
+	d.report(call, msg+"; the edit would cross a comment or a multi-line raw string, so no one-line rewrite is offered",
+		"edit by hand: add "+d.pkg+"."+name+"("+d.callArgsSrc(call.Args)+") to the Fail, Block, or Problem call it explains, then delete this call")
 }
 
 // spreadMark is "..." when call's last argument is spread.

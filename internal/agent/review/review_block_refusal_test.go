@@ -9,7 +9,8 @@ import (
 
 // blockRefusalRules are the rules that used to rewrite a Block site into a
 // failure. In 1.1 Block is a statement: Block then return nil inside Define
-// keeps the Task Blocked. A plain error concludes Failed, exit 2.
+// keeps the Task Blocked (a refusal with no error). With a real error, Block
+// then return err also renders Blocked and Wait() returns the error.
 var blockRefusalRules = map[string]bool{"API-034": true, "API-036": true, "API-040": true}
 
 func blockRefusalSrc(body string) string {

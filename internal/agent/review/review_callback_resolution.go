@@ -11,9 +11,10 @@ import (
 
 // ===== API-040: Fail inside a Define/mutation callback whose result
 // is returned, directly or one call away (zq app.go:308-350's executeCommand,
-// reached from runParallel's Define at app.go:155-176). Double-resolves the
-// task: Define's own "non-nil return fails" collides with Fail's resolve
-// (evo-dialect-axes-report.md axis 3/6/12). Failf was removed in 1.1.
+// reached from runParallel's Define at app.go:155-176), when that Fail adds
+// nothing beyond the returned error. A Fail carrying Detail/Next/NextCommand
+// is the canonical diagnostic form: the returned error stays the failure
+// Wait() reports (ZYS-1182 owner decision A). Failf was removed in 1.1.
 
 func detectFailInResolvedCallback(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	funcs := map[string]*ast.BlockStmt{}
@@ -53,8 +54,8 @@ func detectFailInResolvedCallback(filename string, file *ast.File, fset *token.F
 // scanBlockForFailfReturn recurses through a block's own control-flow
 // (if/for/range/switch), never into a nested FuncLit, looking for the two
 // double-resolve shapes: `return task.Fail(...)` and `task.Fail(...)`
-// immediately followed by `return <non-nil err>`. Failf was removed in 1.1
-// and remains dirty input.
+// immediately followed by `return <non-nil err>` where the Fail adds nothing
+// beyond the returned error. Failf was removed in 1.1 and remains dirty input.
 func scanBlockForFailfReturn(filename string, block *ast.BlockStmt, fset *token.FileSet) []Finding {
 	var findings []Finding
 	stmts := block.List
@@ -85,6 +86,9 @@ func scanBlockForFailfReturn(filename string, block *ast.BlockStmt, fset *token.
 			sel, ok := call.Fun.(*ast.SelectorExpr)
 			if !ok || (sel.Sel.Name != "Fail" && sel.Sel.Name != "Block") || !isLikelyEvoReceiver(sel.X) {
 				continue
+			}
+			if failAddsDiagnostics(call) {
+				continue // Fail or Block(summary, options...) then return err: the returned error stays the failure Wait() reports
 			}
 			if i+1 >= len(stmts) {
 				continue
@@ -117,6 +121,14 @@ func scanBlockForFailfReturn(filename string, block *ast.BlockStmt, fset *token.
 	return findings
 }
 
+// failAddsDiagnostics reports whether a Fail call carries anything beyond its
+// summary: a Detail, Next, NextCommand, or any other ProblemOption. Such a Fail
+// records structured diagnostics and the callback still returns the error, so
+// Wait() and callers see the real failure (ZYS-1182 owner decision A).
+func failAddsDiagnostics(call *ast.CallExpr) bool {
+	return len(call.Args) > 1
+}
+
 func scanIfElseForFailfReturn(filename string, els ast.Stmt, fset *token.FileSet) []Finding {
 	switch e := els.(type) {
 	case *ast.BlockStmt:
@@ -131,24 +143,13 @@ func scanIfElseForFailfReturn(filename string, els ast.Stmt, fset *token.FileSet
 
 func failResolvedInCallbackFinding(filename string, pos token.Position, recv, verb, shape string) Finding {
 	suggestion := "return the error; do not call " + verb + " first"
-	switch {
-	case verb == "Block":
-		// Block then return err keeps the Task Blocked and drops err.
-		// Block is a statement: Block then return nil is the 1.1 refusal.
-		return Finding{
-			RuleID:     "API-040",
-			Message:    "Block then return err: the Task concludes Blocked and err is dropped from its refusal",
-			File:       filename,
-			Line:       pos.Line,
-			Column:     pos.Column,
-			Suggestion: recv + `.Block("<context>", evo.Detail(err.Error())); return nil`,
-		}
-	case recv != "":
-		suggestion = "replace with `return err` (or the wrapped error) and delete the " + recv + "." + verb + "(...) call; Define resolves the task from the returned error"
+	if recv != "" {
+		suggestion = "return the error and delete the bare " + recv + "." + verb + "(...) call (Define resolves the task from the returned error), " +
+			"or keep it and give it something to say: " + recv + "." + verb + "(\"<summary>\", evo.Detail(err.Error()), evo.NextCommand(...)); return err"
 	}
 	return Finding{
 		RuleID:     "API-040",
-		Message:    "the callback resolves the task; return the error, do not " + verb + " first (" + shape + " form double-resolves under Define)",
+		Message:    "the callback resolves the task; " + verb + " that adds no Detail or remedy only restates the returned error (" + shape + " form)",
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,

@@ -79,49 +79,6 @@ func TestRemovedRemedy_MultilineDiagnosticFoldsAsOneLineEdit(t *testing.T) {
 	}
 }
 
-// ZYS-1182 decision: a Define callback that fails with a remedy calls
-// Fail(summary, Detail(err), remedy) and returns nil.
-func TestRemovedRemedy_DefineErrorReturnBecomesFailAndReturnNil(t *testing.T) {
-	cases := map[string]struct{ body, want string }{
-		"literal return": {
-			"func f(task *evo.TaskHandle) {\n\ttask.Define(func(ctx context.Context) error {\n\t\ttask.NextCommand(\"zq\", \"fix\")\n\t\treturn errors.New(\"lint failed\")\n\t})\n}\n",
-			`replace task.NextCommand("zq", "fix") return errors.New("lint failed") with task.Fail("lint failed", evo.NextCommand("zq", "fix")); return nil`,
-		},
-		"guarded by if err != nil": {
-			"func f(task *evo.TaskHandle) {\n\ttask.Define(func(ctx context.Context) error {\n\t\tif err := run(); err != nil {\n\t\t\ttask.NextCommand(\"zq\", \"fix\")\n\t\t\treturn err\n\t\t}\n\t\treturn nil\n\t})\n}\n",
-			`replace task.NextCommand("zq", "fix") return err with task.Fail("` + remedyPlaceholder + `", evo.Detail(err.Error()), evo.NextCommand("zq", "fix")); return nil`,
-		},
-		"format with a verb needs the placeholder": {
-			"func f(task *evo.TaskHandle, name string) {\n\ttask.Define(func(ctx context.Context) error {\n\t\ttask.NextCommand(\"zq\", \"fix\")\n\t\treturn fmt.Errorf(\"lint %s failed\", name)\n\t})\n}\n",
-			`replace task.NextCommand("zq", "fix") return fmt.Errorf("lint %s failed", name) with task.Fail("` + remedyPlaceholder + `", evo.Detail(fmt.Errorf("lint %s failed", name).Error()), evo.NextCommand("zq", "fix")); return nil`,
-		},
-	}
-	for name, c := range cases {
-		t.Run(name, func(t *testing.T) {
-			f, src := onlyRemedyFinding(t, c.body)
-			if f.Suggestion != c.want {
-				t.Fatalf("suggestion = %q\n want %q", f.Suggestion, c.want)
-			}
-			applied, ok := tryApplyReplace(src, f.Suggestion)
-			if !ok {
-				t.Fatalf("suggestion does not apply: %q", f.Suggestion)
-			}
-			res := review.GoSource("remedy.go", applied)
-			wantOpen := strings.Contains(c.want, "with task.Fail(\""+remedyPlaceholder)
-			if res.RecheckRequired != wantOpen || len(migrationFindings(res)) != btoi(wantOpen) {
-				t.Fatalf("recheck=%v findings=%+v, want recheck=%v", res.RecheckRequired, res.Findings, wantOpen)
-			}
-		})
-	}
-}
-
-func btoi(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
-}
-
 // A return that is not provably on this Next call's path must not become a Fail:
 // the remedy would fire on a path it does not explain.
 func TestRemovedRemedy_DefineErrorReturnNeverCrossesControlFlow(t *testing.T) {

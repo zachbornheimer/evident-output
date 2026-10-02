@@ -11,21 +11,38 @@ import "go/ast"
 // result, a chain), stays unproven and its Next call is reported.
 type declaredReceiverTypes struct {
 	evoPkg string
-	// evoAliases are local type names that spell an evo type (type T = evo.TaskHandle).
+	// evoAliases are local type names that spell an evo type (type T = evo.TaskHandle)
+	// or embed one, directly or through another such type: they have the
+	// evo type's methods.
 	evoAliases map[string]bool
+	// local is every type this file declares; a type name outside it (and
+	// outside the builtins) may be declared in another file, so it proves
+	// nothing.
+	local map[string]bool
 	// nonEvo maps a value name to one flag per declaration: true when that
 	// declaration's type is known and not evo.
 	nonEvo map[string][]bool
 }
 
 func newDeclaredReceiverTypes(file *ast.File, evoPkg string) declaredReceiverTypes {
-	d := declaredReceiverTypes{evoPkg: evoPkg, evoAliases: map[string]bool{}, nonEvo: map[string][]bool{}}
+	d := declaredReceiverTypes{evoPkg: evoPkg, evoAliases: map[string]bool{}, local: map[string]bool{}, nonEvo: map[string][]bool{}}
+	var specs []*ast.TypeSpec
 	ast.Inspect(file, func(n ast.Node) bool {
-		if spec, ok := n.(*ast.TypeSpec); ok && d.spellsEvoType(spec.Type) {
-			d.evoAliases[spec.Name.Name] = true
+		if spec, ok := n.(*ast.TypeSpec); ok {
+			specs = append(specs, spec)
+			d.local[spec.Name.Name] = true
 		}
 		return true
 	})
+	for changed := true; changed; {
+		changed = false
+		for _, spec := range specs {
+			if !d.evoAliases[spec.Name.Name] && (d.spellsEvoType(spec.Type) || d.embedsEvoType(spec.Type)) {
+				d.evoAliases[spec.Name.Name] = true
+				changed = true
+			}
+		}
+	}
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch n := n.(type) {
 		case *ast.Field:
@@ -91,13 +108,46 @@ func (d declaredReceiverTypes) isKnownNonEvo(t ast.Expr) bool {
 	case *ast.StarExpr:
 		return d.isKnownNonEvo(t.X)
 	case *ast.Ident:
-		return !isBareEvoTypeName(t.Name) && !d.evoAliases[t.Name]
+		return !isBareEvoTypeName(t.Name) && !d.evoAliases[t.Name] && (d.local[t.Name] || builtinTypeNames[t.Name])
 	case *ast.SelectorExpr:
 		return !isEvoIdent(t.X, d.evoPkg)
 	case *ast.InterfaceType, *ast.StructType, *ast.ArrayType, *ast.MapType, *ast.ChanType, *ast.FuncType:
 		return true
 	}
 	return false
+}
+
+// embedsEvoType reports whether t is a struct that embeds an evo type or an
+// already-known evo-typed local (the embedded type's methods are promoted).
+func (d declaredReceiverTypes) embedsEvoType(t ast.Expr) bool {
+	st, ok := t.(*ast.StructType)
+	if !ok {
+		return false
+	}
+	for _, field := range st.Fields.List {
+		if len(field.Names) > 0 {
+			continue
+		}
+		embedded := field.Type
+		if star, ok := embedded.(*ast.StarExpr); ok {
+			embedded = star.X
+		}
+		if d.spellsEvoType(embedded) {
+			return true
+		}
+		if id, ok := embedded.(*ast.Ident); ok && (isBareEvoTypeName(id.Name) || d.evoAliases[id.Name]) {
+			return true
+		}
+	}
+	return false
+}
+
+// builtinTypeNames are the predeclared types, which a file cannot have
+// redefined as an evo type without declaring one itself.
+var builtinTypeNames = map[string]bool{
+	"any": true, "bool": true, "byte": true, "comparable": true, "complex64": true, "complex128": true, "error": true,
+	"float32": true, "float64": true, "int": true, "int8": true, "int16": true, "int32": true, "int64": true,
+	"rune": true, "string": true, "uint": true, "uint8": true, "uint16": true, "uint32": true, "uint64": true, "uintptr": true,
 }
 
 // spellsEvoType reports whether t is spelled *evo.X or evo.X.

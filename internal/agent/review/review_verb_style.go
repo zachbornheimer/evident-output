@@ -70,23 +70,20 @@ func detectPlaceholderDoing(filename, src string) []Finding {
 // name, so it matches Fail/Block statements.
 var failBlockStmtPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(`)
 
-// returnTheErrorSuggestion is how a Fail site hands its error back.
-// Inside a Define or mutation callback the returned error is what resolves
-// the task (API-040: resolving it first as well double-resolves); outside
-// one, the f-form resolves the task and returns the error in one line.
+// returnTheErrorSuggestion is how a Fail site hands its error back. Inside a
+// Define or mutation callback the returned error is what Wait() reports, so
+// the callback returns it whether or not Fail first records Detail or a
+// remedy (API-040 flags only a Fail that adds nothing); never return nil.
 func returnTheErrorSuggestion(recv, errVar string) string {
-	return "inside a Define/mutation callback: `return fmt.Errorf(\"<context>: %w\", " + errVar + ")` and drop the " +
-		recv + ".Fail call; elsewhere: " + recv + ".Fail(\"<context>\", evo.Detail(" + errVar + ".Error())); return " + errVar
+	return "return the error: " + recv + ".Fail(\"<context>\", evo.Detail(" + errVar + ".Error())); return " + errVar +
+		" (inside a Define/mutation callback with nothing to add, just `return " + errVar + "`)"
 }
 
-// handBackSuggestion is how a Fail or Block site returns errVar: the error
-// for a Fail, the refusal caused by errVar for a Block.
+// handBackSuggestion is how a Fail or Block site returns errVar: the same
+// call with Detail, then the error itself, so Wait() keeps its identity.
 func handBackSuggestion(recv, verb, errVar string) string {
-	if verb == "Block" {
-		return recv + ".Block(\"<context>\", evo.Detail(" + errVar + ".Error())); return nil: Block is a statement and keeps the Task Blocked, " +
-			"inside a Define callback too (a plain error there would conclude the Task Failed)"
-	}
-	return returnTheErrorSuggestion(recv, errVar)
+	return recv + "." + verb + "(\"<context>\", evo.Detail(" + errVar + ".Error())); return " + errVar +
+		": the row concludes " + verb + "ed and Wait() returns " + errVar + " with its identity (errors.Is holds); returning nil would lose it"
 }
 
 // detectFailBlockThenReturnNil is API-034: a statement-form Fail/Block
@@ -103,27 +100,47 @@ func detectFailBlockThenReturnNil(filename, src string) []Finding {
 		}
 		recv, verb := m[1], m[2]
 		if verb == "Block" {
-			continue // Block then return nil is the 1.1 refusal; Block is a statement
+			continue // Block then return nil is a refusal with no error to carry; with a real err, Block(...); return err keeps its identity
 		}
 		suggestion := returnTheErrorSuggestion(recv, "err")
+		if rest, ok := sameLineReturn(line); ok {
+			if rest == "return nil" {
+				findings = append(findings, failThenReturnNilFinding(filename, recv, verb, i+1, suggestion))
+			}
+			continue
+		}
 		for j := i + 1; j < len(lines) && j < i+4; j++ {
 			trimmed := strings.TrimSpace(lines[j])
 			if trimmed == "" || trimmed == "}" {
 				continue
 			}
 			if trimmed == "return nil" {
-				findings = append(findings, Finding{
-					RuleID:     "API-034",
-					Message:    recv + "." + verb + "(...) followed by return nil discards the error the caller needed to propagate",
-					File:       filename,
-					Line:       j + 1,
-					Suggestion: suggestion,
-				})
+				findings = append(findings, failThenReturnNilFinding(filename, recv, verb, j+1, suggestion))
 			}
 			break
 		}
 	}
 	return findings
+}
+
+// sameLineReturn is the statement after the last "; " when a Fail line also
+// holds its own return (the one-line form rewrites emit).
+func sameLineReturn(line string) (string, bool) {
+	i := strings.LastIndex(line, "; return")
+	if i < 0 {
+		return "", false
+	}
+	return strings.TrimSpace(line[i+2:]), true
+}
+
+func failThenReturnNilFinding(filename, recv, verb string, line int, suggestion string) Finding {
+	return Finding{
+		RuleID:     "API-034",
+		Message:    recv + "." + verb + "(...) followed by return nil discards the error the caller needed to propagate",
+		File:       filename,
+		Line:       line,
+		Suggestion: suggestion,
+	}
 }
 
 // detectDiscardSinkInFailingBlock is API-035: io.Discard wired as a sink

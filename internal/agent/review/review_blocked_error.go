@@ -42,7 +42,27 @@ func detectBlockedAsError(filename, src string) []Finding {
 	if kind == noBlockedReturn {
 		return nil
 	}
+	// Block(summary, Detail/Next/NextCommand...) then `return err` keeps the
+	// row blocked and Wait() returns that err: it records diagnostics, it does
+	// not turn the outcome into a different error.
+	if kind == returnsErr && blockCarriesOptions(lines[blockLine:line]) {
+		return nil
+	}
 	return []Finding{blockedAsErrorFinding(filename, line+1, kind)}
+}
+
+var blockOptionMarkers = []string{"evo.Detail(", "evo.Next(", "evo.NextCommand("}
+
+// blockCarriesOptions reports whether the Block statement in lines has a
+// ProblemOption that adds information beyond its summary.
+func blockCarriesOptions(lines []string) bool {
+	text := strings.Join(lines, "\n")
+	for _, m := range blockOptionMarkers {
+		if strings.Contains(text, m) {
+			return true
+		}
+	}
+	return false
 }
 
 // firstBlockLine is the index of the first line resolving a Task Blocked,

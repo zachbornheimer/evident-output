@@ -40,18 +40,27 @@ func main() {
 }
 `
 
-// applyReplace applies a "replace OLD with NEW" suggestion to src.
+// applyReplace applies a "replace OLD with NEW" suggestion to src. OLD is the
+// first split that is lexically complete and occurs verbatim in src (" with "
+// can also sit inside a literal).
 func applyReplace(t *testing.T, src, suggestion string) string {
 	t.Helper()
 	rest, ok := strings.CutPrefix(suggestion, "replace ")
 	if !ok {
 		t.Fatalf("suggestion is not a rewrite: %q", suggestion)
 	}
-	old, repl, ok := strings.Cut(rest, " with ")
-	if !ok || !strings.Contains(src, old) {
-		t.Fatalf("suggestion %q does not name source text", suggestion)
+	for offset := 0; ; {
+		i := strings.Index(rest[offset:], " with ")
+		if i < 0 {
+			t.Fatalf("suggestion %q does not name source text", suggestion)
+		}
+		cut := offset + i
+		offset = cut + 1
+		old, repl := rest[:cut], rest[cut+len(" with "):]
+		if _, closed := leftPattern(old); closed && strings.Contains(src, old) {
+			return strings.Replace(src, old, repl, 1)
+		}
 	}
-	return strings.Replace(src, old, repl, 1)
 }
 
 // TestAPI032_OptionsRewriteKeepsEveryOptionAndCompiles pins E-088: the

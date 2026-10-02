@@ -328,7 +328,7 @@ out.Task("disk space").Define(checkDiskSpace)`,
   task.Fail("validate policy manifest", evo.Detail(err.Error()))
               return err
 }`,
-			Remediation:     `Replace the Fail + return nil pair with a returned error: inside a Define/mutation callback return fmt.Errorf("<context>: %w", err) and let Define resolve the task (API-040); elsewhere Fail with evo.Detail(err.Error()) and return err. Block then return nil is the 1.1 refusal inside Define (Block is a statement)`,
+			Remediation:     `Replace the Fail + return nil pair with a returned error: Fail with evo.Detail(err.Error()) (and any evo.Next/evo.NextCommand remedy), then return err, or with nothing to add just return err; Wait() reports the returned error. Block then return nil is a refusal that carries no error; with a real err, Block(summary, evo.Detail(...)); return err keeps the error's identity for Wait() (return nil there loses it)`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-034"},
 			Since:           "0.2.17",
@@ -423,21 +423,23 @@ t.Doing("running install:fresh-start")`,
 			ID:        "API-040",
 			Category:  "API",
 			Severity:  SeverityError,
-			Invariant: "Fail inside a Define or mutation callback whose return value reaches that same callback resolves the task twice; Block then return nil is how a Define refuses",
-			Why:       "Define's own contract is \"a non-nil return fails the task\"; calling Fail on the same task and then also returning that error double-resolves it — the row is correct but a spurious second misuse line appears, and zq's taskAlreadyResolved guard exists only to paper over this (app.go:162-167).",
+			Invariant: "a Fail or Block inside a Define or mutation callback that then returns the error must add something (Detail, Next, NextCommand, or another ProblemOption); a Fail that only restates the returned error is dropped",
+			Why:       "Define's own contract is \"a non-nil return fails the task\", and Wait() reports that returned error. A bare Fail or Block(summary) before return err resolves the task a second time and adds nothing the error does not already say. Fail with Detail or a remedy records structured diagnostics, and the callback still returns the error so Wait() and callers see the real failure (ZYS-1182).",
 			BadCode: `task.Define(func(ctx context.Context) error {
   if err := a.executeCommand(ctx, root, task, item); err != nil {
-    return task.Fail("resolve", evo.Detail(err.Error()))
+    task.Fail("resolve")
+    return err
   }
   return nil
 })`,
 			GoodCode: `task.Define(func(ctx context.Context) error {
   if err := a.executeCommand(ctx, root, task, item); err != nil {
-    return err // Define's own non-nil-return-fails-the-task resolves it once
+    task.Fail("cannot resolve", evo.Detail(err.Error()), evo.NextCommand("git", "status"))
+    return err // the returned error stays the failure Wait() reports
   }
   return nil
 })`,
-			Remediation:     "Inside a Define/mutation callback, return the error and let Define resolve the task; do not call Fail on the same task first. Block then return nil is the refusal (the printf verbs were removed in 1.1)",
+			Remediation:     "Inside a Define/mutation callback, either just `return err`, or give Fail something to say (evo.Detail, evo.Next, evo.NextCommand) and then `return err`. The same holds for Block: Block with Detail or a remedy then `return err` is clean, a bare Block then `return err` adds nothing. Never `Fail(...); return nil`: that swallows the failure (API-034). Block then return nil is a refusal with no error to carry (the printf verbs were removed in 1.1)",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-040"},
 			Since:           "0.4.7",

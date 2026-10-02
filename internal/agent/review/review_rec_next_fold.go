@@ -3,24 +3,16 @@ package review
 import (
 	"go/ast"
 	"go/token"
-	"regexp"
+	"strconv"
 	"strings"
 )
 
-// A Finding.Suggestion is one line (review.go). An edit that spans statements
-// is therefore written as `replace <left> with <right>` where every newline run
-// in <left> is a single space, which matches any whitespace run in the source,
-// and <right> is one line, statements separated by "; ".
+var errorCtorPackage = map[string]string{"New": "errors", "Errorf": "fmt"}
 
-var (
-	newlineRun       = regexp.MustCompile(`\s*\n\s*`)
-	tidyOpenParen    = strings.NewReplacer("( ", "(", ", )", ")", ",)", ")", " )", ")")
-	errorCtorPackage = map[string]string{"New": "errors", "Errorf": "fmt"}
-)
-
-// replaceSuggestion renders one single-line replace edit.
-func replaceSuggestion(left, right string) string {
-	return "replace " + newlineRun.ReplaceAllString(left, " ") + " with " + tidyOpenParen.Replace(newlineRun.ReplaceAllString(right, " "))
+// remedyEdit replaces src[start:end] with right.
+type remedyEdit struct {
+	start, end int
+	right      string
 }
 
 // remedyStatement is a call that stands alone as a statement, and the block
@@ -109,11 +101,11 @@ func (d *recSurfaceDetector) plainDiagnostic(st ast.Stmt, recvSrc string) *ast.C
 	return call
 }
 
-// foldSuggestion is one replace edit that spans the two adjacent statements:
-// the diagnostic gains the options and the Next statement disappears.
-func (d *recSurfaceDetector) foldSuggestion(diag, next *ast.CallExpr, options []string) string {
+// foldEdit spans the two adjacent statements: the diagnostic gains the
+// options and the Next statement disappears.
+func (d *recSurfaceDetector) foldEdit(diag, next *ast.CallExpr, options []string) remedyEdit {
 	d1, n1 := d.nodeSpan(diag), d.nodeSpan(next)
-	return replaceSuggestion(d.src[min(d1.start, n1.start):max(d1.end, n1.end)], d.extendCall(diag, options))
+	return remedyEdit{start: min(d1.start, n1.start), end: max(d1.end, n1.end), right: d.extendCall(diag, options)}
 }
 
 // extendCall is call's source with options appended to its argument list.
@@ -126,26 +118,48 @@ func (d *recSurfaceDetector) extendCall(call *ast.CallExpr, options []string) st
 
 // defineFailRewrite is the rewrite for a Next call in its own Task's Define
 // callback that is immediately followed by `return <error that is certainly
-// non-nil>`: the callback fails the Task through Fail, carrying the remedy, and
-// returns nil. The summary comes only from a literal in that very return;
-// otherwise it is the placeholder, which keeps the review open.
-func (d *recSurfaceDetector) defineFailRewrite(call *ast.CallExpr, recv ast.Expr, stmt remedyStatement, options []string) (string, bool) {
+// non-nil>` (ZYS-1182 owner decision A): the callback records the remedy as a
+// Fail diagnostic and still returns the error, so Wait() reports the real
+// failure. The summary is the error's own text: a literal constructor's
+// literal, an identifier's Error(), or a fresh variable holding the result so
+// it is evaluated once. It needs no placeholder, so the rewrite converges.
+func (d *recSurfaceDetector) defineFailRewrite(call *ast.CallExpr, recv ast.Expr, stmt remedyStatement, options []string) (remedyEdit, bool) {
 	ret, ok := d.neighbor(stmt, 1).(*ast.ReturnStmt)
 	if !ok || len(ret.Results) != 1 || !d.inOwnDefineCallback(call, recv) {
-		return "", false
+		return remedyEdit{}, false
 	}
 	result := ret.Results[0]
-	literal, hasLiteral := d.errorCtorLiteral(result)
 	if !isErrorCtor(result) && !d.guardedNonNil(stmt.block, result) {
-		return "", false
+		return remedyEdit{}, false
 	}
-	args := []string{`"` + remedyWarningSummary + `"`, d.pkg + ".Detail(" + d.errorText(result) + ")"}
-	if hasLiteral {
-		args = []string{literal}
+	prefix, summary, returned := "", "", d.nodeSrc(result)
+	if literal, ok := d.errorCtorLiteral(result); ok {
+		summary = literal
+	} else if id := identName(result); id != "" {
+		summary = id + ".Error()"
+	} else {
+		failure := d.freshName("failure")
+		prefix, summary, returned = failure+" := "+returned+"; ", failure+".Error()", failure
 	}
-	fail := d.nodeSrc(recv) + ".Fail(" + strings.Join(append(args, options...), ", ") + "); return nil"
-	span := d.nodeSpan(call)
-	return replaceSuggestion(d.src[span.start:d.nodeSpan(ret).end], fail), true
+	fail := prefix + d.nodeSrc(recv) + ".Fail(" + strings.Join(append([]string{summary}, options...), ", ") + "); return " + returned
+	return remedyEdit{start: d.nodeSpan(call).start, end: d.nodeSpan(ret).end, right: fail}, true
+}
+
+// freshName is base, or base with a number, spelled by no identifier in the
+// file, so a variable the rewrite introduces cannot shadow or collide.
+func (d *recSurfaceDetector) freshName(base string) string {
+	used := map[string]bool{}
+	ast.Inspect(d.file, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok {
+			used[id.Name] = true
+		}
+		return true
+	})
+	name := base
+	for i := 2; used[name]; i++ {
+		name = base + strconv.Itoa(i)
+	}
+	return name
 }
 
 // inOwnDefineCallback reports whether call's innermost function is recv's own
@@ -232,14 +246,4 @@ func (d *recSurfaceDetector) errorCtorLiteral(e ast.Expr) (string, bool) {
 		return "", false
 	}
 	return d.nodeSrc(call.Args[0]), true
-}
-
-// errorText is `<result>.Error()`, parenthesizing only what needs it.
-func (d *recSurfaceDetector) errorText(result ast.Expr) string {
-	src := d.nodeSrc(result)
-	switch result.(type) {
-	case *ast.Ident, *ast.CallExpr, *ast.SelectorExpr:
-		return src + ".Error()"
-	}
-	return "(" + src + ").Error()"
 }

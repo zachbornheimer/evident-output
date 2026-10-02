@@ -147,9 +147,9 @@ func tryApplyReplace(src, suggestion string) (string, bool) {
 	if !ok || strings.Contains(suggestion, "\n") {
 		return "", false // a Suggestion is one line (review.Finding)
 	}
-	// " with " may also occur inside a quoted summary: the left side is the
-	// split whose text occurs in src. A space in it matches any whitespace run,
-	// which is how a one-line suggestion names a multi-line span.
+	// " with " may also occur inside a quoted summary on either side. The left
+	// side is lexically complete (no literal left open by the split) and is the
+	// first such split whose text occurs in src.
 	for offset := 0; ; {
 		i := strings.Index(rest[offset:], " with ")
 		if i < 0 {
@@ -157,12 +157,47 @@ func tryApplyReplace(src, suggestion string) (string, bool) {
 		}
 		cut := offset + i
 		old, repl := rest[:cut], rest[cut+len(" with "):]
-		left := regexp.MustCompile(strings.ReplaceAll(regexp.QuoteMeta(old), " ", `\s+`))
-		if loc := left.FindStringIndex(src); loc != nil {
+		offset = cut + 1
+		pattern, closed := leftPattern(old)
+		if !closed {
+			continue
+		}
+		if loc := regexp.MustCompile(pattern).FindStringIndex(src); loc != nil {
 			return src[:loc[0]] + repl + src[loc[1]:], true
 		}
-		offset = cut + 1
 	}
+}
+
+// leftPattern is the regexp for a replace's left side: a space outside a
+// string or rune literal matches any whitespace run (how a one-line
+// suggestion names a multi-line span); inside a literal it matches exactly
+// one space. closed is false when the text ends inside a literal.
+func leftPattern(left string) (pattern string, closed bool) {
+	var b strings.Builder
+	var quote rune
+	escaped := false
+	for _, r := range left {
+		switch {
+		case quote != 0:
+			b.WriteString(regexp.QuoteMeta(string(r)))
+			switch {
+			case escaped:
+				escaped = false
+			case r == '\\' && quote != '`':
+				escaped = true
+			case r == quote:
+				quote = 0
+			}
+		case r == ' ':
+			b.WriteString(`\s+`)
+		default:
+			b.WriteString(regexp.QuoteMeta(string(r)))
+			if r == '"' || r == '`' || r == '\'' {
+				quote = r
+			}
+		}
+	}
+	return b.String(), quote == 0
 }
 
 func hasRetiredSpelling(src, name string) bool {

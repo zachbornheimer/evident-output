@@ -403,11 +403,17 @@ func (d *recSurfaceDetector) evoCall(e ast.Expr) (name string, args []ast.Expr, 
 }
 
 func (d *recSurfaceDetector) report(n ast.Node, msg, sug string) {
+	d.reportAt(d.offset(n), msg, sug)
+}
+
+// reportAt anchors the finding at a source offset: for a rewrite, the start of
+// the text it replaces.
+func (d *recSurfaceDetector) reportAt(offset int, msg, sug string) {
 	d.findings = append(d.findings, Finding{
 		RuleID:     "API-032",
 		Message:    msg,
 		File:       d.filename,
-		Line:       lineAt(d.src, d.offset(n)),
+		Line:       lineAt(d.src, offset),
 		Suggestion: sug,
 	})
 }
