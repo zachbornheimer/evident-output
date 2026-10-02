@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -329,5 +330,64 @@ func TestCompute_CrossContainerGetWithoutAfterIsMisuse(t *testing.T) {
 	}
 	if got != 0 {
 		t.Fatalf("unordered Get() = %d, want zero value", got)
+	}
+}
+
+func TestCompute_UnorderedGetFailsRunInDefaultMode(t *testing.T) {
+	out := newQuietOutput(t, false)
+	makeTask := out.Group("producers").Task("make")
+	producer := evo.Compute(makeTask, func(context.Context) (int, error) { return 1, nil })
+	seq := out.Sequence("consumers")
+	var continued bool
+	read := seq.Task("read")
+	read.Define(func(context.Context) error {
+		_ = makeTask.Wait()
+		_ = producer.Get()
+		continued = true
+		return nil
+	})
+	_ = out.Finish()
+	if !errors.Is(out.Err(), evo.ErrComputedUnordered) {
+		t.Fatalf("Err() = %v, want ErrComputedUnordered", out.Err())
+	}
+	if continued {
+		t.Fatal("callback continued past an unordered Get")
+	}
+	if err := read.Wait(); err == nil || !strings.Contains(err.Error(), evo.ErrComputedUnordered.Error()) {
+		t.Fatalf("consumer Wait() = %v, want a failure naming ErrComputedUnordered", err)
+	}
+}
+
+func TestCompute_AfterOnBuilderContainerBeforeEligibilityIsValid(t *testing.T) {
+	out := newQuietOutput(t, true)
+	inv := evo.Compute(out.Group("inventory").Task("scan"), func(context.Context) ([]string, error) {
+		return []string{"a", "b"}, nil
+	})
+	var seen []string
+	group := out.Group("centralize").After(inv)
+	group.Define(func(g *evo.GroupHandle) {
+		for _, p := range inv.Get() {
+			seen = append(seen, p)
+			g.Task(p).Define(func(context.Context) error { return nil })
+		}
+	})
+	if err := out.Finish(); err != nil || out.Err() != nil {
+		t.Fatalf("Finish: %v, Err() = %v", err, out.Err())
+	}
+	if len(seen) != 2 {
+		t.Fatalf("seen = %v", seen)
+	}
+}
+
+func TestCompute_AfterOnBuilderContainerAfterDefineIsInvalidConfig(t *testing.T) {
+	out := newQuietOutput(t, false)
+	pre := out.Group("pre").Task("p")
+	pre.Define(func(context.Context) error { return nil })
+	g := out.Group("later")
+	g.Define(func(g *evo.GroupHandle) {})
+	g.After(pre)
+	_ = out.Finish()
+	if !errors.Is(out.Err(), evo.ErrInvalidConfig) {
+		t.Fatalf("Err() = %v, want ErrInvalidConfig", out.Err())
 	}
 }

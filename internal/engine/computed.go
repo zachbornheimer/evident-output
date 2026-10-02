@@ -40,7 +40,10 @@ func (c *Computed[T]) Producer() *TaskHandle {
 
 // Get returns the produced value. It is valid once the producing Task
 // settled successfully; earlier, it records ErrComputedUnsettled and
-// returns the zero value. The value is written before the Task settles and
+// returns the zero value. A read the declared order does not prove (no
+// Sequence order and no After edge to the producer) records
+// ErrComputedUnordered and unwinds the calling callback in every mode, so
+// the Task or container builder fails with it. The value is written before the Task settles and
 // read only after, so Get is never a data race.
 func (c *Computed[T]) Get() T {
 	var zero T
@@ -61,7 +64,10 @@ func (c *Computed[T]) Get() T {
 	}
 	if consumer := o.currentConsumerLocked(); consumer != nil && !o.orderedAfterLocked(consumer, st) {
 		o.recordMisuseFor(st.name, ErrComputedUnordered)
-		return zero
+		// Unordered reads never yield a usable value in any mode: unwind
+		// the callback so the Task (or container builder) fails with the
+		// sentinel, the same path Strict takes.
+		panic(ErrComputedUnordered)
 	}
 	return c.value
 }
