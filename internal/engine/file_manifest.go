@@ -111,29 +111,40 @@ func (o *Output) commitManifestTaskLocked(ctx context.Context, taskID string) {
 }
 
 // saveManifest waits until every record this Run committed or staged is
-// on disk, releases the Run's manifest lock, so an Init+Finish caller that never calls Close still persists
-// its history, and warns on the run when the write failed: the next run
-// re-executes work this one did, and the reader must know why.
+// on disk, so an Init+Finish caller that never calls Close still persists
+// its history. Once the write succeeded it releases the Run's manifest
+// lock, so a later Run on this workspace never waits for a Close this
+// Output's caller may not make; a later File/Basis reopens it. When the
+// write failed it warns on the run (the next run re-executes work this one
+// did, and the reader must know why) and keeps the store and its lock, so
+// Close retries the write (C30-085).
 func (o *Output) saveManifest() {
 	o.mu.Lock()
 	store := o.manifestStore
-	// The Run is over: hand the store's exclusive lock back now, so a
-	// later Run on this workspace never waits for a Close this Output's
-	// caller may not make. A later File/Basis reopens it.
-	o.manifestStore, o.manifestOpened, o.manifestOpenErr = nil, false, nil
 	o.mu.Unlock()
 	if store == nil {
 		return
 	}
-	err := store.Close()
-	if err == nil {
+	if err := store.Flush(context.Background()); err != nil {
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		if !o.finished {
+			o.warnManifestUnsavedLocked(err)
+		}
 		return
 	}
 	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.manifestFinishErr = errors.Join(o.manifestFinishErr, err)
-	if !o.finished {
-		o.warnManifestUnsavedLocked(err)
+	if o.manifestStore == store {
+		o.manifestStore, o.manifestOpened, o.manifestOpenErr = nil, false, nil
+	}
+	o.mu.Unlock()
+	if err := store.Close(); err != nil {
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		o.manifestFinishErr = errors.Join(o.manifestFinishErr, err)
+		if !o.finished {
+			o.warnManifestUnsavedLocked(err)
+		}
 	}
 }
 
