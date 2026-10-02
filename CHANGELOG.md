@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
+### Fixed: ZYS-1382 staging
+
+- Staging reaps orphaned stages in `$(os.UserCacheDir)/evo/stage` (older
+  than 1h with a free lease; a leased stage is never removed).
+- The live renderer no longer races the engine on item tallies
+  (`Tally.Snapshot`).
+
 ### Changed (1.2, breaking): ZYS-1382 filesystem vocabulary
 
 Skeleton only: the surface below is declared and every new method returns

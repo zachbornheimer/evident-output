@@ -155,6 +155,7 @@ func newStaged(ctx context.Context, dest string, tree bool) (*Staged, error) {
 	}
 	s := &Staged{dest: abs, tree: tree, apart: StagesApart(abs)}
 	if s.apart {
+		reapOrphanedStagesOnce(stagingRoot())
 		return s, nil // parents are made at commit, under no ancestor's swap
 	}
 	if s.created, err = makeParents(filepath.Dir(abs)); err != nil {

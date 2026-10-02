@@ -504,3 +504,15 @@ mid-fill) and the child failed, though its tree was unchanged.
   exactly as before. A stage still filling is never beside the
   destination, so `Recover` cannot see it; leases still guard a stage
   beside the destination and the original a commit is about to delete.
+
+- **Orphaned stages are reaped, only when proven abandoned.** The first
+  stage a process prepares apart (then at most once an hour) lists the
+  staging root and removes each entry older than one hour whose lease it
+  can take without blocking, restoring write access to read-only
+  directories first. A stage whose lease is held, or younger than the
+  grace window (created, not yet leased), is never removed.
+- **Item tallies are snapshotted for readers.** The engine counts item
+  dispositions incrementally while the live renderer reads them from
+  another goroutine. `Tally.Snapshot` and `Dispositions.Snapshot` give
+  the reader a copy that shares no slot later records write; no lock is
+  added to the hot path.
