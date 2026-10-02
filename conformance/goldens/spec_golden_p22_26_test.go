@@ -875,8 +875,10 @@ func TestSpecP25_ASCIIGlyphFallback_EarlyTermination(t *testing.T) {
 func TestSpecP26_NarrowTerminal_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever}))
-	out := evo.Default()
+	// Its own Output, never evo.Default(): a parallel sibling's non-Isolated
+	// Init can replace the process default between SetDefault and Default,
+	// so this test would write into (and Finish) the sibling's Output.
+	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	g := out.Group("branches")
 	g.Summary("40 del")
 	protected := evo.Reason("protected")
