@@ -31,6 +31,7 @@ type desiredFile struct {
 	mode     fs.FileMode
 	basis    fingerprint.FingerprintValue
 	edit     manifest.BasisRecord
+	standard bool // planned by ApplyPatch: missing parents are created
 }
 
 // patchEditBasisKind is the manifest Basis kind that records which edit a
@@ -182,6 +183,7 @@ func (o *Output) taskLastLeft(ctx context.Context, taskID string, observed finge
 type observedSource struct {
 	exists   bool
 	contents []byte
+	mode     fs.FileMode
 	basis    fingerprint.FingerprintValue
 }
 
@@ -189,7 +191,7 @@ type observedSource struct {
 // path can be a patch source; a symlink or other type fails as it does for
 // File.
 func observeSource(fsys FileFS, path string) (observedSource, error) {
-	_, exists, inspectErr := inspectFilePath(fsys, path)
+	info, exists, inspectErr := inspectFilePath(fsys, path)
 	if inspectErr != nil {
 		return observedSource{}, inspectErr
 	}
@@ -200,5 +202,5 @@ func observeSource(fsys FileFS, path string) (observedSource, error) {
 	if readErr != nil {
 		return observedSource{}, fmt.Errorf("evo: Patch read %q: %w", path, readErr)
 	}
-	return observedSource{exists: true, contents: contents, basis: fingerprint.ObservedFile(path, contents)}, nil
+	return observedSource{exists: true, contents: contents, mode: info.Mode().Perm(), basis: fingerprint.ObservedFile(path, contents)}, nil
 }

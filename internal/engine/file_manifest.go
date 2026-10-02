@@ -92,14 +92,15 @@ func (o *Output) commitManifestTaskLocked(ctx context.Context, taskID string) {
 	if st == nil || o.manifestStore == nil {
 		return
 	}
-	if len(st.manifestOps) == 0 {
+	ops := st.operationsToCommit()
+	if len(ops) == 0 {
 		o.manifestStore.StageTask(o.manifestApp, manifest.TaskRecord{
 			Key:                   st.key,
 			DefinitionFingerprint: taskOpaqueDefinitionFingerprint(st.key, o.manifestApp.Fingerprint),
 		})
 		return
 	}
-	task := manifest.TaskRecord{Key: st.key, Operations: append([]manifest.OperationRecord(nil), st.manifestOps...)}
+	task := manifest.TaskRecord{Key: st.key, Operations: ops}
 	if err := o.manifestStore.CommitTask(ctx, o.manifestApp, task); err != nil {
 		o.warnManifestUnsavedLocked(err)
 		return
@@ -110,22 +111,27 @@ func (o *Output) commitManifestTaskLocked(ctx context.Context, taskID string) {
 }
 
 // saveManifest waits until every record this Run committed or staged is
-// on disk, so an Init+Finish caller that never calls Close still persists
+// on disk, releases the Run's manifest lock, so an Init+Finish caller that never calls Close still persists
 // its history, and warns on the run when the write failed: the next run
 // re-executes work this one did, and the reader must know why.
 func (o *Output) saveManifest() {
 	o.mu.Lock()
 	store := o.manifestStore
+	// The Run is over: hand the store's exclusive lock back now, so a
+	// later Run on this workspace never waits for a Close this Output's
+	// caller may not make. A later File/Basis reopens it.
+	o.manifestStore, o.manifestOpened, o.manifestOpenErr = nil, false, nil
 	o.mu.Unlock()
 	if store == nil {
 		return
 	}
-	err := store.Flush(context.Background())
+	err := store.Close()
 	if err == nil {
 		return
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	o.manifestFinishErr = errors.Join(o.manifestFinishErr, err)
 	if !o.finished {
 		o.warnManifestUnsavedLocked(err)
 	}

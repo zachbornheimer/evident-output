@@ -17,6 +17,7 @@ type RetiredRelease string
 const (
 	RetiredRelease1_0 RetiredRelease = "1.0"
 	RetiredRelease1_1 RetiredRelease = "1.1"
+	RetiredRelease1_2 RetiredRelease = "1.2"
 )
 
 // RetiredSymbol is one retired API name.
@@ -157,6 +158,21 @@ var retiredSymbols = []RetiredSymbol{
 	{Contract: "To", RemovedIn: RetiredRelease1_1, Replacement: "Config.Stdout"},
 	{Contract: "VisibilityDelay", RemovedIn: RetiredRelease1_1, Replacement: "Config.VisibilityDelay"},
 	{Contract: "Width", RemovedIn: RetiredRelease1_1, Replacement: "Config.Width"},
+
+	// ZYS-1382: File, Tree, and Exec are plain structs; Basis is Task
+	// freshness; Patch applies directly. Contract-only until the MCP
+	// rules teach the new shapes.
+	{Contract: "FileSpec", RemovedIn: RetiredRelease1_2, Replacement: "evo.File{Path, Content, Mode}.Write(ctx)"},
+	{Contract: "ExecSpec", RemovedIn: RetiredRelease1_2, Replacement: "evo.Exec{Path, Args, Dir, Env, Outputs}.Run(ctx)"},
+	{Contract: "FSPath", RemovedIn: RetiredRelease1_2, Replacement: "task.Basis(evo.File{Path: p}) or evo.Tree{Path: p}"},
+	{Contract: "FileSet", RemovedIn: RetiredRelease1_2, Replacement: "evo.Patch(ctx, diff) error"},
+	{Contract: "Files", RemovedIn: RetiredRelease1_2, Replacement: "evo.Patch(ctx, diff) error"},
+	{Contract: "ErrStaleBasis", RemovedIn: RetiredRelease1_2, Replacement: "ErrPatchStale"},
+	{Contract: "ErrFileSpecMissingPath", RemovedIn: RetiredRelease1_2, Replacement: "ErrPathMissing"},
+	{Contract: "ErrFileUnmanagedContentsMissing", RemovedIn: RetiredRelease1_2, Replacement: "ErrContentMissing"},
+	{Contract: "ErrExecSpecMissingExecutable", RemovedIn: RetiredRelease1_2, Replacement: "ErrExecPathMissing"},
+	{Contract: "ErrPatchDeleteUnsupported", RemovedIn: RetiredRelease1_2, Replacement: "Patch applies deletes"},
+	{Contract: "ErrPatchRenameUnsupported", RemovedIn: RetiredRelease1_2, Replacement: "Patch applies renames"},
 }
 
 // apiSpelling matches a retired method taught as current API: a known evo
@@ -212,13 +228,38 @@ func mutationVerb(verb string) *regexp.Regexp {
 	return regexp.MustCompile(`\bTask\.` + verb + `\b` +
 		`|\.` + verb + `\("[^"]*",\s*(?:func|fn|nil|[a-z]\w*\))` +
 		`|\b` + verb + `\(object, fn` +
-		"|(?:^|[\\s(`/])" + verb + "`?/`?" + removedMutationVerbs + `\b`)
+		"|" + mutationVerbList(verb))
+}
+
+// mutationVerbList matches verb as a member of a removed-verb list. Write
+// and Remove are live File/Tree methods (ZYS-1382), so for them the list
+// must also name a verb File and Tree never had ("Delete/Remove/Write");
+// "Write/Remove" alone is File/Tree vocabulary.
+func mutationVerbList(verb string) string {
+	const (
+		start = "(?:^|[\\s(`/])"
+		sep   = "`?/`?"
+	)
+	if !slices.Contains(fileTreeVerbs, verb) {
+		return start + verb + sep + removedMutationVerbs + `\b`
+	}
+	chain := "(?:" + sep + removedMutationVerbs + ")*"
+	return start + verb + chain + sep + taskOnlyMutationVerbs + `\b` +
+		"|" + start + taskOnlyMutationVerbs + chain + sep + verb + `\b`
 }
 
 // removedMutationVerbs matches any removed TaskHandle mutation or record
 // verb, so a verb list is recognized by its neighbor ("Delete/Create")
 // while an unrelated pair ("Write/WriteString") is not.
 const removedMutationVerbs = `(?:Add|Create|Delete|Push|Record|Remove|Update|Write)`
+
+// taskOnlyMutationVerbs is removedMutationVerbs less fileTreeVerbs: the
+// removed verbs with no live File/Tree method of the same name.
+const taskOnlyMutationVerbs = `(?:Add|Create|Delete|Push|Record|Update)`
+
+// fileTreeVerbs are the removed TaskHandle verbs File and Tree reuse as
+// live methods.
+var fileTreeVerbs = []string{"Remove", "Write"}
 
 // RetiredSymbols returns every retired name, in table order.
 func RetiredSymbols() []RetiredSymbol { return slices.Clone(retiredSymbols) }

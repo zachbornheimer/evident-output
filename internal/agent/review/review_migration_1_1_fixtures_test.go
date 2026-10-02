@@ -145,6 +145,7 @@ func migration1_1Fixtures() map[string]migrationFixture {
 	}
 	addOptionFixtures(m)
 	addTypeFixtures(m)
+	addFileTreeFixtures(m)
 	return m
 }
 

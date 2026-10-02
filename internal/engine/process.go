@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"time"
 )
 
 // ProcessCommand is one resolved external command Exec is about to spawn:
@@ -52,15 +53,24 @@ func (osProcessRunner) Run(ctx context.Context, cmd ProcessCommand) (ProcessOutc
 	c.Env = cmd.Env
 	c.Stdout = cmd.Stdout
 	c.Stderr = cmd.Stderr
+	isolateProcessGroup(c)
+	c.WaitDelay = processWaitDelay
 	err := c.Run()
-	if err == nil {
-		return ProcessOutcome{ExitCode: 0}, nil
-	}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		return ProcessOutcome{ExitCode: exitErr.ExitCode()}, nil
+	// A grandchild still holding the pipes after the direct child exited
+	// makes Run report ErrWaitDelay; the child's own status is what counts.
+	if c.ProcessState != nil && (err == nil || errors.Is(err, exec.ErrWaitDelay) || isExitError(err)) {
+		return ProcessOutcome{ExitCode: c.ProcessState.ExitCode()}, nil
 	}
 	return ProcessOutcome{}, err
+}
+
+// processWaitDelay bounds how long Run waits for output pipes to drain
+// after the child exits or is killed.
+const processWaitDelay = time.Second
+
+func isExitError(err error) bool {
+	var exitErr *exec.ExitError
+	return errors.As(err, &exitErr)
 }
 
 // processEnviron is the facade mergedExecEnv reads the process's own

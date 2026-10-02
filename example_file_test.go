@@ -1,3 +1,5 @@
+//go:build evo_pre1382
+
 package evo_test
 
 import (

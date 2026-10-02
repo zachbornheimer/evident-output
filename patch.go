@@ -6,57 +6,34 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/engine"
 )
 
-// FileSet is the desired file states a Patch derived, each bound to the
-// Basis it was derived from. It is opaque: desired contents cannot be
-// taken out without their Basis, so the stale-write guard travels with
-// them to commit.
-type FileSet = engine.FileSet
-
-// Patch derives the desired file states a unified text diff describes and
-// mutates nothing. ctx must come from a Task's Define callback; called any
-// other way it returns ErrNoTaskContext or ErrTaskClosed.
+// Patch applies a unified text diff. ctx must come from a Task's Define
+// callback; called any other way it returns ErrNoTaskContext or
+// ErrTaskClosed.
 //
-// Each referenced file is read once, and its Basis is the identity of
-// exactly the bytes the hunks were applied to. Every hunk must match at
-// the line it names. Modifications, mode changes, and file creation are
-// supported; deletion, rename/copy, binary, and symlink or submodule forms
-// fail with ErrPatchUnsupported (or its specific forms below) rather than
-// being approximated.
+// One diff may touch many files. Every affected path is identified first
+// and an unsafe one (absolute, climbing out of the workspace, inside a .git
+// directory, or beyond a symlinked directory) fails with ErrPatchUnsafePath.
+// Every hunk must match at the line it names, and every file is validated
+// against the bytes read before the first commit, so a diff that does not
+// apply changes nothing (ErrPatchDoesNotApply). Modify, create (parent
+// directories included), delete, rename with or without an edit, and mode
+// change are applied; binary, copy, symlink, and submodule forms fail with
+// ErrPatchUnsupported.
 //
-// A patch edits only real paths beneath the workspace: a path beyond a
-// symlinked directory fails with ErrPatchUnsupported, and Patch never
-// creates directories, so a file whose parent directory is missing fails
-// with ErrPatchDoesNotApply before Files commits anything. A file that
-// already holds the diff's result (the same diff applied on a second Run)
-// is derived as its own desired state, which Files reports as already
-// satisfied. Callers that already know the desired bytes call
-// File directly instead of building a diff.
-func Patch(ctx context.Context, diff []byte) (FileSet, error) { return engine.Patch(ctx, diff) }
+// Each file commits through the same machinery as File: its path is held
+// for writing, revalidated against the bytes the diff was validated
+// against, and atomically replaced. A file edited concurrently fails with
+// ErrPatchStale and is never overwritten. A file that already holds the
+// diff's result is satisfied and rewritten by nothing. Under DryRun nothing
+// mutates but applicability is still validated.
+func Patch(ctx context.Context, diff []byte) error { return engine.ApplyPatch(ctx, diff) }
 
-// Files commits each desired state in files through File, so dry-run
-// planning, already-satisfied, verification, Effects, and the manifest
-// behave exactly as they do for File. ctx must come from a Task's Define
-// callback.
-//
-// Each file's source Basis is revalidated while File holds that path,
-// immediately before it commits. A file changed since Patch derived it
-// fails with ErrStaleBasis and is never overwritten; a file that already
-// holds its desired contents is satisfied and records no Effect. Files is
-// not a transaction: it stops at the first failing file, and files already
-// committed keep their Effects. The caller takes no locks.
-func Files(ctx context.Context, files FileSet) error { return engine.Files(ctx, files) }
-
-// ErrStaleBasis is returned by Files when a file changed after Patch
-// derived its desired state from it.
-var ErrStaleBasis = engine.ErrStaleBasis
-
-// Patch errors. ErrPatchDeleteUnsupported, ErrPatchRenameUnsupported, and
-// ErrPatchBinaryUnsupported each wrap ErrPatchUnsupported.
+// Patch errors. ErrPatchBinaryUnsupported wraps ErrPatchUnsupported.
 var (
 	ErrPatchMalformed         = engine.ErrPatchMalformed
 	ErrPatchDoesNotApply      = engine.ErrPatchDoesNotApply
 	ErrPatchUnsupported       = engine.ErrPatchUnsupported
-	ErrPatchDeleteUnsupported = engine.ErrPatchDeleteUnsupported
-	ErrPatchRenameUnsupported = engine.ErrPatchRenameUnsupported
 	ErrPatchBinaryUnsupported = engine.ErrPatchBinaryUnsupported
+	ErrPatchUnsafePath        = engine.ErrPatchUnsafePath
+	ErrPatchStale             = engine.ErrPatchStale
 )

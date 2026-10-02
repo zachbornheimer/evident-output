@@ -40,6 +40,9 @@ type recSurfaceDetector struct {
 	// effectDialect is set when the target dialect is 1.1+, where the
 	// TaskHandle mutation verbs are gone and evo.Effect/evo.File exist.
 	effectDialect bool
+	// fileTreeDialect is set when the target dialect is 1.2+, where File,
+	// Tree, and Exec are plain structs (see review_rec_onetwo.go).
+	fileTreeDialect bool
 	// failures names identifiers typed evo.Failure, so Failure.Next is
 	// not confused with live TaskHandle.Next / Output.Next.
 	failures failureBindings
@@ -67,6 +70,7 @@ func detectSupersededRecSurface(in fileInput) []Finding {
 		d.outputs = newOutputBindings(f, pkg)
 		d.declaredTypes = newDeclaredReceiverTypes(f, pkg)
 	}
+	d.fileTreeDialect = dialectAtLeast(in.desiredVersion, dialectOneTwo)
 	ast.Inspect(f, d.inspect)
 	ast.Inspect(f, d.inspectLeftover)
 	return d.findings
@@ -177,7 +181,7 @@ func (d *recSurfaceDetector) inspectCall(call *ast.CallExpr) {
 }
 
 func (d *recSurfaceDetector) inspectLeftover(n ast.Node) bool {
-	if d.inspectOneOneType(n) {
+	if d.inspectOneOneType(n) || d.inspectOneTwoType(n) {
 		return true
 	}
 	call, ok := n.(*ast.CallExpr)

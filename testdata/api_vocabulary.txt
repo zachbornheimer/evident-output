@@ -11,6 +11,7 @@ App	helper	Fingerprint
 AssumeYes	helper	Human output
 Attachment	helper	Problem
 Blocked	helper	Conclusion
+Bytes	helper	File
 BytesKind	helper	Progress
 Cancelled	helper	Conclusion
 Capture	canonical	Capture
@@ -20,7 +21,11 @@ CaptureStreamCombined	helper	Capture
 CaptureStreamStderr	helper	Capture
 CaptureStreamStdout	helper	Capture
 ChangesSnapshot	helper	Snapshot
+ChecksumOption	helper	Checksum
 Clock	removed	Run
+Clone	helper	Tree
+Clone.From	helper	Tree
+Clone.Writable	helper	Tree
 Code	helper	Problem
 ColorAlways	helper	Human output
 ColorAuto	helper	Human output
@@ -58,6 +63,9 @@ Detail	helper	Problem
 Determinate	helper	Progress
 Diagnostics	removed	Run
 Done	helper	Conclusion
+Download	canonical	Download
+Download.Integrity	helper	Download
+Download.URL	helper	Download
 DryRun	removed	Run
 Effect	canonical	Effect
 EffectAdd	helper	Effect
@@ -77,11 +85,15 @@ EncodeJSON	removed	Machine output
 EncodeJSONL	removed	Machine output
 EntityState	helper	Conclusion
 ErrAlreadyResolved	helper	Misuse
+ErrBasisAfterDefine	helper	Basis
 ErrClosed	helper	Misuse
 ErrComputedUnordered	helper	Misuse
 ErrComputedUnsettled	helper	Misuse
 ErrConcurrentRunning	helper	Misuse
+ErrContentMissing	helper	File
 ErrDeclaredInCallback	helper	Misuse
+ErrDownloadFailed	helper	Download
+ErrDownloadURLMissing	helper	Download
 ErrDryRunDeclaredLate	helper	Misuse
 ErrDuplicateKey	helper	Misuse
 ErrDuplicateSiblingName	helper	Misuse
@@ -92,11 +104,16 @@ ErrEffectVerbInvalid	helper	Effect
 ErrExecExecutableNotFound	helper	Exec
 ErrExecNonzeroExit	helper	Exec
 ErrExecOutputMissingAfterSuccess	helper	Exec
-ErrExecSpecMissingExecutable	helper	Exec
+ErrExecPathMissing	helper	Exec
+ErrExecSpecMissingExecutable	removed	Exec
+ErrExtractMalformed	helper	Extract
+ErrExtractUnsafeEntry	helper	Extract
 ErrFilePathIsSymlink	helper	File
 ErrFilePathTypeMismatch	helper	File
-ErrFileSpecMissingPath	helper	File
-ErrFileUnmanagedContentsMissing	helper	File
+ErrFileSpecMissingPath	removed	File
+ErrFileUnmanagedContentsMissing	removed	File
+ErrFindNamesMissing	helper	Find
+ErrIntegrityMismatch	helper	Download
 ErrInvalidConfig	helper	Misuse
 ErrInvalidPartialEffect	helper	Effect
 ErrInvalidProgress	helper	Progress
@@ -107,19 +124,25 @@ ErrNestedResourceAcquisition	helper	Resource
 ErrNoTaskContext	helper	Misuse
 ErrNotStarted	helper	Misuse
 ErrPatchBinaryUnsupported	helper	Patch
-ErrPatchDeleteUnsupported	helper	Patch
+ErrPatchDeleteUnsupported	removed	Patch
 ErrPatchDoesNotApply	helper	Patch
 ErrPatchMalformed	helper	Patch
-ErrPatchRenameUnsupported	helper	Patch
+ErrPatchRenameUnsupported	removed	Patch
+ErrPatchStale	helper	Patch
+ErrPatchUnsafePath	helper	Patch
 ErrPatchUnsupported	helper	Patch
+ErrPathMissing	helper	File
 ErrProgressRegression	helper	Progress
 ErrReasonSkipOnly	removed	Skipped
 ErrReasonWrongTask	removed	Skipped
 ErrRenderer	helper	Misuse
-ErrStaleBasis	helper	Patch
+ErrStaleBasis	removed	Patch
 ErrTaskClosed	helper	Misuse
 ErrTerminalWithoutSink	helper	Misuse
+ErrTreeChanged	helper	Tree
+ErrTreePathTypeMismatch	helper	Tree
 ErrUnresolvedTask	helper	Misuse
+ErrVerifyMismatch	helper	File
 ErrWaitDeadlock	helper	Misuse
 Event	helper	Snapshot
 EventJSON	removed	Machine output
@@ -131,15 +154,25 @@ EvidenceStream	removed	Capture
 EvidenceStreamCombined	removed	Capture
 EvidenceStreamStderr	removed	Capture
 EvidenceStreamStdout	removed	Capture
+Exclude	helper	Checksum
 Exec	canonical	Exec
+Exec.Args	helper	Exec
+Exec.Dir	helper	Exec
+Exec.Env	helper	Exec
+Exec.Outputs	helper	Exec
+Exec.Path	helper	Exec
+Exec.Run	helper	Exec
 ExecResult	helper	Exec
-ExecSpec	canonical	Exec
+ExecSpec	removed	Exec
 ExitBlocked	helper	Conclusion
 ExitCancelled	helper	Conclusion
 ExitFailed	helper	Conclusion
 ExitOK	helper	Conclusion
 ExternalProjection	removed	Run
-FSPath	helper	Fingerprint
+Extract	canonical	Extract
+Extract.File	helper	Extract
+Extract.Root	helper	Extract
+FSPath	removed	Fingerprint
 FSResource	helper	Resource
 Fact	canonical	Fact
 FactRecord	helper	Fact
@@ -151,11 +184,23 @@ Failure.NextCommand	removed	Action
 Failure.Unwrap	helper	Problem
 Field	helper	Problem
 File	canonical	File
+File.Checksum	helper	Checksum
+File.Content	helper	File
+File.Equal	helper	File
+File.Mode	helper	File
+File.Path	helper	File
+File.Read	helper	File
+File.Remove	helper	Remove
+File.Verify	helper	File
+File.Write	helper	File
+FileContent	helper	File
 FileFS	helper	File
-FileSet	helper	Patch
-FileSpec	canonical	File
-Files	canonical	Files
+FileSet	removed	Patch
+FileSpec	removed	File
+Files	removed	Files
+Find	canonical	Find
 Fingerprint	canonical	Fingerprint
+Fingerprint.Fingerprint	helper	Fingerprint
 FingerprintValue	helper	Fingerprint
 FixedClock	helper	Human output
 ForSkip	removed	Skipped
@@ -255,6 +300,7 @@ Output.Suspend	helper	Human output
 Output.Task	canonical	Task
 Output.Warn	removed	Problem
 Output.Writer	helper	Human output
+Outputs	helper	Exec
 PaneHeight	helper	Debug journal
 ParseFormat	helper	Machine output
 PartialEffect	helper	Effect
@@ -294,9 +340,21 @@ ProjectionStreamJSON	helper	Machine output
 PublishedRelease	helper	Machine output
 Reason	helper	Skipped
 ReasonOption	removed	Skipped
+RecoverCompletedReplacement	helper	Tree
+RecoverIntact	helper	Tree
+RecoverRestoredOriginal	helper	Tree
+RecoverResult	helper	Tree
+RecoverResult.Leftovers	helper	Tree
+RecoverResult.State	helper	Tree
+RecoverState	helper	Tree
+RecoverUnrecoverable	helper	Tree
 Redact	removed	Run
 Redactor	helper	Human output
 RenderPlain	helper	Snapshot
+ReplaceOption	helper	Tree
+ReplaceResult	helper	Tree
+ReplaceResult.Published	helper	Tree
+Republish	helper	Tree
 Resolution	helper	Conclusion
 ResolutionAlreadySatisfied	helper	Conclusion
 ResolutionExecuted	helper	Conclusion
@@ -340,6 +398,7 @@ Task	canonical	Task
 TaskEvidence	canonical	Evidence
 TaskHandle	canonical	Task
 TaskHandle.After	canonical	After
+TaskHandle.Basis	canonical	Basis
 TaskHandle.Block	canonical	Blocked
 TaskHandle.Blockf	removed	Block
 TaskHandle.Bytes	helper	Progress
@@ -375,6 +434,19 @@ TerminalDriver	helper	Human output
 TimeSource	helper	Human output
 Title	removed	Run
 To	removed	Run
+Tree	canonical	Tree
+Tree.Checksum	helper	Checksum
+Tree.Content	helper	Tree
+Tree.Equal	helper	Tree
+Tree.Path	helper	Tree
+Tree.Read	helper	Tree
+Tree.Recover	helper	Tree
+Tree.Remove	helper	Remove
+Tree.Replace	helper	Tree
+Tree.ReplaceTree	helper	Tree
+Tree.Verify	helper	Tree
+Tree.Write	helper	Tree
+TreeContent	helper	Tree
 TruncateNames	helper	Human output
 Value	helper	Fingerprint
 Verbose	helper	Human output
