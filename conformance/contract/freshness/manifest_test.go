@@ -20,10 +20,9 @@ func TestC10_010_ManifestPersistsTheFingerprintAlgorithm(t *testing.T) {
 	state := filepath.Join(dir, "state")
 	out, _ := harness.New(t, func(c *evo.Config) { c.StateDir = state; c.AppID = "pending-manifest" })
 	task := out.Task("write")
+	task.Basis(evo.File{Path: input})
 	task.Define(func(ctx context.Context) error {
-		return evo.File(ctx, evo.FileSpec{
-			Path: filepath.Join(dir, "out.txt"), Contents: []byte("y"), Basis: []evo.Fingerprint{evo.FSPath(input)},
-		})
+		return evo.File{Path: filepath.Join(dir, "out.txt"), Content: evo.Bytes("y")}.Write(ctx)
 	})
 	_ = task.Wait()
 	_ = out.Close()

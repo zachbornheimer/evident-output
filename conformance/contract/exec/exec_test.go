@@ -36,15 +36,18 @@ func newOutput(stateDir string, dryRun bool, runner evo.ProcessRunner) *evo.Outp
 	})
 }
 
-func runExec(t *testing.T, out *evo.Output, spec evo.ExecSpec) (evo.ExecResult, error) {
+func runExec(t *testing.T, out *evo.Output, spec evo.Exec, basis ...evo.File) (evo.ExecResult, error) {
 	t.Helper()
 	var (
 		result  evo.ExecResult
 		execErr error
 	)
 	task := out.Task("exec")
+	for _, input := range basis {
+		task.Basis(input)
+	}
 	task.Define(func(ctx context.Context) error {
-		result, execErr = evo.Exec(ctx, spec)
+		result, execErr = spec.Run(ctx)
 		return execErr
 	})
 	_ = task.Wait()
@@ -63,25 +66,26 @@ func TestC30_060_RanIsFalseWhenExecDidNotSpawn(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "out.txt"), []byte("built"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	spec := evo.ExecSpec{Executable: tool, Dir: dir, Outputs: []string{"out.txt"}}
+	spec := evo.Exec{Path: tool, Dir: dir, Outputs: evo.Outputs{evo.File{Path: "out.txt"}}}
+	basis := evo.File{Path: tool}
 	state := t.TempDir()
 
 	first := newOutput(state, false, scriptedRunner(tool, testkit.ScriptedProcess{}))
-	spawned, err := runExec(t, first, spec)
+	spawned, err := runExec(t, first, spec, basis)
 	_ = first.Close()
 	if err != nil || !spawned.Ran {
 		t.Fatalf("first run: Ran = %v, err = %v, want a spawn", spawned.Ran, err)
 	}
 
 	second := newOutput(state, false, scriptedRunner(tool, testkit.ScriptedProcess{}))
-	hit, err := runExec(t, second, spec)
+	hit, err := runExec(t, second, spec, basis)
 	_ = second.Close()
 	if err != nil || hit.Ran {
 		t.Fatalf("current manifest hit: Ran = %v, err = %v, want no spawn", hit.Ran, err)
 	}
 
 	dry := newOutput(t.TempDir(), true, scriptedRunner(tool, testkit.ScriptedProcess{}))
-	planned, err := runExec(t, dry, spec)
+	planned, err := runExec(t, dry, spec, basis)
 	_ = dry.Close()
 	if err != nil || planned.Ran {
 		t.Fatalf("dry-run plan: Ran = %v, err = %v, want no spawn", planned.Ran, err)
@@ -98,7 +102,7 @@ func TestC30_061_StdoutIsABoundedTailAndTruncatedReportsLoss(t *testing.T) {
 	out := newOutput(t.TempDir(), false, scriptedRunner(tool, testkit.ScriptedProcess{Stdout: lines}))
 	t.Cleanup(func() { _ = out.Close() })
 
-	result, err := runExec(t, out, evo.ExecSpec{Executable: tool, Dir: dir})
+	result, err := runExec(t, out, evo.Exec{Path: tool, Dir: dir})
 	if err != nil {
 		t.Fatal(err)
 	}

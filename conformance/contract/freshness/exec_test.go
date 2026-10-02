@@ -4,8 +4,10 @@ package freshness_test
 
 import (
 	"context"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -30,14 +32,21 @@ func runStages(t *testing.T, stateDir string, stages ...stage) map[string]bool {
 	ran := map[string]bool{}
 	seq := out.Sequence("stages")
 	for _, st := range stages {
-		seq.Task(st.name).Define(func(ctx context.Context) error {
-			basis := make([]evo.Fingerprint, len(st.basis))
-			for i, p := range st.basis {
-				basis[i] = evo.FSPath(p)
+		task := seq.Task(st.name)
+		for _, p := range st.basis {
+			task.Basis(evo.File{Path: p})
+		}
+		for _, key := range slices.Sorted(maps.Keys(st.env)) {
+			task.Basis(evo.Value("env."+key, st.env[key]))
+		}
+		task.Define(func(ctx context.Context) error {
+			outputs := make(evo.Outputs, len(st.outputs))
+			for i, p := range st.outputs {
+				outputs[i] = evo.File{Path: p}
 			}
-			res, err := evo.Exec(ctx, evo.ExecSpec{
-				Executable: "sh", Args: []string{"-c", st.script}, Env: st.env, Basis: basis, Outputs: st.outputs,
-			})
+			res, err := evo.Exec{
+				Path: "sh", Args: []string{"-c", st.script}, Env: execEnv(st.env), Outputs: outputs,
+			}.Run(ctx)
 			ran[st.name] = res.Ran
 			return err
 		})
@@ -48,6 +57,19 @@ func runStages(t *testing.T, stateDir string, stages ...stage) map[string]bool {
 	_ = out.Finish()
 	_ = out.Close()
 	return ran
+}
+
+// execEnv is the child environment for explicit entries: the parent's
+// environment plus them, so a set Env still finds sh's tools; nil inherits.
+func execEnv(explicit map[string]string) []string {
+	if len(explicit) == 0 {
+		return nil
+	}
+	env := os.Environ()
+	for _, key := range slices.Sorted(maps.Keys(explicit)) {
+		env = append(env, key+"="+explicit[key])
+	}
+	return env
 }
 
 func write(t *testing.T, path, contents string) {

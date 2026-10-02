@@ -74,20 +74,24 @@ func newPipeline(t *testing.T) *pipeline {
 	return p
 }
 
-func (p *pipeline) normalizeSpec() evo.ExecSpec {
-	return evo.ExecSpec{
-		Executable: p.normalizeTool, Dir: p.dir,
-		Basis:   []evo.Fingerprint{evo.FSPath(p.schemaXlsx)},
-		Outputs: []string{"schema.json"},
+func (p *pipeline) normalizeSpec() evo.Exec {
+	return evo.Exec{
+		Path: p.normalizeTool, Dir: p.dir,
+		Outputs: evo.Outputs{evo.File{Path: "schema.json"}},
 	}
 }
 
-func (p *pipeline) compileSpec() evo.ExecSpec {
-	return evo.ExecSpec{
-		Executable: p.compileTool, Dir: p.dir,
-		Basis:   []evo.Fingerprint{evo.FSPath(p.schemaJSON), evo.FSPath(p.compilePy)},
-		Outputs: []string{"output.bin"},
+func (p *pipeline) normalizeBasis() []evo.File { return []evo.File{{Path: p.schemaXlsx}} }
+
+func (p *pipeline) compileSpec() evo.Exec {
+	return evo.Exec{
+		Path: p.compileTool, Dir: p.dir,
+		Outputs: evo.Outputs{evo.File{Path: "output.bin"}},
 	}
+}
+
+func (p *pipeline) compileBasis() []evo.File {
+	return []evo.File{{Path: p.schemaJSON}, {Path: p.compilePy}}
 }
 
 // run executes both stages once (compile declared After normalize) and
@@ -106,18 +110,21 @@ func (p *pipeline) run(t *testing.T, normalizedOutput string) (normalizeSpawns, 
 		Isolated: true, StateDir: p.state, ProcessRunner: runner,
 		Stdout: io.Discard, Stderr: io.Discard,
 	})
-	stage := func(name string, spec evo.ExecSpec) *evo.TaskHandle {
-		return out.Task(name).Define(func(ctx context.Context) error {
-			_, err := evo.Exec(ctx, spec)
+	stage := func(name string, spec evo.Exec, basis []evo.File, after ...*evo.TaskHandle) *evo.TaskHandle {
+		task := out.Task(name)
+		for _, pred := range after {
+			task.After(pred)
+		}
+		for _, input := range basis {
+			task.Basis(input)
+		}
+		return task.Define(func(ctx context.Context) error {
+			_, err := spec.Run(ctx)
 			return err
 		})
 	}
-	normalize := stage("normalize", p.normalizeSpec())
-	compile := out.Task("compile").After(normalize)
-	compile.Define(func(ctx context.Context) error {
-		_, err := evo.Exec(ctx, p.compileSpec())
-		return err
-	})
+	normalize := stage("normalize", p.normalizeSpec(), p.normalizeBasis())
+	stage("compile", p.compileSpec(), p.compileBasis(), normalize)
 	_ = out.Finish()
 	if err := out.Close(); err != nil {
 		t.Fatalf("pipeline run: %v", err)

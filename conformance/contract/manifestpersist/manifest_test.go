@@ -73,8 +73,9 @@ func readDocument(t *testing.T, path string) manifest.Document {
 
 func writeFileTask(out *evo.Output, name, path string) *evo.TaskHandle {
 	task := out.Task(name)
+	task.Basis(evo.Value("task", name))
 	task.Define(func(ctx context.Context) error {
-		return evo.File(ctx, evo.FileSpec{Path: path, Contents: []byte(name)})
+		return evo.File{Path: path, Content: evo.Bytes(name)}.Write(ctx)
 	})
 	return task
 }
@@ -178,8 +179,10 @@ func TestC30_085_AFailedManifestWriteIsRetriedOnTheNextFlush(t *testing.T) {
 	out := newOutput(state, stream)
 
 	task := out.Task("file")
+	task.Basis(evo.Value("task", "file"))
 	task.Define(func(ctx context.Context) error {
-		if err := evo.File(ctx, evo.FileSpec{Path: filepath.Join(t.TempDir(), "f.txt"), Contents: []byte("x")}); err != nil {
+		f := evo.File{Path: filepath.Join(t.TempDir(), "f.txt"), Content: evo.Bytes("x")}
+		if err := f.Write(ctx); err != nil {
 			return err
 		}
 		return os.Chmod(state, readOnlyDir)

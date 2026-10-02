@@ -71,28 +71,21 @@ func changedRecordCount(out *evo.Output) int {
 	return count
 }
 
-func TestC28_001_NativeDiffFlowDerivesThenCommitsThroughFile(t *testing.T) {
+func TestC28_001_NativeDiffFlowCommitsThroughFile(t *testing.T) {
 	dir, out := workspace(t, map[string]string{"greeting.txt": originalText})
 	path := filepath.Join(dir, "greeting.txt")
 
 	err := runTask(t, out, "fix greeting", func(ctx context.Context) error {
-		set, err := evo.Patch(ctx, []byte(helloToThere))
-		if err != nil {
-			return err
-		}
-		if got := read(t, path); got != originalText {
-			t.Errorf("the derived patch mutated the workspace before Files: %q", got)
-		}
-		return evo.Files(ctx, set)
+		return evo.Patch(ctx, []byte(helloToThere))
 	})
 	if err != nil {
-		t.Fatalf("Patch then Files: %v", err)
+		t.Fatalf("Patch: %v", err)
 	}
 	if got := read(t, path); got != fixedText {
-		t.Fatalf("file after Files = %q, want %q", got, fixedText)
+		t.Fatalf("file after Patch = %q, want %q", got, fixedText)
 	}
 	if got := changedRecordCount(out); got != 1 {
-		t.Fatalf("changed Effects = %d, want 1 recorded by File", got)
+		t.Fatalf("changed Effects = %d, want 1 recorded by Patch", got)
 	}
 }
 
@@ -102,11 +95,7 @@ func TestC28_002_MultiPassConvergenceStaysOneTask(t *testing.T) {
 
 	err := runTask(t, out, taskName, func(ctx context.Context) error {
 		for _, diff := range []string{helloToThere, thereAgain} {
-			set, err := evo.Patch(ctx, []byte(diff))
-			if err != nil {
-				return err
-			}
-			if err := evo.Files(ctx, set); err != nil {
+			if err := evo.Patch(ctx, []byte(diff)); err != nil {
 				return err
 			}
 		}
@@ -124,32 +113,25 @@ func TestC28_002_MultiPassConvergenceStaysOneTask(t *testing.T) {
 	}
 }
 
-func TestC30_071_FilesIsNotATransaction(t *testing.T) {
+func TestC30_071_PatchIsAllOrNothingAndNeverOverwritesAConcurrentEdit(t *testing.T) {
 	const twoFileDiff = "--- a/a.txt\n+++ b/a.txt\n@@ -1,1 +1,1 @@\n-one\n+uno\n" +
 		"--- a/b.txt\n+++ b/b.txt\n@@ -1,1 +1,1 @@\n-two\n+dos\n"
 	const interloperText = "changed by someone else\n"
-	dir, out := workspace(t, map[string]string{"a.txt": "one\n", "b.txt": "two\n"})
+	dir, out := workspace(t, map[string]string{"a.txt": "one\n", "b.txt": interloperText})
 
 	err := runTask(t, out, "commit both", func(ctx context.Context) error {
-		set, err := evo.Patch(ctx, []byte(twoFileDiff))
-		if err != nil {
-			return err
-		}
-		if err := os.WriteFile(filepath.Join(dir, "b.txt"), []byte(interloperText), 0o644); err != nil {
-			return err
-		}
-		return evo.Files(ctx, set)
+		return evo.Patch(ctx, []byte(twoFileDiff))
 	})
-	if !errors.Is(err, evo.ErrStaleBasis) {
-		t.Fatalf("Files = %v, want ErrStaleBasis for the file that changed", err)
+	if !errors.Is(err, evo.ErrPatchDoesNotApply) {
+		t.Fatalf("Patch = %v, want ErrPatchDoesNotApply for the file that changed", err)
 	}
 	if got := read(t, filepath.Join(dir, "b.txt")); got != interloperText {
 		t.Fatalf("b.txt = %q, want the newer state left untouched", got)
 	}
-	if got := read(t, filepath.Join(dir, "a.txt")); got != "uno\n" {
-		t.Fatalf("a.txt = %q, want the already-committed file kept (no rollback)", got)
+	if got := read(t, filepath.Join(dir, "a.txt")); got != "one\n" {
+		t.Fatalf("a.txt = %q, want it untouched: applicability is validated before any commit", got)
 	}
-	if got := changedRecordCount(out); got != 1 {
-		t.Fatalf("changed Effects = %d, want 1: the committed file stays truthful", got)
+	if got := changedRecordCount(out); got != 0 {
+		t.Fatalf("changed Effects = %d, want 0 when nothing committed", got)
 	}
 }

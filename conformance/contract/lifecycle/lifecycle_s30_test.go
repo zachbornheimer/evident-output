@@ -59,8 +59,8 @@ func TestC30_005_AnnotatorsNeverResolveAndVerbsDo(t *testing.T) {
 		"Fact":        func(h *evo.TaskHandle) { h.Fact("k", "v") },
 		"Problem":     func(h *evo.TaskHandle) { h.Problem("p", evo.Severity(evo.SeverityWarning)) },
 		"Summary":     func(h *evo.TaskHandle) { h.Summary("s") },
-		"Next":        func(h *evo.TaskHandle) { h.Next(evo.Label("go")) },
-		"NextCommand": func(h *evo.TaskHandle) { h.NextCommand("echo", "hi") },
+		"Next":        func(h *evo.TaskHandle) { h.Problem("p", evo.Next(evo.Label("go"))) },
+		"NextCommand": func(h *evo.TaskHandle) { h.Problem("p", evo.NextCommand("echo", "hi")) },
 	}
 	for name, annotate := range annotators {
 		t.Run(name, func(t *testing.T) {
