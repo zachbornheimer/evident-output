@@ -12,7 +12,8 @@ import (
 
 // Store is one Run's exclusive handle on a single manifest file. Open
 // acquires the lock; every other Run attempting the same manifest path
-// blocks (or is cancelled) until Close releases it.
+// waits for Close to release it, up to its LockWait, then runs without
+// history.
 //
 // Records are held in memory and written by one background writer that
 // coalesces every record put since its last write into a single
@@ -46,7 +47,8 @@ type writerState struct {
 }
 
 // Open resolves cfg to a manifest path, acquires its exclusive lock
-// (context-cancellable), and loads existing state if any. A missing file is
+// (context-cancellable, waiting at most cfg.LockWait before running
+// without history), and loads existing state if any. A missing file is
 // an ordinary empty document, not a warning. A present-but-untrustworthy
 // file is also an empty document, but Warning() reports why.
 func Open(ctx context.Context, cfg Config, env Environment) (*Store, error) {
@@ -57,7 +59,10 @@ func Open(ctx context.Context, cfg Config, env Environment) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("manifest: create state dir for %q: %w", path, err)
 	}
-	lock, err := acquireLock(ctx, path+".lock")
+	lock, err := acquireLock(ctx, path+".lock", cfg.lockWait())
+	if errors.Is(err, ErrBusy) {
+		return newHistorylessStore(path, err), nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +93,21 @@ func newStore(path string, lock *fileLock) *Store {
 	s.settled = sync.NewCond(&s.mu)
 	return s
 }
+
+// newHistorylessStore is the Store for a run that could not take the
+// manifest lock: it starts empty, so every operation checks the live
+// filesystem, and it writes nothing, so it never races the run that holds
+// the lock. Warning reports busy as the reason.
+func newHistorylessStore(path string, busy error) *Store {
+	s := newStore(path, nil)
+	s.doc = newDocument(ApplicationRecord{})
+	s.missWarning = &Warning{Err: busy}
+	s.write = discardWrite
+	return s
+}
+
+// discardWrite is the write of a Store that does not hold the lock.
+func discardWrite([]byte) error { return nil }
 
 // Warning reports a safe cache-miss reason (corrupt/unknown prior manifest)
 // discovered while opening the store, or nil when none occurred.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime/debug"
+	"time"
 )
 
 // manifestFileName is the on-disk manifest file's fixed basename (spec
@@ -36,6 +37,10 @@ type Config struct {
 	// start (spec §11.3) — hashed into the default derived path so distinct
 	// workspaces never share one manifest.
 	Workspace string
+	// LockWait bounds how long Open waits for another run to release the
+	// manifest lock before running without history. Zero means
+	// DefaultLockWait.
+	LockWait time.Duration
 }
 
 // Locate resolves Config into the manifest file path this Store will read

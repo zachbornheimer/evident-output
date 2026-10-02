@@ -25,6 +25,11 @@ const maxDocumentBytes = 64 << 20 // 64 MiB
 // trusted: invalid JSON, wrong schema version, or over maxDocumentBytes.
 var ErrCorrupt = errors.New("manifest: corrupt or unrecognized manifest file")
 
+// ErrBusy is the Warning reason when another run held the manifest lock
+// past Config.LockWait: this run proceeds against the live filesystem
+// alone, with no history read and none written.
+var ErrBusy = errors.New("in use by another run")
+
 // BasisRecord is one committed Basis input's identity at commit time.
 type BasisRecord struct {
 	Kind   string `json:"kind"`

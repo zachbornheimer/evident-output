@@ -3,7 +3,6 @@
 package manifest
 
 import (
-	"context"
 	"fmt"
 	"os"
 )
@@ -20,25 +19,17 @@ type fileLock struct {
 	file *os.File
 }
 
-// acquireLock polls for exclusive creation of path until it succeeds or
-// ctx is done.
-func acquireLock(ctx context.Context, path string) (*fileLock, error) {
-	ticker := newPollTicker()
-	defer ticker.stop()
-	for {
-		file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0o600)
-		if err == nil {
-			return &fileLock{file: file}, nil
-		}
-		if !os.IsExist(err) {
-			return nil, fmt.Errorf("manifest: open lock file %q: %w", path, err)
-		}
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("manifest: lock %q: %w", path, ctx.Err())
-		case <-ticker.c():
-		}
+// tryLock creates path exclusively without waiting, or returns
+// errLockHeld when it already exists.
+func tryLock(path string) (*fileLock, error) {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0o600)
+	if err == nil {
+		return &fileLock{file: file}, nil
 	}
+	if os.IsExist(err) {
+		return nil, errLockHeld
+	}
+	return nil, fmt.Errorf("manifest: open lock file %q: %w", path, err)
 }
 
 // release drops the lock by removing the sentinel file.

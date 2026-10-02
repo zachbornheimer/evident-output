@@ -3,7 +3,7 @@
 package manifest
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"os"
 	"syscall"
@@ -20,36 +20,21 @@ type fileLock struct {
 	file *os.File
 }
 
-// acquireLock blocks until path's lock file is exclusively held or ctx is
-// done, whichever comes first. The blocking flock syscall itself cannot be
-// interrupted by ctx directly, so it runs on a background goroutine; if ctx
-// wins the race, that goroutine is left to finish acquiring and immediately
-// release the lock rather than block acquireLock's caller indefinitely.
-func acquireLock(ctx context.Context, path string) (*fileLock, error) {
+// tryLock takes path's lock without waiting, or returns errLockHeld when
+// another fd (in this process or another) holds it.
+func tryLock(path string) (*fileLock, error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("manifest: open lock file %q: %w", path, err)
 	}
-
-	acquired := make(chan error, 1)
-	go func() { acquired <- syscall.Flock(int(file.Fd()), syscall.LOCK_EX) }()
-
-	select {
-	case flockErr := <-acquired:
-		if flockErr != nil {
-			_ = file.Close()
-			return nil, fmt.Errorf("manifest: lock %q: %w", path, flockErr)
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		_ = file.Close()
+		if errors.Is(err, syscall.EWOULDBLOCK) {
+			return nil, errLockHeld
 		}
-		return &fileLock{file: file}, nil
-	case <-ctx.Done():
-		go func() {
-			if flockErr := <-acquired; flockErr == nil {
-				_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
-			}
-			_ = file.Close()
-		}()
-		return nil, fmt.Errorf("manifest: lock %q: %w", path, ctx.Err())
+		return nil, fmt.Errorf("manifest: lock %q: %w", path, err)
 	}
+	return &fileLock{file: file}, nil
 }
 
 // release drops the lock. Safe to call once; the file is also closed.
