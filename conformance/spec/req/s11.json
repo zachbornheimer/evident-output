@@ -1,0 +1,76 @@
+[
+  {
+    "id": "C11-001",
+    "section": "11",
+    "quote": "Ordinary Facts (`TaskHandle.Fact`, `Output.Fact`, `evo.Fact`) are hidden in normal human output on every Task outcome: success, warned, and failed alike.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/facts",
+        "run": "TestC11_001_FactsAreHiddenInNormalOutputOnEveryOutcome"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C11-002",
+    "section": "11",
+    "quote": "Verbose output shows them.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/facts",
+        "run": "TestC11_002_VerboseOutputShowsFacts"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C11-003",
+    "section": "11",
+    "quote": "JSON and JSONL always carry them (`facts` on each `evo.run` task, `fact.recorded` events), whatever the human verbosity.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/facts",
+        "run": "TestC11_003_MachineOutputAlwaysCarriesFacts"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C11-004",
+    "section": "11",
+    "quote": "`Config.Facts` are run-scoped Facts known at construction; they render with the header.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/facts",
+        "run": "TestC11_004_ConfigFactsRenderWithTheHeader"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C11-005",
+    "section": "11",
+    "quote": "A Task that fails does not promote its unrelated ordinary Facts.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/facts",
+        "run": "TestC11_005_FailingTaskDoesNotPromoteUnrelatedFacts"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C11-006",
+    "section": "11",
+    "quote": "Shown Facts render with muted labels and normal-intensity values:",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "UNCLASSIFIED: muted-label styling needs a color-capable render golden; plain output cannot observe it.",
+    "default": false
+  }
+]

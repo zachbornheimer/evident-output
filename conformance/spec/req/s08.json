@@ -1,0 +1,41 @@
+[
+  {
+    "id": "C08-001",
+    "section": "8",
+    "quote": "Known external work should support precise provenance.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/freshness",
+        "run": "TestC08_001_PreciseProvenanceTracksScriptAndInput"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C08-002",
+    "section": "8",
+    "quote": "For opaque Go callbacks where Evo cannot know semantic dependencies, the application/build fingerprint is the conservative fallback.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/freshness",
+        "run": "TestC06_001_OpaqueCodeIsNeverSkippedFromTheManifest"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C08-003",
+    "section": "8",
+    "quote": "An application fingerprint means “previously discovered semantics may need revalidation,” not “every downstream result definitely changed.”",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/freshness",
+        "run": "TestC06_001_OpaqueCodeIsNeverSkippedFromTheManifest"
+      }
+    ],
+    "default": false
+  }
+]

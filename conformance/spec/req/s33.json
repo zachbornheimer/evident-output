@@ -1,0 +1,166 @@
+[
+  {
+    "id": "C33-001",
+    "section": "33",
+    "quote": "A `Writer()`-backed Running Task shows a bounded live tail of 6 lines under its row, with the footer `… N lines in evidence`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestWriter_LiveTailStaysBoundedWhileCaptureKeepsTheStream"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestWriter_LiveFrameShowsOwnerTailAndFooter"
+      },
+      {
+        "pkg": "./internal/render/live",
+        "run": "TestWriteLiveTaskLine_RunningTailRendersUnderOwnerWithFooter"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C33-002",
+    "section": "33",
+    "quote": "After 60 seconds without output the row carries a `· quiet <elapsed>` suffix in the one elapsed format of section 32.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/render/live",
+        "run": "TestLiveQuiet_SuffixAppearsPastThreshold"
+      },
+      {
+        "pkg": "./internal/render/live",
+        "run": "TestLiveQuiet_NewLineClearsSuffix"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C33-003",
+    "section": "33",
+    "quote": "Memory stays bounded for any uptime.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestWriter_LiveTailStaysBoundedWhileCaptureKeepsTheStream"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C33-004",
+    "section": "33",
+    "quote": "The live frame changes at least every 100ms.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestLive_QuietRunningTaskKeepsChangingFrames"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C33-005",
+    "section": "33",
+    "quote": "`task.Ready(detail)` marks readiness.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/daemon",
+        "run": "TestDaemonReadyAndRestartedRenderTheirDetail"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C33-006",
+    "section": "33",
+    "quote": "`task.Restarted(reason, attempt, nextBackoff)` renders a restart.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/daemon",
+        "run": "TestDaemonReadyAndRestartedRenderTheirDetail"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C33-007",
+    "section": "33",
+    "quote": "`task.StoppedBy(signals...)` reclassifies the listed signals as a clean stop.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/daemon",
+        "run": "TestDaemonStoppedBySignalConcludesStoppedBand"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C33-008",
+    "section": "33",
+    "quote": "SIGTERM and SIGINT are clean stops by default for a Task that opts in.",
+    "tier": "1.2",
+    "tests": [],
+    "waiver": "NO-TEST-YET: no existing test asserts the default signals; the red daemon test passes the signals explicitly to StoppedBy. Needs a pending test once the opt-in spelling is settled.",
+    "default": false
+  },
+  {
+    "id": "C33-009",
+    "section": "33",
+    "quote": "A clean stop concludes with exit code 0 and the `[stopped]` band.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/daemon",
+        "run": "TestDaemonStoppedBySignalConcludesStoppedBand"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C33-010",
+    "section": "33",
+    "quote": "Plain (non-TTY) output streams start, ready, log lines, and stop one line per event, without glyphs.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/daemon",
+        "run": "TestDaemonPlainNonTTYStreamsLinesAsTheyArrive"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C33-011",
+    "section": "33",
+    "quote": "JSONL carries every log line as an event.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/daemon",
+        "run": "TestDaemonJSONLCarriesLifecycleLineEvents"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C33-012",
+    "section": "33",
+    "quote": "Log lines classified INFO and above appear in the tail; DEBUG lines appear only under `EVO_VERBOSE=1`.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/daemon",
+        "run": "TestDaemonLogLevelsSurviveInTheTail"
+      }
+    ],
+    "default": false
+  }
+]

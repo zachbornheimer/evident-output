@@ -30,6 +30,7 @@
 !/docs/**
 !/conformance/
 !/conformance/**
+/conformance/spec/score.json
 !/testdata/
 !/testdata/**
 !/testkit/
@@ -42,6 +43,9 @@
 !/schema/**
 !/internal/
 !/internal/**
+!/eval/
+!/eval/**
+/eval/results/
 !/examples/
 !/examples/**
 !/scripts/

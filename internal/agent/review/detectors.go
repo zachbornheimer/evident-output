@@ -298,4 +298,27 @@ var fileDetectors = []detector{
 	{needsEvo: true, run: textRule(detectDetailOfError)},
 	// MCP-014 / DOM-011: expected blocked item treated as application error.
 	{needsEvo: true, run: textRule(detectBlockedAsError)},
+	// API-064: Computed.Get() read by work nothing orders after its producer.
+	{needsEvo: true, run: astRule(detectUnorderedComputedGet)},
+	// API-065: After(x) between steps of one Sequence, which already orders them.
+	{needsEvo: true, run: astRule(detectRedundantAfterInSequence)},
+	// API-066: a Task result handed to another Task through an outer variable.
+	{needsEvo: true, run: astRule(detectOuterVariableHandoff)},
+	// API-067: .Into(&x) result plumbing on a Task.
+	{needsEvo: true, run: astRule(detectIntoResultPlumbing)},
+	// API-068: child Tasks/containers declared inside a Task's Define.
+	{needsEvo: true, run: astRule(detectChildrenDeclaredInTaskDefine)},
+	// API-069: I/O, goroutines, Wait, context or an error return in a builder.
+	{needsEvo: true, run: astRule(detectImpureTopologyBuilder)},
+	// API-070: one Task looping over items that each deserve an outcome.
+	{needsEvo: true, run: astRule(detectCategoryTaskLoopingOverItems)},
+	// API-071: a Task whose only job is to print.
+	{needsEvo: true, run: astRule(detectPresentationOnlyTask)},
+	// API-072 (ZYS-1369): the canonical shape the pinned release cannot express.
+	{needsEvo: true, run: detectInexpressibleShape},
+	// EVO-UI-004: a hand-picked ANSI color or [OK]-style status printed
+	// directly. Fires without an evo import: the caller is bypassing evo.
+	{run: astRule(detectCallerChosenGlyphColorOrStatus)},
+	// EVO-WIRE-002: a json wire struct beside an undocumented SchemaVersion.
+	{run: astRule(detectUndocumentedWireSchemaVersion)},
 }

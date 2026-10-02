@@ -1,0 +1,153 @@
+[
+  {
+    "id": "C05-001",
+    "section": "5",
+    "quote": "Ordinary success should remain compact:",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC05_001_SuccessStaysCompactWithoutPerAttributeRows"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C05-002",
+    "section": "5",
+    "quote": "Already satisfied is a successful resolution, e.g.:",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_001_OutcomesAreRuntimeSemantics"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C05-003",
+    "section": "5",
+    "quote": "It is read-only and must observe state; a constant answer is misuse (review API-063).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI063_ConstantVerify_Fires"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI063_ObservingVerify_Silent"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI063_ResolvesTheBindingInScope"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C05-004",
+    "section": "5",
+    "quote": "Checks registered before Define are ANDed.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC05_002_BeforeChecksAreANDedAndAllTrueSkipsTheCallback"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C05-005",
+    "section": "5",
+    "quote": "Before the callback: all checks true resolves the Task Done with `ResolutionAlreadySatisfied`, and the callback never runs.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC05_002_BeforeChecksAreANDedAndAllTrueSkipsTheCallback"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C05-006",
+    "section": "5",
+    "quote": "After a successful callback: any false check fails the Task with `ProblemCodeVerificationUnsatisfied` (`postcondition not satisfied`, exit 2).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC05_003_FalseAfterCheckFailsWithUnsatisfiedCode"
+      },
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC05_004_CallbackThatEstablishesStateSatisfiesTheAfterCheck"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C05-007",
+    "section": "5",
+    "quote": "Dry run and Preview skip the after-check only for a Task that recorded a planned row, because that mutation never ran.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC05_005_DryRunSkipsAfterCheckOnlyForPlannedWork"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C05-008",
+    "section": "5",
+    "quote": "A callback that resolves its own Task (`Skipped`, `Block`) chose not to converge, so the after-check is skipped.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC05_006_SelfResolvingCallbackSkipsTheAfterCheck"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C05-009",
+    "section": "5",
+    "quote": "If the callback committed an Effect before resolving itself, state changed and the after-check runs.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC05_007_CommittedEffectBeforeSelfResolutionStillRunsAfterCheck"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C05-010",
+    "section": "5",
+    "quote": "A callback that calls `Skipped` and then returns an error fails with that error. The self-resolution was only a proposal, so no misuse line prints.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC05_008_SkippedThenErrorFailsWithThatErrorAndNoMisuseLine"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C05-011",
+    "section": "5",
+    "quote": "Verification details surface when they explain partial truth, skipped work, or failure:",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "UNCLASSIFIED: per-attribute File verification detail rows were landed as goldens in commits 3ed1905/7af897e/0123cae, but no test with that name/behavior was located to bind; WP2 must bind the golden test.",
+    "default": false
+  }
+]

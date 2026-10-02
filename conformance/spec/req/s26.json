@@ -1,0 +1,172 @@
+[
+  {
+    "id": "C26-001",
+    "section": "26",
+    "quote": "The application does **not** manage mutexes, lock files, lock ordering, or unlock lifecycle.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/resources",
+        "run": "TestC26_001_PublicVocabularyHasNoLockTerms"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C26-002",
+    "section": "26",
+    "quote": "`Basis` is the normal read-side semantic declaration because it says both that the resource is observed and that its fingerprint participates in freshness.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestBasisObservationCannotRaceFileCommit"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileManifestBasisDriftForcesReconciliation"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C26-003",
+    "section": "26",
+    "quote": "`File` is the normal write-side semantic declaration because it says what state should be established, enabling dry-run, Evidence, Effects, verification, and stale-write protection.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileWaitsForCoarseEffectClaim"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesRefusesToOverwriteStaleSource"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileManifestDryRunNeverCommitsAndRecordsPlannedEffect"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C26-004",
+    "section": "26",
+    "quote": "The existence of a lock is an implementation detail. Uncontended access should be invisible.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestUncontendedEffectResourceIsSilent"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestHoldResource_UncontendedProducesNoOutput"
+      },
+      {
+        "pkg": "./internal/resource",
+        "run": "TestHoldUncontendedNeverReportsContention"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C26-005",
+    "section": "26",
+    "quote": "If contention matters to the user, the renderer may show that work is waiting;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/resources",
+        "run": "TestC30_079_AWaitingTaskShowsWaitingForItsResource"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C26-006",
+    "section": "26",
+    "quote": "Generic resource access may hold **at most one resource at a time**.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/resource",
+        "run": "TestHoldNestedAcquisitionFailsDirectly"
+      },
+      {
+        "pkg": "./internal/resource",
+        "run": "TestHoldNestedAcquisitionFailsThroughHelpers"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C26-007",
+    "section": "26",
+    "quote": "While one resource is held, nested acquisition of another resource is invalid. This rule must apply even through helper calls.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/resource",
+        "run": "TestHoldNestedAcquisitionFailsThroughHelpers"
+      },
+      {
+        "pkg": "./internal/resource",
+        "run": "TestHoldNestedAcquisitionFailsBeforeDeadlock"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestHoldResource_NestedThroughHelperIsMisuse"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileInsideResourceEffectIsNestedMisuse"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C26-008",
+    "section": "26",
+    "quote": "Operations that inherently require multi-resource atomicity are implemented as Evo-native operations rather than exposing arbitrary multi-lock acquisition to callers.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesClaimsEachPathWithoutCallerLocks"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C26-009",
+    "section": "26",
+    "quote": "The public vocabulary has no mutex terms.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/resources",
+        "run": "TestC26_001_PublicVocabularyHasNoLockTerms"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C26-010",
+    "section": "26",
+    "quote": "Opaque mutation claims its one Resource through `EffectSpec.Resource`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestEffectsOnOneLogicalResourceNeverOverlap"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestEffectRejectsInvalidResource"
+      }
+    ],
+    "default": false
+  }
+]

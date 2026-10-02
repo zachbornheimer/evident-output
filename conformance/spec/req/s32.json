@@ -1,0 +1,41 @@
+[
+  {
+    "id": "C32-001",
+    "section": "32",
+    "quote": "Elapsed and quiet durations render in one compact form everywhere: live, plain, and durable output.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/elapsed",
+        "run": "TestElapsedFormatIsOneShapeAcrossRanges"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C32-002",
+    "section": "32",
+    "quote": "The form is `2s` under a minute, `4m12s` under an hour, `3h04m` under a day, and `2d3h` beyond.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/elapsed",
+        "run": "TestElapsedFormatIsOneShapeAcrossRanges"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C32-003",
+    "section": "32",
+    "quote": "A duration never renders without a unit, and never in the Go `Duration.String` form (`1h2m3s`, `4h12m0s`).",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/elapsed",
+        "run": "TestElapsedFormatIsOneShapeAcrossRanges"
+      }
+    ],
+    "default": false
+  }
+]

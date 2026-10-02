@@ -58,8 +58,7 @@ func GoSource(filename, src string) Result {
 // GoSourceAt reviews src as it would be written for desiredVersion
 // (empty means the current rec dialect).
 func GoSourceAt(filename, src, desiredVersion string) Result {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, filename, src, parser.SkipObjectResolution)
+	fset, f, err := parseSourceFile(filename, src)
 	if err != nil {
 		return newResult([]Finding{parseErrorFinding(filename, err)})
 	}
@@ -68,6 +67,13 @@ func GoSourceAt(filename, src, desiredVersion string) Result {
 	res := newResult(reviewFile(filename, src, f, fset, desiredVersion))
 	res.DesiredVersion = desiredVersion
 	return res
+}
+
+// parseSourceFile parses src the one way review reads Go source.
+func parseSourceFile(filename, src string) (*token.FileSet, *ast.File, error) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filename, src, parser.SkipObjectResolution|parser.ParseComments)
+	return fset, f, err
 }
 
 // reviewFile runs every file detector that admits parsed file f.

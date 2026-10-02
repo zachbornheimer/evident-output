@@ -17,6 +17,17 @@ git commit -s -m "feat: your change"
 4. Run `mise run ci`.
 5. Small conventional commits (`feat:`, `fix:`, `test:`, `docs:`, `chore:`).
 
+## CI
+
+`mise run ci` is the gate. GitHub Actions (`.github/workflows/ci.yml`) runs it
+on `main` pushes and pull requests with the toolchain pinned in `mise.toml`.
+
+- `gate`: `mise run ci` on the pinned Go, plus the nested `eval/` module tests.
+- `min-go`: build, vet, and test on the Go version in `go.mod` (no lint).
+- `cross`: library build for linux, darwin, and windows.
+
+The `evopending` build tag is not set in CI. Actions are pinned to commit SHAs.
+
 ## Conformance
 
 The roast suite under `conformance/` is the executable specification.

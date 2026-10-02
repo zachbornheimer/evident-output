@@ -42,17 +42,7 @@ func heartbeatSuffix(now, since time.Time) string {
 	if elapsed < elapsedAfter {
 		return ""
 	}
-	return " — " + formatElapsed(elapsed)
-}
-
-// formatElapsed renders a compact, second-rounded duration: "45s" under a
-// minute, "1m30s"/"2m3s" (Go's Duration.String shape) at or past a minute.
-func formatElapsed(d time.Duration) string {
-	d = d.Round(time.Second)
-	if d < time.Minute {
-		return fmt.Sprintf("%ds", int(d.Seconds()))
-	}
-	return d.String()
+	return " — " + txt.FormatElapsed(elapsed)
 }
 
 // quietAfter is how long a Writer-backed Running row goes without a new
@@ -72,7 +62,7 @@ func quietSuffix(t core.TaskSnapshot, st liveStyle) string {
 	if silent < quietAfter {
 		return ""
 	}
-	return " " + txt.Style("· quiet "+formatQuiet(silent), txt.SGRYellow, st.Color)
+	return " " + txt.Style("· quiet "+txt.FormatElapsed(silent), txt.SGRYellow, st.Color)
 }
 
 // withQuietSuffix appends the quiet suffix to a Running row's detail.
@@ -82,21 +72,6 @@ func withQuietSuffix(detail string, t core.TaskSnapshot, st liveStyle) string {
 		return strings.TrimPrefix(quiet, " ")
 	}
 	return detail + quiet
-}
-
-// formatQuiet renders a silence in whole minutes, or hours and minutes past
-// an hour: "1m", "6m", "2h10m", "2h".
-func formatQuiet(d time.Duration) string {
-	minutes := int(d / time.Minute)
-	hours, minutes := minutes/60, minutes%60
-	switch {
-	case hours == 0:
-		return fmt.Sprintf("%dm", minutes)
-	case minutes == 0:
-		return fmt.Sprintf("%dh", hours)
-	default:
-		return fmt.Sprintf("%dh%dm", hours, minutes)
-	}
 }
 
 // renderLiveRegion builds the interactive ledger text for the current snapshot.

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "C23-001",
+    "section": "23",
+    "quote": "A junior developer should not need comments explaining how to produce acceptable output.",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "PROCESS: a reviewer judgment over consumer code; the automatic behaviors it lists are bound individually in §22 and §30.",
+    "default": false
+  },
+  {
+    "id": "C23-002",
+    "section": "23",
+    "quote": "Prefer compiler/type-system constraints over documentation saying “do not do this.”",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "PROCESS: a design preference applied at review; no single behavior to test.",
+    "default": false
+  }
+]

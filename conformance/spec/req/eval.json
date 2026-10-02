@@ -1,0 +1,57 @@
+[
+  {
+    "id": "C23-003",
+    "section": "23",
+    "quote": "A junior developer should not need comments explaining how to produce acceptable output.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/evaltask",
+        "run": "TestReplay_ReferencesPassEveryGrade"
+      },
+      {
+        "pkg": "./internal/agent/evaltask",
+        "run": "TestFixtures_AllBuild"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C23-004",
+    "section": "23",
+    "quote": "caller-managed concurrency, or comments explaining correct usage",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/evaltask",
+        "run": "TestReplay_TrapsAreRejected"
+      },
+      {
+        "pkg": "./internal/agent/evaltask",
+        "run": "TestFindBannedPatterns_FlagsEachSeededBadShape"
+      },
+      {
+        "pkg": "./internal/agent/evaltask",
+        "run": "TestFindBannedPatterns_UnknownPatternIsAnError"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C21-021",
+    "section": "21",
+    "quote": "The review loop is mandatory: review, apply every suggestion, review the same source again, and stop only when findings are empty and `recheck_required=false`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/evaltask",
+        "run": "TestFixerSeam_RepairLoopAcceptsAnyFixer"
+      },
+      {
+        "pkg": "./internal/agent/evaltask",
+        "run": "TestGrade_BuildFailureStopsBeforeRun"
+      }
+    ],
+    "default": false
+  }
+]

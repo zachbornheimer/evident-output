@@ -1,0 +1,20 @@
+[
+  {
+    "id": "C25-001",
+    "section": "25",
+    "quote": "The system is ready when a reviewer can answer **yes** to:",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "PROCESS: the release-readiness question is answered by a human reviewer after the zq canary passes.",
+    "default": false
+  },
+  {
+    "id": "C25-002",
+    "section": "25",
+    "quote": "If the answer still requires application-specific terminal prose, duplicated state logic, manual already-satisfied checks, manual JSON construction, caller-managed concurrency, or comments explaining correct usage, 1.x is not complete.",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "PROCESS: a release-gate criterion evaluated over the zq canary, not an Evo unit behavior.",
+    "default": false
+  }
+]

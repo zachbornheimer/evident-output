@@ -1,0 +1,59 @@
+[
+  {
+    "id": "C34-001",
+    "section": "34",
+    "quote": "Sibling per-item mutating Tasks under one Group whose Effects share a verb and object fold into one aggregated human row, counted per item (for example `deleted 3 branches`).",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/ledger",
+        "run": "TestPerItemEffectsUnderOneGroupFoldIntoOneHumanRow"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C34-002",
+    "section": "34",
+    "quote": "The fold keys on owner Task identity, never on display name.",
+    "tier": "1.2",
+    "tests": [],
+    "waiver": "NO-TEST-YET: the red ledger fixture uses distinct display names per item; nothing asserts identity-keying (two same-named items must not merge, differently named siblings of one owner must). Needs a pending test.",
+    "default": false
+  },
+  {
+    "id": "C34-003",
+    "section": "34",
+    "quote": "`[planned]` and `[changed]` Effects both fold.",
+    "tier": "1.2",
+    "tests": [],
+    "waiver": "NO-TEST-YET: the red ledger fixture only runs the changed tense; a dry-run (planned) fold fixture is missing.",
+    "default": false
+  },
+  {
+    "id": "C34-004",
+    "section": "34",
+    "quote": "A failed item stays visible under the aggregated row.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/ledger",
+        "run": "TestFoldKeepsFailedItemsVisible"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C34-005",
+    "section": "34",
+    "quote": "JSON and JSONL keep every per-item Effect.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/ledger",
+        "run": "TestFoldKeepsEveryEffectInTheSnapshot"
+      }
+    ],
+    "default": false
+  }
+]

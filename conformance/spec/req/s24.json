@@ -1,0 +1,29 @@
+[
+  {
+    "id": "C24-001",
+    "section": "24",
+    "quote": "Split implementation work into issues only when a unit has its own independently testable invariant and review boundary.",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "PROCESS: how Linear issues are cut; a planning rule with no code artifact.",
+    "default": false
+  },
+  {
+    "id": "C24-002",
+    "section": "24",
+    "quote": "Do not scatter product semantics across many tickets such that an implementer must reconstruct the design from issue archaeology.",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "PROCESS: ticket hygiene; checked by reading the tracker.",
+    "default": false
+  },
+  {
+    "id": "C24-003",
+    "section": "24",
+    "quote": "Milestones represent coherent proof points, not directory/component buckets.",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "PROCESS: milestone design in Linear; no code artifact.",
+    "default": false
+  }
+]
