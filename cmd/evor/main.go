@@ -51,7 +51,7 @@ type Command struct {
 
 type manifest struct {
 	StartedAt  time.Time       `json:"started_at"`
-	FinishedAt time.Time       `json:"finished_at,omitempty"`
+	FinishedAt time.Time       `json:"finished_at"`
 	Root       string          `json:"root"`
 	Config     string          `json:"config,omitempty"`
 	Result     string          `json:"result"`

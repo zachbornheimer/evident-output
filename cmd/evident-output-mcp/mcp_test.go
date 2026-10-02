@@ -8,13 +8,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/publish/cacheroot/cacherootest"
 )
 
 func TestMain(m *testing.M) {
 	if err := os.Setenv("EVO_MCP_NO_AUTO_UPDATE", "1"); err != nil {
 		panic(err)
 	}
-	os.Exit(m.Run())
+	os.Exit(cacherootest.Run(m))
 }
 
 func TestMCP_InitializeAndToolsListStdoutPurity(t *testing.T) {
