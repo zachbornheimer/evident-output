@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/zachbornheimer/evident-output/internal/publish/cacheroot"
 )
 
 // The staging root holds stages prepared apart from their destinations,
@@ -20,7 +22,7 @@ const (
 // stagingRoot is the staging root, created once per process; "" when the
 // user has no cache directory or it cannot be created.
 var stagingRoot = sync.OnceValue(func() string {
-	base, err := os.UserCacheDir()
+	base, err := cacheroot.Dir()
 	if err != nil {
 		return ""
 	}

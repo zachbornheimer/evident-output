@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/publish/cacheroot"
 )
 
 const (
@@ -35,7 +37,7 @@ func crashedStage(t *testing.T, cache string) string {
 	t.Helper()
 	cmd := exec.Command(os.Args[0], "-test.run=^"+reapChildTest+"$")
 	cmd.Env = append(os.Environ(), reapChildEnv+"="+filepath.Join(t.TempDir(), "dest"),
-		"HOME="+cache, "XDG_CACHE_HOME="+cache)
+		cacheroot.EnvVar+"="+cache)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("child: %v\n%s", err, out)
 	}
@@ -49,13 +51,8 @@ func crashedStage(t *testing.T, cache string) string {
 
 func userCache(t *testing.T, home string) string {
 	t.Helper()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CACHE_HOME", home)
-	dir, err := os.UserCacheDir()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return dir
+	t.Setenv(cacheroot.EnvVar, home)
+	return home
 }
 
 func TestReaperRemovesACrashedStageOnlyAfterTheGraceWindow(t *testing.T) {

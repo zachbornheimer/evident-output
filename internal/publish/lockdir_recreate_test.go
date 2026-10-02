@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/publish/cacheroot/cacherootest"
 )
 
 func lockOnce(t *testing.T, dest string) *Hold {
@@ -32,6 +34,7 @@ func TestLockDirRecreatedAfterDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cacherootest.RequireUnderScratch(t, dir)
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatal(err)
 	}
@@ -50,6 +53,7 @@ func TestLockDirRecreatedConcurrently(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cacherootest.RequireUnderScratch(t, dir)
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatal(err)
 	}
@@ -78,6 +82,7 @@ func TestLockDirPruneStageRootRecreatedAfterDeletion(t *testing.T) {
 	if root == "" {
 		t.Skip("no staging root")
 	}
+	cacherootest.RequireUnderScratch(t, root)
 	if err := os.RemoveAll(root); err != nil {
 		t.Fatal(err)
 	}

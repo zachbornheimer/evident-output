@@ -14,6 +14,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/publish/cacheroot"
 )
 
 // Lock polling bounds: a held lock covers one commit, so waits are short;
@@ -42,7 +44,7 @@ const (
 
 // lockDir is where lock files live; created once per process.
 var lockDir = sync.OnceValues(func() (string, error) {
-	base, err := os.UserCacheDir()
+	base, err := cacheroot.Dir()
 	if err != nil {
 		base = os.TempDir()
 	}
