@@ -189,7 +189,7 @@ func (x *childIndex) dispositions(g *tasksState) core.Dispositions {
 			x.itemsThrough = pos
 		})
 	}
-	return x.itemDispositions
+	return x.itemDispositions.Clone()
 }
 
 // stampDirectTasks stamps the Tasks filed while no frame had painted

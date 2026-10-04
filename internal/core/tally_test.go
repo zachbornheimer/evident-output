@@ -72,6 +72,24 @@ func TestTally(t *testing.T) {
 	}
 }
 
+func TestTallyCloneDoesNotShareBacking(t *testing.T) {
+	t.Parallel()
+	var orig core.Tally
+	orig.Add(core.TaxonomyRecord{Reason: "pinned", Name: "a", Causes: []string{"why"}})
+	clone := orig.Clone()
+	orig.Add(core.TaxonomyRecord{Reason: "pinned", Name: "b"})
+	orig.Add(core.TaxonomyRecord{Reason: "vendored", Name: "c", Causes: []string{"elsewhere"}})
+	if clone.Total() != 1 {
+		t.Fatalf("clone Total() = %d, want 1", clone.Total())
+	}
+	if got := clone.Reasons(); !reflect.DeepEqual(got, []core.ReasonTally{{Reason: "pinned", Names: []string{"a"}}}) {
+		t.Fatalf("clone Reasons() = %#v", got)
+	}
+	if got := clone.Causes(); !reflect.DeepEqual(got, []string{"why"}) {
+		t.Fatalf("clone Causes() = %v, want [why]", got)
+	}
+}
+
 func TestDispositions_AddTaskSumsBothTallies(t *testing.T) {
 	t.Parallel()
 	var d core.Dispositions

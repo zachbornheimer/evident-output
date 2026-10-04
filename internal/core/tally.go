@@ -1,5 +1,10 @@
 package core
 
+import (
+	"maps"
+	"slices"
+)
+
 // Tally is the counted partition of disposition records (Skipped
 // or TaskHandle.Skipped): how many, split by Reason in first-seen order,
 // with the item names under each reason. It is the one owner of that
@@ -76,6 +81,36 @@ func (t Tally) Reasons() []ReasonTally { return t.reasons }
 // Causes is every counted record's evidence text, in record order.
 func (t Tally) Causes() []string { return t.causes }
 
+// Clone is a Tally the caller can hold after the original is mutated.
+// Slice and map fields are copied, so a live index can keep appending
+// while a frame reads this copy.
+func (t Tally) Clone() Tally {
+	out := Tally{total: t.total}
+	if n := len(t.reasons); n > 0 {
+		out.reasons = make([]ReasonTally, n)
+		for i, r := range t.reasons {
+			out.reasons[i] = ReasonTally{
+				Reason: r.Reason,
+				Names:  slices.Clone(r.Names),
+			}
+			if len(r.Facts) > 0 {
+				facts := make([][]Fact, len(r.Facts))
+				for j, f := range r.Facts {
+					facts[j] = CloneFacts(f)
+				}
+				out.reasons[i].Facts = facts
+			}
+		}
+	}
+	if len(t.index) > 0 {
+		out.index = maps.Clone(t.index)
+	}
+	if len(t.causes) > 0 {
+		out.causes = slices.Clone(t.causes)
+	}
+	return out
+}
+
 // TallyOf counts records.
 func TallyOf(records []TaxonomyRecord) Tally {
 	var t Tally
@@ -91,6 +126,11 @@ type Dispositions struct {
 
 // Empty reports whether nothing was skipped or kept.
 func (d Dispositions) Empty() bool { return d.Skipped.Total() == 0 && d.Kept.Total() == 0 }
+
+// Clone is a Dispositions the caller can hold after the original is mutated.
+func (d Dispositions) Clone() Dispositions {
+	return Dispositions{Skipped: d.Skipped.Clone(), Kept: d.Kept.Clone()}
+}
 
 // AddTask counts t's own Skipped and Kept records, each carrying t's
 // Facts: t is the item the records name.
