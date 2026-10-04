@@ -44,25 +44,6 @@ func HasEffectSections(s core.Snapshot) bool {
 // measured against different fixtures.
 const taskNameColumnMargin = 1
 
-// maxEffectSubjectWidth returns the shared column WriteEffects' one-
-// line-per-subject form pads its subject to, before taskNameColumnMargin and
-// the verb gap (fixture-repo-retire-dryrun.md's "[planned] branches   delete
-// ..." / "[planned] worktrees  remove ..."). subjectOf extracts the
-// comparable field since ChangesSnapshot and PlanSnapshot are distinct types
-// with no shared interface.
-func maxEffectSubjectWidth[T any](sections []T, subjectOf func(T) string) int {
-	if len(sections) < 2 {
-		return 0
-	}
-	width := 0
-	for _, s := range sections {
-		if n := txt.Cells(subjectOf(s)); n > width {
-			width = n
-		}
-	}
-	return width
-}
-
 // maxVisibleProblems is the human default bound (OPEN-003). Structured snapshots
 // retain full core.Problem lists separately (DEC-FAIL-001/003).
 const maxVisibleProblems = 5

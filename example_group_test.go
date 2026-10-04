@@ -34,6 +34,21 @@ func ExampleGroupHandle() {
 	// packages
 }
 
+// ExampleContainer mounts the same topology builder on a run, a Group, and a Sequence.
+func ExampleContainer() {
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
+	mount := func(c evo.Container) {
+		c.Task("check").Define(func(context.Context) error { return nil })
+	}
+	mount(out)
+	mount(out.Group("g"))
+	mount(out.Sequence("s"))
+	_ = out.Finish()
+	fmt.Println("ok")
+	// Output:
+	// ok
+}
+
 // ExampleSequence declares a self-managing, ordered task container: one
 // Running child at a time, in declaration order.
 func ExampleSequence() {
