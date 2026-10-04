@@ -43,6 +43,7 @@ Config	helper	Run
 Confirm	helper	Human output
 ConfirmDetail	helper	Human output
 ConfirmOption	helper	Human output
+Container	helper	Group
 Count	helper	Problem
 DataProjection	removed	Run
 DebugAddSource	removed	Run

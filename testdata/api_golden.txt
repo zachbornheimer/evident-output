@@ -153,6 +153,7 @@ type Conclusion
 type ConclusionState
 type Config
 type ConfirmOption
+type Container
 type DebugConfig
 type DebugPaneOption
 type DebugPresentation

@@ -101,6 +101,9 @@ and [`docs/zys-1382/KNOWN_BROKEN.md`](docs/zys-1382/KNOWN_BROKEN.md).
   Task, Group, or Sequence from inside a Task's `Define` callback records
   `ErrDeclaredInCallback`, whichever container it targets. Declare the
   children up front or from `Define` on the container instead.
+- **`evo.Container` (ZYS-1203):** a node that can declare work beneath it
+  (`Task`, `Group`, `Sequence`). Satisfied by `*Output`, `*GroupHandle`,
+  and `*SequenceHandle`. A Task is never a Container.
 
 ### Added
 

@@ -2,8 +2,28 @@ package evo
 
 import "github.com/zachbornheimer/evident-output/internal/engine"
 
-type SequenceHandle struct{ inner *engine.SequenceHandle }
-type GroupHandle struct{ inner *engine.GroupHandle }
+type (
+	SequenceHandle struct{ inner *engine.SequenceHandle }
+	GroupHandle    struct{ inner *engine.GroupHandle }
+)
+
+// Container is a node that can declare work beneath it: the run, a Group,
+// or a Sequence. A Task is never a Container.
+//
+// Shared topology builders take a Container:
+//
+//	func Build(parent evo.Container)
+type Container interface {
+	Task(name string) *TaskHandle
+	Group(name string) *GroupHandle
+	Sequence(name string) *SequenceHandle
+}
+
+var (
+	_ Container = (*Output)(nil)
+	_ Container = (*GroupHandle)(nil)
+	_ Container = (*SequenceHandle)(nil)
+)
 
 // Sequence declares a self-managing, ordered task container on the default
 // instance.

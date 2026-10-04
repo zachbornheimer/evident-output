@@ -1,7 +1,5 @@
-//go:build evopending
-
-// Pending: ZYS-1203 exports evo.Container. Red today because the package
-// does not compile: evo.Container is undefined.
+// C31-009 and C31-010: only Output, GroupHandle, and SequenceHandle satisfy
+// evo.Container; a Task never declares children.
 package container_test
 
 import (
