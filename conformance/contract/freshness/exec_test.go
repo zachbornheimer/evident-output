@@ -33,20 +33,22 @@ func runStages(t *testing.T, stateDir string, stages ...stage) map[string]bool {
 	seq := out.Sequence("stages")
 	for _, st := range stages {
 		task := seq.Task(st.name)
+		basis := make([]evo.Fingerprint, 0, len(st.basis)+len(st.env))
 		for _, p := range st.basis {
-			task.Basis(evo.File{Path: p})
+			fp := evo.FSPath(p)
+			task.Basis(fp)
+			basis = append(basis, fp)
 		}
 		for _, key := range slices.Sorted(maps.Keys(st.env)) {
-			task.Basis(evo.Value("env."+key, st.env[key]))
+			fp := evo.Value("env."+key, st.env[key])
+			task.Basis(fp)
+			basis = append(basis, fp)
 		}
 		task.Define(func(ctx context.Context) error {
-			outputs := make(evo.Outputs, len(st.outputs))
-			for i, p := range st.outputs {
-				outputs[i] = evo.File{Path: p}
-			}
-			res, err := evo.Exec{
-				Path: "sh", Args: []string{"-c", st.script}, Env: execEnv(st.env), Outputs: outputs,
-			}.Run(ctx)
+			res, err := evo.Exec(ctx, evo.ExecSpec{
+				Executable: "sh", Args: []string{"-c", st.script}, Env: st.env,
+				Basis: basis, Outputs: st.outputs,
+			})
 			ran[st.name] = res.Ran
 			return err
 		})
@@ -57,19 +59,6 @@ func runStages(t *testing.T, stateDir string, stages ...stage) map[string]bool {
 	_ = out.Finish()
 	_ = out.Close()
 	return ran
-}
-
-// execEnv is the child environment for explicit entries: the parent's
-// environment plus them, so a set Env still finds sh's tools; nil inherits.
-func execEnv(explicit map[string]string) []string {
-	if len(explicit) == 0 {
-		return nil
-	}
-	env := os.Environ()
-	for _, key := range slices.Sorted(maps.Keys(explicit)) {
-		env = append(env, key+"="+explicit[key])
-	}
-	return env
 }
 
 func write(t *testing.T, path, contents string) {

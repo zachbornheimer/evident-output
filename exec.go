@@ -6,83 +6,53 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/engine"
 )
 
-// Exec is one subprocess invocation. An Exec literal performs no I/O; Run
-// spawns it.
-type Exec struct {
-	// Path is the executable; a bare name resolves through PATH.
-	Path string
-	// Args is passed to the child literally: no shell, no expansion.
-	Args []string
-	// Dir is the child's working directory; empty is the Run's workspace.
-	Dir string
-	// Env is the child's environment in os/exec form ("KEY=VALUE"); nil
-	// inherits the parent's.
-	Env []string
-	// Outputs are the Files and Trees the child produces. Relative paths
-	// resolve against Dir. Each must exist after a zero exit, and one with
-	// declared Content is verified.
-	Outputs Outputs
-}
-
-// Outputs is the Files and Trees an Exec produces:
-// evo.Outputs{evo.File{...}, evo.Tree{...}}.
-type Outputs []fsState
-
-// fsState is the sealed union of File and Tree: an Exec Output.
-type fsState interface{ isFSState() }
-
-func (File) isFSState() {}
-func (Tree) isFSState() {}
+// ExecSpec declares one managed-state subprocess invocation (spec §8.4).
+// Constructing an ExecSpec performs no I/O — Exec performs the operation.
+//
+// Aliased into internal/engine alongside the rest of the data model.
+type ExecSpec = engine.ExecSpec
 
 // ExecResult is one Exec attempt's immutable outcome: exit code and the
-// captured stdout/stderr tail. Ran is false when Run did not spawn (a
-// dry-run plan or a spawn failure).
+// captured stdout/stderr tail, so a caller can derive structured
+// Problems/Facts from a completed subprocess while Evo still owns spawning,
+// capture, liveness, cancellation, sanitization, and provenance. Ran is
+// false when Exec skipped spawning (a current manifest hit or a dry-run
+// plan); ordinary callers that don't need the result may ignore it with
+// `_, err := evo.Exec(...)`.
 //
-// Stdout and Stderr are the Capture tail Exec retains for the row:
+// Stdout and Stderr are the capture tail Exec retains for the row:
 // sanitized, redacted, and bounded (at most 200 completed lines / about
-// 256 KiB). Truncated reports that the bound dropped earlier output. When
-// you need a tool's complete machine output, have the tool write it to a
-// file and declare that file in Outputs.
+// 256 KiB). Truncated reports that the bound dropped earlier output. Parse
+// them only for line-oriented diagnostics that tolerate a tail. When you
+// need a tool's complete machine output, such as a JSON report, have the
+// tool write it to a file and read that file.
+//
+// Aliased into internal/engine alongside the rest of the data model.
 type ExecResult = engine.ExecResult
 
-// Run spawns the child and waits for it, then verifies Outputs. A nonzero
-// exit wraps ErrExecNonzeroExit and a missing Output after a zero exit
-// wraps ErrExecOutputMissingAfterSuccess; the result still carries the
-// captured attempt. ctx must come from a Task's Define callback.
-func (x Exec) Run(ctx context.Context) (ExecResult, error) {
-	return engine.RunExec(ctx, engine.ExecRequest{
-		Path: x.Path, Args: x.Args, Dir: x.Dir, Env: x.Env,
-		Outputs: x.Outputs.flatten(),
-	})
-}
+// Exec declares/reconciles one managed-state subprocess invocation: it
+// skips spawning when a prior record proves the operation is already
+// current (matching definition, Basis, and every declared Output digest),
+// otherwise runs the child and verifies its declared Outputs afterward. A
+// nonzero exit, or a declared Output missing after a zero exit, fails the
+// operation and wraps ErrExecNonzeroExit / ErrExecOutputMissingAfterSuccess
+// respectively — the returned ExecResult still carries the captured
+// attempt (Ran=true) in both cases, so a caller intentionally parsing
+// nonzero linter output can inspect it via the error path. ctx must come
+// from a Task's Define callback; called any other way it returns
+// ErrNoTaskContext or ErrTaskClosed.
+func Exec(ctx context.Context, spec ExecSpec) (ExecResult, error) { return engine.Exec(ctx, spec) }
 
-// flatten reduces the sealed File/Tree union to the engine's output list.
-func (outputs Outputs) flatten() []engine.ExecOutput {
-	out := make([]engine.ExecOutput, 0, len(outputs))
-	for _, state := range outputs {
-		switch v := state.(type) {
-		case File:
-			o := engine.ExecOutput{Path: v.Path}
-			if b, ok := v.Content.(bytesContent); ok {
-				o.WantBytes, o.HasBytes = b.data, true
-			}
-			out = append(out, o)
-		case Tree:
-			out = append(out, engine.ExecOutput{Path: v.Path, Tree: true})
-		}
-	}
-	return out
-}
-
-// Exec usage and outcome errors.
+// Exec-specific usage and outcome errors (spec §8.4).
 var (
-	// ErrExecPathMissing is an Exec whose Path is empty.
-	ErrExecPathMissing               = engine.ErrExecPathMissing
+	ErrExecSpecMissingExecutable     = engine.ErrExecSpecMissingExecutable
 	ErrExecExecutableNotFound        = engine.ErrExecExecutableNotFound
 	ErrExecNonzeroExit               = engine.ErrExecNonzeroExit
 	ErrExecOutputMissingAfterSuccess = engine.ErrExecOutputMissingAfterSuccess
 )
 
-type ProcessRunner = engine.ProcessRunner
-type ProcessCommand = engine.ProcessCommand
-type ProcessOutcome = engine.ProcessOutcome
+type (
+	ProcessRunner  = engine.ProcessRunner
+	ProcessCommand = engine.ProcessCommand
+	ProcessOutcome = engine.ProcessOutcome
+)

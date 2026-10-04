@@ -1,5 +1,3 @@
-//go:build evo_pre1382
-
 // Package evo_test hosts the v8 mockup goldens: each of the terminal tabs
 // the coordinator transcribed from evident-output-ui-v8.html, encoded as a
 // scripted runtime model on Plain/testkit output and diffed exactly against

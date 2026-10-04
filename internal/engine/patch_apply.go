@@ -5,11 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
 	"github.com/zachbornheimer/evident-output/internal/patch"
 	"github.com/zachbornheimer/evident-output/internal/publish"
 )
+
+// defaultFileMode is the permission a new file gets when the patch does
+// not name a mode.
+const defaultFileMode fs.FileMode = 0o644
 
 // ErrPatchUnsafePath is a diff path outside the workspace, or one that
 // reaches it through a symlinked directory.

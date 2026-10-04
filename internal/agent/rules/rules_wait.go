@@ -49,7 +49,7 @@ return jobs.Wait()`,
 return evo.Effect(ctx, spec, func(ctx context.Context) error {
   return evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}) // nested: ctx already holds "from"
 })`,
-			GoodCode: `if err := (evo.File{Path: to, Content: evo.Bytes(marker)}).Write(ctx); err != nil {
+			GoodCode: `if err := evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}); err != nil {
   return err
 }
 spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
@@ -68,7 +68,7 @@ return evo.Effect(ctx, spec, func(ctx context.Context) error {
 			Category:   "API",
 			Severity:   SeverityWarning,
 			Invariant:  "application code does not manage mutexes, lock files, or unlock lifecycle around an Evo-managed File path; File claims write-side ownership of its own path automatically, and overlapping File/Basis/Effect claims already wait on each other",
-			Why:        "A caller-managed lock wrapped around an evo.File/Files/Patch/Effect call (ZYS-931, ZYS-831) is invisible to Evo's own resource coordination (ZYS-840). The lock may be a sync.Mutex/RWMutex, a flock(2) on a file descriptor (syscall.Flock, unix.Flock), an O_EXCL lock file removed afterwards, or a gofrs/flock value. It cannot see a contended wait, cannot render \"waiting for <path>\" the way a real resource claim does, and is pure redundancy once File already serializes writers on its own Path — or a false sense of safety if the two coordination layers ever disagree about ordering. Remove the lock and let File own the path; when the work is not itself a File write, claim the same path explicitly with evo.FSResource so it still overlaps File/Basis on that path.",
+			Why:        "A caller-managed sync.Mutex/RWMutex wrapped around an evo.File call (ZYS-931) is invisible to Evo's own resource coordination (ZYS-840): it cannot see a contended wait, cannot render \"waiting for <path>\" the way a real resource claim does, and is pure redundancy once File already serializes writers on its own Path — or a false sense of safety if the two coordination layers ever disagree about ordering. Remove the lock and let File own the path; when the work is not itself a File write, claim the same path explicitly with evo.FSResource so it still overlaps File/Basis on that path.",
 			BadCode: `type Writer struct {
   mu   sync.Mutex
   path string
@@ -82,7 +82,7 @@ func (w *Writer) write(ctx context.Context, contents []byte) error {
   path string
 }
 func (w *Writer) write(ctx context.Context, contents []byte) error {
-  return evo.File{Path: w.path, Content: evo.Bytes(contents)}.Write(ctx)
+  return evo.File(ctx, evo.FileSpec{Path: w.path, Contents: contents})
 }
 // A non-File operation over the same path claims it explicitly instead:
 func (w *Writer) archive(ctx context.Context) error {
@@ -91,7 +91,7 @@ func (w *Writer) archive(ctx context.Context) error {
     Resource: evo.FSResource(w.path),
   }, func(ctx context.Context) error { return archive(w.path) })
 }`,
-			Remediation:     "When the lock (Lock()/Unlock(), flock LOCK_EX/LOCK_UN, an O_EXCL lock file plus os.Remove, or gofrs/flock) guards nothing but the evo.File call, drop it; File already claims its own path for writing. When the lock also guards other shared state, keep it and end the critical section before calling evo.File, because File can wait on its resource claim while the caller lock is held. Never delete a mutex field on this rule alone; other methods may depend on it. For an opaque (non-File) mutation over the same path, claim it with evo.Effect's EffectSpec.Resource: evo.FSResource(path) instead of a caller lock — never a bare Write(func...) callback for tracked file state.",
+			Remediation:     "When the Lock()/Unlock() pair guards nothing but the evo.File call, drop the pair; File already claims its own path for writing. When the lock also guards other shared state, keep it and end the critical section before calling evo.File, because File can wait on its resource claim while the caller lock is held. Never delete a mutex field on this rule alone; other methods may depend on it. For an opaque (non-File) mutation over the same path, claim it with evo.Effect's EffectSpec.Resource: evo.FSResource(path) instead of a caller lock — never a bare Write(func...) callback for tracked file state.",
 			RelatedGuidance: []string{"evo-file-exec", "common-api"},
 			VerificationIDs: []string{"API-055"},
 			Since:           "1.1.0",
@@ -113,10 +113,10 @@ cacheWarmTask.Define(func(ctx context.Context) error {
 // same file — avoid concurrent write race
 cacheWarmTask.After(configTask)`,
 			GoodCode: `configTask.Define(func(ctx context.Context) error {
-  return evo.File{Path: "config.json", Content: evo.Bytes(cfg)}.Write(ctx)
+  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
 })
 cacheWarmTask.Define(func(ctx context.Context) error {
-  return evo.File{Path: "config.json", Content: evo.Bytes(cfg)}.Write(ctx)
+  return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
 })
 // no .After: both Tasks write the identical config.json, and File already
 // claims the path and serializes the overlap`,

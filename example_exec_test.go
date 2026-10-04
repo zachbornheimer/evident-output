@@ -14,33 +14,25 @@ import (
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
-// exampleExecutable writes an executable stub named name in dir and returns
-// its path: Exec resolves Path on disk before the scripted ProcessRunner
-// is asked to run it.
-func exampleExecutable(dir, name string) string {
-	path := filepath.Join(dir, name)
-	if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
-		panic(err)
+// ExampleExecSpec declares one managed-state subprocess invocation —
+// constructing it performs no I/O; passing it to Exec is what skips
+// spawning when a prior record proves the operation current, or runs the
+// child and verifies its declared Outputs afterward.
+func ExampleExecSpec() {
+	spec := evo.ExecSpec{
+		Executable: "python3",
+		Args:       []string{"generate.py", "input.xlsx", "out.bin"},
+		Basis:      []evo.Fingerprint{evo.FSPath("input.xlsx")},
+		Outputs:    []string{"out.bin"},
 	}
-	return path
-}
-
-// ExampleOutputs declares the Files and Trees an Exec produces; Run fails
-// when one is missing after a zero exit.
-func ExampleOutputs() {
-	gen := evo.Exec{
-		Path:    "python3",
-		Args:    []string{"generate.py", "input.xlsx", "out.bin"},
-		Outputs: evo.Outputs{evo.File{Path: "out.bin"}, evo.Tree{Path: "assets"}},
-	}
-	fmt.Println(gen.Path, len(gen.Args), len(gen.Outputs))
+	fmt.Println(spec.Executable, len(spec.Args))
 	// Output:
-	// python3 3 2
+	// python3 3
 }
 
-// ExampleExec runs one subprocess from inside a Task's Define callback,
-// through the same ProcessRunner facade a test replaces with
-// testkit.ProcessRunner.
+// ExampleExec reconciles one managed-state subprocess invocation from
+// inside a Task's Define callback, through the same ProcessRunner facade a
+// test replaces with testkit.ProcessRunner.
 func ExampleExec() {
 	dir, err := os.MkdirTemp("", "evo-example-exec")
 	if err != nil {
@@ -48,12 +40,13 @@ func ExampleExec() {
 		return
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
+	outPath := filepath.Join(dir, "out.bin")
 
 	runner := testkit.NewProcessRunner()
-	runner.Script(exampleExecutable(dir, "tool"), testkit.ScriptedProcess{ExitCode: 0})
-	// The scripted runner never actually writes out.bin, so declare it
+	runner.Script("/usr/bin/tool", testkit.ScriptedProcess{ExitCode: 0})
+	// The scripted runner never actually writes outPath, so declare it
 	// ahead of time the way a real generator's own subprocess would.
-	if err := os.WriteFile(filepath.Join(dir, "out.bin"), []byte("generated"), 0o644); err != nil {
+	if err := os.WriteFile(outPath, []byte("generated"), 0o644); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -65,12 +58,11 @@ func ExampleExec() {
 	})
 	task := out.Task("generate")
 	task.Define(func(ctx context.Context) error {
-		_, err := evo.Exec{
-			Path:    "./tool",
-			Args:    []string{"--out", "out.bin"},
-			Dir:     dir,
-			Outputs: evo.Outputs{evo.File{Path: "out.bin"}},
-		}.Run(ctx)
+		_, err := evo.Exec(ctx, evo.ExecSpec{
+			Executable: "/usr/bin/tool",
+			Args:       []string{"--out", outPath},
+			Outputs:    []string{outPath},
+		})
 		return err
 	})
 	_ = task.Wait()
@@ -78,7 +70,7 @@ func ExampleExec() {
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ generate
-	// [changed] generate  ran ./tool
+	// [changed] generate  ran /usr/bin/tool
 	//
 	// [changed]
 }
@@ -92,6 +84,10 @@ func ExampleExec() {
 // become a structured Fail instead of a flattened text blob.
 func ExampleExecResult() {
 	runner := testkit.NewProcessRunner()
+	runner.Script("/usr/bin/lint", testkit.ScriptedProcess{
+		ExitCode: 1,
+		Stdout:   []string{"file.go:10: unused variable", "file.go:22: missing return"},
+	})
 
 	// go/doc Example functions take no *testing.T (they are not run via
 	// t.Run), so t.TempDir is unavailable here — os.MkdirTemp + a deferred
@@ -105,10 +101,6 @@ func ExampleExecResult() {
 		return
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
-	runner.Script(exampleExecutable(dir, "lint"), testkit.ScriptedProcess{
-		ExitCode: 1,
-		Stdout:   []string{"file.go:10: unused variable", "file.go:22: missing return"},
-	})
 
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
@@ -117,7 +109,7 @@ func ExampleExecResult() {
 	})
 	task := out.Task("lint")
 	task.Define(func(ctx context.Context) error {
-		result, err := evo.Exec{Path: "./lint", Dir: dir}.Run(ctx)
+		result, err := evo.Exec(ctx, evo.ExecSpec{Executable: "/usr/bin/lint"})
 		if !errors.Is(err, evo.ErrExecNonzeroExit) {
 			return err
 		}
@@ -172,4 +164,23 @@ func ExampleProcessRunner() {
 	fmt.Println(err == nil, outcome.ExitCode)
 	// Output:
 	// true 0
+}
+
+// ExampleRunner installs a ProcessRunner other than the real spawner — the
+// seam every evo.Exec test in this repo uses to replace the OS process with
+// a deterministic testkit fake.
+func ExampleConfig_runner() {
+	runner := testkit.NewProcessRunner()
+	runner.Script("/usr/bin/tool", testkit.ScriptedProcess{ExitCode: 0})
+
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{
+		Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true,
+		ProcessRunner: runner,
+	})
+	out.Task("demo").Define(func(context.Context) error { return nil })
+	_ = out.Finish()
+	fmt.Print(buf.String())
+	// Output:
+	// ✓ demo
 }

@@ -1,5 +1,3 @@
-//go:build evo_pre1382
-
 // Package main compiles docs/migration/1.0.md's evo.File fence
 // (declarative managed-state file operations, new in 1.0, spec §8). See
 // TestDocFencesMatchFixtures. Never run.

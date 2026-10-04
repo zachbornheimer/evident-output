@@ -40,8 +40,9 @@ type recSurfaceDetector struct {
 	// effectDialect is set when the target dialect is 1.1+, where the
 	// TaskHandle mutation verbs are gone and evo.Effect/evo.File exist.
 	effectDialect bool
-	// fileTreeDialect is set when the target dialect is 1.2+, where File,
-	// Tree, and Exec are plain structs (see review_rec_onetwo.go).
+	// fileTreeDialect is set when the target dialect is 1.2+, where
+	// Tree/Find/Download/Extract/Clone/Checksum are retired (see
+	// review_rec_onetwo.go). File/Patch/Exec stay the 1.1 operations.
 	fileTreeDialect bool
 	// failures names identifiers typed evo.Failure, so Failure.Next is
 	// not confused with live TaskHandle.Next / Output.Next.

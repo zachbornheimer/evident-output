@@ -72,6 +72,9 @@ var (
 	// ErrTaskClosed is what taskScope returns for a context captured during
 	// a Define callback and reused after that callback returned (§7.1).
 	ErrTaskClosed = errors.New("evo: task scope is closed")
+	// ErrBasisAfterDefine is recorded when TaskHandle.Basis is called after
+	// Define; the call is ignored.
+	ErrBasisAfterDefine = errors.New("evo: Basis called after Define")
 )
 
 // errWaitCancelled is what TaskHandle.Wait returns for a task an interrupt

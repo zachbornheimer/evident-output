@@ -97,7 +97,7 @@ func (g Grader) grade(ctx context.Context, task Task, candidate fs.FS, workDir s
 }
 
 func (g Grader) scoreSource(task Task, candidate fs.FS, sandbox Sandbox, report *Report) error {
-	banned, err := FindBannedPatterns(candidate, task.Expect.BannedPatterns)
+	banned, err := BannedPatterns(candidate, task.Expect.BannedPatterns)
 	if err != nil {
 		return fmt.Errorf("grade task %s: %w", task.ID, err)
 	}

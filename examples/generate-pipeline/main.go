@@ -51,11 +51,11 @@ func seedWorkDir(ctx context.Context, dir string) error {
 		return fmt.Errorf("create work dir %q: %w", dir, err)
 	}
 	for _, seed := range workDirSeeds {
-		if err := (evo.File{
-			Path:    filepath.Join(dir, seed.name),
-			Content: evo.Bytes(seed.contents),
-			Mode:    seed.mode,
-		}).Write(ctx); err != nil {
+		if err := evo.File(ctx, evo.FileSpec{
+			Path:     filepath.Join(dir, seed.name),
+			Contents: []byte(seed.contents),
+			Mode:     seed.mode,
+		}); err != nil {
 			return err
 		}
 	}
@@ -89,26 +89,28 @@ func runPipeline(ctx context.Context, dir string) error {
 		return seedWorkDir(ctx, dir)
 	})
 
-	normalize := seq.Task("normalize").Basis(evo.File{Path: filepath.Join(dir, "schema.xlsx")})
+	normalize := seq.Task("normalize")
 	normalize.Define(func(ctx context.Context) error {
-		_, err := evo.Exec{
-			Path:    filepath.Join(dir, "normalize"),
-			Dir:     dir,
-			Outputs: evo.Outputs{evo.File{Path: "schema.json"}},
-		}.Run(ctx)
+		_, err := evo.Exec(ctx, evo.ExecSpec{
+			Executable: filepath.Join(dir, "normalize"),
+			Dir:        dir,
+			Basis:      []evo.Fingerprint{evo.FSPath(filepath.Join(dir, "schema.xlsx"))},
+			Outputs:    []string{"schema.json"},
+		})
 		return err
 	})
 
-	compile := seq.Task("compile").Basis(
-		evo.File{Path: filepath.Join(dir, "schema.json")},
-		evo.File{Path: filepath.Join(dir, "compile.py")},
-	)
+	compile := seq.Task("compile")
 	compile.Define(func(ctx context.Context) error {
-		_, err := evo.Exec{
-			Path:    filepath.Join(dir, "compile"),
-			Dir:     dir,
-			Outputs: evo.Outputs{evo.File{Path: "output.bin"}},
-		}.Run(ctx)
+		_, err := evo.Exec(ctx, evo.ExecSpec{
+			Executable: filepath.Join(dir, "compile"),
+			Dir:        dir,
+			Basis: []evo.Fingerprint{
+				evo.FSPath(filepath.Join(dir, "schema.json")),
+				evo.FSPath(filepath.Join(dir, "compile.py")),
+			},
+			Outputs: []string{"output.bin"},
+		})
 		return err
 	})
 

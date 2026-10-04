@@ -76,7 +76,11 @@ func TestC28_001_NativeDiffFlowCommitsThroughFile(t *testing.T) {
 	path := filepath.Join(dir, "greeting.txt")
 
 	err := runTask(t, out, "fix greeting", func(ctx context.Context) error {
-		return evo.Patch(ctx, []byte(helloToThere))
+		set, err := evo.Patch(ctx, []byte(helloToThere))
+		if err != nil {
+			return err
+		}
+		return evo.Files(ctx, set)
 	})
 	if err != nil {
 		t.Fatalf("Patch: %v", err)
@@ -95,7 +99,11 @@ func TestC28_002_MultiPassConvergenceStaysOneTask(t *testing.T) {
 
 	err := runTask(t, out, taskName, func(ctx context.Context) error {
 		for _, diff := range []string{helloToThere, thereAgain} {
-			if err := evo.Patch(ctx, []byte(diff)); err != nil {
+			set, err := evo.Patch(ctx, []byte(diff))
+			if err != nil {
+				return err
+			}
+			if err := evo.Files(ctx, set); err != nil {
 				return err
 			}
 		}
@@ -120,7 +128,8 @@ func TestC30_071_PatchIsAllOrNothingAndNeverOverwritesAConcurrentEdit(t *testing
 	dir, out := workspace(t, map[string]string{"a.txt": "one\n", "b.txt": interloperText})
 
 	err := runTask(t, out, "commit both", func(ctx context.Context) error {
-		return evo.Patch(ctx, []byte(twoFileDiff))
+		_, err := evo.Patch(ctx, []byte(twoFileDiff))
+		return err
 	})
 	if !errors.Is(err, evo.ErrPatchDoesNotApply) {
 		t.Fatalf("Patch = %v, want ErrPatchDoesNotApply for the file that changed", err)

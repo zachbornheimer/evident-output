@@ -57,10 +57,10 @@ func KnownPatterns() []string {
 	return ids
 }
 
-// FindBannedPatterns parses every Go file in candidate and returns which of
+// BannedPatterns parses every Go file in candidate and returns which of
 // the named detectors fire, sorted. An unknown detector ID is an error so a
 // typo in expect.json cannot silently disable a check.
-func FindBannedPatterns(candidate fs.FS, patterns []string) ([]string, error) {
+func BannedPatterns(candidate fs.FS, patterns []string) ([]string, error) {
 	files, err := parseCandidate(candidate)
 	if err != nil {
 		return nil, err

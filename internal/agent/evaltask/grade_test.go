@@ -61,7 +61,7 @@ func TestRunOrder_ReportsEdgesTheRunBroke(t *testing.T) {
 	}
 }
 
-func TestFindBannedPatterns_FlagsEachSeededBadShape(t *testing.T) {
+func TestBannedPatterns_FlagsEachSeededBadShape(t *testing.T) {
 	cases := map[string]string{
 		evaltask.PatternOuterHandoff:     `var n []string; t.Define(func(ctx context.Context) error { n = nil; return nil })`,
 		evaltask.PatternGoroutine:        `go work()`,
@@ -77,9 +77,9 @@ func TestFindBannedPatterns_FlagsEachSeededBadShape(t *testing.T) {
 			if pattern == evaltask.PatternLocalContainer {
 				src = "package main\n" + body + "\n"
 			}
-			got, err := evaltask.FindBannedPatterns(fstest.MapFS{"main.go": {Data: []byte(src)}}, []string{pattern})
+			got, err := evaltask.BannedPatterns(fstest.MapFS{"main.go": {Data: []byte(src)}}, []string{pattern})
 			if err != nil {
-				t.Fatalf("FindBannedPatterns: %v", err)
+				t.Fatalf("BannedPatterns: %v", err)
 			}
 			if !slices.Equal(got, []string{pattern}) {
 				t.Fatalf("fired %v, want [%s] on:\n%s", got, pattern, src)
@@ -88,8 +88,8 @@ func TestFindBannedPatterns_FlagsEachSeededBadShape(t *testing.T) {
 	}
 }
 
-func TestFindBannedPatterns_UnknownPatternIsAnError(t *testing.T) {
-	_, err := evaltask.FindBannedPatterns(fstest.MapFS{"main.go": {Data: []byte("package main\n")}}, []string{"typo"})
+func TestBannedPatterns_UnknownPatternIsAnError(t *testing.T) {
+	_, err := evaltask.BannedPatterns(fstest.MapFS{"main.go": {Data: []byte("package main\n")}}, []string{"typo"})
 	if err == nil {
 		t.Fatal("an unknown pattern id must not silently pass")
 	}

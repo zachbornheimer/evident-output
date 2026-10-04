@@ -32,22 +32,23 @@ func omittedBasisRule() Rule {
 		Category:  "EVO",
 		Severity:  SeverityWarning,
 		Invariant: "every file or value a generator visibly reads is listed in Basis, or the operation's freshness claim is false",
-		Why:       "A Task skips its Define callback when its Basis identities are unchanged since its last success. A generator that reads a config file, template, or environment value the call site never adds to Basis will silently skip re-running after that input changes — the operation reports itself fresh while its actual output is stale.",
+		Why:       "evo.File/evo.Exec no-op when Basis, identity, and outputs are all current. A generator that reads a config file, template, or environment value the call site never adds to Basis will silently skip re-running after that input changes — the operation reports itself fresh while its actual output is stale.",
 		BadCode: `return evo.Exec(ctx, evo.ExecSpec{
 	Executable: "python3",
 	Args:       []string{"generate.py", "input.xlsx", "template.txt", "build/out.bin"},
 	Basis:      []evo.Fingerprint{evo.FSPath("input.xlsx")}, // template.txt is read but omitted
 	Outputs:    []string{"build/out.bin"},
 })`,
-		GoodCode: `task.Basis(evo.File{Path: "input.xlsx"}, evo.File{Path: "template.txt"})
-task.Define(func(ctx context.Context) error {
-	_, err := evo.Exec{
-		Path:    "python3",
-		Args:    []string{"generate.py", "input.xlsx", "template.txt", "build/out.bin"},
-		Outputs: evo.Outputs{evo.File{Path: "build/out.bin"}},
-	}.Run(ctx)
-	return err
-})`,
+		GoodCode: `_, err := evo.Exec(ctx, evo.ExecSpec{
+	Executable: "python3",
+	Args:       []string{"generate.py", "input.xlsx", "template.txt", "build/out.bin"},
+	Basis: []evo.Fingerprint{
+		evo.FSPath("input.xlsx"),
+		evo.FSPath("template.txt"),
+	},
+	Outputs: []string{"build/out.bin"},
+})
+return err`,
 		Remediation:     "Add every file/value the generator actually reads to Basis; do not invent a Basis entry the source does not justify (§58) — trace the generator's real inputs instead",
 		RelatedGuidance: []string{"provenance", "evo-file-exec"},
 		VerificationIDs: []string{"EVO-PROVENANCE-001"},
@@ -71,11 +72,9 @@ func opaqueManifestSkipRule() Rule {
 	return manifest.HasEntry(task.Name()), nil
 })`,
 		GoodCode: `task.Verify(func(ctx context.Context) (bool, error) {
-	got, err := evo.File{Path: path}.Read(ctx)
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
-	return string(got) == string(contents), err
+	return evo.File(ctx, evo.FileSpec{
+		Path: path, Contents: contents, Mode: mode, Basis: basis,
+	}) == nil, nil
 })`,
 		Remediation:     "Replace a manifest-only skip with a live pre-definition Verify (or a tracked evo.File/evo.Exec check) that proves the current state, not the recorded one",
 		RelatedGuidance: []string{"provenance", "evidence-provenance"},

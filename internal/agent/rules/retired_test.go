@@ -90,10 +90,9 @@ func TestTaughtFailfBlockfKeepLastLines(t *testing.T) {
 	}
 }
 
-// File and Tree reuse Write and Remove as live methods (ZYS-1382), so a
-// list of only those is File/Tree vocabulary. A list with any verb File and
-// Tree never had still teaches the retired TaskHandle mutation verbs.
-func TestTaughtMutationVerbListSparesFileTreeVocabulary(t *testing.T) {
+// Write and Remove are retired TaskHandle mutation verbs (1.1). Teaching
+// them as File/Tree methods is also retired: those nouns are not evo.
+func TestTaughtMutationVerbListFlagsWriteRemove(t *testing.T) {
 	isMutationVerb := func(h RetiredHit) bool {
 		return h.Symbol.Contract == "TaskHandle.Write(" || h.Symbol.Contract == "TaskHandle.Remove("
 	}
@@ -105,23 +104,13 @@ func TestTaughtMutationVerbListSparesFileTreeVocabulary(t *testing.T) {
 		"Remove/Update",
 		"Update/Write",
 		"Task.Write",
+		"File and Tree share Write/Remove",
+		"`Write`/`Remove` must run inside Define",
+		"Remove/Write a Tree atomically",
 	}
 	for _, text := range hits {
 		if !slices.ContainsFunc(TaughtRetired(text), isMutationVerb) {
 			t.Errorf("TaughtRetired(%q) missed the retired Write/Remove mutation verb", text)
-		}
-	}
-	misses := []string{
-		"File and Tree share Write/Remove",
-		"`Write`/`Remove` must run inside Define",
-		"Remove/Write a Tree atomically",
-		"Read/Write/Verify/Remove",
-	}
-	for _, text := range misses {
-		for _, h := range TaughtRetired(text) {
-			if isMutationVerb(h) {
-				t.Errorf("TaughtRetired(%q) matched %q (%s); File/Tree Write/Remove is live", text, h.Match, h.Symbol.Contract)
-			}
 		}
 	}
 }

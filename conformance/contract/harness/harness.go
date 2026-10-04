@@ -36,9 +36,9 @@ func Text(out *evo.Output, buf *bytes.Buffer) string {
 	return buf.String()
 }
 
-// Find returns the snapshot of the task with the given name, searching
+// Lookup returns the snapshot of the task with the given name, searching
 // top-level tasks and every nested Group or Sequence.
-func Find(snap evo.Snapshot, name string) (evo.TaskSnapshot, bool) {
+func Lookup(snap evo.Snapshot, name string) (evo.TaskSnapshot, bool) {
 	for _, task := range snap.Tasks {
 		if task.Name == name {
 			return task, true
@@ -66,10 +66,10 @@ func findIn(c evo.TasksSnapshot, name string) (evo.TaskSnapshot, bool) {
 	return evo.TaskSnapshot{}, false
 }
 
-// MustFind is Find that fails the test when the task is absent.
+// MustFind is Lookup that fails the test when the task is absent.
 func MustFind(t *testing.T, out *evo.Output, name string) evo.TaskSnapshot {
 	t.Helper()
-	task, ok := Find(out.Snapshot(), name)
+	task, ok := Lookup(out.Snapshot(), name)
 	if !ok {
 		t.Fatalf("task %q not in snapshot", name)
 	}

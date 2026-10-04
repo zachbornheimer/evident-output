@@ -8,69 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 
-### Changed (1.2, breaking): ZYS-1382 filesystem vocabulary
+### Changed (1.2)
 
-Skeleton only: the surface below is declared and every new method returns
-a not-implemented error until its primitive lands. See
-[`docs/zys-1382/contract-decisions.md`](docs/zys-1382/contract-decisions.md)
-and [`docs/zys-1382/KNOWN_BROKEN.md`](docs/zys-1382/KNOWN_BROKEN.md).
-
-- **`File` and `Tree` are plain structs** (`File{Path, Content, Mode}`,
-  `Tree{Path, Content}`) with value-receiver methods `Read`, `Write`,
-  `Verify`, `Equal`, `Remove`, and `Checksum`. `Tree.Checksum` and
-  `Tree.Equal` take `ChecksumOption` values from `Exclude(pattern)`.
-- **Content producers:** `FileContent` (`Bytes`, `Download{URL, Integrity}`)
-  and `TreeContent` (`Extract{File, Root}`), both sealed.
-- **`Find(ctx, root, names...)`** discovers regular files by base name.
-- **`Exec` is a struct** `Exec{Path, Args, Dir, Env, Outputs}` with
-  `Run(ctx) (ExecResult, error)`; `Outputs` holds `File` and `Tree` values.
-- **`TaskHandle.Basis(inputs...)`** declares Task freshness from `File`,
-  `Tree`, `Value`, or `App`. `Fingerprint` is now a struct with a
-  `Fingerprint` method, built only by `Value` and `App`.
-- **`Patch(ctx, diff) error`** applies a diff directly.
-- New errors: `ErrPathMissing`, `ErrContentMissing`, `ErrVerifyMismatch`,
-  `ErrTreePathTypeMismatch`, `ErrIntegrityMismatch`, `ErrDownloadFailed`,
-  `ErrDownloadURLMissing`, `ErrExtractMalformed`, `ErrExtractUnsafeEntry`,
-  `ErrFindNamesMissing`, `ErrExecPathMissing`, `ErrBasisAfterDefine`,
-  `ErrPatchUnsafePath`, `ErrPatchStale`.
-- **Removed:** `FileSpec` and the function `File(ctx, spec)`, `ExecSpec` and
-  the function `Exec(ctx, spec)`, `FileSet`, `Files`, `FSPath`,
-  `ErrFileSpecMissingPath`, `ErrFileUnmanagedContentsMissing`,
-  `ErrExecSpecMissingExecutable`, `ErrStaleBasis`,
-  `ErrPatchDeleteUnsupported`, and `ErrPatchRenameUnsupported`.
-- **Tree identity counts the exec bit** (digest `evo.tree.v2`): every
-  `Tree.Checksum` differs from earlier builds; recompute stored digests.
-- **`Clone{From: Tree}`** is a `TreeContent`: `Tree.Write` publishes a
-  copy-on-write (or copied, never hard-linked) clone of another tree whose
-  digest must equal the source's.
-- **`Tree.Replace(ctx, expected)`** commits only if the destination still
-  digests to `expected`, re-checked inside the destination's critical
-  section; otherwise `ErrTreeChanged` and the destination is untouched.
-- **`Tree.Recover(ctx, expected) (RecoverResult, error)`** settles what an
-  interrupted `Replace` left, by digest alone: `RecoverIntact`,
-  `RecoverCompletedReplacement`, `RecoverRestoredOriginal` (the original
-  put back over a missing path), or `RecoverUnrecoverable` (an error
-  wrapping `ErrTreeChanged`; nothing changed). It deletes only leftovers
-  proven to be the original or the replacement and lists the rest in
-  `RecoverResult.Leftovers`; `RecoverResult.State` is a `RecoverState`.
-- **`Tree.ReplaceTree(ctx, expected, opts ...ReplaceOption) (ReplaceResult, error)`**
-  is `Replace` that reports `ReplaceResult.Published`: false when the
-  destination already digested to Content and was kept (the default, and
-  what `Replace` still does). **`Republish()`** swaps Content in anyway,
-  under the same expected-digest check, verification, and rollback, so a
-  byte-identical private copy can be replaced by a copy-on-write `Clone`.
-- **`Clone.Writable`** makes the cloned tree owner-writable (directories
-  0o755, files 0o644, executables 0o755) without copying file data; the
-  source is untouched and the digest is unchanged.
-  It never deletes a stage a live writer still owns, runs only inside a
-  Task, and under DryRun reports its decision without changing files.
-- `Tree.Checksum` leaves out in-flight publish staging entries (the exact
-  `.evo-<owner>-<random>.tmp` shape), so a child's unfinished stage never
-  changes its parent's digest. A Replace whose stage an ancestor's commit
-  carried away returns `ErrTreeChanged`.
-- Tree commits now coordinate per destination: siblings commit concurrently,
-  and the same path or an ancestor/descendant pair serializes, across
-  goroutines and processes.
+- **File/Patch/Exec remain the 1.1 operations** (`File(ctx, FileSpec)`,
+  `Exec(ctx, ExecSpec)`, `Patch` + `Files`). Tree/Find/Download/Extract/
+  Clone/Checksum are not evo (contract §31/§37; ZYS-1382 is not 1.2).
 
 ### Added (1.2)
 
@@ -104,6 +46,9 @@ and [`docs/zys-1382/KNOWN_BROKEN.md`](docs/zys-1382/KNOWN_BROKEN.md).
 - **`evo.Container` (ZYS-1203):** a node that can declare work beneath it
   (`Task`, `Group`, `Sequence`). Satisfied by `*Output`, `*GroupHandle`,
   and `*SequenceHandle`. A Task is never a Container.
+- **`TaskHandle.Basis(inputs ...Fingerprint)` and `ErrBasisAfterDefine`:**
+  declare a Task's freshness inputs before Define. A call after Define
+  records `ErrBasisAfterDefine` and is ignored.
 
 ### Added
 

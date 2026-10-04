@@ -2,40 +2,28 @@ package review
 
 import "go/ast"
 
-// dialectOneTwo is the first release where File, Tree, and Exec are plain
-// structs, Basis is Task freshness, and Patch applies directly (ZYS-1382).
+// dialectOneTwo is the first release where Tree/Find/Download/Extract/Clone/
+// Checksum are not evo (contract §31/§37; ZYS-1382 is not 1.2). File/Patch/
+// Exec stay the 1.1 operations.
 const dialectOneTwo = "1.2.0"
 
-// oneTwoRemoval is one evo export ZYS-1382 retired: why it is gone, and the
-// live identifier a selector can be renamed to when the rename is
-// one-to-one. An empty next means the call site needs a hand rewrite.
+// oneTwoRemoval is one evo export 1.2 retired: why it is gone, and the live
+// identifier a selector can be renamed to when the rename is one-to-one.
+// An empty next means the call site needs a hand rewrite.
 type oneTwoRemoval struct {
 	note, next string
 }
 
 var oneTwoRemovals = map[string]oneTwoRemoval{
-	"FileSpec": {note: "write evo.File{Path, Content, Mode}.Write(ctx)"},
-	"ExecSpec": {note: "run evo.Exec{Path, Args, Dir, Env, Outputs}.Run(ctx)"},
-	"FSPath":   {note: "declare inputs with task.Basis(evo.File{Path: p}) or evo.Tree{Path: p}"},
-	"FileSet":  {note: "apply the diff with evo.Patch(ctx, diff) error"},
-	"Files":    {note: "apply the diff with evo.Patch(ctx, diff) error"},
-	"ErrStaleBasis": {
-		note: "a concurrently edited target is ErrPatchStale", next: "ErrPatchStale",
-	},
-	"ErrFileSpecMissingPath": {
-		note: "a File or Tree without Path is ErrPathMissing", next: "ErrPathMissing",
-	},
-	"ErrFileUnmanagedContentsMissing": {
-		note: "a Write with nil Content is ErrContentMissing", next: "ErrContentMissing",
-	},
-	"ErrExecSpecMissingExecutable": {
-		note: "an Exec without Path is ErrExecPathMissing", next: "ErrExecPathMissing",
-	},
-	"ErrPatchDeleteUnsupported": {note: "Patch applies deletes; drop the branch that handled this error"},
-	"ErrPatchRenameUnsupported": {note: "Patch applies renames; drop the branch that handled this error"},
+	"Tree":     {note: "caller-owned tree work, then evo.File / evo.Effect"},
+	"Find":     {note: "caller-owned discovery, then evo.File"},
+	"Download": {note: "caller fetch, then evo.File"},
+	"Extract":  {note: "caller unpack, then evo.File"},
+	"Clone":    {note: "caller copy, then evo.File"},
+	"Checksum": {note: "not evo"},
 }
 
-// inspectOneTwoType flags a selector naming an export ZYS-1382 retired.
+// inspectOneTwoType flags a selector naming an export 1.2 retired.
 func (d *recSurfaceDetector) inspectOneTwoType(n ast.Node) bool {
 	if !d.fileTreeDialect {
 		return false

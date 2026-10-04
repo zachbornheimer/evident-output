@@ -2,13 +2,8 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
 
-	"github.com/zachbornheimer/evident-output/internal/checksum"
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/wire"
@@ -18,58 +13,18 @@ const (
 	// taskBasisOperationKind marks the manifest record that carries a
 	// Task's observed Basis. It is always the last operation of the Task.
 	taskBasisOperationKind = "task_basis"
-
-	basisKindFile = "fs_file"
-	basisKindTree = "fs_tree"
-
-	// basisDigestMissing is the identity of a path that does not exist, so
-	// a Basis input may name something not created yet.
-	basisDigestMissing = "missing"
 )
 
 // BasisSource is one Task Basis input: something whose content identity is
-// observed when the Task starts. Build one with FileBasis, TreeBasis, or
-// FingerprintBasis.
+// observed when the Task starts. Build one with FingerprintBasis.
 type BasisSource interface {
 	observe(ctx context.Context, o *Output) (manifest.BasisRecord, error)
 }
 
-// FileBasis observes the file at path by content.
-func FileBasis(path string) BasisSource { return fileBasis{path: path} }
-
-// TreeBasis observes the directory tree at path by content and structure.
-func TreeBasis(path string) BasisSource { return treeBasis{path: path} }
-
-// FingerprintBasis observes a non-filesystem Fingerprint.
+// FingerprintBasis observes a Fingerprint (FSPath, Value, App).
 func FingerprintBasis(f fingerprint.Fingerprint) BasisSource { return fingerprintBasis{inner: f} }
 
-type fileBasis struct{ path string }
-type treeBasis struct{ path string }
 type fingerprintBasis struct{ inner fingerprint.Fingerprint }
-
-func (b fileBasis) observe(ctx context.Context, o *Output) (manifest.BasisRecord, error) {
-	if b.path == "" {
-		return manifest.BasisRecord{}, ErrPathMissing
-	}
-	abs := o.checksumPath(b.path)
-	digest, err := o.fileBasisDigest(ctx, abs)
-	if err != nil {
-		return manifest.BasisRecord{}, fmt.Errorf("evo: Basis File %q: %w", b.path, err)
-	}
-	return manifest.BasisRecord{Kind: basisKindFile, Key: abs, Digest: digest}, nil
-}
-
-func (b treeBasis) observe(ctx context.Context, o *Output) (manifest.BasisRecord, error) {
-	if b.path == "" {
-		return manifest.BasisRecord{}, ErrPathMissing
-	}
-	abs := o.checksumPath(b.path)
-	digest, err := o.treeBasisDigest(ctx, abs)
-	if err != nil {
-		return manifest.BasisRecord{}, fmt.Errorf("evo: Basis Tree %q: %w", b.path, err)
-	}
-	return manifest.BasisRecord{Kind: basisKindTree, Key: abs, Digest: digest}, nil
-}
 
 func (b fingerprintBasis) observe(ctx context.Context, _ *Output) (manifest.BasisRecord, error) {
 	records, err := basisRecordsFrom(ctx, []fingerprint.Fingerprint{b.inner})
@@ -77,60 +32,6 @@ func (b fingerprintBasis) observe(ctx context.Context, _ *Output) (manifest.Basi
 		return manifest.BasisRecord{}, err
 	}
 	return records[0], nil
-}
-
-// fileBasisDigest is a file's Basis identity: its content digest from the
-// checksum engine, "missing" when absent, and for a symlink the link text
-// plus the digest of what it resolves to. A directory or an unreadable file
-// is an error, never "unchanged".
-func (o *Output) fileBasisDigest(ctx context.Context, abs string) (string, error) {
-	info, err := o.fileFSOrDefault().Lstat(abs)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return basisDigestMissing, nil
-	case err != nil:
-		return "", err
-	case info.Mode()&fs.ModeSymlink != 0:
-		return o.symlinkBasisDigest(ctx, abs)
-	}
-	digest, err := o.fileDigest(ctx, abs)
-	if err != nil {
-		return "", err
-	}
-	return digest.String(), nil
-}
-
-func (o *Output) symlinkBasisDigest(ctx context.Context, abs string) (string, error) {
-	target, err := os.Readlink(abs)
-	if err != nil {
-		return "", err
-	}
-	resolved, err := filepath.EvalSymlinks(abs)
-	if errors.Is(err, fs.ErrNotExist) {
-		return "symlink:" + target + ":dangling", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	content, err := o.fileDigest(ctx, resolved)
-	if err != nil {
-		return "", err
-	}
-	return "symlink:" + target + ":" + content.String(), nil
-}
-
-func (o *Output) treeBasisDigest(ctx context.Context, abs string) (string, error) {
-	if _, err := o.fileFSOrDefault().Lstat(abs); errors.Is(err, fs.ErrNotExist) {
-		return basisDigestMissing, nil
-	}
-	digest, err := o.treeDigest(ctx, abs, checksum.Exclusion{})
-	if errors.Is(err, fs.ErrNotExist) {
-		return basisDigestMissing, nil
-	}
-	if err != nil {
-		return "", err
-	}
-	return digest.String(), nil
 }
 
 // observeTaskBasis observes every input and canonicalizes the result. Basis

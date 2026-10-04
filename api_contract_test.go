@@ -91,8 +91,8 @@ func TestAPIContract_RequiredFileListsSpecFloor(t *testing.T) {
 	}
 	floor := []string{
 		"Init", "Run", "Main", "Task", "Group", "Sequence", "Define",
-		"File", "Exec", "Tree", "Fact", "Effect", "PartialEffect", "Verify",
-		"func (TaskHandle) After", "func (TaskHandle) Summary", "Find", "func (TaskHandle) Basis",
+		"File", "Exec", "FSPath", "Fact", "Effect", "PartialEffect", "Verify",
+		"func (TaskHandle) After", "func (TaskHandle) Summary", "FileSpec", "ExecSpec", "func (TaskHandle) Basis",
 	}
 	for _, name := range floor {
 		if _, ok := got[name]; !ok {
