@@ -119,7 +119,8 @@ func TestMain_NilRunNeverPanics(t *testing.T) {
 
 func TestInit_ArmsFirstPaintBeforeAnyEntity(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard,
+	out := evo.Init(evo.Config{
+		Stdout: io.Discard, Stderr: io.Discard,
 		Title:           "demo",
 		Terminal:        screen,
 		Color:           evo.ColorNever,

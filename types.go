@@ -5,40 +5,42 @@ import "github.com/zachbornheimer/evident-output/internal/engine"
 // Engine-owned types. Domain model aliases (Snapshot, Problem, Action)
 // stay in their existing files and point at internal/core, not through engine.
 
-type Output = engine.Output
-type Config = engine.Config
-type Option = engine.Option
-type TaskHandle = engine.TaskHandle
-type SequenceHandle = engine.SequenceHandle
-type Evidence = engine.Evidence
-type EvidenceOption = engine.EvidenceOption
-type EvidenceStream = engine.EvidenceStream
-type Printer = engine.Printer
-type Scope = engine.Scope
-type GroupHandle = engine.GroupHandle
-type ConfirmOption = engine.ConfirmOption
-type EntityOption = engine.EntityOption
-type ReasonOption = engine.ReasonOption
-type MutationOption = engine.MutationOption
-type DebugPaneOption = engine.DebugPaneOption
-type DebugPresentation = engine.DebugPresentation
-type DebugConfig = engine.DebugConfig
-type ColorMode = engine.ColorMode
-type Format = engine.Format
-type Verbosity = engine.Verbosity
-type Projection = engine.Projection
-type LogLevel = engine.LogLevel
-type TerminalDriver = engine.TerminalDriver
-type TimeSource = engine.TimeSource
-type SystemClock = engine.SystemClock
-type FixedClock = engine.FixedClock
-type LiveSurface = engine.LiveSurface
-type Redactor = engine.Redactor
-type NoopRedactor = engine.NoopRedactor
-type LogRecord = engine.LogRecord
-type Failure = engine.Failure
-type PlainOptions = engine.PlainOptions
-type TaxonomyReason = engine.TaxonomyReason
+type (
+	Output            = engine.Output
+	Config            = engine.Config
+	Option            = engine.Option
+	TaskHandle        = engine.TaskHandle
+	SequenceHandle    = engine.SequenceHandle
+	Evidence          = engine.Evidence
+	EvidenceOption    = engine.EvidenceOption
+	EvidenceStream    = engine.EvidenceStream
+	Printer           = engine.Printer
+	Scope             = engine.Scope
+	GroupHandle       = engine.GroupHandle
+	ConfirmOption     = engine.ConfirmOption
+	EntityOption      = engine.EntityOption
+	ReasonOption      = engine.ReasonOption
+	MutationOption    = engine.MutationOption
+	DebugPaneOption   = engine.DebugPaneOption
+	DebugPresentation = engine.DebugPresentation
+	DebugConfig       = engine.DebugConfig
+	ColorMode         = engine.ColorMode
+	Format            = engine.Format
+	Verbosity         = engine.Verbosity
+	Projection        = engine.Projection
+	LogLevel          = engine.LogLevel
+	TerminalDriver    = engine.TerminalDriver
+	TimeSource        = engine.TimeSource
+	SystemClock       = engine.SystemClock
+	FixedClock        = engine.FixedClock
+	LiveSurface       = engine.LiveSurface
+	Redactor          = engine.Redactor
+	NoopRedactor      = engine.NoopRedactor
+	LogRecord         = engine.LogRecord
+	Failure           = engine.Failure
+	PlainOptions      = engine.PlainOptions
+	TaxonomyReason    = engine.TaxonomyReason
+)
 
 const (
 	ColorAuto   = engine.ColorAuto

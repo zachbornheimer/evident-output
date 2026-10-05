@@ -72,16 +72,18 @@ func PolicyHint(command string, args ...string) ConfirmOption {
 }
 
 func Fact(name, value string)              { engine.Fact(name, value) }
-func Warn(summary string)                   { engine.Warn(summary) }
+func Warn(summary string)                  { engine.Warn(summary) }
 func Delay(d time.Duration) *time.Duration { return engine.Delay(d) }
 func DefaultConfig() Config                { return engine.DefaultConfig() }
 func IsCharDevice(w io.Writer) bool        { return engine.IsCharDevice(w) }
 func Pluralize(quantity int64, singular string) string {
 	return engine.Pluralize(quantity, singular)
 }
+
 func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
 	return engine.RenderPlain(s, opts)
 }
+
 func TruncateNames(names []string, visible int) string {
 	return engine.TruncateNames(names, visible)
 }
@@ -96,7 +98,7 @@ func OldestFirst() DebugPaneOption         { return engine.OldestFirst() }
 func PaneHeight(lines int) DebugPaneOption { return engine.PaneHeight(lines) }
 func PreserveDebugTail() DebugPaneOption   { return engine.PreserveDebugTail() }
 
-func Affected(n int) MutationOption      { return engine.Affected(n) }
+func Affected(n int) MutationOption       { return engine.Affected(n) }
 func ID(id string) EntityOption           { return engine.ID(id) }
 func StartPhase(text string) EntityOption { return engine.StartPhase(text) }
 func ForSkip() ReasonOption               { return engine.ForSkip() }
