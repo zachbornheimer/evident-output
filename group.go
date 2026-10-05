@@ -2,8 +2,10 @@ package evo
 
 import "github.com/zachbornheimer/evident-output/internal/engine"
 
-type SequenceHandle struct{ inner *engine.SequenceHandle }
-type GroupHandle struct{ inner *engine.GroupHandle }
+type (
+	SequenceHandle struct{ inner *engine.SequenceHandle }
+	GroupHandle    struct{ inner *engine.GroupHandle }
+)
 
 // Sequence declares a self-managing, ordered task container on the default
 // instance.
