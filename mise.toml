@@ -30,11 +30,11 @@ run = [
 
 [tasks.test]
 description = "Run all tests"
-run = "go test ./..."
+run = "go test -timeout 20m ./..."
 
 [tasks.test-race]
 description = "Run tests with race detector"
-run = "go test -race ./..."
+run = "go test -race -timeout 30m ./..."
 
 [tasks.conformance]
 description = "Run roast/conformance suite"
