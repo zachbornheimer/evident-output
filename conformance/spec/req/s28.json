@@ -7,7 +7,7 @@
     "tests": [
       {
         "pkg": "./conformance/contract/patch",
-        "run": "TestC28_001_NativeDiffFlowDerivesThenCommitsThroughFile"
+        "run": "TestC28_001_NativeDiffFlowCommitsThroughFile"
       }
     ],
     "default": false
