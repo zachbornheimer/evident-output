@@ -38,6 +38,8 @@ type MessageSnapshot = core.MessageSnapshot
 type Printer struct {
 	out        *Output
 	visibility Visibility
+	// facade holds this Printer's public wrapper (see FacadeSlot).
+	facade FacadeSlot
 }
 
 // At returns a printer for the given visibility.

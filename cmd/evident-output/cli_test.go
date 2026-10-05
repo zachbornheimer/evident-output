@@ -126,10 +126,50 @@ func buildCLI(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "evident-output")
-	cmd := exec.Command("go", "build", "-o", bin, ".")
+	cmd := exec.Command("go", "build", "-buildvcs=false", "-o", bin, ".")
 	cmd.Dir = "."
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)
 	}
 	return bin
+}
+
+func TestCLI_ContractMatchesModuleRoot(t *testing.T) {
+	bin := buildCLI(t)
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(bin, "contract", "--dir", root).CombinedOutput()
+	if err != nil {
+		t.Fatalf("contract: %v\n%s", err, out)
+	}
+}
+
+func TestCLI_ContractReportsLabeledMismatches(t *testing.T) {
+	bin := buildCLI(t)
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "testdata"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := "package p\n\ntype OnlyType struct{}\n"
+	if err := os.WriteFile(filepath.Join(dir, "p.go"), []byte(src), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "testdata", "api_golden.txt"), []byte("type Other\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "testdata", "api_required.txt"), []byte("File\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(bin, "contract", "--dir", dir).CombinedOutput()
+	if err == nil {
+		t.Fatalf("want exit 1, got success:\n%s", out)
+	}
+	got := string(out)
+	for _, want := range []string{"extra:", "missing:", "required-missing:", "File"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("contract output missing %q:\n%s", want, got)
+		}
+	}
 }

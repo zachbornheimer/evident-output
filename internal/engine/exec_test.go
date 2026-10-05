@@ -84,14 +84,24 @@ func execFixture(t *testing.T, dir, name, contents string) string {
 // against out, waiting for it to settle, and returns Exec's own error.
 func runExecTask(t *testing.T, out *Output, name string, spec ExecSpec) error {
 	t.Helper()
+	_, err := runExecTaskResult(t, out, name, spec)
+	return err
+}
+
+// runExecTaskResult is runExecTask but also returns the ExecResult Exec
+// itself produced, so callers can assert Ran/ExitCode/Stdout/Stderr/
+// Truncated instead of only the error.
+func runExecTaskResult(t *testing.T, out *Output, name string, spec ExecSpec) (ExecResult, error) {
+	t.Helper()
+	var execResult ExecResult
 	var execErr error
 	task := out.Task(name)
 	task.Define(func(ctx context.Context) error {
-		execErr = Exec(ctx, spec)
+		execResult, execErr = Exec(ctx, spec)
 		return execErr
 	})
 	_ = task.Wait()
-	return execErr
+	return execResult, execErr
 }
 
 func TestExecSpawnsWhenNoOutputsDeclared(t *testing.T) {
@@ -137,11 +147,18 @@ func TestExecSkipsSecondRunWhenOutputsUnchanged(t *testing.T) {
 	secondRunner := &scriptedRunner{exitCode: 0}
 	second := Init(Config{Isolated: true, StateDir: state, ProcessRunner: secondRunner})
 	t.Cleanup(func() { _ = second.Close() })
-	if err := runExecTask(t, second, "build", spec); err != nil {
+	result, err := runExecTaskResult(t, second, "build", spec)
+	if err != nil {
 		t.Fatalf("second run: %v", err)
 	}
 	if len(secondRunner.calls) != 0 {
 		t.Fatalf("second run spawn count = %d, want 0 (unchanged Outputs must skip)", len(secondRunner.calls))
+	}
+	if result.Ran {
+		t.Fatalf("result.Ran = true, want false (manifest-current skip must not spawn)")
+	}
+	if result.Stdout != "" || result.Stderr != "" {
+		t.Fatalf("result = %+v, want empty streams on a skipped run", result)
 	}
 }
 
@@ -183,9 +200,15 @@ func TestExecMissingOutputAfterSuccessFails(t *testing.T) {
 	out := Init(Config{Isolated: true, StateDir: t.TempDir(), ProcessRunner: &scriptedRunner{exitCode: 0}})
 	t.Cleanup(func() { _ = out.Close() })
 
-	err := runExecTask(t, out, "missing-output", spec)
+	result, err := runExecTaskResult(t, out, "missing-output", spec)
 	if !errors.Is(err, ErrExecOutputMissingAfterSuccess) {
 		t.Fatalf("err = %v, want ErrExecOutputMissingAfterSuccess", err)
+	}
+	if !result.Ran {
+		t.Fatalf("result.Ran = false, want true (the child did reach a terminal zero exit)")
+	}
+	if result.ExitCode != 0 {
+		t.Fatalf("result.ExitCode = %d, want 0", result.ExitCode)
 	}
 }
 
@@ -198,13 +221,22 @@ func TestExecNonzeroExitFailsAndCommitsNoRecord(t *testing.T) {
 
 	runner := &scriptedRunner{exitCode: 1, stderr: []string{"boom"}}
 	out := Init(Config{Isolated: true, StateDir: state, ProcessRunner: runner})
-	err := runExecTask(t, out, "fails", spec)
+	result, err := runExecTaskResult(t, out, "fails", spec)
 	_ = out.Close()
 	if !errors.Is(err, ErrExecNonzeroExit) {
 		t.Fatalf("err = %v, want ErrExecNonzeroExit", err)
 	}
 	if _, statErr := os.Stat(outPath); !os.IsNotExist(statErr) {
 		t.Fatal("nonzero exit must not fabricate the declared output")
+	}
+	if !result.Ran {
+		t.Fatal("result.Ran = false, want true (the child reached a terminal nonzero exit)")
+	}
+	if result.ExitCode != 1 {
+		t.Fatalf("result.ExitCode = %d, want 1", result.ExitCode)
+	}
+	if !strings.Contains(result.Stderr, "boom") {
+		t.Fatalf("result.Stderr = %q, want the captured stderr", result.Stderr)
 	}
 
 	// A following run with a succeeding runner must still spawn — no
@@ -231,11 +263,18 @@ func TestExecDryRunNeverSpawns(t *testing.T) {
 	out := Init(Config{Isolated: true, DryRun: true, StateDir: t.TempDir(), ProcessRunner: runner})
 	t.Cleanup(func() { _ = out.Close() })
 
-	if err := runExecTask(t, out, "dry", spec); err != nil {
+	result, err := runExecTaskResult(t, out, "dry", spec)
+	if err != nil {
 		t.Fatalf("dry run: %v", err)
 	}
 	if len(runner.calls) != 0 {
 		t.Fatal("dry-run Exec must never spawn")
+	}
+	if result.Ran {
+		t.Fatal("result.Ran = true, want false (dry-run must never spawn)")
+	}
+	if result.Stdout != "" || result.Stderr != "" {
+		t.Fatalf("result = %+v, want empty streams on a dry run", result)
 	}
 }
 
@@ -251,7 +290,7 @@ func TestExecCancellationKillsProcess(t *testing.T) {
 	done := make(chan error, 1)
 	task := out.Task("cancel-me")
 	task.Define(func(taskCtx context.Context) error {
-		err := Exec(taskCtx, spec)
+		_, err := Exec(taskCtx, spec)
 		done <- err
 		return err
 	})
@@ -312,7 +351,7 @@ func TestExecCapturedLineBecomesActivity(t *testing.T) {
 	task := out.Task("narrated")
 	var lastPhase string
 	task.Define(func(ctx context.Context) error {
-		err := Exec(ctx, ExecSpec{Executable: tool})
+		_, err := Exec(ctx, ExecSpec{Executable: tool})
 		lastPhase = task.Snapshot().Phase
 		return err
 	})
@@ -334,14 +373,22 @@ func TestExecCapturedSecretIsRedactedBeforeRetention(t *testing.T) {
 
 	task := out.Task("secret")
 	var tail string
+	var result ExecResult
 	task.Define(func(ctx context.Context) error {
-		err := Exec(ctx, ExecSpec{Executable: tool})
-		tail = task.EvidenceForTest().Text()
+		res, err := Exec(ctx, ExecSpec{Executable: tool})
+		result = res
+		tail = task.CaptureForTest().Text()
 		return err
 	})
 	_ = task.Wait()
 	if want := "super-secret-value"; strings.Contains(tail, want) {
 		t.Fatalf("evidence tail leaked the secret: %q", tail)
+	}
+	if strings.Contains(result.Stdout, "super-secret-value") {
+		t.Fatalf("ExecResult.Stdout leaked the secret: %q", result.Stdout)
+	}
+	if !strings.Contains(result.Stdout, "[redacted]") {
+		t.Fatalf("ExecResult.Stdout = %q, want a redaction marker", result.Stdout)
 	}
 	if !strings.Contains(tail, "[redacted]") {
 		t.Fatalf("evidence tail = %q, want a redaction marker", tail)
@@ -396,7 +443,7 @@ func TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput(t *testing.
 	task.Define(func(taskCtx context.Context) error {
 		go func() {
 			defer close(producerDone)
-			_ = Exec(taskCtx, ExecSpec{Executable: normalizeTool, Dir: dir, Outputs: []string{"schema.json"}})
+			_, _ = Exec(taskCtx, ExecSpec{Executable: normalizeTool, Dir: dir, Outputs: []string{"schema.json"}})
 		}()
 
 		// Wait for the producer's claim (spec: opened at claim time, before
@@ -418,7 +465,7 @@ func TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput(t *testing.
 			close(gate)
 		}()
 
-		err := Exec(taskCtx, ExecSpec{
+		_, err := Exec(taskCtx, ExecSpec{
 			Executable: compileTool, Dir: dir,
 			Basis:   []fingerprint.Fingerprint{fingerprint.FSPath(schemaPath)},
 			Outputs: []string{"compiled.txt"},
@@ -459,14 +506,15 @@ func TestExecProducerConflictFailsSecondClaim(t *testing.T) {
 
 	first := out.Task("first")
 	first.Define(func(ctx context.Context) error {
-		return Exec(ctx, ExecSpec{Executable: tool, Dir: dir, Outputs: []string{"shared.txt"}})
+		_, err := Exec(ctx, ExecSpec{Executable: tool, Dir: dir, Outputs: []string{"shared.txt"}})
+		return err
 	})
 	_ = first.Wait()
 
 	var secondErr error
 	second := out.Task("second")
 	second.Define(func(ctx context.Context) error {
-		secondErr = Exec(ctx, ExecSpec{Executable: tool, Dir: dir, Outputs: []string{"shared.txt"}})
+		_, secondErr = Exec(ctx, ExecSpec{Executable: tool, Dir: dir, Outputs: []string{"shared.txt"}})
 		return secondErr
 	})
 	_ = second.Wait()

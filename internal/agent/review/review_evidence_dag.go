@@ -11,19 +11,11 @@ import (
 	"strings"
 )
 
-// evoDagEvidenceRequiredVersion is the minimum evident-output release whose
-// public API supports every fix these detectors suggest (Verify, evo.File,
-// evo.Exec, Sequence/After) — 1.0.0 also removes Task.Each and MainWith, so
-// no earlier release's dialect matches this guidance (spec §57/§62). Shares
-// dialectOneZero, the same cutoff GoSourceAt gates these detectors on, so
-// the Suggestion's version and the firing version can never drift apart.
-const evoDagEvidenceRequiredVersion = dialectOneZero
-
 // evoRawMutationCallNames are side effects Evo's runtime cannot intercept —
 // a Define/Verify/Evidence callback that promises dry-run safety or
 // read-only observation must route mutation through evo.File, evo.Exec, or
-// a typed mutation verb instead of calling one of these directly (spec
-// §32.2, §57 EVO-DRYRUN-001).
+// (for a database change neither models) evo.Effect instead of calling one
+// of these directly (spec §32.2, §57 EVO-DRYRUN-001).
 var evoRawMutationCallNames = map[string]bool{
 	"os.WriteFile": true, "os.Remove": true, "os.RemoveAll": true,
 	"os.Mkdir": true, "os.MkdirAll": true, "os.Rename": true,
@@ -39,34 +31,91 @@ var evoSQLMutationReceivers = map[string]bool{
 	"db": true, "tx": true, "conn": true, "database": true, "sqldb": true,
 }
 
-// firstRawMutationCall reports the first evoRawMutationCallNames call, or an
+// rawMutationCall is one "obvious mutation" call site: a
+// evoRawMutationCallNames call, or Exec/ExecContext on a database handle
+// (sql true).
+type rawMutationCall struct {
+	pos  token.Pos
+	name string
+	sql  bool
+}
+
+// rawMutationCalls lists every evoRawMutationCallNames call, and every
 // Exec/ExecContext call on an evoSQLMutationReceivers handle, reachable
-// anywhere inside node (including nested closures) — the "obvious mutation"
-// shape spec §57 asks EVO-EVIDENCE-001/EVO-VERIFY-001/EVO-DRYRUN-001 to flag.
-func firstRawMutationCall(node ast.Node) (pos token.Pos, name string, found bool) {
+// anywhere inside node (including nested closures) — the "obvious
+// mutation" shape spec §57 asks EVO-EVIDENCE-001/EVO-VERIFY-001/
+// EVO-DRYRUN-001 to flag.
+func rawMutationCalls(node ast.Node) []rawMutationCall {
+	var calls []rawMutationCall
 	ast.Inspect(node, func(n ast.Node) bool {
-		if found {
-			return false
-		}
 		call, isCall := n.(*ast.CallExpr)
 		if !isCall {
 			return true
 		}
 		if dotted := calledFuncDotted(call); evoRawMutationCallNames[dotted] {
-			pos, name, found = call.Pos(), dotted, true
-			return false
+			calls = append(calls, rawMutationCall{pos: call.Pos(), name: dotted})
+			return true
 		}
 		sel, isSel := call.Fun.(*ast.SelectorExpr)
 		if !isSel || (sel.Sel.Name != "Exec" && sel.Sel.Name != "ExecContext") {
 			return true
 		}
 		if recv := strings.ToLower(exprDottedName(sel.X)); evoSQLMutationReceivers[recv] {
-			pos, name, found = call.Pos(), exprDottedName(sel.X)+"."+sel.Sel.Name, true
-			return false
+			calls = append(calls, rawMutationCall{pos: call.Pos(), name: exprDottedName(sel.X) + "." + sel.Sel.Name, sql: true})
 		}
 		return true
 	})
-	return pos, name, found
+	return calls
+}
+
+// firstRawMutationCall reports the first rawMutationCalls hit in node.
+func firstRawMutationCall(node ast.Node) (pos token.Pos, name string, found bool) {
+	calls := rawMutationCalls(node)
+	if len(calls) == 0 {
+		return token.NoPos, "", false
+	}
+	return calls[0].pos, calls[0].name, true
+}
+
+// firstUnwrappedRawMutation is firstRawMutationCall for a Define body: a
+// database mutation inside an evo.Effect callback is the sanctioned opaque
+// mutation path (dry-run never invokes it), so it no longer counts. File
+// and process calls still do there — evo.File and evo.Exec own those.
+func firstUnwrappedRawMutation(body ast.Node, pkg string) (pos token.Pos, name string, found bool) {
+	effects := effectCallbacks(body, pkg)
+	for _, c := range rawMutationCalls(body) {
+		if c.sql && withinAny(c.pos, effects) {
+			continue
+		}
+		return c.pos, c.name, true
+	}
+	return token.NoPos, "", false
+}
+
+// effectCallbacks lists every pkg.Effect(ctx, spec, fn) callback literal
+// inside node.
+func effectCallbacks(node ast.Node, pkg string) []*ast.FuncLit {
+	var out []*ast.FuncLit
+	ast.Inspect(node, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || !isEvoEffectCall(call, pkg) {
+			return true
+		}
+		if fl, ok := call.Args[effectCallbackArg].(*ast.FuncLit); ok {
+			out = append(out, fl)
+		}
+		return true
+	})
+	return out
+}
+
+func withinAny(pos token.Pos, nodes []*ast.FuncLit) bool {
+	for _, n := range nodes {
+		if pos >= n.Pos() && pos < n.End() {
+			return true
+		}
+	}
+	return false
 }
 
 // funcLitArgAt returns call's argN as a *ast.FuncLit when the call is a
@@ -176,9 +225,9 @@ func isLocalStructLiteral(e ast.Expr, localStructs map[string]bool) bool {
 	return ok && localStructs[id.Name]
 }
 
-// ===== EVO-EVIDENCE-001: a legacy named task.Evidence("name", func() error
-// { ... }) callback performs a raw mutation. Evidence is superseded as a
-// boolean current-state conclusion; it was never the place mutation happens
+// ===== EVO-EVIDENCE-001: a legacy named mutating callback performs a raw
+// mutation. Capture-meaning Evidence* was removed in 1.1 (Capture is the
+// retained sink); mutation belongs in Define via evo.File / evo.Effect
 // (spec §2, §56, §57).
 
 func detectMutatingLegacyEvidence(filename string, file *ast.File, fset *token.FileSet) []Finding {
@@ -199,14 +248,12 @@ func detectMutatingLegacyEvidence(filename string, file *ast.File, fset *token.F
 		}
 		recv := exprDottedNameOrDefault(sel.X, "task")
 		findings = append(findings, Finding{
-			RuleID:          "EVO-EVIDENCE-001",
-			Severity:        "error",
-			Message:         recv + ".Evidence's callback calls " + name + "; the legacy named-Evidence shape is superseded and was never the place mutation belongs",
-			File:            filename,
-			Line:            fset.Position(pos).Line,
-			Column:          fset.Position(pos).Column,
-			Suggestion:      "move " + name + " into " + recv + ".Define(func(ctx context.Context) error { ... }); add " + recv + ".Verify(func(ctx context.Context) (bool, error) { ... }) only if the resulting state can be observed directly",
-			RequiredVersion: evoDagEvidenceRequiredVersion,
+			RuleID:     "EVO-EVIDENCE-001",
+			Message:    recv + ".Evidence's callback calls " + name + "; the legacy named-Evidence shape is superseded and was never the place mutation belongs",
+			File:       filename,
+			Line:       fset.Position(pos).Line,
+			Column:     fset.Position(pos).Column,
+			Suggestion: "move " + name + " into " + recv + ".Define(func(ctx context.Context) error { ... }); add " + recv + ".Verify(func(ctx context.Context) (bool, error) { ... }) only if the resulting state can be observed directly",
 		})
 		return true
 	})
@@ -236,14 +283,12 @@ func detectMutatingVerify(filename string, file *ast.File, fset *token.FileSet) 
 		}
 		recv := exprDottedNameOrDefault(sel.X, "task")
 		findings = append(findings, Finding{
-			RuleID:          "EVO-VERIFY-001",
-			Severity:        "error",
-			Message:         recv + ".Verify's callback calls " + name + "; Verify must be read-only",
-			File:            filename,
-			Line:            fset.Position(pos).Line,
-			Column:          fset.Position(pos).Column,
-			Suggestion:      "move " + name + " into " + recv + ".Define(...) and keep " + recv + ".Verify(...) limited to observation, e.g. `return checkFn(ctx)`",
-			RequiredVersion: evoDagEvidenceRequiredVersion,
+			RuleID:     "EVO-VERIFY-001",
+			Message:    recv + ".Verify's callback calls " + name + "; Verify must be read-only",
+			File:       filename,
+			Line:       fset.Position(pos).Line,
+			Column:     fset.Position(pos).Column,
+			Suggestion: "move " + name + " into " + recv + ".Define(...) and keep " + recv + ".Verify(...) limited to observation, e.g. `return checkFn(ctx)`",
 		})
 		return true
 	})
@@ -253,12 +298,14 @@ func detectMutatingVerify(filename string, file *ast.File, fset *token.FileSet) 
 // ===== EVO-DRYRUN-001: a task.Define(func(ctx) error { ... }) callback
 // performs a raw mutation. Evo cannot intercept an arbitrary Go side effect
 // (os.WriteFile, a raw exec.Command, a direct database mutation); code that
-// promises Evo dry-run safety must route mutation through evo.File,
-// evo.Exec, or a typed mutation boundary instead (spec §32.2, §57).
+// promises Evo dry-run safety must route file state through evo.File,
+// processes through evo.Exec, and a database change through evo.Effect
+// instead (spec §32.2, §57).
 
 func detectRawMutationInDefine(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	disproven := evoDisprovenVars(file)
+	pkg := evoImportName(file)
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
@@ -268,20 +315,18 @@ func detectRawMutationInDefine(filename string, file *ast.File, fset *token.File
 		if !ok {
 			return true
 		}
-		pos, name, mutates := firstRawMutationCall(fl.Body)
+		pos, name, mutates := firstUnwrappedRawMutation(fl.Body, pkg)
 		if !mutates {
 			return true
 		}
 		recv := exprDottedNameOrDefault(sel.X, "task")
 		findings = append(findings, Finding{
-			RuleID:          "EVO-DRYRUN-001",
-			Severity:        "error",
-			Message:         recv + ".Define raw-calls " + name + "; Evo cannot intercept an arbitrary side effect, so this callback is unsafe under dry-run",
-			File:            filename,
-			Line:            fset.Position(pos).Line,
-			Column:          fset.Position(pos).Column,
-			Suggestion:      "route the mutation through evo.File(ctx, evo.FileSpec{...}), evo.Exec(ctx, evo.ExecSpec{...}), or a typed mutation verb instead of calling " + name + " directly",
-			RequiredVersion: evoDagEvidenceRequiredVersion,
+			RuleID:     "EVO-DRYRUN-001",
+			Message:    recv + ".Define raw-calls " + name + "; Evo cannot intercept an arbitrary side effect, so this callback is unsafe under dry-run",
+			File:       filename,
+			Line:       fset.Position(pos).Line,
+			Column:     fset.Position(pos).Column,
+			Suggestion: rawMutationRoute(name),
 		})
 		return true
 	})
@@ -306,4 +351,16 @@ func stringLit(e ast.Expr) (string, bool) {
 	}
 	s, err := strconv.Unquote(lit.Value)
 	return s, err == nil
+}
+
+// rawMutationRoute names the Evo boundary that owns name's kind of
+// mutation: a database handle's Exec goes through evo.Effect (Evo cannot
+// model it declaratively); files and processes go through File/Exec.
+func rawMutationRoute(name string) string {
+	if strings.HasSuffix(name, ".Exec") || strings.HasSuffix(name, ".ExecContext") {
+		if !strings.HasPrefix(name, "exec.") {
+			return "wrap " + name + " in evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: \"row\", Quantity: n}, fn) so dry-run never invokes it"
+		}
+	}
+	return "route the mutation through evo.File(ctx, evo.FileSpec{...}) or evo.Exec(ctx, evo.ExecSpec{...}) instead of calling " + name + " directly"
 }

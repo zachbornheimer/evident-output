@@ -44,7 +44,7 @@ func buildProbe(t *testing.T, root, binDir, name string) string {
 	t.Helper()
 	binPath := filepath.Join(binDir, name)
 	pkgPath := "./internal/architecture/importprobe/" + name
-	cmd := exec.Command("go", "build", "-o", binPath, pkgPath)
+	cmd := exec.Command("go", "build", "-buildvcs=false", "-o", binPath, pkgPath)
 	cmd.Dir = root
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("go build %s: %v\n%s", pkgPath, err, out)

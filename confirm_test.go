@@ -221,7 +221,7 @@ func TestConfirm_QuiescesLiveRegion_NoFramesBetweenPromptAndAnswer(t *testing.T)
 	if !strings.Contains(ops[promptIdx].Text, "\n›") {
 		t.Fatalf("prompt line missing the › input line (P11): %q", ops[promptIdx].Text)
 	}
-	task.Done("14 deleted")
+	succeed(task, "14 deleted")
 }
 
 // TestConfirm_Blocked_RendersBlockedGlyph proves the plain projection uses

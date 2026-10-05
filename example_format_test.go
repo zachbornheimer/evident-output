@@ -1,6 +1,7 @@
 package evo_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"time"
@@ -117,7 +118,7 @@ func ExamplePlainOptions() {
 // the same renderer Config.Plain wires up automatically.
 func ExampleRenderPlain() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
-	out.Task("apply patch").Done()
+	out.Task("apply patch").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	data, err := evo.RenderPlain(out.Snapshot(), evo.PlainOptions{NoColor: true})
 	fmt.Println(err)
@@ -168,3 +169,7 @@ func (fakeLiveSurface) WriteLive(string)    {}
 func (fakeLiveSurface) ClearLive()          {}
 func (fakeLiveSurface) WriteDurable(string) {}
 func (fakeLiveSurface) WriteFinal(string)   {}
+
+type namedTerminal struct{ id string }
+
+func (t namedTerminal) ID() string { return t.id }

@@ -22,9 +22,9 @@ func TestFinish_AbandonedGroupChildren_RendersPartialModifierOnBand(t *testing.T
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	install := out.Group("install")
-	install.Task("one").Done() // resolved
-	install.Task("two")        // abandoned — never resolved, never Defined
-	install.Task("three")      // abandoned — never resolved, never Defined
+	succeed(install.Task("one")) // resolved
+	install.Task("two")          // abandoned — never resolved, never Defined
+	install.Task("three")        // abandoned — never resolved, never Defined
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (an abandoned loop is not misuse)", err)

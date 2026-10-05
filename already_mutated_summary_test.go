@@ -41,13 +41,13 @@ func TestConclusion_P7_AlreadyMutatedAggregatesAndNamesItsOwner(t *testing.T) {
 	t.Run("distinct effects name the task that owns each", func(t *testing.T) {
 		t.Parallel()
 		got := mutatedThenFailed(t, func(out *evo.Output) {
-			out.Task("modules").Create("module", func() error { return nil })
-			out.Task("files").Write("file", func() error { return nil })
+			out.Task("modules").Define(effectOf(evo.EffectCreate, "module", 1))
+			out.Task("records").Define(effectOf(evo.EffectUpdate, "record", 1))
 		})
 		if !strings.Contains(got, "modules: 1 module created") {
 			t.Fatalf("want the owning task named, got:\n%s", got)
 		}
-		if !strings.Contains(got, "files: 1 file wrote") {
+		if !strings.Contains(got, "records: 1 record updated") {
 			t.Fatalf("want the owning task named, got:\n%s", got)
 		}
 	})

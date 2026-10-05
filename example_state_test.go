@@ -1,6 +1,7 @@
 package evo_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 
@@ -12,7 +13,7 @@ import (
 func ExampleEntityState() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
 	task := out.Task("apply patch")
-	task.Done()
+	task.Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	state := task.Snapshot().State
 	fmt.Println(state == evo.Done)
@@ -23,7 +24,7 @@ func ExampleEntityState() {
 // ExampleConclusionState shows the human headline for a finished output.
 func ExampleConclusionState() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
-	out.Task("apply patch").Done()
+	out.Task("apply patch").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Println(out.Conclusion().State == evo.StateReady)
 	// Output:
@@ -45,7 +46,7 @@ func ExampleProgress() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
 	task := out.Task("download image")
 	task.Progress(50, 100)
-	task.Done()
+	task.Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	p := task.Snapshot().Progress
 	fmt.Println(p.Completed, p.Total)

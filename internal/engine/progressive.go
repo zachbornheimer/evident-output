@@ -3,6 +3,7 @@ package engine
 import (
 	"io"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/render"
@@ -86,7 +87,7 @@ func (o *Output) writeDurableTextLocked(text string) {
 	}
 }
 
-// maxRootTaskNameWidth is progressive emission's sibling-column-alignment
+// The root name column is progressive emission's sibling-column-alignment
 // width (fixture-repo-retire-dryrun.md): every root (non-collection) task
 // the caller has declared so far, whether or not it has resolved yet. A
 // caller that declares its whole known set of sibling tasks before
@@ -97,59 +98,34 @@ func (o *Output) writeDurableTextLocked(text string) {
 // commit, which is the honest limit of "render immediately" (§17.5)
 // progressive streaming: a name declared after this row already committed
 // cannot retroactively widen it.
-func maxRootTaskNameWidth(tasks []*taskState) int {
-	width := 0
-	count := 0
-	for _, t := range tasks {
-		if t.collection != nil {
-			continue
-		}
-		count++
-		if n := len([]rune(t.name)); n > width {
-			width = n
-		}
-	}
-	if count < 2 {
+//
+// rootColumn keeps that width current as root Tasks are declared (see
+// appendTaskLocked), so a commit reads it without rescanning every Task.
+type rootColumn struct{ count, width int }
+
+func (c *rootColumn) add(name string) {
+	c.count++
+	c.width = max(c.width, utf8.RuneCountInString(name))
+}
+
+// nameWidth is the column width, or 0 when fewer than two root Tasks exist
+// and there is nothing to align.
+func (c rootColumn) nameWidth() int {
+	if c.count < 2 {
 		return 0
 	}
-	return width
+	return c.width
 }
 
 // maxChangeSubjectWidth/maxPlanSubjectWidth are residualCompositionLocked's
-// batch-time equivalent of maxRootTaskNameWidth for the Changes/Plan ledger
+// batch-time equivalent of rootColumn for the Changes/Plan ledger
 // (fixture-repo-retire-dryrun.md's aligned "[planned] <name>  <verb> ..."
 // column) — Changes/Plans render only at Finish (never progressively, see
 // residualCompositionLocked's doc comment), so the full set is always known
 // here, unlike task rows above.
-func maxChangeSubjectWidth(sections []*changesState) int {
-	if len(sections) < 2 {
-		return 0
-	}
-	width := 0
-	for _, s := range sections {
-		if n := len([]rune(s.subject)); n > width {
-			width = n
-		}
-	}
-	return width
-}
-
-func maxPlanSubjectWidth(sections []*planState) int {
-	if len(sections) < 2 {
-		return 0
-	}
-	width := 0
-	for _, s := range sections {
-		if n := len([]rune(s.subject)); n > width {
-			width = n
-		}
-	}
-	return width
-}
-
 // commitResolvedTaskLocked commits a resolved standalone Task's row to
 // durable scrollback the instant it resolves — interactive or not — and
-// drops it from the live ticker (liveTickerSnapshotLocked already filters
+// drops it from the live ticker (liveSnapshotLocked already filters
 // coreEmitted tasks). Collection children stay with the collection renderer
 // (H.20/H.21 own their ledger via signalLiveLocked instead).
 //
@@ -169,9 +145,12 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 	if st == nil || st.coreEmitted || !core.IsTerminalTask(st.state) {
 		return
 	}
+	if o.heldBackAsNoOpLocked(st.snapshot()) {
+		return
+	}
 	var b strings.Builder
-	nameWidth := maxRootTaskNameWidth(o.tasks)
-	render.WriteTaskAligned(&b, st.snapshot(), nameWidth, !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
+	nameWidth := o.rootColumn.nameWidth()
+	render.WriteTaskAligned(&b, st.snapshot(), nameWidth, o.humanStyle())
 	st.coreEmitted = true
 	if b.Len() == 0 {
 		return
@@ -193,10 +172,10 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 }
 
 // hasNamedEffectRecord reports whether records holds at least one no-qty
-// (RecordName) row — the "named record enumerates" half of "Quantity
-// records tally; named records enumerate": Record/mutation-verb rows and
-// RecordLabel's classification rows always carry a quantity (HasQty true)
-// and stay Finish-only, tallied and bounded there exactly as before.
+// (evo.File/evo.Exec named) row — the "named record enumerates" half of
+// "Quantity records tally; named records enumerate": Effect rows always
+// carry a quantity (HasQty true) and stay Finish-only, tallied and bounded
+// there exactly as before.
 func hasNamedEffectRecord(records []core.EffectRecord) bool {
 	for _, r := range records {
 		if !r.HasQty {
@@ -206,14 +185,14 @@ func hasNamedEffectRecord(records []core.EffectRecord) bool {
 	return false
 }
 
-// commitNamedEffectsLocked streams subject's Plan/Changes ledger section the
+// commitNamedEffectsLocked streams owner's Plan/Changes ledger section the
 // instant its owning standalone task resolves (task.go's finish), provided
-// the section holds at least one named (RecordName) record — evo-rec.md's
+// the section holds at least one named (File/Exec) record — evo-rec.md's
 // "a --dry user loses 'what would run' per item" fix: a caller working
 // through several tasks in sequence sees each task's planned/changed items
 // the moment that task's own work finishes, instead of every task's rows
 // piling up at the very end of the whole run's Finish. A pure-quantity
-// section (Record/mutation verbs, RecordLabel) is untouched — it always
+// section (Effect) is untouched — it always
 // waits for Finish, exactly as before (see hasNamedEffectRecord).
 //
 // This calls the same render.WriteEffects Finish already uses (merge,
@@ -223,30 +202,35 @@ func hasNamedEffectRecord(records []core.EffectRecord) bool {
 // accumulate; only the presentation instant moves earlier. Marking the
 // section namedRowsEmitted is what makes residualCompositionLocked's Finish
 // loop skip it — the raw item list must never render twice.
-func (o *Output) commitNamedEffectsLocked(subject string) {
-	for _, p := range o.plans {
-		if p.subject != subject || p.namedRowsEmitted || !hasNamedEffectRecord(p.records) {
+func (o *Output) commitNamedEffectsLocked(owner string) {
+	for _, tense := range []ledgerTense{tensePlanned, tenseChanged} {
+		s, ok := o.ledger.byOwner[ledgerSectionKey{owner: owner, tense: tense}]
+		if !ok || s.namedRowsEmitted || !hasNamedEffectRecord(s.records) {
 			continue
 		}
-		o.emitEffectSectionLocked("planned", p.subject, p.records, p.intendedVerb, maxPlanSubjectWidth(o.plans))
-		p.namedRowsEmitted = true
-	}
-	for _, c := range o.changes {
-		if c.subject != subject || c.namedRowsEmitted || !hasNamedEffectRecord(c.records) {
-			continue
-		}
-		o.emitEffectSectionLocked("changed", c.subject, c.records, c.intendedVerb, maxChangeSubjectWidth(o.changes))
-		c.namedRowsEmitted = true
+		var b strings.Builder
+		render.WriteEffects(&b, o.effectSectionLocked(s, maxSubjectWidth(*o.sectionsLocked(tense))), o.humanStyle())
+		o.writeDurableTextLocked(b.String())
+		s.namedRowsEmitted = true
 	}
 }
 
-// emitEffectSectionLocked renders one Plan/Changes section with the same
-// render.WriteEffects call residualCompositionLocked uses at Finish, and
-// streams it as durable text immediately (see writeDurableTextLocked).
-func (o *Output) emitEffectSectionLocked(kind, subject string, records []core.EffectRecord, intendedVerb string, nameWidth int) {
-	var b strings.Builder
-	render.WriteEffects(&b, kind, subject, nameWidth, records, intendedVerb, o.cfg.width, !o.cfg.noColor, o.cfg.glyphs)
-	o.writeDurableTextLocked(b.String())
+// effectSectionLocked is s laid out for render.WriteEffects — the one
+// shape both the streamed and the Finish ledger render.
+func (o *Output) effectSectionLocked(s *ledgerSection, nameWidth int) render.EffectSection {
+	width := o.cfg.width
+	if width <= 0 {
+		width = defaultWidth
+	}
+	return render.EffectSection{
+		Kind: s.tense.String(), Subject: s.subject, Records: s.records,
+		IntendedVerb: s.intendedVerb, NameWidth: nameWidth, Width: width,
+	}
+}
+
+// humanStyle is how this Output paints human rows.
+func (o *Output) humanStyle() render.Style {
+	return render.Style{Color: !o.cfg.noColor, Verbose: o.cfg.verbosity >= VerbosityVerbose, Profile: o.cfg.glyphs}
 }
 
 // taskProgressiveTrigger names which evidence call is streaming a Running
@@ -274,20 +258,17 @@ const plainProgressMilestones = 10
 func shouldEmitPlainProgressLocked(st *taskState) bool {
 	completed := st.progress.Completed
 	total := st.progress.Total
-	if !st.plainProgressStarted {
+	if !st.plainStream.progressStarted {
 		return true
 	}
-	if completed == st.plainProgressEmitted {
+	if completed == st.plainStream.progressEmitted {
 		return false
 	}
 	if total <= 0 || completed >= total {
 		return true
 	}
-	step := total / plainProgressMilestones
-	if step < 1 {
-		step = 1
-	}
-	return completed/step != st.plainProgressEmitted/step
+	step := max(total/plainProgressMilestones, 1)
+	return completed/step != st.plainStream.progressEmitted/step
 }
 
 // progressiveRowName qualifies a streamed plain row with the subject it
@@ -328,21 +309,21 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 	}
 	switch trigger {
 	case triggerPhase:
-		if st.phase == st.plainPhaseEmitted {
+		if st.phase == st.plainStream.phase {
 			return
 		}
-		st.plainPhaseEmitted = st.phase
+		st.plainStream.phase = st.phase
 	case triggerProgress:
 		if !shouldEmitPlainProgressLocked(st) {
 			return
 		}
-		st.plainProgressStarted = true
-		st.plainProgressEmitted = st.progress.Completed
+		st.plainStream.progressStarted = true
+		st.plainStream.progressEmitted = st.progress.Completed
 	}
 	row := st.snapshot()
 	row.Name = progressiveRowName(st)
 	var b strings.Builder
-	render.WriteTask(&b, row, !o.cfg.noColor, o.cfg.verbosity >= VerbosityVerbose, o.cfg.glyphs)
+	render.WriteTask(&b, row, o.humanStyle())
 	if b.Len() == 0 {
 		return
 	}
@@ -405,32 +386,13 @@ func residualHasEffectSections(o *Output) bool {
 // dual-stream skips them here to avoid a second render of the same rows on
 // two destinations.
 func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, includeEntities bool) string {
-	cfg := o.cfg
-	color := !cfg.noColor
-	verbose := cfg.verbosity >= VerbosityVerbose
-	profile := cfg.glyphs
-	width := cfg.width
-	if width <= 0 {
-		width = defaultWidth
-	}
+	style := o.humanStyle()
 	var b strings.Builder
-
 	for i := linesFrom; i < len(snap.Lines); i++ {
-		render.WriteDebugOrLine(&b, snap.Lines[i], color)
+		render.WriteDebugOrLine(&b, snap.Lines[i], style.Color)
 	}
-
 	if includeEntities {
-		residualNameWidth := maxRootTaskNameWidth(o.tasks)
-		for _, t := range o.tasks {
-			if t.collection != nil || t.coreEmitted {
-				continue
-			}
-			render.WriteTaskAligned(&b, t.snapshot(), residualNameWidth, color, verbose, profile)
-			t.coreEmitted = true
-		}
-		for _, col := range snap.Collections {
-			render.WriteCollection(&b, col, color, verbose, profile)
-		}
+		o.writeResidualEntitiesLocked(&b, snap, style)
 	}
 	// A blank line separates the task block from the [changed]/[planned]
 	// ledger (fixture-repo-retire-dryrun.md: line 12→14) — checked against
@@ -440,34 +402,63 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 	if residualHasTaskRows(o, snap) && residualHasEffectSections(o) {
 		b.WriteByte('\n')
 	}
-	changeNameWidth := maxChangeSubjectWidth(o.changes)
-	for _, ch := range o.changes {
-		if ch.namedRowsEmitted {
-			continue
-		}
-		render.WriteEffects(&b, "changed", ch.subject, changeNameWidth, ch.records, ch.intendedVerb, width, color, profile)
-	}
-	planNameWidth := maxPlanSubjectWidth(o.plans)
-	for _, p := range o.plans {
-		if p.namedRowsEmitted {
-			continue
-		}
-		render.WriteEffects(&b, "planned", p.subject, planNameWidth, p.records, p.intendedVerb, width, color, profile)
-	}
+	o.writeResidualLedgerLocked(&b, style)
 	if snap.Conclusion != nil && !render.ShouldSuppressStandaloneConclusion(snap) {
-		render.WriteConclusion(&b, *snap.Conclusion, color, profile)
+		render.WriteConclusion(&b, render.StandaloneConclusion(snap), style)
 	}
-	// Pane mode: optional diagnostic tail under final result (§21.3.2) — the
-	// default preserveOnBad path only ever fires when debugPaneActive is
-	// true, which only happens for a live rolling pane (interactive).
-	if snap.Conclusion != nil && o.shouldPreserveDebugTailLocked(*snap.Conclusion) {
-		max := o.cfg.debugPane.height
-		if max <= 0 {
-			max = defaultDebugPaneHeight
-		}
-		writeDebugTail(&b, o.debugRecords, max, color)
-	}
+	o.writeDebugTailLocked(&b, snap, style.Color)
 	return b.String()
+}
+
+// writeResidualEntitiesLocked writes every root Task row not already
+// streamed, then every collection, as human output shows them
+// (render.HumanProjection).
+func (o *Output) writeResidualEntitiesLocked(b *strings.Builder, snap Snapshot, style render.Style) {
+	nameWidth := o.rootColumn.nameWidth()
+	human := render.HumanProjection(snap, style.Verbose)
+	shown := make(map[string]bool, len(human.Tasks))
+	for _, t := range human.Tasks {
+		shown[t.ID] = true
+	}
+	for _, t := range o.tasks {
+		if t.collection != nil || t.coreEmitted {
+			continue
+		}
+		if shown[t.id] {
+			render.WriteTaskAligned(b, t.snapshot(), nameWidth, style)
+		}
+		t.coreEmitted = true
+	}
+	for _, col := range human.Collections {
+		render.WriteCollection(b, col, style)
+	}
+}
+
+// writeResidualLedgerLocked writes every [changed] then [planned] section
+// that did not already stream at its Task's resolution.
+func (o *Output) writeResidualLedgerLocked(b *strings.Builder, style render.Style) {
+	for _, sections := range []*[]*ledgerSection{&o.changes, &o.plans} {
+		nameWidth := maxSubjectWidth(*sections)
+		for _, s := range *sections {
+			if !s.namedRowsEmitted {
+				render.WriteEffects(b, o.effectSectionLocked(s, nameWidth), style)
+			}
+		}
+	}
+}
+
+// writeDebugTailLocked writes the pane-mode diagnostic tail under the final
+// result (§21.3.2). The default preserveOnBad path only fires when
+// debugPaneActive is true, which only happens for a live rolling pane.
+func (o *Output) writeDebugTailLocked(b *strings.Builder, snap Snapshot, color bool) {
+	if snap.Conclusion == nil || !o.shouldPreserveDebugTailLocked(*snap.Conclusion) {
+		return
+	}
+	rows := o.cfg.debugPane.height
+	if rows <= 0 {
+		rows = defaultDebugPaneHeight
+	}
+	writeDebugTail(b, o.debugRecords, rows, color)
 }
 
 // residualPlainLocked builds the Finish tail for the plain/primary-mirror
@@ -514,4 +505,19 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 func (o *Output) residualInteractiveFinalLocked(snap Snapshot, linesFrom int) string {
 	text := o.residualCompositionLocked(snap, linesFrom, true)
 	return strings.TrimRight(text, "\n")
+}
+
+// plainStreamMark is plain/non-interactive progressive streaming's
+// bookkeeping for a still-Running standalone task (P10: CI logs must not
+// stay silent until Finish; beginner-8: a durable line per progress
+// increment, thinned to milestones for large totals).
+type plainStreamMark struct {
+	// phase is the last Phase text already streamed, so a repeated/no-op
+	// Phase call does not re-emit.
+	phase string
+	// progressStarted is false until the first Progress/Bytes tick.
+	progressStarted bool
+	// progressEmitted is the last completed value actually streamed, so a
+	// later tick knows whether it crossed a milestone boundary.
+	progressEmitted int64
 }

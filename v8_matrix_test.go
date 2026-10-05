@@ -52,7 +52,7 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 
 	// All three declared up front, matching the real CLI's three
 	// concurrently-checked subjects: plain mode's shared name-column width
-	// for a run of sibling standalone tasks (maxRootTaskNameWidth) is
+	// for a run of sibling standalone tasks (rootColumn) is
 	// computed from every task declared so far at the moment each one
 	// resolves — declaring all three before any resolves is what produces
 	// the mockup's aligned name column.
@@ -60,16 +60,13 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 	worktrees := out.Task("worktrees")
 	remotes := out.Task("remote-tracking")
 
-	branches.Warn("kept 419 (283 checked out, 135 unpushed, 1 protected)")
-	branches.Record("delete", 40, "local tip")
-	branches.Done("459 checked")
+	branches.Fact("kept", "419 (283 checked out, 135 unpushed, 1 protected)")
+	commit(branches.Summary("459 checked"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 40})
 
-	worktrees.Warn("kept 292 (163 dirty, 89 unpushed, 40 ignored files)")
-	worktrees.Record("remove", 1, "worktree")
-	worktrees.Done("294 checked")
+	worktrees.Fact("kept", "292 (163 dirty, 89 unpushed, 40 ignored files)")
+	commit(worktrees.Summary("294 checked"), evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 1})
 
-	remotes.Record("delete", 4, "stale origin/*")
-	remotes.Done("4 stale refs")
+	commit(remotes.Summary("4 stale refs"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 4})
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -78,16 +75,12 @@ func TestV8_DryRunPlanOnly(t *testing.T) {
 	want := "[dry-run] zq prune  ~/Developer/Software-Automation-Holdings/.worktrees/eapp-system-style-contract-heading\n" +
 		"\n" +
 		"✓ branches         459 checked\n" +
-		"  ! kept 419 (283 checked out, 135 unpushed, 1 protected)\n" +
 		"✓ worktrees        294 checked\n" +
-		"  ! kept 292 (163 dirty, 89 unpushed, 40 ignored files)\n" +
 		"✓ remote-tracking  4 stale refs\n" +
 		"\n" +
-		"[planned] branches          delete 40 local tips\n" +
-		"[planned] worktrees         remove 1 worktree\n" +
-		"[planned] remote-tracking   delete 4 stale origin/*\n" +
-		"\n" +
-		"[planned · warned]\n"
+		"[planned] branches         delete 40 local tips\n" +
+		"[planned] worktrees        remove 1 worktree\n" +
+		"[planned] remote-tracking  delete 4 stale origin/*\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -117,10 +110,10 @@ func TestV8_NothingToClean(t *testing.T) {
 	worktrees := out.Task("worktrees")
 	remotes := out.Task("remote-tracking")
 
-	branches.Warn("kept 1 (protected)")
-	branches.Done("1 checked")
-	worktrees.Done("nothing to clean")
-	remotes.Done("nothing to clean")
+	branches.Fact("kept", "1 (protected)")
+	succeed(branches, "1 checked")
+	succeed(worktrees, "nothing to clean")
+	succeed(remotes, "nothing to clean")
 	out.Println("prune  nothing to clean")
 
 	if err := out.Finish(); err != nil {
@@ -129,12 +122,11 @@ func TestV8_NothingToClean(t *testing.T) {
 
 	want := "zq prune  ~/Developer/Personal/zq\n" +
 		"✓ branches         1 checked\n" +
-		"  ! kept 1 (protected)\n" +
 		"✓ worktrees        nothing to clean\n" +
 		"✓ remote-tracking  nothing to clean\n" +
 		"prune  nothing to clean\n" +
 		"\n" +
-		"[ready · warned]  prune\n"
+		"[ready]  prune\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -227,12 +219,11 @@ func TestV8_Stress(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	deploy := out.Group("deploy production")
-	deploy.Task("discover").Done()
-	deploy.Task("services").Done("already satisfied")
+	succeed(deploy.Task("discover"))
+	succeed(deploy.Task("services"), "already satisfied")
 
 	remotes := out.Task("remote-tracking")
-	remotes.Record("delete", 4, "stale origin/*")
-	remotes.Done("4 stale refs")
+	commit(remotes.Summary("4 stale refs"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 4})
 
 	agent := out.Task("write launch agent")
 	agent.Define(func(ctx context.Context) error { return evo.File(ctx, spec) })
@@ -248,9 +239,8 @@ func TestV8_Stress(t *testing.T) {
 		"    error  operation not permitted\n" +
 		"    path   " + displayPath + "\n" +
 		"    mode   0644\n" +
-		"✓ deploy production\n" +
-		"   ✓ discover\n" +
-		"   ✓ services  already satisfied\n" +
+		"✓ discover\n" +
+		"✓ services  already satisfied\n" +
 		"\n" +
 		"[changed] remote-tracking  deleted 4 stale origin/*\n" +
 		"\n" +
@@ -278,11 +268,10 @@ func TestV8_Stress(t *testing.T) {
 //     append-only model can produce; that ordering is followed here.
 //   - The frame doesn't show it, but a committed effect must never
 //     disappear once work is cut short (spec §15/§43: "Committed effects
-//     remain... never implying rollback"), so the conclusion band also
-//     carries a "· partial" modifier and "! already mutated: 4 stale
-//     origin/* deleted" — the same fact the ledger line above it already
-//     gave, restated where a reader scanning only the conclusion band
-//     would otherwise miss it.
+//     remain... never implying rollback"), so the cancellation band adds
+//     "! partial changes were applied before cancellation" (contract §15).
+//     The note is derived from the committed Effects, not caller-authored,
+//     and it does not repeat the ledger line above it.
 //
 // The frame's glyph for the interrupted row ("-") is not used here either:
 // spec §43's own example and the glyph table (§41) both use "■" for
@@ -301,11 +290,9 @@ func TestV8_CancelledAfterMutation(t *testing.T) {
 	worktrees := out.Task("worktrees")
 	remotes := out.Task("remote-tracking")
 
-	remotes.Record("delete", 4, "stale origin/*")
-	remotes.Done("4/4")
+	commit(remotes.Summary("4/4"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 4})
 
 	worktrees.Cancel("interrupted")
-	out.Warn("partial changes were applied before cancellation")
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -314,13 +301,12 @@ func TestV8_CancelledAfterMutation(t *testing.T) {
 	want := "zq prune --apply  ~/.../eapp-system-style-contract-heading\n" +
 		"✓ remote-tracking  4/4\n" +
 		"■ worktrees        interrupted\n" +
-		"! partial changes were applied before cancellation\n" +
 		"- branches         not started\n" +
 		"\n" +
 		"[changed] remote-tracking  deleted 4 stale origin/*\n" +
 		"\n" +
-		"[cancelled · partial · warned]  prune\n" +
-		"!  already mutated: 4 stale origin/* deleted\n"
+		"[cancelled] prune\n" +
+		"  ! partial changes were applied before cancellation\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -342,31 +328,154 @@ func TestV8_CancelledAfterMutation(t *testing.T) {
 // than this single tab warrants; the golden follows the actual, tested
 // convention.
 func TestV8_AlreadySatisfied(t *testing.T) {
+	// "deploy production" has no Summary, so its header is not a row, and
+	// its zero-information children (discover, prepare hosts, services:
+	// nothing to say, nothing changed) are hidden while other content
+	// exists. The launch agent's "path" is a routine Task Fact: contract
+	// §13/§21 hide it at normal verbosity (§21 labels this exact
+	// "✓ write launch agent / path ..." shape its "Verbose example"), which
+	// leaves the launch agent zero-information too. Under verbose it owns a
+	// visible Fact and keeps its row; cleanup always keeps its Summary.
+	cases := []struct {
+		verbosity evo.Verbosity
+		want      string
+	}{
+		{evo.VerbosityNormal, "✓ cleanup  nothing to do\n"},
+		{evo.VerbosityVerbose, "✓ write launch agent  already satisfied\n" +
+			"  path  ~/Library/LaunchAgents/com.acme.prod.agent.plist\n" +
+			"✓ cleanup             nothing to do\n"},
+	}
+	for _, tc := range cases {
+		if got := renderV8AlreadySatisfied(t, tc.verbosity); got != tc.want {
+			t.Fatalf("verbosity %v mismatch:\n--- want ---\n%s\n--- got ---\n%s", tc.verbosity, tc.want, got)
+		}
+	}
+}
+
+func renderV8AlreadySatisfied(t *testing.T, verbosity evo.Verbosity) string {
+	t.Helper()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever, Plain: true, Stdout: &buf, Stderr: io.Discard})
+	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever, Plain: true, Stdout: &buf, Stderr: io.Discard, Verbosity: verbosity})
 	t.Cleanup(func() { _ = out.Close() })
 
+	// Spec §19's suffix is ResolutionAlreadySatisfied, produced only by a
+	// pre-Define Verify that already holds — never a caller-written
+	// Done("already satisfied") summary, which would also fire if File/Exec
+	// no-op'd after Define (the case §19 forbids applying the suffix to).
+	alreadySatisfied := func(task *evo.TaskHandle) {
+		t.Helper()
+		task.Verify(func(context.Context) (bool, error) { return true, nil })
+		task.Define(func(context.Context) error {
+			t.Fatal("Define must not run once Verify reports already satisfied")
+			return nil
+		})
+	}
+
 	deploy := out.Group("deploy production")
-	deploy.Task("discover").Done()
-	deploy.Task("prepare hosts").Done("already satisfied")
-	deploy.Task("services").Done("already satisfied")
+	alreadySatisfied(deploy.Task("discover"))
+	alreadySatisfied(deploy.Task("prepare hosts"))
+	alreadySatisfied(deploy.Task("services"))
 	launchAgent := deploy.Task("write launch agent")
 	launchAgent.Fact("path", "~/Library/LaunchAgents/com.acme.prod.agent.plist")
-	launchAgent.Done("already satisfied")
-	deploy.Task("cleanup").Done("nothing to do")
+	alreadySatisfied(launchAgent)
+	succeed(deploy.Task("cleanup"), "nothing to do")
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
+	return buf.String()
+}
 
-	want := "✓ deploy production\n" +
+// TestV8_StressLive is the golden for the HTML "Stress case" Replay tab's
+// live shape: a still-running Group with mixed done/running/failed children,
+// a warning on a running child, and a real evo.File permissions failure.
+// Spec wins vs the HTML where they disagree: elapsed only after 5s Running
+// (this golden advances 8s, past that threshold); empty bar cells are
+// spaces; the live region does not invent a [changed]/[planned] ledger
+// unless LiveRegion itself paints one.
+func TestV8_StressLive(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	displayPath := "~/Library/LaunchAgents/com.acme.prod.agent.plist"
+	spec, fsys := newFailedChmodFile(t, dir, displayPath)
+
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	clock := testkit.NewClock()
+	out := evo.Init(evo.Config{
+		Isolated: true, Clock: clock, Terminal: screen, FileFS: fsys,
+		StateDir: t.TempDir(), Stdout: io.Discard, Stderr: io.Discard,
+		VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever, MaxFrameRate: 1_000_000,
+	})
+	t.Cleanup(func() { _ = out.Close() })
+
+	deploy := out.Group("deploy production")
+	commit(deploy.Task("discover"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 5})
+
+	hosts := deploy.Task("prepare hosts")
+	hosts.Doing("host-031")
+	hosts.Progress(31, 100)
+
+	services := deploy.Task("services")
+	services.Doing("payments-api")
+	services.Progress(14, 40)
+	services.Problem("audit-stream rollout slower than baseline", evo.Severity(evo.SeverityWarning))
+
+	agent := deploy.Task("write launch agent")
+	agent.Define(func(ctx context.Context) error { return evo.File(ctx, spec) })
+	if err := agent.Wait(); err == nil {
+		t.Fatal("write launch agent: expected permissions failure")
+	}
+
+	// cleanup has committed its Effect and is still running when the frame
+	// is captured: its callback parks on release until the test ends.
+	cleanup := deploy.Task("cleanup")
+	committed, release := make(chan struct{}), make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	cleanup.Define(func(ctx context.Context) error {
+		cleanup.Doing("feat/cleanup…")
+		cleanup.Progress(7, 18)
+		cleanup.Fact("kept", "5 (3 protected, 2 unpushed)")
+		err := evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 12},
+			func(context.Context) error { return nil })
+		close(committed)
+		<-release
+		return err
+	})
+	<-committed
+
+	clock.Advance(8 * time.Second)
+	cleanup.Progress(7, 18)
+
+	// Departures from the HTML Replay frame, all because the spec wins:
+	//   - unresolved Group header carries "N/M complete" (spec §18) plus
+	//     elapsed after 5s (spec §24); the HTML shows elapsed only.
+	//   - empty bar cells are spaces (spec §23).
+	//   - File verification Facts nest one level under the failed attribute
+	//     (writeVerificationDetails), so path/mode appear under permissions
+	//     rather than sharing the HTML's i2 indent with "error".
+	//   - both Effects land in [changed]: Config.DryRun is run-wide, and a
+	//     dry run would skip the chmod failure this golden needs. LiveRegion
+	//     still projects s.Plans as [planned] when a dry-run run has them.
+	glyph := firstRune(screen.LatestLiveText())
+	want := glyph + " deploy production  1/5 complete — 8s\n" +
 		"   ✓ discover\n" +
-		"   ✓ prepare hosts       already satisfied\n" +
-		"   ✓ services            already satisfied\n" +
-		"   ✓ write launch agent  already satisfied\n" +
-		"   path  ~/Library/LaunchAgents/com.acme.prod.agent.plist\n" +
-		"   ✓ cleanup             nothing to do\n"
-	if got := buf.String(); got != want {
+		"   " + glyph + " prepare hosts  [███         ]  31/100 — 8s\n" +
+		"      " + glyph + " host-031\n" +
+		"   " + glyph + " services   [████        ]  14/40 — 8s\n" +
+		"      " + glyph + " payments-api\n" +
+		"      ! audit-stream rollout slower than baseline\n" +
+		"   ✗ write launch agent  failed: permissions\n" +
+		"      - contents  already satisfied\n" +
+		"      ✗ permissions\n" +
+		"        error  operation not permitted\n" +
+		"        path   " + displayPath + "\n" +
+		"        mode   0644\n" +
+		"   " + glyph + " cleanup    [████        ]  7/18 — 8s\n" +
+		"      " + glyph + " feat/cleanup…\n" +
+		"\n" +
+		"[changed] discover  deleted 5 local tips\n" +
+		"[changed] cleanup   deleted 12 stale origin/*"
+	if got := screen.LatestLiveText(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
 }
@@ -491,9 +600,9 @@ func TestV8_GenericSuccessPlusActiveWork(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	agent := out.Group("launch agent")
-	agent.Task("write plist").Done()
-	agent.Task("register").Done()
-	agent.Task("start").Done()
+	succeed(agent.Task("write plist"))
+	succeed(agent.Task("register"))
+	succeed(agent.Task("start"))
 
 	install := out.Task("install dependencies")
 	install.Doing("requests")
@@ -501,11 +610,10 @@ func TestV8_GenericSuccessPlusActiveWork(t *testing.T) {
 	clock.Advance(6 * time.Second)
 	install.Progress(18, 40)
 
-	glyph := firstRune(strings.TrimPrefix(screen.LatestLiveText(), "✓ launch agent\n   ✓ write plist\n   ✓ register\n   ✓ start\n"))
-	want := "✓ launch agent\n" +
-		"   ✓ write plist\n" +
-		"   ✓ register\n" +
-		"   ✓ start\n" +
+	glyph := firstRune(strings.TrimPrefix(screen.LatestLiveText(), "✓ write plist\n✓ register\n✓ start\n"))
+	want := "✓ write plist\n" +
+		"✓ register\n" +
+		"✓ start\n" +
 		glyph + " install dependencies  [█████       ]  18/40 — 6s\n" +
 		"   " + glyph + " requests"
 	if got := screen.LatestLiveText(); got != want {

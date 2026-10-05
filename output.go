@@ -48,8 +48,6 @@ func (o *Output) Fail(summary string, options ...ProblemOption) {
 	o.impl().Fail(summary, options...)
 }
 
-func (o *Output) Failf(format string, args ...any) { o.impl().Failf(format, args...) }
-
 func (o *Output) Finish() error {
 	if o == nil || o.inner == nil {
 		return nil
@@ -98,6 +96,16 @@ func (o *Output) Snapshot() Snapshot {
 	return o.inner.Snapshot()
 }
 
+// Events returns a copy of this instance's durable event journal, for
+// EncodeJSONL and other machine-projection call sites that need the raw
+// event stream rather than a point-in-time Snapshot.
+func (o *Output) Events() []Event {
+	if o == nil || o.inner == nil {
+		return nil
+	}
+	return o.inner.Events()
+}
+
 func (o *Output) Suspend(fn func() error) error {
 	if o == nil || o.inner == nil {
 		return nil
@@ -106,8 +114,6 @@ func (o *Output) Suspend(fn func() error) error {
 }
 
 func (o *Output) Task(name string) *TaskHandle { return wrapTask(o.impl().Task(name)) }
-
-func (o *Output) Warn(summary string) { o.impl().Warn(summary) }
 
 func (o *Output) Writer() io.Writer {
 	if o == nil || o.inner == nil {

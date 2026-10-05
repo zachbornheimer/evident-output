@@ -28,7 +28,7 @@ func TestTaskHandle_KeyBeforeDefineOverridesDefaultIdentity(t *testing.T) {
 	if before == after {
 		t.Fatalf("default key %q was already the override — the test proves nothing", before)
 	}
-	task.Done()
+	succeed(task)
 	if err := out.Err(); err != nil {
 		t.Fatalf("Err() = %v, want nil", err)
 	}
@@ -76,5 +76,38 @@ func TestTaskHandle_DuplicateExplicitKeyOfSameKindIsRejected(t *testing.T) {
 	}
 	if second.Snapshot().Key == first.Snapshot().Key {
 		t.Fatal("the second Task must not have claimed the already-taken key")
+	}
+}
+
+// TestTaskHandle_RepeatingTheSameKeyIsIdempotent: setting a Task's key to
+// the key it already has is not a conflict with itself.
+func TestTaskHandle_RepeatingTheSameKeyIsIdempotent(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("write plist").Key("x").Key("x")
+	if got := task.Snapshot().Key; got != "x" {
+		t.Fatalf("Key() = %q, want x", got)
+	}
+	if err := out.Err(); err != nil {
+		t.Fatalf("Err() = %v, want nil for an idempotent Key", err)
+	}
+}
+
+// TestTaskHandle_KeyAfterATerminalVerbIsAnError: a settled row's identity
+// is frozen like a Defined one's; Key after Fail must not rewrite it.
+func TestTaskHandle_KeyAfterATerminalVerbIsAnError(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("write plist")
+	task.Fail("could not write")
+	before := task.Snapshot().Key
+	task.Key("late")
+	if after := task.Snapshot().Key; after != before {
+		t.Fatalf("Key() after Fail changed the key: before=%q after=%q", before, after)
+	}
+	if !errors.Is(out.Err(), evo.ErrKeyAfterDefine) {
+		t.Fatalf("Err() = %v, want ErrKeyAfterDefine", out.Err())
 	}
 }

@@ -60,7 +60,7 @@ func TestDOM037_FailedConclusion(t *testing.T) {
 func TestDOM038_WarningOnly(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("i").Warn("careful")
+	out.Task("i").Problem("careful", evo.Severity(evo.SeverityWarning))
 	_ = out.Finish()
 	if got := out.Conclusion().State; got != evo.StateReady {
 		t.Fatalf("state = %v, want StateReady (Warn auto-resolves Done, P2)", got)
@@ -105,7 +105,7 @@ func TestOUT012_ExitCodes(t *testing.T) {
 		fn   func(*evo.Output)
 		code int
 	}{
-		{"ok", func(o *evo.Output) { o.Task("a").Done() }, 0},
+		{"ok", func(o *evo.Output) { succeed(o.Task("a")) }, 0},
 		{"blocked", func(o *evo.Output) { o.Task("a").Block("b") }, 1},
 		{"failed", func(o *evo.Output) { o.Task("a").Fail("f") }, 2},
 	}
@@ -127,15 +127,15 @@ func TestAPI026_NoRunAllSymbol(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	// If RunAll existed tests might call it; absence is compile-time.
-	out.Task("x").Done()
+	succeed(out.Task("x"))
 	_ = out.Finish()
 }
 
 func TestSEC003_ManyEntitiesBounded(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	for i := 0; i < 500; i++ {
-		out.Task(string(rune('A'+(i%26))) + string(rune('a'+(i/26)))).Done()
+	for i := range 500 {
+		succeed(out.Task(string(rune('A'+(i%26))) + string(rune('a'+(i/26)))))
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

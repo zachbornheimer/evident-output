@@ -3,7 +3,9 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"sort"
@@ -75,13 +77,11 @@ func mergedExecEnv(overrides map[string]string) []string {
 	}
 	merged := make(map[string]string, len(base)+len(overrides))
 	for _, kv := range base {
-		if i := strings.IndexByte(kv, '='); i >= 0 {
-			merged[kv[:i]] = kv[i+1:]
+		if before, after, ok := strings.Cut(kv, "="); ok {
+			merged[before] = after
 		}
 	}
-	for k, v := range overrides {
-		merged[k] = v
-	}
+	maps.Copy(merged, overrides)
 	keys := make([]string, 0, len(merged))
 	for k := range merged {
 		keys = append(keys, k)
@@ -95,14 +95,19 @@ func mergedExecEnv(overrides map[string]string) []string {
 }
 
 // spawnExec wires one Exec spawn's capture: stdout/stderr both feed the
-// task's evidence ring (sanitized, redacted, bounded), and each completed
+// task's Capture ring (sanitized, redacted, bounded), and each completed
 // line becomes the task's current Doing activity (spec §23) — never parsed
 // for totals, only narrated. Cancelling ctx kills the child (ProcessRunner's
-// contract); Close flushes any trailing partial line into evidence.
-func (o *Output) spawnExec(ctx context.Context, taskID string, spec ExecSpec, target execTarget) (ProcessOutcome, error) {
+// contract); Close flushes any trailing partial line into Capture before
+// the result reads it back. The returned ExecResult's Stdout/Stderr come
+// from that same Capture ring (sanitized, redacted, bounded), never a
+// second unbounded copy; it is zero-valued alongside a spawn error. A spawn or Capture-flush failure is wrapped
+// with the resolved executable path here (rather than left bare) since the
+// caller's own wrap only knows ExecSpec.Executable, not the path Evo
+// actually resolved and tried to run.
+func (o *Output) spawnExec(ctx context.Context, taskID string, spec ExecSpec, target execTarget) (ExecResult, error) {
 	task := &TaskHandle{out: o, id: taskID}
-	ev := task.evidence(activityFeed(func(line string) { task.Doing(line) }))
-	defer func() { _ = ev.Close() }()
+	ev := task.Capture(activityFeed(func(line string) { task.Doing(line) }))
 
 	cmd := ProcessCommand{
 		Path:   target.ExecutablePath,
@@ -112,5 +117,18 @@ func (o *Output) spawnExec(ctx context.Context, taskID string, spec ExecSpec, ta
 		Stdout: ev.Stdout(),
 		Stderr: ev.Stderr(),
 	}
-	return o.cfg.processRunner.Run(ctx, cmd)
+	outcome, runErr := o.cfg.processRunner.Run(ctx, cmd)
+	if closeErr := ev.Close(); closeErr != nil && runErr == nil {
+		runErr = fmt.Errorf("flush capture: %w", closeErr)
+	}
+	if runErr != nil {
+		return ExecResult{}, fmt.Errorf("spawn %q: %w", target.ExecutablePath, runErr)
+	}
+	return ExecResult{
+		Ran:       true,
+		ExitCode:  outcome.ExitCode,
+		Stdout:    ev.streamText(CaptureStreamStdout),
+		Stderr:    ev.streamText(CaptureStreamStderr),
+		Truncated: ev.wasTruncated(),
+	}, nil
 }

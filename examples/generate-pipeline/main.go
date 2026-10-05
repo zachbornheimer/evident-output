@@ -25,44 +25,38 @@ func main() {
 	workDir := flag.String("work-dir", filepath.Join(os.TempDir(), "evo-generate-pipeline-example-work"), "pipeline working directory (inputs/outputs/stub tools)")
 	flag.Parse()
 
-	if err := os.MkdirAll(*stateDir, 0o700); err != nil {
-		fmt.Fprintln(os.Stderr, "create state dir:", err)
-		os.Exit(1)
-	}
-	if err := setupWorkDir(*workDir); err != nil {
-		fmt.Fprintln(os.Stderr, "set up work dir:", err)
-		os.Exit(1)
-	}
-
 	evo.Init(evo.Config{Title: "generate pipeline", StateDir: *stateDir})
 	os.Exit(evo.Main(func(ctx context.Context) error {
 		return runPipeline(ctx, *workDir)
 	}))
 }
 
-// setupWorkDir seeds the pipeline's inputs and two stub "tool" scripts, only
-// when they do not already exist — a second run against the same
-// --work-dir must not itself look like a Basis change.
-func setupWorkDir(dir string) error {
-	if mkdirErr := os.MkdirAll(dir, 0o755); mkdirErr != nil {
-		return fmt.Errorf("create work dir %q: %w", dir, mkdirErr)
+// workDirSeeds are the pipeline's inputs and its two stub "tool" scripts.
+// evo.File establishes each one, so a second run against the same
+// --work-dir finds them already satisfied and sees no Basis change.
+var workDirSeeds = []struct {
+	name, contents string
+	mode           os.FileMode
+}{
+	{"schema.xlsx", "id,name\n1,widget\n", 0o644},
+	{"compile.py", "# pretend compiler\n", 0o644},
+	{"normalize", normalizeScript, 0o755},
+	{"compile", compileScript, 0o755},
+}
+
+// seedWorkDir establishes every seed file under dir, creating dir first:
+// File establishes one file, not the directory it lives in.
+func seedWorkDir(ctx context.Context, dir string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create work dir %q: %w", dir, err)
 	}
-	seeds := []struct {
-		name, contents string
-		mode           os.FileMode
-	}{
-		{"schema.xlsx", "id,name\n1,widget\n", 0o644},
-		{"compile.py", "# pretend compiler\n", 0o644},
-		{"normalize", normalizeScript, 0o755},
-		{"compile", compileScript, 0o755},
-	}
-	for _, seed := range seeds {
-		path := filepath.Join(dir, seed.name)
-		if _, statErr := os.Stat(path); statErr == nil {
-			continue
-		}
-		if writeErr := os.WriteFile(path, []byte(seed.contents), seed.mode); writeErr != nil {
-			return fmt.Errorf("seed %s: %w", seed.name, writeErr)
+	for _, seed := range workDirSeeds {
+		if err := evo.File(ctx, evo.FileSpec{
+			Path:     filepath.Join(dir, seed.name),
+			Contents: []byte(seed.contents),
+			Mode:     seed.mode,
+		}); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -91,19 +85,24 @@ cat schema.json compile.py > output.bin
 func runPipeline(ctx context.Context, dir string) error {
 	seq := evo.Sequence("pipeline")
 
+	seq.Task("seed work dir").Define(func(ctx context.Context) error {
+		return seedWorkDir(ctx, dir)
+	})
+
 	normalize := seq.Task("normalize")
 	normalize.Define(func(ctx context.Context) error {
-		return evo.Exec(ctx, evo.ExecSpec{
+		_, err := evo.Exec(ctx, evo.ExecSpec{
 			Executable: filepath.Join(dir, "normalize"),
 			Dir:        dir,
 			Basis:      []evo.Fingerprint{evo.FSPath(filepath.Join(dir, "schema.xlsx"))},
 			Outputs:    []string{"schema.json"},
 		})
+		return err
 	})
 
 	compile := seq.Task("compile")
 	compile.Define(func(ctx context.Context) error {
-		return evo.Exec(ctx, evo.ExecSpec{
+		_, err := evo.Exec(ctx, evo.ExecSpec{
 			Executable: filepath.Join(dir, "compile"),
 			Dir:        dir,
 			Basis: []evo.Fingerprint{
@@ -112,6 +111,7 @@ func runPipeline(ctx context.Context, dir string) error {
 			},
 			Outputs: []string{"output.bin"},
 		})
+		return err
 	})
 
 	return nil

@@ -60,9 +60,12 @@ var (
 	GlyphWarningState = glyphSpec{"!", "[!]"}
 	GlyphCancelled    = glyphSpec{"■", "[cancel]"}
 	GlyphNotStarted   = glyphSpec{"-", "[-]"}
-	GlyphPending      = glyphSpec{"○", "[.]"}
-	GlyphRunning      = glyphSpec{"◐", "[~]"}
-	GlyphHumanInput   = glyphSpec{"?", "[?]"}
+	// GlyphSkipDetail leads a skipped/already-satisfied detail row — a plain
+	// dash in both profiles (contract §20, §41 "Already-satisfied detail").
+	GlyphSkipDetail = glyphSpec{"-", "-"}
+	GlyphPending    = glyphSpec{"○", "[.]"}
+	GlyphRunning    = glyphSpec{"◐", "[~]"}
+	GlyphHumanInput = glyphSpec{"?", "[?]"}
 	// GlyphNextAction marks a follow-up command/label line. evo-rec.md's
 	// tightened vocabulary table gives it its own row so the meaning does not
 	// depend on the cyan color alone (rule: text/glyph carries meaning).

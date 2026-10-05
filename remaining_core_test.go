@@ -2,7 +2,6 @@ package evo_test
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"strings"
 	"sync"
@@ -20,8 +19,8 @@ func TestDOM030_CollectionWarning(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Group("g")
-	g.Task("a").Done()
-	g.Task("b").Warn("soft")
+	succeed(g.Task("a"))
+	g.Task("b").Problem("soft", evo.Severity(evo.SeverityWarning))
 	snap := g.Snapshot()
 	if snap.State != evo.Running && snap.State != evo.Incomplete {
 		t.Fatalf("state = %v, want Running or Incomplete (Warn no longer resolves its task)", snap.State)
@@ -40,8 +39,8 @@ func TestDOM030b_CollectionWarningDetailIsRendered(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	g := out.Group("capture")
-	g.Task("Brewfile").Done()
-	g.Task("Zen").Warn("skipped — zen-bootstrap not available")
+	succeed(g.Task("Brewfile"))
+	g.Task("Zen").Problem("skipped — zen-bootstrap not available", evo.Severity(evo.SeverityWarning))
 	_ = out.Finish()
 	_ = out.Close()
 
@@ -59,8 +58,8 @@ func TestDOM031_CollectionAllDone(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Group("g")
 	g.Summary("all good")
-	g.Task("a").Done()
-	g.Task("b").Done()
+	succeed(g.Task("a"))
+	succeed(g.Task("b"))
 	if g.Snapshot().State != evo.Done {
 		t.Fatal(g.Snapshot().State)
 	}
@@ -76,7 +75,7 @@ func TestDOM035_UnresolvedChildInCollection(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	g := out.Group("g")
-	g.Task("a").Done()
+	succeed(g.Task("a"))
 	g.Task("hanging")
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (clean finish, no amnesty-defeating problems)", err)
@@ -89,7 +88,7 @@ func TestDOM035_UnresolvedChildInCollection(t *testing.T) {
 func TestDOM049_OutputFail(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Failf("stopped: %w", errors.New("disk"))
+	out.Fail("stopped", evo.Detail("disk"))
 	_ = out.Finish()
 	if out.Conclusion().State != evo.StateFailed {
 		t.Fatal(out.Conclusion().State)
@@ -119,7 +118,7 @@ func TestLOG014_WarnMessageDistinctFromItemWarn(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Println("log warning")
-	out.Task("i").Warn("item warning")
+	out.Task("i").Problem("item warning", evo.Severity(evo.SeverityWarning))
 	_ = out.Finish()
 	s := buf.String()
 	if !strings.Contains(s, "log warning") || !strings.Contains(s, "item warning") {
@@ -131,7 +130,7 @@ func TestLOG008_ConcurrentDebugWriters(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
 	t.Cleanup(func() { _ = out.Close() })
 	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -148,7 +147,7 @@ func TestOUT007_DeterministicJSONWithFixedClock(t *testing.T) {
 	// same semantic state → same conclusion fields (IDs differ by construction)
 	mk := func() evo.Conclusion {
 		out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-		out.Task("a").Done()
+		succeed(out.Task("a"))
 		out.Task("b").Block("x")
 		_ = out.Finish()
 		c := out.Conclusion()
@@ -164,7 +163,7 @@ func TestOUT007_DeterministicJSONWithFixedClock(t *testing.T) {
 func TestOUT011_EventTimestampsPresent(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish()
 	for _, e := range out.Events() {
 		if e.Timestamp.IsZero() {
@@ -179,12 +178,10 @@ func TestOUT011_EventTimestampsPresent(t *testing.T) {
 func TestCON005_CloseDuringUpdates(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	var wg sync.WaitGroup
-	for i := 0; i < 20; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			out.Task("x").Done()
-		}()
+	for range 20 {
+		wg.Go(func() {
+			succeed(out.Task("x"))
+		})
 	}
 	wg.Wait()
 	_ = out.Close()
@@ -194,7 +191,7 @@ func TestCON005_CloseDuringUpdates(t *testing.T) {
 func TestAPI010_DonefFormatting(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("t").Done("n=%d", 3)
+	succeed(out.Task("t"), "n=3")
 	s := out.Snapshot()
 	found := false
 	for _, tsk := range s.Tasks {

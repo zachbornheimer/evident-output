@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/render"
+
 	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
@@ -28,7 +30,7 @@ func TestOUT024_Linef(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Printf("count=%d", 3)
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "count=3") {
 		t.Fatal(buf.String())
@@ -48,21 +50,21 @@ func TestAPI028_AbsoluteProgress(t *testing.T) {
 
 func TestAPI025_PackageNameEvo(t *testing.T) {
 	// Import path uses evo package name — compile proof via this test package.
-	var _ = evo.Done
+	_ = evo.Done
 }
 
 func TestAPI005_NoPublicIntentEnum(t *testing.T) {
 	// Construction uses For(subject) without IntentReport ceremony.
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "s"})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish()
 }
 
 func TestAPI004_CommonPathReadsAsFacts(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "repo"})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("working tree").Done()
+	succeed(out.Task("working tree"))
 	out.Task("branches").Block("local-only")
 	_ = out.Finish()
 }
@@ -70,10 +72,10 @@ func TestAPI004_CommonPathReadsAsFacts(t *testing.T) {
 func TestAPI008_CommonAdvancedParity(t *testing.T) {
 	// Item with and without stable ID → same conclusion shape for simple OK.
 	a := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	a.Task("x").Done()
+	succeed(a.Task("x"))
 	_ = a.Finish()
 	b := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	b.Task("x").Done()
+	succeed(b.Task("x"))
 	_ = b.Finish()
 	if a.Conclusion().State != b.Conclusion().State {
 		t.Fatal(a.Conclusion().State, b.Conclusion().State)
@@ -86,7 +88,7 @@ func TestAPI012_StandardFlagStyleEmbed(t *testing.T) {
 	// Ordinary Go main can embed Output — no base class required.
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("flag-demo").Done()
+	succeed(out.Task("flag-demo"))
 	_ = out.Finish()
 }
 
@@ -96,10 +98,10 @@ func TestAPI030_CompatMatrixSmoke(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug}, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	out.DebugForTest("d")
 	_ = out.Finish()
-	_, _ = evo.EncodeJSON(out.Snapshot())
+	_, _ = render.EncodeJSON(out.Snapshot())
 }
 
 func TestCON016_ChildOrderPreserved(t *testing.T) {
@@ -108,9 +110,9 @@ func TestCON016_ChildOrderPreserved(t *testing.T) {
 	g := out.Group("g")
 	t1, t2, t3 := g.Task("a"), g.Task("b"), g.Task("c")
 	var wg sync.WaitGroup
-	wg.Go(func() { t3.Done() })
-	wg.Go(func() { t1.Done() })
-	wg.Go(func() { t2.Done() })
+	wg.Go(func() { succeed(t3) })
+	wg.Go(func() { succeed(t1) })
+	wg.Go(func() { succeed(t2) })
 	wg.Wait()
 	snap := g.Snapshot()
 	if snap.Tasks[0].Name != "a" || snap.Tasks[1].Name != "b" || snap.Tasks[2].Name != "c" {
@@ -134,7 +136,7 @@ func TestCON018_DuplicateChildNames(t *testing.T) {
 	if !errors.Is(out.Err(), evo.ErrDuplicateSiblingName) {
 		t.Fatalf("Err() = %v, want ErrDuplicateSiblingName", out.Err())
 	}
-	a.Done()
+	succeed(a)
 }
 
 func TestCON010_CancelVsDoneRace(t *testing.T) {
@@ -142,7 +144,7 @@ func TestCON010_CancelVsDoneRace(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	var wg sync.WaitGroup
-	wg.Go(func() { task.Done() })
+	wg.Go(func() { succeed(task) })
 	wg.Go(func() { task.Cancel("nope") })
 	wg.Wait()
 	// first terminal wins
@@ -168,7 +170,7 @@ func TestLOG003_FieldOrderStable(t *testing.T) {
 func TestLOG015_LogBurstPreservesOrder(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
 	t.Cleanup(func() { _ = out.Close() })
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		out.DebugForTest("x")
 	}
 	_ = out.Finish()
@@ -182,7 +184,7 @@ func TestOUT017_FinalProgressExact(t *testing.T) {
 	for i := int64(0); i <= 100; i++ {
 		task.Progress(int(i), 100)
 	}
-	task.Done()
+	succeed(task)
 	_ = out.Finish()
 	if task.Snapshot().Progress.Completed != 100 {
 		t.Fatal(task.Snapshot().Progress)
@@ -206,7 +208,7 @@ func TestTERM023_SplitStreamsNoCrossCursor(t *testing.T) {
 	// NoColor: this test forbids cursor CSI, not semantic SGR color.
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &primary, Stderr: &diag, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish()
 	// no cursor sequences on either
 	if strings.Contains(primary.String()+diag.String(), "\x1b[") {
@@ -218,15 +220,15 @@ func TestPORT010_GoVersionBuilds(t *testing.T) {
 	// This test running on Go 1.25+ is the proof.
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish()
 }
 
 func TestPORT015_ReproducibleSchemaVersion(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish()
-	b, _ := evo.EncodeJSON(out.Snapshot())
+	b, _ := render.EncodeJSON(out.Snapshot())
 	if !strings.Contains(string(b), `"schema_version": "0.4"`) {
 		t.Fatal(string(b))
 	}

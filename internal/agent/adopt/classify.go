@@ -43,7 +43,7 @@ func spinnerFindings(fset *token.FileSet, path string, f *ast.File) []Finding {
 			File:       path,
 			Line:       pos.Line,
 			Pattern:    "import " + importPath,
-			Rung:       RungTaskDone,
+			Rung:       RungTaskDefine,
 			Suggestion: suggestion,
 			Certainty:  CertaintyHigh,
 		})
@@ -108,12 +108,12 @@ func classifyLogCall(s callSite, method string) (Finding, bool) {
 	switch method {
 	case "Fatal", "Fatalf", "Fatalln", "Panic", "Panicf", "Panicln":
 		return s.finding(RungInitMain,
-			"this exits/panics directly, bypassing evo's exit-code contract — resolve the active Task with Fail/Failf or Block/Blockf and return, then let os.Exit(evo.Main(run)) derive the exit code.",
+			"this exits/panics directly, bypassing evo's exit-code contract — resolve the active Task with Fail or Block and return, then let os.Exit(evo.Main(run)) derive the exit code.",
 			CertaintyHigh,
 		), true
 	case "Print", "Printf", "Println":
-		return s.finding(RungTaskDone,
-			"replace with evo.Println/Print/Printf for a durable note, or task.Doing/Done if this reports lifecycle state — see the common-api guide.",
+		return s.finding(RungTaskDefine,
+			"replace with evo.Println/Print/Printf for a durable note, or task.Doing plus the Task's Define callback if this reports lifecycle state — see the common-api guide.",
 			CertaintyNeedsReview,
 		), true
 	default:
@@ -124,14 +124,14 @@ func classifyLogCall(s callSite, method string) (Finding, bool) {
 func classifyFmtCall(s callSite, method string) (Finding, bool) {
 	switch method {
 	case "Print", "Printf", "Println":
-		return s.finding(RungTaskDone,
-			"replace with evo.Println/Print/Printf (durable notes) or a Task's Doing/Done — never fmt.Print* while a live region may be open.",
+		return s.finding(RungTaskDefine,
+			"replace with evo.Println/Print/Printf (durable notes) or a Task's Doing and Define — never fmt.Print* while a live region may be open.",
 			CertaintyNeedsReview,
 		), true
 	case "Fprint", "Fprintf", "Fprintln":
 		if len(s.call.Args) > 0 && isOsStdout(s.call.Args[0]) {
 			s.pattern += "(os.Stdout, ...)"
-			return s.finding(RungTaskDone,
+			return s.finding(RungTaskDefine,
 				"writing os.Stdout directly bypasses evo's live region — route through evo.Init(Config{Stdout: os.Stdout}) and evo.Println/Task instead.",
 				CertaintyNeedsReview,
 			), true

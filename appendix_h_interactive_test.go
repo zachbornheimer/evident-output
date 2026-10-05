@@ -27,7 +27,7 @@ func TestH2_Task_InstantCompletionDoesNotFlashSpinner(t *testing.T) {
 
 	dependencies := out.Task("dependencies")
 	dependencies.Doing("installing")
-	dependencies.Done("installed %d packages", 18)
+	succeed(dependencies, "installed 18 packages")
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	task := out.Task("dependencies")
 	task.Doing("resolving packages")
 	out.DebugForTest("package index loaded", evo.Field{Key: "packages", Value: 18})
-	task.Done("installed %d packages", 18)
+	succeed(task, "installed 18 packages")
 	_ = out.Finish()
 
 	// History mode: timestamp (FixedClock) + bracketed level above live region.
@@ -110,7 +110,7 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 	sharp.Doing("verifying")
 	esbuild.Bytes(12_400_000, 18_000_000)
 	react.Bytes(8_100_000, 8_100_000)
-	react.Done()
+	succeed(react)
 
 	got := screen.LatestLiveText()
 	// Column layout: child names pad to width 9 (spec H.20 semantics: declaration
@@ -146,7 +146,7 @@ func TestH21_Tasks_ScreenBudgetSelectsImportantRowsAndReportsOmission(t *testing
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Group("dependencies")
-	for n := 0; n < 120; n++ {
+	for n := range 120 {
 		task := dependencies.Task(fmt.Sprintf("package-%03d", n))
 		switch n {
 		case 7:
@@ -154,9 +154,9 @@ func TestH21_Tasks_ScreenBudgetSelectsImportantRowsAndReportsOmission(t *testing
 		case 12, 18:
 			task.Doing("downloading")
 		case 20:
-			task.Warn("using cached fallback")
+			task.Problem("using cached fallback", evo.Severity(evo.SeverityWarning))
 		default:
-			task.Done()
+			succeed(task)
 		}
 	}
 
@@ -190,7 +190,7 @@ func TestH22_Task_HighFrequencyProgressIsCoalesced(t *testing.T) {
 		download.Progress(completed, 10_000)
 		// Keep wall-clock zero; coalescing uses frame budget, not only time.
 	}
-	download.Done()
+	succeed(download)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -224,7 +224,7 @@ func TestLive_RepeatedStyledPhasesFitTerminalWidth(t *testing.T) {
 		if operation.Kind != "live" {
 			continue
 		}
-		for _, line := range strings.Split(operation.Text, "\n") {
+		for line := range strings.SplitSeq(operation.Text, "\n") {
 			if cells := txt.VisibleCells(line); cells > columns {
 				t.Fatalf("live line uses %d cells, terminal has %d:\n%s", cells, columns, operation.Text)
 			}

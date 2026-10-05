@@ -4,32 +4,19 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/internal/retired"
 )
 
-// staleAPISymbols are spellings retired in 1.0 (spec §46's public API drift
-// test, mirrored here for prose: docs, README, doc.go, and the agent
-// sections corpus). A hit is only legitimate inside a note that says the
-// symbol was removed — teaching it as current, live surface is the defect
-// this test exists to catch.
-var staleAPISymbols = []string{
-	"MainWith",
-	".Each(",
-	"Group.Each",
-	"Task.Each",
-	"Sequence.Each",
-	"Task.Run",
-	"Task.Go",
-	"DisplayGroup",
-	"Group.Done",
-	"Sequence.Fail",
-	"TaskConfig",
-}
-
-// staleAPIAllowPattern is the migration-note marker: a stale symbol is only
-// legitimate within staleAPIWindow lines of this phrase.
-var staleAPIAllowPattern = regexp.MustCompile(`(?i)removed in 1\.0`)
+// Every retired.Symbol with a Taught pattern is checked (spec §46's public
+// API drift test, mirrored here for prose: docs, README, doc.go, and the
+// agent sections corpus). A hit is only legitimate inside a note that says
+// "removed in <release>" for that symbol's release — teaching it as
+// current, live surface is the defect this test exists to catch.
 
 // staleAPIWindow is how many lines before AND after the hit line (inclusive
 // of the hit line itself) are searched for the allow phrase — enough to
@@ -43,6 +30,7 @@ var staleAPIScanRoots = []string{
 	"docs",
 	"internal/agent/sections",
 	"skills",
+	"examples",
 }
 
 var staleAPIScanFiles = []string{
@@ -51,40 +39,83 @@ var staleAPIScanFiles = []string{
 	"doc.go",
 }
 
-// staleAPIHistoricalFragments mark frozen/verbatim documents — old design
-// specs, ADRs, and the input spec copy — that describe past or externally
-// authored state rather than teaching the current API. version_drift_test.go
-// exempts the same class of path for the same reason.
+// staleAPIHistoricalFragments are the only current-docs scan skip: migration
+// notes and the changelog may name removed spellings as history. Architecture,
+// ADRs, acceptance-reference, and roadmap teach the live API.
 var staleAPIHistoricalFragments = []string{
-	"docs/architecture/",
-	"docs/adr/",
-	"docs/acceptance/reference/",
-	"/COMPLETENESS_",
+	"docs/migration/",
+	"CHANGELOG.md",
 }
 
 func TestDocsCarryNoStaleAPI(t *testing.T) {
 	root := moduleRoot(t)
+	for path, body := range currentDocs(t, root) {
+		checkNoUnexplainedStaleAPI(t, path, body)
+	}
+}
 
+// unimplementedClaim marks prose that calls something not built yet.
+var unimplementedClaim = regexp.MustCompile(`(?i)not yet implemented|\(planned[;)]`)
+
+// phantomAPI is prose describing API that never existed: freshness inputs
+// are FileSpec.Basis / ExecSpec.Basis, never a Task-level Basis.
+var phantomAPI = regexp.MustCompile(`(?i)\bTask-level Basis\b|\bTask's Basis\b`)
+
+// TestDocsNeverCallLiveAPIUnimplemented fails when current docs call an
+// exported identifier "planned" or "not yet implemented" (doc.go once said
+// that of evo.Exec, which exists) or describe API that never existed.
+func TestDocsNeverCallLiveAPIUnimplemented(t *testing.T) {
+	root := moduleRoot(t)
+	live := liveAPINames(t, root)
+	for rel, body := range currentDocs(t, root) {
+		lines := strings.Split(body, "\n")
+		for i, line := range lines {
+			if m := phantomAPI.FindString(line); m != "" {
+				t.Errorf("%s:%d: %q describes API that does not exist (FileSpec.Basis / ExecSpec.Basis):\n%s", rel, i+1, m, line)
+			}
+			if !unimplementedClaim.MatchString(line) {
+				continue
+			}
+			// A wrapped sentence names its subject a line earlier.
+			subject := strings.Join(lines[max(i-1, 0):i+1], " ")
+			for _, m := range evoIdentifier.FindAllStringSubmatch(subject, -1) {
+				if live[m[1]] {
+					t.Errorf("%s:%d: calls live API evo.%s unimplemented:\n%s", rel, i+1, m[1], line)
+				}
+			}
+		}
+	}
+}
+
+// currentDocs reads every doc that teaches the current API, keyed by its
+// module-relative path, plus every MCP catalog guide body (served to
+// agents, never a file); frozen historical documents are skipped.
+func currentDocs(t *testing.T, root string) map[string]string {
+	t.Helper()
 	files := map[string]struct{}{}
 	for _, f := range staleAPIScanFiles {
 		files[filepath.Join(root, f)] = struct{}{}
 	}
 	for _, dir := range staleAPIScanRoots {
 		base := filepath.Join(root, dir)
+		scanGo := dir == "examples"
 		if err := filepath.WalkDir(base, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
-			if d.IsDir() || !strings.HasSuffix(path, ".md") {
+			if d.IsDir() {
 				return nil
 			}
-			files[path] = struct{}{}
+			if strings.HasSuffix(path, ".md") || (scanGo && strings.HasSuffix(path, ".go")) {
+				files[path] = struct{}{}
+			}
 			return nil
 		}); err != nil {
 			t.Fatalf("walk %s: %v", base, err)
 		}
 	}
 
+	docs := map[string]string{}
 	for path := range files {
 		rel, _ := filepath.Rel(root, path)
 		if isStaleAPIHistorical(rel) {
@@ -94,8 +125,12 @@ func TestDocsCarryNoStaleAPI(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", rel, err)
 		}
-		checkNoUnexplainedStaleAPI(t, rel, string(body))
+		docs[rel] = string(body)
 	}
+	for _, guide := range catalog.All() {
+		docs["internal/agent/catalog guide "+guide.ID] = guide.Body
+	}
+	return docs
 }
 
 func isStaleAPIHistorical(rel string) bool {
@@ -112,33 +147,26 @@ func checkNoUnexplainedStaleAPI(t *testing.T, rel, body string) {
 	t.Helper()
 	lines := strings.Split(body, "\n")
 	for i, line := range lines {
-		for _, symbol := range staleAPISymbols {
-			if !strings.Contains(line, symbol) {
+		for _, hit := range retired.TaughtIn(line) {
+			if allowedNearby(lines, i, removedInPattern(hit.Symbol.RemovedIn)) {
 				continue
 			}
-			if !staleAPIAllowedNearby(lines, i) {
-				t.Errorf("%s:%d: stale API %q taught without a nearby \"removed in 1.0\" migration note:\n%s",
-					rel, i+1, symbol, line)
-			}
+			t.Errorf("%s:%d: retired API %q taught without a nearby \"removed in %s\" migration note (use %s):\n%s",
+				rel, i+1, hit.Match, hit.Symbol.RemovedIn, hit.Symbol.Replacement, line)
 		}
 	}
 }
 
-// staleAPIAllowedNearby reports whether the allow phrase appears on line i
-// or any of the staleAPIWindow lines before or after it.
-func staleAPIAllowedNearby(lines []string, i int) bool {
-	start := i - staleAPIWindow
-	if start < 0 {
-		start = 0
-	}
-	end := i + staleAPIWindow + 1
-	if end > len(lines) {
-		end = len(lines)
-	}
-	for _, line := range lines[start:end] {
-		if staleAPIAllowPattern.MatchString(line) {
-			return true
-		}
-	}
-	return false
+// removedInPattern is the migration-note marker for release: a retired
+// symbol is only legitimate within staleAPIWindow lines of it.
+func removedInPattern(release retired.Release) *regexp.Regexp {
+	return regexp.MustCompile(`(?i)removed in ` + regexp.QuoteMeta(string(release)))
+}
+
+// allowedNearby reports whether allow matches line i or any of the
+// staleAPIWindow lines before or after it.
+func allowedNearby(lines []string, i int, allow *regexp.Regexp) bool {
+	start := max(i-staleAPIWindow, 0)
+	end := min(i+staleAPIWindow+1, len(lines))
+	return slices.ContainsFunc(lines[start:end], allow.MatchString)
 }

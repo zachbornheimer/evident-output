@@ -47,7 +47,12 @@ var errVerificationUnsatisfied = errors.New("evo: postcondition not satisfied")
 // once after a successful callback, where any false fails the Task with
 // ProblemCodeVerificationUnsatisfied and an observation error fails it
 // plainly. Neither check commits a success record on its own; only a fully
-// satisfied pass (pre- or post-) does.
+// satisfied pass (pre- or post-) does. The after-check is skipped in two
+// cases only (hasPostStateToVerify): Define resolved the Task itself
+// (Block, or Kept/Skipped with no Effect committed first), or a dry run or
+// preview skipped an Effect Define planned, so the observed state is the
+// one before the plan. A planned run whose Define planned nothing is
+// checked like a real one.
 func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle {
 	if t == nil || t.out == nil || fn == nil {
 		return t
@@ -59,7 +64,7 @@ func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle 
 	if st == nil {
 		return t
 	}
-	if st.submitted {
+	if st.sched.submitted() {
 		o.recordMisuseFor(st.name, ErrInvalidConfig)
 		return t
 	}
@@ -74,27 +79,34 @@ func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle 
 // the Verify-aware resolution wiring); evo.Run/evo.Main wait for every
 // submitted Task before returning their Result.
 //
+// Define returns the same *TaskHandle (ZYS-849 Decisions) so the common
+// single-Task shape can be written `return task.Define(fn).Wait()`. This is
+// fluent sugar only — it does not change Define's asynchronous submission:
+// fn still runs on the scheduler, not inline before Define returns.
+//
 // A second Define on the same Task is misuse (submitWork's own
 // already-submitted guard) — configuration freezes once.
-func (t *TaskHandle) Define(fn func(context.Context) error) {
+func (t *TaskHandle) Define(fn func(context.Context) error) *TaskHandle {
 	if t == nil || t.out == nil {
-		return
+		return t
 	}
 	o := t.out
 	if fn == nil {
 		o.recordMisuse(ErrInvalidConfig)
-		return
+		return t
 	}
 	o.mu.Lock()
 	st := o.taskByRef[t.id]
 	if st == nil {
+		o.recordMisuse(t.rejected)
 		o.mu.Unlock()
-		return
+		return t
 	}
 	verifiers := append([]verifierFunc(nil), st.verifiers...)
 	o.mu.Unlock()
 
-	t.submitWork(func() error { return t.runDefine(verifiers, fn) }, nil)
+	t.submitWork(func() error { return t.runDefine(verifiers, fn) })
+	return t
 }
 
 // runDefine is Define's Verify-aware execution wiring (§7, §9.1, §29/§30).
@@ -134,7 +146,23 @@ func (t *TaskHandle) runDefine(verifiers []verifierFunc, fn func(context.Context
 		return passthroughCallbackOutcome(callbackErr)
 	}
 
-	if len(verifiers) > 0 {
+	if err := t.checkAfterDefine(verifiers, scope); err != nil {
+		return err
+	}
+	o.setResolution(t.id, ResolutionExecuted)
+	return nil
+}
+
+// checkAfterDefine is runDefine's post-callback evidence step: every
+// registered Verify must now hold, or, with none, tracked operations
+// supply the After phase. It returns the carrier error when the Task
+// already failed.
+func (t *TaskHandle) checkAfterDefine(verifiers []verifierFunc, scope *taskScopeHandle) error {
+	o := t.out
+	switch {
+	case !t.hasPostStateToVerify():
+		// The After phase stays unevaluated.
+	case len(verifiers) > 0:
 		allSatisfied, obsErr := evaluateVerifiers(withTaskScope(o.Context(), scope), o, t.id, verifiers)
 		if obsErr != nil {
 			o.recordEvidencePhase(t.id, evidencePhaseAfter, true, false)
@@ -146,7 +174,7 @@ func (t *TaskHandle) runDefine(verifiers []verifierFunc, fn func(context.Context
 			t.failScheduledWithCode(ProblemCodeVerificationUnsatisfied, "postcondition not satisfied")
 			return passthroughCallbackOutcome(errVerificationUnsatisfied)
 		}
-	} else {
+	default:
 		// No explicit Verify: derive post-Define Evidence from Evo-native
 		// tracked operations when Define recorded any (§9.2). Every
 		// operation evo.File appended to manifestOps already re-inspected
@@ -157,8 +185,34 @@ func (t *TaskHandle) runDefine(verifiers []verifierFunc, fn func(context.Context
 		// operation this Define touched is already known current.
 		o.recordOperationsEvidence(t.id)
 	}
-	o.setResolution(t.id, ResolutionExecuted)
 	return nil
+}
+
+// hasPostStateToVerify reports whether the state after this Task's
+// Define is one its postcondition can judge. It is not when Define
+// resolved the Task itself without committing a change (Kept, Skipped,
+// Block: it chose not to converge, so there is no change to verify,
+// E-110, E-112), nor when a dry run
+// or preview skipped a mutation Define planned (the observed state is
+// the state before the plan, E-097). A planned run whose Define planned
+// nothing left the real post-state and is checked as a real run is
+// (E-106).
+func (t *TaskHandle) hasPostStateToVerify() bool {
+	o := t.out
+	o.mu.Lock()
+	st := o.taskByRef[t.id]
+	// Block resolves at once, so its terminal Task is never re-checked. A
+	// Kept or Skipped inside Define is held as an unratified proposal
+	// until the callback's return confirms it; it claims "no change" only
+	// while Define committed no Effect (E-112): a Kept after a real
+	// mutation still owes its postcondition.
+	blocked := st != nil && core.IsTerminalTask(st.state)
+	keptUnchanged := st != nil && st.proposed != nil && !o.hasRecordedEffectLocked(t.id)
+	o.mu.Unlock()
+	if blocked || keptUnchanged {
+		return false
+	}
+	return !o.cfg.dryRun || !o.hasPlannedEffect(t.id)
 }
 
 // recordOperationsEvidence records the after-Define Evidence phase
@@ -186,7 +240,7 @@ func (o *Output) recordOperationsEvidence(taskID string) {
 // (executeWork/resolveObserved) completely unchanged — that path renders
 // err.Error() verbatim as the Task's Fail summary, so wrapping it here would
 // prepend internal plumbing text ("runDefine: ...") onto what the reader
-// sees, the same reason Failf/Blockf keep the caller's own wording intact.
+// sees, the same reason Fail/Block keep the caller's own wording intact.
 // The task itself may already be resolved by the time this runs (a
 // pre/post-Verify failure calls failScheduled/failScheduledWithCode before
 // returning); this is only ever err's carrier back to executeWork's
@@ -205,10 +259,10 @@ func evaluateVerifiers(ctx context.Context, o *Output, taskID string, verifiers 
 	for i, v := range verifiers {
 		ok, verifyErr := v(ctx)
 		o.mu.Lock()
-		o.emitWireEventLocked(wire.EventVerificationObserved, taskID, map[string]any{
-			"name":   fmt.Sprintf("verify_%d", i),
-			"status": verificationStatus(ok, verifyErr),
-		})
+		o.emitWireEventLocked(wire.EventVerificationObserved, taskID, wire.VerificationDoc{
+			Name:   fmt.Sprintf("verify_%d", i),
+			Status: verificationStatus(ok, verifyErr),
+		}.EventPayload())
 		o.mu.Unlock()
 		if verifyErr != nil {
 			return false, verifyErr

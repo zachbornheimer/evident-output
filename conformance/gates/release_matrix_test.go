@@ -45,7 +45,7 @@ func TestPORT012_BigEndianCrossCompile(t *testing.T) {
 	// PORT-012: no encoding assumption — cross-compile CLI for big-endian.
 	root := repoRoot(t)
 	out := filepath.Join(t.TempDir(), "evident-output-s390x")
-	cmd := exec.Command("go", "build", "-o", out, "./cmd/evident-output")
+	cmd := exec.Command("go", "build", "-buildvcs=false", "-o", out, "./cmd/evident-output")
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=s390x", "CGO_ENABLED=0")
 	if b, err := cmd.CombinedOutput(); err != nil {
@@ -61,7 +61,7 @@ func TestAPI013_ExampleCLIsBuild(t *testing.T) {
 	// API-013: example programs compile without core dep changes.
 	root := repoRoot(t)
 	for _, ex := range []string{"repo-status", "install-pipeline", "migrate", "doctor", "data-command"} {
-		cmd := exec.Command("go", "build", "-o", os.DevNull, "./examples/"+ex+"/")
+		cmd := exec.Command("go", "build", "-buildvcs=false", "-o", os.DevNull, "./examples/"+ex+"/")
 		cmd.Dir = root
 		if b, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("build examples/%s: %v\n%s", ex, err, b)

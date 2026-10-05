@@ -13,8 +13,8 @@ machine contract    → existing -status JSON / ResultWriter / schemas
 ## What to adopt first
 
 1. `Init(Config{Title})` + `Main` or hosted `Output.Run`
-2. Mutation verbs (`Delete`/`Create`/`Update`/…) for dry-run vs live — `Config.DryRun` picks
-   `[planned]` vs `[changed]` at the same call site
+2. `evo.Effect` (and `evo.File` for file state) inside `Define` for dry-run vs live —
+   `Config.DryRun` picks `[planned]` vs `[changed]` at the same call site
 3. Task for real gates; Fail/Block for path-scoped evidence
 4. `cmd.Stdout = task.Writer()` (and stderr) for subprocesses
 5. Task name only — no `ID` / `Scope` on the ordinary surface

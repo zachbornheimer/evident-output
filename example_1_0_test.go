@@ -55,7 +55,7 @@ func ExampleTaskHandle_Verify() {
 func ExampleTaskHandle_Key() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true})
-	out.Task("migrate 003_add_users.sql").Key("migration:003").Done()
+	out.Task("migrate 003_add_users.sql").Key("migration:003").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Print(buf.String())
 	// Output:
@@ -100,10 +100,11 @@ func ExampleFile() {
 // Task and never fakes a checkmark merely to display a value.
 func ExampleTaskHandle_Fact() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true})
+	// A Task Fact is routine context: it renders only under verbose (contract §13).
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true, Verbosity: evo.VerbosityVerbose})
 	scan := out.Task("remote-tracking")
 	scan.Fact("stale", "1")
-	scan.Done()
+	scan.Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Print(buf.String())
 	// Output:

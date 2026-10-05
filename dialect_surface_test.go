@@ -10,9 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/apisurface"
 )
 
 // dialectSurface is the evo-rec.md public function set, plus *f formatted
@@ -21,64 +24,43 @@ import (
 // A new export, a dropped rec verb, or a signature change fails this test.
 var dialectSurface = map[string][]string{
 	"pkg": {
-		"Affected(n int)",
-		"AlsoWrite(w io.Writer)",
 		"AssumeYes(v bool)",
-		"Clock(ts TimeSource)",
 		"Code(value string)",
 		"Command(executable string, args ...string)",
 		"App()",
 		"FSPath(path string)",
+		"FSResource(path string)",
+		"LogicalResource(name string)",
 		"File(ctx context.Context, spec FileSpec)",
+		"Files(ctx context.Context, files FileSet)",
 		"Exec(ctx context.Context, spec ExecSpec)",
-		"Runner(r ProcessRunner)",
+		"Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error)",
+		"PartialEffect(committed int, err error)",
+		"Patch(ctx context.Context, diff []byte)",
 		"Value(name string, v any)",
 		"Confirm(question string, opts ...ConfirmOption)",
 		"ConfirmDetail(lines ...string)",
 		"Count(value int64, unit ...string)",
-		"DataProjection()",
-		"DebugAddSource()",
-		"DebugHistory()",
-		"DebugLevel(level LogLevel)",
-		"DebugPane(opts ...DebugPaneOption)",
 		"Default()",
 		"DefaultConfig()",
 		"Delay(d time.Duration)",
 		"Destructive()",
 		"Detail(text string)",
-		"Diagnostics(w io.Writer)",
-		"DryRun()",
-		"EncodeEventJSON(e Event)",
-		"EncodeJSON(s Snapshot)",
-		"EncodeJSONL(events []Event)",
-		"ExternalProjection()",
 		"Fact(name string, value string)",
-		"ForSkip()",
-		"Glyphs(p GlyphProfile)",
 		"Group(name string)",
-		"ID(id string)",
 		"Init(configs ...Config)",
 		"IsCharDevice(w io.Writer)",
-		"KeepLastLines(n int)",
 		"Label(text string)",
 		"Location(path string, line int, column int)",
 		"Main(run RunFunc)",
-		"MaxEntities(n int)",
-		"MaxEvents(n int)",
-		"MaxEvidenceBytes(n int)",
-		"MaxFrameRate(framesPerSecond int)",
-		"MirrorToDebug()",
-		"MirrorToDiagnostics()",
+		"MaxCaptureBytes(n int)",
 		"NewestFirst()",
 		"Next(action Action)",
 		"NextCommand(executable string, args ...string)",
-		"NoColor()",
 		"OldestFirst()",
 		"On(subject string)",
-		"OnTask(taskName string)",
 		"PaneHeight(lines int)",
 		"ParseFormat(s string)",
-		"Plain()",
 		"Pluralize(quantity int64, singular string)",
 		"PolicyFlag(flag string)",
 		"PolicyHint(command string, args ...string)",
@@ -87,25 +69,15 @@ var dialectSurface = map[string][]string{
 		"Printf(format string, args ...any)",
 		"Println(args ...any)",
 		"Reason(name string)",
-		"Redact(r Redactor)",
 		"RenderPlain(s Snapshot, opts PlainOptions)",
-		"ResultStream(w io.Writer)",
 		"Run(ctx context.Context, run RunFunc)",
 		"Sequence(name string)",
 		"SetDefault(out *Output)",
 		"SlogHandler()",
-		"StartPhase(text string)",
-		"Stdin(r io.Reader)",
-		"Strict()",
 		"Task(name string)",
-		"Terminal(driver TerminalDriver)",
-		"Title(subject string)",
-		"To(w io.Writer)",
 		"TruncateNames(names []string, visible int)",
 		"Verbose()",
-		"VisibilityDelay(delay time.Duration)",
-		"Warn(summary string)",
-		"Width(columns int)",
+		"Severity(value ProblemSeverity)",
 		"WriteJSON(w io.Writer, result Result)",
 	},
 	"*Output": {
@@ -115,9 +87,9 @@ var dialectSurface = map[string][]string{
 		"Confirm(question string, opts ...ConfirmOption)",
 		"Context()",
 		"Err()",
+		"Events()",
 		"Fact(name string, value string)",
 		"Fail(summary string, options ...ProblemOption)",
-		"Failf(format string, args ...any)",
 		"Finish()",
 		"Group(name string)",
 		"Next(actions ...Action)",
@@ -131,43 +103,29 @@ var dialectSurface = map[string][]string{
 		"Snapshot()",
 		"Suspend(fn func() error)",
 		"Task(name string)",
-		"Warn(summary string)",
 		"Writer()",
 	},
 	"*TaskHandle": {
-		"Add(object string, fn func() error, opts ...MutationOption)",
 		"After(preds ...any)",
 		"Block(summary string, options ...ProblemOption)",
-		"Blockf(format string, args ...any)",
 		"Bytes(completed int64, total int64)",
 		"Cancel(reason string)",
+		"Capture(opts ...CaptureOption)",
 		"Context()",
-		"Create(object string, fn func() error, opts ...MutationOption)",
 		"Define(fn func(context.Context) error)",
 		"Key(key string)",
-		"Delete(object string, fn func() error, opts ...MutationOption)",
 		"Doing(text string, args ...any)",
-		"Done(args ...any)",
 		"Fact(name string, value string)",
 		"Fail(summary string, options ...ProblemOption)",
-		"Failf(format string, args ...any)",
-		"Kept(reason TaxonomyReason)",
 		"Next(actions ...Action)",
 		"NextCommand(executable string, args ...string)",
+		"Problem(summary string, options ...ProblemOption)",
 		"Progress(completed int, total int)",
-		"Push(object string, fn func() error, opts ...MutationOption)",
-		"Record(verb string, quantity int, object string)",
-		"RecordLabel(label string, quantity int, object string)",
-		"RecordName(verb string, object string)",
-		"Remove(object string, fn func() error, opts ...MutationOption)",
 		"Skipped(reason TaxonomyReason)",
 		"Snapshot()",
-		"Step(completed int, total int, name string)",
-		"Update(object string, fn func() error, opts ...MutationOption)",
+		"Summary(text string)",
 		"Verify(fn func(context.Context) (bool, error))",
 		"Wait()",
-		"Warn(summary string)",
-		"Write(object string, fn func() error, opts ...MutationOption)",
 		"Writer()",
 	},
 	"*SequenceHandle": {
@@ -176,6 +134,7 @@ var dialectSurface = map[string][]string{
 		"Snapshot()",
 		"Summary(text string)",
 		"Task(name string)",
+		"Wait()",
 	},
 	"*GroupHandle": {
 		"Group(name string)",
@@ -183,6 +142,7 @@ var dialectSurface = map[string][]string{
 		"Snapshot()",
 		"Summary(text string)",
 		"Task(name string)",
+		"Wait()",
 	},
 	"*Printer": {
 		"Print(args ...any)",
@@ -192,8 +152,6 @@ var dialectSurface = map[string][]string{
 	},
 	"*Failure": {
 		"Error()",
-		"Next(actions ...Action)",
-		"NextCommand(executable string, args ...string)",
 		"Unwrap()",
 	},
 	"TaxonomyReason": {
@@ -258,12 +216,18 @@ func TestDialectSurface_TaskDeclareIsNameOnly(t *testing.T) {
 	}
 }
 
-func TestDialectSurface_DeleteIsObjectThenCallback(t *testing.T) {
+// TestDialectSurface_LegacyMutationVerbsAreRemoved pins ZYS-950: the seven
+// TaskHandle mutation verbs were removed in 1.1 with no aliases. Opaque
+// mutations go through evo.Effect; file state goes through evo.File.
+func TestDialectSurface_LegacyMutationVerbsAreRemoved(t *testing.T) {
 	got := exportedFuncsByRecv(t)
-	want := "Delete(object string, fn func() error, opts ...MutationOption)"
-	if !containsSig(got["*TaskHandle"], want) {
-		t.Errorf("*TaskHandle.Delete want %s; got matching %s",
-			want, findSig(got["*TaskHandle"], "Delete("))
+	for _, verb := range []string{"Add(", "Create(", "Delete(", "Push(", "Remove(", "Update(", "Write("} {
+		if sig := findSig(got["*TaskHandle"], verb); sig != "(absent)" {
+			t.Errorf("*TaskHandle.%s was removed in 1.1 but is exported: %s", strings.TrimSuffix(verb, "("), sig)
+		}
+	}
+	if sig := findSig(got["pkg"], "Affected("); sig != "(absent)" {
+		t.Errorf("evo.Affected was removed in 1.1 (EffectSpec.Quantity replaces it) but is exported: %s", sig)
 	}
 }
 
@@ -407,12 +371,7 @@ func joinOrNone(ss []string) string {
 }
 
 func containsSig(sigs []string, want string) bool {
-	for _, s := range sigs {
-		if s == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(sigs, want)
 }
 
 func findSig(sigs []string, prefix string) string {
@@ -426,4 +385,41 @@ func findSig(sigs []string, prefix string) string {
 		return "(absent)"
 	}
 	return strings.Join(match, ", ")
+}
+
+func TestDialectSurface_SubsetOfGoDocSurface(t *testing.T) {
+	live, err := apisurface.Walk(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var missing []string
+	for recv, sigs := range dialectSurface {
+		for _, sig := range sigs {
+			prefix := dialectGoDocPrefix(recv, sig)
+			if !surfaceHasPrefix(live, prefix) {
+				missing = append(missing, recv+" "+sig)
+			}
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		t.Fatalf("dialect methods missing from go/doc surface:\n  %s", strings.Join(missing, "\n  "))
+	}
+}
+
+func dialectGoDocPrefix(recv, sig string) string {
+	name, _, _ := strings.Cut(sig, "(")
+	if recv == "pkg" {
+		return "func " + name + "("
+	}
+	return "func (" + strings.TrimPrefix(recv, "*") + ") " + name + "("
+}
+
+func surfaceHasPrefix(live []string, prefix string) bool {
+	for _, line := range live {
+		if strings.HasPrefix(line, prefix) {
+			return true
+		}
+	}
+	return false
 }

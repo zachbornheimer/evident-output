@@ -60,7 +60,7 @@ Trigger phrases: "adopt evident-output", "migrate to evo", "clean up CLI output"
    If `facades` is set, migrate the facade first (`next_action` says so) — not each call site.
 2. **Migrate the current page**, then re-call with `{ "directory": "...", "cursor": "<next_cursor>" }`
    until `next_action` is `clean`. Ladder order (no containers rung):
-   `Init/Main → Task/Done → effects → facts/warnings → confirm/dry-run`.
+   `Init/Main → Task/Define → effects → facts/warnings → confirm/dry-run`.
    Pull authoritative detail per rung with `evident_output_get_documentation` (ids
    `adoption-ladder`, `guide/common-api`, `guide/tasks`) rather than guessing spellings —
    the catalog is the single source of truth, this skill only points at it.
@@ -86,7 +86,7 @@ go get github.com/zachbornheimer/evident-output@v1.0.0
 
 - `docs/philosophy/jazz-syntax.md` — one spelling per intent
 - `docs/philosophy/presentation-boundary.md` — presentation ≠ execution
-- `docs/philosophy/domain-vocabulary.md` — Task/mutation verbs/Detail/Failf evidence
+- `docs/philosophy/domain-vocabulary.md` — Task/Effect verbs/Detail/Fail evidence
 - `docs/guides/teaching-ladder.md` — ordinary learning order
 - `docs/roadmap/implementation-basis.md` — polish-phase authority
 
@@ -95,8 +95,8 @@ go get github.com/zachbornheimer/evident-output@v1.0.0
 ```text
 evo.Init(Config) → Print/Printf/Println → Verbose()
 → Task.Define / one Task per item under a Group or Sequence → task.Writer()
-→ mutation verbs (Delete(object, fn) / Affected; Record when the domain verb differs)
-→ slog via SlogHandler → evo.Main(run)
+→ evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) / evo.File inside Define
+→ slog via SlogHandler → os.Exit(evo.Main(run))
 ```
 
 Prefer **contracts over sugar**: plain `Task` labels first. Task is name-only.
@@ -105,10 +105,10 @@ Prefer **contracts over sugar**: plain `Task` labels first. Task is name-only.
 
 ```go
 evo.Init(evo.Config{Title: "tool"})
-evo.Main(run) // exits the process itself
+os.Exit(evo.Main(run)) // Main returns the exit code; it never exits itself
 ```
 
-`evo.Init(Config{Isolated: true})` + `out.Run(run)` are the advanced, hosted-instance
+`evo.Init(Config{Isolated: true})` + `out.Run(ctx, run)` are the advanced, hosted-instance
 form of the same lifecycle — reach for them only when a tool needs an `*Output` it
 doesn't install as the package-level default.
 
@@ -118,13 +118,19 @@ doesn't install as the package-level default.
 
 ```go
 upgrade := out.Task("brew packages")
-cmd := exec.Command("brew", args...)
-cmd.Stdout = upgrade.Writer()
-cmd.Stderr = upgrade.Writer()
-if err := cmd.Run(); err != nil {
-    return upgrade.Failf("brew upgrade failed: %w", err)
-}
+upgrade.Define(func(ctx context.Context) error {
+    cmd := exec.CommandContext(ctx, "brew", args...)
+    cmd.Stdout = upgrade.Writer()
+    cmd.Stderr = upgrade.Writer()
+    if err := cmd.Run(); err != nil {
+        return fmt.Errorf("brew upgrade failed: %w", err)
+    }
+    return nil
+})
 ```
+
+Run the child inside the Task's `Define`: a Task given a `Writer` but never
+Defined stays unresolved and the run concludes `partial`.
 
 Do **not** use `DebugWriter` for child tools (API-029).
 Secrets: set `Config.Redactor`.
@@ -140,11 +146,11 @@ Secrets: set `Config.Redactor`.
 
 ## Severity
 
-| Outcome   | Meaning                               |
-| --------- | ------------------------------------- |
-| **Warn**  | Soft / optional                       |
-| **Block** | Stop before mutation (not a Go error) |
-| **Fail**  | Evaluation / required tool failed     |
+| Outcome                         | Meaning                               |
+| ------------------------------- | ------------------------------------- |
+| **Problem** at warning severity | Soft / optional                       |
+| **Block**                       | Stop before mutation (not a Go error) |
+| **Fail**                        | Evaluation / required tool failed     |
 
 ## Review
 

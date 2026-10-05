@@ -35,16 +35,16 @@ func TestOutputTask_SameNameIsDuplicateSibling(t *testing.T) {
 	}
 }
 
-// TestOutputTask_DifferentNameSameID_StillDuplicateKey preserves the
-// pre-existing invariant: reusing one explicit evo.ID under two different
-// names is a real identity conflict, distinct from §3.1's duplicate sibling
-// name — ErrDuplicateKey must still fire, not ErrDuplicateSiblingName.
-func TestOutputTask_DifferentNameSameID_StillDuplicateKey(t *testing.T) {
+// TestOutputTask_DifferentNameSameKey_StillDuplicateKey preserves the
+// invariant: reusing one explicit Key under two different names is a real
+// identity conflict, distinct from §3.1's duplicate sibling name —
+// ErrDuplicateKey must still fire, not ErrDuplicateSiblingName.
+func TestOutputTask_DifferentNameSameKey_StillDuplicateKey(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.TaskIdentified("a", "same")
-	out.TaskIdentified("b", "same")
+	out.Task("a").Key("same")
+	out.Task("b").Key("same")
 
 	if !errors.Is(out.Err(), evo.ErrDuplicateKey) {
 		t.Fatalf("expected ErrDuplicateKey, got %v", out.Err())

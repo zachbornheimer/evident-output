@@ -15,7 +15,7 @@ import (
 func ExampleInit() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true, Isolated: true})
-	out.Task("read config").Done()
+	out.Task("read config").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Print(buf.String())
 	// Output:
@@ -38,13 +38,32 @@ func ExampleConfig() {
 	var buf bytes.Buffer
 	cfg := evo.Config{Title: "demo", Stdout: &buf, Stderr: io.Discard, Plain: true, Isolated: true}
 	out := evo.Init(cfg)
-	out.Task("scan").Done()
+	out.Task("scan").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ scan
 	//
 	// [ready]  demo
+}
+
+// ExampleGlyphProfile selects the state-glyph vocabulary Init applies via
+// Config.Glyphs. GlyphsASCII is the forced-ASCII profile; GlyphsUnicode and
+// GlyphsAuto are the other two values.
+func ExampleGlyphProfile() {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{
+		Stdout:   &buf,
+		Stderr:   io.Discard,
+		Plain:    true,
+		Isolated: true,
+		Glyphs:   evo.GlyphsASCII,
+	})
+	out.Task("scan").Define(func(context.Context) error { return nil })
+	_ = out.Finish()
+	fmt.Print(buf.String())
+	// Output:
+	// [ok] scan
 }
 
 // ExampleDefault shows the package-level default instance, lazily created
@@ -63,7 +82,7 @@ func ExampleSetDefault() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true, Isolated: true})
 	evo.SetDefault(out)
-	evo.Task("wire default").Done()
+	evo.Task("wire default").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Print(buf.String())
 	// Output:
@@ -76,7 +95,7 @@ func ExampleSetDefault() {
 func ExampleOutput() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true, Isolated: true})
-	out.Task("build").Done()
+	out.Task("build").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Print(buf.String())
 	// Output:
@@ -89,7 +108,7 @@ func ExampleRun() {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true}))
 	result := evo.Run(context.Background(), func(ctx context.Context) error {
-		evo.Task("apply migration").Done()
+		evo.Task("apply migration").Define(func(context.Context) error { return nil })
 		return nil
 	})
 	fmt.Println(result.Err)

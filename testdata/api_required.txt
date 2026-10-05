@@ -1,0 +1,22 @@
+Init
+Run
+Main
+Task
+Group
+Sequence
+Define
+File
+Exec
+FSPath
+Fact
+Effect
+PartialEffect
+func (TaskHandle) Summary
+Verify
+func (TaskHandle) After
+FileSpec
+ExecSpec
+Capture
+CaptureOption
+CaptureStream
+func (TaskHandle) Capture

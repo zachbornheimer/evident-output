@@ -10,6 +10,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
@@ -20,13 +21,13 @@ import (
 var ErrFileConflictingProducer = errors.New("evo: File output path already claimed by another Task in this Run")
 
 // manifestFor returns this Run's manifest Store, opening it on first use
-// (spec §11.3) — the same lazy-capture pattern workspaceDirLocked already
+// (spec §11.3) — the same lazy-capture pattern workspace already
 // uses for the workspace directory. Every later call, whether it succeeded
 // or failed, returns the same cached result: a manifest miss/open failure
 // degrades this Run to live-filesystem-only File behavior rather than
 // retrying on every call.
 func (o *Output) manifestFor(ctx context.Context) (*manifest.Store, error) {
-	workspace := o.workspaceDirLocked()
+	workspace := o.workspace()
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.manifestOpened {
@@ -102,20 +103,86 @@ func (o *Output) appendManifestOperationLocked(taskID string, rec manifest.Opera
 }
 
 // commitManifestTaskLocked persists taskID's accumulated operations as this
-// Run's truth (spec §11.3) once the Task has settled Done. A Task that
-// recorded no tracked operations, or a Run with no usable manifest Store,
-// commits nothing. Callers must already hold o.mu.
+// Run's truth (spec §11.3) once the Task has settled Done. A Run with no
+// usable manifest Store commits nothing (no Task in this Run ever used
+// File/Exec/Patch, so nothing opened the manifest — see manifestFor —
+// keeping a purely opaque consumer's Run free of any manifest file at all).
+//
+// A Task with tracked Operations commits its precise provenance at once. A
+// Task with none is opaque: its record carries the application fingerprint
+// as its DefinitionFingerprint (ZYS-817 Decisions 2026-09-23), never folded
+// into any operation's Basis. Nothing reads that record back within the
+// Run, so it is staged and written with the next commit or at Close
+// instead of costing each settling Task a full manifest
+// rewrite and fsync under o.mu. Callers must already hold o.mu.
 func (o *Output) commitManifestTaskLocked(ctx context.Context, taskID string) {
 	st := o.taskByRef[taskID]
-	if st == nil || len(st.manifestOps) == 0 || o.manifestStore == nil {
+	if st == nil || o.manifestStore == nil {
+		return
+	}
+	if len(st.manifestOps) == 0 {
+		o.manifestStore.StageTask(o.manifestApp, manifest.TaskRecord{
+			Key:                   st.key,
+			DefinitionFingerprint: taskOpaqueDefinitionFingerprint(st.key, o.manifestApp.Fingerprint),
+		})
 		return
 	}
 	task := manifest.TaskRecord{Key: st.key, Operations: append([]manifest.OperationRecord(nil), st.manifestOps...)}
-	if err := o.manifestStore.CommitTask(ctx, o.manifestApp, task); err == nil {
-		o.emitWireEventLocked(wire.EventManifestTaskCommitted, taskID, map[string]any{
-			"operations": len(task.Operations),
-		})
+	if err := o.manifestStore.CommitTask(ctx, o.manifestApp, task); err != nil {
+		o.warnManifestUnsavedLocked(err)
+		return
 	}
+	o.emitWireEventLocked(wire.EventManifestTaskCommitted, taskID, map[string]any{
+		"operations": len(task.Operations),
+	})
+}
+
+// saveManifest waits until every record this Run committed or staged is
+// on disk, so an Init+Finish caller that never calls Close still persists
+// its history, and warns on the run when the write failed: the next run
+// re-executes work this one did, and the reader must know why.
+func (o *Output) saveManifest() {
+	o.mu.Lock()
+	store := o.manifestStore
+	o.mu.Unlock()
+	if store == nil {
+		return
+	}
+	err := store.Flush(context.Background())
+	if err == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if !o.finished {
+		o.warnManifestUnsavedLocked(err)
+	}
+}
+
+// warnManifestUnsavedLocked states once per run that the manifest could
+// not be saved. Callers must already hold o.mu.
+func (o *Output) warnManifestUnsavedLocked(err error) {
+	if o.manifestUnsavedIssued {
+		return
+	}
+	o.manifestUnsavedIssued = true
+	o.warnLocked(applyProblemOptions(txt.Text("manifest not saved: "+err.Error()), nil))
+}
+
+// taskOpaqueDefinitionFingerprint computes an opaque Task's own definition
+// identity: the conservative application-fingerprint fallback ZYS-817
+// Decisions (2026-09-23) requires when a Task's Define recorded no precise
+// File/Exec/Patch operation of its own to prove freshness with. Scoped by
+// the Task's own stable key so two different opaque Tasks never collide
+// onto the same digest merely because the application fingerprint matches.
+func taskOpaqueDefinitionFingerprint(key, appFingerprint string) string {
+	h := sha256.New()
+	_, _ = h.Write([]byte("evident-output:task:definition:opaque:v1\x00"))
+	_, _ = h.Write([]byte(key))
+	h.Write([]byte{0})
+	_, _ = h.Write([]byte(appFingerprint))
+	h.Write([]byte{0})
+	return "sha256:" + hex.EncodeToString(h.Sum(nil))
 }
 
 // basisRecordsFrom fingerprints every entry in basis (spec §11.1) and
@@ -135,18 +202,23 @@ func basisRecordsFrom(ctx context.Context, basis []fingerprint.Fingerprint) ([]m
 			Digest: hex.EncodeToString(v.Digest[:]),
 		})
 	}
-	sort.Slice(records, func(i, j int) bool {
-		if records[i].Kind != records[j].Kind {
-			return records[i].Kind < records[j].Kind
-		}
-		return records[i].Key < records[j].Key
-	})
+	sortBasisRecords(records)
 	for i := 1; i < len(records); i++ {
 		if records[i].Kind == records[i-1].Kind && records[i].Key == records[i-1].Key {
 			return nil, fmt.Errorf("evo: Basis: duplicate (kind=%s, key=%s)", records[i].Kind, records[i].Key)
 		}
 	}
 	return records, nil
+}
+
+// sortBasisRecords puts records in canonical (kind, key) order.
+func sortBasisRecords(records []manifest.BasisRecord) {
+	sort.Slice(records, func(i, j int) bool {
+		if records[i].Kind != records[j].Kind {
+			return records[i].Kind < records[j].Kind
+		}
+		return records[i].Key < records[j].Key
+	})
 }
 
 // fileDefinitionFingerprint computes File's operation definition fingerprint

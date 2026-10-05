@@ -19,7 +19,7 @@ var (
 //
 //	func main() {
 //	    evo.Init(evo.Config{Title: "repo-retire"})
-//	    evo.Main(run)
+//	    os.Exit(evo.Main(run))
 //	}
 //
 // evo.Init(evo.Config{}) (or evo.Init(evo.DefaultConfig())) builds an
@@ -27,45 +27,12 @@ var (
 // instance that is not installed as the package default. First paint still
 // arms — Isolated is not a blank-terminal exemption.
 //
-// When Options is empty, Init fills still-zero Config fields from EVO_OUTPUT,
-// EVO_COLOR, EVO_VERBOSE, EVO_DEBUG, and NO_COLOR before TTY inference.
-// Explicit Config values win over env; env wins over TTY. Options skip that
-// fill — they win outright.
-//
-// Config.Options is the advanced raw-Option escape hatch for tests and
-// specialized embedding; when set, ordinary Config fields (besides Title,
-// DryRun, Preview, and Subject) are ignored. Options installs as the package-level
-// default and arms first paint exactly like every other Init call — Isolated
-// is the one and only opt-out, orthogonal to Options (release-gate round 8
-// finding 1: a caller who set Options but not Isolated must still be able to
-// reach the instance they configured via the package-level Task/Print
-// facade, instead of those facades lazily building a second, bare Output
-// that silently drops DryRun/Title/writer wiring).
+// Init fills still-zero Config fields from EVO_OUTPUT, EVO_COLOR,
+// EVO_VERBOSE, EVO_DEBUG, and NO_COLOR before TTY inference.
+// Explicit Config values win over env; env wins over TTY.
 func Init(configs ...Config) *Output {
 	cfg := resolveInitConfig(configs)
-	if len(cfg.Options) == 0 {
-		cfg = applyEnv(cfg)
-	}
-	if len(cfg.Options) > 0 {
-		// Advanced/testing escape hatch: build directly from raw Options,
-		// bypassing Config's ordinary stream/TTY/color inference entirely.
-		// DryRun and Subject are additive and never conflict with a caller's
-		// own Options, so they are still honored here instead of silently
-		// dropped (I1) — everything else on Config is genuinely superseded
-		// by the caller's explicit Option control.
-		opts := cfg.Options
-		if cfg.DryRun || cfg.Preview {
-			opts = append(append([]Option{}, opts...), dryRun())
-			if cfg.Subject != "" {
-				opts = append(opts, dryRunHeader(cfg.Subject))
-			}
-		}
-		if cfg.Preview {
-			opts = append(append([]Option{}, opts...), preview())
-		}
-		out := newOutput(cfg.Title, opts...)
-		return finishInit(out, cfg, cfg.Facts)
-	}
+	cfg = applyEnv(cfg)
 	resolved := resolveConfig(cfg)
 	out := newFromConfig(resolved)
 	return finishInit(out, cfg, resolved.Facts)
@@ -125,10 +92,9 @@ func Default() *Output {
 
 // Task declares a Task on the default instance. A repeated name is a
 // duplicate sibling declaration (§3.1), not a get-or-create — see
-// Output.Task/taskScoped. name is a printf format when args are present
-// (fmt.Sprintf semantics).
+// Output.Task.
 func Task(name string) *TaskHandle {
-	return Default().taskScoped(name, "")
+	return Default().Task(name)
 }
 
 // Sequence declares an ordered task container on the default instance —
