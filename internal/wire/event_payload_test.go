@@ -52,8 +52,10 @@ func TestEventPayload_EncodesAsItsDoc(t *testing.T) {
 		{"problem", fullProblemDoc.EventPayload(), problemWant},
 		{"problem without optional fields", ProblemDoc{Message: "m"}.EventPayload(), map[string]any{problemEventSummaryKey: "m"}},
 		{"verification", fullVerificationDoc.EventPayload(), asJSONObject(t, fullVerificationDoc)},
-		{"verification without facts", VerificationDoc{Name: "n", Status: VerificationSatisfied}.EventPayload(),
-			asJSONObject(t, VerificationDoc{Name: "n", Status: VerificationSatisfied})},
+		{
+			"verification without facts", VerificationDoc{Name: "n", Status: VerificationSatisfied}.EventPayload(),
+			asJSONObject(t, VerificationDoc{Name: "n", Status: VerificationSatisfied}),
+		},
 		{"fact", fullVerificationDoc.Facts[0].EventPayload(), asJSONObject(t, fullVerificationDoc.Facts[0])},
 	}
 	for _, tc := range cases {

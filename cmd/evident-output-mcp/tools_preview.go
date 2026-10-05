@@ -46,5 +46,7 @@ func handlePreview(id any, args map[string]any, cancelled *atomic.Bool) {
 		"structuredContent": map[string]any{
 			"schema":   "evident_output_preview.v1",
 			"profiles": profiles,
-			"plain":    buf.String()}})
+			"plain":    buf.String(),
+		},
+	})
 }

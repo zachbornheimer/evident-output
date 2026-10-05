@@ -264,8 +264,10 @@ func TestCompute_FullRepositoryAndPackagesScenario(t *testing.T) {
 		index[s] = i
 	}
 	for _, pair := range [][2]string{
-		{"worktrees", "managers:/kept"}, {"managers:/kept", "inventory"},
-		{"inventory", "centralize:brew-a"}, {"inventory", "centralize:npm-a"},
+		{"worktrees", "managers:/kept"},
+		{"managers:/kept", "inventory"},
+		{"inventory", "centralize:brew-a"},
+		{"inventory", "centralize:npm-a"},
 		{"branches", "remote:old"},
 	} {
 		a, aok := index[pair[0]]

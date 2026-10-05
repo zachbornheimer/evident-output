@@ -4,9 +4,11 @@ import "github.com/zachbornheimer/evident-output/internal/engine"
 
 func MaxCaptureBytes(n int) CaptureOption { return engine.MaxCaptureBytes(n) }
 
-type Capture = engine.Capture
-type CaptureOption = engine.CaptureOption
-type CaptureStream = engine.CaptureStream
+type (
+	Capture       = engine.Capture
+	CaptureOption = engine.CaptureOption
+	CaptureStream = engine.CaptureStream
+)
 
 const (
 	CaptureStreamCombined = engine.CaptureStreamCombined

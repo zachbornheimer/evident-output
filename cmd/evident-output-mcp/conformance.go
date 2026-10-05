@@ -87,5 +87,6 @@ func writeConformanceResult(id any, report review.ConformanceReport) {
 			"schema":         "evident_output_conformance.v1",
 			"target_version": report.TargetVersion,
 			"findings":       report.Findings,
-		}})
+		},
+	})
 }
