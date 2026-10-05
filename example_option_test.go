@@ -118,7 +118,7 @@ func ExampleDiagnostics() {
 func ExampleDryRun() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard, DryRun: true})
-	out.Task("prune branches").Delete("stale branch", func() error { return nil }, evo.Affected(3))
+	out.Task("prune branches").Define(effectOf(evo.EffectDelete, "stale branch", 3))
 	_ = out.Finish()
 	fmt.Print(buf.String())
 	// Output:

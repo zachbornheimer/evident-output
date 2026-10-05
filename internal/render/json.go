@@ -146,7 +146,7 @@ type EventJSON struct {
 	Completed     *int64    `json:"completed,omitempty"`
 	Total         *int64    `json:"total,omitempty"`
 	Activation    string    `json:"activation,omitempty"`
-	Timestamp     time.Time `json:"timestamp,omitempty"`
+	Timestamp     time.Time `json:"timestamp"`
 }
 
 // EncodeJSON encodes a snapshot as final JSON (§25.1 / §25.4).

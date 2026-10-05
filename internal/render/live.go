@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -210,10 +211,9 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 
 	// Select children by severity under height budget.
 	// Budget: height includes header; leave room for omission line.
-	maxChildRows := height - 2 // header + possible omission
-	if maxChildRows < 1 {
-		maxChildRows = 1
-	}
+	maxChildRows := max(
+		// header + possible omission
+		height-2, 1)
 	selected, omitted := selectLiveChildren(col.Tasks, maxChildRows)
 	for _, t := range selected {
 		writeLiveTaskLine(b, t, 1, 0, width, spin, color, now, profile)
@@ -228,7 +228,7 @@ func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, wid
 	for _, child := range col.Collections {
 		var nested strings.Builder
 		writeLiveCollection(&nested, child, height, width, spin, color, now, profile)
-		for _, line := range strings.Split(strings.TrimRight(nested.String(), "\n"), "\n") {
+		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
 			fmt.Fprintf(b, "   %s\n", line)
 		}
 	}
@@ -426,7 +426,7 @@ func writeLiveEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEach
 	for _, child := range col.Collections {
 		var nested strings.Builder
 		writeLiveCollection(&nested, child, height, width, spin, color, now, profile)
-		for _, line := range strings.Split(strings.TrimRight(nested.String(), "\n"), "\n") {
+		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
 			fmt.Fprintf(b, "   %s\n", line)
 		}
 	}
@@ -438,12 +438,7 @@ func anyChildRunning(col core.TasksSnapshot) bool {
 			return true
 		}
 	}
-	for _, child := range col.Collections {
-		if anyChildRunning(child) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(col.Collections, anyChildRunning)
 }
 
 func anyChildFailed(col core.TasksSnapshot) bool {
@@ -452,12 +447,7 @@ func anyChildFailed(col core.TasksSnapshot) bool {
 			return true
 		}
 	}
-	for _, child := range col.Collections {
-		if anyChildFailed(child) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(col.Collections, anyChildFailed)
 }
 
 // anyChildPendingActive reports whether the collection has any unresolved
@@ -473,12 +463,7 @@ func anyChildPendingActive(col core.TasksSnapshot) bool {
 			return true
 		}
 	}
-	for _, child := range col.Collections {
-		if anyChildPendingActive(child) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(col.Collections, anyChildPendingActive)
 }
 
 // earliestLiveFirstSeen returns the earliest LiveFirstSeenAt among a

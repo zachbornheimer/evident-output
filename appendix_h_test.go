@@ -271,7 +271,7 @@ func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	deleteAcct := out.Task("delete account acme")
-	deleteAcct.Delete("project", func() error { return nil }, evo.Affected(14))
+	deleteAcct.Define(effectOf(evo.EffectDelete, "project", 14))
 	deleteAcct.Record("revoke", 7, "API keys")
 
 	if err := out.Finish(); err != nil {
@@ -344,7 +344,7 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := 0
-	for _, line := range strings.Split(strings.TrimSpace(string(lines)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(lines)), "\n") {
 		if line == "" {
 			continue
 		}

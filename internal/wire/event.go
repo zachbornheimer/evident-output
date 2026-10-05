@@ -35,13 +35,18 @@ const (
 	EventVerificationObserved    = "verification.observed"
 	EventFactRecorded            = "fact.recorded"
 	EventWarningRecorded         = "warning.recorded"
-	EventEffectPlanned           = "effect.planned"
-	EventEffectCommitted         = "effect.committed"
-	EventManifestTaskCommitted   = "manifest.task_committed"
-	EventOperationFinished       = "operation.finished"
-	EventDefinitionFinished      = "definition.finished"
-	EventTaskFinished            = "task.finished"
-	EventRunFinished             = "run.finished"
+	// EventProblemRecorded is TaskHandle.Problem's accumulation event
+	// (1.1/ZYS-848) — distinct from EventWarningRecorded because a Problem
+	// is blocking evidence a Task owns before it resolves, not a warning
+	// annotation; a wire consumer must be able to tell the two apart.
+	EventProblemRecorded       = "problem.recorded"
+	EventEffectPlanned         = "effect.planned"
+	EventEffectCommitted       = "effect.committed"
+	EventManifestTaskCommitted = "manifest.task_committed"
+	EventOperationFinished     = "operation.finished"
+	EventDefinitionFinished    = "definition.finished"
+	EventTaskFinished          = "task.finished"
+	EventRunFinished           = "run.finished"
 )
 
 // EventDocument is one "evo.event" JSONL line (spec §38). seq is the

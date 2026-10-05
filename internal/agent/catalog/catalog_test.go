@@ -1,6 +1,7 @@
 package catalog_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -126,10 +127,8 @@ func TestGuidesCoverPhaseQAdditions(t *testing.T) {
 	}
 	ruleCovered := func(id string) bool {
 		for _, g := range all {
-			for _, r := range g.Rules {
-				if r == id {
-					return true
-				}
+			if slices.Contains(g.Rules, id) {
+				return true
 			}
 		}
 		return false

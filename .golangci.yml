@@ -1,0 +1,18 @@
+version: "2"
+
+linters:
+  exclusions:
+    rules:
+      # internal/docexamples/fixtures/**: never-run compile-test fixtures
+      # that reproduce a public doc's ```go fence byte-for-byte (see
+      # internal/docexamples/sync.go and each fixture's header comment).
+      # The flagged lines are the doc's own illustrative statements — an
+      # unchecked error return, a one-line closure — verbatim; rewriting
+      # them to satisfy errcheck/gocritic would make the fixture no longer
+      # match the doc it exists to compile-test. Scoped to this one
+      # directory so real errcheck/gocritic findings elsewhere are
+      # unaffected.
+      - path: internal/docexamples/fixtures/
+        linters:
+          - errcheck
+          - gocritic

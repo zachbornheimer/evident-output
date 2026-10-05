@@ -80,7 +80,7 @@ func versionOlder(running, pin string) bool {
 	if !rok || !pok {
 		return false
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if r[i] < p[i] {
 			return true
 		}

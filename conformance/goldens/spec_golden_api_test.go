@@ -34,9 +34,11 @@ func TestSpecP3_DryRunMutation_NeverCallsCallback(t *testing.T) {
 	})
 	called := false
 	g := out.Group("branches")
-	g.Task("feat/old-billing").Delete("branch", func() error {
-		called = true
-		return nil
+	g.Task("feat/old-billing").Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 1}, func(context.Context) error {
+			called = true
+			return nil
+		})
 	})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -133,7 +135,7 @@ func TestSpecAfter_FetchWaitsForGroups(t *testing.T) {
 
 func eachSkipNames(prefix string, n int) []string {
 	items := make([]string, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		items[i] = fmt.Sprintf("%s-%d", prefix, i)
 	}
 	return items

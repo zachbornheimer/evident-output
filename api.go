@@ -92,9 +92,11 @@ func IsCharDevice(w io.Writer) bool        { return engine.IsCharDevice(w) }
 func Pluralize(quantity int64, singular string) string {
 	return engine.Pluralize(quantity, singular)
 }
+
 func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
 	return engine.RenderPlain(s, opts)
 }
+
 func TruncateNames(names []string, visible int) string {
 	return engine.TruncateNames(names, visible)
 }
@@ -108,8 +110,6 @@ func NewestFirst() DebugPaneOption         { return engine.NewestFirst() }
 func OldestFirst() DebugPaneOption         { return engine.OldestFirst() }
 func PaneHeight(lines int) DebugPaneOption { return engine.PaneHeight(lines) }
 func PreserveDebugTail() DebugPaneOption   { return engine.PreserveDebugTail() }
-
-func Affected(n int) MutationOption { return engine.Affected(n) }
 
 // ID sets a stable machine key. Superseded: Task is name-only.
 func ID(id string) EntityOption { return engine.ID(id) }

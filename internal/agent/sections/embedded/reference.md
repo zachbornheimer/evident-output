@@ -13,7 +13,7 @@ wrong or this doc is; file it either way.
 **Config honesty:** `VisibilityDelay: evo.Delay(0)` is immediate (nil = default 80ms). `Debug: evo.DebugConfig{Level: evo.LevelDebug}` selects the journal threshold — `evo.LogLevel`, a distinct type from stdlib `slog.Level` (`LevelUnset` → Info).
 **Lifecycle:** `evo.Main(run)` (default instance, `run func(context.Context) error`, wired to SIGINT/SIGTERM) exits the process itself after Finish + Close and returns only the derived `int` exit code; `evo.Run(ctx, run)` / `out.Run(ctx, run)` take the caller's own `context.Context` and return the full `Result` (`Conclusion` plus the application error `run` returned) instead of exiting — `Result.ExitCode()` for callers composing their own exit path (`Config.Isolated: true` for a hosted `*Output`). `evo.MainWith` was removed in 1.0; an `Isolated *Output` now calls its own `Output.Run` instead. A non-nil `run` error is recorded as Fail only when nothing already failed. See "Lifecycles" below for the three supported shapes, including `Init` with no `Main`/`Run` at all.
 **Messages:** one human instrument — `Print` / `Printf` / `Println` + `Verbose()`. Infrastructure logs: `slog.New(out.SlogHandler())` (level from `Config.Debug.Level` only), written to `Config.Stderr` (default `os.Stderr`) — a piped run like `prog > log.txt` won't capture them; redirect with `2>` (or `2>&1`) instead. Semantic state: `Task`.
-**Mutations:** `Task.Add/Delete/Create/Update/Remove/Write/Push/Record/RecordName` pick `[planned]` vs `[changed]` from `Config.DryRun` or `Config.Preview` — one spelling, never a call-site tense flip. **Planned tense, two announcements:** `DryRun: true` is `--dry-run` — it opens `[dry-run] <Subject>` and really does stop. `Preview: true` is the plan a confirm gate is about to act on — same skipped callbacks and same `[planned]` ledger, but the header is your `Subject` alone (`repo <path>`) and no `[dry-run]` tag, because telling the user nothing will happen and then asking them to authorize it is a contradiction. Both suppress the trailing band on a pure planned verdict when a `Subject` header rendered. Quantity records (`Record`, the mutation verbs with `evo.Affected(n)`) tally and always render at `Finish`. `RecordName` names one item individually — it streams its row the instant its owning task resolves (`Done`/`Fail`/`Block`), under that task's own block, bounded by the same viewport cap and `… +N more (not shown)` overflow the Finish ledger uses.
+**Mutations:** `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)` (an opaque mutation Evo cannot model: a git ref, a worktree, an API change), `evo.File` (file state), and `Task.Record/RecordName` pick `[planned]` vs `[changed]` from `Config.DryRun` or `Config.Preview` — one spelling, never a call-site tense flip. **Planned tense, two announcements:** `DryRun: true` is `--dry-run` — it opens `[dry-run] <Subject>` and really does stop. `Preview: true` is the plan a confirm gate is about to act on — same skipped Effect callbacks and same `[planned]` ledger, but the header is your `Subject` alone (`repo <path>`) and no `[dry-run]` tag, because telling the user nothing will happen and then asking them to authorize it is a contradiction. Both suppress the trailing band on a pure planned verdict when a `Subject` header rendered. Quantity records (`Record`, `evo.Effect` with `EffectSpec.Quantity`) tally and always render at `Finish`. `RecordName` names one item individually — it streams its row the instant its owning task resolves (`Done`/`Fail`/`Block`), under that task's own block, bounded by the same viewport cap and `… +N more (not shown)` overflow the Finish ledger uses.
 **Loops and taxonomy:** declare one named child per item under `Group`/`Sequence` (`group.Task(name)`), then `Task.Define` submits that item's atomic work — `Group.Each`/`Sequence.Each` were removed in 1.0; `Task.Skipped(reason)` / `Task.Kept(reason)` own the counted, summed skip/keep partition (the item name is the Task name). `Task.Step(completed, total, name)` sets the count and the live item name together under one lock; Isolated+Plain does not stream a durable phase line per name.
 **Confirm:** `evo.Confirm(question, …)` owns the whole ask-decide-resolve gate — `Done` / `⊘ declined` / `⊘ blocked by policy`, never a Go error. `question` is literal text, not a printf format — Confirm is the one entity-text spelling that takes no variadic fmt args (every other one — Task/Done/Warn/Doing/Skip/Sequence/Group/Reason — is printf-variadic), so build the string yourself (`fmt.Sprintf`) before calling. A decline resolves `[blocked]` → exit `1` (see the README's exit-code table) — pass `AssumeYes` (or check a separate flag before calling Confirm at all) if declining should exit `0` instead. The default policy hint names a `--yes` flag; pass `evo.PolicyFlag("--apply")` when your program's real flag is spelled differently.
 **Capture:** `cmd.Stdout = task.Writer()` (and stderr the same way) turns a talkative child's last line into the live doing-text and retains a bounded, redacted ring for Fail evidence. `Config.Redactor` applies before retention. Do not clear the live region around a child.
@@ -48,11 +48,28 @@ and more than once (idempotent); prefer `defer out.Close()` right after
 
 | Shape        | Use when                                                                                                                                                                         |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**     | One atomic unit — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skipped`) or work submitted with `Define` / a mutation verb                                      |
+| **Task**     | One atomic unit — a check/gate resolved directly (`Done`/`Warn`/`Block`/`Fail`/`Skipped`) or work submitted with `Define`                                                        |
 | **Group**    | Independent collection of atomic tasks (state is **derived**); the scheduler may overlap eligible children                                                                       |
 | **Sequence** | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both Group and Sequence nest recursively via `.Sequence`/`.Group` |
 
 Multi-gate: resolve every Task, tracking a local `blocked` bool at each `Block` call site, then `if blocked { return nil }` before mutation — `Output.Run`/`Conclusion` answer the same question once a run has finished, so no mid-run query is exported; `Main` maps `ExitCode`.
+
+### Task is one independently meaningful promise
+
+A Task names **one independently schedulable promise whose outcome is independently meaningful to the user** — not a display row, not a subject label, not a container reached for merely to earn a row on screen. A good Task name answers "what will this unit of work accomplish or determine?" and, as a strong heuristic (not a grammar rule review mechanically enforces), reads as an action: verb + concrete object — `check file integrity`, `format Python`, `stabilize Go source`, `lint Go`, `check Python`, `build application icons`. `file integrity` names a subject, not the work; `fix`, `go`, `pre-commit`, `classify` alone read as a category, a tool name, or a phase, not a promise. A concise contextual name can still be perfectly clear — context, not word count, decides.
+
+Four tests settle it when the heuristic alone is ambiguous:
+
+1. If it fails, does the Task's name alone tell the user what failed?
+2. Can this unit run/wait/fail/satisfy independently?
+3. Would the user care about its independent outcome?
+4. Is it actual work, rather than a category, a display heading, a fact, a verification dimension, or an implementation phase?
+
+If the answers are no, it probably is not a Task.
+
+`Group` and `Sequence` **organize** work — they are never themselves fake work created only to earn a success row. `Task("fix")` that really owns several independently meaningful operations should become `Group("prepare staged files")` (or `Sequence`) with each operation as its own verb+object Task underneath; the container header's own visibility is a renderer decision, independent of whether the header deserves a row at all.
+
+One Task may still make several internal observations without promoting each predicate to a sibling Task: `check file integrity` can inspect merge markers, path validity, staged/worktree consistency, symlinks, and generated-file corruption, and report them all as `Fact`/`Warn`/`Problem` evidence under the one Task that answers a single user-meaningful question. Only split an observation into its own Task when it has an independently meaningful lifecycle/remediation and can run on its own. `TaskHandle` intentionally has no `.Task`/`.Group`/`.Sequence` child constructors — only `Output`, `GroupHandle`, and `SequenceHandle` declare children, so a Task cannot structurally grow a container of its own; review (`API-045`) teaches the semantic half of this boundary that a compile-time signature cannot decide.
 
 ## Severity dialect
 
@@ -63,6 +80,43 @@ Multi-gate: resolve every Task, tracking a local `blocked` bool at each `Block` 
 | **Fail**  | Evaluation failed or **required** tool/IO failed                              |
 
 `Block` ≠ Go `error`. After Block, return nil from `run` and let `Main` exit `1`.
+
+## One check Task, many Problems
+
+A Task with several findings owns them all as `Problem`s — never one `Task`
+per finding, never every finding flattened into a single
+`errors.New(strings.Join(...))` string:
+
+```go
+task := out.Task("file integrity")
+for _, issue := range issues {
+    task.Problem(issue.Summary,
+        evo.On(issue.Path),
+        evo.Code(issue.Code),
+        evo.Location(issue.Path, issue.Line, 0),
+    )
+}
+task.Define(func(context.Context) error { return nil })
+```
+
+`Problem(summary, opts...)` appends one blocking Problem and returns
+`*TaskHandle` to chain (`task.Problem(...).Problem(...)`); it does not
+resolve the task. If `Define`'s callback returns `nil` — or a bare `Done()`
+is called — while the Task has accumulated Problems, the Task resolves
+**Failed**, not Done: accumulated blocking evidence always overrides a
+claimed clean outcome. The Task still resolves exactly once regardless of
+how many Problems it owns.
+
+`Warn(summary, opts...)` takes the same `ProblemOption`s (`Detail`, `Code`,
+`On`, `Location`, `Next`, ...) for a non-blocking finding with the same
+structured metadata — it never resolves the task either.
+
+Every accumulated Problem survives in `Snapshot`/JSON/JSONL even when the
+plain human view bounds how many render inline (5 by default) behind an
+`and N more failures` line — the count is always authoritative, and a
+remedy (`evo.Next(...)`/`evo.NextCommand(...)`) attached to any Problem
+still reaches the run's own Next-steps output. See
+[docs/migration/1.1.md](migration/1.1.md) for the exact 1.0→1.1 signatures.
 
 ## Child processes / tool-backed gates
 
@@ -107,14 +161,26 @@ Keep the core vocabulary small. Scale via **Config**, **schema keys**, and **str
 
 Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Prefer one `Config` field or `EntityOption` over a new top-level type.
 
+## Shared resources and concurrency
+
+Evo coordinates shared state for you; there is no lock or unlock call.
+
+- **`File`** claims its own path for writing while it inspects, writes, and records it.
+- **`FSPath` Basis** entries (on `File` and `Exec`) are observed under a read claim, so an observation sees a whole commit or none of it — never a torn write.
+- **`Effect`** claims `EffectSpec.Resource` for writing while its callback runs. Name at most one: `FSResource(path)` for a file or a coarse directory (a module, a repository root), `LogicalResource(name)` for state with no truthful path (a package database, a remote).
+
+Reads share. Any overlapping pair that includes a write waits: filesystem claims overlap when the paths are equal or one contains the other; logical claims overlap only when their names match. A claim never creates an `After` dependency and never adds to freshness. A Task waiting on a conflicting claim shows `waiting for <resource>` as its live activity; an uncontended claim renders nothing. Code holding a resource (an `Effect` callback with a `Resource`) that calls `File`, or anything else needing a second resource, fails with `ErrNestedResourceAcquisition` instead of risking deadlock.
+
+**Guarantee scope.** Resource claims coordinate every `Output` in one process. Across processes, the manifest's exclusive lock carries the guarantee: the first `File`/`Exec` in a Run takes it before claiming any resource and holds it until `Close`, so two processes using the **same manifest namespace** (same `StateDir`, or same `AppID` and workspace) never interleave tracked `File`/`Exec` state. Different namespaces are independent by design and do not coordinate. Opaque `Effect` claims are process-local: two processes running the same `Effect` are not serialized by Evo.
+
 ## Vocabulary
 
 | Type           | Meaning                                                                                                              |
 | -------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `Task`         | One atomic unit — resolved directly (Done/Warn/Block/Fail/Skipped) or submitted with Define / a mutation verb        |
+| `Task`         | One atomic unit — resolved directly (Done/Warn/Block/Fail/Skipped) or submitted with Define                          |
 | `Group`        | Independent collection of tasks (state is **derived**); scheduler may overlap eligible children                      |
 | `Sequence`     | Ordered dependency of tasks (state is **derived**); failure cascades to NotStarted                                   |
-| `Problem`      | Structured evidence for warn / block / fail                                                                          |
+| `Problem`      | Structured evidence for warn / block / fail; a Task accumulates many via `Problem(...)` before it resolves once      |
 | Mutation verbs | `Add`/`Delete`/`Create`/`Update`/`Remove`/`Write`/`Push` — effects that happened vs would happen, from one call site |
 | `Conclusion`   | Headline + `Changed` / `Partial` / `Cancelled` + exit code                                                           |
 | `Main`         | Finish + Close + process exit code for CLI entrypoints                                                               |
@@ -124,11 +190,11 @@ Evo owns scheduling through Group, Sequence, Define, and After (`Group.Each`/`Se
 ## Status
 
 **Architecture spec:** [v0.5](architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md) (design candidate).
-**Implemented surface:** ordinary ladder through mutation verbs/Capture/slog/ResultWriter; interactive VT; hardened MCP; polish-phase docs under `docs/`. External/manual items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
+**Implemented surface:** ordinary ladder through Effect/File/Capture/slog/ResultWriter; interactive VT; hardened MCP; polish-phase docs under `docs/`. External/manual items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
 
 | Ready now                                                                                                                   | External / manual only                |
 | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| Task, Group, Sequence, mutation verbs, Print                                                                                | Windows ConPTY RC (PORT-003)          |
+| Task, Group, Sequence, Effect, File, Print                                                                                  | Windows ConPTY RC (PORT-003)          |
 | Conclusion + exit codes + Cancel cleanup                                                                                    | tmux RC (PORT-004)                    |
 | Plain, JSON (§25.1), JSONL (§25.2)                                                                                          | SSH RC (PORT-005)                     |
 | Interactive live region (`testkit.Screen`)                                                                                  | Light/dark contrast review (A11Y-006) |

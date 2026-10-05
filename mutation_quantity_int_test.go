@@ -8,17 +8,17 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// TestMutationVerbs_AcceptLenDirectly is beginner-6: evo.Affected (the
-// mutation verbs' quantity option, P1) takes int, not int64, so the natural
-// caller shape `Delete("...", call, evo.Affected(len(x)))` compiles without
-// a manual conversion. This test's mere compilation is most of the proof;
-// it also checks the recorded quantity renders correctly.
-func TestMutationVerbs_AcceptLenDirectly(t *testing.T) {
+// TestEffectQuantity_AcceptsLenDirectly is beginner-6: EffectSpec.Quantity
+// is int, not int64, so the natural caller shape
+// `evo.EffectSpec{..., Quantity: len(x)}` compiles without a manual
+// conversion. This test's mere compilation is most of the proof; it also
+// checks the recorded quantity renders correctly.
+func TestEffectQuantity_AcceptsLenDirectly(t *testing.T) {
 	items := []string{"a", "b", "c"}
 
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	out.Task("cleanup").Delete("stale local branch", func() error { return nil }, evo.Affected(len(items)))
+	out.Task("cleanup").Define(effectOf(evo.EffectDelete, "stale local branch", len(items)))
 	_ = out.Finish()
 
 	if !strings.Contains(buf.String(), "3") {

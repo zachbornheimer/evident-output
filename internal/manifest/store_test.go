@@ -47,6 +47,48 @@ func TestStoreCommitTaskIsAtomicAndReadableAfterReopen(t *testing.T) {
 	}
 }
 
+// TestStoreTaskReturnsWholeCommittedRecord proves Store.Task (ZYS-817) is
+// symmetric with Store.Operation but returns the whole TaskRecord —
+// including a Task-level DefinitionFingerprint that carries no Operations
+// of its own, the opaque-Task shape commitManifestTaskLocked now commits.
+func TestStoreTaskReturnsWholeCommittedRecord(t *testing.T) {
+	dir := t.TempDir()
+	cfg := Config{StateDir: dir}
+	env := fakeEnvironment{}
+
+	s, err := Open(t.Context(), cfg, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opaque := TaskRecord{Key: "opaque", DefinitionFingerprint: "sha256:fallback"}
+	if err := s.CommitTask(t.Context(), ApplicationRecord{ID: "app"}, opaque); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := Open(t.Context(), cfg, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = reopened.Close() }()
+
+	got, ok := reopened.Task("opaque")
+	if !ok {
+		t.Fatal("committed opaque TaskRecord not found after reopen")
+	}
+	if got.DefinitionFingerprint != "sha256:fallback" {
+		t.Fatalf("DefinitionFingerprint = %q, want %q", got.DefinitionFingerprint, "sha256:fallback")
+	}
+	if len(got.Operations) != 0 {
+		t.Fatalf("Operations = %+v, want none", got.Operations)
+	}
+	if _, ok := reopened.Task("never-committed"); ok {
+		t.Fatal("Task must report false for a key this store never committed")
+	}
+}
+
 func TestStoreCorruptManifestIsSafeMissNotEvidence(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, manifestFileName), []byte("{not json"), 0o600); err != nil {

@@ -6,6 +6,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
+
+### Added
+
+- **`TaskHandle.Problem(summary string, opts ...ProblemOption) *TaskHandle`:**
+  a Task can own zero, one, or many blocking `Problem`s before it resolves,
+  instead of a caller-invented `Task` per finding or every finding
+  flattened into one `errors.New` string. If the Task would otherwise
+  resolve `Done` (a nil `Define` return, or a bare `Done()`) while it
+  accumulated at least one `Problem`, it resolves `Failed` instead.
+- **`wire.EventProblemRecorded`:** distinct wire event for `Problem`
+  accumulation (previously would have collided with `EventWarningRecorded`).
+
+### Changed
+
+- **`TaskHandle.Warn(summary string, opts ...ProblemOption) *TaskHandle`:**
+  now takes the same `ProblemOption`s `Problem`/`Fail`/`Block` do and
+  returns `*TaskHandle` to chain. Every existing `task.Warn("x")` call site
+  still compiles unchanged.
+
+### Removed
+
+- **`TaskHandle.Add/Create/Delete/Push/Remove/Update/Write`, `evo.Affected`,
+  and `evo.MutationOption`** were removed with no aliases (ZYS-950). Opaque
+  mutations use `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)`
+  inside `Define`; file state uses `evo.File`. MCP review (API-032) rewrites
+  both removed call shapes; API-042/API-043 now check `evo.Effect` callbacks
+  and `EffectSpec.Object`.
+
+### Fixed
+
+- An `evo.Effect` callback that resolves its own task as `Skipped`/`Fail`
+  records no ledger row (and no misuse), and an interrupt that cancels a
+  row mid-Effect keeps the committed record for "! already mutated".
+
+- A remedy (`evo.Next(...)` / `evo.NextCommand(...)`) attached to a
+  `Fail`/`Block`/`Problem`'s own `Problem` now reaches the run's Next-steps
+  output — it was previously collected only from task-level `Next(...)`
+  calls and silently dropped otherwise.
+
 ## [1.0.0] — Define as the scheduling boundary; File/Fingerprint; MainWith and Each removed
 
 See [`docs/migration/1.0.md`](docs/migration/1.0.md) for the full upgrade guide.
@@ -166,12 +206,12 @@ shims; every deletion below has zero call sites left in this repo.
 
 - **Mutation verbs** (`Add`/`Delete`/`Create`/`Update`/`Remove`/`Write`/`Push`)
   are now `func (t *TaskHandle) Verb(object string, call func() error, opts
-...EffectOption) error`: the caller reports the domain effect and runs its
+  ...EffectOption) error`: the caller reports the domain effect and runs its
   own callback; evo derives the ledger entry, tense, and pluralization.
   `evo.Affected(n)` supplies quantity (`object` stays a singular noun phrase).
   `call == nil` records without executing.
 - **`TaskHandle.Warn`** is a non-terminal annotation (`TaskSnapshot.Warnings
-[]Problem`), not a lifecycle state — `EntityState.Warning` is deleted.
+  []Problem`), not a lifecycle state — `EntityState.Warning` is deleted.
   `· warned` is a conclusion-band modifier, derived from the field.
 - **Deleted**: `TaskHandle.Unchanged`/`Unchangedf`, `StateUnchanged` and its
   `[unchanged]` band, `Output.Changes`, `Output.Plan` (types unexported; the
@@ -218,7 +258,7 @@ shims; every deletion below has zero call sites left in this repo.
   `TaskSnapshot.Facts`/`Snapshot.Facts`/`Snapshot.Warnings` (run-scoped)
   join the wire document.
 - **Confirm gains a `›` input line** under the compact `?  <question>
-[y/N]` prompt (P11) — the typed answer lands on its own line instead of
+  [y/N]` prompt (P11) — the typed answer lands on its own line instead of
   competing with the question and choices.
 - **Dry-run header collapses to one line** (P12,
   fixture-repo-retire-dryrun.md): `Config.Subject` merges onto the
@@ -233,7 +273,7 @@ shims; every deletion below has zero call sites left in this repo.
 ### Fixed
 
 - **Evidence dedupe (P7)**: `task.Failf("install failed: %s",
-capture.Text())` — the anti-pattern user-13-problems.md Problem 7 names —
+  capture.Text())` — the anti-pattern user-13-problems.md Problem 7 names —
   previously rendered the retained evidence text twice (once folded into
   the caller's own summary, once again as Failf's auto-attached
   `EvidenceTail`). The render layer now skips the tail when the row's own
@@ -242,7 +282,7 @@ capture.Text())` — the anti-pattern user-13-problems.md Problem 7 names —
 
 - Container-child warnings now fold into the run conclusion — a warned child
   under a `Sequence`/`DisplayGroup` was previously invisible to the `·
-warned` band and `Conclusion.Warned` (regression window during the P1/P2
+  warned` band and `Conclusion.Warned` (regression window during the P1/P2
   work, closed before release).
 - A mutation verb skipped for a misuse reason (nil handle, nil Output, an
   already-resolved target) now always returns a sentinel error instead of
@@ -269,7 +309,7 @@ See `docs/reference.md`, `docs/guides/teaching-ladder.md`, and
   packages — the root directory now shows the library's shape instead of
   ~180 flat `.go` files. `version_drift_test.go` and the doctor-gated
   `PublishedRelease`/`VersionDrift` tests stay in root; internal (`package
-evo`) tests are untouched. `conformance/TRACEABILITY.md` and
+  evo`) tests are untouched. `conformance/TRACEABILITY.md` and
   `docs/architecture/COMPLETENESS_MATRIX.md` paths updated to match.
 - Extracted a shared `testkit.UnreadableStdin` helper (previously a private
   `panicReader` duplicated across a root test file and a moved golden test)
@@ -398,7 +438,7 @@ os.Exit(out.Run(run))
   resolution before `Finish` always wins over the auto-resolution.
 - **Mode-free mutation verbs**: `Config.DryRun` / `evo.DryRun()` declared
   once; `TaskHandle.Delete/Create/Update/Remove/Write/Push/Record/
-RecordName` render into the task's `Plan` (dry-run) or `Changes` (applied)
+  RecordName` render into the task's `Plan` (dry-run) or `Changes` (applied)
   section automatically — the imperative verb is used as-is for `[planned]`
   rows and conjugated to past tense for `[changed]` rows (an irregulars
   table plus a default `+d`/`+ed` rule). No call site ever flips its own
@@ -410,7 +450,7 @@ RecordName` render into the task's `Plan` (dry-run) or `Changes` (applied)
   confirmation gate — quiesces the live region, renders a durable
   `?  <question>  [y/N]` line, reads one line via an injectable
   `Config.Stdin` facade, and resolves to `OK` / `⊘ declined` / `⊘ blocked by
-policy` (never a Go error, never `Failed`/`Cancelled`).
+  policy` (never a Go error, never `Failed`/`Cancelled`).
   `evo.Destructive()` marks a severe question (delete/remove/trash/retire/
   force) with an explicit "(destructive)" render cue.
 - **Skip/keep taxonomy**: `evo.Reason("...")` (get-or-create, typo-safe once
@@ -534,7 +574,7 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
 - **Quantity type symmetry: `Changes`/`Plan` mutation verbs and `Record`/
   `RecordName` now take `int`** (pre-1.0 API break), matching the `int`
   quantity `TaskHandle` verbs already took: `Changes.Added/Updated/Removed/
-Deleted/Pushed/Record` and `Plan.Add/Update/Remove/Delete/Push/Record`.
+  Deleted/Pushed/Record` and `Plan.Add/Update/Remove/Delete/Push/Record`.
   A caller passing an untyped literal or `len(x)` is unaffected; a caller
   with an explicit `int64(...)` cast at the call site needs to drop the
   cast.
@@ -565,7 +605,7 @@ Deleted/Pushed/Record` and `Plan.Add/Update/Remove/Delete/Push/Record`.
 - The ledger's render-time pluralizer (`evo.Pluralize`) no longer blindly
   appends "s" to a glob/path/symbol object: only an object that reads as
   ordinary English words (letters and spaces) is pluralized, so `Delete(2,
-"stale origin/*")` renders `"stale origin/*"` instead of the mangled
+  "stale origin/*")` renders `"stale origin/*"` instead of the mangled
   `"stale origin/*s"`. The irregulars table (`package in .venv`, etc.) is
   unaffected — it is checked first.
 

@@ -86,7 +86,7 @@ go get github.com/zachbornheimer/evident-output@v1.0.0
 
 - `docs/philosophy/jazz-syntax.md` — one spelling per intent
 - `docs/philosophy/presentation-boundary.md` — presentation ≠ execution
-- `docs/philosophy/domain-vocabulary.md` — Task/mutation verbs/Detail/Failf evidence
+- `docs/philosophy/domain-vocabulary.md` — Task/Effect verbs/Detail/Failf evidence
 - `docs/guides/teaching-ladder.md` — ordinary learning order
 - `docs/roadmap/implementation-basis.md` — polish-phase authority
 
@@ -95,7 +95,7 @@ go get github.com/zachbornheimer/evident-output@v1.0.0
 ```text
 evo.Init(Config) → Print/Printf/Println → Verbose()
 → Task.Define / one Task per item under a Group or Sequence → task.Writer()
-→ mutation verbs (Delete(object, fn) / Affected; Record when the domain verb differs)
+→ evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) / evo.File inside Define (Record when the domain verb differs)
 → slog via SlogHandler → evo.Main(run)
 ```
 

@@ -31,6 +31,7 @@ func All() []Guide {
 			Rules: []string{
 				"API-001", "API-006", "API-026", "API-028", "API-029", "DOM-006", "DOM-007", "DOM-011", "CON-002",
 				"API-034", "API-035", "API-036", "API-037", "API-038", "DOM-018", "DOM-019", "DOM-020", "TAX-002", "TXT-020", "TXT-021",
+				"API-057",
 			},
 			Body: `Adoption ladder (guess-driven defaults — the naive spelling is the correct one):
   1) evo.Init(evo.Config{Title, DryRun}) once in main, before any I/O; os.Exit(evo.Main(run)) —
@@ -38,9 +39,16 @@ func All() []Guide {
      (wired to SIGINT/SIGTERM) and returns only error; Main returns the derived exit code and
      does not itself call os.Exit (evo.Run/Output.Run return the full Result instead, for a
      caller that needs the Conclusion and application error, not just the code).
-  2) task.Delete("worktree", fn, evo.Affected(n)) (also Add/Create/Update/Remove/Write/Push) — the
-     callback is the work; Affected is optional quantity. Config.DryRun picks
+  2) task.Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb:
+     evo.EffectDelete, Object: "worktree", Quantity: n}, fn) }) for an opaque mutation (git ref,
+     worktree, API change); evo.File(ctx, evo.FileSpec{...}) for file state. Config.DryRun picks
      [planned] vs [changed]; no call site ever flips its own tense or chooses Changed/Ready/Planned.
+     A filesystem mutator (os.WriteFile, os.Create, write-mode os.OpenFile, os.Remove, os.Rename)
+     inside an Effect callback is never correct (API-057): Effect is the opaque-mutation escape
+     hatch, not a second file-write API — route file state through evo.File, even when the new
+     content derives from an existing file's contents (read the file first, then pass the
+     derived result as FileSpec.Contents, or derive a FileSet with evo.Patch and commit it with
+     evo.Files, which guards each file's Basis against a stale write).
   3) worktrees := evo.Group("worktrees"); for _, path := range paths { worktrees.Task(path).Define(...) }
      for independent collections; evo.Sequence for ordered ones (same one-Task-per-item shape;
      Group.Each/Sequence.Each were removed in 1.0); .Writer() as cmd.Stdout so a talkative
@@ -63,6 +71,10 @@ streams its row the instant its owning task resolves (Done/Fail/Block), bounded 
 
 Severity: Warn = non-terminal annotation (does not resolve the task — call it any number of times before Done/
 Fail/Block); Block = stop before mutate; Fail = evaluation failed.
+One Task, many Problems (1.1/ZYS-848): task.Problem(summary, opts...) appends one blocking Problem without
+resolving the task — call it once per finding instead of a Task per finding. A nil Define return (or bare Done())
+after any accumulated Problem resolves the Task Failed, never Done. Warn also takes the same ProblemOptions
+(Detail/Code/On/Location/Next) as Problem/Fail/Block. See docs/migration/1.1.md.
 Exit-code honesty (DOM-020): Block and Fail carry different exit codes (1 vs 2) so a caller can tell "you did
 something wrong" from "something broke while checking". A usage or user mistake (missing flag, declined confirm,
 protected-branch policy) resolves Block, never Fail — routing it through Fail reports a user error as a system
@@ -72,22 +84,43 @@ are printf-variadic themselves — there is no separate Donef/Warnf/Taskf/Reason
 Never print a joined failure list yourself (CON-002): out.Println(strings.Join(failures, "\n")) duplicates the
 one summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows. Resolve each
 failure on its own Task and use Next(evo.Label(...)) for follow-up guidance instead.`,
-			TokenEstimate: 340,
+			TokenEstimate: 410,
 		},
 		{
 			ID:       "tasks",
 			Title:    "Tasks and progress",
 			UseCases: []string{"progress", "collections", "phase", "bytes", "heartbeat", "loop", "retry", "skip"},
 			Concepts: []string{"Task", "Group", "Sequence", "Progress", "Each", "Define", "Skipped", "Kept"},
-			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030", "API-039"},
-			Body: `Task is one atomic operation with optional Doing/Progress. Group/Sequence are collections whose state is
+			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030", "API-039", "API-045", "API-051"},
+			Body: `Task is one independently schedulable promise whose outcome is independently meaningful to the user (ZYS-838) —
+not a display row, not a subject label, not a container. A good Task name answers "what will this unit of work
+accomplish or determine?" and usually reads as an action, verb + concrete object ("check file integrity", "format
+Python", "stabilize Go source") — a strong heuristic, not a grammar validator: a concise contextual name can still
+be clear, and review never rejects a short name on grammar alone. Four semantic tests decide, in order of what
+actually matters: (1) does the Task's own name explain a failure without reading its children? (2) can it run/wait/
+fail/satisfy independently? (3) would the user care about its independent outcome? (4) is it actual work, rather
+than a category, a display heading, a fact, a verification dimension, or an implementation phase? "file integrity"
+names a subject, not the work (API-045); "fix" organizes several independently meaningful operations under one row
+instead of being one itself (API-045) — prefer a Group/Sequence such as Group("prepare staged files") with real
+verb+object Tasks underneath. One Task may still make several internal observations — "check file integrity" can
+inspect merge markers, path validity, symlinks, generated-file corruption — without turning each predicate into a
+sibling Task: report them as Fact/Warn/Problem evidence under the one Task that answers the single user-meaningful
+question, and only split one out into its own Task when it has an independently meaningful lifecycle/remediation
+and can run on its own.
+
+Task is one atomic operation with optional Doing/Progress. Group/Sequence are collections that organize work — they
+are never themselves fake work created just to earn a success row; state is
 derived from children — never call Done/Fail/Progress on the collection itself (API-027). A Group of
 exactly one explicit child is a lone Task (API-039): the live renderer collapses it to one line, and review flags the
 Go shape so agents do not write a Group named run plus a single child. Group's children
 are independent (the scheduler may overlap eligible work; concurrent Running children
 expected); Sequence's children are an ordered dependency that stops later, still-unresolved siblings as
 "-  not started" automatically once one fails or is cancelled (C13). Both offer nested .Sequence(name)/
-.Group(name) for recursive containers — a failure three levels deep still surfaces at the root header.
+.Group(name) for recursive containers — a failure three levels deep still surfaces at the root header. TaskHandle
+itself has no .Task/.Group/.Sequence child constructors (ZYS-838 Decisions): only Output/GroupHandle/SequenceHandle
+declare children, so a Task cannot structurally grow containers of its own. The renderer, not the container's mere
+presence, decides whether a container's own header row is visible or collapses into its one child — that decision
+is independent of whether the children underneath are Tasks or further nested containers.
 
 Heartbeat: any unresolved row (Running or Pending), and any unfinished container header, gains an elapsed
 suffix ("pushing feat/a — 5s") 5s after it is first actually painted in the live region — monotonic, never reset
@@ -95,7 +128,7 @@ by Doing/Progress activity, so a stale spinner is never indistinguishable from p
 honestly even if nothing ever touches it.
 
 Loops: prefer one named Task per item under evo.Group(name) (or Sequence) over a hand-maintained counter
-(Group.Each/Sequence.Each were removed in 1.0) — Define/mutation verbs submit each item's work. On manual retry, set
+(Group.Each/Sequence.Each were removed in 1.0) — Define submits each item's work. On manual retry, set
 Progress to the true completed count directly — there is no relative/delta counter to misuse (C7: Advance deleted).
 
 Sealed-total invariant: indeterminate → determinate happens once; after a total is sealed it never changes, and
@@ -115,6 +148,13 @@ or g.Go closure, then pass the handle in. Declaring the Task inside the closure 
 and produces the unordered multi-spinner defect Sequence's "one Running child" heart contract forbids.
 Prefer one named Task per item under Group/Sequence, submitted with Define, over caller
 goroutines (Group.Each/Sequence.Each were removed in 1.0) — Evo's scheduler owns overlap.
+
+One Task, many Problems (API-051, 1.1.0): a check that finds several independent issues owns one Task and
+calls task.Problem(summary, opts...) once per finding — never one Task per finding (Task(file).Fail(...) in a
+loop) and never every finding flattened into one errors.New(strings.Join(...)) string. Problem appends a
+blocking finding without resolving the Task; the Task still resolves exactly once, Failed if Define returns nil
+but at least one Problem was accumulated. Every accumulated Problem survives in Snapshot/JSON/JSONL even when
+human output bounds how many render inline.
 
 Facts vs Tasks (v0.4.0/P8): discovered information ("repository /repo", "language go", "config loaded") is not
 work — never fake a checkmark Task to display it. Use task.Fact(name, value) (attached to the Task that
@@ -159,7 +199,7 @@ Never invent a Basis entry the source code does not actually read (EVO-PROVENANC
 			Title:    "Stdout and stderr contracts",
 			UseCases: []string{"json", "data-command", "progress-stderr", "pipe", "color", "child", "exit-code", "signal"},
 			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "Config", "FormatData", "Main", "Writer"},
-			Rules:    []string{"STREAM-003", "STREAM-004", "OUT-001", "OUT-003", "OUT-004", "API-031", "EV-001"},
+			Rules:    []string{"STREAM-003", "STREAM-004", "OUT-001", "OUT-003", "OUT-004", "API-031", "EV-001", "SIG-001", "SIG-002"},
 			Body: `Human UI and logs must not contaminate structured stdout.
 Ordinary dual-stream: evo.Init(evo.Config{Stdout: os.Stdout, Stderr: os.Stderr}) — Config auto-applies Plain/NoColor off-TTY.
 FormatData reserves stdout for domain payload via ResultWriter; human presentation moves to stderr; a failed
@@ -169,7 +209,11 @@ Exit codes come only from evo.Main's returned code (os.Exit(evo.Main(run))), or 
 to os.Exit — that is exactly how a Blocked run (1) gets silently read as success, or a real
 failure reads as blocked. SIGINT/SIGTERM already route through Main into Cancel on the active task, so the
 ledger's ■ and the process exit code (130) can never disagree; a caller-written signal.Notify handler that
-calls os.Exit itself bypasses that reconciliation.
+calls os.Exit itself bypasses that reconciliation. A host that wraps evo.Main/evo.Run in its own
+signal.NotifyContext/signal.Notify for SIGINT/SIGTERM/os.Interrupt (as of 1.0.0) duplicates that same
+lifecycle and can let the ledger and the process's real exit path diverge; delete the duplicate layer and
+read cancellation from the ctx Main/Run already passes into the run callback. Signal handling for anything
+else (SIGHUP, SIGUSR1, ...) is unrelated application behavior and stays untouched.
 
 Child processes: cmd.Stdout = task.Writer(); cmd.Stderr = task.Writer(); on error
 task.Failf("...: %w", err) (the trailing %w renders as an evidence line under the summary).
@@ -197,12 +241,19 @@ Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 		{
 			ID:       "evo-file-exec",
 			Title:    "evo.File and evo.Exec: declarative tracked operations",
-			UseCases: []string{"write", "chmod", "generate", "subprocess", "pipeline", "reconcile"},
-			Concepts: []string{"File", "FileSpec", "Exec", "ExecSpec", "Fingerprint", "FSPath", "Outputs"},
-			Rules:    []string{"EVO-FILE-001", "EVO-EXEC-001"},
+			UseCases: []string{"write", "chmod", "generate", "subprocess", "pipeline", "reconcile", "resource", "lock"},
+			Concepts: []string{"File", "FileSpec", "Exec", "ExecSpec", "Fingerprint", "FSPath", "Outputs", "Resource", "FSResource", "Effect", "EffectSpec"},
+			Rules:    []string{"EVO-FILE-001", "EVO-EXEC-001", "API-053", "API-054", "API-055"},
 			Body: `evo.File(ctx, evo.FileSpec{Path, Contents, Mode, Basis}) replaces hand-rolled os.WriteFile +
 os.Chmod + a manual existence/hash check: it writes only on drift and no-ops when Path/Contents/Mode already
 match, with dry-run safety the hand-rolled version never had (EVO-FILE-001).
+
+File also claims write-side ownership of its own Path automatically — application code never wraps it in a
+caller-managed sync.Mutex/RWMutex or lock file (API-055, ZYS-931/ZYS-840). Overlapping File/Basis/Effect claims
+on the same or an ancestor path already wait on each other; a contended wait renders as "waiting for <path>" on
+its own. A non-File operation that still needs exclusivity over a path claims it explicitly with
+evo.FSResource(path) (or evo.LogicalResource(name) for non-filesystem shared state) via EffectSpec.Resource —
+never a caller lock, and never a generic Write(func...) callback for tracked file state.
 
 evo.Exec(ctx, evo.ExecSpec{Executable, Args, Basis, Outputs}) is the same declarative shape for an external
 process: it replaces os/exec.Command paired with a hand-written stat/hash/mtime freshness check, and no-ops
@@ -210,9 +261,24 @@ when the declared Outputs are already current against Basis (EVO-EXEC-001). Outp
 itself produces — never add them to Basis, and never flag a literal Exec Arg that already names a declared
 Output or the call's own Executable as an omitted input (EVO-PROVENANCE-001, see the provenance guide).
 
+evo.Exec returns (ExecResult, error): ExecResult carries Ran/ExitCode/Stdout/Stderr/Truncated, the same
+sanitized/redacted, bounded capture Evo already retains as evidence — a linter or check can parse it to build
+structured Problems/Facts without taking over process spawning, capture, liveness, or cancellation. Ordinary
+callers that never inspect the result ignore it with "_, err := evo.Exec(ctx, spec)"; Exec still owns capture
+either way — there is no second raw subprocess API to reach for.
+
 Both share one freshness contract: Basis lists every additional Fingerprint input (evo.FSPath/evo.Value/evo.App)
-whose change should invalidate the current result — call it inside task.Define, from a ctx that Define supplies.`,
-			TokenEstimate: 220,
+whose change should invalidate the current result — call it inside task.Define, from a ctx that Define supplies.
+
+File and file-backed Basis claim their own path automatically; no caller manages a mutex, lock file, or unlock
+lifecycle. For state Evo cannot model as desired file contents (a Git ref deletion, a worktree move, a remote
+push), evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity, Resource}, fn) performs one opaque mutation and,
+when Resource is set (evo.FSResource(path) or evo.LogicalResource(name)), holds it for fn's duration. Generic
+resource access holds at most one Resource at a time: a second evo.File or Resource-claiming evo.Effect call
+made with fn's own held ctx — directly, or through a helper fn hands that ctx to — fails deterministically with
+evo.ErrNestedResourceAcquisition instead of risking deadlock (API-053). Finish and return from the first
+Effect/File before starting a second, or claim one coarser Resource both mutations share.`,
+			TokenEstimate: 280,
 		},
 		{
 			ID:       "provenance",

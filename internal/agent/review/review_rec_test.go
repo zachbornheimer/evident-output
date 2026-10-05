@@ -7,9 +7,9 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
 )
 
-// Positional quantity-first Delete is the superseded mutation shape. API-032
-// must emit mechanically applicable one-liners that name Config fields and
-// Delete(object, fn) / Affected.
+// Positional quantity-first Delete is a removed mutation shape. API-032 must
+// emit mechanically applicable one-liners that name Config fields and the
+// 1.1 replacement, Define + evo.Effect with EffectSpec.Quantity.
 func TestAPI032_RepoRetireConfigAndDeleteShape(t *testing.T) {
 	src := `package p
 import (
@@ -28,15 +28,12 @@ func f(task *evo.TaskHandle, n int) {
 		t.Fatalf("want API-032 for Options/To/Plain/quantity-first Delete, got no findings")
 	}
 	joined := joinSuggestions(found)
-	if !strings.Contains(joined, `Delete("local tip"`) {
-		t.Fatalf("suggestion must name Delete(\"local tip\", fn), got %q", joined)
+	want := `with task.Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: n}, fn) })`
+	if !strings.Contains(joined, want) {
+		t.Fatalf("suggestion must rewrite to Define + evo.Effect:\nwant %s\ngot  %q", want, joined)
 	}
-	if !strings.Contains(joined, "Affected") {
-		t.Fatalf("suggestion must name Affected for quantity, got %q", joined)
-	}
-	withIdx := strings.Index(joined, "with task.Delete(")
-	if withIdx >= 0 && strings.Contains(joined[withIdx:], `Delete(n,`) {
-		t.Fatalf("replacement must not keep quantity-first Delete, got %q", joined)
+	if strings.Contains(joined, "Affected") {
+		t.Fatalf("suggestion must not teach the removed evo.Affected, got %q", joined)
 	}
 	if !strings.Contains(joined, "Stdout:") || !strings.Contains(joined, "Plain:") {
 		t.Fatalf("suggestion must name Config fields Stdout and Plain, not Option funcs, got %q", joined)
@@ -66,7 +63,7 @@ func run(out *evo.Output) error {
 	found := findAPI032(res)
 	joined := joinSuggestions(found)
 	cases := []string{
-		`Remove("worktree"`,
+		`evo.EffectRemove, Object: "worktree", Quantity: n}`,
 		`task.Skipped(evo.Reason("skipped")`,
 		`.Doing("scanning worktrees")`,
 		`with out.Task("scan")`,
@@ -140,8 +137,9 @@ import (
 func f(task *evo.TaskHandle, n int, reason evo.TaxonomyReason) {
 	var buf bytes.Buffer
 	evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
-	task.Delete("local tip", func() error { return nil }, Affected(n))
-	task.Remove("worktree", func() error { return nil }, Affected(n))
+	task.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: n}, removeTip)
+	})
 	task.Skipped(reason)
 	task.Doing("scanning worktrees")
 	evo.Task("branches")
@@ -190,8 +188,71 @@ func f(task *evo.TaskHandle, n int) {
 		t.Fatalf("want API-032 on both quantity-first Delete calls, got %+v", found)
 	}
 	joined := joinSuggestions(found)
-	if !strings.Contains(joined, `Delete("local tip"`) {
-		t.Fatalf("suggestion must invert to Delete(object, fn), got %q", joined)
+	if !strings.Contains(joined, `Object: "local tip", Quantity: 1}`) || !strings.Contains(joined, `Object: "worktree", Quantity: n}`) {
+		t.Fatalf("suggestion must carry each object and quantity into EffectSpec, got %q", joined)
+	}
+}
+
+// TestAPI032_LegacyObjectFirstMutationVerbIsRemoved pins ZYS-950: the
+// 1.0 object-first spelling Delete(object, fn, evo.Affected(n)) was removed
+// in 1.1. API-032 rewrites it to Define + evo.Effect, carrying the callback
+// body over with the context-taking signature Effect requires.
+func TestAPI032_LegacyObjectFirstMutationVerbIsRemoved(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle, n int) {
+	task.Delete("local tip", func() error { return removeTip() }, evo.Affected(n))
+	task.Push("remote ref", nil)
+}
+`
+	res := review.GoSource("legacy.go", src)
+	joined := joinSuggestions(findAPI032(res))
+	want := `with task.Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: n}, func(context.Context) error { return removeTip() }) })`
+	if !strings.Contains(joined, want) {
+		t.Fatalf("legacy Delete must rewrite to Define + evo.Effect:\nwant %s\ngot  %q", want, joined)
+	}
+	if !strings.Contains(joined, `evo.EffectPush, Object: "remote ref", Quantity: 1}, fn)`) {
+		t.Fatalf("legacy Push with a nil callback must still rewrite to evo.Effect, got %q", joined)
+	}
+}
+
+// TestAPI032_LegacyWriteRewritesToFile pins ZYS-950's File half: there is
+// no EffectWrite, so the removed Task.Write routes to evo.File.
+func TestAPI032_LegacyWriteRewritesToFile(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output"
+func f(task *evo.TaskHandle) {
+	task.Write("config.toml", func() error { return save() })
+}
+`
+	res := review.GoSource("write.go", src)
+	joined := joinSuggestions(findAPI032(res))
+	if !strings.Contains(joined, `evo.File(ctx, evo.FileSpec{Path: "config.toml", Contents: data})`) {
+		t.Fatalf("legacy Write must rewrite to evo.File, got %q", joined)
+	}
+	if strings.Contains(joined, "EffectWrite") {
+		t.Fatalf("EffectWrite does not exist; got %q", joined)
+	}
+}
+
+// TestAPI032_NonEvoVerbLookalikesNotFlagged guards the legacy-verb
+// detector's blast radius: same-named methods on non-evo values whose
+// second argument is not a work callback stay silent.
+func TestAPI032_NonEvoVerbLookalikesNotFlagged(t *testing.T) {
+	src := `package p
+import (
+	"net/http"
+	evo "github.com/zachbornheimer/evident-output"
+)
+func f(h http.Header, m map[string]int, ct string, _ *evo.TaskHandle) {
+	h.Add("Content-Type", ct)
+	h.Del("Accept")
+	delete(m, "k")
+}
+`
+	res := review.GoSource("lookalike.go", src)
+	if found := findAPI032(res); len(found) != 0 {
+		t.Fatalf("non-evo lookalikes must not be API-032: %+v", found)
 	}
 }
 

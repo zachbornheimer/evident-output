@@ -102,8 +102,9 @@ and `[planned]`/`[changed]` band from `Config.DryRun` — one call-site spelling
 tense flip:
 
 ```go
-task.Delete("packages", func() error { return removePackages(ids) }, evo.Affected(3))
-task.Add("packages", func() error { return installPackages(ids) }, evo.Affected(14))
+task.Define(func(ctx context.Context) error {
+	return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "package", Quantity: len(ids)}, removePackages)
+})
 ```
 
 RULE-005: dry-run picks `[planned]` from `Config.DryRun`, never a simulated Task. Live picks
@@ -113,12 +114,12 @@ RULE-005: dry-run picks `[planned]` from `Config.DryRun`, never a simulated Task
 
 ## RULE-001 — Domain verbs over generic verbs
 
-Use a mutation verb (`Add`/`Delete`/`Create`/`Update`/`Remove`/`Write`/`Push`) only when it is the
-**real** domain verb; reach for `Record` when it isn't.
+Use an `EffectVerb` (`EffectAdd`/`EffectCreate`/`EffectDelete`/`EffectPush`/`EffectRemove`/
+`EffectUpdate`) only when it is the **real** domain verb; reach for `Record` when it isn't.
 
 ```go
 // Wrong — "Added" is not what happened
-task.Add("files placed", func() error { return place(files) }, evo.Affected(1))
+evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectAdd, Object: "file placed", Quantity: 1}, place)
 
 // Right — Record the domain verb; object is the final grammatical object
 task.Record("placed", n, noun(n, "file", "files"))

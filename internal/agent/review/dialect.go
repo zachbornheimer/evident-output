@@ -13,7 +13,8 @@ const retiredIndependentCollection = "Display" + "Group"
 const dialectFold = "0.4.0"
 
 // dialectRec is the first release whose public surface is the rec dialect
-// (Task(name string), Delete(object, fn)/Affected, Config fields not Options).
+// (Task(name string), object-first mutation callbacks, Config fields not
+// Options). Those callbacks were removed in 1.1 in favor of evo.Effect.
 const dialectRec = "0.4.7"
 
 // dialectOneZero is the first release whose public surface supports Verify,
@@ -21,6 +22,18 @@ const dialectRec = "0.4.7"
 // VERIFY-001/DRYRUN-001/DAG-001/002/003 Suggestion recommends. A pin older
 // than this cannot apply those suggestions, so the rules must not fire for it.
 const dialectOneZero = "1.0.0"
+
+// dialectOneOne is the first release whose public surface supports
+// evo.Exec returning an inspectable ExecResult (ZYS-850) — the structured
+// capture/exit-code surface API-054 recommends in place of hand-rolled
+// bytes.Buffer/io.MultiWriter capture and string-match cancellation — plus
+// TaskHandle.Problem/Warn accumulating many structured Problems on one Task
+// before it resolves once (ZYS-848 Decisions 2026-09-23; docs/migration/1.1.md
+// "TaskHandle.Problem — a Task can now own many blocking findings"), and
+// GroupHandle.Wait/SequenceHandle.Wait (ZYS-849), the container wait/result
+// surface. API-051 and API-052 recommend these APIs, so those rules must not
+// fire for a pin older than this.
+const dialectOneOne = "1.1.0"
 
 // dialectAtLeast reports whether desired is the current dialect (empty) or
 // a pin at/after cutoff. Pre-cutoff pins do not fire that dialect's findings.

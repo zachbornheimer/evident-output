@@ -66,3 +66,9 @@ var (
 // a cancelled run already states itself in the row and the conclusion, and
 // the waiter needs "this did not succeed", not a second public name.
 var errWaitCancelled = errors.New("evo: awaited task was cancelled")
+
+// errWaitFailed is what TaskHandle.Wait returns for a row that resolved
+// Failed or Blocked with no callback error recorded — the callback settled
+// its own row and has not returned yet, or returned nil after doing so.
+// Unexported for the same reason as errWaitCancelled.
+var errWaitFailed = errors.New("evo: awaited task did not succeed")

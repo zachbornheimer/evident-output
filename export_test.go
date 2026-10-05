@@ -12,10 +12,12 @@ import (
 func SwapLookupEnv(fn func(string) string) func() { return engine.SwapLookupEnv(fn) }
 func MarkWriterAsCharDevice(w io.Writer) func()   { return engine.MarkWriterAsCharDevice(w) }
 
-type TestClock = engine.FixedClock
-type TestSystemClock = engine.SystemClock
-type TestRedactor = engine.NoopRedactor
-type TestEvidence = engine.Evidence
+type (
+	TestClock       = engine.FixedClock
+	TestSystemClock = engine.SystemClock
+	TestRedactor    = engine.NoopRedactor
+	TestEvidence    = engine.Evidence
+)
 
 func DelayForTest(d time.Duration) *time.Duration { return Delay(d) }
 func ReasonConstrained(name string, opts ...ReasonOption) TaxonomyReason {
@@ -76,13 +78,6 @@ func (o *Output) EvidenceForTest(opts ...EvidenceOption) *Evidence {
 		return nil
 	}
 	return o.inner.EvidenceForTest(opts...)
-}
-
-func (o *Output) Events() []Event {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return o.inner.Events()
 }
 
 func (o *Output) DebugForTest(message string, fields ...Field) {
