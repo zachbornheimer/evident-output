@@ -156,7 +156,8 @@ func TestSpecP22_ConfirmGate_Success(t *testing.T) {
 	for _, want := range []string{
 		"✓ confirm remote delete",
 		"[changed] remotes",
-		"deleted 1 origin tip"} {
+		"deleted 1 origin tip",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -217,7 +218,8 @@ func TestSpecP22_ConfirmGate_Error(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"⊘ confirm remote delete blocked by policy",
-		"→ pass --yes to confirm non-interactively"} {
+		"→ pass --yes to confirm non-interactively",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -615,7 +617,8 @@ func TestSpecP24_DataFormat_Failure(t *testing.T) {
 		Format: evo.FormatData,
 		Stderr: &presentation,
 		Result: &payload,
-		Color:  evo.ColorNever})
+		Color:  evo.ColorNever,
+	})
 	out.Task("scan").Fail("permission denied under ~/Developer")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -647,7 +650,8 @@ func TestSpecP24_DataFormat_Error(t *testing.T) {
 		Format: evo.FormatData,
 		Stderr: &presentation,
 		Result: &payload,
-		Color:  evo.ColorNever})
+		Color:  evo.ColorNever,
+	})
 	out.Task("scan").Fail("git rev-parse failed", evo.Detail("not a git repository"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -685,7 +689,8 @@ func TestSpecP24_DataFormat_EarlyTermination(t *testing.T) {
 		Format: evo.FormatData,
 		Stderr: &presentation,
 		Result: &payload,
-		Color:  evo.ColorNever}))
+		Color:  evo.ColorNever,
+	}))
 	scan := evo.Task("scan")
 
 	started := make(chan struct{})

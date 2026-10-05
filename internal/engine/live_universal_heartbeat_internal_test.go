@@ -29,6 +29,7 @@ func (f *fakeHeartbeatSurface) WriteLive(text string) {
 	f.last = text
 	f.mu.Unlock()
 }
+
 func (f *fakeHeartbeatSurface) latest() string {
 	f.mu.Lock()
 	defer f.mu.Unlock()

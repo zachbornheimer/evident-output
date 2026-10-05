@@ -1340,7 +1340,8 @@ func makeOut() *evo.Output { return evo.Init(evo.Config{}) }
 `,
 		"b.go": `package p
 func use() { _ = makeOut() }
-`}))
+`,
+	}))
 
 	if len(emitted) == 0 {
 		t.Fatal("no findings collected; fixtures no longer trigger any rule")
@@ -1363,7 +1364,8 @@ func use() { _ = makeOut() }
 func TestCallSiteFindingsCarrySuggestion(t *testing.T) {
 	structural := map[string]bool{
 		"API-000": true, "SCHEMA-001": true, "TERM-008": true,
-		"TERM-014": true, "MCP-017": true, "API-027": true}
+		"TERM-014": true, "MCP-017": true, "API-027": true,
+	}
 	src := `package p
 import (
   "bufio"
@@ -1435,7 +1437,8 @@ func use() {
   out.Task("t").Start()
   fmt.Println("x")
 }
-`}
+`,
+	}
 	res := review.GoPackage(files)
 	// Cross-file: Start and fmt from b.go must surface even though evo import is in a.go.
 	var hasStart, hasStream bool

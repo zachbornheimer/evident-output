@@ -92,9 +92,11 @@ func IsCharDevice(w io.Writer) bool        { return engine.IsCharDevice(w) }
 func Pluralize(quantity int64, singular string) string {
 	return engine.Pluralize(quantity, singular)
 }
+
 func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
 	return engine.RenderPlain(s, opts)
 }
+
 func TruncateNames(names []string, visible int) string {
 	return engine.TruncateNames(names, visible)
 }

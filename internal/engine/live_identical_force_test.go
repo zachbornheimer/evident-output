@@ -28,11 +28,13 @@ func (s *countingLiveSurface) WriteLive(text string) {
 	s.latest = text
 	s.mu.Unlock()
 }
+
 func (s *countingLiveSurface) frameCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.frames
 }
+
 func (s *countingLiveSurface) latestText() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()

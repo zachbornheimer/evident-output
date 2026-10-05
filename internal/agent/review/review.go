@@ -1775,8 +1775,10 @@ var itemCallPattern = regexp.MustCompile(`(\w+)\.Item\(`)
 
 // planCallPattern / changesCallPattern match the retired v0.2 Plan/Changes
 // surfaces. Suggestion is Task mutation verbs, not a new Plan/Changes API.
-var planCallPattern = regexp.MustCompile(`(\w+)\.Plan\(`)
-var changesCallPattern = regexp.MustCompile(`(\w+)\.Changes\(`)
+var (
+	planCallPattern    = regexp.MustCompile(`(\w+)\.Plan\(`)
+	changesCallPattern = regexp.MustCompile(`(\w+)\.Changes\(`)
+)
 
 // becauseCallPattern matches the retired .Because(text) annotation chain —
 // its text is now the resolving verb's own argument (e.g. Done(text)).
