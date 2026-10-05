@@ -636,12 +636,17 @@ func TestSpecConcurrentGroups_BothRunning(t *testing.T) {
 	<-wtStarted
 	<-brStarted
 
-	got := screen.LatestLiveText()
-	if !strings.Contains(got, "worktrees") || !strings.Contains(got, "branches") {
-		t.Fatalf("want both Groups in the live frame, got:\n%s", got)
-	}
-	if strings.Count(got, "○") > 0 {
-		t.Fatalf("concurrent Groups should both be Running, not pending, got:\n%s", got)
+	deadline := time.Now().Add(2 * time.Second)
+	var got string
+	for {
+		got = screen.LatestLiveText()
+		if strings.Contains(got, "worktrees") && strings.Contains(got, "branches") && strings.Count(got, "○") == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("concurrent Groups should both be Running, not pending, got:\n%s", got)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
