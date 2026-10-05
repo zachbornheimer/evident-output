@@ -103,7 +103,9 @@ func (o *Output) takeEligible() (st *taskState, fn func() error) {
 	if cand == nil {
 		return nil, nil
 	}
-	o.emitWireEventLocked(wire.EventTaskEligible, cand.id, nil)
+	if cand.gateFor == nil {
+		o.emitWireEventLocked(wire.EventTaskEligible, cand.id, nil)
+	}
 	o.takeSlotLocked()
 	return o.claimLocked(cand)
 }
@@ -120,6 +122,9 @@ func (o *Output) takeSlotLocked() {
 func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error) {
 	o.enterPhaseLocked(cand, phaseRunning)
 	o.sched.executing++
+	if cand.gateFor != nil {
+		return cand, cand.sched.work
+	}
 	if cand.state == Pending {
 		o.promoteRunningLocked(cand)
 	}
@@ -165,6 +170,10 @@ func (o *Output) finishClaimed(st *taskState, pooled bool) {
 // Shared by the pooled worker (runWork) and by a waiter that donates its own
 // goroutine to work it would otherwise block on (TaskHandle.Wait).
 func (o *Output) executeWork(st *taskState, fn func() error) {
+	if st.gateFor != nil {
+		o.runGate(st)
+		return
+	}
 	var err error
 	if fn != nil {
 		err = o.runTrackedCallback(fn)

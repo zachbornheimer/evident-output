@@ -70,7 +70,7 @@ func (t *TaskHandle) After(preds ...any) *TaskHandle {
 // the loop that populates it waits for every child (E-028); a Wait, the
 // drain, or a stall closes it instead.
 func (o *Output) closeMembershipLocked(p predecessor) predecessor {
-	if p.col == nil || p.through != 0 || p.col.tally.total() == 0 {
+	if p.col == nil || p.through != 0 || p.col.tally.total() == 0 || p.col.tally.holds > 0 {
 		return p
 	}
 	p.through = o.declSeq
@@ -90,6 +90,8 @@ func (o *Output) sealCollectionLocked(c *tasksState) {
 func (o *Output) edgeCursorLocked(p predecessor) (cursor int, open bool) {
 	t := &p.col.tally
 	switch {
+	case t.holds > 0:
+		return 0, true
 	case p.through != 0:
 		return p.through, false
 	case t.sealed:
@@ -168,6 +170,9 @@ func (o *Output) taskOutcomeLocked(t *taskState) predOutcome {
 // c's entry, so the members succeed only once the entry has.
 func (o *Output) collectionOutcomeLocked(p predecessor) (predOutcome, predecessor) {
 	t := &p.col.tally
+	if t.builderFailed {
+		return predFailed, p
+	}
 	cursor, open := o.edgeCursorLocked(p)
 	switch {
 	case open && t.firstFailed != 0, !open && t.failedThrough(cursor):
@@ -349,6 +354,11 @@ func (o *Output) replaceParkedLocked() {
 		st.sched.dependents = nil
 		if st.sched.phase == phaseParked {
 			parked = append(parked, st)
+		}
+	}
+	for _, gate := range o.sched.gates {
+		if gate.sched.phase == phaseParked {
+			parked = append(parked, gate)
 		}
 	}
 	for _, col := range o.tasksByRef {

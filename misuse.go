@@ -11,6 +11,8 @@ var (
 	ErrRenderer             = engine.ErrRenderer
 	ErrLimitExceeded        = engine.ErrLimitExceeded
 	ErrConcurrentRunning    = engine.ErrConcurrentRunning
+	ErrComputedUnsettled    = engine.ErrComputedUnsettled
+	ErrDeclaredInCallback   = engine.ErrDeclaredInCallback
 	ErrDryRunDeclaredLate   = engine.ErrDryRunDeclaredLate
 	ErrTerminalWithoutSink  = engine.ErrTerminalWithoutSink
 	ErrNotStarted           = engine.ErrNotStarted

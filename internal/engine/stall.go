@@ -89,6 +89,11 @@ func (o *Output) abandonStrandedLocked() bool {
 			o.markNotStartedLocked(st)
 		}
 	}
+	for _, gate := range o.sched.gates {
+		if gate.sched.phase == phaseParked && !core.IsTerminalTask(gate.state) {
+			o.markNotStartedLocked(gate)
+		}
+	}
 	return true
 }
 

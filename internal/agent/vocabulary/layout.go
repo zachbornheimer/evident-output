@@ -22,7 +22,8 @@ var conceptFile = map[string]string{
 	"Problem": "problem.go", "Action": "action.go", "Fact": "fact.go",
 	"Verify": "verify.go", "Evidence": "verify.go", "Fingerprint": "basis.go",
 	"File": "file.go", "Patch": "patch.go", "Files": "patch.go", "Exec": "exec.go",
-	"Capture": "capture.go", "Effect": "effect.go", "Resource": "resource.go",
+	"Capture": "capture.go", "Compute": "compute.go", "Effect": "effect.go",
+	"Resource": "resource.go",
 	"Snapshot": "snapshot.go", "Machine output": "format.go",
 	"Human output": "human.go", "Debug journal": "debug.go", "Misuse": "misuse.go",
 }

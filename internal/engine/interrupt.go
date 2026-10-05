@@ -57,6 +57,11 @@ func (o *Output) abandonQueuedWork() {
 		}
 		o.markNotStartedLocked(st)
 	}
+	for _, gate := range o.sched.gates {
+		if gate.sched.phase != phaseRunning && !core.IsTerminalTask(gate.state) {
+			o.markNotStartedLocked(gate)
+		}
+	}
 }
 
 func (o *Output) cancelActive(reason string) {

@@ -28,6 +28,9 @@ ColorMode	helper	Human output
 ColorNever	helper	Human output
 Command	helper	Action
 CommandSpec	helper	Action
+Compute	canonical	Compute
+Computed	canonical	Compute
+Computed.Get	canonical	Compute
 Conclusion	helper	Conclusion
 ConclusionJSON	removed	Machine output
 ConclusionState	helper	Conclusion
@@ -75,7 +78,9 @@ EncodeJSONL	removed	Machine output
 EntityState	helper	Conclusion
 ErrAlreadyResolved	helper	Misuse
 ErrClosed	helper	Misuse
+ErrComputedUnsettled	helper	Misuse
 ErrConcurrentRunning	helper	Misuse
+ErrDeclaredInCallback	helper	Misuse
 ErrDryRunDeclaredLate	helper	Misuse
 ErrDuplicateKey	helper	Misuse
 ErrDuplicateSiblingName	helper	Misuse
@@ -166,6 +171,8 @@ GlyphsAuto	helper	Human output
 GlyphsUnicode	helper	Human output
 Group	canonical	Group
 GroupHandle	canonical	Group
+GroupHandle.After	canonical	After
+GroupHandle.Define	canonical	Define
 GroupHandle.Group	canonical	Group
 GroupHandle.Sequence	canonical	Sequence
 GroupHandle.Snapshot	helper	Snapshot
@@ -203,9 +210,9 @@ LogLevel	helper	Debug journal
 LogRecord	helper	Debug journal
 LogicalResource	helper	Resource
 Main	canonical	Run
+MaxCaptureBytes	helper	Capture
 MaxEntities	removed	Run
 MaxEvents	removed	Run
-MaxCaptureBytes	helper	Capture
 MaxEvidenceBytes	removed	Capture
 MaxFrameRate	removed	Run
 MessageSnapshot	helper	Snapshot
@@ -302,6 +309,8 @@ Runner	removed	Run
 Running	helper	Conclusion
 Sequence	canonical	Sequence
 SequenceHandle	canonical	Sequence
+SequenceHandle.After	canonical	After
+SequenceHandle.Define	canonical	Define
 SequenceHandle.Group	canonical	Group
 SequenceHandle.Sequence	canonical	Sequence
 SequenceHandle.Snapshot	helper	Snapshot

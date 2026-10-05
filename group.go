@@ -2,8 +2,10 @@ package evo
 
 import "github.com/zachbornheimer/evident-output/internal/engine"
 
-type SequenceHandle struct{ inner *engine.SequenceHandle }
-type GroupHandle struct{ inner *engine.GroupHandle }
+type (
+	SequenceHandle struct{ inner *engine.SequenceHandle }
+	GroupHandle    struct{ inner *engine.GroupHandle }
+)
 
 // Sequence declares a self-managing, ordered task container on the default
 // instance.
@@ -20,12 +22,57 @@ func (o *Output) Sequence(name string) *SequenceHandle {
 }
 
 func (t *TaskHandle) After(preds ...any) *TaskHandle {
+	t.impl().After(unwrapPreds(preds)...)
+	return t
+}
+
+func unwrapPreds(preds []any) []any {
 	unwrapped := make([]any, len(preds))
 	for i, p := range preds {
 		unwrapped[i] = unwrapPred(p)
 	}
-	t.impl().After(unwrapped...)
-	return t
+	return unwrapped
+}
+
+// After declares predecessors: this Group declares its children only once
+// every one of them succeeded, and never does once one of them cannot. A
+// predecessor is a Task, a *Computed, a Group, or a Sequence, in any
+// container. Call After before Define and before declaring a child.
+func (g *GroupHandle) After(preds ...any) *GroupHandle {
+	g.impl().After(unwrapPreds(preds)...)
+	return g
+}
+
+// After is GroupHandle.After for a Sequence.
+func (s *SequenceHandle) After(preds ...any) *SequenceHandle {
+	s.impl().After(unwrapPreds(preds)...)
+	return s
+}
+
+// Define defers this Group's children until its After predecessors have
+// succeeded. build runs once, then, and declares the children through the
+// Group it receives; they run with the Group's normal concurrent
+// semantics, so a Skipped or Define on a child is the ordinary per-Task API.
+//
+// build is topology only: it takes no context, returns no error, and must
+// not Wait. When a predecessor failed, build never runs and the Group
+// settles NotStarted. Declaring Tasks or containers from inside a Task's
+// Define callback is misuse (ErrDeclaredInCallback).
+func (g *GroupHandle) Define(build func(*GroupHandle)) {
+	if build == nil {
+		g.impl().Define(nil)
+		return
+	}
+	g.impl().Define(func(inner *engine.GroupHandle) { build(wrapGroup(inner)) })
+}
+
+// Define is GroupHandle.Define for a Sequence: build declares ordered steps.
+func (s *SequenceHandle) Define(build func(*SequenceHandle)) {
+	if build == nil {
+		s.impl().Define(nil)
+		return
+	}
+	s.impl().Define(func(inner *engine.SequenceHandle) { build(wrapSequence(inner)) })
 }
 
 func wrapSequence(inner *engine.SequenceHandle) *SequenceHandle {
@@ -67,6 +114,8 @@ func unwrapPred(p any) any {
 			return (*engine.SequenceHandle)(nil)
 		}
 		return x.inner
+	case interface{ producer() *engine.TaskHandle }:
+		return x.producer()
 	default:
 		return p
 	}

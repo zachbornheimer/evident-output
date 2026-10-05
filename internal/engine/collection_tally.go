@@ -36,6 +36,13 @@ type collectionTally struct {
 	// unsealed membership.
 	parked []parkedTask
 	open   []*taskState
+	// holds counts the topology builders still pending in this container
+	// or beneath it (see containerBuilder). While any is, the membership
+	// is not final, so no edge on it is sealed or closed.
+	holds int
+	// builderFailed records that a builder under this container never
+	// declared its children, so the container can never fully succeed.
+	builderFailed bool
 }
 
 // parkedTask is a Task parked on a collection edge that reads members
@@ -96,7 +103,7 @@ func (t *collectionTally) settle(st *taskState) (woken []*taskState) {
 // empty as declared through cursor, and returns the Tasks parked on
 // those edges so they re-read it.
 func (t *collectionTally) seal(cursor int) (woken []*taskState) {
-	if t.sealed {
+	if t.sealed || t.holds > 0 {
 		return nil
 	}
 	t.sealed, t.sealedThrough = true, cursor
@@ -143,4 +150,32 @@ func (t *collectionTally) park(st *taskState, cursor int, open bool) {
 // unpark drops every parked Task: the drain re-places them all.
 func (t *collectionTally) unpark() {
 	t.parked, t.open = nil, nil
+}
+
+// release drops one pending builder's hold. When the last hold goes, a
+// container that ran the builder takes its membership as declared (seal);
+// an ancestor stays open for its own caller and only re-reads. It returns
+// the Tasks to place again.
+func (t *collectionTally) release(seal bool, cursor int) (woken []*taskState) {
+	t.holds--
+	if t.holds > 0 {
+		return nil
+	}
+	if seal {
+		return t.seal(cursor)
+	}
+	woken, t.open = t.open, nil
+	return woken
+}
+
+// failBuilder records that a builder under this container never declared
+// its children, and returns every Task waiting on the container.
+func (t *collectionTally) failBuilder() (woken []*taskState) {
+	t.builderFailed = true
+	woken, t.open = t.open, nil
+	for _, p := range t.parked {
+		woken = append(woken, p.st)
+	}
+	t.parked = nil
+	return woken
 }

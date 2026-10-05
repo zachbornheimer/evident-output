@@ -22,6 +22,10 @@ func (o *Output) settleLocked(st *taskState, state EntityState) {
 	state = st.honestOutcome(state)
 	from := st.state
 	st.state = state
+	if st.gateFor != nil {
+		o.concludeGateLocked(st)
+		return
+	}
 	st.censusMoved(from)
 	st.phase = ""
 	o.stopPlainHeartbeatLocked(st)

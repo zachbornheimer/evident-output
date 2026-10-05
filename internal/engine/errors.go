@@ -16,6 +16,12 @@ var (
 	ErrReasonSkipOnly     = errors.New("evo: reason restricted to Skipped was recorded via Kept")
 	ErrReasonWrongTask    = errors.New("evo: reason restricted to another task")
 	ErrConcurrentRunning  = errors.New("evo: two siblings in the same collection are Running simultaneously")
+	// ErrComputedUnsettled is recorded when Computed.Get is called before
+	// the Task that produces the value settled successfully.
+	ErrComputedUnsettled = errors.New("evo: Computed read before its Task settled")
+	// ErrDeclaredInCallback is recorded when a Task, Group, or Sequence is
+	// declared from inside a Task's Define callback.
+	ErrDeclaredInCallback = errors.New("evo: declared from inside a Task callback")
 	ErrDryRunDeclaredLate = errors.New("evo: DeclareDryRun called after a durable row was already emitted")
 	// ErrTerminalWithoutSink is recorded when Config.Terminal is set but
 	// Config.Stdout is nil, and the driver cannot report its own destination

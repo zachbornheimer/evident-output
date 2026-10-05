@@ -127,7 +127,7 @@ func TestNestedGroups_ThreeLevelLiveByteShape(t *testing.T) {
 
 	frame := screen.LatestLiveText()
 	lines := strings.Split(frame, "\n")
-	var indentOf = func(line string) int {
+	indentOf := func(line string) int {
 		return len(line) - len(strings.TrimLeft(line, " "))
 	}
 	var releaseIndent, pythonIndent, venvIndent, installIndent int
