@@ -748,10 +748,24 @@ A conceptual record:
         "ordinal": 0,
         "definition_fingerprint": "sha256:exec-def-123",
         "basis": [
-          { "kind": "fs_path", "path": "generate.py", "fingerprint": "sha256:111" },
-          { "kind": "fs_path", "path": "input.xlsx", "fingerprint": "sha256:222" }
+          {
+            "kind": "fs_path",
+            "path": "generate.py",
+            "fingerprint": "sha256:111"
+          },
+          {
+            "kind": "fs_path",
+            "path": "input.xlsx",
+            "fingerprint": "sha256:222"
+          }
         ],
-        "outputs": [{ "kind": "file", "path": "build/schema.bin", "fingerprint": "sha256:abc" }]
+        "outputs": [
+          {
+            "kind": "file",
+            "path": "build/schema.bin",
+            "fingerprint": "sha256:abc"
+          }
+        ]
       }
     ]
   }

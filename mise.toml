@@ -139,7 +139,16 @@ run = "bash eval/run.sh"
 
 [tasks.ci]
 description = "Full gate: lint + test + scan + conformance + traceability + api-contract + spec-ratchet + v0.6/1.0 acceptance (increments 1-3)"
-depends = ["lint", "test", "scan", "conformance", "traceability", "api-contract", "spec-ratchet", "acceptance-v06-green"]
+depends = [
+  "lint",
+  "test",
+  "scan",
+  "conformance",
+  "traceability",
+  "api-contract",
+  "spec-ratchet",
+  "acceptance-v06-green",
+]
 
 [tasks.verify-quiet-pty-stream]
 description = "Prove a quiet Writer task keeps its live frame changing <100ms, measured from the pty byte stream (no tmux)"
