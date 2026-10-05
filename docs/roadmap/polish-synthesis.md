@@ -1,5 +1,10 @@
 # Evident Output — Polish Synthesis
 
+**Historical:** written against v0.2.8. The "Warn vs Block vs Fail"
+armature below predates the 1.1 removal of Warn (Problem wins over Warn —
+see CHANGELOG and [docs/migration/1.1.md](../migration/1.1.md)); read this
+as a snapshot of the planning discussion at the time, not current API.
+
 **Date:** 2026-07-28
 **Status:** Working synthesis for refinement → next phase
 **Scope:** Artistic DX, platform honesty, librarian adoption, multi-party critique

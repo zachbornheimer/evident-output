@@ -195,9 +195,6 @@ func TestScheduler_SequenceDeclarationOrderMaxOne(t *testing.T) {
 		t.Fatalf("Sequence max observed concurrency = %d, want 1", maxObserved)
 	}
 	want := []string{"a", "b", "c"}
-	if got := out.SchedulerStartOrder(); !equalStrings(got, want) {
-		t.Fatalf("scheduler start order = %v, want %v", got, want)
-	}
 	if !equalStrings(startOrder, want) {
 		t.Fatalf("callback start order = %v, want %v", startOrder, want)
 	}
@@ -307,9 +304,11 @@ func TestScheduler_DryRunMutationNeverCallsCallback(t *testing.T) {
 	var buf bytes.Buffer
 	out := isolatedScheduler(t, schedulerTestCeiling, &buf, true)
 	called := false
-	out.Task("delete branch").Delete("local tip", func() error {
-		called = true
-		return nil
+	out.Task("delete branch").Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 1}, func(context.Context) error {
+			called = true
+			return nil
+		})
 	})
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)

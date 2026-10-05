@@ -47,10 +47,7 @@ func (p Plan) Page(opts InventoryOptions) (Page, error) {
 	bucket := grouped[rung]
 	offset := 0
 	if cur.Rung == string(rung) {
-		offset = cur.Offset
-		if offset > len(bucket) {
-			offset = len(bucket)
-		}
+		offset = min(cur.Offset, len(bucket))
 	}
 	end := min(offset+limit, len(bucket))
 	out.Findings = bucket[offset:end]

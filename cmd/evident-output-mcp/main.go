@@ -5,25 +5,19 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"regexp"
 	"runtime/debug"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/agent/adopt"
 	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
-	"github.com/zachbornheimer/evident-output/internal/agent/preview"
-	"github.com/zachbornheimer/evident-output/internal/agent/review"
 	"github.com/zachbornheimer/evident-output/internal/agent/rules"
-	"github.com/zachbornheimer/evident-output/internal/agent/sections"
 )
 
 // serverInstructions is the MCP `instructions` hint returned on initialize —
@@ -108,8 +102,8 @@ const latestProtocol = "2025-06-18"
 const (
 	defaultToolDeadline = 30 * time.Second
 	toolNameMaxLen      = 64
-	// maxNDJSONFrameBytes bounds a single newline-delimited JSON-RPC message.
-	maxNDJSONFrameBytes = 8 << 20 // 8 MiB, same as Content-Length path
+	// maxFrameBytes bounds one JSON-RPC message, in either framing.
+	maxFrameBytes = 8 << 20 // 8 MiB
 )
 
 var toolNameRE = regexp.MustCompile(`^[a-z][a-z0-9_.]{0,63}$`)
@@ -159,10 +153,14 @@ func runStdioServer(in io.Reader, out io.Writer) {
 	outW = out
 	outMode = frameNDJSON
 	outMu.Unlock()
-	initialized := false
+	var srv server
 	r := bufio.NewReaderSize(in, 1024*1024)
 	for {
 		msg, mode, err := readMCPMessage(r)
+		if errors.Is(err, errFrameTooLarge) {
+			writeRPCError(nil, -32600, fmt.Sprintf("request exceeds %d MiB", maxFrameBytes>>20))
+			continue
+		}
 		if err != nil {
 			if err != io.EOF {
 				fmt.Fprintf(os.Stderr, "stdin: %v\n", err)
@@ -176,165 +174,89 @@ func runStdioServer(in io.Reader, out io.Writer) {
 		outMu.Lock()
 		outMode = mode
 		outMu.Unlock()
+		srv.handle(msg, mode)
+	}
+}
 
-		var req map[string]any
-		if err := json.Unmarshal(msg, &req); err != nil {
-			fmt.Fprintf(os.Stderr, "parse error (%v): %q\n", mode, truncateForLog(msg, 120))
-			writeRPCError(nil, -32700, "parse error")
-			continue
+// server is one stdio session's lifecycle state.
+type server struct {
+	initialized bool
+}
+
+// handle answers one JSON-RPC message.
+func (s *server) handle(msg []byte, mode framingMode) {
+	var req map[string]any
+	if err := json.Unmarshal(msg, &req); err != nil {
+		fmt.Fprintf(os.Stderr, "parse error (%v): %q\n", mode, truncateForLog(msg, 120))
+		writeRPCError(nil, -32700, "parse error")
+		return
+	}
+	method, _ := req["method"].(string)
+	id := req["id"]
+	// MCP-001: reject out-of-lifecycle tool/resource calls before initialize.
+	if !s.initialized && method != "initialize" && method != "ping" {
+		if id != nil {
+			writeRPCError(id, -32002, "server not initialized; call initialize first")
 		}
-		method, _ := req["method"].(string)
-		id := req["id"]
-		// MCP-001: reject out-of-lifecycle tool/resource calls before initialize.
-		if !initialized && method != "initialize" && method != "ping" {
-			if id != nil {
-				writeRPCError(id, -32002, "server not initialized; call initialize first")
-			}
-			continue
+		return
+	}
+	switch method {
+	case "initialize":
+		s.initialized = true
+		handleInitialize(id, req)
+	case "tools/list":
+		writeRPC(id, map[string]any{"tools": toolList()})
+	case "tools/call":
+		safeToolCall(id, req)
+	case "resources/list":
+		writeRPC(id, map[string]any{
+			"resources": []map[string]any{
+				{"uri": "evident-output://guides/common-api", "name": "common-api", "mimeType": "text/plain"},
+				{"uri": "evident-output://rules/API-006", "name": "API-006", "mimeType": "application/json"},
+				{"uri": "evident-output://meta/catalog-checksum", "name": "catalog-checksum", "mimeType": "text/plain"}}})
+	case "resources/read":
+		handleResourceRead(id, req)
+	case "notifications/initialized", "initialized", "ping":
+		// notifications/initialized has no id and no response.
+		// ping may carry an id (utilities/ping).
+		if id != nil {
+			writeRPC(id, map[string]any{})
 		}
-		switch method {
-		case "initialize":
-			params, _ := req["params"].(map[string]any)
-			clientProto, _ := params["protocolVersion"].(string)
-			negotiated := "2024-11-05"
-			if clientProto != "" {
-				if supportedProtocols[clientProto] {
-					negotiated = clientProto
-				} else {
-					// Unknown/newer client version: per spec, negotiate down to
-					// our latest supported version rather than erroring — the
-					// client decides whether our version works for it.
-					negotiated = latestProtocol
-				}
-			}
-			initialized = true
-			// serverInfo: only name/version/title per lifecycle schema — no custom fields
-			// (strict hosts reject unknown InitializeResult properties).
-			writeRPC(id, map[string]any{
-				"protocolVersion": negotiated,
-				"capabilities": map[string]any{
-					// Empty objects advertise the capability groups we implement.
-					"tools":     map[string]any{},
-					"resources": map[string]any{}},
-				"serverInfo": map[string]any{
-					"name":    "evident-output-mcp",
-					"version": resolvedVersion()},
-				// Optional human hint (allowed on InitializeResult).
-				"instructions": serverInstructions})
-		case "tools/list":
-			writeRPC(id, map[string]any{"tools": toolList()})
-		case "tools/call":
-			safeToolCall(id, req)
-		case "resources/list":
-			writeRPC(id, map[string]any{
-				"resources": []map[string]any{
-					{"uri": "evident-output://guides/common-api", "name": "common-api", "mimeType": "text/plain"},
-					{"uri": "evident-output://rules/API-006", "name": "API-006", "mimeType": "application/json"},
-					{"uri": "evident-output://meta/catalog-checksum", "name": "catalog-checksum", "mimeType": "text/plain"}}})
-		case "resources/read":
-			handleResourceRead(id, req)
-		case "notifications/initialized", "initialized", "ping":
-			// notifications/initialized has no id and no response.
-			// ping may carry an id (utilities/ping).
-			if id != nil {
-				writeRPC(id, map[string]any{})
-			}
-		default:
-			if id != nil {
-				writeRPCError(id, -32601, "method not found: "+method)
-			}
+	default:
+		if id != nil {
+			writeRPCError(id, -32601, "method not found: "+method)
 		}
 	}
 }
 
-// readMCPMessage reads one JSON-RPC message from r.
-// Supports NDJSON (spec) and LSP-style Content-Length frames (some clients).
-func readMCPMessage(r *bufio.Reader) ([]byte, framingMode, error) {
-	// Peek for Content-Length without consuming a bare JSON line.
-	for {
-		// Skip leading CR/LF.
-		b, err := r.ReadByte()
-		if err != nil {
-			return nil, frameNDJSON, err
+// handleInitialize answers initialize with the negotiated protocol.
+func handleInitialize(id any, req map[string]any) {
+	params, _ := req["params"].(map[string]any)
+	clientProto, _ := params["protocolVersion"].(string)
+	negotiated := "2024-11-05"
+	if clientProto != "" {
+		if supportedProtocols[clientProto] {
+			negotiated = clientProto
+		} else {
+			// Unknown/newer client version: per spec, negotiate down to
+			// our latest supported version rather than erroring — the
+			// client decides whether our version works for it.
+			negotiated = latestProtocol
 		}
-		if b == '\n' || b == '\r' {
-			continue
-		}
-		if err := r.UnreadByte(); err != nil {
-			return nil, frameNDJSON, err
-		}
-		break
 	}
-
-	peek, err := r.Peek(1)
-	if err != nil {
-		return nil, frameNDJSON, err
-	}
-	// Content-Length header (case-insensitive) — used by some MCP client SDKs.
-	if peek[0] == 'C' || peek[0] == 'c' {
-		headerLine, err := r.ReadString('\n')
-		if err != nil {
-			return nil, frameContentLength, err
-		}
-		headerLine = strings.TrimRight(headerLine, "\r\n")
-		if !strings.HasPrefix(strings.ToLower(headerLine), "content-length:") {
-			// Not a content-length header; treat as broken NDJSON starting with C.
-			return []byte(headerLine), frameNDJSON, nil
-		}
-		nStr := strings.TrimSpace(headerLine[len("Content-Length:"):])
-		// header may be "content-length:" with different case
-		if i := strings.Index(strings.ToLower(headerLine), ":"); i >= 0 {
-			nStr = strings.TrimSpace(headerLine[i+1:])
-		}
-		n, err := strconv.Atoi(nStr)
-		if err != nil || n < 0 || n > 8<<20 {
-			return nil, frameContentLength, fmt.Errorf("invalid Content-Length %q", nStr)
-		}
-		// Consume optional additional headers until blank line.
-		for {
-			line, err := r.ReadString('\n')
-			if err != nil {
-				return nil, frameContentLength, err
-			}
-			if line == "\n" || line == "\r\n" {
-				break
-			}
-		}
-		body := make([]byte, n)
-		if _, err := io.ReadFull(r, body); err != nil {
-			return nil, frameContentLength, err
-		}
-		return body, frameContentLength, nil
-	}
-
-	// NDJSON: one JSON object per line, hard-capped.
-	var buf bytes.Buffer
-	for {
-		b, err := r.ReadByte()
-		if err != nil {
-			if buf.Len() == 0 {
-				return nil, frameNDJSON, err
-			}
-			// Incomplete final frame without newline.
-			break
-		}
-		if b == '\n' {
-			break
-		}
-		if buf.Len() >= maxNDJSONFrameBytes {
-			// Drain until newline or EOF so the next message can resync.
-			for {
-				bb, e2 := r.ReadByte()
-				if e2 != nil || bb == '\n' {
-					break
-				}
-			}
-			return nil, frameNDJSON, fmt.Errorf("ndjson frame exceeds %d bytes", maxNDJSONFrameBytes)
-		}
-		buf.WriteByte(b)
-	}
-	line := bytes.TrimRight(buf.Bytes(), "\r")
-	return line, frameNDJSON, nil
+	// serverInfo: only name/version/title per lifecycle schema — no custom fields
+	// (strict hosts reject unknown InitializeResult properties).
+	writeRPC(id, map[string]any{
+		"protocolVersion": negotiated,
+		"capabilities": map[string]any{
+			// Empty objects advertise the capability groups we implement.
+			"tools":     map[string]any{},
+			"resources": map[string]any{}},
+		"serverInfo": map[string]any{
+			"name":    "evident-output-mcp",
+			"version": resolvedVersion()},
+		// Optional human hint (allowed on InitializeResult).
+		"instructions": serverInstructions})
 }
 
 // truncateForLog reports only length metadata — never payload bytes (may hold secrets/source).
@@ -372,6 +294,15 @@ func toolList() []map[string]any {
 				"files":           map[string]any{"type": "object"},
 				"desired_version": map[string]any{"type": "string"},
 				"deadline_ms":     map[string]any{"type": "integer"}}}},
+		{"name": "evident_output_conformance", "description": "Answer whether a repo's Evo usage is current: what is stale, unsafe, mechanically upgradable, has explicit vs opaque provenance, or needs developer intent. Same inputs as evident_output_review (source/file or kind=directory); returns {target_version, findings[{rule,severity,file,line,summary,migration}]}", "inputSchema": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"source":         map[string]any{"type": "string"},
+				"file":           map[string]any{"type": "string"},
+				"directory":      map[string]any{"type": "string"},
+				"kind":           map[string]any{"type": "string"},
+				"target_version": map[string]any{"type": "string"},
+				"deadline_ms":    map[string]any{"type": "integer"}}}},
 		{"name": "evident_output_update", "description": "Install a matching evident-output-mcp binary for a go.mod pin (--directory) or a release tag (--version), then symlink into ~/.local/bin. Requires version XOR directory. After it returns, restart the MCP host.", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -425,8 +356,8 @@ func safeToolCall(id any, req map[string]any) {
 // normalizeToolName maps legacy dotted names (evident_output_list_guides) to
 // the advertised underscore form Grok and other hosts register cleanly.
 func normalizeToolName(name string) string {
-	if strings.HasPrefix(name, "evident_output.") {
-		return "evident_output_" + strings.TrimPrefix(name, "evident_output.")
+	if after, ok := strings.CutPrefix(name, "evident_output."); ok {
+		return "evident_output_" + after
 	}
 	return name
 }
@@ -464,325 +395,35 @@ func handleToolCall(id any, req map[string]any) {
 		return
 	}
 
-	switch name {
-	case "evident_output_list_guides":
-		useCase, _ := args["use_case"].(string)
-		guides := catalog.Filter(useCase)
-		maxTok := intFromArgs(args, "max_tokens")
-		truncated := false
-		if maxTok > 0 {
-			guides, truncated = catalog.ApplyTokenBudget(guides, maxTok)
-		}
-		if cancelled.Load() {
-			writeRPC(id, toolError("deadline exceeded"))
-			return
-		}
-		text := fmt.Sprintf("%d guides", len(guides))
-		if truncated {
-			text += " (truncated to token budget)"
-		}
-		writeRPC(id, map[string]any{
-			"content": []map[string]any{{"type": "text", "text": text}},
-			"structuredContent": map[string]any{
-				"schema":    "evident_output.guides.v1",
-				"guides":    guides,
-				"truncated": truncated,
-				"checksum":  catalog.Checksum()}})
-	case "evident_output_get_guidance":
-		var ids []string
-		if raw, ok := args["ids"].([]any); ok {
-			for _, v := range raw {
-				if s, ok := v.(string); ok {
-					ids = append(ids, s)
-				}
-			}
-		}
-		found, missing := catalog.Get(ids)
-		maxTok := intFromArgs(args, "max_tokens")
-		truncated := false
-		if maxTok > 0 {
-			found, truncated = catalog.ApplyTokenBudget(found, maxTok)
-		}
-		if cancelled.Load() {
-			writeRPC(id, toolError("deadline exceeded"))
-			return
-		}
-		text := fmt.Sprintf("found=%d missing=%d", len(found), len(missing))
-		if truncated {
-			text += " truncated"
-		}
-		writeRPC(id, map[string]any{
-			"content": []map[string]any{{"type": "text", "text": text}},
-			"structuredContent": map[string]any{
-				"schema":    "evident_output.guidance.v1",
-				"guides":    found,
-				"missing":   missing,
-				"truncated": truncated}})
-	case "evident_output_explain":
-		ruleID, _ := args["rule_id"].(string)
-		if r, ok := rules.Explain(ruleID); ok {
-			writeRPC(id, map[string]any{
-				"content": []map[string]any{{"type": "text", "text": r.Invariant}},
-				"structuredContent": map[string]any{
-					"schema": "evident_output.rule.v1",
-					"rule":   r}})
-			return
-		}
-		writeRPC(id, toolError("unknown rule"))
-	case "evident_output_list_sections":
-		query, _ := args["query"].(string)
-		list := sections.Filter(query)
-		if cancelled.Load() {
-			writeRPC(id, toolError("deadline exceeded"))
-			return
-		}
-		writeRPC(id, map[string]any{
-			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("%d sections", len(list))}},
-			"structuredContent": map[string]any{
-				"schema":   "evident_output.sections.v1",
-				"sections": summarizeSections(list)}})
-	case "evident_output_get_documentation":
-		var ids []string
-		if raw, ok := args["ids"].([]any); ok {
-			for _, v := range raw {
-				if s, ok := v.(string); ok {
-					ids = append(ids, s)
-				}
-			}
-		}
-		var found []sections.Section
-		var missing []string
-		for _, sid := range ids {
-			if s, ok := sections.Get(sid); ok {
-				found = append(found, s)
-			} else {
-				missing = append(missing, sid)
-			}
-		}
-		if cancelled.Load() {
-			writeRPC(id, toolError("deadline exceeded"))
-			return
-		}
-		writeRPC(id, map[string]any{
-			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("found=%d missing=%d", len(found), len(missing))}},
-			"structuredContent": map[string]any{
-				"schema":   "evident_output.documentation.v1",
-				"sections": found,
-				"missing":  missing}})
-	case "evident_output_adopt_plan":
-		directory, _ := args["directory"].(string)
-		if directory == "" {
-			writeRPC(id, toolError("directory is required"))
-			return
-		}
-		if isRemotePath(directory) {
-			writeRPC(id, toolError("remote path unsupported; pass a local directory (MCP-036)"))
-			return
-		}
-		cursor, _ := args["cursor"].(string)
-		page, err := adopt.InventoryPage(directory, adopt.InventoryOptions{
-			Cursor: cursor,
-			Limit:  intFromArgs(args, "limit")})
-		if err != nil {
-			writeRPC(id, toolError("adopt_plan: "+err.Error()))
-			return
-		}
-		if cancelled.Load() {
-			writeRPC(id, toolError("deadline exceeded"))
-			return
-		}
-		writeRPC(id, map[string]any{
-			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("%d findings, remaining=%d — %s", len(page.Findings), page.Remaining, page.NextAction)}},
-			"structuredContent": map[string]any{
-				"schema":      "evident_output_adopt_plan.v1",
-				"directory":   page.Directory,
-				"findings":    page.Findings,
-				"rung":        page.Rung,
-				"remaining":   page.Remaining,
-				"next_cursor": page.NextCursor,
-				"next_action": page.NextAction,
-				"facades":     page.Facades,
-				"caveat":      page.Caveat}})
-	case "evident_output_review":
-		src, _ := args["source"].(string)
-		file, _ := args["file"].(string)
-		kind, _ := args["kind"].(string)
-		if kind == "directory" {
-			handleReviewDirectory(id, args, &cancelled)
-			return
-		}
-		if file == "" {
-			file = "input.go"
-		}
-		// MCP-036: remote paths unsupported — accept inlined content, or a
-		// readable local absolute path.
-		if isRemotePath(file) {
-			writeRPC(id, toolError("remote path unsupported; pass source content only (MCP-036)"))
-			return
-		}
-		if src == "" && filepath.IsAbs(file) {
-			read, err := os.ReadFile(file)
-			if err != nil {
-				writeRPC(id, toolError(fmt.Sprintf("cannot read %s: %s", file, err)))
-				return
-			}
-			src = string(read)
-		}
-		var res review.Result
-		switch kind {
-		case "transcript":
-			res = review.Transcript(file, src)
-		case "json", "structured":
-			res = review.StructuredDocument(file, []byte(src))
-		case "package":
-			// MCP-017: multi-file map via JSON object in source or single pair.
-			// Each map value may be inline source text or a readable local
-			// absolute path — resolved the same way as the single `file` form.
-			files := map[string]string{file: src}
-			if raw, ok := args["files"].(map[string]any); ok {
-				files = map[string]string{}
-				for k, v := range raw {
-					s, ok := v.(string)
-					if !ok {
-						continue
-					}
-					if isRemotePath(s) {
-						writeRPC(id, toolError("remote path unsupported; pass source content only (MCP-036)"))
-						return
-					}
-					if filepath.IsAbs(s) {
-						read, err := os.ReadFile(s)
-						if err != nil {
-							writeRPC(id, toolError(fmt.Sprintf("cannot read %s: %s", s, err)))
-							return
-						}
-						s = string(read)
-					}
-					files[k] = s
-				}
-			}
-			if allFileContentEmpty(files) {
-				writeRPC(id, toolError("empty source after decode: check files map shape"))
-				return
-			}
-			res = review.GoPackage(files)
-		default:
-			if src == "" {
-				writeRPC(id, toolError("no source to review: pass `source` content or an absolute `file` path that exists"))
-				return
-			}
-			desired, _ := args["desired_version"].(string)
-			res = review.GoSourceAt(file, src, desired)
-		}
-		if cancelled.Load() {
-			writeRPC(id, toolError("deadline exceeded"))
-			return
-		}
-		applyDesiredVersion(&res, args)
-		writeReviewResult(id, res)
-	case "evident_output_update":
-		handleUpdateTool(id, args)
-	case "evident_output_preview":
-		subject, _ := args["subject"].(string)
-		item, _ := args["item"].(string)
-		state, _ := args["state"].(string)
-		dbg, _ := args["debug"].(string)
-		if subject == "" {
-			subject = "demo"
-		}
-		if item == "" {
-			item = "status"
-		}
-		var buf bytes.Buffer
-		out := evo.Init(evo.Config{Title: subject, Stdout: &buf, Plain: true, Color: evo.ColorNever, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
-		it := out.Task(item)
-		switch state {
-		case "blocked":
-			it.Block("blocked for demo")
-		case "failed":
-			it.Fail("failed for demo")
-		default:
-			it.Done()
-		}
-		_ = dbg
-		_ = out.Finish()
-		snap := out.Snapshot()
-		profiles := preview.DefaultProfiles(snap)
-		if cancelled.Load() {
-			writeRPC(id, toolError("deadline exceeded"))
-			return
-		}
-		writeRPC(id, map[string]any{
-			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("%d profiles", len(profiles))}},
-			"structuredContent": map[string]any{
-				"schema":   "evident_output_preview.v1",
-				"profiles": profiles,
-				"plain":    buf.String()}})
-	default:
+	handler, ok := toolHandlers()[name]
+	if !ok {
 		writeRPC(id, toolError("unknown tool"))
+		return
 	}
+	handler(id, args, &cancelled)
 }
 
-// allFileContentEmpty reports whether every entry in a package-kind `files`
-// map decoded to no usable content — e.g. the map held non-string values, or
-// resolved paths read as empty. This is the honest diagnosis for the "empty
-// source" failure mode: a generic parser EOF error tells the caller nothing
-// about which of these two shapes actually happened.
-func allFileContentEmpty(files map[string]string) bool {
-	for _, content := range files {
-		if content != "" {
-			return false
-		}
-	}
-	return true
-}
+// toolHandler serves one MCP tool call. cancelled reports the call's soft
+// deadline has passed; a handler must not return results after it.
+type toolHandler func(id any, args map[string]any, cancelled *atomic.Bool)
 
-func handleReviewDirectory(id any, args map[string]any, cancelled *atomic.Bool) {
-	directory, _ := args["directory"].(string)
-	if directory == "" {
-		writeRPC(id, toolError("directory is required"))
-		return
+// toolHandlers maps each advertised tool name to its handler: adding a
+// tool is one entry here, one in toolList, and one in toolArgAllowlist.
+func toolHandlers() map[string]toolHandler {
+	return map[string]toolHandler{
+		"evident_output_list_guides":       handleListGuides,
+		"evident_output_get_guidance":      handleGetGuidance,
+		"evident_output_explain":           handleExplain,
+		"evident_output_list_sections":     handleListSections,
+		"evident_output_get_documentation": handleGetDocumentation,
+		"evident_output_adopt_plan":        handleAdoptPlan,
+		"evident_output_review":            handleReview,
+		"evident_output_conformance":       handleConformanceTool,
+		"evident_output_update": func(id any, args map[string]any, _ *atomic.Bool) {
+			handleUpdateTool(id, args)
+		},
+		"evident_output_preview": handlePreview,
 	}
-	if isRemotePath(directory) {
-		writeRPC(id, toolError("remote path unsupported; pass a local directory (MCP-036)"))
-		return
-	}
-	if !filepath.IsAbs(directory) {
-		writeRPC(id, toolError("directory must be an absolute local path"))
-		return
-	}
-	desired, _ := args["desired_version"].(string)
-	res, err := review.GoDirectoryAt(directory, desired)
-	if err != nil {
-		writeRPC(id, toolError("review directory: "+err.Error()))
-		return
-	}
-	if cancelled.Load() {
-		writeRPC(id, toolError("deadline exceeded"))
-		return
-	}
-	applyDesiredVersion(&res, args)
-	writeReviewResult(id, res)
-}
-
-func applyDesiredVersion(res *review.Result, args map[string]any) {
-	if v, _ := args["desired_version"].(string); v != "" {
-		res.DesiredVersion = v
-	}
-}
-
-// summarizeSections strips body text for the list view — evident_output_list_sections
-// is a table of contents; evident_output_get_documentation returns the body.
-func summarizeSections(list []sections.Section) []map[string]any {
-	out := make([]map[string]any, 0, len(list))
-	for _, s := range list {
-		out = append(out, map[string]any{
-			"id":       s.ID,
-			"title":    s.Title,
-			"source":   s.Source,
-			"concepts": s.Concepts})
-	}
-	return out
 }
 
 func toolError(msg string) map[string]any {
@@ -804,6 +445,8 @@ func toolArgAllowlist() map[string]map[string]bool {
 			"ids": true, "max_tokens": true, "deadline_ms": true},
 		"evident_output_review": {
 			"source": true, "file": true, "directory": true, "kind": true, "files": true, "desired_version": true, "deadline_ms": true},
+		"evident_output_conformance": {
+			"source": true, "file": true, "directory": true, "kind": true, "desired_version": true, "target_version": true, "deadline_ms": true},
 		"evident_output_update": {"version": true, "directory": true, "deadline_ms": true},
 		"evident_output_preview": {
 			"subject": true, "item": true, "state": true, "debug": true, "deadline_ms": true},

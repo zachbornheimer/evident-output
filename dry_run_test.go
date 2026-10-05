@@ -16,7 +16,7 @@ func TestDryRun_TrueRendersPlannedImperative(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true, DryRun: true})
 	branches := out.Task("branches")
-	branches.Delete("local branch", func() error { return nil }, evo.Affected(12))
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestDryRun_FalseRendersChangedPastTense(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true})
 	branches := out.Task("branches")
-	branches.Delete("local branch", func() error { return nil }, evo.Affected(12))
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 	branches := out.Task("branches")
-	branches.Delete("local branch", func() error { return nil }, evo.Affected(3))
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 3))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -94,17 +94,16 @@ func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 }
 
 // TestTaskHandle_MultipleMutationsAccumulateOnOneSubject exercises the
-// get-or-create Plan/Changes identity: repeated Record calls on the same
-// task accumulate into one section instead of one per call. Named mutation
-// verbs submit work and resolve the Task (one per Task); Record is the
-// ledger primitive that can stack rows on one subject.
+// get-or-create Plan/Changes identity: repeated Effect calls in one Task's
+// Define accumulate into one section instead of one per call.
 func TestTaskHandle_MultipleMutationsAccumulateOnOneSubject(t *testing.T) {
 	t.Parallel()
 	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
-	branches := out.Task("branches")
-	branches.Record("delete", 3, "local branch")
-	branches.Record("update", 1, "tip")
+	commit(out.Task("branches"),
+		evo.EffectSpec{Verb: evo.EffectDelete, Object: "local branch", Quantity: 3},
+		evo.EffectSpec{Verb: evo.EffectUpdate, Object: "tip", Quantity: 1},
+	)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -118,26 +117,26 @@ func TestTaskHandle_MultipleMutationsAccumulateOnOneSubject(t *testing.T) {
 }
 
 // TestConjugatePast_TableIncludingIrregulars pins the display-facing tense
-// conjugation: default +d/+ed rule plus the write->wrote irregular.
+// conjugation of every EffectVerb: the default +d/+ed rule, the doubled
+// consonant, and install/uninstall. (write->wrote belongs to evo.File.)
 func TestConjugatePast_TableIncludingIrregulars(t *testing.T) {
 	t.Parallel()
-	cases := map[string]string{
-		"delete": "deleted",
-		"create": "created",
-		"update": "updated",
-		"remove": "removed",
-		"push":   "pushed",
-		"write":  "wrote",
+	cases := map[evo.EffectVerb]string{
+		evo.EffectAdd:       "added",
+		evo.EffectDelete:    "deleted",
+		evo.EffectCreate:    "created",
+		evo.EffectUpdate:    "updated",
+		evo.EffectRemove:    "removed",
+		evo.EffectPush:      "pushed",
+		evo.EffectInstall:   "installed",
+		evo.EffectUninstall: "uninstalled",
 	}
 	for imperative, want := range cases {
-		imperative, want := imperative, want
-		t.Run(imperative, func(t *testing.T) {
+		t.Run(string(imperative), func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
 			out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "t", Color: evo.ColorNever, Plain: true})
-			subject := out.Task("subject")
-			subject.RecordName(imperative, "object")
-			subject.Done()
+			commit(out.Task("subject"), evo.EffectSpec{Verb: imperative, Object: "object", Quantity: 1})
 			if err := out.Finish(); err != nil {
 				t.Fatal(err)
 			}
@@ -156,9 +155,9 @@ func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Title: "t", Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("branches")
-	task.Done()
+	succeed(task)
 
-	task.Delete("thing", func() error { return nil }, evo.Affected(1))
+	task.Define(effectOf(evo.EffectDelete, "thing", 1))
 
 	if out.Err() == nil {
 		t.Fatal("want recorded misuse after mutating a resolved task")
@@ -166,37 +165,5 @@ func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 	snap := out.Snapshot()
 	if len(snap.Changes) != 0 {
 		t.Fatalf("no mutation should have been recorded, got %+v", snap.Changes)
-	}
-}
-
-// TestWriteEffects_ZeroAffectedMutationVerbRendersNoSection proves a
-// mutation-verb call (TaskHandle.Delete/...) with Affected(0) never declares
-// a Plan/Changes section at all — no ledger row, no "nothing to X" fallback
-// line either.
-//
-// E2.5 finding 4 supersedes this test's original expectation ("nothing to
-// delete branches" via the mutation-verb boundary): that grammar is exactly
-// the fixture's "[planned] repo-retire" phantom-row bug class an effect that
-// never happened must never materialize a ledger section of its own. The
-// "nothing to <verb> <subject>" empty-section grammar itself is still
-// covered — for TaskHandle.Record's own zero-quantity contract, a distinct,
-// lower-level primitive Affected's fix does not touch — by
-// TestSpecP18_RemoteTrackingVsRemoteDelete_Step2.
-func TestWriteEffects_ZeroAffectedMutationVerbRendersNoSection(t *testing.T) {
-	t.Parallel()
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "clean", Color: evo.ColorNever, Plain: true, DryRun: true})
-	branches := out.Task("branches")
-	branches.Delete("local branch", func() error { return nil }, evo.Affected(0))
-	branches.Done()
-	if err := out.Finish(); err != nil {
-		t.Fatal(err)
-	}
-	got := buf.String()
-	if strings.Contains(got, "nothing to") || strings.Contains(got, "[planned] branches") {
-		t.Fatalf("want no \"branches\" ledger section at all for a zero-Affected mutation verb, got:\n%s", got)
-	}
-	if len(out.Snapshot().Plans) != 0 {
-		t.Fatalf("want no Plan section declared, got %+v", out.Snapshot().Plans)
 	}
 }

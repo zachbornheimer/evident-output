@@ -8,11 +8,11 @@ import (
 )
 
 // Run is the ordinary way to shell out from a Task: it executes cmd as this
-// task's subprocess, wiring cmd.Stdout/cmd.Stderr through the same evidence +
+// task's subprocess, wiring cmd.Stdout/cmd.Stderr through the same capture +
 // PhaseWriter plumbing PhaseWriter uses directly. Each line becomes the
 // task's live Phase, and every byte is retained (redacted, bounded) in the
-// task's evidence ring so DetailTail has proof after Fail — reach for
-// evidence directly only when the caller isn't running an *exec.Cmd. If
+// task's capture ring so DetailTail has proof after Fail — reach for
+// capture directly only when the caller isn't running an *exec.Cmd. If
 // cmd.Stdout/cmd.Stderr already point somewhere (a caller wiring its own log
 // file, say), Run tees into it rather than replacing it.
 //
@@ -28,17 +28,17 @@ import (
 // context handling of its own.
 //
 // Run returns the subprocess error verbatim and never resolves the task —
-// the caller chooses Done/Fail from the result:
+// the caller's Define callback turns the result into the outcome:
 //
 //	cmd := exec.Command("go", "build", "./...")
 //	if err := task.run(cmd); err != nil {
-//	    return task.Failf("build failed: %w", err)
+//	    return fmt.Errorf("build failed: %w", err)
 //	}
-//	task.Done()
+//	return nil
 func (t *TaskHandle) run(cmd *exec.Cmd) error {
 	if t != nil && t.out != nil {
 		t.ensurePhase(commandPhaseName(cmd))
-		pw := &phaseWriter{task: t, evidence: t.evidence()}
+		pw := &phaseWriter{task: t, capture: t.capture()}
 		cmd.Stdout = teeSubprocessWriter(cmd.Stdout, pw)
 		cmd.Stderr = teeSubprocessWriter(cmd.Stderr, pw)
 	}

@@ -40,14 +40,20 @@ type config struct {
 	// cache-dir manifest path derivation.
 	stateDir string
 	appID    string
+	// processRunner is the facade evo.Exec spawns child processes through
+	// (spec §8.4). Defaults to osProcessRunner{} in resolveConfig.
+	processRunner ProcessRunner
+	// fileFS is the facade evo.File performs filesystem I/O through (spec
+	// §8.2). Defaults to osFileFS{} in newOutput.
+	fileFS FileFS
 	// stdin is the facade Confirm reads one answer line from (default os.Stdin,
 	// resolved lazily so NewWithOptions callers that skip Stdin still work).
 	stdin io.Reader
 	// failedExitCode overrides ExitFailed when conclusion is StateFailed.
 	// Zero means use ExitFailed (2).
 	failedExitCode int
-	// dryRun selects mutation-verb tense: true renders TaskHandle mutation
-	// verbs as [planned]/imperative, false as [changed]/past tense. Both
+	// dryRun selects ledger tense: true renders Effect/File rows as
+	// [planned]/imperative, false as [changed]/past tense. Both
 	// Config.DryRun and Config.Preview set it — they are one tense with two
 	// announcements (see preview below).
 	dryRun bool
@@ -89,6 +95,13 @@ type config struct {
 	// fallback text, since by then any Subject has already streamed as its
 	// own line.
 	dryRunHeaderText string
+	// wireFormat is non-zero only for FormatJSON/FormatJSONL (spec §32.1) —
+	// independent of the legacy projection field above, which drives the
+	// pre-existing EVO_OUTPUT-selected "0.4"/"0.3" encoders. wireStream is
+	// where the v2 document/event lines land (Config.Stdout); presentation
+	// keeps going to primary/diagnostic exactly as FormatData routes it.
+	wireFormat Format
+	wireStream io.Writer
 }
 
 type optionFunc func(*config)
@@ -116,6 +129,18 @@ func resultStream(w io.Writer) Option {
 			c.result = w
 		}
 	})
+}
+
+// wireFormatOption selects the v2 machine wire encoder Finish/appendEventLocked
+// write alongside ordinary human presentation (FormatJSON/FormatJSONL only —
+// see configToOptions).
+func wireFormatOption(f Format) Option {
+	return optionFunc(func(c *config) { c.wireFormat = f })
+}
+
+// wireStreamOption sets where the v2 wire encoder writes (Config.Stdout).
+func wireStreamOption(w io.Writer) Option {
+	return optionFunc(func(c *config) { c.wireStream = w })
 }
 
 // Plain forces final-report projection (no live spinner region).
@@ -160,8 +185,8 @@ func strict() Option {
 	return optionFunc(func(c *config) { c.strict = true })
 }
 
-// DryRun declares this run a dry run: TaskHandle mutation verbs (Delete,
-// Create, Update, Remove, Write, Push, Record, RecordName) render as
+// DryRun declares this run a dry run: evo.Effect, evo.File, and
+// evo.Exec render as
 // [planned] rows with imperative verbs instead of [changed] rows with
 // past-tense verbs. Set once via Config.DryRun in ordinary application code;
 // this Option exists for the advanced NewWithOptions surface and tests.
@@ -307,6 +332,21 @@ func withStateDir(dir string) Option {
 // withAppID mirrors Config.AppID (spec §11.3).
 func withAppID(id string) Option {
 	return optionFunc(func(c *config) { c.appID = id })
+}
+
+// withProcessRunner injects the facade evo.Exec spawns every child process
+// through (spec §8.4) — testkit installs a scripted fake so Exec's skip
+// protocol, capture, and cancellation are provable without a real
+// subprocess.
+func withProcessRunner(r ProcessRunner) Option {
+	return optionFunc(func(c *config) { c.processRunner = r })
+}
+
+// withFileFS injects the facade evo.File performs filesystem I/O through
+// (spec §8.2) — testkit installs a fake so a reconciliation outcome (e.g.
+// a chmod failure) is provable without a real disk permission.
+func withFileFS(fsys FileFS) Option {
+	return optionFunc(func(c *config) { c.fileFS = fsys })
 }
 
 // AlsoWrite adds an additional human projection writer. On Finish, each writer

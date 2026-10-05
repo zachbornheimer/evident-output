@@ -2,7 +2,7 @@ package engine
 
 // suspend quiesces live paint for an exclusive-TTY window (Confirm's
 // prompt/answer). It is unexported: a stopped spinner is not a product
-// state. Child processes use Task.Run / Writer so the live row keeps moving.
+// state. Child processes write to task.Writer() so the live row keeps moving.
 func (o *Output) Suspend(fn func() error) error {
 	if fn == nil {
 		return nil

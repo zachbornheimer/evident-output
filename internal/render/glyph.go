@@ -1,8 +1,9 @@
-// Package render is evident-output's presentation machinery: plain,
-// structured (JSON/JSONL), and interactive (live) projection of a
-// internal/core Snapshot. Imports core and internal/text; never imports the
-// root package (see internal/core's package doc for why — root imports
-// render and delegates, so render importing root back would cycle).
+// Package render holds evident-output's shared presentation vocabulary —
+// row writers, glyphs, and style shared by the durable (render/plain) and
+// interactive (render/live) projections of a internal/core Snapshot.
+// Imports core and internal/text; never imports the root package (see
+// internal/core's package doc for why — root imports render and
+// delegates, so render importing root back would cycle).
 package render
 
 import (

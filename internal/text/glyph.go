@@ -60,9 +60,12 @@ var (
 	GlyphWarningState = glyphSpec{"!", "[!]"}
 	GlyphCancelled    = glyphSpec{"■", "[cancel]"}
 	GlyphNotStarted   = glyphSpec{"-", "[-]"}
-	GlyphPending      = glyphSpec{"○", "[.]"}
-	GlyphRunning      = glyphSpec{"◐", "[~]"}
-	GlyphHumanInput   = glyphSpec{"?", "[?]"}
+	// GlyphSkipDetail leads a skipped/already-satisfied detail row — a plain
+	// dash in both profiles (contract §20, §41 "Already-satisfied detail").
+	GlyphSkipDetail = glyphSpec{"-", "-"}
+	GlyphPending    = glyphSpec{"○", "[.]"}
+	GlyphRunning    = glyphSpec{"◐", "[~]"}
+	GlyphHumanInput = glyphSpec{"?", "[?]"}
 	// GlyphNextAction marks a follow-up command/label line. evo-rec.md's
 	// tightened vocabulary table gives it its own row so the meaning does not
 	// depend on the cyan color alone (rule: text/glyph carries meaning).
@@ -75,6 +78,11 @@ var (
 	// GlyphUnclassified covers states with no distinct row in the vocabulary
 	// table (e.g. Empty); it must stay visually distinct from Pending's "○".
 	GlyphUnclassified = glyphSpec{"·", "."}
+	// GlyphHeartbeat marks the plain/non-interactive §40 durable heartbeat
+	// row ("• <name>  — 30s") — deliberately distinct from GlyphRunning's
+	// "◐" so a heartbeat line is never mistaken for a real Phase/Progress
+	// update; it means only "still Running, nothing new to report."
+	GlyphHeartbeat = glyphSpec{"•", "*"}
 )
 
 // SpinnerPeriod is the wall-clock duration between spinner frame advances.

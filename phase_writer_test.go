@@ -28,7 +28,7 @@ func TestPhaseWriter_SplitsOnLF_AcrossWrites(t *testing.T) {
 		t.Fatalf("phase after split LF write = %q, want %q", got, "cloning repo")
 	}
 
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestPhaseWriter_CRDelimitsProgressFrames(t *testing.T) {
 		t.Fatalf("phase after CR-delimited frames = %q, want %q", got, "100%")
 	}
 
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestPhaseWriter_BlankLinesIgnored(t *testing.T) {
 		t.Fatalf("phase = %q, want %q (blank lines must not clear it)", got, "second")
 	}
 
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestPhaseWriter_BytesLandInCapture_DetailTailAfterFail(t *testing.T) {
 
 	// The task's Capture ring (get-or-create, same instance PhaseWriter fed)
 	// must carry the child output as failure evidence.
-	task.Fail("push failed", task.EvidenceForTest().DetailTail())
+	task.Fail("push failed", task.CaptureForTest().DetailTail())
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestPhaseWriter_UnboundedPendingFragmentIsCapped(t *testing.T) {
 		t.Fatalf("phase text longer than the input payload: %d bytes", len(got))
 	}
 
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestPhaseWriter_SanitizesHostileLines(t *testing.T) {
 		t.Fatalf("Phase leaked raw ESC: %q", got)
 	}
 
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

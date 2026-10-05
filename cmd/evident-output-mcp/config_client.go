@@ -23,8 +23,8 @@ func runConfig(args []string) int {
 			i++
 			continue
 		}
-		if strings.HasPrefix(a, "--client=") {
-			client = strings.TrimPrefix(a, "--client=")
+		if after, ok := strings.CutPrefix(a, "--client="); ok {
+			client = after
 			continue
 		}
 		if a == "-h" || a == "--help" {

@@ -6,7 +6,7 @@ import (
 )
 
 // promptWriteSpy observes o.confirmAbort at the exact moment the durable
-// "[y/N]" prompt is written. writeConfirmPromptLocked calls Write while
+// "[y/N]" prompt is written. writeConfirmPrompt calls Write while
 // still holding o.mu, on the same goroutine — so reading o.confirmAbort here
 // directly (no re-lock; re-locking would deadlock) is race-free and
 // captures the true ordering, not a racy approximation of it.
@@ -24,7 +24,7 @@ func (s *promptWriteSpy) Write(p []byte) (int, error) {
 // channel for a Confirm gate is registered at gate creation, before the
 // durable "[y/N]" prompt is written and Suspend takes over the live region
 // (X2). Before the fix, registration happened lazily inside
-// readConfirmLine, after writeConfirmPromptLocked had already run — a
+// readConfirmLine, after writeConfirmPrompt had already run — a
 // SIGINT landing in that window fell through cancelActive's generic scan
 // and never closed an abort channel, leaving a later stdin read to block
 // forever (a swallowed ^C).

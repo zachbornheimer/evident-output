@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Evident Output — CLI UX v9b</title>
+<style>
+:root{
+  --bg:#f6f7f8;--panel:#fff;--line:#e4e7eb;--text:#18191b;--muted:#969ba3;
+  --green:#4e8a00;--red:#d63a31;--yellow:#c47b00;--cyan:#128ca8;--blue:#3976d5;
+  --shadow:0 1px 2px rgba(0,0,0,.04),0 12px 32px rgba(0,0,0,.05)
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.page{max-width:1220px;margin:0 auto;padding:34px 20px 64px}
+h1{margin:0;font-size:28px;letter-spacing:-.035em}
+.sub{margin:7px 0 22px;color:#656a72;font-size:14px}
+.tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:18px;flex-wrap:wrap}
+.tab{appearance:none;border:0;background:transparent;color:#6d727a;font-weight:650;padding:11px 13px;margin-bottom:-1px;border-bottom:2px solid transparent;border-radius:8px 8px 0 0;cursor:pointer}
+.tab[aria-selected=true]{background:#fff;color:#111;border-bottom-color:#111}
+.panel{display:none}.panel[data-state=open]{display:block}
+.grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,.78fr);gap:16px}
+@media(max-width:920px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.head{min-height:44px;padding:0 14px;display:flex;gap:10px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);background:#fbfbfc;font-size:13px;font-weight:700;color:#454950}
+.terminal{padding:18px 18px 24px;min-height:500px;font:15px/1.58 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;background:#fff;overflow:auto}
+.row{white-space:pre;min-height:24px}
+.i1{padding-left:20px}.i2{padding-left:40px}
+.ok{color:var(--green)}.fail{color:var(--red)}.warn{color:var(--yellow)}.run{color:var(--cyan)}.muted{color:var(--muted)}.full{color:var(--text)}
+.warnText{color:var(--yellow)}.failText{color:var(--red)}
+.bar{white-space:pre;letter-spacing:-1px}.barFill{color:#555c65}.barEmpty{color:transparent}
+.tag{display:inline-block;padding:0 6px;border-radius:5px;line-height:19px;font-size:11px;font-weight:800;margin-right:7px;vertical-align:1px}
+.planned{color:#245ea8;background:#eff5ff;border:1px solid #dce9ff}
+.changed{color:#4e7900;background:#f3f8e9;border:1px solid #e4efce}
+.cancelled{color:#7a7f87;background:#f2f3f5;border:1px solid #e4e6e9}
+.warned{color:#8a5d00;background:#fff6e3;border:1px solid #f3e2ae}
+.stopped{color:#2c6e3f;background:#eaf6ee;border:1px solid #cdeada}
+.blocked{color:#8a5d00;background:#fff6e3;border:1px solid #f3e2ae}
+.side{padding:14px}
+.rule{padding:12px;border:1px solid var(--line);border-radius:10px;margin-bottom:10px;background:#fff}
+.rule:last-child{margin-bottom:0}.rule b{display:block;font-size:13px;margin-bottom:4px}.rule p{margin:0;color:#6b7078;font-size:12.6px;line-height:1.48}
+.rule code{font:12px ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+.small{border:1px solid #dfe2e6;background:#fff;border-radius:7px;padding:5px 9px;font-size:12px;color:#4b5058;cursor:pointer}
+.small[aria-pressed=true]{background:#111;color:#fff;border-color:#111}
+.code{background:#101216;color:#d9dce2;padding:18px;overflow:auto;font:12.8px/1.58 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;min-height:520px}
+.note{margin-top:14px;padding:13px 14px;border:1px solid var(--line);border-radius:11px;background:#fff;color:#555b63;font-size:13px}
+.daemonSeg{display:flex;gap:6px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<main class="page">
+<h1>Evident Output — CLI UX v9b</h1>
+<p class="sub">Pit-of-success rendering for parallel work, plans, cancellation, effects, facts, live activity, and long-running daemons.</p>
+
+<div class="tabs">
+  <button class="tab" aria-selected="true" aria-controls="live">Live parallel prune</button>
+  <button class="tab" aria-selected="false" aria-controls="planned">Dry-run / planned</button>
+  <button class="tab" aria-selected="false" aria-controls="cancel">Cancelled after mutation</button>
+  <button class="tab" aria-selected="false" aria-controls="clean">Nothing to clean</button>
+  <button class="tab" aria-selected="false" aria-controls="dependency">Dependency install</button>
+  <button class="tab" aria-selected="false" aria-controls="failure">Partial failure</button>
+  <button class="tab" aria-selected="false" aria-controls="stress">Stress case</button>
+  <button class="tab" aria-selected="false" aria-controls="success">Generic clean success</button>
+  <button class="tab" aria-selected="false" aria-controls="satisfied">Already satisfied</button>
+  <button class="tab" aria-selected="false" aria-controls="daemon">Long-running daemon</button>
+  <button class="tab" aria-selected="false" aria-controls="syntax">Developer syntax</button>
+</div>
+
+<section id="live" class="panel" data-state="open">
+<div class="grid">
+  <div class="card">
+    <div class="head"><span>Live TTY — independent work starts together</span><button class="small" data-replay>Replay</button></div>
+    <div id="liveTerm" class="terminal"></div>
+  </div>
+  <aside class="card">
+    <div class="head">Pit-of-success rules</div>
+    <div class="side">
+      <div class="rule"><b>Independent children run in parallel</b><p><code>branches</code>, <code>worktrees</code>, and <code>remote-tracking</code> are siblings in a Group, so one cannot sit at “waiting” merely because another sibling is running.</p></div>
+      <div class="rule"><b>Stable parent, changing child</b><p>Progress and timer stay on the parent row. One indented row shows the current item so the line can change or truncate without moving the timer.</p></div>
+      <div class="rule"><b>Do not expose implementation phases</b><p><code>classify</code> is hidden unless it is itself meaningful to the user. The parent reports “459 tips checked,” not an internal phase tree.</p></div>
+      <div class="rule"><b>No stale Running frame</b><p>The renderer changes a visible frame at least every 100ms while work is Running, even when no application event arrives.</p></div>
+    </div>
+  </aside>
+</div>
+</section>
+
+<section id="planned" class="panel" data-state="closed">
+<div class="grid">
+  <div class="card">
+    <div class="head">Dry-run — terminal output only</div>
+    <div class="terminal">
+<div class="row"><span class="tag cancelled">dry-run</span>zq prune  <span class="muted">~/Developer/Software-Automation-Holdings/.worktrees/eapp-system-style-contract-heading</span></div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="ok">✓</span> branches         459 checked</div>
+<div class="row i1"><span class="warn">!</span> <span class="warnText">kept 419 (283 checked out, 135 unpushed, 1 protected)</span></div>
+<div class="row"><span class="ok">✓</span> worktrees        294 checked</div>
+<div class="row i1"><span class="warn">!</span> <span class="warnText">kept 292 (163 dirty, 89 unpushed, 40 ignored files)</span></div>
+<div class="row"><span class="ok">✓</span> remote-tracking  4 stale refs</div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="tag planned">planned</span>branches         delete 40 local tips</div>
+<div class="row"><span class="tag planned">planned</span>worktrees        remove 1 worktree</div>
+<div class="row"><span class="tag planned">planned</span>remote-tracking  delete 4 stale origin/*</div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="tag warned">planned · warned</span></div>
+    </div>
+  </div>
+  <aside class="card">
+    <div class="head">Why this is clearer</div>
+    <div class="side">
+      <div class="rule"><b>Plans are effects, not task children</b><p>Planned mutations live in one compact ledger after discovery. They are not mixed into the task hierarchy.</p></div>
+      <div class="rule"><b>Routine success is compressed</b><p>The successful internal <code>classify</code> rows disappear. Counts remain because they explain the plan. Ordinary Facts, like on-disk size, show only under verbose (<code>EVO_VERBOSE=1</code>) and always appear in JSON.</p></div>
+      <div class="rule"><b>Warnings explain retained work</b><p>“Kept” is important because it explains why discovered objects will not be pruned.</p></div>
+      <div class="rule"><b>No fake top-level change</b><p>An empty <code>[changed] zq</code> record is structurally invalid and must never render.</p></div>
+    </div>
+  </aside>
+</div>
+</section>
+
+<section id="cancel" class="panel" data-state="closed">
+<div class="grid">
+  <div class="card">
+    <div class="head">Cancellation after some mutations already committed</div>
+    <div class="terminal">
+<div class="row">zq prune --apply  <span class="muted">~/Developer/Software-Automation-Holdings/.worktrees/eapp-system-style-contract-heading</span></div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="muted">-</span> branches         <span class="muted">not started</span></div>
+<div class="row"><span class="muted">-</span> worktrees        <span class="muted">interrupted</span></div>
+<div class="row"><span class="ok">✓</span> remote-tracking  4/4</div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="tag changed">changed</span>remote-tracking  deleted 4 stale origin/*</div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="tag cancelled">cancelled</span>prune  <span class="muted">by user</span></div>
+<div class="row i1"><span class="warn">!</span> <span class="warnText">partial changes were applied before cancellation</span></div>
+    </div>
+  </div>
+  <aside class="card">
+    <div class="head">Cancellation rules</div>
+    <div class="side">
+      <div class="rule"><b>Never imply rollback</b><p>Committed effects remain visible after cancellation. The UI explicitly says partial changes were applied.</p></div>
+      <div class="rule"><b>One cancellation summary</b><p>Do not repeat a second “already mutated” sentence containing the same effect data. The changed ledger is the durable truth.</p></div>
+      <div class="rule"><b>Not started ≠ interrupted</b><p>Preserve the distinction so users know which work never began and which work was in flight.</p></div>
+    </div>
+  </aside>
+</div>
+</section>
+
+<section id="clean" class="panel" data-state="closed">
+<div class="grid">
+  <div class="card">
+    <div class="head">Clean success — no redundant “classify” rows</div>
+    <div class="terminal">
+<div class="row">zq prune  <span class="muted">~/Developer/Personal/zq</span></div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="ok">✓</span> branches         1 checked</div>
+<div class="row i1"><span class="warn">!</span> <span class="warnText">kept 1 (protected)</span></div>
+<div class="row"><span class="ok">✓</span> worktrees        <span class="muted">nothing to clean</span></div>
+<div class="row"><span class="ok">✓</span> remote-tracking  <span class="muted">nothing to clean</span></div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="muted">prune</span>  <span class="muted">nothing to clean</span></div>
+    </div>
+  </div>
+  <aside class="card">
+    <div class="head">Automatic verbosity</div>
+    <div class="side">
+      <div class="rule"><b>Hide zero-information children</b><p><code>classify 1 tip</code>, <code>classify 1 worktree</code>, and <code>classify 0 stale refs</code> are implementation detail when the parent already communicates the result.</p></div>
+      <div class="rule"><b>Keep the one useful warning</b><p>The protected branch explains why branches are not fully prunable. A lone kept item folds into its category tally instead of a separate line.</p></div>
+      <div class="rule"><b>Summary appears only when useful</b><p>If every mutation category is no-op, one final “prune nothing to clean” summary is reasonable; otherwise omit it.</p></div>
+    </div>
+  </aside>
+</div>
+</section>
+
+<section id="dependency" class="panel" data-state="closed">
+<div class="grid">
+  <div class="card">
+    <div class="head"><span>Dependency installation</span><button class="small" data-replay>Replay</button></div>
+    <div id="depTerm" class="terminal"></div>
+  </div>
+  <aside class="card">
+    <div class="head">Stable timer placement</div>
+    <div class="side">
+      <div class="rule"><b>Parent owns progress and timer</b><p>The timer stays where the eye expects it. The dependency itself appears below.</p></div>
+      <div class="rule"><b>Concrete activity beats “converging”</b><p>Show <code>urllib3</code> or the actual current package rather than an abstract internal state.</p></div>
+    </div>
+  </aside>
+</div>
+</section>
+
+<section id="failure" class="panel" data-state="closed">
+<div class="grid">
+  <div class="card">
+    <div class="head">Partial failure — reporting follows the failed attribute</div>
+    <div class="terminal">
+<div class="row"><span class="fail">✗</span> write launch agent  <span class="failText">failed: permissions</span></div>
+<div class="row i1"><span class="muted">-</span> contents  <span class="muted">already satisfied</span></div>
+<div class="row i1"><span class="fail">✗</span> permissions</div>
+<div class="row i2"><span class="muted">error</span>  <span class="full">operation not permitted</span></div>
+<div class="row i2"><span class="muted">path</span>   <span class="full">~/Library/LaunchAgents/com.acme.prod.agent.plist</span></div>
+<div class="row i2"><span class="muted">mode</span>   <span class="full">0644</span></div>
+    </div>
+  </div>
+  <aside class="card">
+    <div class="head">Partial-truth rules</div>
+    <div class="side">
+      <div class="rule"><b>Plain dash for already satisfied</b><p>No exotic skip glyph. It must render reliably in ordinary terminals.</p></div>
+      <div class="rule"><b>Error is a Fact of permissions</b><p>The parent tells the user what failed; the nested Fact tells them why.</p></div>
+    </div>
+  </aside>
+</div>
+</section>
+
+
+<section id="stress" class="panel" data-state="closed">
+<div class="grid">
+  <div class="card">
+    <div class="head"><span>Stress case — mixed live, warning, failure, and effects</span><button class="small" data-replay>Replay</button></div>
+    <div id="stressTerm" class="terminal"></div>
+  </div>
+  <aside class="card">
+    <div class="head">Projection rules</div>
+    <div class="side">
+      <div class="rule"><b>Stable parent line</b><p>Progress and timer stay in one predictable place.</p></div>
+      <div class="rule"><b>Active detail below</b><p>The current dependency/file/host gets one indented line and can change or truncate independently.</p></div>
+      <div class="rule"><b>Passing Evidence stays hidden</b><p>It surfaces only when needed to explain partial truth or skipped work.</p></div>
+      <div class="rule"><b>Warnings remain visually strong</b><p>The warning glyph and message both use warning emphasis.</p></div>
+    </div>
+  </aside>
+</div>
+</section>
+
+<section id="success" class="panel" data-state="closed">
+<div class="grid">
+  <div class="card">
+    <div class="head">Generic clean success + active work</div>
+    <div id="genericCleanTerm" class="terminal"></div>
+  </div>
+  <aside class="card">
+    <div class="head">Rendering rule</div>
+    <div class="side">
+      <div class="rule"><b>Completed Tasks remain landmarks</b><p>No passing Evidence rows are shown on ordinary success.</p></div>
+      <div class="rule"><b>Running Task uses two lines when useful</b><p>The parent owns progress/timer; one child activity row says what is actively changing.</p></div>
+    </div>
+  </aside>
+</div>
+</section>
+
+<section id="satisfied" class="panel" data-state="closed">
+<div class="grid">
+  <div class="card">
+    <div class="head">Already satisfied</div>
+    <div class="terminal">
+<div class="row"><span class="ok">✓</span> deploy production</div>
+<div class="row i1"><span class="ok">✓</span> discover</div>
+<div class="row i1"><span class="ok">✓</span> prepare hosts       <span class="muted">already satisfied</span></div>
+<div class="row i1"><span class="ok">✓</span> services            <span class="muted">already satisfied</span></div>
+<div class="row i1"><span class="ok">✓</span> write launch agent  <span class="muted">already satisfied</span></div>
+<div class="row i2"><span class="muted">path</span>  <span class="full">~/Library/LaunchAgents/com.acme.prod.agent.plist</span></div>
+<div class="row i1"><span class="ok">✓</span> cleanup             <span class="muted">nothing to do</span></div>
+    </div>
+  </div>
+  <aside class="card">
+    <div class="head">Semantics</div>
+    <div class="side">
+      <div class="rule"><b>Requested state is satisfied</b><p>The Task succeeds even when its mutation was unnecessary.</p></div>
+      <div class="rule"><b>Passing details remain hidden</b><p>Structured output may retain every verification result without spending terminal rows.</p></div>
+    </div>
+  </aside>
+</div>
+</section>
+
+<section id="daemon" class="panel" data-state="closed">
+<div class="grid">
+  <div class="card">
+    <div class="head">
+      <span>Long-running daemon — owner state + bounded tail</span>
+      <span class="daemonSeg">
+        <button class="small" data-daemon-mode="starting">Starting</button>
+        <button class="small" data-daemon-mode="running" aria-pressed="true">Running</button>
+        <button class="small" data-daemon-mode="quiet">Quiet</button>
+        <button class="small" data-daemon-mode="stopped">Stopped</button>
+        <button class="small" data-daemon-mode="refused">Refused</button>
+        <button class="small" data-daemon-mode="crash">Crash loop</button>
+        <button class="small" data-daemon-mode="plain">Plain (non-TTY)</button>
+      </span>
+    </div>
+    <div id="daemonTerm" class="terminal"></div>
+  </div>
+  <aside class="card">
+    <div class="head">Daemon / stream rules</div>
+    <div class="side">
+      <div class="rule"><b>No fake progress bar</b><p>A daemon has no meaningful total. One owner row carries state and uptime.</p></div>
+      <div class="rule"><b>Bounded INFO+ tail</b><p>The stream shows a bounded tail of INFO and WARN lines. DEBUG only appears under <code>EVO_VERBOSE=1</code>.</p></div>
+      <div class="rule"><b>Quiet ≠ hung</b><p>A quiet timer on the owner row distinguishes “no recent output” from a frozen process. The spinner keeps animating.</p></div>
+      <div class="rule"><b>Clean stop is success</b><p>A SIGTERM/^C stop resolves the owner row with a checkmark and total uptime. Exit code is 0.</p></div>
+      <div class="rule"><b>Refusal is Blocked</b><p>An already-running daemon is a Blocked state, not a failure: one reason, one next step, exit code 1.</p></div>
+      <div class="rule"><b>Crash loop shows the loop</b><p>Attempt count, backoff, and last exit reason — not a raw stack trace.</p></div>
+      <div class="rule"><b>Non-TTY streams lines</b><p>launchd/systemd hosts get one appended line per event, never a redraw. JSONL carries every log line; the human tail stays bounded.</p></div>
+    </div>
+  </aside>
+</div>
+</section>
+
+<section id="syntax" class="panel" data-state="closed">
+<div class="grid">
+  <div class="card">
+    <div class="head">Pit-of-success authoring</div>
+    <div class="code"><pre><code>// Siblings in a Group are independent by default.
+// Evo owns the goroutines and bounded concurrency.
+prune := evo.Group("prune")
+
+branches := prune.Task("branches")
+branches.Define(classifyBranches)
+
+worktrees := prune.Task("worktrees")
+worktrees.Define(classifyWorktrees)
+
+remote := prune.Task("remote-tracking")
+remote.Define(classifyRemoteTracking)
+
+// No caller goroutines.
+// No waiting state caused by declaration order.
+// No manually printed "classify" progress rows.
+//
+// Facts discovered by each Task are model data.
+// Effects are emitted separately:
+//
+//   [planned] branches         delete 40 local tips
+//   [changed] remote-tracking  deleted 4 stale origin/*
+//
+// Empty or content-free Effect records are rejected;
+// "[changed] zq" cannot be produced by the renderer.</code></pre></div>
+  </div>
+  <aside class="card">
+    <div class="head">Structural guarantees</div>
+    <div class="side">
+      <div class="rule"><b>Group means concurrency is available</b><p>Declaration order never silently serializes independent siblings. Use Sequence only when ordering is semantically required.</p></div>
+      <div class="rule"><b>Renderer chooses verbosity</b><p>The application records Facts, progress, warnings, and Effects. It does not decide which implementation rows deserve terminal space.</p></div>
+      <div class="rule"><b>Effects require meaning</b><p>A changed/planned effect needs a subject and mutation description. Content-free effects fail validation instead of becoming confusing UI.</p></div>
+    </div>
+  </aside>
+</div>
+</section>
+
+<div class="note"><b>Normative direction:</b> independent work starts together · stable parent rows own progress/timers · current activity goes underneath · long-running streams stay bounded under one owner · implementation phases collapse automatically · Facts surface only when useful · Effects are a separate ledger · cancellation preserves committed truth · dry-run header + [planned · warned] band · daemons: ready, quiet, stopped, blocked states.</div>
+</main>
+
+<script>
+const spin=["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
+let tick=0,timer=null;
+const bar=(d,t,w=12)=>{
+  const f=Math.max(0,Math.min(w,Math.round(d/t*w)));
+  return `[<span class="bar"><span class="barFill">${"█".repeat(f)}</span><span class="barEmpty">${" ".repeat(w-f)}</span></span>]`;
+};
+
+function renderLive(){
+  const s=spin[tick%spin.length],sec=2+Math.floor(tick/10);
+  const b=120+(tick*13)%340, w=70+(tick*11)%224, r=Math.min(4,1+Math.floor(tick/7));
+  const branchNames=["feat/style-contract","fix/cache","main","release/1.8","goal/reporting"];
+  const worktreeNames=["eapp-system-style-contract-heading","zq","api-cleanup","reporting"];
+  const remoteNames=["origin/old-style","origin/tmp-ci","origin/archive","origin/legacy"];
+  document.getElementById("liveTerm").innerHTML=`
+<div class="row">zq prune  <span class="muted">~/Developer/Software-Automation-Holdings/.worktrees/eapp-system-style-contract-heading</span></div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="run">${s}</span> branches         ${bar(b,459)}  ${b}/459  <span class="muted">— ${sec}s</span></div>
+<div class="row i1"><span class="run">${s}</span> ${branchNames[tick%branchNames.length]}</div>
+<div class="row"><span class="run">${s}</span> worktrees        ${bar(w,294)}  ${w}/294  <span class="muted">— ${sec}s</span></div>
+<div class="row i1"><span class="run">${s}</span> ${worktreeNames[tick%worktreeNames.length]}</div>
+<div class="row"><span class="run">${s}</span> remote-tracking  ${bar(r,4)}  ${r}/4  <span class="muted">— ${sec}s</span></div>
+<div class="row i1"><span class="run">${s}</span> ${remoteNames[(r-1)%remoteNames.length]}</div>`;
+}
+
+function renderDep(){
+  const s=spin[tick%spin.length],pkgs=["requests","urllib3","certifi","charset-normalizer","idna","pydantic","httpx","rich"];
+  const done=12+(tick%9),total=40,sec=7+Math.floor(tick/10);
+  document.getElementById("depTerm").innerHTML=`
+<div class="row"><span class="run">${s}</span> install dependencies  ${bar(done,total)}  ${done}/${total}  <span class="muted">— ${sec}s</span></div>
+<div class="row i1"><span class="run">${s}</span> ${pkgs[tick%pkgs.length]}</div>`;
+}
+
+
+function renderStress(){
+  const s=spin[tick%spin.length],h=31+tick%5,sv=14+tick%4,c=7+tick%3,sec=8+Math.floor(tick/10);
+  document.getElementById("stressTerm").innerHTML=`
+<div class="row"><span class="run">${s}</span> deploy production  <span class="muted">— ${sec}s</span></div>
+<div class="row i1"><span class="ok">✓</span> discover</div>
+<div class="row i1"><span class="run">${s}</span> prepare hosts  ${bar(h,100)}  ${h}/100  <span class="muted">— ${sec}s</span></div>
+<div class="row i2"><span class="run">${s}</span> host-${String(h).padStart(3,"0")}</div>
+<div class="row i1"><span class="run">${s}</span> services       ${bar(sv,40)}  ${sv}/40   <span class="muted">— ${sec}s</span></div>
+<div class="row i2"><span class="run">${s}</span> payments-api</div>
+<div class="row i2"><span class="warn">!</span> <span class="warnText">audit-stream rollout slower than baseline</span></div>
+<div class="row i1"><span class="fail">✗</span> write launch agent  <span class="failText">failed: permissions</span></div>
+<div class="row i2"><span class="muted">-</span> contents  <span class="muted">already satisfied</span></div>
+<div class="row i2"><span class="fail">✗</span> permissions</div>
+<div class="row i2"><span class="muted">error</span>  operation not permitted</div>
+<div class="row i1"><span class="run">${s}</span> cleanup        ${bar(c,18)}  ${c}/18   <span class="muted">— ${sec}s</span></div>
+<div class="row i2"><span class="run">${s}</span> feat/cleanup…</div>
+<div class="row i2"><span class="warn">!</span> <span class="warnText">kept 5 (3 protected, 2 unpushed)</span></div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="tag changed">changed</span>branches  deleted ${Math.max(1,c-2)} local tips</div>
+<div class="row"><span class="tag planned">planned</span>remote-tracking  fetch-prune 12 stale origin/*</div>`;
+}
+
+function renderGenericClean(){
+  const s=spin[tick%spin.length],pkgs=["requests","urllib3","certifi","idna","httpx","rich"];
+  const done=18+tick%8,total=40,current=pkgs[tick%pkgs.length],sec=6+Math.floor(tick/10);
+  document.getElementById("genericCleanTerm").innerHTML=`
+<div class="row"><span class="ok">✓</span> launch agent</div>
+<div class="row i1"><span class="ok">✓</span> write plist</div>
+<div class="row i1"><span class="ok">✓</span> register</div>
+<div class="row i1"><span class="ok">✓</span> start</div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="run">${s}</span> install dependencies  ${bar(done,total)}  ${done}/${total}  <span class="muted">— ${sec}s</span></div>
+<div class="row i1"><span class="run">${s}</span> ${current}</div>`;
+}
+
+// ---- Long-running daemon: state-segmented frames ----
+let daemonMode="running";
+const daemonEvents=[
+  ["INFO","heartbeat workers=3 leases=1"],
+  ["INFO","worktree ready branch=feat/zys-780-evo-1.0"],
+  ["INFO","agent zq-69 reported progress"],
+  ["WARN","lease renewal delayed pid=73195"],
+  ["INFO","heartbeat workers=3 leases=2"],
+  ["INFO","session zq-70 started"]
+];
+function uptimeFmt(sec){
+  if(sec<60)return `${sec}s`;
+  const m=Math.floor(sec/60),s=sec%60;
+  if(sec<3600)return `${m}m${String(s).padStart(2,"0")}s`;
+  const h=Math.floor(sec/3600),mm=Math.floor((sec%3600)/60);
+  if(sec<86400)return `${h}h${String(mm).padStart(2,"0")}m`;
+  const d=Math.floor(sec/86400),hh=Math.floor((sec%86400)/3600);
+  return `${d}d${hh}h`;
+}
+function tailRows(count){
+  const rows=[];
+  for(let n=count-1;n>=0;n--){
+    const idx=(tick-n+daemonEvents.length*100)%daemonEvents.length;
+    const [level,msg]=daemonEvents[idx];
+    const sec=41+((tick-n+60)%17);
+    const stamp=`16:22:${String(sec).padStart(2,"0")}`;
+    const cls=level==="WARN"?"warn":"full";
+    rows.push(`<div class="row i1"><span class="muted">${stamp}</span>  <span class="${cls}">${level}</span>  ${msg}</div>`);
+  }
+  return rows.join("\n");
+}
+function renderDaemon(){
+  const el=document.getElementById("daemonTerm");
+  if(!el)return;
+  const s=spin[tick%spin.length];
+  if(daemonMode==="starting"){
+    el.innerHTML=`
+<div class="row">zqr controller</div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="run">${s}</span> controller  <span class="muted">starting — 2s</span></div>
+<div class="row i1"><span class="run">${s}</span> acquiring lease</div>`;
+    return;
+  }
+  if(daemonMode==="running"){
+    const elapsed=252+Math.floor(tick/10);
+    el.innerHTML=`
+<div class="row">zqr controller</div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="run">${s}</span> controller  <span class="muted">ready on :8080 · up ${uptimeFmt(elapsed)}</span></div>
+${tailRows(6)}
+<div class="row i1"><span class="muted">… 214 lines in evidence · EVO_VERBOSE=1 for debug</span></div>`;
+    return;
+  }
+  if(daemonMode==="quiet"){
+    const elapsed=7800+Math.floor(tick/10);
+    el.innerHTML=`
+<div class="row">zqr controller</div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="run">${s}</span> controller  <span class="muted">ready on :8080 · up ${uptimeFmt(elapsed)} · <span class="warn">quiet 6m</span></span></div>
+${tailRows(6).replace(/class="full"/g,'class="muted"')}
+<div class="row i1"><span class="muted">… 214 lines in evidence · EVO_VERBOSE=1 for debug</span></div>`;
+    return;
+  }
+  if(daemonMode==="stopped"){
+    el.innerHTML=`
+<div class="row">zqr controller</div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="ok">✓</span> controller  stopped after 4h12m</div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="tag stopped">stopped</span></div>`;
+    return;
+  }
+  if(daemonMode==="refused"){
+    el.innerHTML=`
+<div class="row">zqr controller</div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="warn">!</span> <span class="warnText">controller  blocked: already running (pid 73195, started 16:17)</span></div>
+<div class="row i1"><span class="muted">→</span> <span class="muted">stop it first: zqr controller stop</span></div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="tag blocked">blocked</span></div>`;
+    return;
+  }
+  if(daemonMode==="crash"){
+    el.innerHTML=`
+<div class="row">zqr controller</div>
+<div class="row">&nbsp;</div>
+<div class="row"><span class="fail">✗</span> controller  <span class="failText">restarting · attempt 4 · next in 8s</span></div>
+<div class="row i1"><span class="muted">last exit: status 2 — config: missing listen address</span></div>
+<div class="row i1"><span class="muted">3 restarts in 2m</span></div>`;
+    return;
+  }
+  if(daemonMode==="plain"){
+    el.innerHTML=`
+<div class="row">zqr controller</div>
+<div class="row">controller  starting</div>
+<div class="row">controller  ready on :8080</div>
+<div class="row">16:22:41  INFO  heartbeat workers=3 leases=1</div>
+<div class="row">16:24:12  INFO  worktree ready branch=feat/zys-780-evo-1.0</div>
+<div class="row">16:26:03  INFO  agent zq-69 reported progress</div>
+<div class="row">controller  stopped after 4h12m</div>`;
+    return;
+  }
+}
+
+function render(){renderLive();renderDep();renderStress();renderGenericClean();renderDaemon()}
+function play(reset=false){
+  if(reset)tick=0;
+  if(timer)clearInterval(timer);
+  render();
+  timer=setInterval(()=>{tick++;render()},95);
+}
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.setAttribute("aria-selected","false"));
+  document.querySelectorAll(".panel").forEach(x=>x.dataset.state="closed");
+  t.setAttribute("aria-selected","true");
+  document.getElementById(t.getAttribute("aria-controls")).dataset.state="open";
+});
+document.querySelectorAll("[data-replay]").forEach(b=>b.onclick=()=>play(true));
+document.querySelectorAll("[data-daemon-mode]").forEach(b=>b.onclick=()=>{
+  daemonMode=b.getAttribute("data-daemon-mode");
+  document.querySelectorAll("[data-daemon-mode]").forEach(x=>x.setAttribute("aria-pressed","false"));
+  b.setAttribute("aria-pressed","true");
+  renderDaemon();
+});
+play(true);
+</script>
+</body>
+</html>

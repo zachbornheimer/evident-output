@@ -7,39 +7,42 @@ import "github.com/zachbornheimer/evident-output/internal/engine"
 
 // Output, TaskHandle, and the other presentation handles are wrappers, not
 // aliases: engine test helpers must not appear in go doc or the rec surface.
-type Output struct{ inner *engine.Output }
-type TaskHandle struct{ inner *engine.TaskHandle }
-type SequenceHandle struct{ inner *engine.SequenceHandle }
-type GroupHandle struct{ inner *engine.GroupHandle }
-type Printer struct{ inner *engine.Printer }
-type Failure struct{ inner *engine.Failure }
+type (
+	Output         struct{ inner *engine.Output }
+	TaskHandle     struct{ inner *engine.TaskHandle }
+	SequenceHandle struct{ inner *engine.SequenceHandle }
+	GroupHandle    struct{ inner *engine.GroupHandle }
+	Printer        struct{ inner *engine.Printer }
+)
 
-type Config = engine.Config
-type Option = engine.Option
-type Evidence = engine.Evidence
-type EvidenceOption = engine.EvidenceOption
-type EvidenceStream = engine.EvidenceStream
-type ConfirmOption = engine.ConfirmOption
-type EntityOption = engine.EntityOption
-type ReasonOption = engine.ReasonOption
-type MutationOption = engine.MutationOption
-type DebugPaneOption = engine.DebugPaneOption
-type DebugPresentation = engine.DebugPresentation
-type DebugConfig = engine.DebugConfig
-type ColorMode = engine.ColorMode
-type Format = engine.Format
-type Verbosity = engine.Verbosity
-type Projection = engine.Projection
-type LogLevel = engine.LogLevel
-type TerminalDriver = engine.TerminalDriver
-type TimeSource = engine.TimeSource
-type SystemClock = engine.SystemClock
-type FixedClock = engine.FixedClock
-type LiveSurface = engine.LiveSurface
-type Redactor = engine.Redactor
-type NoopRedactor = engine.NoopRedactor
-type LogRecord = engine.LogRecord
-type PlainOptions = engine.PlainOptions
+type (
+	Config            = engine.Config
+	Capture           = engine.Capture
+	CaptureOption     = engine.CaptureOption
+	CaptureStream     = engine.CaptureStream
+	ConfirmOption     = engine.ConfirmOption
+	DebugPaneOption   = engine.DebugPaneOption
+	DebugPresentation = engine.DebugPresentation
+	DebugConfig       = engine.DebugConfig
+	ColorMode         = engine.ColorMode
+	Format            = engine.Format
+	Verbosity         = engine.Verbosity
+	Projection        = engine.Projection
+	LogLevel          = engine.LogLevel
+	TerminalDriver    = engine.TerminalDriver
+	TimeSource        = engine.TimeSource
+	SystemClock       = engine.SystemClock
+	FixedClock        = engine.FixedClock
+	LiveSurface       = engine.LiveSurface
+	Redactor          = engine.Redactor
+	NoopRedactor      = engine.NoopRedactor
+	LogRecord         = engine.LogRecord
+	PlainOptions      = engine.PlainOptions
+	ProcessRunner     = engine.ProcessRunner
+	ProcessCommand    = engine.ProcessCommand
+	ProcessOutcome    = engine.ProcessOutcome
+	FileFS            = engine.FileFS
+)
 
 type TaxonomyReason struct{ inner engine.TaxonomyReason }
 
@@ -55,6 +58,12 @@ const (
 	FormatHuman    = engine.FormatHuman
 	FormatData     = engine.FormatData
 	FormatExternal = engine.FormatExternal
+	// FormatJSON writes one final v2 "evo.run" document to Stdout at
+	// Finish; human presentation still goes to Stderr (spec §32.1).
+	FormatJSON = engine.FormatJSON
+	// FormatJSONL streams v2 "evo.event" JSON lines to Stdout as they
+	// occur, plus a final run.finished line (spec §32.1).
+	FormatJSONL = engine.FormatJSONL
 )
 
 const (
@@ -85,9 +94,9 @@ const (
 )
 
 const (
-	EvidenceStreamCombined = engine.EvidenceStreamCombined
-	EvidenceStreamStdout   = engine.EvidenceStreamStdout
-	EvidenceStreamStderr   = engine.EvidenceStreamStderr
+	CaptureStreamCombined = engine.CaptureStreamCombined
+	CaptureStreamStdout   = engine.CaptureStreamStdout
+	CaptureStreamStderr   = engine.CaptureStreamStderr
 )
 
 const DefaultVisibleNames = engine.DefaultVisibleNames
@@ -102,8 +111,6 @@ var (
 	ErrInvalidConfig        = engine.ErrInvalidConfig
 	ErrRenderer             = engine.ErrRenderer
 	ErrLimitExceeded        = engine.ErrLimitExceeded
-	ErrReasonSkipOnly       = engine.ErrReasonSkipOnly
-	ErrReasonWrongTask      = engine.ErrReasonWrongTask
 	ErrConcurrentRunning    = engine.ErrConcurrentRunning
 	ErrDryRunDeclaredLate   = engine.ErrDryRunDeclaredLate
 	ErrTerminalWithoutSink  = engine.ErrTerminalWithoutSink

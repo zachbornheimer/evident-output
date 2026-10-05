@@ -39,9 +39,9 @@ examples/verbose/            visibility gating (--verbose)
 examples/repo-status/        Tasks, Problems, actions
 examples/install-pipeline/   Tasks + Capture
 examples/migrate/            Plan versus Changes
-examples/doctor/             severity dialect + WriteJSON
+examples/doctor/             severity dialect + FormatJSON
 examples/data-command/       machine stdout / human stderr (ResultWriter)
-examples/scope-plugin/       Scope + ID for plugin namespaces
+examples/named-tasks/        root Tasks named for their work
 examples/live-progress/      ordinary multi-progress
 examples/debug-history/      slog durable debug
 examples/debug-pane/         rolling slog viewport
@@ -59,7 +59,7 @@ go run ./examples/verbose/ --verbose
 | `repo-status`      | Parallel **Tasks** (done / blocked / warn), conclusion exit code      |
 | `install-pipeline` | **Tasks** collection with Progress/Bytes/Fail (final report)          |
 | `migrate`          | **Plan** dry-run vs **Changes** apply (`--apply`)                     |
-| `doctor`           | Mixed doctor items; `--json` snapshot on stdout                       |
+| `doctor`           | Mixed doctor items; `--json` evo.run document on stdout               |
 | `data-command`     | Data command: JSON **stdout**, human report **stderr**                |
 | `live-progress`    | **Live multi-progress**: bars + indeterminate phases (ANSI on stderr) |
 | `debug-history`    | **DebugHistory**: durable `HH:MM:SS.mmm [DEBUG] …` above live/items   |
@@ -71,7 +71,7 @@ go run ./examples/repo-status/ --name my-app
 go run ./examples/install-pipeline/
 go run ./examples/migrate/                 # dry-run plan
 go run ./examples/migrate/ --apply
-go run ./examples/doctor/ --json | jq .conclusion
+go run ./examples/doctor/ --json | jq .outcome
 go run ./examples/data-command/ 2>/dev/null | jq .
 go run ./examples/live-progress/              # in-place ANSI live region (real TTY)
 go run ./examples/live-progress/ --frames     # numbered frames you can scroll
@@ -97,11 +97,12 @@ go run ./cmd/evident-output version
 ```go
 snap := out.Snapshot()
 plain, _ := evo.RenderPlain(snap, evo.PlainOptions{Width: 80})
-jsonBytes, _ := evo.EncodeJSON(snap)
-jsonl, _ := evo.EncodeJSONL(out.Events())
+result := out.Run(context.Background(), func(context.Context) error { return nil })
+var jsonBuf bytes.Buffer
+_ = evo.WriteJSON(&jsonBuf, result)
 ```
 
-Schemas: `../schema/output.v1.json`, `../schema/event.v1.json`.
+Schema: `../schema/output.v1.json`.
 
 ## Production ANSI driver
 
@@ -109,7 +110,7 @@ Schemas: `../schema/output.v1.json`, `../schema/event.v1.json`.
 import "github.com/zachbornheimer/evident-output/terminal"
 
 drv := terminal.NewANSI(os.Stderr, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-out := evo.Init(evo.Config{Title: "deploy", Options: []evo.Option{evo.Terminal(drv)}})
+out := evo.Init(evo.Config{Title: "deploy", Terminal: drv})
 ```
 
 No `To()` needed: the driver owns rendering, and evident-output detects its
@@ -121,13 +122,13 @@ band renders exactly once, never a second time on a different stream.
 ```go
 screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 clock := testkit.NewClock()
-out := evo.Init(evo.Config{Options: []evo.Option{
-    evo.Terminal(screen),
-    evo.Clock(clock),
-    evo.VisibilityDelay(150 * time.Millisecond),
-    evo.MaxFrameRate(20),
-}})
-// Phase/Progress draw a live region; instant Done before the threshold does not flash.
+out := evo.Init(evo.Config{
+    Terminal:        screen,
+    Clock:           clock,
+    VisibilityDelay: evo.Delay(150 * time.Millisecond),
+    MaxFrameRate:    20,
+})
+// Phase/Progress draw a live region; a Task that resolves before the threshold does not flash.
 // DebugHistory (default): out.Debug → durable above live (timestamp + [DEBUG]).
 // DebugPane(...): rolling slog viewport in the live region; optional failure tail.
 ```

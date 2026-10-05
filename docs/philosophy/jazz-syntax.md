@@ -64,7 +64,7 @@ task.Bytes(24<<20, 80<<20) // byte progress — different measure
 ```
 
 ```go
-out.Task("credentials")  // condition — resolved directly (Done/Warn/Block/Fail/Skip)
+out.Task("credentials")  // condition — resolved directly (Done/Problem/Block/Fail/Skip, Warn removed in 1.1)
 out.Task("authenticate") // work — driven through Doing/Progress
 ```
 
@@ -98,7 +98,7 @@ Advanced capabilities may exist without appearing in ordinary examples.
 
 ```text
 Init(Config) → Main → Print/Verbose → Task/Sequence/Group
-→ task.Writer() → mutation verbs (Delete/Create/Update/…) → slog → ResultWriter
+→ task.Writer() → evo.Effect / evo.File → slog → ResultWriter
 ```
 
 ---
@@ -130,13 +130,13 @@ Sugar is forbidden when it:
 - pretends to do more than it does (PHIL-007),
 - exists only for method-table symmetry (§15).
 
-| Candidate                                                  | Verdict                                                |
-| ---------------------------------------------------------- | ------------------------------------------------------ |
-| `New(Config{Title})` as sole constructor on the lead sheet | Accepted                                               |
-| `For(title)` alias of `New`                                | Rejected — same note, second spelling                  |
-| `BlockedBy(...Problem)` beside singular `Block`            | Accepted — plural evidence voicing                     |
-| `Progress64` beside `Progress` for the same count intent   | Rejected — type-system twin                            |
-| `Record(verb, n, object)` for domain verbs                 | Accepted — real domain concept (see domain-vocabulary) |
+| Candidate                                                  | Verdict                                                                                      |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `New(Config{Title})` as sole constructor on the lead sheet | Accepted                                                                                     |
+| `For(title)` alias of `New`                                | Rejected — same note, second spelling                                                        |
+| `BlockedBy(...Problem)` beside singular `Block`            | Accepted — plural evidence voicing                                                           |
+| `Progress64` beside `Progress` for the same count intent   | Rejected — type-system twin                                                                  |
+| `Record(verb, n, object)` for domain verbs                 | Removed in 1.1 — closed `EffectVerb` set; classification is a `Fact` (see domain-vocabulary) |
 
 ---
 

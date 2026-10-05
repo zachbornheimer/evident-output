@@ -14,31 +14,3 @@ func (p *Printer) Writer() io.Writer {
 	}
 	return p.inner.Writer()
 }
-
-func (f *Failure) Error() string {
-	if f == nil || f.inner == nil {
-		return ""
-	}
-	return f.inner.Error()
-}
-
-func (f *Failure) Next(actions ...Action) *Failure {
-	if f == nil || f.inner == nil {
-		return f
-	}
-	return wrapFailure(f.inner.Next(actions...))
-}
-
-func (f *Failure) NextCommand(executable string, args ...string) *Failure {
-	if f == nil || f.inner == nil {
-		return f
-	}
-	return wrapFailure(f.inner.NextCommand(executable, args...))
-}
-
-func (f *Failure) Unwrap() error {
-	if f == nil || f.inner == nil {
-		return nil
-	}
-	return f.inner.Unwrap()
-}

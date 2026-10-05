@@ -10,6 +10,7 @@ import (
 // new mutation verb needs a special past tense.
 var irregularPastTense = map[string]string{
 	"write": "wrote",
+	"run":   "ran",
 }
 
 // compoundPastTense holds hyphenated imperative verbs whose past tense does

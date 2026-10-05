@@ -38,7 +38,14 @@ func writeReviewResult(id any, res review.Result) {
 
 func reviewNextAction(res review.Result, updateNeeded bool) string {
 	loop := nextActionReviewLoop
-	if len(res.Findings) == 0 && !res.RecheckRequired {
+	// Partial means some rule family (here, the removed-name analyzers)
+	// could not run at all, e.g. a read-only GOMODCACHE checkout blocking
+	// the review-side scratch module. A clean "0 findings" from the rules
+	// that DID run says nothing about the ones that didn't, so this must
+	// never resolve to nextActionClean — that is the false-clean stop
+	// commit 1855e17 already fixed for kind=go; kind=package's own
+	// removedNamePackageFindings scratch failure hits the same path here.
+	if len(res.Findings) == 0 && !res.RecheckRequired && !res.Partial {
 		loop = nextActionClean
 	}
 	if updateNeeded {

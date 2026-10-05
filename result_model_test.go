@@ -10,14 +10,18 @@ import (
 )
 
 // TestTaskSnapshot_ResolutionNoWorkByDefault proves §29/§30's default: a
-// Task explicitly resolved successfully without ever reaching Define
-// carries ResolutionNoWork and an unevaluated (zero-value) Evidence.
+// Task that resolves successfully without ever reaching Define — here a
+// warned Task Finish settles Done — carries ResolutionNoWork and an
+// unevaluated (zero-value) Evidence.
 func TestTaskSnapshot_ResolutionNoWorkByDefault(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("no-define")
-	task.Done()
+	task.Problem("nothing to define", evo.Severity(evo.SeverityWarning))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
 	snap := task.Snapshot()
 
 	if snap.Resolution != evo.ResolutionNoWork {

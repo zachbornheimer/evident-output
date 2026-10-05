@@ -38,7 +38,7 @@ func TestSpecP11_LiveFrame_Step2(t *testing.T) {
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
 	pipeline.Task("go test ./...")
-	download.Done("modules cached")
+	succeed(download, "modules cached")
 	generate.Bytes(200_000, 300_000)
 
 	got := screen.LatestLiveText()
@@ -65,9 +65,9 @@ func TestSpecP11_NestedPipeline_Success(t *testing.T) {
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
 	test := pipeline.Task("go test ./...")
-	download.Done("modules cached")
-	generate.Done("0.3 MB")
-	test.Done("ok")
+	succeed(download, "modules cached")
+	succeed(generate, "0.3 MB")
+	succeed(test, "ok")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -100,8 +100,8 @@ func TestSpecP11_NestedPipeline_Failure(t *testing.T) {
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
 	test := pipeline.Task("go test ./...")
-	download.Done("modules cached")
-	generate.Done()
+	succeed(download, "modules cached")
+	succeed(generate)
 	test.Fail("tests failed", evo.Detail("--- FAIL: TestFoo (0.01s)\n    foo_test.go:12: want 1, got 0"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -165,7 +165,7 @@ func TestSpecP11_NestedPipeline_Error(t *testing.T) {
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
 	pipeline.Task("go test ./...")
-	download.Done()
+	succeed(download)
 	generate.Fail("generator exited 1", evo.Detail("stringer: type not found"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -192,7 +192,7 @@ func TestSpecP11_NestedPipeline_Error(t *testing.T) {
 //	-  go test ./...  not started
 //
 // The early-termination "! already mutated: ..." row is derived mechanically
-// from the Changes ledger (task_mutations.go / plain.go writeAlreadyMutated)
+// from the Changes ledger (effect.go / plain.go writeAlreadyMutated)
 // and is suppressed entirely when the ledger is empty ("!" is
 // attention-only; an empty ledger earns none) — this scenario records no
 // Record/RecordName mutation on either child, so the row is absent.
@@ -204,7 +204,7 @@ func TestSpecP11_NestedPipeline_EarlyTermination(t *testing.T) {
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
 	pipeline.Task("go test ./...")
-	download.Done()
+	succeed(download)
 	generate.Cancel("cancelled")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -231,18 +231,16 @@ func TestSpecP11_NestedPipeline_EarlyTermination(t *testing.T) {
 // TestSpecP12_ConfirmGate_Step1 covers Problem 12's step1 block: a dry-run
 // plan for the destructive delete plus the still-open confirm prompt, both
 // reachable in one transcript through the documented spellings (DryRun +
-// RecordName for the plan, Confirm + Destructive for the gate).
+// Effect for the plan, Confirm + Destructive for the gate).
 //
 //	[planned]  remotes
-//	  delete-remote  origin/production-hotfix
+//	  delete  1  origin/production-hotfix
 //	?  confirm remote delete  (destructive)
 func TestSpecP12_ConfirmGate_Step1(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := evo.Init(evo.Config{Title: "clean", Isolated: true, Terminal: screen, Color: evo.ColorNever, DryRun: true, Stdin: strings.NewReader("y\n")})
-	remotes := out.Task("remotes")
-	remotes.RecordName("delete-remote", "origin/production-hotfix")
-	remotes.Done()
+	commit(out.Task("remotes"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "origin/production-hotfix", Quantity: 1})
 	out.Confirm("confirm remote delete", evo.Destructive())
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -251,7 +249,7 @@ func TestSpecP12_ConfirmGate_Step1(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"[planned] remotes",
-		"delete-remote origin/production-hotfix",
+		"delete 1 origin/production-hotfix",
 		"confirm remote delete (destructive)"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
@@ -305,9 +303,7 @@ func TestSpecP12_ConfirmGate_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	remotes := out.Task("remotes")
-	remotes.Record("delete", 1, "origin tip")
-	remotes.Done()
+	commit(out.Task("remotes"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "origin tip", Quantity: 1})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +323,7 @@ func TestSpecP12_ConfirmGate_Success(t *testing.T) {
 //
 //	⊘  confirm remote delete  declined
 //	[planned]  remotes
-//	  delete-remote  origin/production-hotfix
+//	  delete  1  origin/production-hotfix
 //
 // A declined Confirm concludes StateBlocked; writeAlreadyMutated only fires
 // for a Cancelled/Failed conclusion (plain.go writeConclusion's guard), so no
@@ -343,9 +339,7 @@ func TestSpecP12_ConfirmGate_Failure(t *testing.T) {
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); ok {
 		t.Fatal("Confirm(\"n\") = true, want false")
 	}
-	remotes := out.Task("remotes")
-	remotes.RecordName("delete-remote", "origin/production-hotfix")
-	remotes.Done()
+	commit(out.Task("remotes"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "origin/production-hotfix", Quantity: 1})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -354,7 +348,7 @@ func TestSpecP12_ConfirmGate_Failure(t *testing.T) {
 	for _, want := range []string{
 		"⊘ confirm remote delete declined",
 		"[planned] remotes",
-		"delete-remote origin/production-hotfix"} {
+		"delete 1 origin/production-hotfix"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -546,7 +540,7 @@ func TestSpecP13_LiveFrame_Step2(t *testing.T) {
 // the spec's own literal text exactly.
 //
 //	✓ install  40/40
-//	! skipped 2 (optional)
+//	- skipped 2 (optional)
 func TestSpecP13_Retry_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -560,7 +554,7 @@ func TestSpecP13_Retry_Success(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"✓ install  40/40", "! skipped 1 (optional)"} {
+	for _, want := range []string{"✓ install  40/40", "- skipped 2 (optional)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -667,7 +661,7 @@ func TestSpecP13_Retry_Error(t *testing.T) {
 //	!  already mutated: 13 packages installed
 //
 // summarizeChangeSection (plain.go) derives exactly "13 packages installed"
-// from a Record("install", 13, "packages") call; the mechanism has no way to
+// from an Effect{Verb: EffectInstall, Object: "package", Quantity: 13}; the mechanism has no way to
 // append a second clause naming which specific item was mid-flight when
 // cancelled.
 func TestSpecP13_Retry_EarlyTermination(t *testing.T) {
@@ -676,8 +670,9 @@ func TestSpecP13_Retry_EarlyTermination(t *testing.T) {
 	out := evo.Init(evo.Config{Title: "install", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	install := out.Task("install")
 	install.Progress(13, 40)
-	install.Record("install", 13, "package")
-	install.Cancel("cancelled during retry")
+	commitThen(install, evo.EffectSpec{Verb: evo.EffectInstall, Object: "package", Quantity: 13}, func() {
+		install.Cancel("cancelled during retry")
+	})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -685,7 +680,7 @@ func TestSpecP13_Retry_EarlyTermination(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"■ install cancelled during retry",
-		"already mutated: 13 packages installed"} {
+		"partial changes were applied before cancellation"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -745,7 +740,7 @@ func TestSpecP14_LiveFrame_Step2(t *testing.T) {
 //
 //	✓  capture
 //	[planned]  capture
-//	  salvage  2  tip
+//	  push  2  tip
 //	!  skipped 3  (has-pr)
 func TestSpecP14_Capture_Success(t *testing.T) {
 	t.Parallel()
@@ -753,9 +748,7 @@ func TestSpecP14_Capture_Success(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Title: "capture", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
 	g := out.Group("capture")
 	hasPR := evo.Reason("has-pr")
-	ledger := g.Task("capture")
-	ledger.Record("salvage", 2, "tip")
-	ledger.Done()
+	commit(g.Task("capture"), evo.EffectSpec{Verb: evo.EffectPush, Object: "tip", Quantity: 2})
 	g.Task("pr-0").Skipped(hasPR)
 	g.Task("pr-1").Skipped(hasPR)
 	g.Task("pr-2").Skipped(hasPR)
@@ -767,13 +760,15 @@ func TestSpecP14_Capture_Success(t *testing.T) {
 	for _, want := range []string{
 		"✓ capture",
 		"[planned] capture",
-		"salvage 2 tip"} {
+		"push 2 tip"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if n := strings.Count(collapsed, "skipped 1 (has-pr)"); n != 3 {
-		t.Fatalf("want 3 individual derived taxonomy lines \"skipped 1 (has-pr)\", got %d:\n%s", n, got)
+	// Per-item disposition children fold into one tally under their Group
+	// (contract §25 renderer aggregation), as the spec block above shows.
+	if n := strings.Count(collapsed, "skipped 3 (has-pr)"); n != 1 {
+		t.Fatalf("want one aggregated \"skipped 3 (has-pr)\" tally, got %d:\n%s", n, got)
 	}
 	if strings.Contains(got, "skip-has-pr") {
 		t.Fatalf("expected no fused verb-reason spelling but found it:\n%s", got)
@@ -786,21 +781,21 @@ type bearerTokenRedactor struct{}
 
 func (bearerTokenRedactor) RedactString(s string) string {
 	const marker = "Bearer "
-	i := strings.Index(s, marker)
-	if i < 0 {
+	before, after, ok := strings.Cut(s, marker)
+	if !ok {
 		return s
 	}
-	rest := s[i+len(marker):]
+	rest := after
 	end := strings.IndexAny(rest, " \n")
 	if end < 0 {
 		end = len(rest)
 	}
-	return s[:i] + marker + "***" + rest[end:]
+	return before + marker + "***" + rest[end:]
 }
 
 // TestSpecP14_Capture_Failure covers Problem 14's failure block: a captured
 // child-process line carrying a bearer token is redacted before it ever
-// reaches Fail's Detail evidence — the documented spelling (Task.Capture +
+// reaches Fail's Detail — the documented spelling (task.Writer() +
 // Redact + DetailTail), same shape as platform_test.go's already-proven
 // TestCapture_RedactsOnRetention.
 //
@@ -941,7 +936,7 @@ func TestSpecP15_NothingToDo_Step1(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	out.Task("clean").Done()
+	succeed(out.Task("clean"))
 	out.Println("nothing to clean")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -963,7 +958,7 @@ func TestSpecP15_NothingToDo_Step2(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "capture", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	out.Task("capture plan").Done()
+	succeed(out.Task("capture plan"))
 	out.Println("nothing to capture (tips already on remote or no long-tail work)")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -990,7 +985,7 @@ func TestSpecP15_NothingToDo_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	out.Task("clean").Done()
+	succeed(out.Task("clean"))
 	out.Println("nothing to clean")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

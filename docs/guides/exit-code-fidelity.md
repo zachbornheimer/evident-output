@@ -16,15 +16,16 @@ own reason:
 
 ```go
 func main() {
-    out := evo.Init(evo.Config{Title: "runner"})
+    ctx := context.Background()
+    out := evo.Init(evo.Config{Title: "runner", Isolated: true})
 
     var childErr *exec.ExitError
-    code := evo.Run(func() error {
-        cmd := evo.Task("build")
-        err := run(cmd, ...) // wires cmd.Stdout/Stderr into evo evidence
+    code := out.Run(ctx, func(ctx context.Context) error {
+        cmd := out.Task("build")
+        err := run(cmd, exec.Command("make", "build")) // wires cmd.Stdout/Stderr into evo capture
         errors.As(err, &childErr)
         return err
-    })
+    }).ExitCode()
     if childErr != nil {
         code = childErr.ExitCode()
     }

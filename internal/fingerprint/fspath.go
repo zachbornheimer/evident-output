@@ -41,6 +41,20 @@ func FSPath(path string) Fingerprint {
 	return fsPathFingerprint{path: path}
 }
 
+// PathOf reports the filesystem path an FSPath Fingerprint observes, and
+// whether f is an FSPath at all. It exists for the engine package's
+// producer/consumer freshness barrier (spec §11.6): the barrier must key on
+// and wait for a path *before* calling Fingerprint (which reads the file),
+// so it needs the path without performing that read — never for a caller
+// to bypass Fingerprint's own read-only observation.
+func PathOf(f Fingerprint) (path string, ok bool) {
+	p, ok := f.(fsPathFingerprint)
+	if !ok {
+		return "", false
+	}
+	return p.path, true
+}
+
 func (f fsPathFingerprint) Fingerprint(_ context.Context) (FingerprintValue, error) {
 	digest, err := fingerprintPath(activeFS, f.path)
 	if err != nil {
@@ -49,12 +63,33 @@ func (f fsPathFingerprint) Fingerprint(_ context.Context) (FingerprintValue, err
 	return FingerprintValue{Kind: KindFSPath, Key: f.path, Digest: digest}, nil
 }
 
+// ObservedFile is the identity FSPath(path) observes when path is a
+// regular file holding contents. It lets an operation that must read the
+// bytes anyway (Patch deriving desired state) record the Basis of exactly
+// the bytes it read, instead of a second read that could see a different
+// file.
+func ObservedFile(path string, contents []byte) FingerprintValue {
+	return FingerprintValue{Kind: KindFSPath, Key: path, Digest: regularFileDigest(contents)}
+}
+
+// ObservedMissing is the identity FSPath(path) observes when path does not
+// exist.
+func ObservedMissing(path string) FingerprintValue {
+	return FingerprintValue{Kind: KindFSPath, Key: path, Digest: missingDigest()}
+}
+
+func regularFileDigest(contents []byte) Digest {
+	return sum256(append([]byte(markerRegularFile), contents...))
+}
+
+func missingDigest() Digest { return sum256([]byte(markerMissing)) }
+
 // fingerprintPath is FSPath's observation, factored out so directory
 // traversal (fingerprintDir) can recurse into it for each entry.
 func fingerprintPath(vfs FS, path string) (Digest, error) {
 	info, err := vfs.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return sum256([]byte(markerMissing)), nil
+		return missingDigest(), nil
 	}
 	if err != nil {
 		return Digest{}, err
@@ -69,11 +104,11 @@ func fingerprintPath(vfs FS, path string) (Digest, error) {
 	case info.IsDir():
 		return fingerprintDir(vfs, path)
 	case info.Mode().IsRegular():
-		contents, err := vfs.ReadFile(path)
+		contents, err := readRegular(vfs, path, info.Mode())
 		if err != nil {
 			return Digest{}, err
 		}
-		return sum256(append([]byte(markerRegularFile), contents...)), nil
+		return regularFileDigest(contents), nil
 	default:
 		return Digest{}, fmt.Errorf("fs path %q is neither a regular file, directory, nor symlink", path)
 	}
@@ -101,4 +136,26 @@ func fingerprintDir(vfs FS, path string) (Digest, error) {
 		preimage = append(preimage, childDigest[:]...)
 	}
 	return sum256(preimage), nil
+}
+
+// readRegular reads a regular file. Mode 0000 denies the read even to the
+// owner, so the real filesystem facade adds owner-read for the read and
+// puts the mode back. A fake FS is left alone.
+func readRegular(vfs FS, path string, mode fs.FileMode) ([]byte, error) {
+	contents, err := vfs.ReadFile(path)
+	if err == nil || !errors.Is(err, fs.ErrPermission) {
+		return contents, err
+	}
+	if _, ok := vfs.(osFS); !ok {
+		return nil, err
+	}
+	original := mode & (fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky)
+	if chmodErr := os.Chmod(path, original|0o400); chmodErr != nil {
+		return nil, err
+	}
+	contents, readErr := vfs.ReadFile(path)
+	if chmodErr := os.Chmod(path, original); chmodErr != nil && readErr == nil {
+		return nil, chmodErr
+	}
+	return contents, readErr
 }

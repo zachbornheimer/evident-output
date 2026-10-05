@@ -44,9 +44,9 @@ const (
 	// real Finish. It stays live algebra, not dead code: a caller that
 	// calls Conclusion()/InferConclusion mid-run (before Finish) on a
 	// warned-but-still-running task with nothing else Done yet can reach
-	// it today, and it is the landing state a future run-scoped evo.Warn
-	// (P8, unbuilt this stage) needs once nothing else in the run
-	// classifies.
+	// it today, and it is the landing state a run-scoped
+	// out.Problem(summary, evo.Severity(evo.SeverityWarning)) (P8; evo.Warn
+	// removed in 1.1) needs once nothing else in the run classifies.
 	StateWarning   ConclusionState = "warning"
 	StateBlocked   ConclusionState = "blocked"
 	StateFailed    ConclusionState = "failed"

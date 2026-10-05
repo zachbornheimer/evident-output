@@ -13,24 +13,55 @@ type Problem struct {
 	Subject string
 	Summary string
 	Detail  string
-	// EvidenceTail is a raw evidence tail (typically a capture ring via
-	// DetailTail) attached alongside an explicit Detail. When Detail is also
-	// set, both render — Detail first, EvidenceTail as an additional evidence
-	// line underneath — so an explicit Detail is never silently discarded by
-	// an auto-attached or explicitly requested evidence tail (or vice versa).
-	// When Detail is empty, EvidenceTail alone renders as the problem's detail
-	// body (DetailTail's original, still-supported shape).
-	EvidenceTail string
-	Severity     string
-	Count        int64
-	Unit         string
-	Location     *SourceLocation
-	Evidence     []Attachment
-	Actions      []Action
-	Fields       []Field
-	Cause        error
-	Sensitive    bool
+	// CaptureTail is a raw capture-ring tail (typically via Capture.DetailTail)
+	// attached alongside an explicit Detail. When Detail is also set, both
+	// render — Detail first, CaptureTail as an additional line underneath —
+	// so an explicit Detail is never silently discarded by an auto-attached
+	// or explicitly requested capture tail (or vice versa). When Detail is
+	// empty, CaptureTail alone renders as the problem's detail body
+	// (DetailTail's original, still-supported shape). Renamed from
+	// EvidenceTail (removed in 1.1) in the 1.1 vocabulary freeze (E-121): this field holds
+	// retained process output, not satisfaction proof, so it must not share
+	// the Evidence name with the Evidence field below. The wire JSON key
+	// stays "evidence_tail" (internal/wire/problem.go) — a deliberate,
+	// documented wire-compat decision: run.v2 payloads already on disk use
+	// that key, and this Go-level rename does not touch the schema.
+	CaptureTail string
+	// Severity is error (the zero value normalizes to it) or warning. A
+	// warning never fails the Task or run it is recorded on.
+	Severity  ProblemSeverity
+	Count     int64
+	Unit      string
+	Location  *SourceLocation
+	Evidence  []Attachment
+	Actions   []Action
+	Fields    []Field
+	Cause     error
+	Sensitive bool
 }
+
+// ProblemSeverity says whether a Problem fails the work it is recorded on
+// (SeverityError, the default) or only warns (SeverityWarning).
+type ProblemSeverity string
+
+const (
+	// SeverityError fails the owning Define (or the run) when recorded.
+	SeverityError ProblemSeverity = "error"
+	// SeverityWarning sets "warned" and never fails anything.
+	SeverityWarning ProblemSeverity = "warning"
+)
+
+// normalized closes the enum: only SeverityWarning warns; the zero value
+// and any unknown spelling are SeverityError, the side that fails loudly.
+func (s ProblemSeverity) normalized() ProblemSeverity {
+	if s == SeverityWarning {
+		return SeverityWarning
+	}
+	return SeverityError
+}
+
+// IsWarning reports whether p only warns rather than fails.
+func (p Problem) IsWarning() bool { return p.Severity.normalized() == SeverityWarning }
 
 // SourceLocation is a path-based source position. Named SourceLocation
 // (not Location) so the Location(...) ProblemOption constructor can keep
@@ -43,9 +74,9 @@ type SourceLocation struct {
 
 // Attachment is an additional label/value problem attachment.
 //
-// Named Attachment (not Evidence) because Evidence names the retained
-// process-output sink — this is a single labeled fact attached to a
-// Problem, a different concept from that sink.
+// Named Attachment, not Evidence: Evidence is satisfaction proof (Verify)
+// and Capture is the retained process-output sink. This is a single
+// labeled fact attached to a Problem.
 type Attachment struct {
 	Label string
 	Value string
@@ -58,7 +89,12 @@ type Field struct {
 	Sensitive bool
 }
 
-// SplitWrappedMessage separates a Failf/Blockf error into the summary shown
+// RedactedValue replaces a Sensitive Field's Value everywhere evo renders
+// or projects one — human output, JSON, evo.run, and JSONL alike — so the
+// literal has one owner instead of a copy hard-coded at each call site.
+const RedactedValue = "***"
+
+// SplitWrappedMessage separates a %w-wrapped Fail/Block error into the summary shown
 // as the row's headline and the evidence line rendered underneath it. format
 // is the caller's original fmt.Errorf format string (before substitution);
 // err is fmt.Errorf(format, args...).
@@ -98,11 +134,11 @@ func SplitWrappedMessage(format string, err error) (summary, evidence string) {
 func SanitizeProblem(p Problem) Problem {
 	p.Summary = text.Text(p.Summary)
 	p.Detail = text.Block(p.Detail)
-	p.EvidenceTail = text.Block(p.EvidenceTail)
+	p.CaptureTail = text.Block(p.CaptureTail)
 	p.Subject = text.Text(p.Subject)
 	p.Code = text.Text(p.Code)
 	p.Unit = text.Text(p.Unit)
-	p.Severity = text.Text(p.Severity)
+	p.Severity = p.Severity.normalized()
 	if p.Location != nil {
 		loc := *p.Location
 		loc.Path = text.Text(loc.Path)

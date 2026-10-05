@@ -22,7 +22,7 @@ func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 	task := out.Task("index")
 	task.Doing("reading documents")
 	logger.Debug("batch loaded", "documents", 200)
-	task.Done("indexed %d documents", 200)
+	succeed(task, "indexed 200 documents")
 	_ = out.Finish()
 
 	ops := screen.Operations()
@@ -48,7 +48,7 @@ func TestSlogHandler_PackageFuncJournalsToDefaultInstance(t *testing.T) {
 
 	logger := slog.New(evo.SlogHandlerForTest())
 	logger.Debug("batch loaded", "documents", 200)
-	evo.Task("index").Done()
+	succeed(evo.Task("index"))
 
 	if err := evo.Default().Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
@@ -136,7 +136,7 @@ func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 	task := out.Task("pull")
 	task.Doing("fetching")
 	logger.Warn("registry request slow", "duration", "4s", "registry", "ghcr.io")
-	task.Done()
+	succeed(task)
 	_ = out.Finish()
 
 	live := screen.LatestLiveText()
