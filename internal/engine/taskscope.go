@@ -1,6 +1,9 @@
 package engine
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // taskScopeContextKey is the unexported context.Value key a Define
 // callback's context carries — never a plain string, so nothing outside
@@ -59,4 +62,25 @@ func taskScope(ctx context.Context) (*TaskHandle, error) {
 		return nil, ErrTaskClosed
 	}
 	return &TaskHandle{out: scope.out, id: scope.taskID}, nil
+}
+
+// beginOperation is the one entry every Define-scoped operation (Effect,
+// File, Files, Exec, Patch) passes before doing anything: it finds the Task
+// ctx belongs to, and refuses a ctx that is already done. A refusal is
+// recorded where Output.Err reports it, so a cancelled Run never reads as
+// silent success whichever verb the caller used. label names the operation
+// in the error ("File \"a.txt\"").
+func beginOperation(ctx context.Context, label string) (*TaskHandle, error) {
+	task, err := taskScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		wrapped := fmt.Errorf("evo: %s: %w", label, ctxErr)
+		task.out.mu.Lock()
+		task.out.recordMisuse(wrapped)
+		task.out.mu.Unlock()
+		return nil, wrapped
+	}
+	return task, nil
 }

@@ -16,7 +16,7 @@ func TestDryRun_TrueRendersPlannedImperative(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true, DryRun: true})
 	branches := out.Task("branches")
-	branches.Delete("local branch", func() error { return nil }, evo.Affected(12))
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestDryRun_FalseRendersChangedPastTense(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true})
 	branches := out.Task("branches")
-	branches.Delete("local branch", func() error { return nil }, evo.Affected(12))
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 	branches := out.Task("branches")
-	branches.Delete("local branch", func() error { return nil }, evo.Affected(3))
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 3))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -94,17 +94,16 @@ func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 }
 
 // TestTaskHandle_MultipleMutationsAccumulateOnOneSubject exercises the
-// get-or-create Plan/Changes identity: repeated Record calls on the same
-// task accumulate into one section instead of one per call. Named mutation
-// verbs submit work and resolve the Task (one per Task); Record is the
-// ledger primitive that can stack rows on one subject.
+// get-or-create Plan/Changes identity: repeated Effect calls in one Task's
+// Define accumulate into one section instead of one per call.
 func TestTaskHandle_MultipleMutationsAccumulateOnOneSubject(t *testing.T) {
 	t.Parallel()
 	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
-	branches := out.Task("branches")
-	branches.Record("delete", 3, "local branch")
-	branches.Record("update", 1, "tip")
+	commit(out.Task("branches"),
+		evo.EffectSpec{Verb: evo.EffectDelete, Object: "local branch", Quantity: 3},
+		evo.EffectSpec{Verb: evo.EffectUpdate, Object: "tip", Quantity: 1},
+	)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -118,26 +117,26 @@ func TestTaskHandle_MultipleMutationsAccumulateOnOneSubject(t *testing.T) {
 }
 
 // TestConjugatePast_TableIncludingIrregulars pins the display-facing tense
-// conjugation: default +d/+ed rule plus the write->wrote irregular.
+// conjugation of every EffectVerb: the default +d/+ed rule, the doubled
+// consonant, and install/uninstall. (write->wrote belongs to evo.File.)
 func TestConjugatePast_TableIncludingIrregulars(t *testing.T) {
 	t.Parallel()
-	cases := map[string]string{
-		"delete": "deleted",
-		"create": "created",
-		"update": "updated",
-		"remove": "removed",
-		"push":   "pushed",
-		"write":  "wrote",
+	cases := map[evo.EffectVerb]string{
+		evo.EffectAdd:       "added",
+		evo.EffectDelete:    "deleted",
+		evo.EffectCreate:    "created",
+		evo.EffectUpdate:    "updated",
+		evo.EffectRemove:    "removed",
+		evo.EffectPush:      "pushed",
+		evo.EffectInstall:   "installed",
+		evo.EffectUninstall: "uninstalled",
 	}
 	for imperative, want := range cases {
-		imperative, want := imperative, want
-		t.Run(imperative, func(t *testing.T) {
+		t.Run(string(imperative), func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
 			out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "t", Color: evo.ColorNever, Plain: true})
-			subject := out.Task("subject")
-			subject.RecordName(imperative, "object")
-			subject.Done()
+			commit(out.Task("subject"), evo.EffectSpec{Verb: imperative, Object: "object", Quantity: 1})
 			if err := out.Finish(); err != nil {
 				t.Fatal(err)
 			}
@@ -156,9 +155,9 @@ func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Title: "t", Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("branches")
-	task.Done()
+	succeed(task)
 
-	task.Delete("thing", func() error { return nil }, evo.Affected(1))
+	task.Define(effectOf(evo.EffectDelete, "thing", 1))
 
 	if out.Err() == nil {
 		t.Fatal("want recorded misuse after mutating a resolved task")
@@ -169,34 +168,81 @@ func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 	}
 }
 
-// TestWriteEffects_ZeroAffectedMutationVerbRendersNoSection proves a
-// mutation-verb call (TaskHandle.Delete/...) with Affected(0) never declares
-// a Plan/Changes section at all — no ledger row, no "nothing to X" fallback
-// line either.
-//
-// E2.5 finding 4 supersedes this test's original expectation ("nothing to
-// delete branches" via the mutation-verb boundary): that grammar is exactly
-// the fixture's "[planned] repo-retire" phantom-row bug class an effect that
-// never happened must never materialize a ledger section of its own. The
-// "nothing to <verb> <subject>" empty-section grammar itself is still
-// covered — for TaskHandle.Record's own zero-quantity contract, a distinct,
-// lower-level primitive Affected's fix does not touch — by
-// TestSpecP18_RemoteTrackingVsRemoteDelete_Step2.
-func TestWriteEffects_ZeroAffectedMutationVerbRendersNoSection(t *testing.T) {
+// TestDryRun_MarkerAnnouncesRunAsFirstLine is the red-first case for
+// evo-rec.md Problem 1: "a dry run must announce itself — library-owned."
+// A DryRun-configured Output cannot finish without an unmissable marker
+// line appearing before anything else in the durable output.
+func TestDryRun_MarkerAnnouncesRunAsFirstLine(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "clean", Color: evo.ColorNever, Plain: true, DryRun: true})
+	out := evo.Init(evo.Config{Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true, DryRun: true})
 	branches := out.Task("branches")
-	branches.Delete("local branch", func() error { return nil }, evo.Affected(0))
-	branches.Done()
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if strings.Contains(got, "nothing to") || strings.Contains(got, "[planned] branches") {
-		t.Fatalf("want no \"branches\" ledger section at all for a zero-Affected mutation verb, got:\n%s", got)
+	if !strings.Contains(got, "[dry-run]") {
+		t.Fatalf("want dry-run marker, got:\n%s", got)
 	}
-	if len(out.Snapshot().Plans) != 0 {
-		t.Fatalf("want no Plan section declared, got %+v", out.Snapshot().Plans)
+	lines := strings.SplitN(got, "\n", 2)
+	if !strings.Contains(lines[0], "[dry-run]") {
+		t.Fatalf("dry-run marker must be the first line, got:\n%s", got)
+	}
+}
+
+// TestDryRun_MarkerAbsentWhenNotDryRun pins the counterpart: an ordinary
+// (non-DryRun) run never emits the marker.
+func TestDryRun_MarkerAbsentWhenNotDryRun(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true})
+	branches := out.Task("branches")
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(buf.String(), "[dry-run]") {
+		t.Fatalf("an applied run must never render the dry-run marker:\n%s", buf.String())
+	}
+}
+
+// TestDryRun_ConclusionReadsPlannedNotDone pins the second half of Problem 1:
+// the trailing conclusion of a dry run must read planned-not-done, never the
+// ✓/StateReady "done" form — including once a run has no Plan section of its
+// own (inferConclusion must not fall through to Ready/Changed for DryRun).
+func TestDryRun_ConclusionReadsPlannedNotDone(t *testing.T) {
+	t.Parallel()
+	out := evo.Init(evo.Config{Title: "retire", Color: evo.ColorNever, DryRun: true})
+	t.Cleanup(func() { _ = out.Close() })
+	branches := out.Task("branches")
+	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	c := out.Conclusion()
+	if c.State != evo.StatePlanned {
+		t.Fatalf("conclusion state = %v, want StatePlanned for a dry run", c.State)
+	}
+	if c.ExitCode != evo.ExitOK {
+		t.Fatalf("exit code = %d, want unchanged ExitOK", c.ExitCode)
+	}
+}
+
+// TestDryRun_ConclusionReadsPlannedEvenWithoutAPlanSection is the red-first
+// case that isolates the DryRun override itself: a dry run whose only
+// content is a resolved Item (no Plan/Changes section at all) would
+// otherwise fall through to StateReady — DryRun must still keep the
+// headline planned-not-done.
+func TestDryRun_ConclusionReadsPlannedEvenWithoutAPlanSection(t *testing.T) {
+	t.Parallel()
+	out := evo.Init(evo.Config{Title: "retire", Color: evo.ColorNever, DryRun: true})
+	t.Cleanup(func() { _ = out.Close() })
+	succeed(out.Task("scan"))
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if c := out.Conclusion(); c.State != evo.StatePlanned {
+		t.Fatalf("conclusion state = %v, want StatePlanned even with no Plan section", c.State)
 	}
 }

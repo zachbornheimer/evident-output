@@ -96,6 +96,40 @@ func TestFSPathInaccessibleIsErrorNotMissing(t *testing.T) {
 	})
 }
 
+// A mode-0000 file denies the read even to its owner, but it is still a
+// file with contents: its digest matches the same bytes at a readable
+// mode, and the mode is left at 0000.
+func TestFSPathModeZeroFileFingerprintsItsContentsAndKeepsItsMode(t *testing.T) {
+	dir := t.TempDir()
+	locked, open := filepath.Join(dir, "locked"), filepath.Join(dir, "open")
+	for _, path := range []string{locked, open} {
+		if err := os.WriteFile(path, []byte("same bytes\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Chmod(locked, 0); err != nil {
+		t.Fatal(err)
+	}
+	lockedFP, err := FSPath(locked).Fingerprint(context.Background())
+	if err != nil {
+		t.Fatalf("fingerprint of a mode-0000 file: %v", err)
+	}
+	openFP, err := FSPath(open).Fingerprint(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lockedFP.Digest != openFP.Digest {
+		t.Fatal("a mode-0000 file's digest differs from the same bytes at 0644")
+	}
+	info, err := os.Lstat(locked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0 {
+		t.Fatalf("mode after fingerprint = %#o, want 0000", info.Mode().Perm())
+	}
+}
+
 func TestFSPathSymlinkFingerprintsTargetTextWithoutFollowing(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "target")

@@ -69,7 +69,7 @@ func TestMCP_InitializeAndToolsListStdoutPurity(t *testing.T) {
 func listedToolNames(t *testing.T, stdout string) map[string]bool {
 	t.Helper()
 	out := map[string]bool{}
-	for _, line := range strings.Split(strings.TrimSpace(stdout), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(stdout), "\n") {
 		var msg map[string]any
 		if err := json.Unmarshal([]byte(line), &msg); err != nil {
 			continue
@@ -97,7 +97,7 @@ func buildMCP(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "evident-output-mcp")
-	cmd := exec.Command("go", "build", "-o", bin, ".")
+	cmd := exec.Command("go", "build", "-buildvcs=false", "-o", bin, ".")
 	cmd.Dir = "."
 	cmd.Env = os.Environ()
 	out, err := cmd.CombinedOutput()

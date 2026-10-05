@@ -1,0 +1,49 @@
+[
+  {
+    "id": "C01-001",
+    "section": "1",
+    "quote": "Evident Output lets application code describe work once and derives, from the same typed runtime truth:",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC01_001_OneTruthDrivesEveryProjection"
+      },
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC16_009_PlainJSONAndJSONLAgreeOnTheRunOutcome"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C01-002",
+    "section": "1",
+    "quote": "False invalidation is acceptable. False “already satisfied” is not.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC01_002_FalseAlreadySatisfiedNeverReported"
+      },
+      {
+        "pkg": "./conformance/contract/freshness",
+        "run": "TestC10_001_MissingAndCorruptManifestsReExecuteSafely"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C01-003",
+    "section": "1",
+    "quote": "declarative state establishment for common resources;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC01_003_FileEstablishesDesiredStateAndIsQuietWhenSatisfied"
+      }
+    ],
+    "default": false
+  }
+]

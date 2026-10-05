@@ -1,0 +1,430 @@
+[
+  {
+    "id": "C22-001",
+    "section": "22",
+    "quote": "Group sibling concurrency;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScheduler_GroupOverlapRespectsCeiling"
+      },
+      {
+        "pkg": ".",
+        "run": "TestGroup_ConcurrentIndependentChildrenAreNotMisuse"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-002",
+    "section": "22",
+    "quote": "Sequence ordering;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScheduler_SequenceDeclarationOrderMaxOne"
+      },
+      {
+        "pkg": ".",
+        "run": "TestSequence_FailureAutoResolvesLaterSiblingsToNotStarted"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-003",
+    "section": "22",
+    "quote": "After semantics;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScheduler_AfterWaitsForPredecessors"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestAfterCycle_DependentsDoNotStart"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestAfterPredecessorFails_BeforeDependentIsSubmitted_SettlesImmediately"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-004",
+    "section": "22",
+    "quote": "bounded scheduling;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScheduler_GroupOverlapRespectsCeiling"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestSpawnedPlainWaitersRespectTheCeiling"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-005",
+    "section": "22",
+    "quote": "cancellation and partial Effects;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPartialEffect_TwoOfThreeRecordsCommittedAndFailsTheTask"
+      },
+      {
+        "pkg": ".",
+        "run": "TestScenario_CancelledAfterMutation"
+      },
+      {
+        "pkg": ".",
+        "run": "TestSequence_CancelAutoResolvesLaterSiblings"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPartialEffect_InterruptAfterPartialCommitKeepsTheCommittedSubset"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-006",
+    "section": "22",
+    "quote": "determinate/indeterminate progress;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestLive_DeterminateProgressBarAndIndeterminatePhase"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-007",
+    "section": "22",
+    "quote": "<=100ms visible Running heartbeat;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestLive_QuietRunningTaskKeepsChangingFrames"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-008",
+    "section": "22",
+    "quote": "stable timer/current-item layout;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/tests22",
+        "run": "TestC22_008_TimerAndCurrentItemLayoutStayPutAsSecondsTick"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPruneContract_LiveCategoriesRenderContract18Frame"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-009",
+    "section": "22",
+    "quote": "automatic Fact verbosity;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestTaskFact_HiddenOnNormalSuccess"
+      },
+      {
+        "pkg": ".",
+        "run": "TestTaskFact_ShownUnderVerbose"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-010",
+    "section": "22",
+    "quote": "warnings/failures/partial truth;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestProblem_WarningSeveritySettlesDoneAndWarns"
+      },
+      {
+        "pkg": ".",
+        "run": "TestProblem_DefaultSeverityFailsTaskAndRun"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPartialEffect_TwoOfThreeRecordsCommittedAndFailsTheTask"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-011",
+    "section": "22",
+    "quote": "planned vs changed Effects;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestEffect_DryRunRecordsPlannedAndNeverInvokesFn"
+      },
+      {
+        "pkg": ".",
+        "run": "TestEffect_ApplyRecordsChangedOnlyAfterFnSucceeds"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-012",
+    "section": "22",
+    "quote": "already satisfied;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScenario_AlreadySatisfied"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-013",
+    "section": "22",
+    "quote": "declarative file create/update/no-op/mode-only/partial failure;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileManifestCommittedEffectRecordedOnMutation"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileManifestFreshnessSkipsUnchangedOperation"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileModeOnlySpecConsultsManifestOnSecondRun"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileManifestPartialFailurePreservesEarlierCommits"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-014",
+    "section": "22",
+    "quote": "provenance invalidation;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/tests22",
+        "run": "TestC22_014_ChangedBasisInvalidatesAndAnUnchangedRunSpawnsNothing"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileManifestBasisDriftForcesReconciliation"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-015",
+    "section": "22",
+    "quote": "precise script/input provenance;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/tests22",
+        "run": "TestC22_015_OnlyTheStageWhoseScriptOrInputChangedRespawns"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-016",
+    "section": "22",
+    "quote": "application fingerprint fallback;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestOpaqueTaskDefinitionFallsBackToAppFingerprintWhenRunHasManifestActivity"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestOpaqueTaskDefinitionRunsEveryRun"
+      },
+      {
+        "pkg": "./internal/fingerprint",
+        "run": "TestAppFingerprintsExecutableBytesWhenReadable"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-017",
+    "section": "22",
+    "quote": "unchanged upstream output stopping downstream invalidation;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/tests22",
+        "run": "TestC22_017_UnchangedUpstreamOutputStopsDownstreamInvalidation"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-018",
+    "section": "22",
+    "quote": "dry-run never mutating;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestEffect_DryRunNeverExecutesCallAndPlansEffect"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileManifestDryRunNeverCommitsAndRecordsPlannedEffect"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestExecDryRunNeverSpawns"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesDryRunPlansWithoutMutation"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-019",
+    "section": "22",
+    "quote": "manifest missing/corrupt/concurrent/atomic behavior;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/manifestpersist",
+        "run": "TestC22_019_MissingManifestIsACleanFirstRun"
+      },
+      {
+        "pkg": "./conformance/contract/manifestpersist",
+        "run": "TestC22_019_ManifestWritesAreAtomicForConcurrentReaders"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestManifestCorruptFileIsSafeMissWithWarning"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestCrossProcessSameManifestNeverRacesTrackedState"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-020",
+    "section": "22",
+    "quote": "TTY/plain/JSON/JSONL semantic consistency;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/tests22",
+        "run": "TestC22_020_TTYPlainJSONAndJSONLAgreeOnTheSameRun"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-021",
+    "section": "22",
+    "quote": "stable problem codes;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/tests22",
+        "run": "TestC22_021_ProblemCodesStayStableAcrossRunsAndWording"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-022",
+    "section": "22",
+    "quote": "schema compatibility;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestWireSchema_RenderedDocumentValidates"
+      },
+      {
+        "pkg": ".",
+        "run": "TestWireSchema_RichProblemStaysWithinFrozenOutputV1"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-023",
+    "section": "22",
+    "quote": "exit codes.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestOUT012_ExitCodes"
+      },
+      {
+        "pkg": ".",
+        "run": "TestResult_ExitCodeMapping"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C22-024",
+    "section": "22",
+    "quote": "Public examples and MCP-recommended snippets should compile against the actual target version so documentation cannot drift.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/docexamples",
+        "run": "TestDocFencesMatchFixtures"
+      },
+      {
+        "pkg": "./internal/docexamples",
+        "run": "TestCatalogGuidesHaveNoUntestedGoFences"
+      },
+      {
+        "pkg": "./examples",
+        "run": "TestExamplesPassReview"
+      }
+    ],
+    "default": false
+  }
+]

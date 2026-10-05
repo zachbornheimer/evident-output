@@ -1,0 +1,239 @@
+package evo_test
+
+import (
+	"fmt"
+	"io"
+	"strings"
+	"testing"
+	"time"
+
+	evo "github.com/zachbornheimer/evident-output"
+	txt "github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/testkit"
+)
+
+// Appendix H interactive cases (v0.2) — written red-first against live terminal.
+
+func TestH2_Task_InstantCompletionDoesNotFlashSpinner(t *testing.T) {
+	screen := testkit.NewScreen(
+		testkit.Interactive(),
+		testkit.Width(80),
+		testkit.NoColor(),
+	)
+	clock := testkit.NewClock()
+
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(150 * time.Millisecond)})
+	t.Cleanup(func() { _ = out.Close() })
+
+	dependencies := out.Task("dependencies")
+	dependencies.Doing("installing")
+	succeed(dependencies, "installed 18 packages")
+
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := screen.LiveFrameCount(); got == 0 {
+		t.Fatal("instant Done must still paint a running frame before the check")
+	}
+	// A task resolved before the live region ever became visible commits its
+	// row durably at resolution time (release-gate round 5 finding 3) rather
+	// than waiting for WriteFinal — PersistedText covers both.
+	persisted := screen.PersistedText()
+	if persisted == "" {
+		t.Fatal("persisted text empty: interactive Finish must write the resolved task somewhere on screen")
+	}
+	if !strings.Contains(persisted, "installed 18 packages") {
+		t.Fatalf("persisted text missing completion summary:\n%s", persisted)
+	}
+	if strings.ContainsAny(persisted, "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏") {
+		t.Fatalf("persisted text contains spinner:\n%s", persisted)
+	}
+}
+
+func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
+	screen := testkit.NewScreen(
+		testkit.Interactive(),
+		testkit.Width(80),
+		testkit.NoColor(),
+	)
+
+	// FixedClock freezes spinner glyphs for stable operation expectations.
+	fixed := evo.TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	discard := io.Discard
+	out := evo.Init(evo.Config{Isolated: true, Clock: fixed, Terminal: screen, Stdout: discard, Stderr: discard, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("dependencies")
+	task.Doing("resolving packages")
+	out.DebugForTest("package index loaded", evo.Field{Key: "packages", Value: 18})
+	succeed(task, "installed 18 packages")
+	_ = out.Finish()
+
+	// History mode: timestamp (FixedClock) + bracketed level above live region.
+	// Declare is Pending (○). Doing starts submitted evidence so the row
+	// spins. Done commits the resolved row durably at resolution time.
+	want := []testkit.Operation{
+		testkit.DrawLive("⠋  starting"),
+		testkit.DrawLive("○ dependencies"),
+		testkit.DrawLive("⠋ dependencies  resolving packages"),
+		testkit.ClearLive(),
+		testkit.WriteDurable("00:00:00.000 [DEBUG] package index loaded  packages=18"),
+		testkit.DrawLive("⠋ dependencies  resolving packages"),
+		testkit.ClearLive(),
+		testkit.WriteDurable("✓ dependencies  installed 18 packages\n"),
+		testkit.WriteFinal(""),
+	}
+
+	if diff := testkit.DiffOperations(want, screen.Operations()); diff != "" {
+		t.Fatalf("terminal operations differ (-want +got):\n%s\ngot=%#v", diff, screen.Operations())
+	}
+}
+
+func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
+	screen := testkit.NewScreen(
+		testkit.Interactive(),
+		testkit.Width(80),
+		testkit.NoColor(),
+	)
+
+	fixed := evo.TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: fixed, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
+	t.Cleanup(func() { _ = out.Close() })
+
+	dependencies := out.Group("dependencies")
+	react := dependencies.Task("react")
+	esbuild := dependencies.Task("esbuild")
+	sharp := dependencies.Task("sharp")
+
+	// Update and resolve in a different order than declaration.
+	sharp.Doing("verifying")
+	esbuild.Bytes(12_400_000, 18_000_000)
+	react.Bytes(8_100_000, 8_100_000)
+	succeed(react)
+
+	got := screen.LatestLiveText()
+	// Column layout: child names pad to width 9 (spec H.20 semantics: declaration
+	// order + absolute bytes + phases). Spacing normalized to a single rule.
+	// Bytes rows include an ASCII bar plus fixed MB fraction (live progress UX).
+	// Empty bar cells are literal spaces, not a shaded glyph (spec §23).
+	want := `⠋ dependencies  1/3 complete
+   ✓ react      8.1 MB
+   ⠋ esbuild    [████████    ]  12.4/18.0 MB
+   ⠋ sharp      verifying`
+
+	if got != want {
+		t.Fatalf("live output mismatch\ngot:\n%s\nwant:\n%s", got, want)
+	}
+	// Declaration order preserved even when updates arrive out of order.
+	reactAt := strings.Index(got, "react")
+	esbuildAt := strings.Index(got, "esbuild")
+	sharpAt := strings.Index(got, "sharp")
+	if reactAt >= esbuildAt || esbuildAt >= sharpAt {
+		t.Fatalf("declaration order broken: react=%d esbuild=%d sharp=%d", reactAt, esbuildAt, sharpAt)
+	}
+}
+
+func TestH21_Tasks_ScreenBudgetSelectsImportantRowsAndReportsOmission(t *testing.T) {
+	screen := testkit.NewScreen(
+		testkit.Interactive(),
+		testkit.Width(80),
+		testkit.Height(8),
+		testkit.NoColor(),
+	)
+
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
+	t.Cleanup(func() { _ = out.Close() })
+
+	dependencies := out.Group("dependencies")
+	for n := range 120 {
+		task := dependencies.Task(fmt.Sprintf("package-%03d", n))
+		switch n {
+		case 7:
+			task.Fail("checksum mismatch")
+		case 12, 18:
+			task.Doing("downloading")
+		case 20:
+			task.Problem("using cached fallback", evo.Severity(evo.SeverityWarning))
+		default:
+			succeed(task)
+		}
+	}
+
+	got := screen.LatestLiveText()
+	for _, required := range []string{
+		"package-007",
+		"checksum mismatch",
+		"package-020",
+		"package-012",
+		"not shown",
+	} {
+		if !strings.Contains(got, required) {
+			t.Fatalf("live output omitted %q:\n%s", required, got)
+		}
+	}
+}
+
+func TestH22_Task_HighFrequencyProgressIsCoalesced(t *testing.T) {
+	screen := testkit.NewScreen(
+		testkit.Interactive(),
+		testkit.Width(80),
+		testkit.NoColor(),
+	)
+	clock := testkit.NewClock()
+
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
+	t.Cleanup(func() { _ = out.Close() })
+
+	download := out.Task("download")
+	for completed := 0; completed <= 10_000; completed++ {
+		download.Progress(completed, 10_000)
+		// Keep wall-clock zero; coalescing uses frame budget, not only time.
+	}
+	succeed(download)
+
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := download.Snapshot().Progress.Completed; got != 10_000 {
+		t.Fatalf("completed = %d, want 10000", got)
+	}
+	if frames := screen.LiveFrameCount(); frames >= 10_000 {
+		t.Fatalf("frames = %d, progress updates were not coalesced", frames)
+	}
+	if frames := screen.LiveFrameCount(); frames < 1 {
+		t.Fatal("expected at least one live frame during progress")
+	}
+}
+
+func TestLive_RepeatedStyledPhasesFitTerminalWidth(t *testing.T) {
+	const columns = 40
+	screen := testkit.NewScreen(
+		testkit.Interactive(),
+		testkit.Width(columns),
+	)
+	out := evo.Init(evo.Config{Isolated: true, Clock: evo.TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("goimports check")
+	task.Doing("goimports -d " + strings.Repeat("file.go ", 20))
+	task.Doing("goimports -d " + strings.Repeat("1️⃣ ", 20))
+
+	for _, operation := range screen.Operations() {
+		if operation.Kind != "live" {
+			continue
+		}
+		for line := range strings.SplitSeq(operation.Text, "\n") {
+			if cells := txt.VisibleCells(line); cells > columns {
+				t.Fatalf("live line uses %d cells, terminal has %d:\n%s", cells, columns, operation.Text)
+			}
+		}
+	}
+	if frames := screen.LiveFrameCount(); frames != 4 {
+		t.Fatalf("live frames=%d, want 4 (armed title + three doing frames)", frames)
+	}
+	if got := txt.StripANSI(screen.LatestLiveText()); !strings.HasSuffix(got, "…") {
+		t.Fatalf("truncated live line must signal omitted text:\n%s", got)
+	}
+}

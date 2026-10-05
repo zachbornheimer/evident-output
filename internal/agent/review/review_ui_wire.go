@@ -68,7 +68,7 @@ var factLineLiteralPattern = regexp.MustCompile(`^([A-Za-z][\w ./-]{0,60}):\s*%[
 // detectFactPrintedAsUIText flags a manually printed "label: value" line on
 // an evo Task/Output handle — the renderer/JSON both already derive from
 // Facts, and a hand-printed line is unstructured text neither can rely on.
-func detectFactPrintedAsUIText(fset *token.FileSet, f *ast.File, filename string) []Finding {
+func detectFactPrintedAsUIText(filename string, f *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	ast.Inspect(f, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -91,7 +91,6 @@ func detectFactPrintedAsUIText(fset *token.FileSet, f *ast.File, filename string
 		pos := fset.Position(n.Pos())
 		findings = append(findings, Finding{
 			RuleID:     "EVO-UI-001",
-			Severity:   "warning",
 			Message:    `manually printed "` + label + `: ..." line duplicates task.Fact; a Fact is derived and projected consistently across renderer and JSON`,
 			File:       filename,
 			Line:       pos.Line,
@@ -126,7 +125,7 @@ func isSuccessConfirmationLine(literal string) bool {
 // line on fmt or an evo Task/Output handle, which duplicates the glyph
 // Task.Done already renders on the passing path and drifts from it under
 // Plain/JSON/verbosity modes.
-func detectPassingVerificationPrinted(fset *token.FileSet, f *ast.File, filename string) []Finding {
+func detectPassingVerificationPrinted(filename string, f *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	ast.Inspect(f, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -144,12 +143,11 @@ func detectPassingVerificationPrinted(fset *token.FileSet, f *ast.File, filename
 		pos := fset.Position(n.Pos())
 		findings = append(findings, Finding{
 			RuleID:     "EVO-UI-002",
-			Severity:   "warning",
-			Message:    "manually printed success/verified line duplicates the glyph task.Done already renders on the passing path",
+			Message:    "manually printed success/verified line duplicates the glyph the Task's success row already renders on the passing path",
 			File:       filename,
 			Line:       pos.Line,
 			Column:     pos.Column,
-			Suggestion: "delete the manual success line; let task.Done() render the passing state",
+			Suggestion: "delete the manual success line; let the Task's Define outcome render the passing state",
 		})
 		return true
 	})
@@ -184,7 +182,7 @@ func isHandBuiltProgressLine(literal string) bool {
 // or an evo Task/Output handle, which duplicates counts evo already
 // derives from Task/Group/Sequence state and can silently disagree with
 // them.
-func detectHandBuiltProgressText(fset *token.FileSet, f *ast.File, filename string) []Finding {
+func detectHandBuiltProgressText(filename string, f *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	ast.Inspect(f, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -202,7 +200,6 @@ func detectHandBuiltProgressText(fset *token.FileSet, f *ast.File, filename stri
 		pos := fset.Position(n.Pos())
 		findings = append(findings, Finding{
 			RuleID:     "EVO-UI-003",
-			Severity:   "warning",
 			Message:    "hand-built \"N/M\" progress text duplicates counts evo already derives from Task/Group state",
 			File:       filename,
 			Line:       pos.Line,
@@ -221,7 +218,7 @@ func detectHandBuiltProgressText(fset *token.FileSet, f *ast.File, filename stri
 // .Result() accessor (Run/Output.Run return a Result value directly), so
 // only .Snapshot() is a real evo misuse shape; the receiver check keeps
 // this from firing on an unrelated type's own Snapshot() method.
-func detectMarshalOfInternalSnapshot(fset *token.FileSet, f *ast.File, filename string) []Finding {
+func detectMarshalOfInternalSnapshot(filename string, f *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	ast.Inspect(f, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -253,7 +250,6 @@ func detectMarshalOfInternalSnapshot(fset *token.FileSet, f *ast.File, filename 
 		pos := fset.Position(n.Pos())
 		findings = append(findings, Finding{
 			RuleID:     "EVO-WIRE-001",
-			Severity:   "error",
 			Message:    "json." + fn + " marshals the internal Snapshot directly; use the sanctioned JSON encoder instead",
 			File:       filename,
 			Line:       pos.Line,
@@ -286,7 +282,6 @@ func detectJSONStdoutMixedWithHumanText(filename, src string) []Finding {
 	}
 	return []Finding{{
 		RuleID:     "EVO-WIRE-003",
-		Severity:   "error",
 		Message:    "human text written to stdout in a file that also encodes JSON/JSONL to stdout; a machine consumer cannot parse the mixed stream",
 		File:       filename,
 		Line:       lineAt(src, loc[0]),

@@ -16,17 +16,25 @@ var (
 	ErrReasonSkipOnly     = errors.New("evo: reason restricted to Skipped was recorded via Kept")
 	ErrReasonWrongTask    = errors.New("evo: reason restricted to another task")
 	ErrConcurrentRunning  = errors.New("evo: two siblings in the same collection are Running simultaneously")
+	// ErrComputedUnsettled is recorded when Computed.Get is called before
+	// the Task that produces the value settled successfully.
+	ErrComputedUnsettled = errors.New("evo: Computed read before its Task settled")
+	// ErrComputedUnordered is recorded when Computed.Get is called from a
+	// Task or container builder that is not ordered after the producing Task.
+	ErrComputedUnordered = errors.New("evo: Computed read without an After edge or Sequence order to its Task")
+	// ErrDeclaredInCallback is recorded when a Task, Group, or Sequence is
+	// declared from inside a Task's Define callback.
+	ErrDeclaredInCallback = errors.New("evo: declared from inside a Task callback")
 	ErrDryRunDeclaredLate = errors.New("evo: DeclareDryRun called after a durable row was already emitted")
-	// ErrTerminalWithoutSink is recorded when Config.Options supplies a
-	// Terminal driver but no primary writer (To), and the driver cannot
-	// report its own destination (it does not implement the Sink() io.Writer
-	// accessor) — release-gate round 8 finding 2. Without either, a
-	// non-interactive Finish has nowhere to write the residual/plain
+	// ErrTerminalWithoutSink is recorded when Config.Terminal is set but
+	// Config.Stdout is nil, and the driver cannot report its own destination
+	// (it does not implement the Sink() io.Writer accessor). Without either,
+	// a non-interactive Finish has nowhere to write the residual/plain
 	// projection and would otherwise render nothing at exit 0.
 	ErrTerminalWithoutSink = errors.New("evo: Terminal driver configured without a primary writer")
 	// ErrNotStarted is what TaskHandle.Wait returns for a task whose work
-	// never ran — a failed or abandoned predecessor, or a run that drained
-	// before the task became eligible. Wait once answered such a caller with
+	// never ran — a failed or abandoned predecessor, a run that drained
+	// before the task became eligible, or a task nobody ever Defined. Wait once answered such a caller with
 	// the zero value of "the error the callback returned", so a waiter
 	// rendered a green row over the very next line admitting the work it
 	// awaited never started.
@@ -38,6 +46,11 @@ var (
 	// waiting callback is released with this error so its row states the
 	// cycle, rather than the whole run hanging in Finish.
 	ErrWaitDeadlock = errors.New("evo: awaited task can never be reached")
+	// errDependencyCycle is recorded when After edges close a cycle — a
+	// Task after itself, directly, through another Task, or through a Group
+	// it belongs to. Every Task in the cycle settles Blocked naming it,
+	// instead of Finish waiting forever for work that can never start.
+	errDependencyCycle = errors.New("evo: After dependency cycle")
 	// ErrDuplicateSiblingName is recorded when a Task, Group, or Sequence is
 	// declared with a name already used by another child of the same parent
 	// (§3.1). 1.0 removed get-or-create identity for Task/Group/Sequence
@@ -59,6 +72,9 @@ var (
 	// ErrTaskClosed is what taskScope returns for a context captured during
 	// a Define callback and reused after that callback returned (§7.1).
 	ErrTaskClosed = errors.New("evo: task scope is closed")
+	// ErrBasisAfterDefine is recorded when TaskHandle.Basis is called after
+	// Define; the call is ignored.
+	ErrBasisAfterDefine = errors.New("evo: Basis called after Define")
 )
 
 // errWaitCancelled is what TaskHandle.Wait returns for a task an interrupt
@@ -66,3 +82,9 @@ var (
 // a cancelled run already states itself in the row and the conclusion, and
 // the waiter needs "this did not succeed", not a second public name.
 var errWaitCancelled = errors.New("evo: awaited task was cancelled")
+
+// errWaitFailed is what TaskHandle.Wait returns for a row that resolved
+// Failed or Blocked with no callback error recorded — the callback settled
+// its own row and has not returned yet, or returned nil after doing so.
+// Unexported for the same reason as errWaitCancelled.
+var errWaitFailed = errors.New("evo: awaited task did not succeed")

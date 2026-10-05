@@ -24,17 +24,17 @@ func TestDebugHistory_AppendAboveLiveRegion(t *testing.T) {
 	task := out.Task("branches")
 	task.Doing("comparing")
 	out.DebugForTest("opened repository", evo.Field{Key: "path", Value: "/work/repo"})
-	task.Done()
+	succeed(task)
 	_ = out.Finish()
 
-	var durable string
+	var durable strings.Builder
 	for _, op := range screen.Operations() {
 		if op.Kind == "durable" {
-			durable += op.Text
+			durable.WriteString(op.Text)
 		}
 	}
-	if !strings.Contains(durable, "12:04:18.219 [DEBUG] opened repository  path=/work/repo") {
-		t.Fatalf("history line missing or wrong format:\nops=%#v\ndurable=%q", screen.Operations(), durable)
+	if !strings.Contains(durable.String(), "12:04:18.219 [DEBUG] opened repository  path=/work/repo") {
+		t.Fatalf("history line missing or wrong format:\nops=%#v\ndurable=%q", screen.Operations(), durable.String())
 	}
 	// Success: no diagnostic tail section in final.
 	if strings.Contains(screen.FinalText(), "── diagnostics") {
@@ -89,7 +89,7 @@ func TestDebugPane_RollingViewportNewestFirst(t *testing.T) {
 		}
 	}
 
-	task.Done()
+	succeed(task)
 	_ = out.Finish()
 	// Success: pane removed; no diagnostics tail.
 	final := screen.FinalText()
@@ -141,7 +141,7 @@ func TestDebugPane_PreserveDebugTailAlways(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.DebugForTest("cache warm", evo.Field{Key: "dir", Value: "/tmp/x"})
-	out.Task("ok").Done()
+	succeed(out.Task("ok"))
 	_ = out.Finish()
 	got := buf.String()
 	if !strings.Contains(got, "── diagnostics ──") {

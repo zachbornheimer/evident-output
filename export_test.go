@@ -15,43 +15,20 @@ func MarkWriterAsCharDevice(w io.Writer) func()   { return engine.MarkWriterAsCh
 type TestClock = engine.FixedClock
 type TestSystemClock = engine.SystemClock
 type TestRedactor = engine.NoopRedactor
-type TestEvidence = engine.Evidence
+type TestCapture = engine.Capture
 
 func DelayForTest(d time.Duration) *time.Duration { return Delay(d) }
-func ReasonConstrained(name string, opts ...ReasonOption) TaxonomyReason {
+func ReasonConstrained(name string, opts ...engine.ReasonOption) TaxonomyReason {
 	return TaxonomyReason{inner: engine.ReasonConstrained(name, opts...)}
 }
-func SlogHandlerForTest() slog.Handler { return SlogHandler() }
-
-type Scope struct{ inner *engine.Scope }
-
-func (o *Output) ScopeForTest(name string) *Scope {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return &Scope{inner: o.inner.ScopeForTest(name)}
+func KeepLastLinesForTest(n int) CaptureOption { return engine.KeepLastLines(n) }
+func MirrorToDiagnosticsForTest() CaptureOption {
+	return engine.MirrorToDiagnostics()
 }
-
-func (s *Scope) Name() string {
-	if s == nil || s.inner == nil {
-		return ""
-	}
-	return s.inner.Name()
-}
-
-func (s *Scope) Task(name string) *TaskHandle {
-	if s == nil || s.inner == nil {
-		return nil
-	}
-	return wrapTask(s.inner.Task(name))
-}
-
-func (s *Scope) TaskIdentified(name, key string) *TaskHandle {
-	if s == nil || s.inner == nil {
-		return nil
-	}
-	return wrapTask(s.inner.TaskIdentified(name, key))
-}
+func MirrorToDebugForTest() CaptureOption           { return engine.MirrorToDebug() }
+func ForSkipForTest() engine.ReasonOption           { return engine.ForSkip() }
+func OnTaskForTest(name string) engine.ReasonOption { return engine.OnTask(name) }
+func SlogHandlerForTest() slog.Handler              { return SlogHandler() }
 
 func (o *Output) AboutForTest(text string) {
 	if o != nil && o.inner != nil {
@@ -71,18 +48,11 @@ func (o *Output) DeclareDryRunForTest() {
 	}
 }
 
-func (o *Output) EvidenceForTest(opts ...EvidenceOption) *Evidence {
+func (o *Output) CaptureForTest(opts ...CaptureOption) *Capture {
 	if o == nil || o.inner == nil {
 		return nil
 	}
-	return o.inner.EvidenceForTest(opts...)
-}
-
-func (o *Output) Events() []Event {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return o.inner.Events()
+	return o.inner.CaptureForTest(opts...)
 }
 
 func (o *Output) DebugForTest(message string, fields ...Field) {
@@ -95,13 +65,6 @@ func (o *Output) AlsoWriteForTest(w io.Writer) {
 	if o != nil && o.inner != nil {
 		o.inner.AlsoWriteForTest(w)
 	}
-}
-
-func (o *Output) TaskIdentified(name, key string) *TaskHandle {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return wrapTask(o.inner.TaskIdentified(name, key))
 }
 
 func (o *Output) SetDiagnosticSharesTerminalForTest() {
@@ -143,13 +106,6 @@ func (o *Output) AtForTest(visibility Visibility) *Printer {
 	return wrapPrinter(o.inner.AtForTest(visibility))
 }
 
-func (o *Output) SchedulerStartOrder() []string {
-	if o == nil || o.inner == nil {
-		return nil
-	}
-	return o.inner.SchedulerStartOrder()
-}
-
 func (o *Output) SchedulerMaxObserved() int {
 	if o == nil || o.inner == nil {
 		return 0
@@ -165,14 +121,14 @@ func (t *TaskHandle) RunForTest(cmd *exec.Cmd) error {
 }
 
 func (t *TaskHandle) StepForTest(completed, total int, name string) *TaskHandle {
-	return t.Step(completed, total, name)
+	return t.Progress(completed, total).Doing(name)
 }
 
-func (t *TaskHandle) EvidenceForTest(opts ...EvidenceOption) *Evidence {
+func (t *TaskHandle) CaptureForTest(opts ...CaptureOption) *Capture {
 	if t == nil || t.inner == nil {
 		return nil
 	}
-	return t.inner.EvidenceForTest(opts...)
+	return t.inner.Capture(opts...)
 }
 
 func (t *TaskHandle) SkippedWithErrs(reason TaxonomyReason, name string, errs ...error) {
@@ -181,12 +137,8 @@ func (t *TaskHandle) SkippedWithErrs(reason TaxonomyReason, name string, errs ..
 	}
 }
 
-func (t *TaskHandle) NextSelfForTest(args ...string) *TaskHandle {
-	if t == nil || t.inner == nil {
-		return t
-	}
-	t.inner.NextSelfForTest(args...)
-	return t
+func (o *Output) NextSelfForTest(args ...string) ProblemOption {
+	return o.inner.NextSelfForTest(args...)
 }
 
 func (t *TaskHandle) SkipForTest(reason string, args ...any) *TaskHandle {

@@ -60,9 +60,12 @@ var (
 	GlyphWarningState = glyphSpec{"!", "[!]"}
 	GlyphCancelled    = glyphSpec{"■", "[cancel]"}
 	GlyphNotStarted   = glyphSpec{"-", "[-]"}
-	GlyphPending      = glyphSpec{"○", "[.]"}
-	GlyphRunning      = glyphSpec{"◐", "[~]"}
-	GlyphHumanInput   = glyphSpec{"?", "[?]"}
+	// GlyphSkipDetail leads a skipped/already-satisfied detail row — a plain
+	// dash in both profiles (contract §20, §41 "Already-satisfied detail").
+	GlyphSkipDetail = glyphSpec{"-", "-"}
+	GlyphPending    = glyphSpec{"○", "[.]"}
+	GlyphRunning    = glyphSpec{"◐", "[~]"}
+	GlyphHumanInput = glyphSpec{"?", "[?]"}
 	// GlyphNextAction marks a follow-up command/label line. evo-rec.md's
 	// tightened vocabulary table gives it its own row so the meaning does not
 	// depend on the cyan color alone (rule: text/glyph carries meaning).
@@ -83,7 +86,10 @@ var (
 )
 
 // SpinnerPeriod is the wall-clock duration between spinner frame advances.
-const SpinnerPeriod = 80 * time.Millisecond
+// The live frame must change at least every 100ms (§14), and the animator
+// changes it once per slot, so timer jitter eats the margin left by the
+// period. 50ms leaves 50ms of jitter room; 80ms left only 20ms.
+const SpinnerPeriod = 50 * time.Millisecond
 
 // spinnerUnicodeFrames is the braille spinner sequence (common CLI convention).
 var spinnerUnicodeFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}

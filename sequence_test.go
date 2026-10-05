@@ -3,6 +3,7 @@ package evo_test
 import (
 	"bytes"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -23,7 +24,7 @@ func TestSequence_FailureAutoResolvesLaterSiblingsToNotStarted(t *testing.T) {
 	venv := setup.Task("venv")
 	install := setup.Task("install")
 
-	scan.Done()
+	succeed(scan)
 	venv.Fail("uv exited 1")
 
 	if err := out.Finish(); err != nil {
@@ -51,7 +52,7 @@ func TestSequence_EarlierCompletedSiblingKeepsItsResolvedState(t *testing.T) {
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 
-	scan.Done()
+	succeed(scan)
 	venv.Fail("uv exited 1")
 	_ = out.Finish()
 
@@ -72,7 +73,7 @@ func TestSequence_ExplicitResolutionWinsOverAutoResolution(t *testing.T) {
 	venv := setup.Task("venv")
 	extras := setup.Task("extras")
 
-	scan.Done()
+	succeed(scan)
 	venv.Fail("uv exited 1")
 	extras.SkipForTest("optional, not needed")
 
@@ -96,7 +97,7 @@ func TestSequence_CancelAutoResolvesLaterSiblings(t *testing.T) {
 	venv := setup.Task("venv")
 	install := setup.Task("install")
 
-	scan.Done()
+	succeed(scan)
 	venv.Cancel("interrupted")
 
 	_ = out.Finish()
@@ -117,7 +118,7 @@ func TestSequence_ConclusionAndExitCodeComeFromFailedChildNotFromNotStarted(t *t
 	t.Cleanup(func() { _ = out.Close() })
 
 	setup := out.Sequence("python")
-	setup.Task("scan").Done()
+	succeed(setup.Task("scan"))
 	setup.Task("venv").Fail("uv exited 1")
 	setup.Task("install")
 
@@ -140,9 +141,9 @@ func TestSequence_AllChildrenDoneRendersAsToday(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	setup := out.Sequence("python")
-	setup.Task("scan").Done()
-	setup.Task("venv").Done()
-	setup.Task("install").Done()
+	succeed(setup.Task("scan"))
+	succeed(setup.Task("venv"))
+	succeed(setup.Task("install"))
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
@@ -177,10 +178,10 @@ func TestSequence_SequentialBytesProgressFinishesClean(t *testing.T) {
 	download.Bytes(0, total)
 	download.Bytes(total/2, total)
 	download.Bytes(total, total)
-	download.Done("%.1f MB", float64(total)/1_000_000)
+	succeed(download, "18.0 MB")
 
 	verify.Doing("checking signatures")
-	verify.Done()
+	succeed(verify)
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v\noutput:\n%s", err, buf.String())
@@ -214,5 +215,80 @@ func TestSequence_PackageLevelRepeatIsDuplicateSibling(t *testing.T) {
 	t2 := g1.Task("venv")
 	if t1 == t2 {
 		t.Fatal("Sequence.Task(name) called twice must return distinct handles")
+	}
+}
+
+// TestSequence_TwoRunningChildrenRecordsMisuse is the red-first case for the
+// "one Running child" heart contract on a Sequence: promoting a
+// second sibling to Running while the first is still Running is misuse.
+func TestSequence_TwoRunningChildrenRecordsMisuse(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
+	t.Cleanup(func() { _ = out.Close() })
+
+	setup := out.Sequence("python")
+	scan := setup.Task("scan")
+	venv := setup.Task("venv")
+
+	scan.Doing("scanning")      // promotes scan to Running
+	venv.Doing("creating venv") // second sibling Running while scan still is
+
+	if err := out.Err(); err == nil {
+		t.Fatal("want misuse recorded for two Running siblings in a Sequence")
+	}
+}
+
+// TestSequence_CascadeFailureNotStartsLaterSiblings proves Sequence's
+// defining behavior: once a child fails, every later-declared unresolved
+// sibling auto-resolves to NotStarted ("-  <name>  not started") with no
+// caller code — the same contract the deleted GroupHandle type carried,
+// now under its P3 name.
+func TestSequence_CascadeFailureNotStartsLaterSiblings(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+
+	setup := out.Sequence("python")
+	scan := setup.Task("scan")
+	venv := setup.Task("venv")
+	install := setup.Task("install")
+
+	succeed(scan)
+	venv.Fail("uv exited 1")
+
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+	if got := install.Snapshot().State; got != evo.NotStarted {
+		t.Fatalf("install state = %v, want NotStarted", got)
+	}
+	if !strings.Contains(buf.String(), "- install  not started") {
+		t.Fatalf("rendered output missing \"- install  not started\":\n%s", buf.String())
+	}
+}
+
+// TestSequence_CascadeNestedSequenceFailurePropagatesToRootHeader
+// proves the recursive nesting P3 adds: a Sequence declared under another
+// Sequence via .Sequence(name) still cascades within itself, and its
+// failure surfaces at the root container's own derived header state.
+func TestSequence_CascadeNestedSequenceFailurePropagatesToRootHeader(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &bytes.Buffer{}, Color: evo.ColorNever, Plain: true})
+	t.Cleanup(func() { _ = out.Close() })
+
+	root := out.Sequence("release")
+	succeed(root.Task("build"))
+	python := root.Sequence("python")
+	scan := python.Task("scan")
+	venv := python.Task("venv")
+	install := python.Task("install")
+
+	succeed(scan)
+	venv.Fail("uv exited 1")
+	_ = out.Finish()
+
+	if got := install.Snapshot().State; got != evo.NotStarted {
+		t.Fatalf("nested install state = %v, want NotStarted", got)
+	}
+	if got := root.Snapshot().State; got != evo.Failed {
+		t.Fatalf("root sequence state = %v, want Failed (nested failure must surface)", got)
 	}
 }

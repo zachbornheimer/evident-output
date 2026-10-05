@@ -1,6 +1,7 @@
 package evo_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"time"
@@ -12,7 +13,7 @@ import (
 // command, read from a real run.
 func ExampleConclusion() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
-	out.Task("apply patch").Done()
+	out.Task("apply patch").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	c := out.Conclusion()
 	fmt.Println(c.State, c.ExitCode)
@@ -24,9 +25,9 @@ func ExampleConclusion() {
 func ExampleResolution() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
 	task := out.Task("apply patch")
-	task.Done()
+	task.Define(func(context.Context) error { return nil })
 	_ = out.Finish()
-	fmt.Println(task.Snapshot().Resolution == evo.ResolutionNoWork)
+	fmt.Println(task.Snapshot().Resolution == evo.ResolutionExecuted)
 	// Output:
 	// true
 }
@@ -66,7 +67,7 @@ func ExampleFact() {
 func ExampleWarn() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
 	evo.SetDefault(out)
-	evo.Warn("cache directory missing, rebuilding")
+	out.Task("cache").Problem("cache directory missing, rebuilding", evo.Severity(evo.SeverityWarning))
 	_ = out.Finish()
 	fmt.Println(out.Conclusion().Warned)
 	// Output:

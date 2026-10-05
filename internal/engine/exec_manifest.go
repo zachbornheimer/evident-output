@@ -18,7 +18,8 @@ import (
 // workspace") and awaited on the freshness barrier for that canonical path
 // — so a Basis input this Run's own Exec/File output claims is always
 // fingerprinted only after its producing operation has settled (§11.6),
-// never mid-write.
+// never mid-write. Each FSPath entry is then observed under a read claim
+// (observeBasis), which also excludes File commits from other Outputs.
 func (o *Output) execBasisRecords(ctx context.Context, basis []fingerprint.Fingerprint) ([]manifest.BasisRecord, error) {
 	resolved := make([]fingerprint.Fingerprint, len(basis))
 	for i, b := range basis {
@@ -33,7 +34,7 @@ func (o *Output) execBasisRecords(ctx context.Context, basis []fingerprint.Finge
 		}
 		resolved[i] = fingerprint.FSPath(canon)
 	}
-	return basisRecordsFrom(ctx, resolved)
+	return o.observeBasis(ctx, resolved)
 }
 
 // execDefinitionFingerprint computes Exec's operation definition fingerprint

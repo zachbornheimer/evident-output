@@ -57,7 +57,7 @@ func TestGroup_ChildRepeatingTheGroupNameStillCollapses(t *testing.T) {
 // Running work, leaving the durable rows a finished transcript is judged on.
 func resolvedRows(transcript string) string {
 	var kept []string
-	for _, line := range strings.Split(transcript, "\n") {
+	for line := range strings.SplitSeq(transcript, "\n") {
 		if strings.HasPrefix(strings.TrimSpace(line), "◐") {
 			continue
 		}
@@ -71,7 +71,7 @@ func renderSubject(t *testing.T, groupName, childName, summary string) string {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "zq", Isolated: true, Plain: true, Stdout: &buf, Stderr: &buf})
 	group := out.Group(groupName)
-	group.Task(childName).Doing("classifying tips").Done("146 tips")
+	succeed(group.Task(childName).Doing("classifying tips"), "146 tips")
 	if summary != "" {
 		group.Summary(summary)
 	}

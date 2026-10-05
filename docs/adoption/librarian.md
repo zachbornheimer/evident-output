@@ -2,9 +2,9 @@
 
 > **v0.2.9 snapshot — do not copy.** This write-up records a migration onto
 > `evo.New`, `Plan`, `Changes`, and `Item`. Those spellings were removed in
-> v0.4. On current evo use `evo.Init` + `evo.Main(run)` and Task mutation
-> verbs (`Delete`/`Create`/`Record`/…). See the 0.2 → 0.4 note in
-> [`docs/mcp.md`](../mcp.md).
+> v0.4. On current evo use `evo.Init` + `evo.Main(run)` and `evo.Effect` /
+> `evo.File` inside `Task.Define`. See the 0.2 → 0.4 note in
+> [`docs/mcp.md`](../mcp.md) and [`docs/migration/1.1.md`](../migration/1.1.md).
 
 **Evo pin:** v0.2.9+ (presentation polish; library pin hygiene at v0.2.10)
 **Validated mode:** batch-summary only
@@ -48,12 +48,12 @@ os.Exit(evo.MainWith(out, run)) // removed in 1.0 — current equivalent: os.Exi
 
 ## Mistakes discovered (and fixed)
 
-| Mistake                      | Fix                                    |
-| ---------------------------- | -------------------------------------- |
-| `Added(1, "files placed")`   | `Record("placed", n, noun(...))`       |
-| Vanity `✓ dry-run plan` Item | removed                                |
-| slog-only failure            | `fileFailure` + FailedBy               |
-| Duplicate conclusion band    | evo DEC-COAL projection (library-side) |
+| Mistake                      | Fix                                                                                           |
+| ---------------------------- | --------------------------------------------------------------------------------------------- |
+| `Added(1, "files placed")`   | `evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "file", Quantity: n}, place)` |
+| Vanity `✓ dry-run plan` Item | removed                                                                                       |
+| slog-only failure            | `fileFailure` + FailedBy                                                                      |
+| Duplicate conclusion band    | evo DEC-COAL projection (library-side)                                                        |
 
 ## LOC
 

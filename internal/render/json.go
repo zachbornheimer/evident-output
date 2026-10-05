@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // JSONSchemaVersion is the final JSON document schema version.
@@ -48,7 +49,7 @@ type ConclusionJSON struct {
 	Partial   bool                 `json:"partial"`
 	Cancelled bool                 `json:"cancelled"`
 	// Warned mirrors core.Conclusion.Warned (v0.4.0/P8, wire 0.4): at least
-	// one task warned (or a run-scoped evo.Warn fired) without the run
+	// one task warned (or a run-scoped warning Problem fired) without the run
 	// otherwise failing/blocking. The 0.3 wire had no field for this at
 	// all — a warned run's conclusion band and its JSON document could
 	// disagree for a machine consumer.
@@ -146,7 +147,7 @@ type EventJSON struct {
 	Completed     *int64    `json:"completed,omitempty"`
 	Total         *int64    `json:"total,omitempty"`
 	Activation    string    `json:"activation,omitempty"`
-	Timestamp     time.Time `json:"timestamp,omitempty"`
+	Timestamp     time.Time `json:"timestamp"`
 }
 
 // EncodeJSON encodes a snapshot as final JSON (§25.1 / §25.4).
@@ -232,8 +233,8 @@ func toJSONDocument(s core.Snapshot) JSONDocument {
 }
 
 // appendJSONCollection flattens col — and, recursively, every container it
-// nests via Sequence.Sequence/Sequence.DisplayGroup/DisplayGroup.Sequence/
-// DisplayGroup.DisplayGroup (P3) — into doc.TaskCollections/doc.Tasks, so a
+// nests via Group.Group/Group.Sequence/Sequence.Group/Sequence.Sequence
+// (P3) — into doc.TaskCollections/doc.Tasks, so a
 // nested container's tasks are never silently dropped from the wire
 // document. JSONCollection's own shape is unchanged; nesting is expressed
 // the same way the live/plain renderers express it, by including the nested
@@ -301,13 +302,15 @@ func toJSONEffects(in []core.EffectRecord) []JSONEffectRecord {
 	return out
 }
 
+// toJSONAction adapts wire's one core.Action projection to the frozen
+// output.v1 type. The JSONCommand conversion compiles only while
+// JSONCommand and wire.CommandDoc keep identical fields.
 func toJSONAction(a core.Action) JSONAction {
-	ja := JSONAction{Label: a.Label, URL: a.URL}
-	if a.Command != nil {
-		ja.Command = &JSONCommand{
-			Executable: a.Command.Executable,
-			Args:       append([]string(nil), a.Command.Args...),
-		}
+	doc := wire.ToActionDoc(a)
+	ja := JSONAction{Label: doc.Label, URL: doc.URL}
+	if doc.Command != nil {
+		cmd := JSONCommand(*doc.Command)
+		ja.Command = &cmd
 	}
 	return ja
 }

@@ -1,0 +1,41 @@
+[
+  {
+    "id": "C07-001",
+    "section": "7",
+    "quote": "These semantic fingerprints participate in whether this result remains valid.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/freshness",
+        "run": "TestC07_001_ChangedBasisReRunsAndUnchangedBasisDoesNot"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C07-002",
+    "section": "7",
+    "quote": "**Track semantic inputs, not ambient state.**",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/freshness",
+        "run": "TestC07_002_AmbientEnvironmentIsNotFingerprinted"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C07-003",
+    "section": "7",
+    "quote": "Do not fingerprint the entire machine or environment by default.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/freshness",
+        "run": "TestC07_002_AmbientEnvironmentIsNotFingerprinted"
+      }
+    ],
+    "default": false
+  }
+]

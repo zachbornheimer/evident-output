@@ -18,6 +18,13 @@ type FileSpec = engine.FileSpec
 // every managed attribute already matches. ctx must come from a Task's
 // Define callback; called any other way it returns ErrNoTaskContext or
 // ErrTaskClosed.
+//
+// File claims its own path for writing with no caller code: overlapping
+// File, Basis, and Effect claims in this process wait, and a contended
+// wait shows as "waiting for <path>". Across processes, the manifest lock
+// serializes Runs that share one manifest namespace. Called while holding
+// a resource (inside an Effect callback with a Resource), File returns
+// ErrNestedResourceAcquisition.
 func File(ctx context.Context, spec FileSpec) error { return engine.File(ctx, spec) }
 
 // File-specific usage errors (spec §8.1).
@@ -27,3 +34,7 @@ var (
 	ErrFilePathIsSymlink            = engine.ErrFilePathIsSymlink
 	ErrFilePathTypeMismatch         = engine.ErrFilePathTypeMismatch
 )
+
+// FileFS is the filesystem facade File operations read and write through
+// (Config.FileFS).
+type FileFS = engine.FileFS

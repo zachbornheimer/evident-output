@@ -38,10 +38,11 @@ func TestConfirm_PolicyFlag_FillsExecutableFromTitle(t *testing.T) {
 	out.Confirm("delete 8 stale local branches?", evo.PolicyFlag("--apply"))
 
 	item := out.Snapshot().Tasks[0]
-	if len(item.Actions) == 0 || item.Actions[0].Command == nil {
-		t.Fatalf("actions = %+v, want a Command action", item.Actions)
+	actions := policyBlockActions(t, item)
+	if len(actions) == 0 || actions[0].Command == nil {
+		t.Fatalf("actions = %+v, want a Command action", actions)
 	}
-	cmd := item.Actions[0].Command
+	cmd := actions[0].Command
 	if cmd.Executable != "clean-repo" || len(cmd.Args) != 1 || cmd.Args[0] != "--apply" {
 		t.Fatalf("command = %+v, want executable %q with arg %q", cmd, "clean-repo", "--apply")
 	}

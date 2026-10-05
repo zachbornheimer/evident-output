@@ -52,8 +52,8 @@ type config struct {
 	// failedExitCode overrides ExitFailed when conclusion is StateFailed.
 	// Zero means use ExitFailed (2).
 	failedExitCode int
-	// dryRun selects mutation-verb tense: true renders TaskHandle mutation
-	// verbs as [planned]/imperative, false as [changed]/past tense. Both
+	// dryRun selects ledger tense: true renders Effect/File rows as
+	// [planned]/imperative, false as [changed]/past tense. Both
 	// Config.DryRun and Config.Preview set it — they are one tense with two
 	// announcements (see preview below).
 	dryRun bool
@@ -185,8 +185,8 @@ func strict() Option {
 	return optionFunc(func(c *config) { c.strict = true })
 }
 
-// DryRun declares this run a dry run: TaskHandle mutation verbs (Delete,
-// Create, Update, Remove, Write, Push, Record, RecordName) render as
+// DryRun declares this run a dry run: evo.Effect, evo.File, and
+// evo.Exec render as
 // [planned] rows with imperative verbs instead of [changed] rows with
 // past-tense verbs. Set once via Config.DryRun in ordinary application code;
 // this Option exists for the advanced NewWithOptions surface and tests.

@@ -1,0 +1,1370 @@
+[
+  {
+    "id": "C30-001",
+    "section": "30",
+    "quote": "Every `TaskHandle` method is a safe no-op on a nil handle.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestNilTaskHandleIsSafeForEveryMethod"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-002",
+    "section": "30",
+    "quote": "An After cycle settles each member Blocked with one `dependency cycle: a → b → a` line.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestAfterCycle_SettlesBlockedInsteadOfHanging"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-003",
+    "section": "30",
+    "quote": "Severity defaults to `SeverityError`: an error Problem fails the owning Define if the callback otherwise returns nil.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestProblem_DefaultSeverityFailsTaskAndRun"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-004",
+    "section": "30",
+    "quote": "Success resolves only through Define (the callback returns nil) or an Evo-native operation.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC30_004_SuccessResolvesOnlyThroughDefine"
+      },
+      {
+        "pkg": ".",
+        "run": "TestFinish_RemainingMisuse_RendersTaskLine"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-005",
+    "section": "30",
+    "quote": "Terminal verbs: `Block`, `Fail`, `Skipped`, `Cancel`. `Doing`, `Progress`, `Writer`, `Fact`, `Problem`, `Summary`, `Next`, and `NextCommand` annotate and never resolve.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC30_005_AnnotatorsNeverResolveAndVerbsDo"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-006",
+    "section": "30",
+    "quote": "A Task resolves exactly once.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestDefine_BlockThenNilRefuses"
+      },
+      {
+        "pkg": ".",
+        "run": "TestMisuse_AlreadyResolvedCarriesRejectedSummary"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-007",
+    "section": "30",
+    "quote": "A Task holding an error-severity Problem never settles Done or Skipped: a nil return, a `Skipped` call, or Finish settling it unresolved all settle it Failed.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestProblem_DoneWithAccumulatedProblemsPromotesToFailed"
+      },
+      {
+        "pkg": ".",
+        "run": "TestProblem_SkippedCannotLaunderAProblem"
+      },
+      {
+        "pkg": ".",
+        "run": "TestProblem_UnresolvedTaskKeepsItsProblem"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-008",
+    "section": "30",
+    "quote": "A Task nobody Defines or resolves is misuse (hint: call Define, Fail, Block, or Skipped on this task). A Wait on it settles it NotStarted.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestFinish_RemainingMisuse_RendersTaskLine"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestWaitOnUndefinedTaskReportsNotStarted"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-009",
+    "section": "30",
+    "quote": "`Skipped` means the work never applied. Current desired state is `ResolutionAlreadySatisfied`, never Skipped.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC30_009_AlreadySatisfiedIsNeverSkipped"
+      },
+      {
+        "pkg": ".",
+        "run": "TestTaskSnapshot_ResolutionAlreadySatisfiedPreservesBeforeEvidence"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-010",
+    "section": "30",
+    "quote": "`TaskHandle` has no child constructors.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC30_010_TaskHandleHasNoChildConstructors"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-011",
+    "section": "30",
+    "quote": "`Summary(text string) *TaskHandle` is one sanitized single-line result field. The last call wins; empty clears.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/summary",
+        "run": "TestC30_011_SummaryIsOneSanitizedLineLastCallWinsEmptyClears"
+      },
+      {
+        "pkg": ".",
+        "run": "TestTask_SummaryLastCallWinsAndEmptyClears"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-012",
+    "section": "30",
+    "quote": "It never resolves lifecycle and is not live activity.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestTask_SummaryDoesNotResolveTheTask"
+      },
+      {
+        "pkg": ".",
+        "run": "TestTask_SummaryDoesNotReplaceDoingWhileRunning"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-013",
+    "section": "30",
+    "quote": "It renders after the Task name on the settled row (`✓ branches  459 checked`).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestTask_SummaryRendersOnTheSuccessfulTerminalRow"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-014",
+    "section": "30",
+    "quote": "`GroupHandle.Summary` and `SequenceHandle.Summary` share its sanitization and projection.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/summary",
+        "run": "TestC30_014_ContainerSummariesShareTheTaskSanitization"
+      },
+      {
+        "pkg": ".",
+        "run": "TestGroup_SummaryKeepsTheGroupRowOverASingleExplicitChild"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-015",
+    "section": "30",
+    "quote": "`TaskSnapshot`, `evo.run`, and `evo.event` expose it as `summary`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestSummary_ReachesRunDocumentAndEventStream"
+      },
+      {
+        "pkg": ".",
+        "run": "TestTask_SummarySurvivesJSONSnapshot"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-016",
+    "section": "30",
+    "quote": "Summary never carries mutation, dry-run, or already-satisfied narration; those belong to Effect, File, Evidence, and Facts (review API-060).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI060_SummaryWroteNarration_Fires"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI060_SummaryWouldAddNarration_Fires"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI060_SummaryAlreadyNarration_Fires"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI060_SummaryResultMetadataGoodCode_StaysSilent"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-018",
+    "section": "30",
+    "quote": "Group siblings become eligible together and may overlap.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScheduler_GroupOverlapRespectsCeiling"
+      },
+      {
+        "pkg": ".",
+        "run": "TestGroup_ConcurrentIndependentChildrenAreNotMisuse"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-019",
+    "section": "30",
+    "quote": "A Sequence runs one step at a time in declaration order; a nested Group or Sequence is one step, and a failed step leaves every later step NotStarted.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScheduler_SequenceDeclarationOrderMaxOne"
+      },
+      {
+        "pkg": ".",
+        "run": "TestSequence_FailureAutoResolvesLaterSiblingsToNotStarted"
+      },
+      {
+        "pkg": ".",
+        "run": "TestSequence_CascadeNestedSequenceFailurePropagatesToRootHeader"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-020",
+    "section": "30",
+    "quote": "`After(g)` on a collection that is empty when named stays open until `g.Wait()`, a Wait on the dependent, or the end of the run closes it, and waits for every child declared before then; closed while empty, it counts as done.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestAfterGroupDeclaredLater_WaitsForItsChildren"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestAfterEmptyGroup_WaitRunsItNow"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestAfterEmptyGroup_DrainRunsIt"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestAfterGroup_GroupWaitReleasesDependents"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestAfterGroupPopulatedInLoop_WaitsForEveryChild"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-021",
+    "section": "30",
+    "quote": "A collection already populated when named is taken as declared: a child declared later never gates that edge.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestAfterPopulatedGroup_LateMemberNeverGates"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestAfterGroupPopulatedFirst_StartsWithoutWaitingForDrain"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-022",
+    "section": "30",
+    "quote": "A Task declared into a Sequence step the Sequence has already passed runs after the Sequence's latest step.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestSequenceLateStepMember_RunsInDeclarationOrder"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-023",
+    "section": "30",
+    "quote": "`Config.MaxConcurrency` bounds every executing callback, including work a waiting goroutine runs itself.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScheduler_GroupOverlapRespectsCeiling"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestSpawnedPlainWaitersRespectTheCeiling"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPlainWaiterNeverRaisesTheCeiling"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-024",
+    "section": "30",
+    "quote": "A waiting callback lends its own slot to the work it awaits, so nested Define+Wait completes at MaxConcurrency 1. A goroutine outside any callback runs work only in a free slot.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestWait_ReleasesSlotWhileBlocked"
+      },
+      {
+        "pkg": ".",
+        "run": "TestWait_FromOutsideAnyCallbackStillBlocks"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPlainWaitOnItsOwnTaskKeepsTheCeiling"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-025",
+    "section": "30",
+    "quote": "Callers never start goroutines to make Evo work concurrent (EVO-DAG-001, API-041). A goroutine a callback started that Waits while that callback blocks on it with every slot held gets `ErrWaitDeadlock` naming API-041.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestSpawnedWaiterBlockingItsCallbackFailsNamed"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI041_GoroutineResolvesPredeclaredTask_Fires"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-026",
+    "section": "30",
+    "quote": "`TaskHandle.Wait()` returns nil on success; the callback's error;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/wait",
+        "run": "TestC30_026_WaitReturnsNilOnSuccessAndTheCallbackError"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-027",
+    "section": "30",
+    "quote": "`ErrNotStarted` when the work never ran (a failed predecessor, a run that drained first, a Task never Defined, or a refused declaration, wrapping the refusal);",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestWait_NotStartedDependencyIsAnError"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestWaitOnUndefinedTaskReportsNotStarted"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-028",
+    "section": "30",
+    "quote": "`ErrWaitDeadlock` when nothing can ever reach it;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestWait_OnSelfIsMisuse"
+      },
+      {
+        "pkg": ".",
+        "run": "TestWait_MutualCycleIsMisuse"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-029",
+    "section": "30",
+    "quote": "`ErrNestedResourceAcquisition` when called while holding a resource claim.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestTaskHandle_Wait_UnderHeldClaimIsNestedAcquisition"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestGroupHandle_Wait_UnderHeldClaimIsNestedAcquisition"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-030",
+    "section": "30",
+    "quote": "the cancellation, `errors.Is`-compatible;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/wait",
+        "run": "TestC30_030_WaitReturnsTheCancellation"
+      },
+      {
+        "pkg": "./conformance/contract/wait",
+        "run": "TestC30_030_WaitOnAnInterruptedCallbackIsErrorsIsCanceled"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-031",
+    "section": "30",
+    "quote": "`GroupHandle.Wait()` and `SequenceHandle.Wait()` wait for every descendant without serializing eligible siblings.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestGroupHandle_Wait_DoesNotSerializeSiblings"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-032",
+    "section": "30",
+    "quote": "They return nil only when every descendant ran and succeeded.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestGroupHandle_Wait_AllSucceed"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestGroupHandle_Wait_BlockedChildSurfacesFailure"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-033",
+    "section": "30",
+    "quote": "Meaningful child errors join in declaration order (`errors.Join`).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestGroupHandle_Wait_FailedChildIsDeterministic"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestSequenceHandle_Wait_PreservesOrdering"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-034",
+    "section": "30",
+    "quote": "An `ErrNotStarted` whose predecessor cause is already in the joined error is omitted; when the cause is outside the container, the container returns `ErrNotStarted`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestSequenceHandle_Wait_FailedStepOmitsNotStartedFollowers"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestGroupHandle_Wait_ExternalPredecessorFailure"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestSequenceHandle_Wait_ExternalPredecessorFailure"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-035",
+    "section": "30",
+    "quote": "A collection with a Blocked child snapshots Blocked.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC30_035_CollectionWithBlockedChildSnapshotsBlocked"
+      },
+      {
+        "pkg": ".",
+        "run": "TestBlockedInsideContainer_ConcludesBlocked"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-036",
+    "section": "30",
+    "quote": "A Wait's answer never depends on which Waits ran before it.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/wait",
+        "run": "TestC30_036_WaitAnswerNeverDependsOnPriorWaits"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-037",
+    "section": "30",
+    "quote": "`Problem(summary, opts...) *TaskHandle` appends one Problem without resolving; many may accumulate in one Define.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestProblem_TenPlusIndependentFindings"
+      },
+      {
+        "pkg": ".",
+        "run": "TestProblem_ResolvesTaskOnceNotChildTasks"
+      },
+      {
+        "pkg": ".",
+        "run": "TestProblemWarning_DoesNotResolveTask"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-038",
+    "section": "30",
+    "quote": "`Severity(SeverityWarning)` makes it a warning, which does not fail Define and sets `warned`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestProblem_WarningSeveritySettlesDoneAndWarns"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-039",
+    "section": "30",
+    "quote": "There is no Warn call.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC30_039_NoWarnCall"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-040",
+    "section": "30",
+    "quote": "A warning's `On(subject)` reaches every human row and machine output (`warnings` on the `evo.run` task).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestProblemWarning_OnSubjectReachesEveryProjection"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-041",
+    "section": "30",
+    "quote": "Human projection bounds inline detail; Snapshot, JSON, and JSONL retain every Problem, and the count stays authoritative.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestHumanProblemList_IsBounded"
+      },
+      {
+        "pkg": ".",
+        "run": "TestProblem_SurvivesInJSON"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-042",
+    "section": "30",
+    "quote": "There is no second finding type.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC30_042_NoSecondFindingType"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-043",
+    "section": "30",
+    "quote": "The verb set is closed. File state is never an Effect: it is File or Patch.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestEffect_RejectsContentFreeSpec"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI057_RawWriteFileInEffectLiteral_Fires"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI057_EvoFileGoodCode_StaysSilent"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-044",
+    "section": "30",
+    "quote": "`Quantity` is one aggregate count and must be positive; with nothing to mutate, do not call Effect.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestEffect_RejectsContentFreeSpec"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-045",
+    "section": "30",
+    "quote": "`Object` is singular.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI043_PluralEffectObjectLiteral_Fires"
+      },
+      {
+        "pkg": "./internal/agent/review",
+        "run": "TestAPI043_SingularEffectObjectLiteral_StaysSilent"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-046",
+    "section": "30",
+    "quote": "Dry run and Preview record the planned Effect and never invoke `fn`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestEffect_DryRunRecordsPlannedAndNeverInvokesFn"
+      },
+      {
+        "pkg": ".",
+        "run": "TestEffect_DryRunNeverExecutesCallAndPlansEffect"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-047",
+    "section": "30",
+    "quote": "Apply invokes `fn` with the scheduler-owned context and records the changed Effect only after `fn` succeeds.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestEffect_ApplyRecordsChangedOnlyAfterFnSucceeds"
+      },
+      {
+        "pkg": ".",
+        "run": "TestEffect_FnReceivesSchedulerOwnedContext"
+      },
+      {
+        "pkg": ".",
+        "run": "TestEffect_ApplyFailureRecordsNothingAndReturnsFnError"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-048",
+    "section": "30",
+    "quote": "A callback that resolves its own Task Skipped or Failed records no ledger row.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestEffect_CallbackThatSkippedItsOwnTaskRecordsNoEffect"
+      },
+      {
+        "pkg": ".",
+        "run": "TestEffect_CallbackThatFailedItsOwnTaskRecordsNoEffect"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-049",
+    "section": "30",
+    "quote": "At most one `Resource` is claimed, for writing, while `fn` runs.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestEffectsOnOneLogicalResourceNeverOverlap"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileInsideResourceEffectIsNestedMisuse"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-050",
+    "section": "30",
+    "quote": "Returned from an Effect callback, PartialEffect keeps committed mutation truth while the Task still fails.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPartialEffect_TwoOfThreeRecordsCommittedAndFailsTheTask"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-051",
+    "section": "30",
+    "quote": "`err` must be non-nil and `0 <= committed <= EffectSpec.Quantity`; otherwise Effect returns `ErrInvalidPartialEffect` and records nothing.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPartialEffect_InvalidDataIsRejectedAndRecordsNothing"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-052",
+    "section": "30",
+    "quote": "`committed > 0` records one changed Effect with the original Verb and Object and `Quantity: committed`. `committed == 0` records no changed row.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPartialEffect_TwoOfThreeRecordsCommittedAndFailsTheTask"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPartialEffect_ZeroOfThreeRecordsNothingAndFails"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-053",
+    "section": "30",
+    "quote": "The returned error keeps `err` reachable through `errors.Is`/`errors.As`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPartialEffect_CauseStaysErrorsIsAndAsCompatible"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-054",
+    "section": "30",
+    "quote": "It binds to the innermost Effect whose callback returned it.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPartialEffect_BindsToTheEffectWhoseCallbackReturnedIt"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPartialEffect_JoinedAfterAnInnerOneStillCounts"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-055",
+    "section": "30",
+    "quote": "Dry run never invokes the callback, so it plans the full Quantity.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/effects",
+        "run": "TestC30_055_PartialEffectDryRunPlansTheFullQuantity"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-056",
+    "section": "30",
+    "quote": "PartialEffect implies no rollback and no retry.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/effects",
+        "run": "TestC30_056_PartialEffectImpliesNoRollbackAndNoRetry"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-057",
+    "section": "30",
+    "quote": "The §18 plain fixture is normative.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPruneContract_KeptUnderGroupedCategoriesRendersContract18"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-058",
+    "section": "30",
+    "quote": "Subject columns pad to the widest display-cell width in the Effect block, then exactly two spaces precede the Effect phrase.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/prune",
+        "run": "TestC30_058_SubjectsPadToTheWidestSubjectThenTwoSpaces"
+      },
+      {
+        "pkg": "./conformance/contract/pending/prune",
+        "run": "TestC30_058_SubjectsPadToTheWidestDisplayCellWidth"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-059",
+    "section": "30",
+    "quote": "Planned and changed bands use the same rule.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/prune",
+        "run": "TestC30_059_PlannedAndChangedBandsUseTheSameAlignment"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-060",
+    "section": "30",
+    "quote": "`Ran` is false when Exec did not spawn (a current manifest hit, a dry-run plan) and alongside a spawn, cancellation, or configuration error.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/exec",
+        "run": "TestC30_060_RanIsFalseWhenExecDidNotSpawn"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-061",
+    "section": "30",
+    "quote": "`Stdout`/`Stderr` are the sanitized, redacted Capture tail (at most 200 completed lines, about 256 KiB total); `Truncated` reports loss.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/exec",
+        "run": "TestC30_061_StdoutIsABoundedTailAndTruncatedReportsLoss"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestExecCapturedSecretIsRedactedBeforeRetention"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-062",
+    "section": "30",
+    "quote": "A nonzero exit returns the result and an error wrapping `ErrExecNonzeroExit`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestExecNonzeroExitFailsAndCommitsNoRecord"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-063",
+    "section": "30",
+    "quote": "A declared Output missing after exit 0 wraps `ErrExecOutputMissingAfterSuccess`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestExecMissingOutputAfterSuccessFails"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-064",
+    "section": "30",
+    "quote": "Cancellation is context-based, never string matching.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestExecCancellationKillsProcess"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-065",
+    "section": "30",
+    "quote": "Patch accepts unified text diff bytes, observes each source as Basis under the one-resource rule, derives desired contents, and mutates nothing.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPatchPerformsNoWorkspaceMutation"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPatchOneFileDerivesDesiredStateWithSourceBasis"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPatchMultiFileDerivesEachDesiredStateWithSourceBasis"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPatchThroughPublicAPI"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-066",
+    "section": "30",
+    "quote": "Patch applies the diff forward first, as `patch` and `git apply` do. Applying the same diff again is already satisfied.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPatchAmbiguousFirstRunAppliesForward"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPatchRerunOfAppliedDiffIsSatisfied"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-067",
+    "section": "30",
+    "quote": "When a source matches both sides of the diff, only this Task's own recorded result from its last Run counts as already applied.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPatchAmbiguousSourceTrustsOnlyTheSameDiffsResult"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPatchRerunRejectsASourceThatIsNotTheResult"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-068",
+    "section": "30",
+    "quote": "Patch never creates directories: a file in a missing directory fails `ErrPatchDoesNotApply` at Patch time, before anything commits. A path beyond a symlinked directory fails `ErrPatchUnsupported`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPatchRefusesCreationInMissingDirectory"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPatchRefusesPathBeyondSymlinkedDirectory"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-069",
+    "section": "30",
+    "quote": "Deletion, rename, and binary forms fail `ErrPatchDeleteUnsupported`, `ErrPatchRenameUnsupported`, and `ErrPatchBinaryUnsupported`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPatchUnsupportedFormsFailExplicitly"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPatchThroughPublicAPI"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-070",
+    "section": "30",
+    "quote": "Files commits each desired state through File, revalidating that state's source Basis immediately before its commit (`ErrStaleBasis`).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesRefusesToOverwriteStaleSource"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesStaleCreationRefusesToOverwrite"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFilesRevalidatesParentsAtCommit"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-071",
+    "section": "30",
+    "quote": "Files is not a transaction: already-committed Effects stay truthful when a later file fails.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/patch",
+        "run": "TestC30_071_FilesIsNotATransaction"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-072",
+    "section": "30",
+    "quote": "Opaque Define work automatically records application identity as its conservative definition provenance, with zero caller code, and that fallback never enters the visible Basis list.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestOpaqueTaskDefinitionFallsBackToAppFingerprintWhenRunHasManifestActivity"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-073",
+    "section": "30",
+    "quote": "It never whole-Task skips an opaque callback: opaque work runs every Run.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestOpaqueTaskDefinitionRunsEveryRun"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-074",
+    "section": "30",
+    "quote": "`evo.App()` is for callers who make application identity a deliberate semantic Basis of a precise File or Exec. Precise File/Exec/Patch Basis is not invalidated by unrelated application changes.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileManifestAppBasisDriftForcesReconciliation"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestPreciseFileTaskLeavesTaskLevelDefinitionFingerprintEmpty"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-075",
+    "section": "30",
+    "quote": "No API accepts more than one resource claim. Acquiring a second while one is held, directly or through a helper, fails `ErrNestedResourceAcquisition`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/resource",
+        "run": "TestHoldNestedAcquisitionFailsDirectly"
+      },
+      {
+        "pkg": "./internal/resource",
+        "run": "TestHoldNestedAcquisitionFailsThroughHelpers"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestHoldResource_NestedThroughHelperIsMisuse"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-076",
+    "section": "30",
+    "quote": "File, file-backed Basis, and `FSResource` share one canonical filesystem namespace. Two path claims overlap when the canonical paths are equal or one is an ancestor directory of the other.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/resource",
+        "run": "TestKeyOverlap"
+      },
+      {
+        "pkg": "./internal/resource",
+        "run": "TestResolveFSSymlinkAliasSharesIdentity"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileWaitsForCoarseEffectClaim"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-077",
+    "section": "30",
+    "quote": "`LogicalResource` claims overlap only by equal normalized name.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/resource",
+        "run": "TestKeyOverlap"
+      },
+      {
+        "pkg": "./internal/resource",
+        "run": "TestResolveLogicalTrimsSurroundingSpace"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-078",
+    "section": "30",
+    "quote": "Read/read overlaps. Any overlapping pair with a write waits.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/resource",
+        "run": "TestHoldCompatibleClaimsOverlap"
+      },
+      {
+        "pkg": "./internal/resource",
+        "run": "TestHoldConflictingClaimsExclude"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-079",
+    "section": "30",
+    "quote": "A waiting Task shows `waiting for <resource>`; an uncontended claim renders nothing.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/resources",
+        "run": "TestC30_079_AWaitingTaskShowsWaitingForItsResource"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestUncontendedEffectResourceIsSilent"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-080",
+    "section": "30",
+    "quote": "A claim coordinates overlap only. It never creates an After edge",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/resources",
+        "run": "TestC30_080_AClaimNeverCreatesAnAfterEdge"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-081",
+    "section": "30",
+    "quote": "and never enters freshness.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/resources",
+        "run": "TestC30_081_AClaimNeverEntersFreshness"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-082",
+    "section": "30",
+    "quote": "Across processes, the first File or Exec in a Run takes the manifest's exclusive lock and holds it until Close, so two processes in the same manifest namespace (same `StateDir`, or same `AppID` and workspace) never interleave tracked File/Exec state.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestCrossProcessSameManifestNeverRacesTrackedState"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-083",
+    "section": "30",
+    "quote": "Finish writes the manifest; one background writer folds pending commits into one atomic write.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFinishPersistsManifestWithoutClose"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestOpaqueTasksDoNotRewriteTheManifestPerSettle"
+      },
+      {
+        "pkg": "./conformance/contract/manifestpersist",
+        "run": "TestC22_019_ManifestWritesAreAtomicForConcurrentReaders"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-084",
+    "section": "30",
+    "quote": "A failed save renders a `manifest not saved: <reason>` warning and `Close` returns the error.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestManifestSaveFailureIsReported"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C30-085",
+    "section": "30",
+    "quote": "A write that failed is retried on the next flush.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/manifestpersist",
+        "run": "TestC30_085_AFailedManifestWriteIsRetriedOnTheNextFlush"
+      }
+    ],
+    "default": false
+  }
+]

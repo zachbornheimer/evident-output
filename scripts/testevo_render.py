@@ -196,6 +196,8 @@ def render_ansi_to_png(
         if name or reason:
             bits = [part for part in (name, reason) if part]
             line2 = " · ".join(bits)
-            draw.text((PAD_X, body_height + 18), line2, fill=FOOTER_FG, font=footer_font)
+            draw.text(
+                (PAD_X, body_height + 18), line2, fill=FOOTER_FG, font=footer_font
+            )
 
     image.save(dest, format="PNG")

@@ -34,7 +34,7 @@ func TestPlain_CollectionChildStreamsMilestones(t *testing.T) {
 		classify.Progress(i, total)
 	}
 	midRun := buf.String()
-	classify.Done("111 worktrees")
+	succeed(classify, "111 worktrees")
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}

@@ -288,7 +288,7 @@ func TestSpecP6_LiveFrame_Step2(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("generate").Done("8.0 MB")
+	succeed(out.Task("generate"), "8.0 MB")
 	test := out.Task("test")
 	test.Progress(4, 12)
 	test.Doing("") // forces a repaint reflecting the just-set Progress
@@ -369,7 +369,7 @@ func TestSpecP8_LiveFrame_Step2(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	remotes := out.Group("remotes")
-	remotes.Task("origin/feat/a").Done("deleted origin/feat/a")
+	succeed(remotes.Task("origin/feat/a"), "deleted origin/feat/a")
 	running := remotes.Task("origin/feat/b")
 	running.Progress(2, 3)
 	running.Doing("origin/feat/b")
@@ -395,7 +395,7 @@ func TestSpecP9_LiveFrame_Step1(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	out.Task("venv").Doing("creating")
 
 	// scan resolved: it commits durably at resolution time (release-gate
@@ -427,7 +427,7 @@ func TestSpecP9_LiveFrame_Step2(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	out.Task("venv").Doing("creating")
 	out.Task("install")
 
@@ -580,13 +580,19 @@ func TestSpecP26_LiveFrame_ResizeMidRun_DropsToCompactDialect(t *testing.T) {
 	}
 }
 
+// concurrentGroupsBlockedTasks is how many Tasks TestSpecConcurrentGroups_BothRunning
+// holds blocked at once (two Groups of three). The engine's default ceiling is
+// GOMAXPROCS, so the test pins an explicit MaxConcurrency at least this high
+// to stay independent of the host CPU count.
+const concurrentGroupsBlockedTasks = 6
+
 // TestSpecConcurrentGroups_BothRunning covers the dialect's concurrent
 // Group live check: two sibling Groups both Running, each collapsed to one
 // aggregate spinner row.
 func TestSpecConcurrentGroups_BothRunning(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := newLiveScreenOutput(screen)
+	out := newLiveScreenOutputCfg(screen, evo.Config{MaxConcurrency: concurrentGroupsBlockedTasks})
 	t.Cleanup(func() { _ = out.Close() })
 
 	worktrees := out.Group("worktrees")

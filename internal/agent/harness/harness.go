@@ -2,6 +2,7 @@
 package harness
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -48,6 +49,23 @@ type RepairLoopResult struct {
 	Sources       []string // source after each cycle (including initial)
 }
 
+// Fixer proposes a revised source for one round of review findings. The
+// mechanical fixer is the deterministic default; a model-backed driver
+// implements the same seam.
+type Fixer interface {
+	Fix(ctx context.Context, src string, findings []review.Finding) (string, error)
+}
+
+// MechanicalFixer is the deterministic Fixer built on ApplyMechanicalFixes.
+// It returns src unchanged when no rule has a mechanical repair.
+type MechanicalFixer struct{}
+
+// Fix applies the known textual repairs for findings.
+func (MechanicalFixer) Fix(_ context.Context, src string, findings []review.Finding) (string, error) {
+	next, _ := ApplyMechanicalFixes(src, findings)
+	return next, nil
+}
+
 // DefaultScenarios returns the versioned suite from the architecture spec.
 func DefaultScenarios() []Scenario {
 	return []Scenario{
@@ -77,6 +95,7 @@ func f() {
   out := evo.Init(evo.Config{})
   t := out.Task("x")
   t.Start()
+  t.Define(work)
 }
 `,
 			MustDetect: []string{"API-006"},
@@ -150,6 +169,14 @@ func RunOne(s Scenario) Result {
 // RunRepairLoop applies mechanical fixes and re-reviews until recheck_required
 // is false or maxCycles is exhausted (MCP-022 / MCP-049).
 func RunRepairLoop(src string, maxCycles int) RepairLoopResult {
+	out, _ := RunRepairLoopWith(context.Background(), MechanicalFixer{}, src, maxCycles)
+	return out
+}
+
+// RunRepairLoopWith is RunRepairLoop driven by any Fixer. The loop stops when
+// review is clean, the fixer returns the source unchanged, maxCycles is
+// exhausted, or the fixer fails (the error names the cycle).
+func RunRepairLoopWith(ctx context.Context, fixer Fixer, src string, maxCycles int) (RepairLoopResult, error) {
 	if maxCycles <= 0 {
 		maxCycles = DefaultMaxCycles
 	}
@@ -163,12 +190,16 @@ func RunRepairLoop(src string, maxCycles int) RepairLoopResult {
 		if !rev.RecheckRequired {
 			out.ReachedClean = true
 			out.StoppedReason = "recheck_required=false"
-			return out
+			return out, nil
 		}
-		next, changed := ApplyMechanicalFixes(cur, rev.Findings)
-		if !changed {
+		next, fixErr := fixer.Fix(ctx, cur, rev.Findings)
+		if fixErr != nil {
+			out.StoppedReason = "fixer failed"
+			return out, fmt.Errorf("repair cycle %d: fixer failed: %w", cycle+1, fixErr)
+		}
+		if next == cur {
 			out.StoppedReason = "no mechanical fix available; still recheck_required"
-			return out
+			return out, nil
 		}
 		cur = next
 		out.Sources = append(out.Sources, cur)
@@ -177,10 +208,10 @@ func RunRepairLoop(src string, maxCycles int) RepairLoopResult {
 	if !out.Final.RecheckRequired {
 		out.ReachedClean = true
 		out.StoppedReason = "recheck_required=false"
-		return out
+		return out, nil
 	}
 	out.StoppedReason = fmt.Sprintf("max cycles %d exhausted; recheck_required still true", maxCycles)
-	return out
+	return out, nil
 }
 
 // ApplyMechanicalFixes performs deterministic, safe textual repairs for known
@@ -198,7 +229,7 @@ func ApplyMechanicalFixes(src string, findings []review.Finding) (string, bool) 
 		case "API-006":
 			// Remove lines that are only t.Start() / x.Start().
 			var b strings.Builder
-			for _, line := range strings.Split(out, "\n") {
+			for line := range strings.SplitSeq(out, "\n") {
 				trim := strings.TrimSpace(line)
 				if strings.HasSuffix(trim, ".Start()") || strings.HasSuffix(trim, ".Start();") {
 					changed = true
@@ -213,7 +244,7 @@ func ApplyMechanicalFixes(src string, findings []review.Finding) (string, bool) 
 			}
 		case "STREAM-003":
 			var b strings.Builder
-			for _, line := range strings.Split(out, "\n") {
+			for line := range strings.SplitSeq(out, "\n") {
 				trim := strings.TrimSpace(line)
 				if strings.Contains(trim, "fmt.Print") || strings.Contains(trim, "fmt.Fprint") {
 					// Drop contaminating print; agent would replace with out.Line.
@@ -231,7 +262,7 @@ func ApplyMechanicalFixes(src string, findings []review.Finding) (string, bool) 
 		case "DOM-011":
 			// Replace application-error returns after Block with return nil.
 			var b strings.Builder
-			for _, line := range strings.Split(out, "\n") {
+			for line := range strings.SplitSeq(out, "\n") {
 				trim := strings.TrimSpace(line)
 				if strings.Contains(trim, "return errors.New(") ||
 					strings.Contains(trim, "return fmt.Errorf(") {
@@ -257,7 +288,7 @@ func ApplyMechanicalFixes(src string, findings []review.Finding) (string, bool) 
 
 func removeImport(src, pathLit string) string {
 	var b strings.Builder
-	for _, line := range strings.Split(src, "\n") {
+	for line := range strings.SplitSeq(src, "\n") {
 		if strings.Contains(line, pathLit) {
 			continue
 		}

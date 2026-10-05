@@ -15,7 +15,7 @@ import (
 func TestGlyphsASCII_StateRowsUseTightenedVocabulary(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Glyphs: evo.GlyphsASCII, Color: evo.ColorNever, Plain: true})
-	out.Task("done").Done()
+	succeed(out.Task("done"))
 	out.Task("failed").Fail("boom")
 	out.Task("gate").Block("declined")
 	if err := out.Finish(); err != nil {
@@ -43,7 +43,7 @@ func TestGlyphsASCII_NotStartedAndPendingRows(t *testing.T) {
 	first := group.Task("first")
 	second := group.Task("second")
 	_ = group.Task("third")
-	first.Done()
+	succeed(first)
 	second.Fail("boom")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -91,7 +91,7 @@ func TestGlyphsAuto_NonUTF8LocaleDowngradesOnlyWhenInteractive(t *testing.T) {
 	t.Run("non-interactive keeps Unicode", func(t *testing.T) {
 		var buf bytes.Buffer
 		out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Color: evo.ColorNever, Plain: true})
-		out.Task("done").Done()
+		succeed(out.Task("done"))
 		if err := out.Finish(); err != nil {
 			t.Fatal(err)
 		}
@@ -122,7 +122,7 @@ func TestGlyphsAuto_UTF8LocaleKeepsUnicode(t *testing.T) {
 func TestGlyphUnicode_UnchangedByProfileAxis(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Glyphs: evo.GlyphsUnicode, Color: evo.ColorNever, Plain: true})
-	out.Task("done").Done()
+	succeed(out.Task("done"))
 	out.Task("failed").Fail("boom")
 	out.Task("gate").Block("declined")
 	if err := out.Finish(); err != nil {
@@ -150,5 +150,68 @@ func TestGlyphWidths_BlockedAndCancelledAreNarrow(t *testing.T) {
 	}
 	if got := txt.Cells("✓"); got != 2 {
 		t.Fatalf("✓ width = %d, want 2", got)
+	}
+}
+
+// TestWriteAction_NextActionGlyph proves a next-action row is prefixed by the
+// profile-aware glyph (→ Unicode, > ASCII) rather than a color-only cue.
+func TestWriteAction_NextActionGlyph(t *testing.T) {
+	var uniBuf strings.Builder
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &uniBuf, Glyphs: evo.GlyphsUnicode, Color: evo.ColorNever, Plain: true})
+	done := out.Task("done")
+	done.Problem("repository not retired yet", evo.Severity(evo.SeverityWarning), evo.Next(evo.Label("repo-retire --retire demo")))
+	succeed(done)
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(uniBuf.String(), "→  repo-retire --retire demo") {
+		t.Fatalf("want unicode next-action glyph, got:\n%s", uniBuf.String())
+	}
+
+	var asciiBuf strings.Builder
+	out2 := evo.Init(evo.Config{Isolated: true, Stdout: &asciiBuf, Glyphs: evo.GlyphsASCII, Color: evo.ColorNever, Plain: true})
+	done2 := out2.Task("done")
+	done2.Problem("repository not retired yet", evo.Severity(evo.SeverityWarning), evo.Next(evo.Label("repo-retire --retire demo")))
+	succeed(done2)
+	if err := out2.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(asciiBuf.String(), ">  repo-retire --retire demo") {
+		t.Fatalf("want ASCII next-action glyph, got:\n%s", asciiBuf.String())
+	}
+}
+
+// TestWriteProblem_EvidenceGlyph_ASCII proves a Detail evidence row routes
+// through the ASCII glyph profile ("-") instead of a hardcoded "└─" that
+// would mojibake on a non-UTF-8 terminal.
+func TestWriteProblem_EvidenceGlyph_ASCII(t *testing.T) {
+	var buf strings.Builder
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Glyphs: evo.GlyphsASCII, Color: evo.ColorNever, Plain: true})
+	out.Task("branches").Fail("cannot lock ref", evo.Detail("another git process seems to be running"))
+	if err := out.Finish(); err != nil {
+		t.Log(err)
+	}
+	got := buf.String()
+	if strings.Contains(got, "└─") {
+		t.Fatalf("ASCII profile must not render Unicode evidence connector:\n%s", got)
+	}
+	if !strings.Contains(got, "- another git process seems to be running") {
+		t.Fatalf("want ASCII evidence connector, got:\n%s", got)
+	}
+}
+
+// TestConfirm_ASCIIProfile_PromptGlyph proves the confirm gate's "?" prompt
+// routes through the ASCII glyph profile ("[?]") rather than a hardcoded "?"
+// that would stay Unicode-only regardless of the configured profile.
+func TestConfirm_ASCIIProfile_PromptGlyph(t *testing.T) {
+	var buf strings.Builder
+	restore := evo.MarkWriterAsCharDevice(&buf)
+	t.Cleanup(restore)
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: &buf, Stdin: strings.NewReader("y\n"), Glyphs: evo.GlyphsASCII, Color: evo.ColorNever})
+	if ok := out.Confirm("proceed?"); !ok {
+		t.Fatal("Confirm(\"y\") = false, want true")
+	}
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
 	}
 }

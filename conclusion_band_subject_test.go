@@ -19,8 +19,7 @@ func TestConclusionBand_NoTitleNeverStutters(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	branches := out.Task("branches")
-	branches.Delete("stale local branch", func() error { return nil }, evo.Affected(3))
-	branches.Done()
+	branches.Define(effectOf(evo.EffectDelete, "stale local branch", 3))
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
 	}

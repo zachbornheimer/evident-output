@@ -22,10 +22,14 @@ func main() {
 
 	evo.Init(evo.Config{Title: "repo-probe"})
 	os.Exit(evo.Main(func(ctx context.Context) error {
-		time.Sleep(step)
-		evo.Task("working tree").Done()
-		time.Sleep(step)
-		evo.Task("branches").Done()
+		evo.Task("working tree").Define(func(context.Context) error {
+			time.Sleep(step)
+			return nil
+		})
+		evo.Task("branches").Define(func(context.Context) error {
+			time.Sleep(step)
+			return nil
+		})
 		return nil
 	}))
 }

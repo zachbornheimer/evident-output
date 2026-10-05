@@ -16,7 +16,7 @@ var evoConstructMethods = map[string]bool{
 // detectInlineConstructAtEvoCall flags make() or new() constructed inside
 // an evo.Init/Task/Group argument. A named local bound before the call is
 // the clean form — the builtin is then outside the call's argument tree.
-func detectInlineConstructAtEvoCall(filename string, fset *token.FileSet, file *ast.File) []Finding {
+func detectInlineConstructAtEvoCall(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -32,7 +32,6 @@ func detectInlineConstructAtEvoCall(filename string, fset *token.FileSet, file *
 		}
 		findings = append(findings, Finding{
 			RuleID:     ruleInlineConstruct,
-			Severity:   "warning",
 			Message:    "inline " + builtin + "() inside evo.Init/Task/Group argument; extract a named local before the call",
 			File:       filename,
 			Line:       fset.Position(pos).Line,

@@ -40,20 +40,20 @@ func collapsed(s string) string {
 //
 //	[changed] clean
 //	  deleted 3 local
-//	  pruned 2 stale
+//	  removed 2 stale
 func TestSpecP16_CompactLayout_Step2(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever, Width: 30})
-	clean := out.Task("clean")
-	clean.Record("delete", 3, "local")
-	clean.Record("prune", 2, "stale")
-	clean.Done()
+	commit(out.Task("clean"),
+		evo.EffectSpec{Verb: evo.EffectDelete, Object: "local", Quantity: 3},
+		evo.EffectSpec{Verb: evo.EffectRemove, Object: "stale", Quantity: 2},
+	)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := collapsed(buf.String())
-	for _, want := range []string{"[changed] clean", "deleted 3 local", "pruned 2 stale"} {
+	for _, want := range []string{"[changed] clean", "deleted 3 local", "removed 2 stale"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -66,7 +66,7 @@ func TestSpecP16_CompactLayout_Step2(t *testing.T) {
 //
 //	✓ branches 14 del
 //	✓ worktrees 2 rm
-//	! skipped 6 (protected)
+//	- skipped 6 (protected)
 //
 // writeTaxonomy (plain.go) always appends "(<reason>)", even for a single
 // reason — every skip/keep taxonomy row includes its reason(s) in
@@ -83,7 +83,7 @@ func TestSpecP16_CompactLayout_Success(t *testing.T) {
 		g.Task(name).Skipped(protected)
 	}
 	worktrees := out.Task("worktrees")
-	worktrees.Done("2 rm")
+	succeed(worktrees, "2 rm")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -93,11 +93,10 @@ func TestSpecP16_CompactLayout_Success(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	// Each's own cross-child rollup (collectEachTaxonomy, "skipped 6
-	// (protected)") was removed with Each in 1.0 (§3.1) — each plain Group
-	// child renders its own line.
-	if n := strings.Count(got, "! skipped 1 (protected)"); n != 6 {
-		t.Fatalf("want 6 individual (parenthesized-reason) taxonomy lines, got %d:\n%s", n, got)
+	// Per-item disposition children fold into one tally under their Group
+	// (contract §25 renderer aggregation), as the spec block above shows.
+	if n := strings.Count(got, "- skipped 6 (protected)"); n != 1 {
+		t.Fatalf("want one aggregated skipped tally, got %d:\n%s", n, got)
 	}
 }
 
@@ -162,9 +161,7 @@ func TestSpecP16_CompactLayout_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever, Width: 30})
-	branches := out.Task("branches")
-	branches.Record("delete", 3, "local")
-	branches.Done("3 del")
+	commit(out.Task("branches").Summary("3 del"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local", Quantity: 3})
 	remotes := out.Task("remotes")
 	remotes.Cancel("")
 	if err := out.Finish(); err != nil {
@@ -176,7 +173,7 @@ func TestSpecP16_CompactLayout_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
-	if !strings.Contains(got, "already mutated: 3 locals deleted") {
+	if !strings.Contains(got, "partial changes were applied before cancellation") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", buf.String())
 	}
 }
@@ -231,7 +228,7 @@ func TestSpecP17_Taxonomy_Step2(t *testing.T) {
 		g.Task(name).Skipped(dirty)
 	}
 	for _, name := range eachSkipNames("unpushed", 3) {
-		g.Task(name).Kept(unpushed)
+		g.Task(name).Skipped(unpushed)
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -240,26 +237,25 @@ func TestSpecP17_Taxonomy_Step2(t *testing.T) {
 	if !strings.Contains(got, "✓ branches 14 deleted") {
 		t.Fatalf("want %q in:\n%s", "✓ branches 14 deleted", buf.String())
 	}
-	// Each's own cross-child rollup (collectEachTaxonomy, "skipped 6 (4
-	// protected, 2 dirty)"/"kept 3 (unpushed)") was removed with Each in
-	// 1.0 (§3.1) — each plain Group child renders its own line.
-	if n := strings.Count(got, "! skipped 1 (protected)"); n != 4 {
-		t.Fatalf("want 4 individual skipped-protected lines, got %d:\n%s", n, buf.String())
-	}
-	if n := strings.Count(got, "! skipped 1 (dirty)"); n != 2 {
-		t.Fatalf("want 2 individual skipped-dirty lines, got %d:\n%s", n, buf.String())
-	}
-	if n := strings.Count(got, "! kept 1 (unpushed)"); n != 3 {
-		t.Fatalf("want 3 individual kept-unpushed lines, got %d:\n%s", n, buf.String())
+	// Per-item disposition children fold into one tally under their Group
+	// (contract §25 renderer aggregation), as the spec block above shows.
+	for _, want := range []string{"- skipped 9 (4 protected, 2 dirty, 3 unpushed)"} {
+		if strings.Count(got, want) != 1 {
+			t.Fatalf("want one aggregated %q in:\n%s", want, buf.String())
+		}
 	}
 }
 
 // TestSpecP17_Taxonomy_Success covers Problem 17's success block: the same
-// step2 taxonomy plus a next-action row.
+// step2 taxonomy plus a next-action row. A next step after success hangs off
+// a diagnostic (ZYS-1182), so the run is honestly warned (exit 0): the
+// salvage Task carries a warning Problem and the band reads [ready · warned].
 //
+//	✓  salvage  ! unpushed branches kept
 //	✓  branches  14 deleted
-//	!  skipped 6  (4 protected, 2 dirty)
-//	!  kept 3     (unpushed)
+//	  - skipped 9 (4 protected, 2 dirty, 3 unpushed)
+//
+//	[ready · warned]
 //	→  repo-retire salvage --dry-run
 func TestSpecP17_Taxonomy_Success(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state.
@@ -278,30 +274,20 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 		g.Task(name).Skipped(dirty)
 	}
 	for _, name := range eachSkipNames("unpushed", 3) {
-		g.Task(name).Kept(unpushed)
+		g.Task(name).Skipped(unpushed)
 	}
-	out.NextCommand("repo-retire", "salvage", "--dry-run")
+	salvage := out.Task("salvage")
+	salvage.Problem("unpushed branches kept", evo.Severity(evo.SeverityWarning),
+		evo.NextCommand("repo-retire", "salvage", "--dry-run"))
+	succeed(salvage)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	got := collapsed(buf.String())
-	for _, want := range []string{
-		"✓ branches 14 deleted",
-		"repo-retire salvage --dry-run"} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("want %q in:\n%s", want, buf.String())
-		}
-	}
-	// Each's own cross-child rollup (collectEachTaxonomy) was removed with
-	// Each in 1.0 (§3.1) — each plain Group child renders its own line.
-	if n := strings.Count(got, "! skipped 1 (protected)"); n != 4 {
-		t.Fatalf("want 4 individual skipped-protected lines, got %d:\n%s", n, buf.String())
-	}
-	if n := strings.Count(got, "! skipped 1 (dirty)"); n != 2 {
-		t.Fatalf("want 2 individual skipped-dirty lines, got %d:\n%s", n, buf.String())
-	}
-	if n := strings.Count(got, "! kept 1 (unpushed)"); n != 3 {
-		t.Fatalf("want 3 individual kept-unpushed lines, got %d:\n%s", n, buf.String())
+	// Per-item disposition children fold into one tally under their Group
+	// (contract §25 renderer aggregation), as the spec block above shows.
+	const want = "✓ salvage ! unpushed branches kept ✓ branches 14 deleted - skipped 9 (4 protected, 2 dirty, 3 unpushed) [ready · warned] → repo-retire salvage --dry-run"
+	if got := collapsed(buf.String()); got != want {
+		t.Fatalf("collapsed frame:\n got: %s\nwant: %s\nraw:\n%s", got, want, buf.String())
 	}
 }
 
@@ -311,7 +297,7 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 // unchanged skip/keep taxonomy declared as plain Group children with
 // distinct names (§3.1: Each is retired — a repeated child name is now a
 // duplicate sibling declaration, not a get-or-create). Each's own
-// aggregated "! skipped N (...)" collapse was Each-specific presentation
+// aggregated "- skipped N (...)" collapse was Each-specific presentation
 // (writeLiveEachAggregate/writePlainEachAggregate key off the fromEach
 // marker); a plain Group child renders its own taxonomy line individually,
 // so this pins one line per child instead of one collapsed count.
@@ -326,9 +312,9 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 	evo.SetDefault(evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever}))
 	out := evo.Default()
 	g := out.Group("branches")
-	deleted := g.Task("deleted")
-	deleted.Record("delete", 10, "branch")
-	deleted.Done("10 deleted")
+	// The category's own Task (docs/reference.md, "own Task") does the
+	// deletion, so the per-item children fold under the category.
+	commit(g.Task("branches").Summary("10 deleted"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 10})
 	g.Task("feat/x").Fail("delete failed on feat/x")
 	unchanged := evo.Reason("unchanged")
 	notAttempted := evo.Reason("unpushed, not attempted")
@@ -336,7 +322,7 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 		g.Task(name).Skipped(unchanged)
 	}
 	for _, name := range eachSkipNames("kept", 3) {
-		g.Task(name).Kept(notAttempted)
+		g.Task(name).Skipped(notAttempted)
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -347,8 +333,7 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 		"10 deleted",
 		"✗",
 		"delete failed on feat/x",
-		"! skipped 1 (unchanged)",
-		"! kept 1 (unpushed, not attempted)"} {
+		"- skipped 9 (6 unchanged, 3 unpushed, not attempted)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -410,9 +395,7 @@ func TestSpecP17_Taxonomy_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	done := out.Task("branches")
-	done.Record("delete", 10, "branch")
-	done.Done("10 deleted")
+	commit(out.Task("branches").Summary("10 deleted"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 10})
 
 	cancelled := out.Task("keep-pass")
 	cancelled.Cancel("cancelled during keep pass")
@@ -425,7 +408,7 @@ func TestSpecP17_Taxonomy_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
-	if !strings.Contains(got, "already mutated: 10 branches deleted") {
+	if !strings.Contains(got, "partial changes were applied before cancellation") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", buf.String())
 	}
 }
@@ -599,23 +582,24 @@ func TestSpecP19_FirstPaint_Step2(t *testing.T) {
 }
 
 // TestSpecP19_FirstPaint_Success covers Problem 19's success block: a
-// Done summary plus a [changed] section reporting the discovered total.
+// result Summary plus a Fact reporting the discovered total — a count of
+// classified repos is information, not a mutation (ZYS-974).
 //
 //	✓  scan  128 checked
-//	[changed]  scan
-//	  ready  40  repos
+//	  ready  40 repos
 func TestSpecP19_FirstPaint_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	// Contract §13/§21: a Task Fact is verbose-only; this block is the verbose view.
+	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever, Verbosity: evo.VerbosityVerbose})
 	scan := out.Task("scan")
-	scan.RecordLabel("ready", 40, "repos")
-	scan.Done("128 checked")
+	scan.Fact("ready", "40 repos")
+	succeed(scan, "128 checked")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := collapsed(buf.String())
-	for _, want := range []string{"✓ scan 128 checked", "[changed] scan", "ready 40 repos"} {
+	for _, want := range []string{"✓ scan 128 checked", "ready 40 repos"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -762,7 +746,7 @@ func TestSpecP20_Heartbeat_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	out.Task("salvage").Done("3 pushed")
+	succeed(out.Task("salvage"), "3 pushed")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -946,7 +930,7 @@ func TestSpecP21_DurableNote_Success(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Println("using cached wheel index")
-	out.Task("install").Done("40/40")
+	succeed(out.Task("install"), "40/40")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -1045,8 +1029,9 @@ func TestSpecP21_DurableNote_EarlyTermination(t *testing.T) {
 	out.Println("using cached wheel index")
 	install := out.Task("install")
 	install.Progress(5, 40)
-	install.Record("install", 5, "package in .venv")
-	install.Cancel("cancelled at 5/40")
+	commitThen(install, evo.EffectSpec{Verb: evo.EffectInstall, Object: "package in .venv", Quantity: 5}, func() {
+		install.Cancel("cancelled at 5/40")
+	})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -1056,7 +1041,7 @@ func TestSpecP21_DurableNote_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
-	if !strings.Contains(got, "already mutated: 5 packages in .venv installed") {
+	if !strings.Contains(got, "partial changes were applied before cancellation") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", buf.String())
 	}
 }

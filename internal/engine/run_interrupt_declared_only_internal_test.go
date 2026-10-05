@@ -15,7 +15,7 @@ import (
 // the two that were never Defined stayed Pending — abandonQueuedWork only
 // swept tasks the scheduler had accepted — so Finish recorded
 // ErrUnresolvedTask and told the user to "call Done, Fail, Block, Skipped,
-// or a mutation verb on this task" about work an interrupt had just taken
+// or Define on this task" about work an interrupt had just taken
 // away from them.
 //
 // An interrupt's answer to "and what about the rest?" is the same for a

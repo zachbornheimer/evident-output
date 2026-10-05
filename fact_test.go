@@ -14,11 +14,12 @@ import (
 // are work. Facts are information.").
 func TestTaskFact_RendersInlineDimNoBang(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	// Contract §13/§21: a Task Fact is verbose-only; this block is the verbose view.
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, Verbosity: evo.VerbosityVerbose})
 
 	scan := out.Task("remote-tracking")
 	scan.Fact("stale", "1")
-	scan.Done()
+	succeed(scan)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -39,7 +40,7 @@ func TestTaskFact_NeverResolvesTask(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever})
 	task := out.Task("t")
 	task.Fact("language", "go")
-	task.Done()
+	succeed(task)
 	snap := out.Snapshot()
 	if len(snap.Tasks) != 1 || snap.Tasks[0].State != evo.Done {
 		t.Fatalf("Fact must not resolve the task, got %+v", snap.Tasks)
@@ -49,15 +50,14 @@ func TestTaskFact_NeverResolvesTask(t *testing.T) {
 	}
 }
 
-// TestOutputWarn_FeedsWarnedModifierNotHeadline proves evo.Warn (run-scoped,
-// P8 symmetry with TaskHandle.Warn) contributes to Conclusion.Warned/
-// "· warned" without ever becoming a new headline state — a run with only a
-// bare evo.Warn and no tasks still concludes StateReady, warned.
-func TestOutputWarn_FeedsWarnedModifierNotHeadline(t *testing.T) {
+// TestProblemWarning_FeedsWarnedModifierNotHeadline proves a warning-severity
+// Problem contributes to Conclusion.Warned/"· warned" without becoming a
+// new headline state — a run with only that Problem concludes StateReady, warned.
+func TestProblemWarning_FeedsWarnedModifierNotHeadline(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	out.Warn("no config file found, using defaults")
+	out.Task("config").Problem("no config file found, using defaults", evo.Severity(evo.SeverityWarning))
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestOutputWarn_FeedsWarnedModifierNotHeadline(t *testing.T) {
 		t.Fatalf("state = %v, want StateReady (a bare Warn must not invent a headline)", c.State)
 	}
 	if !c.Warned {
-		t.Fatal("want Conclusion.Warned = true after evo.Warn")
+		t.Fatal("want Conclusion.Warned = true after a warning-severity Problem")
 	}
 	got := buf.String()
 	if !strings.Contains(got, "no config file found, using defaults") {

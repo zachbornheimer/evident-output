@@ -8,13 +8,10 @@ import (
 
 // TestExplainEvoUIWireFamily covers the spec §57 EVO-UI-*/EVO-WIRE-*/
 // EVO-EXIT-*/EVO-LIVE-* rules: every one is registered, has a full payload,
-// and only the two rules with no cheap honest static detector (EVO-UI-004,
-// EVO-WIRE-002 — see their Why comments) are Detection=guidance.
+// and none is Detection=guidance: EVO-UI-004 and EVO-WIRE-002 gained
+// detectors (C21-012, C21-014) and must stay detectable.
 func TestExplainEvoUIWireFamily(t *testing.T) {
-	guidanceOnly := map[string]bool{
-		"EVO-UI-004":   true,
-		"EVO-WIRE-002": true,
-	}
+	guidanceOnly := map[string]bool{}
 	for _, id := range []string{
 		"EVO-UI-001", "EVO-UI-002", "EVO-UI-003", "EVO-UI-004",
 		"EVO-WIRE-001", "EVO-WIRE-002", "EVO-WIRE-003",

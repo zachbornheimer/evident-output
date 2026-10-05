@@ -43,8 +43,8 @@ func TestHeartbeat_AppearsAfterElapsedThreshold(t *testing.T) {
 		t.Fatalf("expected elapsed suffix after 5s:\n%s", live)
 	}
 
-	push.Done()
-	ticker.Done()
+	succeed(push)
+	succeed(ticker)
 	_ = out.Finish()
 }
 
@@ -75,8 +75,8 @@ func TestHeartbeat_NeverResetsOnPhaseUpdate(t *testing.T) {
 		t.Fatalf("elapsed suffix must survive a Phase update unreset:\n%s", screen.LatestLiveText())
 	}
 
-	push.Done()
-	ticker.Done()
+	succeed(push)
+	succeed(ticker)
 	_ = out.Finish()
 }
 
@@ -102,7 +102,7 @@ func TestHeartbeat_AppearsRegardlessOfProgressActivity(t *testing.T) {
 		t.Fatalf("elapsed suffix must appear past threshold even while progress advances:\n%s", screen.LatestLiveText())
 	}
 
-	install.Done()
+	succeed(install)
 	_ = out.Finish()
 }
 
@@ -127,11 +127,47 @@ func TestHeartbeat_AbsentInPlainProjection(t *testing.T) {
 	push := out.Task("push")
 	push.Doing("pushing feat/a")
 	clock.Advance(90 * time.Second)
-	push.Done()
+	succeed(push)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(buf.String(), "pushing feat/a — ") {
 		t.Fatalf("plain projection must never attach the live per-row elapsed suffix to a task's own phase line:\n%s", buf.String())
 	}
+}
+
+// TestHeartbeat_FiveSecondTimerContainerHeaderAgesPastThreshold proves the timer
+// applies to an unfinished container header too, not only task rows: once
+// elapsedAfter (5s) has passed since the header was first painted, it gains
+// the same " — Ns" suffix a Running/Pending task row gets.
+func TestHeartbeat_FiveSecondTimerContainerHeaderAgesPastThreshold(t *testing.T) {
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	clock := testkit.NewClock()
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
+	t.Cleanup(func() { _ = out.Close() })
+
+	jobs := out.Group("dependencies")
+	install := jobs.Task("install")
+	jobs.Task("link")
+	ticker := out.Task("ticker")
+
+	install.Doing("installing")
+	ticker.Progress(1, 100) // first live render: anchors the header's clock
+
+	header, _, _ := strings.Cut(screen.LatestLiveText(), "\n")
+	if strings.Contains(header, "—") {
+		t.Fatalf("header must not show an elapsed suffix before the 5s threshold:\n%s", header)
+	}
+
+	clock.Advance(5 * time.Second)
+	ticker.Progress(2, 100)
+
+	header = strings.SplitN(screen.LatestLiveText(), "\n", 2)[0]
+	if !strings.Contains(header, "complete — 5s") {
+		t.Fatalf("expected the container header to gain a 5s elapsed suffix:\n%s", header)
+	}
+
+	succeed(install)
+	succeed(ticker)
+	_ = out.Finish()
 }

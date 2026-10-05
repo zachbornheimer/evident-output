@@ -108,7 +108,7 @@ func TestVersionDrift_GeneratedConfigNeverPinsLatest(t *testing.T) {
 	}
 }
 
-func TestVersionDrift_ReleaseGoIsOnlyPublishedReleaseLiteral(t *testing.T) {
+func TestVersionDrift_PublishedReleaseHasOneLiteral(t *testing.T) {
 	// Prevent a second "source of truth" const drifting beside PublishedRelease.
 	root := moduleRoot(t)
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
@@ -126,7 +126,7 @@ func TestVersionDrift_ReleaseGoIsOnlyPublishedReleaseLiteral(t *testing.T) {
 			return nil
 		}
 		rel, _ := filepath.Rel(root, path)
-		if rel == "release.go" || strings.HasSuffix(rel, "_test.go") {
+		if rel == "format.go" || strings.HasSuffix(rel, "_test.go") {
 			return nil
 		}
 		body, err := os.ReadFile(path)

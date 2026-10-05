@@ -15,7 +15,7 @@ func TestScreen_ConcurrentAccess(t *testing.T) {
 	var wg sync.WaitGroup
 	const goroutines = 8
 	wg.Add(goroutines)
-	for i := 0; i < goroutines; i++ {
+	for i := range goroutines {
 		go func(n int) {
 			defer wg.Done()
 			s.WriteLive("frame")

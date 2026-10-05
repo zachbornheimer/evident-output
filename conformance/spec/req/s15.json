@@ -1,0 +1,97 @@
+[
+  {
+    "id": "C15-001",
+    "section": "15",
+    "quote": "A cancelled run ends `[cancelled] <subject>  by user`, the cause also recorded as `Conclusion.Explanation`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestCancellation_RenderedBandMatchesContract"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestCancellation_NothingChangedOmitsThePartialChangesLine"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C15-002",
+    "section": "15",
+    "quote": "`! partial changes were applied before cancellation` appears only when an Effect committed.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestCancellation_RenderedBandMatchesContract"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestCancellation_NothingChangedOmitsThePartialChangesLine"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C15-003",
+    "section": "15",
+    "quote": "Work Defined after the interrupt settles NotStarted.",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "UNCLASSIFIED: the interrupt can only be injected through an internal signal seam (sendOneSignal); Output.Cancel inside Run hung when a task waited on its ctx (needs investigation). Needs a public cancellation seam.",
+    "default": false
+  },
+  {
+    "id": "C15-004",
+    "section": "15",
+    "quote": "Conclusion maps cancellation to exit 130.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestCancellation_ExitsWithCancelledCode"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C15-005",
+    "section": "15",
+    "quote": "Do not duplicate the effects ledger in a second giant cancellation sentence.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestCancellation_RenderedBandMatchesContract"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C15-006",
+    "section": "15",
+    "quote": "Never imply rollback unless rollback actually occurred.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestCancellation_RenderedBandMatchesContract"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C15-007",
+    "section": "15",
+    "quote": "Distinguish not-started, interrupted, completed, and committed effects.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestCancellation_RenderedBandMatchesContract"
+      }
+    ],
+    "default": false
+  }
+]

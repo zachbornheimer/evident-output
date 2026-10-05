@@ -1,0 +1,181 @@
+[
+  {
+    "id": "C18-001",
+    "section": "18",
+    "quote": "Independent prune categories belong in a Group:",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPruneContract_LiveCategoriesRenderContract18Frame"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPruneContract_JSONLStreamKeepsEveryTaskAndTheGroup"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C18-002",
+    "section": "18",
+    "quote": "`branches`, `worktrees`, and `remote-tracking` become eligible together.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScheduler_GroupOverlapRespectsCeiling"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C18-003",
+    "section": "18",
+    "quote": "Internal `classify` rows should not clutter ordinary output.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPruneContract_ZeroInformationNoWorkRowIsHiddenFromHumanOutputOnly"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPruneContract_GroupWithoutOwnInformationRendersNoHeaderRow"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C18-004",
+    "section": "18",
+    "quote": "Dry-run should separate discovery from planned Effects:",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPruneContract_KeptUnderGroupedCategoriesRendersContract18"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C18-005",
+    "section": "18",
+    "quote": "The band drops the title because the `[dry-run]` Subject header already named the run. A pure `[planned]` verdict under that header prints no band at all.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPruneContract_KeptUnderGroupedCategoriesRendersContract18"
+      },
+      {
+        "pkg": ".",
+        "run": "TestConclusionBand_NoTitleNeverStutters"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C18-006",
+    "section": "18",
+    "quote": "Policy-excluded items are Skipped and never warn, so this run concludes `[planned]` and prints no band.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestSkipped_DoesNotSetWarned"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPruneContract_KeptUnderGroupedCategoriesRendersContract18"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C18-007",
+    "section": "18",
+    "quote": "Ordinary Facts such as `on disk  23.1 MB` appear only under verbose, where each skip reason also lists its items.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestTaskFact_HiddenOnNormalSuccess"
+      },
+      {
+        "pkg": ".",
+        "run": "TestTaskFact_ShownUnderVerbose"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPruneContract_KeptTallyVerboseListsRealItemNames"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C18-008",
+    "section": "18",
+    "quote": "Each category is a Group whose own Task (`branches`) owns the classification, the Summary, and the Effect;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestOwnTask_SameNamedWorkTaskIsTheGroupRow"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPruneContract_KeptUnderGroupedCategoriesRendersContract18"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C18-009",
+    "section": "18",
+    "quote": "and those Tasks fold into the category's `- skipped N (...)` tally (§13).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestSkippedItemFacts_KeepTheFold"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPruneContract_KeptChildrenStayInMachineOutput"
+      },
+      {
+        "pkg": ".",
+        "run": "TestOwnTask_LoneKeptItemFoldsUnderItsGroupRow"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C18-010",
+    "section": "18",
+    "quote": "No-op output should remain concise and suppress zero-information `classify` rows.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPruneContract_ZeroInformationNoWorkRowIsHiddenFromHumanOutputOnly"
+      },
+      {
+        "pkg": ".",
+        "run": "TestScenario_NothingToClean"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C18-011",
+    "section": "18",
+    "quote": "18. zq prune acceptance fixture",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "CONSUMER: that the real `zq prune` command produces this fixture from Evo is a property of the zq repository (zq main still calls the removed Step at internal/prune/classify/prune.go:236); the Evo side of every output rule is bound in C18-001..C18-010.",
+    "default": false
+  }
+]

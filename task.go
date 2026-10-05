@@ -3,35 +3,51 @@ package evo
 import (
 	"context"
 	"io"
+
+	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine"
 )
 
-func (t *TaskHandle) Add(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Add(object, fn, opts...)
+type TaskHandle struct{ inner *engine.TaskHandle }
+
+var (
+	ErrInvalidProgress    = engine.ErrInvalidProgress
+	ErrProgressRegression = engine.ErrProgressRegression
+)
+
+// Task declares a Task on the default instance.
+func Task(name string) *TaskHandle { return wrapTask(engine.Task(name)) }
+
+func (o *Output) Task(name string) *TaskHandle { return wrapTask(o.impl().Task(name)) }
+
+func wrapTask(inner *engine.TaskHandle) *TaskHandle {
+	return wrap(inner, func() *TaskHandle { return &TaskHandle{inner: inner} })
 }
 
-func (t *TaskHandle) After(preds ...any) *TaskHandle {
-	unwrapped := make([]any, len(preds))
-	for i, p := range preds {
-		unwrapped[i] = unwrapPred(p)
+func (t *TaskHandle) impl() *engine.TaskHandle {
+	if t == nil {
+		return nil
 	}
-	t.impl().After(unwrapped...)
-	return t
+	return t.inner
 }
 
-func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
-	t.impl().Block(summary, options...)
-}
+// ProgressKind classifies task measurement.
+type ProgressKind = core.ProgressKind
 
-func (t *TaskHandle) Blockf(format string, args ...any) *Failure {
-	return wrapFailure(t.impl().Blockf(format, args...))
-}
+// ProgressKind values — which measurement a task's Progress reports.
+const (
+	Indeterminate = core.Indeterminate
+	Determinate   = core.Determinate
+	BytesKind     = core.BytesKind
+)
+
+// Progress is absolute measurement for a task.
+type Progress = core.Progress
 
 func (t *TaskHandle) Bytes(completed, total int64) *TaskHandle {
 	t.impl().Bytes(completed, total)
 	return t
 }
-
-func (t *TaskHandle) Cancel(reason string) { t.impl().Cancel(reason) }
 
 func (t *TaskHandle) Context() context.Context {
 	if t == nil || t.inner == nil {
@@ -40,16 +56,18 @@ func (t *TaskHandle) Context() context.Context {
 	return t.inner.Context()
 }
 
-func (t *TaskHandle) Create(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Create(object, fn, opts...)
-}
-
-// Define freezes this Task's configuration and submits fn to the
-// scheduler — see internal/engine.TaskHandle.Define (§7).
-func (t *TaskHandle) Define(fn func(context.Context) error) { t.impl().Define(fn) }
-
-func (t *TaskHandle) Delete(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Delete(object, fn, opts...)
+// Define freezes this Task's configuration (After, Verify, Key) and submits
+// fn to the scheduler. It returns immediately, before fn runs; the
+// scheduler starts fn once the Task is eligible, and fn's error becomes the
+// Task's outcome. evo.Run and evo.Main wait for every submitted Task. A
+// second Define on the same Task is misuse.
+//
+// Define returns this same *TaskHandle so the single-Task shape reads
+// `return task.Define(fn).Wait()`. That is fluent sugar only: fn still runs
+// on the scheduler, not inline.
+func (t *TaskHandle) Define(fn func(context.Context) error) *TaskHandle {
+	t.impl().Define(fn)
+	return t
 }
 
 func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
@@ -57,34 +75,13 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 	return t
 }
 
-func (t *TaskHandle) Done(args ...any) { t.impl().Done(args...) }
-
-func (t *TaskHandle) Fact(name, value string) { t.impl().Fact(name, value) }
-
-func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
-	t.impl().Fail(summary, options...)
-}
-
-func (t *TaskHandle) Failf(format string, args ...any) *Failure {
-	return wrapFailure(t.impl().Failf(format, args...))
-}
-
-func (t *TaskHandle) Kept(reason TaxonomyReason) { t.impl().Kept(reason.inner) }
-
-// Key sets an advanced, refactor/rename-stable override for this Task's
-// §3.1 identity — see internal/engine.TaskHandle.Key.
+// Key sets an advanced override for this Task's stable identity, so a
+// rename or refactor keeps its manifest history. Call it before Define; a
+// call after Define or after the Task settled records ErrKeyAfterDefine and
+// leaves the key unchanged. Repeating the Task's own key is a no-op. A key
+// another Task already claims is ErrDuplicateKey.
 func (t *TaskHandle) Key(key string) *TaskHandle {
 	t.impl().Key(key)
-	return t
-}
-
-func (t *TaskHandle) Next(actions ...Action) *TaskHandle {
-	t.impl().Next(actions...)
-	return t
-}
-
-func (t *TaskHandle) NextCommand(executable string, args ...string) *TaskHandle {
-	t.impl().NextCommand(executable, args...)
 	return t
 }
 
@@ -93,42 +90,29 @@ func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
 	return t
 }
 
-func (t *TaskHandle) Push(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Push(object, fn, opts...)
-}
-
-func (t *TaskHandle) Record(verb string, quantity int, object string) {
-	t.impl().Record(verb, quantity, object)
-}
-
-func (t *TaskHandle) RecordLabel(label string, quantity int, object string) {
-	t.impl().RecordLabel(label, quantity, object)
-}
-
-func (t *TaskHandle) RecordName(verb, object string) { t.impl().RecordName(verb, object) }
-
-func (t *TaskHandle) Remove(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Remove(object, fn, opts...)
-}
-
-func (t *TaskHandle) Skipped(reason TaxonomyReason) { t.impl().Skipped(reason.inner) }
-
-func (t *TaskHandle) Snapshot() TaskSnapshot {
-	if t == nil || t.inner == nil {
-		return TaskSnapshot{}
-	}
-	return t.inner.Snapshot()
-}
-
-func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
-	t.impl().Step(completed, total, name)
+// Summary sets one line of result text rendered after the Task name on its
+// terminal row, and exposed as "summary" in Snapshot and JSON/JSONL. The
+// last call wins and an empty string clears it. It never resolves the Task
+// and is not live activity (Doing, Progress, and Bytes are). Calling
+// it after the Task resolved is misuse, unless an interrupt resolved it.
+func (t *TaskHandle) Summary(text string) *TaskHandle {
+	t.impl().Summary(text)
 	return t
 }
 
-func (t *TaskHandle) Update(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Update(object, fn, opts...)
-}
-
+// Wait blocks until the Task is terminal and returns the error its callback
+// returned: nil on success, ErrNotStarted when the work never ran (a failed
+// predecessor, a run that drained first, or a refused declaration such as a
+// duplicate name, wrapping the refusal), its cancellation when it was
+// cancelled, and ErrWaitDeadlock when nothing in the run can ever reach it.
+// A waiting callback lends its own goroutine to the awaited work, so nested
+// Define+Wait completes even at MaxConcurrency 1. MaxConcurrency bounds
+// every executing callback: a goroutine outside any callback runs work only
+// in a free slot and otherwise waits for the pool. A goroutine a callback
+// started, Waiting while that callback blocks on it and every slot is held,
+// gets ErrWaitDeadlock naming API-041 instead of hanging. Calling Wait
+// while holding a resource claim (inside an Effect, File, or Basis) returns
+// ErrNestedResourceAcquisition without waiting.
 func (t *TaskHandle) Wait() error {
 	if t == nil || t.inner == nil {
 		return nil
@@ -136,19 +120,9 @@ func (t *TaskHandle) Wait() error {
 	return t.inner.Wait()
 }
 
-// Verify registers an advanced current-state observation check — see
-// internal/engine.TaskHandle.Verify (§9.1).
-func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle {
-	t.impl().Verify(fn)
-	return t
-}
-
-func (t *TaskHandle) Warn(summary string) { t.impl().Warn(summary) }
-
-func (t *TaskHandle) Write(object string, fn func() error, opts ...MutationOption) {
-	t.impl().Write(object, fn, opts...)
-}
-
+// Writer returns a line-buffered sink for a child process: each complete
+// line becomes the task's live doing-text, and every byte is retained on
+// the same Capture ring Exec and TaskHandle.Capture share.
 func (t *TaskHandle) Writer() io.Writer {
 	if t == nil || t.inner == nil {
 		return io.Discard

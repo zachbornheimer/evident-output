@@ -120,10 +120,16 @@ func runPipeline(t *testing.T, state string, f *pipelineFixture, schemaJSONFn, o
 
 	out.Run(context.Background(), func(ctx context.Context) error {
 		normalize := out.Task("normalize")
-		normalize.Define(func(taskCtx context.Context) error { return evo.Exec(taskCtx, f.normalizeSpec()) })
+		normalize.Define(func(taskCtx context.Context) error {
+			_, err := evo.Exec(taskCtx, f.normalizeSpec())
+			return err
+		})
 		compile := out.Task("compile")
 		compile.After(normalize)
-		compile.Define(func(taskCtx context.Context) error { return evo.Exec(taskCtx, f.compileSpec()) })
+		compile.Define(func(taskCtx context.Context) error {
+			_, err := evo.Exec(taskCtx, f.compileSpec())
+			return err
+		})
 		return nil
 	})
 	if err := out.Err(); err != nil {

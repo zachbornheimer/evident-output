@@ -38,6 +38,31 @@ type ExecSpec struct {
 	Outputs []string
 }
 
+// ExecResult is one Exec attempt's immutable outcome (spec §8.4/ZYS-850):
+// the smallest inspection surface a caller needs to derive structured
+// Problems/Facts from a completed subprocess without taking over capture.
+//
+// Ran reports whether the child actually reached a terminal exit status —
+// false when Exec skipped spawning (a current manifest hit or a dry-run
+// plan), matching ProcessOutcome's own "never produced a terminal exit
+// status" semantics for the spawn-failure/cancellation case (those return
+// only an error, ExecResult zero-valued).
+//
+// Stdout/Stderr are the Capture tail Exec already retains: sanitized,
+// redacted, and bounded (at most 200 completed lines / ~256KiB) — never a
+// second unbounded copy, and never the human-facing truncation marker
+// DetailTail adds. Truncated reports that the bound dropped earlier output.
+// They suit line-oriented diagnostics that tolerate a tail; they are not a
+// data channel. A caller that needs a tool's complete machine output (a
+// JSON report) has the tool write it to a file and reads that file.
+type ExecResult struct {
+	Ran       bool
+	ExitCode  int
+	Stdout    string
+	Stderr    string
+	Truncated bool
+}
+
 // Exec-specific misuse/usage and outcome errors (spec §8.4).
 var (
 	// ErrExecSpecMissingExecutable is returned when ExecSpec.Executable is empty.
@@ -73,15 +98,19 @@ type execEvaluation struct {
 // Exec declares/reconciles one managed-state subprocess invocation: it
 // skips spawning when a prior record proves the operation is already
 // current (matching definition, Basis, and every declared Output digest),
-// otherwise runs the child and verifies its declared Outputs afterward.
-// ctx must come from a Task's Define callback (see taskScope) — Exec
-// returns ErrNoTaskContext or ErrTaskClosed otherwise, exactly as taskScope
-// reports them (already fully descriptive sentinels — wrapping would add
-// nothing and would break a bare errors.Is check on either).
-func Exec(ctx context.Context, spec ExecSpec) error {
-	task, scopeErr := taskScope(ctx)
+// otherwise runs the child and verifies its declared Outputs afterward. The
+// returned ExecResult lets a caller inspect the attempt's exit code and
+// captured stdout/stderr without owning capture itself (spec §8.4/ZYS-850);
+// ordinary callers that don't parse output may ignore it with
+// `_, err := evo.Exec(...)`. ctx must come from a Task's Define callback
+// (see taskScope) — Exec returns ErrNoTaskContext or ErrTaskClosed
+// otherwise, exactly as taskScope reports them (already fully descriptive
+// sentinels — wrapping would add nothing and would break a bare errors.Is
+// check on either).
+func Exec(ctx context.Context, spec ExecSpec) (ExecResult, error) {
+	task, scopeErr := beginOperation(ctx, fmt.Sprintf("Exec %q", spec.Executable))
 	if scopeErr != nil {
-		return scopeErr
+		return ExecResult{}, scopeErr
 	}
 	return task.out.reconcileExec(ctx, task.id, spec)
 }
@@ -89,12 +118,9 @@ func Exec(ctx context.Context, spec ExecSpec) error {
 // reconcileExec is Exec's implementation, mirroring reconcileFile's shape
 // (spec §11.3-11.6): resolve paths, claim/settle the output freshness
 // barrier, consult the manifest for a skip, otherwise spawn and verify.
-func (o *Output) reconcileExec(ctx context.Context, taskID string, spec ExecSpec) error {
+func (o *Output) reconcileExec(ctx context.Context, taskID string, spec ExecSpec) (ExecResult, error) {
 	if spec.Executable == "" {
-		return ErrExecSpecMissingExecutable
-	}
-	if cancelErr := o.recordCancelledExec(ctx, spec); cancelErr != nil {
-		return cancelErr
+		return ExecResult{}, ErrExecSpecMissingExecutable
 	}
 
 	dir := o.resolveWorkspacePath(spec.Dir)
@@ -102,38 +128,24 @@ func (o *Output) reconcileExec(ctx context.Context, taskID string, spec ExecSpec
 
 	release, claimErr := o.claimExecOutputs(taskID, outputs)
 	if claimErr != nil {
-		return claimErr
+		return ExecResult{}, claimErr
 	}
 	defer release()
 
 	executablePath, resolveErr := o.resolveExecutable(spec.Executable, dir)
 	if resolveErr != nil {
-		return fmt.Errorf("evo: Exec: %w", resolveErr)
+		return ExecResult{}, fmt.Errorf("evo: Exec: %w", resolveErr)
 	}
 	target := execTarget{Dir: dir, ExecutablePath: executablePath, Outputs: outputs}
 
 	eval, evalErr := o.execEvaluate(ctx, taskID, spec, target)
 	if evalErr != nil {
-		return fmt.Errorf("evo: Exec: %w", evalErr)
+		return ExecResult{}, fmt.Errorf("evo: Exec: %w", evalErr)
 	}
 	if eval.Skip {
-		return nil
+		return ExecResult{Ran: false}, nil
 	}
 	return o.execRunAndRecord(ctx, taskID, spec, target, eval)
-}
-
-// recordCancelledExec reports ctx's error as misuse (spec: a cancelled Run
-// must never look like it silently succeeded) before Exec does anything
-// else — the same guard reconcileFile applies for File.
-func (o *Output) recordCancelledExec(ctx context.Context, spec ExecSpec) error {
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		wrapped := fmt.Errorf("evo: Exec %q: %w", spec.Executable, ctxErr)
-		o.mu.Lock()
-		o.recordMisuse(wrapped)
-		o.mu.Unlock()
-		return wrapped
-	}
-	return nil
 }
 
 // execEvaluate resolves this call's manifest verdict: current (skip,
@@ -177,19 +189,23 @@ func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec,
 
 // execRunAndRecord spawns the child, verifies its declared Outputs after a
 // zero exit, and commits the fresh operation record — the only path that
-// actually mutates anything (spec §8.4).
-func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecSpec, target execTarget, eval execEvaluation) error {
-	outcome, runErr := o.spawnExec(ctx, taskID, spec, target)
+// actually mutates anything (spec §8.4). The returned ExecResult carries
+// the captured attempt (Ran=true) whenever the child reached a terminal
+// exit status, even when that attempt then fails verification or exits
+// nonzero — only a spawn/cancellation failure (runErr != nil) leaves it
+// zero-valued, matching ProcessOutcome's own terminal-status semantics.
+func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecSpec, target execTarget, eval execEvaluation) (ExecResult, error) {
+	result, runErr := o.spawnExec(ctx, taskID, spec, target)
 	if runErr != nil {
-		return fmt.Errorf("evo: Exec %q: %w", spec.Executable, runErr)
+		return ExecResult{}, fmt.Errorf("evo: Exec %q: %w", spec.Executable, runErr)
 	}
-	if outcome.ExitCode != 0 {
-		return fmt.Errorf("%w (exit %d): %s", ErrExecNonzeroExit, outcome.ExitCode, spec.Executable)
+	if result.ExitCode != 0 {
+		return result, fmt.Errorf("%w (exit %d): %s", ErrExecNonzeroExit, result.ExitCode, spec.Executable)
 	}
 
 	outputRecords, verifyErr := o.observeVerifiedExecOutputs(ctx, taskID, target.Outputs)
 	if verifyErr != nil {
-		return fmt.Errorf("evo: Exec %q: %w", spec.Executable, verifyErr)
+		return result, fmt.Errorf("evo: Exec %q: %w", spec.Executable, verifyErr)
 	}
 
 	o.recordExecEffect(taskID, spec.Executable)
@@ -205,7 +221,7 @@ func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecS
 		"kind": "exec", "executable": spec.Executable, "changed": true,
 	})
 	o.mu.Unlock()
-	return nil
+	return result, nil
 }
 
 // observeVerifiedExecOutputs wraps verifiedExecOutputs with one
@@ -266,5 +282,5 @@ func verifiedExecOutputs(ctx context.Context, outputs []string) ([]manifest.Outp
 // Effect under taskID's own ledger section — the same routing recordFileEffect
 // uses for File (spec §8.4/§27/§51).
 func (o *Output) recordExecEffect(taskID, displayExecutable string) {
-	(&TaskHandle{out: o, id: taskID}).RecordName("run", displayExecutable)
+	o.recordLedgerEntry(taskID, namedEntry("run", displayExecutable))
 }

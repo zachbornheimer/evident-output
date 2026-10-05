@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -15,7 +16,7 @@ func TestInit_OptionsPath_HonorsDryRun(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, DryRun: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	out.Task("cleanup").Delete("stale local branch", func() error { return nil }, evo.Affected(2))
+	out.Task("cleanup").Define(effectOf(evo.EffectDelete, "stale local branch", 2))
 	_ = out.Finish()
 
 	rendered := buf.String()
@@ -49,13 +50,17 @@ func TestInit_OptionsPath_HonorsPreview(t *testing.T) {
 		Isolated: true,
 		Preview:  true,
 		Subject:  "repo  /tmp/flight",
-		Options:  []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()},
+		Stdout:   &buf,
+		Plain:    true,
+		Color:    evo.ColorNever,
 	})
 
-	out.Task("cleanup").Delete("stale local branch", func() error {
-		called = true
-		return nil
-	}, evo.Affected(2))
+	out.Task("cleanup").Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale local branch", Quantity: 2}, func(context.Context) error {
+			called = true
+			return nil
+		})
+	})
 	_ = out.Finish()
 
 	got := buf.String()

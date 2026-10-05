@@ -11,7 +11,11 @@
 // pkg.go.dev-visible one (see EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md §38).
 package core
 
-import "time"
+import (
+	"slices"
+	"strings"
+	"time"
+)
 
 // Snapshot is an immutable complete presentation state at a version.
 type Snapshot struct {
@@ -47,17 +51,24 @@ type Snapshot struct {
 	// no Config.Subject, in which case the marker falls back to its plain
 	// announcement text.
 	DryRunSubject string
-	// Warnings holds evo.Warn's run-scoped annotations (P8 symmetry with
-	// TaskHandle.Warn) — a warning about the run itself, not about any one
-	// task. Feeds Conclusion.Warned/"· warned" exactly like a task warning,
-	// never a headline state of its own (evo-rec.md "warnings annotate
-	// lifecycle; they do not replace it").
+	// Warnings holds run-scoped warning-severity Problems (P8) — a warning
+	// about the run itself, not about any one task. Feeds
+	// Conclusion.Warned/"· warned" exactly like a task warning, never a
+	// headline state of its own (evo-rec.md "warnings annotate lifecycle;
+	// they do not replace it"). Warn was removed in 1.1.
 	Warnings []Problem
 	// Facts holds evo.Fact's run-scoped annotations (P8) — discovered
 	// information about the run itself (evo.Fact("language", "go")), fire-
 	// and-forget durable dim lines, rendered once in call order alongside
 	// Lines/Messages.
 	Facts []Fact
+
+	// rootTally mirrors TasksSnapshot's tally for the standalone root
+	// Tasks of a live projection. See WithRootTally.
+	rootTally *ChildTally
+	// rootCollectionTally mirrors TasksSnapshot's collectionTally for the
+	// root collections of a live projection. See WithRootCollectionTally.
+	rootCollectionTally *CollectionTally
 }
 
 // TaskSnapshot is an immutable task view.
@@ -86,10 +97,11 @@ type TaskSnapshot struct {
 	Progress        Progress
 	Summary         string
 	Problems        []Problem
-	// Warnings holds TaskHandle.Warn's accumulated annotations (P2):
-	// warnings annotate the task's lifecycle, they never become a lifecycle
-	// state of their own. Rendering inlines a single short warning on the
-	// task's own row; multiple or long warnings render as nested lines.
+	// Warnings holds accumulated warning-severity Problems (P2): warnings
+	// annotate the task's lifecycle, they never become a lifecycle state of
+	// their own. Rendering inlines a single short warning on the task's own
+	// row; multiple or long warnings render as nested lines. Warn was
+	// removed in 1.1.
 	Warnings []Problem
 	// Facts holds TaskHandle.Fact's accumulated annotations (P8): discovered
 	// information about the task, at info severity — never a lifecycle state,
@@ -106,7 +118,7 @@ type TaskSnapshot struct {
 	Verification []VerificationDetail
 	Actions      []Action
 	// Skipped/Kept are the disposition taxonomy accumulated by
-	// TaskHandle.Skipped/Kept — the source the "! skipped N (...)" / "!  kept
+	// TaskHandle.Skipped/Kept — the source the "- skipped N (...)" / "! kept
 	// N (...)" render lines derive counts and reason partitions from.
 	Skipped     []TaxonomyRecord
 	Kept        []TaxonomyRecord
@@ -119,23 +131,44 @@ type TaskSnapshot struct {
 	// if any (§30) — the zero value when Verify was never called.
 	Evidence TaskEvidence
 	// synthetic marks a task the library invented to carry an output-level
-	// outcome (Output.Failf/Cancel) rather than one the caller declared —
+	// outcome (Output.Fail/Cancel) rather than one the caller declared —
 	// presentation-internal bookkeeping (coalescing), never part of the
 	// public snapshot contract. Set via NewTaskSnapshot, read via Synthetic.
 	synthetic bool
-	// fromEach marks a child created by Group/Sequence.Each. Presentation
-	// aggregates these onto the parent row; JSON still lists every child.
-	fromEach bool
+	// liveTail is presentation-internal: the bounded recent child-output
+	// lines a live frame draws beneath this Running row. Never part of the
+	// public snapshot contract. Set via WithLiveTail, read via LiveTailOf.
+	liveTail LiveTail
 }
+
+// LiveTail is a Running Task's most recent completed Writer lines, oldest
+// first, bounded by the engine however long the child runs. Evidence is the
+// total number of lines the Task's Capture ring holds, Lines included — what
+// the live frame's footer reports and a reader can reach through DetailTail.
+// LastLineAt is the domain-clock time the newest completed line arrived; zero
+// when the Task has received none.
+type LiveTail struct {
+	Lines      []string
+	Evidence   int
+	LastLineAt time.Time
+}
+
+// WithLiveTail is t carrying tail for the live frame.
+func WithLiveTail(t TaskSnapshot, tail LiveTail) TaskSnapshot {
+	t.liveTail = tail
+	return t
+}
+
+// LiveTailOf is the live tail t carries (zero when it has none).
+func LiveTailOf(t TaskSnapshot) LiveTail { return t.liveTail }
 
 // NewTaskSnapshot returns base with its presentation-internal bookkeeping
 // fields set — the only way to populate them from outside this package
 // (they are deliberately unexported: never part of the public snapshot
 // contract). Called once, by the root package's taskState.snapshot().
-func NewTaskSnapshot(base TaskSnapshot, liveFirstSeenAt time.Time, synthetic, fromEach bool) TaskSnapshot {
+func NewTaskSnapshot(base TaskSnapshot, liveFirstSeenAt time.Time, synthetic bool) TaskSnapshot {
 	base.liveFirstSeenAt = liveFirstSeenAt
 	base.synthetic = synthetic
-	base.fromEach = fromEach
 	return base
 }
 
@@ -144,15 +177,12 @@ func NewTaskSnapshot(base TaskSnapshot, liveFirstSeenAt time.Time, synthetic, fr
 func (t TaskSnapshot) LiveFirstSeenAt() time.Time { return t.liveFirstSeenAt }
 
 // Synthetic reports whether the library invented this task to carry an
-// output-level outcome (Output.Failf/Cancel) rather than the caller having
+// output-level outcome (Output.Fail/Cancel) rather than the caller having
 // declared it.
 func (t TaskSnapshot) Synthetic() bool { return t.synthetic }
 
-// FromEach reports whether this Task was created by Group/Sequence.Each.
-func (t TaskSnapshot) FromEach() bool { return t.fromEach }
-
 // TaxonomyRecord is one accumulated (reason, name) disposition entry —
-// recorded by TaskHandle.Skipped or TaskHandle.Kept, never assembled by hand.
+// recorded by TaskHandle.Skipped, never assembled by hand.
 type TaxonomyRecord struct {
 	Reason string
 	Name   string
@@ -163,7 +193,7 @@ type TaxonomyRecord struct {
 	Causes []string
 }
 
-// TasksSnapshot is an immutable collection view (evo.DisplayGroup or
+// TasksSnapshot is an immutable collection view (evo.Group or
 // evo.Sequence).
 type TasksSnapshot struct {
 	ID string
@@ -178,16 +208,26 @@ type TasksSnapshot struct {
 	Summary string
 	Tasks   []TaskSnapshot
 	// Collections holds nested child containers declared via
-	// Sequence.Sequence, Sequence.DisplayGroup, DisplayGroup.Sequence, or
-	// DisplayGroup.DisplayGroup (P3's recursive nesting) — a rendering walk
-	// that stops at Tasks alone misses any container nested this way.
+	// Group.Group, Group.Sequence, Sequence.Group, or Sequence.Sequence
+	// (P3's recursive nesting) — a rendering walk that stops at Tasks alone
+	// misses any container nested this way.
 	Collections []TasksSnapshot
 	// Sequential reports whether this container is an evo.Sequence (ordered
 	// dependency, "one Running child" heart contract, failure cascades to
-	// NotStarted) rather than an evo.DisplayGroup (independent, presentation
-	// only, concurrent Running children expected).
+	// NotStarted) rather than an evo.Group (independent children,
+	// scheduler may overlap, concurrent Running children expected).
 	Sequential  bool
 	Declaration int
+
+	// tally, when set, marks Tasks as a partial list: a live projection
+	// kept only the children a frame can show, and tally counts every
+	// child it was built from. Unexported presentation bookkeeping; see
+	// WithChildTally.
+	tally *ChildTally
+	// collectionTally, when set, marks Collections as a partial list: a
+	// live projection left out the child collections a frame cannot
+	// reach, and collectionTally sums them. See WithCollectionTally.
+	collectionTally *CollectionTally
 }
 
 // ChangesSnapshot is an immutable changes section.
@@ -200,7 +240,54 @@ type ChangesSnapshot struct {
 	// Records. Empty when no verb was ever recorded (evo-rec.md "empty effect
 	// section grammar"). Never caller-assembled.
 	IntendedVerb string
+
+	// owner is the ID of the Task the section belongs to (see
+	// NewChangesSnapshot). Unexported: identity for presentation policy,
+	// never part of the public snapshot.
+	owner string
+	// containers is the owner's container chain (see ContainerPath).
+	containers ContainerPath
 }
+
+// ContainerRef names one Group or Sequence.
+type ContainerRef struct {
+	ID   string
+	Name string
+}
+
+// ContainerPath is a Task's enclosing containers, nearest first. Empty for
+// a root Task. It is how the human ledger knows which sections share a
+// container (evo-rec.md "ledger fold"); never part of machine output.
+type ContainerPath []ContainerRef
+
+// Qualify is name under p, outermost container first ("alpha › prune"): how
+// a ledger row is told apart from a same-named row in another container.
+func (p ContainerPath) Qualify(name string) string {
+	parts := make([]string, 0, len(p)+1)
+	for _, v := range slices.Backward(p) {
+		parts = append(parts, v.Name)
+	}
+	return strings.Join(append(parts, name), QualifiedSubjectSeparator)
+}
+
+// WithChangesContainers is c placed under path.
+func WithChangesContainers(c ChangesSnapshot, path ContainerPath) ChangesSnapshot {
+	c.containers = path
+	return c
+}
+
+// ChangesContainers is the container chain of the Task c belongs to.
+func ChangesContainers(c ChangesSnapshot) ContainerPath { return c.containers }
+
+// NewChangesSnapshot is c owned by the Task ownerID.
+func NewChangesSnapshot(c ChangesSnapshot, ownerID string) ChangesSnapshot {
+	c.owner = ownerID
+	return c
+}
+
+// ChangesOwner is the ID of the Task c belongs to, or "" when c was built
+// without one.
+func ChangesOwner(c ChangesSnapshot) string { return c.owner }
 
 // PlanSnapshot is an immutable plan section.
 type PlanSnapshot struct {
@@ -209,7 +296,31 @@ type PlanSnapshot struct {
 	Records []EffectRecord
 	// IntendedVerb mirrors ChangesSnapshot.IntendedVerb for plan sections.
 	IntendedVerb string
+
+	// owner mirrors ChangesSnapshot's.
+	owner string
+	// containers mirrors ChangesSnapshot's.
+	containers ContainerPath
 }
+
+// WithPlanContainers is p placed under path.
+func WithPlanContainers(p PlanSnapshot, path ContainerPath) PlanSnapshot {
+	p.containers = path
+	return p
+}
+
+// PlanContainers is the container chain of the Task p belongs to.
+func PlanContainers(p PlanSnapshot) ContainerPath { return p.containers }
+
+// NewPlanSnapshot is p owned by the Task ownerID.
+func NewPlanSnapshot(p PlanSnapshot, ownerID string) PlanSnapshot {
+	p.owner = ownerID
+	return p
+}
+
+// PlanOwner is the ID of the Task p belongs to, or "" when p was built
+// without one.
+func PlanOwner(p PlanSnapshot) string { return p.owner }
 
 // EffectRecord is one semantic change or plan row.
 type EffectRecord struct {

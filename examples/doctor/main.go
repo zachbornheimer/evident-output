@@ -2,22 +2,21 @@
 //
 //	go run ./examples/doctor/
 //	go run ./examples/doctor/ --verbose
-//	go run ./examples/doctor/ --json | jq .conclusion
+//	go run ./examples/doctor/ --json | jq .
 package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
-	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
 
 func main() {
-	asJSON := flag.Bool("json", false, "emit JSON snapshot on stdout; human report on stderr")
+	asJSON := flag.Bool("json", false, "emit the evo.run JSON document on stdout; human report on stderr")
 	strict := flag.Bool("strict", false, "escalate signing warn to block")
 	fast := flag.Bool("fast", false, "short sleeps")
 	verbose := flag.Bool("verbose", false, "show Verbose() messages")
@@ -31,34 +30,39 @@ func main() {
 	cfg := evo.DefaultConfig()
 	cfg.Title = "env-doctor"
 	if *asJSON {
-		cfg.Format = evo.FormatData
+		cfg.Format = evo.FormatJSON
 	}
 	if *verbose {
 		cfg.Verbosity = evo.VerbosityVerbose
 	}
-	out := evo.Init(cfg)
-	// evo.Run (not Main) here: this entrypoint needs the exit code before it
-	// exits, so it can print the --json snapshot first — Main's immediate
-	// os.Exit would skip that.
-	result := evo.Run(context.Background(), func(ctx context.Context) error {
-		// Only audible when --verbose (or VerbosityVerbose config).
-		evo.Verbose().Printf("Strict policy: %t\n", *strict)
-		evo.Verbose().Printf("Probe interval: %s\n", step)
-
-		probe := func(name string, resolve func(*evo.TaskHandle)) {
+	evo.Init(cfg)
+	os.Exit(evo.Main(func(ctx context.Context) error {
+		// probe runs one check as the Task's work; a check that finds
+		// nothing wrong leaves the Task to resolve Done on its own.
+		probe := func(name string, check func(*evo.TaskHandle)) {
 			it := evo.Task(name)
-			time.Sleep(step)
-			resolve(it)
+			it.Define(func(context.Context) error {
+				time.Sleep(step)
+				check(it)
+				return nil
+			})
 		}
+		passes := func(*evo.TaskHandle) {}
 
-		probe("go toolchain", func(it *evo.TaskHandle) { it.Done() })
-		probe("mise tasks", func(it *evo.TaskHandle) { it.Done() })
+		probe("go toolchain", func(it *evo.TaskHandle) {
+			// Facts are what the check learned; routine ones stay hidden
+			// until they explain a problem or --verbose asks for them.
+			it.Fact("strict policy", strconv.FormatBool(*strict))
+			it.Fact("probe interval", step.String())
+		})
+		probe("mise tasks", passes)
 		probe("git commit signing", func(it *evo.TaskHandle) {
 			if *strict {
-				it.Block("commit.gpgsign is not enabled", evo.Detail("required in strict mode"))
-				it.NextCommand("git", "config", "--global", "commit.gpgsign", "true")
+				it.Block("commit.gpgsign is not enabled",
+					evo.Detail("required in strict mode"),
+					evo.NextCommand("git", "config", "--global", "commit.gpgsign", "true"))
 			} else {
-				it.Warn("commit signing not verified")
+				it.Problem("commit signing not verified", evo.Severity(evo.SeverityWarning))
 			}
 		})
 		probe("disk free space", func(it *evo.TaskHandle) {
@@ -71,15 +75,5 @@ func main() {
 			)
 		})
 		return nil
-	})
-
-	if *asJSON {
-		b, err := json.Marshal(out.Snapshot())
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(evo.ExitFailed)
-		}
-		_, _ = fmt.Fprintln(os.Stdout, string(b))
-	}
-	os.Exit(result.ExitCode())
+	}))
 }

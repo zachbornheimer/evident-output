@@ -1,6 +1,9 @@
 package evo
 
-import "github.com/zachbornheimer/evident-output/internal/core"
+import (
+	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/engine"
+)
 
 // Snapshot is an immutable complete presentation state at a version.
 //
@@ -17,10 +20,6 @@ type Snapshot = core.Snapshot
 // TaskSnapshot is an immutable task view.
 type TaskSnapshot = core.TaskSnapshot
 
-// TaxonomyRecord is one accumulated (reason, name) disposition entry —
-// recorded by TaskHandle.Skipped or TaskHandle.Kept, never assembled by hand.
-type TaxonomyRecord = core.TaxonomyRecord
-
 // TasksSnapshot is an immutable collection view.
 type TasksSnapshot = core.TasksSnapshot
 
@@ -30,8 +29,31 @@ type ChangesSnapshot = core.ChangesSnapshot
 // PlanSnapshot is an immutable plan section.
 type PlanSnapshot = core.PlanSnapshot
 
-// EffectRecord is one semantic change or plan row.
-type EffectRecord = core.EffectRecord
-
 // MessageSnapshot is one logical user-facing message in the canonical model.
 type MessageSnapshot = core.MessageSnapshot
+
+// Event is an immutable journal record.
+//
+// Aliased into internal/core alongside the rest of the data model — see
+// Snapshot's doc comment (snapshot.go) for why.
+type Event = core.Event
+
+type PlainOptions = engine.PlainOptions
+
+func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
+	return engine.RenderPlain(s, opts)
+}
+
+func (o *Output) Snapshot() Snapshot {
+	if o == nil || o.inner == nil {
+		return Snapshot{}
+	}
+	return o.inner.Snapshot()
+}
+
+func (t *TaskHandle) Snapshot() TaskSnapshot {
+	if t == nil || t.inner == nil {
+		return TaskSnapshot{}
+	}
+	return t.inner.Snapshot()
+}

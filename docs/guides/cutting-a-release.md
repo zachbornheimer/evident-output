@@ -5,7 +5,7 @@ Install pins are a **maintenance class**, not one-off README edits.
 ## Source of truth
 
 ```go
-// release.go
+// format.go
 const PublishedRelease = "v0.2.N"
 ```
 
@@ -35,7 +35,7 @@ mise run test && mise run cut-release
 ### Manual procedure (same steps)
 
 1. **Implement** and commit.
-2. **Bump** `PublishedRelease` in `release.go`.
+2. **Bump** `PublishedRelease` in `format.go`.
 3. **Sync** portable pins: `mise run sync-release-pins`
 4. **Gate**: `go test . -run VersionDrift` and `go test ./...`
 5. **Commit** pin updates; **tag** `vX.Y.Z`; **push** main + tag.

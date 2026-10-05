@@ -1,0 +1,921 @@
+[
+  {
+    "id": "C02-001",
+    "section": "2",
+    "quote": "Outcomes are runtime semantics, never caller-painted strings:",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_001_OutcomesAreRuntimeSemantics"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-002",
+    "section": "2",
+    "quote": "The run-level **Conclusion** is only: **OK** · **Blocked** · **Failed** · **Cancelled**.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_002_ConclusionIsOKBlockedOrFailed"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestCancellation_RenderedBandMatchesContract"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-003",
+    "section": "2",
+    "quote": "Block: a policy or precondition refused the work (Blocked, exit 1). Fail: evaluation or required I/O failed (Failed, exit 2).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_003_BlockAndFailAreDifferent"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-004",
+    "section": "2",
+    "quote": "An error Problem fails the owning Define if the callback otherwise returns nil; a warning Problem does not.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_004_ErrorProblemFailsDefineWarningDoesNot"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-005",
+    "section": "2",
+    "quote": "`Severity(SeverityWarning)` sets `warned` and never fails the Task.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_005_WarningSetsWarnedAndNeverChangesExit"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-006",
+    "section": "2",
+    "quote": "Progress carries the count; the current-item text is orthogonal: `task.Progress(i, total).Doing(path)`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_006_ProgressAndDoingAreOrthogonal"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-007",
+    "section": "2",
+    "quote": "Summary = what did we learn or accomplish. It resolves nothing.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_007_SummaryResolvesNothing"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-008",
+    "section": "2",
+    "quote": "Renders `- skipped N (...)` and does not set `warned`. Skipped is never AlreadySatisfied.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_008_SkippedIsAResolutionNotSatisfaction"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-009",
+    "section": "2",
+    "quote": "Effect is the only opaque-mutation concept. The verbs are a closed set:",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/surface",
+        "run": "TestC02_023_EffectVerbsAreTheClosedEightSpellings"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-010",
+    "section": "2",
+    "quote": "There is deliberately no `EffectWrite`: files go through File/Patch.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestAPIGolden_PublicSurfaceMatchesCommittedGolden"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-011",
+    "section": "2",
+    "quote": "These names **must not exist** in the 1.1 exported API.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/surface",
+        "run": "TestC02_020_NotPartOfEvoNamesDoNotExist"
+      },
+      {
+        "pkg": ".",
+        "run": "TestAPIGolden_VocabularyFreeze"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-012",
+    "section": "2",
+    "quote": "`Skipped(evo.Reason(...))` for a policy-excluded per-candidate Task; a Fact or part of the Summary for counts such as \"kept 383\"",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/surface",
+        "run": "TestC02_040_KeptResidueIsRemoved"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-013",
+    "section": "2",
+    "quote": "Actions attach to Block and Fail through one path only: `evo.Next(action)` or `evo.NextCommand(executable, args...)` passed as ProblemOptions to `Problem`, `Block`, or `Fail`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/surface",
+        "run": "TestC02_041_ActionsAttachThroughOnlyTheProblemOptionPath"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-014",
+    "section": "2",
+    "quote": "a recommended next step, attached only by the `Next` and `NextCommand` ProblemOptions.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/pending/surface",
+        "run": "TestC02_041_ActionsAttachThroughOnlyTheProblemOptionPath"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-015",
+    "section": "2",
+    "quote": "In 1.1 the API is `type Capture`, `type CaptureOption`, `type CaptureStream`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/surface",
+        "run": "TestC02_022_CaptureNamesReplaceEvidenceCaptureNames"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-016",
+    "section": "2",
+    "quote": "`Init(Config) *Output`: the only constructor. It installs the default instance unless `Config.Isolated` is set.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC02_030_InitInstallsDefaultUnlessIsolated"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-017",
+    "section": "2",
+    "quote": "It never exits the process: `os.Exit(evo.Main(run))` does.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC02_031_MainReturnsTheExitCodeWithoutExiting"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-018",
+    "section": "2",
+    "quote": "`Result` carries the Conclusion and the error `run` returned; `Result.ExitCode()` is the derived code.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC02_032_RunResultCarriesConclusionAndError"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-019",
+    "section": "2",
+    "quote": "`Output.Close()`: idempotent cleanup that runs Finish when needed.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC02_033_CloseIsIdempotentAndFinishesWhenNeeded"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-020",
+    "section": "2",
+    "quote": "Dry run (`Config.DryRun`): planned tense for every Effect, File, and Exec, announced by a `[dry-run] <Subject>` header. Mutation callbacks never run.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC02_034_DryRunAnnouncesHeaderAndNeverRunsMutations"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-021",
+    "section": "2",
+    "quote": "announced by the Subject header alone, with no `[dry-run]` tag.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC02_035_PreviewPlansWithoutTheDryRunTag"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-022",
+    "section": "2",
+    "quote": "Only `Output`, `GroupHandle`, and `SequenceHandle` declare children.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/surface",
+        "run": "TestC02_021_OnlyContainersDeclareChildren"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-023",
+    "section": "2",
+    "quote": "a Group's child Task named for the Group itself owns the category's own work (classification, `Summary`, `Effect`). It is never folded as an item.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestOwnTask_IsNeverFoldedAsAnItem"
+      },
+      {
+        "pkg": ".",
+        "run": "TestOwnTask_SameNamedWorkTaskIsTheGroupRow"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-024",
+    "section": "2",
+    "quote": "It freezes once set; repeating the same key is idempotent.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC02_038_KeyFreezesAndRepeatingItIsIdempotent"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-025",
+    "section": "2",
+    "quote": "Sibling names are unique per parent across Task, Group, and Sequence",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC02_039_SiblingNamesAreUniquePerParent"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-026",
+    "section": "2",
+    "quote": "It never runs `fn` inline.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC02_036_DefineNeverRunsTheCallbackInline"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-027",
+    "section": "2",
+    "quote": "block until settled and return the aggregate error (§30).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC02_037_WaitReturnsTheAggregateError"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-028",
+    "section": "2",
+    "quote": "`Doing(text string, args ...any)` names the current activity;",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_028_DoingFormatsItsVariadicArguments"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-029",
+    "section": "2",
+    "quote": "Its last line becomes live activity, and a bounded, redacted tail is retained as Capture.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_016_WriterRetainsOnlyABoundedRedactedTail"
+      },
+      {
+        "pkg": ".",
+        "run": "TestWriter_UnterminatedWriteBecomesDoing"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-030",
+    "section": "2",
+    "quote": "Each call records one `TaxonomyRecord`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC02_064_EachReasonCallRecordsOneTaxonomyRecord"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-031",
+    "section": "2",
+    "quote": "Run scope: `Output.Fail(summary, opts...)` states a run-level failure.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_009_RunScopeFailFailsTheRun"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-032",
+    "section": "2",
+    "quote": "`EntityState`: `Pending`, `Running`, `Done`, `Failed`, `Blocked`, `Cancelled`, `NotStarted`, `Skipped`, `Incomplete`, `Empty`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_014_EntityStateSetIsTenDistinctValues"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-033",
+    "section": "2",
+    "quote": "`Resolution` of a Done Task: `ResolutionExecuted` (Succeeded), `ResolutionAlreadySatisfied` (AlreadySatisfied), `ResolutionNoWork`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_013_ResolutionsOfADoneTask"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-034",
+    "section": "2",
+    "quote": "plus the `warned`, `partial`, and `cancelled` modifiers.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_005_WarningSetsWarnedAndNeverChangesExit"
+      },
+      {
+        "pkg": "./conformance/contract/exitcodes",
+        "run": "TestC17_003_PartialModifiesTheHeadlineNeverTheExitCode"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestCancellation_RenderedBandMatchesContract"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-035",
+    "section": "2",
+    "quote": "Exit codes: `ExitOK` 0, `ExitBlocked` 1, `ExitFailed` 2 (or `Config.FailedExitCode`), `ExitCancelled` 130.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_015_ExitCodesAreFixed"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-036",
+    "section": "2",
+    "quote": "`TaskEvidence` holds the before and after `EvidencePhase` observations.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC02_038_EvidenceHoldsBeforeAndAfterPhases"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-037",
+    "section": "2",
+    "quote": "Hidden in normal human output, always in machine output (§11).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/facts",
+        "run": "TestC11_001_FactsAreHiddenInNormalOutputOnEveryOutcome"
+      },
+      {
+        "pkg": "./conformance/contract/facts",
+        "run": "TestC11_003_MachineOutputAlwaysCarriesFacts"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-038",
+    "section": "2",
+    "quote": "`ProblemOption`s: `Severity(value)`, `Detail(text)`, `Code(value)`, `On(subject)`, `Location(path, line, column)`, `Count(value, unit...)`, `Next(action)`, `NextCommand(executable, args...)`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_010_ProblemOptionsRecordStructuredParts"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-039",
+    "section": "2",
+    "quote": "Actions on any Problem reach the run's next-steps output.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_011_ProblemActionsReachRunNextSteps"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-040",
+    "section": "2",
+    "quote": "Stable problem codes: `ProblemCodeVerificationUnsatisfied`, `ProblemCodeDuplicateSiblingName`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC02_012_StableProblemCodesAreDistinctAndNonEmpty"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-041",
+    "section": "2",
+    "quote": "`EffectSpec`: `Verb`, `Object` (singular noun; Evo pluralizes it), `Quantity` (one aggregate count, > 0), `Resource` (optional, at most one).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/facts",
+        "run": "TestC12_001_ContentFreeEffectIsRefusedAndRecordsNothing"
+      },
+      {
+        "pkg": "./conformance/contract/facts",
+        "run": "TestC12_002_AggregateRowsUseSubjectVerbQuantityObject"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-042",
+    "section": "2",
+    "quote": "Planned rows use the imperative (`delete`, `install`); changed rows use the past tense (`deleted`, `installed`).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/facts",
+        "run": "TestC12_002_AggregateRowsUseSubjectVerbQuantityObject"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-043",
+    "section": "2",
+    "quote": "`PartialEffect(committed, err) error`: returned from an Effect callback that committed part of its aggregate before failing (§30).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPartialEffect_TwoOfThreeRecordsCommittedAndFailsTheTask"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-044",
+    "section": "2",
+    "quote": "Errors: `ErrEffectVerbInvalid`, `ErrEffectObjectMissing`, `ErrEffectQuantityNotPositive`, `ErrEffectCallbackMissing`, `ErrInvalidPartialEffect`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/facts",
+        "run": "TestC12_001_ContentFreeEffectIsRefusedAndRecordsNothing"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-045",
+    "section": "2",
+    "quote": "`FileSpec`: `Path`, `Contents` (nil means unmanaged), `Mode` (0 means unmanaged), `Basis`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC04_001_UnmanagedContentsCannotCreateAMissingFile"
+      },
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC04_002_ModeZeroKeepsExistingPermissionsAndNewFilesUseUmask"
+      },
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC04_003_FileMutatesOnlyManagedAttributes"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-046",
+    "section": "2",
+    "quote": "`Patch(ctx, diff) (FileSet, error)`: derive desired file states from a unified text diff; mutates nothing (§27).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPatchThroughPublicAPI"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-047",
+    "section": "2",
+    "quote": "`FileSet`: the opaque result of Patch.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestFileSetCannotBeUnpacked"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-048",
+    "section": "2",
+    "quote": "Errors: `ErrFileSpecMissingPath`, `ErrFileUnmanagedContentsMissing`, `ErrFilePathIsSymlink`, `ErrFilePathTypeMismatch`,",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC04_001_UnmanagedContentsCannotCreateAMissingFile"
+      },
+      {
+        "pkg": "./conformance/contract/operations",
+        "run": "TestC04_004_FileRefusesSymlinkAndWrongType"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-049",
+    "section": "2",
+    "quote": "`Outputs` (declared outputs; none means always run)",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/freshness",
+        "run": "TestC02_050_ExecWithoutDeclaredOutputsAlwaysRuns"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-050",
+    "section": "2",
+    "quote": "A decline concludes Blocked, exit 1.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/exitcodes",
+        "run": "TestC17_001_ConfirmDeclineConcludesBlocked"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-051",
+    "section": "2",
+    "quote": "Text helpers: `Pluralize(quantity, singular)`, `TruncateNames(names, visible)` with `DefaultVisibleNames`, `IsCharDevice(w)`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/surface",
+        "run": "TestC02_025_TextHelpers"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-052",
+    "section": "2",
+    "quote": "`✓` done, `✗` failed, `⊘` blocked, `!` warning",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/projection",
+        "run": "TestC13_009_GlyphsHaveOneMeaningEach"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-053",
+    "section": "2",
+    "quote": "`■` cancelled",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/engine",
+        "run": "TestCancellation_RenderedBandMatchesContract"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-054",
+    "section": "2",
+    "quote": "`-` not started or skipped detail",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/projection",
+        "run": "TestC13_009_GlyphsHaveOneMeaningEach"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-055",
+    "section": "2",
+    "quote": "`→` next action",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestWriteAction_NextActionGlyph"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-056",
+    "section": "2",
+    "quote": "`◐` running (a spinner on a live TTY)",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestLive_SpinnerGlyphAdvancesWithClock"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-057",
+    "section": "2",
+    "quote": "`○` pending",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "UNCLASSIFIED: no Go test observes the pending glyph or the `?` waiting-for-input glyph in the Unicode profile; needs a live-TTY harness seam (WP2).",
+    "default": false
+  },
+  {
+    "id": "C02-058",
+    "section": "2",
+    "quote": "`ParseFormat(s)` parses a host CLI flag value.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/surface",
+        "run": "TestC02_026_ParseFormatReadsHostFlagValues"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-059",
+    "section": "2",
+    "quote": "Environment, applied only when the matching Config field is zero: `EVO_OUTPUT`, `EVO_COLOR`, `EVO_VERBOSE`, `EVO_DEBUG` (§16).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/machine",
+        "run": "TestC16_003_ExplicitConfigWinsOverEnvironmentWhichWinsOverInference"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-060",
+    "section": "2",
+    "quote": "`WriteJSON(w, result)` writes it without owning stdout.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/outcomes",
+        "run": "TestC01_001_OneTruthDrivesEveryProjection"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-061",
+    "section": "2",
+    "quote": "`PublishedRelease`: the release this build reports.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/surface",
+        "run": "TestC02_027_PublishedReleaseIsReported"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-062",
+    "section": "2",
+    "quote": "`MaxConcurrency` bounds executing callbacks (zero means GOMAXPROCS).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/scheduler",
+        "run": "TestC03_004_SchedulerBoundsConcurrencyToConfig"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-063",
+    "section": "2",
+    "quote": "`FailedExitCode` overrides exit 2 for Failed.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/exitcodes",
+        "run": "TestC17_002_FailedExitCodeOverridesExitTwo"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-064",
+    "section": "2",
+    "quote": "`ErrAlreadyResolved`, `ErrTaskClosed`, `ErrClosed`, `ErrUnresolvedTask`, `ErrInvalidConfig`,",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/surface",
+        "run": "TestC02_024_MisuseErrorSentinelsAreDistinct"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-065",
+    "section": "2",
+    "quote": "Misuse is recorded as a run-level misuse line with a remedy hint; under `Config.Strict` it panics.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC02_062_MisuseIsARunLevelLineWithARemedyHint"
+      },
+      {
+        "pkg": "./conformance/contract/lifecycle",
+        "run": "TestC02_063_StrictConfigPanicsOnMisuse"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-066",
+    "section": "2",
+    "quote": "`ProcessRunner` and `FileFS` are the injection points for process execution and the file system.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/exec",
+        "run": "TestC30_060_RanIsFalseWhenExecDidNotSpawn"
+      },
+      {
+        "pkg": "./internal/engine",
+        "run": "TestFileCreateKeepsV10ModeContractForInjectedFileFS"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C02-067",
+    "section": "2",
+    "quote": "the injectable process facade, set as `Config.ProcessRunner`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./conformance/contract/exec",
+        "run": "TestC30_060_RanIsFalseWhenExecDidNotSpawn"
+      }
+    ],
+    "default": false
+  }
+]

@@ -8,7 +8,7 @@ func wireRules() []Rule {
 		{
 			ID:              "EVO-WIRE-001",
 			Category:        "WIRE",
-			Severity:        "error",
+			Severity:        SeverityError,
 			Invariant:       "the internal Snapshot is never marshaled directly; the sanctioned wire encoder is the only JSON surface",
 			Why:             "json.Marshal(out.Snapshot()) serializes internal field layout as if it were the public contract; a future internal-only field addition or rename then silently breaks every consumer, because nothing enforces schema_version or the documented JSONDocument shape.",
 			BadCode:         `b, err := json.Marshal(out.Snapshot())`,
@@ -19,12 +19,12 @@ func wireRules() []Rule {
 			RelatedGuidance: []string{"streams", "common-api"},
 			VerificationIDs: []string{"EVO-WIRE-001"},
 			Since:           "1.0.0",
-			Certainty:       "deterministic",
+			Certainty:       CertaintyDeterministic,
 		},
 		{
 			ID:        "EVO-WIRE-002",
 			Category:  "WIRE",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "the legacy JSON/JSONL encoder's wire shape changes only alongside its own schema_version bump",
 			Why:       "The 0.4 JSON series and 0.3 JSONL event series are pre-1.0 contracts that machine consumers already parse; editing an encoder's field set without bumping its schema_version constant in the same change is exactly the silent-drop class the 0.3→0.4 bump (warned/Warnings) fixed for the last edit — it must not regress.",
 			BadCode: `// internal/render/json.go: add a field to JSONDocument/JSONTask
@@ -36,18 +36,12 @@ func wireRules() []Rule {
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"EVO-WIRE-002"},
 			Since:           "1.0.0",
-			Certainty:       "heuristic",
-			// No cheap, honest static detector: telling a schema-affecting
-			// edit apart from a comment/refactor requires diffing the
-			// encoder across two revisions, which a single-source review
-			// call never sees. Guidance-only; enforced by review discipline
-			// (goldens must stay byte-identical unless the version moves).
-			Detection: "guidance",
+			Certainty:       CertaintyHeuristic,
 		},
 		{
 			ID:        "EVO-WIRE-003",
 			Category:  "WIRE",
-			Severity:  "error",
+			Severity:  SeverityError,
 			Invariant: "JSON/JSONL stdout is a machine payload stream; human presentation never shares it",
 			Why:       "A JSON document or JSONL events written to stdout alongside an ordinary human fmt.Print/Println on the same stream produces output no JSON/line parser can consume — the human line breaks json.Decoder mid-stream and corrupts every downstream jq/awk consumer.",
 			BadCode: `json.NewEncoder(os.Stdout).Encode(doc)
@@ -60,7 +54,7 @@ json.NewEncoder(os.Stdout).Encode(doc)`,
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"EVO-WIRE-003"},
 			Since:           "1.0.0",
-			Certainty:       "heuristic",
+			Certainty:       CertaintyHeuristic,
 		},
 	}
 }

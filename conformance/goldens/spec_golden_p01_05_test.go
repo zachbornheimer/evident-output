@@ -30,16 +30,21 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
-	branches.Delete("branch", func() error {
-		branches.Done("8 deleted")
-		return nil
-	}, evo.Affected(8))
+	branches.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 8}, func(context.Context) error {
+			branches.Summary("8 deleted")
+			return nil
+		})
+	})
 	worktrees := out.Group("worktrees")
 	protected := evo.Reason("protected")
 	for _, name := range eachSkipNames("skip", 6) {
 		worktrees.Task(name).Skipped(protected)
 	}
-	worktrees.Task("remove").Fail("remove failed", evo.Detail("path locked: ../.worktrees/app-sah-1"))
+	// The category's own Task (docs/reference.md, "own Task") owns the
+	// failing removal, so the skipped items fold under it: "✗ worktrees
+	// remove failed" as the spec block reads.
+	worktrees.Task("worktrees").Fail("remove failed", evo.Detail("path locked: ../.worktrees/app-sah-1"))
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
@@ -49,21 +54,19 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	// taxonomy line is always derived with a reason partition
 	// (task_taxonomy.go: "the taxonomy line... is derived from every
 	// accumulated record at render time"). Each's own collection-level
-	// rollup summing that partition across many same-shaped children
-	// (collectEachTaxonomy) was removed with Each in 1.0 (§3.1: get-or-create
-	// reliance is unsound); each plain Group child now renders its own
-	// "skipped 1 (protected)" line individually.
+	// rollup was removed with Each in 1.0 (§3.1: get-or-create reliance is
+	// unsound); per-item Group children now fold into one tally under their
+	// Group (contract §25 renderer aggregation).
 	for _, want := range []string{
 		"✓ branches 8 deleted",
-		"✗ worktrees",
-		"remove failed",
+		"✗ worktrees remove failed",
 		"path locked: ../.worktrees/app-sah-1"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if n := strings.Count(collapsed, "skipped 1 (protected)"); n != 6 {
-		t.Fatalf("want 6 individual skipped-taxonomy lines, got %d:\n%s", n, got)
+	if n := strings.Count(collapsed, "skipped 6 (protected)"); n != 1 {
+		t.Fatalf("want one aggregated skipped tally, got %d:\n%s", n, got)
 	}
 }
 
@@ -80,7 +83,9 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	g := out.Group("branches")
-	g.Task("deleted").Delete("branch", func() error { return nil }, evo.Affected(8))
+	// The category's own Task (docs/reference.md, "own Task") does the
+	// deletion, so the skipped items fold under the category.
+	g.Task("branches").Define(effectOf(evo.EffectDelete, "branch", 8))
 	protected := evo.Reason("protected")
 	for _, name := range eachSkipNames("skip", 6) {
 		g.Task(name).Skipped(protected)
@@ -95,9 +100,8 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 	// reachable literal — the real taxonomy line always carries a mechanical
 	// reason partition instead (see the Failure cell above), which still
 	// proves the same underlying contract: the skip count survives the
-	// error, uncorrupted. Each's own cross-child rollup (collectEachTaxonomy)
-	// was removed with Each in 1.0 (§3.1) — each plain Group child renders
-	// its own line, asserted by count below.
+	// error, uncorrupted. Per-item Group children fold into one tally under
+	// their Group (contract §25 renderer aggregation).
 	for _, want := range []string{
 		"8 branches deleted",
 		"git: cannot lock ref 'refs/heads/feat/x'",
@@ -106,8 +110,8 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if n := strings.Count(collapsed, "skipped 1 (protected)"); n != 6 {
-		t.Fatalf("want 6 individual skipped-taxonomy lines, got %d:\n%s", n, got)
+	if n := strings.Count(collapsed, "skipped 6 (protected)"); n != 1 {
+		t.Fatalf("want one aggregated skipped tally, got %d:\n%s", n, got)
 	}
 }
 
@@ -123,10 +127,12 @@ func TestSpecP1_CleanBatch_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
-	branches.Delete("branch", func() error {
-		branches.Done("8 deleted")
-		return nil
-	}, evo.Affected(8))
+	branches.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 8}, func(context.Context) error {
+			branches.Summary("8 deleted")
+			return nil
+		})
+	})
 	worktrees := out.Task("worktrees")
 	worktrees.Cancel("cancelled — 0 removed")
 	if err := out.Finish(); err != nil {
@@ -141,7 +147,7 @@ func TestSpecP1_CleanBatch_EarlyTermination(t *testing.T) {
 	for _, want := range []string{
 		"✓ branches 8 deleted",
 		"■ worktrees cancelled — 0 removed",
-		"already mutated: 8 branches deleted"} {
+		"partial changes were applied before cancellation"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -161,10 +167,12 @@ func TestSpecP2_RemoteSeparation_Error(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
-	branches.Delete("branch", func() error {
-		branches.Done("12 deleted")
-		return nil
-	}, evo.Affected(12))
+	branches.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 12}, func(context.Context) error {
+			branches.Summary("12 deleted")
+			return nil
+		})
+	})
 	remotes := out.Task("remotes")
 	remotes.Fail("authentication failed", evo.Detail("remote: Invalid username or token"))
 	out.Println("local already mutated; remotes untouched")
@@ -197,10 +205,12 @@ func TestSpecP2_RemoteSeparation_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
-	branches.Delete("branch", func() error {
-		branches.Done("5 deleted (local)")
-		return nil
-	}, evo.Affected(5))
+	branches.Define(func(ctx context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 5}, func(context.Context) error {
+			branches.Summary("5 deleted (local)")
+			return nil
+		})
+	})
 	remotes := out.Task("remotes")
 	remotes.Cancel("cancelled before any delete-remote")
 	if err := out.Finish(); err != nil {
@@ -215,7 +225,7 @@ func TestSpecP2_RemoteSeparation_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if !strings.Contains(collapsed, "already mutated: 5 branches deleted") {
+	if !strings.Contains(collapsed, "partial changes were applied before cancellation") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", got)
 	}
 }
@@ -242,32 +252,29 @@ func TestSpecP2_RemoteSeparation_Indeterminate_NotTestable(t *testing.T) {
 
 // TestSpecP3_DryRunTense_Success covers evo-rec.md Problem 3's success
 // block: a Changes ledger row, a Done summary on the same task, and a
-// next-action row.
+// next-action row. A next step after success hangs off a diagnostic
+// (ZYS-1182), so the run is honestly warned (exit 0): the Task carries a
+// warning Problem and the band reads [changed · warned].
 //
-//	[changed]  salvage
-//	  pushed  3  branch
-//	✓  salvage
+//	✓  salvage  ! demo not retired yet
+//
+//	[changed] salvage  pushed 3 branches
+//
+//	[changed · warned]  salvage
 //	→  repo-retire --retire demo
 func TestSpecP3_DryRunTense_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "salvage", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	salvage := out.Task("salvage")
-	salvage.Push("branch", func() error { return nil }, evo.Affected(3))
-	salvage.Next(evo.Label("repo-retire --retire demo"))
+	salvage.Define(effectOf(evo.EffectPush, "branch", 3))
+	salvage.Problem("demo not retired yet", evo.Severity(evo.SeverityWarning), evo.Next(evo.Label("repo-retire --retire demo")))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	got := buf.String()
-	collapsed := strings.Join(strings.Fields(got), " ")
-	for _, want := range []string{
-		"[changed] salvage",
-		"pushed 3 branch",
-		"✓ salvage",
-		"→ repo-retire --retire demo"} {
-		if !strings.Contains(collapsed, want) {
-			t.Fatalf("want %q in:\n%s", want, got)
-		}
+	const want = "✓ salvage ! demo not retired yet [changed] salvage pushed 3 branches [changed · warned] salvage → repo-retire --retire demo"
+	if got := strings.Join(strings.Fields(buf.String()), " "); got != want {
+		t.Fatalf("collapsed frame:\n got: %s\nwant: %s\nraw:\n%s", got, want, buf.String())
 	}
 }
 
@@ -283,8 +290,9 @@ func TestSpecP3_DryRunTense_Failure(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "salvage", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
 	salvage := out.Task("salvage")
-	salvage.Record("push", 3, "feat/a → retire/feat/a")
-	salvage.Fail("dry-run only — not applied")
+	commitThen(salvage, evo.EffectSpec{Verb: evo.EffectPush, Object: "feat/a → retire/feat/a", Quantity: 3}, func() {
+		salvage.Fail("dry-run only — not applied")
+	})
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
@@ -314,9 +322,10 @@ func TestSpecP3_DryRunTense_Error(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "salvage", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	salvage := out.Task("salvage")
-	salvage.Record("push", 1, "branch")
-	salvage.Progress(2, 3)
-	salvage.Fail("non-fast-forward", evo.Detail("tip rejected on retire/feat/b"))
+	commitThen(salvage, evo.EffectSpec{Verb: evo.EffectPush, Object: "branch", Quantity: 1}, func() {
+		salvage.Progress(2, 3)
+		salvage.Fail("non-fast-forward", evo.Detail("tip rejected on retire/feat/b"))
+	})
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
@@ -346,8 +355,9 @@ func TestSpecP3_DryRunTense_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "salvage", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	salvage := out.Task("salvage")
-	salvage.Record("push", 1, "branch")
-	salvage.Cancel("interrupted")
+	commitThen(salvage, evo.EffectSpec{Verb: evo.EffectPush, Object: "branch", Quantity: 1}, func() {
+		salvage.Cancel("interrupted")
+	})
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
@@ -361,7 +371,7 @@ func TestSpecP3_DryRunTense_EarlyTermination(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if !strings.Contains(collapsed, "already mutated: 1 branch pushed") {
+	if !strings.Contains(collapsed, "partial changes were applied before cancellation") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", got)
 	}
 }
@@ -469,9 +479,10 @@ func TestSpecP4_SequentialGroup_EarlyTermination(t *testing.T) {
 	setup.Task("scan").Define(func(ctx context.Context) error { return nil })
 	setup.Task("venv").Define(func(ctx context.Context) error { return nil })
 	install := setup.Task("install")
-	install.Record("create", 1, ".venv")
-	install.Progress(6, 14)
-	install.Cancel("cancelled at 6/14")
+	commitThen(install, evo.EffectSpec{Verb: evo.EffectCreate, Object: ".venv", Quantity: 1}, func() {
+		install.Progress(6, 14)
+		install.Cancel("cancelled at 6/14")
+	})
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
@@ -489,7 +500,7 @@ func TestSpecP4_SequentialGroup_EarlyTermination(t *testing.T) {
 	// that actually committed (".venv" created) — Progress (6/14) is a live
 	// counter, not a Changes-ledger record, so it never contributes a
 	// "6 packages installed" fragment to the derivation.
-	if !strings.Contains(collapsed, "already mutated: 1 .venv created") {
+	if !strings.Contains(collapsed, "partial changes were applied before cancellation") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", got)
 	}
 }
@@ -532,10 +543,11 @@ func TestSpecP5_DiscoverySealedTotal_Failure(t *testing.T) {
 func TestSpecP5_DiscoverySealedTotal_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	// Contract §13/§21: a Task Fact is verbose-only; this block is the verbose view.
+	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever, Verbosity: evo.VerbosityVerbose})
 	scan := out.Task("scan")
 	scan.Progress(40, 128)
-	scan.RecordLabel("ready", 39, "repos")
+	scan.Fact("ready", "39 repos")
 	scan.Fail("git rev-parse failed", evo.Detail("not a git repository"))
 	if err := out.Finish(); err != nil {
 		t.Log(err)

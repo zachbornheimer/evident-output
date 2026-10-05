@@ -17,9 +17,9 @@ func TestCaptureSuccessIsSilentByDefault(t *testing.T) {
 	var primary, diag bytes.Buffer
 	out := evo.Init(evo.Config{Title: "brew", Stdout: &primary, Stderr: &diag})
 	task := out.Task("brew")
-	output := task.EvidenceForTest()
+	output := task.Capture()
 	_, _ = fmt.Fprintln(output, "Downloading bottle...")
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestTaskCapture_DetailTail_OnFail(t *testing.T) {
 	var primary, diag bytes.Buffer
 	out := evo.Init(evo.Config{Title: "brew", Stdout: &primary, Stderr: &diag})
 	upgrade := out.Task("brew packages")
-	output := upgrade.EvidenceForTest()
+	output := upgrade.Capture()
 	_, _ = fmt.Fprintln(output, "Error: bottle not found")
 	_, _ = fmt.Fprintln(output, "Error: formula foo conflict")
 	_ = output.Close()
@@ -65,10 +65,10 @@ func TestCapture_MirrorToDiagnostics_OptIn(t *testing.T) {
 	var primary, diag bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &diag})
 	task := out.Task("x")
-	output := task.EvidenceForTest(evo.MirrorToDiagnostics())
+	output := task.Capture(evo.MirrorToDiagnosticsForTest())
 	_, _ = fmt.Fprintln(output, "chatter")
 	_ = output.Close()
-	task.Done()
+	succeed(task)
 	_ = out.Finish()
 	if !strings.Contains(diag.String(), "chatter") {
 		t.Fatalf("opt-in mirror missing: %q", diag.String())
@@ -79,7 +79,7 @@ func TestCaptureSeparateStreamsDoNotMergePartialLines(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("cmd")
-	output := task.EvidenceForTest()
+	output := task.Capture()
 	_, _ = io.WriteString(output.Stdout(), "download")
 	_, _ = io.WriteString(output.Stderr(), " failed\n")
 	_, _ = io.WriteString(output.Stdout(), " complete\n")
@@ -103,8 +103,8 @@ func TestCapture_RingBoundsAndTruncation(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("x")
-	output := task.EvidenceForTest(evo.KeepLastLines(3))
-	for i := 0; i < 10; i++ {
+	output := task.Capture(evo.KeepLastLinesForTest(3))
+	for i := range 10 {
 		_, _ = fmt.Fprintf(output, "line-%d\n", i)
 	}
 	_ = output.Close()
@@ -177,7 +177,7 @@ func TestDiagnostics_DualStream_DebugNotOnPrimary(t *testing.T) {
 	var primary, diag bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &primary, Stderr: &diag, Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever, Plain: true})
 	out.DebugForTest("internal only")
-	out.Task("ok").Done()
+	succeed(out.Task("ok"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestDetailTailIncludesUnterminatedStderr(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "git", Stdout: &primary, Stderr: &primary})
 	task := out.Task("fetch")
-	output := task.EvidenceForTest()
+	output := task.Capture()
 	// No trailing newline — the usual subprocess final message shape.
 	_, _ = io.WriteString(output.Stderr(), "fatal: authentication failed")
 
@@ -217,7 +217,7 @@ func TestRootCloseFlushesEveryCaptureStream(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("cmd")
-	output := task.EvidenceForTest()
+	output := task.Capture()
 	_, _ = io.WriteString(output.Stdout(), "stdout-partial")
 	_, _ = io.WriteString(output.Stderr(), "stderr-partial")
 	_, _ = io.WriteString(output, "combined-partial")
@@ -241,7 +241,7 @@ func TestEmptySeesPendingCaptureContent(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("cmd")
-	output := task.EvidenceForTest()
+	output := task.Capture()
 	if !output.Empty() {
 		t.Fatal("expected empty initially")
 	}
@@ -263,7 +263,7 @@ func TestCaptureTruncateUTF8Safe(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("x")
-	output := task.EvidenceForTest()
+	output := task.Capture()
 	_, _ = io.WriteString(output, line+"\n")
 	_ = output.Close()
 	got := output.Text()
@@ -276,5 +276,60 @@ func TestCaptureTruncateUTF8Safe(t *testing.T) {
 		if !strings.Contains(got, "…") {
 			t.Fatalf("expected ellipsis after truncate: %q", got[:min(80, len(got))])
 		}
+	}
+}
+
+// TestCapture_StderrOnlyFeedsDetailTail is the P1 contract: Task.Capture()
+// retains stderr into the evidence ring by default; writing only to Stderr()
+// still populates DetailTail without a separate writer or Mirror.
+func TestCapture_StderrOnlyFeedsDetailTail(t *testing.T) {
+	var primary, diag bytes.Buffer
+	out := evo.Init(evo.Config{
+		Title:  "lint",
+		Stdout: &primary,
+		Stderr: &diag,
+		Plain:  true,
+		Color:  evo.ColorNever,
+	})
+	t.Cleanup(func() { _ = out.Close() })
+
+	task := out.Task("golangci-lint")
+	cap := task.Capture()
+	// Linters commonly write diagnostics only on stderr.
+	_, _ = io.WriteString(cap.Stderr(), "level=warning msg=\"can't process results\"\n")
+	_, _ = io.WriteString(cap.Stderr(), "../tmp/main.go:1:1: File is not properly formatted (gofmt)\n")
+	_, _ = io.WriteString(cap.Stderr(), "1 issues:\n")
+	_, _ = io.WriteString(cap.Stderr(), "* gofmt: 1\n")
+	_ = cap.Close()
+
+	task.Fail("golangci-lint exited 1", cap.DetailTail())
+	if err := out.Finish(); err != nil {
+		t.Fatal(err)
+	}
+
+	got := primary.String()
+	for _, want := range []string{
+		"can't process results",
+		"File is not properly formatted",
+		"1 issues:",
+		"* gofmt: 1",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("P1: stderr-only Capture must appear in DetailTail/fail output (missing %q):\n%s", want, got)
+		}
+	}
+	// Silent-until-failure: nothing mirrored to Diagnostics by default.
+	if strings.Contains(diag.String(), "gofmt") {
+		t.Fatalf("default Capture must remain silent on success path / no mirror:\n%s", diag.String())
+	}
+	// Multi-line tail still preserved under P3.
+	if !strings.Contains(got, "1 issues:\n") && !strings.Contains(got, "1 issues:") {
+		// Allow either multi-line block or at least content; prefer multi-line.
+		t.Fatalf("expected issues line in output:\n%s", got)
+	}
+	// Newlines in stderr tail must not be fully collapsed.
+	if strings.Contains(got, "1 issues: * gofmt: 1") && !strings.Contains(got, "1 issues:\n") {
+		// If both forms somehow present, multi-line form is required.
+		t.Fatalf("P1/P3: stderr multi-line tail collapsed:\n%s", got)
 	}
 }

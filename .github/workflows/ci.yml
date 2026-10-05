@@ -6,34 +6,49 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
-  test:
+  gate:
+    name: gate (mise run ci, pinned toolchain)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: go module cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/go/pkg/mod
+          key: gomod-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: gomod-${{ runner.os }}-
+      - name: install pinned toolchain from mise.toml
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+      - name: gate
+        run: mise run ci
+      - name: race
+        run: mise run test-race
+      - name: examples smoke
+        run: mise run examples
+      - name: eval module
+        run: cd eval && go test ./...
+
+  min-go:
+    name: min-go (go.mod version, no lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: build
+        run: go build ./...
       - name: vet
         run: go vet ./...
       - name: test
-        run: go test ./...
-      - name: race
-        run: go test -race ./...
-      - name: conformance
-        run: go test ./conformance/...
-      - name: v0.6/1.0 acceptance (increments 1-2, must stay green)
-        run: |
-          go test -tags v06acceptance ./conformance/future/api
-          go test -tags v06acceptance ./conformance/future/behavior
-          go test -tags v06acceptance ./conformance/future/api/file
-          go test -tags v06acceptance ./conformance/future/behavior/file
-      - name: traceability
-        run: go run ./tools/scripts/traceability-check
-      - name: examples smoke
-        run: go test ./examples/ -count=1
-      - name: build
-        run: go build ./...
+        run: go test -timeout 20m ./...
+      - name: eval module
+        run: cd eval && go test ./...
 
   cross:
     runs-on: ubuntu-latest
@@ -45,8 +60,8 @@ jobs:
           - goos: windows
             goarch: arm64
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
       - name: cross-build library

@@ -3,8 +3,11 @@ package manifest
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -44,6 +47,48 @@ func TestStoreCommitTaskIsAtomicAndReadableAfterReopen(t *testing.T) {
 	}
 	if op.DefinitionFingerprint != "abc" {
 		t.Fatalf("DefinitionFingerprint = %q", op.DefinitionFingerprint)
+	}
+}
+
+// TestStoreTaskReturnsWholeCommittedRecord proves Store.Task (ZYS-817) is
+// symmetric with Store.Operation but returns the whole TaskRecord —
+// including a Task-level DefinitionFingerprint that carries no Operations
+// of its own, the opaque-Task shape commitManifestTaskLocked now commits.
+func TestStoreTaskReturnsWholeCommittedRecord(t *testing.T) {
+	dir := t.TempDir()
+	cfg := Config{StateDir: dir}
+	env := fakeEnvironment{}
+
+	s, err := Open(t.Context(), cfg, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opaque := TaskRecord{Key: "opaque", DefinitionFingerprint: "sha256:fallback"}
+	if err := s.CommitTask(t.Context(), ApplicationRecord{ID: "app"}, opaque); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := Open(t.Context(), cfg, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = reopened.Close() }()
+
+	got, ok := reopened.Task("opaque")
+	if !ok {
+		t.Fatal("committed opaque TaskRecord not found after reopen")
+	}
+	if got.DefinitionFingerprint != "sha256:fallback" {
+		t.Fatalf("DefinitionFingerprint = %q, want %q", got.DefinitionFingerprint, "sha256:fallback")
+	}
+	if len(got.Operations) != 0 {
+		t.Fatalf("Operations = %+v, want none", got.Operations)
+	}
+	if _, ok := reopened.Task("never-committed"); ok {
+		t.Fatal("Task must report false for a key this store never committed")
 	}
 }
 
@@ -243,3 +288,182 @@ type fakeEnvironment struct {
 func (f fakeEnvironment) Executable() (string, error)   { return f.exePath, f.exeErr }
 func (f fakeEnvironment) UserCacheDir() (string, error) { return f.cacheDir, f.cacheErr }
 func (f fakeEnvironment) ReadBuildInfo() (string, bool) { return f.modulePath, f.moduleOK }
+
+// TestStoreStageTaskWritesOnlyOnFlush proves a staged record stays in
+// memory until Flush (or the next CommitTask) writes it, and that Flush
+// with nothing staged writes nothing.
+func TestStoreStageTaskWritesOnlyOnFlush(t *testing.T) {
+	dir := t.TempDir()
+	cfg := Config{StateDir: dir}
+	env := fakeEnvironment{}
+	s, err := Open(context.Background(), cfg, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, err := Locate(cfg, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Flush(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("Flush with nothing staged wrote %s (stat err %v)", path, err)
+	}
+	s.StageTask(ApplicationRecord{ID: "app"}, TaskRecord{Key: "opaque", DefinitionFingerprint: "sha256:fallback"})
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("StageTask wrote %s before Flush (stat err %v)", path, err)
+	}
+	if err := s.Flush(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := Open(context.Background(), cfg, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = reopened.Close() }()
+	if got, ok := reopened.Task("opaque"); !ok || got.DefinitionFingerprint != "sha256:fallback" {
+		t.Fatalf("staged record after Flush = %+v, %v", got, ok)
+	}
+}
+
+// TestStoreCommitTaskNeverWaitsOnTheDiskAndCoalesces proves CommitTask
+// returns while a write is still in flight, and that every commit made
+// during that write lands in one more write rather than one each.
+func TestStoreCommitTaskNeverWaitsOnTheDiskAndCoalesces(t *testing.T) {
+	s, err := Open(t.Context(), Config{StateDir: t.TempDir()}, fakeEnvironment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	release := make(chan struct{})
+	var writes atomic.Int32
+	s.write = func([]byte) error {
+		if writes.Add(1) == 1 {
+			<-release
+		}
+		return nil
+	}
+	const commits = 100
+	committed := make(chan struct{})
+	go func() {
+		for i := range commits {
+			_ = s.CommitTask(t.Context(), ApplicationRecord{ID: "app"}, TaskRecord{Key: fmt.Sprint(i)})
+		}
+		close(committed)
+	}()
+	select {
+	case <-committed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("CommitTask waited on a write in flight")
+	}
+	close(release)
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if got := writes.Load(); got > 2 {
+		t.Fatalf("%d commits during one write cost %d writes, want at most 2", commits, got)
+	}
+}
+
+// TestStoreFlushReportsAWriteFailure proves a failed write reaches the
+// caller through Flush and Close instead of being dropped.
+func TestStoreFlushReportsAWriteFailure(t *testing.T) {
+	s, err := Open(t.Context(), Config{StateDir: t.TempDir()}, fakeEnvironment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	disk := errors.New("disk full")
+	s.write = func([]byte) error { return disk }
+	if err := s.CommitTask(t.Context(), ApplicationRecord{ID: "app"}, TaskRecord{Key: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Flush(t.Context()); !errors.Is(err, disk) {
+		t.Fatalf("Flush() = %v, want %v", err, disk)
+	}
+	if err := s.Close(); !errors.Is(err, disk) {
+		t.Fatalf("Close() = %v, want %v", err, disk)
+	}
+}
+
+// TestStoreFlushRetriesAWriteThatFailedOnce proves one transient write
+// failure does not lose the Run's history: the next Flush (here, Close's)
+// makes a fresh attempt instead of handing back the stale error.
+func TestStoreFlushRetriesAWriteThatFailedOnce(t *testing.T) {
+	cfg := Config{StateDir: t.TempDir()}
+	s, err := Open(t.Context(), cfg, fakeEnvironment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transient := errors.New("transient")
+	var writes atomic.Int32
+	s.write = func(raw []byte) error {
+		if writes.Add(1) == 1 {
+			return transient
+		}
+		return s.writeAtomic(raw)
+	}
+	if err := s.CommitTask(t.Context(), ApplicationRecord{ID: "app"}, TaskRecord{Key: "t"}); err != nil {
+		t.Fatal(err)
+	}
+	// The background write may or may not have run yet; either way the
+	// first attempt fails and Close's Flush must try again.
+	for writes.Load() == 0 {
+		time.Sleep(time.Millisecond)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close() = %v, want nil after a retried write (writes=%d)", err, writes.Load())
+	}
+	reopened, err := Open(t.Context(), cfg, fakeEnvironment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = reopened.Close() }()
+	if _, ok := reopened.Task("t"); !ok {
+		t.Fatal(`Task("t") missing after reopen: the retried write never reached disk`)
+	}
+}
+
+// concurrentCommitters is how many Tasks commit their own records at once
+// while others consult prior ones — the shape a parallel Group produces.
+const concurrentCommitters = 16
+
+// TestStoreConsultAndCommitAreSafeConcurrently proves parallel Tasks can
+// consult prior records (Operation, Task) while others commit their own.
+// Unguarded, the document's Tasks map is read and written at once: the
+// runtime's concurrent-map check aborts the test binary, and -race (the CI
+// race job) reports the race.
+func TestStoreConsultAndCommitAreSafeConcurrently(t *testing.T) {
+	s, err := Open(context.Background(), Config{StateDir: t.TempDir()}, fakeEnvironment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	var wg sync.WaitGroup
+	for i := range concurrentCommitters {
+		key := fmt.Sprintf("task-%d", i)
+		wg.Go(func() {
+			task := TaskRecord{Key: key, Operations: []OperationRecord{{Kind: "file", DefinitionFingerprint: key}}}
+			if err := s.CommitTask(context.Background(), ApplicationRecord{ID: "app"}, task); err != nil {
+				t.Error(err)
+			}
+		})
+		wg.Go(func() {
+			for range concurrentCommitters {
+				s.Operation(key, 0)
+				s.Task(key)
+			}
+		})
+	}
+	wg.Wait()
+
+	for i := range concurrentCommitters {
+		key := fmt.Sprintf("task-%d", i)
+		if op, ok := s.Operation(key, 0); !ok || op.DefinitionFingerprint != key {
+			t.Errorf("Operation(%q, 0) = %+v, %v; want the committed record", key, op, ok)
+		}
+	}
+}

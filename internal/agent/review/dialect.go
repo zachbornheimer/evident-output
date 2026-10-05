@@ -13,14 +13,14 @@ const retiredIndependentCollection = "Display" + "Group"
 const dialectFold = "0.4.0"
 
 // dialectRec is the first release whose public surface is the rec dialect
-// (Task(name string), Delete(object, fn)/Affected, Config fields not Options).
+// (Task(name string), object-first mutation callbacks, Config fields not
+// Options). Those callbacks were removed in 1.1 in favor of evo.Effect.
 const dialectRec = "0.4.7"
 
-// dialectOneZero is the first release whose public surface supports Verify,
-// evo.File, evo.Exec, and Sequence/After — the APIs every EVO-EVIDENCE-001/
-// VERIFY-001/DRYRUN-001/DAG-001/002/003 Suggestion recommends. A pin older
-// than this cannot apply those suggestions, so the rules must not fire for it.
-const dialectOneZero = "1.0.0"
+// dialectOneOne is the first release without TaskHandle.Done, so API-032
+// names Done as superseded only for a pin at or after it. Which release a
+// whole rule needs is its catalog MinDialect, not a constant here.
+const dialectOneOne = "1.1.0"
 
 // dialectAtLeast reports whether desired is the current dialect (empty) or
 // a pin at/after cutoff. Pre-cutoff pins do not fire that dialect's findings.
@@ -37,7 +37,7 @@ func semverOlder(a, b string) bool {
 	if !aok || !bok {
 		return false
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if av[i] < bv[i] {
 			return true
 		}

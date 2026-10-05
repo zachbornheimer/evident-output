@@ -1,0 +1,38 @@
+[
+  {
+    "id": "C20-001",
+    "section": "20",
+    "quote": "Every zq output call site is exactly one of:",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "CONSUMER: a call-site audit of the zq repository (evo-usage-audit plus MCP review), not an Evo test.",
+    "default": false
+  },
+  {
+    "id": "C20-002",
+    "section": "20",
+    "quote": "If the same awkward boilerplate appears repeatedly, determine whether the missing abstraction belongs in Evident.",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "PROCESS: a design-review judgment made while migrating consumers; no code artifact to test.",
+    "default": false
+  },
+  {
+    "id": "C20-003",
+    "section": "20",
+    "quote": "Do not add zq-specific sugar when a general Evo primitive would make all consumers safer/simpler.",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "PROCESS: a design-review rule for what lands in zq versus Evo.",
+    "default": false
+  },
+  {
+    "id": "C20-004",
+    "section": "20",
+    "quote": "Shared-state coordination for parallel work is scheduler-owned and declarative (§26).",
+    "tier": "1.1",
+    "tests": [],
+    "waiver": "CONSUMER: that zq carries no lock table of its own is a zq repo property; Evo's side is bound in C26-001..C26-010.",
+    "default": false
+  }
+]

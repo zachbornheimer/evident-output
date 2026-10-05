@@ -157,14 +157,13 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 	gate := o.Task(question)
 
 	if cfg.assumeYes {
-		gate.Done(confirmAssumedYesSummary)
+		gate.succeed(confirmAssumedYesSummary)
 		o.flushGateNow(gate.id)
 		return true
 	}
 
 	if o.cfg.plain {
-		gate.Block(confirmPolicyBlockedSummary)
-		gate.Next(cfg.resolvedPolicyHint(o))
+		gate.Block(confirmPolicyBlockedSummary, Next(cfg.resolvedPolicyHint(o)))
 		o.flushGateNow(gate.id)
 		return false
 	}
@@ -209,7 +208,7 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 
 	var yes bool
 	_ = o.Suspend(func() error {
-		o.writeConfirmPromptLocked(question, cfg.destructive, cfg.detail)
+		o.writeConfirmPrompt(question, cfg.destructive, cfg.detail)
 		line, cancelled, eof := o.readConfirmLine(abort)
 		if cancelled {
 			// cancelPendingConfirmLocked already resolved the gate as Cancelled.
@@ -224,14 +223,13 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 			// wording above: the reader was told nothing arrived, not that a
 			// deliberate policy refused the prompt (release-gate round 4
 			// finding 6).
-			gate.Block(confirmEOFSummary)
-			gate.Next(cfg.resolvedPolicyHint(o))
+			gate.Block(confirmEOFSummary, Next(cfg.resolvedPolicyHint(o)))
 			o.flushGateNow(gate.id)
 			return nil
 		}
 		yes = isAffirmative(line)
 		if yes {
-			gate.Done()
+			gate.succeed("")
 		} else {
 			gate.Block(confirmDeclinedSummary)
 		}
@@ -241,10 +239,10 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 	return yes
 }
 
-// writeConfirmPromptLocked emits the durable "?  <question>  [y/N]" line,
+// writeConfirmPrompt emits the durable "?  <question>  [y/N]" line,
 // plus any ConfirmDetail context lines beneath it, above the (now-quiesced)
 // live region.
-func (o *Output) writeConfirmPromptLocked(question string, destructive bool, detail []string) {
+func (o *Output) writeConfirmPrompt(question string, destructive bool, detail []string) {
 	o.mu.Lock()
 	color := !o.cfg.noColor
 	text := question

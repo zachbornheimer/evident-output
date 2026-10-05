@@ -35,24 +35,19 @@ func DebugHistory() Option                   { return debugHistory() }
 func DebugPane(opts ...DebugPaneOption) Option {
 	return debugPane(opts...)
 }
-func KeepLastLines(n int) EvidenceOption    { return keepLastLines(n) }
-func MaxEvidenceBytes(n int) EvidenceOption { return maxEvidenceBytes(n) }
-func MirrorToDiagnostics() EvidenceOption   { return mirrorToDiagnostics() }
-func MirrorToDebug() EvidenceOption         { return mirrorToDebug() }
-func PaneHeight(lines int) DebugPaneOption  { return paneHeight(lines) }
-func NewestFirst() DebugPaneOption          { return newestFirst() }
-func OldestFirst() DebugPaneOption          { return oldestFirst() }
-func PreserveDebugTail() DebugPaneOption    { return preserveDebugTail() }
-func ID(id string) EntityOption             { return iD(id) }
-func StartPhase(text string) EntityOption {
-	return entityOptionFunc(func(o *entityOpts) { o.phase = text })
-}
+func KeepLastLines(n int) CaptureOption    { return keepLastLines(n) }
+func MaxCaptureBytes(n int) CaptureOption  { return maxCaptureBytes(n) }
+func MirrorToDiagnostics() CaptureOption   { return mirrorToDiagnostics() }
+func MirrorToDebug() CaptureOption         { return mirrorToDebug() }
+func PaneHeight(lines int) DebugPaneOption { return paneHeight(lines) }
+func NewestFirst() DebugPaneOption         { return newestFirst() }
+func OldestFirst() DebugPaneOption         { return oldestFirst() }
+func PreserveDebugTail() DebugPaneOption   { return preserveDebugTail() }
 func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
 	return renderPlain(s, opts)
 }
 
-type Evidence = evidence
-type Scope = scope
+type Capture = evidence
 type SystemClock = systemClock
 type FixedClock = fixedClock
 type NoopRedactor = noopRedactor
@@ -62,14 +57,13 @@ type NoopRedactor = noopRedactor
 
 func (t *TaskHandle) RunForTest(cmd *exec.Cmd) error { return t.run(cmd) }
 func (t *TaskHandle) StepForTest(completed, total int, name string) *TaskHandle {
-	return t.Step(completed, total, name)
+	return t.Progress(completed, total).Doing(name)
 }
-func (t *TaskHandle) EvidenceForTest(opts ...EvidenceOption) *evidence {
-	return t.evidence(opts...)
+func (t *TaskHandle) CaptureForTest(opts ...CaptureOption) *evidence {
+	return t.Capture(opts...)
 }
-func (o *Output) EvidenceForTest(opts ...EvidenceOption) *evidence { return o.evidence(opts...) }
-func (o *Output) Events() []Event                                  { return o.copyEvents() }
-func (o *Output) ScopeForTest(name string) *scope                  { return o.scope(name) }
+func (o *Output) CaptureForTest(opts ...CaptureOption) *evidence { return o.capture(opts...) }
+func (o *Output) Events() []Event                                { return o.copyEvents() }
 func (o *Output) DebugForTest(message string, fields ...Field) {
 	o.debug(message, fields...)
 }
@@ -78,9 +72,6 @@ func (o *Output) AlsoWriteForTest(w io.Writer) {
 		return
 	}
 	o.cfg.extraWriters = append(o.cfg.extraWriters, w)
-}
-func (o *Output) TaskIdentified(name, key string) *TaskHandle {
-	return o.taskScoped(name, "", iD(key))
 }
 func (t *TaskHandle) SkippedWithErrs(reason TaxonomyReason, name string, errs ...error) {
 	t.recordTaxonomy(reason, name, dispositionSkip, errs)
@@ -97,38 +88,26 @@ func (o *Output) ForceLiveVisibleForTest() {
 		}
 	}
 	o.live.visible = true
+	o.live.paintMu.Lock()
 	o.live.liveActive = true
+	o.live.paintMu.Unlock()
 }
-func (o *Output) DebugWriterForTest() io.WriteCloser { return o.debugWriter() }
-func (o *Output) DeclareDryRunForTest()              { o.declareDryRun() }
-func (o *Output) AboutForTest(text string)           { o.about(text) }
-func (o *Output) SubjectForTest(text string)         { o.subject(text) }
-func (o *Output) SlogHandlerForTest() slog.Handler   { return o.slogHandler() }
-func (t *TaskHandle) NextSelfForTest(args ...string) *TaskHandle {
-	return t.nextSelf(args...)
-}
+func (o *Output) DebugWriterForTest() io.WriteCloser           { return o.debugWriter() }
+func (o *Output) DeclareDryRunForTest()                        { o.declareDryRun() }
+func (o *Output) AboutForTest(text string)                     { o.about(text) }
+func (o *Output) SubjectForTest(text string)                   { o.subject(text) }
+func (o *Output) SlogHandlerForTest() slog.Handler             { return o.slogHandler() }
+func (o *Output) NextSelfForTest(args ...string) ProblemOption { return o.nextSelf(args...) }
 func (t *TaskHandle) SkipForTest(reason string, args ...any) *TaskHandle {
 	return t.skip(reason, args...)
 }
 func (o *Output) AtForTest(visibility Visibility) *Printer { return o.at(visibility) }
-func (o *Output) SchedulerStartOrder() []string {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return append([]string(nil), o.schedStartOrder...)
-}
 func (o *Output) SchedulerMaxObserved() int {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return o.schedMaxObserved
+	return o.sched.maxObserved
 }
 
 func ReasonConstrained(name string, opts ...ReasonOption) TaxonomyReason {
 	return Default().reasonGetOrCreate(name, opts...)
-}
-
-func (s *scope) TaskIdentified(name, key string) *TaskHandle {
-	if s == nil || s.out == nil {
-		return &TaskHandle{}
-	}
-	return s.out.taskScoped(name, s.name, iD(key))
 }
