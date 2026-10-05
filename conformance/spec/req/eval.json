@@ -28,11 +28,11 @@
       },
       {
         "pkg": "./internal/agent/evaltask",
-        "run": "TestFindBannedPatterns_FlagsEachSeededBadShape"
+        "run": "TestBannedPatterns_FlagsEachSeededBadShape"
       },
       {
         "pkg": "./internal/agent/evaltask",
-        "run": "TestFindBannedPatterns_UnknownPatternIsAnError"
+        "run": "TestBannedPatterns_UnknownPatternIsAnError"
       }
     ],
     "default": false

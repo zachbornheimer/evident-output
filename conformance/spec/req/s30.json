@@ -1140,7 +1140,7 @@
     "tests": [
       {
         "pkg": "./conformance/contract/patch",
-        "run": "TestC30_071_FilesIsNotATransaction"
+        "run": "TestC30_071_PatchIsAllOrNothingAndNeverOverwritesAConcurrentEdit"
       }
     ],
     "default": false

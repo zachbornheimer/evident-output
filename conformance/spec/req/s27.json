@@ -15,7 +15,7 @@
       },
       {
         "pkg": "./conformance/contract/patch",
-        "run": "TestC28_001_NativeDiffFlowDerivesThenCommitsThroughFile"
+        "run": "TestC28_001_NativeDiffFlowCommitsThroughFile"
       }
     ],
     "default": false
@@ -83,7 +83,7 @@
       },
       {
         "pkg": "./conformance/contract/patch",
-        "run": "TestC30_071_FilesIsNotATransaction"
+        "run": "TestC30_071_PatchIsAllOrNothingAndNeverOverwritesAConcurrentEdit"
       }
     ],
     "default": false
@@ -117,7 +117,7 @@
     "tests": [
       {
         "pkg": "./conformance/contract/patch",
-        "run": "TestC28_001_NativeDiffFlowDerivesThenCommitsThroughFile"
+        "run": "TestC28_001_NativeDiffFlowCommitsThroughFile"
       },
       {
         "pkg": "./internal/engine",
