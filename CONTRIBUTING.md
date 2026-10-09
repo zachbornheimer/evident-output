@@ -48,5 +48,4 @@ defect**. Do not edit them ad hoc.
 2. `mise run sync-release-pins` (or `go run ./tools/scripts/sync-release-pins`).
 3. `go test . -run VersionDrift` (also part of `mise run doctor`).
 
-Full procedure: [`docs/guides/cutting-a-release.md`](docs/guides/cutting-a-release.md).
 Never move a previously published git tag to fix a stale README — ship a patch.

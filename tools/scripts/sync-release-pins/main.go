@@ -36,17 +36,12 @@ func main() {
 		`(?m)(\*\*Release:\*\*\s*\*\*|Pinned release:\s*` + "`" + `|^\*\*Pin:\*\*\s*` + "`" + `)v\d+\.\d+\.\d+`,
 	)
 
-	repo, err := os.OpenRoot(root)
-	if err != nil {
-		fail(fmt.Errorf("open module root %s: %w", root, err))
-	}
-	defer func() { _ = repo.Close() }()
-
+	repo := os.DirFS(root)
 	var paths []string
 	paths = append(paths, "README.md")
 	paths = append(paths, "mcp/docs/mcp.md")
 	for _, dir := range []string{"skills", "integrations"} {
-		_ = fs.WalkDir(repo.FS(), dir, func(path string, d fs.DirEntry, err error) error {
+		_ = fs.WalkDir(repo, dir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil || d.IsDir() {
 				return err
 			}
@@ -59,7 +54,7 @@ func main() {
 
 	changed := 0
 	for _, path := range paths {
-		body, err := repo.ReadFile(path)
+		body, err := fs.ReadFile(repo, path)
 		if err != nil {
 			fail(err)
 		}
@@ -72,7 +67,7 @@ func main() {
 		next = regexp.MustCompile("\\*\\*Pinned release:\\*\\* `v\\d+\\.\\d+\\.\\d+`").ReplaceAllString(next, "**Pinned release:** `"+want+"`")
 
 		if next != orig {
-			if err := repo.WriteFile(path, []byte(next), 0o600); err != nil {
+			if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(path)), []byte(next), 0o600); err != nil {
 				fail(err)
 			}
 			fmt.Fprintf(os.Stderr, "  updated %s\n", path)

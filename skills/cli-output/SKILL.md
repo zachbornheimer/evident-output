@@ -82,13 +82,9 @@ Trigger phrases: "adopt evident-output", "migrate to evo", "clean up CLI output"
 go get github.com/zachbornheimer/evident-output@v1.0.0
 ```
 
-## Philosophy (in-repo)
+## Further reading
 
-- `docs/philosophy/jazz-syntax.md` — one spelling per intent
-- `docs/philosophy/presentation-boundary.md` — presentation ≠ execution
-- `docs/philosophy/domain-vocabulary.md` — Task/Effect verbs/Detail/Fail evidence
-- `docs/guides/teaching-ladder.md` — ordinary learning order
-- `docs/roadmap/implementation-basis.md` — polish-phase authority
+- `mcp/docs/teaching-ladder.md` — ordinary learning order
 
 ## Adoption ladder
 

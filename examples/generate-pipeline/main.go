@@ -2,7 +2,7 @@
 // a normalize stage (schema.xlsx -> schema.json) feeding a compile stage
 // (schema.json + compile.py -> output.bin), sequenced with Sequence (declaration order, never concurrent) the way
 // a real pipeline must be (a Basis relationship alone never implies
-// scheduling order — see docs/acceptance/v0.6.md's Increment 3 section).
+// scheduling order).
 // Run it twice against the same --state-dir to see the second run spawn
 // neither stage:
 //
@@ -47,7 +47,7 @@ var workDirSeeds = []struct {
 // seedWorkDir establishes every seed file under dir, creating dir first:
 // File establishes one file, not the directory it lives in.
 func seedWorkDir(ctx context.Context, dir string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("create work dir %q: %w", dir, err)
 	}
 	for _, seed := range workDirSeeds {

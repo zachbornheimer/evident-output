@@ -1,4 +1,4 @@
-// Command spec-score lints the requirement registry against docs/contract.md,
+// Command spec-score lints the requirement registry against conformance/spec/contract-1.x.md,
 // scores each requirement by running its bound Go tests, and enforces the
 // ratchet of requirements that must never go red again.
 package main
@@ -41,7 +41,7 @@ func main() {
 func parseFlags(args []string) (options, error) {
 	var o options
 	fset := flag.NewFlagSet("spec-score", flag.ContinueOnError)
-	fset.BoolVar(&o.lint, "lint", false, "lint the registry against docs/contract.md")
+	fset.BoolVar(&o.lint, "lint", false, "lint the registry against conformance/spec/contract-1.x.md")
 	fset.BoolVar(&o.gate, "gate", false, "fail if a ratcheted ID is not passing (implies scoring)")
 	fset.BoolVar(&o.update, "update", false, "add newly passing IDs to the ratchet (implies scoring)")
 	fset.StringVar(&o.scoreOut, "score-out", defaultScoreOut, "score output path, relative to --root")

@@ -689,7 +689,7 @@ Row rules the renderer owns:
 Skipped is the per-item disposition. The item is the Task: declare one child Task per candidate under the category's Group. A candidate that policy excludes is intentionally not executed, so it calls `Skipped(evo.Reason(...))` at most once. Counts such as "kept 383" are domain information: a Fact or part of the Summary, never a separate outcome.
 
 - Per-item Skipped child Tasks aggregate into one tally under the Group's row, with per-reason counts: `- skipped N (283 checked out, 135 unpushed, 1 protected)`. This happens when the Group's own row names their subject (its own Task or its own Summary) or when no sibling finished work of its own. Beside a sibling that did work, a Skipped child is a peer category and keeps its named row.
-- A lone skipped item folds into its Group's tally like any other count (`✓ branches  2 checked` then `  - skipped 1 (protected)`); it never renders as its own success row.
+- A lone skipped item folds into its Group's tally like any other count (`✓ branches  2 checked` then `- skipped 1 (protected)`); it never renders as its own success row.
 - Verbose lists the items under each reason, bounded (`a, b, c … +N more`); items carrying Facts get their own row, at most three.
 - Skipped uses the `-` glyph and never sets `warned`. A fold of policy exclusions produces no warned band.
 - JSON/JSONL keep every child, with `dispositions` (`{disposition, reason, name, causes}`) on each `evo.run` task and `disposition.recorded` events.
@@ -1186,7 +1186,7 @@ This section states, as normative behavior, the 1.1 API-freeze decisions (2026-0
 
 `Problem(summary, opts...) *TaskHandle` appends one Problem without resolving; many may accumulate in one Define. Severity defaults to `SeverityError`: an error Problem fails the owning Define if the callback otherwise returns nil. `Severity(SeverityWarning)` makes it a warning, which does not fail Define and sets `warned`. There is no Warn call. A warning's `On(subject)` reaches every human row and machine output (`warnings` on the `evo.run` task). Human projection bounds inline detail; Snapshot, JSON, and JSONL retain every Problem, and the count stays authoritative. There is no second finding type.
 
-### Effect
+### Effect values
 
 ```go
 type EffectVerb string

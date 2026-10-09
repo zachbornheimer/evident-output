@@ -358,7 +358,7 @@ func main() {
 // capture evo.Run's code, override it when a child exits non-zero for its
 // own reason, then os.Exit the resulting variable. This must not warn —
 // it's a documented GoodCode shape, not something the maintainer can't
-// clear (docs/guides/exit-code-fidelity.md).
+// clear (mcp/docs/exit-code-fidelity.md).
 func TestAPI018_AllowsExitCodeFidelityPattern(t *testing.T) {
 	src := `package main
 import (
@@ -1510,7 +1510,8 @@ func makeOut() *evo.Output { return evo.Init(evo.Config{}) }
 `,
 		"b.go": `package p
 func use() { _ = makeOutt() }
-`}))
+`,
+	}))
 
 	if len(emitted) == 0 {
 		t.Fatal("no findings collected; fixtures no longer trigger any rule")
@@ -1533,7 +1534,8 @@ func use() { _ = makeOutt() }
 func TestCallSiteFindingsCarrySuggestion(t *testing.T) {
 	structural := map[string]bool{
 		"API-000": true, "SCHEMA-001": true, "TERM-008": true,
-		"TERM-014": true, "MCP-017": true, "API-027": true}
+		"TERM-014": true, "MCP-017": true, "API-027": true,
+	}
 	src := `package p
 import (
   "bufio"
@@ -1605,7 +1607,8 @@ func use() {
   out.Task("t").Start()
   fmt.Println("x")
 }
-`}
+`,
+	}
 	res := review.GoPackage(files)
 	// Cross-file: Start and fmt from b.go must surface even though evo import is in a.go.
 	var hasStart, hasStream bool

@@ -9,7 +9,7 @@ import (
 const (
 	registryGlob  = "conformance/spec/req/*.json"
 	ratchetPath   = "conformance/spec/ratchet.json"
-	contractPath  = "docs/contract.md"
+	contractPath  = "conformance/spec/contract-1.x.md"
 	contractTests = "conformance/contract"
 )
 

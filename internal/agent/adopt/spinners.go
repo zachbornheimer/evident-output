@@ -1,7 +1,7 @@
 package adopt
 
 // spinnerImports are known manual-spinner/progress-bar libraries evo's
-// built-in Task heartbeat replaces outright (docs/guides/teaching-ladder.md).
+// built-in Task heartbeat replaces outright (mcp/docs/teaching-ladder.md).
 var spinnerImports = map[string]string{
 	"github.com/briandowns/spinner":     "evo.Task's live heartbeat renders progress/elapsed automatically — delete the manual spinner and its Start/Stop calls.",
 	"github.com/schollz/progressbar":    "evo.Group(name), one Task per item, owns collection progress — delete the manual progress bar.",

@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-const teachingLadderPath = "../../../docs/guides/teaching-ladder.md"
+const teachingLadderPath = "../../../mcp/docs/teaching-ladder.md"
 
 // contractTeachingOrder is contract §21's teaching order, each step named
 // by the phrase the ladder uses for it.

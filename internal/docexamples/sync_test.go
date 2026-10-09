@@ -26,25 +26,11 @@ import (
 // (internal/agent/sections/sections.go: reference.md, development.md,
 // mcp.md, adoption-ladder.md) plus every doc README.md's own "Learn more"
 // list links to as a live usage example — the flagship quickstart, the
-// primary upgrade doc (migration/1.0.md), the teaching ladder, the
-// exit-code guide, and the one adoption case study (adoption/librarian.md).
+// primary upgrade doc (migration/1.0.md), the teaching ladder, and the
+// exit-code guide.
 // Those are the docs a reader copy-pastes from, so every fence in them is
 // pinned here, TextOnly (see DocFixture's doc comment) where the fence
 // documents removed or elided API on purpose.
-//
-// Deliberately out of scope: docs/roadmap/ and docs/philosophy/ (also
-// linked from README's "Learn more", under "design philosophy"). These are
-// dated planning artifacts (docs/roadmap/implementation-basis.md is
-// pinned to a v0.2.8 baseline, predating 1.0) that mix historical API,
-// rejected proposals, and explicit "Wrong"/"Right" counter-example pairs —
-// a "Wrong" fence is not aspirational syntax that drifted, it is
-// deliberately-non-shipping syntax the doc argues against, and pinning it
-// as TextOnly would misrepresent it as "this used to work" rather than
-// "this was never meant to." docs/guides/cutting-a-release.md already
-// states the norm this follows: "Historical design docs under
-// docs/roadmap/ ... does not rewrite historical ADRs." If a roadmap doc
-// is ever promoted to a living reference (the way migration/1.0.md and
-// librarian.md were), give it docFixtures rows the same way.
 var docFixtures = []docexamples.DocFixture{
 	{Doc: "README.md", FenceIndex: 0, Fixture: "fixtures/readme_quickstart"},
 
@@ -56,14 +42,14 @@ var docFixtures = []docexamples.DocFixture{
 	{Doc: "mcp/docs/development.md", FenceIndex: 1, Fixture: "fixtures/development_2"},
 	{Doc: "mcp/docs/development.md", FenceIndex: 2, Fixture: "fixtures/development_3"},
 
-	{Doc: "docs/guides/teaching-ladder.md", FenceIndex: 0, Fixture: "fixtures/teaching_ladder_1"},
-	{Doc: "docs/guides/teaching-ladder.md", FenceIndex: 1, Fixture: "fixtures/teaching_ladder_2"},
-	{Doc: "docs/guides/teaching-ladder.md", FenceIndex: 2, Fixture: "fixtures/teaching_ladder_3"},
-	{Doc: "docs/guides/teaching-ladder.md", FenceIndex: 3, Fixture: "fixtures/teaching_ladder_4"},
-	{Doc: "docs/guides/teaching-ladder.md", FenceIndex: 4, Fixture: "fixtures/teaching_ladder_5"},
-	{Doc: "docs/guides/teaching-ladder.md", FenceIndex: 5, Fixture: "fixtures/teaching_ladder_6"},
+	{Doc: "mcp/docs/teaching-ladder.md", FenceIndex: 0, Fixture: "fixtures/teaching_ladder_1"},
+	{Doc: "mcp/docs/teaching-ladder.md", FenceIndex: 1, Fixture: "fixtures/teaching_ladder_2"},
+	{Doc: "mcp/docs/teaching-ladder.md", FenceIndex: 2, Fixture: "fixtures/teaching_ladder_3"},
+	{Doc: "mcp/docs/teaching-ladder.md", FenceIndex: 3, Fixture: "fixtures/teaching_ladder_4"},
+	{Doc: "mcp/docs/teaching-ladder.md", FenceIndex: 4, Fixture: "fixtures/teaching_ladder_5"},
+	{Doc: "mcp/docs/teaching-ladder.md", FenceIndex: 5, Fixture: "fixtures/teaching_ladder_6"},
 
-	{Doc: "docs/guides/exit-code-fidelity.md", FenceIndex: 0, Fixture: "fixtures/exit_code_fidelity_1"},
+	{Doc: "mcp/docs/exit-code-fidelity.md", FenceIndex: 0, Fixture: "fixtures/exit_code_fidelity_1"},
 
 	// docs/migration/1.0.md is README.md's primary upgrade doc ("every
 	// breaking change with before/after code") and the doc most likely to
@@ -87,12 +73,6 @@ var docFixtures = []docexamples.DocFixture{
 	{Doc: "docs/migration/1.0.md", FenceIndex: 10, Fixture: "fixtures/migration_1_0_duplicate_sibling"},
 	{Doc: "docs/migration/1.0.md", FenceIndex: 11, Fixture: "fixtures/migration_1_0_file_spec"},
 	{Doc: "docs/migration/1.0.md", FenceIndex: 12, Fixture: "fixtures/migration_1_0_projection_consts", TextOnly: true},
-
-	// docs/adoption/librarian.md is linked from README.md as "a real
-	// adoption case study" — the one case-study doc new adopters are
-	// pointed to. Its one fence documents the pre-1.0 call site
-	// (evo.New/evo.MainWith, both removed in 1.0), so it is TextOnly too.
-	{Doc: "docs/adoption/librarian.md", FenceIndex: 0, Fixture: "fixtures/librarian_before_new_mainwith", TextOnly: true},
 }
 
 // hasBuildIgnoreTag reports whether fixture file src carries the exact

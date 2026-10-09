@@ -1,4 +1,4 @@
-// Package main compiles docs/guides/teaching-ladder.md's "Standalone
+// Package main compiles mcp/docs/teaching-ladder.md's "Standalone
 // (package-level default instance)" fence verbatim. See
 // TestDocFencesMatchFixtures. Never run.
 package main

@@ -51,13 +51,9 @@ grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
 grok mcp doctor evident-output --json
 ```
 
-## Philosophy (binding)
+## Further reading
 
-- [`docs/philosophy/jazz-syntax.md`](../../docs/philosophy/jazz-syntax.md)
-- [`docs/philosophy/presentation-boundary.md`](../../docs/philosophy/presentation-boundary.md)
-- [`docs/philosophy/domain-vocabulary.md`](../../docs/philosophy/domain-vocabulary.md)
-- Teaching ladder: [`docs/guides/teaching-ladder.md`](../../docs/guides/teaching-ladder.md)
-- Implementation basis: [`docs/roadmap/implementation-basis.md`](../../docs/roadmap/implementation-basis.md)
+- Teaching ladder: [`mcp/docs/teaching-ladder.md`](../../mcp/docs/teaching-ladder.md)
 
 ## Rules of thumb
 

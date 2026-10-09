@@ -45,7 +45,7 @@ func TestFinish_ReadmeQuickstart_EachLoopAutoResolvesDone(t *testing.T) {
 }
 
 // TestFinish_TeachingLadder_EachThenReturnNil_NeverCancels is beginner-gate-2
-// finding (ii): docs/guides/teaching-ladder.md's standalone example is
+// finding (ii): mcp/docs/teaching-ladder.md's standalone example is
 // `evo.Task("scan").Each(items); return nil` verbatim — an uninterrupted run
 // must conclude OK, never [cancelled]/130, since nothing ever signaled the
 // process.

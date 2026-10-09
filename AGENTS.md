@@ -212,8 +212,7 @@ for a container.
 
 Evident Output 1.x ships breaking changes in minor releases when the owner's
 API-freeze decisions call for them, with no compatibility shims. `MainWith`
-and `Task.Each` were removed in 1.0 outright (docs/acceptance/v0.6.md,
-"Owner decisions"). Removed in 1.1: the TaskHandle mutation verbs, `Done`,
+and `Task.Each` were removed in 1.0 outright. Removed in 1.1: the TaskHandle mutation verbs, `Done`,
 `Record*`, `Affected`/`MutationOption`, `Warn`, `Step`,
 `Kept`, and capture-meaning `Evidence*` (`Capture` is the retained sink);
 the printf Fail and Block verbs are in docs/migration/1.1.md. 1.1 also

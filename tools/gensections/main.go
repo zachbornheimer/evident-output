@@ -10,6 +10,7 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -20,8 +21,8 @@ var sourceDocs = map[string]string{
 	"reference.md":          filepath.Join("mcp", "docs", "reference.md"),
 	"development.md":        filepath.Join("mcp", "docs", "development.md"),
 	"mcp.md":                filepath.Join("mcp", "docs", "mcp.md"),
-	"adoption-ladder.md":    filepath.Join("docs", "guides", "teaching-ladder.md"),
-	"exit-code-fidelity.md": filepath.Join("docs", "guides", "exit-code-fidelity.md"),
+	"adoption-ladder.md":    filepath.Join("mcp", "docs", "teaching-ladder.md"),
+	"exit-code-fidelity.md": filepath.Join("mcp", "docs", "exit-code-fidelity.md"),
 }
 
 func main() {
@@ -29,22 +30,18 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	repo, err := os.OpenRoot(root)
-	if err != nil {
-		fail(fmt.Errorf("open module root %s: %w", root, err))
-	}
-	defer func() { _ = repo.Close() }()
-	destDir := filepath.Join("internal", "agent", "sections", "embedded")
-	if err := repo.MkdirAll(destDir, 0o755); err != nil {
+	repo := os.DirFS(root)
+	destDir := filepath.Join(root, "internal", "agent", "sections", "embedded")
+	if err := os.MkdirAll(destDir, 0o750); err != nil {
 		fail(err)
 	}
 	for destName, srcRel := range sourceDocs {
-		body, err := repo.ReadFile(srcRel)
+		body, err := fs.ReadFile(repo, filepath.ToSlash(srcRel))
 		if err != nil {
 			fail(fmt.Errorf("read %s: %w", srcRel, err))
 		}
 		dest := filepath.Join(destDir, destName)
-		if err := repo.WriteFile(dest, body, 0o600); err != nil {
+		if err := os.WriteFile(dest, body, 0o600); err != nil {
 			fail(fmt.Errorf("write %s: %w", dest, err))
 		}
 		fmt.Fprintf(os.Stderr, "gensections: %s -> %s\n", srcRel, dest)

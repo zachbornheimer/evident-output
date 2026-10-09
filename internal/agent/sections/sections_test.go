@@ -39,8 +39,8 @@ func TestEmbeddedDocsMatchSource(t *testing.T) {
 		"reference.md":          filepath.Join(root, "mcp", "docs", "reference.md"),
 		"development.md":        filepath.Join(root, "mcp", "docs", "development.md"),
 		"mcp.md":                filepath.Join(root, "mcp", "docs", "mcp.md"),
-		"adoption-ladder.md":    filepath.Join(root, "docs", "guides", "teaching-ladder.md"),
-		"exit-code-fidelity.md": filepath.Join(root, "docs", "guides", "exit-code-fidelity.md"),
+		"adoption-ladder.md":    filepath.Join(root, "mcp", "docs", "teaching-ladder.md"),
+		"exit-code-fidelity.md": filepath.Join(root, "mcp", "docs", "exit-code-fidelity.md"),
 	}
 	for embeddedName, srcPath := range cases {
 		want, err := os.ReadFile(srcPath)

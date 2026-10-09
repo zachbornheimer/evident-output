@@ -1,4 +1,4 @@
-// Package main compiles docs/guides/exit-code-fidelity.md's capture-then-
+// Package main compiles mcp/docs/exit-code-fidelity.md's capture-then-
 // override pattern verbatim (see TestDocFencesMatchFixtures in the parent
 // package). This file is a documentation fixture only — go build proves it
 // type-checks against the shipped API; nothing in this package is ever

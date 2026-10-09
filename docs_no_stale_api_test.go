@@ -48,7 +48,7 @@ var staleAPIScanFiles = []string{
 // API.
 var staleAPIHistoricalFragments = []string{
 	"docs/migration/",
-	"docs/contract.md",
+	"conformance/spec/contract-1.x.md",
 	"CHANGELOG.md",
 }
 

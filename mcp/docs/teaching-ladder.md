@@ -72,9 +72,6 @@ os.Exit(out.Run(ctx, run).ExitCode()) // reconciles a non-nil run error into Fai
 Batch elements are one Task with Progress+Doing (count + muted activity), not N Tasks.
 Use `TruncateNames` for a single skip/kept list when names must stay readable.
 
-See `docs/philosophy/` and `docs/roadmap/implementation-basis.md`.
-Release pin procedure: `docs/guides/cutting-a-release.md`.
-
 ## Capture
 
 ```go

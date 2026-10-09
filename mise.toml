@@ -118,7 +118,7 @@ description = "Public API surface matches testdata/api_golden.txt plus required/
 run = "go run ./cmd/evident-output contract"
 
 [tasks.spec-score]
-description = "Lint the spec requirement registry against docs/contract.md"
+description = "Lint the spec requirement registry against conformance/spec/contract-1.x.md"
 run = "go run ./tools/scripts/spec-score --lint"
 
 [tasks.spec-ratchet]

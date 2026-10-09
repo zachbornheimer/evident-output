@@ -35,7 +35,7 @@
 //
 // evo.MainWith and Task/Group/Sequence.Each were removed in 1.0.0. See
 // docs/migration/1.0.md for every breaking change with before/after code,
-// and docs/guides/teaching-ladder.md for the current adoption order.
+// and mcp/docs/teaching-ladder.md for the current adoption order.
 //
 // # Adoption ladder (spec §44 — guess-driven defaults, the naive spelling is correct)
 //

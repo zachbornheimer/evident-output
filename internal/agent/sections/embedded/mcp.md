@@ -57,8 +57,6 @@ from this module / a path replace). Never `GOBIN=$HOME/.local/bin` — install l
 | `evo.ID` / `evo.StartPhase`                                                                                                                              | `task.Key("...")` before `Define`; `.Doing(...)` for the first phase                                        |
 | `evo.MainWith` (removed in 1.0)                                                                                                                          | `evo.Main` / `Output.Run`                                                                                   |
 
-The librarian case study is a v0.2.9 snapshot. Review reports API-032 on the deleted constructors.
-
 ## Install the binary (pinned)
 
 ```bash

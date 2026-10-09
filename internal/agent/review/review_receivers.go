@@ -276,7 +276,7 @@ func isLikelyEvoReceiver(x ast.Expr) bool {
 // canonical entrypoint — Main derives the code but does not exit itself),
 // os.Exit(evo.Run(...)), os.Exit(out.Run(...)), os.Exit(...ExitCode), and
 // os.Exit(xe) where xe is a runCodeVars identifier — the latter three also
-// cover the exit-code-fidelity pattern (docs/guides/exit-code-fidelity.md)
+// cover the exit-code-fidelity pattern (mcp/docs/exit-code-fidelity.md)
 // that captures evo.Run's code, branches to override it with a child
 // process's own exit code, and only then calls os.Exit. All of these return
 // a code rather than exit themselves. Pre-1.0, evo.MainWith alone exited via its own facade (P6) and was never wrapped in os.Exit; MainWith was removed in 1.0, so an Isolated instance now reaches this same os.Exit(...ExitCode) shape through Output.Run instead.

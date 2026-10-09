@@ -1,4 +1,4 @@
-// Package main compiles docs/guides/teaching-ladder.md's "Confirm" fence
+// Package main compiles mcp/docs/teaching-ladder.md's "Confirm" fence
 // verbatim. See TestDocFencesMatchFixtures. Never run.
 package main
 

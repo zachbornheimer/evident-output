@@ -22,15 +22,6 @@ var portableFiles = []string{
 	"README.md",
 }
 
-// Historical / design docs may mention older tags as narrative. They are not
-// install surfaces. Do not scan them for pin equality.
-var historicalPathFragments = []string{
-	"docs/roadmap/",
-	"docs/architecture/",
-	"docs/adr/",
-	"/COMPLETENESS_",
-}
-
 // Machine-specific path fragments banned on portable surfaces.
 var forbiddenPathFragments = []string{
 	"Developer/Personal/evident-output",
@@ -212,6 +203,3 @@ func moduleRoot(t *testing.T) string {
 	}
 	return wd
 }
-
-// Silence unused historical list (documented for humans editing the gate).
-var _ = historicalPathFragments

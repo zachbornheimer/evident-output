@@ -3,7 +3,7 @@ package adopt
 // Rung names the adoption-ladder step a finding belongs on.
 type Rung string
 
-// The adoption ladder, in migration order (docs/guides/teaching-ladder.md).
+// The adoption ladder, in migration order (mcp/docs/teaching-ladder.md).
 const (
 	RungInitMain      Rung = "Init/Main"
 	RungTaskDefine    Rung = "Task/Define"
