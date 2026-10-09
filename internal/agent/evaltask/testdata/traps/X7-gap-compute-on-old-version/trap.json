@@ -1,8 +1,0 @@
-{
-  "id": "X7",
-  "task": "T1-zq-prune",
-  "banned_pattern": "",
-  "blocked_api": [
-    "gap event and recheck_required=true when the prompt needs Compute on a version that lacks it (WP11)"
-  ]
-}

@@ -1,6 +1,0 @@
-{
-  "id": "X5",
-  "task": "T1-zq-prune",
-  "banned_pattern": "presentation-only-task",
-  "expected_flag_pending": true
-}

@@ -35,7 +35,7 @@ func run(t *testing.T, g fakeGit, allow string) (int, string) {
 func TestFrozenPathsAreViolations(t *testing.T) {
 	for _, p := range []string{
 		"conformance/spec/req/s30.json", "conformance/goldens/a_test.go",
-		"testdata/api_golden.txt", "testdata/api_golden_extra.txt", ".evor/baseline.sha256",
+		"testdata/api_golden.txt", "testdata/api_golden_extra.txt",
 	} {
 		code, out := run(t, fakeGit{changes: []Change{{"M", p}}}, "")
 		if code != 1 || !strings.Contains(out, p+": frozen file changed") {

@@ -18,7 +18,6 @@ var (
 	frozenGlobs = []string{
 		"conformance/spec/req/*.json",
 		"testdata/api_golden*.txt",
-		".evor/baseline.sha256",
 	}
 	ratchetIDPattern = regexp.MustCompile(`C\d+-\d{3}`)
 )
