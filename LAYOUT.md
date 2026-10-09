@@ -52,6 +52,7 @@ internal/misuse/
 internal/terminal/
 internal/process/
 internal/fs/
+internal/clock/
 mcp/
 conformance/
 examples/
@@ -60,7 +61,6 @@ testkit/
 tools/
 docs/migration/
 docs/decisions/
-docs/history/
 ```
 
 ## Root package `evo`
@@ -105,20 +105,20 @@ or a terminal library.
 | `internal/terminal`  | facade  | ANSI driver, size, char-device                                                                                   |
 | `internal/process`   | facade  | spawn, capture, redaction                                                                                        |
 | `internal/fs`        | facade  | filesystem, locks, canonical paths                                                                               |
+| `internal/clock`     | facade  | time source, timers, sleep                                                                                       |
 
 ## Other trees
 
-| Tree              | Holds                                                                                                                                  |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `mcp/`            | separate Go module: the MCP server, the CLI, review rules, docs corpus, host integrations, agent skills; imports only the root package |
-| `conformance/`    | spec registry keyed to `CONTRACT.md` headings, ratchet, goldens, scenarios                                                             |
-| `examples/`       | one directory per contract section, compile-tested                                                                                     |
-| `schema/`         | `run.v3.json`, `event.v2.json`                                                                                                         |
-| `testkit/`        | clock, screen, fake fs and process for consumers' tests                                                                                |
-| `tools/`          | gate tooling: spec-score, spec-guard, traceability, bisectability                                                                      |
-| `docs/migration/` | one file per breaking release                                                                                                          |
-| `docs/decisions/` | dated rulings; never normative                                                                                                         |
-| `docs/history/`   | earlier specs and philosophy; read-only                                                                                                |
+| Tree              | Holds                                                                                                                                                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mcp/`            | separate Go module: the MCP server, the CLI, review rules, docs corpus, host integrations, agent skills, API surface walker, go.mod pin tooling, compile-tested doc examples; imports only the root package |
+| `conformance/`    | spec registry keyed to `CONTRACT.md` headings, ratchet, goldens, scenarios, architecture tests                                                                                                              |
+| `examples/`       | one directory per contract section, compile-tested                                                                                                                                                          |
+| `schema/`         | `run.v3.json`, `event.v2.json`                                                                                                                                                                              |
+| `testkit/`        | clock, screen, fake fs and process for consumers' tests; scale and wire-schema helpers                                                                                                                      |
+| `tools/`          | gate tooling: spec-score, spec-guard, traceability, bisectability, gitenv                                                                                                                                   |
+| `docs/migration/` | one file per breaking release                                                                                                                                                                               |
+| `docs/decisions/` | dated rulings; never normative                                                                                                                                                                              |
 
 ## Guards
 
