@@ -3,7 +3,7 @@
 //
 //	go run ./examples/quiet-writer/
 //
-// scripts/verify-quiet-pty.py captures it in a real tmux PTY to prove the live
+// tools/verify-quiet-pty.py captures it in a real tmux PTY to prove the live
 // row keeps changing through the quiet interval.
 package main
 

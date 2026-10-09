@@ -148,8 +148,8 @@ depends = [
 
 [tasks.verify-quiet-pty-stream]
 description = "Prove a quiet Writer task keeps its live frame changing <100ms, measured from the pty byte stream (no tmux)"
-run = "uv run ./scripts/verify-quiet-pty-stream.py"
+run = "uv run ./tools/verify-quiet-pty-stream.py"
 
 [tasks.test-evo]
 description = "Capture timed PNG/TXT frames of a command in a real tmux PTY. Flags AFTER the task name. Requires --start-dir, exactly one of --timeout-ms/--timeout-s, exactly one of --screenshot-interval-ms/--screenshot-interval-s, then -- CMD"
-run = "uv run ./scripts/test-evo.py"
+run = "uv run ./tools/test-evo.py"

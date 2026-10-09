@@ -59,7 +59,7 @@ const (
 // hostStallWitness records, from an independent goroutine, intervals in which
 // this process was not scheduled. A stale interval that overlaps one cannot be
 // told from a product defect by the frame times alone, so the attempt is
-// unprovable (retried, never passed), as scripts/verify-quiet-pty-stream.py
+// unprovable (retried, never passed), as tools/verify-quiet-pty-stream.py
 // treats a reader that was itself descheduled.
 type hostStallWitness struct {
 	mu     sync.Mutex

@@ -49,8 +49,6 @@
 /eval/results/
 !/examples/
 !/examples/**
-!/scripts/
-!/scripts/**
 !/*.go
 !/agent/
 !/agent/**

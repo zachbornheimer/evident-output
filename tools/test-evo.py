@@ -33,7 +33,7 @@ STALE_GLOBS = ("frame-*", "timed-*", "mandatory-*")
 
 def usage_text() -> str:
     temp = tempfile.gettempdir()
-    return f"""usage: python3 ./scripts/test-evo.py --start-dir DIR \\
+    return f"""usage: python3 ./tools/test-evo.py --start-dir DIR \\
   (--timeout-ms MS | --timeout-s S) \\
   (--screenshot-interval-ms MS | --screenshot-interval-s S) \\
   [--output-frames DIR] [--cols N] [--rows N] -- CMD [ARGS...]

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prove a quiet Writer-backed Task keeps its live row changing in a real PTY.
 
-Builds examples/quiet-writer, captures it with scripts/test-evo.py in tmux,
+Builds examples/quiet-writer, captures it with tools/test-evo.py in tmux,
 then checks the timed frames: the owner row stays Running and quiet, its
 Writer evidence is on screen, and the live frame keeps changing.
 
