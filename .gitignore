@@ -58,8 +58,6 @@
 !/logbridge/**
 !/render/
 !/render/**
-!/terminal/
-!/terminal/**
 !/cmd/
 !/cmd/**
 !/skills/

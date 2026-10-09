@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/terminal"
+	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
 
 // TestPORT_RedirectedStdout uses a pipe as the primary writer (CI-like).

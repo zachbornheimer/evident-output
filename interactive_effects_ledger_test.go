@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/terminal"
+	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
 
 // TestInteractive_DryRunDeleteReachesLiveTerminalLedger is release-gate round

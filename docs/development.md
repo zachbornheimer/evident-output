@@ -103,7 +103,7 @@ Schemas: `../schema/output.v1.json`, `../schema/event.v1.json`.
 ## Production ANSI driver
 
 ```go
-import "github.com/zachbornheimer/evident-output/terminal"
+import "github.com/zachbornheimer/evident-output/internal/terminal"
 
 drv := terminal.NewANSI(os.Stderr, terminal.WithInteractive(true), terminal.WithSize(80, 24))
 out := evo.Init(evo.Config{Title: "deploy", Terminal: drv})

@@ -4,7 +4,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/zachbornheimer/evident-output/terminal"
+	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
 
 // configToOptions translates Config into the internal Option list, one

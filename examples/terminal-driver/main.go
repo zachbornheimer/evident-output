@@ -19,7 +19,7 @@ import (
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/terminal"
+	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
 
 func main() {
@@ -122,9 +122,11 @@ func (f *frameLog) ClearLive()          {}
 func (f *frameLog) WriteDurable(line string) {
 	_, _ = fmt.Fprintf(f.w, "  · durable: %s\n", line)
 }
+
 func (f *frameLog) WriteFinal(text string) {
 	_, _ = fmt.Fprintf(f.w, "\n── final ──\n%s\n", text)
 }
+
 func (f *frameLog) WriteLive(text string) {
 	f.n++
 	_, _ = fmt.Fprintf(f.w, "\n── frame %d ──\n%s\n", f.n, text)

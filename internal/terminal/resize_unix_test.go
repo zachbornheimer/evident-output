@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/terminal"
+	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
 
 func TestANSI_StartResizeWatch_InvokesCallbackOnSIGWINCH(t *testing.T) {
