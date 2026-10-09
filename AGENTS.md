@@ -52,7 +52,7 @@ pin (`desired_version=v0.2.9`) must not fire rec-only rules.
 
 ## MUST-loop (non-negotiable)
 
-```
+```text
 review → apply every suggestion → review the same source
 ```
 
@@ -109,32 +109,18 @@ Run live CLI and fresh-MCP canaries in tmux:
 ```bash
 tmux new-session -d -s zq-evo-canary -n mcp \
   -c "$HOME/Developer/Personal/evident-output"
-tmux new-window -t zq-evo-canary -n extract \
-  -c "$HOME/Developer/Personal/evident-output"
 tmux new-window -t zq-evo-canary -n flight \
   -c "$HOME/Developer/Zysys/flight"
 # attach: tmux attach -t zq-evo-canary
 ```
 
-| Window    | What                                                                                                                      |
-| --------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `mcp`     | Reinstall binary, `grok mcp doctor`, then a **fresh** `grok -p` that calls `evident_output_review` with `kind=directory`. |
-| `extract` | `mise run evo-usage-audit -- <repo> --output FILE`                                                                        |
-| `flight`  | `time zq clean-repo --dry-run` on a 100+ worktree repo. Real TTY.                                                         |
+| Window   | What                                                                                                                      |
+| -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `mcp`    | Reinstall binary, `grok mcp doctor`, then a **fresh** `grok -p` that calls `evident_output_review` with `kind=directory`. |
+| `flight` | `time zq clean-repo --dry-run` on a 100+ worktree repo. Real TTY.                                                         |
 
 Do not start a second `zq clean-repo` on the same repo while one is still
 classifying — it serializes on the same git dirs.
-
-## Inventory another repo’s call sites
-
-```bash
-mise run evo-usage-audit -- <repo-path> --output FILE
-# example:
-mise run evo-usage-audit -- ~/Developer/Personal/zq --output ~/Desktop/zq-evo.md
-```
-
-Flags **after** the task name. `mise run --output FILE evo-usage-audit` is
-swallowed by mise’s own `-o`.
 
 ## Dialect the MCP enforces (current rec)
 
@@ -187,9 +173,7 @@ evo.Task("fetch").After(worktrees, branches).Define(fetchPrune)
    `kind=directory`, `directory=<abs zq>`. **Not** this long-lived TUI if its
    schema is stale.
 3. Apply every remaining finding. Re-review until `recheck_required=false`.
-4. Extract `~/Desktop/zq-evo.md` via the mise task. A human (or a reviewer
-   subagent) reads that file for clarity — MCP findings are not a clarity review.
-5. Live: `tmux` window `flight`, `time zq clean-repo --dry-run` in a real TTY.
+4. Live: `tmux` window `flight`, `time zq clean-repo --dry-run` in a real TTY.
 
 CLI fallback when the attached host is stale (do **not** skip MCP on a fresh
 process):
