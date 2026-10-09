@@ -17,7 +17,7 @@ import "github.com/zachbornheimer/evident-output/internal/engine"
 // Claims coordinate every Output in one process. Across processes only the
 // manifest lock coordinates, and only for tracked File/Exec state in the
 // same manifest namespace; see "Shared resources and concurrency" in
-// docs/reference.md.
+// mcp/docs/reference.md.
 type Resource = engine.Resource
 
 // FSResource names the filesystem path path. A relative path resolves

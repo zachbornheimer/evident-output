@@ -28,6 +28,7 @@ const staleAPIWindow = 8
 // directly regardless of extension.
 var staleAPIScanRoots = []string{
 	"docs",
+	"mcp/docs",
 	"internal/agent/sections",
 	"skills",
 	"examples",

@@ -1,4 +1,4 @@
-// Package main compiles docs/development.md's "Machine output" fence
+// Package main compiles mcp/docs/development.md's "Machine output" fence
 // verbatim. See TestDocFencesMatchFixtures. Never run.
 package main
 

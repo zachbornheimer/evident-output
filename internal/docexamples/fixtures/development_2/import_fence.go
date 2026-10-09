@@ -1,4 +1,4 @@
-// Package main compiles docs/development.md's "Production ANSI driver"
+// Package main compiles mcp/docs/development.md's "Production ANSI driver"
 // fence verbatim, split across this file and main.go — see
 // TestDocFencesMatchFixtures and FixtureRegion in the parent package for
 // why. Never run.

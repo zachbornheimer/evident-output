@@ -68,7 +68,7 @@ func ExampleMessageSnapshot() {
 }
 
 // ExampleOutput_Events reads the durable event journal for a JSONL
-// projection (docs/development.md's "Machine output" snippet).
+// projection (mcp/docs/development.md's "Machine output" snippet).
 func ExampleOutput_Events() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
 	out.Task("apply patch").Define(func(context.Context) error { return nil })

@@ -8,7 +8,7 @@ import (
 )
 
 // API-062: Skipped records the Task's own disposition (the item is the
-// Task, docs/reference.md) and resolves it, so a second call on the same
+// Task, mcp/docs/reference.md) and resolves it, so a second call on the same
 // Task is misuse. The per-item shape is group.Task(item).Skipped(reason);
 // the renderer folds those children into one tally (contract §25).
 

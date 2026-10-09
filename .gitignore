@@ -68,4 +68,6 @@
 !/integrations/**
 !/tools/
 !/tools/**
+!/mcp/
+!/mcp/**
 __pycache__/

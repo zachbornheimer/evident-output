@@ -1,4 +1,4 @@
-// Package main compiles docs/development.md's "Interactive (testkit /
+// Package main compiles mcp/docs/development.md's "Interactive (testkit /
 // virtual terminal)" fence verbatim. See TestDocFencesMatchFixtures. Never
 // run.
 package main

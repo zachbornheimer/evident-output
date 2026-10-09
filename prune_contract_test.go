@@ -248,7 +248,7 @@ type keptItem struct {
 // pruneCategory is one zq prune category in the contract-correct per-item
 // shape: a Group named for the category holding the category's own Task
 // (same name: it classifies, summarizes, and owns the Effect, so the
-// ledger subject is the category — docs/reference.md "own Task") plus one
+// ledger subject is the category — mcp/docs/reference.md "own Task") plus one
 // child Task per kept item that resolves Kept (the item is the Task).
 type pruneCategory struct {
 	name, summary string

@@ -42,7 +42,7 @@ Directory walks up to `go.mod` and installs that pin (or `./cmd/evident-output-m
 from this module / a path replace). Never `GOBIN=$HOME/.local/bin` — install lands in
 `$(go env GOPATH)/bin` and is symlinked into `~/.local/bin`.
 
-### 0.2 → 0.4 (do not copy v0.2 spellings)
+## 0.2 → 0.4 (do not copy v0.2 spellings)
 
 | Gone                                                                                                                                                     | Use                                                                                                         |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |

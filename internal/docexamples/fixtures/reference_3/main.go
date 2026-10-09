@@ -1,4 +1,4 @@
-// Package main compiles docs/reference.md's "docker daemon" fence
+// Package main compiles mcp/docs/reference.md's "docker daemon" fence
 // (tool-backed condition, checked in its Define callback) verbatim. See
 // TestDocFencesMatchFixtures. Never run.
 package main

@@ -15,7 +15,7 @@ import (
 // overlays, so the rewritten source builds against the real module.
 const optionsFixtureDir = "../../docexamples/fixtures/development_3"
 
-// supersededOptionsSource is development_3 as docs/development.md taught
+// supersededOptionsSource is development_3 as mcp/docs/development.md taught
 // it before E-088: Config.Options with four Options, every one of which
 // has a Config field.
 const supersededOptionsSource = `package main

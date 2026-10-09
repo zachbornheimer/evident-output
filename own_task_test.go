@@ -36,7 +36,7 @@ func renderCategory(t *testing.T, workName string) string {
 }
 
 // TestOwnTask_SameNamedWorkTaskIsTheGroupRow pins the "own Task" rule
-// (docs/reference.md): the Task named for its Group is the Group's own
+// (mcp/docs/reference.md): the Task named for its Group is the Group's own
 // work, so once the items fold the Group renders as that one row.
 func TestOwnTask_SameNamedWorkTaskIsTheGroupRow(t *testing.T) {
 	want := "✓ branches  12 checked\n  - skipped 2 (1 protected, 1 unpushed)\n" + readyBand
@@ -49,7 +49,7 @@ func TestOwnTask_SameNamedWorkTaskIsTheGroupRow(t *testing.T) {
 // half: a child with any other name cannot say which subject it is about.
 // It never stands in for its Group, and it is a work peer of the kept
 // children, which then keep their named rows: nothing says they are items
-// of one category (docs/reference.md, "own Task").
+// of one category (mcp/docs/reference.md, "own Task").
 func TestOwnTask_DifferentlyNamedTaskNeverStandsInForItsGroup(t *testing.T) {
 	want := "✓ classify  12 checked\n○ main\n  - skipped 1 (protected)\n○ feat/a\n  - skipped 1 (unpushed)\n" + readyBand
 	if got := renderCategory(t, "classify"); got != want {

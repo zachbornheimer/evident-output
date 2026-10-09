@@ -13,7 +13,7 @@ import (
 // the data model has to live where they can reach it without an import
 // cycle back through the behavioral facades (Output, TaskHandle, evidence)
 // that stay declared here. pkg.go.dev cannot expand an aliased type's
-// fields (internal/core is never rendered) — see docs/reference.md for the
+// fields (internal/core is never rendered) — see mcp/docs/reference.md for the
 // full field-level reference this doc comment summarizes.
 type Snapshot = core.Snapshot
 

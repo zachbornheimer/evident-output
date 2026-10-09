@@ -104,9 +104,9 @@ the state, not a state of their own.
 ## Learn more
 
 - [`docs/migration/1.0.md`](docs/migration/1.0.md) — upgrading from 0.5: every breaking change with before/after code
-- [`docs/reference.md`](docs/reference.md) — construction, config, lifecycle, severity dialect, evidence capture, platform adapters, vocabulary
-- [`docs/development.md`](docs/development.md) — mise commands, conformance suite, examples ladder, CLI, machine output, production ANSI driver, testkit
-- [`docs/mcp.md`](docs/mcp.md) — the `evident-output-mcp` stdio server (Grok, Claude Code, Codex, …)
+- [`mcp/docs/reference.md`](mcp/docs/reference.md) — construction, config, lifecycle, severity dialect, evidence capture, platform adapters, vocabulary
+- [`mcp/docs/development.md`](mcp/docs/development.md) — mise commands, conformance suite, examples ladder, CLI, machine output, production ANSI driver, testkit
+- [`mcp/docs/mcp.md`](mcp/docs/mcp.md) — the `evident-output-mcp` stdio server (Grok, Claude Code, Codex, …)
 - [`docs/guides/teaching-ladder.md`](docs/guides/teaching-ladder.md) — the ordinary-surface learning order
 - [`docs/guides/large-platform-adoption.md`](docs/guides/large-platform-adoption.md) — guidance for Docker-/npm-/Homebrew-scale CLIs
 - [`docs/adoption/librarian.md`](docs/adoption/librarian.md) — a real adoption case study, with what was and wasn't validated

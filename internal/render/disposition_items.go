@@ -5,7 +5,7 @@ import (
 )
 
 // A Group's per-item children that did nothing but resolve Kept or Skipped
-// (the item is the Task — docs/reference.md) are counted, not listed:
+// (the item is the Task — mcp/docs/reference.md) are counted, not listed:
 // "Rendering every child is not a correctness requirement; retaining every
 // child in the model is" and "aggregation is a renderer concern" (contract
 // §25). Human output folds them into one tally per disposition under the

@@ -21,7 +21,7 @@ import "os"
 // outside the markers and asserts nothing about the doc.
 func snippet() {
 	// docexamples:snippet start
-	out := evo.New(evo.Config{ // evo.New; MainWith below — both removed in 1.0, see docs/mcp.md
+	out := evo.New(evo.Config{ // evo.New; MainWith below — both removed in 1.0, see mcp/docs/mcp.md
 		Title: "librarian",
 		Debug: evo.DebugConfig{Level: evo.LevelWarn},
 	})

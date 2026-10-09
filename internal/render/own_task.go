@@ -15,7 +15,7 @@ import "github.com/zachbornheimer/evident-output/internal/core"
 // with any other name never stands in for its Group, because it cannot say
 // which subject it is about — three sibling categories that each declared
 // one "classify" child once rendered as three indistinguishable "classify"
-// rows. Live and durable output share this rule (docs/reference.md, "own
+// rows. Live and durable output share this rule (mcp/docs/reference.md, "own
 // Task").
 
 // IsOwnTask reports whether t is the own Task of the Group named group.

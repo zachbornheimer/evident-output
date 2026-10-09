@@ -48,13 +48,13 @@ import (
 var docFixtures = []docexamples.DocFixture{
 	{Doc: "README.md", FenceIndex: 0, Fixture: "fixtures/readme_quickstart"},
 
-	{Doc: "docs/reference.md", FenceIndex: 0, Fixture: "fixtures/reference_1"},
-	{Doc: "docs/reference.md", FenceIndex: 1, Fixture: "fixtures/reference_2"},
-	{Doc: "docs/reference.md", FenceIndex: 2, Fixture: "fixtures/reference_3"},
+	{Doc: "mcp/docs/reference.md", FenceIndex: 0, Fixture: "fixtures/reference_1"},
+	{Doc: "mcp/docs/reference.md", FenceIndex: 1, Fixture: "fixtures/reference_2"},
+	{Doc: "mcp/docs/reference.md", FenceIndex: 2, Fixture: "fixtures/reference_3"},
 
-	{Doc: "docs/development.md", FenceIndex: 0, Fixture: "fixtures/development_1"},
-	{Doc: "docs/development.md", FenceIndex: 1, Fixture: "fixtures/development_2"},
-	{Doc: "docs/development.md", FenceIndex: 2, Fixture: "fixtures/development_3"},
+	{Doc: "mcp/docs/development.md", FenceIndex: 0, Fixture: "fixtures/development_1"},
+	{Doc: "mcp/docs/development.md", FenceIndex: 1, Fixture: "fixtures/development_2"},
+	{Doc: "mcp/docs/development.md", FenceIndex: 2, Fixture: "fixtures/development_3"},
 
 	{Doc: "docs/guides/teaching-ladder.md", FenceIndex: 0, Fixture: "fixtures/teaching_ladder_1"},
 	{Doc: "docs/guides/teaching-ladder.md", FenceIndex: 1, Fixture: "fixtures/teaching_ladder_2"},
@@ -222,7 +222,7 @@ func repoRoot(t *testing.T) string {
 
 // TestCatalogGuidesHaveNoUntestedGoFences guards the other half of the MCP
 // docs corpus (sections.List() serves the embedded docs above, plus every
-// internal/agent/catalog guide as "guide/<id>" — see docs/mcp.md and
+// internal/agent/catalog guide as "guide/<id>" — see mcp/docs/mcp.md and
 // internal/agent/sections/sections.go). Catalog guide bodies carry inline
 // backtick snippets today, not ```go fences, so there is nothing to pin
 // yet. If a guide ever grows a fenced Go block, this fails until it gets a

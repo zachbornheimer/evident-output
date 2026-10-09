@@ -1,5 +1,5 @@
 // Package review — API-062: Skipped records a Task's own disposition
-// (the item is the Task, docs/reference.md) and resolves it, so calling
+// (the item is the Task, mcp/docs/reference.md) and resolves it, so calling
 // it again on the same Task is misuse. The per-item shape is
 // group.Task(item).Skipped(reason); the renderer folds those children into
 // one tally under the Group's row (contract §25). Kept was removed in 1.1.

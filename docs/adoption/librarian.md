@@ -4,7 +4,7 @@
 > `evo.New`, `Plan`, `Changes`, and `Item`. Those spellings were removed in
 > v0.4. On current evo use `evo.Init` + `evo.Main(run)` and `evo.Effect` /
 > `evo.File` inside `Task.Define`. See the 0.2 → 0.4 note in
-> [`docs/mcp.md`](../mcp.md) and [`docs/migration/1.1.md`](../migration/1.1.md).
+> [`mcp/docs/mcp.md`](../mcp.md) and [`docs/migration/1.1.md`](../migration/1.1.md).
 
 **Evo pin:** v0.2.9+ (presentation polish; library pin hygiene at v0.2.10)
 **Validated mode:** batch-summary only
@@ -32,7 +32,7 @@ present.go     → Plan | Changes + optional FailedBy Item
 Construction:
 
 ```go
-out := evo.New(evo.Config{ // evo.New; MainWith below — both removed in 1.0, see docs/mcp.md
+out := evo.New(evo.Config{ // evo.New; MainWith below — both removed in 1.0, see mcp/docs/mcp.md
     Title: "librarian",
     Debug: evo.DebugConfig{Level: evo.LevelWarn},
 })

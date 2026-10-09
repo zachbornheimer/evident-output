@@ -6,6 +6,7 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -35,11 +36,17 @@ func main() {
 		`(?m)(\*\*Release:\*\*\s*\*\*|Pinned release:\s*` + "`" + `|^\*\*Pin:\*\*\s*` + "`" + `)v\d+\.\d+\.\d+`,
 	)
 
+	repo, err := os.OpenRoot(root)
+	if err != nil {
+		fail(fmt.Errorf("open module root %s: %w", root, err))
+	}
+	defer func() { _ = repo.Close() }()
+
 	var paths []string
-	paths = append(paths, filepath.Join(root, "README.md"))
-	paths = append(paths, filepath.Join(root, "docs", "mcp.md"))
+	paths = append(paths, "README.md")
+	paths = append(paths, "mcp/docs/mcp.md")
 	for _, dir := range []string{"skills", "integrations"} {
-		_ = filepath.WalkDir(filepath.Join(root, dir), func(path string, d os.DirEntry, err error) error {
+		_ = fs.WalkDir(repo.FS(), dir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil || d.IsDir() {
 				return err
 			}
@@ -52,7 +59,7 @@ func main() {
 
 	changed := 0
 	for _, path := range paths {
-		body, err := os.ReadFile(path)
+		body, err := repo.ReadFile(path)
 		if err != nil {
 			fail(err)
 		}
@@ -65,11 +72,10 @@ func main() {
 		next = regexp.MustCompile("\\*\\*Pinned release:\\*\\* `v\\d+\\.\\d+\\.\\d+`").ReplaceAllString(next, "**Pinned release:** `"+want+"`")
 
 		if next != orig {
-			if err := os.WriteFile(path, []byte(next), 0o644); err != nil {
+			if err := repo.WriteFile(path, []byte(next), 0o600); err != nil {
 				fail(err)
 			}
-			rel, _ := filepath.Rel(root, path)
-			fmt.Fprintf(os.Stderr, "  updated %s\n", rel)
+			fmt.Fprintf(os.Stderr, "  updated %s\n", path)
 			changed++
 		}
 	}

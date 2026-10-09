@@ -36,9 +36,9 @@ func TestEveryListedSectionIDResolves(t *testing.T) {
 func TestEmbeddedDocsMatchSource(t *testing.T) {
 	root := repoRoot(t)
 	cases := map[string]string{
-		"reference.md":          filepath.Join(root, "docs", "reference.md"),
-		"development.md":        filepath.Join(root, "docs", "development.md"),
-		"mcp.md":                filepath.Join(root, "docs", "mcp.md"),
+		"reference.md":          filepath.Join(root, "mcp", "docs", "reference.md"),
+		"development.md":        filepath.Join(root, "mcp", "docs", "development.md"),
+		"mcp.md":                filepath.Join(root, "mcp", "docs", "mcp.md"),
 		"adoption-ladder.md":    filepath.Join(root, "docs", "guides", "teaching-ladder.md"),
 		"exit-code-fidelity.md": filepath.Join(root, "docs", "guides", "exit-code-fidelity.md"),
 	}
