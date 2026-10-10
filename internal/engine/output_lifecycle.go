@@ -26,6 +26,10 @@ func (o *Output) Close() error {
 	}
 	o.closing = make(chan struct{})
 	defer close(o.closing)
+	// A Confirm still waiting for an answer would hold its caller forever
+	// once the run is gone.
+	for o.cancelPendingConfirmLocked(cancelCauseClose) {
+	}
 	needFinish := !o.finished
 	o.mu.Unlock()
 	if needFinish {
@@ -82,6 +86,9 @@ func (o *Output) Conclusion() Conclusion {
 // cancelCauseUser is the cause an interrupt signal records: the person at
 // the terminal stopped the run.
 const cancelCauseUser = "by user"
+
+// cancelCauseClose is the cause a Close records on a Confirm still waiting.
+const cancelCauseClose = "run closed"
 
 // explainCancellationLocked names the cancellation cause on a cancelled
 // conclusion. Any other outcome keeps its own Explanation untouched.
