@@ -1,4 +1,6 @@
-package fingerprint
+// This file owns Value: the Fingerprint of a caller-supplied scalar.
+
+package freshness
 
 import (
 	"context"

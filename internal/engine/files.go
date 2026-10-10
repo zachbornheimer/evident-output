@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/zachbornheimer/evident-output/internal/fingerprint"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 )
 
@@ -44,7 +44,7 @@ func (f desiredFile) operation(taskID string) fileOperation {
 		taskID:      taskID,
 		spec:        FileSpec{Path: f.target.rel, Contents: f.contents, Mode: f.mode},
 		path:        path,
-		derivedFrom: &derivation{standard: f.standard, target: f.target, basis: f.basis, desired: fingerprint.ObservedFile(path, f.contents), edit: f.edit},
+		derivedFrom: &derivation{standard: f.standard, target: f.target, basis: f.basis, desired: freshness.ObservedFile(path, f.contents), edit: f.edit},
 	}
 }
 
@@ -54,8 +54,8 @@ func (f desiredFile) operation(taskID string) fileOperation {
 type derivation struct {
 	standard bool
 	target   workspaceFile
-	basis    fingerprint.FingerprintValue
-	desired  fingerprint.FingerprintValue
+	basis    freshness.FingerprintValue
+	desired  freshness.FingerprintValue
 	edit     manifest.BasisRecord
 }
 

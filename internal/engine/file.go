@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/fingerprint"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 )
 
 // FileSpec declares one managed-state file resource (spec §8/§8.1).
@@ -26,7 +26,7 @@ type FileSpec struct {
 	// Basis lists additional Fingerprint inputs whose change invalidates
 	// this operation's prior record even when Contents/Mode alone would
 	// look unchanged (spec §11.4).
-	Basis []fingerprint.Fingerprint
+	Basis []freshness.Fingerprint
 }
 
 // File-specific misuse/usage errors (spec §8.1).

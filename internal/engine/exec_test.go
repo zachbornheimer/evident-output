@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/fingerprint"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 )
 
 // scriptedRunner is a minimal in-package ProcessRunner fake — testkit's own
@@ -320,7 +320,7 @@ func TestExecBasisDriftForcesRespawn(t *testing.T) {
 	}
 	spec1 := ExecSpec{
 		Executable: tool, Outputs: []string{"out.txt"}, Dir: dir,
-		Basis: []fingerprint.Fingerprint{fingerprint.Value("input", 1)},
+		Basis: []freshness.Fingerprint{freshness.Value("input", 1)},
 	}
 	first := Init(Config{Isolated: true, StateDir: state, ProcessRunner: &scriptedRunner{exitCode: 0}})
 	if err := runExecTask(t, first, "build", spec1); err != nil {
@@ -329,7 +329,7 @@ func TestExecBasisDriftForcesRespawn(t *testing.T) {
 	_ = first.Close()
 
 	spec2 := spec1
-	spec2.Basis = []fingerprint.Fingerprint{fingerprint.Value("input", 2)}
+	spec2.Basis = []freshness.Fingerprint{freshness.Value("input", 2)}
 	runner := &scriptedRunner{exitCode: 0}
 	second := Init(Config{Isolated: true, StateDir: state, ProcessRunner: runner})
 	t.Cleanup(func() { _ = second.Close() })
@@ -467,7 +467,7 @@ func TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput(t *testing.
 
 		_, err := Exec(taskCtx, ExecSpec{
 			Executable: compileTool, Dir: dir,
-			Basis:   []fingerprint.Fingerprint{fingerprint.FSPath(schemaPath)},
+			Basis:   []freshness.Fingerprint{freshness.FSPath(schemaPath)},
 			Outputs: []string{"compiled.txt"},
 		})
 		got, readErr := os.ReadFile(schemaPath)

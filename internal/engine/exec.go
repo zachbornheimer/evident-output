@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/zachbornheimer/evident-output/internal/fingerprint"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/fs"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/process"
@@ -31,7 +31,7 @@ type ExecSpec struct {
 	// Basis lists additional Fingerprint inputs whose change invalidates
 	// this operation's prior record (spec §11.4). A relative FSPath entry
 	// resolves against the workspace, same as File's Path (spec §8.4).
-	Basis []fingerprint.Fingerprint
+	Basis []freshness.Fingerprint
 	// Outputs are paths this invocation produces, relative to Dir. No
 	// Outputs means Exec has nothing observable to skip by, so it always
 	// runs (spec §8.4).

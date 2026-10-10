@@ -277,7 +277,7 @@
         "run": "TestOpaqueTaskDefinitionRunsEveryRun"
       },
       {
-        "pkg": "./internal/fingerprint",
+        "pkg": "./internal/freshness",
         "run": "TestAppFingerprintsExecutableBytesWhenReadable"
       }
     ],

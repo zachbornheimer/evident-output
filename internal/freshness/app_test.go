@@ -1,4 +1,4 @@
-package fingerprint
+package freshness
 
 import (
 	"context"
@@ -32,9 +32,7 @@ func TestAppFingerprintsExecutableBytesWhenReadable(t *testing.T) {
 	}
 	var fp FingerprintValue
 	var err error
-	withAppEnvironment(env, func() {
-		fp, err = App().Fingerprint(context.Background())
-	})
+	fp, err = appFingerprint{env: env}.Fingerprint(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,9 +43,7 @@ func TestAppFingerprintsExecutableBytesWhenReadable(t *testing.T) {
 	changed := env
 	changed.fileContents = map[string][]byte{"/bin/app": []byte("binary-v2")}
 	var fp2 FingerprintValue
-	withAppEnvironment(changed, func() {
-		fp2, err = App().Fingerprint(context.Background())
-	})
+	fp2, err = appFingerprint{env: changed}.Fingerprint(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,9 +60,7 @@ func TestAppFallsBackToBuildIDWhenExecutableUnreadable(t *testing.T) {
 	}
 	var fp FingerprintValue
 	var err error
-	withAppEnvironment(env, func() {
-		fp, err = App().Fingerprint(context.Background())
-	})
+	fp, err = appFingerprint{env: env}.Fingerprint(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,9 +72,7 @@ func TestAppFallsBackToBuildIDWhenExecutableUnreadable(t *testing.T) {
 func TestAppUnavailableIsTypedError(t *testing.T) {
 	env := fakeAppEnvironment{exeErr: os.ErrNotExist, buildOK: false}
 	var err error
-	withAppEnvironment(env, func() {
-		_, err = App().Fingerprint(context.Background())
-	})
+	_, err = appFingerprint{env: env}.Fingerprint(context.Background())
 	if !errors.Is(err, ErrAppFingerprintUnavailable) {
 		t.Fatalf("err = %v, want ErrAppFingerprintUnavailable", err)
 	}

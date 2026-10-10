@@ -1,4 +1,6 @@
-package fingerprint
+// This file owns App: the Fingerprint of the running application itself.
+
+package freshness
 
 import (
 	"context"
@@ -14,20 +16,20 @@ import (
 // §11.2's "unavailable" outcome.
 var ErrAppFingerprintUnavailable = errors.New("fingerprint: application fingerprint unavailable")
 
-// appEnvironment is the facade App() reads the running executable and its
-// build metadata through — swapped for a fake in this package's own tests.
+// appEnvironment is what App() reads the running executable and its build
+// metadata through — a fake in this package's own tests.
 type appEnvironment interface {
 	Executable() (string, error)
 	ReadFile(path string) ([]byte, error)
 	ReadBuildInfo() (buildID string, ok bool)
 }
 
-// osAppEnvironment is the real process/filesystem.
-type osAppEnvironment struct{}
+// runningApplication is the real process, read through the filesystem facade.
+type runningApplication struct{}
 
-func (osAppEnvironment) Executable() (string, error)          { return sysfs.Executable() }
-func (osAppEnvironment) ReadFile(path string) ([]byte, error) { return sysfs.ReadFile(path) }
-func (osAppEnvironment) ReadBuildInfo() (string, bool) {
+func (runningApplication) Executable() (string, error)          { return sysfs.Executable() }
+func (runningApplication) ReadFile(path string) ([]byte, error) { return sysfs.ReadFile(path) }
+func (runningApplication) ReadBuildInfo() (string, bool) {
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
 		return "", false
@@ -43,21 +45,10 @@ func (osAppEnvironment) ReadBuildInfo() (string, bool) {
 	return "", false
 }
 
-// activeAppEnvironment is the package-level facade seam (see fs.go's
-// activeFS for the same pattern applied to filesystem observation).
-var activeAppEnvironment appEnvironment = osAppEnvironment{}
-
-// withAppEnvironment runs fn with the app facade swapped to env, restoring
-// the previous one afterward. Test-only.
-func withAppEnvironment(env appEnvironment, fn func()) {
-	prev := activeAppEnvironment
-	activeAppEnvironment = env
-	defer func() { activeAppEnvironment = prev }()
-	fn()
-}
-
 // appFingerprint implements Fingerprint for App().
-type appFingerprint struct{}
+type appFingerprint struct {
+	env appEnvironment
+}
 
 // App fingerprints the running application itself (spec §11.2): SHA-256 of
 // the running executable's bytes when readable, else a stable Go build ID
@@ -65,11 +56,11 @@ type appFingerprint struct{}
 // Include it in an operation's Basis only when the application's own
 // implementation is itself a semantic input to that operation's result.
 func App() Fingerprint {
-	return appFingerprint{}
+	return appFingerprint{env: runningApplication{}}
 }
 
-func (appFingerprint) Fingerprint(_ context.Context) (FingerprintValue, error) {
-	digest, err := appDigest(activeAppEnvironment)
+func (f appFingerprint) Fingerprint(_ context.Context) (FingerprintValue, error) {
+	digest, err := appDigest(f.env)
 	if err != nil {
 		return FingerprintValue{}, err
 	}

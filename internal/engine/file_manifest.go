@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/zachbornheimer/evident-output/internal/fingerprint"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/record"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
@@ -179,7 +179,7 @@ func taskOpaqueDefinitionFingerprint(key, appFingerprint string) string {
 // returns them canonicalized by (Kind, Key) — Basis order is semantically
 // irrelevant (§11.1). A duplicate (Kind, Key) pair is a programmer error
 // (§11.1).
-func basisRecordsFrom(ctx context.Context, basis []fingerprint.Fingerprint) ([]manifest.BasisRecord, error) {
+func basisRecordsFrom(ctx context.Context, basis []freshness.Fingerprint) ([]manifest.BasisRecord, error) {
 	records := make([]manifest.BasisRecord, 0, len(basis))
 	for _, b := range basis {
 		v, err := b.Fingerprint(ctx)
@@ -243,7 +243,7 @@ func fileDefinitionFingerprint(path string, contentsManaged bool, contents []byt
 // §8.3/§11.1) for storage as, or comparison against, a File operation's
 // tracked output record.
 func pathOutputDigest(ctx context.Context, path string) (string, error) {
-	v, err := fingerprint.FSPath(path).Fingerprint(ctx)
+	v, err := freshness.FSPath(path).Fingerprint(ctx)
 	if err != nil {
 		return "", fmt.Errorf("evo: output %q: %w", path, err)
 	}

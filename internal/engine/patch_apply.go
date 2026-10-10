@@ -7,7 +7,7 @@ import (
 	"io"
 	"io/fs"
 
-	"github.com/zachbornheimer/evident-output/internal/fingerprint"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/patch"
 	"github.com/zachbornheimer/evident-output/internal/publish"
 	"github.com/zachbornheimer/evident-output/internal/record"
@@ -36,7 +36,7 @@ type patchStep struct {
 // deletion was validated against.
 type plannedRemoval struct {
 	target workspaceFile
-	basis  fingerprint.FingerprintValue
+	basis  freshness.FingerprintValue
 }
 
 // ApplyPatch applies a unified diff directly. Every affected path is
@@ -195,7 +195,7 @@ func (o *Output) commitPatchStep(ctx context.Context, taskID string, step patchS
 func (o *Output) publishPatchedFile(ctx context.Context, taskID string, file desiredFile) error {
 	fsys := o.fileFS()
 	path := file.target.path()
-	desired := fingerprint.ObservedFile(path, file.contents)
+	desired := freshness.ObservedFile(path, file.contents)
 	holdsResult := func(current observedSource) bool {
 		return current.basis == desired && (file.mode == 0 || current.mode == file.mode.Perm())
 	}

@@ -8,7 +8,7 @@ import (
 	"io/fs"
 	"slices"
 
-	"github.com/zachbornheimer/evident-output/internal/fingerprint"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/patch"
 )
@@ -29,7 +29,7 @@ type desiredFile struct {
 	target   workspaceFile
 	contents []byte
 	mode     fs.FileMode
-	basis    fingerprint.FingerprintValue
+	basis    freshness.FingerprintValue
 	edit     manifest.BasisRecord
 	standard bool // planned by ApplyPatch: missing parents are created
 }
@@ -154,7 +154,7 @@ func desiredContents(edit patch.File, source observedSource, path string, result
 // the output an operation of edit left at observed's path: the manifest's
 // proof that the bytes there are this Task's own earlier result of this
 // same edit, not of a different diff that happened to leave them.
-func (o *Output) taskLastLeft(ctx context.Context, taskID string, observed fingerprint.FingerprintValue, edit manifest.BasisRecord) bool {
+func (o *Output) taskLastLeft(ctx context.Context, taskID string, observed freshness.FingerprintValue, edit manifest.BasisRecord) bool {
 	store, openErr := o.manifestFor(ctx)
 	if openErr != nil {
 		return false
@@ -184,7 +184,7 @@ type observedSource struct {
 	exists   bool
 	contents []byte
 	mode     fs.FileMode
-	basis    fingerprint.FingerprintValue
+	basis    freshness.FingerprintValue
 }
 
 // observeSource reads path read-only. Only a regular file or an absent
@@ -196,11 +196,11 @@ func observeSource(fsys FileFS, path string) (observedSource, error) {
 		return observedSource{}, inspectErr
 	}
 	if !exists {
-		return observedSource{basis: fingerprint.ObservedMissing(path)}, nil
+		return observedSource{basis: freshness.ObservedMissing(path)}, nil
 	}
 	contents, readErr := fsys.ReadFile(path)
 	if readErr != nil {
 		return observedSource{}, fmt.Errorf("evo: Patch read %q: %w", path, readErr)
 	}
-	return observedSource{exists: true, contents: contents, mode: info.Mode().Perm(), basis: fingerprint.ObservedFile(path, contents)}, nil
+	return observedSource{exists: true, contents: contents, mode: info.Mode().Perm(), basis: freshness.ObservedFile(path, contents)}, nil
 }

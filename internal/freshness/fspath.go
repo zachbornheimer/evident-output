@@ -1,4 +1,7 @@
-package fingerprint
+// This file owns FSPath: the Fingerprint of a filesystem path's content,
+// read through the filesystem facade.
+
+package freshness
 
 import (
 	"context"
@@ -6,6 +9,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"sort"
 
 	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 )
@@ -22,8 +26,10 @@ const (
 	markerDir         = "evident-output:fspath:dir:v1\x00"
 )
 
-// fsPathFingerprint implements Fingerprint for FSPath(path).
+// fsPathFingerprint implements Fingerprint for FSPath(path). It reads
+// through vfs, the real filesystem unless a test supplies a fake.
 type fsPathFingerprint struct {
+	vfs  sysfs.Inspector
 	path string
 }
 
@@ -39,12 +45,12 @@ type fsPathFingerprint struct {
 //
 // Ordinary permission/mtime/owner changes never change the digest.
 func FSPath(path string) Fingerprint {
-	return fsPathFingerprint{path: path}
+	return fsPathFingerprint{vfs: sysfs.System(), path: path}
 }
 
 // PathOf reports the filesystem path an FSPath Fingerprint observes, and
-// whether f is an FSPath at all. It exists for the engine package's
-// producer/consumer freshness barrier (spec §11.6): the barrier must key on
+// whether f is an FSPath at all. It exists for the producer/consumer
+// freshness barrier (spec §11.6): the barrier must key on
 // and wait for a path *before* calling Fingerprint (which reads the file),
 // so it needs the path without performing that read — never for a caller
 // to bypass Fingerprint's own read-only observation.
@@ -57,7 +63,7 @@ func PathOf(f Fingerprint) (path string, ok bool) {
 }
 
 func (f fsPathFingerprint) Fingerprint(_ context.Context) (FingerprintValue, error) {
-	digest, err := fingerprintPath(activeFS, f.path)
+	digest, err := fingerprintPath(f.vfs, f.path)
 	if err != nil {
 		return FingerprintValue{}, fmt.Errorf("fingerprint fs path %q: %w", f.path, err)
 	}
@@ -87,7 +93,7 @@ func missingDigest() Digest { return sum256([]byte(markerMissing)) }
 
 // fingerprintPath is FSPath's observation, factored out so directory
 // traversal (fingerprintDir) can recurse into it for each entry.
-func fingerprintPath(vfs FS, path string) (Digest, error) {
+func fingerprintPath(vfs sysfs.Inspector, path string) (Digest, error) {
 	info, err := vfs.Lstat(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return missingDigest(), nil
@@ -119,7 +125,7 @@ func fingerprintPath(vfs FS, path string) (Digest, error) {
 // directory: sorted entry names, each entry's own digest (recursing through
 // fingerprintPath so nested files/dirs/symlinks use identical rules), and
 // each entry's type — mtimes/permissions/ownership never enter the hash.
-func fingerprintDir(vfs FS, path string) (Digest, error) {
+func fingerprintDir(vfs sysfs.Inspector, path string) (Digest, error) {
 	entries, err := vfs.ReadDir(path)
 	if err != nil {
 		return Digest{}, err
@@ -150,7 +156,7 @@ const ownerRead fs.FileMode = 0o400
 // readRegular reads a regular file. Mode 0000 denies the read even to the
 // owner, so the real filesystem facade adds owner-read for the read and
 // puts the mode back. A fake FS is left alone.
-func readRegular(vfs FS, path string, mode fs.FileMode) ([]byte, error) {
+func readRegular(vfs sysfs.Inspector, path string, mode fs.FileMode) ([]byte, error) {
 	contents, err := vfs.ReadFile(path)
 	if err == nil || !errors.Is(err, fs.ErrPermission) {
 		return contents, err
@@ -167,4 +173,16 @@ func readRegular(vfs FS, path string, mode fs.FileMode) ([]byte, error) {
 		return nil, chmodErr
 	}
 	return contents, readErr
+}
+
+// sortedDirEntryNames returns names, sorted, for deterministic Merkle
+// traversal order (spec §11.1: "deterministic ... over sorted relative
+// names").
+func sortedDirEntryNames(entries []fs.DirEntry) []string {
+	names := make([]string, len(entries))
+	for i, e := range entries {
+		names[i] = e.Name()
+	}
+	sort.Strings(names)
+	return names
 }

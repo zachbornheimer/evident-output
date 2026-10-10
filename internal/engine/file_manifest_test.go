@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/fingerprint"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 )
 
@@ -72,7 +72,7 @@ func TestFileManifestBasisDriftForcesReconciliation(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "managed.txt")
 
 	first := Init(Config{Isolated: true, StateDir: state})
-	spec1 := FileSpec{Path: path, Contents: []byte("desired"), Basis: []fingerprint.Fingerprint{fingerprint.Value("input", 1)}}
+	spec1 := FileSpec{Path: path, Contents: []byte("desired"), Basis: []freshness.Fingerprint{freshness.Value("input", 1)}}
 	if err := runFileTask(t, first, "file", spec1); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestFileManifestBasisDriftForcesReconciliation(t *testing.T) {
 		t.Fatal("expected a prior operation record from the first run")
 	}
 
-	spec2 := FileSpec{Path: path, Contents: []byte("desired"), Basis: []fingerprint.Fingerprint{fingerprint.Value("input", 2)}}
+	spec2 := FileSpec{Path: path, Contents: []byte("desired"), Basis: []freshness.Fingerprint{freshness.Value("input", 2)}}
 	basis2, err := second.observeBasis(context.Background(), spec2.Basis)
 	if err != nil {
 		t.Fatalf("observe Basis: %v", err)
@@ -336,9 +336,9 @@ func TestFileManifestPostDefineEvidenceSourcesFromOperations(t *testing.T) {
 // TestFileBasisRecordsRejectsDuplicateKind proves spec §11.1: duplicate
 // (Kind, Key) Basis pairs within one operation are a programmer error.
 func TestFileBasisRecordsRejectsDuplicateKind(t *testing.T) {
-	_, err := basisRecordsFrom(context.Background(), []fingerprint.Fingerprint{
-		fingerprint.Value("same", 1),
-		fingerprint.Value("same", 2),
+	_, err := basisRecordsFrom(context.Background(), []freshness.Fingerprint{
+		freshness.Value("same", 1),
+		freshness.Value("same", 2),
 	})
 	if err == nil {
 		t.Fatal("duplicate (kind,key) Basis entries must be rejected")

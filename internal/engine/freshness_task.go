@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/zachbornheimer/evident-output/internal/fingerprint"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
@@ -22,12 +22,12 @@ type BasisSource interface {
 }
 
 // FingerprintBasis observes a Fingerprint (FSPath, Value, App).
-func FingerprintBasis(f fingerprint.Fingerprint) BasisSource { return fingerprintBasis{inner: f} }
+func FingerprintBasis(f freshness.Fingerprint) BasisSource { return fingerprintBasis{inner: f} }
 
-type fingerprintBasis struct{ inner fingerprint.Fingerprint }
+type fingerprintBasis struct{ inner freshness.Fingerprint }
 
 func (b fingerprintBasis) observe(ctx context.Context, _ *Output) (manifest.BasisRecord, error) {
-	records, err := basisRecordsFrom(ctx, []fingerprint.Fingerprint{b.inner})
+	records, err := basisRecordsFrom(ctx, []freshness.Fingerprint{b.inner})
 	if err != nil {
 		return manifest.BasisRecord{}, err
 	}

@@ -1,10 +1,10 @@
-// Package fingerprint computes observation-only content identities for
-// evo.File/evo.Exec Basis and operation-definition hashing (spec §11.1).
-//
-// Every constructor here (FSPath, Value, App) is read-only: none of them
-// mutate the world, and none of them accept or leak secret material — only
-// a stable Kind/Key label and a SHA-256 Digest are ever persisted.
-package fingerprint
+// This file owns the Fingerprint contract: observation-only content
+// identities for evo.File/evo.Exec Basis and operation-definition hashing
+// (spec §11.1). Every constructor (FSPath, Value, App) is read-only: none of
+// them mutate the world, and none of them accept or leak secret material —
+// only a stable Kind/Key label and a SHA-256 Digest are ever persisted.
+
+package freshness
 
 import (
 	"context"

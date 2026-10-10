@@ -1,4 +1,4 @@
-package fingerprint
+package freshness
 
 import (
 	"context"
@@ -88,12 +88,10 @@ func TestFSPathMissingIsStableAndDistinctFromPresent(t *testing.T) {
 
 func TestFSPathInaccessibleIsErrorNotMissing(t *testing.T) {
 	sentinel := os.ErrPermission
-	withFS(fakeFS{lstatErr: sentinel}, func() {
-		_, err := FSPath("/whatever").Fingerprint(context.Background())
-		if err == nil {
-			t.Fatal("expected an error for an inaccessible path")
-		}
-	})
+	_, err := fsPathFingerprint{vfs: fakeFS{lstatErr: sentinel}, path: "/whatever"}.Fingerprint(context.Background())
+	if err == nil {
+		t.Fatal("expected an error for an inaccessible path")
+	}
 }
 
 // A mode-0000 file denies the read even to its owner, but it is still a

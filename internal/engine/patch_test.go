@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/fingerprint"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 )
 
 // patchWorkspace is a temp workspace and an Output whose relative paths
@@ -162,7 +162,7 @@ func TestPatchMultiFileDerivesEachDesiredStateWithSourceBasis(t *testing.T) {
 	for _, f := range set.files {
 		assertBasisMatchesFSPath(t, f)
 	}
-	if set.files[1].basis != fingerprint.ObservedMissing(created) {
+	if set.files[1].basis != freshness.ObservedMissing(created) {
 		t.Fatalf("a created file's Basis must be its observed absence, got %+v", set.files[1].basis)
 	}
 }
@@ -179,7 +179,7 @@ func assertDesired(t *testing.T, got, want desiredFile) {
 // current FSPath identity, so a later revalidation compares like with like.
 func assertBasisMatchesFSPath(t *testing.T, f desiredFile) {
 	t.Helper()
-	want, err := fingerprint.FSPath(f.target.path()).Fingerprint(context.Background())
+	want, err := freshness.FSPath(f.target.path()).Fingerprint(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/zachbornheimer/evident-output/internal/fingerprint"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
@@ -20,10 +20,10 @@ import (
 // fingerprinted only after its producing operation has settled (§11.6),
 // never mid-write. Each FSPath entry is then observed under a read claim
 // (observeBasis), which also excludes File commits from other Outputs.
-func (o *Output) execBasisRecords(ctx context.Context, basis []fingerprint.Fingerprint) ([]manifest.BasisRecord, error) {
-	resolved := make([]fingerprint.Fingerprint, len(basis))
+func (o *Output) execBasisRecords(ctx context.Context, basis []freshness.Fingerprint) ([]manifest.BasisRecord, error) {
+	resolved := make([]freshness.Fingerprint, len(basis))
 	for i, b := range basis {
-		path, isPath := fingerprint.PathOf(b)
+		path, isPath := freshness.PathOf(b)
 		if !isPath {
 			resolved[i] = b
 			continue
@@ -32,7 +32,7 @@ func (o *Output) execBasisRecords(ctx context.Context, basis []fingerprint.Finge
 		if err := o.awaitOutputBarrier(ctx, canon); err != nil {
 			return nil, fmt.Errorf("evo: Exec Basis: %w", err)
 		}
-		resolved[i] = fingerprint.FSPath(canon)
+		resolved[i] = freshness.FSPath(canon)
 	}
 	return o.observeBasis(ctx, resolved)
 }

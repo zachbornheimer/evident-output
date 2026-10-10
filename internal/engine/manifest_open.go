@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 
-	"github.com/zachbornheimer/evident-output/internal/fingerprint"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 )
 
@@ -61,14 +61,14 @@ func (o *Output) publishManifest(store *manifest.Store, err error, app manifest.
 }
 
 // manifestApplication is this Run's application record (spec §11.2): its
-// id plus, when it can be computed, the running binary's fingerprint. A
+// id plus, when it can be computed, the running binary's freshness. A
 // failed open needs none.
 func manifestApplication(ctx context.Context, appID string, openErr error) manifest.ApplicationRecord {
 	app := manifest.ApplicationRecord{ID: appID}
 	if openErr != nil {
 		return app
 	}
-	if appFP, err := fingerprint.App().Fingerprint(ctx); err == nil {
+	if appFP, err := freshness.App().Fingerprint(ctx); err == nil {
 		app.Fingerprint = "sha256:" + hex.EncodeToString(appFP.Digest[:])
 	}
 	return app

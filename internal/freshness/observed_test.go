@@ -1,4 +1,4 @@
-package fingerprint
+package freshness
 
 import (
 	"context"

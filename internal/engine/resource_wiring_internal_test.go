@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/fingerprint"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 )
 
 // contentionDeadline bounds how long a test waits for a claim it expects
@@ -80,7 +80,7 @@ func (f *tornWriteFS) WriteAtomic(path string, contents []byte, mode fs.FileMode
 
 func fsPathDigest(t *testing.T, path string) string {
 	t.Helper()
-	v, err := fingerprint.FSPath(path).Fingerprint(context.Background())
+	v, err := freshness.FSPath(path).Fingerprint(context.Background())
 	if err != nil {
 		t.Fatalf("fingerprint %q: %v", path, err)
 	}
@@ -117,7 +117,7 @@ func TestBasisObservationCannotRaceFileCommit(t *testing.T) {
 	})
 	reader.Define(func(ctx context.Context) error {
 		<-fsys.midCommit
-		return File(ctx, FileSpec{Path: derived, Contents: []byte("derived"), Basis: []fingerprint.Fingerprint{fingerprint.FSPath(shared)}})
+		return File(ctx, FileSpec{Path: derived, Contents: []byte("derived"), Basis: []freshness.Fingerprint{freshness.FSPath(shared)}})
 	})
 	if err := writer.Wait(); err != nil {
 		t.Fatalf("writer: %v", err)
