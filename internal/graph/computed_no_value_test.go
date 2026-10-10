@@ -7,10 +7,9 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
-// A producer can settle Done without its callback ever running (a Verify that
-// found the work already satisfied), so success alone does not mean a value
-// exists. Handing out the zero value there would pass a made-up answer to
-// every reader.
+// A producer's Task can settle Done without anything setting the value, so
+// success alone does not mean a value exists. Handing out the zero value there
+// would pass a made-up answer to every reader.
 func TestComputedReadAfterTheProducerSucceededWithoutAValueIsRefused(t *testing.T) {
 	g := New(record.NewRun())
 	producer := declare(g, "producer")
@@ -20,10 +19,7 @@ func TestComputedReadAfterTheProducerSucceededWithoutAValueIsRefused(t *testing.
 
 	got, err := computed.Read(g)
 
-	if !errors.Is(err, ErrComputedNoValue) || got != 0 {
-		t.Errorf("Read = %d, %v; want zero and ErrComputedNoValue", got, err)
-	}
-	if !errors.Is(err, ErrComputedUnsettled) {
-		t.Errorf("Read = %v; ErrComputedNoValue must still match ErrComputedUnsettled", err)
+	if !errors.Is(err, ErrComputedUnsettled) || got != 0 {
+		t.Errorf("Read = %d, %v; want zero and ErrComputedUnsettled", got, err)
 	}
 }

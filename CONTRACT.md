@@ -112,10 +112,12 @@ Satisfied and the callback never runs; false after a successful callback
 fails the Task. A Failed, Refused, Excluded or Cancelled predecessor leaves
 its dependents NotStarted. `Get` is valid only from work ordered after the
 producer by Sequence position or `After`; an unordered `Get` fails the run
-with `ErrComputedUnordered` in every mode. A `Build` runs once when its
-container becomes eligible, declares topology only, and closes the
-container's declaration phase; declaring work from inside a Task's callback
-is misuse.
+with `ErrComputedUnordered` in every mode. `Compute` on a Task that has a
+`Verify` is `ErrInvalidConfig` at declaration: a satisfied `Verify` skips the
+callback, so a value would exist only when the world says so. A `Build` runs
+once when its container becomes eligible, declares topology only, and closes
+the container's declaration phase; declaring work from inside a Task's
+callback is misuse.
 
 | Symbol              | Kind   | Meaning                                                                        |
 | ------------------- | ------ | ------------------------------------------------------------------------------ |

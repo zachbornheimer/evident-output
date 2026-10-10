@@ -22,6 +22,11 @@ type Computed[T any] struct{ inner *engine.Computed[T] }
 // A Computed names its producing Task, so After a Computed is After its
 // Task: if the Task failed, was blocked, cancelled, or never started, what
 // runs after it never starts.
+//
+// A Task with a Verify cannot be a producer: a Verify that finds the work
+// already satisfied skips fn, so whether a value exists would depend on the
+// state of the world and not on the code. Compute on one records
+// ErrInvalidConfig at declaration, whatever the Verify would find.
 func Compute[T any](task *TaskHandle, fn func(context.Context) (T, error)) *Computed[T] {
 	return &Computed[T]{inner: engine.Compute(task.impl(), fn)}
 }
@@ -29,9 +34,10 @@ func Compute[T any](task *TaskHandle, fn func(context.Context) (T, error)) *Comp
 // Get returns the produced value. It is valid once the producing Task
 // settled successfully by running its callback. Calling it earlier is
 // misuse: it records ErrComputedUnsettled with its remedy (a panic under
-// Config.Strict) and returns the zero value. So is reading a producer whose
-// Verify found the work already satisfied: its callback never ran, there is
-// no value, and the read is refused the same way. It is never a data race.
+// Config.Strict) and returns the zero value. Called from a Task callback or
+// container builder, a refused read unwinds it instead, so the Task fails with
+// the sentinel and does not carry on with a zero value. It is never a data
+// race.
 func (c *Computed[T]) Get() T {
 	if c == nil {
 		var zero T
