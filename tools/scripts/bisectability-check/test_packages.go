@@ -3,11 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/process"
 )
 
 const (
@@ -94,8 +95,8 @@ func directoryHasGoFiles(worktree string) func(dir string) bool {
 }
 
 func testPackages(worktree string, packages []string) (string, error) {
-	cmd := exec.Command("go", append([]string{"test"}, packages...)...)
-	cmd.Dir = worktree
+	cmd := process.NewCmd("go", append([]string{"test"}, packages...)...)
+	cmd.SetDir(worktree)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
