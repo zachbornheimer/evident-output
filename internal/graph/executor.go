@@ -28,10 +28,12 @@ type executor struct {
 	// executing it decides whether the run can still progress (see
 	// resolveStall).
 	waits map[*WaitTicket]struct{}
-	// callbackGoroutines counts, per goroutine, the task callbacks it is
-	// running right now. A parked goroutine that one of them started may be
-	// what that callback is blocked on (see heldCallbacksLocked).
-	callbackGoroutines map[GoroutineID]int
+	// runningGoroutines counts, per goroutine, the task callbacks and
+	// container builders it is running right now. A parked goroutine that one
+	// of them started may be what that callback is blocked on (see
+	// heldCallbacksLocked), and a Wait from a goroutine a builder started is
+	// refused like one from the builder (see insideBuilder).
+	runningGoroutines map[GoroutineID]goroutineLoad
 	// consumers is, per goroutine, the stack of Tasks and builder gates it
 	// is running (see enterConsumer).
 	consumers map[GoroutineID][]*Task

@@ -13,21 +13,49 @@ func terminal(t *Task) bool { return record.IsTerminalTask(t.Rec.State()) }
 // running it, so a goroutine fn starts and then parks in a wait can be traced
 // back to the callback it may be holding still.
 func (g *Graph) runTrackedCallback(fn func() error) error {
+	defer g.trackRunning(goroutineLoad{callbacks: 1})()
+	return runCallback(fn)
+}
+
+// goroutineLoad is what one goroutine is running right now: task callbacks
+// and container builders.
+type goroutineLoad struct{ callbacks, builders int }
+
+func (l goroutineLoad) total() int { return l.callbacks + l.builders }
+
+// trackRunning adds added to the calling goroutine's load, and returns the
+// func that takes it back out.
+func (g *Graph) trackRunning(added goroutineLoad) (done func()) {
 	id := CurrentGoroutine()
 	g.lock()
-	if g.exec.callbackGoroutines == nil {
-		g.exec.callbackGoroutines = make(map[GoroutineID]int)
+	if g.exec.runningGoroutines == nil {
+		g.exec.runningGoroutines = make(map[GoroutineID]goroutineLoad)
 	}
-	g.exec.callbackGoroutines[id]++
+	load := g.exec.runningGoroutines[id]
+	load.callbacks += added.callbacks
+	load.builders += added.builders
+	g.exec.runningGoroutines[id] = load
 	g.unlock()
-	defer func() {
+	return func() {
 		g.lock()
-		if g.exec.callbackGoroutines[id]--; g.exec.callbackGoroutines[id] <= 0 {
-			delete(g.exec.callbackGoroutines, id)
+		defer g.unlock()
+		load := g.exec.runningGoroutines[id]
+		load.callbacks -= added.callbacks
+		load.builders -= added.builders
+		if load.total() <= 0 {
+			delete(g.exec.runningGoroutines, id)
+			return
 		}
-		g.unlock()
-	}()
-	return runCallback(fn)
+		g.exec.runningGoroutines[id] = load
+	}
+}
+
+// isRunningBuilder reports whether goroutine id is running a container
+// builder.
+func (g *Graph) isRunningBuilder(id GoroutineID) bool {
+	g.lockRead()
+	defer g.unlockRead()
+	return g.exec.runningGoroutines[id].builders > 0
 }
 
 // runCallback is the single frame every task callback runs beneath, so a
@@ -43,7 +71,7 @@ func runCallback(fn func() error) error {
 // runs under builderFrames, not runCallback, so the declarations it makes are
 // not Task-callback declarations.
 func (g *Graph) runGate(c *claim) {
-	panicText := runBuilder(c.work.Run)
+	panicText := g.runTrackedBuilder(c.work.Run)
 	g.lock()
 	defer g.unlock()
 	if panicText != "" {
@@ -52,6 +80,14 @@ func (g *Graph) runGate(c *claim) {
 		return
 	}
 	g.settleLocked(c.task, record.Done)
+}
+
+// runTrackedBuilder is runBuilder while the scheduler knows which goroutine is
+// running the builder, as it does for a callback, so a goroutine the builder
+// starts is traced back to it.
+func (g *Graph) runTrackedBuilder(work func() error) string {
+	defer g.trackRunning(goroutineLoad{builders: 1})()
+	return runBuilder(work)
 }
 
 func runBuilder(work func() error) (panicText string) {

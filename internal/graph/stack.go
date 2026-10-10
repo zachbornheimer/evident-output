@@ -45,8 +45,10 @@ func CallbackDepth() int { return ReadStackMarks().Callbacks }
 // when an answer needs them: a Wait on already-settled work while no claim is
 // held anywhere in the process walks nothing. The zero value reads on demand.
 type WaiterStack struct {
-	read  bool
-	marks StackMarks
+	read        bool
+	marks       StackMarks
+	creatorRead bool
+	creator     GoroutineID
 }
 
 // UnmarkedStack is a WaiterStack already known to be inside no callback and
@@ -71,8 +73,17 @@ func (w *WaiterStack) HoldsClaim() bool {
 	if w.load().Claims > 0 {
 		return true
 	}
-	_, creator := CurrentGoroutineLineage()
-	return processHolds.Blocked(creator)
+	return processHolds.Blocked(w.Creator())
+}
+
+// Creator is the goroutine that started the waiting goroutine (zero for one
+// the runtime started), read once: it needs the whole traceback.
+func (w *WaiterStack) Creator() GoroutineID {
+	if !w.creatorRead {
+		_, w.creator = CurrentGoroutineLineage()
+		w.creatorRead = true
+	}
+	return w.creator
 }
 
 // InsideBuilder reports whether the waiting goroutine is running a container

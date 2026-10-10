@@ -96,11 +96,22 @@ func (g *Graph) waitChecked(t *Task, stack *WaiterStack, seen *InputSeals) error
 // depends on the ceiling or on timing; a wait that the settled row already
 // answers is no wait at all and never reaches here.
 func (g *Graph) refuseInsideBuilder(name string, stack *WaiterStack) error {
-	if !stack.InsideBuilder() {
+	if !g.insideBuilder(stack) {
 		return nil
 	}
 	g.misuse.RecordMisuseFor(name, ErrWaitInBuilder)
 	return fmt.Errorf("%w: Wait on %q inside a container builder; declare the work and Wait outside it", ErrWaitInBuilder, name)
+}
+
+// insideBuilder reports whether the waiting goroutine is running a container
+// builder, on its own stack or through the goroutine that started it: the
+// errgroup shape hands the Wait to a goroutine whose stack shows no builder.
+// A run whose builders never ran reads nothing.
+func (g *Graph) insideBuilder(stack *WaiterStack) bool {
+	if builderFrames.Name() == nil {
+		return false
+	}
+	return stack.InsideBuilder() || g.isRunningBuilder(stack.Creator())
 }
 
 // answerable reports whether t's row already answers a wait: t was never

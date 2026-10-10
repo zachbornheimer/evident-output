@@ -144,17 +144,17 @@ func (g *Graph) heldCallbacksLocked() int {
 		}
 	}
 	for creator := range creators {
-		held += g.exec.callbackGoroutines[creator]
+		held += g.exec.runningGoroutines[creator].total()
 	}
 	return held
 }
 
 // startedByCallbackLocked reports whether w's goroutine was started by a
-// goroutine that is running a task callback right now. A parked waiter's own
-// callbacks are already counted by its depth, so only a plain waiter can be
-// one.
+// goroutine that is running a task callback or container builder right now. A
+// parked waiter's own callbacks are already counted by its depth, so only a
+// plain waiter can be one.
 func (g *Graph) startedByCallbackLocked(w *WaitTicket) bool {
-	return w.depth == 0 && w.creator != 0 && g.exec.callbackGoroutines[w.creator] > 0
+	return w.depth == 0 && w.creator != 0 && g.exec.runningGoroutines[w.creator].total() > 0
 }
 
 // anyStartableLocked reports whether the pool could start queued work now:
