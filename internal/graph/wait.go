@@ -107,13 +107,20 @@ func (g *Graph) refuseUnorderedInBuilder(t *Task, stack *WaiterStack) error {
 // enclosingBuilder is the gate of the container builder the waiting goroutine
 // is running, on its own stack or through the goroutines that started it: the
 // errgroup shape hands the Wait to a goroutine whose stack shows no builder.
-// A run with no builder running reads nothing.
+// A goroutine inside a task callback is that callback's, never the builder's,
+// even though the builder's Define kicked the worker running it; and the walk
+// to a starting goroutine stops at the first one running any work, so a
+// callback's goroutines are not charged to the builder above it. A run with
+// no builder running reads nothing.
 func (g *Graph) enclosingBuilder(stack *WaiterStack) (gate *Task, inside bool) {
 	if !g.anyBuilderRunning() {
 		return nil, false
 	}
 	if stack.InsideBuilder() {
 		return g.builderGateOf(CurrentGoroutine()), true
+	}
+	if stack.RunsWork() {
+		return nil, false
 	}
 	if creator := g.startingGoroutine(stack.Creator(), goroutineLoad.runsBuilder); g.isRunningBuilder(creator) {
 		return g.builderGateOf(creator), true
