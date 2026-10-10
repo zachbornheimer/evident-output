@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"errors"
 	"fmt"
 	"runtime"
 
@@ -149,8 +150,8 @@ func (g *Graph) runClaimed(c *claim) bool {
 // fails the row, the slot (pooled only) and the executing count are
 // returned, and the scheduler is kicked.
 func (g *Graph) finishClaimed(c *claim) {
-	if r := recover(); r != nil && c.work.Panicked != nil {
-		c.work.Panicked(fmt.Sprintf("panic: %v", r))
+	if r := recover(); r != nil {
+		g.recordPanic(c, r)
 	}
 	g.lock()
 	if c.pooled {
@@ -161,6 +162,21 @@ func (g *Graph) finishClaimed(c *claim) {
 	g.unlock()
 	g.WorkDone()
 	g.Kick()
+}
+
+// recordPanic states a panic that escaped c's callback. The row fails with the
+// panic text. A Computed read the declared order refused unwinds with its
+// sentinel, and that sentinel is what the callback "returned": a waiter
+// matches it with errors.Is instead of parsing the text.
+func (g *Graph) recordPanic(c *claim, recovered any) {
+	if err, ok := recovered.(error); ok && errors.Is(err, ErrComputedUnordered) {
+		g.lock()
+		c.task.workErr = err
+		g.unlock()
+	}
+	if c.work.Panicked != nil {
+		c.work.Panicked(fmt.Sprintf("panic: %v", recovered))
+	}
 }
 
 // execute runs one Task's callback and settles the Task from what it

@@ -52,4 +52,27 @@ func assertUnorderedGetBeforeSettleUnwinds(t *testing.T, mode evo.Config) {
 	if continued.Load() || !errors.Is(out.Err(), evo.ErrComputedUnordered) {
 		t.Fatalf("continued=%v, Err() = %v; want the callback unwound with ErrComputedUnordered", continued.Load(), out.Err())
 	}
+	if err := read.Wait(); !errors.Is(err, evo.ErrComputedUnordered) {
+		t.Fatalf("Wait() = %v; want errors.Is ErrComputedUnordered", err)
+	}
+}
+
+// The producer settling first does not make an unordered Get ordered: the
+// callback proved settledness with Wait, not order, so Get still fails and
+// the reader's Wait still matches the sentinel.
+func TestCompute_UnorderedGetAfterTheProducerSettledStillFailsTheReaderWithTheSentinel(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true})
+	defer func() { _ = out.Close() }()
+	made := out.Group("producers").Task("make")
+	producer := evo.Compute(made, func(context.Context) (int, error) { return 1, nil })
+	read := out.Group("consumers").Task("read")
+	read.Define(func(context.Context) error {
+		_ = made.Wait()
+		_ = producer.Get()
+		return nil
+	})
+	_ = out.Finish()
+	if err := read.Wait(); !errors.Is(err, evo.ErrComputedUnordered) {
+		t.Fatalf("Wait() = %v; want errors.Is ErrComputedUnordered", err)
+	}
 }
