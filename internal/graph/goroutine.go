@@ -50,21 +50,20 @@ func CurrentGoroutineLineage() (self, creator GoroutineID) {
 
 // GoroutineAncestors lists the goroutines that started the calling one,
 // nearest first, as far as the runtime still names them: a creator that has
-// exited ends the chain. It reads every goroutine's traceback, which stops the
-// world, so callers ask only once the direct creator was not enough.
-func GoroutineAncestors() []GoroutineID {
-	dump := allGoroutineTraces()
+// exited ends the chain. Each goroutine's creator is read once per process
+// (see lineage), so callers ask only once the direct creator was not enough.
+func GoroutineAncestors() []GoroutineID { return processLineage.ancestors(CurrentGoroutine()) }
+
+// goroutineCreators maps every goroutine in a dump of all tracebacks to the
+// goroutine that started it (zero for one the runtime started).
+func goroutineCreators(dump []byte) map[GoroutineID]GoroutineID {
 	creators := make(map[GoroutineID]GoroutineID)
 	for trace := range bytes.SplitSeq(dump, goroutineSeparator) {
 		if id := parseGoroutineHeader(trace); id != 0 {
 			creators[id] = parseGoroutineCreator(trace)
 		}
 	}
-	var chain []GoroutineID
-	for id := creators[parseGoroutineHeader(dump)]; id != 0 && len(chain) <= len(creators); id = creators[id] {
-		chain = append(chain, id)
-	}
-	return chain
+	return creators
 }
 
 // allGoroutineTraces is every goroutine's traceback, the calling goroutine's

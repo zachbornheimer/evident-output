@@ -98,30 +98,33 @@ func (c *Computed[T]) Get() T {
 		return zero
 	}
 	o := c.task.out
+	// Who is reading is resolved before the Output's lock is taken: finding
+	// out may stop the world, and every row's rendering waits on that lock.
+	reader := o.graph.CurrentReader()
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if c.value == nil {
-		o.refuseComputedReadLocked("", ErrComputedUnsettled)
+		o.refuseComputedReadLocked("", ErrComputedUnsettled, reader)
 		return zero
 	}
-	v, err := c.value.Read(o.graph)
+	v, err := c.value.ReadAs(o.graph, reader)
 	if err == nil {
 		return v
 	}
-	o.refuseComputedReadLocked(c.value.Producer().Name, err)
+	o.refuseComputedReadLocked(c.value.Producer().Name, err, reader)
 	return zero
 }
 
-// refuseComputedReadLocked records a refused Computed read naming subject. A
-// read on the goroutine of a callback or container builder unwinds it with
-// err. One from a goroutine the callback started cannot: the graph fails the
-// callback's Task when it returns.
-func (o *Output) refuseComputedReadLocked(subject string, err error) {
+// refuseComputedReadLocked records a refused Computed read by reader naming
+// subject. A read on the goroutine of a callback or container builder unwinds
+// it with err. One from a goroutine the callback started cannot: the graph
+// fails the callback's Task when it returns.
+func (o *Output) refuseComputedReadLocked(subject string, err error, reader graph.Reader) {
 	if subject != "" {
 		err = fmt.Errorf("%w: read of %q", err, subject)
 	}
 	o.recordMisuseFor(subject, err)
-	if o.graph.CurrentReader().Unwinds() {
+	if reader.Unwinds() {
 		panic(err)
 	}
 }

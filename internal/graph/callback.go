@@ -32,8 +32,8 @@ func (l goroutineLoad) runsAny() bool { return l.total() > 0 }
 // goroutines in between: creator itself when it qualifies, else the nearest
 // ancestor that does. With none, or no goroutine running anything, it is
 // creator, so the common case reads no more than the direct creator. The
-// ancestor walk stops the world; it is reached only by a goroutine another
-// goroutine started while work runs.
+// ancestor walk may stop the world, once per goroutine (see lineage); it is
+// reached only by a goroutine another goroutine started while work runs.
 func (g *Graph) startingGoroutine(creator GoroutineID) GoroutineID {
 	if creator == 0 {
 		return 0

@@ -50,9 +50,13 @@ func (c *Computed[T]) Set(v T) { c.value, c.produced = v, true }
 //
 // A refused read from such a started goroutine also fails the callback's own
 // Task, once the callback returns: the goroutine cannot unwind it.
-func (c *Computed[T]) Read(g *Graph) (T, error) {
+func (c *Computed[T]) Read(g *Graph) (T, error) { return c.ReadAs(g, g.CurrentReader()) }
+
+// ReadAs is Read for a reader the caller already resolved with CurrentReader,
+// so a caller holding a lock can resolve it first, before taking the lock:
+// resolving a goroutine's lineage may stop the world.
+func (c *Computed[T]) ReadAs(g *Graph, reader Reader) (T, error) {
 	var zero T
-	reader := g.CurrentReader()
 	if err := c.refusalFor(g, reader.Task); err != nil {
 		g.refuseSpawnedRead(reader, err)
 		return zero, err
