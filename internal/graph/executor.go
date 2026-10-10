@@ -34,6 +34,9 @@ type executor struct {
 	// heldCallbacksLocked), and a Wait from a goroutine a builder started is
 	// refused like one from the builder (see insideBuilder).
 	runningGoroutines map[GoroutineID]goroutineLoad
+	// buildersRunning is how many container builders run right now across
+	// every goroutine: zero lets a Wait skip reading its stack for one.
+	buildersRunning int
 	// consumers is, per goroutine, the stack of Tasks and builder gates it
 	// is running (see enterConsumer).
 	consumers map[GoroutineID][]*Task

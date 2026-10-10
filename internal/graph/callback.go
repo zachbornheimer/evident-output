@@ -2,6 +2,7 @@ package graph
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
@@ -35,10 +36,12 @@ func (g *Graph) trackRunning(added goroutineLoad) (done func()) {
 	load.callbacks += added.callbacks
 	load.builders += added.builders
 	g.exec.runningGoroutines[id] = load
+	g.exec.buildersRunning += added.builders
 	g.unlock()
 	return func() {
 		g.lock()
 		defer g.unlock()
+		g.exec.buildersRunning -= added.builders
 		load := g.exec.runningGoroutines[id]
 		load.callbacks -= added.callbacks
 		load.builders -= added.builders
@@ -48,6 +51,28 @@ func (g *Graph) trackRunning(added goroutineLoad) (done func()) {
 		}
 		g.exec.runningGoroutines[id] = load
 	}
+}
+
+// anyBuilderRunning reports whether any goroutine is running a container
+// builder right now.
+func (g *Graph) anyBuilderRunning() bool {
+	g.lockRead()
+	defer g.unlockRead()
+	return g.exec.buildersRunning > 0
+}
+
+// builderGateOf is the innermost container builder gate goroutine id is
+// running for, or nil.
+func (g *Graph) builderGateOf(id GoroutineID) *Task {
+	g.lockRead()
+	defer g.unlockRead()
+	stack := g.exec.consumers[id]
+	for _, s := range slices.Backward(stack) {
+		if s.IsGate() {
+			return s
+		}
+	}
+	return nil
 }
 
 // isRunningBuilder reports whether goroutine id is running a container

@@ -75,11 +75,11 @@ func (g *Graph) refuseUnderClaim(name string, stack *WaiterStack) error {
 // walks its stack at most once, and not at all unless a claim is held
 // somewhere or it actually parks, and walks shared inputs once.
 func (g *Graph) waitChecked(t *Task, stack *WaiterStack, seen *InputSeals) error {
+	if err := g.refuseUnorderedInBuilder(t, stack); err != nil {
+		return err
+	}
 	g.SealAwaited(t, seen)
 	if !g.answerable(t) {
-		if err := g.refuseInsideBuilder(t.Name, stack); err != nil {
-			return err
-		}
 		g.RunWaited(t, stack)
 	}
 	if err := g.parkUntilSettled(t, stack); err != nil {
@@ -88,30 +88,37 @@ func (g *Graph) waitChecked(t *Task, stack *WaiterStack, seen *InputSeals) error
 	return g.waitOutcome(t)
 }
 
-// refuseInsideBuilder refuses a wait on the Task or container named name that
-// has to wait, when the calling goroutine is running a container builder. The
-// builder declares the topology the awaited work belongs to and settles only
-// when it returns, so the wait could never end and Finish would hang behind
-// it. Refused every time, not only when it would hang, so the outcome never
-// depends on the ceiling or on timing; a wait that the settled row already
-// answers is no wait at all and never reaches here.
-func (g *Graph) refuseInsideBuilder(name string, stack *WaiterStack) error {
-	if !g.insideBuilder(stack) {
+// refuseUnorderedInBuilder refuses a wait on t when the calling goroutine is
+// running a container builder that is not ordered after t. The builder
+// declares the topology t belongs to and settles only when it returns, so such
+// a wait could never end and Finish would hang behind it. A builder ordered
+// After t runs only once t settled, so that wait is answered. Which of the
+// two it is follows from the declared order alone, so the outcome never
+// depends on the ceiling or on whether t happened to settle first.
+func (g *Graph) refuseUnorderedInBuilder(t *Task, stack *WaiterStack) error {
+	gate, inside := g.enclosingBuilder(stack)
+	if !inside || (gate != nil && g.OrderedAfter(gate, t)) {
 		return nil
 	}
-	g.misuse.RecordMisuseFor(name, ErrWaitInBuilder)
-	return fmt.Errorf("%w: Wait on %q inside a container builder; declare the work and Wait outside it", ErrWaitInBuilder, name)
+	g.misuse.RecordMisuseFor(t.Name, ErrWaitInBuilder)
+	return fmt.Errorf("%w: Wait on %q inside a container builder; declare the work and Wait outside it", ErrWaitInBuilder, t.Name)
 }
 
-// insideBuilder reports whether the waiting goroutine is running a container
-// builder, on its own stack or through the goroutine that started it: the
+// enclosingBuilder is the gate of the container builder the waiting goroutine
+// is running, on its own stack or through the goroutine that started it: the
 // errgroup shape hands the Wait to a goroutine whose stack shows no builder.
-// A run whose builders never ran reads nothing.
-func (g *Graph) insideBuilder(stack *WaiterStack) bool {
-	if builderFrames.Name() == nil {
-		return false
+// A run with no builder running reads nothing.
+func (g *Graph) enclosingBuilder(stack *WaiterStack) (gate *Task, inside bool) {
+	if !g.anyBuilderRunning() {
+		return nil, false
 	}
-	return stack.InsideBuilder() || g.isRunningBuilder(stack.Creator())
+	if stack.InsideBuilder() {
+		return g.builderGateOf(CurrentGoroutine()), true
+	}
+	if creator := stack.Creator(); g.isRunningBuilder(creator) {
+		return g.builderGateOf(creator), true
+	}
+	return nil, false
 }
 
 // answerable reports whether t's row already answers a wait: t was never
