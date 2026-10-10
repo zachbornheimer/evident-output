@@ -60,7 +60,7 @@ func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle 
 	o := t.out
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	st := o.taskByRef[t.id]
+	st := o.taskStates[t.id]
 	if st == nil {
 		return t
 	}
@@ -96,7 +96,7 @@ func (t *TaskHandle) Define(fn func(context.Context) error) *TaskHandle {
 		return t
 	}
 	o.mu.Lock()
-	st := o.taskByRef[t.id]
+	st := o.taskStates[t.id]
 	if st == nil {
 		o.recordMisuse(t.rejected)
 		o.mu.Unlock()
@@ -209,7 +209,7 @@ func (t *TaskHandle) checkAfterDefine(verifiers []verifierFunc, scope *taskScope
 func (t *TaskHandle) hasPostStateToVerify() bool {
 	o := t.out
 	o.mu.Lock()
-	st := o.taskByRef[t.id]
+	st := o.taskStates[t.id]
 	// Block resolves at once, so its terminal Task is never re-checked. A
 	// Kept or Skipped inside Define is held as an unratified proposal
 	// until the callback's return confirms it; it claims "no change" only
@@ -231,7 +231,7 @@ func (t *TaskHandle) hasPostStateToVerify() bool {
 func (o *Output) recordOperationsEvidence(taskID string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	st := o.taskByRef[taskID]
+	st := o.taskStates[taskID]
 	if st == nil || len(st.manifestOps) == 0 {
 		return
 	}
@@ -311,7 +311,7 @@ const (
 func (o *Output) recordEvidencePhase(taskID string, phase evidencePhaseName, evaluated, satisfied bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	st := o.taskByRef[taskID]
+	st := o.taskStates[taskID]
 	if st == nil {
 		return
 	}
@@ -347,7 +347,7 @@ func evidencePhaseWireName(phase evidencePhaseName) string {
 func (o *Output) setResolution(taskID string, r Resolution) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if st := o.taskByRef[taskID]; st != nil {
+	if st := o.taskStates[taskID]; st != nil {
 		st.rec.SetResolution(r)
 		st.markFiling()
 	}

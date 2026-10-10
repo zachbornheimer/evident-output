@@ -84,10 +84,10 @@ func (o *Output) refuseWaitUnderClaim(ref string, stack *waiterStack) error {
 func (o *Output) refName(ref string) string {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if st := o.taskByRef[ref]; st != nil {
+	if st := o.taskStates[ref]; st != nil {
 		return st.name
 	}
-	if col := o.tasksByRef[ref]; col != nil {
+	if col := o.containerStates[ref]; col != nil {
 		return col.name
 	}
 	return ref
@@ -138,7 +138,7 @@ func (w *resourceWait) show(resource.Claim) {
 	}
 	w.out.mu.Lock()
 	defer w.out.mu.Unlock()
-	st := w.out.taskByRef[w.taskID]
+	st := w.out.taskStates[w.taskID]
 	if st == nil || core.IsTerminalTask(st.rec.State()) {
 		return
 	}
@@ -156,7 +156,7 @@ func (w *resourceWait) clear() {
 	w.shown = false
 	w.out.mu.Lock()
 	defer w.out.mu.Unlock()
-	st := w.out.taskByRef[w.taskID]
+	st := w.out.taskStates[w.taskID]
 	if st == nil || core.IsTerminalTask(st.rec.State()) || st.rec.Phase() != w.text {
 		return
 	}

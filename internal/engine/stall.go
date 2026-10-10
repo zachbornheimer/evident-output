@@ -57,7 +57,7 @@ func (o *Output) releaseWaitsLocked() {
 	}
 	for _, ticket := range release {
 		ticket.released = o.unreachableWaitLocked(ticket)
-		if st := o.taskByRef[ticket.taskID]; st != nil {
+		if st := o.taskStates[ticket.taskID]; st != nil {
 			o.recordMisuseFor(st.name, ErrWaitDeadlock)
 		}
 	}
@@ -151,7 +151,7 @@ func (o *Output) anyStartableLocked() bool {
 // already terminal — it is about to wake on its own doneCh.
 func (o *Output) anyAwaitedTaskResolvedLocked() bool {
 	for ticket := range o.sched.waits {
-		if st := o.taskByRef[ticket.taskID]; st != nil && core.IsTerminalTask(st.rec.State()) {
+		if st := o.taskStates[ticket.taskID]; st != nil && core.IsTerminalTask(st.rec.State()) {
 			return true
 		}
 	}

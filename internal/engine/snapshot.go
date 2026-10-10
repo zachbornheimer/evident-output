@@ -74,7 +74,7 @@ func (t *taskState) view() TaskSnapshot {
 	truth := t.rec.Truth()
 	base := TaskSnapshot{
 		ID:           t.id,
-		Key:          t.key,
+		Key:          t.key(),
 		Name:         t.name,
 		State:        truth.State,
 		Phase:        truth.Phase,
@@ -267,7 +267,7 @@ func (g *tasksState) header() TasksSnapshot {
 	state := g.derivedState()
 	return TasksSnapshot{
 		ID:          g.id,
-		Key:         g.key,
+		Key:         g.key(),
 		Name:        g.name,
 		State:       state,
 		Summary:     g.displaySummary(state),

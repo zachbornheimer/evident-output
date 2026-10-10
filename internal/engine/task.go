@@ -29,7 +29,7 @@ func (t *TaskHandle) Context() context.Context {
 func (t *TaskHandle) Snapshot() TaskSnapshot {
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
+	st := t.out.taskStates[t.id]
 	if st == nil {
 		return TaskSnapshot{ID: t.id, State: Pending, Progress: Progress{Kind: Indeterminate}}
 	}
@@ -46,7 +46,7 @@ func (t *TaskHandle) Basis(inputs ...BasisSource) *TaskHandle {
 	o := t.out
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	st := o.taskByRef[t.id]
+	st := o.taskStates[t.id]
 	if st == nil {
 		return t
 	}

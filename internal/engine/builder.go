@@ -45,7 +45,7 @@ func (g *GroupHandle) After(preds ...any) *GroupHandle {
 	o := g.out
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	col := o.tasksByRef[g.id]
+	col := o.containerStates[g.id]
 	if col == nil {
 		return g
 	}
@@ -108,7 +108,7 @@ func (g *GroupHandle) defineBuilder(run func()) {
 	}
 	o := g.out
 	o.mu.Lock()
-	col := o.tasksByRef[g.id]
+	col := o.containerStates[g.id]
 	switch {
 	case col == nil:
 		o.recordMisuse(g.rejected)
@@ -124,10 +124,10 @@ func (g *GroupHandle) defineBuilder(run func()) {
 		return
 	}
 	gate := &taskState{
-		id:          o.nextID("gate"),
+		id:          o.graph.NextID("gate"),
 		name:        col.name,
 		rec:         o.rec.NewTask(record.TaskInit{State: Pending}),
-		declaration: o.nextDecl(),
+		declaration: o.graph.NextDeclaration(),
 		doneCh:      make(chan struct{}),
 		gateFor:     col,
 	}
@@ -138,7 +138,7 @@ func (g *GroupHandle) defineBuilder(run func()) {
 	for c := col; c != nil; c = c.parent {
 		c.tally.holds++
 	}
-	o.taskByRef[gate.id] = gate
+	o.taskStates[gate.id] = gate
 	o.sched.gates = append(o.sched.gates, gate)
 	o.sched.wg.Add(1)
 	o.enterPhaseLocked(gate, phaseQueued)
@@ -203,7 +203,7 @@ func (o *Output) concludeGateLocked(st *taskState) {
 		if state != Done {
 			woken = append(woken, c.tally.failBuilder()...)
 		}
-		woken = append(woken, c.tally.release(c == col, o.declSeq)...)
+		woken = append(woken, c.tally.release(c == col, o.graph.Declarations())...)
 	}
 	o.bumpLocked()
 	o.wakeLocked(woken)
@@ -215,7 +215,7 @@ func (o *Output) concludeGateLocked(st *taskState) {
 // the one above it.
 func (o *Output) awaitBuilders(id string, stack *waiterStack) error {
 	o.mu.Lock()
-	col := o.tasksByRef[id]
+	col := o.containerStates[id]
 	o.mu.Unlock()
 	if col == nil {
 		return nil

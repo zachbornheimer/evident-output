@@ -154,7 +154,7 @@ func (s EffectSpec) validate(fn func(context.Context) error) error {
 // verdict.
 func (o *Output) runEffectCallback(ctx context.Context, taskID string, fn func(context.Context) error) (disowned bool, err error) {
 	o.mu.Lock()
-	st := o.taskByRef[taskID]
+	st := o.taskStates[taskID]
 	var deniedAtEntry int
 	if st != nil {
 		st.effectsInFlight++

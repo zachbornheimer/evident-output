@@ -143,7 +143,7 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 	t.out.holdRunningPaint(t.id)
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
-	st := t.out.taskByRef[t.id]
+	st := t.out.taskStates[t.id]
 	if st == nil {
 		return t
 	}

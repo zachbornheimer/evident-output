@@ -62,7 +62,7 @@ func (o *Output) observeTaskBasis(ctx context.Context, inputs []BasisSource) ([]
 func (t *TaskHandle) basisIsCurrent(ctx context.Context) (bool, error) {
 	o := t.out
 	o.mu.Lock()
-	st := o.taskByRef[t.id]
+	st := o.taskStates[t.id]
 	var inputs []BasisSource
 	if st != nil {
 		inputs = append(inputs, st.basisInputs...)
@@ -80,7 +80,7 @@ func (t *TaskHandle) basisIsCurrent(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("evo: Basis: %w", err)
 	}
 	o.mu.Lock()
-	prior, ok := store.Task(st.key)
+	prior, ok := store.Task(st.key())
 	o.mu.Unlock()
 	operations, priorBasis := splitBasisOperation(prior.Operations)
 	current := ok && priorBasis != nil && basisRecordsEqual(priorBasis, observed)

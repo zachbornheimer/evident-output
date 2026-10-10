@@ -25,7 +25,7 @@ func (o *Output) ledgerSectionIDLocked(owner *taskState, tense ledgerTense) stri
 	if id, ok := o.rec.SectionID(owner.id, tense); ok {
 		return id
 	}
-	id := o.rec.OpenSection(owner.ledgerOwner(), tense, o.nextID(tense.String()))
+	id := o.rec.OpenSection(owner.ledgerOwner(), tense, o.graph.NextID(tense.String()))
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: tense.DeclaredEvent(), EntityID: id})
 	return id

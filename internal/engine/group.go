@@ -43,7 +43,7 @@ func (g *GroupHandle) declareChild(name string, sequential bool) *GroupHandle {
 	}
 	g.out.mu.Lock()
 	defer g.out.mu.Unlock()
-	parent := g.out.tasksByRef[g.id]
+	parent := g.out.containerStates[g.id]
 	if parent == nil {
 		return g.out.rejectedGroup(g.rejected)
 	}
@@ -57,7 +57,7 @@ func (g *GroupHandle) Summary(text string) *GroupHandle {
 	}
 	g.out.mu.Lock()
 	defer g.out.mu.Unlock()
-	col := g.out.tasksByRef[g.id]
+	col := g.out.containerStates[g.id]
 	if col == nil {
 		return g
 	}
@@ -78,7 +78,7 @@ func (g *GroupHandle) Snapshot() TasksSnapshot {
 	}
 	g.out.mu.Lock()
 	defer g.out.mu.Unlock()
-	col := g.out.tasksByRef[g.id]
+	col := g.out.containerStates[g.id]
 	if col == nil {
 		return TasksSnapshot{ID: g.id, State: Empty}
 	}

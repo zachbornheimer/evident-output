@@ -19,10 +19,10 @@ func (o *Output) failWith(p Problem) {
 	}
 	// Synthetic failed task for conclusion.
 	st := &taskState{
-		id:          o.nextID("task"),
+		id:          o.graph.NextID("task"),
 		name:        txt.Text(o.cfg.subject),
 		rec:         o.rec.NewTask(record.TaskInit{State: Failed, Problems: []Problem{p}}),
-		declaration: o.nextDecl(),
+		declaration: o.graph.NextDeclaration(),
 		synthetic:   true,
 	}
 	if st.name == "" {
@@ -46,10 +46,10 @@ func (o *Output) Cancel(reason string) {
 		name = identityFallbackName()
 	}
 	t := &taskState{
-		id:          o.nextID("task"),
+		id:          o.graph.NextID("task"),
 		name:        name,
 		rec:         o.rec.NewTask(record.TaskInit{State: Cancelled, Summary: txt.Text(reason)}),
-		declaration: o.nextDecl(),
+		declaration: o.graph.NextDeclaration(),
 		synthetic:   true,
 	}
 	o.appendTaskLocked(t)

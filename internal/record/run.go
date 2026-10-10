@@ -1,6 +1,9 @@
 package record
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 // Run is the truth of one run: the one place its events, outcomes and
 // ledger are held. Every write is an append method and every read returns a
@@ -23,6 +26,8 @@ type Run struct {
 	facts      []Fact
 	warnings   []Problem
 	conclusion *Conclusion
+	// listener hears changes after the lock is released (see SetListener).
+	listener atomic.Pointer[listenerBox]
 }
 
 // NewRun is an empty record of a run that has not started.
@@ -31,6 +36,12 @@ func NewRun() *Run { return &Run{} }
 // AppendEvent stamps e with the next sequence number, records it, and
 // returns the stamped event. limit <= 0 keeps every event.
 func (r *Run) AppendEvent(e Event, limit int) Event {
+	stamped := r.stampEvent(e, limit)
+	r.notifyEventAppended(stamped)
+	return stamped
+}
+
+func (r *Run) stampEvent(e Event, limit int) Event {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.journal.append(e, limit)

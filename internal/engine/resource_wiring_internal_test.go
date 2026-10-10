@@ -30,7 +30,7 @@ const contentionPollInterval = time.Millisecond
 func taskPhase(o *Output, taskID string) string {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if st := o.taskByRef[taskID]; st != nil {
+	if st := o.taskStates[taskID]; st != nil {
 		return st.rec.Phase()
 	}
 	return ""
@@ -127,7 +127,7 @@ func TestBasisObservationCannotRaceFileCommit(t *testing.T) {
 	}
 
 	out.mu.Lock()
-	ops := out.taskByRef[reader.id].manifestOps
+	ops := out.taskStates[reader.id].manifestOps
 	out.mu.Unlock()
 	if len(ops) != 1 || len(ops[0].Basis) != 1 {
 		t.Fatalf("reader recorded %d ops, want 1 with one Basis entry: %+v", len(ops), ops)

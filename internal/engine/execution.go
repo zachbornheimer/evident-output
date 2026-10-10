@@ -18,7 +18,7 @@ func (t *TaskHandle) submitWork(fn func() error) {
 	}
 	o := t.out
 	o.mu.Lock()
-	st := o.taskByRef[t.id]
+	st := o.taskStates[t.id]
 	if st == nil {
 		o.mu.Unlock()
 		return

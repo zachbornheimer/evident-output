@@ -28,7 +28,7 @@ type ledgerTarget struct {
 func (o *Output) resolveLedgerTarget(taskID string) (ledgerTarget, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	st := o.taskByRef[taskID]
+	st := o.taskStates[taskID]
 	if st == nil {
 		return ledgerTarget{}, ErrClosed
 	}

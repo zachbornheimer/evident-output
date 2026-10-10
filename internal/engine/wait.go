@@ -79,7 +79,7 @@ func (o *Output) runWaitedWork(taskID string, stack *waiterStack) {
 func (o *Output) awaitedWorkIsStalled(taskID string) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	st := o.taskByRef[taskID]
+	st := o.taskStates[taskID]
 	return st != nil && st.awaitingStart()
 }
 
@@ -108,7 +108,7 @@ func (o *Output) runClaimed(c *waiterClaim) bool {
 func (o *Output) claimForWaiter(taskID string, stack *waiterStack) *waiterClaim {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	cand := o.taskByRef[taskID]
+	cand := o.taskStates[taskID]
 	if !o.claimableLocked(cand) {
 		return nil
 	}
@@ -233,7 +233,7 @@ func (t *TaskHandle) waitChecked(stack *waiterStack, seen *inputSeals) error {
 // the row the callback fails carries the cycle rather than a bare sentinel.
 // A waiter a live callback started is told the shape that stranded it.
 func (o *Output) unreachableWaitLocked(ticket *waitTicket) error {
-	st := o.taskByRef[ticket.taskID]
+	st := o.taskStates[ticket.taskID]
 	if st == nil {
 		return ErrWaitDeadlock
 	}
@@ -253,7 +253,7 @@ func (o *Output) unreachableWaitLocked(ticket *waitTicket) error {
 func (o *Output) waitOutcome(taskID string) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	st := o.taskByRef[taskID]
+	st := o.taskStates[taskID]
 	switch {
 	case st == nil:
 		return nil
@@ -305,7 +305,7 @@ func (t *TaskHandle) waitSubmitted(stack *waiterStack) error {
 	}
 	o := t.out
 	o.mu.Lock()
-	st := o.taskByRef[t.id]
+	st := o.taskStates[t.id]
 	if st == nil || st.neverDefined() {
 		o.mu.Unlock()
 		return nil

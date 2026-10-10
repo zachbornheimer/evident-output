@@ -46,7 +46,7 @@ func (t *TaskHandle) After(preds ...any) *TaskHandle {
 	o := t.out
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	st := o.taskByRef[t.id]
+	st := o.taskStates[t.id]
 	if st == nil {
 		return t
 	}
@@ -75,7 +75,7 @@ func (o *Output) closeMembershipLocked(p predecessor) predecessor {
 	if p.col == nil || p.through != 0 || p.col.tally.total() == 0 || p.col.tally.holds > 0 {
 		return p
 	}
-	p.through = o.declSeq
+	p.through = o.graph.Declarations()
 	o.sealCollectionLocked(p.col)
 	return p
 }
@@ -84,7 +84,7 @@ func (o *Output) closeMembershipLocked(p predecessor) predecessor {
 // declaration cursor and re-places the Tasks parked on them; any still
 // pending park again.
 func (o *Output) sealCollectionLocked(c *tasksState) {
-	o.wakeLocked(c.tally.seal(o.declSeq))
+	o.wakeLocked(c.tally.seal(o.graph.Declarations()))
 }
 
 // edgeCursorLocked is the declaration cursor edge p reads c's members
@@ -115,14 +115,14 @@ func (o *Output) predecessorOfLocked(p any) (pred predecessor, ok bool) {
 			return predecessor{}, false
 		}
 		if x.out == o {
-			pred.task = o.taskByRef[x.id]
+			pred.task = o.taskStates[x.id]
 		}
 	case *GroupHandle:
 		if x == nil || x.id == "" {
 			return predecessor{}, false
 		}
 		if x.out == o {
-			pred.col = o.tasksByRef[x.id]
+			pred.col = o.containerStates[x.id]
 		}
 	case *SequenceHandle:
 		if x == nil || x.tasks == nil {
@@ -363,7 +363,7 @@ func (o *Output) replaceParkedLocked() {
 			parked = append(parked, gate)
 		}
 	}
-	for _, col := range o.tasksByRef {
+	for _, col := range o.containerStates {
 		col.tally.unpark()
 	}
 	for _, st := range parked {

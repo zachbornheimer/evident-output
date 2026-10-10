@@ -39,7 +39,7 @@ func TestLiveCensusMatchesAWalk(t *testing.T) {
 	out.mu.Lock()
 	defer out.mu.Unlock()
 	_ = out.liveSnapshotLocked(24, clock.t)
-	for _, col := range out.tasksByRef {
+	for _, col := range out.containerStates {
 		var want liveCensus
 		walkCensus(col, &want)
 		got := col.census

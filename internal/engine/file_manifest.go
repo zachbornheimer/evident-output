@@ -59,18 +59,18 @@ func (o *Output) claimManifestOutputLocked(taskID, path string) error {
 // stableKey, already computed at declaration) and the next pending
 // operation ordinal within it. Callers must already hold o.mu.
 func (o *Output) taskManifestKeyLocked(taskID string) (key string, ordinal int, ok bool) {
-	st := o.taskByRef[taskID]
+	st := o.taskStates[taskID]
 	if st == nil {
 		return "", 0, false
 	}
-	return st.key, len(st.manifestOps), true
+	return st.key(), len(st.manifestOps), true
 }
 
 // appendManifestOperationLocked records rec as taskID's next pending
 // operation, committed only if/when the Task itself settles Done (spec
 // §8.2/§11.3). Callers must already hold o.mu.
 func (o *Output) appendManifestOperationLocked(taskID string, rec manifest.OperationRecord) {
-	if st := o.taskByRef[taskID]; st != nil {
+	if st := o.taskStates[taskID]; st != nil {
 		st.manifestOps = append(st.manifestOps, rec)
 	}
 }
@@ -89,19 +89,19 @@ func (o *Output) appendManifestOperationLocked(taskID string, rec manifest.Opera
 // instead of costing each settling Task a full manifest
 // rewrite and fsync under o.mu. Callers must already hold o.mu.
 func (o *Output) commitManifestTaskLocked(ctx context.Context, taskID string) {
-	st := o.taskByRef[taskID]
+	st := o.taskStates[taskID]
 	if st == nil || o.manifestStore == nil {
 		return
 	}
 	ops := st.operationsToCommit()
 	if len(ops) == 0 {
 		o.manifestStore.StageTask(o.manifestApp, manifest.TaskRecord{
-			Key:                   st.key,
-			DefinitionFingerprint: taskOpaqueDefinitionFingerprint(st.key, o.manifestApp.Fingerprint),
+			Key:                   st.key(),
+			DefinitionFingerprint: taskOpaqueDefinitionFingerprint(st.key(), o.manifestApp.Fingerprint),
 		})
 		return
 	}
-	task := manifest.TaskRecord{Key: st.key, Operations: ops}
+	task := manifest.TaskRecord{Key: st.key(), Operations: ops}
 	if err := o.manifestStore.CommitTask(ctx, o.manifestApp, task); err != nil {
 		o.warnManifestUnsavedLocked(err)
 		return

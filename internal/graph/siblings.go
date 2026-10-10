@@ -1,4 +1,4 @@
-package engine
+package graph
 
 // siblings is one parent's registry of the names its children claimed —
 // the root or one Group/Sequence. §3.1 makes a
@@ -33,13 +33,4 @@ func (s *siblings) claimContainer(name string) {
 		s.containers = make(map[string]struct{})
 	}
 	s.containers[name] = struct{}{}
-}
-
-// siblingsLocked returns the registry children of parent claim names in;
-// parent nil is the root. Callers must already hold o.mu.
-func (o *Output) siblingsLocked(parent *tasksState) *siblings {
-	if parent != nil {
-		return &parent.names
-	}
-	return &o.rootNames
 }

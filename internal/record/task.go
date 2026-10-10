@@ -5,12 +5,16 @@ import (
 	"time"
 )
 
+// TaskID names one Task in the record, the key every projection of it uses.
+type TaskID string
+
 // Task is the truth of one Task: where it stands, what it reported, and what
 // it found. It lives inside a Run and shares the Run's mutex, so a write is
 // an append method and a read is a copy. What decides when the Task may run
 // (the scheduler's state) is not truth and stays with the scheduler.
 type Task struct {
 	run *Run
+	id  TaskID
 
 	state          EntityState
 	phase          string
@@ -30,6 +34,7 @@ type Task struct {
 
 // TaskInit is what a Task's record starts with. Zero fields stay zero.
 type TaskInit struct {
+	ID         TaskID
 	State      EntityState
 	Progress   Progress
 	Resolution Resolution
@@ -40,7 +45,7 @@ type TaskInit struct {
 // NewTask starts the record of a Task in this run.
 func (r *Run) NewTask(init TaskInit) *Task {
 	return &Task{
-		run: r, state: init.State, progress: init.Progress, resolution: init.Resolution,
+		run: r, id: init.ID, state: init.State, progress: init.Progress, resolution: init.Resolution,
 		summary: init.Summary, problems: init.Problems,
 	}
 }
@@ -83,6 +88,9 @@ func (t *Task) Truth() TaskTruth {
 	}
 }
 
+// ID is the name the record knows this Task by.
+func (t *Task) ID() TaskID { return t.id }
+
 // State is where the Task stands.
 func (t *Task) State() EntityState {
 	t.run.mu.Lock()
@@ -92,6 +100,7 @@ func (t *Task) State() EntityState {
 
 // Transition moves the Task to state and returns the state it left.
 func (t *Task) Transition(to EntityState) (from EntityState) {
+	defer t.changed()
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	from, t.state = t.state, to
@@ -119,6 +128,7 @@ func (t *Task) Phase() string {
 
 // SetPhase replaces the current-step text with a sanitized text.
 func (t *Task) SetPhase(text string) {
+	defer t.changed()
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	t.phase = SanitizeText(text)
@@ -128,6 +138,15 @@ func (t *Task) SetPhase(text string) {
 // the sanitized text is already the phase.
 func (t *Task) SetPhaseIfChanged(text string) bool {
 	text = SanitizeText(text)
+	if !t.replacePhase(text) {
+		return false
+	}
+	t.changed()
+	return true
+}
+
+// replacePhase sets the phase under the run lock and reports whether it differed.
+func (t *Task) replacePhase(text string) bool {
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	if text == t.phase {
@@ -139,6 +158,7 @@ func (t *Task) SetPhaseIfChanged(text string) bool {
 
 // ClearPhase ends the current step.
 func (t *Task) ClearPhase() {
+	defer t.changed()
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	t.phase = ""
@@ -154,6 +174,7 @@ func (t *Task) Progress() Progress {
 // EnsureIndeterminateProgress gives a Task that has reported no measurement
 // the Indeterminate kind, so a live row knows it is working.
 func (t *Task) EnsureIndeterminateProgress() {
+	defer t.changed()
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	if t.progress.Kind == "" {
@@ -179,6 +200,14 @@ const (
 // it cannot change (retry-safety depends on the denominator staying put).
 // Switching kind is a deliberate re-declaration and resets both freely.
 func (t *Task) ApplyProgress(completed, total int64, kind ProgressKind) ProgressVerdict {
+	verdict := t.applyProgress(completed, total, kind)
+	if verdict == ProgressApplied {
+		t.changed()
+	}
+	return verdict
+}
+
+func (t *Task) applyProgress(completed, total int64, kind ProgressKind) ProgressVerdict {
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	switch {
@@ -211,6 +240,7 @@ func (t *Task) Summary() string {
 
 // SetSummary replaces the result text with a sanitized text; empty clears it.
 func (t *Task) SetSummary(text string) {
+	defer t.changed()
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	t.summary = SanitizeText(text)
@@ -225,6 +255,7 @@ func (t *Task) Resolution() Resolution {
 
 // SetResolution records why the Task settled successfully.
 func (t *Task) SetResolution(r Resolution) {
+	defer t.changed()
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	t.resolution = r
@@ -239,6 +270,7 @@ func (t *Task) VerifyEvidence() TaskEvidence {
 
 // RecordBeforeEvidence records the observation made before Define ran.
 func (t *Task) RecordBeforeEvidence(p EvidencePhase) {
+	defer t.changed()
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	t.verifyEvidence.Before = p
@@ -246,6 +278,7 @@ func (t *Task) RecordBeforeEvidence(p EvidencePhase) {
 
 // RecordAfterEvidence records the observation made after Define ran.
 func (t *Task) RecordAfterEvidence(p EvidencePhase) {
+	defer t.changed()
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	t.verifyEvidence.After = p
@@ -267,6 +300,7 @@ func (t *Task) ProblemCount() int {
 
 // AppendProblems records blocking Problems, sanitized and copied.
 func (t *Task) AppendProblems(problems ...Problem) {
+	defer t.changed()
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	t.problems = append(t.problems, StoreProblems(problems)...)
@@ -277,6 +311,7 @@ func (t *Task) AppendProblems(problems ...Problem) {
 // own gain evidenceTail, the capture tail the Task already gathered, so the
 // evidence a caller collected needs no opt-in.
 func (t *Task) ResolveProblems(state EntityState, extra []Problem, evidenceTail string) {
+	defer t.changed()
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	if len(extra) == 0 && len(t.problems) == 0 {
@@ -325,6 +360,7 @@ func (t *Task) WarningCount() int {
 // AppendWarning records a warning and returns how many the Task now holds.
 // Warnings annotate the Task's lifecycle; they never replace it.
 func (t *Task) AppendWarning(p Problem) int {
+	defer t.changed()
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	t.warnings = append(t.warnings, p)
@@ -340,6 +376,7 @@ func (t *Task) Facts() []Fact {
 
 // AppendFact records a discovered name/value annotation.
 func (t *Task) AppendFact(f Fact) {
+	defer t.changed()
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	t.facts = append(t.facts, f)
@@ -354,6 +391,7 @@ func (t *Task) Actions() []Action {
 
 // AppendAction records a next step for the Task.
 func (t *Task) AppendAction(a Action) {
+	defer t.changed()
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	t.actions = append(t.actions, a)
@@ -369,6 +407,7 @@ func (t *Task) ActivityAt() time.Time {
 
 // MarkActivity records that the Task reported something at at.
 func (t *Task) MarkActivity(at time.Time) {
+	defer t.changed()
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	t.activityAt = at
@@ -383,6 +422,7 @@ func (t *Task) Verification() []VerificationDetail {
 
 // AttachVerification records details, sanitized, and returns the stored copy.
 func (t *Task) AttachVerification(details []VerificationDetail) []VerificationDetail {
+	defer t.changed()
 	stored := StoreVerificationDetails(details)
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
@@ -413,6 +453,7 @@ func (t *Task) HasTaxonomy() bool {
 
 // AppendSkipped records one skipped item.
 func (t *Task) AppendSkipped(rec TaxonomyRecord) {
+	defer t.changed()
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	t.skipped = append(t.skipped, rec)
@@ -420,6 +461,7 @@ func (t *Task) AppendSkipped(rec TaxonomyRecord) {
 
 // AppendKept records one kept item.
 func (t *Task) AppendKept(rec TaxonomyRecord) {
+	defer t.changed()
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	t.kept = append(t.kept, rec)

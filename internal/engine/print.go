@@ -202,7 +202,7 @@ func (o *Output) emitMessageLocked(line string, vis Visibility) {
 	}
 	line = txt.Text(line)
 	// Drop pure empty? Keep empty lines as messages for fmt parity of blank Println.
-	id := o.nextID("message")
+	id := o.graph.NextID("message")
 	o.rec.AppendMessage(MessageSnapshot{ID: id, Text: line, Visibility: vis})
 	// Compatibility: Lines is derived projection of normal+verbose-when-shown.
 	if o.projectsVisibilityLocked(vis) {

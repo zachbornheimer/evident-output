@@ -88,7 +88,7 @@ func TestDuplicateSiblingRefusalRowSharesItsSiblingsIdentity(t *testing.T) {
 	out.mu.Lock()
 	defer out.mu.Unlock()
 	for _, p := range pairs {
-		original := out.taskByRef[p[0].id]
+		original := out.taskStates[p[0].id]
 		var refusal *taskState
 		for _, st := range out.tasks {
 			if st.name == original.name && st.collection == original.collection && st != original {
@@ -98,8 +98,8 @@ func TestDuplicateSiblingRefusalRowSharesItsSiblingsIdentity(t *testing.T) {
 		if refusal == nil {
 			t.Fatalf("%s: no refusal row recorded", original.name)
 		}
-		if refusal.key != original.key {
-			t.Errorf("%s: refusal key %q, original key %q", original.name, refusal.key, original.key)
+		if refusal.key() != original.key() {
+			t.Errorf("%s: refusal key %q, original key %q", original.name, refusal.key(), original.key())
 		}
 	}
 }

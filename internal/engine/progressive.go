@@ -142,7 +142,7 @@ func (c rootColumn) nameWidth() int {
 // same immediate commit for the same reason — a later evidence call must
 // never race above already-resolved work.
 func (o *Output) commitResolvedTaskLocked(id string) {
-	st := o.taskByRef[id]
+	st := o.taskStates[id]
 	if st == nil || st.coreEmitted || !core.IsTerminalTask(st.rec.State()) {
 		return
 	}

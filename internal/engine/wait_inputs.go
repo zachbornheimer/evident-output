@@ -11,7 +11,7 @@ import "github.com/zachbornheimer/evident-output/internal/core"
 func (o *Output) sealAwaitedInputs(taskID string, seen *inputSeals) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	st := o.taskByRef[taskID]
+	st := o.taskStates[taskID]
 	switch {
 	case st == nil || core.IsTerminalTask(st.rec.State()):
 	case st.neverDefined():
@@ -31,7 +31,7 @@ func (o *Output) sealWaitedInputsLocked() bool {
 	var seen inputSeals
 	sealed := false
 	for ticket := range o.sched.waits {
-		st := o.taskByRef[ticket.taskID]
+		st := o.taskStates[ticket.taskID]
 		if st != nil && !core.IsTerminalTask(st.rec.State()) && o.sealInputsLocked(st, &seen) {
 			sealed = true
 		}
@@ -74,7 +74,7 @@ func (o *Output) sealInputsLocked(root *taskState, seen *inputSeals) bool {
 	if !seen.begin(root) {
 		return false
 	}
-	w := inputWalk{seen: seen, stack: []*taskState{root}, cursor: o.declSeq}
+	w := inputWalk{seen: seen, stack: []*taskState{root}, cursor: o.graph.Declarations()}
 	for len(w.stack) > 0 {
 		t := w.stack[len(w.stack)-1]
 		w.stack = w.stack[:len(w.stack)-1]

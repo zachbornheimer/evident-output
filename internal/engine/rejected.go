@@ -11,13 +11,13 @@ import "fmt"
 // rejectedTask is the handle a refused Task declaration returns. err is
 // the refusal and is never nil.
 func (o *Output) rejectedTask(err error) *TaskHandle {
-	return &TaskHandle{out: o, id: o.nextID("task"), rejected: err}
+	return &TaskHandle{out: o, id: o.graph.NextID("task"), rejected: err}
 }
 
 // rejectedGroup is rejectedTask's counterpart for a refused Group or
 // Sequence. Everything declared under it is refused for the same reason.
 func (o *Output) rejectedGroup(err error) *GroupHandle {
-	return &GroupHandle{out: o, id: o.nextID("tasks"), rejected: err}
+	return &GroupHandle{out: o, id: o.graph.NextID("tasks"), rejected: err}
 }
 
 // rejectedWaitOutcome is what Wait returns on a refused declaration: the

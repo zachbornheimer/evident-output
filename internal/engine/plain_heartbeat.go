@@ -119,7 +119,7 @@ func (o *Output) checkPlainHeartbeat(id string) {
 		// text or reschedule past shutdown.
 		return
 	}
-	st := o.taskByRef[id]
+	st := o.taskStates[id]
 	if st == nil || core.IsTerminalTask(st.rec.State()) || st.heartbeat.runningAt.IsZero() {
 		return
 	}

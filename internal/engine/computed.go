@@ -53,7 +53,7 @@ func (c *Computed[T]) Get() T {
 	o := c.task.out
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	st := o.taskByRef[c.task.id]
+	st := o.taskStates[c.task.id]
 	if st == nil || stateOutcome(st.rec.State()) != predSucceeded {
 		name := ""
 		if st != nil {

@@ -111,7 +111,7 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 	for id, abort := range o.confirmAbort {
 		close(abort)
 		delete(o.confirmAbort, id)
-		if st := o.taskByRef[id]; st != nil && !core.IsTerminalTask(st.rec.State()) {
+		if st := o.taskStates[id]; st != nil && !core.IsTerminalTask(st.rec.State()) {
 			st.rec.SetSummary(reason)
 			o.settleLocked(st, Cancelled)
 			o.commitResolvedTaskLocked(id)

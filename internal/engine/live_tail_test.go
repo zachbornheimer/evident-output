@@ -54,7 +54,7 @@ func TestWriter_LiveTailStaysBoundedWhileCaptureKeepsTheStream(t *testing.T) {
 		t.Fatalf("tail.Evidence = %d, want %d lines in the ring", tail.Evidence, want)
 	}
 	out.mu.Lock()
-	capacity := cap(out.taskByRef[task.id].tail.lines)
+	capacity := cap(out.taskStates[task.id].tail.lines)
 	out.mu.Unlock()
 	if capacity != liveTailLines {
 		t.Fatalf("tail backing capacity = %d after %d lines, want fixed %d", capacity, tailTestLines, liveTailLines)

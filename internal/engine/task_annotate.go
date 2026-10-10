@@ -64,7 +64,7 @@ func (t *TaskHandle) withTask(apply func(st *taskState)) *TaskHandle {
 	}
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
-	if st := t.out.taskByRef[t.id]; st != nil {
+	if st := t.out.taskStates[t.id]; st != nil {
 		apply(st)
 		st.markFiling()
 	}

@@ -1,22 +1,10 @@
 package engine
 
 import (
-	"fmt"
-	"sync/atomic"
-
+	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/record"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
-
-func (o *Output) nextID(prefix string) string {
-	n := atomic.AddUint64(&o.idSeq, 1)
-	return fmt.Sprintf("%s_%d", prefix, n)
-}
-
-func (o *Output) nextDecl() int {
-	o.declSeq++
-	return o.declSeq
-}
 
 func (o *Output) ensureEntityRoomLocked() error {
 	n := len(o.tasks)
@@ -34,23 +22,22 @@ func (o *Output) ensureEntityRoomLocked() error {
 // drives manifest reconciliation. The repeat records a Failed task with
 // ProblemCodeDuplicateSiblingName (see failDuplicateSiblingLocked).
 func (o *Output) Task(name string) *TaskHandle {
-	clean := declaredName(name)
+	clean := graph.DeclaredName(name)
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	names := o.siblingsLocked(nil)
-	if names.taskTaken(clean) {
-		return o.rejectedTask(o.failDuplicateSiblingLocked(nil, kindTask, clean))
+	if o.graph.NameTaken(nil, graph.KindTask, clean) {
+		return o.rejectedTask(o.failDuplicateSiblingLocked(nil, graph.KindTask, clean))
 	}
 	h := o.addTaskLocked(clean, nil)
 	if h.rejected == nil {
-		names.claimTask(clean)
+		o.graph.ClaimName(nil, graph.KindTask, clean)
 	}
 	return h
 }
 
 func (o *Output) addTaskLocked(name string, col *tasksState) *TaskHandle {
 	h := o.declareTaskLocked(name, col)
-	if _, ok := o.taskByRef[h.id]; ok {
+	if _, ok := o.taskStates[h.id]; ok {
 		o.signalLiveLocked(true)
 	}
 	return h
@@ -75,15 +62,16 @@ func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 		o.recordMisuse(err)
 		return o.rejectedTask(err)
 	}
+	node := o.graph.AddTask(containerNode(col), name, record.TaskInit{
+		State: Pending, Progress: Progress{Kind: Indeterminate}, Resolution: ResolutionNoWork,
+	})
 	st := &taskState{
-		id:   o.nextID("task"),
-		key:  stableKey(kindTask, parentKeyOf(col), name),
-		name: name,
-		rec: o.rec.NewTask(record.TaskInit{
-			State: Pending, Progress: Progress{Kind: Indeterminate}, Resolution: ResolutionNoWork,
-		}),
+		id:          node.ID,
+		node:        node,
+		name:        node.Name,
+		rec:         node.Rec,
 		collection:  col,
-		declaration: o.nextDecl(),
+		declaration: node.Declaration,
 		doneCh:      make(chan struct{}),
 	}
 	h := &TaskHandle{out: o, id: st.id}
@@ -100,7 +88,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 		tallyDeclaredLocked(st)
 		st.censusDeclared()
 	}
-	o.taskByRef[st.id] = st
+	o.taskStates[st.id] = st
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.declared", EntityID: st.id})
 	o.emitWireEventLocked(wire.EventTaskDeclared, st.id, map[string]any{"name": name})
@@ -137,10 +125,9 @@ func (o *Output) Sequence(name string) *SequenceHandle {
 // after the step before it when parent is a Sequence. A refusal comes back
 // as a rejected handle. Callers must already hold o.mu.
 func (o *Output) declareContainerLocked(parent *tasksState, name string, sequential bool) *GroupHandle {
-	clean := declaredName(name)
-	kind := childKindFor(sequential)
-	names := o.siblingsLocked(parent)
-	if names.containerTaken(clean) {
+	clean := graph.DeclaredName(name)
+	kind := graph.ContainerKind(sequential)
+	if o.graph.NameTaken(containerNode(parent), kind, clean) {
 		return o.rejectedGroup(o.failDuplicateSiblingLocked(parent, kind, clean))
 	}
 	if err := o.ensureOpen(); err != nil {
@@ -151,12 +138,13 @@ func (o *Output) declareContainerLocked(parent *tasksState, name string, sequent
 		o.recordMisuse(ErrDeclaredInCallback)
 		return o.rejectedGroup(ErrDeclaredInCallback)
 	}
+	node := o.graph.AddContainer(containerNode(parent), clean, sequential)
 	st := &tasksState{
-		id:          o.nextID("tasks"),
-		key:         stableKey(kind, parentKeyOf(parent), clean),
-		name:        clean,
-		rec:         o.rec.NewContainer(),
-		declaration: o.nextDecl(),
+		id:          node.ID,
+		node:        node,
+		name:        node.Name,
+		rec:         node.Rec,
+		declaration: node.Declaration,
 		sequential:  sequential,
 		parent:      parent,
 	}
@@ -170,8 +158,8 @@ func (o *Output) declareContainerLocked(parent *tasksState, name string, sequent
 		parent.recordStep(predecessor{col: st})
 		parent.children = append(parent.children, st)
 	}
-	o.tasksByRef[st.id] = st
-	names.claimContainer(clean)
+	o.containerStates[st.id] = st
+	o.graph.ClaimName(containerNode(parent), kind, clean)
 	h := &GroupHandle{out: o, id: st.id}
 	st.handle = h
 	o.bumpLocked()
@@ -180,33 +168,24 @@ func (o *Output) declareContainerLocked(parent *tasksState, name string, sequent
 	return h
 }
 
-// childKindFor names the entity kind a nested container declares, for the
-// duplicate-sibling problem it may need to report.
-func childKindFor(sequential bool) entityKind {
-	if sequential {
-		return kindSequence
-	}
-	return kindGroup
-}
-
 // declareGroupTask declares a child task by name in the container g — the
 // identity behind Group.Task/Sequence.Task. A repeated name is a duplicate
 // sibling declaration (§3.1), not a get-or-create. A task declared under a
 // refused container is refused for the same reason.
 func (o *Output) declareGroupTask(g *GroupHandle, name string) *TaskHandle {
-	clean := declaredName(name)
+	clean := graph.DeclaredName(name)
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	col := o.tasksByRef[g.id]
+	col := o.containerStates[g.id]
 	if col == nil {
 		return o.rejectedTask(g.rejected)
 	}
-	if col.names.taskTaken(clean) {
-		return o.rejectedTask(o.failDuplicateSiblingLocked(col, kindTask, clean))
+	if o.graph.NameTaken(col.node, graph.KindTask, clean) {
+		return o.rejectedTask(o.failDuplicateSiblingLocked(col, graph.KindTask, clean))
 	}
 	h := o.addTaskLocked(clean, col)
 	if h.rejected == nil {
-		col.names.claimTask(clean)
+		o.graph.ClaimName(col.node, graph.KindTask, clean)
 	}
 	return h
 }

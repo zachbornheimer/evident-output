@@ -3,20 +3,8 @@ package engine
 import (
 	"fmt"
 
+	"github.com/zachbornheimer/evident-output/internal/graph"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
-)
-
-// entityKind names the three declarable entity kinds §3.1's default stable
-// key is built from (kind + parent stable key + normalized name). It is
-// spelled out here, not reused from any presentation type, because identity
-// and presentation are different concerns even though today they use the
-// same words.
-type entityKind string
-
-const (
-	kindTask     entityKind = "task"
-	kindGroup    entityKind = "group"
-	kindSequence entityKind = "sequence"
 )
 
 // Problem codes are stable, machine-readable Problem.Code values —
@@ -37,35 +25,12 @@ const (
 	ProblemCodeVerificationUnsatisfied = "verification-unsatisfied"
 )
 
-// declaredName is the single normalization every Task/Group/Sequence
-// declaration path must apply to a caller-supplied name before using it for
-// anything identity-related — sibling-dedup lookups and stableKey's own
-// name segment alike. Two call sites normalizing separately (or one
-// normalizing and one keying off the raw string) can disagree: a raw name
-// carrying a control character evident-output strips on presentation
-// (txt.Text) would then dedup-check under a different string than the one
-// its stable key derives from, letting "deploy\x01" and "deploy\x02" both
-// register as distinct siblings of the same rendered name "deploy".
-func declaredName(name string) string {
-	return txt.Text(name)
-}
-
-// stableKey computes §3.1's default identity: entity kind + parent stable
-// key + normalized entity name. The application/workspace manifest
-// namespace already supplies application identity, so it is not duplicated
-// into every key here. name must already be declaredName-normalized —
-// every caller in this package normalizes once, at declaration entry.
-func stableKey(kind entityKind, parentKey, name string) string {
-	return fmt.Sprintf("%s:%s/%s", kind, parentKey, name)
-}
-
-// parentKeyOf returns col's own stable key, or "" for a root-level
-// declaration (col == nil).
-func parentKeyOf(col *tasksState) string {
+// containerNode is col's declaration in the graph, nil for the root (col == nil).
+func containerNode(col *tasksState) *graph.Container {
 	if col == nil {
-		return ""
+		return nil
 	}
-	return col.key
+	return col.node
 }
 
 // Key sets an advanced, refactor/rename-stable override for this Task's
@@ -85,7 +50,7 @@ func (t *TaskHandle) Key(key string) *TaskHandle {
 	o := t.out
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	st := o.taskByRef[t.id]
+	st := o.taskStates[t.id]
 	if st == nil {
 		return t
 	}
@@ -93,17 +58,9 @@ func (t *TaskHandle) Key(key string) *TaskHandle {
 		o.recordMisuseFor(st.name, ErrKeyAfterDefine)
 		return t
 	}
-	clean := txt.Text(key)
-	if clean == st.key {
-		return t
-	}
-	if _, ok := o.keys[clean]; ok {
+	if o.graph.Rekey(st.node, txt.Text(key)) == graph.KeyTaken {
 		o.recordMisuse(ErrDuplicateKey)
-		return t
 	}
-	delete(o.keys, st.key)
-	o.keys[clean] = struct{}{}
-	st.key = clean
 	return t
 }
 
@@ -116,10 +73,10 @@ func (t *TaskHandle) Key(key string) *TaskHandle {
 // duplicate was declared under, or nil for a root-level declaration.
 // Callers must already hold o.mu. It returns the refusal the duplicate's
 // rejected handle keeps.
-func (o *Output) failDuplicateSiblingLocked(col *tasksState, kind entityKind, name string) error {
+func (o *Output) failDuplicateSiblingLocked(col *tasksState, kind graph.EntityKind, name string) error {
 	h := o.addTaskLocked(name, col)
 	rejected := fmt.Errorf("%w: %s", ErrDuplicateSiblingName, name)
-	st := o.taskByRef[h.id]
+	st := o.taskStates[h.id]
 	if st == nil {
 		return rejected
 	}

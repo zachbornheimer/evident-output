@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/process"
 	"github.com/zachbornheimer/evident-output/internal/record"
@@ -29,8 +30,6 @@ type Output struct {
 	// (spec §35) — captured once at construction through the Clock facade,
 	// read back (never re-derived) at Finish.
 	startedAt time.Time
-	idSeq     uint64
-	declSeq   int
 	version   uint64
 	closed    bool
 	// closing is non-nil once a Close call claimed the teardown; it closes
@@ -80,15 +79,14 @@ type Output struct {
 	wireSeq      uint64
 	wireEventErr error
 
-	taskByRef  map[string]*taskState
-	tasksByRef map[string]*tasksState
+	// graph is the declared shape of the run: identity, keys and numbering.
+	graph *graph.Graph
+	// taskStates and containerStates are engine's own state for each node the
+	// graph declared, keyed by the node's ID.
+	taskStates      map[string]*taskState
+	containerStates map[string]*tasksState
 	// rootColumn is the alignment width for root Task rows.
 	rootColumn rootColumn
-	keys       map[string]struct{}
-
-	// rootNames holds the names root Tasks, Groups, and Sequences claimed
-	// (§3.1); see siblingsLocked.
-	rootNames siblings
 	// ctx is the run's own cancellation signal — the thing a callback doing
 	// I/O selects on. cancelRun trips it on interrupt and on Close, so no
 	// callback can outlive the run that owns it.
@@ -238,18 +236,19 @@ func newOutput(subject string, options ...Option) *Output {
 	}
 	resolveGlyphProfileLocked(&cfg)
 	runCtx, cancelRun := context.WithCancel(context.Background())
+	run := record.NewRun()
 	o := &Output{
-		cfg:        cfg,
-		rec:        record.NewRun(),
-		outputID:   "out_1",
-		taskByRef:  make(map[string]*taskState),
-		tasksByRef: make(map[string]*tasksState),
-		keys:       make(map[string]struct{}),
-		ctx:        runCtx,
-		cancelRun:  cancelRun,
+		cfg:             cfg,
+		rec:             run,
+		graph:           graph.New(run),
+		outputID:        "out_1",
+		taskStates:      make(map[string]*taskState),
+		containerStates: make(map[string]*tasksState),
+		ctx:             runCtx,
+		cancelRun:       cancelRun,
 	}
 	// Stable-enough id for a process-local output instance.
-	o.outputID = o.nextID("out")
+	o.outputID = o.graph.NextID("out")
 	o.startedAt = o.cfg.clock.Now()
 	o.appendEventLocked(Event{Type: "output.started", OutputID: o.outputID})
 	o.emitWireEventLocked(wire.EventRunStarted, "", nil)
@@ -307,7 +306,7 @@ func (o *Output) emitPlannedHeaderLocked() {
 // (the same "annotate before terminal" timing Fact and warning-severity Problem require). A no-op
 // once the task has already resolved or does not exist.
 func (o *Output) attachVerificationLocked(taskID string, details []core.VerificationDetail) {
-	st := o.taskByRef[taskID]
+	st := o.taskStates[taskID]
 	if st == nil || core.IsTerminalTask(st.rec.State()) {
 		return
 	}

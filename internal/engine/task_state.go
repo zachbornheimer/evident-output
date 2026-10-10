@@ -5,13 +5,28 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
+// key is the Task's §3.1 stable key, empty for a Task the graph never declared.
+func (st *taskState) key() string {
+	if st.node == nil {
+		return ""
+	}
+	return st.node.Key()
+}
+
+// key is the container's §3.1 stable key.
+func (g *tasksState) key() string { return g.node.Key() }
+
 type taskState struct {
-	id   string
-	key  string // optional stable machine key (platform ID)
+	id string
+	// node is the graph's declaration of this Task and owns its stable key.
+	// It is nil for a builder's gate and for a synthetic Task, which are not
+	// declared.
+	node *graph.Task
 	name string
 	// rec is what this Task reported and found: its state, phase, progress,
 	// summary, Problems, warnings, facts, verification, resolution and
@@ -104,10 +119,9 @@ type taskState struct {
 
 type tasksState struct {
 	id string
-	// key is the §3.1 stable machine identity for this Group/Sequence: the
-	// default kind+parent-key+normalized-name derivation, computed once at
-	// declaration (see declareContainerLocked).
-	key  string
+	// node is the graph's declaration of this Group/Sequence and owns its
+	// §3.1 stable key.
+	node *graph.Container
 	name string
 	// rec is what this container said about itself: its summary. Its verdict
 	// derives from its members.
@@ -118,10 +132,6 @@ type tasksState struct {
 
 	// kids is what a live frame and the verdict read of tasks.
 	kids childIndex
-
-	// names holds the names this container's child Tasks and containers
-	// claimed (§3.1); see siblings.
-	names siblings
 
 	// sequential marks a Sequence: children are chained in declaration
 	// order. A Group's children are independent and may overlap.

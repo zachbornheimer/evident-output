@@ -176,7 +176,7 @@ func (o *Output) holdRunningPaint(id string) {
 		o.mu.Unlock()
 		return
 	}
-	st := o.taskByRef[id]
+	st := o.taskStates[id]
 	if st == nil || st.rec.State() != Running {
 		o.mu.Unlock()
 		return

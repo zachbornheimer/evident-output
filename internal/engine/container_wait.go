@@ -49,7 +49,7 @@ func (s *SequenceHandle) Wait() error {
 func (o *Output) sealCollection(id string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if col := o.tasksByRef[id]; col != nil {
+	if col := o.containerStates[id]; col != nil {
 		o.sealCollectionLocked(col)
 	}
 }
@@ -63,7 +63,7 @@ func (o *Output) sealCollection(id string) {
 func (o *Output) collectDescendantTasks(rootID string) []*taskState {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	col := o.tasksByRef[rootID]
+	col := o.containerStates[rootID]
 	if col == nil {
 		return nil
 	}
