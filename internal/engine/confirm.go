@@ -238,6 +238,12 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 	abort, release := o.graph.RegisterAbort(gate.id)
 	defer release()
 
+	endTurn, ok := o.awaitConfirmTurn(abort)
+	if !ok {
+		return o.settleGate(gate, graph.AnswerInterrupted, cfg)
+	}
+	defer endTurn()
+
 	o.setOwnsWindow(gate.id, true)
 	defer o.setOwnsWindow(gate.id, false)
 
@@ -248,6 +254,25 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 		return nil
 	})
 	return yes
+}
+
+// awaitConfirmTurn waits until no other Confirm owns the terminal, so only one
+// prompt window is open and only one reader waits on stdin. abort ends the
+// wait: ok is false and the gate was already cancelled. endTurn hands the
+// terminal to the next Confirm.
+func (o *Output) awaitConfirmTurn(abort <-chan struct{}) (endTurn func(), ok bool) {
+	o.mu.Lock()
+	if o.confirmTurn == nil {
+		o.confirmTurn = make(chan struct{}, 1)
+	}
+	turn := o.confirmTurn
+	o.mu.Unlock()
+	select {
+	case turn <- struct{}{}:
+		return func() { <-turn }, true
+	case <-abort:
+		return nil, false
+	}
 }
 
 // setOwnsWindow marks the Confirm gate id as the Task its Suspend window

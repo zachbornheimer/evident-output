@@ -43,10 +43,13 @@ type Output struct {
 	// closing is non-nil once a Close call claimed the teardown; it closes
 	// when that teardown ends, so a concurrent Close waits instead of
 	// tearing down twice.
-	closing   chan struct{}
-	finishing bool
-	finished  bool
-	armed     bool // set by arm(): live surface may paint before any entity exists
+	closing chan struct{}
+	// confirmTurn holds one token while a Confirm owns the terminal (see
+	// awaitConfirmTurn); nil until the first Confirm asks.
+	confirmTurn chan struct{}
+	finishing   bool
+	finished    bool
+	armed       bool // set by arm(): live surface may paint before any entity exists
 	// misuseMu guards misuse, misuseSubject and misuseRejectedSummary. It is
 	// a leaf lock, taken without Output.mu by the graph's own goroutines.
 	misuseMu sync.Mutex
