@@ -155,6 +155,7 @@ func (o *Output) declareContainerLocked(parent *tasksState, name string, sequent
 		id:          o.nextID("tasks"),
 		key:         stableKey(kind, parentKeyOf(parent), clean),
 		name:        clean,
+		rec:         o.rec.NewContainer(),
 		declaration: o.nextDecl(),
 		sequential:  sequential,
 		parent:      parent,

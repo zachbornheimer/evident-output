@@ -78,14 +78,14 @@ func (t *taskState) view() TaskSnapshot {
 		Name:         t.name,
 		State:        truth.State,
 		Phase:        truth.Phase,
-		ActivityAt:   t.activityAt,
+		ActivityAt:   truth.ActivityAt,
 		Progress:     truth.Progress,
 		Summary:      truth.Summary,
 		Problems:     truth.Problems,
 		Warnings:     truth.Warnings,
 		Facts:        truth.Facts,
 		Verification: truth.Verification,
-		Actions:      t.actions,
+		Actions:      truth.Actions,
 		Skipped:      truth.Skipped,
 		Kept:         truth.Kept,
 		Collection:   colID,
@@ -193,8 +193,8 @@ func (v verdictFold) state() EntityState {
 // displaySummary is g's Summary as its row shows it, given its derived
 // state st: only when all children done/skipped successfully.
 func (g *tasksState) displaySummary(st EntityState) string {
-	if st == Done && g.summary != "" && !g.hasWarnedOrFailedDescendant() {
-		return g.summary
+	if st == Done && g.rec.Summary() != "" && !g.hasWarnedOrFailedDescendant() {
+		return g.rec.Summary()
 	}
 	return ""
 }
@@ -231,7 +231,7 @@ func (o *Output) collectActionsLocked() []Action {
 		}
 	}
 	for _, t := range o.tasks {
-		add(t.actions)
+		add(t.rec.Actions())
 		// ZYS-848: a remedy attached via evo.Next(...) to an individual
 		// Problem/warning (task.Problem(msg, evo.Next(...)),
 		// task.Fail(msg, evo.Next(...))) must reach the run's own Next

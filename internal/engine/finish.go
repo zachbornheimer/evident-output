@@ -271,7 +271,7 @@ func (o *Output) abnormalFinishLocked() bool {
 // o.finishing is set, when TaskHandle.Problem refuses new records, and the
 // task has no caller-authored diagnostic to own the hint.
 func attachUnresolvedTaskHintLocked(t *taskState) {
-	t.actions = append(t.actions, Label(unresolvedTaskHint))
+	t.rec.AppendAction(Label(unresolvedTaskHint))
 	t.markFiling()
 }
 

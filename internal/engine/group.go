@@ -1,9 +1,5 @@
 package engine
 
-import (
-	txt "github.com/zachbornheimer/evident-output/internal/text"
-)
-
 // GroupHandle is the front door for independent child work. Eligible
 // children may overlap through the scheduler. The type cannot be named
 // Group — that name is the constructor. Nest via Group/Sequence.
@@ -69,7 +65,7 @@ func (g *GroupHandle) Summary(text string) *GroupHandle {
 		g.out.recordMisuse(err)
 		return g
 	}
-	col.summary = txt.Text(text)
+	col.rec.SetSummary(text)
 	g.out.bumpLocked()
 	g.out.appendEventLocked(Event{Type: "tasks.summary_set", EntityID: g.id})
 	return g

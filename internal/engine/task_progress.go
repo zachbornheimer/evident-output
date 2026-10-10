@@ -32,7 +32,7 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 		t.out.recordMisuse(ErrProgressRegression)
 		return false
 	}
-	st.activityAt = t.out.cfg.clock.Now()
+	st.rec.MarkActivity(t.out.cfg.clock.Now())
 	if st.rec.State() == Pending {
 		t.out.promoteRunningLocked(st)
 	}

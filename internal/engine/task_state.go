@@ -17,7 +17,6 @@ type taskState struct {
 	// summary, Problems, warnings, facts, verification, resolution and
 	// skip and keep records. Everything that writes it goes through rec.
 	rec         *record.Task
-	actions     []Action
 	collection  *tasksState
 	declaration int
 	handle      *TaskHandle
@@ -31,14 +30,6 @@ type taskState struct {
 	// a satisfied Task predecessor; this keeps it, so Computed.Get can tell
 	// an ordered reader from an unordered one.
 	after []predecessor
-
-	// activityAt is the domain-clock time of the most recent Phase, Progress,
-	// or work-callback-starting call — kept for the public
-	// ActivityAt snapshot field and for Sequence's "one Running child"
-	// bookkeeping. P5's elapsed-time render clock no longer reads it (see
-	// elapsedAfter in live.go): the render anchor is liveFirstSeenAt alone,
-	// so a fresh Phase/Progress call never restarts the elapsed suffix.
-	activityAt time.Time
 
 	// liveFirstSeenAt is the domain-clock time this task was first actually
 	// painted in the live region (see taskState.stampLiveFirstSeen in live.go) —
@@ -116,9 +107,11 @@ type tasksState struct {
 	// key is the §3.1 stable machine identity for this Group/Sequence: the
 	// default kind+parent-key+normalized-name derivation, computed once at
 	// declaration (see declareContainerLocked).
-	key         string
-	name        string
-	summary     string
+	key  string
+	name string
+	// rec is what this container said about itself: its summary. Its verdict
+	// derives from its members.
+	rec         *record.Container
 	tasks       []*taskState
 	declaration int
 	handle      *GroupHandle

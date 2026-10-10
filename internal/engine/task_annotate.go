@@ -88,7 +88,7 @@ func (t *TaskHandle) setLiveOnlyPhase(text string) {
 // have checked ensureOpen/isTerminalTask.
 func (o *Output) setPhaseLocked(st *taskState, text string) {
 	st.rec.SetPhase(text)
-	st.activityAt = o.cfg.clock.Now()
+	st.rec.MarkActivity(o.cfg.clock.Now())
 	if st.rec.State() == Pending {
 		o.promoteRunningLocked(st)
 		st.rec.EnsureIndeterminateProgress()
@@ -112,7 +112,7 @@ func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	if !st.rec.SetPhaseIfChanged(text) {
 		return
 	}
-	st.activityAt = o.cfg.clock.Now()
+	st.rec.MarkActivity(o.cfg.clock.Now())
 	if st.rec.State() == Pending {
 		o.promoteRunningLocked(st)
 		st.rec.EnsureIndeterminateProgress()

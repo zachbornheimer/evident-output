@@ -1,6 +1,9 @@
 package record
 
-import "slices"
+import (
+	"slices"
+	"time"
+)
 
 // Task is the truth of one Task: where it stands, what it reported, and what
 // it found. It lives inside a Run and shares the Run's mutex, so a write is
@@ -16,6 +19,8 @@ type Task struct {
 	problems       []Problem
 	warnings       []Problem
 	facts          []Fact
+	actions        []Action
+	activityAt     time.Time
 	verification   []VerificationDetail
 	resolution     Resolution
 	verifyEvidence TaskEvidence
@@ -58,6 +63,8 @@ type TaskTruth struct {
 	Problems       []Problem
 	Warnings       []Problem
 	Facts          []Fact
+	Actions        []Action
+	ActivityAt     time.Time
 	Verification   []VerificationDetail
 	Resolution     Resolution
 	VerifyEvidence TaskEvidence
@@ -71,7 +78,7 @@ func (t *Task) Truth() TaskTruth {
 	defer t.run.mu.Unlock()
 	return TaskTruth{
 		State: t.state, Phase: t.phase, Progress: t.progress, Summary: t.summary,
-		Problems: t.problems, Warnings: t.warnings, Facts: t.facts, Verification: t.verification,
+		Problems: t.problems, Warnings: t.warnings, Facts: t.facts, Actions: t.actions, ActivityAt: t.activityAt, Verification: t.verification,
 		Resolution: t.resolution, VerifyEvidence: t.verifyEvidence, Skipped: t.skipped, Kept: t.kept,
 	}
 }
@@ -336,6 +343,35 @@ func (t *Task) AppendFact(f Fact) {
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	t.facts = append(t.facts, f)
+}
+
+// Actions is a copy of the next steps the Task attached.
+func (t *Task) Actions() []Action {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return slices.Clone(t.actions)
+}
+
+// AppendAction records a next step for the Task.
+func (t *Task) AppendAction(a Action) {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	t.actions = append(t.actions, a)
+}
+
+// ActivityAt is when the Task last reported a phase, progress or the start
+// of its work.
+func (t *Task) ActivityAt() time.Time {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return t.activityAt
+}
+
+// MarkActivity records that the Task reported something at at.
+func (t *Task) MarkActivity(at time.Time) {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	t.activityAt = at
 }
 
 // Verification is a copy of the per-attribute evidence File and Exec recorded.
