@@ -143,7 +143,7 @@ func (c rootColumn) nameWidth() int {
 // never race above already-resolved work.
 func (o *Output) commitResolvedTaskLocked(id string) {
 	st := o.taskByRef[id]
-	if st == nil || st.coreEmitted || !core.IsTerminalTask(st.state) {
+	if st == nil || st.coreEmitted || !core.IsTerminalTask(st.rec.State()) {
 		return
 	}
 	if o.heldBackAsNoOpLocked(st.snapshot()) {
@@ -259,8 +259,8 @@ const plainProgressMilestones = 10
 // The first tick and the final tick (completed == total) always stream —
 // beginner-8's "always a final n/n" — everything between is thinned.
 func shouldEmitPlainProgressLocked(st *taskState) bool {
-	completed := st.progress.Completed
-	total := st.progress.Total
+	completed := st.rec.Progress().Completed
+	total := st.rec.Progress().Total
 	if !st.plainStream.progressStarted {
 		return true
 	}
@@ -302,7 +302,7 @@ func progressiveRowName(st *taskState) string {
 // the Running task happens to sit in the tree, and a collection whose
 // children are explicitly named has no aggregate row streaming in its place.
 func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskProgressiveTrigger) {
-	if st == nil || st.state != Running {
+	if st == nil || st.rec.State() != Running {
 		return
 	}
 	live := o.liveLocked()
@@ -312,16 +312,16 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 	}
 	switch trigger {
 	case triggerPhase:
-		if st.phase == st.plainStream.phase {
+		if st.rec.Phase() == st.plainStream.phase {
 			return
 		}
-		st.plainStream.phase = st.phase
+		st.plainStream.phase = st.rec.Phase()
 	case triggerProgress:
 		if !shouldEmitPlainProgressLocked(st) {
 			return
 		}
 		st.plainStream.progressStarted = true
-		st.plainStream.progressEmitted = st.progress.Completed
+		st.plainStream.progressEmitted = st.rec.Progress().Completed
 	}
 	row := st.snapshot()
 	row.Name = progressiveRowName(st)

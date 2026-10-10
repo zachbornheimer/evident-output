@@ -152,7 +152,7 @@ func (o *Output) outcomeLocked(p predecessor) (predOutcome, predecessor) {
 // taskOutcomeLocked is t's outcome for its dependents. Once Finish drains,
 // a Task nobody Defined never will be, so it can no longer succeed.
 func (o *Output) taskOutcomeLocked(t *taskState) predOutcome {
-	out := stateOutcome(t.state)
+	out := stateOutcome(t.rec.State())
 	if out == predPending && o.sched.draining && t.neverDefined() {
 		return predFailed
 	}
@@ -320,7 +320,7 @@ func (o *Output) drainWokenLocked() {
 	for i := 0; i < len(o.sched.woken); i++ {
 		st := o.sched.woken[i]
 		o.sched.woken[i] = nil
-		if st.sched.phase == phaseParked && !core.IsTerminalTask(st.state) {
+		if st.sched.phase == phaseParked && !core.IsTerminalTask(st.rec.State()) {
 			o.placeLocked(st, scanToBlocker)
 		}
 	}
@@ -367,7 +367,7 @@ func (o *Output) replaceParkedLocked() {
 		col.tally.unpark()
 	}
 	for _, st := range parked {
-		if st.sched.phase == phaseParked && !core.IsTerminalTask(st.state) {
+		if st.sched.phase == phaseParked && !core.IsTerminalTask(st.rec.State()) {
 			o.placeLocked(st, scanAll)
 		}
 	}

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 // builderPhase is where a container's topology builder stands.
@@ -123,7 +125,7 @@ func (g *GroupHandle) defineBuilder(run func()) {
 	gate := &taskState{
 		id:          o.nextID("gate"),
 		name:        col.name,
-		state:       Pending,
+		rec:         o.rec.NewTask(record.TaskInit{State: Pending}),
 		declaration: o.nextDecl(),
 		doneCh:      make(chan struct{}),
 		gateFor:     col,
@@ -182,7 +184,7 @@ func runBuilder(work func() error) (panicText string) {
 // outcome, releases the membership holds the pending builder placed on its
 // container and ancestors, and places every Task that was waiting on them.
 func (o *Output) concludeGateLocked(st *taskState) {
-	col, state := st.gateFor, st.state
+	col, state := st.gateFor, st.rec.State()
 	switch state {
 	case Done:
 		col.builder.phase = builderDone

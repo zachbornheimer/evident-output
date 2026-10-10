@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/zachbornheimer/evident-output/internal/record"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
@@ -75,15 +76,15 @@ func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 		return o.rejectedTask(err)
 	}
 	st := &taskState{
-		id:          o.nextID("task"),
-		key:         stableKey(kindTask, parentKeyOf(col), name),
-		name:        name,
-		state:       Pending,
-		progress:    Progress{Kind: Indeterminate},
+		id:   o.nextID("task"),
+		key:  stableKey(kindTask, parentKeyOf(col), name),
+		name: name,
+		rec: o.rec.NewTask(record.TaskInit{
+			State: Pending, Progress: Progress{Kind: Indeterminate}, Resolution: ResolutionNoWork,
+		}),
 		collection:  col,
 		declaration: o.nextDecl(),
 		doneCh:      make(chan struct{}),
-		resolution:  ResolutionNoWork,
 	}
 	h := &TaskHandle{out: o, id: st.id}
 	st.handle = h

@@ -215,7 +215,7 @@ func (t *TaskHandle) hasPostStateToVerify() bool {
 	// until the callback's return confirms it; it claims "no change" only
 	// while Define committed no Effect (E-112): a Kept after a real
 	// mutation still owes its postcondition.
-	blocked := st != nil && core.IsTerminalTask(st.state)
+	blocked := st != nil && core.IsTerminalTask(st.rec.State())
 	keptUnchanged := st != nil && st.proposed != nil && !o.hasRecordedEffectLocked(t.id)
 	o.mu.Unlock()
 	if blocked || keptUnchanged {
@@ -235,7 +235,7 @@ func (o *Output) recordOperationsEvidence(taskID string) {
 	if st == nil || len(st.manifestOps) == 0 {
 		return
 	}
-	st.verifyEvidence.After = EvidencePhase{Evaluated: true, Satisfied: true, Source: operationsEvidenceSource}
+	st.rec.RecordAfterEvidence(EvidencePhase{Evaluated: true, Satisfied: true, Source: operationsEvidenceSource})
 	o.emitWireEventLocked(wire.EventEvidenceEvaluated, taskID, map[string]any{
 		"phase":     "after_definition",
 		"evaluated": true,
@@ -322,9 +322,9 @@ func (o *Output) recordEvidencePhase(taskID string, phase evidencePhaseName, eva
 	}
 	switch phase {
 	case evidencePhaseBefore:
-		st.verifyEvidence.Before = recorded
+		st.rec.RecordBeforeEvidence(recorded)
 	case evidencePhaseAfter:
-		st.verifyEvidence.After = recorded
+		st.rec.RecordAfterEvidence(recorded)
 	}
 	o.emitWireEventLocked(wire.EventEvidenceEvaluated, taskID, map[string]any{
 		"phase":     evidencePhaseWireName(phase),
@@ -348,7 +348,7 @@ func (o *Output) setResolution(taskID string, r Resolution) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if st := o.taskByRef[taskID]; st != nil {
-		st.resolution = r
+		st.rec.SetResolution(r)
 		st.markFiling()
 	}
 }

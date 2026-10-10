@@ -197,7 +197,7 @@ func (o *Output) anyBlockedSoFar() bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	for _, t := range o.tasks {
-		if t.state == Blocked {
+		if t.rec.State() == Blocked {
 			return true
 		}
 	}
@@ -212,7 +212,7 @@ func (o *Output) anyFailed() bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	for _, t := range o.tasks {
-		if t.state == Failed {
+		if t.rec.State() == Failed {
 			return true
 		}
 	}

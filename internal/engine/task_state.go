@@ -6,17 +6,17 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 type taskState struct {
-	id          string
-	key         string // optional stable machine key (platform ID)
-	name        string
-	state       EntityState
-	phase       string
-	progress    Progress
-	summary     string
-	problems    []Problem
+	id   string
+	key  string // optional stable machine key (platform ID)
+	name string
+	// rec is what this Task reported and found: its state, phase, progress,
+	// summary, Problems, warnings, facts, verification, resolution and
+	// skip and keep records. Everything that writes it goes through rec.
+	rec         *record.Task
 	actions     []Action
 	collection  *tasksState
 	declaration int
@@ -60,13 +60,6 @@ type taskState struct {
 	// this row; evidence above stays the full record.
 	tail liveTail
 
-	// skipped/kept hold disposition taxonomy accumulated by Skipped/Kept —
-	// the model that "- skipped N (...)" / "! kept N (...)" are derived from
-	// at render time, never a hand-built summary string. Disposition side of
-	// the model, not the mutation ledger (Plan/Changes).
-	skipped []TaxonomyRecord
-	kept    []TaxonomyRecord
-
 	// Emission bookkeeping so terminal standalone tasks stream in plain mode
 	// on resolve (P2).
 	coreEmitted bool
@@ -78,22 +71,6 @@ type taskState struct {
 	// only place the run's outcome is ever stated, unlike a caller-declared
 	// Task whose own row already says the same thing.
 	synthetic bool
-
-	// warnings accumulates warning-severity Problems (P2: warnings annotate
-	// lifecycle, they never replace it — Problem at SeverityWarning does
-	// not itself resolve the task). Warn was removed in 1.1. A task with
-	// warnings but no terminal verb by Finish auto-resolves Done (see
-	// hasRecordedEffectLocked's amnesty siblings in Finish).
-	warnings []Problem
-	// facts accumulates TaskHandle.Fact's discovered-information annotations
-	// (P8) — info severity, the same "annotate, never resolve" contract
-	// warnings has at warning severity.
-	facts []FactRecord
-	// verification accumulates every core.VerificationDetail an evo.File/
-	// evo.Exec operation this Task ran recorded (spec §2/§8.2) — attached
-	// before the task resolves, the same "annotate before terminal" timing
-	// facts/warnings already require.
-	verification []core.VerificationDetail
 
 	// effectDenials counts the times this task's own mutation callback
 	// resolved the row as something other than Done while an Effect ran, so
@@ -107,12 +84,6 @@ type taskState struct {
 	// observation checks, ANDed in registration order (§9.1). Must be
 	// registered before Define — see Verify.
 	verifiers []verifierFunc
-	// resolution names why this Task settled successfully (§29/§30);
-	// ResolutionNoWork is the default until Define's own execution wiring
-	// sets it to ResolutionExecuted/ResolutionAlreadySatisfied.
-	resolution Resolution
-	// verifyEvidence preserves both Verify observation phases (§30).
-	verifyEvidence TaskEvidence
 	// workErr is the callback's own return value, kept so TaskHandle.Wait
 	// returns exactly what the work returned rather than a state guess.
 	workErr error

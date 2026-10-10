@@ -31,7 +31,7 @@ func taskPhase(o *Output, taskID string) string {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if st := o.taskByRef[taskID]; st != nil {
-		return st.phase
+		return st.rec.Phase()
 	}
 	return ""
 }

@@ -1,5 +1,7 @@
 package engine
 
+import "github.com/zachbornheimer/evident-output/internal/record"
+
 // Progress sets absolute completed/total count progress.
 // Counts use int (collection lengths, indices). For byte quantities use Bytes.
 // Prefer absolute Progress over Advance so retries cannot double-count.
@@ -22,36 +24,16 @@ func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *Tas
 // (e.g. Phase) that would otherwise describe a progress change that never
 // happened.
 func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, kind ProgressKind) bool {
-	if completed < 0 || total < 0 {
+	switch st.rec.ApplyProgress(completed, total, kind) {
+	case record.ProgressInvalid:
 		t.out.recordMisuse(ErrInvalidProgress)
 		return false
-	}
-	if total == 0 && completed != 0 {
-		t.out.recordMisuse(ErrInvalidProgress)
+	case record.ProgressRegressed:
+		t.out.recordMisuse(ErrProgressRegression)
 		return false
 	}
-	if completed > total && total > 0 {
-		t.out.recordMisuse(ErrInvalidProgress)
-		return false
-	}
-	// Regression and sealing guards apply only while re-reporting the same
-	// measurement kind (Determinate or Bytes); switching kind (e.g. Progress
-	// then Bytes) is a deliberate re-declaration and resets both freely.
-	if st.state == Running && st.progress.Kind != Indeterminate && st.progress.Total > 0 && kind == st.progress.Kind {
-		if completed < st.progress.Completed {
-			t.out.recordMisuse(ErrProgressRegression)
-			return false
-		}
-		// Sealed total: once a nonzero total is reported for this kind, it
-		// cannot change. Retry-safety depends on the denominator staying put.
-		if total != st.progress.Total {
-			t.out.recordMisuse(ErrInvalidProgress)
-			return false
-		}
-	}
-	st.progress = Progress{Kind: kind, Completed: completed, Total: total}
 	st.activityAt = t.out.cfg.clock.Now()
-	if st.state == Pending {
+	if st.rec.State() == Pending {
 		t.out.promoteRunningLocked(st)
 	}
 	t.out.bumpLocked()

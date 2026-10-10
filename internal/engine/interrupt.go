@@ -2,7 +2,6 @@ package engine
 
 import (
 	"github.com/zachbornheimer/evident-output/internal/core"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // cancelActive cancels the currently running task, or the output itself when
@@ -52,13 +51,13 @@ func (o *Output) abandonQueuedWork() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	for _, st := range o.tasks {
-		if st.sched.phase == phaseRunning || core.IsTerminalTask(st.state) {
+		if st.sched.phase == phaseRunning || core.IsTerminalTask(st.rec.State()) {
 			continue
 		}
 		o.markNotStartedLocked(st)
 	}
 	for _, gate := range o.sched.gates {
-		if gate.sched.phase != phaseRunning && !core.IsTerminalTask(gate.state) {
+		if gate.sched.phase != phaseRunning && !core.IsTerminalTask(gate.rec.State()) {
 			o.markNotStartedLocked(gate)
 		}
 	}
@@ -72,7 +71,7 @@ func (o *Output) cancelActive(reason string) {
 	}
 	running := make([]*TaskHandle, 0, len(o.tasks))
 	for _, t := range o.tasks {
-		if t.state == Running {
+		if t.rec.State() == Running {
 			running = append(running, t.handle)
 		}
 	}
@@ -90,7 +89,7 @@ func (o *Output) cancelActive(reason string) {
 	// through to Output-level cancel.
 	var active *TaskHandle
 	for _, t := range o.tasks {
-		if t.state == Pending {
+		if t.rec.State() == Pending {
 			active = t.handle
 			break
 		}
@@ -112,8 +111,8 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 	for id, abort := range o.confirmAbort {
 		close(abort)
 		delete(o.confirmAbort, id)
-		if st := o.taskByRef[id]; st != nil && !core.IsTerminalTask(st.state) {
-			st.summary = txt.Text(reason)
+		if st := o.taskByRef[id]; st != nil && !core.IsTerminalTask(st.rec.State()) {
+			st.rec.SetSummary(reason)
 			o.settleLocked(st, Cancelled)
 			o.commitResolvedTaskLocked(id)
 		}

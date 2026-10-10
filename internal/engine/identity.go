@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 
-	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -124,10 +123,10 @@ func (o *Output) failDuplicateSiblingLocked(col *tasksState, kind entityKind, na
 	if st == nil {
 		return rejected
 	}
-	st.problems = core.StoreProblems([]Problem{{
+	st.rec.AppendProblems(Problem{
 		Code:    ProblemCodeDuplicateSiblingName,
 		Summary: fmt.Sprintf("duplicate %s name", kind),
-	}})
+	})
 	o.settleLocked(st, Failed)
 	o.recordMisuseFor(name, ErrDuplicateSiblingName)
 	return rejected

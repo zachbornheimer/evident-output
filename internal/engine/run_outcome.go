@@ -21,8 +21,7 @@ func (o *Output) failWith(p Problem) {
 	st := &taskState{
 		id:          o.nextID("task"),
 		name:        txt.Text(o.cfg.subject),
-		state:       Failed,
-		problems:    []Problem{p},
+		rec:         o.rec.NewTask(record.TaskInit{State: Failed, Problems: []Problem{p}}),
 		declaration: o.nextDecl(),
 		synthetic:   true,
 	}
@@ -49,8 +48,7 @@ func (o *Output) Cancel(reason string) {
 	t := &taskState{
 		id:          o.nextID("task"),
 		name:        name,
-		state:       Cancelled,
-		summary:     txt.Text(reason),
+		rec:         o.rec.NewTask(record.TaskInit{State: Cancelled, Summary: txt.Text(reason)}),
 		declaration: o.nextDecl(),
 		synthetic:   true,
 	}

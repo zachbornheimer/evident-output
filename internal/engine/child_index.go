@@ -91,8 +91,8 @@ func (x *childIndex) refile(g *tasksState, t *taskState) {
 	next := filing{
 		filed: true, pos: old.pos, listed: old.listed,
 		kind:  live.ClassifyChild(g.name, &view),
-		state: t.state, width: utf8.RuneCountInString(t.name),
-		seen: t.liveFirstSeenAt, warned: len(t.warnings) > 0,
+		state: t.rec.State(), width: utf8.RuneCountInString(t.name),
+		seen: t.liveFirstSeenAt, warned: t.rec.WarningCount() > 0,
 		allSeenAt: old.allSeenAt, workSeenAt: old.workSeenAt,
 	}
 	if old.filed {

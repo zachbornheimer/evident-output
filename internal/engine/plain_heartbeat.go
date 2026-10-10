@@ -120,7 +120,7 @@ func (o *Output) checkPlainHeartbeat(id string) {
 		return
 	}
 	st := o.taskByRef[id]
-	if st == nil || core.IsTerminalTask(st.state) || st.heartbeat.runningAt.IsZero() {
+	if st == nil || core.IsTerminalTask(st.rec.State()) || st.heartbeat.runningAt.IsZero() {
 		return
 	}
 	sched, ok := o.wantsPlainHeartbeatLocked()

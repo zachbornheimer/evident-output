@@ -177,7 +177,7 @@ func (o *Output) holdRunningPaint(id string) {
 		return
 	}
 	st := o.taskByRef[id]
-	if st == nil || st.state != Running {
+	if st == nil || st.rec.State() != Running {
 		o.mu.Unlock()
 		return
 	}
@@ -194,7 +194,7 @@ func (o *Output) holdRunningPaint(id string) {
 
 func (o *Output) hasUnpaintedRunningLocked() bool {
 	for _, t := range o.tasks {
-		if t.state == Running && t.liveFirstSeenAt.IsZero() {
+		if t.rec.State() == Running && t.liveFirstSeenAt.IsZero() {
 			return true
 		}
 	}
@@ -207,11 +207,11 @@ func (o *Output) hasLiveActivityLocked() bool {
 		// immediately (evo-rec.md "predeclare Tasks; ... others named
 		// idle") — VisibilityDelay withholds the *spinner flash* for
 		// near-instant work, not the fact that a task now exists.
-		if t.state == Running || t.state == Pending || t.phase != "" {
+		if t.rec.State() == Running || t.rec.State() == Pending || t.rec.Phase() != "" {
 			return true
 		}
-		if t.progress.Kind == Determinate || t.progress.Kind == BytesKind {
-			if t.state == Running || t.state == Done || t.state == Failed {
+		if t.rec.Progress().Kind == Determinate || t.rec.Progress().Kind == BytesKind {
+			if t.rec.State() == Running || t.rec.State() == Done || t.rec.State() == Failed {
 				return true
 			}
 		}
@@ -269,7 +269,7 @@ func (o *Output) needsSpinnerAnimLocked() bool {
 		}
 	}
 	for _, t := range o.rootTasks {
-		if (t.state == Running || t.state == Pending) && !t.coreEmitted {
+		if (t.rec.State() == Running || t.rec.State() == Pending) && !t.coreEmitted {
 			return true
 		}
 	}
@@ -455,7 +455,7 @@ func untilNextSpinnerSlot(now time.Time) time.Duration {
 // Problem 9). A no-op once set: the field only ever moves from zero once.
 // liveSnapshotLocked calls it on every Task as it builds a frame.
 func (t *taskState) stampLiveFirstSeen(now time.Time) {
-	if t.unstampedIn(t.state) {
+	if t.unstampedIn(t.rec.State()) {
 		t.liveFirstSeenAt = now
 		t.markFiling()
 		t.censusStamped()

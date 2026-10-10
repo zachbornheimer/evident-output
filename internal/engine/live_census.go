@@ -77,11 +77,11 @@ func (t *taskState) unstampedIn(state EntityState) bool {
 // censusDeclared counts a newly declared Task.
 func (t *taskState) censusDeclared() {
 	width := utf8.RuneCountInString(t.name)
-	unstamped := t.unstampedIn(t.state)
+	unstamped := t.unstampedIn(t.rec.State())
 	t.censusesAbove(func(c *liveCensus) {
 		c.total++
-		c.count(t.state, 1)
-		if len(t.warnings) > 0 {
+		c.count(t.rec.State(), 1)
+		if t.rec.WarningCount() > 0 {
 			c.warned++
 		}
 		if unstamped {
@@ -94,13 +94,13 @@ func (t *taskState) censusDeclared() {
 
 // censusMoved records that t moved from state from to its current state.
 func (t *taskState) censusMoved(from EntityState) {
-	if from == t.state {
+	if from == t.rec.State() {
 		return
 	}
-	stampDelta := boolDelta(t.unstampedIn(t.state)) - boolDelta(t.unstampedIn(from))
+	stampDelta := boolDelta(t.unstampedIn(t.rec.State())) - boolDelta(t.unstampedIn(from))
 	t.censusesAbove(func(c *liveCensus) {
 		c.count(from, -1)
-		c.count(t.state, 1)
+		c.count(t.rec.State(), 1)
 		c.unstamped += stampDelta
 	})
 }

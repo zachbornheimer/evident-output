@@ -71,26 +71,27 @@ func (t *taskState) view() TaskSnapshot {
 	if t.collection != nil {
 		colID = t.collection.id
 	}
+	truth := t.rec.Truth()
 	base := TaskSnapshot{
 		ID:           t.id,
 		Key:          t.key,
 		Name:         t.name,
-		State:        t.state,
-		Phase:        t.phase,
+		State:        truth.State,
+		Phase:        truth.Phase,
 		ActivityAt:   t.activityAt,
-		Progress:     t.progress,
-		Summary:      t.summary,
-		Problems:     t.problems,
-		Warnings:     t.warnings,
-		Facts:        t.facts,
-		Verification: t.verification,
+		Progress:     truth.Progress,
+		Summary:      truth.Summary,
+		Problems:     truth.Problems,
+		Warnings:     truth.Warnings,
+		Facts:        truth.Facts,
+		Verification: truth.Verification,
 		Actions:      t.actions,
-		Skipped:      t.skipped,
-		Kept:         t.kept,
+		Skipped:      truth.Skipped,
+		Kept:         truth.Kept,
 		Collection:   colID,
 		Declaration:  t.declaration,
-		Resolution:   t.resolution,
-		Evidence:     t.verifyEvidence,
+		Resolution:   truth.Resolution,
+		Evidence:     truth.VerifyEvidence,
 	}
 	return core.WithLiveTail(core.NewTaskSnapshot(base, t.liveFirstSeenAt, t.synthetic), t.tail.view())
 }
@@ -239,10 +240,11 @@ func (o *Output) collectActionsLocked() []Action {
 		// invisible everywhere: writeProblem never renders p.Actions
 		// inline (it is evidence, not a decision), and without this loop
 		// it was silently dropped from the Conclusion's Next list too.
-		for _, p := range t.problems {
+		truth := t.rec.Truth()
+		for _, p := range truth.Problems {
 			add(p.Actions)
 		}
-		for _, w := range t.warnings {
+		for _, w := range truth.Warnings {
 			add(w.Actions)
 		}
 	}

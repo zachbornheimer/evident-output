@@ -305,11 +305,10 @@ func (o *Output) emitPlannedHeaderLocked() {
 // once the task has already resolved or does not exist.
 func (o *Output) attachVerificationLocked(taskID string, details []core.VerificationDetail) {
 	st := o.taskByRef[taskID]
-	if st == nil || core.IsTerminalTask(st.state) {
+	if st == nil || core.IsTerminalTask(st.rec.State()) {
 		return
 	}
-	stored := core.StoreVerificationDetails(details)
-	st.verification = append(st.verification, stored...)
+	stored := st.rec.AttachVerification(details)
 	st.markFiling()
 	// Emit the sanitized copy evo.run projects, so JSONL and JSON agree.
 	for _, d := range stored {
@@ -328,14 +327,13 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 // supported, concurrency-safe pattern there), so it is not policed.
 func (o *Output) promoteRunningLocked(st *taskState) {
 	if col := st.collection; col != nil && col.sequential {
-		col.runningSteps = slices.DeleteFunc(col.runningSteps, func(s *taskState) bool { return s.state != Running })
+		col.runningSteps = slices.DeleteFunc(col.runningSteps, func(s *taskState) bool { return s.rec.State() != Running })
 		if len(col.runningSteps) > 0 {
 			o.recordMisuse(ErrConcurrentRunning)
 		}
 		col.runningSteps = append(col.runningSteps, st)
 	}
-	from := st.state
-	st.state = Running
+	from := st.rec.Transition(Running)
 	st.censusMoved(from)
 	st.markFiling()
 	o.armPlainHeartbeatLocked(st, o.cfg.clock.Now())

@@ -43,8 +43,8 @@ func (t *TaskHandle) annotate(apply func(st *taskState)) *TaskHandle {
 			t.out.recordMisuse(err)
 			return
 		}
-		if core.IsTerminalTask(st.state) {
-			if !resolvedByInterrupt(st.state) {
+		if core.IsTerminalTask(st.rec.State()) {
+			if !resolvedByInterrupt(st.rec.State()) {
 				t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 			}
 			return
@@ -87,13 +87,11 @@ func (t *TaskHandle) setLiveOnlyPhase(text string) {
 // setPhaseLocked is Doing's locked body. Callers must already hold o.mu and
 // have checked ensureOpen/isTerminalTask.
 func (o *Output) setPhaseLocked(st *taskState, text string) {
-	st.phase = txt.Text(text)
+	st.rec.SetPhase(text)
 	st.activityAt = o.cfg.clock.Now()
-	if st.state == Pending {
+	if st.rec.State() == Pending {
 		o.promoteRunningLocked(st)
-		if st.progress.Kind == "" {
-			st.progress.Kind = Indeterminate
-		}
+		st.rec.EnsureIndeterminateProgress()
 	}
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})
@@ -109,19 +107,15 @@ func (o *Output) setPhaseLocked(st *taskState, text string) {
 // durable home, the evidence ring, so it gets no plain-mode row per line
 // (release-gate round 9 finding 4).
 func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
-	text = txt.Text(text)
 	// Identical live-only phase is a no-op: Writer leftover/repeated lines
 	// must not bump, emit task.phase_changed, or force a live paint.
-	if text == st.phase {
+	if !st.rec.SetPhaseIfChanged(text) {
 		return
 	}
-	st.phase = text
 	st.activityAt = o.cfg.clock.Now()
-	if st.state == Pending {
+	if st.rec.State() == Pending {
 		o.promoteRunningLocked(st)
-		if st.progress.Kind == "" {
-			st.progress.Kind = Indeterminate
-		}
+		st.rec.EnsureIndeterminateProgress()
 	}
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})
@@ -132,8 +126,7 @@ func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
 // task.warned, EventWarningRecorded, censusWarned. Public Warn was removed in 1.1.
 func (t *TaskHandle) recordWarning(p Problem) *TaskHandle {
 	return t.annotate(func(st *taskState) {
-		st.warnings = append(st.warnings, p)
-		if len(st.warnings) == 1 {
+		if st.rec.AppendWarning(p) == 1 {
 			st.censusWarned()
 		}
 		t.out.bumpLocked()
@@ -152,7 +145,7 @@ func (t *TaskHandle) recordWarning(p Problem) *TaskHandle {
 // annotate). GroupHandle.Summary is the same shape one level up.
 func (t *TaskHandle) Summary(text string) *TaskHandle {
 	return t.annotate(func(st *taskState) {
-		st.summary = txt.Text(text)
+		st.rec.SetSummary(text)
 		t.out.bumpLocked()
 		t.out.appendEventLocked(Event{Type: "task.summary_set", EntityID: t.id})
 		t.out.signalLiveLocked(true)
@@ -161,7 +154,7 @@ func (t *TaskHandle) Summary(text string) *TaskHandle {
 
 // Problem appends one structured diagnostic without resolving the Task.
 // Severity defaults to SeverityError: a Task holding an error Problem can
-// never settle success-class (see honestOutcome). SeverityWarning uses the
+// never settle success-class (see Task.HonestOutcome). SeverityWarning uses the
 // previous warning projection and never fails the Task. An invalid severity
 // is rejected with a context-bearing misuse error and is not recorded.
 func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle {
@@ -178,7 +171,7 @@ func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle 
 
 func (t *TaskHandle) recordBlockingProblem(p Problem) *TaskHandle {
 	return t.annotate(func(st *taskState) {
-		st.problems = append(st.problems, core.StoreProblems([]Problem{p})...)
+		st.rec.AppendProblems(p)
 		t.out.bumpLocked()
 		t.out.appendEventLocked(Event{Type: "task.problem_recorded", EntityID: t.id})
 		t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, wire.ToProblemDoc(p).EventPayload())
@@ -195,7 +188,7 @@ func (t *TaskHandle) recordBlockingProblem(p Problem) *TaskHandle {
 func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 	f := core.SanitizeFact(FactRecord{Name: txt.Text(name), Value: txt.Text(value)})
 	return t.annotate(func(st *taskState) {
-		st.facts = append(st.facts, f)
+		st.rec.AppendFact(f)
 		t.out.bumpLocked()
 		t.out.emitWireEventLocked(wire.EventFactRecorded, t.id, wire.ToFactDoc(f).EventPayload())
 		t.out.signalLiveLocked(true)

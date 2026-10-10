@@ -27,7 +27,7 @@ func (t *TaskHandle) submitWork(fn func() error) {
 		o.mu.Unlock()
 		return
 	}
-	if core.IsTerminalTask(st.state) {
+	if core.IsTerminalTask(st.rec.State()) {
 		o.recordMisuseFor(st.name, ErrAlreadyResolved)
 		o.mu.Unlock()
 		return
@@ -125,7 +125,7 @@ func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error) {
 	if cand.gateFor != nil {
 		return cand, cand.sched.work
 	}
-	if cand.state == Pending {
+	if cand.rec.State() == Pending {
 		o.promoteRunningLocked(cand)
 	}
 	o.bumpLocked()
@@ -239,7 +239,7 @@ func (o *Output) taskIsTerminal(st *taskState) bool {
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return core.IsTerminalTask(st.state)
+	return core.IsTerminalTask(st.rec.State())
 }
 
 // runTrackedCallback runs fn while the scheduler knows which goroutine is
@@ -294,7 +294,7 @@ func (o *Output) drainScheduler() {
 
 // markNotStartedLocked settles st NotStarted: work that will now never run.
 func (o *Output) markNotStartedLocked(st *taskState) {
-	st.summary = notStartedSummary
+	st.rec.SetSummary(notStartedSummary)
 	o.settleLocked(st, NotStarted)
 }
 
@@ -378,7 +378,7 @@ func (o *Output) stopIfFollowerLocked(st *taskState) {
 // stopUnstartedLocked settles st NotStarted unless it already started or
 // resolved.
 func (o *Output) stopUnstartedLocked(st *taskState) {
-	if core.IsTerminalTask(st.state) || st.sched.phase == phaseRunning {
+	if core.IsTerminalTask(st.rec.State()) || st.sched.phase == phaseRunning {
 		return
 	}
 	o.markNotStartedLocked(st)
