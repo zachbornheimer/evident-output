@@ -8,9 +8,9 @@
 package gitenv
 
 import (
-	"os"
-	"os/exec"
 	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/process"
 )
 
 // repositoryLocationVars are the variables that redirect git to a repository
@@ -41,9 +41,9 @@ func Scrub(env []string) []string {
 
 // Command returns a git command that resolves its repository from dir. An
 // empty dir means the current working directory.
-func Command(dir string, args ...string) *exec.Cmd {
-	cmd := exec.Command("git", args...)
+func Command(dir string, args ...string) *process.Cmd {
+	cmd := process.NewCmd("git", args...)
 	cmd.Dir = dir
-	cmd.Env = Scrub(os.Environ())
+	cmd.Env = Scrub(process.Environ())
 	return cmd
 }

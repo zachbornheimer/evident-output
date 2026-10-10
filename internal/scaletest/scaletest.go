@@ -2,7 +2,11 @@
 // share, so each one reads cost the same low-noise way.
 package scaletest
 
-import "time"
+import (
+	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/clock"
+)
 
 // Samples is how many timed runs one estimate takes. Host load only ever
 // adds wall time, so the fastest of several runs is the lowest-noise
@@ -25,7 +29,8 @@ func Fastest(samples int, timed func() time.Duration) time.Duration {
 
 // Elapsed returns how long run took.
 func Elapsed(run func()) time.Duration {
-	start := time.Now()
+	wall := clock.System()
+	start := wall.Now()
 	run()
-	return time.Since(start)
+	return wall.Since(start)
 }
