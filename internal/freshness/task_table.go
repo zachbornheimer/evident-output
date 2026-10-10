@@ -1,12 +1,10 @@
 // This file owns what freshness remembers about each Task during a Run: the
-// inputs it declared, the Basis it observed, the operation records it will
-// commit, and the Verify checks it registered.
+// inputs it declared, the Basis it observed, and the operation records it will
+// commit.
 
 package freshness
 
 import (
-	"context"
-	"fmt"
 	"slices"
 	"sync"
 
@@ -22,25 +20,6 @@ type TaskView interface {
 	TaskID() record.TaskID
 	// ManifestKey is the Task's stable key (§3.1) in the manifest.
 	ManifestKey() string
-}
-
-// BasisSource is one Task Basis input: something whose content identity is
-// observed when the Task starts. Build one with FingerprintBasis.
-type BasisSource interface {
-	observe(ctx context.Context) (BasisRecord, error)
-}
-
-// FingerprintBasis observes a Fingerprint (FSPath, Value, App).
-func FingerprintBasis(f Fingerprint) BasisSource { return fingerprintBasis{inner: f} }
-
-type fingerprintBasis struct{ inner Fingerprint }
-
-func (b fingerprintBasis) observe(ctx context.Context) (BasisRecord, error) {
-	records, err := basisRecordsFrom(ctx, []Fingerprint{b.inner})
-	if err != nil {
-		return BasisRecord{}, err
-	}
-	return records[0], nil
 }
 
 // taskEntry is what freshness remembers about one Task.
@@ -122,140 +101,4 @@ func (t *TaskTable) Operations(id record.TaskID) []OperationRecord {
 		return slices.Clone(entry.operations)
 	}
 	return nil
-}
-
-// BasisJudgement is the verdict of judging a Task's declared Basis.
-type BasisJudgement struct {
-	// Declared is false when the Task declared no Basis; nothing else is set.
-	Declared bool
-	// Observed is the Basis as observed now, canonicalized.
-	Observed []BasisRecord
-	// Current is true when the Task's last successful Run recorded the same
-	// identity and its recorded outputs still hold.
-	Current bool
-}
-
-// JudgeBasis observes id's Basis as the Task starts and reports whether the
-// Task's last successful Run recorded the same identity. The observation
-// holds no resource claim, so it never orders or blocks any other Task. A
-// Task with no Basis is never current. Without a prior record the Task runs.
-// A current Task adopts its prior operations as its own pending ones, so a
-// later commit rewrites identical state.
-func (t *TaskTable) JudgeBasis(ctx context.Context, session *ManifestSession, task TaskView) (BasisJudgement, error) {
-	id := task.TaskID()
-	t.mu.Lock()
-	var inputs []BasisSource
-	if entry := t.tasks[id]; entry != nil {
-		inputs = slices.Clone(entry.inputs)
-	}
-	t.mu.Unlock()
-	if len(inputs) == 0 {
-		return BasisJudgement{}, nil
-	}
-	observed, err := observeTaskBasis(ctx, inputs)
-	if err != nil {
-		return BasisJudgement{}, err
-	}
-	store, err := session.Store(ctx)
-	if err != nil {
-		return BasisJudgement{}, fmt.Errorf("evo: Basis: %w", err)
-	}
-	prior, ok := store.Task(task.ManifestKey())
-	operations, priorBasis := splitBasisOperation(prior.Operations)
-	current := ok && priorBasis != nil && BasisRecordsEqual(priorBasis, observed)
-	if current {
-		if current, err = RecordedOutputsHold(ctx, operations); err != nil {
-			return BasisJudgement{}, err
-		}
-	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	entry := t.entryLocked(id)
-	entry.observed = observed
-	if current {
-		entry.operations = operations
-	}
-	return BasisJudgement{Declared: true, Observed: observed, Current: current}, nil
-}
-
-// observeTaskBasis observes every input and canonicalizes the result. Basis
-// order is not identity; a repeated (kind, key) is a programmer error.
-func observeTaskBasis(ctx context.Context, inputs []BasisSource) ([]BasisRecord, error) {
-	records := make([]BasisRecord, 0, len(inputs))
-	for _, in := range inputs {
-		rec, err := in.observe(ctx)
-		if err != nil {
-			return nil, err
-		}
-		records = append(records, rec)
-	}
-	return canonicalBasis(records)
-}
-
-// splitBasisOperation separates a committed task's trailing Basis record
-// from its other operations. basis is nil when the task recorded none.
-func splitBasisOperation(ops []OperationRecord) (rest []OperationRecord, basis []BasisRecord) {
-	if n := len(ops); n > 0 && ops[n-1].Kind == TaskBasisOperationKind {
-		return slices.Clone(ops[:n-1]), ops[n-1].Basis
-	}
-	return slices.Clone(ops), nil
-}
-
-// operationsToCommitLocked is id's operations plus, when it declared a Basis, the
-// Basis record last. Callers hold t.mu.
-func (t *TaskTable) operationsToCommitLocked(id record.TaskID) []OperationRecord {
-	entry := t.tasks[id]
-	if entry == nil {
-		return nil
-	}
-	ops := slices.Clone(entry.operations)
-	if entry.observed != nil {
-		ops = append(ops, OperationRecord{Kind: TaskBasisOperationKind, Basis: entry.observed})
-	}
-	return ops
-}
-
-// TaskCommit is what committing one Task's manifest record did.
-type TaskCommit struct {
-	// Written is true when the record was handed to the store's writer.
-	Written bool
-	// Operations is how many operations the written record holds.
-	Operations int
-	// Err is the failure to hand the record over, if any.
-	Err error
-}
-
-// Commit persists task's accumulated operations as this Run's truth (spec
-// §11.3) once the Task has settled Done. A Run with no opened manifest
-// commits nothing (no Task in this Run ever used File/Exec/Patch, so
-// nothing opened it), keeping a purely opaque consumer's Run free of any
-// manifest file at all.
-//
-// A Task with tracked operations commits its precise provenance at once. A
-// Task with none is opaque: its record carries the application fingerprint
-// as its DefinitionFingerprint (ZYS-817 Decisions 2026-09-23), never folded
-// into any operation's Basis. Nothing reads that record back within the Run,
-// so it is staged and written with the next commit or at Save instead of
-// costing each settling Task a full manifest rewrite and fsync.
-func (t *TaskTable) Commit(ctx context.Context, session *ManifestSession, task TaskView) TaskCommit {
-	store := session.Opened()
-	if store == nil {
-		return TaskCommit{}
-	}
-	app := session.Application()
-	key := task.ManifestKey()
-	t.mu.Lock()
-	ops := t.operationsToCommitLocked(task.TaskID())
-	t.mu.Unlock()
-	if len(ops) == 0 {
-		store.StageTask(app, TaskRecord{
-			Key:                   key,
-			DefinitionFingerprint: OpaqueTaskDefinitionFingerprint(key, app.Fingerprint),
-		})
-		return TaskCommit{}
-	}
-	if err := store.CommitTask(ctx, app, TaskRecord{Key: key, Operations: ops}); err != nil {
-		return TaskCommit{Err: err}
-	}
-	return TaskCommit{Written: true, Operations: len(ops)}
 }
