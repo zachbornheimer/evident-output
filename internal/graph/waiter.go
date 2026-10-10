@@ -17,8 +17,9 @@ type WaitTicket struct {
 	task  *Task
 	depth int
 	self  GoroutineID
-	// creator is the goroutine that started the waiting one or, when that
-	// runs no callback, the nearest ancestor that does (see startingGoroutine).
+	// creator is the goroutine running the callback or builder that started
+	// the waiting one, directly or through other goroutines, and zero when
+	// none did (see startingGoroutine).
 	creator GoroutineID
 	// owner is the Task or builder gate whose callback is waiting here, or
 	// whose callback started the waiting goroutine; nil for a plain caller.
@@ -44,7 +45,7 @@ func (w *WaitTicket) Released() error { return w.released }
 func (g *Graph) BeginWait(t *Task, stack *WaiterStack) *WaitTicket {
 	self, creator := CurrentGoroutineLineage()
 	if !stack.RunsWork() {
-		creator = g.startingGoroutine(creator)
+		creator = g.startingGoroutine(self, creator)
 	}
 	w := &WaitTicket{task: t, depth: stack.CallbackDepth(), self: self, creator: creator, abort: make(chan struct{})}
 	g.lock()

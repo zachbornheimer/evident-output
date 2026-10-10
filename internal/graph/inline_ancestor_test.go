@@ -35,9 +35,10 @@ func newInlineCallbackRun() *inlineCallbackRun {
 }
 
 // askFromDescendant starts a chain of depth goroutines from the plain caller
-// before it runs first inline; the last one runs ask once first is running.
-// It returns what ask returned.
-func (r *inlineCallbackRun) askFromDescendant(t *testing.T, depth int, ask func() any) any {
+// before it runs first inline; the last one runs ask once first is running,
+// or, with startedSince, starts one more goroutine after first began and has
+// that one run ask. It returns what ask returned.
+func (r *inlineCallbackRun) askFromDescendant(t *testing.T, depth int, startedSince bool, ask func() any) any {
 	t.Helper()
 	got := make(chan any, 1)
 	var spawn func(level int)
@@ -49,6 +50,10 @@ func (r *inlineCallbackRun) askFromDescendant(t *testing.T, depth int, ask func(
 			return
 		}
 		<-r.running
+		if startedSince {
+			go func() { got <- ask() }()
+			return
+		}
 		got <- ask()
 	}
 	go spawn(1)
@@ -71,9 +76,32 @@ func (r *inlineCallbackRun) askFromDescendant(t *testing.T, depth int, ask func(
 func TestWaitFromDescendantOfInlineRunningCallerIsNotDeadlocked(t *testing.T) {
 	for _, depth := range []int{1, 2, 3} {
 		r := newInlineCallbackRun()
-		got := r.askFromDescendant(t, depth, func() any { return r.g.Wait(r.second) })
+		got := r.askFromDescendant(t, depth, false, func() any { return r.g.Wait(r.second) })
 		if err, _ := got.(error); err != nil {
 			t.Fatalf("depth %d: Wait(second) from a descendant = %v, want nil", depth, err)
+		}
+	}
+}
+
+// A goroutine that descendant starts while the callback runs is no more the
+// callback's: the callback did not start the goroutine it came from.
+func TestWaitFromGoroutineAPredatingDescendantStartedIsNotDeadlocked(t *testing.T) {
+	for _, depth := range []int{1, 2, 3} {
+		r := newInlineCallbackRun()
+		got := r.askFromDescendant(t, depth, true, func() any { return r.g.Wait(r.second) })
+		if err, _ := got.(error); err != nil {
+			t.Fatalf("depth %d: Wait(second) from a goroutine a descendant started = %v, want nil", depth, err)
+		}
+	}
+}
+
+// The same goroutine reading a Computed is a plain caller's read too.
+func TestReadFromGoroutineAPredatingDescendantStartedIsNotTheCallbacks(t *testing.T) {
+	for _, depth := range []int{1, 2, 3} {
+		r := newInlineCallbackRun()
+		got := r.askFromDescendant(t, depth, true, func() any { return r.g.CurrentReader() })
+		if reader := got.(Reader); reader.Task != nil {
+			t.Fatalf("depth %d: a goroutine a descendant started read as %q, want no Task", depth, reader.Task.Name)
 		}
 	}
 }
@@ -83,7 +111,7 @@ func TestWaitFromDescendantOfInlineRunningCallerIsNotDeadlocked(t *testing.T) {
 func TestReadFromDescendantOfInlineRunningCallerIsNotTheCallbacks(t *testing.T) {
 	for _, depth := range []int{1, 2, 3} {
 		r := newInlineCallbackRun()
-		got := r.askFromDescendant(t, depth, func() any { return r.g.CurrentReader() })
+		got := r.askFromDescendant(t, depth, false, func() any { return r.g.CurrentReader() })
 		if reader := got.(Reader); reader.Task != nil {
 			t.Fatalf("depth %d: a descendant read as %q, want no Task", depth, reader.Task.Name)
 		}

@@ -54,6 +54,12 @@ func CurrentGoroutineLineage() (self, creator GoroutineID) {
 // any number of goroutines one creator started cost one dump between them.
 func StartingChain(creator GoroutineID) []GoroutineID { return processLineage.chain(creator) }
 
+// goroutinesStartedBy is every goroutine alive now that root started,
+// directly or through others, read from a fresh dump of every goroutine.
+func goroutinesStartedBy(root GoroutineID) map[GoroutineID]struct{} {
+	return processLineage.descendantsOf(root)
+}
+
 // goroutineCreators maps every goroutine in a dump of all tracebacks to the
 // goroutine that started it (zero for one the runtime started).
 func goroutineCreators(dump []byte) map[GoroutineID]GoroutineID {

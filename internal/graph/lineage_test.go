@@ -116,6 +116,26 @@ func TestLineageAnswersAKnownGoroutineFromMemory(t *testing.T) {
 	}
 }
 
+// The goroutines a goroutine started, directly or through others, are its
+// descendants; the goroutine itself and the ones it did not start are not.
+func TestLineageDescendantsAreWhatARootStartedThroughOthers(t *testing.T) {
+	var l lineage
+	tr := startLineageTree(&l)
+	defer close(tr.exitChild)
+	defer close(tr.exitParent)
+
+	underParent := l.descendantsOf(tr.parent)
+	if _, ok := underParent[tr.child]; !ok {
+		t.Fatalf("descendantsOf(parent) = %v, want the child %d", underParent, tr.child)
+	}
+	if _, ok := underParent[tr.parent]; ok {
+		t.Fatalf("descendantsOf(parent) = %v lists the parent itself", underParent)
+	}
+	if underChild := l.descendantsOf(tr.child); len(underChild) != 0 {
+		t.Fatalf("descendantsOf(child) = %v, want none: the child started no goroutine", underChild)
+	}
+}
+
 // Every goroutine a known creator started is answered from memory: the
 // creator was seen once, and how many fresh goroutines ask about it does not
 // matter.

@@ -127,7 +127,7 @@ func (g *Graph) CurrentReader() Reader {
 		return Reader{Task: own}
 	}
 	_, creator := CurrentGoroutineLineage()
-	creator = g.startingGoroutine(creator)
+	creator = g.startingGoroutine(id, creator)
 	g.lockRead()
 	defer g.unlockRead()
 	return Reader{Task: g.consumerStartedByLocked(creator), Spawned: true}

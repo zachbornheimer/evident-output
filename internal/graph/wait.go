@@ -122,8 +122,9 @@ func (g *Graph) enclosingBuilder(stack *WaiterStack) (gate *Task, inside bool) {
 	if stack.RunsWork() {
 		return nil, false
 	}
-	if creator := g.startingGoroutine(stack.Creator()); g.isRunningBuilder(creator) {
-		return g.builderGateOf(creator), true
+	self, creator := stack.Lineage()
+	if starter := g.startingGoroutine(self, creator); g.isRunningBuilder(starter) {
+		return g.builderGateOf(starter), true
 	}
 	return nil, false
 }

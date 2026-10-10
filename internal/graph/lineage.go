@@ -46,6 +46,27 @@ func (l *lineage) chain(from GoroutineID) []GoroutineID {
 	return chain
 }
 
+// descendantsOf lists the goroutines that root started, directly or through
+// others, among those alive now and the exited ones a live goroutine still
+// names, from one fresh dump. It is never nil.
+func (l *lineage) descendantsOf(root GoroutineID) map[GoroutineID]struct{} {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.learnLocked()
+	started := make(map[GoroutineID][]GoroutineID)
+	for id, creator := range l.creators {
+		started[creator] = append(started[creator], id)
+	}
+	descendants := make(map[GoroutineID]struct{})
+	for pending := started[root]; len(pending) > 0; {
+		id := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+		descendants[id] = struct{}{}
+		pending = append(pending, started[id]...)
+	}
+	return descendants
+}
+
 // learnLocked replaces what is remembered with one dump of every goroutine
 // alive now, keeping the exited goroutines a live one still names as its
 // ancestor, so a chain through an exited creator survives while it is useful

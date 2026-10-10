@@ -47,7 +47,8 @@ func CallbackDepth() int { return ReadStackMarks().Callbacks }
 type WaiterStack struct {
 	read        bool
 	marks       StackMarks
-	creatorRead bool
+	lineageRead bool
+	self        GoroutineID
 	creator     GoroutineID
 }
 
@@ -76,14 +77,20 @@ func (w *WaiterStack) HoldsClaim() bool {
 	return processHolds.Blocked(w.Creator())
 }
 
-// Creator is the goroutine that started the waiting goroutine (zero for one
-// the runtime started), read once: it needs the whole traceback.
-func (w *WaiterStack) Creator() GoroutineID {
-	if !w.creatorRead {
-		_, w.creator = CurrentGoroutineLineage()
-		w.creatorRead = true
+// Lineage is the waiting goroutine and the goroutine that started it (zero
+// for one the runtime started), read once: it needs the whole traceback.
+func (w *WaiterStack) Lineage() (self, creator GoroutineID) {
+	if !w.lineageRead {
+		w.self, w.creator = CurrentGoroutineLineage()
+		w.lineageRead = true
 	}
-	return w.creator
+	return w.self, w.creator
+}
+
+// Creator is the goroutine that started the waiting goroutine.
+func (w *WaiterStack) Creator() GoroutineID {
+	_, creator := w.Lineage()
+	return creator
 }
 
 // InsideBuilder reports whether the waiting goroutine is running a container
