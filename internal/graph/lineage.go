@@ -14,24 +14,33 @@ var processLineage lineage
 // goroutine's creator is fixed when it starts and ids are never reused, so a
 // remembered creator never goes stale. Reading creators means a traceback of
 // every goroutine, which stops the world: one dump teaches the creator of
-// every goroutine alive then, so a goroutine pays for at most one, and one it
-// shares a dump with pays for none.
+// every goroutine alive then, so a creator pays for at most one, and the
+// goroutines it started, asking about it afterwards, pay for none.
 type lineage struct {
 	mu       sync.Mutex
 	creators map[GoroutineID]GoroutineID
 }
 
-// ancestors lists the goroutines that started self, nearest first, as far as
-// the runtime named them: a creator that exited before anything saw it ends
-// the chain. self must be the calling goroutine, which a dump always lists.
-func (l *lineage) ancestors(self GoroutineID) []GoroutineID {
+// chain lists from, then the goroutines that started it, nearest first, as
+// far as the runtime named them: a creator that exited before anything saw it
+// ends the chain. Only a goroutine the lineage has never seen costs a dump, so
+// every goroutine one creator started pays nothing once the creator is known.
+func (l *lineage) chain(from GoroutineID) []GoroutineID {
+	if from == 0 {
+		return nil
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if _, known := l.creators[self]; !known {
+	if _, known := l.creators[from]; !known {
 		l.learnLocked()
+		if _, seen := l.creators[from]; !seen {
+			// Gone before the dump: ids are never reused, so nothing will
+			// ever name its creator, and asking again need not dump again.
+			l.creators[from] = 0
+		}
 	}
-	var chain []GoroutineID
-	for id := l.creators[self]; id != 0 && len(chain) <= len(l.creators); id = l.creators[id] {
+	chain := []GoroutineID{from}
+	for id := l.creators[from]; id != 0 && len(chain) <= len(l.creators); id = l.creators[id] {
 		chain = append(chain, id)
 	}
 	return chain

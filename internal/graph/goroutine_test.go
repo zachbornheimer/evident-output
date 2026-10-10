@@ -2,9 +2,9 @@ package graph
 
 import "testing"
 
-// A goroutine's ancestors run from the one that started it outward, however
-// many goroutines sit between it and the test.
-func TestGoroutineAncestorsRunNearestFirst(t *testing.T) {
+// A goroutine's starting chain runs from the one that started it outward,
+// however many goroutines sit between it and the test.
+func TestStartingChainRunsNearestFirst(t *testing.T) {
 	parentID := make(chan GoroutineID, 1)
 	ancestors := make(chan []GoroutineID, 1)
 	release := make(chan struct{})
@@ -12,7 +12,8 @@ func TestGoroutineAncestorsRunNearestFirst(t *testing.T) {
 		parentID <- CurrentGoroutine()
 		done := make(chan struct{})
 		go func() {
-			ancestors <- GoroutineAncestors()
+			_, creator := CurrentGoroutineLineage()
+			ancestors <- StartingChain(creator)
 			close(done)
 		}()
 		<-done
