@@ -1,41 +1,20 @@
 package engine
 
-import "time"
+import "github.com/zachbornheimer/evident-output/internal/clock"
 
-// TimeSource provides the current time for deterministic tests.
-// Option constructor is withClock(TimeSource) to match the public aPI examples.
-type TimeSource interface {
-	Now() time.Time
-}
+// The root package keeps compiling through these aliases until the root
+// speaks internal/clock directly.
+type (
+	// TimeSource provides the current time for deterministic tests.
+	TimeSource = clock.Clock
+	// Scheduler is TimeSource's optional capability to run fn after a delay.
+	Scheduler = clock.Scheduler
+	// systemClock uses the real wall clock.
+	systemClock = clock.Wall
+	// fixedClock always returns the same instant.
+	fixedClock = clock.Fixed
+)
 
-// systemClock uses the real wall clock.
-type systemClock struct{}
-
-// Now returns the system time.
-func (systemClock) Now() time.Time { return time.Now() }
-
-// fixedClock always returns the same instant.
-type fixedClock struct {
-	T time.Time
-}
-
-// Now returns the fixed instant.
-func (c fixedClock) Now() time.Time { return c.T }
-
-// Scheduler is TimeSource's optional companion capability: schedule fn to
-// run once at least d has elapsed on that clock. Only the plain/
-// non-interactive §40 heartbeat (plain_heartbeat.go) depends on it — a
-// TimeSource that does not implement Scheduler (e.g. fixedClock) simply
-// never arms a heartbeat, rather than a broken one. systemClock schedules a
-// real timer; testkit.Clock fires deterministically when its fake time is
-// advanced past the deadline, so the heartbeat is testable without a sleep.
-type Scheduler interface {
-	AfterFunc(d time.Duration, fn func()) func()
-}
-
-// AfterFunc implements Scheduler for the real wall clock. The returned func
-// cancels fn if it has not already fired.
-func (systemClock) AfterFunc(d time.Duration, fn func()) func() {
-	t := time.AfterFunc(d, fn)
-	return func() { t.Stop() }
-}
+// wall is the real clock for waits that must stay real whatever Clock the
+// application injected: spinner cadence, paint cost, throttled-write age.
+var wall = clock.System()

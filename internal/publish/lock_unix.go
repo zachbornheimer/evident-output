@@ -14,6 +14,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/clock"
 )
 
 // Lock polling bounds: a held lock covers one commit, so waits are short;
@@ -79,7 +81,7 @@ func acquirePathLock(ctx context.Context, key string) (pathLock, error) {
 		select {
 		case <-ctx.Done():
 			return pathLock{}, fmt.Errorf("wait for destination lock: %w", ctx.Err())
-		case <-time.After(wait):
+		case <-clock.System().After(wait):
 		}
 		wait = min(wait*2, lockPollMax)
 	}

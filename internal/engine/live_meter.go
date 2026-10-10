@@ -78,5 +78,5 @@ func (l *liveEngine) shouldSkipGlyph() bool {
 	if written == nil {
 		return false
 	}
-	return skipGlyphRepaint(l.meter.cost(), time.Since(*written))
+	return skipGlyphRepaint(l.meter.cost(), wall.Since(*written))
 }

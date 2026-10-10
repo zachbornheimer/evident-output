@@ -92,7 +92,7 @@ func (l *liveEngine) paint(f liveFrame, text string) bool {
 	if text == l.lastLiveText && l.liveActive {
 		return false
 	}
-	start := time.Now()
+	start := wall.Now()
 	l.lastWrite.Store(&start)
 	f.surface.WriteLive(text)
 	l.lastLiveText = text
@@ -122,10 +122,10 @@ func (l *liveEngine) clear(surface LiveSurface) bool {
 // paintFrameLocked snapshots, renders and writes one frame under o.mu: a
 // caller that needs the frame on screen when it returns.
 func (o *Output) paintFrameLocked(surface LiveSurface) {
-	start := time.Now()
+	start := wall.Now()
 	f := o.liveFrameLocked(surface)
 	o.live.paint(f, f.render())
-	o.live.meter.observe(time.Since(start))
+	o.live.meter.observe(wall.Since(start))
 }
 
 // paintFrameUnlocked snapshots under o.mu and renders and writes with it
@@ -133,10 +133,10 @@ func (o *Output) paintFrameLocked(surface LiveSurface) {
 // o.mu held.
 func (o *Output) paintFrameUnlocked(surface LiveSurface) {
 	engine := o.live
-	start := time.Now()
+	start := wall.Now()
 	f := o.liveFrameLocked(surface)
 	o.mu.Unlock()
 	engine.paint(f, f.render())
-	engine.meter.observe(time.Since(start))
+	engine.meter.observe(wall.Since(start))
 	o.mu.Lock()
 }

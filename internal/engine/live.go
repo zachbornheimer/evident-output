@@ -185,10 +185,10 @@ func (o *Output) holdRunningPaint(id string) {
 	o.mu.Unlock()
 	wait := txt.SpinnerPeriod
 	if !seen.IsZero() {
-		wait = txt.SpinnerPeriod - time.Since(seen)
+		wait = txt.SpinnerPeriod - wall.Since(seen)
 	}
 	if wait > 0 {
-		time.Sleep(wait)
+		wall.Sleep(wait)
 	}
 }
 
@@ -363,14 +363,14 @@ func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
 	// Real wall timer: spinner cadence is independent of the domain clock and
 	// of Progress/Phase call rate. Domain clock still selects the glyph frame
 	// (fixedClock freezes animation for golden tests).
-	t := time.NewTimer(untilNextSpinnerSlot(time.Now()))
+	t := wall.NewTimer(untilNextSpinnerSlot(wall.Now()))
 	defer t.Stop()
 	for {
 		select {
 		case <-stop:
 			return
 		case <-t.C:
-			t.Reset(untilNextSpinnerSlot(time.Now()))
+			t.Reset(untilNextSpinnerSlot(wall.Now()))
 			o.mu.Lock()
 			next := o.animatorTickLocked()
 			if next == tickPaint || next == tickFlush {
