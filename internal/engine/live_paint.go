@@ -48,11 +48,11 @@ func (o *Output) liveFrameAtLocked(width, height int, now time.Time) liveFrame {
 	style := o.humanStyle()
 	bodyHeight := height
 	var pane strings.Builder
-	if o.cfg.debugPresentation == DebugPresentationPane && len(o.debugRecords) > 0 {
+	if recorded := o.rec.DebugRecordCount(); o.cfg.debugPresentation == DebugPresentationPane && recorded > 0 {
 		// Reserve rows for pane heading + visible records before budgeting the body.
-		paneRows := min(debugPaneReservedRows(o.cfg.debugPane, len(o.debugRecords)), height-1)
+		paneRows := min(debugPaneReservedRows(o.cfg.debugPane, recorded), height-1)
 		bodyHeight = max(height-max(paneRows, 0), 1)
-		writeDebugPane(&pane, o.debugRecords, o.cfg.debugPane, width, style.Color)
+		writeDebugPane(&pane, o.rec.DebugRecordTail(o.cfg.debugPane.rows()), o.cfg.debugPane, width, style.Color)
 	}
 	return liveFrame{
 		snap:       o.liveSnapshotLocked(bodyHeight, now),

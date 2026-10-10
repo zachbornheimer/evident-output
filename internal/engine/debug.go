@@ -3,9 +3,9 @@ package engine
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/record"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -38,6 +38,15 @@ type debugPaneConfig struct {
 	preserveAlways bool
 	// preserveOnBad defaults true for pane mode: append tail on failed/blocked/cancelled.
 	preserveOnBad bool
+}
+
+// rows is how many records the pane shows: its configured height, or the
+// default when none was set.
+func (c debugPaneConfig) rows() int {
+	if c.height <= 0 {
+		return defaultDebugPaneHeight
+	}
+	return c.height
 }
 
 type paneOptionFunc func(*debugPaneConfig)
@@ -95,12 +104,7 @@ func debugPane(opts ...DebugPaneOption) Option {
 }
 
 // debugRecord is one structured diagnostic journal entry (§21.3).
-type debugRecord struct {
-	Time    time.Time
-	Level   string
-	Message string
-	Fields  []Field
-}
+type debugRecord = record.DebugRecord
 
 // formatHistoryLine is the compact bracketed grammar for durable scrollback.
 // Example: 12:04:18.219 [DEBUG] package index loaded  packages=18
@@ -182,13 +186,7 @@ func debugPaneReservedRows(pane debugPaneConfig, recordCount int) int {
 	if recordCount <= 0 {
 		return 0
 	}
-	height := pane.height
-	if height <= 0 {
-		height = defaultDebugPaneHeight
-	}
-	if recordCount < height {
-		height = recordCount
-	}
+	height := min(recordCount, pane.rows())
 	// blank separator line before heading is written by writeDebugPane's leading \n
 	// on body that may already end without newline — count heading + records + 1.
 	return height + 2
@@ -199,10 +197,7 @@ func writeDebugPane(b *strings.Builder, records []debugRecord, pane debugPaneCon
 	if len(records) == 0 {
 		return
 	}
-	height := pane.height
-	if height <= 0 {
-		height = defaultDebugPaneHeight
-	}
+	height := pane.rows()
 	heading := debugPaneHeadingNewest
 	if !pane.newestFirst {
 		heading = debugPaneHeadingOldest
@@ -277,7 +272,7 @@ func writeDebugTail(b *strings.Builder, records []debugRecord, max int, color bo
 func (o *Output) shouldPreserveDebugTailLocked(conc Conclusion) bool {
 	// Explicit opt-in always wins (including plain demos with PreserveDebugTail).
 	if o.cfg.debugPane.preserveAlways {
-		return o.cfg.debugPresentation == DebugPresentationPane && len(o.debugRecords) > 0
+		return o.cfg.debugPresentation == DebugPresentationPane && o.rec.DebugRecordCount() > 0
 	}
 	// Default failure tail only when the rolling pane actually owned presentation.
 	// History fallback (plain/non-TTY) already streamed durable lines — no second dump.

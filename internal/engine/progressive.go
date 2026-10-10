@@ -21,15 +21,16 @@ type flusher interface {
 
 // emitLineProgressiveLocked streams a newly appended Line() to the human stream.
 func (o *Output) emitLineProgressiveLocked() {
-	if o.linesEmitted >= len(o.lines) {
+	pending := o.rec.LinesFrom(o.linesEmitted)
+	if len(pending) == 0 {
 		return
 	}
 	var b strings.Builder
-	for _, line := range o.lines[o.linesEmitted:] {
+	for _, line := range pending {
 		b.WriteString(line)
 		b.WriteByte('\n')
 	}
-	o.linesEmitted = len(o.lines)
+	o.linesEmitted = o.rec.LineCount()
 	o.writeDurableTextLocked(b.String())
 }
 
@@ -467,7 +468,7 @@ func (o *Output) writeDebugTailLocked(b *strings.Builder, snap Snapshot, color b
 	if rows <= 0 {
 		rows = defaultDebugPaneHeight
 	}
-	writeDebugTail(b, o.debugRecords, rows, color)
+	writeDebugTail(b, o.rec.DebugRecordTail(rows), rows, color)
 }
 
 // residualPlainLocked builds the Finish tail for the plain/primary-mirror

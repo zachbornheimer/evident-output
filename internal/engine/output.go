@@ -54,7 +54,6 @@ type Output struct {
 	// (release-gate round 5 finding 4: the band's severity otherwise has no
 	// visible cause beyond "was already resolved").
 	misuseRejectedSummary string
-	conclusion            *Conclusion
 	live                  *liveEngine
 
 	// workspaceDir is the process working directory, captured once on first
@@ -67,9 +66,9 @@ type Output struct {
 	// order: the ones a live frame walks beside the collections.
 	rootTasks   []*taskState
 	collections []*tasksState
-	// rec holds the run's truth: its event journal and its ledger.
-	rec   *record.Run
-	lines []string
+	// rec holds the run's truth: its event journal, ledger, history lines,
+	// messages, diagnostics, run-scoped facts and warnings, and Conclusion.
+	rec *record.Run
 
 	// wireSeq/wireEventErr back the §38 "evo.event" JSONL stream
 	// (structured_events.go's emitWireEventLocked) — a counter and
@@ -87,11 +86,6 @@ type Output struct {
 	// rootNames holds the names root Tasks, Groups, and Sequences claimed
 	// (§3.1); see siblingsLocked.
 	rootNames siblings
-	// namedReasons backs get-or-create identity for evo.Reason: repeated calls
-	// with the same name (inline or lifted to a var) merge into one bucket.
-	// Also unrelated to §3.1 — a taxonomy Reason is not a declared entity.
-	namedReasons map[string]TaxonomyReason
-
 	// ctx is the run's own cancellation signal — the thing a callback doing
 	// I/O selects on. cancelRun trips it on interrupt and on Close, so no
 	// callback can outlive the run that owns it.
@@ -121,9 +115,6 @@ type Output struct {
 	// reflecting it, so DeclareDryRun after that point is misuse.
 	durableRowsEmitted int
 
-	// Structured debug journal (§21.3). lines[] still holds history-format strings
-	// for FinalPlain / residual compatibility.
-	debugRecords []debugRecord
 	// debugPaneActive is true once a Debug record was subject to pane
 	// presentation while interactive — either projected onto the live
 	// rolling pane, or (dual-stream construction) routed to Diagnostics only
@@ -131,18 +122,9 @@ type Output struct {
 	// diagnostic-tail eligibility; not "the pane rendered this record".
 	debugPaneActive bool
 
-	// Print/Printf/Println line buffers and canonical messages.
+	// Print/Printf/Println line buffer.
 	pendingPrint strings.Builder
 	pendingVis   Visibility // visibility of the current pending fragment
-	messages     []messageState
-
-	// runWarnings/runFacts accumulate run-scoped annotations (P8) — the
-	// same "annotate, never resolve" contract a task's warning-severity
-	// Problems and Facts have, scoped to the run itself instead of one
-	// task. Public Output.Warn was removed in 1.1; runWarnings is the
-	// engine-internal path (a failed manifest flush).
-	runWarnings []Problem
-	runFacts    []FactRecord
 
 	// manifestStore is this Run's exclusive handle on the reconciliation
 	// manifest (spec §11.3), opened lazily by the first evo.File call

@@ -30,7 +30,7 @@ func (o *Output) Fact(name, value string) {
 		o.recordMisuse(err)
 		return
 	}
-	o.runFacts = append(o.runFacts, f)
+	o.rec.RecordRunFact(f)
 	o.bumpLocked()
 	o.emitWireEventLocked(wire.EventFactRecorded, "", wire.ToFactDoc(f).EventPayload())
 	o.writeDurableTextLocked(txt.Dim(f.Name+"  "+f.Value, !o.cfg.noColor) + "\n")
@@ -42,7 +42,7 @@ func (o *Output) Fact(name, value string) {
 // TaskHandle.Problem(..., Severity(SeverityWarning)) uses for the
 // conclusion's warned modifier.
 func (o *Output) warnLocked(p Problem) {
-	o.runWarnings = append(o.runWarnings, p)
+	o.rec.RecordRunWarning(p)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "run.warned", OutputID: o.outputID})
 	o.emitWireEventLocked(wire.EventWarningRecorded, "", wire.ToProblemDoc(p).EventPayload())

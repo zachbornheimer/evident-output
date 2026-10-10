@@ -71,10 +71,10 @@ func (o *Output) newDebugRecordLocked(levelName, message string, fields []Field,
 }
 
 func (o *Output) projectDebugRecordLocked(rec debugRecord) {
-	o.debugRecords = append(o.debugRecords, rec)
+	o.rec.AppendDebugRecord(rec)
 	history := formatHistoryLine(rec, !o.cfg.noColor)
 	plainHistory := formatHistoryLine(rec, false)
-	o.lines = append(o.lines, plainHistory)
+	o.rec.AppendLine(plainHistory)
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "log.emitted"})
 
@@ -106,13 +106,13 @@ func (o *Output) projectDebugRecordLocked(rec debugRecord) {
 		if interactive && panePresentation {
 			o.debugPaneActive = true
 		}
-		o.linesEmitted = len(o.lines)
+		o.linesEmitted = o.rec.LineCount()
 		return
 	}
 
 	if interactive && panePresentation {
 		o.debugPaneActive = true
-		o.linesEmitted = len(o.lines)
+		o.linesEmitted = o.rec.LineCount()
 		o.signalLiveLocked(true)
 		return
 	}
@@ -121,7 +121,7 @@ func (o *Output) projectDebugRecordLocked(rec debugRecord) {
 	} else {
 		o.writeDurableTextLocked(history + "\n")
 	}
-	o.linesEmitted = len(o.lines)
+	o.linesEmitted = o.rec.LineCount()
 }
 
 // writeDiagnosticText emits text on the Diagnostics writer (thread-safe).

@@ -21,14 +21,14 @@ func (o *Output) snapshotLocked() Snapshot {
 		Version:       o.version,
 		OutputID:      o.outputID,
 		Subject:       o.cfg.subject,
-		Lines:         append([]string(nil), o.lines...),
+		Lines:         o.rec.Lines(),
 		Actions:       record.CloneActions(o.collectActionsLocked()),
 		Timestamp:     o.cfg.clock.Now(),
 		DryRun:        o.cfg.dryRun,
 		Preview:       o.cfg.preview,
 		DryRunSubject: o.cfg.dryRunHeaderText,
-		Warnings:      core.CloneProblems(o.runWarnings),
-		Facts:         core.CloneFacts(o.runFacts),
+		Warnings:      o.rec.RunWarnings(),
+		Facts:         o.rec.RunFacts(),
 	}
 	for _, col := range o.collections {
 		s.Collections = append(s.Collections, col.snapshot())
@@ -41,15 +41,8 @@ func (o *Output) snapshotLocked() Snapshot {
 	}
 	s.Changes = o.rec.ChangeSnapshots()
 	s.Plans = o.rec.PlanSnapshots()
-	for _, m := range o.messages {
-		s.Messages = append(s.Messages, MessageSnapshot{
-			ID:         m.id,
-			Text:       m.text,
-			Visibility: m.visibility,
-		})
-	}
-	if o.conclusion != nil {
-		c := *o.conclusion
+	s.Messages = o.rec.Messages()
+	if c, ok := o.rec.Conclusion(); ok {
 		s.Conclusion = &c
 	}
 	return s

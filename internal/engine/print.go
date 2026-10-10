@@ -203,15 +203,10 @@ func (o *Output) emitMessageLocked(line string, vis Visibility) {
 	line = txt.Text(line)
 	// Drop pure empty? Keep empty lines as messages for fmt parity of blank Println.
 	id := o.nextID("message")
-	st := messageState{
-		id:         id,
-		text:       line,
-		visibility: vis,
-	}
-	o.messages = append(o.messages, st)
+	o.rec.AppendMessage(MessageSnapshot{ID: id, Text: line, Visibility: vis})
 	// Compatibility: Lines is derived projection of normal+verbose-when-shown.
 	if o.projectsVisibilityLocked(vis) {
-		o.lines = append(o.lines, line)
+		o.rec.AppendLine(line)
 	}
 	o.bumpLocked()
 	o.appendEventLocked(Event{
@@ -224,7 +219,7 @@ func (o *Output) emitMessageLocked(line string, vis Visibility) {
 		o.emitLineProgressiveLocked()
 	} else {
 		// Hidden verbose: still count as "emitted" for residual bookkeeping of lines.
-		o.linesEmitted = len(o.lines)
+		o.linesEmitted = o.rec.LineCount()
 	}
 }
 
@@ -243,11 +238,4 @@ func (o *Output) flushPendingPrintLocked() {
 		vis := o.pendingVis
 		o.emitMessageLocked(line, vis)
 	}
-}
-
-// messageState is an internal durable message record.
-type messageState struct {
-	id         string
-	text       string
-	visibility Visibility
 }

@@ -117,7 +117,7 @@ func (o *Output) concludeLocked() Snapshot {
 	conc.RunID = o.outputID
 	conc.StartedAt = o.startedAt
 	conc.FinishedAt = o.cfg.clock.Now()
-	o.conclusion = &conc
+	o.rec.RecordConclusion(conc)
 	snap.Conclusion = &conc
 	o.appendEventLocked(Event{
 		Type:  "output.finished",

@@ -27,7 +27,7 @@ func (o *Output) recordMisuse(err error) {
 func (o *Output) appendMisuseLineLocked() {
 	hint := misuseHintFor(o.misuse, o.misuseSubject, o.misuseRejectedSummary)
 	glyph := txt.StyleGlyph(misuseGlyph, txt.SGRYellow, !o.cfg.noColor)
-	o.lines = append(o.lines, fmt.Sprintf("%s  %s", glyph, hint))
+	o.rec.AppendLine(fmt.Sprintf("%s  %s", glyph, hint))
 }
 
 // recordMisuseFor is recordMisuse with the offending entity's name attached,

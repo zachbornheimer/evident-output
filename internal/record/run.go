@@ -13,6 +13,16 @@ type Run struct {
 	// reasons backs get-or-create identity for evo.Reason: repeated calls with
 	// the same name merge into one bucket.
 	reasons map[string]TaxonomyReason
+	// lines is the history-format text of everything printed, for the final
+	// plain projection and residual emission.
+	lines    []string
+	messages []MessageSnapshot
+	debug    []DebugRecord
+	// facts and warnings are run-scoped annotations: the same "annotate, never
+	// resolve" contract a task's facts and warnings have, scoped to the run.
+	facts      []Fact
+	warnings   []Problem
+	conclusion *Conclusion
 }
 
 // NewRun is an empty record of a run that has not started.

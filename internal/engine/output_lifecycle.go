@@ -104,8 +104,8 @@ func (o *Output) Context() context.Context {
 func (o *Output) Conclusion() Conclusion {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if o.conclusion != nil {
-		return *o.conclusion
+	if c, ok := o.rec.Conclusion(); ok {
+		return c
 	}
 	snap := o.snapshotLocked()
 	c := core.InferConclusion(snap)
