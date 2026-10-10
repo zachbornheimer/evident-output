@@ -140,6 +140,40 @@ func (v10FileFS) WriteAtomic(path string, contents []byte, mode fs.FileMode) err
 
 func (v10FileFS) Chmod(path string, mode fs.FileMode) error { return os.Chmod(path, mode) }
 
+// lookalikeCreatorFileFS is a consumer FileFS that happens to declare a
+// CreateOrdinary method. Only the real filesystem may create a file outside
+// WriteAtomic, so the lookalike's method must never be called.
+type lookalikeCreatorFileFS struct {
+	v10FileFS
+	ordinaryCalls, atomicCalls *int
+}
+
+func (f lookalikeCreatorFileFS) CreateOrdinary(path string, contents []byte) error {
+	*f.ordinaryCalls++
+	return os.WriteFile(path, contents, 0o666)
+}
+
+func (f lookalikeCreatorFileFS) WriteAtomic(path string, contents []byte, mode fs.FileMode) error {
+	*f.atomicCalls++
+	return f.v10FileFS.WriteAtomic(path, contents, mode)
+}
+
+// TestFileCreateIgnoresALookalikeCreateOrdinaryMethod proves a consumer
+// FileFS cannot skip WriteAtomic by declaring a method named CreateOrdinary.
+func TestFileCreateIgnoresALookalikeCreateOrdinaryMethod(t *testing.T) {
+	var ordinaryCalls, atomicCalls int
+	fsys := lookalikeCreatorFileFS{ordinaryCalls: &ordinaryCalls, atomicCalls: &atomicCalls}
+	path := filepath.Join(t.TempDir(), "new.txt")
+	out := Init(Config{Isolated: true, StateDir: t.TempDir(), FileFS: fsys})
+	t.Cleanup(func() { _ = out.Close() })
+	if err := runFileTask(t, out, "create", FileSpec{Path: path, Contents: []byte("new\n")}); err != nil {
+		t.Fatalf("File: %v", err)
+	}
+	if ordinaryCalls != 0 || atomicCalls != 1 {
+		t.Fatalf("CreateOrdinary calls = %d, WriteAtomic calls = %d; want 0 and 1", ordinaryCalls, atomicCalls)
+	}
+}
+
 // TestFileCreateKeepsV10ModeContractForInjectedFileFS proves an injected
 // FileFS still receives a real permission (0666, which the umask masks)
 // for an unmanaged create, as in v1.0, never a mode 0 that would leave
