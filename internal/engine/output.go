@@ -303,7 +303,8 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 
 // promoteRunningLocked transitions a Pending task to Running on its first
 // unit of evidence (Phase/Progress/Advance/Bytes/Step/Writer
-// write, or a work callback starting — see promoteRunningForActivity).
+// write). A work callback starting is announced by taskStarted, since the
+// scheduler's claim already moved the row.
 // For a sequential collection (Sequence), it records misuse when a sibling is
 // already Running, enforcing the heart contract "one Running child"
 // (evo-rec.md) — callers still get the transition; Strict mode is what
@@ -311,6 +312,18 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 // documents its children as independent (worker-pool fan-out is a
 // supported, concurrency-safe pattern there), so it is not policed.
 func (o *Output) promoteRunningLocked(st *taskState) {
+	st.node.Rec.Transition(Running)
+	o.announceRunningLocked(st)
+}
+
+// announceRunningLocked is the render state a Task owes for becoming Running,
+// whoever moved its row: the Sequence check, the filing, the plain heartbeat
+// and the task.started event. It answers once per Task.
+func (o *Output) announceRunningLocked(st *taskState) {
+	if st.runningAnnounced {
+		return
+	}
+	st.runningAnnounced = true
 	if col := st.collection(); col != nil && col.node.Sequential {
 		col.runningSteps = slices.DeleteFunc(col.runningSteps, func(s *taskState) bool { return s.node.Rec.State() != Running })
 		if len(col.runningSteps) > 0 {
@@ -318,12 +331,8 @@ func (o *Output) promoteRunningLocked(st *taskState) {
 		}
 		col.runningSteps = append(col.runningSteps, st)
 	}
-	st.node.Rec.Transition(Running)
 	st.markFiling()
 	o.armPlainHeartbeatLocked(st, o.cfg.clock.Now())
-	// Every promoteRunningLocked call site already guards on st.state ==
-	// Pending before calling it, and this line immediately advances past
-	// Pending — so task.started fires exactly once per task's lifetime.
 	o.emitWireEventLocked(wire.EventTaskStarted, st.id, nil)
 }
 

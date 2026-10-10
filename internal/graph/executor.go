@@ -3,6 +3,8 @@ package graph
 import (
 	"fmt"
 	"runtime"
+
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 // executor is the run's execution state: the callbacks in flight, the
@@ -102,9 +104,15 @@ func (g *Graph) takeSlotLocked() {
 }
 
 // claimLocked marks t's callback as started, for a pooled worker (which also
-// took a slot) or for a waiter that runs it on its own goroutine.
+// took a slot) or for a waiter that runs it on its own goroutine. The Task's
+// row is Running in the same step as the claim, so no moment exists in which
+// the scheduler runs a Task whose row still reads Pending: an interrupt
+// always finds a claimed Task Running.
 func (g *Graph) claimLocked(t *Task, pooled bool) *claim {
 	g.enterPhaseLocked(t, PhaseRunning)
+	if t.gateFor == nil && t.Rec.State() == record.Pending {
+		t.Rec.Transition(record.Running)
+	}
 	g.exec.executing++
 	return &claim{task: t, work: t.sched.work, pooled: pooled}
 }

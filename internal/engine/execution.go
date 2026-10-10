@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
@@ -64,9 +65,17 @@ func (o *Output) taskStarted(st *taskState) {
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	o.followRecordLocked()
+	if core.IsTerminalTask(st.node.Rec.State()) {
+		// An interrupt settled the Task between its claim and this step: it
+		// never started, so it is neither eligible nor started.
+		return
+	}
 	o.emitWireEventLocked(wire.EventTaskEligible, st.id, nil)
 	if st.node.Rec.State() == Pending {
 		o.promoteRunningLocked(st)
+	} else {
+		o.announceRunningLocked(st)
 	}
 	o.bumpLocked()
 	o.signalLiveLocked(true)

@@ -45,6 +45,9 @@ type taskState struct {
 	followed EntityState
 	// settleAnswered is set once the render work a settle owes was queued.
 	settleAnswered bool
+	// runningAnnounced is set once the render work becoming Running owes was
+	// done, so task.started fires once however the row reached Running.
+	runningAnnounced bool
 
 	// filing is where this Task stands in its collection's childIndex.
 	filing filing
