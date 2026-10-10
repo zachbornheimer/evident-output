@@ -1,5 +1,6 @@
 [tools]
-staticcheck = "2026.2.1"
+# First staticcheck build that reads Go 1.27.2 export data; return to a release pin when 2026.3 ships.
+"go:honnef.co/go/tools/cmd/staticcheck" = "v0.7.0-0.dev.0.20261009230814-452d5bb86b45"
 golangci-lint = "2.14.0"
 gitleaks = "8.30.1"
 go = "1.27.2"
