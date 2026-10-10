@@ -61,7 +61,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 		o.recordMisuse(err)
 		return o.rejectedTask(err)
 	}
-	if o.declaredInCallback() {
+	if o.graph.DeclaredInCallback() {
 		o.recordMisuse(ErrDeclaredInCallback)
 		return o.rejectedTask(ErrDeclaredInCallback)
 	}
@@ -131,7 +131,7 @@ func (o *Output) declareContainerLocked(parent *tasksState, name string, sequent
 		o.recordMisuse(err)
 		return o.rejectedGroup(err)
 	}
-	if o.declaredInCallback() {
+	if o.graph.DeclaredInCallback() {
 		o.recordMisuse(ErrDeclaredInCallback)
 		return o.rejectedGroup(ErrDeclaredInCallback)
 	}

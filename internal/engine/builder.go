@@ -97,14 +97,3 @@ func (g *GroupHandle) defineBuilder(run func()) {
 	o.mu.Unlock()
 	o.graph.Kick()
 }
-
-// declaredInCallback reports whether the calling goroutine is inside a Task
-// callback that is not running a topology builder. Declaring from a
-// callback is misuse: declare it from a builder, or before the run.
-func (o *Output) declaredInCallback() bool {
-	if o.graph.Executing() == 0 {
-		return false
-	}
-	m := graph.ReadStackMarks()
-	return m.Callbacks > m.Builders
-}

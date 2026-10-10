@@ -28,7 +28,7 @@ var (
 	ErrComputedUnordered = errors.New("evo: Computed read without an After edge or Sequence order to its Task")
 	// ErrDeclaredInCallback is recorded when a Task, Group, or Sequence is
 	// declared from inside a Task's Define callback.
-	ErrDeclaredInCallback = errors.New("evo: declared from inside a Task callback")
+	ErrDeclaredInCallback = graph.ErrDeclaredInCallback
 	ErrDryRunDeclaredLate = errors.New("evo: DeclareDryRun called after a durable row was already emitted")
 	// ErrTerminalWithoutSink is recorded when Config.Terminal is set but
 	// Config.Stdout is nil, and the driver cannot report its own destination
