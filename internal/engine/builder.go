@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
@@ -167,7 +168,7 @@ func (o *Output) runGate(st *taskState) {
 }
 
 // builderFrames marks runBuilder (see frameMarker).
-var builderFrames frameMarker
+var builderFrames graph.FrameMarker
 
 func runBuilder(work func() error) (panicText string) {
 	defer func() {
@@ -175,7 +176,7 @@ func runBuilder(work func() error) (panicText string) {
 			panicText = fmt.Sprint(r)
 		}
 	}()
-	builderFrames.note()
+	builderFrames.Note()
 	_ = work()
 	return ""
 }

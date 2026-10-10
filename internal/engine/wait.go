@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 // waitTicket is one goroutine's registration while it is parked in
@@ -14,8 +15,8 @@ import (
 type waitTicket struct {
 	taskID   string
 	depth    int
-	self     goroutineID
-	creator  goroutineID
+	self     graph.GoroutineID
+	creator  graph.GoroutineID
 	abort    chan struct{}
 	released error
 }
@@ -23,7 +24,7 @@ type waitTicket struct {
 // beginWait registers this goroutine's park and re-tests the run: a newly
 // parked waiter may be the last thing that could have moved it.
 func (o *Output) beginWait(taskID string, depth int) *waitTicket {
-	self, creator := currentGoroutineLineage()
+	self, creator := graph.CurrentGoroutineLineage()
 	ticket := &waitTicket{taskID: taskID, depth: depth, self: self, creator: creator, abort: make(chan struct{})}
 	o.mu.Lock()
 	if o.sched.waits == nil {

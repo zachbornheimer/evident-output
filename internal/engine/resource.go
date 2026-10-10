@@ -3,9 +3,9 @@ package engine
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/resource"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
@@ -59,22 +59,12 @@ func (o *Output) holdResource(ctx context.Context, r Resource, mode resource.Mod
 
 // runHoldingResource is the single frame every granted claim's work runs
 // beneath, so Wait can tell from its own goroutine's stack that the caller
-// holds a claim, and from processClaimOwners that the goroutine which
+// holds a claim, and from the hold sensor (graph.Holds) that the goroutine which
 // started it does (see refuseWaitUnderClaim).
 func runHoldingResource(held context.Context, fn func(context.Context) error) error {
-	holdingFrames.note()
-	heldClaims.Add(1)
-	defer heldClaims.Add(-1)
-	defer processClaimOwners.hold(currentGoroutine())()
+	defer graph.ProcessHolds().Enter().Leave()
 	return fn(held)
 }
-
-// heldClaims counts the claims held across the process, so a Wait while
-// none is held skips reading its own stack.
-var heldClaims atomic.Int64
-
-// holdingFrames marks runHoldingResource (see frameMarker).
-var holdingFrames frameMarker
 
 // refuseWaitUnderClaim returns ErrNestedResourceAcquisition, naming the
 // awaited Task or container, when the calling goroutine, or the goroutine

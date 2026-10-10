@@ -2,6 +2,7 @@ package engine
 
 import (
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 // resolveStall ends a stall: nothing in the run can move on its own, yet a
@@ -111,12 +112,12 @@ func (o *Output) progressPossibleLocked() bool {
 // them is still doing work.
 func (o *Output) heldCallbacksLocked() int {
 	held := 0
-	parked := make(map[goroutineID]struct{}, len(o.sched.waits))
+	parked := make(map[graph.GoroutineID]struct{}, len(o.sched.waits))
 	for ticket := range o.sched.waits {
 		held += ticket.depth
 		parked[ticket.self] = struct{}{}
 	}
-	creators := make(map[goroutineID]struct{})
+	creators := make(map[graph.GoroutineID]struct{})
 	for ticket := range o.sched.waits {
 		if _, counted := parked[ticket.creator]; !counted && o.startedByCallbackLocked(ticket) {
 			creators[ticket.creator] = struct{}{}

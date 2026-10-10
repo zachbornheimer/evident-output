@@ -1,6 +1,10 @@
 package engine
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/zachbornheimer/evident-output/internal/graph"
+)
 
 // scheduler is the run's scheduling state: the Tasks ready to start, the
 // callbacks in flight, the goroutines parked in Wait, and the flags that
@@ -33,10 +37,10 @@ type scheduler struct {
 	// callbackGoroutines counts, per goroutine, the task callbacks it is
 	// running right now. A parked goroutine that one of them started may be
 	// what that callback is blocked on (see heldCallbacksLocked).
-	callbackGoroutines map[goroutineID]int
+	callbackGoroutines map[graph.GoroutineID]int
 	// consumers is, per goroutine, the stack of Tasks and builder gates it
 	// is running (see enterConsumer).
-	consumers map[goroutineID][]*taskState
+	consumers map[graph.GoroutineID][]*taskState
 	// gates are the container builders' scheduler entities (see
 	// containerBuilder), which no Task list holds.
 	gates []*taskState

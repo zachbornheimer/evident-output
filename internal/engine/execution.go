@@ -5,6 +5,7 @@ import (
 	"runtime"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
@@ -246,10 +247,10 @@ func (o *Output) taskIsTerminal(st *taskState) bool {
 // running it, so a goroutine fn starts and then parks in Wait can be traced
 // back to the callback it may be holding still.
 func (o *Output) runTrackedCallback(fn func() error) error {
-	g := currentGoroutine()
+	g := graph.CurrentGoroutine()
 	o.mu.Lock()
 	if o.sched.callbackGoroutines == nil {
-		o.sched.callbackGoroutines = make(map[goroutineID]int)
+		o.sched.callbackGoroutines = make(map[graph.GoroutineID]int)
 	}
 	o.sched.callbackGoroutines[g]++
 	o.mu.Unlock()
@@ -268,12 +269,12 @@ func (o *Output) runTrackedCallback(fn func() error) error {
 // still. That count is the one thing separating "a callback is stuck
 // waiting" from "a plain caller is waiting while callbacks run".
 func runCallback(fn func() error) error {
-	callbackFrames.note()
+	callbackFrames.Note()
 	return fn()
 }
 
 // callbackFrames marks runCallback (see frameMarker).
-var callbackFrames frameMarker
+var callbackFrames graph.FrameMarker
 
 // callbackDepth counts the task callbacks the calling goroutine is
 // currently inside: zero for a plain caller, one for a callback, more when
