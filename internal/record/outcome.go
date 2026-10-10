@@ -24,6 +24,27 @@ const (
 	OutcomeCancelled Outcome = "cancelled"
 )
 
+// outcomeRanks orders the outcomes that decide a run's headline: Failed
+// outranks Refused outranks Cancelled. Every other outcome shares rank zero.
+var outcomeRanks = map[Outcome]int{
+	OutcomeFailed:    3,
+	OutcomeRefused:   2,
+	OutcomeCancelled: 1,
+}
+
+// WorstOutcome is the outcome that decides the headline of a run whose Tasks
+// ended as outcomes: Failed > Refused > Cancelled > the rest. Among outcomes
+// of equal rank the first one wins. It is the zero Outcome for no outcomes.
+func WorstOutcome(outcomes ...Outcome) Outcome {
+	var worst Outcome
+	for i, outcome := range outcomes {
+		if i == 0 || outcomeRanks[outcome] > outcomeRanks[worst] {
+			worst = outcome
+		}
+	}
+	return worst
+}
+
 // Phase is where a Task stands in its life. A Task has an Outcome only once
 // its Phase is PhaseSettled.
 type Phase string

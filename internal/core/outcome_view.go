@@ -49,14 +49,28 @@ func ResolutionOf(outcome record.Outcome, defineRan bool) Resolution {
 	return ResolutionNoWork
 }
 
-// ConclusionStateOf is the legacy headline of a run whose worst Task outcome
-// is worst. changed reports a committed mutation, planned a non-empty
-// [planned] ledger, and dryRun the planned tense. Failed, Refused and
-// Cancelled outrank everything and ignore dryRun; otherwise changed beats
-// planned beats ready, and a dry run never reads as done. StateWarning is
-// not derivable here: it needs to know no Task ended Done.
-func ConclusionStateOf(worst record.Outcome, changed, planned, dryRun bool) ConclusionState {
-	switch worst {
+// ConclusionInputs is everything ConclusionStateOf reads about a run.
+type ConclusionInputs struct {
+	// Worst is the run's worst Task outcome (record.WorstOutcome).
+	Worst record.Outcome
+	// Changed reports a committed mutation.
+	Changed bool
+	// Planned reports a non-empty [planned] ledger.
+	Planned bool
+	// DryRun reports the planned tense.
+	DryRun bool
+	// AnySettledOK reports that some Task or collection ended Done or Skipped.
+	AnySettledOK bool
+	// Warned reports a warning-severity Problem on some Task or collection.
+	Warned bool
+}
+
+// ConclusionStateOf is the legacy headline of a run described by in. Failed,
+// Refused and Cancelled outrank everything and ignore DryRun; otherwise
+// Changed beats Planned beats a settled OK beats Warned beats ready. A dry
+// run never reads as done, but a warning-only headline stays a warning.
+func ConclusionStateOf(in ConclusionInputs) ConclusionState {
+	switch in.Worst {
 	case record.OutcomeFailed:
 		return StateFailed
 	case record.OutcomeRefused:
@@ -65,11 +79,13 @@ func ConclusionStateOf(worst record.Outcome, changed, planned, dryRun bool) Conc
 		return StateCancelled
 	}
 	switch {
-	case changed && dryRun, planned && !changed:
+	case in.Changed && in.DryRun, in.Planned && !in.Changed:
 		return StatePlanned
-	case changed:
+	case in.Changed:
 		return StateChanged
-	case dryRun:
+	case !in.AnySettledOK && in.Warned:
+		return StateWarning
+	case in.DryRun:
 		return StatePlanned
 	}
 	return StateReady

@@ -69,31 +69,112 @@ func TestResolutionOfKeepsTodaysThreeReasons(t *testing.T) {
 	}
 }
 
+// snapshotOf is a run whose Tasks settled to outcomes (one Task each), with
+// a warning on the first Task when warned, plus the optional ledgers.
+func snapshotOf(outcomes []record.Outcome, changed, planned, dryRun, warned bool) Snapshot {
+	snap := Snapshot{DryRun: dryRun}
+	for i, outcome := range outcomes {
+		task := TaskSnapshot{State: EntityStateOf(record.PhaseSettled, outcome)}
+		if warned && i == 0 {
+			task.Warnings = []Problem{{Summary: "careful"}}
+		}
+		snap.Tasks = append(snap.Tasks, task)
+	}
+	if changed {
+		snap.Changes = []ChangesSnapshot{{Records: []EffectRecord{{Verb: "created", Object: "file"}}}}
+	}
+	if planned {
+		snap.Plans = []PlanSnapshot{{Records: []EffectRecord{{Verb: "create", Object: "file"}}}}
+	}
+	return snap
+}
+
+// inputsOf derives ConclusionInputs from the same run snapshotOf builds, the
+// way slice 8 will derive them from the record.
+func inputsOf(outcomes []record.Outcome, changed, planned, dryRun, warned bool) ConclusionInputs {
+	anySettledOK := false
+	for _, outcome := range outcomes {
+		switch EntityStateOf(record.PhaseSettled, outcome) {
+		case Done, Skipped:
+			anySettledOK = true
+		}
+	}
+	return ConclusionInputs{
+		Worst:        record.WorstOutcome(outcomes...),
+		Changed:      changed,
+		Planned:      planned,
+		DryRun:       dryRun,
+		AnySettledOK: anySettledOK,
+		Warned:       warned && len(outcomes) > 0,
+	}
+}
+
 // TestConclusionStateOfAgreesWithInferConclusion proves the derived headline
 // is the one InferConclusion already computes, for a run whose Tasks all end
-// as worst, over every combination of changed, planned and dryRun.
+// as worst, over every combination of changed, planned, dryRun and warned.
 func TestConclusionStateOfAgreesWithInferConclusion(t *testing.T) {
 	for _, worst := range allOutcomes {
-		for _, changed := range []bool{false, true} {
-			for _, planned := range []bool{false, true} {
-				for _, dryRun := range []bool{false, true} {
-					snap := Snapshot{
-						Tasks:  []TaskSnapshot{{State: EntityStateOf(record.PhaseSettled, worst)}},
-						DryRun: dryRun,
-					}
-					if changed {
-						snap.Changes = []ChangesSnapshot{{Records: []EffectRecord{{Verb: "created", Object: "file"}}}}
-					}
-					if planned {
-						snap.Plans = []PlanSnapshot{{Records: []EffectRecord{{Verb: "create", Object: "file"}}}}
-					}
-					want := InferConclusion(snap).State
-					if got := ConclusionStateOf(worst, changed, planned, dryRun); got != want {
-						t.Errorf("worst=%s changed=%t planned=%t dryRun=%t: ConclusionStateOf = %q, InferConclusion = %q",
-							worst, changed, planned, dryRun, got, want)
-					}
-				}
+		for _, flags := range everyFlagCombination() {
+			assertConclusionAgrees(t, []record.Outcome{worst}, flags)
+		}
+	}
+}
+
+// TestConclusionStateOfAgreesOnMixedRuns covers runs of two Tasks that end
+// differently: every ordered pair of outcomes, over every flag combination.
+func TestConclusionStateOfAgreesOnMixedRuns(t *testing.T) {
+	for _, first := range allOutcomes {
+		for _, second := range allOutcomes {
+			for _, flags := range everyFlagCombination() {
+				assertConclusionAgrees(t, []record.Outcome{first, second}, flags)
 			}
 		}
+	}
+}
+
+func TestConclusionStateOfAgreesOnARunWithNoTasks(t *testing.T) {
+	for _, flags := range everyFlagCombination() {
+		assertConclusionAgrees(t, nil, flags)
+	}
+}
+
+// TestConclusionStateOfReadsWarnedOnlyWhenNothingSettledOK pins the one
+// headline the warned input decides: Warning needs a warning and no Done or
+// Skipped Task, and a dry run does not turn it into Planned.
+func TestConclusionStateOfReadsWarnedOnlyWhenNothingSettledOK(t *testing.T) {
+	cases := []struct {
+		name string
+		in   ConclusionInputs
+		want ConclusionState
+	}{
+		{"warned with nothing settled OK", ConclusionInputs{Warned: true}, StateWarning},
+		{"warned dry run keeps the warning", ConclusionInputs{Warned: true, DryRun: true}, StateWarning},
+		{"warned beside a settled OK Task", ConclusionInputs{Warned: true, AnySettledOK: true}, StateReady},
+		{"warned but changed", ConclusionInputs{Warned: true, Changed: true}, StateChanged},
+		{"warned but failed", ConclusionInputs{Warned: true, Worst: record.OutcomeFailed}, StateFailed},
+	}
+	for _, c := range cases {
+		if got := ConclusionStateOf(c.in); got != c.want {
+			t.Errorf("%s: ConclusionStateOf(%+v) = %q, want %q", c.name, c.in, got, c.want)
+		}
+	}
+}
+
+type runFlags struct{ changed, planned, dryRun, warned bool }
+
+func everyFlagCombination() []runFlags {
+	var all []runFlags
+	for bits := range 16 {
+		all = append(all, runFlags{bits&1 != 0, bits&2 != 0, bits&4 != 0, bits&8 != 0})
+	}
+	return all
+}
+
+func assertConclusionAgrees(t *testing.T, outcomes []record.Outcome, f runFlags) {
+	t.Helper()
+	want := InferConclusion(snapshotOf(outcomes, f.changed, f.planned, f.dryRun, f.warned)).State
+	got := ConclusionStateOf(inputsOf(outcomes, f.changed, f.planned, f.dryRun, f.warned))
+	if got != want {
+		t.Errorf("outcomes=%v %+v: ConclusionStateOf = %q, InferConclusion = %q", outcomes, f, got, want)
 	}
 }
