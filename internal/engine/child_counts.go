@@ -69,6 +69,9 @@ func (c *childCounters) counts(earliest time.Time) core.ChildCounts {
 
 // stateCounts counts a collection's direct Tasks by the states the
 // collection's verdict folds (verdictFold).
+//
+// slice 6: one of three counters of a collection's descendants by state, with
+// collectionTally and liveCensus; they fold into one count owned by project.
 type stateCounts struct {
 	running, failed, blocked, cancelled, notStarted, unresolved, warned int
 }

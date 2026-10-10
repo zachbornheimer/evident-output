@@ -70,6 +70,9 @@ type Output struct {
 	// messages, diagnostics, run-scoped facts and warnings, and Conclusion.
 	rec *record.Run
 
+	// slice 6: wireSeq is the second event sequence counter, beside the record
+	// journal's. The two streams number independently in the goldens, so they
+	// stay apart until project/wire owns both encoders.
 	// wireSeq/wireEventErr back the §38 "evo.event" JSONL stream
 	// (structured_events.go's emitWireEventLocked) — a counter and
 	// first-write-failure latch independent of the legacy events journal

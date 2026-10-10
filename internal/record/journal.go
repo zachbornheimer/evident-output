@@ -15,6 +15,8 @@ type journal struct {
 	events []Event
 	// seq is the last sequence number assigned: monotonic in append order,
 	// never reused after the event holding it is dropped.
+	// slice 6: this and the engine's wireSeq are two counters for two streams;
+	// they collapse once project/wire owns both encoders.
 	seq uint64
 }
 

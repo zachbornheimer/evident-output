@@ -17,6 +17,9 @@ import (
 // through its cursor (predecessor.through): naming a populated collection
 // takes its membership as declared, so a member declared later never
 // gates that edge, whatever the members' durations (E-092, E-093).
+//
+// slice 6: one of three counters of a collection's descendants by state, with
+// liveCensus and stateCounts; they fold into one count owned by project.
 type collectionTally struct {
 	// members is every descendant Task, in declaration order.
 	members []*taskState
