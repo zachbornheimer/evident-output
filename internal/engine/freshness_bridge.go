@@ -27,6 +27,15 @@ func (o *Output) manifestFor(ctx context.Context) (*freshness.ManifestStore, err
 	return store, err
 }
 
+// runModeLocked is whether this Run applies its work or only plans it, as
+// freshness asks. Callers must already hold o.mu.
+func (o *Output) runModeLocked() freshness.RunMode {
+	if o.cfg.dryRun {
+		return freshness.RunPlans
+	}
+	return freshness.RunApplies
+}
+
 // readClaims is the Output's resource claims, as freshness asks for them.
 type readClaims struct{ out *Output }
 

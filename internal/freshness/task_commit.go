@@ -37,7 +37,9 @@ type TaskCommit struct {
 // §11.3) once the Task has settled Done. A Run with no opened manifest
 // commits nothing (no Task in this Run ever used File/Exec/Patch, so
 // nothing opened it), keeping a purely opaque consumer's Run free of any
-// manifest file at all.
+// manifest file at all. A planned Run commits nothing either: it applied
+// nothing, and a record it wrote would make the next real Run skip or repeat
+// work wrongly.
 //
 // A Task with tracked operations commits its precise provenance at once. A
 // Task with none is opaque: its record carries the application fingerprint
@@ -45,9 +47,9 @@ type TaskCommit struct {
 // into any operation's Basis. Nothing reads that record back within the Run,
 // so it is staged and written with the next commit or at Save instead of
 // costing each settling Task a full manifest rewrite and fsync.
-func (t *TaskTable) Commit(ctx context.Context, session *ManifestSession, task TaskView) TaskCommit {
+func (t *TaskTable) Commit(ctx context.Context, session *ManifestSession, task TaskView, mode RunMode) TaskCommit {
 	store := session.Opened()
-	if store == nil {
+	if store == nil || !mode.Remembers() {
 		return TaskCommit{}
 	}
 	app := session.Application()

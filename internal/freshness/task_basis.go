@@ -49,8 +49,9 @@ type BasisJudgement struct {
 // holds no resource claim, so it never orders or blocks any other Task. A
 // Task with no Basis is never current. Without a prior record the Task runs.
 // A current Task adopts its prior operations as its own pending ones, so a
-// later commit rewrites identical state.
-func (t *TaskTable) JudgeBasis(ctx context.Context, openStore StoreOpener, task TaskView) (BasisJudgement, error) {
+// later commit rewrites identical state. A planned Run judges the same way but
+// remembers nothing, so its observed Basis is never committed.
+func (t *TaskTable) JudgeBasis(ctx context.Context, openStore StoreOpener, task TaskView, mode RunMode) (BasisJudgement, error) {
 	id := task.TaskID()
 	t.mu.Lock()
 	var inputs []BasisSource
@@ -77,6 +78,10 @@ func (t *TaskTable) JudgeBasis(ctx context.Context, openStore StoreOpener, task 
 			return BasisJudgement{}, err
 		}
 	}
+	judgement := BasisJudgement{Declared: true, Observed: observed, Current: current}
+	if !mode.Remembers() {
+		return judgement, nil
+	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	entry := t.entryLocked(id)
@@ -84,7 +89,7 @@ func (t *TaskTable) JudgeBasis(ctx context.Context, openStore StoreOpener, task 
 	if current {
 		entry.operations = operations
 	}
-	return BasisJudgement{Declared: true, Observed: observed, Current: current}, nil
+	return judgement, nil
 }
 
 // observeTaskBasis observes every input and canonicalizes the result. Basis

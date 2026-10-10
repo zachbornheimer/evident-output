@@ -20,12 +20,12 @@ func FingerprintBasis(f freshness.Fingerprint) BasisSource { return freshness.Fi
 func (t *TaskHandle) basisIsCurrent(ctx context.Context) (bool, error) {
 	o := t.out
 	o.mu.Lock()
-	st := o.taskStates[t.id]
+	st, mode := o.taskStates[t.id], o.runModeLocked()
 	o.mu.Unlock()
 	if st == nil {
 		return false, nil
 	}
-	judgement, err := o.taskFreshness.JudgeBasis(ctx, o.manifestFor, st)
+	judgement, err := o.taskFreshness.JudgeBasis(ctx, o.manifestFor, st, mode)
 	if err != nil || !judgement.Declared {
 		return false, err
 	}

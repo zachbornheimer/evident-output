@@ -72,7 +72,7 @@ func (o *Output) commitManifestTaskLocked(ctx context.Context, taskID string) {
 	if st == nil {
 		return
 	}
-	commit := o.taskFreshness.Commit(ctx, o.manifest, st)
+	commit := o.taskFreshness.Commit(ctx, o.manifest, st, o.runModeLocked())
 	if commit.Err != nil {
 		o.warnManifestUnsavedLocked(commit.Err)
 		return
