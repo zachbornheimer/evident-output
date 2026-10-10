@@ -54,10 +54,6 @@ func (t *TaskHandle) Basis(inputs ...BasisSource) *TaskHandle {
 		o.recordMisuseFor(st.name, ErrBasisAfterDefine)
 		return t
 	}
-	for _, in := range inputs {
-		if in != nil {
-			st.basisInputs = append(st.basisInputs, in)
-		}
-	}
+	o.taskFreshness.AddInputs(st.TaskID(), inputs...)
 	return t
 }

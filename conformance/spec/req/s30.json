@@ -1178,7 +1178,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/engine",
+        "pkg": "./internal/freshness",
         "run": "TestFileManifestAppBasisDriftForcesReconciliation"
       },
       {

@@ -120,28 +120,13 @@ type Output struct {
 	pendingPrint strings.Builder
 	pendingVis   Visibility // visibility of the current pending fragment
 
-	// manifestStore is this Run's exclusive handle on the reconciliation
-	// manifest (spec §11.3), opened lazily by the first evo.File call
-	// (manifestFor) the same way workspaceDir is captured lazily on first
-	// use. manifestOpenErr/manifestOpened distinguish "not yet opened" from
-	// "opened and failed" so a later call does not retry a failed open.
-	manifestStore *freshness.ManifestStore
-	// manifestFinishErr is the failure of the save-and-release Finish did;
-	// Close returns it so a write failure is never dropped.
-	manifestFinishErr error
-	// manifestOpening serializes manifestFor's first open without holding
-	// mu across the blocking lock wait (see manifestFor).
-	manifestOpening       sync.Mutex
-	manifestOpened        bool
-	manifestOpenErr       error
-	manifestWarningIssued bool
-	// manifestUnsavedIssued records that the run already warned its
-	// manifest was not saved, so a failed write is stated once.
-	manifestUnsavedIssued bool
-	// manifestApp is this Run's application record, computed once and
-	// reused on every Task commit (spec §11.2/§11.3).
-	manifestApp     freshness.ApplicationRecord
-	manifestAppDone bool
+	// manifest is this Run's lazily opened reconciliation manifest (spec
+	// §11.3): the first evo.File call opens it, and a Run that never uses one
+	// never creates a manifest file.
+	manifest *freshness.ManifestSession
+	// taskFreshness remembers each Task's declared inputs, observed Basis,
+	// pending operation records and Verify checks.
+	taskFreshness *freshness.TaskTable
 	// manifestClaims records which Task first claimed each canonical File/
 	// Exec output path in this Run (spec §11.4/§8.3): a second Task
 	// claiming the same path is a producer conflict.
@@ -230,6 +215,8 @@ func newOutput(subject string, options ...Option) *Output {
 		taskStates:      make(map[string]*taskState),
 		containerStates: make(map[string]*tasksState),
 	}
+	o.manifest = freshness.NewManifestSession(o.manifestConfig)
+	o.taskFreshness = freshness.NewTaskTable()
 	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(misuseSink{o: o}), graph.WithWaitUnderClaimError(ErrNestedResourceAcquisition))
 	o.mu.Bind(run)
 	run.SetListener(outputListener{o: o})

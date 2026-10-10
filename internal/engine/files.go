@@ -63,7 +63,7 @@ type derivation struct {
 // which edit left its output.
 func (d derivation) recordedBasis(basis []freshness.BasisRecord) []freshness.BasisRecord {
 	records := append(slices.Clone(basis), d.edit)
-	sortBasisRecords(records)
+	freshness.SortBasisRecords(records)
 	return records
 }
 

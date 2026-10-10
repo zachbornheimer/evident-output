@@ -43,7 +43,7 @@ func (o *Output) establishFile(ctx context.Context, op fileOperation) error {
 	if claimErr != nil {
 		return claimErr
 	}
-	defer o.settleOutputBarrier(op.path)
+	defer o.outputBarrier().Settle(op.path)
 
 	if op.manifestManaged() {
 		basis, basisErr := o.fileObserveBasis(ctx, op.taskID, op.spec, op.path)

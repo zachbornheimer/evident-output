@@ -12,6 +12,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/freshness"
+
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
@@ -178,8 +180,8 @@ func TestWireEvents_FileOperationSkippedCurrent(t *testing.T) {
 	if skipIdx == -1 {
 		t.Fatalf("operation.skipped_current must fire on the freshness fast path, got: %v", types)
 	}
-	if reason := events[skipIdx].Payload["reason"]; reason != freshnessReasonCurrent {
-		t.Fatalf("operation.skipped_current reason = %v, want %q", reason, freshnessReasonCurrent)
+	if reason := events[skipIdx].Payload["reason"]; reason != freshness.ReasonCurrent {
+		t.Fatalf("operation.skipped_current reason = %v, want %q", reason, freshness.ReasonCurrent)
 	}
 	if idx := indexOfType(events, wire.EventOperationStarted); idx != -1 {
 		t.Fatalf("operation.started must not also fire for a skipped-current call, got: %v", types)
@@ -215,8 +217,8 @@ func TestWireEvents_FileOperationStartedAndFinished(t *testing.T) {
 	if startIdx == -1 {
 		t.Fatalf("operation.started must fire for a first-time File call, got: %v", types)
 	}
-	if reason := events[startIdx].Payload["reason"]; reason != freshnessReasonNoPriorRecord {
-		t.Fatalf("operation.started reason = %v, want %q", reason, freshnessReasonNoPriorRecord)
+	if reason := events[startIdx].Payload["reason"]; reason != freshness.ReasonNoPriorRecord {
+		t.Fatalf("operation.started reason = %v, want %q", reason, freshness.ReasonNoPriorRecord)
 	}
 	trackedIdx := indexOfType(events, wire.EventTrackedResourceObserved)
 	effectIdx := indexOfType(events, wire.EventEffectCommitted)
@@ -278,8 +280,8 @@ func TestWireEvents_ExecOperationStartedAndFinished(t *testing.T) {
 	if basisIdx >= startIdx || startIdx >= trackedIdx || trackedIdx >= finishIdx || finishIdx >= committedIdx {
 		t.Fatalf("expected basis.fingerprinted < operation.started < tracked_resource.observed < operation.finished < manifest.task_committed, got: %v", types)
 	}
-	if reason := events[startIdx].Payload["reason"]; reason != freshnessReasonNoPriorRecord {
-		t.Fatalf("operation.started reason = %v, want %q", reason, freshnessReasonNoPriorRecord)
+	if reason := events[startIdx].Payload["reason"]; reason != freshness.ReasonNoPriorRecord {
+		t.Fatalf("operation.started reason = %v, want %q", reason, freshness.ReasonNoPriorRecord)
 	}
 	if changed := events[finishIdx].Payload["changed"]; changed != true {
 		t.Fatalf("operation.finished changed = %v, want true", changed)
@@ -324,8 +326,8 @@ func TestWireEvents_ExecOperationSkippedCurrent(t *testing.T) {
 	if skipIdx == -1 {
 		t.Fatalf("operation.skipped_current must fire on the freshness fast path, got: %v", types)
 	}
-	if reason := events[skipIdx].Payload["reason"]; reason != freshnessReasonCurrent {
-		t.Fatalf("operation.skipped_current reason = %v, want %q", reason, freshnessReasonCurrent)
+	if reason := events[skipIdx].Payload["reason"]; reason != freshness.ReasonCurrent {
+		t.Fatalf("operation.skipped_current reason = %v, want %q", reason, freshness.ReasonCurrent)
 	}
 	if idx := indexOfType(events, wire.EventOperationStarted); idx != -1 {
 		t.Fatalf("operation.started must not also fire for a skipped-current call, got: %v", types)

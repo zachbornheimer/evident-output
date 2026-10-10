@@ -107,8 +107,8 @@ func TestFileManifestBasisDriftForcesReconciliation(t *testing.T) {
 	if current {
 		t.Fatal("Basis drift must not report the operation as current")
 	}
-	if reason != freshnessReasonBasisDrift {
-		t.Fatalf("freshness reason = %q, want %q (spec §38: Basis drift must be distinguishable)", reason, freshnessReasonBasisDrift)
+	if reason != freshness.ReasonBasisDrift {
+		t.Fatalf("freshness reason = %q, want %q (spec §38: Basis drift must be distinguishable)", reason, freshness.ReasonBasisDrift)
 	}
 	if prior.DefinitionFingerprint != priorBefore.DefinitionFingerprint {
 		t.Fatalf("prior record fingerprint mismatch: got %q want %q", prior.DefinitionFingerprint, priorBefore.DefinitionFingerprint)
@@ -294,21 +294,6 @@ func TestManifestCorruptFileIsSafeMissWithWarning(t *testing.T) {
 	}
 }
 
-// TestFileManifestAppBasisDriftForcesReconciliation proves spec §11.2: an
-// explicit evo.App() Basis entry ties an operation's freshness to the
-// running application's own fingerprint, without requiring a manifest
-// ApplicationRecord comparison — a changed App() digest is just an ordinary
-// Basis drift.
-func TestFileManifestAppBasisDriftForcesReconciliation(t *testing.T) {
-	basisA := []freshness.BasisRecord{{Kind: "app", Key: "application", Digest: "sha-a"}}
-	basisB := []freshness.BasisRecord{{Kind: "app", Key: "application", Digest: "sha-b"}}
-	defA := fileDefinitionFingerprint("/x", true, []byte("same"), 0, basisA)
-	defB := fileDefinitionFingerprint("/x", true, []byte("same"), 0, basisB)
-	if defA == defB {
-		t.Fatal("a changed App() Basis digest must change the operation definition fingerprint")
-	}
-}
-
 // TestFileManifestPostDefineEvidenceSourcesFromOperations proves spec §9.2:
 // a Task with no explicit Verify but at least one tracked evo.File
 // operation derives after-Define Evidence from that operation, source
@@ -329,18 +314,6 @@ func TestFileManifestPostDefineEvidenceSourcesFromOperations(t *testing.T) {
 	}
 	if snap.Evidence.After.Source != "operations" {
 		t.Fatalf("Evidence.After.Source = %q, want %q", snap.Evidence.After.Source, "operations")
-	}
-}
-
-// TestFileBasisRecordsRejectsDuplicateKind proves spec §11.1: duplicate
-// (Kind, Key) Basis pairs within one operation are a programmer error.
-func TestFileBasisRecordsRejectsDuplicateKind(t *testing.T) {
-	_, err := basisRecordsFrom(context.Background(), []freshness.Fingerprint{
-		freshness.Value("same", 1),
-		freshness.Value("same", 2),
-	})
-	if err == nil {
-		t.Fatal("duplicate (kind,key) Basis entries must be rejected")
 	}
 }
 

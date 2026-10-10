@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 )
@@ -38,15 +37,13 @@ func (o *Output) Close() error {
 	o.stopPlainHeartbeatsLocked()
 	o.closed = true
 	o.graph.Close()
-	manifestStore := o.manifestStore
-	finishErr := o.manifestFinishErr
 	o.mu.Unlock()
 	o.graph.Cancel()
 	// Finish already wrote the manifest and warned when it could not; this
 	// releases the Run's exclusive manifest lock (spec §11.3) and returns
 	// any write or release failure. Already committed Task records on disk
 	// are unaffected — Close never rolls anything back.
-	return errors.Join(finishErr, manifestStore.Close())
+	return o.manifest.Close()
 }
 
 // beginRunContext installs ctx (Run/evo.Run's own ctx parameter) as the

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 // contentionDeadline bounds how long a test waits for a claim it expects
@@ -126,9 +127,7 @@ func TestBasisObservationCannotRaceFileCommit(t *testing.T) {
 		t.Fatalf("reader: %v", err)
 	}
 
-	out.mu.Lock()
-	ops := out.taskStates[reader.id].manifestOps
-	out.mu.Unlock()
+	ops := out.taskFreshness.Operations(record.TaskID(reader.id))
 	if len(ops) != 1 || len(ops[0].Basis) != 1 {
 		t.Fatalf("reader recorded %d ops, want 1 with one Basis entry: %+v", len(ops), ops)
 	}

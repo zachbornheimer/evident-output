@@ -137,27 +137,6 @@ func TestOpaqueOnlyRunNeverOpensManifest(t *testing.T) {
 	}
 }
 
-// TestTaskOpaqueDefinitionFingerprintChangesWithAppFingerprint proves the
-// fallback's own hash actually depends on the application fingerprint it
-// falls back to, mirroring
-// TestFileManifestAppBasisDriftForcesReconciliation's pure-function shape
-// for evo.File's Basis-level App() case.
-func TestTaskOpaqueDefinitionFingerprintChangesWithAppFingerprint(t *testing.T) {
-	fpA := taskOpaqueDefinitionFingerprint("t1", "sha256:aaaa")
-	fpB := taskOpaqueDefinitionFingerprint("t1", "sha256:bbbb")
-	if fpA == fpB {
-		t.Fatal("a changed application fingerprint must change the opaque Task's own DefinitionFingerprint")
-	}
-	fpSame := taskOpaqueDefinitionFingerprint("t1", "sha256:aaaa")
-	if fpA != fpSame {
-		t.Fatal("the same key and application fingerprint must reproduce the same DefinitionFingerprint")
-	}
-	fpOtherKey := taskOpaqueDefinitionFingerprint("t2", "sha256:aaaa")
-	if fpA == fpOtherKey {
-		t.Fatal("two different Task keys must not collide onto the same opaque DefinitionFingerprint")
-	}
-}
-
 // TestOpaqueTaskDefinitionRunsEveryRun proves an opaque Task (no Verify,
 // no File/Exec operation) runs its Define callback on every Run, even when
 // a prior Run of the same binary committed a TaskRecord for it. Evo cannot
@@ -220,7 +199,7 @@ func TestOpaqueTasksDoNotRewriteTheManifestPerSettle(t *testing.T) {
 	}
 	// The File Task's commit is written in the background; wait for it so
 	// the file on disk is the baseline the opaque settles must not touch.
-	if err := out.manifestStore.Flush(t.Context()); err != nil {
+	if err := out.manifest.Opened().Flush(t.Context()); err != nil {
 		t.Fatalf("flush file task record: %v", err)
 	}
 	group := out.Group("opaque")

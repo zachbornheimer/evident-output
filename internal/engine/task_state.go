@@ -4,12 +4,19 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/graph"
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 // key is the Task's §3.1 stable key, empty for a Task the graph never declared.
 func (st *taskState) key() string { return st.node.Key() }
+
+// TaskID is the Task's id in the run record; with ManifestKey it makes
+// taskState the freshness.TaskView freshness judges the Task through.
+func (st *taskState) TaskID() record.TaskID { return record.TaskID(st.id) }
+
+// ManifestKey is the Task's stable key in the manifest.
+func (st *taskState) ManifestKey() string { return st.key() }
 
 // neverDefined reports whether st is still waiting on its caller: declared,
 // never Defined, and not resolved by a verb either.
@@ -88,26 +95,9 @@ type taskState struct {
 	// effectsInFlight counts evo.Effect callbacks currently running for this
 	// task; a non-Done resolution while one runs disowns that Effect.
 	effectsInFlight int
-	// verifiers holds TaskHandle.Verify's registered pre/post-Define
-	// observation checks, ANDed in registration order (§9.1). Must be
-	// registered before Define — see Verify.
-	verifiers []verifierFunc
 	// plainStream is what plain progressive streaming already emitted for
 	// this still-Running standalone task.
 	plainStream plainStreamMark
-
-	// manifestOps accumulates this Task's tracked operation records for the
-	// current Run (spec §11.3-11.5): one entry per evo.File/evo.Exec call
-	// that participated in manifest tracking, appended in call order (the
-	// same order freshness.ManifestStore.Operation's ordinal indexes into). Never
-	// populated during dry-run — dry-run commits nothing (§8.2).
-	manifestOps []freshness.OperationRecord
-
-	// basisInputs are the freshness inputs declared by TaskHandle.Basis,
-	// frozen at Define. basisObserved is their identity as observed when
-	// the Task started this Run; it is committed with the Task's record.
-	basisInputs   []BasisSource
-	basisObserved []freshness.BasisRecord
 }
 
 type tasksState struct {

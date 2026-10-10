@@ -8,6 +8,17 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
+// fileCallFor is the part of one File call that defines it for freshness.
+func fileCallFor(path string, spec FileSpec, basis []freshness.BasisRecord) freshness.FileCall {
+	return freshness.FileCall{
+		Path:            path,
+		ContentsManaged: spec.Contents != nil,
+		Contents:        spec.Contents,
+		Mode:            uint32(spec.Mode),
+		Basis:           basis,
+	}
+}
+
 // fileObserveBasis opens this Run's manifest — acquiring its cross-process
 // lock before File claims any resource — and observes spec.Basis under
 // read claims (see observeBasis).
@@ -41,39 +52,26 @@ func (o *Output) fileConsultManifest(ctx context.Context, taskID string, spec Fi
 	if openErr != nil {
 		return false, freshness.OperationRecord{}, "", fmt.Errorf("evo: File %q: %w", path, openErr)
 	}
-	defFingerprint := fileDefinitionFingerprint(path, spec.Contents != nil, spec.Contents, uint32(spec.Mode), basis)
-
 	o.mu.Lock()
 	key, ord, ok := o.taskManifestKeyLocked(taskID)
 	o.mu.Unlock()
 	if !ok {
 		return false, freshness.OperationRecord{}, "", ErrNoTaskContext
 	}
-
-	priorRecord, hasPrior := store.Operation(key, ord)
-	isCurrent, freshnessReason, checkErr := fileOperationCurrent(ctx, priorRecord, hasPrior, defFingerprint, basis, path)
-	if checkErr != nil {
-		return false, freshness.OperationRecord{}, "", fmt.Errorf("evo: File %q: %w", path, checkErr)
+	verdict, consultErr := fileCallFor(path, spec, basis).Consult(ctx, store, key, ord)
+	if consultErr != nil {
+		return false, freshness.OperationRecord{}, "", fmt.Errorf("evo: File %q: %w", path, consultErr)
 	}
-	return isCurrent, priorRecord, freshnessReason, nil
+	return verdict.Current, verdict.Prior, verdict.Reason, nil
 }
 
 // fileRecordOperation persists op's freshly committed state as its Task's
 // next pending manifest record, committed only once the Task itself
-// settles Done (spec §8.2/§11.3). The Basis recorded is the one observed
-// before the commit: a Basis that changes during the write is drift the
-// next Run must see, not state to paper over.
+// settles Done (spec §8.2/§11.3).
 func (o *Output) fileRecordOperation(ctx context.Context, op fileOperation) error {
-	defFingerprint := fileDefinitionFingerprint(op.path, op.contentsManaged(), op.spec.Contents, uint32(op.spec.Mode), op.basis)
-	outputDigest, digestErr := pathOutputDigest(ctx, op.path)
-	if digestErr != nil {
-		return fmt.Errorf("evo: File %q: %w", op.path, digestErr)
-	}
-	rec := freshness.OperationRecord{
-		Kind:                  "file",
-		DefinitionFingerprint: defFingerprint,
-		Basis:                 op.basis,
-		Outputs:               []freshness.OutputRecord{{Kind: "file", Path: op.path, Digest: outputDigest}},
+	rec, recordErr := fileCallFor(op.path, op.spec, op.basis).Record(ctx)
+	if recordErr != nil {
+		return fmt.Errorf("evo: File %q: %w", op.path, recordErr)
 	}
 	o.mu.Lock()
 	o.appendManifestOperationLocked(op.taskID, rec)

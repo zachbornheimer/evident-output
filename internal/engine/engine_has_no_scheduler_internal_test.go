@@ -53,10 +53,6 @@ var concurrencyExemptions = map[string]concurrencyExemption{
 		constructs: []string{channelType},
 		reason:     "signal delivery facade types of run.go (chan<- Signal): composition root, slice 8",
 	},
-	"freshness.go": {
-		constructs: []string{selectStmt, receiveExpr},
-		reason:     "awaitOutputBarrier selects on the graph's barrier channel or ctx: the graph owns the barrier, slice 4",
-	},
 	"plain_heartbeat.go": {
 		constructs: []string{afterFuncCall},
 		reason:     "the plain heartbeat timer re-arms through the Scheduler facade: project/live, slice 6",

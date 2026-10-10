@@ -84,16 +84,6 @@ type execTarget struct {
 	Outputs        []string // resolved against Dir, sorted
 }
 
-// execEvaluation is reconcileExec's manifest verdict: either the operation
-// is already handled (Skip true — a current hit, or a dry-run plan) or it
-// needs to actually spawn, in which case DefinitionFingerprint/Basis are
-// what the post-spawn success record commits.
-type execEvaluation struct {
-	Skip                  bool
-	DefinitionFingerprint string
-	Basis                 []freshness.BasisRecord
-}
-
 // Exec declares/reconciles one managed-state subprocess invocation: it
 // skips spawning when a prior record proves the operation is already
 // current (matching definition, Basis, and every declared Output digest),
@@ -141,49 +131,54 @@ func (o *Output) reconcileExec(ctx context.Context, taskID string, spec ExecSpec
 	if evalErr != nil {
 		return ExecResult{}, fmt.Errorf("evo: Exec: %w", evalErr)
 	}
-	if eval.Skip {
+	if !eval.Spawns() {
 		return ExecResult{Ran: false}, nil
 	}
 	return o.execRunAndRecord(ctx, taskID, spec, target, eval)
 }
 
-// execEvaluate resolves this call's manifest verdict: current (skip,
-// forwarding the prior record), stale-but-dry-run (skip, planning an
-// Effect), or stale (spawn, carrying the fresh definition/Basis the caller
-// commits after a successful run).
-func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec, target execTarget) (execEvaluation, error) {
-	current, prior, defFingerprint, reason, basis, consultErr := o.execConsultManifest(ctx, taskID, spec, target)
+// execEvaluate resolves this call's manifest verdict and narrates it:
+// current (skip, forwarding the prior record), stale-but-dry-run (skip,
+// planning an Effect), or stale (spawn, carrying the fresh definition/Basis
+// the caller commits after a successful run).
+func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec, target execTarget) (freshness.ExecEvaluation, error) {
+	eval, consultErr := o.execConsultManifest(ctx, taskID, spec, target)
 	if consultErr != nil {
-		return execEvaluation{}, consultErr
+		return freshness.ExecEvaluation{}, consultErr
 	}
-	if current {
+	switch eval.Disposition {
+	case freshness.ExecIsCurrent:
 		o.mu.Lock()
 		o.emitWireEventLocked(wire.EventOperationSkippedCurrent, taskID, map[string]any{
-			"kind": "exec", "executable": spec.Executable, "reason": reason,
+			"kind": freshness.OperationKindExec, "executable": spec.Executable, "reason": eval.Reason,
 		})
 		o.mu.Unlock()
 		if !o.DryRun() {
 			o.mu.Lock()
-			o.appendManifestOperationLocked(taskID, prior)
+			o.appendManifestOperationLocked(taskID, eval.Prior)
 			o.mu.Unlock()
 		}
-		return execEvaluation{Skip: true}, nil
-	}
-	o.mu.Lock()
-	o.emitWireEventLocked(wire.EventOperationStarted, taskID, map[string]any{
-		"kind": "exec", "executable": spec.Executable, "reason": reason,
-	})
-	o.mu.Unlock()
-	if o.DryRun() {
+	case freshness.ExecIsPlanned:
+		o.emitExecStarted(taskID, spec, eval.Reason)
 		o.recordExecEffect(taskID, spec.Executable)
 		o.mu.Lock()
 		o.emitWireEventLocked(wire.EventOperationFinished, taskID, map[string]any{
-			"kind": "exec", "executable": spec.Executable, "changed": true,
+			"kind": freshness.OperationKindExec, "executable": spec.Executable, "changed": true,
 		})
 		o.mu.Unlock()
-		return execEvaluation{Skip: true}, nil
+	default:
+		o.emitExecStarted(taskID, spec, eval.Reason)
 	}
-	return execEvaluation{DefinitionFingerprint: defFingerprint, Basis: basis}, nil
+	return eval, nil
+}
+
+// emitExecStarted announces that Exec reconciles because of reason.
+func (o *Output) emitExecStarted(taskID string, spec ExecSpec, reason string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.emitWireEventLocked(wire.EventOperationStarted, taskID, map[string]any{
+		"kind": freshness.OperationKindExec, "executable": spec.Executable, "reason": reason,
+	})
 }
 
 // execRunAndRecord spawns the child, verifies its declared Outputs after a
@@ -193,7 +188,7 @@ func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec,
 // exit status, even when that attempt then fails verification or exits
 // nonzero — only a spawn/cancellation failure (runErr != nil) leaves it
 // zero-valued, matching ProcessOutcome's own terminal-status semantics.
-func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecSpec, target execTarget, eval execEvaluation) (ExecResult, error) {
+func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecSpec, target execTarget, eval freshness.ExecEvaluation) (ExecResult, error) {
 	result, runErr := o.spawnExec(ctx, taskID, spec, target)
 	if runErr != nil {
 		return ExecResult{}, fmt.Errorf("evo: Exec %q: %w", spec.Executable, runErr)
@@ -209,7 +204,7 @@ func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecS
 
 	o.recordExecEffect(taskID, spec.Executable)
 	rec := freshness.OperationRecord{
-		Kind:                  "exec",
+		Kind:                  freshness.OperationKindExec,
 		DefinitionFingerprint: eval.DefinitionFingerprint,
 		Basis:                 eval.Basis,
 		Outputs:               outputRecords,
@@ -217,7 +212,7 @@ func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecS
 	o.mu.Lock()
 	o.appendManifestOperationLocked(taskID, rec)
 	o.emitWireEventLocked(wire.EventOperationFinished, taskID, map[string]any{
-		"kind": "exec", "executable": spec.Executable, "changed": true,
+		"kind": freshness.OperationKindExec, "executable": spec.Executable, "changed": true,
 	})
 	o.mu.Unlock()
 	return result, nil
@@ -268,7 +263,7 @@ func verifiedExecOutputs(ctx context.Context, outputs []string) ([]freshness.Out
 		if _, statErr := fs.Stat(out); statErr != nil {
 			return nil, fmt.Errorf("%w: %s", ErrExecOutputMissingAfterSuccess, out)
 		}
-		digest, digestErr := pathOutputDigest(ctx, out)
+		digest, digestErr := freshness.PathOutputDigest(ctx, out)
 		if digestErr != nil {
 			return nil, fmt.Errorf("evo: Exec output %q: %w", out, digestErr)
 		}

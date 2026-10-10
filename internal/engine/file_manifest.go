@@ -2,11 +2,8 @@ package engine
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"sort"
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/record"
@@ -25,16 +22,9 @@ var ErrFileConflictingProducer = errors.New("evo: File output path already claim
 // exactly once per Run — never as an error, since a miss is always safe to
 // continue past.
 func (o *Output) emitManifestWarningOnce(w error) {
-	if w == nil {
+	if w == nil || !o.manifest.FirstMissWarning() {
 		return
 	}
-	o.mu.Lock()
-	if o.manifestWarningIssued {
-		o.mu.Unlock()
-		return
-	}
-	o.manifestWarningIssued = true
-	o.mu.Unlock()
 	o.Fact("manifest", w.Error())
 }
 
@@ -50,7 +40,7 @@ func (o *Output) claimManifestOutputLocked(taskID, path string) error {
 		return fmt.Errorf("%w: %s", ErrFileConflictingProducer, path)
 	}
 	o.manifestClaims[path] = taskID
-	o.openOutputBarrierLocked(path)
+	o.outputBarrier().Open(path)
 	return nil
 }
 
@@ -62,7 +52,7 @@ func (o *Output) taskManifestKeyLocked(taskID string) (key string, ordinal int, 
 	if st == nil {
 		return "", 0, false
 	}
-	return st.key(), len(st.manifestOps), true
+	return st.ManifestKey(), o.taskFreshness.OperationCount(st.TaskID()), true
 }
 
 // appendManifestOperationLocked records rec as taskID's next pending
@@ -70,78 +60,38 @@ func (o *Output) taskManifestKeyLocked(taskID string) (key string, ordinal int, 
 // §8.2/§11.3). Callers must already hold o.mu.
 func (o *Output) appendManifestOperationLocked(taskID string, rec freshness.OperationRecord) {
 	if st := o.taskStates[taskID]; st != nil {
-		st.manifestOps = append(st.manifestOps, rec)
+		o.taskFreshness.AppendOperation(st.TaskID(), rec)
 	}
 }
 
 // commitManifestTaskLocked persists taskID's accumulated operations as this
-// Run's truth (spec §11.3) once the Task has settled Done. A Run with no
-// usable manifest Store commits nothing (no Task in this Run ever used
-// File/Exec/Patch, so nothing opened the manifest — see manifestFor —
-// keeping a purely opaque consumer's Run free of any manifest file at all).
-//
-// A Task with tracked Operations commits its precise provenance at once. A
-// Task with none is opaque: its record carries the application fingerprint
-// as its DefinitionFingerprint (ZYS-817 Decisions 2026-09-23), never folded
-// into any operation's Basis. Nothing reads that record back within the
-// Run, so it is staged and written with the next commit or at Close
-// instead of costing each settling Task a full manifest
-// rewrite and fsync under o.mu. Callers must already hold o.mu.
+// Run's truth (spec §11.3) once the Task has settled Done; see
+// freshness.TaskTable.Commit. Callers must already hold o.mu.
 func (o *Output) commitManifestTaskLocked(ctx context.Context, taskID string) {
 	st := o.taskStates[taskID]
-	if st == nil || o.manifestStore == nil {
+	if st == nil {
 		return
 	}
-	ops := st.operationsToCommit()
-	if len(ops) == 0 {
-		o.manifestStore.StageTask(o.manifestApp, freshness.TaskRecord{
-			Key:                   st.key(),
-			DefinitionFingerprint: taskOpaqueDefinitionFingerprint(st.key(), o.manifestApp.Fingerprint),
+	commit := o.taskFreshness.Commit(ctx, o.manifest, st)
+	if commit.Err != nil {
+		o.warnManifestUnsavedLocked(commit.Err)
+		return
+	}
+	if commit.Written {
+		o.emitWireEventLocked(wire.EventManifestTaskCommitted, taskID, map[string]any{
+			"operations": commit.Operations,
 		})
-		return
 	}
-	task := freshness.TaskRecord{Key: st.key(), Operations: ops}
-	if err := o.manifestStore.CommitTask(ctx, o.manifestApp, task); err != nil {
-		o.warnManifestUnsavedLocked(err)
-		return
-	}
-	o.emitWireEventLocked(wire.EventManifestTaskCommitted, taskID, map[string]any{
-		"operations": len(task.Operations),
-	})
 }
 
 // saveManifest waits until every record this Run committed or staged is
-// on disk, so an Init+Finish caller that never calls Close still persists
-// its history. Once the write succeeded it releases the Run's manifest
-// lock, so a later Run on this workspace never waits for a Close this
-// Output's caller may not make; a later File/Basis reopens it. When the
-// write failed it warns on the run (the next run re-executes work this one
-// did, and the reader must know why) and keeps the store and its lock, so
-// Close retries the write (C30-085).
+// on disk (see freshness.ManifestSession.Save) and warns on the run when it
+// could not be: the next run re-executes work this one did, and the reader
+// must know why.
 func (o *Output) saveManifest() {
-	o.mu.Lock()
-	store := o.manifestStore
-	o.mu.Unlock()
-	if store == nil {
-		return
-	}
-	if err := store.Flush(context.Background()); err != nil {
+	if err := o.manifest.Save(); err != nil {
 		o.mu.Lock()
 		defer o.mu.Unlock()
-		if !o.finished {
-			o.warnManifestUnsavedLocked(err)
-		}
-		return
-	}
-	o.mu.Lock()
-	if o.manifestStore == store {
-		o.manifestStore, o.manifestOpened, o.manifestOpenErr = nil, false, nil
-	}
-	o.mu.Unlock()
-	if err := store.Close(); err != nil {
-		o.mu.Lock()
-		defer o.mu.Unlock()
-		o.manifestFinishErr = errors.Join(o.manifestFinishErr, err)
 		if !o.finished {
 			o.warnManifestUnsavedLocked(err)
 		}
@@ -151,159 +101,8 @@ func (o *Output) saveManifest() {
 // warnManifestUnsavedLocked states once per run that the manifest could
 // not be saved. Callers must already hold o.mu.
 func (o *Output) warnManifestUnsavedLocked(err error) {
-	if o.manifestUnsavedIssued {
+	if !o.manifest.FirstUnsavedWarning() {
 		return
 	}
-	o.manifestUnsavedIssued = true
 	o.warnLocked(record.ApplyProblemOptions(txt.Text("manifest not saved: "+err.Error()), nil))
-}
-
-// taskOpaqueDefinitionFingerprint computes an opaque Task's own definition
-// identity: the conservative application-fingerprint fallback ZYS-817
-// Decisions (2026-09-23) requires when a Task's Define recorded no precise
-// File/Exec/Patch operation of its own to prove freshness with. Scoped by
-// the Task's own stable key so two different opaque Tasks never collide
-// onto the same digest merely because the application fingerprint matches.
-func taskOpaqueDefinitionFingerprint(key, appFingerprint string) string {
-	h := sha256.New()
-	_, _ = h.Write([]byte("evident-output:task:definition:opaque:v1\x00"))
-	_, _ = h.Write([]byte(key))
-	h.Write([]byte{0})
-	_, _ = h.Write([]byte(appFingerprint))
-	h.Write([]byte{0})
-	return "sha256:" + hex.EncodeToString(h.Sum(nil))
-}
-
-// basisRecordsFrom fingerprints every entry in basis (spec §11.1) and
-// returns them canonicalized by (Kind, Key) — Basis order is semantically
-// irrelevant (§11.1). A duplicate (Kind, Key) pair is a programmer error
-// (§11.1).
-func basisRecordsFrom(ctx context.Context, basis []freshness.Fingerprint) ([]freshness.BasisRecord, error) {
-	records := make([]freshness.BasisRecord, 0, len(basis))
-	for _, b := range basis {
-		v, err := b.Fingerprint(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("evo: Basis: %w", err)
-		}
-		records = append(records, freshness.BasisRecord{
-			Kind:   string(v.Kind),
-			Key:    v.Key,
-			Digest: hex.EncodeToString(v.Digest[:]),
-		})
-	}
-	sortBasisRecords(records)
-	for i := 1; i < len(records); i++ {
-		if records[i].Kind == records[i-1].Kind && records[i].Key == records[i-1].Key {
-			return nil, fmt.Errorf("evo: Basis: duplicate (kind=%s, key=%s)", records[i].Kind, records[i].Key)
-		}
-	}
-	return records, nil
-}
-
-// sortBasisRecords puts records in canonical (kind, key) order.
-func sortBasisRecords(records []freshness.BasisRecord) {
-	sort.Slice(records, func(i, j int) bool {
-		if records[i].Kind != records[j].Kind {
-			return records[i].Kind < records[j].Kind
-		}
-		return records[i].Key < records[j].Key
-	})
-}
-
-// fileDefinitionFingerprint computes File's operation definition fingerprint
-// (spec §11.4): canonical path + managed contents digest + managed mode +
-// sorted Basis descriptors. basis must already be canonicalized (see
-// basisRecordsFrom) so two equivalent Basis sets always hash identically.
-func fileDefinitionFingerprint(path string, contentsManaged bool, contents []byte, mode uint32, basis []freshness.BasisRecord) string {
-	h := sha256.New()
-	_, _ = h.Write([]byte("evident-output:file:definition:v1\x00"))
-	_, _ = h.Write([]byte(path))
-	h.Write([]byte{0})
-	if contentsManaged {
-		sum := sha256.Sum256(contents)
-		_, _ = h.Write([]byte("contents:managed\x00"))
-		h.Write(sum[:])
-	} else {
-		_, _ = h.Write([]byte("contents:unmanaged\x00"))
-	}
-	_, _ = fmt.Fprintf(h, "mode:%d\x00", mode)
-	for _, b := range basis {
-		_, _ = h.Write([]byte(b.Kind))
-		h.Write([]byte{0})
-		_, _ = h.Write([]byte(b.Key))
-		h.Write([]byte{0})
-		_, _ = h.Write([]byte(b.Digest))
-		h.Write([]byte{0})
-	}
-	return "sha256:" + hex.EncodeToString(h.Sum(nil))
-}
-
-// pathOutputDigest fingerprints path's current on-disk content (spec
-// §8.3/§11.1) for storage as, or comparison against, a File operation's
-// tracked output record.
-func pathOutputDigest(ctx context.Context, path string) (string, error) {
-	v, err := freshness.FSPath(path).Fingerprint(ctx)
-	if err != nil {
-		return "", fmt.Errorf("evo: output %q: %w", path, err)
-	}
-	return hex.EncodeToString(v.Digest[:]), nil
-}
-
-// Reasons fileOperationCurrent reports for a "not current" verdict (spec
-// §38: events must distinguish Basis drift from tracked output drift from
-// no prior record at all).
-const (
-	freshnessReasonNoPriorRecord   = "no_prior_record"
-	freshnessReasonBasisDrift      = "basis_drift"
-	freshnessReasonDefinitionDrift = "definition_changed"
-	freshnessReasonTrackedDrift    = "tracked_output_drift"
-	freshnessReasonCurrent         = "current"
-)
-
-// fileOperationCurrent reports whether prior (the previously committed
-// operation record for this Task's Nth File call, if any) still matches:
-// every Basis digest, the operation definition itself, and the tracked
-// output's current on-disk digest (spec §8.2/§11.4/§11.5). A prior record's
-// absence, a Basis/definition mismatch, or output drift (edited outside
-// Evo) are all "not current" — never an error on their own. reason names
-// which of those applied, or freshnessReasonCurrent when isCurrent is true.
-// Basis is checked ahead of the combined DefinitionFingerprint (which
-// itself already hashes Basis in, see fileDefinitionFingerprint) so a
-// Basis-only change reports freshnessReasonBasisDrift rather than being
-// folded into the more generic definition mismatch (spec §38: "Basis
-// drift" and "tracked output drift" must be distinguishable events).
-func fileOperationCurrent(ctx context.Context, prior freshness.OperationRecord, hasPrior bool, defFingerprint string, basis []freshness.BasisRecord, path string) (isCurrent bool, reason string, err error) {
-	if !hasPrior || len(prior.Outputs) != 1 {
-		return false, freshnessReasonNoPriorRecord, nil
-	}
-	if !basisRecordsEqual(prior.Basis, basis) {
-		return false, freshnessReasonBasisDrift, nil
-	}
-	if prior.DefinitionFingerprint != defFingerprint {
-		return false, freshnessReasonDefinitionDrift, nil
-	}
-	liveDigest, err := pathOutputDigest(ctx, path)
-	if err != nil {
-		return false, "", err
-	}
-	if prior.Outputs[0].Digest != liveDigest {
-		return false, freshnessReasonTrackedDrift, nil
-	}
-	return true, freshnessReasonCurrent, nil
-}
-
-// basisRecordsEqual compares two already-canonicalized Basis slices
-// element-wise (see basisRecordsFrom) — canonicalization makes a
-// straightforward positional comparison correct rather than needing its
-// own set-equality pass.
-func basisRecordsEqual(a, b []freshness.BasisRecord) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

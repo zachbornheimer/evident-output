@@ -6,14 +6,10 @@ import (
 	"fmt"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
-
-// verifierFunc is one Verify observation check (§9.1): true means the
-// desired state already holds, false means it does not, and an error means
-// the observation itself failed.
-type verifierFunc func(context.Context) (bool, error)
 
 // verifyEvidenceSource names Verify as the evidence source recorded on a
 // TaskSnapshot's Evidence phases (§30).
@@ -68,7 +64,7 @@ func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle 
 		o.recordMisuseFor(st.name, ErrInvalidConfig)
 		return t
 	}
-	st.verifiers = append(st.verifiers, verifierFunc(fn))
+	o.taskFreshness.AddVerifier(st.TaskID(), freshness.Verifier(fn))
 	return t
 }
 
@@ -102,7 +98,7 @@ func (t *TaskHandle) Define(fn func(context.Context) error) *TaskHandle {
 		o.mu.Unlock()
 		return t
 	}
-	verifiers := append([]verifierFunc(nil), st.verifiers...)
+	verifiers := o.taskFreshness.Verifiers(st.TaskID())
 	o.mu.Unlock()
 
 	t.submitWork(func() error { return t.runDefine(verifiers, fn) })
@@ -115,7 +111,7 @@ func (t *TaskHandle) Define(fn func(context.Context) error) *TaskHandle {
 // two fall through to the scheduler's own generic resolution
 // (executeWork/resolveObserved) via passthroughCallbackOutcome, exactly as a
 // Verify-less Define always has.
-func (t *TaskHandle) runDefine(verifiers []verifierFunc, fn func(context.Context) error) error {
+func (t *TaskHandle) runDefine(verifiers []freshness.Verifier, fn func(context.Context) error) error {
 	o := t.out
 	scope := &taskScopeHandle{out: o, taskID: t.id}
 
@@ -166,7 +162,7 @@ func (t *TaskHandle) runDefine(verifiers []verifierFunc, fn func(context.Context
 // registered Verify must now hold, or, with none, tracked operations
 // supply the After phase. It returns the carrier error when the Task
 // already failed.
-func (t *TaskHandle) checkAfterDefine(verifiers []verifierFunc, scope *taskScopeHandle) error {
+func (t *TaskHandle) checkAfterDefine(verifiers []freshness.Verifier, scope *taskScopeHandle) error {
 	o := t.out
 	switch {
 	case !t.hasPostStateToVerify():
@@ -186,11 +182,11 @@ func (t *TaskHandle) checkAfterDefine(verifiers []verifierFunc, scope *taskScope
 	default:
 		// No explicit Verify: derive post-Define Evidence from Evo-native
 		// tracked operations when Define recorded any (§9.2). Every
-		// operation evo.File appended to manifestOps already re-inspected
+		// operation evo.File appended to operation records already re-inspected
 		// and confirmed its own managed attributes before returning success
 		// (§8.2's "re-inspect / verify every managed attribute" step) — a
 		// mismatch there would have made callbackErr non-nil, so reaching
-		// here with a non-empty manifestOps set means every tracked
+		// here with a non-empty set of operation records means every tracked
 		// operation this Define touched is already known current.
 		o.recordOperationsEvidence(t.id)
 	}
@@ -232,7 +228,7 @@ func (o *Output) recordOperationsEvidence(taskID string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	st := o.taskStates[taskID]
-	if st == nil || len(st.manifestOps) == 0 {
+	if st == nil || o.taskFreshness.OperationCount(st.TaskID()) == 0 {
 		return
 	}
 	st.node.Rec.RecordAfterEvidence(EvidencePhase{Evaluated: true, Satisfied: true, Source: operationsEvidenceSource})
@@ -258,38 +254,28 @@ func passthroughCallbackOutcome(err error) error {
 	return err
 }
 
-// evaluateVerifiers runs every verifier in registration order, ANDing their
-// results, and stops at the first observation error (§9.1: an observation
-// failure is distinct from a false result and takes priority). Each
-// verifier's own outcome is emitted as verification.observed (spec §38),
-// named by its registration order since Verify registers anonymous funcs.
-func evaluateVerifiers(ctx context.Context, o *Output, taskID string, verifiers []verifierFunc) (allSatisfied bool, err error) {
-	allSatisfied = true
-	for i, v := range verifiers {
-		ok, verifyErr := v(ctx)
+// evaluateVerifiers runs taskID's verifiers (see
+// freshness.EvaluateVerifiers) and emits each one's outcome as
+// verification.observed (spec §38), named by its registration order since
+// Verify registers anonymous funcs.
+func evaluateVerifiers(ctx context.Context, o *Output, taskID string, verifiers []freshness.Verifier) (allSatisfied bool, err error) {
+	return freshness.EvaluateVerifiers(ctx, verifiers, func(index int, outcome freshness.VerifierOutcome) {
 		o.mu.Lock()
+		defer o.mu.Unlock()
 		o.emitWireEventLocked(wire.EventVerificationObserved, taskID, wire.VerificationDoc{
-			Name:   fmt.Sprintf("verify_%d", i),
-			Status: verificationStatus(ok, verifyErr),
+			Name:   fmt.Sprintf("verify_%d", index),
+			Status: verificationStatus(outcome),
 		}.EventPayload())
-		o.mu.Unlock()
-		if verifyErr != nil {
-			return false, verifyErr
-		}
-		if !ok {
-			allSatisfied = false
-		}
-	}
-	return allSatisfied, nil
+	})
 }
 
 // verificationStatus maps one verifier's outcome to the §36 verification
 // status vocabulary (wire.VerificationSatisfied/Unsatisfied/Error).
-func verificationStatus(ok bool, err error) string {
-	switch {
-	case err != nil:
+func verificationStatus(outcome freshness.VerifierOutcome) string {
+	switch outcome {
+	case freshness.VerifierErrored:
 		return wire.VerificationError
-	case ok:
+	case freshness.VerifierSatisfied:
 		return wire.VerificationSatisfied
 	default:
 		return wire.VerificationUnsatisfied
