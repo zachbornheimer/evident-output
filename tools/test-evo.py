@@ -14,7 +14,7 @@ import tempfile
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import testevo_frames
@@ -159,7 +159,7 @@ def env_name(flag: str) -> str:
 
 
 def capture_stamp(when: datetime | None = None) -> str:
-    now = (when or datetime.now(timezone.utc)).astimezone()
+    now = (when or datetime.now(UTC)).astimezone()
     hundredths = now.microsecond // 10000
     zone = now.strftime("%Z") or now.tzname() or "local"
     return now.strftime("%Y-%m-%d %H:%M:%S") + f".{hundredths:02d} {zone}"

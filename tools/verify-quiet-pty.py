@@ -29,7 +29,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import testevo_frames
@@ -87,9 +87,7 @@ def ms(later: datetime, earlier: datetime) -> float:
 
 def parse_stamp(stamp: str) -> datetime:
     # test-evo.py stamps "YYYY-mm-dd HH:MM:SS.hh ZONE"; the zone is constant per run.
-    return datetime.strptime(stamp.rsplit(" ", 1)[0], STAMP_FORMAT).replace(
-        tzinfo=timezone.utc
-    )
+    return datetime.strptime(stamp.rsplit(" ", 1)[0], STAMP_FORMAT).replace(tzinfo=UTC)
 
 
 def build_example(workdir: Path) -> Path:
