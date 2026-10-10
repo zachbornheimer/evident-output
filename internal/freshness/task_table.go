@@ -31,9 +31,12 @@ type taskEntry struct {
 	observed []BasisRecord
 	// operations accumulates the Task's tracked operation records for the
 	// current Run (spec §11.3-11.5), in call order: the order
-	// ManifestStore.Operation's ordinal indexes into. Never populated during
-	// dry-run, which commits nothing (§8.2).
+	// ManifestStore.Operation's ordinal indexes into. A planned Run fills it
+	// as an applying one does, but never commits it (see TaskTable.Commit).
 	operations []OperationRecord
+	// planned counts the operations a planned Run found stale and did not
+	// apply: they hold their place in the order but leave no record.
+	planned int
 	// verifiers are the Verify checks, ANDed in registration order (§9.1).
 	verifiers []Verifier
 }
@@ -82,13 +85,22 @@ func (t *TaskTable) AppendOperation(id record.TaskID, rec OperationRecord) {
 	entry.operations = append(entry.operations, rec)
 }
 
-// OperationCount is how many operations id has recorded: the ordinal its next
+// PlanOperation notes that id had an operation a planned Run found stale and
+// did not apply. It leaves no record, but the operation after it must be
+// judged against its own record, as it would after an applied one.
+func (t *TaskTable) PlanOperation(id record.TaskID) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.entryLocked(id).planned++
+}
+
+// OperationCount is how many operations id has had: the ordinal its next
 // operation takes within its manifest record.
 func (t *TaskTable) OperationCount(id record.TaskID) int {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if entry := t.tasks[id]; entry != nil {
-		return len(entry.operations)
+		return len(entry.operations) + entry.planned
 	}
 	return 0
 }

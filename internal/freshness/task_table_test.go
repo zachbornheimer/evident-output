@@ -190,6 +190,23 @@ func TestPlannedRunCommitsNothing(t *testing.T) {
 	}
 }
 
+// An operation a planned Run left unapplied takes its place in the Task's
+// order without leaving a record, so the next operation is judged against its
+// own record.
+func TestPlannedOperationHoldsItsPlaceWithoutARecord(t *testing.T) {
+	table := NewTaskTable()
+	table.AppendOperation("t1", OperationRecord{Kind: OperationKindFile})
+	table.PlanOperation("t1")
+	table.AppendOperation("t1", OperationRecord{Kind: OperationKindExec})
+
+	if got := table.OperationCount("t1"); got != 3 {
+		t.Fatalf("OperationCount = %d, want 3: the planned operation holds a place", got)
+	}
+	if got := len(table.Operations("t1")); got != 2 {
+		t.Fatalf("Operations = %d records, want 2: the planned operation leaves none", got)
+	}
+}
+
 // A planned Run judges a Basis like any Run but remembers none of what it
 // observed, so a later commit cannot record a Basis nothing applied.
 func TestPlannedRunJudgesBasisWithoutRememberingIt(t *testing.T) {

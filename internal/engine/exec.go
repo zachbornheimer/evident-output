@@ -152,16 +152,13 @@ func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec,
 		o.emitWireEventLocked(wire.EventOperationSkippedCurrent, taskID, map[string]any{
 			"kind": wire.PayloadKindExec, "executable": spec.Executable, "reason": eval.Reason,
 		})
+		o.appendManifestOperationLocked(taskID, eval.Prior)
 		o.mu.Unlock()
-		if !o.DryRun() {
-			o.mu.Lock()
-			o.appendManifestOperationLocked(taskID, eval.Prior)
-			o.mu.Unlock()
-		}
 	case freshness.ExecIsPlanned:
 		o.emitExecStarted(taskID, spec, eval.Reason)
 		o.recordExecEffect(taskID, spec.Executable)
 		o.mu.Lock()
+		o.planManifestOperationLocked(taskID)
 		o.emitWireEventLocked(wire.EventOperationFinished, taskID, map[string]any{
 			"kind": wire.PayloadKindExec, "executable": spec.Executable, "changed": true,
 		})

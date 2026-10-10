@@ -64,6 +64,15 @@ func (o *Output) appendManifestOperationLocked(taskID string, rec freshness.Oper
 	}
 }
 
+// planManifestOperationLocked notes that taskID's next operation was found
+// stale and, in a planned Run, left unapplied; it holds its place in the
+// Task's order without a record. Callers must already hold o.mu.
+func (o *Output) planManifestOperationLocked(taskID string) {
+	if st := o.taskStates[taskID]; st != nil {
+		o.taskFreshness.PlanOperation(st.TaskID())
+	}
+}
+
 // commitManifestTaskLocked persists taskID's accumulated operations as this
 // Run's truth (spec §11.3) once the Task has settled Done; see
 // freshness.TaskTable.Commit. Callers must already hold o.mu.

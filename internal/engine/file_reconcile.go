@@ -118,9 +118,7 @@ func (o *Output) carryForwardCurrentFile(op fileOperation, prior freshness.Opera
 	o.emitWireEventLocked(wire.EventOperationSkippedCurrent, op.taskID, map[string]any{
 		"kind": wire.PayloadKindFile, "path": op.path, "reason": reason,
 	})
-	if !o.cfg.dryRun {
-		o.appendManifestOperationLocked(op.taskID, prior)
-	}
+	o.appendManifestOperationLocked(op.taskID, prior)
 }
 
 // fileDelta is what reconciling one File must change on disk.
@@ -149,6 +147,11 @@ func (o *Output) applyFile(ctx context.Context, op fileOperation) error {
 	if o.DryRun() {
 		// Planning only: every check above already ran read-only; no
 		// mutation happens and no manifest state commits (spec §8.2/§11.3).
+		if op.manifestManaged() {
+			o.mu.Lock()
+			o.planManifestOperationLocked(op.taskID)
+			o.mu.Unlock()
+		}
 		o.recordFileEffectIf(op, delta.mutates())
 		o.emitFileFinished(op, delta.mutates())
 		return nil
