@@ -75,5 +75,9 @@ func (w *WaiterStack) HoldsClaim() bool {
 	return processHolds.Blocked(creator)
 }
 
+// InsideBuilder reports whether the waiting goroutine is running a container
+// builder.
+func (w *WaiterStack) InsideBuilder() bool { return w.load().Builders > 0 }
+
 // CallbackDepth is how many task callbacks the waiting goroutine is inside.
 func (w *WaiterStack) CallbackDepth() int { return w.load().Callbacks }

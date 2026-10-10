@@ -23,6 +23,10 @@ var (
 	// with WithWaitUnderClaimError: the caller holds a resource claim, and the
 	// awaited work could need it.
 	ErrWaitUnderClaim = errors.New("evo: wait while holding a resource claim")
+	// ErrWaitInBuilder is why a wait was refused: the caller is a container
+	// builder, which declares the topology the awaited work is part of and
+	// settles only when it returns, so waiting inside it can never end.
+	ErrWaitInBuilder = errors.New("evo: wait inside a container builder")
 )
 
 // WithWaitUnderClaimError makes err the sentinel a wait refused for a held
@@ -72,11 +76,39 @@ func (g *Graph) refuseUnderClaim(name string, stack *WaiterStack) error {
 // somewhere or it actually parks, and walks shared inputs once.
 func (g *Graph) waitChecked(t *Task, stack *WaiterStack, seen *InputSeals) error {
 	g.SealAwaited(t, seen)
-	g.RunWaited(t, stack)
+	if !g.answerable(t) {
+		if err := g.refuseInsideBuilder(t.Name, stack); err != nil {
+			return err
+		}
+		g.RunWaited(t, stack)
+	}
 	if err := g.parkUntilSettled(t, stack); err != nil {
 		return err
 	}
 	return g.waitOutcome(t)
+}
+
+// refuseInsideBuilder refuses a wait on the Task or container named name that
+// has to wait, when the calling goroutine is running a container builder. The
+// builder declares the topology the awaited work belongs to and settles only
+// when it returns, so the wait could never end and Finish would hang behind
+// it. Refused every time, not only when it would hang, so the outcome never
+// depends on the ceiling or on timing; a wait that the settled row already
+// answers is no wait at all and never reaches here.
+func (g *Graph) refuseInsideBuilder(name string, stack *WaiterStack) error {
+	if !stack.InsideBuilder() {
+		return nil
+	}
+	g.misuse.RecordMisuseFor(name, ErrWaitInBuilder)
+	return fmt.Errorf("%w: Wait on %q inside a container builder; declare the work and Wait outside it", ErrWaitInBuilder, name)
+}
+
+// answerable reports whether t's row already answers a wait: t was never
+// defined, or it settled and its callback owes no error still on its way out.
+func (g *Graph) answerable(t *Task) bool {
+	g.lockRead()
+	defer g.unlockRead()
+	return t.neverDefinedLocked() || (terminal(t) && !t.errorStillOwedLocked())
 }
 
 // parkUntilSettled parks until t resolves and its callback, if one was
@@ -85,10 +117,7 @@ func (g *Graph) waitChecked(t *Task, stack *WaiterStack, seen *InputSeals) error
 // scheduler proved the wait could never be satisfied and released the caller
 // instead of letting it hang (see Kick).
 func (g *Graph) parkUntilSettled(t *Task, stack *WaiterStack) error {
-	g.lockRead()
-	answerable := t.neverDefinedLocked() || (terminal(t) && !t.errorStillOwedLocked())
-	g.unlockRead()
-	if answerable {
+	if g.answerable(t) {
 		return nil
 	}
 	ticket := g.BeginWait(t, stack.CallbackDepth())

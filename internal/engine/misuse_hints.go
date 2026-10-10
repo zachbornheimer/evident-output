@@ -59,6 +59,8 @@ func misuseHintFor(err error, subject, rejectedSummary string) string {
 		return fmt.Sprintf("%s has not settled; read Get only from a Task declared After it, or from a container builder whose After includes it", subject)
 	case errors.Is(err, ErrComputedUnordered):
 		return fmt.Sprintf("nothing orders this reader after %s; declare it .After(the Computed), or put it later in the same Sequence", subject)
+	case errors.Is(err, graph.ErrWaitInBuilder):
+		return fmt.Sprintf("a container builder cannot Wait on %s; the builder settles only when it returns, so declare the work in it and Wait outside", subject)
 	case errors.Is(err, ErrDeclaredInCallback):
 		return "declare Tasks and containers before the run or inside Group.Define; a Task's Define callback only does work"
 	case errors.Is(err, ErrDryRunDeclaredLate):
