@@ -166,6 +166,7 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		// Same critical section as the failure: whoever sees it terminal
 		// (a Wait returning, a Snapshot) sees its followers settled too.
 		t.out.graph.FailSequenceFollowers(st.node)
+		t.out.followRecordLocked()
 	}
 	t.out.emitWireEventLocked(wire.EventTaskFinished, t.id, taskFinishedPayload(st))
 	t.out.commitSettledLocked(st)

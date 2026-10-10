@@ -7,8 +7,13 @@ package engine
 // plain heartbeat) is the engine listener's job: it hears the transition
 // once the lock is free (see outputListener).
 //
+// The render work is answered here, at the transition, so a journal read
+// later in the same section sees the task.<state> event in order; the
+// listener answers a settle made anywhere else.
+//
 // Callers own only what differs between paths: the summary, the Problems,
 // and where the settled row is committed. Callers must already hold o.mu.
 func (o *Output) settleLocked(st *taskState, state EntityState) {
 	o.graph.Settle(st.node, state)
+	o.followRecordLocked()
 }

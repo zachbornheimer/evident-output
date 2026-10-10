@@ -278,6 +278,7 @@ func (o *Output) drainScheduler() {
 // markNotStartedLocked settles st NotStarted: work that will now never run.
 func (o *Output) markNotStartedLocked(st *taskState) {
 	o.graph.MarkNotStarted(st.node)
+	o.followRecordLocked()
 }
 
 // failSequenceFollowers settles NotStarted every step declared after the
@@ -289,4 +290,5 @@ func (o *Output) failSequenceFollowers(failed *taskState) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.graph.FailSequenceFollowers(failed.node)
+	o.followRecordLocked()
 }
