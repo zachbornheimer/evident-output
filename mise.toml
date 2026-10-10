@@ -81,8 +81,8 @@ description = "Verify every §31 ID is listed in TRACEABILITY"
 run = "go run ./tools/scripts/traceability-check"
 
 [tasks.bisectability]
-description = "Prove every first-parent commit since BASE (default codex/v06-acceptance) builds on its own — run before merging a multi-commit integration branch"
-run = "go run ./tools/scripts/bisectability-check"
+description = "Prove every first-parent commit since BASE (default codex/v06-acceptance) builds and passes the tests of the packages it touched on its own — run before merging a multi-commit integration branch (the fast build-only check is the tool without --test)"
+run = "go run ./tools/scripts/bisectability-check --test"
 
 [tasks.doctor]
 description = "Verify repo contract"

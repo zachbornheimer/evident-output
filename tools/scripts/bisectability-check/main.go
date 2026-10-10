@@ -7,17 +7,24 @@
 //
 // Usage:
 //
-//	go run ./tools/scripts/bisectability-check [BASE] [HEAD]
+//	go run ./tools/scripts/bisectability-check [--test] [BASE] [HEAD]
 //
 // BASE defaults to $BISECTABILITY_BASE, then "codex/v06-acceptance". HEAD
 // defaults to "HEAD". Each commit in `git rev-list --first-parent
 // BASE..HEAD` (oldest first) is checked out into its own temporary git
 // worktree and built with `go build ./...`; the first commit that fails to
 // build is reported and the tool exits nonzero.
+//
+// With --test, each commit also runs `go test` for the packages it touched
+// (`./...` when it changed a root file), so a red test cannot land in a
+// commit apart from its fix.
 package main
 
 import (
+	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -39,9 +46,41 @@ func main() {
 // the range this tool exists to guard.
 const defaultBase = "codex/v06-acceptance"
 
+// options are the parsed command line; empty base and head take their defaults.
+type options struct {
+	base, head string
+	runTests   bool
+}
+
+// parseOptions parses the command line. flag.ErrHelp is returned for --help,
+// after the usage text is written to usage.
+func parseOptions(args []string, usage io.Writer) (options, error) {
+	var opts options
+	flags := flag.NewFlagSet("bisectability-check", flag.ContinueOnError)
+	flags.SetOutput(usage)
+	flags.Usage = func() {
+		_, _ = fmt.Fprintln(usage, "usage: bisectability-check [--test] [BASE] [HEAD]")
+		flags.PrintDefaults()
+	}
+	flags.BoolVar(&opts.runTests, "test", false,
+		"also run go test for the packages each commit touched (./... when a root file changed)")
+	if err := flags.Parse(args); err != nil {
+		return options{}, err
+	}
+	opts.base, opts.head = argAt(flags.Args(), 0), argAt(flags.Args(), 1)
+	return opts, nil
+}
+
 func run(args []string) error {
-	base := firstNonEmpty(argAt(args, 0), os.Getenv("BISECTABILITY_BASE"), defaultBase)
-	head := firstNonEmpty(argAt(args, 1), "HEAD")
+	opts, err := parseOptions(args, os.Stderr)
+	if errors.Is(err, flag.ErrHelp) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	base := firstNonEmpty(opts.base, os.Getenv("BISECTABILITY_BASE"), defaultBase)
+	head := firstNonEmpty(opts.head, "HEAD")
 
 	commits, err := firstParentCommits(".", base, head)
 	if err != nil {
@@ -62,11 +101,41 @@ func run(args []string) error {
 		if err := checkoutDetached(worktree, sha); err != nil {
 			return err
 		}
-		if out, err := buildAll(worktree); err != nil {
-			return fmt.Errorf("commit %d/%d %s does not build on its own:\n%s\n%w",
-				i+1, len(commits), sha, out, err)
+		if err := verifyCommit(worktree, sha, opts.runTests); err != nil {
+			return fmt.Errorf("commit %d/%d %s: %w", i+1, len(commits), sha, err)
 		}
-		fmt.Printf("bisectability-check: %d/%d %s builds\n", i+1, len(commits), sha)
+		fmt.Printf("bisectability-check: %d/%d %s %s\n", i+1, len(commits), sha, passedSummary(opts.runTests))
+	}
+	return nil
+}
+
+func passedSummary(runTests bool) string {
+	if runTests {
+		return "builds and passes its tests"
+	}
+	return "builds"
+}
+
+// verifyCommit proves the commit checked out in worktree builds and, with
+// runTests, that the tests of the packages it touched pass: a red test must
+// land with its fix, or `git bisect run go test` lands on it.
+func verifyCommit(worktree, sha string, runTests bool) error {
+	if out, err := buildAll(worktree); err != nil {
+		return fmt.Errorf("does not build on its own:\n%s\n%w", out, err)
+	}
+	if !runTests {
+		return nil
+	}
+	packages, err := commitTestPackages(worktree, sha)
+	if err != nil {
+		return err
+	}
+	if len(packages) == 0 {
+		return nil
+	}
+	if out, err := testPackages(worktree, packages); err != nil {
+		return fmt.Errorf("builds but its tests (%s) fail on their own:\n%s\n%w",
+			strings.Join(packages, " "), out, err)
 	}
 	return nil
 }
