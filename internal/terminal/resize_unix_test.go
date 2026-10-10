@@ -17,7 +17,7 @@ func TestANSI_StartResizeWatch_InvokesCallbackOnSIGWINCH(t *testing.T) {
 	drv := terminal.NewANSI(f,
 		terminal.WithInteractive(true),
 		terminal.WithSize(80, 24),
-		terminal.WithSizeFile(f),
+		terminal.WithSizeWriter(f),
 	)
 
 	var n atomic.Int32
@@ -43,7 +43,7 @@ func TestANSI_StartResizeWatch_InvokesCallbackOnSIGWINCH(t *testing.T) {
 }
 
 func TestANSI_StopResizeWatch_Idempotent(t *testing.T) {
-	drv := terminal.NewANSI(os.Stdout, terminal.WithSizeFile(os.Stdout))
+	drv := terminal.NewANSI(os.Stdout, terminal.WithSizeWriter(os.Stdout))
 	drv.StartResizeWatch(func() {})
 	drv.StopResizeWatch()
 	drv.StopResizeWatch()

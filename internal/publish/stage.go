@@ -175,7 +175,7 @@ func (s *Staged) discardParents() {
 }
 
 // fillFile runs fill into f, then flushes, sets mode, and closes it.
-func fillFile(ctx context.Context, f *sysfs.File, mode fs.FileMode, fill func(io.Writer) error) error {
+func fillFile(ctx context.Context, f sysfs.File, mode fs.FileMode, fill func(io.Writer) error) error {
 	err := fill(f)
 	if err == nil {
 		err = ctx.Err()
@@ -241,7 +241,7 @@ func Leftovers(dest string) ([]string, error) {
 	return found, nil
 }
 
-func createStagingFile(dest string) (*sysfs.File, error) {
+func createStagingFile(dest string) (sysfs.File, error) {
 	for range stagingAttempts {
 		f, err := sysfs.CreateExclusive(stagingName(dest), stagingFileMode)
 		if err == nil {

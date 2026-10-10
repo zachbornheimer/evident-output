@@ -1,8 +1,9 @@
 package engine
 
 import (
-	"os/exec"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/process"
 )
 
 // TestCommandPhaseName_CompoundShellScriptHasNoInitialPhase is release-gate
@@ -26,7 +27,7 @@ func TestCommandPhaseName_CompoundShellScriptHasNoInitialPhase(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cmd := exec.Command("sh", "-c", tt.script)
+			cmd := process.NewCmd("sh", "-c", tt.script)
 			if got := commandPhaseName(cmd); got != tt.want {
 				t.Fatalf("commandPhaseName(sh -c %q) = %q, want %q", tt.script, got, tt.want)
 			}

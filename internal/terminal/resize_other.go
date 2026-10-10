@@ -6,8 +6,8 @@ package terminal
 type resizeWatch struct{}
 
 // StartResizeWatch is a no-op on platforms without SIGWINCH (e.g. Windows).
-// Geometry still updates via RefreshSize on each live redraw when WithSizeFile
-// is set (query term size when available).
+// Geometry still updates via RefreshSize on each live redraw when a size
+// file is set (query term size when available).
 func (a *ANSI) StartResizeWatch(onResize func()) {}
 
 // StopResizeWatch is a no-op on non-unix builds.

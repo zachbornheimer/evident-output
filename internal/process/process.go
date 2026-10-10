@@ -10,9 +10,6 @@ import (
 	"time"
 )
 
-// Cmd is a not-yet-run external command a Task runs directly.
-type Cmd = exec.Cmd
-
 // Command is one resolved external command Exec is about to spawn: the
 // OS-facing argv/dir/env after ExecSpec's path/workspace resolution
 // (spec §8.4), immutable once built. Stdout/Stderr are the evidence writers

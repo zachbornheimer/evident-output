@@ -6,9 +6,9 @@ import (
 	"golang.org/x/term"
 )
 
-// Size reports the terminal dimensions for f when f is a TTY.
+// fileSize reports the terminal dimensions for f when f is a TTY.
 // ok is false when size cannot be determined (pipe, file, error).
-func Size(f *os.File) (width, height int, ok bool) {
+func fileSize(f *os.File) (width, height int, ok bool) {
 	if f == nil {
 		return 0, 0, false
 	}

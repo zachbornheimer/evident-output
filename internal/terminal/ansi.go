@@ -53,11 +53,11 @@ func WithSize(width, height int) Option {
 	}
 }
 
-// WithSizeFile enables RefreshSize to re-query geometry from a TTY file
+// withSizeFile enables RefreshSize to re-query geometry from a TTY file
 // (typically the same *os.File used as the live writer). Call RefreshSize on
 // each live redraw. On unix, evo also starts StartResizeWatch so SIGWINCH
 // updates size and can force an immediate live redraw.
-func WithSizeFile(f *os.File) Option {
+func withSizeFile(f *os.File) Option {
 	return func(a *ANSI) {
 		if f != nil {
 			a.sizeFile = f
@@ -119,7 +119,7 @@ func (a *ANSI) SetSize(width, height int) {
 	}
 }
 
-// RefreshSize re-queries the TTY when WithSizeFile was configured.
+// RefreshSize re-queries the TTY when a size file was configured.
 // Safe to call on every redraw; no-op when sizeFile is unset.
 func (a *ANSI) RefreshSize() {
 	a.mu.Lock()
@@ -128,7 +128,7 @@ func (a *ANSI) RefreshSize() {
 	if f == nil {
 		return
 	}
-	w, h, ok := Size(f)
+	w, h, ok := fileSize(f)
 	if !ok {
 		return
 	}

@@ -3,10 +3,10 @@ package evo
 import (
 	"io"
 	"log/slog"
-	"os/exec"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/engine"
+	"github.com/zachbornheimer/evident-output/internal/process"
 )
 
 func SwapLookupEnv(fn func(string) string) func() { return engine.SwapLookupEnv(fn) }
@@ -113,7 +113,7 @@ func (o *Output) SchedulerMaxObserved() int {
 	return o.inner.SchedulerMaxObserved()
 }
 
-func (t *TaskHandle) RunForTest(cmd *exec.Cmd) error {
+func (t *TaskHandle) RunForTest(cmd *process.Cmd) error {
 	if t == nil || t.inner == nil {
 		return nil
 	}

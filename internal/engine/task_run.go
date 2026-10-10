@@ -13,7 +13,7 @@ import (
 // PhaseWriter plumbing PhaseWriter uses directly. Each line becomes the
 // task's live Phase, and every byte is retained (redacted, bounded) in the
 // task's evidence ring so DetailTail has proof after Fail — reach for
-// evidence directly only when the caller isn't running an *exec.Cmd. If
+// evidence directly only when the caller isn't running a process.Cmd. If
 // cmd.Stdout/cmd.Stderr already point somewhere (a caller wiring its own log
 // file, say), Run tees into it rather than replacing it.
 //
@@ -21,17 +21,13 @@ import (
 // (filepath.Base(cmd.Path) or cmd.Args[0]) so a live view shows what's
 // running before the child ever writes a line.
 //
-// Run does not touch cmd.Stdin. A child that must own the TTY (an editor)
-// still runs through Run with Stdin left as the caller set it; do not
-// clear the live region around it.
-// A context baked into cmd via exec.CommandContext still governs
-// cancellation exactly as it would for a bare cmd.Run(); Run adds no
-// context handling of its own.
+// Run adds no context handling of its own and leaves cmd's standard input
+// unset.
 //
 // Run returns the subprocess error verbatim and never resolves the task —
 // the caller's Define callback turns the result into the outcome:
 //
-//	cmd := exec.Command("go", "build", "./...")
+//	cmd := process.NewCmd("go", "build", "./...")
 //	if err := task.run(cmd); err != nil {
 //	    return fmt.Errorf("build failed: %w", err)
 //	}
@@ -40,8 +36,8 @@ func (t *TaskHandle) run(cmd *process.Cmd) error {
 	if t != nil && t.out != nil {
 		t.ensurePhase(commandPhaseName(cmd))
 		pw := &phaseWriter{task: t, evidence: t.Capture()}
-		cmd.Stdout = teeSubprocessWriter(cmd.Stdout, pw)
-		cmd.Stderr = teeSubprocessWriter(cmd.Stderr, pw)
+		cmd.SetStdout(teeSubprocessWriter(cmd.Stdout(), pw))
+		cmd.SetStderr(teeSubprocessWriter(cmd.Stderr(), pw))
 	}
 	return cmd.Run()
 }
@@ -66,15 +62,15 @@ var shellWrapperBasenames = map[string]bool{
 func commandPhaseName(cmd *process.Cmd) string {
 	name := ""
 	switch {
-	case cmd.Path != "":
-		name = filepath.Base(cmd.Path)
-	case len(cmd.Args) > 0:
-		name = filepath.Base(cmd.Args[0])
+	case cmd.Path() != "":
+		name = filepath.Base(cmd.Path())
+	case len(cmd.Args()) > 0:
+		name = filepath.Base(cmd.Args()[0])
 	}
 	if name == "" || !shellWrapperBasenames[name] {
 		return name
 	}
-	if script := shellScriptCommandName(cmd.Args); script != "" {
+	if script := shellScriptCommandName(cmd.Args()); script != "" {
 		return script
 	}
 	return ""

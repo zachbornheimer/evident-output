@@ -16,10 +16,6 @@ func Environ() []string { return os.Environ() }
 // Args returns this process's command line, program name first.
 func Args() []string { return os.Args }
 
-// NewCmd returns a Cmd that will run the named program with args. Nothing
-// starts until the caller runs it.
-func NewCmd(name string, args ...string) *Cmd { return exec.Command(name, args...) }
-
 // LookPath resolves a bare executable name on PATH.
 func LookPath(name string) (string, error) { return exec.LookPath(name) }
 

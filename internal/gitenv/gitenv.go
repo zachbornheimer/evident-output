@@ -43,7 +43,7 @@ func Scrub(env []string) []string {
 // empty dir means the current working directory.
 func Command(dir string, args ...string) *process.Cmd {
 	cmd := process.NewCmd("git", args...)
-	cmd.Dir = dir
-	cmd.Env = Scrub(process.Environ())
+	cmd.SetDir(dir)
+	cmd.SetEnv(Scrub(process.Environ()))
 	return cmd
 }

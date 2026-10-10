@@ -21,7 +21,7 @@ func WriterSize(w io.Writer) (width, height int, ok bool) {
 	if !isFile {
 		return 0, 0, false
 	}
-	return Size(f)
+	return fileSize(f)
 }
 
 // WithSizeWriter re-queries w's terminal geometry on each live redraw when w
@@ -29,7 +29,7 @@ func WriterSize(w io.Writer) (width, height int, ok bool) {
 func WithSizeWriter(w io.Writer) Option {
 	return func(a *ANSI) {
 		if f, isFile := w.(*os.File); isFile {
-			WithSizeFile(f)(a)
+			withSizeFile(f)(a)
 		}
 	}
 }

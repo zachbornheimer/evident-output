@@ -2,11 +2,11 @@ package evo_test
 
 import (
 	"io"
-	"os/exec"
 	"strings"
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/internal/process"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -35,7 +35,7 @@ func TestRun_ThenFail_RendersChildStderrInFinalReport(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
-	cmd := exec.Command("/bin/sh", "-c", "echo 'undefined reference to main' 1>&2; exit 1")
+	cmd := process.NewCmd("/bin/sh", "-c", "echo 'undefined reference to main' 1>&2; exit 1")
 	if err := task.RunForTest(cmd); err != nil {
 		task.Fail("build failed")
 	}

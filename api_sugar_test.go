@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/internal/process"
 )
 
 // --- Item 1: printf-variadic entity names ---
@@ -237,7 +238,7 @@ func TestAPISugar_RunCapturesOutputAndUpdatesPhase(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
-	cmd := exec.Command("/bin/sh", "-c", "echo line-one; echo line-two 1>&2")
+	cmd := process.NewCmd("/bin/sh", "-c", "echo line-one; echo line-two 1>&2")
 	if err := task.RunForTest(cmd); err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
@@ -256,7 +257,7 @@ func TestAPISugar_RunSetsPhaseFromCommandName(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
-	cmd := exec.Command("/usr/bin/true")
+	cmd := process.NewCmd("/usr/bin/true")
 	if err := task.RunForTest(cmd); err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
@@ -274,7 +275,7 @@ func TestAPISugar_RunSkipsShellWrapperPhase(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
-	cmd := exec.Command("/bin/sh", "-c", "true")
+	cmd := process.NewCmd("/bin/sh", "-c", "true")
 	if err := task.RunForTest(cmd); err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
@@ -289,8 +290,8 @@ func TestAPISugar_RunTeesPreWiredWriters(t *testing.T) {
 
 	task := out.Task("build")
 	var mine strings.Builder
-	cmd := exec.Command("/bin/sh", "-c", "echo hello")
-	cmd.Stdout = &mine
+	cmd := process.NewCmd("/bin/sh", "-c", "echo hello")
+	cmd.SetStdout(&mine)
 	if err := task.RunForTest(cmd); err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
@@ -307,7 +308,7 @@ func TestAPISugar_RunReturnsSubprocessErrorVerbatim(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
-	cmd := exec.Command("/bin/sh", "-c", "exit 3")
+	cmd := process.NewCmd("/bin/sh", "-c", "exit 3")
 	err := task.RunForTest(cmd)
 	if err == nil {
 		t.Fatal("expected non-nil error for a nonzero exit")
@@ -332,7 +333,7 @@ func TestAPISugar_RunRedactsSecrets(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
-	cmd := exec.Command("/bin/sh", "-c", "echo token=s3kr3t")
+	cmd := process.NewCmd("/bin/sh", "-c", "echo token=s3kr3t")
 	if err := task.RunForTest(cmd); err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}

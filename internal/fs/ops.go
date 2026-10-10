@@ -1,14 +1,34 @@
 package fs
 
 import (
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 )
 
-// File is an open file. It is the os.File of the real filesystem; holders
-// call Write, Sync, Close and Name on it.
-type File = os.File
+// File is an open file held by a caller that fills it: write, flush, set
+// permissions, close. Holders never see the operating-system handle behind it.
+type File interface {
+	io.Writer
+	// Sync flushes the file's contents to stable storage.
+	Sync() error
+	// Chmod sets the file's permission bits.
+	Chmod(mode fs.FileMode) error
+	// Close closes the file.
+	Close() error
+	// Name is the path the file was created at.
+	Name() string
+}
+
+// openedFile converts a freshly opened *os.File and its error into a File. A
+// failed open yields a nil File, never a non-nil File wrapping a nil pointer.
+func openedFile(f *os.File, err error) (File, error) {
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
 
 // Stat reports path's metadata, following a final symlink.
 func Stat(path string) (fs.FileInfo, error) { return os.Stat(path) }
@@ -93,12 +113,12 @@ func MkdirAll(path string, mode fs.FileMode) error { return os.MkdirAll(path, mo
 func MkdirTemp(dir, pattern string) (string, error) { return os.MkdirTemp(dir, pattern) }
 
 // CreateTemp creates a new temporary file in dir named from pattern.
-func CreateTemp(dir, pattern string) (*File, error) { return os.CreateTemp(dir, pattern) }
+func CreateTemp(dir, pattern string) (File, error) { return openedFile(os.CreateTemp(dir, pattern)) }
 
 // CreateExclusive creates a new read-write file at path with mode; it fails
 // when path already exists.
-func CreateExclusive(path string, mode fs.FileMode) (*File, error) {
-	return os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL, mode)
+func CreateExclusive(path string, mode fs.FileMode) (File, error) {
+	return openedFile(os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL, mode))
 }
 
 // Getwd returns the process's current working directory.
