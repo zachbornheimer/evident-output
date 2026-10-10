@@ -45,7 +45,10 @@ type Output struct {
 	finishing bool
 	finished  bool
 	armed     bool // set by arm(): live surface may paint before any entity exists
-	misuse    error
+	// misuseMu guards misuse, misuseSubject and misuseRejectedSummary. It is
+	// a leaf lock, taken without Output.mu by the graph's own goroutines.
+	misuseMu sync.Mutex
+	misuse   error
 	// misuseSubject names the task/entity the first recorded misuse happened
 	// on, when known — Finish renders one line naming it whenever that misuse
 	// is about to change the exit code, so a caller never sees an exit code

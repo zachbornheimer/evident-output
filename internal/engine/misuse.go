@@ -7,22 +7,38 @@ import (
 )
 
 // misuseSink lets the graph report the misuse it finds into the Output. The
-// graph calls it from inside engine calls that already hold Output.mu, which
-// recordMisuseFor requires.
+// graph calls it from its own goroutines, with or without Output.mu held, so
+// recording misuse takes only the leaf lock that guards the first misuse
+// (misuseMu), never Output.mu.
 type misuseSink struct{ o *Output }
 
 func (s misuseSink) RecordMisuseFor(subject string, err error) { s.o.recordMisuseFor(subject, err) }
 
 func (o *Output) recordMisuse(err error) {
+	o.noteMisuse(err, "", "")
+}
+
+// noteMisuse records err as the run's misuse when it is the first, with the
+// entity and rejected summary that name it. Any goroutine may call it.
+func (o *Output) noteMisuse(err error, subject, rejectedSummary string) {
 	if err == nil {
 		return
 	}
+	o.misuseMu.Lock()
 	if o.misuse == nil {
-		o.misuse = err
+		o.misuse, o.misuseSubject, o.misuseRejectedSummary = err, subject, rejectedSummary
 	}
+	o.misuseMu.Unlock()
 	if o.cfg.strict {
 		panic(err)
 	}
+}
+
+// firstMisuse is the first misuse recorded, nil when there is none.
+func (o *Output) firstMisuse() error {
+	o.misuseMu.Lock()
+	defer o.misuseMu.Unlock()
+	return o.misuse
 }
 
 // appendMisuseLineLocked renders the one required line for the first
@@ -32,7 +48,9 @@ func (o *Output) recordMisuse(err error) {
 // (release-gate round 4 finding 2): machine detail stays in JSON/debug, the
 // human stream gets told what to do next.
 func (o *Output) appendMisuseLineLocked() {
+	o.misuseMu.Lock()
 	hint := misuseHintFor(o.misuse, o.misuseSubject, o.misuseRejectedSummary)
+	o.misuseMu.Unlock()
 	glyph := txt.StyleGlyph(misuseGlyph, txt.SGRYellow, !o.cfg.noColor)
 	o.rec.AppendLine(fmt.Sprintf("%s  %s", glyph, hint))
 }
@@ -42,13 +60,7 @@ func (o *Output) appendMisuseLineLocked() {
 // of an exit code silently disagreeing with everything the caller saw
 // rendered.
 func (o *Output) recordMisuseFor(subject string, err error) {
-	if err == nil {
-		return
-	}
-	if o.misuse == nil {
-		o.misuseSubject = subject
-	}
-	o.recordMisuse(err)
+	o.noteMisuse(err, subject, "")
 }
 
 // recordAlreadyResolvedLocked records ErrAlreadyResolved for a second
@@ -57,15 +69,10 @@ func (o *Output) recordMisuseFor(subject string, err error) {
 // misuse line can show what got dropped instead of only naming the task
 // (release-gate round 5 finding 4).
 func (o *Output) recordAlreadyResolvedLocked(name, rejectedSummary string) {
-	if o.misuse == nil {
-		o.misuseRejectedSummary = rejectedSummary
-	}
-	o.recordMisuseFor(name, ErrAlreadyResolved)
+	o.noteMisuse(ErrAlreadyResolved, name, rejectedSummary)
 }
 
 // Err returns the first recorded misuse error, if any.
 func (o *Output) Err() error {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.misuse
+	return o.firstMisuse()
 }

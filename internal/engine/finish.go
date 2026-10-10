@@ -17,7 +17,7 @@ func (o *Output) Finish() error {
 	o.saveManifest()
 	o.mu.Lock()
 	if o.finished {
-		err := o.misuse
+		err := o.firstMisuse()
 		o.mu.Unlock()
 		return err
 	}
@@ -104,7 +104,7 @@ func (o *Output) settleUnresolvedTasksLocked() {
 		o.recordMisuseFor(t.name, ErrUnresolvedTask)
 		attachUnresolvedTaskHintLocked(t)
 	}
-	if o.misuse != nil && !errors.Is(o.misuse, ErrUnresolvedTask) {
+	if misuse := o.firstMisuse(); misuse != nil && !errors.Is(misuse, ErrUnresolvedTask) {
 		o.appendMisuseLineLocked()
 	}
 }
@@ -116,7 +116,7 @@ func (o *Output) concludeLocked() Snapshot {
 	snap := o.snapshotLocked()
 	conc := core.InferConclusion(snap)
 	o.explainCancellationLocked(&conc)
-	core.FoldLeftoverMisuse(&conc, o.misuse)
+	core.FoldLeftoverMisuse(&conc, o.firstMisuse())
 	core.ApplyFailedExitCode(&conc, o.cfg.failedExitCode)
 	conc.RunID = o.outputID
 	conc.StartedAt = o.startedAt
@@ -145,7 +145,7 @@ func (o *Output) concludeLocked() Snapshot {
 // write failure there, or a mid-run "evo.event" JSONL write failure (spec
 // §32.2), is a real Run failure; earlier lines stay valid.
 func (o *Output) runErrorLocked(conc Conclusion) error {
-	misuse := o.misuse
+	misuse := o.firstMisuse()
 	if o.cfg.wireFormat == FormatJSON {
 		misuse = joinErrors(misuse, writeWireRunLocked(o.cfg.wireStream, conc))
 	}
