@@ -1,31 +1,18 @@
 package evo_test
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"io/fs"
-	"path/filepath"
-	"slices"
-	"sort"
-	"strconv"
 	"strings"
 	"testing"
 )
-
-// facadePackages are the only internal packages allowed to touch the system.
-var facadePackages = []string{
-	"internal/terminal",
-	"internal/process",
-	"internal/fs",
-	"internal/clock",
-}
 
 // systemImports are import paths no non-facade internal package may use.
 // An entry ending in "/" forbids the whole subtree.
 var systemImports = []string{
 	"os",
 	"os/exec",
+	"os/signal",
+	"os/user",
+	"io/ioutil",
 	"syscall",
 	"golang.org/x/term",
 	"golang.org/x/sys/",
@@ -45,99 +32,98 @@ var wallClockCalls = map[string]bool{
 	"Tick":      true,
 }
 
-// TestOnlyFacadesTouchTheSystem fails when an internal package outside the
-// four facades imports os, os/exec, syscall, x/term or x/sys, or calls a
-// wall-clock function from package time, called or taken as a value.
-func TestOnlyFacadesTouchTheSystem(t *testing.T) {
-	var violations []string
-	err := filepath.WalkDir("internal", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		slashed := filepath.ToSlash(path)
-		if d.IsDir() {
-			if isFacadePackage(slashed) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(slashed, ".go") || strings.HasSuffix(slashed, "_test.go") {
-			return nil
-		}
-		found, err := systemTouches(slashed)
-		violations = append(violations, found...)
-		return err
-	})
-	if err != nil {
-		t.Fatalf("walk internal/: %v", err)
-	}
-	sort.Strings(violations)
-	if len(violations) > 0 {
-		t.Errorf("%d places outside the facades touch the system:\n  %s",
-			len(violations), strings.Join(violations, "\n  "))
-	}
+// bannedCalls maps an import path to the functions of it that touch the
+// system outside the facades: the wall clock, the working directory and
+// symlinks behind path resolution, directory walks and globs, and context
+// deadlines (which read the wall clock).
+var bannedCalls = map[string]map[string]bool{
+	"time": wallClockCalls,
+	"path/filepath": {
+		"Abs":          true,
+		"EvalSymlinks": true,
+		"Glob":         true,
+		"Walk":         true,
+		"WalkDir":      true,
+	},
+	"context": {
+		"WithTimeout":  true,
+		"WithDeadline": true,
+	},
 }
 
-func isFacadePackage(dir string) bool {
-	return slices.Contains(facadePackages, dir)
-}
-
-func isSystemImport(path string) bool {
+func isSystemImport(importPath string) bool {
 	for _, banned := range systemImports {
-		if path == banned || (strings.HasSuffix(banned, "/") && strings.HasPrefix(path, banned)) {
+		if importPath == banned || (strings.HasSuffix(banned, "/") && strings.HasPrefix(importPath, banned)) {
 			return true
 		}
 	}
 	return false
 }
 
-// systemTouches parses one file and reports each forbidden import and
-// wall-clock call as "file:line:col import|call name".
-func systemTouches(file string) ([]string, error) {
-	fset := token.NewFileSet()
-	parsed, err := parser.ParseFile(fset, file, nil, 0)
-	if err != nil {
-		return nil, err
-	}
-	var found []string
-	timeName := ""
-	for _, spec := range parsed.Imports {
-		path, err := strconv.Unquote(spec.Path.Value)
-		if err != nil {
-			return nil, err
-		}
-		if isSystemImport(path) {
-			found = append(found, fset.Position(spec.Pos()).String()+" import "+path)
-		}
-		if path == "time" {
-			timeName = "time"
-			if spec.Name != nil {
-				timeName = spec.Name.Name
-			}
-		}
-	}
-	if timeName == "" {
-		return found, nil
-	}
-	ast.Inspect(parsed, func(n ast.Node) bool {
-		sel, ok := n.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		pkg, ok := sel.X.(*ast.Ident)
-		if ok && pkg.Name == timeName && wallClockCalls[sel.Sel.Name] {
-			found = append(found, fset.Position(sel.Pos()).String()+" call time."+sel.Sel.Name)
-		}
-		return true
+// TestOnlyFacadesTouchTheSystem fails when an internal package outside the
+// four facades imports a system package (os, os/exec, os/signal, os/user,
+// io/ioutil, syscall, x/term, x/sys) or references a banned function
+// (wall-clock, path resolution, walk, glob, context deadline), called or
+// taken as a value.
+func TestOnlyFacadesTouchTheSystem(t *testing.T) {
+	violations, _, err := scanProductionFiles("internal", isFacadePackage, func(file string) ([]string, error) {
+		return touches(file, isSystemImport, bannedCalls)
 	})
-	return found, nil
+	if err != nil {
+		t.Fatalf("scan internal/: %v", err)
+	}
+	if len(violations) > 0 {
+		t.Errorf("%d places outside the facades touch the system:\n  %s",
+			len(violations), strings.Join(violations, "\n  "))
+	}
+}
+
+// TestFacadesImportOnlyTheClock fails when internal/fs, internal/process or
+// internal/terminal imports another package of this module other than
+// internal/clock. The facades sit at the bottom of the layout; an import of
+// anything above would invert it.
+func TestFacadesImportOnlyTheClock(t *testing.T) {
+	var violations []string
+	for _, facade := range facadePackages {
+		if facade == clockPackage {
+			continue
+		}
+		found, checked, err := scanProductionFiles(facade, skipNothing, func(file string) ([]string, error) {
+			return touches(file, isNonClockModuleImport, nil)
+		})
+		if err != nil {
+			t.Fatalf("scan %s: %v", facade, err)
+		}
+		if checked == 0 {
+			t.Fatalf("%s holds no Go files", facade)
+		}
+		violations = append(violations, found...)
+	}
+	if len(violations) > 0 {
+		t.Errorf("%d facade imports reach above the clock:\n  %s",
+			len(violations), strings.Join(violations, "\n  "))
+	}
+}
+
+// TestOnlyTheClockReadsTheWallClock fails when any internal package other
+// than internal/clock, facades included, references a function of package
+// time that reads or waits on the wall clock.
+func TestOnlyTheClockReadsTheWallClock(t *testing.T) {
+	timeOnly := map[string]map[string]bool{"time": wallClockCalls}
+	violations, _, err := scanProductionFiles("internal",
+		func(dir string) bool { return dir == clockPackage },
+		func(file string) ([]string, error) { return touches(file, neverBanned, timeOnly) })
+	if err != nil {
+		t.Fatalf("scan internal/: %v", err)
+	}
+	if len(violations) > 0 {
+		t.Errorf("%d places outside %s read the wall clock:\n  %s",
+			len(violations), clockPackage, strings.Join(violations, "\n  "))
+	}
 }
 
 // recordPackage is the one package that owns run truth.
 const recordPackage = "internal/record"
-
-// modulePath prefixes every in-module import path.
-const modulePath = "github.com/zachbornheimer/evident-output"
 
 // TestRecordImportsOnlyFacades fails when internal/record is missing, or when
 // a non-test file under it imports anything but the standard library and the
@@ -145,64 +131,17 @@ const modulePath = "github.com/zachbornheimer/evident-output"
 // an import of any of them (or of the packages they grew from) would invert
 // the direction the layout promises.
 func TestRecordImportsOnlyFacades(t *testing.T) {
-	var violations []string
-	checked := 0
-	err := filepath.WalkDir(recordPackage, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		slashed := filepath.ToSlash(path)
-		if d.IsDir() || !strings.HasSuffix(slashed, ".go") || strings.HasSuffix(slashed, "_test.go") {
-			return nil
-		}
-		checked++
-		found, err := nonFacadeImports(slashed)
-		violations = append(violations, found...)
-		return err
+	violations, checked, err := scanProductionFiles(recordPackage, skipNothing, func(file string) ([]string, error) {
+		return touches(file, isNonFacadeImport, nil)
 	})
 	if err != nil {
-		t.Fatalf("walk %s: %v", recordPackage, err)
+		t.Fatalf("scan %s: %v", recordPackage, err)
 	}
 	if checked == 0 {
 		t.Fatalf("%s holds no Go files", recordPackage)
 	}
-	sort.Strings(violations)
 	if len(violations) > 0 {
 		t.Errorf("%d imports under %s are neither standard library nor a facade:\n  %s",
 			len(violations), recordPackage, strings.Join(violations, "\n  "))
 	}
-}
-
-// nonFacadeImports reports each import in file that is outside the standard
-// library and the facades, as "file:line:col import path".
-func nonFacadeImports(file string) ([]string, error) {
-	fset := token.NewFileSet()
-	parsed, err := parser.ParseFile(fset, file, nil, parser.ImportsOnly)
-	if err != nil {
-		return nil, err
-	}
-	var found []string
-	for _, spec := range parsed.Imports {
-		path, err := strconv.Unquote(spec.Path.Value)
-		if err != nil {
-			return nil, err
-		}
-		if isStandardLibrary(path) || isFacadeImport(path) {
-			continue
-		}
-		found = append(found, fset.Position(spec.Pos()).String()+" import "+path)
-	}
-	return found, nil
-}
-
-// isStandardLibrary reports whether path is a standard-library import: its
-// first element carries no dot.
-func isStandardLibrary(path string) bool {
-	first, _, _ := strings.Cut(path, "/")
-	return !strings.Contains(first, ".")
-}
-
-// isFacadeImport reports whether path is one of the four facade packages.
-func isFacadeImport(path string) bool {
-	return slices.Contains(facadePackages, strings.TrimPrefix(path, modulePath+"/"))
 }
