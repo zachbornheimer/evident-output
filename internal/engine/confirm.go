@@ -222,8 +222,9 @@ func (o *Output) flushGateNow(id string) {
 
 // promptConfirm quiesces the live region for the whole ask-decide-resolve
 // window so no live frame can land between the prompt and the durable
-// OK/Blocked row — the gate resolves before Suspend resumes any unrelated
-// live activity (e.g. a sibling Task still Running).
+// OK/Blocked row — the gate resolves before Suspend repaints the live region
+// for the siblings still Running. Siblings are not held: they keep running,
+// and their rows paint once the window closes.
 //
 // The abort channel is registered here, before the prompt is written or
 // Suspend touches the live region — not lazily inside readConfirmLine.

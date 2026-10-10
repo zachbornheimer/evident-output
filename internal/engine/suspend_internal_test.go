@@ -60,6 +60,40 @@ func TestConfirm_StartsAnEligibleSiblingWhileTheQuestionIsOpen(t *testing.T) {
 	}
 }
 
+// suspendWindowHold is how long a test keeps a Suspend window open after its
+// sibling started, so a frame painted inside it has time to land.
+const suspendWindowHold = 150 * time.Millisecond
+
+// TestSuspend_PaintsNoFrameInsideTheWindowWhenASiblingStartsInIt pins that
+// the window owns the surface: a sibling that starts inside it runs at once
+// but its row does not paint over the prompt until the window closes.
+func TestSuspend_PaintsNoFrameInsideTheWindowWhenASiblingStartsInIt(t *testing.T) {
+	surface := &paintRecorder{}
+	out := newOutput("job", withTerminal(surface), visibilityDelay(0), withNoColor(), maxConcurrency(4))
+	t.Cleanup(func() { _ = out.Close() })
+	release := make(chan struct{})
+	out.Task("slow").Define(func(context.Context) error { <-release; return nil })
+	for deadline := time.Now().Add(suspendHangLimit); len(surface.written()) == 0 && time.Now().Before(deadline); {
+		time.Sleep(time.Millisecond)
+	}
+	var framesInside int
+
+	_ = out.Suspend(func() error {
+		before := len(surface.written())
+		started := make(chan struct{})
+		out.Task("sibling").Define(func(context.Context) error { close(started); return nil })
+		startsInsideWindow(t, started)
+		time.Sleep(suspendWindowHold)
+		framesInside = len(surface.written()) - before
+		return nil
+	})
+	close(release)
+
+	if framesInside != 0 {
+		t.Errorf("%d frames painted inside the Suspend window, want none", framesInside)
+	}
+}
+
 func TestSuspend_CallbackErrorPropagates(t *testing.T) {
 	out := Init(Config{Isolated: true})
 	t.Cleanup(func() { _ = out.Close() })

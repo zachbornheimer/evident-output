@@ -38,6 +38,9 @@ func asLive(d TerminalDriver) LiveSurface {
 type liveEngine struct {
 	surface LiveSurface
 	visible bool
+	// quiesced counts the open Suspend windows (guarded by o.mu): while any
+	// is open nothing is painted, and no signal makes the region visible.
+	quiesced int
 
 	// paintMu serializes writes to the surface and guards what describes
 	// them. Lock order is o.mu, then paintMu; a paint never takes o.mu
@@ -101,6 +104,9 @@ func (o *Output) signalLiveLocked(force bool) {
 	if o.live == nil {
 		o.live = &liveEngine{surface: live}
 		o.startResizeWatchLocked(live)
+	}
+	if o.live.quiesced > 0 {
+		return
 	}
 	now := o.cfg.clock.Now()
 	if !o.visibilitySettledLocked(now) && o.hasLiveActivityLocked() {
@@ -246,7 +252,7 @@ func (o *Output) arm() {
 
 func (o *Output) renderLiveLocked(force bool) {
 	live := o.liveLocked()
-	if live == nil || o.live == nil || !o.live.visible {
+	if live == nil || o.live == nil || !o.live.visible || o.live.quiesced > 0 {
 		return
 	}
 	o.paintFrameLocked(live)
@@ -401,6 +407,9 @@ func (o *Output) animatorTickLocked() animatorStep {
 	if o.closed || o.finished || o.live == nil {
 		o.stopSpinnerAnimatorLocked()
 		return tickStop
+	}
+	if o.live.quiesced > 0 {
+		return tickContinue
 	}
 	// Promote visibility after VisibilityDelay using domain clock.
 	if o.live.waitingDelay && o.hasLiveActivityLocked() {
