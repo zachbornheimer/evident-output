@@ -14,14 +14,15 @@ type (
 	FileFS = fs.FS
 	// osFileFS is FileFS's real implementation, backing every production Output.
 	osFileFS = fs.Disk
-	// ordinaryCreator is a FileFS that can create a file under the process
-	// umask itself.
-	ordinaryCreator = fs.OrdinaryCreator
 )
 
 // unmanagedCreateMode is the permission a new file whose mode is unmanaged
 // is created with, before the umask.
 const unmanagedCreateMode = fs.UnmanagedCreateMode
+
+// createOrdinary creates a new file whose mode is unmanaged under the process
+// umask on the real filesystem, and through WriteAtomic on any other FileFS.
+var createOrdinary = fs.CreateOrdinary
 
 // getwd is the facade File's relative-path resolution reads the process's
 // current working directory through (facade rule).

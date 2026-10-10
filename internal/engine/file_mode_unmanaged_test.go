@@ -179,9 +179,6 @@ func TestFileCreateIgnoresALookalikeCreateOrdinaryMethod(t *testing.T) {
 // for an unmanaged create, as in v1.0, never a mode 0 that would leave
 // the new file ----------.
 func TestFileCreateKeepsV10ModeContractForInjectedFileFS(t *testing.T) {
-	if _, creates := any(v10FileFS{}).(ordinaryCreator); creates {
-		t.Fatal("v10FileFS creates files itself, so this test would never reach its WriteAtomic")
-	}
 	withUmask(t, 0o022)
 	path := filepath.Join(t.TempDir(), "new.txt")
 	out := Init(Config{Isolated: true, StateDir: t.TempDir(), FileFS: v10FileFS{}})

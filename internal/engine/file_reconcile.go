@@ -244,11 +244,11 @@ func (o *Output) mutateFile(fsys FileFS, op fileOperation, delta fileDelta) erro
 	return nil
 }
 
-// writeContents writes contents to path at delta's permission, letting a
-// FileFS that can apply the umask itself create an unmanaged-mode file.
+// writeContents writes contents to path at delta's permission, letting the
+// real filesystem apply the umask itself to create an unmanaged-mode file.
 func writeContents(fsys FileFS, path string, contents []byte, delta fileDelta) error {
-	if creator, ok := fsys.(ordinaryCreator); ok && delta.ordinaryCreate {
-		return creator.CreateOrdinary(path, contents)
+	if delta.ordinaryCreate {
+		return createOrdinary(fsys, path, contents)
 	}
 	return fsys.WriteAtomic(path, contents, delta.writeMode)
 }

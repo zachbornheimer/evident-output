@@ -47,12 +47,22 @@ type Inspector interface {
 	Readlink(path string) (string, error)
 }
 
-// OrdinaryCreator is an FS that can create a file under the process umask
-// itself. Only Disk is one; any other FS receives
+// ordinaryCreator is an FS that can create a file under the process umask
+// itself. Its method is unexported, so only Disk is one: no consumer FS can
+// opt out of WriteAtomic by declaring a method of the same name.
+type ordinaryCreator interface {
+	createOrdinary(path string, contents []byte) error
+}
+
+// CreateOrdinary creates path with ordinary creation semantics (0666 less the
+// process umask) when fsys is the real filesystem. Any other FS receives
 // WriteAtomic(path, contents, UnmanagedCreateMode), as in v1.0, which
 // os.WriteFile and os.OpenFile mask by the umask.
-type OrdinaryCreator interface {
-	CreateOrdinary(path string, contents []byte) error
+func CreateOrdinary(fsys FS, path string, contents []byte) error {
+	if creator, ok := fsys.(ordinaryCreator); ok {
+		return creator.createOrdinary(path, contents)
+	}
+	return fsys.WriteAtomic(path, contents, UnmanagedCreateMode)
 }
 
 // UnmanagedCreateMode is the permission a new file whose mode is unmanaged
@@ -89,9 +99,9 @@ func (Disk) WriteAtomic(path string, contents []byte, mode fs.FileMode) error {
 // Chmod implements FS.
 func (Disk) Chmod(path string, mode fs.FileMode) error { return os.Chmod(path, mode) }
 
-// CreateOrdinary creates path with ordinary creation semantics: 0666 less
+// createOrdinary creates path with ordinary creation semantics: 0666 less
 // the process umask.
-func (Disk) CreateOrdinary(path string, contents []byte) error {
+func (Disk) createOrdinary(path string, contents []byte) error {
 	return writeFileAtomic(path, contents, ordinaryPermission)
 }
 
