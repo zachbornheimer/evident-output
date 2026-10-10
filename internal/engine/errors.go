@@ -22,10 +22,10 @@ var (
 	ErrConcurrentRunning  = errors.New("evo: two siblings in the same collection are Running simultaneously")
 	// ErrComputedUnsettled is recorded when Computed.Get is called before
 	// the Task that produces the value settled successfully.
-	ErrComputedUnsettled = errors.New("evo: Computed read before its Task settled")
+	ErrComputedUnsettled = graph.ErrComputedUnsettled
 	// ErrComputedUnordered is recorded when Computed.Get is called from a
 	// Task or container builder that is not ordered after the producing Task.
-	ErrComputedUnordered = errors.New("evo: Computed read without an After edge or Sequence order to its Task")
+	ErrComputedUnordered = graph.ErrComputedUnordered
 	// ErrDeclaredInCallback is recorded when a Task, Group, or Sequence is
 	// declared from inside a Task's Define callback.
 	ErrDeclaredInCallback = graph.ErrDeclaredInCallback
