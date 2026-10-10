@@ -154,8 +154,11 @@ func (o *Output) runErrorLocked(conc Conclusion) error {
 
 // finishHumanLocked renders the human stream's end: only the residual,
 // since terminal outcomes already streamed. On an interactive terminal it
-// also paints the final live frame, and reports that it did.
+// also paints the final live frame, and reports that it did. Text held back
+// behind a Suspend window still open at Finish prints first: no window close
+// will ever flush it.
 func (o *Output) finishHumanLocked(snap Snapshot) (residual string, interactive bool) {
+	o.flushHeldTextLocked()
 	// Captured before residualPlainLocked drains o.linesEmitted for its own
 	// copy, so residualInteractiveFinalLocked's copy (below) sees the same
 	// unemitted tail instead of finding it already consumed (release-gate
