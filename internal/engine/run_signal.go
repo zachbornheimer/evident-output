@@ -2,8 +2,8 @@ package engine
 
 import (
 	"context"
-	"os"
-	"os/signal"
+
+	"github.com/zachbornheimer/evident-output/internal/process"
 )
 
 // RunFunc is the shape of application work handed to Run/Main/Output.Run —
@@ -11,15 +11,17 @@ import (
 // entrypoints) in place of the pre-v0.6 no-context func() error form.
 type RunFunc func(context.Context) error
 
-// signalNotifier and signalStopper abstract os/signal (facade rule) so
+// signalNotifier and signalStopper abstract signal delivery (facade rule) so
 // SIGINT/SIGTERM handling in Main is exercised in tests without sending
 // real process signals.
-type signalNotifier func(c chan<- os.Signal, sig ...os.Signal)
-type signalStopper func(c chan<- os.Signal)
+type (
+	signalNotifier func(c chan<- process.Signal, sig ...process.Signal)
+	signalStopper  func(c chan<- process.Signal)
+)
 
 var (
-	notifySignals signalNotifier = signal.Notify
-	stopSignals   signalStopper  = signal.Stop
+	notifySignals signalNotifier = process.Notify
+	stopSignals   signalStopper  = process.StopNotify
 )
 
 // signalChannelCapacity holds one signal while cancelActive is in flight plus

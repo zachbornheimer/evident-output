@@ -3,8 +3,9 @@ package engine
 import (
 	"io"
 	"log/slog"
-	"os/exec"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/process"
 )
 
 // Exported aliases for the public evo facade.
@@ -47,18 +48,22 @@ func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
 	return renderPlain(s, opts)
 }
 
-type Capture = evidence
-type SystemClock = systemClock
-type FixedClock = fixedClock
-type NoopRedactor = noopRedactor
+type (
+	Capture      = evidence
+	SystemClock  = systemClock
+	FixedClock   = fixedClock
+	NoopRedactor = noopRedactor
+)
 
 // Test helpers reachable through the evo type alias (root export_test.go
 // cannot attach methods to engine types).
 
-func (t *TaskHandle) RunForTest(cmd *exec.Cmd) error { return t.run(cmd) }
+func (t *TaskHandle) RunForTest(cmd *process.Cmd) error { return t.run(cmd) }
+
 func (t *TaskHandle) StepForTest(completed, total int, name string) *TaskHandle {
 	return t.Progress(completed, total).Doing(name)
 }
+
 func (t *TaskHandle) CaptureForTest(opts ...CaptureOption) *evidence {
 	return t.Capture(opts...)
 }
@@ -67,12 +72,14 @@ func (o *Output) Events() []Event                                { return o.copy
 func (o *Output) DebugForTest(message string, fields ...Field) {
 	o.debug(message, fields...)
 }
+
 func (o *Output) AlsoWriteForTest(w io.Writer) {
 	if w == nil {
 		return
 	}
 	o.cfg.extraWriters = append(o.cfg.extraWriters, w)
 }
+
 func (t *TaskHandle) SkippedWithErrs(reason TaxonomyReason, name string, errs ...error) {
 	t.recordTaxonomy(reason, name, dispositionSkip, errs)
 }

@@ -3,8 +3,8 @@ package engine
 import (
 	"context"
 	"errors"
-	"os"
-	"syscall"
+
+	"github.com/zachbornheimer/evident-output/internal/process"
 )
 
 // errRunExitedWithoutReturn is the application error recorded when the run
@@ -103,8 +103,8 @@ func Main(run RunFunc) int {
 // to unwind — the process-level os.Exit that wraps a caller's
 // os.Exit(evo.Main(run)) is what actually terminates.
 func runInterruptible(ctx context.Context, out *Output, run RunFunc) Result {
-	sigCh := make(chan os.Signal, signalChannelCapacity)
-	notifySignals(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	sigCh := make(chan process.Signal, signalChannelCapacity)
+	notifySignals(sigCh, process.Interrupt, process.Terminate)
 	defer stopSignals(sigCh)
 
 	// runCtx becomes o.Context() for the duration of this run (see

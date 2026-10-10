@@ -3,22 +3,23 @@ package engine
 import (
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/internal/process"
 	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
 
-// processArgv0 is the facade over os.Args[0] (facade rule: no direct
+// processArgv0 is the facade over the program name (facade rule: no direct
 // os.Args read anywhere else) — a var so tests can inject a fixed value
 // instead of depending on the real test binary's path.
 var processArgv0 = func() string {
-	if len(os.Args) == 0 {
+	args := process.Args()
+	if len(args) == 0 {
 		return ""
 	}
-	return os.Args[0]
+	return args[0]
 }
 
 // identityFallbackName is the executable's own basename, used only when an
@@ -340,10 +341,10 @@ func resolveConfig(c Config) Config {
 		c.Clock = systemClock{}
 	}
 	if c.Redactor == nil {
-		c.Redactor = noopRedactor{}
+		c.Redactor = process.NoopRedactor{}
 	}
 	if c.ProcessRunner == nil {
-		c.ProcessRunner = osProcessRunner{}
+		c.ProcessRunner = process.System()
 	}
 	if c.FileFS == nil {
 		c.FileFS = osFileFS{}

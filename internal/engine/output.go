@@ -9,6 +9,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
+	"github.com/zachbornheimer/evident-output/internal/process"
 	renderplain "github.com/zachbornheimer/evident-output/internal/render/plain"
 	"github.com/zachbornheimer/evident-output/internal/terminal"
 	"github.com/zachbornheimer/evident-output/internal/wire"
@@ -190,10 +191,10 @@ func newOutput(subject string, options ...Option) *Output {
 		maxFrameRate:    defaultMaxFrameRate,
 		width:           defaultWidth,
 		debugLevel:      LevelInfo,
-		redactor:        noopRedactor{},
+		redactor:        process.NoopRedactor{},
 		maxEntities:     defaultMaxEntities,
 		verbosity:       VerbosityNormal,
-		processRunner:   osProcessRunner{},
+		processRunner:   process.System(),
 		fileFS:          osFileFS{},
 	}
 	for _, opt := range options {

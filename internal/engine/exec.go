@@ -5,11 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
+	"github.com/zachbornheimer/evident-output/internal/process"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
@@ -245,7 +244,7 @@ func (o *Output) observeVerifiedExecOutputs(ctx context.Context, taskID string, 
 // (spec §8.4 does not PATH-search an explicit path); a bare name is
 // resolved on PATH via the lookPath facade.
 func (o *Output) resolveExecutable(executable, dir string) (string, error) {
-	if strings.ContainsRune(executable, os.PathSeparator) {
+	if process.IsExplicitPath(executable) {
 		return resolvePathAgainst(dir, executable), nil
 	}
 	resolved, lookErr := lookPath(executable)
@@ -257,7 +256,7 @@ func (o *Output) resolveExecutable(executable, dir string) (string, error) {
 
 // lookPath is the facade resolveExecutable reads PATH through, instead of
 // exec.LookPath directly (facade rule).
-var lookPath = exec.LookPath
+var lookPath = process.LookPath
 
 // verifiedExecOutputs re-inspects every declared output after a successful
 // (exit 0) run (spec §8.4: "after exit 0 every declared output must exist

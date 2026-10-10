@@ -2,9 +2,10 @@ package engine
 
 import (
 	"io"
-	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/process"
 )
 
 // Run is the ordinary way to shell out from a Task: it executes cmd as this
@@ -35,7 +36,7 @@ import (
 //	    return fmt.Errorf("build failed: %w", err)
 //	}
 //	return nil
-func (t *TaskHandle) run(cmd *exec.Cmd) error {
+func (t *TaskHandle) run(cmd *process.Cmd) error {
 	if t != nil && t.out != nil {
 		t.ensurePhase(commandPhaseName(cmd))
 		pw := &phaseWriter{task: t, evidence: t.Capture()}
@@ -62,7 +63,7 @@ var shellWrapperBasenames = map[string]bool{
 // favor of its -c/-Command script's first word; when neither is available,
 // commandPhaseName returns "" and ensurePhase defers to first output rather
 // than publish a placeholder.
-func commandPhaseName(cmd *exec.Cmd) string {
+func commandPhaseName(cmd *process.Cmd) string {
 	name := ""
 	switch {
 	case cmd.Path != "":

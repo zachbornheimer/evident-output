@@ -1,8 +1,9 @@
 package engine
 
 import (
-	"os"
 	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/process"
 )
 
 // Glyphs selects the glyph capability profile (default GlyphsAuto).
@@ -42,7 +43,7 @@ func interactiveOutputLocked(cfg *config) bool {
 // path re-reads the environment.
 func localeAdvertisesUTF8() bool {
 	for _, name := range []string{"LC_ALL", "LC_CTYPE", "LANG"} {
-		if v := os.Getenv(name); v != "" {
+		if v := process.Env(name); v != "" {
 			return strings.Contains(v, "UTF-8") || strings.Contains(v, "utf8")
 		}
 	}

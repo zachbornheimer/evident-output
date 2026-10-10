@@ -1,16 +1,12 @@
 package engine
 
+import "github.com/zachbornheimer/evident-output/internal/process"
+
 // Redactor redacts sensitive values before journal, Capture retention, and human rendering.
-type Redactor interface {
-	// RedactString returns a display-safe form of s.
-	RedactString(s string) string
-}
+type Redactor = process.Redactor
 
 // noopRedactor leaves strings unchanged.
-type noopRedactor struct{}
-
-// RedactString implements Redactor.
-func (noopRedactor) RedactString(s string) string { return s }
+type noopRedactor = process.NoopRedactor
 
 // Redact injects a redactor (Debug fields, Capture lines, problem detail paths).
 func redact(r Redactor) Option {

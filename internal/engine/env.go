@@ -1,9 +1,10 @@
 package engine
 
 import (
-	"os"
 	"strings"
 	"sync"
+
+	"github.com/zachbornheimer/evident-output/internal/process"
 )
 
 // Environment keys honored at Init when the matching Config field is unset.
@@ -73,7 +74,7 @@ func (p Projection) suppressesHuman() bool {
 
 var (
 	lookupEnvMu sync.RWMutex
-	lookupEnvFn = os.Getenv
+	lookupEnvFn = process.Env
 )
 
 // SwapLookupEnv replaces the process-environment facade. Tests inject a
@@ -96,7 +97,7 @@ func lookupEnv(key string) string {
 	fn := lookupEnvFn
 	lookupEnvMu.RUnlock()
 	if fn == nil {
-		return os.Getenv(key)
+		return process.Env(key)
 	}
 	return fn(key)
 }
