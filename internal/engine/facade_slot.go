@@ -38,6 +38,3 @@ func (g *SequenceHandle) Facade() *FacadeSlot { return &g.facade }
 
 // Facade returns p's public-wrapper slot.
 func (p *Printer) Facade() *FacadeSlot { return &p.facade }
-
-// Facade returns f's public-wrapper slot.
-func (f *Failure) Facade() *FacadeSlot { return &f.facade }

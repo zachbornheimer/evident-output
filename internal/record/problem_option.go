@@ -1,10 +1,6 @@
-package engine
+package record
 
-import (
-	"fmt"
-
-	"github.com/zachbornheimer/evident-output/internal/core"
-)
+import "fmt"
 
 // ProblemSeverity is the closed set of Problem severities.
 type ProblemSeverity string
@@ -27,30 +23,30 @@ type problemOptionFunc func(*Problem)
 
 func (f problemOptionFunc) applyProblem(p *Problem) { f(p) }
 
-// Severity sets a Problem's severity. The empty value is treated as
+// WithSeverity sets a Problem's severity. The empty value is treated as
 // SeverityError at the call site. Any other value is rejected there with a
 // context-bearing error.
-func Severity(value ProblemSeverity) ProblemOption {
+func WithSeverity(value ProblemSeverity) ProblemOption {
 	return problemOptionFunc(func(p *Problem) { p.Severity = string(value) })
 }
 
-// Detail sets user-visible detail text (strings only).
-func Detail(text string) ProblemOption {
+// WithDetail sets user-visible detail text (strings only).
+func WithDetail(text string) ProblemOption {
 	return problemOptionFunc(func(p *Problem) { p.Detail = text })
 }
 
-// Code sets a stable problem code.
-func Code(value string) ProblemOption {
+// WithCode sets a stable problem code.
+func WithCode(value string) ProblemOption {
 	return problemOptionFunc(func(p *Problem) { p.Code = value })
 }
 
-// On sets the problem subject.
-func On(subject string) ProblemOption {
+// OnSubject sets the problem subject.
+func OnSubject(subject string) ProblemOption {
 	return problemOptionFunc(func(p *Problem) { p.Subject = subject })
 }
 
-// Count sets a quantity and optional unit.
-func Count(value int64, unit ...string) ProblemOption {
+// WithCount sets a quantity and optional unit.
+func WithCount(value int64, unit ...string) ProblemOption {
 	return problemOptionFunc(func(p *Problem) {
 		p.Count = value
 		if len(unit) > 0 {
@@ -59,28 +55,43 @@ func Count(value int64, unit ...string) ProblemOption {
 	})
 }
 
-// Location sets a source location on a Problem (renamed from At — C5: a
+// AtLocation sets a source location on a Problem (renamed from At — C5: a
 // free-function At collided in name, though not in call syntax, with
 // Output.At(visibility), confusing autocomplete and readers alike).
-func Location(path string, line, column int) ProblemOption {
+func AtLocation(path string, line, column int) ProblemOption {
 	return problemOptionFunc(func(p *Problem) {
 		p.Location = &SourceLocation{Path: path, Line: line, Column: column}
 	})
 }
 
-// Next attaches actions to a problem.
-func Next(action Action) ProblemOption {
+// WithAction attaches actions to a problem.
+func WithAction(action Action) ProblemOption {
 	return problemOptionFunc(func(p *Problem) {
 		p.Actions = append(p.Actions, action)
 	})
 }
 
-// NextCommand attaches a recommended command action.
-func NextCommand(executable string, args ...string) ProblemOption {
-	return Next(Command(executable, args...))
+// WithEvidenceTail attaches captured child-process output as the Problem's
+// evidence tail, rendered beneath any explicit Detail. tail is read when the
+// option is applied, not when it is built, so output captured in between is
+// included; empty text attaches nothing.
+func WithEvidenceTail(tail func() string) ProblemOption {
+	return problemOptionFunc(func(p *Problem) {
+		if text := tail(); text != "" {
+			p.EvidenceTail = text
+		}
+	})
 }
 
-func applyProblemOptions(summary string, opts []ProblemOption) Problem {
+// WithCommand attaches a recommended command action.
+func WithCommand(executable string, args ...string) ProblemOption {
+	return WithAction(Command(executable, args...))
+}
+
+// ApplyProblemOptions is the Problem summary and opts describe: severity
+// defaults to SeverityError, and every human-visible field is neutralized
+// here, once, for every construction path.
+func ApplyProblemOptions(summary string, opts []ProblemOption) Problem {
 	p := Problem{Summary: summary, Severity: string(SeverityError)}
 	for _, opt := range opts {
 		if opt != nil {
@@ -91,10 +102,12 @@ func applyProblemOptions(summary string, opts []ProblemOption) Problem {
 		p.Severity = string(SeverityError)
 	}
 	// Single CSI/control neutralization boundary for every construction path.
-	return core.SanitizeProblem(p)
+	return SanitizeProblem(p)
 }
 
-func classifiedProblemSeverity(p Problem) (ProblemSeverity, error) {
+// ClassifiedProblemSeverity is p's severity, or an error naming the invalid
+// value when it is neither SeverityError nor SeverityWarning.
+func ClassifiedProblemSeverity(p Problem) (ProblemSeverity, error) {
 	switch ProblemSeverity(p.Severity) {
 	case SeverityError, SeverityWarning:
 		return ProblemSeverity(p.Severity), nil

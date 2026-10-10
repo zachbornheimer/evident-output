@@ -55,7 +55,7 @@ func (t *TaskHandle) recordTaxonomyLocked(st *taskState, reason TaxonomyReason, 
 	if name == "" {
 		name = st.name
 	}
-	rec := TaxonomyRecord{Reason: reason.name, Name: txt.Text(name), Causes: causesFromErrors(errs)}
+	rec := TaxonomyRecord{Reason: reason.Name(), Name: txt.Text(name), Causes: causesFromErrors(errs)}
 	switch verb {
 	case dispositionSkip:
 		st.skipped = append(st.skipped, rec)
@@ -88,10 +88,10 @@ func causesFromErrors(errs []error) []string {
 // Strict panics via recordMisuse; production still counts the record —
 // a constraint violation degrades to "counted anyway", never a dropped truth.
 func (o *Output) enforceReasonConstraintLocked(reason TaxonomyReason, taskName string, verb dispositionVerb) {
-	if reason.forSkip && verb != dispositionSkip {
+	if reason.SkipOnly() && verb != dispositionSkip {
 		o.recordMisuse(ErrReasonSkipOnly)
 	}
-	if reason.onTask != "" && reason.onTask != taskName {
+	if reason.OnlyOnTask() != "" && reason.OnlyOnTask() != taskName {
 		o.recordMisuse(ErrReasonWrongTask)
 	}
 }

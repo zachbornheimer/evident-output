@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/record"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
@@ -164,8 +165,8 @@ func (t *TaskHandle) Summary(text string) *TaskHandle {
 // previous warning projection and never fails the Task. An invalid severity
 // is rejected with a context-bearing misuse error and is not recorded.
 func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle {
-	p := applyProblemOptions(txt.Text(summary), opts)
-	sev, err := classifiedProblemSeverity(p)
+	p := record.ApplyProblemOptions(txt.Text(summary), opts)
+	sev, err := record.ClassifiedProblemSeverity(p)
 	if err != nil {
 		return t.annotate(func(st *taskState) { t.out.recordMisuse(err) })
 	}

@@ -1,19 +1,15 @@
-package engine
-
-import txt "github.com/zachbornheimer/evident-output/internal/text"
-
-func sanitizeDisplay(s string) string { return txt.Text(s) }
+package record
 
 // Command builds an action with an executable and arguments.
 // Display-bound strings are sanitized at construction.
 func Command(executable string, args ...string) Action {
 	copied := make([]string, len(args))
 	for i, a := range args {
-		copied[i] = sanitizeDisplay(a)
+		copied[i] = SanitizeText(a)
 	}
 	return Action{
 		Command: &CommandSpec{
-			Executable: sanitizeDisplay(executable),
+			Executable: SanitizeText(executable),
 			Args:       copied,
 		},
 	}
@@ -22,10 +18,12 @@ func Command(executable string, args ...string) Action {
 // Label builds a plain-text recommended next step with no executable command
 // (e.g. a policy hint like "pass --yes to confirm non-interactively").
 func Label(text string) Action {
-	return Action{Label: sanitizeDisplay(text)}
+	return Action{Label: SanitizeText(text)}
 }
 
-func cloneActions(in []Action) []Action {
+// CloneActions is a deep copy of in: each Command and its Args are copied, so a
+// snapshot never shares them with the run.
+func CloneActions(in []Action) []Action {
 	if len(in) == 0 {
 		return nil
 	}
@@ -41,7 +39,8 @@ func cloneActions(in []Action) []Action {
 	return out
 }
 
-func actionKey(a Action) string {
+// ActionKey identifies an action by what it does, so equal actions dedupe.
+func ActionKey(a Action) string {
 	if a.Command != nil {
 		return "cmd:" + a.Command.Executable + " " + joinArgs(a.Command.Args)
 	}

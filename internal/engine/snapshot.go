@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/record"
 	"github.com/zachbornheimer/evident-output/internal/render/live"
 )
 
@@ -21,7 +22,7 @@ func (o *Output) snapshotLocked() Snapshot {
 		OutputID:      o.outputID,
 		Subject:       o.cfg.subject,
 		Lines:         append([]string(nil), o.lines...),
-		Actions:       cloneActions(o.collectActionsLocked()),
+		Actions:       record.CloneActions(o.collectActionsLocked()),
 		Timestamp:     o.cfg.clock.Now(),
 		DryRun:        o.cfg.dryRun,
 		Preview:       o.cfg.preview,
@@ -60,7 +61,7 @@ func (t *taskState) snapshot() TaskSnapshot {
 	s.Warnings = core.CloneProblems(s.Warnings)
 	s.Facts = core.CloneFacts(s.Facts)
 	s.Verification = core.CloneVerificationDetails(s.Verification)
-	s.Actions = cloneActions(s.Actions)
+	s.Actions = record.CloneActions(s.Actions)
 	s.Skipped = cloneTaxonomy(s.Skipped)
 	s.Kept = cloneTaxonomy(s.Kept)
 	tail := core.LiveTailOf(s)
@@ -227,7 +228,7 @@ func (o *Output) collectActionsLocked() []Action {
 	var out []Action
 	add := func(list []Action) {
 		for _, a := range list {
-			k := actionKey(a)
+			k := record.ActionKey(a)
 			if _, ok := seen[k]; ok {
 				continue
 			}

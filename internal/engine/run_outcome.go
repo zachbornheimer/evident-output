@@ -1,12 +1,13 @@
 package engine
 
 import (
+	"github.com/zachbornheimer/evident-output/internal/record"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // Fail records an output-level failure.
 func (o *Output) Fail(summary string, options ...ProblemOption) {
-	o.failWith(applyProblemOptions(txt.Text(summary), options))
+	o.failWith(record.ApplyProblemOptions(txt.Text(summary), options))
 }
 
 func (o *Output) failWith(p Problem) {

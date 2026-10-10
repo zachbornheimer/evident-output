@@ -154,7 +154,7 @@ func formatHistoryAttrs(fields []Field) string {
 		}
 		parts = append(parts, fmt.Sprintf("%s=%s", txt.Text(f.Key), txt.Text(val)))
 	}
-	return joinArgs(parts)
+	return strings.Join(parts, " ")
 }
 
 // formatLivePaneLine renders rec for the rolling live pane, narrowing to fit

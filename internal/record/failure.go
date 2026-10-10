@@ -1,4 +1,4 @@
-package engine
+package record
 
 // Failure is a recorded negative outcome's error value. Error() is the
 // summary plus evidence; Unwrap() reaches a wrapped cause so errors.Is/As
@@ -8,8 +8,6 @@ package engine
 type Failure struct {
 	err   error
 	cause error
-	// facade holds this Failure's public wrapper (see FacadeSlot).
-	facade FacadeSlot
 }
 
 // Error returns the rendered failure message.

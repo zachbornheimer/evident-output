@@ -8,6 +8,7 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/zachbornheimer/evident-output/internal/record"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -349,11 +350,7 @@ func (c *evidence) Empty() bool {
 // the primary detail line) and this tail renders as an additional evidence
 // line underneath, regardless of which option was passed first.
 func (c *evidence) DetailTail() ProblemOption {
-	return problemOptionFunc(func(p *Problem) {
-		if text := c.detailText(); text != "" {
-			p.EvidenceTail = text
-		}
-	})
+	return record.WithEvidenceTail(c.detailText)
 }
 
 func (c *evidence) detailText() string {

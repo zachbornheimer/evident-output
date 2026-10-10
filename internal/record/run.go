@@ -10,6 +10,9 @@ type Run struct {
 	mu      sync.Mutex
 	journal journal
 	ledger  ledger
+	// reasons backs get-or-create identity for evo.Reason: repeated calls with
+	// the same name merge into one bucket.
+	reasons map[string]TaxonomyReason
 }
 
 // NewRun is an empty record of a run that has not started.

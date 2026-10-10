@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/record"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
@@ -28,7 +29,7 @@ func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
 // resolveWithProblem is Fail and Block: resolve as state with one Problem
 // built from summary and options.
 func (t *TaskHandle) resolveWithProblem(state EntityState, summary string, options []ProblemOption) {
-	p := applyProblemOptions(txt.Text(summary), options)
+	p := record.ApplyProblemOptions(txt.Text(summary), options)
 	t.finish(state, txt.Text(summary), []Problem{p})
 }
 
@@ -60,7 +61,7 @@ func (t *TaskHandle) skip(reason string, args ...any) *TaskHandle {
 // carrying the callback's error text as the row summary — Fail's shape,
 // without Fail's caller-side submitted-task guard.
 func (t *TaskHandle) failScheduled(summary string) {
-	p := applyProblemOptions(txt.Text(summary), nil)
+	p := record.ApplyProblemOptions(txt.Text(summary), nil)
 	t.resolveScheduled(Failed, txt.Text(summary), []Problem{p})
 }
 

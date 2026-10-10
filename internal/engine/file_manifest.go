@@ -10,6 +10,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
+	"github.com/zachbornheimer/evident-output/internal/record"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
@@ -155,7 +156,7 @@ func (o *Output) warnManifestUnsavedLocked(err error) {
 		return
 	}
 	o.manifestUnsavedIssued = true
-	o.warnLocked(applyProblemOptions(txt.Text("manifest not saved: "+err.Error()), nil))
+	o.warnLocked(record.ApplyProblemOptions(txt.Text("manifest not saved: "+err.Error()), nil))
 }
 
 // taskOpaqueDefinitionFingerprint computes an opaque Task's own definition

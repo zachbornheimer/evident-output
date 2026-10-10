@@ -1,8 +1,4 @@
-package engine
-
-import (
-	txt "github.com/zachbornheimer/evident-output/internal/text"
-)
+package record
 
 // TaxonomyReason names why a task skipped or kept an item. It is the opaque
 // handle returned by evo.Reason — duplicate strings merge into one taxonomy
@@ -17,6 +13,13 @@ type TaxonomyReason struct {
 
 // Name returns the reason's display label.
 func (r TaxonomyReason) Name() string { return r.name }
+
+// SkipOnly reports whether the reason may be recorded only by Skipped.
+func (r TaxonomyReason) SkipOnly() bool { return r.forSkip }
+
+// OnlyOnTask is the one task the reason may be recorded from, empty when any
+// task may use it.
+func (r TaxonomyReason) OnlyOnTask() string { return r.onTask }
 
 // ReasonOption constrains how a Reason may be used; a violated constraint is
 // recorded as misuse (Strict panics; production still counts the record).
@@ -39,26 +42,27 @@ func OnTask(taskName string) ReasonOption {
 	return reasonOptionFunc(func(r *TaxonomyReason) { r.onTask = taskName })
 }
 
-// reasonGetOrCreate returns the Reason previously registered under name on
-// this instance, or registers a new one — the identity backing evo.Reason so
-// repeated calls (inline or lifted to a var) merge into one taxonomy bucket
-// instead of drifting into differently-configured duplicates.
-func (o *Output) reasonGetOrCreate(name string, opts ...ReasonOption) TaxonomyReason {
-	name = txt.Text(name)
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if r, ok := o.namedReasons[name]; ok {
-		return r
+// Reason returns the Reason previously registered under name on this run,
+// or registers a new one — the identity backing evo.Reason so repeated calls
+// (inline or lifted to a var) merge into one taxonomy bucket instead of
+// drifting into differently-configured duplicates. Options apply only to the
+// call that registers the name.
+func (r *Run) Reason(name string, opts ...ReasonOption) TaxonomyReason {
+	name = SanitizeText(name)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if known, ok := r.reasons[name]; ok {
+		return known
 	}
-	r := TaxonomyReason{name: name}
+	reason := TaxonomyReason{name: name}
 	for _, opt := range opts {
 		if opt != nil {
-			opt.apply(&r)
+			opt.apply(&reason)
 		}
 	}
-	if o.namedReasons == nil {
-		o.namedReasons = make(map[string]TaxonomyReason)
+	if r.reasons == nil {
+		r.reasons = make(map[string]TaxonomyReason)
 	}
-	o.namedReasons[name] = r
-	return r
+	r.reasons[name] = reason
+	return reason
 }
