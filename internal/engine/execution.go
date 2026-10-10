@@ -90,16 +90,16 @@ func (o *Output) taskStarted(st *taskState) bool {
 // replaces the proposal: it was never a resolution, so it earns no
 // "resolve each task once" misuse line (E-113).
 func (o *Output) resolveObserved(st *taskState, err error) {
-	proposal := st.node.TakeProposal()
-	if err != nil {
-		st.handle.failScheduled(err.Error())
-		return
-	}
-	if proposal != nil {
+	observation := o.graph.Observe(st.node, err)
+	switch observation.Kind {
+	case graph.ObservedFailure:
+		st.handle.failScheduled(observation.Failure)
+	case graph.ObservedProposal:
+		proposal := observation.Proposal
 		st.handle.resolveScheduled(proposal.State, proposal.Summary, proposal.Problems)
-		return
+	default:
+		st.handle.doneScheduled()
 	}
-	st.handle.doneScheduled()
 }
 
 // drainScheduler runs the queue to empty.

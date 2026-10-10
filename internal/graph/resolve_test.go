@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/record"
@@ -18,6 +19,44 @@ func TestAdmitRefusesATaskThatAlreadySettled(t *testing.T) {
 
 	if got.Verdict != AlreadyResolved {
 		t.Errorf("Verdict = %v, want AlreadyResolved", got.Verdict)
+	}
+}
+
+func TestObserveRatifiesTheProposalAReturnedNilBacks(t *testing.T) {
+	g := New(record.NewRun())
+	task := declare(g, "proposing")
+	submitWork(g, task, blockedWork())
+	g.Admit(task, Resolution{State: record.Done, Summary: "8 deleted", By: ByCaller})
+
+	got := g.Observe(task, nil)
+
+	if got.Kind != ObservedProposal || got.Proposal == nil || got.Proposal.Summary != "8 deleted" {
+		t.Errorf("Observe = %+v, want the proposal ratified", got)
+	}
+}
+
+func TestObserveDiscardsTheProposalAReturnedErrorContradicts(t *testing.T) {
+	g := New(record.NewRun())
+	task := declare(g, "proposing")
+	submitWork(g, task, blockedWork())
+	g.Admit(task, Resolution{State: record.Done, By: ByCaller})
+
+	got := g.Observe(task, errors.New("boom"))
+
+	if got.Kind != ObservedFailure || got.Failure != "boom" {
+		t.Errorf("Observe = %+v, want a failure carrying boom", got)
+	}
+	if task.HasProposal() {
+		t.Error("the contradicted proposal was kept")
+	}
+}
+
+func TestObserveOfANilReturnWithNoProposalIsSuccess(t *testing.T) {
+	g := New(record.NewRun())
+	task := declare(g, "plain")
+
+	if got := g.Observe(task, nil); got.Kind != ObservedSuccess {
+		t.Errorf("Observe = %+v, want success", got)
 	}
 }
 

@@ -100,3 +100,45 @@ func (g *Graph) Conclude(t *Task, a Admission) {
 		g.failSequenceFollowersLocked(t)
 	}
 }
+
+// ObservationKind is what the scheduler concluded from a callback's return.
+type ObservationKind uint8
+
+const (
+	// ObservedSuccess means the callback returned nil and held no claim of
+	// its own: the Task is Done.
+	ObservedSuccess ObservationKind = iota
+	// ObservedFailure means the callback returned an error: the Task fails
+	// with its text, and any claim the callback held is discarded.
+	ObservedFailure
+	// ObservedProposal means the callback returned nil after proposing an
+	// outcome: the proposal is ratified, now backed by an observation.
+	ObservedProposal
+)
+
+// Observation is the scheduler's verdict on a callback's return. The caller
+// writes it to the Task.
+type Observation struct {
+	Kind ObservationKind
+	// Failure is the callback's error text, for ObservedFailure.
+	Failure string
+	// Proposal is the ratified claim, for ObservedProposal.
+	Proposal *Proposal
+}
+
+// Observe decides what a callback's return does to t, consuming the success
+// the caller proposed while it ran. A returned error replaces the proposal:
+// it was never a resolution, so it is not misuse. A nil return ratifies a
+// proposal, whose words then supply the row's summary, and otherwise
+// succeeds. Nothing ratifies its own completion: only this return does.
+func (g *Graph) Observe(t *Task, err error) Observation {
+	proposal := t.TakeProposal()
+	switch {
+	case err != nil:
+		return Observation{Kind: ObservedFailure, Failure: err.Error()}
+	case proposal != nil:
+		return Observation{Kind: ObservedProposal, Proposal: proposal}
+	default:
+		return Observation{Kind: ObservedSuccess}
+	}
+}
