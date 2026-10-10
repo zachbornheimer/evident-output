@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/manifest"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 )
 
 // manifestOutput is an isolated plain Output whose manifest lives in
@@ -42,7 +42,7 @@ func TestFinishPersistsManifestWithoutClose(t *testing.T) {
 		t.Fatalf("Finish: %v", err)
 	}
 
-	path, err := manifest.Locate(manifest.Config{StateDir: state}, manifest.NewOSEnvironment())
+	path, err := freshness.LocateManifest(freshness.ManifestConfig{StateDir: state}, freshness.NewSystemManifestEnvironment())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestFinishPersistsManifestWithoutClose(t *testing.T) {
 	if err != nil {
 		t.Fatalf("manifest not on disk after Finish: %v", err)
 	}
-	var doc manifest.Document
+	var doc freshness.ManifestDocument
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		t.Fatalf("decode manifest: %v", err)
 	}

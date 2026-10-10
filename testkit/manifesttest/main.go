@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/fs"
-	"github.com/zachbornheimer/evident-output/internal/manifest"
 )
 
 // Main runs m with every default-located manifest redirected to a fresh
@@ -21,7 +21,7 @@ func Main(m *testing.M) {
 		panic(fmt.Sprintf("manifesttest: create temp cache dir: %v", err))
 	}
 	defer func() { _ = fs.RemoveAll(dir) }()
-	restore := manifest.RedirectCacheDir(dir)
+	restore := freshness.RedirectCacheDir(dir)
 	defer restore()
 	m.Run()
 }

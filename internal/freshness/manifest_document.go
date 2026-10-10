@@ -1,8 +1,10 @@
-// Package manifest persists reconciliation truth across Runs: which
-// operation last ran, under which definition, with which Basis and output
-// digests (spec §11.3-11.4). The store is cache-like — losing it must only
-// cause safe re-execution, never a false claim that stale state is current.
-package manifest
+// This file owns the manifest document: the persisted reconciliation truth
+// across Runs — which operation last ran, under which definition, with which
+// Basis and output digests (spec §11.3-11.4). The manifest is cache-like:
+// losing it must only cause safe re-execution, never a false claim that
+// stale state is current.
+
+package freshness
 
 import (
 	"encoding/json"
@@ -10,20 +12,20 @@ import (
 	"fmt"
 )
 
-// SchemaVersion is the on-disk manifest-v1.json schema this package reads
-// and writes. A document whose schema_version does not match is treated as
+// ManifestSchemaVersion is the on-disk manifest-v1.json schema this package
+// reads and writes. A document whose schema_version does not match is treated as
 // a cache miss (never Evidence=true), not a fatal error.
-const SchemaVersion = 1
+const ManifestSchemaVersion = 1
 
 // maxDocumentBytes bounds how large a manifest file this package will
 // trust before refusing to parse it (spec §11.3's "size limits validated
 // before use") — a corrupt or hostile file cannot force an unbounded read.
 const maxDocumentBytes = 64 << 20 // 64 MiB
 
-// ErrCorrupt is returned by Load (and wrapped into a warning, never
+// ErrManifestCorrupt is returned by Load (and wrapped into a warning, never
 // surfaced as Evidence) when the manifest file exists but cannot be
 // trusted: invalid JSON, wrong schema version, or over maxDocumentBytes.
-var ErrCorrupt = errors.New("manifest: corrupt or unrecognized manifest file")
+var ErrManifestCorrupt = errors.New("manifest: corrupt or unrecognized manifest file")
 
 // BasisRecord is one committed Basis input's identity at commit time.
 type BasisRecord struct {
@@ -73,31 +75,31 @@ type ApplicationRecord struct {
 	Fingerprint string `json:"fingerprint,omitempty"`
 }
 
-// Document is the manifest file's full on-disk shape.
-type Document struct {
+// ManifestDocument is the manifest file's full on-disk shape.
+type ManifestDocument struct {
 	SchemaVersion int                   `json:"schema_version"`
 	Application   ApplicationRecord     `json:"application"`
 	Tasks         map[string]TaskRecord `json:"tasks"`
 }
 
 // newDocument returns an empty, current-schema document for app.
-func newDocument(app ApplicationRecord) Document {
-	return Document{SchemaVersion: SchemaVersion, Application: app, Tasks: map[string]TaskRecord{}}
+func newDocument(app ApplicationRecord) ManifestDocument {
+	return ManifestDocument{SchemaVersion: ManifestSchemaVersion, Application: app, Tasks: map[string]TaskRecord{}}
 }
 
 // decodeDocument parses and validates raw manifest bytes. Any failure
-// (invalid JSON, schema mismatch, oversized input) is ErrCorrupt — a safe
+// (invalid JSON, schema mismatch, oversized input) is ErrManifestCorrupt — a safe
 // cache miss, never a reason to treat stale content as current.
-func decodeDocument(raw []byte) (Document, error) {
+func decodeDocument(raw []byte) (ManifestDocument, error) {
 	if len(raw) > maxDocumentBytes {
-		return Document{}, fmt.Errorf("%w: %d bytes exceeds %d byte limit", ErrCorrupt, len(raw), maxDocumentBytes)
+		return ManifestDocument{}, fmt.Errorf("%w: %d bytes exceeds %d byte limit", ErrManifestCorrupt, len(raw), maxDocumentBytes)
 	}
-	var doc Document
+	var doc ManifestDocument
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return Document{}, fmt.Errorf("%w: %v", ErrCorrupt, err)
+		return ManifestDocument{}, fmt.Errorf("%w: %v", ErrManifestCorrupt, err)
 	}
-	if doc.SchemaVersion != SchemaVersion {
-		return Document{}, fmt.Errorf("%w: schema_version %d, want %d", ErrCorrupt, doc.SchemaVersion, SchemaVersion)
+	if doc.SchemaVersion != ManifestSchemaVersion {
+		return ManifestDocument{}, fmt.Errorf("%w: schema_version %d, want %d", ErrManifestCorrupt, doc.SchemaVersion, ManifestSchemaVersion)
 	}
 	if doc.Tasks == nil {
 		doc.Tasks = map[string]TaskRecord{}
@@ -105,14 +107,14 @@ func decodeDocument(raw []byte) (Document, error) {
 	return doc, nil
 }
 
-// Warnf is how Open/Load report a safe cache miss (corrupt/unknown
+// Warnf is how OpenManifest/Load report a safe cache miss (corrupt/unknown
 // manifest) to the caller as a diagnostic instead of silently proceeding —
 // callers that care surface it as a Fact/log line; callers that don't may
 // ignore it. It is never an error: a miss is always safe to continue past.
-type Warning struct {
-	// Err is the underlying reason for the miss (e.g. ErrCorrupt).
+type ManifestWarning struct {
+	// Err is the underlying reason for the miss (e.g. ErrManifestCorrupt).
 	Err error
 }
 
-func (w *Warning) Error() string { return fmt.Sprintf("manifest: %v", w.Err) }
-func (w *Warning) Unwrap() error { return w.Err }
+func (w *ManifestWarning) Error() string { return fmt.Sprintf("manifest: %v", w.Err) }
+func (w *ManifestWarning) Unwrap() error { return w.Err }

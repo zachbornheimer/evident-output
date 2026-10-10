@@ -9,7 +9,6 @@ import (
 	"sort"
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/record"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/internal/wire"
@@ -69,7 +68,7 @@ func (o *Output) taskManifestKeyLocked(taskID string) (key string, ordinal int, 
 // appendManifestOperationLocked records rec as taskID's next pending
 // operation, committed only if/when the Task itself settles Done (spec
 // §8.2/§11.3). Callers must already hold o.mu.
-func (o *Output) appendManifestOperationLocked(taskID string, rec manifest.OperationRecord) {
+func (o *Output) appendManifestOperationLocked(taskID string, rec freshness.OperationRecord) {
 	if st := o.taskStates[taskID]; st != nil {
 		st.manifestOps = append(st.manifestOps, rec)
 	}
@@ -95,13 +94,13 @@ func (o *Output) commitManifestTaskLocked(ctx context.Context, taskID string) {
 	}
 	ops := st.operationsToCommit()
 	if len(ops) == 0 {
-		o.manifestStore.StageTask(o.manifestApp, manifest.TaskRecord{
+		o.manifestStore.StageTask(o.manifestApp, freshness.TaskRecord{
 			Key:                   st.key(),
 			DefinitionFingerprint: taskOpaqueDefinitionFingerprint(st.key(), o.manifestApp.Fingerprint),
 		})
 		return
 	}
-	task := manifest.TaskRecord{Key: st.key(), Operations: ops}
+	task := freshness.TaskRecord{Key: st.key(), Operations: ops}
 	if err := o.manifestStore.CommitTask(ctx, o.manifestApp, task); err != nil {
 		o.warnManifestUnsavedLocked(err)
 		return
@@ -179,14 +178,14 @@ func taskOpaqueDefinitionFingerprint(key, appFingerprint string) string {
 // returns them canonicalized by (Kind, Key) — Basis order is semantically
 // irrelevant (§11.1). A duplicate (Kind, Key) pair is a programmer error
 // (§11.1).
-func basisRecordsFrom(ctx context.Context, basis []freshness.Fingerprint) ([]manifest.BasisRecord, error) {
-	records := make([]manifest.BasisRecord, 0, len(basis))
+func basisRecordsFrom(ctx context.Context, basis []freshness.Fingerprint) ([]freshness.BasisRecord, error) {
+	records := make([]freshness.BasisRecord, 0, len(basis))
 	for _, b := range basis {
 		v, err := b.Fingerprint(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("evo: Basis: %w", err)
 		}
-		records = append(records, manifest.BasisRecord{
+		records = append(records, freshness.BasisRecord{
 			Kind:   string(v.Kind),
 			Key:    v.Key,
 			Digest: hex.EncodeToString(v.Digest[:]),
@@ -202,7 +201,7 @@ func basisRecordsFrom(ctx context.Context, basis []freshness.Fingerprint) ([]man
 }
 
 // sortBasisRecords puts records in canonical (kind, key) order.
-func sortBasisRecords(records []manifest.BasisRecord) {
+func sortBasisRecords(records []freshness.BasisRecord) {
 	sort.Slice(records, func(i, j int) bool {
 		if records[i].Kind != records[j].Kind {
 			return records[i].Kind < records[j].Kind
@@ -215,7 +214,7 @@ func sortBasisRecords(records []manifest.BasisRecord) {
 // (spec §11.4): canonical path + managed contents digest + managed mode +
 // sorted Basis descriptors. basis must already be canonicalized (see
 // basisRecordsFrom) so two equivalent Basis sets always hash identically.
-func fileDefinitionFingerprint(path string, contentsManaged bool, contents []byte, mode uint32, basis []manifest.BasisRecord) string {
+func fileDefinitionFingerprint(path string, contentsManaged bool, contents []byte, mode uint32, basis []freshness.BasisRecord) string {
 	h := sha256.New()
 	_, _ = h.Write([]byte("evident-output:file:definition:v1\x00"))
 	_, _ = h.Write([]byte(path))
@@ -273,7 +272,7 @@ const (
 // Basis-only change reports freshnessReasonBasisDrift rather than being
 // folded into the more generic definition mismatch (spec §38: "Basis
 // drift" and "tracked output drift" must be distinguishable events).
-func fileOperationCurrent(ctx context.Context, prior manifest.OperationRecord, hasPrior bool, defFingerprint string, basis []manifest.BasisRecord, path string) (isCurrent bool, reason string, err error) {
+func fileOperationCurrent(ctx context.Context, prior freshness.OperationRecord, hasPrior bool, defFingerprint string, basis []freshness.BasisRecord, path string) (isCurrent bool, reason string, err error) {
 	if !hasPrior || len(prior.Outputs) != 1 {
 		return false, freshnessReasonNoPriorRecord, nil
 	}
@@ -297,7 +296,7 @@ func fileOperationCurrent(ctx context.Context, prior manifest.OperationRecord, h
 // element-wise (see basisRecordsFrom) — canonicalization makes a
 // straightforward positional comparison correct rather than needing its
 // own set-equality pass.
-func basisRecordsEqual(a, b []manifest.BasisRecord) bool {
+func basisRecordsEqual(a, b []freshness.BasisRecord) bool {
 	if len(a) != len(b) {
 		return false
 	}

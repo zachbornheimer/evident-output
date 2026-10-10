@@ -1,4 +1,4 @@
-package manifest
+package freshness
 
 import (
 	"path/filepath"
@@ -11,19 +11,19 @@ import (
 func TestRedirectCacheDirMovesDefaultLocation(t *testing.T) {
 	dir := t.TempDir()
 	restore := RedirectCacheDir(dir)
-	path, err := Locate(Config{AppID: "app", Workspace: "/w"}, NewOSEnvironment())
+	path, err := LocateManifest(ManifestConfig{AppID: "app", Workspace: "/w"}, NewSystemManifestEnvironment())
 	restore()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.HasPrefix(path, dir+string(filepath.Separator)) {
-		t.Fatalf("Locate = %q, want a path under %q", path, dir)
+		t.Fatalf("LocateManifest = %q, want a path under %q", path, dir)
 	}
-	after, err := Locate(Config{AppID: "app", Workspace: "/w"}, NewOSEnvironment())
+	after, err := LocateManifest(ManifestConfig{AppID: "app", Workspace: "/w"}, NewSystemManifestEnvironment())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.HasPrefix(after, dir) {
-		t.Fatalf("Locate after restore = %q, still under the redirect", after)
+		t.Fatalf("LocateManifest after restore = %q, still under the redirect", after)
 	}
 }

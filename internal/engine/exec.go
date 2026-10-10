@@ -7,7 +7,6 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/fs"
-	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/process"
 	"github.com/zachbornheimer/evident-output/internal/record"
 	"github.com/zachbornheimer/evident-output/internal/wire"
@@ -92,7 +91,7 @@ type execTarget struct {
 type execEvaluation struct {
 	Skip                  bool
 	DefinitionFingerprint string
-	Basis                 []manifest.BasisRecord
+	Basis                 []freshness.BasisRecord
 }
 
 // Exec declares/reconciles one managed-state subprocess invocation: it
@@ -209,7 +208,7 @@ func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecS
 	}
 
 	o.recordExecEffect(taskID, spec.Executable)
-	rec := manifest.OperationRecord{
+	rec := freshness.OperationRecord{
 		Kind:                  "exec",
 		DefinitionFingerprint: eval.DefinitionFingerprint,
 		Basis:                 eval.Basis,
@@ -228,7 +227,7 @@ func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecS
 // tracked_resource.observed event per declared output (spec §38), mirroring
 // File's single tracked_resource.observed for its one managed path — Exec
 // has as many tracked resources as it has declared Outputs.
-func (o *Output) observeVerifiedExecOutputs(ctx context.Context, taskID string, outputs []string) ([]manifest.OutputRecord, error) {
+func (o *Output) observeVerifiedExecOutputs(ctx context.Context, taskID string, outputs []string) ([]freshness.OutputRecord, error) {
 	for _, out := range outputs {
 		_, statErr := fs.Stat(out)
 		o.mu.Lock()
@@ -263,8 +262,8 @@ var lookPath = process.LookPath
 // (exit 0) run (spec §8.4: "after exit 0 every declared output must exist
 // and fingerprint, else verification failure") and returns their tracked
 // output records.
-func verifiedExecOutputs(ctx context.Context, outputs []string) ([]manifest.OutputRecord, error) {
-	records := make([]manifest.OutputRecord, len(outputs))
+func verifiedExecOutputs(ctx context.Context, outputs []string) ([]freshness.OutputRecord, error) {
+	records := make([]freshness.OutputRecord, len(outputs))
 	for i, out := range outputs {
 		if _, statErr := fs.Stat(out); statErr != nil {
 			return nil, fmt.Errorf("%w: %s", ErrExecOutputMissingAfterSuccess, out)
@@ -273,7 +272,7 @@ func verifiedExecOutputs(ctx context.Context, outputs []string) ([]manifest.Outp
 		if digestErr != nil {
 			return nil, fmt.Errorf("evo: Exec output %q: %w", out, digestErr)
 		}
-		records[i] = manifest.OutputRecord{Kind: "exec-output", Path: out, Digest: digest}
+		records[i] = freshness.OutputRecord{Kind: "exec-output", Path: out, Digest: digest}
 	}
 	return records, nil
 }

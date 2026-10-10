@@ -10,11 +10,11 @@
         "run": "TestC10_001_MissingAndCorruptManifestsReExecuteSafely"
       },
       {
-        "pkg": "./internal/manifest",
+        "pkg": "./internal/freshness",
         "run": "TestStoreCorruptManifestIsSafeMissNotEvidence"
       },
       {
-        "pkg": "./internal/manifest",
+        "pkg": "./internal/freshness",
         "run": "TestStoreUnknownSchemaVersionIsSafeMiss"
       }
     ],
@@ -27,7 +27,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/manifest",
+        "pkg": "./internal/freshness",
         "run": "TestStoreCommitTaskIsAtomicAndReadableAfterReopen"
       }
     ],
@@ -40,7 +40,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/manifest",
+        "pkg": "./internal/freshness",
         "run": "TestStoreConcurrentOpensSerializeOnTheLock"
       }
     ],
@@ -70,7 +70,7 @@
         "run": "TestC10_001_MissingAndCorruptManifestsReExecuteSafely"
       },
       {
-        "pkg": "./internal/manifest",
+        "pkg": "./internal/freshness",
         "run": "TestStoreCorruptManifestIsSafeMissNotEvidence"
       }
     ],
@@ -83,7 +83,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/manifest",
+        "pkg": "./internal/freshness",
         "run": "TestStoreUnknownSchemaVersionIsSafeMiss"
       }
     ],

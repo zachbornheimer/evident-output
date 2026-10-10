@@ -1,4 +1,4 @@
-package manifest
+package freshness
 
 import (
 	"context"
@@ -14,10 +14,10 @@ import (
 
 func TestStoreCommitTaskIsAtomicAndReadableAfterReopen(t *testing.T) {
 	dir := t.TempDir()
-	cfg := Config{StateDir: dir}
+	cfg := ManifestConfig{StateDir: dir}
 	env := fakeEnvironment{}
 
-	s, err := Open(context.Background(), cfg, env)
+	s, err := OpenManifest(context.Background(), cfg, env)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestStoreCommitTaskIsAtomicAndReadableAfterReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reopened, err := Open(context.Background(), cfg, env)
+	reopened, err := OpenManifest(context.Background(), cfg, env)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,16 +50,16 @@ func TestStoreCommitTaskIsAtomicAndReadableAfterReopen(t *testing.T) {
 	}
 }
 
-// TestStoreTaskReturnsWholeCommittedRecord proves Store.Task (ZYS-817) is
-// symmetric with Store.Operation but returns the whole TaskRecord —
+// TestStoreTaskReturnsWholeCommittedRecord proves ManifestStore.Task (ZYS-817) is
+// symmetric with ManifestStore.Operation but returns the whole TaskRecord —
 // including a Task-level DefinitionFingerprint that carries no Operations
 // of its own, the opaque-Task shape commitManifestTaskLocked now commits.
 func TestStoreTaskReturnsWholeCommittedRecord(t *testing.T) {
 	dir := t.TempDir()
-	cfg := Config{StateDir: dir}
+	cfg := ManifestConfig{StateDir: dir}
 	env := fakeEnvironment{}
 
-	s, err := Open(t.Context(), cfg, env)
+	s, err := OpenManifest(t.Context(), cfg, env)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestStoreTaskReturnsWholeCommittedRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reopened, err := Open(t.Context(), cfg, env)
+	reopened, err := OpenManifest(t.Context(), cfg, env)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestStoreCorruptManifestIsSafeMissNotEvidence(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, manifestFileName), []byte("{not json"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	s, err := Open(context.Background(), Config{StateDir: dir}, fakeEnvironment{})
+	s, err := OpenManifest(context.Background(), ManifestConfig{StateDir: dir}, fakeEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,8 +105,8 @@ func TestStoreCorruptManifestIsSafeMissNotEvidence(t *testing.T) {
 	if s.Warning() == nil {
 		t.Fatal("expected a warning for a corrupt manifest")
 	}
-	if !errors.Is(s.Warning(), ErrCorrupt) {
-		t.Fatalf("warning = %v, want ErrCorrupt", s.Warning())
+	if !errors.Is(s.Warning(), ErrManifestCorrupt) {
+		t.Fatalf("warning = %v, want ErrManifestCorrupt", s.Warning())
 	}
 	if _, ok := s.Operation("anything", 0); ok {
 		t.Fatal("corrupt manifest must not report a prior operation as present")
@@ -119,30 +119,30 @@ func TestStoreUnknownSchemaVersionIsSafeMiss(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, manifestFileName), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	s, err := Open(context.Background(), Config{StateDir: dir}, fakeEnvironment{})
+	s, err := OpenManifest(context.Background(), ManifestConfig{StateDir: dir}, fakeEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = s.Close() }()
-	if !errors.Is(s.Warning(), ErrCorrupt) {
-		t.Fatalf("warning = %v, want ErrCorrupt for unknown schema version", s.Warning())
+	if !errors.Is(s.Warning(), ErrManifestCorrupt) {
+		t.Fatalf("warning = %v, want ErrManifestCorrupt for unknown schema version", s.Warning())
 	}
 }
 
 func TestStoreConcurrentOpensSerializeOnTheLock(t *testing.T) {
 	dir := t.TempDir()
-	cfg := Config{StateDir: dir}
+	cfg := ManifestConfig{StateDir: dir}
 	env := fakeEnvironment{}
 
-	first, err := Open(context.Background(), cfg, env)
+	first, err := OpenManifest(context.Background(), cfg, env)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	opened := make(chan *Store, 1)
+	opened := make(chan *ManifestStore, 1)
 	openErr := make(chan error, 1)
 	go func() {
-		second, err := Open(context.Background(), cfg, env)
+		second, err := OpenManifest(context.Background(), cfg, env)
 		if err != nil {
 			openErr <- err
 			return
@@ -150,15 +150,15 @@ func TestStoreConcurrentOpensSerializeOnTheLock(t *testing.T) {
 		opened <- second
 	}()
 
-	// The second Open must not complete while the first still holds the
+	// The second OpenManifest must not complete while the first still holds the
 	// lock — give it a brief, bounded window to (wrongly) succeed anyway,
 	// via a select against time.After rather than blocking the test
 	// goroutine with a bare sleep.
 	select {
 	case <-opened:
-		t.Fatal("second Open succeeded while first Store still held the lock")
+		t.Fatal("second OpenManifest succeeded while first ManifestStore still held the lock")
 	case err := <-openErr:
-		t.Fatalf("second Open errored early: %v", err)
+		t.Fatalf("second OpenManifest errored early: %v", err)
 	case <-time.After(20 * time.Millisecond):
 	}
 
@@ -170,18 +170,18 @@ func TestStoreConcurrentOpensSerializeOnTheLock(t *testing.T) {
 	case second := <-opened:
 		_ = second.Close()
 	case err := <-openErr:
-		t.Fatalf("second Open errored after first released the lock: %v", err)
+		t.Fatalf("second OpenManifest errored after first released the lock: %v", err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("second Open never completed after first Store released the lock")
+		t.Fatal("second OpenManifest never completed after first ManifestStore released the lock")
 	}
 }
 
 func TestStoreOpenIsContextCancellable(t *testing.T) {
 	dir := t.TempDir()
-	cfg := Config{StateDir: dir}
+	cfg := ManifestConfig{StateDir: dir}
 	env := fakeEnvironment{}
 
-	first, err := Open(context.Background(), cfg, env)
+	first, err := OpenManifest(context.Background(), cfg, env)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,17 +189,17 @@ func TestStoreOpenIsContextCancellable(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := Open(ctx, cfg, env); !errors.Is(err, context.Canceled) {
+	if _, err := OpenManifest(ctx, cfg, env); !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
 }
 
 func TestStorePreservesEarlierCommitsAfterACancelledLaterRun(t *testing.T) {
 	dir := t.TempDir()
-	cfg := Config{StateDir: dir}
+	cfg := ManifestConfig{StateDir: dir}
 	env := fakeEnvironment{}
 
-	s, err := Open(context.Background(), cfg, env)
+	s, err := OpenManifest(context.Background(), cfg, env)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +210,7 @@ func TestStorePreservesEarlierCommitsAfterACancelledLaterRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s2, err := Open(context.Background(), cfg, env)
+	s2, err := OpenManifest(context.Background(), cfg, env)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +221,7 @@ func TestStorePreservesEarlierCommitsAfterACancelledLaterRun(t *testing.T) {
 	}
 	_ = s2.Close()
 
-	s3, err := Open(context.Background(), cfg, env)
+	s3, err := OpenManifest(context.Background(), cfg, env)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func TestStorePreservesEarlierCommitsAfterACancelledLaterRun(t *testing.T) {
 
 func TestLocateWithStateDirBypassesDerivation(t *testing.T) {
 	dir := t.TempDir()
-	path, err := Locate(Config{StateDir: dir}, fakeEnvironment{})
+	path, err := LocateManifest(ManifestConfig{StateDir: dir}, fakeEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,11 +248,11 @@ func TestLocateWithStateDirBypassesDerivation(t *testing.T) {
 func TestLocateDerivesFromAppIDAndWorkspaceHash(t *testing.T) {
 	cacheDir := t.TempDir()
 	env := fakeEnvironment{cacheDir: cacheDir, exePath: "/usr/local/bin/mytool", moduleOK: true, modulePath: "example.com/mytool"}
-	path, err := Locate(Config{Workspace: "/repo/one"}, env)
+	path, err := LocateManifest(ManifestConfig{Workspace: "/repo/one"}, env)
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := Locate(Config{Workspace: "/repo/two"}, env)
+	other, err := LocateManifest(ManifestConfig{Workspace: "/repo/two"}, env)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +267,7 @@ func TestLocateDerivesFromAppIDAndWorkspaceHash(t *testing.T) {
 func TestLocateAppIDOverride(t *testing.T) {
 	cacheDir := t.TempDir()
 	env := fakeEnvironment{cacheDir: cacheDir}
-	path, err := Locate(Config{AppID: "custom-id", Workspace: "/repo"}, env)
+	path, err := LocateManifest(ManifestConfig{AppID: "custom-id", Workspace: "/repo"}, env)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,13 +294,13 @@ func (f fakeEnvironment) ReadBuildInfo() (string, bool) { return f.modulePath, f
 // with nothing staged writes nothing.
 func TestStoreStageTaskWritesOnlyOnFlush(t *testing.T) {
 	dir := t.TempDir()
-	cfg := Config{StateDir: dir}
+	cfg := ManifestConfig{StateDir: dir}
 	env := fakeEnvironment{}
-	s, err := Open(context.Background(), cfg, env)
+	s, err := OpenManifest(context.Background(), cfg, env)
 	if err != nil {
 		t.Fatal(err)
 	}
-	path, err := Locate(cfg, env)
+	path, err := LocateManifest(cfg, env)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +320,7 @@ func TestStoreStageTaskWritesOnlyOnFlush(t *testing.T) {
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := Open(context.Background(), cfg, env)
+	reopened, err := OpenManifest(context.Background(), cfg, env)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +334,7 @@ func TestStoreStageTaskWritesOnlyOnFlush(t *testing.T) {
 // returns while a write is still in flight, and that every commit made
 // during that write lands in one more write rather than one each.
 func TestStoreCommitTaskNeverWaitsOnTheDiskAndCoalesces(t *testing.T) {
-	s, err := Open(t.Context(), Config{StateDir: t.TempDir()}, fakeEnvironment{})
+	s, err := OpenManifest(t.Context(), ManifestConfig{StateDir: t.TempDir()}, fakeEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -371,7 +371,7 @@ func TestStoreCommitTaskNeverWaitsOnTheDiskAndCoalesces(t *testing.T) {
 // TestStoreFlushReportsAWriteFailure proves a failed write reaches the
 // caller through Flush and Close instead of being dropped.
 func TestStoreFlushReportsAWriteFailure(t *testing.T) {
-	s, err := Open(t.Context(), Config{StateDir: t.TempDir()}, fakeEnvironment{})
+	s, err := OpenManifest(t.Context(), ManifestConfig{StateDir: t.TempDir()}, fakeEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,8 +392,8 @@ func TestStoreFlushReportsAWriteFailure(t *testing.T) {
 // failure does not lose the Run's history: the next Flush (here, Close's)
 // makes a fresh attempt instead of handing back the stale error.
 func TestStoreFlushRetriesAWriteThatFailedOnce(t *testing.T) {
-	cfg := Config{StateDir: t.TempDir()}
-	s, err := Open(t.Context(), cfg, fakeEnvironment{})
+	cfg := ManifestConfig{StateDir: t.TempDir()}
+	s, err := OpenManifest(t.Context(), cfg, fakeEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -416,7 +416,7 @@ func TestStoreFlushRetriesAWriteThatFailedOnce(t *testing.T) {
 	if err := s.Close(); err != nil {
 		t.Fatalf("Close() = %v, want nil after a retried write (writes=%d)", err, writes.Load())
 	}
-	reopened, err := Open(t.Context(), cfg, fakeEnvironment{})
+	reopened, err := OpenManifest(t.Context(), cfg, fakeEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -436,7 +436,7 @@ const concurrentCommitters = 16
 // runtime's concurrent-map check aborts the test binary, and -race (the CI
 // race job) reports the race.
 func TestStoreConsultAndCommitAreSafeConcurrently(t *testing.T) {
-	s, err := Open(context.Background(), Config{StateDir: t.TempDir()}, fakeEnvironment{})
+	s, err := OpenManifest(context.Background(), ManifestConfig{StateDir: t.TempDir()}, fakeEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}

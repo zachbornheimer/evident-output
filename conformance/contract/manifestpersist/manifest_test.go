@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/manifest"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 )
 
 const (
@@ -51,20 +51,20 @@ func newOutput(state string, stream *syncBuffer) *evo.Output {
 
 func manifestPath(t *testing.T, state string) string {
 	t.Helper()
-	path, err := manifest.Locate(manifest.Config{StateDir: state}, manifest.NewOSEnvironment())
+	path, err := freshness.LocateManifest(freshness.ManifestConfig{StateDir: state}, freshness.NewSystemManifestEnvironment())
 	if err != nil {
 		t.Fatal(err)
 	}
 	return path
 }
 
-func readDocument(t *testing.T, path string) manifest.Document {
+func readDocument(t *testing.T, path string) freshness.ManifestDocument {
 	t.Helper()
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("manifest not on disk: %v", err)
 	}
-	var doc manifest.Document
+	var doc freshness.ManifestDocument
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		t.Fatalf("manifest is not a complete document: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestC22_019_ManifestWritesAreAtomicForConcurrentReaders(t *testing.T) {
 			if err != nil {
 				continue
 			}
-			var doc manifest.Document
+			var doc freshness.ManifestDocument
 			if err := json.Unmarshal(raw, &doc); err != nil {
 				select {
 				case torn <- err:

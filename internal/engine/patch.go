@@ -9,7 +9,6 @@ import (
 	"slices"
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/patch"
 )
 
@@ -30,7 +29,7 @@ type desiredFile struct {
 	contents []byte
 	mode     fs.FileMode
 	basis    freshness.FingerprintValue
-	edit     manifest.BasisRecord
+	edit     freshness.BasisRecord
 	standard bool // planned by ApplyPatch: missing parents are created
 }
 
@@ -41,9 +40,9 @@ const patchEditBasisKind = "patch-edit"
 
 // editRecord is edit's identity as the Basis record its derived File
 // operation carries.
-func editRecord(path string, edit patch.File) manifest.BasisRecord {
+func editRecord(path string, edit patch.File) freshness.BasisRecord {
 	identity := edit.Identity()
-	return manifest.BasisRecord{Kind: patchEditBasisKind, Key: path, Digest: hex.EncodeToString(identity[:])}
+	return freshness.BasisRecord{Kind: patchEditBasisKind, Key: path, Digest: hex.EncodeToString(identity[:])}
 }
 
 // Patch errors. Every unsupported form wraps ErrPatchUnsupported.
@@ -154,7 +153,7 @@ func desiredContents(edit patch.File, source observedSource, path string, result
 // the output an operation of edit left at observed's path: the manifest's
 // proof that the bytes there are this Task's own earlier result of this
 // same edit, not of a different diff that happened to leave them.
-func (o *Output) taskLastLeft(ctx context.Context, taskID string, observed freshness.FingerprintValue, edit manifest.BasisRecord) bool {
+func (o *Output) taskLastLeft(ctx context.Context, taskID string, observed freshness.FingerprintValue, edit freshness.BasisRecord) bool {
 	store, openErr := o.manifestFor(ctx)
 	if openErr != nil {
 		return false
@@ -171,7 +170,7 @@ func (o *Output) taskLastLeft(ctx context.Context, taskID string, observed fresh
 	}
 	digest := hex.EncodeToString(observed.Digest[:])
 	for _, op := range prior.Operations {
-		if slices.Contains(op.Basis, edit) && slices.Contains(op.Outputs, manifest.OutputRecord{Kind: "file", Path: observed.Key, Digest: digest}) {
+		if slices.Contains(op.Basis, edit) && slices.Contains(op.Outputs, freshness.OutputRecord{Kind: "file", Path: observed.Key, Digest: digest}) {
 			return true
 		}
 	}

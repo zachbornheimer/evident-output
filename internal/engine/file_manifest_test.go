@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/manifest"
 )
 
 // runFileTask runs one Task named name whose Define calls evo.File(spec)
@@ -301,8 +300,8 @@ func TestManifestCorruptFileIsSafeMissWithWarning(t *testing.T) {
 // ApplicationRecord comparison — a changed App() digest is just an ordinary
 // Basis drift.
 func TestFileManifestAppBasisDriftForcesReconciliation(t *testing.T) {
-	basisA := []manifest.BasisRecord{{Kind: "app", Key: "application", Digest: "sha-a"}}
-	basisB := []manifest.BasisRecord{{Kind: "app", Key: "application", Digest: "sha-b"}}
+	basisA := []freshness.BasisRecord{{Kind: "app", Key: "application", Digest: "sha-a"}}
+	basisB := []freshness.BasisRecord{{Kind: "app", Key: "application", Digest: "sha-b"}}
 	defA := fileDefinitionFingerprint("/x", true, []byte("same"), 0, basisA)
 	defB := fileDefinitionFingerprint("/x", true, []byte("same"), 0, basisB)
 	if defA == defB {

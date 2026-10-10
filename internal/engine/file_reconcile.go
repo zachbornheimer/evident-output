@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 
-	"github.com/zachbornheimer/evident-output/internal/manifest"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/record"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
@@ -72,7 +72,7 @@ type fileOperation struct {
 	taskID      string
 	spec        FileSpec
 	path        string
-	basis       []manifest.BasisRecord
+	basis       []freshness.BasisRecord
 	derivedFrom *derivation
 }
 
@@ -112,7 +112,7 @@ func (o *Output) commitFile(ctx context.Context, op fileOperation) error {
 // later Task settle recommits identical state. This is the "nested
 // operation skipped as current" case (spec §38), distinct from a whole
 // Task skipped by a pre-definition Verify (evidence.evaluated).
-func (o *Output) carryForwardCurrentFile(op fileOperation, prior manifest.OperationRecord, reason string) {
+func (o *Output) carryForwardCurrentFile(op fileOperation, prior freshness.OperationRecord, reason string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.emitWireEventLocked(wire.EventOperationSkippedCurrent, op.taskID, map[string]any{

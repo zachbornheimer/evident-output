@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/manifest"
-	"github.com/zachbornheimer/evident-output/internal/manifest/manifesttest"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
+	"github.com/zachbornheimer/evident-output/testkit/manifesttest"
 )
 
 // reportEnv names the file a child test binary writes its redirected cache
@@ -20,7 +20,7 @@ const reportEnv = "EVO_MANIFESTTEST_REPORT"
 func TestMain(m *testing.M) { manifesttest.Main(m) }
 
 func TestDefaultManifestsAreRedirectedToAFreshTemporaryDirectory(t *testing.T) {
-	cacheDir, err := manifest.NewOSEnvironment().UserCacheDir()
+	cacheDir, err := freshness.NewSystemManifestEnvironment().UserCacheDir()
 	if err != nil {
 		t.Fatalf("UserCacheDir: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestReportCacheDir(t *testing.T) {
 	if report == "" {
 		t.Skip("runs only as a child of TestTheTemporaryDirectoryIsRemovedWhenTheRunEnds")
 	}
-	cacheDir, err := manifest.NewOSEnvironment().UserCacheDir()
+	cacheDir, err := freshness.NewSystemManifestEnvironment().UserCacheDir()
 	if err != nil {
 		t.Fatalf("UserCacheDir: %v", err)
 	}

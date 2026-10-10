@@ -1,21 +1,23 @@
-package manifest
+// This file owns where a manifest lives: the path derived from the
+// application and workspace identity, or fixed by an explicit state directory.
+
+package freshness
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"path/filepath"
-	"runtime/debug"
 )
 
 // manifestFileName is the on-disk manifest file's fixed basename (spec
 // §11.3: ".../manifest-v1.json").
 const manifestFileName = "manifest-v1.json"
 
-// Environment is the facade Locate reads the executable path, its build
-// info, and the user cache directory through, instead of os/runtime
+// ManifestEnvironment is what LocateManifest reads the executable path, its
+// build info, and the user cache directory through, instead of os/runtime
 // directly (facade rule).
-type Environment interface {
+type ManifestEnvironment interface {
 	Executable() (string, error)
 	UserCacheDir() (string, error)
 	// ReadBuildInfo returns the running binary's main module path, or ok=false
@@ -23,9 +25,9 @@ type Environment interface {
 	ReadBuildInfo() (mainModulePath string, ok bool)
 }
 
-// Config selects where a Store's manifest file lives and which
-// application/workspace identity it is scoped to.
-type Config struct {
+// ManifestConfig selects where a ManifestStore's manifest file lives and
+// which application/workspace identity it is scoped to.
+type ManifestConfig struct {
 	// AppID overrides the derived application id outright.
 	AppID string
 	// StateDir, when non-empty, is the exact state directory: the manifest
@@ -38,9 +40,10 @@ type Config struct {
 	Workspace string
 }
 
-// Locate resolves Config into the manifest file path this Store will read
-// and write, using env for the executable/build-info/cache-dir facades.
-func Locate(cfg Config, env Environment) (string, error) {
+// LocateManifest resolves cfg into the manifest file path a ManifestStore
+// will read and write, using env for the executable/build-info/cache-dir
+// facades.
+func LocateManifest(cfg ManifestConfig, env ManifestEnvironment) (string, error) {
 	if cfg.StateDir != "" {
 		return filepath.Join(cfg.StateDir, manifestFileName), nil
 	}
@@ -59,7 +62,7 @@ func Locate(cfg Config, env Environment) (string, error) {
 // deriveAppID is the Go main-module path plus the executable's basename
 // when build info is available, otherwise the executable's basename alone
 // (spec §11.3).
-func deriveAppID(env Environment) string {
+func deriveAppID(env ManifestEnvironment) string {
 	exe, err := env.Executable()
 	base := "app"
 	if err == nil && exe != "" {
@@ -75,21 +78,3 @@ func sha256Sum(s string) []byte {
 	sum := sha256.Sum256([]byte(s))
 	return sum[:]
 }
-
-// osEnvironment is the real process/filesystem Environment.
-type osEnvironment struct{}
-
-// NewOSEnvironment returns the production Environment facade.
-func NewOSEnvironment() Environment { return osEnvironment{} }
-
-func (osEnvironment) Executable() (string, error) { return realExecutable() }
-
-func (osEnvironment) ReadBuildInfo() (string, bool) {
-	info, ok := debug.ReadBuildInfo()
-	if !ok || info.Main.Path == "" {
-		return "", false
-	}
-	return info.Main.Path, true
-}
-
-func (osEnvironment) UserCacheDir() (string, error) { return realUserCacheDir() }

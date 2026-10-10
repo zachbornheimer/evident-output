@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
@@ -18,7 +17,7 @@ const (
 // BasisSource is one Task Basis input: something whose content identity is
 // observed when the Task starts. Build one with FingerprintBasis.
 type BasisSource interface {
-	observe(ctx context.Context, o *Output) (manifest.BasisRecord, error)
+	observe(ctx context.Context, o *Output) (freshness.BasisRecord, error)
 }
 
 // FingerprintBasis observes a Fingerprint (FSPath, Value, App).
@@ -26,18 +25,18 @@ func FingerprintBasis(f freshness.Fingerprint) BasisSource { return fingerprintB
 
 type fingerprintBasis struct{ inner freshness.Fingerprint }
 
-func (b fingerprintBasis) observe(ctx context.Context, _ *Output) (manifest.BasisRecord, error) {
+func (b fingerprintBasis) observe(ctx context.Context, _ *Output) (freshness.BasisRecord, error) {
 	records, err := basisRecordsFrom(ctx, []freshness.Fingerprint{b.inner})
 	if err != nil {
-		return manifest.BasisRecord{}, err
+		return freshness.BasisRecord{}, err
 	}
 	return records[0], nil
 }
 
 // observeTaskBasis observes every input and canonicalizes the result. Basis
 // order is not identity; a repeated (kind, key) is a programmer error.
-func (o *Output) observeTaskBasis(ctx context.Context, inputs []BasisSource) ([]manifest.BasisRecord, error) {
-	records := make([]manifest.BasisRecord, 0, len(inputs))
+func (o *Output) observeTaskBasis(ctx context.Context, inputs []BasisSource) ([]freshness.BasisRecord, error) {
+	records := make([]freshness.BasisRecord, 0, len(inputs))
 	for _, in := range inputs {
 		rec, err := in.observe(ctx, o)
 		if err != nil {
@@ -103,19 +102,19 @@ func (t *TaskHandle) basisIsCurrent(ctx context.Context) (bool, error) {
 
 // splitBasisOperation separates a committed task's trailing Basis record
 // from its other operations. basis is nil when the task recorded none.
-func splitBasisOperation(ops []manifest.OperationRecord) (rest []manifest.OperationRecord, basis []manifest.BasisRecord) {
+func splitBasisOperation(ops []freshness.OperationRecord) (rest []freshness.OperationRecord, basis []freshness.BasisRecord) {
 	if n := len(ops); n > 0 && ops[n-1].Kind == taskBasisOperationKind {
-		return append([]manifest.OperationRecord(nil), ops[:n-1]...), ops[n-1].Basis
+		return append([]freshness.OperationRecord(nil), ops[:n-1]...), ops[n-1].Basis
 	}
-	return append([]manifest.OperationRecord(nil), ops...), nil
+	return append([]freshness.OperationRecord(nil), ops...), nil
 }
 
 // operationsToCommit is the task's operations plus, when it declared a
 // Basis, the Basis record last. Callers must hold o.mu.
-func (st *taskState) operationsToCommit() []manifest.OperationRecord {
-	ops := append([]manifest.OperationRecord(nil), st.manifestOps...)
+func (st *taskState) operationsToCommit() []freshness.OperationRecord {
+	ops := append([]freshness.OperationRecord(nil), st.manifestOps...)
 	if st.basisObserved != nil {
-		ops = append(ops, manifest.OperationRecord{Kind: taskBasisOperationKind, Basis: st.basisObserved})
+		ops = append(ops, freshness.OperationRecord{Kind: taskBasisOperationKind, Basis: st.basisObserved})
 	}
 	return ops
 }

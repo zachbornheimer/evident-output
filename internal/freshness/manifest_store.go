@@ -1,4 +1,7 @@
-package manifest
+// This file owns ManifestStore: one Run's exclusive, lock-guarded handle on a
+// manifest file, with a coalescing background writer.
+
+package freshness
 
 import (
 	"context"
@@ -12,28 +15,28 @@ import (
 	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 )
 
-// Store is one Run's exclusive handle on a single manifest file. Open
-// acquires the lock; every other Run attempting the same manifest path
+// ManifestStore is one Run's exclusive handle on a single manifest file.
+// OpenManifest acquires the lock; every other Run attempting the same manifest path
 // blocks (or is cancelled) until Close releases it.
 //
 // Records are held in memory and written by one background writer that
 // coalesces every record put since its last write into a single
 // temp+fsync+rename, so a caller recording a Task never waits on the disk.
 // Flush and Close wait for the writer and report its failure.
-type Store struct {
+type ManifestStore struct {
 	path string
 	lock *sysfs.FileLock
-	// missWarning is non-nil when Open found an existing manifest file it
-	// could not trust (ErrCorrupt) — a safe cache miss, surfaced to the
+	// missWarning is non-nil when OpenManifest found an existing manifest file it
+	// could not trust (ErrManifestCorrupt) — a safe cache miss, surfaced to the
 	// caller instead of silently treated as "no history" with no signal.
-	missWarning *Warning
+	missWarning *ManifestWarning
 	// write persists one encoded document; writeAtomic unless a test
 	// substitutes it.
 	write func(raw []byte) error
 
 	mu      sync.Mutex
 	settled *sync.Cond
-	doc     Document
+	doc     ManifestDocument
 	w       writerState
 }
 
@@ -47,12 +50,12 @@ type writerState struct {
 	failed                                 error
 }
 
-// Open resolves cfg to a manifest path, acquires its exclusive lock
+// OpenManifest resolves cfg to a manifest path, acquires its exclusive lock
 // (context-cancellable), and loads existing state if any. A missing file is
 // an ordinary empty document, not a warning. A present-but-untrustworthy
 // file is also an empty document, but Warning() reports why.
-func Open(ctx context.Context, cfg Config, env Environment) (*Store, error) {
-	path, err := Locate(cfg, env)
+func OpenManifest(ctx context.Context, cfg ManifestConfig, env ManifestEnvironment) (*ManifestStore, error) {
+	path, err := LocateManifest(cfg, env)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +67,7 @@ func Open(ctx context.Context, cfg Config, env Environment) (*Store, error) {
 		return nil, fmt.Errorf("manifest: %w", err)
 	}
 
-	s := newStore(path, lock)
+	s := newManifestStore(path, lock)
 	raw, readErr := sysfs.ReadFile(path)
 	switch {
 	case errors.Is(readErr, fs.ErrNotExist):
@@ -75,7 +78,7 @@ func Open(ctx context.Context, cfg Config, env Environment) (*Store, error) {
 	default:
 		doc, decodeErr := decodeDocument(raw)
 		if decodeErr != nil {
-			s.missWarning = &Warning{Err: decodeErr}
+			s.missWarning = &ManifestWarning{Err: decodeErr}
 			s.doc = newDocument(ApplicationRecord{})
 		} else {
 			s.doc = doc
@@ -84,8 +87,8 @@ func Open(ctx context.Context, cfg Config, env Environment) (*Store, error) {
 	return s, nil
 }
 
-func newStore(path string, lock *sysfs.FileLock) *Store {
-	s := &Store{path: path, lock: lock}
+func newManifestStore(path string, lock *sysfs.FileLock) *ManifestStore {
+	s := &ManifestStore{path: path, lock: lock}
 	s.write = s.writeAtomic
 	s.settled = sync.NewCond(&s.mu)
 	return s
@@ -93,7 +96,7 @@ func newStore(path string, lock *sysfs.FileLock) *Store {
 
 // Warning reports a safe cache-miss reason (corrupt/unknown prior manifest)
 // discovered while opening the store, or nil when none occurred.
-func (s *Store) Warning() error {
+func (s *ManifestStore) Warning() error {
 	if s == nil || s.missWarning == nil {
 		return nil
 	}
@@ -106,7 +109,7 @@ func (s *Store) Warning() error {
 // Outputs against the current observation to decide freshness (spec
 // §11.4: "matched by current semantic definition fingerprint ... within
 // the Task").
-func (s *Store) Operation(taskKey string, i int) (OperationRecord, bool) {
+func (s *ManifestStore) Operation(taskKey string, i int) (OperationRecord, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	task, ok := s.doc.Tasks[taskKey]
@@ -120,7 +123,7 @@ func (s *Store) Operation(taskKey string, i int) (OperationRecord, bool) {
 // store has one — symmetric with Operation, but returning the whole record
 // (including its own DefinitionFingerprint, ZYS-817) rather than one
 // operation within it.
-func (s *Store) Task(taskKey string) (TaskRecord, bool) {
+func (s *ManifestStore) Task(taskKey string) (TaskRecord, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	task, ok := s.doc.Tasks[taskKey]
@@ -134,7 +137,7 @@ func (s *Store) Task(taskKey string) (TaskRecord, bool) {
 // itself has fully succeeded (spec §11.3/§9.2) — this package has no notion
 // of "the Task" and enforces nothing about when it is called; that ordering
 // is the engine's responsibility.
-func (s *Store) CommitTask(ctx context.Context, app ApplicationRecord, task TaskRecord) error {
+func (s *ManifestStore) CommitTask(ctx context.Context, app ApplicationRecord, task TaskRecord) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("manifest: commit task %q: %w", task.Key, err)
 	}
@@ -148,7 +151,7 @@ func (s *Store) CommitTask(ctx context.Context, app ApplicationRecord, task Task
 // StageTask records task like CommitTask, but asks for no write: the next
 // CommitTask or Flush writes it. It is for records nothing reads back
 // within the Run, so a Run of N such Tasks pays one write, not N.
-func (s *Store) StageTask(app ApplicationRecord, task TaskRecord) {
+func (s *ManifestStore) StageTask(app ApplicationRecord, task TaskRecord) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.putLocked(app, task)
@@ -159,7 +162,7 @@ func (s *Store) StageTask(app ApplicationRecord, task TaskRecord) {
 // nothing when nothing is pending. Each Flush makes a fresh attempt at a
 // version the writer already gave up on, so one transient failure (EINTR,
 // a brief ENOSPC) costs a retry, not the Run's history.
-func (s *Store) Flush(ctx context.Context) error {
+func (s *ManifestStore) Flush(ctx context.Context) error {
 	if s == nil {
 		return nil
 	}
@@ -185,7 +188,7 @@ func (s *Store) Flush(ctx context.Context) error {
 	return s.w.failed
 }
 
-func (s *Store) putLocked(app ApplicationRecord, task TaskRecord) {
+func (s *ManifestStore) putLocked(app ApplicationRecord, task TaskRecord) {
 	s.doc.Application = app
 	if s.doc.Tasks == nil {
 		s.doc.Tasks = map[string]TaskRecord{}
@@ -197,7 +200,7 @@ func (s *Store) putLocked(app ApplicationRecord, task TaskRecord) {
 // requestWriteLocked asks the writer for the current version, starting it
 // when it is idle. A running writer picks the request up after its current
 // write, so a burst of commits costs one more write, not one each.
-func (s *Store) requestWriteLocked() {
+func (s *ManifestStore) requestWriteLocked() {
 	s.w.requested = s.w.version
 	if s.w.running {
 		return
@@ -209,7 +212,7 @@ func (s *Store) requestWriteLocked() {
 // writeLoop writes the newest version until nothing requested is missing
 // from disk. It gives up on a version after one failed try; the failure
 // stays in failed until a later write succeeds, and the next Flush retries.
-func (s *Store) writeLoop() {
+func (s *ManifestStore) writeLoop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for s.w.written < s.w.requested && s.w.attempted < s.w.requested {
@@ -238,7 +241,7 @@ func (s *Store) writeLoop() {
 // directory, fsyncs it, and renames it over the manifest path — the
 // temp+fsync+rename contract spec §11.3 requires so a crash mid-write never
 // leaves a half-written manifest.
-func (s *Store) writeAtomic(raw []byte) error {
+func (s *ManifestStore) writeAtomic(raw []byte) error {
 	dir := filepath.Dir(s.path)
 	tmp, err := sysfs.CreateTemp(dir, ".manifest-*.tmp")
 	if err != nil {
@@ -270,12 +273,12 @@ func (s *Store) writeAtomic(raw []byte) error {
 	return nil
 }
 
-// Close flushes every pending record, then releases this Store's
+// Close flushes every pending record, then releases this ManifestStore's
 // exclusive lock, and returns both errors. Already-committed Task records
 // on disk are unaffected — Close never rolls anything back (spec §11.3:
 // "cancellation/failure preserves already committed successful Task
 // records").
-func (s *Store) Close() error {
+func (s *ManifestStore) Close() error {
 	if s == nil {
 		return nil
 	}

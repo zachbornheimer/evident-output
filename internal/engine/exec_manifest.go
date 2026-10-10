@@ -8,7 +8,6 @@ import (
 	"sort"
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
@@ -20,7 +19,7 @@ import (
 // fingerprinted only after its producing operation has settled (§11.6),
 // never mid-write. Each FSPath entry is then observed under a read claim
 // (observeBasis), which also excludes File commits from other Outputs.
-func (o *Output) execBasisRecords(ctx context.Context, basis []freshness.Fingerprint) ([]manifest.BasisRecord, error) {
+func (o *Output) execBasisRecords(ctx context.Context, basis []freshness.Fingerprint) ([]freshness.BasisRecord, error) {
 	resolved := make([]freshness.Fingerprint, len(basis))
 	for i, b := range basis {
 		path, isPath := freshness.PathOf(b)
@@ -42,7 +41,7 @@ func (o *Output) execBasisRecords(ctx context.Context, basis []freshness.Fingerp
 // explicit Env + sorted Basis descriptors + sorted output paths. basis must
 // already be canonicalized (basisRecordsFrom); outputs must already be
 // sorted (see reconcileExec).
-func execDefinitionFingerprint(executableDigest string, args []string, dir string, env map[string]string, basis []manifest.BasisRecord, sortedOutputs []string) string {
+func execDefinitionFingerprint(executableDigest string, args []string, dir string, env map[string]string, basis []freshness.BasisRecord, sortedOutputs []string) string {
 	h := sha256.New()
 	_, _ = h.Write([]byte("evident-output:exec:definition:v1\x00"))
 	_, _ = h.Write([]byte(executableDigest))
@@ -96,7 +95,7 @@ const freshnessReasonNoOutputsDeclared = "no_outputs_declared"
 // (spec §38: Basis drift, definition drift, and tracked output drift must
 // be distinguishable events) so Exec's operation.started/skipped_current
 // payloads carry the same "reason" vocabulary File's do.
-func execOperationCurrent(ctx context.Context, prior manifest.OperationRecord, hasPrior bool, defFingerprint string, basis []manifest.BasisRecord, sortedOutputs []string) (isCurrent bool, reason string, err error) {
+func execOperationCurrent(ctx context.Context, prior freshness.OperationRecord, hasPrior bool, defFingerprint string, basis []freshness.BasisRecord, sortedOutputs []string) (isCurrent bool, reason string, err error) {
 	if len(sortedOutputs) == 0 {
 		return false, freshnessReasonNoOutputsDeclared, nil
 	}
@@ -129,16 +128,16 @@ func execOperationCurrent(ctx context.Context, prior manifest.OperationRecord, h
 // mirroring fileConsultManifest's shape. prior/defFingerprint/basis are
 // always returned so the caller can forward a current hit unchanged, or
 // carry the fresh definition into the post-spawn success record.
-func (o *Output) execConsultManifest(ctx context.Context, taskID string, spec ExecSpec, target execTarget) (current bool, prior manifest.OperationRecord, defFingerprint, reason string, basis []manifest.BasisRecord, err error) {
+func (o *Output) execConsultManifest(ctx context.Context, taskID string, spec ExecSpec, target execTarget) (current bool, prior freshness.OperationRecord, defFingerprint, reason string, basis []freshness.BasisRecord, err error) {
 	store, openErr := o.manifestFor(ctx)
 	if openErr != nil {
-		return false, manifest.OperationRecord{}, "", "", nil, fmt.Errorf("evo: Exec %q: %w", spec.Executable, openErr)
+		return false, freshness.OperationRecord{}, "", "", nil, fmt.Errorf("evo: Exec %q: %w", spec.Executable, openErr)
 	}
 	o.emitManifestWarningOnce(store.Warning())
 
 	basis, err = o.execBasisRecords(ctx, spec.Basis)
 	if err != nil {
-		return false, manifest.OperationRecord{}, "", "", nil, err
+		return false, freshness.OperationRecord{}, "", "", nil, err
 	}
 	o.mu.Lock()
 	o.emitWireEventLocked(wire.EventBasisFingerprinted, taskID, map[string]any{
@@ -148,7 +147,7 @@ func (o *Output) execConsultManifest(ctx context.Context, taskID string, spec Ex
 
 	executableDigest, digestErr := pathOutputDigest(ctx, target.ExecutablePath)
 	if digestErr != nil {
-		return false, manifest.OperationRecord{}, "", "", nil, fmt.Errorf("evo: Exec %q: %w", spec.Executable, digestErr)
+		return false, freshness.OperationRecord{}, "", "", nil, fmt.Errorf("evo: Exec %q: %w", spec.Executable, digestErr)
 	}
 	defFingerprint = execDefinitionFingerprint(executableDigest, spec.Args, target.Dir, spec.Env, basis, target.Outputs)
 
@@ -156,13 +155,13 @@ func (o *Output) execConsultManifest(ctx context.Context, taskID string, spec Ex
 	key, ord, ok := o.taskManifestKeyLocked(taskID)
 	o.mu.Unlock()
 	if !ok {
-		return false, manifest.OperationRecord{}, "", "", nil, ErrNoTaskContext
+		return false, freshness.OperationRecord{}, "", "", nil, ErrNoTaskContext
 	}
 
 	priorRecord, hasPrior := store.Operation(key, ord)
 	isCurrent, reason, checkErr := execOperationCurrent(ctx, priorRecord, hasPrior, defFingerprint, basis, target.Outputs)
 	if checkErr != nil {
-		return false, manifest.OperationRecord{}, "", "", nil, fmt.Errorf("evo: Exec %q: %w", spec.Executable, checkErr)
+		return false, freshness.OperationRecord{}, "", "", nil, fmt.Errorf("evo: Exec %q: %w", spec.Executable, checkErr)
 	}
 	return isCurrent, priorRecord, defFingerprint, reason, basis, nil
 }

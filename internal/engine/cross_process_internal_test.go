@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/manifest"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 )
 
 // Environment the cross-process helper reads its assignment from. The
@@ -154,7 +154,7 @@ func TestCrossProcessSameManifestNeverRacesTrackedState(t *testing.T) {
 		t.Fatalf("tracked sections overlapped across processes: alpha=%+v beta=%+v", alpha, beta)
 	}
 
-	store, err := manifest.Open(context.Background(), manifest.Config{StateDir: state}, manifest.NewOSEnvironment())
+	store, err := freshness.OpenManifest(context.Background(), freshness.ManifestConfig{StateDir: state}, freshness.NewSystemManifestEnvironment())
 	if err != nil {
 		t.Fatalf("open manifest: %v", err)
 	}

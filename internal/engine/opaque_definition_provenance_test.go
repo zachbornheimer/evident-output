@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/manifest"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 )
 
 // taskManifestKey declares a Task named name on out and returns its stable
@@ -54,7 +54,7 @@ func TestOpaqueTaskDefinitionFallsBackToAppFingerprintWhenRunHasManifestActivity
 	}
 	_ = out.Close()
 
-	store, err := manifest.Open(t.Context(), manifest.Config{StateDir: state}, manifest.NewOSEnvironment())
+	store, err := freshness.OpenManifest(t.Context(), freshness.ManifestConfig{StateDir: state}, freshness.NewSystemManifestEnvironment())
 	if err != nil {
 		t.Fatalf("reopen manifest: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestPreciseFileTaskLeavesTaskLevelDefinitionFingerprintEmpty(t *testing.T) 
 	}
 	_ = out.Close()
 
-	store, err := manifest.Open(t.Context(), manifest.Config{StateDir: state}, manifest.NewOSEnvironment())
+	store, err := freshness.OpenManifest(t.Context(), freshness.ManifestConfig{StateDir: state}, freshness.NewSystemManifestEnvironment())
 	if err != nil {
 		t.Fatalf("reopen manifest: %v", err)
 	}
@@ -246,7 +246,7 @@ func manifestTaskCount(t *testing.T, state string) int {
 	if err != nil {
 		t.Fatalf("read manifest: %v", err)
 	}
-	var doc manifest.Document
+	var doc freshness.ManifestDocument
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		t.Fatalf("decode manifest: %v", err)
 	}

@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/graph"
-	"github.com/zachbornheimer/evident-output/internal/manifest"
 )
 
 // key is the Task's §3.1 stable key, empty for a Task the graph never declared.
@@ -99,15 +99,15 @@ type taskState struct {
 	// manifestOps accumulates this Task's tracked operation records for the
 	// current Run (spec §11.3-11.5): one entry per evo.File/evo.Exec call
 	// that participated in manifest tracking, appended in call order (the
-	// same order manifest.Store.Operation's ordinal indexes into). Never
+	// same order freshness.ManifestStore.Operation's ordinal indexes into). Never
 	// populated during dry-run — dry-run commits nothing (§8.2).
-	manifestOps []manifest.OperationRecord
+	manifestOps []freshness.OperationRecord
 
 	// basisInputs are the freshness inputs declared by TaskHandle.Basis,
 	// frozen at Define. basisObserved is their identity as observed when
 	// the Task started this Run; it is committed with the Task's record.
 	basisInputs   []BasisSource
-	basisObserved []manifest.BasisRecord
+	basisObserved []freshness.BasisRecord
 }
 
 type tasksState struct {

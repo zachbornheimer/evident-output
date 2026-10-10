@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/manifest"
 )
 
 // ErrStaleBasis is returned when a derived file's source changed after its
@@ -56,13 +55,13 @@ type derivation struct {
 	target   workspaceFile
 	basis    freshness.FingerprintValue
 	desired  freshness.FingerprintValue
-	edit     manifest.BasisRecord
+	edit     freshness.BasisRecord
 }
 
 // recordedBasis is basis plus d's edit identity, in canonical order: the
 // Basis the derived File operation records, so the next Run can prove
 // which edit left its output.
-func (d derivation) recordedBasis(basis []manifest.BasisRecord) []manifest.BasisRecord {
+func (d derivation) recordedBasis(basis []freshness.BasisRecord) []freshness.BasisRecord {
 	records := append(slices.Clone(basis), d.edit)
 	sortBasisRecords(records)
 	return records

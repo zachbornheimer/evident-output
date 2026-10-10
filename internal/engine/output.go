@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/graph"
-	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/process"
 	"github.com/zachbornheimer/evident-output/internal/record"
 	renderplain "github.com/zachbornheimer/evident-output/internal/render/plain"
@@ -125,7 +125,7 @@ type Output struct {
 	// (manifestFor) the same way workspaceDir is captured lazily on first
 	// use. manifestOpenErr/manifestOpened distinguish "not yet opened" from
 	// "opened and failed" so a later call does not retry a failed open.
-	manifestStore *manifest.Store
+	manifestStore *freshness.ManifestStore
 	// manifestFinishErr is the failure of the save-and-release Finish did;
 	// Close returns it so a write failure is never dropped.
 	manifestFinishErr error
@@ -140,7 +140,7 @@ type Output struct {
 	manifestUnsavedIssued bool
 	// manifestApp is this Run's application record, computed once and
 	// reused on every Task commit (spec §11.2/§11.3).
-	manifestApp     manifest.ApplicationRecord
+	manifestApp     freshness.ApplicationRecord
 	manifestAppDone bool
 	// manifestClaims records which Task first claimed each canonical File/
 	// Exec output path in this Run (spec §11.4/§8.3): a second Task
