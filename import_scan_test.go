@@ -95,6 +95,26 @@ func isNonFacadeImport(importPath string) bool {
 	return !isStandardLibrary(importPath) && !isFacadeImport(importPath)
 }
 
+// misusePackage is where misuse codes and remedies live; graph may report
+// into it once it exists.
+const misusePackage = "internal/misuse"
+
+// isGraphForbiddenImport reports whether importPath is a package of this
+// module other than record, misuse and the facades: the only packages
+// internal/graph may import.
+func isGraphForbiddenImport(importPath string) bool {
+	local, inModule := strings.CutPrefix(importPath, modulePath+"/")
+	if !inModule {
+		return false
+	}
+	return local != recordPackage && local != misusePackage && !isFacadeImport(importPath)
+}
+
+// isGraphImport reports whether importPath is internal/graph.
+func isGraphImport(importPath string) bool {
+	return importPath == modulePath+"/"+graphPackage
+}
+
 // neverBanned is the import rule that bans no import.
 func neverBanned(string) bool { return false }
 

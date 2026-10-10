@@ -149,6 +149,55 @@ func TestRecordImportsOnlyFacades(t *testing.T) {
 	}
 }
 
+// graphPackage decides when work runs.
+const graphPackage = "internal/graph"
+
+// TestGraphImportsOnlyRecordMisuseAndFacades fails when internal/graph is
+// missing, or when a non-test file under it imports a package of this module
+// other than record, misuse and the facades. graph sits beside freshness and
+// change, above record: reaching into engine, render, core or a sibling
+// would let scheduling depend on presentation or on what it schedules.
+func TestGraphImportsOnlyRecordMisuseAndFacades(t *testing.T) {
+	violations, checked, err := scanProductionFiles(graphPackage, skipNothing, func(file string) ([]string, error) {
+		return touches(file, isGraphForbiddenImport, nil)
+	})
+	if err != nil {
+		t.Fatalf("scan %s: %v", graphPackage, err)
+	}
+	if checked == 0 {
+		t.Fatalf("%s holds no Go files", graphPackage)
+	}
+	if len(violations) > 0 {
+		t.Errorf("%d imports under %s are neither record, misuse nor a facade:\n  %s",
+			len(violations), graphPackage, strings.Join(violations, "\n  "))
+	}
+}
+
+// graphImporters are the only packages that may import internal/graph: the
+// engine that wires it today, and the packages that report into it later.
+var graphImporters = []string{
+	"internal/engine",
+	"internal/change",
+	"internal/freshness",
+}
+
+// TestOnlyEngineChangeAndFreshnessImportGraph fails when any other package
+// under internal/ imports internal/graph. record, project, misuse and the
+// facades sit beside or beneath it and must not depend on how work is
+// scheduled.
+func TestOnlyEngineChangeAndFreshnessImportGraph(t *testing.T) {
+	violations, _, err := scanProductionFiles("internal",
+		func(dir string) bool { return dir == graphPackage || slices.Contains(graphImporters, dir) },
+		func(file string) ([]string, error) { return touches(file, isGraphImport, nil) })
+	if err != nil {
+		t.Fatalf("scan internal/: %v", err)
+	}
+	if len(violations) > 0 {
+		t.Errorf("%d imports of %s come from outside engine, change and freshness:\n  %s",
+			len(violations), graphPackage, strings.Join(violations, "\n  "))
+	}
+}
+
 // recordProducerPackages are the only packages, besides record itself, that
 // may call a method that writes run truth into record.
 var recordProducerPackages = []string{
