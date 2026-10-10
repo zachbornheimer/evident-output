@@ -61,21 +61,22 @@ func RemoveTree(path string) error {
 	if err := os.RemoveAll(path); err == nil {
 		return nil
 	}
-	makeTreeTraversable(path)
+	makeTreeTraversable(path, os.Chmod)
 	return os.RemoveAll(path)
 }
 
 // makeTreeTraversable gives the owner full access to every directory under
 // (and including) root, so RemoveAll can empty and unlink it. The walk runs
 // inside an os.Root opened at root, so a path it visits can never resolve
-// through a symlink to somewhere outside the tree.
-func makeTreeTraversable(path string) {
+// through a symlink to somewhere outside the tree. chmodRoot opens up root
+// itself; the directories beneath it are opened up through the os.Root.
+func makeTreeTraversable(path string, chmodRoot func(string, fs.FileMode) error) {
 	info, err := os.Lstat(path)
 	if err != nil || !info.IsDir() {
 		return
 	}
 	// A directory with no owner access cannot be opened as a root.
-	if err := os.Chmod(path, ownerDirAccess(info.Mode())); err != nil {
+	if err := chmodRoot(path, ownerDirAccess(info.Mode())); err != nil {
 		return
 	}
 	root, err := os.OpenRoot(path)
