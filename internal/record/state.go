@@ -1,4 +1,4 @@
-package core
+package record
 
 // EntityState is the lifecycle state of an item or task.
 //

@@ -1,6 +1,4 @@
-package core
-
-import "github.com/zachbornheimer/evident-output/internal/text"
+package record
 
 // Fact is a durable, informational annotation — a discovered value attached
 // to a Task or to the run itself, never a lifecycle state (user-13-problems.md
@@ -22,8 +20,8 @@ type Fact struct {
 // SanitizeProblem does for Problem — the one place a Fact's human-visible
 // fields are cleaned before durable state stores it.
 func SanitizeFact(f Fact) Fact {
-	f.Name = text.Text(f.Name)
-	f.Value = text.Text(f.Value)
+	f.Name = SanitizeText(f.Name)
+	f.Value = SanitizeText(f.Value)
 	return f
 }
 

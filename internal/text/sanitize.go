@@ -1,75 +1,20 @@
-// Package text is repo-owned CLI text machinery: sanitization, terminal cell
-// width measurement, truncation, glyph-safe pluralization/conjugation. Not a
-// general-purpose text library — every rule here exists for evident-output's
-// own rendering paths.
-//
-// Sanitization (this file): neutralizes untrusted text for terminal-safe display.
 package text
 
-import (
-	"strings"
-	"unicode/utf8"
-)
+import "github.com/zachbornheimer/evident-output/internal/record"
 
-// Text neutralizes control characters and invalid UTF-8 for single-line fields.
-// Newlines become spaces. ESC/CSI/OSC and C0 controls other than TAB are
-// stripped or replaced. Prefer Block for multi-line evidence (diffs, capture tails).
-func Text(s string) string {
-	return neutralize(s, false)
-}
+// Text, Block and TruncateUTF8 forward to internal/record, which owns
+// sanitization because a Problem or Fact is sanitized as it is stored. The
+// names stay so engine and render need no edit yet; slice 6 repoints their
+// callers at record and deletes this file.
 
-// Block neutralizes control characters while preserving newlines for multi-line
-// presentation fields (Problem.Detail, capture tails). CRLF/CR normalize to LF.
-// ESC/CSI and other C0 controls (except TAB and LF) are still stripped.
-func Block(s string) string {
-	return neutralize(s, true)
-}
+// Text neutralizes control characters and invalid UTF-8 for a single-line field.
+func Text(s string) string { return record.SanitizeText(s) }
 
-func neutralize(s string, preserveNewlines bool) string {
-	if s == "" {
-		return s
-	}
-	if !utf8.ValidString(s) {
-		s = strings.ToValidUTF8(s, "\uFFFD")
-	}
-	var b strings.Builder
-	b.Grow(len(s))
-	for i := 0; i < len(s); {
-		r, size := utf8.DecodeRuneInString(s[i:])
-		i += size
-		switch {
-		case r == '\r':
-			// Normalize CRLF / bare CR.
-			if preserveNewlines {
-				if i < len(s) && s[i] == '\n' {
-					continue // skip CR; LF handled next
-				}
-				b.WriteByte('\n')
-			} else {
-				b.WriteByte(' ')
-			}
-		case r == '\n':
-			if preserveNewlines {
-				b.WriteByte('\n')
-			} else {
-				b.WriteByte(' ')
-			}
-		case r == '\t':
-			b.WriteByte('\t')
-		case r == 0x1b: // ESC
-			b.WriteString("^[")
-		case r == 0x07, r == 0x08: // BEL, BS
-			// drop
-		case r < 0x20 || r == 0x7f:
-			// other C0
-		case r >= 0x80 && r <= 0x9f:
-			// C1
-		case r == 0x202a || r == 0x202b || r == 0x202c || r == 0x202d || r == 0x202e ||
-			r == 0x2066 || r == 0x2067 || r == 0x2068 || r == 0x2069:
-			// bidi controls — drop
-		default:
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
+// Block neutralizes control characters but keeps newlines, for multi-line fields.
+func Block(s string) string { return record.SanitizeBlock(s) }
+
+// TruncateUTF8 trims s to at most max bytes without splitting a rune, then
+// appends suffix when it truncated.
+func TruncateUTF8(s string, max int, suffix string) string {
+	return record.TruncateUTF8(s, max, suffix)
 }

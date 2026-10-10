@@ -1,4 +1,4 @@
-package core
+package record
 
 // Result is the outcome of a Run: the finished Conclusion (the semantic work
 // outcome plus output Problems) alongside the application error the run

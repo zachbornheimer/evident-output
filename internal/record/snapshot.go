@@ -9,7 +9,7 @@
 // every type here as a public alias (type X = core.X) so the published API
 // surface is unchanged; root's own doc comment on each alias is the
 // pkg.go.dev-visible one (see EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md §38).
-package core
+package record
 
 import (
 	"slices"
@@ -63,12 +63,9 @@ type Snapshot struct {
 	// Lines/Messages.
 	Facts []Fact
 
-	// rootTally mirrors TasksSnapshot's tally for the standalone root
-	// Tasks of a live projection. See WithRootTally.
-	rootTally *ChildTally
-	// rootCollectionTally mirrors TasksSnapshot's collectionTally for the
-	// root collections of a live projection. See WithRootCollectionTally.
-	rootCollectionTally *CollectionTally
+	// rootTallies mirrors TasksSnapshot's tallies for the standalone root
+	// Tasks and the root collections of a live projection.
+	rootTallies Tallies
 }
 
 // TaskSnapshot is an immutable task view.
@@ -219,15 +216,9 @@ type TasksSnapshot struct {
 	Sequential  bool
 	Declaration int
 
-	// tally, when set, marks Tasks as a partial list: a live projection
-	// kept only the children a frame can show, and tally counts every
-	// child it was built from. Unexported presentation bookkeeping; see
-	// WithChildTally.
-	tally *ChildTally
-	// collectionTally, when set, marks Collections as a partial list: a
-	// live projection left out the child collections a frame cannot
-	// reach, and collectionTally sums them. See WithCollectionTally.
-	collectionTally *CollectionTally
+	// tallies marks Tasks and Collections as partial lists when a live
+	// projection kept only what a frame can show. See Tallies.
+	tallies Tallies
 }
 
 // ChangesSnapshot is an immutable changes section.
@@ -254,6 +245,10 @@ type ContainerRef struct {
 	ID   string
 	Name string
 }
+
+// QualifiedSubjectSeparator joins a nested Task's container path into its
+// ledger subject when its bare name is ambiguous ("alpha › prune").
+const QualifiedSubjectSeparator = " › "
 
 // ContainerPath is a Task's enclosing containers, nearest first. Empty for
 // a root Task. It is how the human ledger knows which sections share a

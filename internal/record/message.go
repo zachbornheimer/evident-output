@@ -1,4 +1,4 @@
-package core
+package record
 
 // Visibility selects whether a message is ordinary or verbose user detail.
 // Zero is VisibilityNormal.

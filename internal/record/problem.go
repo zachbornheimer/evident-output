@@ -1,10 +1,8 @@
-package core
+package record
 
 import (
 	"errors"
 	"strings"
-
-	"github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // Problem is structured evidence explaining a negative item or task outcome.
@@ -97,28 +95,28 @@ func SplitWrappedMessage(format string, err error) (summary, evidence string) {
 // this helper so presentation paths cannot diverge on terminal safety
 // (SEC-001).
 //
-// Detail uses text.Block so multi-line evidence (diffs, capture tails) keeps
+// Detail uses SanitizeBlock so multi-line evidence (diffs, capture tails) keeps
 // newlines for the flat renderer (P3); other single-line fields still
-// collapse newlines to spaces via text.Text.
+// collapse newlines to spaces via SanitizeText.
 func SanitizeProblem(p Problem) Problem {
-	p.Summary = text.Text(p.Summary)
-	p.Detail = text.Block(p.Detail)
-	p.EvidenceTail = text.Block(p.EvidenceTail)
-	p.Subject = text.Text(p.Subject)
-	p.Code = text.Text(p.Code)
-	p.Unit = text.Text(p.Unit)
-	p.Severity = text.Text(p.Severity)
+	p.Summary = SanitizeText(p.Summary)
+	p.Detail = SanitizeBlock(p.Detail)
+	p.EvidenceTail = SanitizeBlock(p.EvidenceTail)
+	p.Subject = SanitizeText(p.Subject)
+	p.Code = SanitizeText(p.Code)
+	p.Unit = SanitizeText(p.Unit)
+	p.Severity = SanitizeText(p.Severity)
 	if p.Location != nil {
 		loc := *p.Location
-		loc.Path = text.Text(loc.Path)
+		loc.Path = SanitizeText(loc.Path)
 		p.Location = &loc
 	}
 	if len(p.Evidence) > 0 {
 		ev := make([]Attachment, len(p.Evidence))
 		for i, e := range p.Evidence {
 			ev[i] = Attachment{
-				Label: text.Text(e.Label),
-				Value: text.Text(e.Value),
+				Label: SanitizeText(e.Label),
+				Value: SanitizeText(e.Value),
 			}
 		}
 		p.Evidence = ev
@@ -127,9 +125,9 @@ func SanitizeProblem(p Problem) Problem {
 		fs := make([]Field, len(p.Fields))
 		copy(fs, p.Fields)
 		for i := range fs {
-			fs[i].Key = text.Text(fs[i].Key)
+			fs[i].Key = SanitizeText(fs[i].Key)
 			if s, ok := fs[i].Value.(string); ok {
-				fs[i].Value = text.Text(s)
+				fs[i].Value = SanitizeText(s)
 			}
 		}
 		p.Fields = fs

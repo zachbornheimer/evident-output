@@ -1,6 +1,4 @@
-package core
-
-import "github.com/zachbornheimer/evident-output/internal/text"
+package record
 
 // VerificationStatus is one VerificationDetail's per-attribute outcome
 // (spec §36's Task JSON `verification: [{name, status}]`).
@@ -39,7 +37,7 @@ type VerificationDetail struct {
 // human-visible fields, the same boundary SanitizeProblem/SanitizeFact
 // enforce for their own types.
 func SanitizeVerificationDetail(d VerificationDetail) VerificationDetail {
-	d.Name = text.Text(d.Name)
+	d.Name = SanitizeText(d.Name)
 	d.Facts = StoreFacts(d.Facts)
 	return d
 }

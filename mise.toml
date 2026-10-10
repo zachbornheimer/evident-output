@@ -62,12 +62,10 @@ run = [
 
 [tasks.fuzz]
 description = "Short fuzz smoke (local)"
-# internal/text now holds two fuzz targets (sanitize's FuzzText, width's
-# FuzzCells, merged from internal/sanitize + internal/width) — go test -fuzz
-# refuses an ambiguous pattern that matches more than one, so each runs by
-# its exact name instead of the old blanket -fuzz=Fuzz.
+# FuzzText lives in internal/record (sanitization) and FuzzCells in
+# internal/text (width); each runs by its exact name in its own package.
 run = [
-  "go test ./internal/text/ -run=Fuzz -fuzz=FuzzText -fuzztime=5s || true",
+  "go test ./internal/record/ -run=Fuzz -fuzz=FuzzText -fuzztime=5s || true",
   "go test ./internal/text/ -run=Fuzz -fuzz=FuzzCells -fuzztime=5s || true",
 ]
 

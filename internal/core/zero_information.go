@@ -26,7 +26,3 @@ func IsZeroInformationTask(t TaskSnapshot) bool {
 func IsProvenNoOpTask(t TaskSnapshot) bool {
 	return IsZeroInformationTask(t) && t.Resolution == ResolutionAlreadySatisfied
 }
-
-// QualifiedSubjectSeparator joins a nested Task's container path into its
-// ledger subject when its bare name is ambiguous ("alpha › prune").
-const QualifiedSubjectSeparator = " › "

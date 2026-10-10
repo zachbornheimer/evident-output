@@ -1,4 +1,4 @@
-package core
+package record
 
 // Resolution names why a Task settled successfully — a successful
 // resolution reason (§29), never a lifecycle state of its own.

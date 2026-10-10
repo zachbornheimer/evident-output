@@ -51,7 +51,7 @@ func (c *ChildCounts) Add(t *TaskSnapshot) {
 		c.Unfinished = true
 	}
 	c.NameWidth = max(c.NameWidth, utf8.RuneCountInString(t.Name))
-	if seen := t.liveFirstSeenAt; !seen.IsZero() && (c.EarliestSeen.IsZero() || seen.Before(c.EarliestSeen)) {
+	if seen := t.LiveFirstSeenAt(); !seen.IsZero() && (c.EarliestSeen.IsZero() || seen.Before(c.EarliestSeen)) {
 		c.EarliestSeen = seen
 	}
 }
@@ -80,39 +80,44 @@ func CountTasks(tasks []TaskSnapshot) ChildCounts {
 
 // WithChildTally is col whose Tasks are a partial list tallied by t.
 func WithChildTally(col TasksSnapshot, t ChildTally) TasksSnapshot {
-	col.tally = &t
-	return col
+	tallies := col.Tallies()
+	tallies.Children = &t
+	return col.WithTallies(tallies)
 }
 
 // WithoutChildTally is col whose Tasks are its complete child list.
 func WithoutChildTally(col TasksSnapshot) TasksSnapshot {
-	col.tally = nil
-	return col
+	tallies := col.Tallies()
+	tallies.Children = nil
+	return col.WithTallies(tallies)
 }
 
 // ChildTallyOf is the tally of col's partial Tasks list, or false when
 // Tasks is complete.
 func ChildTallyOf(col TasksSnapshot) (ChildTally, bool) {
-	if col.tally == nil {
+	tally, ok := col.Tallies().Children.(*ChildTally)
+	if !ok || tally == nil {
 		return ChildTally{}, false
 	}
-	return *col.tally, true
+	return *tally, true
 }
 
 // WithRootTally is s whose standalone root Tasks are a partial list
 // tallied by t.
 func WithRootTally(s Snapshot, t ChildTally) Snapshot {
-	s.rootTally = &t
-	return s
+	tallies := s.RootTallies()
+	tallies.Children = &t
+	return s.WithRootTallies(tallies)
 }
 
 // RootTallyOf is the tally of s's partial root Tasks list, or false when
 // Tasks is complete.
 func RootTallyOf(s Snapshot) (ChildTally, bool) {
-	if s.rootTally == nil {
+	tally, ok := s.RootTallies().Children.(*ChildTally)
+	if !ok || tally == nil {
 		return ChildTally{}, false
 	}
-	return *s.rootTally, true
+	return *tally, true
 }
 
 // CollectionTally is what a live projection of a collection knows about
@@ -138,39 +143,45 @@ func (t CollectionTally) Empty() bool { return t.Count == 0 }
 // WithCollectionTally is col whose Collections are a partial list tallied
 // by t.
 func WithCollectionTally(col TasksSnapshot, t CollectionTally) TasksSnapshot {
-	if t.Empty() {
-		col.collectionTally = nil
-		return col
-	}
-	col.collectionTally = &t
-	return col
+	tallies := col.Tallies()
+	tallies.Collections = collectionTallySlot(t)
+	return col.WithTallies(tallies)
 }
 
 // CollectionTallyOf is the tally of the child collections col's
 // projection left out; the zero tally when Collections is complete.
 func CollectionTallyOf(col TasksSnapshot) CollectionTally {
-	if col.collectionTally == nil {
-		return CollectionTally{}
-	}
-	return *col.collectionTally
+	return collectionTallyIn(col.Tallies())
 }
 
 // WithRootCollectionTally is s whose root collections are a partial list
 // tallied by t.
 func WithRootCollectionTally(s Snapshot, t CollectionTally) Snapshot {
-	if t.Empty() {
-		s.rootCollectionTally = nil
-		return s
-	}
-	s.rootCollectionTally = &t
-	return s
+	tallies := s.RootTallies()
+	tallies.Collections = collectionTallySlot(t)
+	return s.WithRootTallies(tallies)
 }
 
 // RootCollectionTallyOf is the tally of the root collections s's
 // projection left out; the zero tally when Collections is complete.
 func RootCollectionTallyOf(s Snapshot) CollectionTally {
-	if s.rootCollectionTally == nil {
+	return collectionTallyIn(s.RootTallies())
+}
+
+// collectionTallySlot is what a snapshot stores for t: nothing when t counts
+// nothing, so a complete Collections list carries no tally.
+func collectionTallySlot(t CollectionTally) any {
+	if t.Empty() {
+		return nil
+	}
+	return &t
+}
+
+// collectionTallyIn is the collection tally stored in tallies, zero when none.
+func collectionTallyIn(tallies Tallies) CollectionTally {
+	tally, ok := tallies.Collections.(*CollectionTally)
+	if !ok || tally == nil {
 		return CollectionTally{}
 	}
-	return *s.rootCollectionTally
+	return *tally
 }

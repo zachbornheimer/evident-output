@@ -1,4 +1,4 @@
-package core
+package record
 
 // Action is a recommended next step for the user.
 type Action struct {
