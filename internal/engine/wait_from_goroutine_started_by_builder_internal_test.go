@@ -23,7 +23,7 @@ func TestSlice36_WaitFromAGoroutineABuilderStartedIsRefused(t *testing.T) {
 			out.Group("builder").Define(func(g *GroupHandle) {
 				child := g.Task("child").Define(noop)
 				var started sync.WaitGroup
-				started.Go(func() { ; waitErr = child.Wait() })
+				started.Go(func() { waitErr = child.Wait() })
 				started.Wait()
 			})
 

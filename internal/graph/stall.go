@@ -52,24 +52,35 @@ func (g *Graph) sealWaitedInputsLocked() bool {
 // satisfy, in the order that blames the fewest:
 //
 //  1. A wait on a Task whose row already settled is released alone, with no
-//     error and no misuse: the row states the answer, and only the callback's
-//     own error is still on its way out. That callback may be blocked on a
-//     wait elsewhere, so the stall may not be a deadlock once this one
-//     returns.
+//     error and no misuse, when its own Task is awaited by another parked
+//     wait: the row states the answer, and only the callback's own error is
+//     still on its way out. That callback may be what the other wait is
+//     blocked on, so the stall may not be a deadlock once this one returns.
+//     Any other wait on a settled Task stays parked: the callback's error is
+//     owed to it, and releasing it early would answer with the row instead.
 //  2. Failing that, a waiter a live callback started is released alone: the
 //     stall only assumed that callback is blocked on it, and once it returns
 //     the callback may finish and satisfy every other wait.
-//  3. Failing that, every parked wait is told the truth, ErrWaitDeadlock
-//     naming the Task it awaited, and its callback returns that error,
-//     putting the cycle on its own row.
+//  3. Failing that, every wait on a Task still running is told the truth,
+//     ErrWaitDeadlock naming the Task it awaited, and its callback returns
+//     that error, putting the cycle on its own row.
+//
+// Waits on settled Tasks that remain wake when those callbacks return. When
+// every parked wait is on a settled Task and none can relieve another, they
+// are all released with the row's answer rather than left to hang.
 func (g *Graph) releaseWaitsLocked() {
-	if settled := g.waitsWhereLocked(func(w *WaitTicket) bool { return terminal(w.task) }); len(settled) > 0 {
-		g.wakeWaitsLocked(settled)
+	if relieving := g.waitsWhereLocked(g.relievesAnOwingCallbackLocked()); len(relieving) > 0 {
+		g.wakeWaitsLocked(relieving)
 		return
 	}
-	release := g.waitsWhereLocked(g.startedByCallbackLocked)
+	running := g.waitsWhereLocked(func(w *WaitTicket) bool { return !terminal(w.task) })
+	if len(running) == 0 {
+		g.wakeWaitsLocked(g.waitsWhereLocked(func(*WaitTicket) bool { return true }))
+		return
+	}
+	release := keepWaits(running, g.startedByCallbackLocked)
 	if len(release) == 0 {
-		release = g.waitsWhereLocked(func(*WaitTicket) bool { return true })
+		release = running
 	}
 	for _, w := range release {
 		w.released = g.unreachableWait(w)
@@ -95,6 +106,37 @@ func (g *Graph) waitsWhereLocked(keep func(*WaitTicket) bool) []*WaitTicket {
 		}
 	}
 	return kept
+}
+
+// keepWaits lists the waiters in waits that satisfy keep.
+func keepWaits(waits []*WaitTicket, keep func(*WaitTicket) bool) []*WaitTicket {
+	var kept []*WaitTicket
+	for _, w := range waits {
+		if keep(w) {
+			kept = append(kept, w)
+		}
+	}
+	return kept
+}
+
+// relievesAnOwingCallbackLocked is the test for a wait on a settled Task
+// whose own Task is awaited by another parked wait: returning it may let the
+// callback that wait is blocked on finish.
+func (g *Graph) relievesAnOwingCallbackLocked() func(*WaitTicket) bool {
+	awaited := make(map[*Task]int, len(g.exec.waits))
+	for w := range g.exec.waits {
+		awaited[w.task]++
+	}
+	return func(w *WaitTicket) bool {
+		if !terminal(w.task) || w.owner == nil {
+			return false
+		}
+		others := awaited[w.owner]
+		if w.task == w.owner {
+			others--
+		}
+		return others > 0
+	}
 }
 
 // abandonStrandedLocked settles NotStarted every Task still parked once the

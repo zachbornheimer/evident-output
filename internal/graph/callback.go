@@ -159,9 +159,17 @@ func (g *Graph) CurrentConsumer() *Task {
 	id := CurrentGoroutine()
 	g.lock()
 	defer g.unlock()
-	stack := g.exec.consumers[id]
-	if len(stack) == 0 {
-		return nil
+	return g.consumerThroughLocked(id, 0)
+}
+
+// consumerThroughLocked is the Task or builder gate running on goroutine
+// self, or, when self runs none, on the goroutine that started it (creator,
+// zero for none).
+func (g *Graph) consumerThroughLocked(self, creator GoroutineID) *Task {
+	for _, id := range [...]GoroutineID{self, creator} {
+		if stack := g.exec.consumers[id]; len(stack) > 0 {
+			return stack[len(stack)-1]
+		}
 	}
-	return stack[len(stack)-1]
+	return nil
 }
