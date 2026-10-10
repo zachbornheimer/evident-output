@@ -37,9 +37,6 @@ type executor struct {
 	// cancelled stops dispatching anything new: after an interrupt the queue
 	// is abandoned, not drained.
 	cancelled bool
-	// suspended counts the open Suspend windows; while any is open nothing new
-	// starts.
-	suspended int
 }
 
 // WithMaxConcurrency bounds how many callbacks execute at once; zero or less
@@ -89,7 +86,7 @@ func (g *Graph) takeEligible() *claim {
 	// After an interrupt the queue is abandoned, not drained: nothing new
 	// starts, so the run stops at the ^C instead of running to completion
 	// behind one cancelled row.
-	if g.exec.cancelled || g.exec.suspended > 0 || g.exec.inflight >= g.ceilingLocked() {
+	if g.exec.cancelled || g.exec.inflight >= g.ceilingLocked() {
 		return nil
 	}
 	cand := g.nextEligibleLocked()

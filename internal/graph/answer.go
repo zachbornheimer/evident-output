@@ -2,9 +2,8 @@ package graph
 
 import "github.com/zachbornheimer/evident-output/internal/record"
 
-// Answer is what a Confirm gate received. A Confirm is a gate the run waits
-// on: the scheduler starts nothing new while its question is open (see
-// Suspend), and the answer alone decides which state the gate Task reaches.
+// Answer is what a Confirm gate received. The answer alone decides which
+// state the gate Task reaches.
 type Answer uint8
 
 const (

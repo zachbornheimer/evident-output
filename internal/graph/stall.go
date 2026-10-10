@@ -103,11 +103,9 @@ func (g *Graph) abandonStrandedLocked() bool {
 }
 
 // progressPossibleLocked reports whether anything could still move the run: a
-// Suspend window is open and will end, a callback is doing work, something can
-// start, or a wait is about to wake.
+// callback is doing work, something can start, or a wait is about to wake.
 func (g *Graph) progressPossibleLocked() bool {
-	return g.exec.suspended > 0 ||
-		g.exec.executing > g.heldCallbacksLocked() ||
+	return g.exec.executing > g.heldCallbacksLocked() ||
 		g.anyStartableLocked() ||
 		g.anyAwaitedTaskSettledLocked()
 }

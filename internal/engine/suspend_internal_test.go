@@ -9,30 +9,34 @@ import (
 	"time"
 )
 
-// suspendQuiet is how long a test watches for work that must not start.
-const suspendQuiet = 50 * time.Millisecond
+// suspendHangLimit is how long a test waits for work that must happen before
+// it calls the window hung.
+const suspendHangLimit = 3 * time.Second
 
-func TestSuspend_StartsNoNewTaskUntilTheWindowEnds(t *testing.T) {
-	out := Init(Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	var ran atomic.Bool
-	var task *TaskHandle
-
-	_ = out.Suspend(func() error {
-		task = out.Task("queued").Define(func(context.Context) error { ran.Store(true); return nil })
-		time.Sleep(suspendQuiet)
-		if ran.Load() {
-			t.Error("a Task started inside the Suspend window")
-		}
-		return nil
-	})
-
-	if err := task.Wait(); err != nil || !ran.Load() {
-		t.Errorf("after the window: Wait = %v, ran = %v, want the Task to run", err, ran.Load())
+// startsInsideWindow waits for a Task defined inside a Suspend window to
+// start before the window closes.
+func startsInsideWindow(t *testing.T, started <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-started:
+	case <-time.After(suspendHangLimit):
+		t.Error("a Task that became eligible inside the window did not start before it closed")
 	}
 }
 
-func TestConfirm_StartsNoNewTaskWhileTheQuestionIsOpen(t *testing.T) {
+func TestSuspend_StartsAnEligibleSiblingBeforeTheWindowCloses(t *testing.T) {
+	out := Init(Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard})
+	t.Cleanup(func() { _ = out.Close() })
+	started := make(chan struct{})
+
+	_ = out.Suspend(func() error {
+		out.Task("sibling").Define(func(context.Context) error { close(started); return nil })
+		startsInsideWindow(t, started)
+		return nil
+	})
+}
+
+func TestConfirm_StartsAnEligibleSiblingWhileTheQuestionIsOpen(t *testing.T) {
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -40,25 +44,19 @@ func TestConfirm_StartsNoNewTaskWhileTheQuestionIsOpen(t *testing.T) {
 	defer func() { _ = r.Close() }()
 	defer func() { _ = w.Close() }()
 	out := newOutput("", to(io.Discard), withNoColor(), stdin(r))
-	var ran atomic.Bool
 	answered := make(chan bool)
 	go func() { answered <- out.Confirm("proceed?") }()
-	for !out.graph.Suspended() {
+	for out.graph.PendingAborts() == 0 {
 		time.Sleep(time.Millisecond)
 	}
+	started := make(chan struct{})
 
-	task := out.Task("queued").Define(func(context.Context) error { ran.Store(true); return nil })
-	time.Sleep(suspendQuiet)
-	if ran.Load() {
-		t.Error("a Task started while the Confirm question was open")
-	}
+	out.Task("sibling").Define(func(context.Context) error { close(started); return nil })
+	startsInsideWindow(t, started)
 	_, _ = w.Write([]byte("y\n"))
 
 	if !<-answered {
 		t.Error("Confirm = false, want true for y")
-	}
-	if err := task.Wait(); err != nil || !ran.Load() {
-		t.Errorf("after the answer: Wait = %v, ran = %v, want the Task to run", err, ran.Load())
 	}
 }
 
@@ -77,4 +75,45 @@ func TestSuspend_NestedDoesNotPanic(t *testing.T) {
 	_ = out.Suspend(func() error {
 		return out.Suspend(func() error { return nil })
 	})
+}
+
+// suspendThenWait runs wait inside a Suspend window and fails the test when
+// the window never returns.
+func suspendThenWait(t *testing.T, out *Output, wait func() error) {
+	t.Helper()
+	done := make(chan error, 1)
+	go func() { done <- out.Suspend(wait) }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Wait inside Suspend = %v, want nil", err)
+		}
+	case <-time.After(suspendHangLimit):
+		t.Fatal("Wait inside a Suspend window hung: the work it awaits never started")
+	}
+}
+
+func TestSuspend_WaitOnWorkDefinedInsideTheWindowReturns(t *testing.T) {
+	out := newOutput("job", to(io.Discard))
+	t.Cleanup(func() { _ = out.Close() })
+
+	suspendThenWait(t, out, func() error {
+		return out.Task("x").Define(func(context.Context) error { return nil }).Wait()
+	})
+}
+
+func TestSuspend_WaitOnQueuedWorkBehindAFullPoolReturns(t *testing.T) {
+	out := newOutput("job", to(io.Discard), maxConcurrency(1))
+	t.Cleanup(func() { _ = out.Close() })
+	release := make(chan struct{})
+	var holderRan atomic.Bool
+	out.Task("holder").Define(func(context.Context) error { <-release; holderRan.Store(true); return nil })
+	queued := out.Task("queued").Define(func(context.Context) error { return nil })
+	time.AfterFunc(50*time.Millisecond, func() { close(release) })
+
+	suspendThenWait(t, out, queued.Wait)
+
+	if !holderRan.Load() {
+		t.Error("the Task holding the only slot never finished")
+	}
 }
