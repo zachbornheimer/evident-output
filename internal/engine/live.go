@@ -41,6 +41,10 @@ type liveEngine struct {
 	// quiesced counts the open Suspend windows (guarded by o.mu): while any
 	// is open nothing is painted, and no signal makes the region visible.
 	quiesced int
+	// heldText is the durable text that settled while a window was open
+	// (guarded by o.mu), in arrival order: the window owns the terminal, so
+	// it prints once the last window closes.
+	heldText []string
 
 	// paintMu serializes writes to the surface and guards what describes
 	// them. Lock order is o.mu, then paintMu; a paint never takes o.mu

@@ -34,17 +34,56 @@ func (o *Output) emitLineProgressiveLocked() {
 	o.writeDurableTextLocked(b.String())
 }
 
-// writeDurableTextLocked emits durable human text immediately and flushes.
+// writeDurableTextLocked emits durable human text immediately and flushes,
+// unless a Suspend window owns the terminal: then it is held and prints in
+// arrival order once the last window closes, so a sibling's row never lands
+// inside a Confirm prompt.
 // Interactive: above the live region on the terminal driver.
 // Plain/non-interactive: primary (+ AlsoWrite) writers.
 func (o *Output) writeDurableTextLocked(text string) {
-	if text == "" {
+	if !o.countHumanTextLocked(text) {
 		return
+	}
+	if o.live != nil && o.live.quiesced > 0 {
+		o.live.heldText = append(o.live.heldText, text)
+		return
+	}
+	o.emitDurableTextLocked(text)
+}
+
+// writeWindowOwnerTextLocked emits durable human text the owner of an open
+// Suspend window writes inside it (Confirm's prompt and its answer row): the
+// window exists to show exactly this, so it is never held.
+func (o *Output) writeWindowOwnerTextLocked(text string) {
+	if o.countHumanTextLocked(text) {
+		o.emitDurableTextLocked(text)
+	}
+}
+
+// countHumanTextLocked counts text as a durable row and reports whether it
+// should reach the human stream at all.
+func (o *Output) countHumanTextLocked(text string) bool {
+	if text == "" {
+		return false
 	}
 	o.durableRowsEmitted++
-	if o.cfg.projection.suppressesHuman() {
+	return !o.cfg.projection.suppressesHuman()
+}
+
+// flushHeldTextLocked prints the text held while windows were open.
+func (o *Output) flushHeldTextLocked() {
+	if o.live == nil {
 		return
 	}
+	held := o.live.heldText
+	o.live.heldText = nil
+	for _, text := range held {
+		o.emitDurableTextLocked(text)
+	}
+}
+
+// emitDurableTextLocked writes text to the human stream now.
+func (o *Output) emitDurableTextLocked(text string) {
 	live := o.liveLocked()
 	// A live region (including the armed, entity-less title line painted by
 	// arm()) may still be on screen even after the surface stops reporting
@@ -141,6 +180,10 @@ func (c rootColumn) nameWidth() int {
 // one case that couldn't wait for Finish; every standalone Task now gets the
 // same immediate commit for the same reason — a later evidence call must
 // never race above already-resolved work.
+//
+// While a Suspend window is open a sibling's row is held until it closes; the
+// row of the Task that owns the window (a Confirm gate) is not, since the
+// window exists to show it.
 func (o *Output) commitResolvedTaskLocked(id string) {
 	st := o.taskStates[id]
 	if st == nil || st.coreEmitted || !core.IsTerminalTask(st.node.Rec.State()) {
@@ -156,7 +199,11 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 	if b.Len() == 0 {
 		return
 	}
-	o.writeDurableTextLocked(b.String())
+	if st.ownsWindow {
+		o.writeWindowOwnerTextLocked(b.String())
+	} else {
+		o.writeDurableTextLocked(b.String())
+	}
 	live := o.liveLocked()
 	if live == nil || !live.IsInteractive() || o.cfg.plain {
 		return

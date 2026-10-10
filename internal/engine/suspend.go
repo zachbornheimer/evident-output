@@ -44,7 +44,8 @@ func (o *Output) openLiveWindow() liveWindow {
 }
 
 // closeLiveWindow ends w. Once the last window closes, the region repaints:
-// the frame w cleared, or the rows siblings started inside it.
+// the frame w cleared, or the rows siblings started inside it. The durable
+// text siblings settled inside the windows prints first, above the region.
 func (o *Output) closeLiveWindow(w liveWindow) {
 	if !w.opened {
 		return
@@ -58,6 +59,7 @@ func (o *Output) closeLiveWindow(w liveWindow) {
 	if o.live.quiesced > 0 {
 		return
 	}
+	o.flushHeldTextLocked()
 	switch {
 	case w.cleared && o.needsSpinnerAnimLocked():
 		o.live.visible = true

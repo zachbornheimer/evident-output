@@ -238,6 +238,9 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 	abort, release := o.graph.RegisterAbort(gate.id)
 	defer release()
 
+	o.setOwnsWindow(gate.id, true)
+	defer o.setOwnsWindow(gate.id, false)
+
 	var yes bool
 	_ = o.Suspend(func() error {
 		o.writeConfirmPrompt(question, cfg.destructive, cfg.detail)
@@ -245,6 +248,16 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 		return nil
 	})
 	return yes
+}
+
+// setOwnsWindow marks the Confirm gate id as the Task its Suspend window
+// shows, or clears the mark (see taskState.ownsWindow).
+func (o *Output) setOwnsWindow(id string, owns bool) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if st := o.taskStates[id]; st != nil {
+		st.ownsWindow = owns
+	}
 }
 
 // writeConfirmPrompt emits the durable "?  <question>  [y/N]" line,
@@ -270,7 +283,7 @@ func (o *Output) writeConfirmPrompt(question string, destructive bool, detail []
 	// so the question/choices and the human's keystrokes never compete on one
 	// line — "? question [y/N] y" is exactly what this replaces.
 	b.WriteString(confirmInputLineGlyph)
-	o.writeDurableTextLocked(b.String())
+	o.writeWindowOwnerTextLocked(b.String())
 	o.mu.Unlock()
 }
 

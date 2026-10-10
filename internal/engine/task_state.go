@@ -49,6 +49,11 @@ type taskState struct {
 	// done, so task.started fires once however the row reached Running.
 	runningAnnounced bool
 
+	// ownsWindow is set on a Confirm gate while its Suspend window is open
+	// (guarded by Output.mu): the window shows this Task's rows, so they are
+	// not held back like a sibling's.
+	ownsWindow bool
+
 	// filing is where this Task stands in its collection's childIndex.
 	filing filing
 
