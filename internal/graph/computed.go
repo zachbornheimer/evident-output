@@ -36,18 +36,20 @@ func (c *Computed[T]) Producer() *Task { return c.producer }
 // race.
 func (c *Computed[T]) Set(v T) { c.value = v }
 
-// Read is the produced value, or why it may not be read yet:
-// ErrComputedUnsettled before the producer settled successfully, and
+// Read is the produced value, or why it may not be read: first
 // ErrComputedUnordered when the caller is a callback or builder the declared
-// order does not put after the producer. Whoever runs on a goroutine outside
-// every callback is ordered by definition.
+// order does not put after the producer, then ErrComputedUnsettled before the
+// producer settled successfully. Order is declared, so it is judged before
+// settledness, which a race decides: an unordered reader fails the same way
+// whether or not the producer happened to settle first. Whoever runs on a
+// goroutine outside every callback is ordered by definition.
 func (c *Computed[T]) Read(g *Graph) (T, error) {
 	var zero T
-	if !record.DeclaresSuccess(c.producer.Rec.State()) {
-		return zero, ErrComputedUnsettled
-	}
 	if consumer := g.CurrentConsumer(); consumer != nil && !g.OrderedAfter(consumer, c.producer) {
 		return zero, ErrComputedUnordered
+	}
+	if !record.DeclaresSuccess(c.producer.Rec.State()) {
+		return zero, ErrComputedUnsettled
 	}
 	return c.value, nil
 }
