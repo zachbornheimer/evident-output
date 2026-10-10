@@ -21,6 +21,20 @@ func TestAdmitRefusesATaskThatAlreadySettled(t *testing.T) {
 	}
 }
 
+func TestConcludeLeavesATaskAnInterruptSettledBetweenAdmitAndConclude(t *testing.T) {
+	g := New(record.NewRun())
+	task := declare(g, "submitted")
+	submitWork(g, task, blockedWork())
+	admitted := g.Admit(task, Resolution{State: record.Failed, By: ByCaller})
+
+	g.Settle(task, record.Cancelled)
+	g.Conclude(task, admitted)
+
+	if got := task.Rec.State(); got != record.Cancelled {
+		t.Errorf("state = %s, want cancelled: Conclude settled the Task a second time", got)
+	}
+}
+
 func TestAdmitHoldsACallersSuccessOnSubmittedWorkAsAProposal(t *testing.T) {
 	g := New(record.NewRun())
 	task := declare(g, "submitted")

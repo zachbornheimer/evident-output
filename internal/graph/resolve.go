@@ -83,13 +83,18 @@ func (g *Graph) Admit(t *Task, r Resolution) Admission {
 
 // Conclude settles t as Admit decided, and settles NotStarted the steps its
 // failure keeps from running, in the same critical section: whoever sees t
-// terminal sees its followers settled too.
+// terminal sees its followers settled too. A Task that settled between Admit
+// and Conclude (an interrupt cancelled it) keeps the state it reached; it
+// does not settle twice.
 func (g *Graph) Conclude(t *Task, a Admission) {
 	if a.Verdict != Settling {
 		return
 	}
 	g.lock()
 	defer g.unlock()
+	if terminal(t) {
+		return
+	}
 	g.settleLocked(t, a.State)
 	if a.stopsFollowers {
 		g.failSequenceFollowersLocked(t)
