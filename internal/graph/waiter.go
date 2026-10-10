@@ -44,7 +44,7 @@ func (w *WaitTicket) Released() error { return w.released }
 func (g *Graph) BeginWait(t *Task, stack *WaiterStack) *WaitTicket {
 	self, creator := CurrentGoroutineLineage()
 	if !stack.RunsWork() {
-		creator = g.startingGoroutine(creator, goroutineLoad.runsAny)
+		creator = g.startingGoroutine(creator)
 	}
 	w := &WaitTicket{task: t, depth: stack.CallbackDepth(), self: self, creator: creator, abort: make(chan struct{})}
 	g.lock()

@@ -2,8 +2,11 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 // waitFromBuilderChild declares a Group whose builder keeps declaring (slow
@@ -37,9 +40,26 @@ func waitFromBuilderChild(t *testing.T, wait func(pre *TaskHandle, got chan<- er
 	}
 }
 
-// A builder child's callback runs on a pooled worker the builder's Define
-// kicked. Its stack names the callback it runs, so a Wait on its own
-// goroutine is the callback's, not the builder's.
+// A Task a builder declared runs its callback on a pooled worker the
+// builder's Define kicked. That callback is not the builder: a goroutine the
+// callback started may Wait on unrelated, settled work while the builder is
+// still declaring, and must not be refused as a Wait inside the builder.
+func TestWaitFromAGoroutineABuilderChildCallbackStartedIsNotInsideTheBuilder(t *testing.T) {
+	err := waitFromBuilderChild(t, func(pre *TaskHandle, got chan<- error) {
+		done := make(chan struct{})
+		go func() { got <- pre.Wait(); close(done) }()
+		<-done
+	})
+	if errors.Is(err, graph.ErrWaitInBuilder) {
+		t.Fatalf("Wait from a goroutine the child's callback started = %v: refused as inside the builder", err)
+	}
+	if err != nil {
+		t.Fatalf("Wait = %v, want nil", err)
+	}
+}
+
+// The same child's callback Waiting on its own goroutine is no more inside
+// the builder: its stack names the callback it runs.
 func TestWaitFromABuilderChildCallbackIsNotInsideTheBuilder(t *testing.T) {
 	err := waitFromBuilderChild(t, func(pre *TaskHandle, got chan<- error) { got <- pre.Wait() })
 	if err != nil {

@@ -27,21 +27,19 @@ func (l goroutineLoad) total() int { return l.callbacks + l.builders }
 // runsAny reports whether the goroutine runs a task callback or builder.
 func (l goroutineLoad) runsAny() bool { return l.total() > 0 }
 
-// runsBuilder reports whether the goroutine runs a container builder.
-func (l goroutineLoad) runsBuilder() bool { return l.builders > 0 }
-
-// startingGoroutine is the goroutine whose load satisfies runs that started
-// the calling goroutine, through any number of goroutines in between: creator
-// itself when it qualifies, else the nearest ancestor that does. With none,
-// or no goroutine running anything, it is creator, so the common case reads
-// no more than the direct creator. The ancestor walk stops the world; it is
-// reached only by a goroutine another goroutine started while work runs.
-func (g *Graph) startingGoroutine(creator GoroutineID, runs func(goroutineLoad) bool) GoroutineID {
+// startingGoroutine is the nearest goroutine running a task callback or
+// builder that started the calling goroutine, through any number of
+// goroutines in between: creator itself when it qualifies, else the nearest
+// ancestor that does. With none, or no goroutine running anything, it is
+// creator, so the common case reads no more than the direct creator. The
+// ancestor walk stops the world; it is reached only by a goroutine another
+// goroutine started while work runs.
+func (g *Graph) startingGoroutine(creator GoroutineID) GoroutineID {
 	if creator == 0 {
 		return 0
 	}
 	g.lockRead()
-	direct, working := runs(g.exec.runningGoroutines[creator]), len(g.exec.runningGoroutines) > 0
+	direct, working := g.exec.runningGoroutines[creator].runsAny(), len(g.exec.runningGoroutines) > 0
 	g.unlockRead()
 	if direct || !working {
 		return creator
@@ -50,7 +48,7 @@ func (g *Graph) startingGoroutine(creator GoroutineID, runs func(goroutineLoad) 
 	g.lockRead()
 	defer g.unlockRead()
 	for _, id := range ancestors {
-		if runs(g.exec.runningGoroutines[id]) {
+		if g.exec.runningGoroutines[id].runsAny() {
 			return id
 		}
 	}
@@ -227,7 +225,7 @@ func (g *Graph) CurrentReader() Reader {
 		return Reader{Task: own}
 	}
 	_, creator := CurrentGoroutineLineage()
-	creator = g.startingGoroutine(creator, goroutineLoad.runsAny)
+	creator = g.startingGoroutine(creator)
 	g.lockRead()
 	defer g.unlockRead()
 	return Reader{Task: g.consumerThroughLocked(creator, 0), Spawned: true}
