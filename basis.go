@@ -8,7 +8,7 @@ import (
 // Fingerprint observes one Basis input's current content identity
 // (spec §11.1). Implementations must not mutate the world.
 //
-// Aliased into internal/fingerprint alongside FSPath/Value/App — the same
+// Aliased into internal/freshness alongside FSPath/Value/App — the same
 // pattern action.go/fact.go use for the rest of the data model.
 type Fingerprint = freshness.Fingerprint
 
