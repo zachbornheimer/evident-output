@@ -1,29 +1,9 @@
 package engine
 
 import (
-	"slices"
-	"sort"
-
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/render"
 )
-
-// ledgerIndex finds the run's ledger sections by owner and by the name they
-// are shown under, in O(1). Guarded by o.mu.
-type ledgerIndex struct {
-	byOwner map[ledgerSectionKey]*ledgerSection
-	byName  map[string][]*ledgerSection
-}
-
-// opened indexes a newly opened section.
-func (x *ledgerIndex) opened(key ledgerSectionKey, s *ledgerSection) {
-	if x.byOwner == nil {
-		x.byOwner = map[ledgerSectionKey]*ledgerSection{}
-		x.byName = map[string][]*ledgerSection{}
-	}
-	x.byOwner[key] = s
-	x.byName[s.owner.name] = append(x.byName[s.owner.name], s)
-}
 
 // appendTaskLocked adds st to the run's Tasks in declaration order. Caller
 // must hold o.mu.
@@ -44,25 +24,5 @@ func (o *Output) heldBackAsNoOpLocked(t TaskSnapshot) bool {
 	if !core.IsProvenNoOpTask(render.TaskAtVerbosity(t, o.cfg.verbosity >= VerbosityVerbose)) {
 		return false
 	}
-	return !o.hasLedgerSectionLocked(t.ID)
-}
-
-// insertByLedgerOrder places section after every section whose order is
-// less than or equal to its own, keeping ties in arrival order.
-func insertByLedgerOrder(sections []*ledgerSection, section *ledgerSection) []*ledgerSection {
-	return insertAfterOrder(sections, section, (*ledgerSection).order)
-}
-
-// insertAfterOrder inserts item into items, which are sorted by order,
-// after every element whose order is less than or equal to item's.
-// Sections mostly open in declaration order, so the common case is an
-// append checked against the last element; otherwise a binary search
-// finds the slot.
-func insertAfterOrder[T any](items []T, item T, order func(T) int) []T {
-	key := order(item)
-	if len(items) == 0 || order(items[len(items)-1]) <= key {
-		return append(items, item)
-	}
-	at := sort.Search(len(items), func(i int) bool { return order(items[i]) > key })
-	return slices.Insert(items, at, item)
+	return !o.rec.HasLedgerSection(t.ID)
 }

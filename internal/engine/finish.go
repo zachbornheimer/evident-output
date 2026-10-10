@@ -36,7 +36,7 @@ func (o *Output) Finish() error {
 	if o.cfg.projection.suppressesHuman() {
 		var events []Event
 		if o.cfg.projection == ProjectionJSONL {
-			events = o.journal.snapshot(o.cfg.maxEvents)
+			events = o.rec.Events(o.cfg.maxEvents)
 		}
 		writer, projection := o.cfg.primary, o.cfg.projection
 		o.mu.Unlock()

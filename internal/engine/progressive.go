@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/record"
 	"github.com/zachbornheimer/evident-output/internal/render"
 	renderplain "github.com/zachbornheimer/evident-output/internal/render/plain"
 )
@@ -201,23 +202,23 @@ func hasNamedEffectRecord(records []core.EffectRecord) bool {
 // loop skip it — the raw item list must never render twice.
 func (o *Output) commitNamedEffectsLocked(owner string) {
 	for _, tense := range []ledgerTense{tensePlanned, tenseChanged} {
-		s, ok := o.ledger.byOwner[ledgerSectionKey{owner: owner, tense: tense}]
-		if !ok || s.namedRowsEmitted || !hasNamedEffectRecord(s.records) {
+		s, ok := o.rec.Section(owner, tense)
+		if !ok || s.Streamed || !hasNamedEffectRecord(s.Records) {
 			continue
 		}
 		var b strings.Builder
-		render.WriteEffects(&b, o.effectSectionLocked(s, maxSubjectWidth(*o.sectionsLocked(tense))), o.humanStyle())
+		render.WriteEffects(&b, o.effectSectionLocked(s, o.rec.MaxSubjectWidth(tense)), o.humanStyle())
 		o.writeDurableTextLocked(b.String())
-		s.namedRowsEmitted = true
+		o.rec.MarkSectionStreamed(owner, tense)
 	}
 }
 
 // effectSectionLocked is s laid out for render.WriteEffects — the one
 // shape both the streamed and the Finish ledger render.
-func (o *Output) effectSectionLocked(s *ledgerSection, nameWidth int) render.EffectSection {
+func (o *Output) effectSectionLocked(s record.SectionView, nameWidth int) render.EffectSection {
 	return render.EffectSection{
-		Kind: s.tense.String(), Subject: s.subject, Records: s.records,
-		IntendedVerb: s.intendedVerb, NameWidth: nameWidth, Width: o.ledgerWidthLocked(),
+		Kind: s.Tense.String(), Subject: s.Subject, Records: s.Records,
+		IntendedVerb: s.IntendedVerb, NameWidth: nameWidth, Width: o.ledgerWidthLocked(),
 	}
 }
 
@@ -351,17 +352,7 @@ func residualHasTaskRows(o *Output, snap Snapshot) bool {
 // renders nothing further here, so it must not reserve the blank-line
 // separator either.
 func residualHasEffectSections(o *Output) bool {
-	for _, c := range o.changes {
-		if !c.namedRowsEmitted {
-			return true
-		}
-	}
-	for _, p := range o.plans {
-		if !p.namedRowsEmitted {
-			return true
-		}
-	}
-	return false
+	return o.rec.HasUnstreamedSection()
 }
 
 // residualCompositionLocked is the ONE ordered sequence every human-stream
@@ -446,13 +437,21 @@ func (o *Output) writeResidualLedgerLocked(b *strings.Builder, style render.Styl
 	}
 }
 
+// foldSource is s as the renderer's ledger fold sees it.
+func foldSource(s record.SectionView) render.SectionSource {
+	return render.SectionSource{
+		Subject: s.Subject, Records: s.Records, IntendedVerb: s.IntendedVerb,
+		Containers: s.Containers, Streamed: s.Streamed,
+	}
+}
+
 // foldedSectionsLocked is tense's not-yet-streamed ledger, laid out for
 // render.WriteEffects.
 func (o *Output) foldedSectionsLocked(tense ledgerTense) []render.EffectSection {
-	sections := *o.sectionsLocked(tense)
+	sections := o.rec.Sections(tense)
 	sources := make([]render.SectionSource, len(sections))
 	for i, s := range sections {
-		sources[i] = s.foldSource()
+		sources[i] = foldSource(s)
 	}
 	return render.FoldEffectSections(tense.String(), o.ledgerWidthLocked(), sources)
 }

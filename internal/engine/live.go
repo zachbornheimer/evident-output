@@ -499,12 +499,8 @@ func (o *Output) finishLiveLocked(final string) {
 // otherwise reappear on the next unrelated redraw and double-print.
 func (o *Output) liveSnapshotLocked(rows int, now time.Time) Snapshot {
 	var s Snapshot
-	for _, ch := range o.changes {
-		s.Changes = append(s.Changes, ch.changesSnapshot())
-	}
-	for _, p := range o.plans {
-		s.Plans = append(s.Plans, p.planSnapshot())
-	}
+	s.Changes = o.rec.ChangeSnapshots()
+	s.Plans = o.rec.PlanSnapshots()
 	cols := liveCollections(o.collections, rows, now)
 	s.Collections = cols.Kept()
 	s = core.WithRootCollectionTally(s, cols.Tally())

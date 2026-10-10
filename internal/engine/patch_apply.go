@@ -10,6 +10,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
 	"github.com/zachbornheimer/evident-output/internal/patch"
 	"github.com/zachbornheimer/evident-output/internal/publish"
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 // defaultFileMode is the permission a new file gets when the patch does
@@ -224,7 +225,7 @@ func (o *Output) publishPatchedFile(ctx context.Context, taskID string, file des
 		return nil
 	}
 	if o.DryRun() {
-		o.recordLedgerEntry(taskID, namedEntry("write", file.target.rel))
+		o.recordLedgerEntry(taskID, record.NamedEntry("write", file.target.rel))
 		return nil
 	}
 	mode := file.mode.Perm()
@@ -257,7 +258,7 @@ func (o *Output) publishPatchedFile(ctx context.Context, taskID string, file des
 	if commitErr != nil {
 		return fmt.Errorf("evo: Patch %q: %w", file.target.rel, commitErr)
 	}
-	o.recordLedgerEntry(taskID, namedEntry("write", file.target.rel))
+	o.recordLedgerEntry(taskID, record.NamedEntry("write", file.target.rel))
 	return nil
 }
 
@@ -287,6 +288,6 @@ func (o *Output) removePlanned(ctx context.Context, taskID string, removal plann
 	} else if err := publish.Remove(ctx, path, publish.Guard{Revalidate: check}); err != nil {
 		return fmt.Errorf("evo: Patch remove %q: %w", removal.target.rel, err)
 	}
-	o.recordLedgerEntry(taskID, namedEntry("remove", removal.target.rel))
+	o.recordLedgerEntry(taskID, record.NamedEntry("remove", removal.target.rel))
 	return nil
 }

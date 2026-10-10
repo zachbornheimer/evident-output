@@ -10,6 +10,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/process"
+	"github.com/zachbornheimer/evident-output/internal/record"
 	renderplain "github.com/zachbornheimer/evident-output/internal/render/plain"
 	"github.com/zachbornheimer/evident-output/internal/terminal"
 	"github.com/zachbornheimer/evident-output/internal/wire"
@@ -66,15 +67,9 @@ type Output struct {
 	// order: the ones a live frame walks beside the collections.
 	rootTasks   []*taskState
 	collections []*tasksState
-	// changes and plans are the run's [changed] and [planned] sections, in
-	// ledger order (ledger_section.go).
-	changes []*ledgerSection
-	plans   []*ledgerSection
-	// ledger finds a section by its owning Task or shown name without
-	// rescanning (ledger_order.go).
-	ledger  ledgerIndex
-	lines   []string
-	journal journal
+	// rec holds the run's truth: its event journal and its ledger.
+	rec   *record.Run
+	lines []string
 
 	// wireSeq/wireEventErr back the §38 "evo.event" JSONL stream
 	// (structured_events.go's emitWireEventLocked) — a counter and
@@ -260,6 +255,7 @@ func newOutput(subject string, options ...Option) *Output {
 	runCtx, cancelRun := context.WithCancel(context.Background())
 	o := &Output{
 		cfg:        cfg,
+		rec:        record.NewRun(),
 		outputID:   "out_1",
 		taskByRef:  make(map[string]*taskState),
 		tasksByRef: make(map[string]*tasksState),

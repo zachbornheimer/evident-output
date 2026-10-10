@@ -38,12 +38,8 @@ func (o *Output) snapshotLocked() Snapshot {
 			s.Tasks = append(s.Tasks, t.snapshot())
 		}
 	}
-	for _, ch := range o.changes {
-		s.Changes = append(s.Changes, ch.changesSnapshot())
-	}
-	for _, p := range o.plans {
-		s.Plans = append(s.Plans, p.planSnapshot())
-	}
+	s.Changes = o.rec.ChangeSnapshots()
+	s.Plans = o.rec.PlanSnapshots()
 	for _, m := range o.messages {
 		s.Messages = append(s.Messages, MessageSnapshot{
 			ID:         m.id,
