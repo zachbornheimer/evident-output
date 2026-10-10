@@ -110,6 +110,7 @@ func newRepoWithTwoCommits(t *testing.T) throwawayRepo {
 	t.Helper()
 	dir := t.TempDir()
 	mustGit(t, dir, "init", "--quiet")
+	isolateHooks(t, dir)
 	commit := func(content string) string {
 		if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte(content), 0o644); err != nil {
 			t.Fatal(err)
@@ -124,6 +125,19 @@ func newRepoWithTwoCommits(t *testing.T) throwawayRepo {
 	r.second = commit("two")
 	r.index = mustGit(t, dir, "ls-files", "--stage")
 	return r
+}
+
+// commitHookEvents are the hook events a commit fires.
+var commitHookEvents = []string{"pre-commit", "prepare-commit-msg", "commit-msg"}
+
+// isolateHooks keeps the developer's global hooks, which gate real commits,
+// from gating commits in the throwaway repo at dir.
+func isolateHooks(t *testing.T, dir string) {
+	t.Helper()
+	mustGit(t, dir, "config", "core.hooksPath", t.TempDir())
+	for _, event := range commitHookEvents {
+		mustGit(t, dir, "config", "hook."+event+".enabled", "false")
+	}
 }
 
 func mustGit(t *testing.T, dir string, args ...string) string {

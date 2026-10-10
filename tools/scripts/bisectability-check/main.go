@@ -161,24 +161,56 @@ func firstParentCommits(repo, base, head string) ([]string, error) {
 // repeatedly re-checks-out to a different commit — one worktree reused
 // across every commit, rather than one per commit, keeps a long range cheap.
 // The worktree is added to repo.
+//
+// No hook runs in it. The tool proves commits in isolation, and a hook the
+// developer's git configuration installs would fail the proof for a reason
+// that is not the commit's. Every git command that touches the checkout points
+// core.hooksPath at an empty directory the tool owns beside it (see
+// withoutHooks).
 func newScratchWorktree(repo string) (dir string, cleanup func(), err error) {
 	dir, err = os.MkdirTemp("", "evo-bisectability-")
 	if err != nil {
 		return "", nil, fmt.Errorf("create scratch dir: %w", err)
 	}
-	if _, err := runGit(repo, "worktree", "add", "--detach", "--force", dir, "HEAD"); err != nil {
+	if err := os.Mkdir(noHooksDir(dir), 0o755); err != nil {
 		_ = os.RemoveAll(dir)
+		return "", nil, fmt.Errorf("create empty hooks dir for %s: %w", dir, err)
+	}
+	remove := func() {
+		_ = os.RemoveAll(dir)
+		_ = os.RemoveAll(noHooksDir(dir))
+	}
+	if _, err := runGit(repo, withoutHooks(dir, "worktree", "add", "--detach", "--force", dir, "HEAD")...); err != nil {
+		remove()
 		return "", nil, fmt.Errorf("worktree add %s: %w", dir, err)
 	}
 	cleanup = func() {
-		_, _ = runGit(repo, "worktree", "remove", "--force", dir)
-		_ = os.RemoveAll(dir)
+		_, _ = runGit(repo, withoutHooks(dir, "worktree", "remove", "--force", dir)...)
+		remove()
 	}
 	return dir, cleanup, nil
 }
 
+// noHooksDir is the empty directory beside worktree that git is told to look
+// for hooks in.
+func noHooksDir(worktree string) string { return worktree + ".nohooks" }
+
+// checkoutHookEvent is the hook event worktree add and checkout fire. Hooks
+// the developer's config defines by name (hook.<name>.command) ignore
+// core.hooksPath, so the event is switched off as well.
+const checkoutHookEvent = "post-checkout"
+
+// withoutHooks is the git arguments args with hooks switched off for the
+// scratch checkout worktree.
+func withoutHooks(worktree string, args ...string) []string {
+	return append([]string{
+		"-c", "core.hooksPath=" + noHooksDir(worktree),
+		"-c", "hook." + checkoutHookEvent + ".enabled=false",
+	}, args...)
+}
+
 func checkoutDetached(worktree, sha string) error {
-	if _, err := runGit(worktree, "checkout", "--detach", "--force", sha); err != nil {
+	if _, err := runGit(worktree, withoutHooks(worktree, "checkout", "--detach", "--force", sha)...); err != nil {
 		return fmt.Errorf("git checkout %s in %s: %w", sha, worktree, err)
 	}
 	return nil
