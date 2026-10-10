@@ -98,7 +98,7 @@ func New(run *record.Run, options ...Option) *Graph {
 		containers: make(map[string]*Container),
 		keys:       make(map[string]struct{}),
 	}
-	g.mu.Bind(run, nil)
+	g.mu.Bind(run)
 	for _, apply := range options {
 		apply(g)
 	}

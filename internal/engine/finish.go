@@ -22,6 +22,9 @@ func (o *Output) Finish() error {
 		return err
 	}
 	o.finishing = true
+	// A Task that settled while a notification was still in flight is
+	// answered before the run's last events are written.
+	o.followRecordLocked()
 	// Flush unterminated Print fragments into messages.
 	o.flushPendingPrintLocked()
 	// Group lifecycle: a failed/cancelled child stops its later siblings from

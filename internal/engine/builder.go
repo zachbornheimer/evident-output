@@ -93,7 +93,7 @@ func (g *GroupHandle) defineBuilder(run func()) {
 		o.mu.Unlock()
 		return
 	}
-	gate := &taskState{id: node.ID, node: node, name: node.Name, rec: node.Rec, declaration: node.Declaration}
+	gate := &taskState{id: node.ID, node: node, name: node.Name, rec: node.Rec, followed: declaredState, declaration: node.Declaration}
 	gate.handle = &TaskHandle{out: o, id: gate.id}
 	o.taskStates[gate.id] = gate
 	o.graph.Enqueue(node, nil)

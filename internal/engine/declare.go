@@ -66,7 +66,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 		return o.rejectedTask(ErrDeclaredInCallback)
 	}
 	node, err := o.graph.AddTask(containerNode(col), name, record.TaskInit{
-		State: Pending, Progress: Progress{Kind: Indeterminate}, Resolution: ResolutionNoWork,
+		State: declaredState, Progress: Progress{Kind: Indeterminate}, Resolution: ResolutionNoWork,
 	})
 	if err != nil {
 		err = declarationRefusal(err)
@@ -78,6 +78,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 		node:        node,
 		name:        node.Name,
 		rec:         node.Rec,
+		followed:    declaredState,
 		collection:  col,
 		declaration: node.Declaration,
 	}
@@ -141,6 +142,7 @@ func (o *Output) declareContainerLocked(parent *tasksState, name string, sequent
 	node := o.graph.AddContainer(containerNode(parent), clean, sequential)
 	st := &tasksState{
 		id:          node.ID,
+		out:         o,
 		node:        node,
 		name:        node.Name,
 		rec:         node.Rec,

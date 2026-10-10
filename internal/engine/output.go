@@ -19,8 +19,8 @@ import (
 
 // Output is the aggregate root for one command's presentation lifecycle.
 type Output struct {
-	// mu guards the render state. Its sections hold the run's notifications
-	// and tell heldListener what they wrote before the mutex is freed.
+	// mu guards the render state. Its sections hold the run's notifications,
+	// so the engine's listener hears a section's writes once the mutex is free.
 	mu record.Mutex
 	// facade holds this Output's public wrapper (see FacadeSlot).
 	facade FacadeSlot
@@ -33,7 +33,11 @@ type Output struct {
 	// read back (never re-derived) at Finish.
 	startedAt time.Time
 	version   uint64
-	closed    bool
+	// pulled and settles are followRecordLocked's scratch: the Tasks the
+	// record reported changed, and the ones among them that settled.
+	pulled  []record.TaskID
+	settles []settleReaction
+	closed  bool
 	// closing is non-nil once a Close call claimed the teardown; it closes
 	// when that teardown ends, so a concurrent Close waits instead of
 	// tearing down twice.
@@ -243,7 +247,7 @@ func newOutput(subject string, options ...Option) *Output {
 		cancelRun:       cancelRun,
 	}
 	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMisuseSink(misuseSink{o: o}))
-	o.mu.Bind(run, heldListener{o: o})
+	o.mu.Bind(run)
 	run.SetListener(outputListener{o: o})
 	// Stable-enough id for a process-local output instance.
 	o.outputID = o.graph.NextID("out")
@@ -333,8 +337,7 @@ func (o *Output) promoteRunningLocked(st *taskState) {
 		}
 		col.runningSteps = append(col.runningSteps, st)
 	}
-	from := st.rec.Transition(Running)
-	st.censusMoved(from)
+	st.rec.Transition(Running)
 	st.markFiling()
 	o.armPlainHeartbeatLocked(st, o.cfg.clock.Now())
 	// Every promoteRunningLocked call site already guards on st.state ==

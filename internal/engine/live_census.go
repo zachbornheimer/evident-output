@@ -77,13 +77,21 @@ func (t *taskState) unstampedIn(state EntityState) bool {
 	return (state == Running || state == Pending) && t.liveFirstSeenAt.IsZero()
 }
 
-// censusDeclared counts a newly declared Task.
+// currentCensus is g's census after following the record, so it counts
+// every Task by the state the record holds now.
+func (g *tasksState) currentCensus() *liveCensus {
+	g.out.pullRecordLocked()
+	return &g.census
+}
+
+// censusDeclared counts a newly declared Task under the state it was
+// declared in; censusSync moves it from there.
 func (t *taskState) censusDeclared() {
 	width := utf8.RuneCountInString(t.name)
-	unstamped := t.unstampedIn(t.rec.State())
+	unstamped := t.unstampedIn(t.followed)
 	t.censusesAbove(func(c *liveCensus) {
 		c.total++
-		c.count(t.rec.State(), 1)
+		c.count(t.followed, 1)
 		if t.rec.WarningCount() > 0 {
 			c.warned++
 		}
@@ -95,15 +103,20 @@ func (t *taskState) censusDeclared() {
 	})
 }
 
-// censusMoved records that t moved from state from to its current state.
-func (t *taskState) censusMoved(from EntityState) {
-	if from == t.rec.State() {
+// censusSync moves t from the state the census counts it under to the state
+// the record holds now. Moving by the counted state, not by the transition a
+// notification named, keeps the census right however late or how often the
+// record tells of a change.
+func (t *taskState) censusSync() {
+	from, to := t.followed, t.rec.State()
+	if from == to {
 		return
 	}
-	stampDelta := boolDelta(t.unstampedIn(t.rec.State())) - boolDelta(t.unstampedIn(from))
+	t.followed = to
+	stampDelta := boolDelta(t.unstampedIn(to)) - boolDelta(t.unstampedIn(from))
 	t.censusesAbove(func(c *liveCensus) {
 		c.count(from, -1)
-		c.count(t.rec.State(), 1)
+		c.count(to, 1)
 		c.unstamped += stampDelta
 	})
 }

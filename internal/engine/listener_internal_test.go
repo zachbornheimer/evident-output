@@ -40,11 +40,9 @@ func newListenerTestOutput(t *testing.T) *Output {
 // TestListenerTakingTheOutputLockDoesNotDeadlockInsideDefine proves a
 // handler that takes Output.mu runs after the writer released it: a Define
 // callback settles its own Task from inside a critical section, and the
-// handler for that settle takes the same lock. The mutex's own listener is
-// unbound, so the run's listener is the one that hears the settle.
+// handler for that settle takes the same lock.
 func TestListenerTakingTheOutputLockDoesNotDeadlockInsideDefine(t *testing.T) {
 	o := newListenerTestOutput(t)
-	o.mu.Bind(o.rec, nil)
 	heard := make(chan struct{}, 1)
 	o.rec.SetListener(lockTakingListener{o: o, inner: outputListener{o: o}, heard: heard})
 
@@ -67,35 +65,5 @@ func TestListenerTakingTheOutputLockDoesNotDeadlockInsideDefine(t *testing.T) {
 	case <-heard:
 	default:
 		t.Error("the lock-taking listener never heard the settle")
-	}
-}
-
-// TestSettleIsReflectedBeforeItsCriticalSectionEnds proves the render state
-// a terminal transition owes is applied inside the section that made it: the
-// moment Fail returns, the task.failed event is journaled, with no window in
-// which another goroutine could read the settled Task without it.
-func TestSettleIsReflectedBeforeItsCriticalSectionEnds(t *testing.T) {
-	o := newListenerTestOutput(t)
-	journaled := make(chan bool, 1)
-	task := o.Task("settles")
-	task.Define(func(context.Context) error {
-		task.Fail("by the callback")
-		found := false
-		for _, e := range o.copyEvents() {
-			if e.Type == "task.failed" && e.EntityID == task.id {
-				found = true
-			}
-		}
-		journaled <- found
-		return nil
-	})
-
-	select {
-	case found := <-journaled:
-		if !found {
-			t.Error("the task.failed event was not journaled when Fail returned")
-		}
-	case <-time.After(waitOutcomeTimeout):
-		t.Fatal("the callback never finished")
 	}
 }

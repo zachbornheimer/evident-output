@@ -30,6 +30,9 @@ type Run struct {
 	listener atomic.Pointer[listenerBox]
 	// notes holds the notifications a Hold keeps back from the listener.
 	notes notifier
+	// changes logs the Tasks written since a projection last pulled them
+	// (see TakeChanged).
+	changes changeLog
 }
 
 // NewRun is an empty record of a run that has not started.

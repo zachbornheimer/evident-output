@@ -50,6 +50,13 @@ type taskState struct {
 	// including a Pending task, which never calls Phase/Progress.
 	liveFirstSeenAt time.Time
 
+	// followed is the state the render state last accounted for: the live
+	// census counts the Task under it, and a later difference from the
+	// record's state is what followRecordLocked reacts to. A Task starts
+	// followed as declaredState, so a Task settled before the engine ever
+	// saw it still gets its first reaction.
+	followed EntityState
+
 	// filing is where this Task stands in its collection's childIndex.
 	filing filing
 
@@ -112,6 +119,9 @@ type taskState struct {
 
 type tasksState struct {
 	id string
+	// out is the Output this container belongs to: a read of its live index
+	// first follows the record (see Output.followRecordLocked).
+	out *Output
 	// node is the graph's declaration of this Group/Sequence and owns its
 	// §3.1 stable key.
 	node *graph.Container

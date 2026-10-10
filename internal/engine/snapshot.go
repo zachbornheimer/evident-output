@@ -17,6 +17,7 @@ func (o *Output) Snapshot() Snapshot {
 }
 
 func (o *Output) snapshotLocked() Snapshot {
+	o.followRecordLocked()
 	s := Snapshot{
 		Version:       o.version,
 		OutputID:      o.outputID,
@@ -297,7 +298,7 @@ func (g *tasksState) liveSnapshot(rows int, now time.Time) TasksSnapshot {
 func liveCollections(cols []*tasksState, rows int, now time.Time) *live.LiveCollections {
 	projected := live.NewLiveCollections(rows)
 	for _, col := range cols {
-		if projected.Admit(col.census.rank()) {
+		if census := col.currentCensus(); projected.Admit(census.rank()) {
 			projected.Keep(col.liveSnapshot(rows, now))
 			continue
 		}
@@ -323,7 +324,7 @@ func (g *tasksState) view() TasksSnapshot {
 // stampLiveFirstSeen stamps every Task at or below g, as a frame that
 // counted them does (see taskState.stampLiveFirstSeen).
 func (g *tasksState) stampLiveFirstSeen(now time.Time) {
-	if g.census.unstamped == 0 {
+	if g.currentCensus().unstamped == 0 {
 		return
 	}
 	g.stampDirectTasks(now)

@@ -74,6 +74,7 @@ func (t *taskState) markFiling() {
 
 // settled is g's index with every marked Task refiled.
 func (g *tasksState) settled() *childIndex {
+	g.out.pullRecordLocked()
 	x := &g.kids
 	for len(x.dirty) > 0 {
 		dirty := x.dirty

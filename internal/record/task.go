@@ -30,6 +30,10 @@ type Task struct {
 	verifyEvidence TaskEvidence
 	skipped        []TaxonomyRecord
 	kept           []TaxonomyRecord
+
+	// logged is set while the Task waits in the run's change log; the log
+	// guards it.
+	logged bool
 }
 
 // TaskInit is what a Task's record starts with. Zero fields stay zero.
@@ -107,7 +111,7 @@ func (t *Task) Transition(to EntityState) (from EntityState) {
 
 // swapState sets the state under the run lock and returns the one it left.
 func (t *Task) swapState(to EntityState) (from EntityState) {
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	from, t.state = t.state, to
 	return from
@@ -135,7 +139,7 @@ func (t *Task) Phase() string {
 // SetPhase replaces the current-step text with a sanitized text.
 func (t *Task) SetPhase(text string) {
 	defer t.changed()
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	t.phase = SanitizeText(text)
 }
@@ -158,6 +162,7 @@ func (t *Task) replacePhase(text string) bool {
 	if text == t.phase {
 		return false
 	}
+	t.run.changes.add(t)
 	t.phase = text
 	return true
 }
@@ -165,7 +170,7 @@ func (t *Task) replacePhase(text string) bool {
 // ClearPhase ends the current step.
 func (t *Task) ClearPhase() {
 	defer t.changed()
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	t.phase = ""
 }
@@ -181,7 +186,7 @@ func (t *Task) Progress() Progress {
 // the Indeterminate kind, so a live row knows it is working.
 func (t *Task) EnsureIndeterminateProgress() {
 	defer t.changed()
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	if t.progress.Kind == "" {
 		t.progress.Kind = Indeterminate
@@ -233,6 +238,7 @@ func (t *Task) applyProgress(completed, total int64, kind ProgressKind) Progress
 			return ProgressInvalid
 		}
 	}
+	t.run.changes.add(t)
 	t.progress = Progress{Kind: kind, Completed: completed, Total: total}
 	return ProgressApplied
 }
@@ -247,7 +253,7 @@ func (t *Task) Summary() string {
 // SetSummary replaces the result text with a sanitized text; empty clears it.
 func (t *Task) SetSummary(text string) {
 	defer t.changed()
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	t.summary = SanitizeText(text)
 }
@@ -262,7 +268,7 @@ func (t *Task) Resolution() Resolution {
 // SetResolution records why the Task settled successfully.
 func (t *Task) SetResolution(r Resolution) {
 	defer t.changed()
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	t.resolution = r
 }
@@ -277,7 +283,7 @@ func (t *Task) VerifyEvidence() TaskEvidence {
 // RecordBeforeEvidence records the observation made before Define ran.
 func (t *Task) RecordBeforeEvidence(p EvidencePhase) {
 	defer t.changed()
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	t.verifyEvidence.Before = p
 }
@@ -285,7 +291,7 @@ func (t *Task) RecordBeforeEvidence(p EvidencePhase) {
 // RecordAfterEvidence records the observation made after Define ran.
 func (t *Task) RecordAfterEvidence(p EvidencePhase) {
 	defer t.changed()
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	t.verifyEvidence.After = p
 }
@@ -307,7 +313,7 @@ func (t *Task) ProblemCount() int {
 // AppendProblems records blocking Problems, sanitized and copied.
 func (t *Task) AppendProblems(problems ...Problem) {
 	defer t.changed()
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	t.problems = append(t.problems, StoreProblems(problems)...)
 }
@@ -318,7 +324,7 @@ func (t *Task) AppendProblems(problems ...Problem) {
 // evidence a caller collected needs no opt-in.
 func (t *Task) ResolveProblems(state EntityState, extra []Problem, evidenceTail string) {
 	defer t.changed()
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	if len(extra) == 0 && len(t.problems) == 0 {
 		return
@@ -367,7 +373,7 @@ func (t *Task) WarningCount() int {
 // Warnings annotate the Task's lifecycle; they never replace it.
 func (t *Task) AppendWarning(p Problem) int {
 	defer t.changed()
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	t.warnings = append(t.warnings, p)
 	return len(t.warnings)
@@ -383,7 +389,7 @@ func (t *Task) Facts() []Fact {
 // AppendFact records a discovered name/value annotation.
 func (t *Task) AppendFact(f Fact) {
 	defer t.changed()
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	t.facts = append(t.facts, f)
 }
@@ -398,7 +404,7 @@ func (t *Task) Actions() []Action {
 // AppendAction records a next step for the Task.
 func (t *Task) AppendAction(a Action) {
 	defer t.changed()
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	t.actions = append(t.actions, a)
 }
@@ -414,7 +420,7 @@ func (t *Task) ActivityAt() time.Time {
 // MarkActivity records that the Task reported something at at.
 func (t *Task) MarkActivity(at time.Time) {
 	defer t.changed()
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	t.activityAt = at
 }
@@ -430,7 +436,7 @@ func (t *Task) Verification() []VerificationDetail {
 func (t *Task) AttachVerification(details []VerificationDetail) []VerificationDetail {
 	defer t.changed()
 	stored := StoreVerificationDetails(details)
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	t.verification = append(t.verification, stored...)
 	return stored
@@ -460,7 +466,7 @@ func (t *Task) HasTaxonomy() bool {
 // AppendSkipped records one skipped item.
 func (t *Task) AppendSkipped(rec TaxonomyRecord) {
 	defer t.changed()
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	t.skipped = append(t.skipped, rec)
 }
@@ -468,7 +474,7 @@ func (t *Task) AppendSkipped(rec TaxonomyRecord) {
 // AppendKept records one kept item.
 func (t *Task) AppendKept(rec TaxonomyRecord) {
 	defer t.changed()
-	t.run.mu.Lock()
+	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	t.kept = append(t.kept, rec)
 }

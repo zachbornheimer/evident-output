@@ -11,9 +11,9 @@ import "sync"
 // Release or write left no Hold open. A listener must be quick and must not
 // block.
 //
-// The one exception is a Mutex bound with its own listener (see Mutex): it
-// tells that listener inside the section, so what the section wrote is
-// reflected before the lock is free.
+// A notification is a prompt, not the only way to learn of a write: the
+// record's change log (see TakeChanged) holds every written Task from the
+// moment of the write, so a reader that must be exact pulls it.
 type Listener interface {
 	// TaskChanged reports that a write changed the Task named id. A write
 	// that moves the Task between states reports the state it left and the
@@ -71,22 +71,7 @@ func (r *Run) Release() {
 	if !r.notes.drop() {
 		return
 	}
-	r.deliverPending(nil, false)
-}
-
-// Drain tells l everything held back so far, in order, on the calling
-// goroutine, whatever Holds are open. It is for a writer that holds the lock
-// l reacts under: l hears the writes inside the writer's own critical
-// section, so the reaction is part of the write. It does nothing while
-// another goroutine is delivering.
-func (r *Run) Drain(l Listener) {
-	r.notes.mu.Lock()
-	idle := len(r.notes.pending) == 0
-	r.notes.mu.Unlock()
-	if idle {
-		return
-	}
-	r.deliverPending(l, true)
+	r.deliverPending()
 }
 
 // drop ends one Hold and reports whether that left none open.
@@ -118,15 +103,14 @@ func (r *Run) post(n notification) {
 	idle := r.notes.holds == 0
 	r.notes.mu.Unlock()
 	if idle {
-		r.deliverPending(nil, false)
+		r.deliverPending()
 	}
 }
 
-// deliverPending tells to, or the run's listener when to is nil, what is
-// queued, one goroutine at a time so the order never interleaves. Unless
-// ignoreHolds it stops when a Hold opens, leaving the rest to that Hold's
-// Release. No lock is held while the listener runs.
-func (r *Run) deliverPending(to Listener, ignoreHolds bool) {
+// deliverPending tells the run's listener what is queued, one goroutine at a
+// time so the order never interleaves. It stops when a Hold opens, leaving
+// the rest to that Hold's Release. No lock is held while the listener runs.
+func (r *Run) deliverPending() {
 	n := &r.notes
 	n.mu.Lock()
 	if n.delivering {
@@ -134,11 +118,11 @@ func (r *Run) deliverPending(to Listener, ignoreHolds bool) {
 		return
 	}
 	n.delivering = true
-	for len(n.pending) > 0 && (ignoreHolds || n.holds == 0) {
+	for len(n.pending) > 0 && n.holds == 0 {
 		batch := n.pending
 		n.pending = n.spare[:0]
 		n.mu.Unlock()
-		r.tell(to, batch)
+		r.tell(batch)
 		n.mu.Lock()
 		clear(batch)
 		n.spare = batch[:0]
@@ -147,16 +131,12 @@ func (r *Run) deliverPending(to Listener, ignoreHolds bool) {
 	n.mu.Unlock()
 }
 
-// tell delivers batch to to, or the run's listener when to is nil. If the
-// listener panics, delivery is handed back so a later write can deliver
-// again.
-func (r *Run) tell(to Listener, batch []notification) {
+// tell delivers batch to the run's listener. If the listener panics,
+// delivery is handed back so a later write can deliver again.
+func (r *Run) tell(batch []notification) {
+	to := r.listener.Load()
 	if to == nil {
-		box := r.listener.Load()
-		if box == nil {
-			return
-		}
-		to = box
+		return
 	}
 	returned := false
 	defer func() {
@@ -178,24 +158,15 @@ func (r *Run) tell(to Listener, batch []notification) {
 
 // Mutex is a mutex whose critical section is also a Hold on a Run: what the
 // section writes to the record reaches the run's listener only after the
-// mutex is free again, so the listener may take it. A Mutex bound with its
-// own listener tells that listener inside the section instead, just before
-// the mutex is freed, so a listener that repaints state the mutex guards
-// reflects the section's writes before anyone else can read that state. The
-// zero Mutex is an ordinary unlocked mutex until Bind names its Run.
+// mutex is free again, so the listener may take it. The zero Mutex is an
+// ordinary unlocked mutex until Bind names its Run.
 type Mutex struct {
-	mu    sync.Mutex
-	run   *Run
-	under Listener
+	mu  sync.Mutex
+	run *Run
 }
 
-// Bind makes r the Run this Mutex's sections hold. under, when not nil,
-// hears the section's writes while the Mutex is still held. Call it before
-// first use.
-func (m *Mutex) Bind(r *Run, under Listener) {
-	m.run = r
-	m.under = under
-}
+// Bind makes r the Run this Mutex's sections hold. Call it before first use.
+func (m *Mutex) Bind(r *Run) { m.run = r }
 
 // Lock takes the mutex, then holds the Run's notifications.
 func (m *Mutex) Lock() {
@@ -205,18 +176,15 @@ func (m *Mutex) Lock() {
 	}
 }
 
-// Unlock tells the bound listener what the section wrote, frees the mutex,
-// then releases the hold, which tells the run's listener whatever is left.
+// Unlock frees the mutex, then releases the hold, which tells the run's
+// listener whatever the section wrote.
 func (m *Mutex) Unlock() {
 	if m.run == nil {
 		m.mu.Unlock()
 		return
 	}
 	defer m.run.Release()
-	defer m.mu.Unlock()
-	if m.under != nil {
-		m.run.Drain(m.under)
-	}
+	m.mu.Unlock()
 }
 
 // changed tells the listener this Task changed without changing state.

@@ -264,7 +264,7 @@ func (o *Output) needsSpinnerAnimLocked() bool {
 		return true
 	}
 	for _, col := range o.collections {
-		if col.census.running+col.census.pending > 0 {
+		if census := col.currentCensus(); census.running+census.pending > 0 {
 			return true
 		}
 	}
