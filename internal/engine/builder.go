@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"errors"
-
 	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
@@ -98,66 +96,6 @@ func (g *GroupHandle) defineBuilder(run func()) {
 	o.followRecordLocked()
 	o.mu.Unlock()
 	o.graph.Kick()
-}
-
-// awaitBuilders parks until every topology builder under the container has
-// settled, and returns why a builder did not declare its children. Nested
-// builders are declared by their parent's, so each level is awaited after
-// the one above it.
-func (o *Output) awaitBuilders(id string, stack *graph.WaiterStack) error {
-	o.mu.Lock()
-	col := o.containerStates[id]
-	o.mu.Unlock()
-	if col == nil {
-		return nil
-	}
-	return o.awaitBuildersIn(col, stack, &graph.InputSeals{})
-}
-
-func (o *Output) awaitBuildersIn(col *tasksState, stack *graph.WaiterStack, seen *graph.InputSeals) error {
-	var errs []error
-	if gate := o.gateHandle(col); gate != nil {
-		if err := gate.waitChecked(stack, seen); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	o.mu.Lock()
-	children := col.childStates()
-	o.mu.Unlock()
-	for _, child := range children {
-		if err := o.awaitBuildersIn(child, stack, seen); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
-}
-
-// gateHandle is the handle of col's builder gate, nil when col has none.
-func (o *Output) gateHandle(col *tasksState) *TaskHandle {
-	node := col.node.BuilderGate()
-	if node == nil {
-		return nil
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.taskStates[node.ID].handle
-}
-
-// withBuilderOutcome folds a container Wait's builder outcome into its
-// descendants' outcome. A builder that never ran is derivative when some
-// descendant already answers, and the whole answer otherwise, so a Group
-// that declared nothing because its predecessor failed does not wait to nil.
-func withBuilderOutcome(builderErr, descendantsErr error) error {
-	switch {
-	case builderErr == nil:
-		return descendantsErr
-	case descendantsErr == nil:
-		return builderErr
-	case errors.Is(builderErr, ErrNotStarted):
-		return descendantsErr
-	default:
-		return errors.Join(builderErr, descendantsErr)
-	}
 }
 
 // declaredInCallback reports whether the calling goroutine is inside a Task

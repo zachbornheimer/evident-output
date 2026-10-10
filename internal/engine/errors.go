@@ -42,7 +42,7 @@ var (
 	// the zero value of "the error the callback returned", so a waiter
 	// rendered a green row over the very next line admitting the work it
 	// awaited never started.
-	ErrNotStarted = errors.New("evo: awaited task never started")
+	ErrNotStarted = graph.ErrNotStarted
 	// ErrWaitDeadlock is what TaskHandle.Wait returns, and records as
 	// misuse, when nothing in the run can ever satisfy the wait: a task
 	// waiting on itself, two tasks waiting on each other, or any wait left
@@ -80,15 +80,3 @@ var (
 	// Define; the call is ignored.
 	ErrBasisAfterDefine = errors.New("evo: Basis called after Define")
 )
-
-// errWaitCancelled is what TaskHandle.Wait returns for a task an interrupt
-// or an explicit Cancel resolved instead of running. It stays unexported:
-// a cancelled run already states itself in the row and the conclusion, and
-// the waiter needs "this did not succeed", not a second public name.
-var errWaitCancelled = errors.New("evo: awaited task was cancelled")
-
-// errWaitFailed is what TaskHandle.Wait returns for a row that resolved
-// Failed or Blocked with no callback error recorded — the callback settled
-// its own row and has not returned yet, or returned nil after doing so.
-// Unexported for the same reason as errWaitCancelled.
-var errWaitFailed = errors.New("evo: awaited task did not succeed")

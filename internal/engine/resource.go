@@ -60,37 +60,10 @@ func (o *Output) holdResource(ctx context.Context, r Resource, mode resource.Mod
 // runHoldingResource is the single frame every granted claim's work runs
 // beneath, so Wait can tell from its own goroutine's stack that the caller
 // holds a claim, and from the hold sensor (graph.Holds) that the goroutine which
-// started it does (see refuseWaitUnderClaim).
+// started it does (see graph.Graph.Wait).
 func runHoldingResource(held context.Context, fn func(context.Context) error) error {
 	defer graph.ProcessHolds().Enter().Leave()
 	return fn(held)
-}
-
-// refuseWaitUnderClaim returns ErrNestedResourceAcquisition, naming the
-// awaited Task or container, when the calling goroutine, or the goroutine
-// that started it, holds a resource claim. Waiting while holding a claim is nested acquisition in
-// disguise: the awaited work may need the held resource, and neither side
-// could then move. Like a second acquisition, it is refused every time,
-// not only when it would actually conflict, so the outcome never depends
-// on timing. Wait takes no context, so the claim is read from the stack.
-func (o *Output) refuseWaitUnderClaim(ref string, stack *graph.WaiterStack) error {
-	if !stack.HoldsClaim() {
-		return nil
-	}
-	return fmt.Errorf("%w: Wait on %q while holding a resource claim", ErrNestedResourceAcquisition, o.refName(ref))
-}
-
-// refName is the declared name of the Task or Group/Sequence ref names.
-func (o *Output) refName(ref string) string {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if st := o.taskStates[ref]; st != nil {
-		return st.name
-	}
-	if col := o.containerStates[ref]; col != nil {
-		return col.name
-	}
-	return ref
 }
 
 // checkResourceFree fails with ErrNestedResourceAcquisition when ctx

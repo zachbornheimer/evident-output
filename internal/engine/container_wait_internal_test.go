@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 // TestGroupHandle_Wait_AllSucceed pins ZYS-849's baseline: a Group can be
@@ -218,8 +220,8 @@ func TestGroupHandle_Wait_CancelledChildIsVisible(t *testing.T) {
 		if err == nil {
 			t.Fatal("jobs.Wait() = nil, want the Cancelled child's outcome")
 		}
-		if !errors.Is(err, errWaitCancelled) {
-			t.Fatalf("jobs.Wait() = %v, want errors.Is(err, errWaitCancelled)", err)
+		if !errors.Is(err, graph.ErrWaitCancelled) {
+			t.Fatalf("jobs.Wait() = %v, want errors.Is(err, graph.ErrWaitCancelled)", err)
 		}
 		return err
 	})
