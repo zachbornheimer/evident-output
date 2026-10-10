@@ -135,7 +135,7 @@ func CheckDir(dir string) (Report, error) {
 }
 
 func loadLines(path string) ([]string, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return nil, err
 	}

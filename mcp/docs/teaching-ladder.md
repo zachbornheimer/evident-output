@@ -105,7 +105,7 @@ program may not actually have — pass `evo.PolicyFlag("--apply")` to name the r
 ```go
 cmd := exec.Command("zq", "setup")
 cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-out.Suspend(func() error { return cmd.Run() })
+_ = out.Suspend(func() error { return cmd.Run() })
 ```
 
 Only needed when a child paints its own UI on the shared terminal (tty passthrough); a captured or
@@ -115,5 +115,5 @@ Only needed when a child paints its own UI on the shared terminal (tty passthrou
 
 ```go
 out := evo.Init(evo.Config{Title: "tool", Format: evo.FormatData, Isolated: true})
-json.NewEncoder(out.ResultWriter()).Encode(payload)
+_ = json.NewEncoder(out.ResultWriter()).Encode(payload)
 ```

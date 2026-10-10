@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -88,8 +89,9 @@ func cmdReview(args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("usage: evident-output review <file.go|dir>")
 	}
-	path := args[0]
-	info, err := os.Stat(path)
+	path := filepath.Clean(args[0])
+	parent, name := os.DirFS(filepath.Dir(path)), filepath.Base(path)
+	info, err := fs.Stat(parent, name)
 	if err != nil {
 		return err
 	}
@@ -100,11 +102,11 @@ func cmdReview(args []string) error {
 			return err
 		}
 	} else {
-		raw, err := os.ReadFile(path)
+		raw, err := fs.ReadFile(parent, name)
 		if err != nil {
 			return err
 		}
-		res = review.GoSource(filepath.Base(path), string(raw))
+		res = review.GoSource(name, string(raw))
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")

@@ -77,7 +77,7 @@ func skipUninventoried(d os.DirEntry) error {
 }
 
 func inventoryPath(fset *token.FileSet, path string) ([]Finding, *ast.File, error) {
-	src, err := os.ReadFile(path)
+	src, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return nil, nil, fmt.Errorf("read %s: %w", path, err)
 	}

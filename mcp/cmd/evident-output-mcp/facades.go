@@ -5,12 +5,13 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 )
 
 const (
 	evoModulePath   = "github.com/zachbornheimer/evident-output"
-	mcpInstallPkg   = evoModulePath + "/cmd/evident-output-mcp"
+	mcpInstallPkg   = evoModulePath + "/mcp/cmd/evident-output-mcp"
 	mcpLocalPkg     = "./mcp/cmd/evident-output-mcp"
 	mcpBinaryName   = "evident-output-mcp"
 	envNoAutoUpdate = "EVO_MCP_NO_AUTO_UPDATE"
@@ -64,7 +65,7 @@ func (osEnv) Get(key string) string {
 
 type osFiles struct{}
 
-func (osFiles) ReadFile(name string) ([]byte, error)  { return os.ReadFile(name) }
+func (osFiles) ReadFile(name string) ([]byte, error)  { return os.ReadFile(filepath.Clean(name)) }
 func (osFiles) Stat(name string) (fs.FileInfo, error) { return os.Stat(name) }
 func (osFiles) MkdirAll(path string, perm os.FileMode) error {
 	return os.MkdirAll(path, perm)

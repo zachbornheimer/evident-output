@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -56,7 +57,7 @@ func (r VocabReport) String() string {
 
 // LoadVocabulary reads the freeze at path.
 func LoadVocabulary(path string) ([]Entry, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return nil, fmt.Errorf("apisurface: read %s: %w", path, err)
 	}

@@ -30,7 +30,7 @@ func handleReview(id any, args map[string]any, cancelled *atomic.Bool) {
 		return
 	}
 	if src == "" && filepath.IsAbs(file) {
-		read, err := os.ReadFile(file)
+		read, err := os.ReadFile(filepath.Clean(file))
 		if err != nil {
 			writeRPC(id, toolError(fmt.Sprintf("cannot read %s: %s", file, err)))
 			return
@@ -96,7 +96,7 @@ func packageFiles(args map[string]any, file, src string) (files map[string]strin
 				return nil, "", "remote path unsupported; pass source content only (MCP-036)"
 			}
 			if filepath.IsAbs(s) {
-				read, err := os.ReadFile(s)
+				read, err := os.ReadFile(filepath.Clean(s))
 				if err != nil {
 					return nil, "", fmt.Sprintf("cannot read %s: %s", s, err)
 				}

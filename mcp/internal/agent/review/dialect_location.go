@@ -50,7 +50,7 @@ func (d Dialect) Stamp(res Result) Result {
 func pinFromDir(start string) modpin.Pin {
 	dir := start
 	for {
-		data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+		data, err := os.ReadFile(filepath.Clean(filepath.Join(dir, "go.mod")))
 		if err == nil {
 			pin, err := modpin.Parse(string(data), dir)
 			if err != nil {

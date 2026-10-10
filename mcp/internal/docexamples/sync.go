@@ -133,7 +133,7 @@ func FixtureRegion(dir string) (string, error) {
 	var regions []string
 	for _, name := range names {
 		path := filepath.Join(dir, name)
-		src, err := os.ReadFile(path)
+		src, err := os.ReadFile(filepath.Clean(path))
 		if err != nil {
 			return "", fmt.Errorf("read fixture file %s: %w", path, err)
 		}

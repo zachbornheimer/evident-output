@@ -44,7 +44,7 @@ func conformanceReviewResult(args map[string]any) (review.Result, error) {
 		return review.Result{}, fmt.Errorf("remote path unsupported; pass source content only (MCP-036)")
 	}
 	if src == "" && filepath.IsAbs(file) {
-		read, err := os.ReadFile(file)
+		read, err := os.ReadFile(filepath.Clean(file))
 		if err != nil {
 			return review.Result{}, fmt.Errorf("cannot read %s: %w", file, err)
 		}

@@ -2,6 +2,7 @@ package review
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,6 +21,7 @@ func GoDirectoryAt(dir, desiredVersion string) (Result, error) {
 	dialect := DialectFor(dir, desiredVersion)
 	ver := dialect.Lint()
 	var all []Finding
+	tree := os.DirFS(dir)
 	walkErr := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("walk %s: %w", path, err)
@@ -30,7 +32,11 @@ func GoDirectoryAt(dir, desiredVersion string) (Result, error) {
 		if !strings.HasSuffix(path, ".go") {
 			return nil
 		}
-		src, err := os.ReadFile(path)
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			return fmt.Errorf("relate %s to %s: %w", path, dir, err)
+		}
+		src, err := fs.ReadFile(tree, filepath.ToSlash(rel))
 		if err != nil {
 			return fmt.Errorf("read %s: %w", path, err)
 		}
