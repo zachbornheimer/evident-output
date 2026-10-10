@@ -117,6 +117,9 @@ func (c *Computed[T]) Get() T {
 // err. One from a goroutine the callback started cannot: the graph fails the
 // callback's Task when it returns.
 func (o *Output) refuseComputedReadLocked(subject string, err error) {
+	if subject != "" {
+		err = fmt.Errorf("%w: read of %q", err, subject)
+	}
 	o.recordMisuseFor(subject, err)
 	if o.graph.CurrentReader().Unwinds() {
 		panic(err)

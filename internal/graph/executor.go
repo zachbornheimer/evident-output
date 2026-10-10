@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"errors"
 	"fmt"
 	"runtime"
 
@@ -184,13 +183,13 @@ func (g *Graph) finishClaimed(c *claim) {
 }
 
 // recordPanic states a panic that escaped c's callback. The row fails with the
-// panic text. A Computed read the declared order refused unwinds with its
-// sentinel, and that sentinel is what the callback "returned": a waiter
+// panic text. A panic with an error (a Computed read the declared order
+// refused unwinds with its sentinel) is what the callback "returned": a waiter
 // matches it with errors.Is instead of parsing the text.
 func (g *Graph) recordPanic(c *claim, recovered any) {
-	if err, ok := recovered.(error); ok && errors.Is(err, ErrComputedUnordered) {
+	if _, ok := recovered.(error); ok {
 		g.lock()
-		c.task.workErr = err
+		c.task.workErr = panicError(recovered)
 		g.unlock()
 	}
 	if c.work.Panicked != nil {
