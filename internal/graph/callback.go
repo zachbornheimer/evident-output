@@ -10,88 +10,6 @@ import (
 // terminal reports whether t reached a terminal state.
 func terminal(t *Task) bool { return record.IsTerminalTask(t.Rec.State()) }
 
-// runTrackedCallback runs fn while the scheduler knows which goroutine is
-// running it, so a goroutine fn starts and then parks in a wait can be traced
-// back to the callback it may be holding still.
-func (g *Graph) runTrackedCallback(fn func() error) error {
-	defer g.trackRunning(goroutineLoad{callbacks: 1})()
-	return runCallback(fn)
-}
-
-// goroutineLoad is what one goroutine is running right now: task callbacks
-// and container builders.
-type goroutineLoad struct{ callbacks, builders int }
-
-func (l goroutineLoad) total() int { return l.callbacks + l.builders }
-
-// runsAny reports whether the goroutine runs a task callback or builder.
-func (l goroutineLoad) runsAny() bool { return l.total() > 0 }
-
-// startingGoroutine is the nearest goroutine running a task callback or
-// builder that started the calling goroutine, through any number of
-// goroutines in between: creator itself when it qualifies, else the nearest
-// ancestor that does. With none, or no goroutine running anything, it is
-// creator, so the common case reads no more than the direct creator. The
-// ancestor walk may stop the world, once per goroutine (see lineage); it is
-// reached only by a goroutine another goroutine started while work runs.
-func (g *Graph) startingGoroutine(creator GoroutineID) GoroutineID {
-	if creator == 0 {
-		return 0
-	}
-	g.lockRead()
-	direct, working := g.exec.runningGoroutines[creator].runsAny(), len(g.exec.runningGoroutines) > 0
-	g.unlockRead()
-	if direct || !working {
-		return creator
-	}
-	ancestors := GoroutineAncestors()
-	g.lockRead()
-	defer g.unlockRead()
-	for _, id := range ancestors {
-		if g.exec.runningGoroutines[id].runsAny() {
-			return id
-		}
-	}
-	return creator
-}
-
-// trackRunning adds added to the calling goroutine's load, and returns the
-// func that takes it back out.
-func (g *Graph) trackRunning(added goroutineLoad) (done func()) {
-	id := CurrentGoroutine()
-	g.lock()
-	if g.exec.runningGoroutines == nil {
-		g.exec.runningGoroutines = make(map[GoroutineID]goroutineLoad)
-	}
-	load := g.exec.runningGoroutines[id]
-	load.callbacks += added.callbacks
-	load.builders += added.builders
-	g.exec.runningGoroutines[id] = load
-	g.exec.buildersRunning += added.builders
-	g.unlock()
-	return func() {
-		g.lock()
-		defer g.unlock()
-		g.exec.buildersRunning -= added.builders
-		load := g.exec.runningGoroutines[id]
-		load.callbacks -= added.callbacks
-		load.builders -= added.builders
-		if load.total() <= 0 {
-			delete(g.exec.runningGoroutines, id)
-			return
-		}
-		g.exec.runningGoroutines[id] = load
-	}
-}
-
-// anyBuilderRunning reports whether any goroutine is running a container
-// builder right now.
-func (g *Graph) anyBuilderRunning() bool {
-	g.lockRead()
-	defer g.unlockRead()
-	return g.exec.buildersRunning > 0
-}
-
 // builderGateOf is the innermost container builder gate goroutine id is
 // running for, or nil.
 func (g *Graph) builderGateOf(id GoroutineID) *Task {
@@ -106,14 +24,6 @@ func (g *Graph) builderGateOf(id GoroutineID) *Task {
 	return nil
 }
 
-// isRunningBuilder reports whether goroutine id is running a container
-// builder.
-func (g *Graph) isRunningBuilder(id GoroutineID) bool {
-	g.lockRead()
-	defer g.unlockRead()
-	return g.exec.runningGoroutines[id].builders > 0
-}
-
 // runCallback is the single frame every task callback runs beneath, so a
 // goroutine parked in a wait can count how many callbacks it is holding
 // still. That count is the one thing separating "a callback is stuck
@@ -126,8 +36,8 @@ func runCallback(fn func() error) error {
 // runGate runs a claimed container builder and settles its gate. The builder
 // runs under builderFrames, not runCallback, so the declarations it makes are
 // not Task-callback declarations.
-func (g *Graph) runGate(c *claim) {
-	panicked := g.runTrackedBuilder(c.work.Run)
+func (g *Graph) runGate(c *claim, own goroutineOwnership) {
+	panicked := g.runTrackedBuilder(c.work.Run, own)
 	g.lock()
 	defer g.unlock()
 	if panicked != nil {
@@ -141,14 +51,6 @@ func (g *Graph) runGate(c *claim) {
 		return
 	}
 	g.settleLocked(c.task, record.Done)
-}
-
-// runTrackedBuilder is runBuilder while the scheduler knows which goroutine is
-// running the builder, as it does for a callback, so a goroutine the builder
-// starts is traced back to it.
-func (g *Graph) runTrackedBuilder(work func() error) error {
-	defer g.trackRunning(goroutineLoad{builders: 1})()
-	return runBuilder(work)
 }
 
 // runBuilder runs work and returns what it panicked with, nil when it did
@@ -219,7 +121,7 @@ func (r Reader) Unwinds() bool { return r.Task != nil && !r.Spawned }
 func (g *Graph) CurrentReader() Reader {
 	id := CurrentGoroutine()
 	g.lockRead()
-	own, active := g.consumerThroughLocked(id, 0), len(g.exec.consumers) > 0
+	own, active := g.consumerOnLocked(id), len(g.exec.runningGoroutines) > 0
 	g.unlockRead()
 	if own != nil || !active {
 		return Reader{Task: own}
@@ -228,7 +130,7 @@ func (g *Graph) CurrentReader() Reader {
 	creator = g.startingGoroutine(creator)
 	g.lockRead()
 	defer g.unlockRead()
-	return Reader{Task: g.consumerThroughLocked(creator, 0), Spawned: true}
+	return Reader{Task: g.consumerStartedByLocked(creator), Spawned: true}
 }
 
 // refuseSpawnedRead keeps err against the Task a refused read from one of its
@@ -256,13 +158,29 @@ func (g *Graph) failedByRefusedRead(t *Task, err error) error {
 }
 
 // consumerThroughLocked is the Task or builder gate running on goroutine
-// self, or, when self runs none, on the goroutine that started it (creator,
-// zero for none).
+// self, or, when self runs none, the one that owns the goroutine that started
+// it (creator, zero for none).
 func (g *Graph) consumerThroughLocked(self, creator GoroutineID) *Task {
-	for _, id := range [...]GoroutineID{self, creator} {
-		if stack := g.exec.consumers[id]; len(stack) > 0 {
-			return stack[len(stack)-1]
-		}
+	if own := g.consumerOnLocked(self); own != nil {
+		return own
+	}
+	return g.consumerStartedByLocked(creator)
+}
+
+// consumerOnLocked is the Task or builder gate running on goroutine id, or nil.
+func (g *Graph) consumerOnLocked(id GoroutineID) *Task {
+	if stack := g.exec.consumers[id]; len(stack) > 0 {
+		return stack[len(stack)-1]
 	}
 	return nil
+}
+
+// consumerStartedByLocked is the Task or builder gate that owns the goroutines
+// goroutine id starts, or nil: a goroutine a plain caller runs a callback on
+// inline owns none (see goroutineOwnership).
+func (g *Graph) consumerStartedByLocked(id GoroutineID) *Task {
+	if !g.exec.runningGoroutines[id].runsAny() {
+		return nil
+	}
+	return g.consumerOnLocked(id)
 }

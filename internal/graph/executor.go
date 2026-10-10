@@ -148,18 +148,25 @@ func (g *Graph) ceilingLocked() int {
 // runPooled runs a Task claimed by Kick on a pooled worker.
 func (g *Graph) runPooled(c *claim) {
 	defer g.finishClaimed(c)
-	g.execute(c)
+	g.execute(c, ownsStarted)
 }
 
 // runClaimed runs a waiter's claim on the waiting goroutine, and reports
-// whether there was one.
+// whether there was one. A plain caller holds the slot it took (pooled) and
+// has started goroutines before the claim began; none of them is the
+// callback's. A callback lends the slot it already holds, and what it started
+// is still its.
 func (g *Graph) runClaimed(c *claim) bool {
 	if c == nil {
 		return false
 	}
 	c.start()
 	defer g.finishClaimed(c)
-	g.execute(c)
+	if c.pooled {
+		g.execute(c, mayPredateClaim)
+	} else {
+		g.execute(c, ownsStarted)
+	}
 	return true
 }
 
@@ -200,19 +207,20 @@ func (g *Graph) recordPanic(c *claim, recovered any) {
 // execute runs one Task's callback and settles the Task from what it
 // returned: the scheduler's sole settlement point for submitted work. Shared
 // by the pooled worker and by a waiter that donates its own goroutine to work
-// it would otherwise block on.
-func (g *Graph) execute(c *claim) {
+// it would otherwise block on. own is whose the goroutines the running
+// goroutine started are (see goroutineOwnership).
+func (g *Graph) execute(c *claim, own goroutineOwnership) {
 	if !c.began {
 		return
 	}
 	defer g.enterConsumer(c.task)()
 	if c.task.IsGate() {
-		g.runGate(c)
+		g.runGate(c, own)
 		return
 	}
 	var err error
 	if c.work.Run != nil {
-		err = g.failedByRefusedRead(c.task, g.runTrackedCallback(c.work.Run))
+		err = g.failedByRefusedRead(c.task, g.runTrackedCallback(c.work.Run, own))
 	}
 	g.recordCallbackReturn(c.task, err)
 	// A callback that settled its own Task (a verb inside Run, or an
