@@ -19,7 +19,8 @@ var (
 
 // MisuseSink hears the misuse the scheduler finds while it works, so the
 // engine can keep recording it until misuse has a home of its own. It is
-// the one callback the graph makes, besides the record's listener.
+// the one callback the graph makes, besides the record's listener, and it
+// is called with no graph lock held. A strict sink panics after recording.
 type MisuseSink interface {
 	// RecordMisuseFor reports err, naming the entity it happened on.
 	RecordMisuseFor(subject string, err error)
@@ -45,9 +46,9 @@ func WithMisuseSink(s MisuseSink) Option { return func(g *Graph) { g.misuse = s 
 // decides when each may start. It writes truth only through record. Its own
 // mutex guards its state; the lock order is graph then record, never the
 // reverse, and it calls nothing outside this package and record while
-// holding it, except the MisuseSink. Its critical sections hold the record's
-// notifications, so the listener hears what they wrote only once the lock
-// is free.
+// holding it. The MisuseSink hears misuse only once the lock is free (see
+// misuseNote). Its critical sections hold the record's notifications, so the
+// listener hears what they wrote only once the lock is free.
 type Graph struct {
 	run    *record.Run
 	idSeq  atomic.Uint64

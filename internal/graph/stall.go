@@ -4,7 +4,8 @@ package graph
 // wait is parked or the drain is running. Left alone, either would hang the
 // run forever, so each step below turns what is stuck into a stated outcome.
 // It reports whether it changed anything, so Kick schedules again before
-// trying the next step.
+// trying the next step, and the misuse it found, for the caller to tell the
+// MisuseSink once the graph lock is free.
 //
 // The steps run in the order that leaves every row most truthful:
 //
@@ -13,27 +14,28 @@ package graph
 //  2. a Task in an After cycle settles Blocked, naming the cycle;
 //  3. a parked wait is released with ErrWaitDeadlock;
 //  4. once draining, any Task still parked settles NotStarted.
-func (g *Graph) resolveStall() bool {
+func (g *Graph) resolveStall() (moved bool, notes []misuseNote) {
 	g.lock()
 	defer g.unlock()
+	defer func() { notes = g.takeMisuseNotesLocked() }()
 	draining := g.sched.draining
 	if len(g.exec.waits) == 0 && !draining {
-		return false
+		return false, nil
 	}
 	if g.progressPossibleLocked() {
-		return false
+		return false, nil
 	}
 	if !draining && g.sealWaitedInputsLocked() {
-		return true
+		return true, nil
 	}
 	if g.blockCyclesLocked() {
-		return true
+		return true, nil
 	}
 	if len(g.exec.waits) > 0 {
 		g.releaseWaitsLocked()
-		return true
+		return true, nil
 	}
-	return draining && g.abandonStrandedLocked()
+	return draining && g.abandonStrandedLocked(), nil
 }
 
 // sealWaitedInputsLocked seals what every parked wait waits for, once the run
@@ -71,7 +73,7 @@ func (g *Graph) releaseWaitsLocked() {
 	}
 	for _, w := range release {
 		w.released = g.unreachableWait(w)
-		g.misuse.RecordMisuseFor(w.task.Name, ErrWaitDeadlock)
+		g.noteMisuseLocked(w.task.Name, ErrWaitDeadlock)
 	}
 	g.wakeWaitsLocked(release)
 }

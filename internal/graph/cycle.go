@@ -129,9 +129,16 @@ func cycleThrough(path []cycleFrame, to depNode) []depNode {
 // per cycle. Its dependents then settle NotStarted through the ordinary
 // cascade. It reports whether it found any cycle.
 func (g *Graph) BlockCycles() bool {
+	blocked, notes := g.blockCycles()
+	g.tellMisuse(notes)
+	return blocked
+}
+
+func (g *Graph) blockCycles() (blocked bool, notes []misuseNote) {
 	g.lock()
 	defer g.unlock()
-	return g.blockCyclesLocked()
+	defer func() { notes = g.takeMisuseNotesLocked() }()
+	return g.blockCyclesLocked(), nil
 }
 
 func (g *Graph) blockCyclesLocked() bool {
@@ -154,7 +161,7 @@ func (g *Graph) blockCyclesLocked() bool {
 				g.blockInCycleLocked(t, path)
 			}
 		}
-		g.misuse.RecordMisuseFor(path, ErrDependencyCycle)
+		g.noteMisuseLocked(path, ErrDependencyCycle)
 	}
 	return len(cycles) > 0
 }

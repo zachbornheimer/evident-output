@@ -38,6 +38,9 @@ type executor struct {
 	// cancelled stops dispatching anything new: after an interrupt the queue
 	// is abandoned, not drained.
 	cancelled bool
+	// misuseNotes is the misuse found under the lock that no one has told
+	// the MisuseSink yet (see noteMisuseLocked).
+	misuseNotes []misuseNote
 }
 
 // WithMaxConcurrency bounds how many callbacks execute at once; zero or less
@@ -65,7 +68,15 @@ func (c *claim) start() {
 // stall if the run can no longer move on its own (see resolveStall). A freed
 // slot and a settled Task are the two events that can change either, and
 // Kick is the choke point for both. The caller holds no lock Started takes.
-func (g *Graph) Kick() {
+//
+// Misuse the pass finds reaches the MisuseSink once scheduling is done and
+// no lock is held, so a strict sink's panic unwinds into the caller.
+func (g *Graph) Kick() { g.kick(g.tellMisuse) }
+
+// kick is Kick with tell deciding where the misuse it found goes.
+func (g *Graph) kick(tell func([]misuseNote)) {
+	var found []misuseNote
+	defer func() { tell(found) }()
 	for {
 		for {
 			c := g.takeEligible()
@@ -75,7 +86,9 @@ func (g *Graph) Kick() {
 			c.start()
 			go g.runPooled(c)
 		}
-		if !g.resolveStall() {
+		moved, notes := g.resolveStall()
+		found = append(found, notes...)
+		if !moved {
 			return
 		}
 	}
@@ -148,7 +161,8 @@ func (g *Graph) runClaimed(c *claim) bool {
 
 // finishClaimed is the deferred tail of every claimed callback: a panic
 // fails the row, the slot (pooled only) and the executing count are
-// returned, and the scheduler is kicked.
+// returned, and the scheduler is kicked. A pooled worker has no caller to take
+// a strict panic, so what its kick finds is told without one.
 func (g *Graph) finishClaimed(c *claim) {
 	if r := recover(); r != nil {
 		g.recordPanic(c, r)
@@ -161,7 +175,7 @@ func (g *Graph) finishClaimed(c *claim) {
 	endCallbackLocked(c.task)
 	g.unlock()
 	g.WorkDone()
-	g.Kick()
+	g.kick(g.tellMisuseWithoutCaller)
 }
 
 // recordPanic states a panic that escaped c's callback. The row fails with the

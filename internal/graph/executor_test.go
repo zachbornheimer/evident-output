@@ -226,6 +226,7 @@ func TestAWaitOnATaskInADependencyCycleIsAnsweredNotParkedForever(t *testing.T) 
 
 	ticket := g.BeginWait(first, 0)
 	defer g.EndWait(ticket)
+	g.Kick()
 
 	select {
 	case <-first.Done():

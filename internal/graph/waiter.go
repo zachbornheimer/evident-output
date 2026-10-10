@@ -29,9 +29,10 @@ func (w *WaitTicket) Aborted() <-chan struct{} { return w.abort }
 func (w *WaitTicket) Released() error { return w.released }
 
 // BeginWait registers the calling goroutine's park on t, which holds depth
-// task callbacks still on its stack, and tests the run again: a newly parked
-// waiter may be the last thing that could have moved it. The caller holds no
-// lock Started takes.
+// task callbacks still on its stack. The caller defers EndWait, then Kicks: a
+// newly parked waiter may be the last thing that could have moved the run, and
+// the Kick may unwind with a strict MisuseSink's panic, which must not leave
+// the ticket behind.
 func (g *Graph) BeginWait(t *Task, depth int) *WaitTicket {
 	self, creator := CurrentGoroutineLineage()
 	w := &WaitTicket{task: t, depth: depth, self: self, creator: creator, abort: make(chan struct{})}
@@ -41,7 +42,6 @@ func (g *Graph) BeginWait(t *Task, depth int) *WaitTicket {
 	}
 	g.exec.waits[w] = struct{}{}
 	g.unlock()
-	g.Kick()
 	return w
 }
 

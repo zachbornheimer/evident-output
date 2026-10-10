@@ -122,6 +122,7 @@ func (g *Graph) parkUntilSettled(t *Task, stack *WaiterStack) error {
 	}
 	ticket := g.BeginWait(t, stack.CallbackDepth())
 	defer g.EndWait(ticket)
+	g.Kick()
 	select {
 	case <-t.done:
 	case <-ticket.Aborted():
