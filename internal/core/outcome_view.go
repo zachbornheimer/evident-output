@@ -36,14 +36,14 @@ func settledEntityState(outcome record.Outcome) EntityState {
 }
 
 // ResolutionOf is the legacy reason a Task settled successfully: Satisfied
-// is AlreadySatisfied, a Succeeded that changed something is Executed, and a
-// Succeeded that changed nothing is NoWork. Every other outcome keeps the
-// default, NoWork.
-func ResolutionOf(outcome record.Outcome, changed bool) Resolution {
+// is AlreadySatisfied, a Succeeded whose Define callback ran is Executed
+// whether or not it changed anything, and a Succeeded that never ran Define
+// is NoWork. Every other outcome keeps the default, NoWork.
+func ResolutionOf(outcome record.Outcome, defineRan bool) Resolution {
 	switch {
 	case outcome == record.OutcomeSatisfied:
 		return ResolutionAlreadySatisfied
-	case outcome == record.OutcomeSucceeded && changed:
+	case outcome == record.OutcomeSucceeded && defineRan:
 		return ResolutionExecuted
 	}
 	return ResolutionNoWork

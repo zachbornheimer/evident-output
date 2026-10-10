@@ -49,9 +49,9 @@ func TestEntityStateOfRefusesAnUnknownOutcome(t *testing.T) {
 
 func TestResolutionOfKeepsTodaysThreeReasons(t *testing.T) {
 	cases := []struct {
-		outcome record.Outcome
-		changed bool
-		want    Resolution
+		outcome   record.Outcome
+		defineRan bool
+		want      Resolution
 	}{
 		{record.OutcomeSucceeded, true, ResolutionExecuted},
 		{record.OutcomeSucceeded, false, ResolutionNoWork},
@@ -63,8 +63,8 @@ func TestResolutionOfKeepsTodaysThreeReasons(t *testing.T) {
 		{record.OutcomeCancelled, false, ResolutionNoWork},
 	}
 	for _, c := range cases {
-		if got := ResolutionOf(c.outcome, c.changed); got != c.want {
-			t.Errorf("ResolutionOf(%s, changed=%t) = %q, want %q", c.outcome, c.changed, got, c.want)
+		if got := ResolutionOf(c.outcome, c.defineRan); got != c.want {
+			t.Errorf("ResolutionOf(%s, defineRan=%t) = %q, want %q", c.outcome, c.defineRan, got, c.want)
 		}
 	}
 }
