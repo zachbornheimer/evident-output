@@ -90,5 +90,13 @@ func (w *WaiterStack) Creator() GoroutineID {
 // builder.
 func (w *WaiterStack) InsideBuilder() bool { return w.load().Builders > 0 }
 
+// RunsWork reports whether the waiting goroutine is itself inside a task
+// callback or running a container builder, as opposed to a goroutine some
+// other goroutine started.
+func (w *WaiterStack) RunsWork() bool {
+	m := w.load()
+	return m.Callbacks > 0 || m.Builders > 0
+}
+
 // CallbackDepth is how many task callbacks the waiting goroutine is inside.
 func (w *WaiterStack) CallbackDepth() int { return w.load().Callbacks }

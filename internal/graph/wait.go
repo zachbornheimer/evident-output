@@ -138,7 +138,7 @@ func (g *Graph) parkUntilSettled(t *Task, stack *WaiterStack) error {
 	if g.answerable(t) {
 		return nil
 	}
-	ticket := g.BeginWait(t, stack.CallbackDepth())
+	ticket := g.BeginWait(t, stack)
 	defer g.EndWait(ticket)
 	g.Kick()
 	select {

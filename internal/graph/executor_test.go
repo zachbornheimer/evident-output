@@ -224,7 +224,7 @@ func TestAWaitOnATaskInADependencyCycleIsAnsweredNotParkedForever(t *testing.T) 
 	submitWork(g, first, Work{Run: func() error { return nil }})
 	submitWork(g, second, Work{Run: func() error { return nil }})
 
-	ticket := g.BeginWait(first, 0)
+	ticket := g.BeginWait(first, UnmarkedStack())
 	defer g.EndWait(ticket)
 	g.Kick()
 

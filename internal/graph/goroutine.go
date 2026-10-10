@@ -16,6 +16,10 @@ type GoroutineID uint64
 // "goroutine 123 [running]:", with room to spare.
 const goroutineHeaderBytes = 64
 
+// goroutineTraceBytes is room for one goroutine's whole traceback: a parked
+// goroutine prints a few hundred bytes, a callback several frames more.
+const goroutineTraceBytes = 2048
+
 var (
 	goroutinePrefix = []byte("goroutine ")
 	creatorMarker   = []byte(" in goroutine ")
@@ -64,9 +68,11 @@ func GoroutineAncestors() []GoroutineID {
 }
 
 // allGoroutineTraces is every goroutine's traceback, the calling goroutine's
-// first, one blank line between them.
+// first, one blank line between them. Each attempt stops the world, so the
+// buffer starts sized for the goroutines alive now and a typical dump takes
+// one attempt.
 func allGoroutineTraces() []byte {
-	for size := 64 * goroutineHeaderBytes; ; size *= 2 {
+	for size := (runtime.NumGoroutine() + 1) * goroutineTraceBytes; ; size *= 2 {
 		buf := make([]byte, size)
 		if n := runtime.Stack(buf, true); n < size {
 			return buf[:n]

@@ -70,7 +70,7 @@ func TestSlice36_ACycleBlockTellsTheMisuseSinkOutsideTheGraphLock(t *testing.T) 
 	submitWork(g, first, settlingWork(g, first, func() error { return nil }))
 	submitWork(g, second, settlingWork(g, second, func() error { return nil }))
 
-	ticket := g.BeginWait(first, 0)
+	ticket := g.BeginWait(first, UnmarkedStack())
 	defer g.EndWait(ticket)
 	g.Kick()
 

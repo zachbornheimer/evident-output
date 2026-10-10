@@ -33,15 +33,20 @@ func (w *WaitTicket) Aborted() <-chan struct{} { return w.abort }
 // Released is why the wait was released, valid once Aborted is closed.
 func (w *WaitTicket) Released() error { return w.released }
 
-// BeginWait registers the calling goroutine's park on t, which holds depth
-// task callbacks still on its stack. The caller defers EndWait, then Kicks: a
-// newly parked waiter may be the last thing that could have moved the run, and
-// the Kick may unwind with a strict MisuseSink's panic, which must not leave
-// the ticket behind.
-func (g *Graph) BeginWait(t *Task, depth int) *WaitTicket {
+// BeginWait registers the calling goroutine's park on t. The caller defers
+// EndWait, then Kicks: a newly parked waiter may be the last thing that could
+// have moved the run, and the Kick may unwind with a strict MisuseSink's
+// panic, which must not leave the ticket behind.
+//
+// A waiter that runs a callback or builder itself names its work on its own
+// stack, so only one that runs none looks up its ancestry for the callback
+// that may be holding still.
+func (g *Graph) BeginWait(t *Task, stack *WaiterStack) *WaitTicket {
 	self, creator := CurrentGoroutineLineage()
-	creator = g.startingGoroutine(creator, goroutineLoad.runsAny)
-	w := &WaitTicket{task: t, depth: depth, self: self, creator: creator, abort: make(chan struct{})}
+	if !stack.RunsWork() {
+		creator = g.startingGoroutine(creator, goroutineLoad.runsAny)
+	}
+	w := &WaitTicket{task: t, depth: stack.CallbackDepth(), self: self, creator: creator, abort: make(chan struct{})}
 	g.lock()
 	w.owner = g.consumerThroughLocked(self, creator)
 	if g.exec.waits == nil {
