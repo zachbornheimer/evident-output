@@ -27,9 +27,9 @@ const settleToReturnGap = 5 * time.Millisecond
 // TestWaitReturnsTheErrorACallbackReturnsAfterSettlingItsOwnRow pins that a
 // waiter is answered by the callback's return value, not by the row settling
 // first: Fail or Block inside the callback settles the row while the error is
-// still on its way out. The same holds for a Cancelled row whose callback
-// ignores its context: a running callback is not settled truth, so Wait waits
-// for it to return.
+// still on its way out. A Cancelled row is the exception: the cancellation is
+// the answer, so Wait does not hold for a callback that ignores its context
+// (see TestWait_OnACancelledRowWhoseCallbackIgnoresItsContextAnswersCancelled).
 func TestWaitReturnsTheErrorACallbackReturnsAfterSettlingItsOwnRow(t *testing.T) {
 	for _, state := range []record.EntityState{record.Failed, record.Blocked} {
 		for _, parkedFirst := range []bool{false, true} {

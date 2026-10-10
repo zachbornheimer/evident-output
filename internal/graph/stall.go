@@ -62,6 +62,12 @@ func (g *Graph) releaseWaitsLocked() {
 		}
 	}
 	for _, w := range release {
+		if terminal(w.task) {
+			// The row already states the answer; only the callback's error
+			// is still owed, and it is blocked on this very wait. Released
+			// without an error, the wait answers from the row.
+			continue
+		}
 		w.released = g.unreachableWait(w)
 		g.misuse.RecordMisuseFor(w.task.Name, ErrWaitDeadlock)
 	}
@@ -153,10 +159,11 @@ func (g *Graph) anyStartableLocked() bool {
 }
 
 // anyAwaitedTaskSettledLocked reports whether some parked waiter's Task is
-// already terminal: it is about to wake on its own done channel.
+// already terminal and owes no callback error still on its way out: it is
+// about to wake on its own channels.
 func (g *Graph) anyAwaitedTaskSettledLocked() bool {
 	for w := range g.exec.waits {
-		if terminal(w.task) {
+		if terminal(w.task) && !w.task.errorStillOwedLocked() {
 			return true
 		}
 	}

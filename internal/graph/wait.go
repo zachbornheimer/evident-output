@@ -86,7 +86,7 @@ func (g *Graph) waitChecked(t *Task, stack *WaiterStack, seen *InputSeals) error
 // instead of letting it hang (see Kick).
 func (g *Graph) parkUntilSettled(t *Task, stack *WaiterStack) error {
 	g.lockRead()
-	answerable := t.neverDefinedLocked() || (terminal(t) && t.callbackRunning == nil)
+	answerable := t.neverDefinedLocked() || (terminal(t) && !t.errorStillOwedLocked())
 	g.unlockRead()
 	if answerable {
 		return nil
@@ -99,7 +99,10 @@ func (g *Graph) parkUntilSettled(t *Task, stack *WaiterStack) error {
 		return ticket.Released()
 	}
 	g.lockRead()
-	returning := t.callbackRunning
+	var returning chan struct{}
+	if t.errorStillOwedLocked() {
+		returning = t.callbackRunning
+	}
 	g.unlockRead()
 	if returning == nil {
 		return nil
@@ -112,6 +115,19 @@ func (g *Graph) parkUntilSettled(t *Task, stack *WaiterStack) error {
 	}
 }
 
+// errorStillOwedLocked reports whether t settled by stating its own failure
+// (Fail, Block) while its callback is still on its way out: the error that
+// callback returns is the answer a waiter is owed. A Cancelled row owes
+// nothing more, so it answers at once even if its callback ignores the
+// cancellation.
+func (t *Task) errorStillOwedLocked() bool {
+	if t.callbackRunning == nil {
+		return false
+	}
+	state := t.Rec.State()
+	return state == record.Failed || state == record.Blocked
+}
+
 // waitOutcome is the truth Wait owes its caller: the error the callback
 // returned, or, when the callback never ran at all, the reason it did not.
 // Answering with the zero value of "what the callback returned" is how a
@@ -122,6 +138,10 @@ func (g *Graph) waitOutcome(t *Task) error {
 	defer g.unlockRead()
 	state := t.Rec.State()
 	switch {
+	case state == record.Cancelled:
+		// The cancellation is the answer, whatever the callback returned
+		// after it (often its own context error).
+		return withReason(ErrWaitCancelled, t.Rec.Summary())
 	case t.workErr != nil:
 		return t.workErr
 	case t.sched.phase == PhaseDeclared && (state == record.NotStarted || t.neverDefinedLocked()):
@@ -129,8 +149,6 @@ func (g *Graph) waitOutcome(t *Task) error {
 		return fmt.Errorf("%w: %s was never defined", ErrNotStarted, t.Name)
 	case state == record.NotStarted:
 		return ErrNotStarted
-	case state == record.Cancelled:
-		return withReason(ErrWaitCancelled, t.Rec.Summary())
 	case state == record.Failed || state == record.Blocked:
 		// The callback stated its own failure (Fail or Block settle the row
 		// at once) and returned nil. The work did not succeed, and Wait must
