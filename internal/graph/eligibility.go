@@ -244,17 +244,23 @@ func (g *Graph) nextEligibleLocked() *Task {
 func (g *Graph) Claim(t *Task) {
 	g.lock()
 	defer g.unlock()
-	g.enterPhaseLocked(t, PhaseRunning)
+	g.claimLocked(t, false)
 }
 
-// Enqueue submits t's work. A gate arrives with its work already set. The
-// Task is counted as outstanding work until it settles or finishes running
-// (see WorkDone), and waits in the queue until Place decides where it
+// Enqueue submits run as t's work. A gate arrives with its work already set.
+// The Task is counted as outstanding work until it settles or finishes
+// running (see WorkDone), and waits in the queue until Place decides where it
 // belongs.
-func (g *Graph) Enqueue(t *Task, work func() error) {
+func (g *Graph) Enqueue(t *Task, run func() error) {
 	g.lock()
 	defer g.unlock()
-	if work != nil {
+	g.enqueueLocked(t, Work{Run: run})
+}
+
+// enqueueLocked submits work as t's work, keeping the work a gate arrived
+// with when none is given.
+func (g *Graph) enqueueLocked(t *Task, work Work) {
+	if work.Run != nil {
 		t.sched.work = work
 	}
 	g.sched.work.Add(1)

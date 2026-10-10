@@ -131,6 +131,10 @@ func cycleThrough(path []cycleFrame, to depNode) []depNode {
 func (g *Graph) BlockCycles() bool {
 	g.lock()
 	defer g.unlock()
+	return g.blockCyclesLocked()
+}
+
+func (g *Graph) blockCyclesLocked() bool {
 	if g.sched.parked == 0 {
 		return false
 	}

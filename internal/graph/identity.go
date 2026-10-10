@@ -81,6 +81,8 @@ type Task struct {
 	// proposal holds a caller's unratified success claim on a submitted
 	// Task until the callback's return value confirms or contradicts it.
 	proposal *Proposal
+	// workErr is what the Task's callback returned (see WorkErr).
+	workErr  error
 	done     chan struct{}
 	doneOnce sync.Once
 }

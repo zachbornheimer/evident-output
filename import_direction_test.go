@@ -152,12 +152,12 @@ func TestRecordImportsOnlyFacades(t *testing.T) {
 // graphPackage decides when work runs.
 const graphPackage = "internal/graph"
 
-// TestGraphImportsOnlyRecordMisuseAndFacades fails when internal/graph is
-// missing, or when a non-test file under it imports a package of this module
-// other than record, misuse and the facades. graph sits beside freshness and
-// change, above record: reaching into engine, render, core or a sibling
-// would let scheduling depend on presentation or on what it schedules.
-func TestGraphImportsOnlyRecordMisuseAndFacades(t *testing.T) {
+// TestGraphImportsOnlyRecordAndFacades fails when internal/graph is missing,
+// or when a non-test file under it imports a package of this module other
+// than record and the facades. graph sits beside freshness and change, above
+// record: reaching into engine, render, core or a sibling would let
+// scheduling depend on presentation or on what it schedules.
+func TestGraphImportsOnlyRecordAndFacades(t *testing.T) {
 	violations, checked, err := scanProductionFiles(graphPackage, skipNothing, func(file string) ([]string, error) {
 		return touches(file, isGraphForbiddenImport, nil)
 	})
@@ -168,7 +168,7 @@ func TestGraphImportsOnlyRecordMisuseAndFacades(t *testing.T) {
 		t.Fatalf("%s holds no Go files", graphPackage)
 	}
 	if len(violations) > 0 {
-		t.Errorf("%d imports under %s are neither record, misuse nor a facade:\n  %s",
+		t.Errorf("%d imports under %s are neither record nor a facade:\n  %s",
 			len(violations), graphPackage, strings.Join(violations, "\n  "))
 	}
 }
@@ -245,6 +245,7 @@ func writes(h *holder, task *record.Task, run record.Run) {
 	h.journal.AppendLine("a")
 	h.rec.SetSummary("b")
 	task.Transition(record.Done)
+	task.Settle(record.Failed)
 	run.RecordRunFact(record.Fact{})
 	built := record.NewRun()
 	built.MarkSectionStreamed("x", 0)
@@ -268,7 +269,7 @@ func reads(h *holder, task *record.Task, other fakeStore) {
 	if err != nil {
 		t.Fatalf("scan probe: %v", err)
 	}
-	want := []string{"AppendLine", "SetSummary", "Transition", "RecordRunFact", "MarkSectionStreamed", "ClearAll"}
+	want := []string{"AppendLine", "SetSummary", "Transition", "Settle", "RecordRunFact", "MarkSectionStreamed", "ClearAll"}
 	var got []string
 	for _, hit := range found {
 		got = append(got, hit[strings.LastIndex(hit, " ")+1:])

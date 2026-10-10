@@ -1,9 +1,5 @@
 package engine
 
-import (
-	"context"
-)
-
 // resolveProblems folds extra into st's Problems as it settles into state.
 // A Failed or Blocked row's Problems gain the capture tail the Task already
 // gathered, so the detail a caller collected through evidence()/PhaseWriter()
@@ -34,9 +30,5 @@ func (o *Output) commitSettledLocked(st *taskState) {
 	if st.rec.State() != Done {
 		return
 	}
-	runCtx := o.ctx
-	if runCtx == nil {
-		runCtx = context.Background()
-	}
-	o.commitManifestTaskLocked(runCtx, st.id)
+	o.commitManifestTaskLocked(o.graph.Context(), st.id)
 }

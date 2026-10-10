@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"slices"
 	"strings"
 	"sync"
@@ -96,24 +95,6 @@ type Output struct {
 	containerStates map[string]*tasksState
 	// rootColumn is the alignment width for root Task rows.
 	rootColumn rootColumn
-	// ctx is the run's own cancellation signal — the thing a callback doing
-	// I/O selects on. cancelRun trips it on interrupt and on Close, so no
-	// callback can outlive the run that owns it.
-	ctx       context.Context
-	cancelRun context.CancelFunc
-	// cancelCause names who stopped the run ("by user" for a signal). It
-	// becomes the cancelled Conclusion's Explanation, so the band and the
-	// JSON document state the same cause.
-	cancelCause string
-
-	// sched is the run's scheduling state (scheduler_state.go).
-	sched scheduler
-
-	// confirmAbort holds one abort channel per pending Confirm gate, keyed by
-	// item id, so cancelActive can unblock Confirm's stdin read and resolve
-	// the gate as Cancelled (not Blocked "declined") on SIGINT/SIGTERM.
-	confirmAbort map[string]chan struct{}
-
 	// Progressive durable emission (§17.5: terminal outcomes render immediately).
 	// Finish only appends residual (unemitted entities + conclusion).
 	linesEmitted int
@@ -238,7 +219,6 @@ func newOutput(subject string, options ...Option) *Output {
 		cfg.maxEvents = defaultMaxEvents
 	}
 	resolveGlyphProfileLocked(&cfg)
-	runCtx, cancelRun := context.WithCancel(context.Background())
 	run := record.NewRun()
 	o := &Output{
 		cfg:             cfg,
@@ -246,10 +226,8 @@ func newOutput(subject string, options ...Option) *Output {
 		outputID:        "out_1",
 		taskStates:      make(map[string]*taskState),
 		containerStates: make(map[string]*tasksState),
-		ctx:             runCtx,
-		cancelRun:       cancelRun,
 	}
-	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMisuseSink(misuseSink{o: o}))
+	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(misuseSink{o: o}))
 	o.mu.Bind(run)
 	run.SetListener(outputListener{o: o})
 	// Stable-enough id for a process-local output instance.

@@ -51,7 +51,7 @@ func (g *Graph) AddGate(c *Container, work func() error) *Task {
 		done:        make(chan struct{}),
 	}
 	gate.sched.preds = slices.Clone(c.entry)
-	gate.sched.work = work
+	gate.sched.work = Work{Run: work}
 	c.builder = &builder{gate: gate, phase: builderPending}
 	for p := c; p != nil; p = p.Parent {
 		p.tally.holds++

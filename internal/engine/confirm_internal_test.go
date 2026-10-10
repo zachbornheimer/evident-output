@@ -5,18 +5,18 @@ import (
 	"testing"
 )
 
-// promptWriteSpy observes o.confirmAbort at the exact moment the durable
-// "[y/N]" prompt is written. writeConfirmPrompt calls Write while
-// still holding o.mu, on the same goroutine — so reading o.confirmAbort here
-// directly (no re-lock; re-locking would deadlock) is race-free and
-// captures the true ordering, not a racy approximation of it.
+// promptWriteSpy observes the graph's pending abort channels at the exact
+// moment the durable "[y/N]" prompt is written. writeConfirmPrompt calls
+// Write while still holding o.mu, on the same goroutine — so reading the
+// graph here (it never takes o.mu) captures the true ordering, not a racy
+// approximation of it.
 type promptWriteSpy struct {
 	out        *Output
 	sawAbortAt []int
 }
 
 func (s *promptWriteSpy) Write(p []byte) (int, error) {
-	s.sawAbortAt = append(s.sawAbortAt, len(s.out.confirmAbort))
+	s.sawAbortAt = append(s.sawAbortAt, s.out.graph.PendingAborts())
 	return len(p), nil
 }
 

@@ -73,8 +73,8 @@ func runHoldingResource(held context.Context, fn func(context.Context) error) er
 // could then move. Like a second acquisition, it is refused every time,
 // not only when it would actually conflict, so the outcome never depends
 // on timing. Wait takes no context, so the claim is read from the stack.
-func (o *Output) refuseWaitUnderClaim(ref string, stack *waiterStack) error {
-	if !stack.holdsClaim() {
+func (o *Output) refuseWaitUnderClaim(ref string, stack *graph.WaiterStack) error {
+	if !stack.HoldsClaim() {
 		return nil
 	}
 	return fmt.Errorf("%w: Wait on %q while holding a resource claim", ErrNestedResourceAcquisition, o.refName(ref))

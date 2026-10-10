@@ -15,7 +15,7 @@ const auditedCollectionLimit = 400
 // init makes every live frame a test builds prove the childIndex current:
 // the frame must equal the one a walk of every child builds.
 func init() {
-	liveIndexAudit = func(g *tasksState, rows int, now time.Time, got TasksSnapshot) {
+	liveIndexAudit = func(g *tasksState, rows int, now time.Time, got TasksSnapshot, rev uint64) {
 		if len(g.tasks) > auditedCollectionLimit {
 			return
 		}
@@ -26,6 +26,9 @@ func init() {
 			}
 		}
 		want := children.Collection(liveCollections(g.children, rows, now).Into(g.header()))
+		if g.out.rec.Revision() != rev {
+			return
+		}
 		if !reflect.DeepEqual(got, want) {
 			panic(fmt.Sprintf("childIndex frame of %q differs from a walk of its children:\n got %+v\nwant %+v", g.name, got, want))
 		}

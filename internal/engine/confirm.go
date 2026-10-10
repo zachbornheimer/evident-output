@@ -193,18 +193,8 @@ func (o *Output) flushGateNow(id string) {
 // to start — a swallowed ^C that hung waiting for an answer nothing could
 // interrupt (X2).
 func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmConfig) bool {
-	abort := make(chan struct{})
-	o.mu.Lock()
-	if o.confirmAbort == nil {
-		o.confirmAbort = make(map[string]chan struct{})
-	}
-	o.confirmAbort[gate.id] = abort
-	o.mu.Unlock()
-	defer func() {
-		o.mu.Lock()
-		delete(o.confirmAbort, gate.id)
-		o.mu.Unlock()
-	}()
+	abort, release := o.graph.RegisterAbort(gate.id)
+	defer release()
 
 	var yes bool
 	_ = o.Suspend(func() error {
@@ -272,7 +262,7 @@ func (o *Output) writeConfirmPrompt(question string, destructive bool, detail []
 // eof reports a zero-byte EOF (no data read at all before the stream
 // closed) — distinct from an explicit non-yes answer (evo-rec.md "Confirm
 // EOF = policy block, not decline").
-func (o *Output) readConfirmLine(abort chan struct{}) (line string, cancelled, eof bool) {
+func (o *Output) readConfirmLine(abort <-chan struct{}) (line string, cancelled, eof bool) {
 	type readResult struct {
 		text string
 		err  error

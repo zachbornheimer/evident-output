@@ -1,9 +1,16 @@
 package engine
 
-import (
-	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/graph"
-)
+import "github.com/zachbornheimer/evident-output/internal/core"
+
+// interrupt stops the run at the first signal. The graph owns the order that
+// leaves the ledger honest (see graph.Graph.Interrupt); the engine's part is
+// putting the active rows into the state the reader must see.
+func (o *Output) interrupt(reason string) {
+	if o == nil {
+		return
+	}
+	o.graph.Interrupt(cancelCauseUser, func() { o.cancelActive(reason) })
+}
 
 // cancelActive cancels the currently running task, or the output itself when
 // no task is running, so an interrupt always leaves a typed Cancelled state.
@@ -15,55 +22,6 @@ import (
 // its answer is pending, the generic Pending-task fallback would otherwise
 // resolve it to Cancelled without ever closing that channel, leaving
 // readConfirmLine blocked forever.
-// interrupt stops the run at the first signal, in the one order that leaves
-// the ledger honest: the scheduler is closed to new work, every row is put
-// into the state the reader must see, and only then is the run's context
-// cancelled to release the callbacks still in flight. Cancelling first would
-// race a finishing callback into a ✓ row after the ^C.
-func (o *Output) interrupt(reason string) {
-	if o == nil {
-		return
-	}
-	o.mu.Lock()
-	o.sched.cancelled = true
-	o.cancelCause = cancelCauseUser
-	cancelRun := o.cancelRun
-	o.mu.Unlock()
-
-	o.cancelActive(reason)
-	o.abandonQueuedWork()
-
-	if cancelRun != nil {
-		cancelRun()
-	}
-}
-
-// abandonQueuedWork resolves every task that had not begun as NotStarted —
-// the interrupt's answer to "and what about the rest?", which the reader
-// would otherwise never get.
-//
-// Submitted or not: a task the caller declared and never Defined is work the
-// interrupt took away just as surely as one sitting in the scheduler's
-// queue. Sweeping only the submitted ones left a declared row Pending, and
-// Finish then charged the caller with ErrUnresolvedTask and told them to
-// "call Define, Fail, Block, or Skipped on this task" about a
-// run the user had just cancelled.
-func (o *Output) abandonQueuedWork() {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	for _, st := range o.tasks {
-		if st.node.Phase() == graph.PhaseRunning || core.IsTerminalTask(st.rec.State()) {
-			continue
-		}
-		o.markNotStartedLocked(st)
-	}
-	for _, gate := range o.graph.Gates() {
-		if gate.Phase() != graph.PhaseRunning && !core.IsTerminalTask(gate.Rec.State()) {
-			o.graph.MarkNotStarted(gate)
-		}
-	}
-}
-
 func (o *Output) cancelActive(reason string) {
 	o.mu.Lock()
 	if o.cancelPendingConfirmLocked(reason) {
@@ -109,15 +67,14 @@ func (o *Output) cancelActive(reason string) {
 // Cancelled — never Blocked "declined" (a human "n" and an interrupt are
 // distinct outcomes). Reports whether a gate was cancelled.
 func (o *Output) cancelPendingConfirmLocked(reason string) bool {
-	for id, abort := range o.confirmAbort {
-		close(abort)
-		delete(o.confirmAbort, id)
-		if st := o.taskStates[id]; st != nil && !core.IsTerminalTask(st.rec.State()) {
-			st.rec.SetSummary(reason)
-			o.settleLocked(st, Cancelled)
-			o.commitResolvedTaskLocked(id)
-		}
-		return true
+	id, ok := o.graph.AbortPending()
+	if !ok {
+		return false
 	}
-	return false
+	if st := o.taskStates[id]; st != nil && !core.IsTerminalTask(st.rec.State()) {
+		st.rec.SetSummary(reason)
+		o.settleLocked(st, Cancelled)
+		o.commitResolvedTaskLocked(id)
+	}
+	return true
 }

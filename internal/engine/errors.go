@@ -49,7 +49,7 @@ var (
 	// standing once no callback is running and no task can start. The
 	// waiting callback is released with this error so its row states the
 	// cycle, rather than the whole run hanging in Finish.
-	ErrWaitDeadlock = errors.New("evo: awaited task can never be reached")
+	ErrWaitDeadlock = graph.ErrWaitDeadlock
 	// errDependencyCycle is recorded when After edges close a cycle — a
 	// Task after itself, directly, through another Task, or through a Group
 	// it belongs to. Every Task in the cycle settles Blocked naming it,

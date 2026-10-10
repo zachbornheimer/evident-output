@@ -1,6 +1,9 @@
 package record
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 // changeLog is the Tasks written since a projection last asked. A writer
 // adds its Task while it still holds the run lock, so a reader that sees a
@@ -11,10 +14,13 @@ import "sync"
 type changeLog struct {
 	mu    sync.Mutex
 	tasks []*Task
+	// revision counts every write, logged once or not.
+	revision atomic.Uint64
 }
 
 // add logs t once until the next take.
 func (l *changeLog) add(t *Task) {
+	l.revision.Add(1)
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if t.logged {
@@ -43,6 +49,11 @@ func (l *changeLog) take(into []TaskID) []TaskID {
 // state afterwards: a write that lands while the caller walks the result is
 // reported by the next call, never lost.
 func (r *Run) TakeChanged(into []TaskID) []TaskID { return r.changes.take(into) }
+
+// Revision counts the writes to Tasks made so far. Two reads that return the
+// same number saw no Task written in between, so a reader that walks the
+// record twice can tell when a concurrent write made its two walks disagree.
+func (r *Run) Revision() uint64 { return r.changes.revision.Load() }
 
 // lockForWrite takes the run lock for a write to t and logs t as changed
 // before any reader can see the write.

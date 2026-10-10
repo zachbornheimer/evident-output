@@ -45,10 +45,7 @@ func waitForParkedWait(t *testing.T, out *Output) {
 	t.Helper()
 	deadline := time.Now().Add(waitReturnDeadline)
 	for time.Now().Before(deadline) {
-		out.mu.Lock()
-		parked := len(out.sched.waits) > 0
-		out.mu.Unlock()
-		if parked {
+		if out.graph.Waits() > 0 {
 			return
 		}
 		time.Sleep(time.Millisecond)

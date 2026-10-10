@@ -26,7 +26,7 @@ func (g *GroupHandle) Wait() error {
 	if g.rejected != nil {
 		return rejectedWaitOutcome(g.rejected)
 	}
-	var stack waiterStack
+	var stack graph.WaiterStack
 	if err := g.out.refuseWaitUnderClaim(g.id, &stack); err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func appendDescendantTasksLocked(col *tasksState, out []*taskState) []*taskState
 // execution: each was already submitted to the scheduler before Wait was
 // called, so this loop only blocks on outcomes concurrent work is already
 // free to produce.
-func waitDescendants(states []*taskState, stack *waiterStack) error {
+func waitDescendants(states []*taskState, stack *graph.WaiterStack) error {
 	var errs []error
 	var notStarted error
 	seen := &graph.InputSeals{}

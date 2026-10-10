@@ -95,19 +95,16 @@ func isNonFacadeImport(importPath string) bool {
 	return !isStandardLibrary(importPath) && !isFacadeImport(importPath)
 }
 
-// misusePackage is where misuse codes and remedies live; graph may report
-// into it once it exists.
-const misusePackage = "internal/misuse"
-
 // isGraphForbiddenImport reports whether importPath is a package of this
-// module other than record, misuse and the facades: the only packages
-// internal/graph may import.
+// module other than record and the facades: the only packages internal/graph
+// may import. Misuse it finds leaves through graph.MisuseSink, a one-method
+// interface the caller implements, never through an import.
 func isGraphForbiddenImport(importPath string) bool {
 	local, inModule := strings.CutPrefix(importPath, modulePath+"/")
 	if !inModule {
 		return false
 	}
-	return local != recordPackage && local != misusePackage && !isFacadeImport(importPath)
+	return local != recordPackage && !isFacadeImport(importPath)
 }
 
 // isGraphImport reports whether importPath is internal/graph.
@@ -173,7 +170,7 @@ func localPackageName(spec *ast.ImportSpec, importPath string) string {
 // recordMutatorPrefixes begin the name of every method that writes run truth
 // into package record.
 var recordMutatorPrefixes = []string{
-	"Record", "Append", "Apply", "Resolve", "Set", "Transition", "Mark", "Clear",
+	"Record", "Append", "Apply", "Resolve", "Set", "Transition", "Settle", "Mark", "Clear",
 }
 
 // recordHandleName is the field and variable name the producers give a

@@ -281,13 +281,14 @@ func (g *tasksState) header() TasksSnapshot {
 // children it could select, snapshotted, and a tally of the rest (see
 // live.LiveChildren).
 func (g *tasksState) liveSnapshot(rows int, now time.Time) TasksSnapshot {
+	rev := g.out.rec.Revision()
 	g.stampDirectTasks(now)
 	ts := g.header()
 	kept, roster := g.settled().project(g, rows)
 	ts = liveCollections(g.children, rows, now).Into(ts)
 	ts = roster.Project(ts, kept)
 	if liveIndexAudit != nil {
-		liveIndexAudit(g, rows, now, ts)
+		liveIndexAudit(g, rows, now, ts, rev)
 	}
 	return ts
 }

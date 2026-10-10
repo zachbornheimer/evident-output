@@ -12,10 +12,6 @@ import (
 // key is the Task's §3.1 stable key, empty for a Task the graph never declared.
 func (st *taskState) key() string { return st.node.Key() }
 
-// awaitingStart reports whether st is submitted work nobody has started or
-// resolved.
-func (st *taskState) awaitingStart() bool { return st.node.AwaitingStart() }
-
 // neverDefined reports whether st is still waiting on its caller: declared,
 // never Defined, and not resolved by a verb either.
 func (st *taskState) neverDefined() bool { return st.node.NeverDefined() }
@@ -97,10 +93,6 @@ type taskState struct {
 	// observation checks, ANDed in registration order (§9.1). Must be
 	// registered before Define — see Verify.
 	verifiers []verifierFunc
-	// workErr is the callback's own return value, kept so TaskHandle.Wait
-	// returns exactly what the work returned rather than a state guess.
-	workErr error
-
 	// plainStream is what plain progressive streaming already emitted for
 	// this still-Running standalone task.
 	plainStream plainStreamMark

@@ -126,7 +126,7 @@ func deniesItsOwnEffect(st *taskState, state EntityState, authority resolutionAu
 	if st.effectsInFlight == 0 || st.node.Phase() != graph.PhaseRunning || authority != byCaller || state == Done {
 		return false
 	}
-	return callbackDepth() > 0
+	return graph.CallbackDepth() > 0
 }
 
 func (t *TaskHandle) resolve(state EntityState, summary string, problems []Problem, authority resolutionAuthority) *TaskHandle {

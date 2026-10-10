@@ -110,9 +110,7 @@ func (t *TaskHandle) SkipForTest(reason string, args ...any) *TaskHandle {
 }
 func (o *Output) AtForTest(visibility Visibility) *Printer { return o.at(visibility) }
 func (o *Output) SchedulerMaxObserved() int {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.sched.maxObserved
+	return o.graph.MaxObserved()
 }
 
 func ReasonConstrained(name string, opts ...ReasonOption) TaxonomyReason {

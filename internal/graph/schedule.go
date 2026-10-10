@@ -28,7 +28,7 @@ const (
 // the Graph's mutex.
 type schedule struct {
 	phase Phase
-	work  func() error
+	work  Work
 	// preds are the Task's predecessors: its After arguments and, inside
 	// a Sequence, the step declared just before its own.
 	preds []Predecessor
@@ -145,13 +145,6 @@ func (t *Task) PredecessorCount() int {
 	t.graph.lock()
 	defer t.graph.unlock()
 	return len(t.sched.preds)
-}
-
-// Work is the callback Define submitted, nil before it did.
-func (t *Task) Work() func() error {
-	t.graph.lock()
-	defer t.graph.unlock()
-	return t.sched.work
 }
 
 // IsGate reports whether the Task is a container builder's gate: the

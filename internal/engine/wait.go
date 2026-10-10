@@ -7,162 +7,15 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
-// waitTicket is one goroutine's registration while it is parked in
-// TaskHandle.Wait: the task it awaits, how many task callbacks it is
-// holding still on its own stack, the goroutine that started it, and the
-// channel the scheduler closes to release it when it proves the wait can
-// never be satisfied. released is the error that release hands the waiter.
-type waitTicket struct {
-	taskID   string
-	depth    int
-	self     graph.GoroutineID
-	creator  graph.GoroutineID
-	abort    chan struct{}
-	released error
-}
-
-// beginWait registers this goroutine's park and re-tests the run: a newly
-// parked waiter may be the last thing that could have moved it.
-func (o *Output) beginWait(taskID string, depth int) *waitTicket {
-	self, creator := graph.CurrentGoroutineLineage()
-	ticket := &waitTicket{taskID: taskID, depth: depth, self: self, creator: creator, abort: make(chan struct{})}
-	o.mu.Lock()
-	if o.sched.waits == nil {
-		o.sched.waits = make(map[*waitTicket]struct{})
-	}
-	o.sched.waits[ticket] = struct{}{}
-	o.mu.Unlock()
-	o.kick()
-	return ticket
-}
-
-func (o *Output) endWait(ticket *waitTicket) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	delete(o.sched.waits, ticket)
-}
-
 // runWaitedWork executes, on the waiting caller's own goroutine, the work
-// standing between it and the task it awaits: that task itself when the
-// scheduler has not started it, and otherwise whatever the scheduler is
-// holding back that could make it eligible.
-//
-// A waiting callback has stopped doing work, so the concurrency ceiling
-// must never be the reason the task it waits on cannot start (P16).
-// Donating only to the awaited task was not enough: at MaxConcurrency 1 the
-// waiter's own slot can be the only thing keeping that task's unmet
-// predecessor queued, so the wait ended only when the run drained and
-// abandoned the whole chain. A plain caller holds no slot to lend: it runs
-// work only in a free slot, and otherwise parks until the pool runs it (see
-// takeWaiterSlotLocked).
-//
-// The loop terminates: every donation resolves one task, and a resolved task
-// is never claimable again.
-func (o *Output) runWaitedWork(taskID string, stack *waiterStack) {
-	for {
-		if o.runClaimed(o.claimForWaiter(taskID, stack)) {
-			return
-		}
-		if !o.awaitedWorkIsStalled(taskID) {
-			return
-		}
-		if !o.runClaimed(o.claimAnyForWaiter(stack)) {
-			return
-		}
-	}
-}
-
-// awaitedWorkIsStalled reports whether the awaited task is submitted work
-// that no goroutine is executing — the only case where the waiter going to
-// sleep is itself what prevents progress. A task another goroutine is
-// already running, or one already resolved, needs no donation.
-func (o *Output) awaitedWorkIsStalled(taskID string) bool {
+// standing between it and the task it awaits (see graph.Graph.RunWaited).
+func (o *Output) runWaitedWork(taskID string, stack *graph.WaiterStack) {
 	o.mu.Lock()
-	defer o.mu.Unlock()
 	st := o.taskStates[taskID]
-	return st != nil && st.awaitingStart()
-}
-
-// waiterClaim is one task a waiting goroutine claimed to run itself.
-// pooled means the claim took a scheduler slot the run must get back.
-type waiterClaim struct {
-	st     *taskState
-	fn     func() error
-	pooled bool
-}
-
-// runClaimed executes a waiter's claim on the waiting goroutine, and
-// reports whether there was one.
-func (o *Output) runClaimed(c *waiterClaim) bool {
-	if c == nil {
-		return false
+	o.mu.Unlock()
+	if st != nil {
+		o.graph.RunWaited(st.node, stack)
 	}
-	defer o.finishClaimed(c.st, c.pooled)
-	o.executeWork(c.st, c.fn)
-	return true
-}
-
-// claimForWaiter claims the named task for a waiting goroutine when it is
-// submitted, eligible, and not yet started, and the waiter may run work
-// now; nil otherwise.
-func (o *Output) claimForWaiter(taskID string, stack *waiterStack) *waiterClaim {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	cand := o.taskStates[taskID]
-	if !o.claimableLocked(cand) {
-		return nil
-	}
-	return o.claimForWaiterLocked(cand, stack)
-}
-
-// claimAnyForWaiter is claimForWaiter for whichever eligible task the
-// scheduler reaches first.
-func (o *Output) claimAnyForWaiter(stack *waiterStack) *waiterClaim {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if o.sched.cancelled {
-		return nil
-	}
-	cand := o.nextEligibleLocked()
-	if cand == nil {
-		return nil
-	}
-	return o.claimForWaiterLocked(cand, stack)
-}
-
-// claimForWaiterLocked claims cand for a waiting goroutine.
-func (o *Output) claimForWaiterLocked(cand *taskState, stack *waiterStack) *waiterClaim {
-	pooled, ok := o.takeWaiterSlotLocked(stack)
-	if !ok {
-		return nil
-	}
-	st, fn := o.claimLocked(cand)
-	return &waiterClaim{st: st, fn: fn, pooled: pooled}
-}
-
-// takeWaiterSlotLocked decides whether a waiting goroutine may run work
-// now, so the number of executing callbacks never rises above the ceiling.
-// A callback lends the slot it already holds (pooled is false). A plain
-// caller holds none: it takes a free slot like a pooled worker would, and
-// with none free it runs nothing — the awaited task included — and parks
-// until the pool starts that task in the next slot to free up.
-func (o *Output) takeWaiterSlotLocked(stack *waiterStack) (pooled, ok bool) {
-	if stack.callbackDepth() > 0 {
-		return false, true
-	}
-	if o.sched.inflight >= o.concurrencyCeilingLocked() {
-		return false, false
-	}
-	o.takeSlotLocked()
-	return true, true
-}
-
-// claimableLocked reports whether a waiting goroutine may run cand itself.
-func (o *Output) claimableLocked(cand *taskState) bool {
-	if o.sched.cancelled || cand == nil || !cand.awaitingStart() {
-		return false
-	}
-	return o.graph.Eligible(cand.node)
 }
 
 // sealAwaitedInputs seals everything the awaited Task waits for (see
@@ -211,7 +64,7 @@ func (t *TaskHandle) Wait() error {
 	if t.rejected != nil {
 		return rejectedWaitOutcome(t.rejected)
 	}
-	var stack waiterStack
+	var stack graph.WaiterStack
 	if err := t.out.refuseWaitUnderClaim(t.id, &stack); err != nil {
 		return err
 	}
@@ -223,29 +76,13 @@ func (t *TaskHandle) Wait() error {
 // waitDescendants), so one Wait walks its stack at most once, and not at
 // all unless a claim is held somewhere or it actually parks, and walks
 // shared inputs once.
-func (t *TaskHandle) waitChecked(stack *waiterStack, seen *graph.InputSeals) error {
+func (t *TaskHandle) waitChecked(stack *graph.WaiterStack, seen *graph.InputSeals) error {
 	t.out.sealAwaitedInputs(t.id, seen)
 	t.out.runWaitedWork(t.id, stack)
 	if err := t.waitSubmitted(stack); err != nil {
 		return err
 	}
 	return t.out.waitOutcome(t.id)
-}
-
-// unreachableWaitLocked names the task a released waiter was awaiting, so
-// the row the callback fails carries the cycle rather than a bare sentinel.
-// A waiter a live callback started is told the shape that stranded it.
-func (o *Output) unreachableWaitLocked(ticket *waitTicket) error {
-	st := o.taskStates[ticket.taskID]
-	if st == nil {
-		return ErrWaitDeadlock
-	}
-	if o.startedByCallbackLocked(ticket) {
-		return fmt.Errorf("%w: %s: waited from a goroutine a Task callback started while every slot was held; "+
-			"if that callback blocks on this goroutine neither can move — Wait inside the callback, "+
-			"or declare the work as Tasks under a Group (API-041)", ErrWaitDeadlock, st.name)
-	}
-	return fmt.Errorf("%w: %s", ErrWaitDeadlock, st.name)
 }
 
 // waitOutcome is the truth Wait owes its caller: the error the callback
@@ -260,8 +97,8 @@ func (o *Output) waitOutcome(taskID string) error {
 	switch {
 	case st == nil:
 		return nil
-	case st.workErr != nil:
-		return st.workErr
+	case st.node.WorkErr() != nil:
+		return st.node.WorkErr()
 	case st.node.Phase() == graph.PhaseDeclared && (st.rec.State() == NotStarted || st.neverDefined()):
 		// Declared but never Defined: there is no work to have succeeded.
 		return fmt.Errorf("%w: %s was never defined", ErrNotStarted, st.name)
@@ -301,8 +138,8 @@ func failedWaitOutcome(summary string) error {
 
 // waitSubmitted parks until the task resolves. A non-nil error means the
 // scheduler proved the wait could never be satisfied and released the
-// caller instead of letting it hang (see releaseWaitsLocked).
-func (t *TaskHandle) waitSubmitted(stack *waiterStack) error {
+// caller instead of letting it hang (see graph.Graph.Kick).
+func (t *TaskHandle) waitSubmitted(stack *graph.WaiterStack) error {
 	if t == nil || t.out == nil {
 		return nil
 	}
@@ -321,12 +158,12 @@ func (t *TaskHandle) waitSubmitted(stack *waiterStack) error {
 	}
 	ch := st.node.Done()
 	o.mu.Unlock()
-	ticket := o.beginWait(t.id, stack.callbackDepth())
-	defer o.endWait(ticket)
+	ticket := o.graph.BeginWait(st.node, stack.CallbackDepth())
+	defer o.graph.EndWait(ticket)
 	select {
 	case <-ch:
 		return nil
-	case <-ticket.abort:
-		return ticket.released
+	case <-ticket.Aborted():
+		return ticket.Released()
 	}
 }

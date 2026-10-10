@@ -64,6 +64,9 @@ type Graph struct {
 	keys       map[string]struct{}
 	roots      siblings
 	sched      scheduler
+	exec       executor
+	scope      cancellationScope
+	stop       runStop
 	barriers   map[string]chan struct{}
 }
 
@@ -97,6 +100,7 @@ func New(run *record.Run, options ...Option) *Graph {
 		tasks:      make(map[string]*Task),
 		containers: make(map[string]*Container),
 		keys:       make(map[string]struct{}),
+		scope:      newCancellationScope(processRoot()),
 	}
 	g.mu.Bind(run)
 	for _, apply := range options {

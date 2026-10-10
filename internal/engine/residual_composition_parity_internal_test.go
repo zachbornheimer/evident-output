@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 // TestResidualComposition_PlainAndInteractiveSectionParity is release-gate
@@ -32,7 +33,7 @@ func TestResidualComposition_PlainAndInteractiveSectionParity(t *testing.T) {
 		task.Fail("could not delete", Detail("permission denied"))
 		cleanup := out.Task("cleanup")
 		cleanup.Define(effectOf(EffectDelete, "stale local branch", 3))
-		if err := cleanup.waitSubmitted(&waiterStack{read: true}); err != nil {
+		if err := cleanup.waitSubmitted(graph.UnmarkedStack()); err != nil {
 			t.Fatalf("cleanup wait released: %v", err)
 		}
 

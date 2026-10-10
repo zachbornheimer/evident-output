@@ -29,6 +29,10 @@ func (g *Graph) SealAwaited(t *Task, seen *InputSeals) {
 func (g *Graph) SealWaited(awaited []*Task) bool {
 	g.lock()
 	defer g.unlock()
+	return g.sealWaitedLocked(awaited)
+}
+
+func (g *Graph) sealWaitedLocked(awaited []*Task) bool {
 	var seen InputSeals
 	sealed := false
 	for _, t := range awaited {

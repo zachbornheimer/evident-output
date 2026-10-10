@@ -2,7 +2,6 @@ package engine
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 
 	"github.com/zachbornheimer/evident-output/internal/graph"
@@ -96,51 +95,17 @@ func (g *GroupHandle) defineBuilder(run func()) {
 	gate := &taskState{id: node.ID, node: node, name: node.Name, rec: node.Rec, followed: declaredState, declaration: node.Declaration}
 	gate.handle = &TaskHandle{out: o, id: gate.id}
 	o.taskStates[gate.id] = gate
-	o.graph.Enqueue(node, nil)
-	if o.sched.cancelled {
-		o.graph.MarkNotStarted(node)
-		o.mu.Unlock()
-		return
-	}
-	o.graph.Place(node)
+	o.graph.Submit(node, graph.Work{})
+	o.followRecordLocked()
 	o.mu.Unlock()
-	o.kick()
-}
-
-// runGate runs a claimed container builder and settles its gate. The
-// builder runs under builderFrames, not runCallback, so the declarations it
-// makes are not Task-callback declarations (see declaredInCallback).
-func (o *Output) runGate(st *taskState) {
-	panicText := runBuilder(st.node.Work())
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if panicText != "" {
-		st.workErr = fmt.Errorf("declaring %s: panic: %s", st.name, panicText)
-		o.settleLocked(st, Failed)
-		return
-	}
-	o.settleLocked(st, Done)
-}
-
-// builderFrames marks runBuilder (see frameMarker).
-var builderFrames graph.FrameMarker
-
-func runBuilder(work func() error) (panicText string) {
-	defer func() {
-		if r := recover(); r != nil {
-			panicText = fmt.Sprint(r)
-		}
-	}()
-	builderFrames.Note()
-	_ = work()
-	return ""
+	o.graph.Kick()
 }
 
 // awaitBuilders parks until every topology builder under the container has
 // settled, and returns why a builder did not declare its children. Nested
 // builders are declared by their parent's, so each level is awaited after
 // the one above it.
-func (o *Output) awaitBuilders(id string, stack *waiterStack) error {
+func (o *Output) awaitBuilders(id string, stack *graph.WaiterStack) error {
 	o.mu.Lock()
 	col := o.containerStates[id]
 	o.mu.Unlock()
@@ -150,7 +115,7 @@ func (o *Output) awaitBuilders(id string, stack *waiterStack) error {
 	return o.awaitBuildersIn(col, stack, &graph.InputSeals{})
 }
 
-func (o *Output) awaitBuildersIn(col *tasksState, stack *waiterStack, seen *graph.InputSeals) error {
+func (o *Output) awaitBuildersIn(col *tasksState, stack *graph.WaiterStack, seen *graph.InputSeals) error {
 	var errs []error
 	if gate := o.gateHandle(col); gate != nil {
 		if err := gate.waitChecked(stack, seen); err != nil {
@@ -200,9 +165,9 @@ func withBuilderOutcome(builderErr, descendantsErr error) error {
 // callback that is not running a topology builder. Declaring from a
 // callback is misuse: declare it from a builder, or before the run.
 func (o *Output) declaredInCallback() bool {
-	if o.sched.executing == 0 {
+	if o.graph.Executing() == 0 {
 		return false
 	}
-	m := readStackMarks()
-	return m.callbacks > m.builders
+	m := graph.ReadStackMarks()
+	return m.Callbacks > m.Builders
 }
