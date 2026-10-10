@@ -82,7 +82,7 @@ func (c FileCall) Record(ctx context.Context) (OperationRecord, error) {
 		Kind:                  OperationKindFile,
 		DefinitionFingerprint: c.DefinitionFingerprint(),
 		Basis:                 c.Basis,
-		Outputs:               []OutputRecord{{Kind: OperationKindFile, Path: c.Path, Digest: identity}},
+		Outputs:               []OutputRecord{{Kind: OutputKindFile, Path: c.Path, Digest: identity}},
 	}, nil
 }
 

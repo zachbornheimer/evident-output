@@ -18,6 +18,9 @@ const (
 	OperationKindFile = "file"
 	// OperationKindExec marks an Exec operation's record.
 	OperationKindExec = "exec"
+	// OutputKindFile marks the output record of a File operation's managed
+	// path. A Patch matches its edited file by this kind.
+	OutputKindFile = "file"
 	// OutputKindExec marks an Exec's declared output record.
 	OutputKindExec = "exec-output"
 	// TaskBasisOperationKind marks the record that carries a Task's observed

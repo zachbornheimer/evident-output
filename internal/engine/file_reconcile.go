@@ -87,7 +87,7 @@ func (op fileOperation) manifestManaged() bool { return op.contentsManaged() || 
 // commitFile reconciles op's path while File holds it for writing: the
 // manifest freshness check, the live inspection, and any mutation.
 func (o *Output) commitFile(ctx context.Context, op fileOperation) error {
-	started := map[string]any{"kind": "file", "path": op.path}
+	started := map[string]any{"kind": wire.PayloadKindFile, "path": op.path}
 	if op.manifestManaged() {
 		current, prior, reason, consultErr := o.fileConsultManifest(ctx, op.taskID, op.spec, op.path, op.basis)
 		if consultErr != nil {
@@ -116,7 +116,7 @@ func (o *Output) carryForwardCurrentFile(op fileOperation, prior freshness.Opera
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.emitWireEventLocked(wire.EventOperationSkippedCurrent, op.taskID, map[string]any{
-		"kind": "file", "path": op.path, "reason": reason,
+		"kind": wire.PayloadKindFile, "path": op.path, "reason": reason,
 	})
 	if !o.cfg.dryRun {
 		o.appendManifestOperationLocked(op.taskID, prior)
@@ -176,7 +176,7 @@ func (o *Output) inspectFile(fsys FileFS, op fileOperation) (fileDelta, error) {
 	}
 	o.mu.Lock()
 	o.emitWireEventLocked(wire.EventTrackedResourceObserved, op.taskID, map[string]any{
-		"kind": "file", "path": path, "exists": exists,
+		"kind": wire.PayloadKindFile, "path": path, "exists": exists,
 	})
 	o.mu.Unlock()
 
@@ -274,7 +274,7 @@ func inspectFilePath(fsys FileFS, path string) (info fs.FileInfo, exists bool, e
 // emitFileFinished emits op's operation-finished event.
 func (o *Output) emitFileFinished(op fileOperation, changed bool) {
 	o.mu.Lock()
-	o.emitWireEventLocked(wire.EventOperationFinished, op.taskID, map[string]any{"kind": "file", "path": op.path, "changed": changed})
+	o.emitWireEventLocked(wire.EventOperationFinished, op.taskID, map[string]any{"kind": wire.PayloadKindFile, "path": op.path, "changed": changed})
 	o.mu.Unlock()
 }
 

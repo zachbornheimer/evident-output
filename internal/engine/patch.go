@@ -170,7 +170,7 @@ func (o *Output) taskLastLeft(ctx context.Context, taskID string, observed fresh
 	}
 	digest := hex.EncodeToString(observed.Digest[:])
 	for _, op := range prior.Operations {
-		if slices.Contains(op.Basis, edit) && slices.Contains(op.Outputs, freshness.OutputRecord{Kind: "file", Path: observed.Key, Digest: digest}) {
+		if slices.Contains(op.Basis, edit) && slices.Contains(op.Outputs, freshness.OutputRecord{Kind: freshness.OutputKindFile, Path: observed.Key, Digest: digest}) {
 			return true
 		}
 	}

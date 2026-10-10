@@ -150,7 +150,7 @@ func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec,
 	case freshness.ExecIsCurrent:
 		o.mu.Lock()
 		o.emitWireEventLocked(wire.EventOperationSkippedCurrent, taskID, map[string]any{
-			"kind": freshness.OperationKindExec, "executable": spec.Executable, "reason": eval.Reason,
+			"kind": wire.PayloadKindExec, "executable": spec.Executable, "reason": eval.Reason,
 		})
 		o.mu.Unlock()
 		if !o.DryRun() {
@@ -163,7 +163,7 @@ func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec,
 		o.recordExecEffect(taskID, spec.Executable)
 		o.mu.Lock()
 		o.emitWireEventLocked(wire.EventOperationFinished, taskID, map[string]any{
-			"kind": freshness.OperationKindExec, "executable": spec.Executable, "changed": true,
+			"kind": wire.PayloadKindExec, "executable": spec.Executable, "changed": true,
 		})
 		o.mu.Unlock()
 	default:
@@ -177,7 +177,7 @@ func (o *Output) emitExecStarted(taskID string, spec ExecSpec, reason string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.emitWireEventLocked(wire.EventOperationStarted, taskID, map[string]any{
-		"kind": freshness.OperationKindExec, "executable": spec.Executable, "reason": reason,
+		"kind": wire.PayloadKindExec, "executable": spec.Executable, "reason": reason,
 	})
 }
 
@@ -212,7 +212,7 @@ func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecS
 	o.mu.Lock()
 	o.appendManifestOperationLocked(taskID, rec)
 	o.emitWireEventLocked(wire.EventOperationFinished, taskID, map[string]any{
-		"kind": freshness.OperationKindExec, "executable": spec.Executable, "changed": true,
+		"kind": wire.PayloadKindExec, "executable": spec.Executable, "changed": true,
 	})
 	o.mu.Unlock()
 	return result, nil
@@ -227,7 +227,7 @@ func (o *Output) observeVerifiedExecOutputs(ctx context.Context, taskID string, 
 		_, statErr := fs.Stat(out)
 		o.mu.Lock()
 		o.emitWireEventLocked(wire.EventTrackedResourceObserved, taskID, map[string]any{
-			"kind": "exec-output", "path": out, "exists": statErr == nil,
+			"kind": wire.PayloadKindExecOutput, "path": out, "exists": statErr == nil,
 		})
 		o.mu.Unlock()
 	}
@@ -267,7 +267,7 @@ func verifiedExecOutputs(ctx context.Context, outputs []string) ([]freshness.Out
 		if digestErr != nil {
 			return nil, fmt.Errorf("evo: Exec output %q: %w", out, digestErr)
 		}
-		records[i] = freshness.OutputRecord{Kind: "exec-output", Path: out, Digest: digest}
+		records[i] = freshness.OutputRecord{Kind: freshness.OutputKindExec, Path: out, Digest: digest}
 	}
 	return records, nil
 }

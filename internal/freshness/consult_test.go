@@ -163,3 +163,17 @@ func TestRecordedOutputsHoldOnlyWhileTheyKeepTheirIdentity(t *testing.T) {
 		t.Fatal("a done context must surface as an error, not as stale")
 	}
 }
+
+// A Patch finds the file it edited by the output kind a File record carries,
+// so the File record must use exactly OutputKindFile.
+func TestFileRecordTagsItsManagedPathWithTheFileOutputKind(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "managed.txt")
+	writeFile(t, path, "contents")
+	record, err := FileCall{Path: path}.Record(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(record.Outputs) != 1 || record.Outputs[0].Kind != OutputKindFile || record.Outputs[0].Path != path {
+		t.Fatalf("outputs = %+v, want one %q record for %s", record.Outputs, OutputKindFile, path)
+	}
+}

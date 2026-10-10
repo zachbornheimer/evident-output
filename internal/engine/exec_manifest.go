@@ -51,7 +51,7 @@ func (o *Output) execConsultManifest(ctx context.Context, taskID string, spec Ex
 	}
 	o.mu.Lock()
 	o.emitWireEventLocked(wire.EventBasisFingerprinted, taskID, map[string]any{
-		"kind": "exec", "executable": spec.Executable, "count": len(basis),
+		"kind": wire.PayloadKindExec, "executable": spec.Executable, "count": len(basis),
 	})
 	key, ord, ok := o.taskManifestKeyLocked(taskID)
 	o.mu.Unlock()

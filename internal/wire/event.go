@@ -49,6 +49,15 @@ const (
 	EventRunFinished           = "run.finished"
 )
 
+// Payload "kind" values of the operation, tracked_resource and basis events
+// (spec §38): what the event is about, on the wire. The manifest keeps its own
+// record kinds in internal/freshness; the two vocabularies are independent.
+const (
+	PayloadKindFile       = "file"
+	PayloadKindExec       = "exec"
+	PayloadKindExecOutput = "exec-output"
+)
+
 // EventDocument is one "evo.event" JSONL line (spec §38). seq is the
 // ordering authority; timestamp (at) is informational only.
 type EventDocument struct {

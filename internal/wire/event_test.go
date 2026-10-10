@@ -73,3 +73,17 @@ func TestEventFamilies_AreDistinctFromLegacyEventTypes(t *testing.T) {
 		t.Fatalf("got %d distinct §38 event families, want 21", len(seen))
 	}
 }
+
+// The payload kinds are spec §38 wire vocabulary: a consumer filters on these
+// exact strings, so they never follow the manifest's record kinds.
+func TestPayloadKindsAreTheSpecVocabulary(t *testing.T) {
+	for _, c := range []struct{ got, want string }{
+		{PayloadKindFile, "file"},
+		{PayloadKindExec, "exec"},
+		{PayloadKindExecOutput, "exec-output"},
+	} {
+		if c.got != c.want {
+			t.Fatalf("payload kind %q, want %q", c.got, c.want)
+		}
+	}
+}
