@@ -27,8 +27,20 @@ func openedFile(f *os.File, err error) (File, error) {
 	if err != nil {
 		return nil, err
 	}
-	return f, nil
+	return openFile{f}, nil
 }
+
+// openFile is a File that keeps its *os.File out of holders' reach: it
+// forwards only the methods File names, plus ReadFrom so io.Copy into it keeps
+// the kernel copy fast path.
+type openFile struct{ handle *os.File }
+
+func (o openFile) Write(p []byte) (int, error)         { return o.handle.Write(p) }
+func (o openFile) ReadFrom(r io.Reader) (int64, error) { return o.handle.ReadFrom(r) }
+func (o openFile) Sync() error                         { return o.handle.Sync() }
+func (o openFile) Chmod(mode fs.FileMode) error        { return o.handle.Chmod(mode) }
+func (o openFile) Close() error                        { return o.handle.Close() }
+func (o openFile) Name() string                        { return o.handle.Name() }
 
 // Stat reports path's metadata, following a final symlink.
 func Stat(path string) (fs.FileInfo, error) { return os.Stat(path) }
