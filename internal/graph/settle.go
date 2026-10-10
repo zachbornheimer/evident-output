@@ -77,6 +77,10 @@ func (g *Graph) abandonLocked(t *Task) {
 func (g *Graph) FailSequenceFollowers(failed *Task) {
 	g.lock()
 	defer g.unlock()
+	g.failSequenceFollowersLocked(failed)
+}
+
+func (g *Graph) failSequenceFollowersLocked(failed *Task) {
 	branch := failed.Declaration
 	for c := failed.Parent; c != nil; branch, c = c.Declaration, c.Parent {
 		if !c.Sequential {

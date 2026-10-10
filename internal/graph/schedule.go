@@ -159,13 +159,6 @@ func (t *Task) GateFor() *Container { return t.gateFor }
 // Done is closed when the Task reaches a terminal state.
 func (t *Task) Done() <-chan struct{} { return t.done }
 
-// SetProposal holds a caller's unratified success claim on the Task.
-func (t *Task) SetProposal(p *Proposal) {
-	t.graph.lock()
-	defer t.graph.unlock()
-	t.proposal = p
-}
-
 // HasProposal reports whether a caller's success claim is being held.
 func (t *Task) HasProposal() bool {
 	t.graph.lock()

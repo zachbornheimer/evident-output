@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 
-	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/record"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
@@ -90,24 +89,15 @@ func (t *TaskHandle) doneScheduled() {
 // the scheduler must then not resolve it a second time) and how an interrupt
 // cancels a running row.
 func (t *TaskHandle) finish(state EntityState, summary string, problems []Problem) *TaskHandle {
-	return t.resolve(state, summary, problems, byCaller)
+	return t.resolve(state, summary, problems, graph.ByCaller)
 }
 
 // resolveScheduled is the scheduler's own resolution path, called only from
 // executeWork once the callback has returned. It is the sole authority that
 // may declare a submitted task successful.
 func (t *TaskHandle) resolveScheduled(state EntityState, summary string, problems []Problem) {
-	t.resolve(state, summary, problems, byScheduler)
+	t.resolve(state, summary, problems, graph.ByScheduler)
 }
-
-// resolutionAuthority names who is resolving a task — the program that wrote
-// the terminal verb, or the scheduler reporting what the callback returned.
-type resolutionAuthority int
-
-const (
-	byCaller resolutionAuthority = iota
-	byScheduler
-)
 
 // deniesItsOwnEffect reports whether this resolution is an evo.Effect
 // callback disowning the work it was given: an Effect creating "module"
@@ -122,14 +112,18 @@ const (
 // and both still owe the reader `! already mutated: …`. The separator is
 // the resolving goroutine's own stack: callbackDepth is non-zero only
 // inside a task callback, which is precisely "the row resolved itself".
-func deniesItsOwnEffect(st *taskState, state EntityState, authority resolutionAuthority) bool {
-	if st.effectsInFlight == 0 || st.node.Phase() != graph.PhaseRunning || authority != byCaller || state == Done {
+func deniesItsOwnEffect(st *taskState, state EntityState, authority graph.Authority) bool {
+	if st.effectsInFlight == 0 || st.node.Phase() != graph.PhaseRunning || authority != graph.ByCaller || state == Done {
 		return false
 	}
 	return graph.CallbackDepth() > 0
 }
 
-func (t *TaskHandle) resolve(state EntityState, summary string, problems []Problem, authority resolutionAuthority) *TaskHandle {
+// resolve is the one path behind every terminal verb. The graph decides what
+// the resolution does to the Task (see graph.Graph.Admit); this writes what
+// the reader sees of it: the Summary, the Problems and the committed row.
+
+func (t *TaskHandle) resolve(state EntityState, summary string, problems []Problem, authority graph.Authority) *TaskHandle {
 	if t == nil || t.out == nil {
 		return t
 	}
@@ -144,30 +138,23 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		t.out.recordMisuse(err)
 		return t
 	}
-	if core.IsTerminalTask(st.node.Rec.State()) {
+	admission := t.out.graph.Admit(st.node, graph.Resolution{State: state, Summary: summary, Problems: problems, By: authority})
+	if admission.Verdict == graph.AlreadyResolved {
 		t.out.recordAlreadyResolvedLocked(st.name, summary)
 		return t
 	}
 	if deniesItsOwnEffect(st, state, authority) {
 		st.effectDenials++
 	}
-	if st.node.Submitted() && authority == byCaller && record.DeclaresSuccess(state) {
-		st.node.SetProposal(&graph.Proposal{State: state, Summary: summary, Problems: problems})
+	if admission.Verdict == graph.Proposed {
 		return t
 	}
-	state = st.node.Rec.HonestOutcome(state)
 	if summary != "" {
 		st.node.Rec.SetSummary(summary)
 	}
-	st.resolveProblems(state, problems)
-	submitted := st.node.Submitted()
-	t.out.settleLocked(st, state)
-	if submitted && graph.StopsSequenceFollowers(state) {
-		// Same critical section as the failure: whoever sees it terminal
-		// (a Wait returning, a Snapshot) sees its followers settled too.
-		t.out.graph.FailSequenceFollowers(st.node)
-		t.out.followRecordLocked()
-	}
+	st.resolveProblems(admission.State, problems)
+	t.out.graph.Conclude(st.node, admission)
+	t.out.followRecordLocked()
 	t.out.emitWireEventLocked(wire.EventTaskFinished, t.id, taskFinishedPayload(st))
 	t.out.commitSettledLocked(st)
 	return t
