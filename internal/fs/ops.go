@@ -41,14 +41,46 @@ func RemoveTree(path string) error {
 	if err := os.RemoveAll(path); err == nil {
 		return nil
 	}
-	_ = filepath.WalkDir(path, func(p string, d fs.DirEntry, _ error) error {
+	makeTreeTraversable(path)
+	return os.RemoveAll(path)
+}
+
+// makeTreeTraversable gives the owner full access to every directory under
+// (and including) root, so RemoveAll can empty and unlink it. The walk runs
+// inside an os.Root opened at root, so a path it visits can never resolve
+// through a symlink to somewhere outside the tree.
+func makeTreeTraversable(path string) {
+	info, err := os.Lstat(path)
+	if err != nil || !info.IsDir() {
+		return
+	}
+	// A directory with no owner access cannot be opened as a root.
+	if err := os.Chmod(path, ownerDirAccess(info.Mode())); err != nil {
+		return
+	}
+	root, err := os.OpenRoot(path)
+	if err != nil {
+		return
+	}
+	defer func() { _ = root.Close() }()
+	_ = fs.WalkDir(root.FS(), ".", func(p string, d fs.DirEntry, _ error) error {
 		if d != nil && d.IsDir() {
-			_ = os.Chmod(p, 0o700)
+			if dirInfo, err := root.Lstat(p); err == nil {
+				_ = root.Chmod(p, ownerDirAccess(dirInfo.Mode()))
+			}
 		}
 		return nil
 	})
-	return os.RemoveAll(path)
 }
+
+// ownerDirAccess is mode's permission bits plus owner read, write and
+// search, so the owner can list, empty and remove the directory.
+func ownerDirAccess(mode fs.FileMode) fs.FileMode {
+	return mode.Perm() | fs.FileMode(ownerReadWriteSearch)
+}
+
+// ownerReadWriteSearch is the owner's rwx permission bits.
+const ownerReadWriteSearch = 0o700
 
 // Mkdir creates one directory.
 func Mkdir(path string, mode fs.FileMode) error { return os.Mkdir(path, mode) }
