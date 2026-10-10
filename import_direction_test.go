@@ -132,3 +132,77 @@ func systemTouches(file string) ([]string, error) {
 	})
 	return found, nil
 }
+
+// recordPackage is the one package that owns run truth.
+const recordPackage = "internal/record"
+
+// modulePath prefixes every in-module import path.
+const modulePath = "github.com/zachbornheimer/evident-output"
+
+// TestRecordImportsOnlyFacades fails when internal/record is missing, or when
+// a non-test file under it imports anything but the standard library and the
+// four facades. record sits beneath graph, freshness, change and project, so
+// an import of any of them (or of the packages they grew from) would invert
+// the direction the layout promises.
+func TestRecordImportsOnlyFacades(t *testing.T) {
+	var violations []string
+	checked := 0
+	err := filepath.WalkDir(recordPackage, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		slashed := filepath.ToSlash(path)
+		if d.IsDir() || !strings.HasSuffix(slashed, ".go") || strings.HasSuffix(slashed, "_test.go") {
+			return nil
+		}
+		checked++
+		found, err := nonFacadeImports(slashed)
+		violations = append(violations, found...)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", recordPackage, err)
+	}
+	if checked == 0 {
+		t.Fatalf("%s holds no Go files", recordPackage)
+	}
+	sort.Strings(violations)
+	if len(violations) > 0 {
+		t.Errorf("%d imports under %s are neither standard library nor a facade:\n  %s",
+			len(violations), recordPackage, strings.Join(violations, "\n  "))
+	}
+}
+
+// nonFacadeImports reports each import in file that is outside the standard
+// library and the facades, as "file:line:col import path".
+func nonFacadeImports(file string) ([]string, error) {
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, file, nil, parser.ImportsOnly)
+	if err != nil {
+		return nil, err
+	}
+	var found []string
+	for _, spec := range parsed.Imports {
+		path, err := strconv.Unquote(spec.Path.Value)
+		if err != nil {
+			return nil, err
+		}
+		if isStandardLibrary(path) || isFacadeImport(path) {
+			continue
+		}
+		found = append(found, fset.Position(spec.Pos()).String()+" import "+path)
+	}
+	return found, nil
+}
+
+// isStandardLibrary reports whether path is a standard-library import: its
+// first element carries no dot.
+func isStandardLibrary(path string) bool {
+	first, _, _ := strings.Cut(path, "/")
+	return !strings.Contains(first, ".")
+}
+
+// isFacadeImport reports whether path is one of the four facade packages.
+func isFacadeImport(path string) bool {
+	return slices.Contains(facadePackages, strings.TrimPrefix(path, modulePath+"/"))
+}
