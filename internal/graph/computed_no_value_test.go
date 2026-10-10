@@ -17,7 +17,7 @@ func TestComputedReadAfterTheProducerSucceededWithoutAValueIsRefused(t *testing.
 	submitWork(g, producer, settlingWork(g, producer, func() error { return nil }))
 	g.Drain()
 
-	got, err := computed.Read(g)
+	got, err := computed.ReadAs(g, g.CurrentReader())
 
 	if !errors.Is(err, ErrComputedUnsettled) || got != 0 {
 		t.Errorf("Read = %d, %v; want zero and ErrComputedUnsettled", got, err)

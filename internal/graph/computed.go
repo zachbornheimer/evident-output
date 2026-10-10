@@ -39,7 +39,10 @@ func (c *Computed[T]) Producer() *Task { return c.producer }
 // race.
 func (c *Computed[T]) Set(v T) { c.value, c.produced = v, true }
 
-// Read is the produced value, or why it may not be read: first
+// ReadAs is the produced value as read by reader, resolved with
+// CurrentReader before the caller took any lock, because resolving a
+// goroutine's lineage may stop the world. It is the value, or why it may not
+// be read: first
 // ErrComputedUnordered when the caller is a callback or builder the declared
 // order does not put after the producer, then ErrComputedUnsettled until the
 // producer settled successfully with a value. Order is declared, so it is
@@ -50,11 +53,6 @@ func (c *Computed[T]) Set(v T) { c.value, c.produced = v, true }
 //
 // A refused read from such a started goroutine also fails the callback's own
 // Task, once the callback returns: the goroutine cannot unwind it.
-func (c *Computed[T]) Read(g *Graph) (T, error) { return c.ReadAs(g, g.CurrentReader()) }
-
-// ReadAs is Read for a reader the caller already resolved with CurrentReader,
-// so a caller holding a lock can resolve it first, before taking the lock:
-// resolving a goroutine's lineage may stop the world.
 func (c *Computed[T]) ReadAs(g *Graph, reader Reader) (T, error) {
 	var zero T
 	if err := c.refusalFor(g, reader.Task); err != nil {

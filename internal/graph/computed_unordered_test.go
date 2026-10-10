@@ -17,7 +17,7 @@ func TestComputedReadFromAnUnorderedCallbackBeforeTheProducerSettledIsUnordered(
 	reader := declare(g, "unordered reader")
 	var got int
 	var err error
-	submitWork(g, reader, settlingWork(g, reader, func() error { got, err = computed.Read(g); return nil }))
+	submitWork(g, reader, settlingWork(g, reader, func() error { got, err = computed.ReadAs(g, g.CurrentReader()); return nil }))
 
 	g.Drain()
 

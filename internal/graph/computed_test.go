@@ -20,7 +20,7 @@ func TestComputedReadBeforeTheProducerSettledIsUnsettled(t *testing.T) {
 	g := New(record.NewRun())
 	computed := NewComputed[int](declare(g, "producer"))
 
-	got, err := computed.Read(g)
+	got, err := computed.ReadAs(g, g.CurrentReader())
 
 	if !errors.Is(err, ErrComputedUnsettled) || got != 0 {
 		t.Errorf("Read = %d, %v; want zero and ErrComputedUnsettled", got, err)
@@ -31,7 +31,7 @@ func TestComputedReadOutsideEveryCallbackAfterTheProducerSettledIsTheValue(t *te
 	g := New(record.NewRun())
 	computed := producedComputed(g)
 
-	got, err := computed.Read(g)
+	got, err := computed.ReadAs(g, g.CurrentReader())
 
 	if err != nil || got != 42 {
 		t.Errorf("Read = %d, %v; want 42, nil", got, err)
@@ -43,7 +43,7 @@ func TestComputedReadFromACallbackNotOrderedAfterTheProducerIsUnordered(t *testi
 	computed := producedComputed(g)
 	reader := declare(g, "unordered reader")
 	var err error
-	submitWork(g, reader, settlingWork(g, reader, func() error { _, err = computed.Read(g); return nil }))
+	submitWork(g, reader, settlingWork(g, reader, func() error { _, err = computed.ReadAs(g, g.CurrentReader()); return nil }))
 
 	g.Drain()
 
@@ -61,7 +61,7 @@ func TestComputedReadFromACallbackAfterTheProducerIsTheValue(t *testing.T) {
 	g.AddAfter(reader, AfterTask(producer))
 	var got int
 	var err error
-	submitWork(g, reader, settlingWork(g, reader, func() error { got, err = computed.Read(g); return nil }))
+	submitWork(g, reader, settlingWork(g, reader, func() error { got, err = computed.ReadAs(g, g.CurrentReader()); return nil }))
 
 	g.Drain()
 
