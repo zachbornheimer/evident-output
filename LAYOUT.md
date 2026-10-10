@@ -23,6 +23,7 @@ go.sum
 mise.toml
 .gitignore
 .golangci.yml
+.markdownlint.json
 .prettierrc.json
 .prettierignore
 .github/

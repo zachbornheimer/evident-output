@@ -4,6 +4,7 @@
 # Repo structure
 !/.gitignore
 !/.golangci.yml
+!/.markdownlint.json
 !/.prettierignore
 !/.prettierrc.json
 !/LICENSE
