@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
 
 // processArgv0 is the facade over os.Args[0] (facade rule: no direct
@@ -306,13 +308,13 @@ func DefaultConfig() Config {
 func resolveConfig(c Config) Config {
 	base := DefaultConfig()
 	if c.Stdout == nil {
-		c.Stdout = os.Stdout
+		c.Stdout = terminal.Stdout()
 	}
 	if c.Stderr == nil {
-		c.Stderr = os.Stderr
+		c.Stderr = terminal.Stderr()
 	}
 	if c.Stdin == nil {
-		c.Stdin = os.Stdin
+		c.Stdin = terminal.Stdin()
 	}
 	// LevelUnset (zero) → LevelInfo. LevelTrace is non-zero and selectable via Config.
 	if c.Debug.Level == LevelUnset {

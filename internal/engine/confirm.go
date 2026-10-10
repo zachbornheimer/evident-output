@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
+	"github.com/zachbornheimer/evident-output/internal/terminal"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -310,7 +310,7 @@ func (o *Output) confirmReader() io.Reader {
 	if o.cfg.stdin != nil {
 		return o.cfg.stdin
 	}
-	return os.Stdin
+	return terminal.Stdin()
 }
 
 // isAffirmative reports whether an answer line is "y" or "yes" (any case,

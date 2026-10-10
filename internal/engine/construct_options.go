@@ -2,7 +2,6 @@ package engine
 
 import (
 	"io"
-	"os"
 
 	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
@@ -167,23 +166,18 @@ func liveTerminalOptions(c Config, liveWriter io.Writer) []Option {
 	// Prefer real terminal dimensions when liveWriter is a TTY *os.File. A
 	// TTY without ioctl size (pty, ssh, `timeout`) keeps the default
 	// geometry so a spinner still appears.
-	f, isFile := liveWriter.(*os.File)
-	if isFile {
-		if tw, th, ok := terminal.Size(f); ok {
-			// Caller Width>0 is a deterministic override; otherwise use real cols.
-			if c.Width <= 0 || c.Width == defaultWidth {
-				width = tw
-			}
-			height = th
+	if tw, th, ok := terminal.WriterSize(liveWriter); ok {
+		// Caller Width>0 is a deterministic override; otherwise use real cols.
+		if c.Width <= 0 || c.Width == defaultWidth {
+			width = tw
 		}
+		height = th
 	}
 	ansiOpts := []terminal.Option{
 		terminal.WithInteractive(true),
 		terminal.WithSize(width, height),
-	}
-	if isFile {
 		// Re-query geometry on each live redraw (resize-aware path).
-		ansiOpts = append(ansiOpts, terminal.WithSizeFile(f))
+		terminal.WithSizeWriter(liveWriter),
 	}
 	opts := []Option{
 		withTerminal(terminal.NewANSI(liveWriter, ansiOpts...)),

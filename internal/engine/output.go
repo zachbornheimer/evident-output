@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -11,6 +10,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 	renderplain "github.com/zachbornheimer/evident-output/internal/render/plain"
+	"github.com/zachbornheimer/evident-output/internal/terminal"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
@@ -244,7 +244,7 @@ func newOutput(subject string, options ...Option) *Output {
 	// to a file never leaks raw ANSI into it (release-gate round 9 findings
 	// 2 and 5).
 	if cfg.terminal == nil && cfg.primary == nil {
-		cfg.primary = os.Stdout
+		cfg.primary = terminal.Stdout()
 		if !cfg.noColor && (lookupEnv(envKeyNoColor) != "" || !writerIsCharDevice(cfg.primary)) {
 			cfg.noColor = true
 		}

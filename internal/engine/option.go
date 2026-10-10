@@ -3,6 +3,8 @@ package engine
 import (
 	"io"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
 
 // Option configures an Output.
@@ -283,11 +285,7 @@ func debugAddSource() Option {
 }
 
 // TerminalDriver is the exclusive owner of terminal control sequences.
-// Interactive implementation arrives in v0.2; the interface is defined early
-// so options and tests compile.
-type TerminalDriver interface {
-	ID() string
-}
+type TerminalDriver = terminal.Driver
 
 // sinkReporter is implemented by a TerminalDriver that knows its own
 // destination writer (terminal.ANSI, testkit's drivers). configToOptions and
