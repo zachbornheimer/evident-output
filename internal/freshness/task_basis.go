@@ -28,6 +28,11 @@ func (b fingerprintBasis) observe(ctx context.Context) (BasisRecord, error) {
 	return records[0], nil
 }
 
+// StoreOpener returns the Run's manifest Store, opening it on first use. The
+// caller supplies it so the errors it reports keep the caller's identity;
+// ManifestSession.Store is the plain one.
+type StoreOpener func(ctx context.Context) (*ManifestStore, error)
+
 // BasisJudgement is the verdict of judging a Task's declared Basis.
 type BasisJudgement struct {
 	// Declared is false when the Task declared no Basis; nothing else is set.
@@ -39,13 +44,13 @@ type BasisJudgement struct {
 	Current bool
 }
 
-// JudgeBasis observes id's Basis as the Task starts and reports whether the
+// JudgeBasis observes the Task's Basis as the Task starts and reports whether the
 // Task's last successful Run recorded the same identity. The observation
 // holds no resource claim, so it never orders or blocks any other Task. A
 // Task with no Basis is never current. Without a prior record the Task runs.
 // A current Task adopts its prior operations as its own pending ones, so a
 // later commit rewrites identical state.
-func (t *TaskTable) JudgeBasis(ctx context.Context, session *ManifestSession, task TaskView) (BasisJudgement, error) {
+func (t *TaskTable) JudgeBasis(ctx context.Context, openStore StoreOpener, task TaskView) (BasisJudgement, error) {
 	id := task.TaskID()
 	t.mu.Lock()
 	var inputs []BasisSource
@@ -60,7 +65,7 @@ func (t *TaskTable) JudgeBasis(ctx context.Context, session *ManifestSession, ta
 	if err != nil {
 		return BasisJudgement{}, err
 	}
-	store, err := session.Store(ctx)
+	store, err := openStore(ctx)
 	if err != nil {
 		return BasisJudgement{}, fmt.Errorf("evo: Basis: %w", err)
 	}

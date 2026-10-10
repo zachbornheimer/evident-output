@@ -25,7 +25,7 @@ func (t *TaskHandle) basisIsCurrent(ctx context.Context) (bool, error) {
 	if st == nil {
 		return false, nil
 	}
-	judgement, err := o.taskFreshness.JudgeBasis(ctx, o.manifest, st)
+	judgement, err := o.taskFreshness.JudgeBasis(ctx, o.manifestFor, st)
 	if err != nil || !judgement.Declared {
 		return false, err
 	}

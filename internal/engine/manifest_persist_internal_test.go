@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -89,5 +90,18 @@ func TestManifestSaveFailureIsReported(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "manifest not saved") {
 		t.Fatalf("output does not say the manifest was not saved:\n%s", buf.String())
+	}
+}
+
+// TestBasisJudgedAfterCloseIsErrClosed: judging a Task's Basis once the
+// Output closed reports ErrClosed, the one "closed" sentinel File and Exec
+// report through manifestFor.
+func TestBasisJudgedAfterCloseIsErrClosed(t *testing.T) {
+	out, _ := manifestOutput(t.TempDir())
+	task := out.Task("late")
+	task.Basis(FingerprintBasis(freshness.Value("v", "x")))
+	_ = out.Close()
+	if _, err := task.basisIsCurrent(context.Background()); !errors.Is(err, ErrClosed) {
+		t.Fatalf("basisIsCurrent after Close = %v, want errors.Is ErrClosed", err)
 	}
 }

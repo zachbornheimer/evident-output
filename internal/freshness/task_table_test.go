@@ -23,7 +23,7 @@ func sessionOn(stateDir string) *ManifestSession {
 }
 
 func TestJudgeBasisOfATaskWithNoInputsIsUndeclared(t *testing.T) {
-	judgement, err := NewTaskTable().JudgeBasis(t.Context(), sessionOn(t.TempDir()), testTask{id: "t1", key: "k"})
+	judgement, err := NewTaskTable().JudgeBasis(t.Context(), sessionOn(t.TempDir()).Store, testTask{id: "t1", key: "k"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestJudgeBasisIsCurrentOnlyAfterARunRecordedTheSameBasis(t *testing.T) {
 
 	firstSession, firstTable := sessionOn(state), NewTaskTable()
 	firstTable.AddInputs(task.id, FingerprintBasis(Value("input", 1)), nil)
-	first, err := firstTable.JudgeBasis(t.Context(), firstSession, task)
+	first, err := firstTable.JudgeBasis(t.Context(), firstSession.Store, task)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestJudgeBasisIsCurrentOnlyAfterARunRecordedTheSameBasis(t *testing.T) {
 
 	sameSession, sameTable := sessionOn(state), NewTaskTable()
 	sameTable.AddInputs(task.id, FingerprintBasis(Value("input", 1)))
-	same, err := sameTable.JudgeBasis(t.Context(), sameSession, task)
+	same, err := sameTable.JudgeBasis(t.Context(), sameSession.Store, task)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestJudgeBasisIsCurrentOnlyAfterARunRecordedTheSameBasis(t *testing.T) {
 
 	driftSession, driftTable := sessionOn(state), NewTaskTable()
 	driftTable.AddInputs(task.id, FingerprintBasis(Value("input", 2)))
-	drift, err := driftTable.JudgeBasis(t.Context(), driftSession, task)
+	drift, err := driftTable.JudgeBasis(t.Context(), driftSession.Store, task)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestJudgeBasisRejectsADuplicateInput(t *testing.T) {
 	table := NewTaskTable()
 	task := testTask{id: "t1", key: "k"}
 	table.AddInputs(task.id, FingerprintBasis(Value("same", 1)), FingerprintBasis(Value("same", 2)))
-	if _, err := table.JudgeBasis(t.Context(), sessionOn(t.TempDir()), task); err == nil {
+	if _, err := table.JudgeBasis(t.Context(), sessionOn(t.TempDir()).Store, task); err == nil {
 		t.Fatal("duplicate (kind, key) inputs must be a programmer error")
 	}
 }
