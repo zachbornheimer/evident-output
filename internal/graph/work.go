@@ -8,8 +8,11 @@ import "github.com/zachbornheimer/evident-output/internal/record"
 // runs, so a step may call back into the graph.
 type Work struct {
 	// Started runs once the Task was claimed, before Run, on the claiming
-	// goroutine: the caller's own bookkeeping for a Task that began.
-	Started func()
+	// goroutine: the caller's own bookkeeping for a Task that began. It
+	// reports whether the Task began. False means the Task settled between
+	// its claim and this step, so it never started: Run and Observed are
+	// skipped, and no callback runs for a Task that announced no start.
+	Started func() bool
 	// Run is the Task's callback. Its return value is recorded as the Task's
 	// WorkErr before Observed hears it.
 	Run func() error

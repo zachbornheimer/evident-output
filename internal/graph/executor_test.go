@@ -108,13 +108,35 @@ func TestStartedRunsOnTheClaimingGoroutineBeforeRun(t *testing.T) {
 		steps = append(steps, step)
 	}
 	work := settlingWork(g, task, func() error { note("run"); return nil })
-	work.Started = func() { note("started") }
+	work.Started = func() bool { note("started"); return true }
 	submitWork(g, task, work)
 
 	g.Drain()
 
 	if got := strings.Join(steps, ","); got != "started,run" {
 		t.Errorf("steps = %s, want started,run", got)
+	}
+}
+
+func TestRunAndObservedAreSkippedWhenStartedReportsTheTaskNeverBegan(t *testing.T) {
+	g := New(record.NewRun())
+	task := declare(g, "settled at claim")
+	var ran, observed atomic.Bool
+	work := settlingWork(g, task, func() error { ran.Store(true); return nil })
+	work.Started = func() bool { g.Settle(task, record.Cancelled); return false }
+	work.Observed = func(error) { observed.Store(true) }
+	submitWork(g, task, work)
+
+	g.Drain()
+
+	if ran.Load() || observed.Load() {
+		t.Errorf("Run ran = %v, Observed ran = %v, want neither", ran.Load(), observed.Load())
+	}
+	if got := g.Executing(); got != 0 {
+		t.Errorf("executing = %d after the skipped claim, want its slot returned", got)
+	}
+	if got := task.Rec.State(); got != record.Cancelled {
+		t.Errorf("state = %s, want cancelled", got)
 	}
 }
 

@@ -48,7 +48,7 @@ func (t *TaskHandle) submitWork(run func() error) {
 // steps around it.
 func (o *Output) workOf(st *taskState, run func() error) graph.Work {
 	return graph.Work{
-		Started:  func() { o.taskStarted(st) },
+		Started:  func() bool { return o.taskStarted(st) },
 		Run:      run,
 		Observed: func(err error) { o.resolveObserved(st, err) },
 		Panicked: st.handle.failScheduled,
@@ -58,10 +58,11 @@ func (o *Output) workOf(st *taskState, run func() error) graph.Work {
 // taskStarted is the render work a claimed Task owes: the eligibility event,
 // the move to Running, the snapshot version and a forced paint, within the
 // live render budget, since a start is the spinner FP-005 requires before the
-// check.
-func (o *Output) taskStarted(st *taskState) {
+// check. It reports whether the Task began: false when an interrupt settled
+// it between its claim and this step, so the scheduler skips its callback.
+func (o *Output) taskStarted(st *taskState) bool {
 	if st.isGate() {
-		return
+		return true
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -69,7 +70,7 @@ func (o *Output) taskStarted(st *taskState) {
 	if core.IsTerminalTask(st.node.Rec.State()) {
 		// An interrupt settled the Task between its claim and this step: it
 		// never started, so it is neither eligible nor started.
-		return
+		return false
 	}
 	o.emitWireEventLocked(wire.EventTaskEligible, st.id, nil)
 	if st.node.Rec.State() == Pending {
@@ -79,6 +80,7 @@ func (o *Output) taskStarted(st *taskState) {
 	}
 	o.bumpLocked()
 	o.signalLiveLocked(true)
+	return true
 }
 
 // resolveObserved commits the task's outcome from what the callback actually

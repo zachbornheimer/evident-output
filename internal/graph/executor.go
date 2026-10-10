@@ -49,13 +49,15 @@ type claim struct {
 	task   *Task
 	work   Work
 	pooled bool
+	// began is whether the Task started: set by start, before any goroutine
+	// runs the claim.
+	began bool
 }
 
-// start runs the caller's bookkeeping for a Task that began.
+// start runs the caller's bookkeeping for a Task that began, and records
+// whether it did.
 func (c *claim) start() {
-	if c.work.Started != nil {
-		c.work.Started()
-	}
+	c.began = c.work.Started == nil || c.work.Started()
 }
 
 // Kick starts every Task the concurrency ceiling has room for, then ends a
@@ -164,6 +166,9 @@ func (g *Graph) finishClaimed(c *claim) {
 // by the pooled worker and by a waiter that donates its own goroutine to work
 // it would otherwise block on.
 func (g *Graph) execute(c *claim) {
+	if !c.began {
+		return
+	}
 	defer g.enterConsumer(c.task)()
 	if c.task.IsGate() {
 		g.runGate(c)
