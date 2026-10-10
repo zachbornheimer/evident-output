@@ -139,10 +139,10 @@ func (w *resourceWait) show(resource.Claim) {
 	w.out.mu.Lock()
 	defer w.out.mu.Unlock()
 	st := w.out.taskStates[w.taskID]
-	if st == nil || core.IsTerminalTask(st.rec.State()) {
+	if st == nil || core.IsTerminalTask(st.node.Rec.State()) {
 		return
 	}
-	w.prior = st.rec.Phase()
+	w.prior = st.node.Rec.Phase()
 	w.shown = true
 	w.out.setLiveOnlyPhaseLocked(st, w.text)
 }
@@ -157,7 +157,7 @@ func (w *resourceWait) clear() {
 	w.out.mu.Lock()
 	defer w.out.mu.Unlock()
 	st := w.out.taskStates[w.taskID]
-	if st == nil || core.IsTerminalTask(st.rec.State()) || st.rec.Phase() != w.text {
+	if st == nil || core.IsTerminalTask(st.node.Rec.State()) || st.node.Rec.Phase() != w.text {
 		return
 	}
 	w.out.setLiveOnlyPhaseLocked(st, w.prior)

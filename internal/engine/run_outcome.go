@@ -49,11 +49,9 @@ func (o *Output) Cancel(reason string) {
 func (o *Output) appendSyntheticTaskLocked(name string, init record.TaskInit) {
 	node := o.graph.AddTerminalTask(name, init)
 	o.appendTaskLocked(&taskState{
-		id:          node.ID,
-		node:        node,
-		name:        node.Name,
-		rec:         node.Rec,
-		declaration: node.Declaration,
-		synthetic:   true,
+		id:        node.ID,
+		node:      node,
+		name:      node.Name,
+		synthetic: true,
 	})
 }

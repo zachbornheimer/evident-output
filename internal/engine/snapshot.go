@@ -36,7 +36,7 @@ func (o *Output) snapshotLocked() Snapshot {
 	}
 	// Root tasks not in a collection
 	for _, t := range o.tasks {
-		if t.collection == nil {
+		if t.collection() == nil {
 			s.Tasks = append(s.Tasks, t.snapshot())
 		}
 	}
@@ -69,10 +69,10 @@ func (t *taskState) snapshot() TaskSnapshot {
 // view and snapshot only the ones it shows.
 func (t *taskState) view() TaskSnapshot {
 	colID := ""
-	if t.collection != nil {
-		colID = t.collection.id
+	if t.collection() != nil {
+		colID = t.collection().id
 	}
-	truth := t.rec.Truth()
+	truth := t.node.Rec.Truth()
 	base := TaskSnapshot{
 		ID:           t.id,
 		Key:          t.key(),
@@ -90,7 +90,7 @@ func (t *taskState) view() TaskSnapshot {
 		Skipped:      truth.Skipped,
 		Kept:         truth.Kept,
 		Collection:   colID,
-		Declaration:  t.declaration,
+		Declaration:  t.node.Declaration,
 		Resolution:   truth.Resolution,
 		Evidence:     truth.VerifyEvidence,
 	}
@@ -119,7 +119,8 @@ func (g *tasksState) derivedState() EntityState {
 	if g.node.BuilderFailed() {
 		return Failed
 	}
-	if len(g.tasks) == 0 && len(g.children) == 0 {
+	tasks, children := g.taskCount(), g.childStates()
+	if tasks == 0 && len(children) == 0 {
 		if g.node.BuilderNotStarted() {
 			return NotStarted
 		}
@@ -130,11 +131,11 @@ func (g *tasksState) derivedState() EntityState {
 	// every child is NotStarted there is no such sibling — whatever stopped
 	// the run was another subject entirely — and folding to Done rendered a
 	// check over a subject that never ran.
-	if len(g.children) == 0 && g.allTasksNotStarted() {
+	if len(children) == 0 && g.allTasksNotStarted(tasks) {
 		return NotStarted
 	}
 	v := g.settled().states.fold()
-	for _, child := range g.children {
+	for _, child := range children {
 		switch s := child.derivedState(); s {
 		case Empty:
 		case NotStarted:
@@ -146,8 +147,8 @@ func (g *tasksState) derivedState() EntityState {
 	return v.state()
 }
 
-func (g *tasksState) allTasksNotStarted() bool {
-	return len(g.tasks) > 0 && g.settled().states.notStarted == len(g.tasks)
+func (g *tasksState) allTasksNotStarted(tasks int) bool {
+	return tasks > 0 && g.settled().states.notStarted == tasks
 }
 
 // verdictFold accumulates member states into one container verdict. A
@@ -194,8 +195,8 @@ func (v verdictFold) state() EntityState {
 // displaySummary is g's Summary as its row shows it, given its derived
 // state st: only when all children done/skipped successfully.
 func (g *tasksState) displaySummary(st EntityState) string {
-	if st == Done && g.rec.Summary() != "" && !g.hasWarnedOrFailedDescendant() {
-		return g.rec.Summary()
+	if st == Done && g.node.Rec.Summary() != "" && !g.hasWarnedOrFailedDescendant() {
+		return g.node.Rec.Summary()
 	}
 	return ""
 }
@@ -210,7 +211,7 @@ func (g *tasksState) hasWarnedOrFailedDescendant() bool {
 	if s := g.settled().states; s.failed > 0 || s.cancelled > 0 || s.warned > 0 {
 		return true
 	}
-	for _, child := range g.children {
+	for _, child := range g.childStates() {
 		if child.hasWarnedOrFailedDescendant() {
 			return true
 		}
@@ -232,7 +233,7 @@ func (o *Output) collectActionsLocked() []Action {
 		}
 	}
 	for _, t := range o.tasks {
-		add(t.rec.Actions())
+		add(t.node.Rec.Actions())
 		// ZYS-848: a remedy attached via evo.Next(...) to an individual
 		// Problem/warning (task.Problem(msg, evo.Next(...)),
 		// task.Fail(msg, evo.Next(...))) must reach the run's own Next
@@ -241,7 +242,7 @@ func (o *Output) collectActionsLocked() []Action {
 		// invisible everywhere: writeProblem never renders p.Actions
 		// inline (it is evidence, not a decision), and without this loop
 		// it was silently dropped from the Conclusion's Next list too.
-		truth := t.rec.Truth()
+		truth := t.node.Rec.Truth()
 		for _, p := range truth.Problems {
 			add(p.Actions)
 		}
@@ -254,10 +255,10 @@ func (o *Output) collectActionsLocked() []Action {
 
 func (g *tasksState) snapshot() TasksSnapshot {
 	ts := g.header()
-	for _, t := range g.tasks {
+	for _, t := range g.taskStates() {
 		ts.Tasks = append(ts.Tasks, t.snapshot())
 	}
-	for _, child := range g.children {
+	for _, child := range g.childStates() {
 		ts.Collections = append(ts.Collections, child.snapshot())
 	}
 	return ts
@@ -272,8 +273,8 @@ func (g *tasksState) header() TasksSnapshot {
 		Name:        g.name,
 		State:       state,
 		Summary:     g.displaySummary(state),
-		Declaration: g.declaration,
-		Sequential:  g.sequential,
+		Declaration: g.node.Declaration,
+		Sequential:  g.node.Sequential,
 	}
 }
 
@@ -285,7 +286,7 @@ func (g *tasksState) liveSnapshot(rows int, now time.Time) TasksSnapshot {
 	g.stampDirectTasks(now)
 	ts := g.header()
 	kept, roster := g.settled().project(g, rows)
-	ts = liveCollections(g.children, rows, now).Into(ts)
+	ts = liveCollections(g.childStates(), rows, now).Into(ts)
 	ts = roster.Project(ts, kept)
 	if liveIndexAudit != nil {
 		liveIndexAudit(g, rows, now, ts, rev)
@@ -313,10 +314,10 @@ func liveCollections(cols []*tasksState, rows int, now time.Time) *live.LiveColl
 // of a snapshot.
 func (g *tasksState) view() TasksSnapshot {
 	ts := g.header()
-	for _, t := range g.tasks {
+	for _, t := range g.taskStates() {
 		ts.Tasks = append(ts.Tasks, t.view())
 	}
-	for _, child := range g.children {
+	for _, child := range g.childStates() {
 		ts.Collections = append(ts.Collections, child.view())
 	}
 	return ts
@@ -329,7 +330,7 @@ func (g *tasksState) stampLiveFirstSeen(now time.Time) {
 		return
 	}
 	g.stampDirectTasks(now)
-	for _, child := range g.children {
+	for _, child := range g.childStates() {
 		child.stampLiveFirstSeen(now)
 	}
 }

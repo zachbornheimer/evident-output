@@ -187,6 +187,14 @@ func (m *Mutex) Lock() {
 	}
 }
 
+// LockRead takes the mutex for a section that writes nothing to the Run, so
+// it holds no notifications and costs only the mutex. Release it with
+// UnlockRead.
+func (m *Mutex) LockRead() { m.mu.Lock() }
+
+// UnlockRead frees a mutex taken by LockRead.
+func (m *Mutex) UnlockRead() { m.mu.Unlock() }
+
 // Unlock frees the mutex, then releases the hold, which tells the run's
 // listener whatever the section wrote.
 func (m *Mutex) Unlock() {

@@ -91,7 +91,7 @@ func TestDuplicateSiblingRefusalRowSharesItsSiblingsIdentity(t *testing.T) {
 		original := out.taskStates[p[0].id]
 		var refusal *taskState
 		for _, st := range out.tasks {
-			if st.name == original.name && st.collection == original.collection && st != original {
+			if st.name == original.name && st.collection() == original.collection() && st != original {
 				refusal = st
 			}
 		}

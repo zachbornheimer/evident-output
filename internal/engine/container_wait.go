@@ -71,7 +71,7 @@ func (o *Output) collectDescendantTasks(rootID string) []*taskState {
 	}
 	states := make([]*taskState, 0, countDescendantTasksLocked(col))
 	states = appendDescendantTasksLocked(col, states)
-	sort.Slice(states, func(i, j int) bool { return states[i].declaration < states[j].declaration })
+	sort.Slice(states, func(i, j int) bool { return states[i].node.Declaration < states[j].node.Declaration })
 	return states
 }
 
@@ -79,8 +79,8 @@ func (o *Output) collectDescendantTasks(rootID string) []*taskState {
 // slice in one pass so the second, appending pass never reallocates. Caller
 // must hold o.mu.
 func countDescendantTasksLocked(col *tasksState) int {
-	n := len(col.tasks)
-	for _, child := range col.children {
+	n := col.taskCount()
+	for _, child := range col.childStates() {
 		n += countDescendantTasksLocked(child)
 	}
 	return n
@@ -90,8 +90,8 @@ func countDescendantTasksLocked(col *tasksState) int {
 // children, mirroring collectionFailed/collectionResolved's walk. Caller
 // must hold o.mu.
 func appendDescendantTasksLocked(col *tasksState, out []*taskState) []*taskState {
-	out = append(out, col.tasks...)
-	for _, child := range col.children {
+	out = append(out, col.taskStates()...)
+	for _, child := range col.childStates() {
 		out = appendDescendantTasksLocked(child, out)
 	}
 	return out

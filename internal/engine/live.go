@@ -177,7 +177,7 @@ func (o *Output) holdRunningPaint(id string) {
 		return
 	}
 	st := o.taskStates[id]
-	if st == nil || st.rec.State() != Running {
+	if st == nil || st.node.Rec.State() != Running {
 		o.mu.Unlock()
 		return
 	}
@@ -194,7 +194,7 @@ func (o *Output) holdRunningPaint(id string) {
 
 func (o *Output) hasUnpaintedRunningLocked() bool {
 	for _, t := range o.tasks {
-		if t.rec.State() == Running && t.liveFirstSeenAt.IsZero() {
+		if t.node.Rec.State() == Running && t.liveFirstSeenAt.IsZero() {
 			return true
 		}
 	}
@@ -207,11 +207,11 @@ func (o *Output) hasLiveActivityLocked() bool {
 		// immediately (evo-rec.md "predeclare Tasks; ... others named
 		// idle") — VisibilityDelay withholds the *spinner flash* for
 		// near-instant work, not the fact that a task now exists.
-		if t.rec.State() == Running || t.rec.State() == Pending || t.rec.Phase() != "" {
+		if t.node.Rec.State() == Running || t.node.Rec.State() == Pending || t.node.Rec.Phase() != "" {
 			return true
 		}
-		if t.rec.Progress().Kind == Determinate || t.rec.Progress().Kind == BytesKind {
-			if t.rec.State() == Running || t.rec.State() == Done || t.rec.State() == Failed {
+		if t.node.Rec.Progress().Kind == Determinate || t.node.Rec.Progress().Kind == BytesKind {
+			if t.node.Rec.State() == Running || t.node.Rec.State() == Done || t.node.Rec.State() == Failed {
 				return true
 			}
 		}
@@ -269,7 +269,7 @@ func (o *Output) needsSpinnerAnimLocked() bool {
 		}
 	}
 	for _, t := range o.rootTasks {
-		if (t.rec.State() == Running || t.rec.State() == Pending) && !t.coreEmitted {
+		if (t.node.Rec.State() == Running || t.node.Rec.State() == Pending) && !t.coreEmitted {
 			return true
 		}
 	}
@@ -455,7 +455,7 @@ func untilNextSpinnerSlot(now time.Time) time.Duration {
 // Problem 9). A no-op once set: the field only ever moves from zero once.
 // liveSnapshotLocked calls it on every Task as it builds a frame.
 func (t *taskState) stampLiveFirstSeen(now time.Time) {
-	if t.unstampedIn(t.rec.State()) {
+	if t.unstampedIn(t.node.Rec.State()) {
 		t.liveFirstSeenAt = now
 		t.markFiling()
 		t.censusStamped()

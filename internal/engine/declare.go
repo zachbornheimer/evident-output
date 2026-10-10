@@ -74,20 +74,16 @@ func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 		return o.rejectedTask(err)
 	}
 	st := &taskState{
-		id:          node.ID,
-		node:        node,
-		name:        node.Name,
-		rec:         node.Rec,
-		followed:    declaredState,
-		collection:  col,
-		declaration: node.Declaration,
+		id:       node.ID,
+		node:     node,
+		name:     node.Name,
+		followed: declaredState,
 	}
 	h := &TaskHandle{out: o, id: st.id}
 	st.handle = h
 	o.appendTaskLocked(st)
 	if col != nil {
-		st.filing.pos = len(col.tasks)
-		col.tasks = append(col.tasks, st)
+		st.filing.pos = col.taskCount() - 1
 		st.markFiling()
 		col.hasNamesake = col.hasNamesake || name == col.name
 		st.censusDeclared()
@@ -141,21 +137,16 @@ func (o *Output) declareContainerLocked(parent *tasksState, name string, sequent
 	}
 	node := o.graph.AddContainer(containerNode(parent), clean, sequential)
 	st := &tasksState{
-		id:          node.ID,
-		out:         o,
-		node:        node,
-		name:        node.Name,
-		rec:         node.Rec,
-		declaration: node.Declaration,
-		sequential:  sequential,
-		parent:      parent,
+		id:   node.ID,
+		out:  o,
+		node: node,
+		name: node.Name,
 	}
 	parentID := ""
 	if parent == nil {
 		o.collections = append(o.collections, st)
 	} else {
 		parentID = parent.id
-		parent.children = append(parent.children, st)
 	}
 	o.containerStates[st.id] = st
 	o.graph.ClaimName(containerNode(parent), kind, clean)

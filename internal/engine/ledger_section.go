@@ -16,7 +16,7 @@ const (
 // ledgerOwner is st as the ledger knows its Task: placed by declaration,
 // found by id, shown by name, qualified by container path.
 func (st *taskState) ledgerOwner() record.LedgerOwner {
-	return record.LedgerOwner{ID: st.id, Name: st.name, Declaration: st.declaration, Containers: st.containerPath()}
+	return record.LedgerOwner{ID: st.id, Name: st.name, Declaration: st.node.Declaration, Containers: st.containerPath()}
 }
 
 // ledgerSectionIDLocked returns the id of owner's section in tense, opening

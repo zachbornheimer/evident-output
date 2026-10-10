@@ -143,7 +143,7 @@ func (c rootColumn) nameWidth() int {
 // never race above already-resolved work.
 func (o *Output) commitResolvedTaskLocked(id string) {
 	st := o.taskStates[id]
-	if st == nil || st.coreEmitted || !core.IsTerminalTask(st.rec.State()) {
+	if st == nil || st.coreEmitted || !core.IsTerminalTask(st.node.Rec.State()) {
 		return
 	}
 	if o.heldBackAsNoOpLocked(st.snapshot()) {
@@ -259,8 +259,8 @@ const plainProgressMilestones = 10
 // The first tick and the final tick (completed == total) always stream —
 // beginner-8's "always a final n/n" — everything between is thinned.
 func shouldEmitPlainProgressLocked(st *taskState) bool {
-	completed := st.rec.Progress().Completed
-	total := st.rec.Progress().Total
+	completed := st.node.Rec.Progress().Completed
+	total := st.node.Rec.Progress().Total
 	if !st.plainStream.progressStarted {
 		return true
 	}
@@ -282,10 +282,10 @@ func shouldEmitPlainProgressLocked(st *taskState) bool {
 // region answers the same question the same way; see
 // promotesLoneChildOntoHeader.
 func progressiveRowName(st *taskState) string {
-	if st.collection == nil || st.collection.name == st.name {
+	if st.collection() == nil || st.collection().name == st.name {
 		return st.name
 	}
-	return st.collection.name + "  " + st.name
+	return st.collection().name + "  " + st.name
 }
 
 // emitTaskRunningProgressiveLocked streams a Running task's current
@@ -302,7 +302,7 @@ func progressiveRowName(st *taskState) string {
 // the Running task happens to sit in the tree, and a collection whose
 // children are explicitly named has no aggregate row streaming in its place.
 func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskProgressiveTrigger) {
-	if st == nil || st.rec.State() != Running {
+	if st == nil || st.node.Rec.State() != Running {
 		return
 	}
 	live := o.liveLocked()
@@ -312,16 +312,16 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 	}
 	switch trigger {
 	case triggerPhase:
-		if st.rec.Phase() == st.plainStream.phase {
+		if st.node.Rec.Phase() == st.plainStream.phase {
 			return
 		}
-		st.plainStream.phase = st.rec.Phase()
+		st.plainStream.phase = st.node.Rec.Phase()
 	case triggerProgress:
 		if !shouldEmitPlainProgressLocked(st) {
 			return
 		}
 		st.plainStream.progressStarted = true
-		st.plainStream.progressEmitted = st.rec.Progress().Completed
+		st.plainStream.progressEmitted = st.node.Rec.Progress().Completed
 	}
 	row := st.snapshot()
 	row.Name = progressiveRowName(st)
@@ -414,7 +414,7 @@ func (o *Output) writeResidualEntitiesLocked(b *strings.Builder, snap Snapshot, 
 		shown[t.ID] = true
 	}
 	for _, t := range o.tasks {
-		if t.collection != nil || t.coreEmitted {
+		if t.collection() != nil || t.coreEmitted {
 			continue
 		}
 		if shown[t.id] {

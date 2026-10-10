@@ -290,10 +290,10 @@ func (o *Output) emitPlannedHeaderLocked() {
 // once the task has already resolved or does not exist.
 func (o *Output) attachVerificationLocked(taskID string, details []core.VerificationDetail) {
 	st := o.taskStates[taskID]
-	if st == nil || core.IsTerminalTask(st.rec.State()) {
+	if st == nil || core.IsTerminalTask(st.node.Rec.State()) {
 		return
 	}
-	stored := st.rec.AttachVerification(details)
+	stored := st.node.Rec.AttachVerification(details)
 	st.markFiling()
 	// Emit the sanitized copy evo.run projects, so JSONL and JSON agree.
 	for _, d := range stored {
@@ -311,14 +311,14 @@ func (o *Output) attachVerificationLocked(taskID string, details []core.Verifica
 // documents its children as independent (worker-pool fan-out is a
 // supported, concurrency-safe pattern there), so it is not policed.
 func (o *Output) promoteRunningLocked(st *taskState) {
-	if col := st.collection; col != nil && col.sequential {
-		col.runningSteps = slices.DeleteFunc(col.runningSteps, func(s *taskState) bool { return s.rec.State() != Running })
+	if col := st.collection(); col != nil && col.node.Sequential {
+		col.runningSteps = slices.DeleteFunc(col.runningSteps, func(s *taskState) bool { return s.node.Rec.State() != Running })
 		if len(col.runningSteps) > 0 {
 			o.recordMisuse(ErrConcurrentRunning)
 		}
 		col.runningSteps = append(col.runningSteps, st)
 	}
-	st.rec.Transition(Running)
+	st.node.Rec.Transition(Running)
 	st.markFiling()
 	o.armPlainHeartbeatLocked(st, o.cfg.clock.Now())
 	// Every promoteRunningLocked call site already guards on st.state ==

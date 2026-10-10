@@ -43,8 +43,8 @@ func (t *TaskHandle) annotate(apply func(st *taskState)) *TaskHandle {
 			t.out.recordMisuse(err)
 			return
 		}
-		if core.IsTerminalTask(st.rec.State()) {
-			if !resolvedByInterrupt(st.rec.State()) {
+		if core.IsTerminalTask(st.node.Rec.State()) {
+			if !resolvedByInterrupt(st.node.Rec.State()) {
 				t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 			}
 			return
@@ -87,11 +87,11 @@ func (t *TaskHandle) setLiveOnlyPhase(text string) {
 // setPhaseLocked is Doing's locked body. Callers must already hold o.mu and
 // have checked ensureOpen/isTerminalTask.
 func (o *Output) setPhaseLocked(st *taskState, text string) {
-	st.rec.SetPhase(text)
-	st.rec.MarkActivity(o.cfg.clock.Now())
-	if st.rec.State() == Pending {
+	st.node.Rec.SetPhase(text)
+	st.node.Rec.MarkActivity(o.cfg.clock.Now())
+	if st.node.Rec.State() == Pending {
 		o.promoteRunningLocked(st)
-		st.rec.EnsureIndeterminateProgress()
+		st.node.Rec.EnsureIndeterminateProgress()
 	}
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})
@@ -109,13 +109,13 @@ func (o *Output) setPhaseLocked(st *taskState, text string) {
 func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	// Identical live-only phase is a no-op: Writer leftover/repeated lines
 	// must not bump, emit task.phase_changed, or force a live paint.
-	if !st.rec.SetPhaseIfChanged(text) {
+	if !st.node.Rec.SetPhaseIfChanged(text) {
 		return
 	}
-	st.rec.MarkActivity(o.cfg.clock.Now())
-	if st.rec.State() == Pending {
+	st.node.Rec.MarkActivity(o.cfg.clock.Now())
+	if st.node.Rec.State() == Pending {
 		o.promoteRunningLocked(st)
-		st.rec.EnsureIndeterminateProgress()
+		st.node.Rec.EnsureIndeterminateProgress()
 	}
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})
@@ -126,7 +126,7 @@ func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
 // task.warned, EventWarningRecorded, censusWarned. Public Warn was removed in 1.1.
 func (t *TaskHandle) recordWarning(p Problem) *TaskHandle {
 	return t.annotate(func(st *taskState) {
-		if st.rec.AppendWarning(p) == 1 {
+		if st.node.Rec.AppendWarning(p) == 1 {
 			st.censusWarned()
 		}
 		t.out.bumpLocked()
@@ -145,7 +145,7 @@ func (t *TaskHandle) recordWarning(p Problem) *TaskHandle {
 // annotate). GroupHandle.Summary is the same shape one level up.
 func (t *TaskHandle) Summary(text string) *TaskHandle {
 	return t.annotate(func(st *taskState) {
-		st.rec.SetSummary(text)
+		st.node.Rec.SetSummary(text)
 		t.out.bumpLocked()
 		t.out.appendEventLocked(Event{Type: "task.summary_set", EntityID: t.id})
 		t.out.signalLiveLocked(true)
@@ -171,7 +171,7 @@ func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle 
 
 func (t *TaskHandle) recordBlockingProblem(p Problem) *TaskHandle {
 	return t.annotate(func(st *taskState) {
-		st.rec.AppendProblems(p)
+		st.node.Rec.AppendProblems(p)
 		t.out.bumpLocked()
 		t.out.appendEventLocked(Event{Type: "task.problem_recorded", EntityID: t.id})
 		t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, wire.ToProblemDoc(p).EventPayload())
@@ -188,7 +188,7 @@ func (t *TaskHandle) recordBlockingProblem(p Problem) *TaskHandle {
 func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 	f := core.SanitizeFact(FactRecord{Name: txt.Text(name), Value: txt.Text(value)})
 	return t.annotate(func(st *taskState) {
-		st.rec.AppendFact(f)
+		st.node.Rec.AppendFact(f)
 		t.out.bumpLocked()
 		t.out.emitWireEventLocked(wire.EventFactRecorded, t.id, wire.ToFactDoc(f).EventPayload())
 		t.out.signalLiveLocked(true)

@@ -36,7 +36,7 @@ func (o *Output) resolveLedgerTarget(taskID string) (ledgerTarget, error) {
 		o.recordMisuse(err)
 		return ledgerTarget{}, err
 	}
-	if core.IsTerminalTask(st.rec.State()) {
+	if core.IsTerminalTask(st.node.Rec.State()) {
 		o.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return ledgerTarget{}, ErrAlreadyResolved
 	}

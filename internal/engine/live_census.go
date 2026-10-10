@@ -67,7 +67,7 @@ func (c *liveCensus) seen(at time.Time) {
 
 // censusesAbove calls fn on the census of every collection t sits under.
 func (t *taskState) censusesAbove(fn func(*liveCensus)) {
-	for c := t.collection; c != nil; c = c.parent {
+	for c := t.collection(); c != nil; c = c.parent() {
 		fn(&c.census)
 	}
 }
@@ -92,7 +92,7 @@ func (t *taskState) censusDeclared() {
 	t.censusesAbove(func(c *liveCensus) {
 		c.total++
 		c.count(t.followed, 1)
-		if t.rec.WarningCount() > 0 {
+		if t.node.Rec.WarningCount() > 0 {
 			c.warned++
 		}
 		if unstamped {
@@ -108,7 +108,7 @@ func (t *taskState) censusDeclared() {
 // notification named, keeps the census right however late or how often the
 // record tells of a change.
 func (t *taskState) censusSync() {
-	from, to := t.followed, t.rec.State()
+	from, to := t.followed, t.node.Rec.State()
 	if from == to {
 		return
 	}

@@ -65,7 +65,7 @@ func (g *GroupHandle) Summary(text string) *GroupHandle {
 		g.out.recordMisuse(err)
 		return g
 	}
-	col.rec.SetSummary(text)
+	col.node.Rec.SetSummary(text)
 	g.out.bumpLocked()
 	g.out.appendEventLocked(Event{Type: "tasks.summary_set", EntityID: g.id})
 	return g

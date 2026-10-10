@@ -71,10 +71,10 @@ func (o *Output) Finish() error {
 func (o *Output) settleUnresolvedTasksLocked() {
 	abnormal := o.abnormalFinishLocked()
 	for _, t := range o.tasks {
-		if core.IsTerminalTask(t.rec.State()) {
+		if core.IsTerminalTask(t.node.Rec.State()) {
 			continue
 		}
-		if t.rec.ProblemCount() > 0 || o.hasRecordedEffectLocked(t.id) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || t.rec.WarningCount() > 0 {
+		if t.node.Rec.ProblemCount() > 0 || o.hasRecordedEffectLocked(t.id) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || t.node.Rec.WarningCount() > 0 {
 			o.settleLocked(t, Done)
 			continue
 		}
@@ -90,7 +90,7 @@ func (o *Output) settleUnresolvedTasksLocked() {
 			// misuse recorded: this is an honest partial outcome (folded
 			// into Conclusion.Partial), not bookkeeping the caller must fix.
 			// The hint still names the corrective action either way.
-			t.rec.SetSummary(unresolvedTaskIncompleteSummary)
+			t.node.Rec.SetSummary(unresolvedTaskIncompleteSummary)
 			o.settleLocked(t, Incomplete)
 			attachUnresolvedTaskHintLocked(t)
 			continue
@@ -98,7 +98,7 @@ func (o *Output) settleUnresolvedTasksLocked() {
 		o.resolveUnstartedTaskLocked(t)
 		// A declared task that never started is work the failure or
 		// interrupt took away. That is the answer, not misuse.
-		if t.rec.State() == NotStarted {
+		if t.node.Rec.State() == NotStarted {
 			continue
 		}
 		o.recordMisuseFor(t.name, ErrUnresolvedTask)
@@ -219,10 +219,10 @@ func joinErrors(a, b error) error {
 // BytesKind): a task that never called Progress/Bytes/Step carries the zero
 // value (Total 0, Kind "") and must not read as sealed.
 func hasSealedProgress(t *taskState) bool {
-	if t.rec.Progress().Kind == "" || t.rec.Progress().Kind == Indeterminate {
+	if t.node.Rec.Progress().Kind == "" || t.node.Rec.Progress().Kind == Indeterminate {
 		return false
 	}
-	return t.rec.Progress().Total > 0 && t.rec.Progress().Completed >= t.rec.Progress().Total
+	return t.node.Rec.Progress().Total > 0 && t.node.Rec.Progress().Completed >= t.node.Rec.Progress().Total
 }
 
 // hasRecordedTaxonomy reports whether t accumulated any Skipped/Kept record
@@ -230,7 +230,7 @@ func hasSealedProgress(t *taskState) bool {
 // (beginner-gate-2 finding 4): the disposition taxonomy already told an
 // honest, complete story even though nothing called a terminal verb.
 func hasRecordedTaxonomy(t *taskState) bool {
-	return t.rec.HasTaxonomy()
+	return t.node.Rec.HasTaxonomy()
 }
 
 // resolveUnstartedTaskLocked derives a real terminal state for a task Finish
@@ -245,12 +245,12 @@ func hasRecordedTaxonomy(t *taskState) bool {
 // non-terminal task to Incomplete directly instead, regardless of whether it
 // ever reached Running — release-gate round 4 finding 3).
 func (o *Output) resolveUnstartedTaskLocked(t *taskState) {
-	if t.rec.State() == Running {
-		t.rec.SetSummary(unresolvedTaskCancelledSummary)
+	if t.node.Rec.State() == Running {
+		t.node.Rec.SetSummary(unresolvedTaskCancelledSummary)
 		o.settleLocked(t, Cancelled)
 		return
 	}
-	t.rec.SetSummary(notStartedSummary)
+	t.node.Rec.SetSummary(notStartedSummary)
 	o.settleLocked(t, NotStarted)
 }
 
@@ -263,7 +263,7 @@ func (o *Output) resolveUnstartedTaskLocked(t *taskState) {
 // finding 1).
 func (o *Output) abnormalFinishLocked() bool {
 	for _, t := range o.tasks {
-		if t.rec.State() == Failed || t.rec.State() == Cancelled {
+		if t.node.Rec.State() == Failed || t.node.Rec.State() == Cancelled {
 			return true
 		}
 	}
@@ -275,7 +275,7 @@ func (o *Output) abnormalFinishLocked() bool {
 // o.finishing is set, when TaskHandle.Problem refuses new records, and the
 // task has no caller-authored diagnostic to own the hint.
 func attachUnresolvedTaskHintLocked(t *taskState) {
-	t.rec.AppendAction(Label(unresolvedTaskHint))
+	t.node.Rec.AppendAction(Label(unresolvedTaskHint))
 	t.markFiling()
 }
 
@@ -286,21 +286,21 @@ func attachUnresolvedTaskHintLocked(t *taskState) {
 // is left untouched — explicit resolution always wins.
 func (o *Output) autoResolveGroupsLocked() {
 	for _, col := range o.collections {
-		if !col.sequential {
+		if !col.node.Sequential {
 			continue
 		}
 		triggered := false
-		for _, t := range col.tasks {
+		for _, t := range col.taskStates() {
 			if !triggered {
-				if t.rec.State() == Failed || t.rec.State() == Cancelled {
+				if t.node.Rec.State() == Failed || t.node.Rec.State() == Cancelled {
 					triggered = true
 				}
 				continue
 			}
-			if core.IsTerminalTask(t.rec.State()) {
+			if core.IsTerminalTask(t.node.Rec.State()) {
 				continue
 			}
-			t.rec.SetSummary(notStartedSummary)
+			t.node.Rec.SetSummary(notStartedSummary)
 			o.settleLocked(t, NotStarted)
 		}
 	}

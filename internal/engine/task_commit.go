@@ -8,10 +8,10 @@ package engine
 // resolution already holds for a pending tail.
 func (st *taskState) resolveProblems(state EntityState, extra []Problem) {
 	tail := ""
-	if st.rec.NeedsEvidenceTail(state, extra) && st.evidence != nil && !st.evidence.Empty() {
+	if st.node.Rec.NeedsEvidenceTail(state, extra) && st.evidence != nil && !st.evidence.Empty() {
 		tail = st.evidence.detailText()
 	}
-	st.rec.ResolveProblems(state, extra, tail)
+	st.node.Rec.ResolveProblems(state, extra, tail)
 }
 
 // commitSettledLocked writes a settled Task where its readers find it. A
@@ -21,13 +21,13 @@ func (st *taskState) resolveProblems(state EntityState, extra []Problem) {
 // Done Task commits its manifest record; Failed, Blocked, and Cancelled
 // never do (spec §8.2/§11.3).
 func (o *Output) commitSettledLocked(st *taskState) {
-	if st.collection != nil {
+	if st.collection() != nil {
 		o.signalLiveLocked(true)
 	} else {
 		o.commitResolvedTaskLocked(st.id)
 		o.commitNamedEffectsLocked(st.id)
 	}
-	if st.rec.State() != Done {
+	if st.node.Rec.State() != Done {
 		return
 	}
 	o.commitManifestTaskLocked(o.graph.Context(), st.id)

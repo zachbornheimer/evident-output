@@ -80,7 +80,7 @@ func (o *Output) failDuplicateSiblingLocked(col *tasksState, kind graph.EntityKi
 	if st == nil {
 		return rejected
 	}
-	st.rec.AppendProblems(Problem{
+	st.node.Rec.AppendProblems(Problem{
 		Code:    ProblemCodeDuplicateSiblingName,
 		Summary: fmt.Sprintf("duplicate %s name", kind),
 	})

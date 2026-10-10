@@ -58,7 +58,7 @@ func (c *Computed[T]) Get() T {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	st := o.taskStates[c.task.id]
-	if st == nil || !record.DeclaresSuccess(st.rec.State()) {
+	if st == nil || !record.DeclaresSuccess(st.node.Rec.State()) {
 		name := ""
 		if st != nil {
 			name = st.name

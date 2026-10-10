@@ -47,7 +47,7 @@ func (t *TaskHandle) recordTaxonomyLocked(st *taskState, reason TaxonomyReason, 
 		t.out.recordMisuse(err)
 		return
 	}
-	if core.IsTerminalTask(st.rec.State()) {
+	if core.IsTerminalTask(st.node.Rec.State()) {
 		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
 		return
 	}
@@ -58,9 +58,9 @@ func (t *TaskHandle) recordTaxonomyLocked(st *taskState, reason TaxonomyReason, 
 	rec := TaxonomyRecord{Reason: reason.Name(), Name: txt.Text(name), Causes: causesFromErrors(errs)}
 	switch verb {
 	case dispositionSkip:
-		st.rec.AppendSkipped(rec)
+		st.node.Rec.AppendSkipped(rec)
 	case dispositionKeep:
-		st.rec.AppendKept(rec)
+		st.node.Rec.AppendKept(rec)
 	}
 	t.out.bumpLocked()
 	t.out.appendEventLocked(Event{Type: "task." + string(verb) + "_recorded", EntityID: t.id})

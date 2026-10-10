@@ -64,7 +64,7 @@ type filing struct {
 // verdict reads, so the next read refiles it. Call it after any change to
 // a taskState field the collection's frame shows or counts.
 func (t *taskState) markFiling() {
-	col := t.collection
+	col := t.collection()
 	if col == nil || t.filing.dirty {
 		return
 	}
@@ -92,8 +92,8 @@ func (x *childIndex) refile(g *tasksState, t *taskState) {
 	next := filing{
 		filed: true, pos: old.pos, listed: old.listed,
 		kind:  live.ClassifyChild(g.name, &view),
-		state: t.rec.State(), width: utf8.RuneCountInString(t.name),
-		seen: t.liveFirstSeenAt, warned: t.rec.WarningCount() > 0,
+		state: t.node.Rec.State(), width: utf8.RuneCountInString(t.name),
+		seen: t.liveFirstSeenAt, warned: t.node.Rec.WarningCount() > 0,
 		allSeenAt: old.allSeenAt, workSeenAt: old.workSeenAt,
 	}
 	if old.filed {
@@ -185,7 +185,7 @@ func (x *childIndex) dispositions(g *tasksState) core.Dispositions {
 	if x.itemsStale {
 		x.itemDispositions, x.itemsThrough, x.itemsStale = core.Dispositions{}, -1, false
 		x.items.each(func(pos int) {
-			view := g.tasks[pos].view()
+			view := g.taskAt(pos).view()
 			x.itemDispositions.AddTask(&view)
 			x.itemsThrough = pos
 		})
@@ -218,7 +218,7 @@ func (x *childIndex) project(g *tasksState, rows int) ([]core.TaskSnapshot, live
 	pos = slices.Compact(pos)
 	var kept []core.TaskSnapshot
 	for _, p := range pos {
-		kept = append(kept, g.tasks[p].snapshot())
+		kept = append(kept, g.taskAt(p).snapshot())
 	}
 	return kept, live.ChildRoster{
 		All:    x.all.counts(x.seenAll.earliest(isFiled)),

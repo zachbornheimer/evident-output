@@ -52,18 +52,18 @@ func TestLiveCensusMatchesAWalk(t *testing.T) {
 
 // walkCensus counts every Task at or below col the slow way.
 func walkCensus(col *tasksState, c *liveCensus) {
-	for _, st := range col.tasks {
+	for _, st := range col.taskStates() {
 		c.total++
-		c.count(st.rec.State(), 1)
-		if len(st.rec.Warnings()) > 0 {
+		c.count(st.node.Rec.State(), 1)
+		if len(st.node.Rec.Warnings()) > 0 {
 			c.warned++
 		}
-		if st.unstampedIn(st.rec.State()) {
+		if st.unstampedIn(st.node.Rec.State()) {
 			c.unstamped++
 		}
 		c.nameWidth = max(c.nameWidth, len([]rune(st.name)))
 	}
-	for _, child := range col.children {
+	for _, child := range col.childStates() {
 		walkCensus(child, c)
 	}
 }

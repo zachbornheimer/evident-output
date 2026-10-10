@@ -62,7 +62,7 @@ func (o *Output) pullRecordLocked() {
 		}
 		st.markFiling()
 		st.censusSync()
-		if st.rec.IsSettled() && !st.settleAnswered {
+		if st.node.Rec.IsSettled() && !st.settleAnswered {
 			st.settleAnswered = true
 			o.settles = append(o.settles, settleReaction{st: st, to: st.followed})
 		}

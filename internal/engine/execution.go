@@ -65,7 +65,7 @@ func (o *Output) taskStarted(st *taskState) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.emitWireEventLocked(wire.EventTaskEligible, st.id, nil)
-	if st.rec.State() == Pending {
+	if st.node.Rec.State() == Pending {
 		o.promoteRunningLocked(st)
 	}
 	o.bumpLocked()

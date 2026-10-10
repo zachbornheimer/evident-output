@@ -16,16 +16,16 @@ const auditedCollectionLimit = 400
 // the frame must equal the one a walk of every child builds.
 func init() {
 	liveIndexAudit = func(g *tasksState, rows int, now time.Time, got TasksSnapshot, rev uint64) {
-		if len(g.tasks) > auditedCollectionLimit {
+		if g.taskCount() > auditedCollectionLimit {
 			return
 		}
 		children := live.NewLiveChildren(g.name, rows)
-		for _, t := range g.tasks {
+		for _, t := range g.taskStates() {
 			if view := t.view(); children.Admit(&view) {
 				children.Keep(t.snapshot())
 			}
 		}
-		want := children.Collection(liveCollections(g.children, rows, now).Into(g.header()))
+		want := children.Collection(liveCollections(g.childStates(), rows, now).Into(g.header()))
 		if g.out.rec.Revision() != rev {
 			return
 		}

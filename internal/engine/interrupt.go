@@ -30,7 +30,7 @@ func (o *Output) cancelActive(reason string) {
 	}
 	running := make([]*TaskHandle, 0, len(o.tasks))
 	for _, t := range o.tasks {
-		if t.rec.State() == Running {
+		if t.node.Rec.State() == Running {
 			running = append(running, t.handle)
 		}
 	}
@@ -48,7 +48,7 @@ func (o *Output) cancelActive(reason string) {
 	// through to Output-level cancel.
 	var active *TaskHandle
 	for _, t := range o.tasks {
-		if t.rec.State() == Pending {
+		if t.node.Rec.State() == Pending {
 			active = t.handle
 			break
 		}
@@ -71,8 +71,8 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 	if !ok {
 		return false
 	}
-	if st := o.taskStates[id]; st != nil && !core.IsTerminalTask(st.rec.State()) {
-		st.rec.SetSummary(reason)
+	if st := o.taskStates[id]; st != nil && !core.IsTerminalTask(st.node.Rec.State()) {
+		st.node.Rec.SetSummary(reason)
 		o.settleLocked(st, Cancelled)
 		o.commitResolvedTaskLocked(id)
 	}

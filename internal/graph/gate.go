@@ -74,16 +74,16 @@ func (c *Container) BuilderGate() *Task {
 // BuilderFailed reports whether c's builder panicked before declaring every
 // child.
 func (c *Container) BuilderFailed() bool {
-	c.graph.lock()
-	defer c.graph.unlock()
+	c.graph.lockRead()
+	defer c.graph.unlockRead()
 	return c.builder != nil && c.builder.phase == builderFailed
 }
 
 // BuilderNotStarted reports whether c's builder never ran because a
 // predecessor can never succeed.
 func (c *Container) BuilderNotStarted() bool {
-	c.graph.lock()
-	defer c.graph.unlock()
+	c.graph.lockRead()
+	defer c.graph.unlockRead()
 	return c.builder != nil && c.builder.phase == builderNotStarted
 }
 

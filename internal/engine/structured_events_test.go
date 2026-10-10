@@ -662,7 +662,7 @@ func TestWireEvents_VerificationObservedUsesSanitizedFacts(t *testing.T) {
 			Facts: []core.Fact{{Name: "error", Value: rawErr}},
 		},
 	})
-	sanitized := out.taskStates[task.id].rec.Verification()
+	sanitized := out.taskStates[task.id].node.Rec.Verification()
 	out.mu.Unlock()
 
 	_ = task.Wait()

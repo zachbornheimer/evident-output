@@ -44,7 +44,7 @@ func (o *Output) emitWireEventLocked(eventType, entityID string, payload map[str
 // call site Group, Sequence, and declareChildContainerLocked all share.
 func (o *Output) emitCollectionDeclaredLocked(st *tasksState, parentID string) {
 	kind := wire.CollectionKindGroup
-	if st.sequential {
+	if st.node.Sequential {
 		kind = wire.CollectionKindSequence
 	}
 	o.emitWireEventLocked(wire.EventCollectionDeclared, st.id, map[string]any{

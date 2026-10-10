@@ -24,7 +24,7 @@ func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *Tas
 // (e.g. Phase) that would otherwise describe a progress change that never
 // happened.
 func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, kind ProgressKind) bool {
-	switch st.rec.ApplyProgress(completed, total, kind) {
+	switch st.node.Rec.ApplyProgress(completed, total, kind) {
 	case record.ProgressInvalid:
 		t.out.recordMisuse(ErrInvalidProgress)
 		return false
@@ -32,8 +32,8 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 		t.out.recordMisuse(ErrProgressRegression)
 		return false
 	}
-	st.rec.MarkActivity(t.out.cfg.clock.Now())
-	if st.rec.State() == Pending {
+	st.node.Rec.MarkActivity(t.out.cfg.clock.Now())
+	if st.node.Rec.State() == Pending {
 		t.out.promoteRunningLocked(st)
 	}
 	t.out.bumpLocked()

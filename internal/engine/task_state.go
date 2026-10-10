@@ -6,7 +6,6 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
-	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 // key is the Task's §3.1 stable key, empty for a Task the graph never declared.
@@ -28,17 +27,9 @@ type taskState struct {
 	// node is the graph's declaration of this Task. It owns the Task's stable
 	// key and everything the scheduler knows: its phase, predecessors and
 	// the work Define submitted.
-	node *graph.Task
-	name string
-	// rec is what this Task reported and found: its state, phase, progress,
-	// summary, Problems, warnings, facts, verification, resolution and
-	// skip and keep records. Everything that writes it goes through rec.
-	rec *record.Task
-	// collection and declaration copy the node's Parent and Declaration, for
-	// the render code that walks them without asking the graph.
-	collection  *tasksState
-	declaration int
-	handle      *TaskHandle
+	node   *graph.Task
+	name   string
+	handle *TaskHandle
 
 	// liveFirstSeenAt is the domain-clock time this task was first actually
 	// painted in the live region (see taskState.stampLiveFirstSeen in live.go) —
@@ -118,35 +109,18 @@ type tasksState struct {
 	out *Output
 	// node is the graph's declaration of this Group/Sequence and owns its
 	// §3.1 stable key.
-	node *graph.Container
-	name string
-	// rec is what this container said about itself: its summary. Its verdict
-	// derives from its members.
-	rec         *record.Container
-	tasks       []*taskState
-	declaration int
-	handle      *GroupHandle
+	node   *graph.Container
+	name   string
+	handle *GroupHandle
 
 	// kids is what a live frame and the verdict read of tasks.
 	kids childIndex
 
-	// sequential marks a Sequence: children are chained in declaration
-	// order. A Group's children are independent and may overlap.
-	sequential bool
 	// runningSteps holds the children promoteRunningLocked moved to
 	// Running that may still be Running (pruned on each promotion), so the
 	// "one Running child" check never rescans every step.
 	runningSteps []*taskState
 
-	// children holds nested containers declared via Group.Group,
-	// Group.Sequence, Sequence.Group, or Sequence.Sequence (P3's recursive
-	// nesting) — a container's derived state and
-	// rendering fold its children in exactly the way it folds its own
-	// tasks.
-	children []*tasksState
-
-	// parent is the container this one is nested in, nil at the root.
-	parent *tasksState
 	// path caches containerPath: a container's place in the tree is fixed at
 	// declaration, and every child's ledger section shares the one slice.
 	path core.ContainerPath
@@ -160,18 +134,18 @@ type tasksState struct {
 // containerPath is the chain of containers enclosing st, nearest first;
 // nil for a root Task.
 func (st *taskState) containerPath() core.ContainerPath {
-	if st.collection == nil {
+	if st.collection() == nil {
 		return nil
 	}
-	return st.collection.containerPath()
+	return st.collection().containerPath()
 }
 
 // containerPath is c then every container above it.
 func (c *tasksState) containerPath() core.ContainerPath {
 	if c.path == nil {
 		c.path = core.ContainerPath{{ID: c.id, Name: c.name}}
-		if c.parent != nil {
-			c.path = append(c.path, c.parent.containerPath()...)
+		if c.parent() != nil {
+			c.path = append(c.path, c.parent().containerPath()...)
 		}
 	}
 	return c.path

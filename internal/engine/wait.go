@@ -99,19 +99,19 @@ func (o *Output) waitOutcome(taskID string) error {
 		return nil
 	case st.node.WorkErr() != nil:
 		return st.node.WorkErr()
-	case st.node.Phase() == graph.PhaseDeclared && (st.rec.State() == NotStarted || st.neverDefined()):
+	case st.node.Phase() == graph.PhaseDeclared && (st.node.Rec.State() == NotStarted || st.neverDefined()):
 		// Declared but never Defined: there is no work to have succeeded.
 		return fmt.Errorf("%w: %s was never defined", ErrNotStarted, st.name)
-	case st.rec.State() == NotStarted:
+	case st.node.Rec.State() == NotStarted:
 		return ErrNotStarted
-	case st.rec.State() == Cancelled:
-		return cancelledWaitOutcome(st.rec.Summary())
-	case st.rec.State() == Failed || st.rec.State() == Blocked:
+	case st.node.Rec.State() == Cancelled:
+		return cancelledWaitOutcome(st.node.Rec.Summary())
+	case st.node.Rec.State() == Failed || st.node.Rec.State() == Blocked:
 		// The row already failed but its callback has not returned yet (it
 		// resolved itself via Fail/Block, which settles the row at once),
 		// or it returned nil after stating its own failure. Either way the
 		// work did not succeed, and Wait must not say it did.
-		return failedWaitOutcome(st.rec.Summary())
+		return failedWaitOutcome(st.node.Rec.Summary())
 	default:
 		return nil
 	}
@@ -152,7 +152,7 @@ func (t *TaskHandle) waitSubmitted(stack *graph.WaiterStack) error {
 	}
 	// A terminal task closed its doneCh in the same critical section that
 	// set its state, so there is nothing to park for.
-	if core.IsTerminalTask(st.rec.State()) {
+	if core.IsTerminalTask(st.node.Rec.State()) {
 		o.mu.Unlock()
 		return nil
 	}

@@ -112,6 +112,11 @@ func New(run *record.Run, options ...Option) *Graph {
 func (g *Graph) lock()   { g.mu.Lock() }
 func (g *Graph) unlock() { g.mu.Unlock() }
 
+// lockRead and unlockRead bracket a section that only reads the graph and
+// writes nothing to the record, so it has no notifications to hold.
+func (g *Graph) lockRead()   { g.mu.LockRead() }
+func (g *Graph) unlockRead() { g.mu.UnlockRead() }
+
 // Close ends the graph's lifecycle: it accepts no further Task.
 func (g *Graph) Close() {
 	g.lock()
