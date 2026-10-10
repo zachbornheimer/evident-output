@@ -75,10 +75,10 @@ func makeTreeTraversable(path string, chmodRoot func(string, fs.FileMode) error)
 	if err != nil || !info.IsDir() {
 		return
 	}
-	// A directory with no owner access cannot be opened as a root.
-	if err := chmodRoot(path, ownerDirAccess(info.Mode())); err != nil {
-		return
-	}
+	// A root chmod that fails is not fatal: the root may already be openable,
+	// and the directories beneath it still need opening up. A root that is
+	// not openable fails at OpenRoot below.
+	_ = chmodRoot(path, ownerDirAccess(info.Mode()))
 	root, err := os.OpenRoot(path)
 	if err != nil {
 		return
