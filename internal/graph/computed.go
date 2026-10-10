@@ -44,15 +44,29 @@ func (c *Computed[T]) Set(v T) { c.value, c.produced = v, true }
 // order does not put after the producer, then ErrComputedUnsettled until the
 // producer settled successfully with a value. Order is declared, so it is
 // judged before settledness, which a race decides: an unordered reader fails
-// the same way whether or not the producer happened to settle first. Whoever
-// runs on a goroutine outside every callback is ordered by definition.
+// the same way whether or not the producer happened to settle first. A
+// goroutine a callback started reads as that callback. Whoever runs on a
+// goroutine outside every callback is ordered by definition.
+//
+// A refused read from such a started goroutine also fails the callback's own
+// Task, once the callback returns: the goroutine cannot unwind it.
 func (c *Computed[T]) Read(g *Graph) (T, error) {
 	var zero T
-	if consumer := g.CurrentConsumer(); consumer != nil && !g.OrderedAfter(consumer, c.producer) {
-		return zero, ErrComputedUnordered
-	}
-	if !record.DeclaresSuccess(c.producer.Rec.State()) || !c.produced {
-		return zero, ErrComputedUnsettled
+	reader := g.CurrentReader()
+	if err := c.refusalFor(g, reader.Task); err != nil {
+		g.refuseSpawnedRead(reader, err)
+		return zero, err
 	}
 	return c.value, nil
+}
+
+// refusalFor is why reader may not read the value, nil when it may.
+func (c *Computed[T]) refusalFor(g *Graph, reader *Task) error {
+	if reader != nil && !g.OrderedAfter(reader, c.producer) {
+		return ErrComputedUnordered
+	}
+	if !record.DeclaresSuccess(c.producer.Rec.State()) || !c.produced {
+		return ErrComputedUnsettled
+	}
+	return nil
 }

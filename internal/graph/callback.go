@@ -104,6 +104,11 @@ func (g *Graph) runGate(c *claim) {
 		g.settleLocked(c.task, record.Failed)
 		return
 	}
+	if refusal := c.task.readRefusal; refusal != nil {
+		c.task.workErr = fmt.Errorf("declaring %s: %w", c.task.Name, refusal)
+		g.settleLocked(c.task, record.Failed)
+		return
+	}
 	g.settleLocked(c.task, record.Done)
 }
 
@@ -153,13 +158,58 @@ func (g *Graph) enterConsumer(t *Task) (leave func()) {
 	}
 }
 
-// CurrentConsumer is the Task or builder gate running on the calling
-// goroutine, or nil for a caller outside any callback.
-func (g *Graph) CurrentConsumer() *Task {
+// Reader is who a Computed read speaks for: the Task or builder gate whose
+// callback makes it, nil for a caller outside every callback.
+type Reader struct {
+	Task *Task
+	// Spawned is whether the read comes from a goroutine the Task's callback
+	// started. That goroutine is the callback's hands, but cannot unwind it.
+	Spawned bool
+}
+
+// Unwinds reports whether a refused read can unwind its caller to fail the
+// reader's Task, as a read on the callback's own goroutine can.
+func (r Reader) Unwinds() bool { return r.Task != nil && !r.Spawned }
+
+// CurrentReader is the Reader of the calling goroutine: the Task or builder
+// gate running on it or, failing that, on the goroutine that started it. A
+// run with no callback in flight reads no lineage.
+func (g *Graph) CurrentReader() Reader {
 	id := CurrentGoroutine()
+	g.lockRead()
+	own, active := g.consumerThroughLocked(id, 0), len(g.exec.consumers) > 0
+	g.unlockRead()
+	if own != nil || !active {
+		return Reader{Task: own}
+	}
+	_, creator := CurrentGoroutineLineage()
+	g.lockRead()
+	defer g.unlockRead()
+	return Reader{Task: g.consumerThroughLocked(creator, 0), Spawned: true}
+}
+
+// refuseSpawnedRead keeps err against the Task a refused read from one of its
+// goroutines speaks for, so that Task fails with it once its callback returns.
+func (g *Graph) refuseSpawnedRead(r Reader, err error) {
+	if r.Task == nil || !r.Spawned {
+		return
+	}
 	g.lock()
 	defer g.unlock()
-	return g.consumerThroughLocked(id, 0)
+	if r.Task.readRefusal == nil {
+		r.Task.readRefusal = err
+	}
+}
+
+// failedByRefusedRead is err, or, when the callback returned none, the read
+// refused to a goroutine it started.
+func (g *Graph) failedByRefusedRead(t *Task, err error) error {
+	g.lockRead()
+	defer g.unlockRead()
+	if err == nil {
+		return t.readRefusal
+	}
+	return err
 }
 
 // consumerThroughLocked is the Task or builder gate running on goroutine

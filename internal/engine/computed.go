@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/zachbornheimer/evident-output/internal/graph"
@@ -114,10 +113,12 @@ func (c *Computed[T]) Get() T {
 }
 
 // refuseComputedReadLocked records a refused Computed read naming subject. A
-// reader running inside a callback or container builder is unwound with err.
+// read on the goroutine of a callback or container builder unwinds it with
+// err. One from a goroutine the callback started cannot: the graph fails the
+// callback's Task when it returns.
 func (o *Output) refuseComputedReadLocked(subject string, err error) {
 	o.recordMisuseFor(subject, err)
-	if errors.Is(err, ErrComputedUnordered) || o.graph.CurrentConsumer() != nil {
+	if o.graph.CurrentReader().Unwinds() {
 		panic(err)
 	}
 }

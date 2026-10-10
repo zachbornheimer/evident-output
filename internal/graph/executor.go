@@ -213,7 +213,7 @@ func (g *Graph) execute(c *claim) {
 	}
 	var err error
 	if c.work.Run != nil {
-		err = g.runTrackedCallback(c.work.Run)
+		err = g.failedByRefusedRead(c.task, g.runTrackedCallback(c.work.Run))
 	}
 	g.recordCallbackReturn(c.task, err)
 	// A callback that settled its own Task (a verb inside Run, or an

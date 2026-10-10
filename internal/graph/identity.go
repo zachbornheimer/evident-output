@@ -82,9 +82,13 @@ type Task struct {
 	// Task until the callback's return value confirms or contradicts it.
 	proposal *Proposal
 	// workErr is what the Task's callback returned (see WorkErr).
-	workErr  error
-	done     chan struct{}
-	doneOnce sync.Once
+	workErr error
+	// readRefusal is the first Computed read refused to a goroutine the
+	// Task's callback started. That goroutine cannot unwind the callback, so
+	// the Task fails with it when the callback returns (see Reader).
+	readRefusal error
+	done        chan struct{}
+	doneOnce    sync.Once
 	// callbackRunning closes when the claimed callback has returned and its
 	// error is recorded; nil when none is in flight. A Task can settle itself
 	// (Fail, Block) while its callback is still on its way out, so a waiter
