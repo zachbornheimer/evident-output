@@ -14,8 +14,10 @@ type RunFunc func(context.Context) error
 // signalNotifier and signalStopper abstract os/signal (facade rule) so
 // SIGINT/SIGTERM handling in Main is exercised in tests without sending
 // real process signals.
-type signalNotifier func(c chan<- os.Signal, sig ...os.Signal)
-type signalStopper func(c chan<- os.Signal)
+type (
+	signalNotifier func(c chan<- os.Signal, sig ...os.Signal)
+	signalStopper  func(c chan<- os.Signal)
+)
 
 var (
 	notifySignals signalNotifier = signal.Notify

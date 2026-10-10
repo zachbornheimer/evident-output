@@ -48,7 +48,8 @@ func TestSpecP6_BytesVsCounts_Failure(t *testing.T) {
 	for _, want := range []string{
 		"✓ generate 8.0 MB",
 		"✗ test tests failed",
-		"--- FAIL: TestFoo (0.01s)"} {
+		"--- FAIL: TestFoo (0.01s)",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -151,7 +152,8 @@ func TestSpecP6_EarlyTermination(t *testing.T) {
 	persisted := screen.PersistedText()
 	for _, want := range []string{
 		"■", "generate", "cancelled",
-		"already mutated: 1 partial artifact at /tmp/out (2.1 MB) wrote"} {
+		"already mutated: 1 partial artifact at /tmp/out (2.1 MB) wrote",
+	} {
 		if !strings.Contains(persisted, want) {
 			t.Fatalf("want %q in persisted live surface:\n%s", want, persisted)
 		}
@@ -180,7 +182,7 @@ func TestSpecP7_Step1_PlanPreview(t *testing.T) {
 	branches := out.Task("branches")
 	branches.RecordName("delete", "feat/a")
 	branches.RecordName("delete", "feat/b")
-	for i := 0; i < 498; i++ {
+	for range 498 {
 		branches.RecordName("delete", "feat/x")
 	}
 	if err := out.Finish(); err != nil {
@@ -522,7 +524,8 @@ func TestSpecP9_EarlyTermination(t *testing.T) {
 		"✓ scan",
 		"■ venv cancelled — .venv partial",
 		"- install not started",
-		"already mutated: 1 incomplete .venv directory wrote"} {
+		"already mutated: 1 incomplete .venv directory wrote",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -601,7 +604,8 @@ func TestSpecP10_Success(t *testing.T) {
 		"✓ venv",
 		"✓ install 14 modules",
 		"✓ python setup",
-		"python was set up; 14 modules were installed"} {
+		"python was set up; 14 modules were installed",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -667,7 +671,8 @@ func TestSpecP10_Error(t *testing.T) {
 	for _, want := range []string{
 		"✓ scan",
 		"✗ install network unreachable",
-		"dial tcp: lookup pypi.org: no such host"} {
+		"dial tcp: lookup pypi.org: no such host",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}

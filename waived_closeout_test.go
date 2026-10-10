@@ -22,7 +22,7 @@ func TestCON008_JournalBackpressureDropsNonCritical(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, MaxEvents: 8})
 	t.Cleanup(func() { _ = out.Close() })
 	// Flood with line events (non-critical).
-	for i := 0; i < 40; i++ {
+	for range 40 {
 		out.Println("noise")
 	}
 	out.Task("done").Done()
@@ -285,13 +285,13 @@ func TestCON003_ConcurrentDebugAndProgress(t *testing.T) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 50; i++ {
+		for i := range 50 {
 			task.Progress(i, 50)
 		}
 	}()
 	go func() {
 		defer wg.Done()
-		for i := 0; i < 50; i++ {
+		for range 50 {
 			out.DebugForTest("tick")
 		}
 	}()

@@ -47,23 +47,28 @@ func ID(id string) EntityOption             { return iD(id) }
 func StartPhase(text string) EntityOption {
 	return entityOptionFunc(func(o *entityOpts) { o.phase = text })
 }
+
 func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
 	return renderPlain(s, opts)
 }
 
-type Evidence = evidence
-type Scope = scope
-type SystemClock = systemClock
-type FixedClock = fixedClock
-type NoopRedactor = noopRedactor
+type (
+	Evidence     = evidence
+	Scope        = scope
+	SystemClock  = systemClock
+	FixedClock   = fixedClock
+	NoopRedactor = noopRedactor
+)
 
 // Test helpers reachable through the evo type alias (root export_test.go
 // cannot attach methods to engine types).
 
 func (t *TaskHandle) RunForTest(cmd *exec.Cmd) error { return t.run(cmd) }
+
 func (t *TaskHandle) StepForTest(completed, total int, name string) *TaskHandle {
 	return t.Step(completed, total, name)
 }
+
 func (t *TaskHandle) EvidenceForTest(opts ...EvidenceOption) *evidence {
 	return t.evidence(opts...)
 }
@@ -73,15 +78,18 @@ func (o *Output) ScopeForTest(name string) *scope                  { return o.sc
 func (o *Output) DebugForTest(message string, fields ...Field) {
 	o.debug(message, fields...)
 }
+
 func (o *Output) AlsoWriteForTest(w io.Writer) {
 	if w == nil {
 		return
 	}
 	o.cfg.extraWriters = append(o.cfg.extraWriters, w)
 }
+
 func (o *Output) TaskIdentified(name, key string) *TaskHandle {
 	return o.taskScoped(name, "", iD(key))
 }
+
 func (t *TaskHandle) SkippedWithErrs(reason TaxonomyReason, name string, errs ...error) {
 	t.recordTaxonomy(reason, name, dispositionSkip, errs)
 }
@@ -107,6 +115,7 @@ func (o *Output) SlogHandlerForTest() slog.Handler   { return o.slogHandler() }
 func (t *TaskHandle) NextSelfForTest(args ...string) *TaskHandle {
 	return t.nextSelf(args...)
 }
+
 func (t *TaskHandle) SkipForTest(reason string, args ...any) *TaskHandle {
 	return t.skip(reason, args...)
 }
@@ -116,6 +125,7 @@ func (o *Output) SchedulerStartOrder() []string {
 	defer o.mu.Unlock()
 	return append([]string(nil), o.schedStartOrder...)
 }
+
 func (o *Output) SchedulerMaxObserved() int {
 	o.mu.Lock()
 	defer o.mu.Unlock()

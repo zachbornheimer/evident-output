@@ -29,6 +29,7 @@ func (f *fakeHeartbeatSurface) WriteLive(text string) {
 	f.last = text
 	f.mu.Unlock()
 }
+
 func (f *fakeHeartbeatSurface) latest() string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -150,7 +151,7 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 		frame := drv.latest()
 		out.mu.Unlock()
 
-		header := strings.SplitN(frame, "\n", 2)[0]
+		header, _, _ := strings.Cut(frame, "\n")
 		if !strings.HasPrefix(header, spinnerFrame(clock.Now())) {
 			t.Fatalf("expected animated spinner header, not a static glyph:\n%q", header)
 		}
@@ -171,7 +172,7 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 		frame := drv.latest()
 		out.mu.Unlock()
 
-		header := strings.SplitN(frame, "\n", 2)[0]
+		header, _, _ := strings.Cut(frame, "\n")
 		if !strings.HasPrefix(header, spinnerFrame(clock.Now())) {
 			t.Fatalf("expected an all-Pending collection to animate its header at start:\n%q", header)
 		}

@@ -44,21 +44,25 @@ const (
 	BytesKind     = core.BytesKind
 )
 
-type Progress = core.Progress
-type FactRecord = core.Fact
-type Event = core.Event
+type (
+	Progress   = core.Progress
+	FactRecord = core.Fact
+	Event      = core.Event
+)
 
 const EventSchemaVersion = core.EventSchemaVersion
 
-type Result = core.Result
-type Snapshot = core.Snapshot
-type TaskSnapshot = core.TaskSnapshot
-type TaxonomyRecord = core.TaxonomyRecord
-type TasksSnapshot = core.TasksSnapshot
-type ChangesSnapshot = core.ChangesSnapshot
-type PlanSnapshot = core.PlanSnapshot
-type EffectRecord = core.EffectRecord
-type Conclusion = core.Conclusion
+type (
+	Result          = core.Result
+	Snapshot        = core.Snapshot
+	TaskSnapshot    = core.TaskSnapshot
+	TaxonomyRecord  = core.TaxonomyRecord
+	TasksSnapshot   = core.TasksSnapshot
+	ChangesSnapshot = core.ChangesSnapshot
+	PlanSnapshot    = core.PlanSnapshot
+	EffectRecord    = core.EffectRecord
+	Conclusion      = core.Conclusion
+)
 
 const (
 	ExitOK        = core.ExitOK
@@ -75,16 +79,20 @@ const (
 	ResolutionNoWork           = core.ResolutionNoWork
 )
 
-type EvidencePhase = core.EvidencePhase
-type TaskEvidence = core.TaskEvidence
+type (
+	EvidencePhase = core.EvidencePhase
+	TaskEvidence  = core.TaskEvidence
+)
 
-type Problem = core.Problem
-type SourceLocation = core.SourceLocation
-type Attachment = core.Attachment
-type Field = core.Field
-type Action = core.Action
-type CommandSpec = core.CommandSpec
-type GlyphProfile = txt.GlyphProfile
+type (
+	Problem        = core.Problem
+	SourceLocation = core.SourceLocation
+	Attachment     = core.Attachment
+	Field          = core.Field
+	Action         = core.Action
+	CommandSpec    = core.CommandSpec
+	GlyphProfile   = txt.GlyphProfile
+)
 
 const (
 	GlyphsAuto    = txt.GlyphsAuto

@@ -17,8 +17,10 @@ const (
 	appCommandDir           = "internal/app"
 )
 
-var leftoverCommandIdentNeedles = []string{"cleanRepo", "clean_repo", "CleanRepo"}
-var canonicalCobraUses = map[string]bool{"prune": true, "purge": true}
+var (
+	leftoverCommandIdentNeedles = []string{"cleanRepo", "clean_repo", "CleanRepo"}
+	canonicalCobraUses          = map[string]bool{"prune": true, "purge": true}
+)
 
 type cobraCommand struct {
 	use      string
