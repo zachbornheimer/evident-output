@@ -44,6 +44,9 @@ func TestTaskHandle_Wait_SelfResolvedBeforeReturn_IsNotSuccess(t *testing.T) {
 			})
 			var waitErr error
 			var returned atomic.Bool
+			// returnedByWait is whether the callback had returned at the
+			// instant Wait answered; read after Run it could only be true.
+			var returnedByWait bool
 			out.Run(context.Background(), func(ctx context.Context) error {
 				resolved := make(chan struct{})
 				task := out.Task("self-resolving")
@@ -56,9 +59,10 @@ func TestTaskHandle_Wait_SelfResolvedBeforeReturn_IsNotSuccess(t *testing.T) {
 				})
 				<-resolved
 				waitErr = task.Wait()
+				returnedByWait = returned.Load()
 				return nil
 			})
-			if !returned.Load() {
+			if !returnedByWait {
 				t.Error("Wait answered before the callback returned")
 			}
 			if !tc.wantErr(waitErr) {
