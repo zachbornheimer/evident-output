@@ -39,7 +39,7 @@ type Output struct {
 	// following is set while followRecordLocked runs, so an event it appends
 	// does not follow the record again.
 	following bool
-	closed  bool
+	closed    bool
 	// closing is non-nil once a Close call claimed the teardown; it closes
 	// when that teardown ends, so a concurrent Close waits instead of
 	// tearing down twice.

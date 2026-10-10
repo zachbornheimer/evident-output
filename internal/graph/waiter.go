@@ -104,7 +104,7 @@ func (g *Graph) awaitedWorkIsStalled(t *Task) bool {
 func (g *Graph) claimForWaiter(t *Task, stack *WaiterStack) *claim {
 	g.lock()
 	defer g.unlock()
-	if g.exec.cancelled || !t.awaitingStartLocked() || !g.eligibleLocked(t) {
+	if g.exec.cancelled || g.exec.suspended > 0 || !t.awaitingStartLocked() || !g.eligibleLocked(t) {
 		return nil
 	}
 	return g.claimForWaiterLocked(t, stack)
@@ -115,7 +115,7 @@ func (g *Graph) claimForWaiter(t *Task, stack *WaiterStack) *claim {
 func (g *Graph) claimAnyForWaiter(stack *WaiterStack) *claim {
 	g.lock()
 	defer g.unlock()
-	if g.exec.cancelled {
+	if g.exec.cancelled || g.exec.suspended > 0 {
 		return nil
 	}
 	cand := g.nextEligibleLocked()

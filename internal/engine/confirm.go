@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/terminal"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
@@ -156,19 +157,59 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 
 	gate := o.Task(question)
 
-	if cfg.assumeYes {
-		gate.succeed(confirmAssumedYesSummary)
-		o.flushGateNow(gate.id)
-		return true
-	}
-
-	if o.cfg.plain {
-		gate.Block(confirmPolicyBlockedSummary, Next(cfg.resolvedPolicyHint(o)))
-		o.flushGateNow(gate.id)
-		return false
+	switch {
+	case cfg.assumeYes:
+		return o.settleGate(gate, graph.AnswerAssumedYes, cfg)
+	case o.cfg.plain:
+		return o.settleGate(gate, graph.AnswerPolicy, cfg)
 	}
 
 	return o.promptConfirm(gate, question, cfg)
+}
+
+// settleGate resolves the Confirm gate as its answer decides (see
+// graph.Answer.Outcome) and reports whether the answer was yes. The words
+// that say why a gate was refused are the presentation's; which state it
+// reaches is the graph's.
+func (o *Output) settleGate(gate *TaskHandle, answer graph.Answer, cfg confirmConfig) bool {
+	switch answer.Outcome() {
+	case Cancelled:
+		// cancelPendingConfirmLocked already resolved the gate as Cancelled.
+		return false
+	case Done:
+		gate.succeed(confirmSummaryOf(answer))
+		o.flushGateNow(gate.id)
+		return true
+	default:
+		gate.Block(confirmSummaryOf(answer), o.confirmBlockOptions(answer, cfg)...)
+		o.flushGateNow(gate.id)
+		return false
+	}
+}
+
+// confirmSummaryOf is the one spelling of each answer's row detail.
+func confirmSummaryOf(answer graph.Answer) string {
+	switch answer {
+	case graph.AnswerAssumedYes:
+		return confirmAssumedYesSummary
+	case graph.AnswerNo:
+		return confirmDeclinedSummary
+	case graph.AnswerPolicy:
+		return confirmPolicyBlockedSummary
+	case graph.AnswerClosed:
+		return confirmEOFSummary
+	default:
+		return ""
+	}
+}
+
+// confirmBlockOptions is the Next hint an answer that nobody gave on purpose
+// (a policy block, a closed stdin) points at: how to confirm non-interactively.
+func (o *Output) confirmBlockOptions(answer graph.Answer, cfg confirmConfig) []ProblemOption {
+	if answer == graph.AnswerPolicy || answer == graph.AnswerClosed {
+		return []ProblemOption{Next(cfg.resolvedPolicyHint(o))}
+	}
+	return nil
 }
 
 // flushGateNow locks and forces the immediate durable presentation of a
@@ -199,31 +240,7 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 	var yes bool
 	_ = o.Suspend(func() error {
 		o.writeConfirmPrompt(question, cfg.destructive, cfg.detail)
-		line, cancelled, eof := o.readConfirmLine(abort)
-		if cancelled {
-			// cancelPendingConfirmLocked already resolved the gate as Cancelled.
-			return nil
-		}
-		if eof {
-			// Zero-byte EOF on stdin (no interactive human on the other end,
-			// e.g. stdin closed or redirected from /dev/null) is a policy
-			// block, distinct from a human explicitly typing anything else —
-			// evo-rec.md "Confirm EOF = policy block, not decline". It gets
-			// its own summary text, distinct from the no-TTY policy-block
-			// wording above: the reader was told nothing arrived, not that a
-			// deliberate policy refused the prompt (release-gate round 4
-			// finding 6).
-			gate.Block(confirmEOFSummary, Next(cfg.resolvedPolicyHint(o)))
-			o.flushGateNow(gate.id)
-			return nil
-		}
-		yes = isAffirmative(line)
-		if yes {
-			gate.succeed("")
-		} else {
-			gate.Block(confirmDeclinedSummary)
-		}
-		o.flushGateNow(gate.id)
+		yes = o.settleGate(gate, o.readConfirmAnswer(abort), cfg)
 		return nil
 	})
 	return yes
@@ -256,13 +273,13 @@ func (o *Output) writeConfirmPrompt(question string, destructive bool, detail []
 	o.mu.Unlock()
 }
 
-// readConfirmLine reads one answer line from the Stdin facade, abortable via
+// readConfirmAnswer reads one answer line from the Stdin facade, abortable via
 // abort (registered by promptConfirm at gate creation) so a signal unblocks
-// the wait instead of hanging until the process is killed a second time.
-// eof reports a zero-byte EOF (no data read at all before the stream
-// closed) — distinct from an explicit non-yes answer (evo-rec.md "Confirm
-// EOF = policy block, not decline").
-func (o *Output) readConfirmLine(abort <-chan struct{}) (line string, cancelled, eof bool) {
+// the wait instead of hanging until the process is killed a second time. A
+// zero-byte EOF (no data read at all before the stream closed) is
+// graph.AnswerClosed, distinct from an explicit non-yes answer (evo-rec.md
+// "Confirm EOF = policy block, not decline").
+func (o *Output) readConfirmAnswer(abort <-chan struct{}) graph.Answer {
 	type readResult struct {
 		text string
 		err  error
@@ -279,18 +296,21 @@ func (o *Output) readConfirmLine(abort <-chan struct{}) (line string, cancelled,
 	// never left to select's random choice between two ready cases.
 	select {
 	case <-abort:
-		return "", true, false
+		return graph.AnswerInterrupted
 	default:
 	}
 
 	select {
 	case <-abort:
-		return "", true, false
+		return graph.AnswerInterrupted
 	case r := <-result:
 		if r.text == "" && errors.Is(r.err, io.EOF) {
-			return "", false, true
+			return graph.AnswerClosed
 		}
-		return r.text, false, false
+		if isAffirmative(r.text) {
+			return graph.AnswerYes
+		}
+		return graph.AnswerNo
 	}
 }
 
