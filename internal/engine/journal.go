@@ -4,7 +4,12 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/render"
 )
 
+// appendEventLocked journals e. The journal is in the order things happened,
+// so the record is followed first: a settle a graph goroutine made on its own
+// is journaled before an event this section writes after it, however late the
+// record's listener hears it.
 func (o *Output) appendEventLocked(e Event) {
+	o.followRecordLocked()
 	e.Timestamp = o.cfg.clock.Now()
 	e.SchemaVersion = EventSchemaVersion
 	if e.OutputID == "" {
@@ -32,7 +37,11 @@ func (o *Output) writeStreamJSONLocked(e Event) {
 	}
 }
 
-// Events returns a copy of durable events (v0.1 journal).
+// copyEvents is a copy of the durable events (v0.1 journal), current with the
+// record: every settle the graph made is journaled before it is read.
 func (o *Output) copyEvents() []Event {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.followRecordLocked()
 	return o.rec.Events(o.cfg.maxEvents)
 }

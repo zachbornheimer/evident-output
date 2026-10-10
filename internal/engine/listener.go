@@ -41,9 +41,14 @@ type settleReaction struct {
 }
 
 // followRecordLocked brings the render state up to date with the record:
-// the live index first, then what each terminal transition owes. Callers
-// hold o.mu.
+// the live index first, then what each terminal transition owes. A call made while
+// it is already running does nothing. Callers hold o.mu.
 func (o *Output) followRecordLocked() {
+	if o.following {
+		return
+	}
+	o.following = true
+	defer func() { o.following = false }()
 	o.pullRecordLocked()
 	o.reactToSettlesLocked()
 }

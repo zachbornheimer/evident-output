@@ -36,6 +36,9 @@ type Output struct {
 	// record reported changed, and the ones among them that settled.
 	pulled  []record.TaskID
 	settles []settleReaction
+	// following is set while followRecordLocked runs, so an event it appends
+	// does not follow the record again.
+	following bool
 	closed  bool
 	// closing is non-nil once a Close call claimed the teardown; it closes
 	// when that teardown ends, so a concurrent Close waits instead of
