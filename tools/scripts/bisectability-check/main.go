@@ -172,7 +172,7 @@ func newScratchWorktree(repo string) (dir string, cleanup func(), err error) {
 	if err != nil {
 		return "", nil, fmt.Errorf("create scratch dir: %w", err)
 	}
-	if err := os.Mkdir(noHooksDir(dir), 0o755); err != nil {
+	if err := os.Mkdir(noHooksDir(dir), scratchDirMode); err != nil {
 		_ = os.RemoveAll(dir)
 		return "", nil, fmt.Errorf("create empty hooks dir for %s: %w", dir, err)
 	}
@@ -190,6 +190,9 @@ func newScratchWorktree(repo string) (dir string, cleanup func(), err error) {
 	}
 	return dir, cleanup, nil
 }
+
+// scratchDirMode is the permission of the directories the tool creates.
+const scratchDirMode = 0o750
 
 // noHooksDir is the empty directory beside worktree that git is told to look
 // for hooks in.
