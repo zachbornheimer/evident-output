@@ -193,7 +193,7 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
     whatever order the Tasks finished in.
   - A cancelled run renders `[cancelled] <subject>  by user` (the cause is
     now `Conclusion.Explanation`, also in JSON) and, only when an Effect
-    committed, `  ! partial changes were applied before cancellation`. This
+    committed, `! partial changes were applied before cancellation`. This
     replaces `! already mutated: ...` on cancelled runs; failed runs keep it.
     Exit code stays 130.
 
@@ -202,7 +202,7 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
 - **BREAKING (ZYS-1182): `TaskHandle.Next`, `TaskHandle.NextCommand`,
   `Output.Next`, and `Output.NextCommand`** were removed with no aliases. A
   remedy attaches only as the `evo.Next(action)` / `evo.NextCommand(exe,
-args...)` option on `Problem`, `Fail`, or `Block`, so it always belongs to
+  args...)` option on `Problem`, `Fail`, or `Block`, so it always belongs to
   the diagnostic it explains. `TaskSnapshot.Actions` no longer carries caller
   remedies; read `Problems[].Actions` and `Warnings[].Actions`. A remedy with
   no failure behind it is a warning-severity Problem, which sets
@@ -362,13 +362,22 @@ args...)` option on `Problem`, `Fail`, or `Block`, so it always belongs to
   planned nothing is checked as a real run checks it, so a dry run still
   fails `postcondition not satisfied` with exit 2 when the real run would.
 
+- A dry run judges each File and Exec in a Task against that operation's own
+  record, as the real run does. A Task with several tracked operations
+  planned the second one as `definition_changed` after a real run left it
+  current, and a changed first operation made the second report
+  `no_prior_record`. A dry run whose operations are all current now also
+  emits `evidence.evaluated` (`phase` `after_definition`, `source`
+  `operations`) and records the After evidence in `evo.run`, as the real run
+  does; it emitted neither.
+
 - A Task `Block`ed inside a Group or Sequence now concludes `[blocked]`
   with exit 1. It concluded `[ready]` with exit 0, because the Conclusion
   ignored a container whose derived state was Blocked; a container whose
   children all never started now marks the run partial, as a root Task does.
 
 - A lone kept or skipped item under a Group's own Task folds into the
-  Group's tally (`✓ branches  2 checked` / `  ! kept 1 (protected)`)
+  Group's tally (`✓ branches  2 checked` / `! kept 1 (protected)`)
   instead of printing as its own success row. A live Group that holds
   only nested Groups no longer paints `0/0 complete`. Opening a ledger
   section is O(log N), so one Effect per Task no longer grows
@@ -621,12 +630,12 @@ shims; every deletion below has zero call sites left in this repo.
 
 - **Mutation verbs** (`Add`/`Delete`/`Create`/`Update`/`Remove`/`Write`/`Push`)
   are now `func (t *TaskHandle) Verb(object string, call func() error, opts
-...EffectOption) error`: the caller reports the domain effect and runs its
+  ...EffectOption) error`: the caller reports the domain effect and runs its
   own callback; evo derives the ledger entry, tense, and pluralization.
   `evo.Affected(n)` supplies quantity (`object` stays a singular noun phrase).
   `call == nil` records without executing.
 - **`TaskHandle.Warn`** is a non-terminal annotation (`TaskSnapshot.Warnings
-[]Problem`), not a lifecycle state — `EntityState.Warning` is deleted.
+  []Problem`), not a lifecycle state — `EntityState.Warning` is deleted.
   `· warned` is a conclusion-band modifier, derived from the field.
 - **Deleted**: `TaskHandle.Unchanged`/`Unchangedf`, `StateUnchanged` and its
   `[unchanged]` band, `Output.Changes`, `Output.Plan` (types unexported; the
@@ -642,7 +651,7 @@ shims; every deletion below has zero call sites left in this repo.
   state is fully derived.
 - **Timer**: one monotonic elapsed-time mechanism (`elapsedAfter = 5s` from
   first live paint) replaces the staleness heartbeat. Any unresolved row or
-  unfinished container header gains ` — Ns`; it never resets on
+  unfinished container header gains `— Ns`; it never resets on
   Phase/Progress activity (a deliberate behavior change from v0.3.1).
 - **`TaskHandle.Phase` → `TaskHandle.Doing`**, **`TaskHandle.PhaseWriter` →
   `TaskHandle.Writer`** (same semantics; `Writer` follows logrus's
@@ -673,7 +682,7 @@ shims; every deletion below has zero call sites left in this repo.
   `TaskSnapshot.Facts`/`Snapshot.Facts`/`Snapshot.Warnings` (run-scoped)
   join the wire document.
 - **Confirm gains a `›` input line** under the compact `?  <question>
-[y/N]` prompt (P11) — the typed answer lands on its own line instead of
+  [y/N]` prompt (P11) — the typed answer lands on its own line instead of
   competing with the question and choices.
 - **Dry-run header collapses to one line** (P12,
   fixture-repo-retire-dryrun.md): `Config.Subject` merges onto the
@@ -688,7 +697,7 @@ shims; every deletion below has zero call sites left in this repo.
 ### Fixed
 
 - **Evidence dedupe (P7)**: `task.Failf("install failed: %s",
-capture.Text())` — the anti-pattern user-13-problems.md Problem 7 names —
+  capture.Text())` — the anti-pattern user-13-problems.md Problem 7 names —
   previously rendered the retained evidence text twice (once folded into
   the caller's own summary, once again as Failf's auto-attached
   `EvidenceTail`). The render layer now skips the tail when the row's own
@@ -697,7 +706,7 @@ capture.Text())` — the anti-pattern user-13-problems.md Problem 7 names —
 
 - Container-child warnings now fold into the run conclusion — a warned child
   under a `Sequence`/`DisplayGroup` was previously invisible to the `·
-warned` band and `Conclusion.Warned` (regression window during the P1/P2
+  warned` band and `Conclusion.Warned` (regression window during the P1/P2
   work, closed before release).
 - A mutation verb skipped for a misuse reason (nil handle, nil Output, an
   already-resolved target) now always returns a sentinel error instead of
@@ -724,7 +733,7 @@ See `docs/reference.md`, `docs/guides/teaching-ladder.md`, and
   packages — the root directory now shows the library's shape instead of
   ~180 flat `.go` files. `version_drift_test.go` and the doctor-gated
   `PublishedRelease`/`VersionDrift` tests stay in root; internal (`package
-evo`) tests are untouched. `conformance/TRACEABILITY.md` and
+  evo`) tests are untouched. `conformance/TRACEABILITY.md` and
   `docs/architecture/COMPLETENESS_MATRIX.md` paths updated to match.
 - Extracted a shared `testkit.UnreadableStdin` helper (previously a private
   `panicReader` duplicated across a root test file and a moved golden test)
@@ -853,7 +862,7 @@ os.Exit(out.Run(run))
   resolution before `Finish` always wins over the auto-resolution.
 - **Mode-free mutation verbs**: `Config.DryRun` / `evo.DryRun()` declared
   once; `TaskHandle.Delete/Create/Update/Remove/Write/Push/Record/
-RecordName` render into the task's `Plan` (dry-run) or `Changes` (applied)
+  RecordName` render into the task's `Plan` (dry-run) or `Changes` (applied)
   section automatically — the imperative verb is used as-is for `[planned]`
   rows and conjugated to past tense for `[changed]` rows (an irregulars
   table plus a default `+d`/`+ed` rule). No call site ever flips its own
@@ -865,7 +874,7 @@ RecordName` render into the task's `Plan` (dry-run) or `Changes` (applied)
   confirmation gate — quiesces the live region, renders a durable
   `?  <question>  [y/N]` line, reads one line via an injectable
   `Config.Stdin` facade, and resolves to `OK` / `⊘ declined` / `⊘ blocked by
-policy` (never a Go error, never `Failed`/`Cancelled`).
+  policy` (never a Go error, never `Failed`/`Cancelled`).
   `evo.Destructive()` marks a severe question (delete/remove/trash/retire/
   force) with an explicit "(destructive)" render cue.
 - **Skip/keep taxonomy**: `evo.Reason("...")` (get-or-create, typo-safe once
@@ -989,7 +998,7 @@ policy` (never a Go error, never `Failed`/`Cancelled`).
 - **Quantity type symmetry: `Changes`/`Plan` mutation verbs and `Record`/
   `RecordName` now take `int`** (pre-1.0 API break), matching the `int`
   quantity `TaskHandle` verbs already took: `Changes.Added/Updated/Removed/
-Deleted/Pushed/Record` and `Plan.Add/Update/Remove/Delete/Push/Record`.
+  Deleted/Pushed/Record` and `Plan.Add/Update/Remove/Delete/Push/Record`.
   A caller passing an untyped literal or `len(x)` is unaffected; a caller
   with an explicit `int64(...)` cast at the call site needs to drop the
   cast.
@@ -1020,7 +1029,7 @@ Deleted/Pushed/Record` and `Plan.Add/Update/Remove/Delete/Push/Record`.
 - The ledger's render-time pluralizer (`evo.Pluralize`) no longer blindly
   appends "s" to a glob/path/symbol object: only an object that reads as
   ordinary English words (letters and spaces) is pluralized, so `Delete(2,
-"stale origin/*")` renders `"stale origin/*"` instead of the mangled
+  "stale origin/*")` renders `"stale origin/*"` instead of the mangled
   `"stale origin/*s"`. The irregulars table (`package in .venv`, etc.) is
   unaffected — it is checked first.
 

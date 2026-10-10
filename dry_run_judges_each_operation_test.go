@@ -84,6 +84,35 @@ func TestDryRunJudgesAFileAfterAPlannedOneAgainstItsOwnRecord(t *testing.T) {
 	}
 }
 
+// evidenceEvaluations is the evidence.evaluated events the stream carries.
+func evidenceEvaluations(stream string) int {
+	return strings.Count(stream, `"type":"evidence.evaluated"`)
+}
+
+// A planned run whose Define planned nothing (every operation current) is
+// checked as a real run is: its After evidence is evaluated from the
+// operations the dry run judged, not skipped for having none to count.
+func TestDryRunOfCurrentOperationsEvaluatesAfterEvidenceAsARealRunDoes(t *testing.T) {
+	state, work := t.TempDir(), t.TempDir()
+	one := writeFile(filepath.Join(work, "one.txt"), "1")
+	runTaskOf(t, state, false, one)
+
+	real := runTaskOf(t, state, false, one)
+	dry := runTaskOf(t, state, true, one)
+
+	if evidenceEvaluations(real) != 1 {
+		t.Fatalf("second real run: %d evidence.evaluated events, want 1\n%s", evidenceEvaluations(real), real)
+	}
+	if evidenceEvaluations(dry) != 1 {
+		t.Fatalf("dry run: %d evidence.evaluated events, the real run 1\n%s", evidenceEvaluations(dry), dry)
+	}
+	for _, want := range []string{`"phase":"after_definition"`, `"source":"operations"`, `"satisfied":true`} {
+		if !strings.Contains(dry, want) {
+			t.Fatalf("dry run's evidence.evaluated lacks %s\n%s", want, dry)
+		}
+	}
+}
+
 // The same holds for Exec, which keeps its own record per operation.
 func TestDryRunJudgesEveryExecOfATaskAgainstItsOwnRecord(t *testing.T) {
 	state, work := t.TempDir(), t.TempDir()
