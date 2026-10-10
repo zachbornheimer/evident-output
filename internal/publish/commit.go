@@ -215,7 +215,7 @@ func removeReplaced(path string) error {
 // unlinked. A missing dest (or parent) is success. Verify runs after the
 // removal, under the lock.
 func Remove(ctx context.Context, dest string, g Guard) error {
-	abs, err := filepath.Abs(dest)
+	abs, err := sysfs.Abs(dest)
 	if err != nil {
 		return fmt.Errorf("publish: remove %s: %w", dest, err)
 	}

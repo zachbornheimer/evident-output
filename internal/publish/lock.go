@@ -84,7 +84,7 @@ func (h *Hold) Release() error {
 // claimKey is dest's one spelling: absolute, with its parent's symlinks
 // resolved, so /tmp/x and /private/tmp/x claim the same destination.
 func claimKey(dest string) (string, error) {
-	abs, err := filepath.Abs(dest)
+	abs, err := sysfs.Abs(dest)
 	if err != nil {
 		return "", err
 	}

@@ -113,6 +113,10 @@ func UserCacheDir() (string, error) { return os.UserCacheDir() }
 // TempDir returns the system temporary directory.
 func TempDir() string { return os.TempDir() }
 
+// Abs returns path as an absolute, cleaned path: a relative path is joined to
+// the process's current working directory. It does not resolve symlinks.
+func Abs(path string) (string, error) { return filepath.Abs(path) }
+
 // EvalSymlinks returns path with every symlink resolved: its canonical
 // spelling.
 func EvalSymlinks(path string) (string, error) { return filepath.EvalSymlinks(path) }

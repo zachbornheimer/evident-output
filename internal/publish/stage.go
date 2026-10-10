@@ -146,7 +146,7 @@ func newStaged(ctx context.Context, dest string, tree bool) (*Staged, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("publish: stage %s: %w", dest, err)
 	}
-	abs, err := filepath.Abs(dest)
+	abs, err := sysfs.Abs(dest)
 	if err != nil {
 		return nil, fmt.Errorf("publish: stage %s: %w", dest, err)
 	}
@@ -222,7 +222,7 @@ func stagingName(dest string) string { return stagename.New(dest) }
 // planned against, and reaps nothing while a writer of dest may still be
 // staging.
 func Leftovers(dest string) ([]string, error) {
-	abs, err := filepath.Abs(dest)
+	abs, err := sysfs.Abs(dest)
 	if err != nil {
 		return nil, fmt.Errorf("publish: leftovers of %s: %w", dest, err)
 	}

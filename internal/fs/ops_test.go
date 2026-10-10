@@ -8,6 +8,28 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/fs"
 )
 
+// Abs joins a relative path to the working directory and cleans an absolute one.
+func TestAbsResolvesAgainstTheWorkingDirectory(t *testing.T) {
+	wd, err := fs.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := fs.Abs(filepath.Join("a", "..", "b"))
+	if err != nil {
+		t.Fatalf("Abs relative: %v", err)
+	}
+	if want := filepath.Join(wd, "b"); got != want {
+		t.Fatalf("Abs relative = %q, want %q", got, want)
+	}
+	got, err = fs.Abs(filepath.Join(wd, "x", "..", "y"))
+	if err != nil {
+		t.Fatalf("Abs absolute: %v", err)
+	}
+	if want := filepath.Join(wd, "y"); got != want {
+		t.Fatalf("Abs absolute = %q, want %q", got, want)
+	}
+}
+
 // A read-only tree (a Go module cache entry is 0555 all the way down) is
 // removed, and a symlink inside it is unlinked without touching its target.
 func TestRemoveTreeClearsReadOnlyDirectories(t *testing.T) {

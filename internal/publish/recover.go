@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
+
+	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 )
 
 // ErrUnrecoverable is a Recover that could prove neither planned tree at
@@ -86,7 +87,7 @@ func PlanRecover(ctx context.Context, dest string, ev Evidence) (Recovery, error
 }
 
 func settle(ctx context.Context, dest string, ev Evidence, apply bool) (Recovery, error) {
-	abs, err := filepath.Abs(dest)
+	abs, err := sysfs.Abs(dest)
 	if err != nil {
 		return Recovery{Outcome: OutcomeUnrecoverable}, fmt.Errorf("publish: recover %s: %w", dest, err)
 	}
