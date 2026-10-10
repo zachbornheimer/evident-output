@@ -96,11 +96,11 @@ func runCallback(fn func() error) error {
 // runs under builderFrames, not runCallback, so the declarations it makes are
 // not Task-callback declarations.
 func (g *Graph) runGate(c *claim) {
-	panicText := g.runTrackedBuilder(c.work.Run)
+	panicked := g.runTrackedBuilder(c.work.Run)
 	g.lock()
 	defer g.unlock()
-	if panicText != "" {
-		c.task.workErr = fmt.Errorf("declaring %s: panic: %s", c.task.Name, panicText)
+	if panicked != nil {
+		c.task.workErr = fmt.Errorf("declaring %s: %w", c.task.Name, panicked)
 		g.settleLocked(c.task, record.Failed)
 		return
 	}
@@ -115,22 +115,33 @@ func (g *Graph) runGate(c *claim) {
 // runTrackedBuilder is runBuilder while the scheduler knows which goroutine is
 // running the builder, as it does for a callback, so a goroutine the builder
 // starts is traced back to it.
-func (g *Graph) runTrackedBuilder(work func() error) string {
+func (g *Graph) runTrackedBuilder(work func() error) error {
 	defer g.trackRunning(goroutineLoad{builders: 1})()
 	return runBuilder(work)
 }
 
-func runBuilder(work func() error) (panicText string) {
+// runBuilder runs work and returns what it panicked with, nil when it did
+// not. A panic value that is an error stays matchable with errors.Is, like a
+// callback's sentinel is: a refused Computed read unwinds the builder with one.
+func runBuilder(work func() error) (panicked error) {
 	defer func() {
 		if r := recover(); r != nil {
-			panicText = fmt.Sprint(r)
+			panicked = panicError(r)
 		}
 	}()
 	builderFrames.Note()
 	if work != nil {
 		_ = work()
 	}
-	return ""
+	return nil
+}
+
+// panicError is a recovered panic value as the error it describes.
+func panicError(recovered any) error {
+	if err, ok := recovered.(error); ok {
+		return fmt.Errorf("panic: %w", err)
+	}
+	return fmt.Errorf("panic: %v", recovered)
 }
 
 // enterConsumer names the Task (or container builder gate) whose callback the
