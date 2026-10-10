@@ -3,6 +3,8 @@ package engine
 import (
 	"errors"
 	"sort"
+
+	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 // Wait blocks until every task this Group's children (and their nested
@@ -50,7 +52,7 @@ func (o *Output) sealCollection(id string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if col := o.containerStates[id]; col != nil {
-		o.sealCollectionLocked(col)
+		o.graph.SealCollection(col.node)
 	}
 }
 
@@ -115,7 +117,7 @@ func appendDescendantTasksLocked(col *tasksState, out []*taskState) []*taskState
 func waitDescendants(states []*taskState, stack *waiterStack) error {
 	var errs []error
 	var notStarted error
-	seen := &inputSeals{}
+	seen := &graph.InputSeals{}
 	for _, st := range states {
 		h := st.handle
 		if h == nil || h.out == nil {

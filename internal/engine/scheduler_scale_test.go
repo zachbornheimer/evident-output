@@ -30,9 +30,7 @@ func scheduleContainer(tb testing.TB, n int, sequential bool) int {
 	if err := wait(); err != nil {
 		tb.Fatalf("Wait: %v", err)
 	}
-	out.mu.Lock()
-	defer out.mu.Unlock()
-	return out.sched.queue.visits
+	return out.graph.QueueVisits()
 }
 
 func BenchmarkScheduleGroup(b *testing.B) {
@@ -91,9 +89,7 @@ func drainContainer(tb testing.TB, n int) int {
 	}
 	go func() {
 		for {
-			out.mu.Lock()
-			draining := out.sched.draining
-			out.mu.Unlock()
+			draining := out.graph.Draining()
 			if draining {
 				close(release)
 				return
@@ -102,9 +98,7 @@ func drainContainer(tb testing.TB, n int) int {
 		}
 	}()
 	_ = out.Close()
-	out.mu.Lock()
-	defer out.mu.Unlock()
-	return out.sched.queue.visits
+	return out.graph.QueueVisits()
 }
 
 // TestDrainWorkIsLinear guards the drain path TestSchedulingScalesLinearly
@@ -149,9 +143,7 @@ func fanIn(tb testing.TB, n int) int {
 			tb.Fatalf("Wait: %v", err)
 		}
 	}
-	out.mu.Lock()
-	defer out.mu.Unlock()
-	return out.sched.queue.visits
+	return out.graph.QueueVisits()
 }
 
 // TestFanInSchedulingIsLinear guards fan-in: a Task waiting on a Group used
@@ -179,9 +171,7 @@ func fanInTasks(tb testing.TB, n int) int {
 	if err := out.Task("fan-in").After(preds...).Define(func(context.Context) error { return nil }).Wait(); err != nil {
 		tb.Fatalf("Wait: %v", err)
 	}
-	out.mu.Lock()
-	defer out.mu.Unlock()
-	return out.sched.predChecks
+	return out.graph.PredecessorChecks()
 }
 
 // TestFanInOverTasksIsLinear guards After(t1…tn): each time one

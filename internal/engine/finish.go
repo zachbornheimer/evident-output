@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
@@ -305,7 +306,7 @@ func (o *Output) autoResolveGroupsLocked() {
 // notStartedSummary is the literal detail rendered for an auto-resolved group
 // child — fixed text, not caller-composed, so every call site spells it the
 // same way (evo-rec.md early-termination examples: "-  install  not started").
-const notStartedSummary = "not started"
+const notStartedSummary = graph.NotStartedSummary
 
 // unresolvedTaskCancelledSummary is the literal detail rendered for a plain
 // (non-Group) task still Running when Finish is reached during an abnormal

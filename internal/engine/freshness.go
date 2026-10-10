@@ -6,15 +6,10 @@ import "context"
 // canonical output path — called the moment a Task claims path as a
 // tracked output (spec §11.4/§11.6), before that Task's operation has
 // actually run. A later Task consulting the same path as a Basis input
-// waits on this gate rather than racing the producer's write. Callers must
-// already hold o.mu.
+// waits on this gate rather than racing the producer's write (see
+// graph.Graph.OpenBarrier).
 func (o *Output) openOutputBarrierLocked(path string) {
-	if o.outputGates == nil {
-		o.outputGates = make(map[string]chan struct{})
-	}
-	if _, exists := o.outputGates[path]; !exists {
-		o.outputGates[path] = make(chan struct{})
-	}
+	o.graph.OpenBarrier(path)
 }
 
 // settleOutputBarrierLocked closes path's gate exactly once, releasing any
@@ -22,29 +17,17 @@ func (o *Output) openOutputBarrierLocked(path string) {
 // final on-disk state for path, whether that operation succeeded, was
 // skipped as current, or failed. A path nobody claimed has no gate and is a
 // no-op — a Basis input that names a path no Task in this Run produces is
-// never blocked. Callers must already hold o.mu.
+// never blocked.
 func (o *Output) settleOutputBarrierLocked(path string) {
-	ch, ok := o.outputGates[path]
-	if !ok {
-		return
-	}
-	select {
-	case <-ch:
-		// Already settled (defensive: settle must only be called once per
-		// claim, but a double-call must never panic on a closed channel).
-	default:
-		close(ch)
-	}
+	o.graph.SettleBarrier(path)
 }
 
-// settleOutputBarrier locks and settles path's gate — the un-locked
-// counterpart callers defer immediately after a successful claim so the
-// gate always releases exactly once when that call returns, on every
-// return path (success, skip, or error).
+// settleOutputBarrier settles path's gate — the counterpart callers defer
+// immediately after a successful claim so the gate always releases exactly
+// once when that call returns, on every return path (success, skip, or
+// error).
 func (o *Output) settleOutputBarrier(path string) {
-	o.mu.Lock()
-	o.settleOutputBarrierLocked(path)
-	o.mu.Unlock()
+	o.graph.SettleBarrier(path)
 }
 
 // awaitOutputBarrier blocks until path's producing operation (if any) in
@@ -52,14 +35,12 @@ func (o *Output) settleOutputBarrier(path string) {
 // scheduler edge — the consumer Task itself is never reordered, only this
 // one Basis observation is delayed until the data it reads is final).
 func (o *Output) awaitOutputBarrier(ctx context.Context, path string) error {
-	o.mu.Lock()
-	ch, ok := o.outputGates[path]
-	o.mu.Unlock()
+	settled, ok := o.graph.Barrier(path)
 	if !ok {
 		return nil
 	}
 	select {
-	case <-ch:
+	case <-settled:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()

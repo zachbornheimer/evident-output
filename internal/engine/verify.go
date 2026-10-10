@@ -64,7 +64,7 @@ func (t *TaskHandle) Verify(fn func(context.Context) (bool, error)) *TaskHandle 
 	if st == nil {
 		return t
 	}
-	if st.sched.submitted() {
+	if st.node.Submitted() {
 		o.recordMisuseFor(st.name, ErrInvalidConfig)
 		return t
 	}
@@ -216,7 +216,7 @@ func (t *TaskHandle) hasPostStateToVerify() bool {
 	// while Define committed no Effect (E-112): a Kept after a real
 	// mutation still owes its postcondition.
 	blocked := st != nil && core.IsTerminalTask(st.rec.State())
-	keptUnchanged := st != nil && st.proposed != nil && !o.hasRecordedEffectLocked(t.id)
+	keptUnchanged := st != nil && st.node.HasProposal() && !o.hasRecordedEffectLocked(t.id)
 	o.mu.Unlock()
 	if blocked || keptUnchanged {
 		return false

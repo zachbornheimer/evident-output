@@ -33,14 +33,12 @@ func (t *TaskHandle) submitWork(fn func() error) {
 		o.mu.Unlock()
 		return
 	}
-	if st.sched.submitted() {
+	if st.node.Submitted() {
 		o.recordMisuse(ErrInvalidConfig)
 		o.mu.Unlock()
 		return
 	}
-	st.sched.work = fn
-	o.sched.wg.Add(1)
-	o.enterPhaseLocked(st, phaseQueued)
+	o.graph.Enqueue(st.node, fn)
 	if o.sched.cancelled {
 		// Nothing starts after an interrupt, so work submitted after it is
 		// work the interrupt took away (see abandonQueuedWork).
@@ -50,7 +48,7 @@ func (t *TaskHandle) submitWork(fn func() error) {
 	}
 	// §48: a predecessor that already failed settles this Task NotStarted
 	// right here, under the same lock.
-	o.placeLocked(st, scanAll)
+	o.graph.Place(st.node)
 	o.mu.Unlock()
 	o.kick()
 }
@@ -75,17 +73,13 @@ func (o *Output) kick() {
 }
 
 // nextEligibleLocked returns the earliest queued Task that may start now,
-// or nil. An entry that lost its eligibility since it was queued (a
-// collection it waits for gained a member) is placed again on the way.
+// or nil.
 func (o *Output) nextEligibleLocked() *taskState {
-	for {
-		st := o.sched.queue.head()
-		if st == nil || o.eligibleLocked(st) {
-			return st
-		}
-		o.sched.queue.dropHead()
-		o.placeLocked(st, scanToBlocker)
+	node := o.graph.NextEligible()
+	if node == nil {
+		return nil
 	}
+	return o.taskStates[node.ID]
 }
 
 func (o *Output) takeEligible() (st *taskState, fn func() error) {
@@ -104,7 +98,7 @@ func (o *Output) takeEligible() (st *taskState, fn func() error) {
 	if cand == nil {
 		return nil, nil
 	}
-	if cand.gateFor == nil {
+	if !cand.isGate() {
 		o.emitWireEventLocked(wire.EventTaskEligible, cand.id, nil)
 	}
 	o.takeSlotLocked()
@@ -121,10 +115,10 @@ func (o *Output) takeSlotLocked() {
 // (takeEligible, which also takes a slot) or for a waiter that runs it on
 // its own goroutine (see runWaitedWork).
 func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error) {
-	o.enterPhaseLocked(cand, phaseRunning)
+	o.graph.Claim(cand.node)
 	o.sched.executing++
-	if cand.gateFor != nil {
-		return cand, cand.sched.work
+	if cand.isGate() {
+		return cand, cand.node.Work()
 	}
 	if cand.rec.State() == Pending {
 		o.promoteRunningLocked(cand)
@@ -133,7 +127,7 @@ func (o *Output) claimLocked(cand *taskState) (st *taskState, fn func() error) {
 	// Forced, within the live render budget: a start is the spinner FP-005
 	// requires before the check.
 	o.signalLiveLocked(true)
-	return cand, cand.sched.work
+	return cand, cand.node.Work()
 }
 
 func (o *Output) concurrencyCeilingLocked() int {
@@ -162,7 +156,7 @@ func (o *Output) finishClaimed(st *taskState, pooled bool) {
 	}
 	o.sched.executing--
 	o.mu.Unlock()
-	o.sched.wg.Done()
+	o.graph.WorkDone()
 	o.kick()
 }
 
@@ -172,7 +166,7 @@ func (o *Output) finishClaimed(st *taskState, pooled bool) {
 // goroutine to work it would otherwise block on (TaskHandle.Wait).
 func (o *Output) executeWork(st *taskState, fn func() error) {
 	defer o.enterConsumer(st)()
-	if st.gateFor != nil {
+	if st.isGate() {
 		o.runGate(st)
 		return
 	}
@@ -200,27 +194,16 @@ func (o *Output) executeWork(st *taskState, fn func() error) {
 // replaces the proposal: it was never a resolution, so it earns no
 // "resolve each task once" misuse line (E-113).
 func (o *Output) resolveObserved(st *taskState, err error) {
-	proposal := o.takeProposal(st)
+	proposal := st.node.TakeProposal()
 	if err != nil {
 		st.handle.failScheduled(err.Error())
 		return
 	}
 	if proposal != nil {
-		st.handle.resolveScheduled(proposal.state, proposal.summary, proposal.problems)
+		st.handle.resolveScheduled(proposal.State, proposal.Summary, proposal.Problems)
 		return
 	}
 	st.handle.doneScheduled()
-}
-
-func (o *Output) takeProposal(st *taskState) *proposedOutcome {
-	if st == nil {
-		return nil
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	proposal := st.proposed
-	st.proposed = nil
-	return proposal
 }
 
 // recordWorkOutcome stores the callback's error on the task so a waiter
@@ -286,101 +269,24 @@ func callbackDepth() int { return readStackMarks().callbacks }
 // placed again before the drain starts.
 func (o *Output) drainScheduler() {
 	o.mu.Lock()
-	o.sched.draining = true
-	o.replaceParkedLocked()
+	o.graph.BeginDrain()
 	o.mu.Unlock()
 	o.kick()
-	o.sched.wg.Wait()
+	o.graph.WaitForWork()
 }
 
 // markNotStartedLocked settles st NotStarted: work that will now never run.
 func (o *Output) markNotStartedLocked(st *taskState) {
-	st.rec.SetSummary(notStartedSummary)
-	o.settleLocked(st, NotStarted)
-}
-
-// abandonLocked releases the scheduler's hold on submitted work that
-// settled before it ever started.
-func (o *Output) abandonLocked(st *taskState) {
-	o.enterPhaseLocked(st, phaseAbandoned)
-	o.sched.wg.Done()
+	o.graph.MarkNotStarted(st.node)
 }
 
 // failSequenceFollowers settles NotStarted every step declared after the
 // one failed belongs to, in each Sequence it sits under, that has not
-// started, Defined or not. A nested Group/Sequence step settles all of its
-// members.
-//
-// Each Sequence remembers the earliest step it already stopped after. A
-// failure at or after that step finds nothing new to stop, here or in the
-// Sequences above, so k failing members of one step cost one walk, not k.
+// started. It runs under o.mu so a failure settles its followers in the same
+// critical section that makes it terminal: nobody who sees the failure sees
+// a follower pending.
 func (o *Output) failSequenceFollowers(failed *taskState) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.failSequenceFollowersLocked(failed)
-}
-
-// failSequenceFollowersLocked is failSequenceFollowers under o.mu, so a
-// failure settles its followers in the same critical section that makes
-// it terminal: nobody who sees the failure sees a follower pending.
-func (o *Output) failSequenceFollowersLocked(failed *taskState) {
-	branch := failed.declaration
-	for c := failed.collection; c != nil; branch, c = c.declaration, c.parent {
-		if !c.sequential {
-			continue
-		}
-		if c.stoppedAfter != 0 && branch >= c.stoppedAfter {
-			return
-		}
-		c.stoppedAfter = branch
-		o.stopFollowersLocked(c, branch)
-	}
-}
-
-// stopFollowersLocked settles NotStarted every unstarted member of
-// Sequence c's steps declared after branch.
-func (o *Output) stopFollowersLocked(c *tasksState, branch int) {
-	for _, sib := range c.tasks {
-		if sib.declaration > branch {
-			o.sched.followerChecks++
-			o.stopUnstartedLocked(sib)
-		}
-	}
-	for _, child := range c.children {
-		if child.declaration > branch {
-			for _, member := range appendDescendantTasksLocked(child, nil) {
-				o.sched.followerChecks++
-				o.stopUnstartedLocked(member)
-			}
-		}
-	}
-}
-
-// stopsSequenceFollowers reports whether a step settling in state keeps
-// every later step of its Sequence from starting: the same states
-// stateOutcome says can never satisfy a dependent.
-func stopsSequenceFollowers(state EntityState) bool {
-	return stateOutcome(state) == predFailed
-}
-
-// stopIfFollowerLocked settles NotStarted a Task declared after a failure
-// already stopped the Sequence step it belongs to: stopFollowersLocked ran
-// before the Task existed, so nothing else would ever settle it.
-func (o *Output) stopIfFollowerLocked(st *taskState) {
-	branch := st.declaration
-	for c := st.collection; c != nil; branch, c = c.declaration, c.parent {
-		if c.sequential && c.stoppedAfter != 0 && branch > c.stoppedAfter {
-			o.stopUnstartedLocked(st)
-			return
-		}
-	}
-}
-
-// stopUnstartedLocked settles st NotStarted unless it already started or
-// resolved.
-func (o *Output) stopUnstartedLocked(st *taskState) {
-	if core.IsTerminalTask(st.rec.State()) || st.sched.phase == phaseRunning {
-		return
-	}
-	o.markNotStartedLocked(st)
+	o.graph.FailSequenceFollowers(failed.node)
 }

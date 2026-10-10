@@ -2,6 +2,7 @@ package graph
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
@@ -65,6 +66,23 @@ type Task struct {
 	Parent *Container
 
 	key string // guarded by graph.mu
+
+	// The rest is scheduling state, guarded by graph.mu.
+
+	sched schedule
+	// after is every edge After declared on this Task. sched.preds forgets
+	// a satisfied Task predecessor; this keeps it, so Computed.Get can tell
+	// an ordered reader from an unordered one.
+	after []Predecessor
+	// gateFor is set on a container builder's gate: the scheduler's entity
+	// for the container's deferred declaration work. It is no row and in no
+	// collection. Fixed at creation.
+	gateFor *Container
+	// proposal holds a caller's unratified success claim on a submitted
+	// Task until the callback's return value confirms or contradicts it.
+	proposal *Proposal
+	done     chan struct{}
+	doneOnce sync.Once
 }
 
 // Key is the Task's §3.1 stable key; see Graph.Rekey.
@@ -77,6 +95,7 @@ func (t *Task) Key() string {
 // Container is one declared Group or Sequence as the scheduler knows it.
 // Its verdict derives from its members; Rec holds only what it said itself.
 type Container struct {
+	graph *Graph
 	// ID names the container in the record and in every projection's table.
 	ID string
 	// Name is the declared, normalized name.
@@ -92,6 +111,28 @@ type Container struct {
 
 	key   string // fixed at declaration
 	names siblings
+
+	// The rest is scheduling state, guarded by graph.mu.
+
+	// tasks and children are the Tasks and nested containers declared
+	// directly in this container, in declaration order.
+	tasks    []*Task
+	children []*Container
+	// entry is what everything declared in this container starts after:
+	// the step before it when it is a step of a Sequence.
+	entry []Predecessor
+	// lastStep is, for a Sequence, what its next step starts after: the
+	// one step declared most recently, Task or nested collection.
+	lastStep []Predecessor
+	// stoppedAfter is, for a Sequence, the declaration of the earliest step
+	// a failure already stopped its later steps after (0: none yet).
+	stoppedAfter int
+	// tally counts this container's descendant Tasks by outcome, for the
+	// Tasks that run After it.
+	tally tally
+	// builder is the deferred declaration work Define gave this container;
+	// nil for one whose children are declared directly.
+	builder *builder
 }
 
 // Key is the container's §3.1 stable key.

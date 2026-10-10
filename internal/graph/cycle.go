@@ -1,37 +1,41 @@
-package engine
+package graph
 
 import (
+	"errors"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/internal/core"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
+
+// ErrDependencyCycle is what the MisuseSink hears when After edges close a
+// cycle: those Tasks can never start, and each row says so.
+var ErrDependencyCycle = errors.New("evo: After dependency cycle")
 
 // depNode is one vertex of the run's waits-for graph: a Task or a
 // Group/Sequence.
 type depNode struct {
-	task *taskState
-	col  *tasksState
+	task *Task
+	col  *Container
 }
 
 func (n depNode) name() string {
 	if n.task != nil {
-		return n.task.name
+		return n.task.Name
 	}
-	return n.col.name
+	return n.col.Name
 }
 
 // waitsForLocked lists what n is still waiting for. A parked Task waits for
 // its pending predecessors; a collection waits for its unresolved members.
 // A Task that is not parked waits on nothing the graph can see.
-func (o *Output) waitsForLocked(n depNode) []depNode {
+func (g *Graph) waitsForLocked(n depNode) []depNode {
 	var out []depNode
 	if n.task != nil {
-		if n.task.sched.phase != phaseParked {
+		if n.task.sched.phase != PhaseParked {
 			return nil
 		}
 		for _, p := range n.task.sched.preds {
-			if outcome, _ := o.outcomeLocked(p); outcome == predPending {
+			if outcome, _ := g.outcomeLocked(p); outcome == predPending {
 				out = append(out, depNode{task: p.task, col: p.col})
 			}
 		}
@@ -40,19 +44,19 @@ func (o *Output) waitsForLocked(n depNode) []depNode {
 	if n.col.tally.total() == 0 {
 		// An empty collection waits for what it starts after.
 		for _, p := range n.col.entry {
-			if outcome, _ := o.outcomeLocked(p); outcome == predPending {
+			if outcome, _ := g.outcomeLocked(p); outcome == predPending {
 				out = append(out, depNode{task: p.task, col: p.col})
 			}
 		}
 		return out
 	}
 	for _, t := range n.col.tasks {
-		if !core.IsTerminalTask(t.rec.State()) {
+		if !record.IsTerminalTask(t.Rec.State()) {
 			out = append(out, depNode{task: t})
 		}
 	}
 	for _, c := range n.col.children {
-		if outcome, _ := o.collectionOutcomeLocked(predecessor{col: c}); outcome == predPending {
+		if outcome, _ := g.collectionOutcomeLocked(Predecessor{col: c}); outcome == predPending {
 			out = append(out, depNode{col: c})
 		}
 	}
@@ -62,7 +66,7 @@ func (o *Output) waitsForLocked(n depNode) []depNode {
 // dependencyCyclesLocked finds the cycles among parked Tasks' waits-for
 // edges with one iterative depth-first walk: each cycle is its vertices in
 // order, the first repeated at the end.
-func (o *Output) dependencyCyclesLocked() [][]depNode {
+func (g *Graph) dependencyCyclesLocked() [][]depNode {
 	const (
 		unvisited = iota
 		onPath
@@ -70,13 +74,13 @@ func (o *Output) dependencyCyclesLocked() [][]depNode {
 	)
 	color := make(map[depNode]uint8)
 	var cycles [][]depNode
-	for _, st := range o.tasks {
-		root := depNode{task: st}
-		if st.sched.phase != phaseParked || color[root] != unvisited {
+	for _, t := range g.taskList {
+		root := depNode{task: t}
+		if t.sched.phase != PhaseParked || color[root] != unvisited {
 			continue
 		}
 		color[root] = onPath
-		path := []cycleFrame{{n: root, edges: o.waitsForLocked(root)}}
+		path := []cycleFrame{{n: root, edges: g.waitsForLocked(root)}}
 		for len(path) > 0 {
 			top := &path[len(path)-1]
 			if top.next == len(top.edges) {
@@ -89,7 +93,7 @@ func (o *Output) dependencyCyclesLocked() [][]depNode {
 			switch color[to] {
 			case unvisited:
 				color[to] = onPath
-				path = append(path, cycleFrame{n: to, edges: o.waitsForLocked(to)})
+				path = append(path, cycleFrame{n: to, edges: g.waitsForLocked(to)})
 			case onPath:
 				cycles = append(cycles, cycleThrough(path, to))
 			}
@@ -120,18 +124,20 @@ func cycleThrough(path []cycleFrame, to depNode) []depNode {
 	return append(cycle, to)
 }
 
-// blockCyclesLocked settles Blocked every parked Task caught in an After
-// cycle — it can never start, and the row says why — and records the
-// misuse once per cycle. Its dependents then settle NotStarted through the
-// ordinary cascade. It reports whether it found any cycle.
-func (o *Output) blockCyclesLocked() bool {
-	if o.sched.parked == 0 {
+// BlockCycles settles Blocked every parked Task caught in an After cycle —
+// it can never start, and the row says why — and tells the MisuseSink once
+// per cycle. Its dependents then settle NotStarted through the ordinary
+// cascade. It reports whether it found any cycle.
+func (g *Graph) BlockCycles() bool {
+	g.lock()
+	defer g.unlock()
+	if g.sched.parked == 0 {
 		return false
 	}
-	cycles := o.dependencyCyclesLocked()
+	cycles := g.dependencyCyclesLocked()
 	// Every Task in a cycle is Blocked, so none may cascade NotStarted into
 	// another before its own turn.
-	release := o.holdWakesLocked()
+	release := g.holdWakesLocked()
 	defer release()
 	for _, cycle := range cycles {
 		names := make([]string, len(cycle))
@@ -140,21 +146,21 @@ func (o *Output) blockCyclesLocked() bool {
 		}
 		path := strings.Join(names, " → ")
 		for _, n := range cycle {
-			if st := n.task; st != nil && st.sched.phase == phaseParked && !core.IsTerminalTask(st.rec.State()) {
-				o.blockInCycleLocked(st, path)
+			if t := n.task; t != nil && t.sched.phase == PhaseParked && !record.IsTerminalTask(t.Rec.State()) {
+				g.blockInCycleLocked(t, path)
 			}
 		}
-		o.recordMisuseFor(path, errDependencyCycle)
+		g.misuse.RecordMisuseFor(path, ErrDependencyCycle)
 	}
 	return len(cycles) > 0
 }
 
-// blockInCycleLocked settles st Blocked the way Block does: one Problem
+// blockInCycleLocked settles t Blocked the way Block does: one Problem
 // with no Subject of its own, so the row states the cycle once rather
 // than again on a child line under the Task's own name.
-func (o *Output) blockInCycleLocked(st *taskState, path string) {
-	summary := txt.Text("dependency cycle: " + path)
-	st.rec.SetSummary(summary)
-	st.rec.AppendProblems(Problem{Summary: summary})
-	o.settleLocked(st, Blocked)
+func (g *Graph) blockInCycleLocked(t *Task, path string) {
+	summary := record.SanitizeText("dependency cycle: " + path)
+	t.Rec.SetSummary(summary)
+	t.Rec.AppendProblems(record.Problem{Summary: summary})
+	g.settleLocked(t, record.Blocked)
 }

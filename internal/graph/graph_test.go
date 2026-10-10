@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"log"
 	"sync"
 	"testing"
 
@@ -12,7 +13,7 @@ func newGraph() *Graph { return New(record.NewRun()) }
 func TestStableKeyIsKindParentKeyAndName(t *testing.T) {
 	g := newGraph()
 	root := g.AddContainer(nil, "deploy", false)
-	child := g.AddTask(root, "build", record.TaskInit{})
+	child := must(g.AddTask(root, "build", record.TaskInit{}))
 	nested := g.AddContainer(root, "tests", true)
 
 	if got, want := root.Key(), "group:/deploy"; got != want {
@@ -37,8 +38,8 @@ func TestDeclaredNameStripsControlCharactersSoSiblingsCannotDiverge(t *testing.T
 
 func TestAddTaskNumbersIDsAndDeclarationsInOrder(t *testing.T) {
 	g := newGraph()
-	a := g.AddTask(nil, "a", record.TaskInit{})
-	b := g.AddTask(nil, "b", record.TaskInit{})
+	a := must(g.AddTask(nil, "a", record.TaskInit{}))
+	b := must(g.AddTask(nil, "b", record.TaskInit{}))
 	c := g.AddContainer(nil, "c", false)
 
 	if a.ID != "task_1" || b.ID != "task_2" || c.ID != "tasks_3" {
@@ -56,7 +57,7 @@ func TestAddTaskNumbersIDsAndDeclarationsInOrder(t *testing.T) {
 }
 
 func TestAddTaskStartsItsRecordUnderItsID(t *testing.T) {
-	task := newGraph().AddTask(nil, "a", record.TaskInit{State: record.Pending})
+	task := must(newGraph().AddTask(nil, "a", record.TaskInit{State: record.Pending}))
 	if task.Rec.ID() != record.TaskID(task.ID) || task.Rec.State() != record.Pending {
 		t.Errorf("record = id %q state %q, want id %q pending", task.Rec.ID(), task.Rec.State(), task.ID)
 	}
@@ -91,7 +92,7 @@ func TestNamesAreClaimedPerParent(t *testing.T) {
 
 func TestAddTaskDoesNotClaimItsName(t *testing.T) {
 	g := newGraph()
-	g.AddTask(nil, "a", record.TaskInit{})
+	must(g.AddTask(nil, "a", record.TaskInit{}))
 	if g.NameTaken(nil, KindTask, "a") {
 		t.Error("AddTask claimed the name; a refused declaration must leave it free")
 	}
@@ -99,8 +100,8 @@ func TestAddTaskDoesNotClaimItsName(t *testing.T) {
 
 func TestRekeyReplacesReportsUnchangedAndRefusesATakenKey(t *testing.T) {
 	g := newGraph()
-	a := g.AddTask(nil, "a", record.TaskInit{})
-	b := g.AddTask(nil, "b", record.TaskInit{})
+	a := must(g.AddTask(nil, "a", record.TaskInit{}))
+	b := must(g.AddTask(nil, "b", record.TaskInit{}))
 
 	if got := g.Rekey(a, "platform-a"); got != KeyReplaced || a.Key() != "platform-a" {
 		t.Errorf("Rekey(a) = %v key %q, want replaced platform-a", got, a.Key())
@@ -123,7 +124,7 @@ func TestGraphIsSafeForConcurrentDeclaration(t *testing.T) {
 	for range 16 {
 		wg.Go(func() {
 			for range 50 {
-				task := g.AddTask(nil, "t", record.TaskInit{})
+				task := must(g.AddTask(nil, "t", record.TaskInit{}))
 				g.Rekey(task, task.ID)
 				_ = task.Key()
 				g.ClaimName(nil, KindTask, task.ID)
@@ -134,4 +135,12 @@ func TestGraphIsSafeForConcurrentDeclaration(t *testing.T) {
 	if g.Declarations() != 16*50 {
 		t.Errorf("declarations = %d, want %d", g.Declarations(), 16*50)
 	}
+}
+
+// must is the Task AddTask returned; a test graph never refuses one.
+func must(t *Task, err error) *Task {
+	if err != nil {
+		log.Fatalf("AddTask refused a Task: %v", err)
+	}
+	return t
 }

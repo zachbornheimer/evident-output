@@ -2,6 +2,7 @@ package engine
 
 import (
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 // cancelActive cancels the currently running task, or the output itself when
@@ -51,14 +52,14 @@ func (o *Output) abandonQueuedWork() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	for _, st := range o.tasks {
-		if st.sched.phase == phaseRunning || core.IsTerminalTask(st.rec.State()) {
+		if st.node.Phase() == graph.PhaseRunning || core.IsTerminalTask(st.rec.State()) {
 			continue
 		}
 		o.markNotStartedLocked(st)
 	}
-	for _, gate := range o.sched.gates {
-		if gate.sched.phase != phaseRunning && !core.IsTerminalTask(gate.rec.State()) {
-			o.markNotStartedLocked(gate)
+	for _, gate := range o.graph.Gates() {
+		if gate.Phase() != graph.PhaseRunning && !core.IsTerminalTask(gate.Rec.State()) {
+			o.graph.MarkNotStarted(gate)
 		}
 	}
 }

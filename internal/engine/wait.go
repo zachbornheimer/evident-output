@@ -162,14 +162,17 @@ func (o *Output) claimableLocked(cand *taskState) bool {
 	if o.sched.cancelled || cand == nil || !cand.awaitingStart() {
 		return false
 	}
-	return o.eligibleLocked(cand)
+	return o.graph.Eligible(cand.node)
 }
 
-func (st *taskState) closeDoneLocked() {
-	if st.doneCh == nil {
-		return
+// sealAwaitedInputs seals everything the awaited Task waits for (see
+// graph.Graph.SealAwaited). A nil seen walks fresh.
+func (o *Output) sealAwaitedInputs(taskID string, seen *graph.InputSeals) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if st := o.taskStates[taskID]; st != nil {
+		o.graph.SealAwaited(st.node, seen)
 	}
-	st.doneOnce.Do(func() { close(st.doneCh) })
 }
 
 // Wait blocks until the task is terminal and returns the error its callback
@@ -220,7 +223,7 @@ func (t *TaskHandle) Wait() error {
 // waitDescendants), so one Wait walks its stack at most once, and not at
 // all unless a claim is held somewhere or it actually parks, and walks
 // shared inputs once.
-func (t *TaskHandle) waitChecked(stack *waiterStack, seen *inputSeals) error {
+func (t *TaskHandle) waitChecked(stack *waiterStack, seen *graph.InputSeals) error {
 	t.out.sealAwaitedInputs(t.id, seen)
 	t.out.runWaitedWork(t.id, stack)
 	if err := t.waitSubmitted(stack); err != nil {
@@ -259,7 +262,7 @@ func (o *Output) waitOutcome(taskID string) error {
 		return nil
 	case st.workErr != nil:
 		return st.workErr
-	case st.sched.phase == phaseDeclared && (st.rec.State() == NotStarted || st.neverDefined()):
+	case st.node.Phase() == graph.PhaseDeclared && (st.rec.State() == NotStarted || st.neverDefined()):
 		// Declared but never Defined: there is no work to have succeeded.
 		return fmt.Errorf("%w: %s was never defined", ErrNotStarted, st.name)
 	case st.rec.State() == NotStarted:
@@ -316,11 +319,8 @@ func (t *TaskHandle) waitSubmitted(stack *waiterStack) error {
 		o.mu.Unlock()
 		return nil
 	}
-	ch := st.doneCh
+	ch := st.node.Done()
 	o.mu.Unlock()
-	if ch == nil {
-		return nil
-	}
 	ticket := o.beginWait(t.id, stack.callbackDepth())
 	defer o.endWait(ticket)
 	select {

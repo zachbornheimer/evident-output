@@ -71,7 +71,7 @@ func (c *childCounters) counts(earliest time.Time) core.ChildCounts {
 // collection's verdict folds (verdictFold).
 //
 // slice 6: one of three counters of a collection's descendants by state, with
-// collectionTally and liveCensus; they fold into one count owned by project.
+// the graph's tally and liveCensus; they fold into one count owned by project.
 type stateCounts struct {
 	running, failed, blocked, cancelled, notStarted, unresolved, warned int
 }

@@ -19,9 +19,8 @@ import (
 
 // Output is the aggregate root for one command's presentation lifecycle.
 type Output struct {
-	// mu guards the render state. Its sections hold the run's notifications,
-	// so the listener (this Output) hears what a section wrote only after mu
-	// is free.
+	// mu guards the render state. Its sections hold the run's notifications
+	// and tell heldListener what they wrote before the mutex is freed.
 	mu record.Mutex
 	// facade holds this Output's public wrapper (see FacadeSlot).
 	facade FacadeSlot
@@ -156,12 +155,6 @@ type Output struct {
 	// Exec output path in this Run (spec §11.4/§8.3): a second Task
 	// claiming the same path is a producer conflict.
 	manifestClaims map[string]string
-	// outputGates is the freshness barrier (spec §11.6/§64): claiming a
-	// canonical output path opens a gate here; a later operation
-	// consulting that same path as a Basis input waits on it until the
-	// producing operation settles, without the scheduler inferring any
-	// ordering edge from the data relationship itself.
-	outputGates map[string]chan struct{}
 }
 
 func newOutput(subject string, options ...Option) *Output {
@@ -243,14 +236,14 @@ func newOutput(subject string, options ...Option) *Output {
 	o := &Output{
 		cfg:             cfg,
 		rec:             run,
-		graph:           graph.New(run),
 		outputID:        "out_1",
 		taskStates:      make(map[string]*taskState),
 		containerStates: make(map[string]*tasksState),
 		ctx:             runCtx,
 		cancelRun:       cancelRun,
 	}
-	o.mu.Bind(run)
+	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMisuseSink(misuseSink{o: o}))
+	o.mu.Bind(run, heldListener{o: o})
 	run.SetListener(outputListener{o: o})
 	// Stable-enough id for a process-local output instance.
 	o.outputID = o.graph.NextID("out")

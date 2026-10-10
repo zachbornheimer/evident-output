@@ -30,7 +30,7 @@ func scheduleNestedSteps(tb testing.TB, n int) nestedStepCost {
 	var cost nestedStepCost
 	out.mu.Lock()
 	for _, st := range out.tasks {
-		cost.preds += len(st.sched.preds)
+		cost.preds += st.node.PredecessorCount()
 	}
 	out.mu.Unlock()
 	for _, h := range tasks {
@@ -39,9 +39,7 @@ func scheduleNestedSteps(tb testing.TB, n int) nestedStepCost {
 	if err := seq.Wait(); err != nil {
 		tb.Fatalf("Wait: %v", err)
 	}
-	out.mu.Lock()
-	defer out.mu.Unlock()
-	cost.predChecks = out.sched.predChecks
+	cost.predChecks = out.graph.PredecessorChecks()
 	return cost
 }
 
@@ -89,9 +87,7 @@ func TestRepeatedStepFailuresStopFollowersOnce(t *testing.T) {
 	}
 	close(start)
 	_ = g.Wait()
-	out.mu.Lock()
-	checks := out.sched.followerChecks
-	out.mu.Unlock()
+	checks := out.graph.FollowerChecks()
 	t.Logf("k=%d failures, n=%d later steps: follower checks=%d", k, n, checks)
 	if checks > n {
 		t.Errorf("%d failures examined %d followers of %d later steps (want <= %d)", k, checks, n, n)

@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"sync"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
@@ -11,40 +10,39 @@ import (
 )
 
 // key is the Task's §3.1 stable key, empty for a Task the graph never declared.
-func (st *taskState) key() string {
-	if st.node == nil {
-		return ""
-	}
-	return st.node.Key()
-}
+func (st *taskState) key() string { return st.node.Key() }
+
+// awaitingStart reports whether st is submitted work nobody has started or
+// resolved.
+func (st *taskState) awaitingStart() bool { return st.node.AwaitingStart() }
+
+// neverDefined reports whether st is still waiting on its caller: declared,
+// never Defined, and not resolved by a verb either.
+func (st *taskState) neverDefined() bool { return st.node.NeverDefined() }
+
+// isGate reports whether st is a container builder's gate, no row and in no
+// collection.
+func (st *taskState) isGate() bool { return st.node.IsGate() }
 
 // key is the container's §3.1 stable key.
 func (g *tasksState) key() string { return g.node.Key() }
 
 type taskState struct {
 	id string
-	// node is the graph's declaration of this Task and owns its stable key.
-	// It is nil for a builder's gate and for a synthetic Task, which are not
-	// declared.
+	// node is the graph's declaration of this Task. It owns the Task's stable
+	// key and everything the scheduler knows: its phase, predecessors and
+	// the work Define submitted.
 	node *graph.Task
 	name string
 	// rec is what this Task reported and found: its state, phase, progress,
 	// summary, Problems, warnings, facts, verification, resolution and
 	// skip and keep records. Everything that writes it goes through rec.
-	rec         *record.Task
+	rec *record.Task
+	// collection and declaration copy the node's Parent and Declaration, for
+	// the render code that walks them without asking the graph.
 	collection  *tasksState
 	declaration int
 	handle      *TaskHandle
-	// sched is where this Task stands with the scheduler.
-	sched taskSchedule
-	// gateFor is set on a container builder's gate: the scheduler's entity
-	// for the container's deferred declaration work. It is no row and in no
-	// collection (see containerBuilder).
-	gateFor *tasksState
-	// after is every edge After declared on this Task. sched.preds forgets
-	// a satisfied Task predecessor; this keeps it, so Computed.Get can tell
-	// an ordered reader from an unordered one.
-	after []predecessor
 
 	// liveFirstSeenAt is the domain-clock time this task was first actually
 	// painted in the live region (see taskState.stampLiveFirstSeen in live.go) —
@@ -93,11 +91,6 @@ type taskState struct {
 	// workErr is the callback's own return value, kept so TaskHandle.Wait
 	// returns exactly what the work returned rather than a state guess.
 	workErr error
-	// proposed holds a caller's unratified success claim on a submitted task
-	// until the callback's return value confirms or contradicts it.
-	proposed *proposedOutcome
-	doneOnce sync.Once
-	doneCh   chan struct{}
 
 	// plainStream is what plain progressive streaming already emitted for
 	// this still-Running standalone task.
@@ -153,24 +146,8 @@ type tasksState struct {
 	// path caches containerPath: a container's place in the tree is fixed at
 	// declaration, and every child's ledger section shares the one slice.
 	path core.ContainerPath
-	// entry is what everything declared in this container starts after:
-	// the step before it when it is a step of a Sequence (see
-	// nextStepPreds).
-	entry []predecessor
-	// lastStep is, for a Sequence, what its next step starts after: the
-	// one step declared most recently, Task or nested collection.
-	lastStep []predecessor
-	// stoppedAfter is, for a Sequence, the declaration of the earliest step
-	// a failure already stopped its later steps after (0: none yet).
-	stoppedAfter int
-	// tally counts this container's descendant Tasks by outcome, for the
-	// Tasks that run After it.
-	tally collectionTally
 	// census counts its descendant Tasks for the live frame (liveCensus).
 	census liveCensus
-	// builder is the deferred declaration work Define gave this container;
-	// nil for one whose children are declared directly.
-	builder *containerBuilder
 	// hasNamesake records that a child Task carries this container's own
 	// name, the only way it can render as its own Task (liveOwnRow).
 	hasNamesake bool

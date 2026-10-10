@@ -10,13 +10,15 @@ import (
 	"testing"
 )
 
-// TestOnlySettleLockedEndsATask proves settleLocked is the single owner of
-// terminal transitions: no other production code in this package may assign
-// a Task's state, except the one non-terminal move to Running. A new
-// terminal path that sets st.state by hand would skip the bookkeeping every
+// TestOnlyTheGraphSettlesATask proves graph.Graph.Settle is the single
+// owner of terminal transitions: no engine code moves a Task's record to a
+// state except the one non-terminal move to Running, and none assigns a
+// state by hand. The engine listener repaints a terminal transition once and
+// only because every terminal transition has this one origin; a new path
+// that transitioned a record itself would skip the bookkeeping every
 // terminal transition owes (waking waiters, releasing a parked Sequence
 // step, marking the cascade due) and fails here instead of in production.
-func TestOnlySettleLockedEndsATask(t *testing.T) {
+func TestOnlyTheGraphSettlesATask(t *testing.T) {
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatalf("list engine sources: %v", err)
@@ -36,27 +38,46 @@ func TestOnlySettleLockedEndsATask(t *testing.T) {
 		}
 		for _, decl := range file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Body == nil || fn.Name.Name == "settleLocked" {
+			if !ok || fn.Body == nil {
 				continue
 			}
 			ast.Inspect(fn.Body, func(n ast.Node) bool {
-				assign, ok := n.(*ast.AssignStmt)
-				if !ok {
-					return true
-				}
-				for i, lhs := range assign.Lhs {
-					sel, ok := lhs.(*ast.SelectorExpr)
-					if !ok || sel.Sel.Name != "state" {
-						continue
-					}
-					if rhs, ok := assign.Rhs[i].(*ast.Ident); ok && rhs.Name == "Running" {
-						continue
-					}
-					t.Errorf("%s: %s assigns a Task's state directly; route the transition through settleLocked",
-						fset.Position(assign.Pos()), fn.Name.Name)
+				switch n := n.(type) {
+				case *ast.AssignStmt:
+					reportStateAssignments(t, fset, fn.Name.Name, n)
+				case *ast.CallExpr:
+					reportTerminalTransition(t, fset, fn.Name.Name, n)
 				}
 				return true
 			})
 		}
 	}
+}
+
+func reportStateAssignments(t *testing.T, fset *token.FileSet, fn string, assign *ast.AssignStmt) {
+	t.Helper()
+	for i, lhs := range assign.Lhs {
+		sel, ok := lhs.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "state" {
+			continue
+		}
+		if rhs, ok := assign.Rhs[i].(*ast.Ident); ok && rhs.Name == "Running" {
+			continue
+		}
+		t.Errorf("%s: %s assigns a Task's state directly; route the transition through the graph's Settle",
+			fset.Position(assign.Pos()), fn)
+	}
+}
+
+func reportTerminalTransition(t *testing.T, fset *token.FileSet, fn string, call *ast.CallExpr) {
+	t.Helper()
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Transition" || len(call.Args) != 1 {
+		return
+	}
+	if arg, ok := call.Args[0].(*ast.Ident); ok && arg.Name == "Running" {
+		return
+	}
+	t.Errorf("%s: %s transitions a Task's record to a state other than Running; settle it through the graph",
+		fset.Position(call.Pos()), fn)
 }

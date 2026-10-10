@@ -15,7 +15,7 @@ import (
 // what the screen shows, not what the run holds (E-091, E-096).
 //
 // slice 6: one of three counters of a collection's descendants by state, with
-// collectionTally and stateCounts; they fold into one count owned by project.
+// the graph's tally and stateCounts; they fold into one count owned by project.
 type liveCensus struct {
 	total, done, running, pending, unfinished, failed, warned int
 	// unstamped counts Running or Pending Tasks no frame has painted yet

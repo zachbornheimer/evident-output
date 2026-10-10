@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/record"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/internal/wire"
@@ -108,14 +109,6 @@ const (
 	byScheduler
 )
 
-// proposedOutcome is a caller's unratified success claim on a submitted
-// task, held until the callback's return value confirms or contradicts it.
-type proposedOutcome struct {
-	state    EntityState
-	summary  string
-	problems []Problem
-}
-
 // deniesItsOwnEffect reports whether this resolution is an evo.Effect
 // callback disowning the work it was given: an Effect creating "module"
 // whose fn calls Skipped or Fail and then returns nil rendered both `! skipped 1
@@ -130,7 +123,7 @@ type proposedOutcome struct {
 // the resolving goroutine's own stack: callbackDepth is non-zero only
 // inside a task callback, which is precisely "the row resolved itself".
 func deniesItsOwnEffect(st *taskState, state EntityState, authority resolutionAuthority) bool {
-	if st.effectsInFlight == 0 || st.sched.phase != phaseRunning || authority != byCaller || state == Done {
+	if st.effectsInFlight == 0 || st.node.Phase() != graph.PhaseRunning || authority != byCaller || state == Done {
 		return false
 	}
 	return callbackDepth() > 0
@@ -158,8 +151,8 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 	if deniesItsOwnEffect(st, state, authority) {
 		st.effectDenials++
 	}
-	if st.sched.submitted() && authority == byCaller && record.DeclaresSuccess(state) {
-		st.proposed = &proposedOutcome{state: state, summary: summary, problems: problems}
+	if st.node.Submitted() && authority == byCaller && record.DeclaresSuccess(state) {
+		st.node.SetProposal(&graph.Proposal{State: state, Summary: summary, Problems: problems})
 		return t
 	}
 	state = st.rec.HonestOutcome(state)
@@ -167,12 +160,12 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		st.rec.SetSummary(summary)
 	}
 	st.resolveProblems(state, problems)
-	submitted := st.sched.submitted()
+	submitted := st.node.Submitted()
 	t.out.settleLocked(st, state)
-	if submitted && stopsSequenceFollowers(state) {
+	if submitted && graph.StopsSequenceFollowers(state) {
 		// Same critical section as the failure: whoever sees it terminal
 		// (a Wait returning, a Snapshot) sees its followers settled too.
-		t.out.failSequenceFollowersLocked(st)
+		t.out.graph.FailSequenceFollowers(st.node)
 	}
 	t.out.emitWireEventLocked(wire.EventTaskFinished, t.id, taskFinishedPayload(st))
 	t.out.commitSettledLocked(st)

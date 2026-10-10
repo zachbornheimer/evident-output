@@ -18,17 +18,11 @@ func (o *Output) failWith(p Problem) {
 		return
 	}
 	// Synthetic failed task for conclusion.
-	st := &taskState{
-		id:          o.graph.NextID("task"),
-		name:        txt.Text(o.cfg.subject),
-		rec:         o.rec.NewTask(record.TaskInit{State: Failed, Problems: []Problem{p}}),
-		declaration: o.graph.NextDeclaration(),
-		synthetic:   true,
+	name := txt.Text(o.cfg.subject)
+	if name == "" {
+		name = identityFallbackName()
 	}
-	if st.name == "" {
-		st.name = identityFallbackName()
-	}
-	o.appendTaskLocked(st)
+	o.appendSyntheticTaskLocked(name, record.TaskInit{State: Failed, Problems: []Problem{p}})
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "output.failed"})
 }
@@ -45,14 +39,21 @@ func (o *Output) Cancel(reason string) {
 	if name == "" {
 		name = identityFallbackName()
 	}
-	t := &taskState{
-		id:          o.graph.NextID("task"),
-		name:        name,
-		rec:         o.rec.NewTask(record.TaskInit{State: Cancelled, Summary: txt.Text(reason)}),
-		declaration: o.graph.NextDeclaration(),
-		synthetic:   true,
-	}
-	o.appendTaskLocked(t)
+	o.appendSyntheticTaskLocked(name, record.TaskInit{State: Cancelled, Summary: txt.Text(reason)})
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "output.cancelled"})
+}
+
+// appendSyntheticTaskLocked adds the Task the library invents to carry an
+// output-level outcome: one the caller never declared, already settled.
+func (o *Output) appendSyntheticTaskLocked(name string, init record.TaskInit) {
+	node := o.graph.AddTerminalTask(name, init)
+	o.appendTaskLocked(&taskState{
+		id:          node.ID,
+		node:        node,
+		name:        node.Name,
+		rec:         node.Rec,
+		declaration: node.Declaration,
+		synthetic:   true,
+	})
 }

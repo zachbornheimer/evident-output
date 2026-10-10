@@ -6,6 +6,13 @@ import (
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
+// misuseSink lets the graph report the misuse it finds into the Output. The
+// graph calls it from inside engine calls that already hold Output.mu, which
+// recordMisuseFor requires.
+type misuseSink struct{ o *Output }
+
+func (s misuseSink) RecordMisuseFor(subject string, err error) { s.o.recordMisuseFor(subject, err) }
+
 func (o *Output) recordMisuse(err error) {
 	if err == nil {
 		return

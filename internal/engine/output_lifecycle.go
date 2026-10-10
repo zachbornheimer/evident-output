@@ -37,6 +37,7 @@ func (o *Output) Close() error {
 	o.stopResizeWatchLocked()
 	o.stopPlainHeartbeatsLocked()
 	o.closed = true
+	o.graph.Close()
 	cancelRun := o.cancelRun
 	manifestStore := o.manifestStore
 	finishErr := o.manifestFinishErr

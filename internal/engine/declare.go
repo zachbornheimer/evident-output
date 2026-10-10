@@ -1,17 +1,24 @@
 package engine
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/record"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
-func (o *Output) ensureEntityRoomLocked() error {
-	n := len(o.tasks)
-	if n >= o.cfg.maxEntities {
+// declarationRefusal is the engine's error for a declaration the graph refused.
+func declarationRefusal(err error) error {
+	switch {
+	case errors.Is(err, graph.ErrEntityLimit):
 		return ErrLimitExceeded
+	case errors.Is(err, graph.ErrClosed):
+		return ErrClosed
+	default:
+		return fmt.Errorf("declaring a Task: %w", err)
 	}
-	return nil
 }
 
 // Task declares a single root-level operation named name. Identity
@@ -58,13 +65,14 @@ func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 		o.recordMisuse(ErrDeclaredInCallback)
 		return o.rejectedTask(ErrDeclaredInCallback)
 	}
-	if err := o.ensureEntityRoomLocked(); err != nil {
+	node, err := o.graph.AddTask(containerNode(col), name, record.TaskInit{
+		State: Pending, Progress: Progress{Kind: Indeterminate}, Resolution: ResolutionNoWork,
+	})
+	if err != nil {
+		err = declarationRefusal(err)
 		o.recordMisuse(err)
 		return o.rejectedTask(err)
 	}
-	node := o.graph.AddTask(containerNode(col), name, record.TaskInit{
-		State: Pending, Progress: Progress{Kind: Indeterminate}, Resolution: ResolutionNoWork,
-	})
 	st := &taskState{
 		id:          node.ID,
 		node:        node,
@@ -72,29 +80,21 @@ func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 		rec:         node.Rec,
 		collection:  col,
 		declaration: node.Declaration,
-		doneCh:      make(chan struct{}),
 	}
 	h := &TaskHandle{out: o, id: st.id}
 	st.handle = h
 	o.appendTaskLocked(st)
 	if col != nil {
-		st.sched.preds = o.appendStepPredsLocked(st.sched.preds, col)
-		st.sched.preds = o.joinPassedSequencesLocked(st.sched.preds, col, predecessor{task: st})
-		col.recordStep(predecessor{task: st})
 		st.filing.pos = len(col.tasks)
 		col.tasks = append(col.tasks, st)
 		st.markFiling()
 		col.hasNamesake = col.hasNamesake || name == col.name
-		tallyDeclaredLocked(st)
 		st.censusDeclared()
 	}
 	o.taskStates[st.id] = st
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "task.declared", EntityID: st.id})
 	o.emitWireEventLocked(wire.EventTaskDeclared, st.id, map[string]any{"name": name})
-	if col != nil {
-		o.stopIfFollowerLocked(st)
-	}
 	return h
 }
 
@@ -153,9 +153,6 @@ func (o *Output) declareContainerLocked(parent *tasksState, name string, sequent
 		o.collections = append(o.collections, st)
 	} else {
 		parentID = parent.id
-		st.entry = o.appendStepPredsLocked(nil, parent)
-		st.entry = o.joinPassedSequencesLocked(st.entry, parent, predecessor{col: st})
-		parent.recordStep(predecessor{col: st})
 		parent.children = append(parent.children, st)
 	}
 	o.containerStates[st.id] = st

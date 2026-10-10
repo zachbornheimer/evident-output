@@ -21,23 +21,34 @@ import (
 func (o *Output) resolveStall() bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if len(o.sched.waits) == 0 && !o.sched.draining {
+	draining := o.graph.Draining()
+	if len(o.sched.waits) == 0 && !draining {
 		return false
 	}
 	if o.progressPossibleLocked() {
 		return false
 	}
-	if !o.sched.draining && o.sealWaitedInputsLocked() {
+	if !draining && o.sealWaitedInputsLocked() {
 		return true
 	}
-	if o.blockCyclesLocked() {
+	if o.graph.BlockCycles() {
 		return true
 	}
 	if len(o.sched.waits) > 0 {
 		o.releaseWaitsLocked()
 		return true
 	}
-	return o.sched.draining && o.abandonStrandedLocked()
+	return draining && o.abandonStrandedLocked()
+}
+
+// sealWaitedInputsLocked seals what every parked Wait waits for, once the
+// run proved it cannot move. It reports whether it sealed anything.
+func (o *Output) sealWaitedInputsLocked() bool {
+	awaited := make([]*graph.Task, 0, len(o.sched.waits))
+	for ticket := range o.sched.waits {
+		awaited = append(awaited, o.nodeOfTask(ticket.taskID))
+	}
+	return o.graph.SealWaited(awaited)
 }
 
 // releaseWaitsLocked ends the parked waits nothing left in the run can
@@ -82,17 +93,17 @@ func (o *Output) spawnedWaitsLocked() []*waitTicket {
 // drain can move no further: what it waits for will never resolve (a
 // collection whose member nobody Defined). It reports whether any was.
 func (o *Output) abandonStrandedLocked() bool {
-	if o.sched.parked == 0 {
+	if o.graph.Parked() == 0 {
 		return false
 	}
 	for _, st := range o.tasks {
-		if st.sched.phase == phaseParked && !core.IsTerminalTask(st.rec.State()) {
+		if st.node.Phase() == graph.PhaseParked && !core.IsTerminalTask(st.rec.State()) {
 			o.markNotStartedLocked(st)
 		}
 	}
-	for _, gate := range o.sched.gates {
-		if gate.sched.phase == phaseParked && !core.IsTerminalTask(gate.rec.State()) {
-			o.markNotStartedLocked(gate)
+	for _, gate := range o.graph.Gates() {
+		if gate.Phase() == graph.PhaseParked && !core.IsTerminalTask(gate.Rec.State()) {
+			o.graph.MarkNotStarted(gate)
 		}
 	}
 	return true

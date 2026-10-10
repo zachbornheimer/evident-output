@@ -6,33 +6,7 @@ import (
 	"slices"
 
 	"github.com/zachbornheimer/evident-output/internal/graph"
-	"github.com/zachbornheimer/evident-output/internal/record"
 )
-
-// builderPhase is where a container's topology builder stands.
-type builderPhase uint8
-
-const (
-	// builderPending: Defined, and not finished: waiting on the
-	// container's predecessors, or running.
-	builderPending builderPhase = iota
-	// builderDone: the builder returned; its children were declared.
-	builderDone
-	// builderNotStarted: a predecessor can never succeed, so the builder
-	// never ran.
-	builderNotStarted
-	// builderFailed: the builder panicked before declaring every child.
-	builderFailed
-)
-
-// containerBuilder is the declaration work a Group or Sequence deferred
-// until its predecessors succeed (GroupHandle.Define). gate is the
-// scheduler's entity for that work: it waits on the container's After
-// edges like a Task does, but it is no row, and no collection counts it.
-type containerBuilder struct {
-	gate  *taskState
-	phase builderPhase
-}
 
 // After declares predecessors: this Group declares its children only once
 // every one of them succeeded, and never does once one of them cannot. A
@@ -49,14 +23,8 @@ func (g *GroupHandle) After(preds ...any) *GroupHandle {
 	if col == nil {
 		return g
 	}
-	if col.builder != nil || len(col.tasks)+len(col.children) > 0 {
+	if !o.graph.AddContainerAfter(col.node, o.predecessorsOfLocked(preds)...) {
 		o.recordMisuse(ErrInvalidConfig)
-		return g
-	}
-	for _, p := range preds {
-		if pred, ok := o.predecessorOfLocked(p); ok {
-			col.entry = append(col.entry, o.closeMembershipLocked(pred))
-		}
 	}
 	return g
 }
@@ -118,36 +86,23 @@ func (g *GroupHandle) defineBuilder(run func()) {
 		o.recordMisuse(ErrClosed)
 		o.mu.Unlock()
 		return
-	case col.builder != nil || len(col.tasks)+len(col.children) > 0:
+	}
+	node := o.graph.AddGate(col.node, func() error { run(); return nil })
+	if node == nil {
 		o.recordMisuse(ErrInvalidConfig)
 		o.mu.Unlock()
 		return
 	}
-	gate := &taskState{
-		id:          o.graph.NextID("gate"),
-		name:        col.name,
-		rec:         o.rec.NewTask(record.TaskInit{State: Pending}),
-		declaration: o.graph.NextDeclaration(),
-		doneCh:      make(chan struct{}),
-		gateFor:     col,
-	}
+	gate := &taskState{id: node.ID, node: node, name: node.Name, rec: node.Rec, declaration: node.Declaration}
 	gate.handle = &TaskHandle{out: o, id: gate.id}
-	gate.sched.preds = slices.Clone(col.entry)
-	gate.sched.work = func() error { run(); return nil }
-	col.builder = &containerBuilder{gate: gate, phase: builderPending}
-	for c := col; c != nil; c = c.parent {
-		c.tally.holds++
-	}
 	o.taskStates[gate.id] = gate
-	o.sched.gates = append(o.sched.gates, gate)
-	o.sched.wg.Add(1)
-	o.enterPhaseLocked(gate, phaseQueued)
+	o.graph.Enqueue(node, nil)
 	if o.sched.cancelled {
-		o.markNotStartedLocked(gate)
+		o.graph.MarkNotStarted(node)
 		o.mu.Unlock()
 		return
 	}
-	o.placeLocked(gate, scanAll)
+	o.graph.Place(node)
 	o.mu.Unlock()
 	o.kick()
 }
@@ -156,7 +111,7 @@ func (g *GroupHandle) defineBuilder(run func()) {
 // builder runs under builderFrames, not runCallback, so the declarations it
 // makes are not Task-callback declarations (see declaredInCallback).
 func (o *Output) runGate(st *taskState) {
-	panicText := runBuilder(st.sched.work)
+	panicText := runBuilder(st.node.Work())
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if panicText != "" {
@@ -181,34 +136,6 @@ func runBuilder(work func() error) (panicText string) {
 	return ""
 }
 
-// concludeGateLocked is settleLocked's tail for a gate: it records the builder's
-// outcome, releases the membership holds the pending builder placed on its
-// container and ancestors, and places every Task that was waiting on them.
-func (o *Output) concludeGateLocked(st *taskState) {
-	col, state := st.gateFor, st.rec.State()
-	switch state {
-	case Done:
-		col.builder.phase = builderDone
-	case NotStarted:
-		col.builder.phase = builderNotStarted
-	default:
-		col.builder.phase = builderFailed
-	}
-	st.closeDoneLocked()
-	if st.sched.awaitingStart() {
-		o.abandonLocked(st)
-	}
-	var woken []*taskState
-	for c := col; c != nil; c = c.parent {
-		if state != Done {
-			woken = append(woken, c.tally.failBuilder()...)
-		}
-		woken = append(woken, c.tally.release(c == col, o.graph.Declarations())...)
-	}
-	o.bumpLocked()
-	o.wakeLocked(woken)
-}
-
 // awaitBuilders parks until every topology builder under the container has
 // settled, and returns why a builder did not declare its children. Nested
 // builders are declared by their parent's, so each level is awaited after
@@ -220,16 +147,13 @@ func (o *Output) awaitBuilders(id string, stack *waiterStack) error {
 	if col == nil {
 		return nil
 	}
-	return o.awaitBuildersIn(col, stack, &inputSeals{})
+	return o.awaitBuildersIn(col, stack, &graph.InputSeals{})
 }
 
-func (o *Output) awaitBuildersIn(col *tasksState, stack *waiterStack, seen *inputSeals) error {
-	o.mu.Lock()
-	b := col.builder
-	o.mu.Unlock()
+func (o *Output) awaitBuildersIn(col *tasksState, stack *waiterStack, seen *graph.InputSeals) error {
 	var errs []error
-	if b != nil {
-		if err := b.gate.handle.waitChecked(stack, seen); err != nil {
+	if gate := o.gateHandle(col); gate != nil {
+		if err := gate.waitChecked(stack, seen); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -242,6 +166,17 @@ func (o *Output) awaitBuildersIn(col *tasksState, stack *waiterStack, seen *inpu
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// gateHandle is the handle of col's builder gate, nil when col has none.
+func (o *Output) gateHandle(col *tasksState) *TaskHandle {
+	node := col.node.BuilderGate()
+	if node == nil {
+		return nil
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.taskStates[node.ID].handle
 }
 
 // withBuilderOutcome folds a container Wait's builder outcome into its

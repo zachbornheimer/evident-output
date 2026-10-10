@@ -1,6 +1,10 @@
 package engine
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/zachbornheimer/evident-output/internal/graph"
+)
 
 // Sentinel misuse and lifecycle errors recorded by the output aggregate.
 var (
@@ -50,7 +54,7 @@ var (
 	// Task after itself, directly, through another Task, or through a Group
 	// it belongs to. Every Task in the cycle settles Blocked naming it,
 	// instead of Finish waiting forever for work that can never start.
-	errDependencyCycle = errors.New("evo: After dependency cycle")
+	errDependencyCycle = graph.ErrDependencyCycle
 	// ErrDuplicateSiblingName is recorded when a Task, Group, or Sequence is
 	// declared with a name already used by another child of the same parent
 	// (§3.1). 1.0 removed get-or-create identity for Task/Group/Sequence

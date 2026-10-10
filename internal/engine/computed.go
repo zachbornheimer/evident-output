@@ -1,6 +1,10 @@
 package engine
 
-import "context"
+import (
+	"context"
+
+	"github.com/zachbornheimer/evident-output/internal/record"
+)
 
 // Computed is the value a Task produces for the Tasks and containers
 // declared After it (see Compute).
@@ -54,7 +58,7 @@ func (c *Computed[T]) Get() T {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	st := o.taskStates[c.task.id]
-	if st == nil || stateOutcome(st.rec.State()) != predSucceeded {
+	if st == nil || !record.DeclaresSuccess(st.rec.State()) {
 		name := ""
 		if st != nil {
 			name = st.name
