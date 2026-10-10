@@ -86,7 +86,7 @@ the dialect. Do not apply. Reinstall, then start a **fresh** Grok process.
 ```bash
 # never GOBIN=$HOME/.local/bin — that self-symlinks and deletes the binary
 cd /path/to/evident-output          # this checkout, or the consumer's replace
-GOBIN="$(go env GOPATH)/bin" go install ./cmd/evident-output-mcp
+GOBIN="$(go env GOPATH)/bin" go install ./mcp/cmd/evident-output-mcp
 ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
 "$HOME/.local/bin/evident-output-mcp" --version
 ```
@@ -179,7 +179,7 @@ CLI fallback when the attached host is stale (do **not** skip MCP on a fresh
 process):
 
 ```bash
-go run ./cmd/evident-output review /Users/zbornheimer/Developer/Personal/zq
+go run ./mcp/cmd/evident-output review /Users/zbornheimer/Developer/Personal/zq
 ```
 
 `desired_version` in that result may still print the require (`v0.4.3`); detectors
@@ -235,7 +235,7 @@ release in `go.mod` and migrate with the guide before bumping.
 - Library pin in consumer `go.mod`; MCP binary matches that pin (or the replace).
 - `ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" ~/.local/bin/evident-output-mcp`
 - Host config: **absolute** command (`${HOME}/.local/bin/evident-output-mcp`).
-- Integrations: `integrations/grok/README.md` (and claude-code, codex, gemini, opencode).
+- Integrations: `mcp/integrations/grok/README.md` (and claude-code, codex, gemini, opencode).
 
 Authoritative prose is the MCP docs corpus, not this file. This file is the
 operating contract for agents.

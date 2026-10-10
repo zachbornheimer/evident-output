@@ -1,11 +1,11 @@
 // Command gensections copies the docs the MCP server's list_sections /
-// get_documentation tools serve into internal/agent/sections/embedded, the
+// get_documentation tools serve into mcp/internal/agent/sections/embedded, the
 // only directory go:embed can reach from that package. docs/*.md stays the
 // single source of truth — this command's only job is to make Go's embed
 // restriction (no "../") not force duplicated prose. Run after editing any
 // source doc listed in sourceDocs:
 //
-//	go generate ./internal/agent/sections
+//	go generate ./mcp/internal/agent/sections
 package main
 
 import (
@@ -31,7 +31,7 @@ func main() {
 		fail(err)
 	}
 	repo := os.DirFS(root)
-	destDir := filepath.Join(root, "internal", "agent", "sections", "embedded")
+	destDir := filepath.Join(root, "mcp", "internal", "agent", "sections", "embedded")
 	if err := os.MkdirAll(destDir, 0o750); err != nil {
 		fail(err)
 	}

@@ -16,7 +16,7 @@
     "tier": "1.2",
     "tests": [
       {
-        "pkg": "./conformance/contract/pending/mcp",
+        "pkg": "./mcp/conformance/pending/mcp",
         "run": "TestCMCP_004_IntoResultPlumbingIsFlaggedTowardCompute"
       }
     ],
@@ -29,7 +29,7 @@
     "tier": "1.2",
     "tests": [
       {
-        "pkg": "./conformance/contract/pending/mcp",
+        "pkg": "./mcp/conformance/pending/mcp",
         "run": "TestCMCP_003_OuterMutableVariableHandoffIsFlaggedTowardCompute"
       }
     ],
@@ -173,7 +173,7 @@
     "tier": "1.2",
     "tests": [
       {
-        "pkg": "./conformance/contract/pending/mcp",
+        "pkg": "./mcp/conformance/pending/mcp",
         "run": "TestCMCP_006_IOAndGoroutinesInsideTopologyBuilderAreFlagged"
       }
     ],
@@ -253,7 +253,7 @@
     "section": "31",
     "quote": "Noun/category names belong naturally on Group/Sequence.",
     "tier": "1.2",
-    "tests": [{ "pkg": "./internal/agent/review", "run": "TestAPI045_ContainerTaskName_Fires" }],
+    "tests": [{ "pkg": "./mcp/internal/agent/review", "run": "TestAPI045_ContainerTaskName_Fires" }],
     "default": false
   },
   {
@@ -263,7 +263,7 @@
     "tier": "1.2",
     "tests": [
       {
-        "pkg": "./conformance/contract/pending/mcpgap",
+        "pkg": "./mcp/conformance/pending/mcpgap",
         "run": "TestCMCP_009_InexpressibleShapeKeepsRecheckAndEmitsDedupedGapEvent"
       }
     ],

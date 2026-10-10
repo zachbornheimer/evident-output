@@ -241,19 +241,19 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI060_SummaryWroteNarration_Fires"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI060_SummaryWouldAddNarration_Fires"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI060_SummaryAlreadyNarration_Fires"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI060_SummaryResultMetadataGoodCode_StaysSilent"
       }
     ],
@@ -409,7 +409,7 @@
         "run": "TestSpawnedWaiterBlockingItsCallbackFailsNamed"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI041_GoroutineResolvesPredeclaredTask_Fires"
       }
     ],
@@ -695,11 +695,11 @@
         "run": "TestEffect_RejectsContentFreeSpec"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI057_RawWriteFileInEffectLiteral_Fires"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI057_EvoFileGoodCode_StaysSilent"
       }
     ],
@@ -725,11 +725,11 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI043_PluralEffectObjectLiteral_Fires"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI043_SingularEffectObjectLiteral_StaysSilent"
       }
     ],

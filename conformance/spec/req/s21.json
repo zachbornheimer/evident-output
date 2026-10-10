@@ -6,15 +6,15 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./cmd/evident-output-mcp",
+        "pkg": "./mcp/cmd/evident-output-mcp",
         "run": "TestReview_DesiredVersionV029DoesNotFlagNew"
       },
       {
-        "pkg": "./cmd/evident-output-mcp",
+        "pkg": "./mcp/cmd/evident-output-mcp",
         "run": "TestReviewDirectory_FillsPinFields"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestGoPackageAtHonorsPinnedDialect"
       }
     ],
@@ -40,15 +40,15 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI060_SummaryWroteNarration_Fires"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI063_ConstantVerify_Fires"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestDOM021_TaskNeverResolved_Fires"
       }
     ],
@@ -61,7 +61,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI047_CrossKindDuplicateSiblingName_Fires"
       }
     ],
@@ -74,11 +74,11 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI045_SubjectOnlyTaskName_Fires"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI051_FakeTaskPerFinding_Fires"
       }
     ],
@@ -91,7 +91,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI032_RemovedDoneRewritesToDefineAndSummary"
       }
     ],
@@ -104,11 +104,11 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestMigration1_1EveryRemovedNameHasDirtyRewriteCleanFixture"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestMigration1_1_DirtyFiresAndRewriteIsClean"
       }
     ],
@@ -121,7 +121,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestEVOFILE001_ManualWriteAndChmod_EmitsSimplificationFinding"
       }
     ],
@@ -134,11 +134,11 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI041_GoroutineResolvesPredeclaredTask_Fires"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestEVODAG001_GoroutineWrapsDefine_Fires"
       }
     ],
@@ -151,7 +151,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestEVODAG002_AfterChainDuplicatesSequence_Fires"
       }
     ],
@@ -164,11 +164,11 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestGoSource_EvoUI001_FactPrintedManually"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestGoSource_EvoUI002_PassingVerificationPrinted"
       }
     ],
@@ -181,7 +181,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./conformance/contract/pending/mcp",
+        "pkg": "./mcp/conformance/pending/mcp",
         "run": "TestC21_012_MCPDetectsACallerChosenGlyphColorOrStatus"
       }
     ],
@@ -194,7 +194,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestGoSource_EvoLive001_PrintCompetesWithLiveRendering"
       }
     ],
@@ -207,7 +207,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./conformance/contract/pending/mcp",
+        "pkg": "./mcp/conformance/pending/mcp",
         "run": "TestC21_014_MCPDetectsABreakingWireSchemaEdit"
       }
     ],
@@ -220,11 +220,11 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestGoSource_EvoExit001_OsExitBypassesConclusion"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestExitBypass_OneFixThatCompiles"
       }
     ],
@@ -246,11 +246,11 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI060_RecheckAfterRemediation_FindingDisappears"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI046_RecheckAfterRemediation_FindingDisappears"
       }
     ],
@@ -263,11 +263,11 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./cmd/evident-output-mcp",
+        "pkg": "./mcp/cmd/evident-output-mcp",
         "run": "TestNewMCPToolsAdvertised"
       },
       {
-        "pkg": "./cmd/evident-output-mcp",
+        "pkg": "./mcp/cmd/evident-output-mcp",
         "run": "TestToolRegistryMatchesToolList"
       }
     ],
@@ -280,7 +280,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI048_RedeclaredTaskLiteralForAfter_Fires"
       }
     ],
@@ -293,7 +293,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI048_TrivialOneOffTask_StaysSilent"
       }
     ],

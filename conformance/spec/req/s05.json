@@ -32,15 +32,15 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI063_ConstantVerify_Fires"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI063_ObservingVerify_Silent"
       },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI063_ResolvesTheBindingInScope"
       }
     ],

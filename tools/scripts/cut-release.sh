@@ -106,13 +106,13 @@ go run ./tools/scripts/sync-release-pins
 # diffs the next Unreleased section against.
 cp testdata/api_golden.txt testdata/api_golden_released.txt
 # mcp/docs/mcp.md is embedded into the MCP binary; regenerate or the staleness gate goes red
-go generate ./internal/agent/sections
+go generate ./mcp/internal/agent/sections
 go test . -run 'PublishedRelease|VersionDrift' -count=1
 
 msg="${CUT_RELEASE_MESSAGE:-chore(${next}): cut release}"
-git add format.go README.md mcp/docs/mcp.md internal/agent/sections/embedded skills integrations CHANGELOG.md testdata/api_golden_released.txt 2>/dev/null || true
+git add format.go README.md mcp/docs/mcp.md mcp/internal/agent/sections/embedded mcp/skills mcp/integrations CHANGELOG.md testdata/api_golden_released.txt 2>/dev/null || true
 # Stage any pin surface the syncer touched (and CHANGELOG if promoted in-tree)
-git add -u README.md mcp/docs/mcp.md internal/agent/sections/embedded skills integrations format.go CHANGELOG.md 2>/dev/null || true
+git add -u README.md mcp/docs/mcp.md mcp/internal/agent/sections/embedded mcp/skills mcp/integrations format.go CHANGELOG.md 2>/dev/null || true
 if [[ -n "$(git status --porcelain)" ]]; then
 	git commit -m "$msg"
 else

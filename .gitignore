@@ -55,14 +55,8 @@
 !/logbridge/**
 !/render/
 !/render/**
-!/cmd/
-!/cmd/**
-!/skills/
-!/skills/**
 !/agents/
 !/agents/**
-!/integrations/
-!/integrations/**
 !/tools/
 !/tools/**
 !/mcp/

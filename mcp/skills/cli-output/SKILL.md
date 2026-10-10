@@ -1,0 +1,157 @@
+---
+name: cli-output
+description: >
+  Use when creating, modifying, reviewing, testing, or debugging command-line
+  output. Apply when a CLI prints items, tasks, multiple progress bars, plans,
+  changes, warnings, errors, debug logs, tables, structured output, or next
+  actions; or when stdout, stderr, TTY behavior, color, terminal width, CI
+  output, exit codes, or live rendering are involved. Also apply when asked to
+  "adopt evident-output", "migrate to evo", or "clean up CLI output" in an
+  existing codebase — see Adoption workflow below.
+license: Apache-2.0
+---
+
+# CLI Output
+
+Portable skill for understandable CLI presentation. Prefer **Evident Output**
+when available; stay useful when it is not.
+
+**Pinned release:** `v1.0.0` (keep install commands on this pin; never `@latest`).
+
+## Canonical locations (portable)
+
+| What                     | Path                                                                                                                                                                                   |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GitHub repo**          | `https://github.com/zachbornheimer/evident-output`                                                                                                                                     |
+| **Go module**            | `github.com/zachbornheimer/evident-output`                                                                                                                                             |
+| **MCP package**          | `github.com/zachbornheimer/evident-output/mcp/cmd/evident-output-mcp`                                                                                                                  |
+| **CLI package**          | `github.com/zachbornheimer/evident-output/mcp/cmd/evident-output`                                                                                                                      |
+| **This skill in-repo**   | `mcp/skills/cli-output/SKILL.md`                                                                                                                                                       |
+| **MCP install (module)** | `go install github.com/zachbornheimer/evident-output/mcp/cmd/evident-output-mcp@v1.0.0` then `ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"` |
+
+Host-specific wiring (Grok, Claude Code, Codex, …) lives under `mcp/integrations/<host>/` in the repo — not in this skill.
+
+## Capability fallback
+
+1. **Connected MCP** — tools below
+2. **Standalone CLI** — `go run github.com/zachbornheimer/evident-output/mcp/cmd/evident-output@v1.0.0 …`
+3. **This skill’s static guidance**
+
+## MCP tool names (underscores only)
+
+| tools/list                         | Purpose                              |
+| ---------------------------------- | ------------------------------------ |
+| `evident_output_list_sections`     | Full docs corpus table of contents   |
+| `evident_output_get_documentation` | Full doc section body by id          |
+| `evident_output_adopt_plan`        | Paged migration plan for a directory |
+| `evident_output_review`            | Go / directory / transcript / JSON   |
+| `evident_output_preview`           | Plain profiles                       |
+| `evident_output_explain`           | `rule_id` (not `id`)                 |
+| `evident_output_update`            | Reinstall MCP to match a go.mod pin  |
+
+On Grok, tools are `evident-output__evident_output_*`.
+
+## Adoption workflow (existing codebase → evo)
+
+Trigger phrases: "adopt evident-output", "migrate to evo", "clean up CLI output".
+
+1. **Inventory** — `evident_output_adopt_plan` with `{ "directory": "<repo or package path>" }`.
+   Returns one page: `findings` (≤40), `rung`, `remaining`, `next_cursor`, `next_action`.
+   If `facades` is set, migrate the facade first (`next_action` says so) — not each call site.
+2. **Migrate the current page**, then re-call with `{ "directory": "...", "cursor": "<next_cursor>" }`
+   until `next_action` is `clean`. Ladder order (no containers rung):
+   `Init/Main → Task/Define → effects → facts/warnings → confirm/dry-run`.
+   Pull authoritative detail per rung with `evident_output_get_documentation` (ids
+   `adoption-ladder`, `guide/common-api`, `guide/tasks`) rather than guessing spellings —
+   the catalog is the single source of truth, this skill only points at it.
+3. **Review the loop until clean** — after each rung's edits, call `evident_output_review`
+   on the changed file(s); its `next_action` field says `clean` or tells you to re-run.
+   Repeat within the rung until `recheck_required=false` and zero findings before starting
+   the next rung. If review reports `update_needed`, call `evident_output_update` then
+   restart the MCP host before treating review as done.
+4. **Verify with a pty capture** — run the CLI under a real or emulated TTY (e.g.
+   `testkit.Screen` for Go call sites, or a plain terminal run for the binary) and confirm
+   the live region renders as expected; a review pass with zero findings does not by itself
+   prove the terminal output looks right.
+
+`next_action` of `clean` is the adoption's own done-condition.
+
+## Install library
+
+```bash
+go get github.com/zachbornheimer/evident-output@v1.0.0
+```
+
+## Further reading
+
+- `mcp/docs/teaching-ladder.md` — ordinary learning order
+
+## Adoption ladder
+
+```text
+evo.Init(Config) → Print/Printf/Println → Verbose()
+→ Task.Define / one Task per item under a Group or Sequence → task.Writer()
+→ evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) / evo.File inside Define
+→ slog via SlogHandler → os.Exit(evo.Main(run))
+```
+
+Prefer **contracts over sugar**: plain `Task` labels first. Task is name-only.
+
+## Entrypoint
+
+```go
+evo.Init(evo.Config{Title: "tool"})
+os.Exit(evo.Main(run)) // Main returns the exit code; it never exits itself
+```
+
+`evo.Init(Config{Isolated: true})` + `out.Run(ctx, run)` are the advanced, hosted-instance
+form of the same lifecycle — reach for them only when a tool needs an `*Output` it
+doesn't install as the package-level default.
+
+`Main` records a non-nil `run` error as Fail before Finish (no `[ready]` with exit 2).
+
+## Child processes
+
+```go
+upgrade := out.Task("brew packages")
+upgrade.Define(func(ctx context.Context) error {
+    cmd := exec.CommandContext(ctx, "brew", args...)
+    cmd.Stdout = upgrade.Writer()
+    cmd.Stderr = upgrade.Writer()
+    if err := cmd.Run(); err != nil {
+        return fmt.Errorf("brew upgrade failed: %w", err)
+    }
+    return nil
+})
+```
+
+Run the child inside the Task's `Define`: a Task given a `Writer` but never
+Defined stays unresolved and the run concludes `partial`.
+
+Do **not** use `DebugWriter` for child tools (API-029).
+Secrets: set `Config.Redactor`.
+
+## Platform contracts
+
+| Need        | Use                                                             |
+| ----------- | --------------------------------------------------------------- |
+| Named work  | `out.Task("download")`                                          |
+| Collection  | `out.Group("packages")`, one `.Task(name).Define(...)` per item |
+| Child stdio | `cmd.Stdout = task.Writer()` (and stderr)                       |
+| Domain JSON | `FormatData` + `out.ResultWriter()` (human on stderr)           |
+
+## Severity
+
+| Outcome                         | Meaning                               |
+| ------------------------------- | ------------------------------------- |
+| **Problem** at warning severity | Soft / optional                       |
+| **Block**                       | Stop before mutation (not a Go error) |
+| **Fail**                        | Evaluation / required tool failed     |
+
+## Review
+
+```bash
+go run github.com/zachbornheimer/evident-output/mcp/cmd/evident-output@v1.0.0 review ./path.go
+```
+
+Until `recheck_required=false`. Rules include API-006 (Start), API-026 (caller RunAll/Map/Retry — not Group/Sequence/Define/After), API-028 (Donef without %), API-029 (Capture), STREAM-003 (fmt.Print).

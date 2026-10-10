@@ -45,7 +45,7 @@ func TestPORT012_BigEndianCrossCompile(t *testing.T) {
 	// PORT-012: no encoding assumption — cross-compile CLI for big-endian.
 	root := repoRoot(t)
 	out := filepath.Join(t.TempDir(), "evident-output-s390x")
-	cmd := exec.Command("go", "build", "-buildvcs=false", "-o", out, "./cmd/evident-output")
+	cmd := exec.Command("go", "build", "-buildvcs=false", "-o", out, "./mcp/cmd/evident-output")
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=s390x", "CGO_ENABLED=0")
 	if b, err := cmd.CombinedOutput(); err != nil {
@@ -105,7 +105,8 @@ func TestMCP036_RemotePathRejectedByPolicy(t *testing.T) {
 	for _, p := range []string{
 		"https://evil.example/x.go",
 		"http://evil.example/x.go",
-		"git+ssh://host/repo"} {
+		"git+ssh://host/repo",
+	} {
 		if !isRemotePath(p) {
 			t.Fatalf("expected remote: %s", p)
 		}

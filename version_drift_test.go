@@ -14,8 +14,8 @@ import (
 // Discovered automatically so new skills/integrations join the gate without
 // a hand-maintained allowlist that itself drifts.
 var portableRoots = []string{
-	"skills",
-	"integrations",
+	"mcp/skills",
+	"mcp/integrations",
 }
 
 var portableFiles = []string{
@@ -31,7 +31,7 @@ var forbiddenPathFragments = []string{
 
 // go get|install|run of this module at a version.
 var moduleVersionPin = regexp.MustCompile(
-	`github\.com/zachbornheimer/evident-output(?:/cmd/[a-z0-9-]+)?@(v\d+\.\d+\.\d+|latest)`,
+	`github\.com/zachbornheimer/evident-output(?:/mcp/cmd/[a-z0-9-]+)?@(v\d+\.\d+\.\d+|latest)`,
 )
 
 // Status / pin chrome in prose.
@@ -69,7 +69,7 @@ func TestVersionDrift_PortableSurface(t *testing.T) {
 
 func TestVersionDrift_ConfigClientUsesPublishedRelease(t *testing.T) {
 	root := moduleRoot(t)
-	path := filepath.Join(root, "cmd/evident-output-mcp/config_client.go")
+	path := filepath.Join(root, "mcp/cmd/evident-output-mcp/config_client.go")
 	body, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -87,9 +87,9 @@ func TestVersionDrift_ConfigClientUsesPublishedRelease(t *testing.T) {
 
 func TestVersionDrift_GeneratedConfigNeverPinsLatest(t *testing.T) {
 	// Runtime: config printer with Version=dev must emit PublishedRelease, not latest.
-	// Covered by package tests under cmd/evident-output-mcp; here we only guard source.
+	// Covered by package tests under mcp/cmd/evident-output-mcp; here we only guard source.
 	root := moduleRoot(t)
-	path := filepath.Join(root, "cmd/evident-output-mcp/config_client.go")
+	path := filepath.Join(root, "mcp/cmd/evident-output-mcp/config_client.go")
 	body, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)

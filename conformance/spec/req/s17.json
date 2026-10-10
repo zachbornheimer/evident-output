@@ -19,7 +19,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestDiscardedMainCode"
       }
     ],

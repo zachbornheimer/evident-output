@@ -29,7 +29,7 @@ func main() {
 
 	// Any previous semver pin on this module → want.
 	modulePin := regexp.MustCompile(
-		`github\.com/zachbornheimer/evident-output((?:/cmd/[a-z0-9-]+)?)@(?:v\d+\.\d+\.\d+|latest)`,
+		`github\.com/zachbornheimer/evident-output((?:/mcp/cmd/[a-z0-9-]+)?)@(?:v\d+\.\d+\.\d+|latest)`,
 	)
 	// Prose chrome pins.
 	prosePin := regexp.MustCompile(
@@ -40,7 +40,7 @@ func main() {
 	var paths []string
 	paths = append(paths, "README.md")
 	paths = append(paths, "mcp/docs/mcp.md")
-	for _, dir := range []string{"skills", "integrations"} {
+	for _, dir := range []string{"mcp/skills", "mcp/integrations"} {
 		_ = fs.WalkDir(repo, dir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil || d.IsDir() {
 				return err

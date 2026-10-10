@@ -413,15 +413,15 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/docexamples",
+        "pkg": "./mcp/internal/docexamples",
         "run": "TestDocFencesMatchFixtures"
       },
       {
-        "pkg": "./internal/docexamples",
+        "pkg": "./mcp/internal/docexamples",
         "run": "TestCatalogGuidesHaveNoUntestedGoFences"
       },
       {
-        "pkg": "./examples",
+        "pkg": "./mcp/guards",
         "run": "TestExamplesPassReview"
       }
     ],

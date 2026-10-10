@@ -127,7 +127,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": ".",
+        "pkg": "./mcp/guards",
         "run": "TestAPIGolden_PublicSurfaceMatchesCommittedGolden"
       }
     ],
@@ -144,7 +144,7 @@
         "run": "TestC02_020_NotPartOfEvoNamesDoNotExist"
       },
       {
-        "pkg": ".",
+        "pkg": "./mcp/guards",
         "run": "TestAPIGolden_VocabularyFreeze"
       }
     ],

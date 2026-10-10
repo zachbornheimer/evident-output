@@ -6,7 +6,7 @@
     "tier": "1.2",
     "tests": [
       {
-        "pkg": "./conformance/contract/pending/mcp",
+        "pkg": "./mcp/conformance/pending/mcp",
         "run": "TestCMCP_001_UnorderedGetIsFlaggedWithMissingAfterSuggestion"
       }
     ],
@@ -19,7 +19,7 @@
     "tier": "1.2",
     "tests": [
       {
-        "pkg": "./conformance/contract/pending/mcp",
+        "pkg": "./mcp/conformance/pending/mcp",
         "run": "TestCMCP_002_RedundantAfterInsideSequenceIsFlaggedAndNeverAutoAdded"
       }
     ],
@@ -32,7 +32,7 @@
     "tier": "1.2",
     "tests": [
       {
-        "pkg": "./conformance/contract/pending/mcp",
+        "pkg": "./mcp/conformance/pending/mcp",
         "run": "TestCMCP_005_ChildTasksDeclaredInsideTaskDefineAreFlagged"
       }
     ],
@@ -45,7 +45,7 @@
     "tier": "1.2",
     "tests": [
       {
-        "pkg": "./conformance/contract/pending/mcp",
+        "pkg": "./mcp/conformance/pending/mcp",
         "run": "TestCMCP_007_PresentationOnlyTaskIsFlagged"
       }
     ],
@@ -58,12 +58,12 @@
     "tier": "1.2",
     "tests": [
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI041_GoroutineResolvesPredeclaredTask_Fires"
       },
-      { "pkg": "./internal/agent/review", "run": "TestAPI052_CallerWaitLoopSnapshotCount_Fires" },
+      { "pkg": "./mcp/internal/agent/review", "run": "TestAPI052_CallerWaitLoopSnapshotCount_Fires" },
       {
-        "pkg": "./internal/agent/review",
+        "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI052_CallerWaitLoopErrNotStartedFilter_Fires"
       }
     ],
@@ -76,7 +76,7 @@
     "tier": "1.2",
     "tests": [
       {
-        "pkg": "./conformance/contract/pending/mcp",
+        "pkg": "./mcp/conformance/pending/mcp",
         "run": "TestCMCP_008_OneTaskLoopingOverItemsThatDeserveAnOutcomeIsFlagged"
       }
     ],
