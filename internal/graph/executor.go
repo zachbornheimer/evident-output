@@ -116,6 +116,7 @@ func (g *Graph) claimLocked(t *Task, pooled bool) *claim {
 		t.Rec.Transition(record.Running)
 	}
 	g.exec.executing++
+	t.callbackRunning = make(chan struct{})
 	return &claim{task: t, work: t.sched.work, pooled: pooled}
 }
 
@@ -156,6 +157,7 @@ func (g *Graph) finishClaimed(c *claim) {
 		g.exec.inflight--
 	}
 	g.exec.executing--
+	endCallbackLocked(c.task)
 	g.unlock()
 	g.WorkDone()
 	g.Kick()
@@ -178,7 +180,7 @@ func (g *Graph) execute(c *claim) {
 	if c.work.Run != nil {
 		err = g.runTrackedCallback(c.work.Run)
 	}
-	g.recordWorkErr(c.task, err)
+	g.recordCallbackReturn(c.task, err)
 	// A callback that settled its own Task (a verb inside Run, or an
 	// interrupt that cancelled the row) already stated one outcome. The
 	// scheduler neither restates it nor calls it misuse: returning the same
@@ -192,10 +194,22 @@ func (g *Graph) execute(c *claim) {
 	}
 }
 
-func (g *Graph) recordWorkErr(t *Task, err error) {
+// recordCallbackReturn commits what t's callback returned, then lets the
+// waiters that were holding for it answer.
+func (g *Graph) recordCallbackReturn(t *Task, err error) {
 	g.lock()
 	defer g.unlock()
 	t.workErr = err
+	endCallbackLocked(t)
+}
+
+// endCallbackLocked releases whoever waits for t's callback to return. It is
+// safe to call more than once: a panic or a skipped claim ends it too.
+func endCallbackLocked(t *Task) {
+	if t.callbackRunning != nil {
+		close(t.callbackRunning)
+		t.callbackRunning = nil
+	}
 }
 
 // settled reports whether t reached a terminal state.

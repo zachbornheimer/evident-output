@@ -17,7 +17,7 @@ var (
 	ErrWaitCancelled = errors.New("evo: awaited task was cancelled")
 	// ErrWaitFailed is what a wait returns for a row that resolved Failed or
 	// Blocked with no callback error recorded: the callback settled its own
-	// row and has not returned yet, or returned nil after doing so.
+	// row and returned nil.
 	ErrWaitFailed = errors.New("evo: awaited task did not succeed")
 	// ErrWaitUnderClaim is why a wait was refused, unless the graph was built
 	// with WithWaitUnderClaimError: the caller holds a resource claim, and the
@@ -79,20 +79,33 @@ func (g *Graph) waitChecked(t *Task, stack *WaiterStack, seen *InputSeals) error
 	return g.waitOutcome(t)
 }
 
-// parkUntilSettled parks until t resolves. A non-nil error means the
+// parkUntilSettled parks until t resolves and its callback, if one was
+// claimed, has returned: a callback can settle its own row (Fail, Block)
+// before it returns the error the waiter is owed. A non-nil error means the
 // scheduler proved the wait could never be satisfied and released the caller
 // instead of letting it hang (see Kick).
 func (g *Graph) parkUntilSettled(t *Task, stack *WaiterStack) error {
 	g.lockRead()
-	settledOrOwed := terminal(t) || t.neverDefinedLocked()
+	answerable := t.neverDefinedLocked() || (terminal(t) && t.callbackRunning == nil)
 	g.unlockRead()
-	if settledOrOwed {
+	if answerable {
 		return nil
 	}
 	ticket := g.BeginWait(t, stack.CallbackDepth())
 	defer g.EndWait(ticket)
 	select {
 	case <-t.done:
+	case <-ticket.Aborted():
+		return ticket.Released()
+	}
+	g.lockRead()
+	returning := t.callbackRunning
+	g.unlockRead()
+	if returning == nil {
+		return nil
+	}
+	select {
+	case <-returning:
 		return nil
 	case <-ticket.Aborted():
 		return ticket.Released()
@@ -119,10 +132,9 @@ func (g *Graph) waitOutcome(t *Task) error {
 	case state == record.Cancelled:
 		return withReason(ErrWaitCancelled, t.Rec.Summary())
 	case state == record.Failed || state == record.Blocked:
-		// The row already failed but its callback has not returned yet (it
-		// resolved itself via Fail/Block, which settles the row at once),
-		// or it returned nil after stating its own failure. Either way the
-		// work did not succeed, and Wait must not say it did.
+		// The callback stated its own failure (Fail or Block settle the row
+		// at once) and returned nil. The work did not succeed, and Wait must
+		// not say it did.
 		return withReason(ErrWaitFailed, t.Rec.Summary())
 	default:
 		return nil

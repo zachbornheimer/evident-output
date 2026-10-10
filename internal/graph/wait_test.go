@@ -2,7 +2,9 @@ package graph
 
 import (
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
@@ -15,6 +17,52 @@ func TestWaitReturnsWhatTheCallbackReturned(t *testing.T) {
 
 	if got := g.Wait(task); !errors.Is(got, boom) {
 		t.Errorf("Wait = %v, want the callback's error", got)
+	}
+}
+
+// settleToReturnGap is how long a callback that settled its own row takes to
+// return, so a waiter woken by the settle has time to answer too early.
+const settleToReturnGap = 5 * time.Millisecond
+
+// TestWaitReturnsTheErrorACallbackReturnsAfterSettlingItsOwnRow pins that a
+// waiter is answered by the callback's return value, not by the row settling
+// first: Fail or Block inside the callback settles the row while the error is
+// still on its way out.
+func TestWaitReturnsTheErrorACallbackReturnsAfterSettlingItsOwnRow(t *testing.T) {
+	for _, state := range []record.EntityState{record.Failed, record.Blocked} {
+		for _, parkedFirst := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/waiter parked first=%v", state, parkedFirst), func(t *testing.T) {
+				g := New(record.NewRun())
+				task := declare(g, "self-settled")
+				boom := errors.New("boom")
+				waiterParked := make(chan struct{})
+				settled := make(chan struct{})
+				submitWork(g, task, settlingWork(g, task, func() error {
+					if parkedFirst {
+						<-waiterParked
+					}
+					g.Settle(task, state)
+					close(settled)
+					time.Sleep(settleToReturnGap)
+					return boom
+				}))
+				g.Kick()
+				if parkedFirst {
+					go func() {
+						for g.Waits() == 0 {
+							time.Sleep(time.Millisecond)
+						}
+						close(waiterParked)
+					}()
+				} else {
+					<-settled
+				}
+
+				if got := g.Wait(task); !errors.Is(got, boom) {
+					t.Errorf("Wait = %v, want the callback's error %v", got, boom)
+				}
+			})
+		}
 	}
 }
 
