@@ -149,3 +149,157 @@ func localPackageName(spec *ast.ImportSpec, importPath string) string {
 	}
 	return path.Base(importPath)
 }
+
+// recordMutatorPrefixes begin the name of every method that writes run truth
+// into package record.
+var recordMutatorPrefixes = []string{
+	"Record", "Append", "Apply", "Resolve", "Set", "Transition", "Mark", "Clear",
+}
+
+// recordHandleName is the field and variable name the producers give a
+// record.Run or record.Task handle (o.rec, t.rec, rec).
+const recordHandleName = "rec"
+
+func isRecordMutator(method string) bool {
+	return slices.ContainsFunc(recordMutatorPrefixes, func(prefix string) bool {
+		return strings.HasPrefix(method, prefix)
+	})
+}
+
+// recordWriteCalls parses file and reports each call of a record-mutating
+// method as "file:line:col call Method". See recordWriteCallsIn.
+func recordWriteCalls(file string) ([]string, error) {
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, file, nil, 0)
+	if err != nil {
+		return nil, fmt.Errorf("parse: %w", err)
+	}
+	return recordWriteCallsIn(fset, parsed)
+}
+
+// recordWriteCallsIn reports each call x.Method(...) where Method begins with
+// one of recordMutatorPrefixes and x is a record value. Without type
+// information x counts as a record value when
+//   - x, or the field x selects, is declared in the same file with a type
+//     from the record package (a parameter, field, result or var of
+//     record.X or *record.X, or a variable assigned record.F(...) or
+//     &record.X{}), or
+//   - x is, or selects a field named, recordHandleName (o.rec, t.rec, rec).
+//
+// The heuristic is scope-blind (a name declared record-typed anywhere in the
+// file counts everywhere in it) and sees only same-file declarations; a
+// record value reached through a method result or another file's type is
+// missed. That is why the producers keep the recordHandleName convention.
+func recordWriteCallsIn(fset *token.FileSet, parsed *ast.File) ([]string, error) {
+	pkgName, imported, err := importedRecordName(parsed)
+	if err != nil {
+		return nil, err
+	}
+	recordNames := map[string]bool{recordHandleName: true}
+	if imported {
+		collectRecordTypedNames(parsed, pkgName, recordNames)
+	}
+	var found []string
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || !isRecordMutator(sel.Sel.Name) || !isRecordValue(sel.X, recordNames) {
+			return true
+		}
+		found = append(found, fset.Position(sel.Pos()).String()+" call "+sel.Sel.Name)
+		return true
+	})
+	return found, nil
+}
+
+// importedRecordName is the name parsed refers to package record by.
+func importedRecordName(parsed *ast.File) (name string, imported bool, err error) {
+	for _, spec := range parsed.Imports {
+		importPath, unquoteErr := strconv.Unquote(spec.Path.Value)
+		if unquoteErr != nil {
+			return "", false, fmt.Errorf("unquote import %s: %w", spec.Path.Value, unquoteErr)
+		}
+		if importPath == modulePath+"/"+recordPackage {
+			return localPackageName(spec, importPath), true, nil
+		}
+	}
+	return "", false, nil
+}
+
+// collectRecordTypedNames adds to names every identifier parsed declares with
+// a type from the package pkgName refers to record by.
+func collectRecordTypedNames(parsed *ast.File, pkgName string, names map[string]bool) {
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		switch decl := n.(type) {
+		case *ast.Field:
+			if isRecordType(decl.Type, pkgName) {
+				addIdentNames(decl.Names, names)
+			}
+		case *ast.ValueSpec:
+			if decl.Type != nil && isRecordType(decl.Type, pkgName) {
+				addIdentNames(decl.Names, names)
+			}
+		case *ast.AssignStmt:
+			for i, rhs := range decl.Rhs {
+				if i < len(decl.Lhs) && isRecordConstruction(rhs, pkgName) {
+					if lhs, ok := decl.Lhs[i].(*ast.Ident); ok {
+						names[lhs.Name] = true
+					}
+				}
+			}
+		}
+		return true
+	})
+}
+
+func addIdentNames(idents []*ast.Ident, names map[string]bool) {
+	for _, ident := range idents {
+		names[ident.Name] = true
+	}
+}
+
+// isRecordType reports whether expr is record.X or *record.X.
+func isRecordType(expr ast.Expr, pkgName string) bool {
+	if star, ok := expr.(*ast.StarExpr); ok {
+		expr = star.X
+	}
+	return selectsPackage(expr, pkgName)
+}
+
+// isRecordConstruction reports whether expr is record.F(...), &record.X{} or
+// record.X{}.
+func isRecordConstruction(expr ast.Expr, pkgName string) bool {
+	switch e := expr.(type) {
+	case *ast.CallExpr:
+		return selectsPackage(e.Fun, pkgName)
+	case *ast.UnaryExpr:
+		return isRecordConstruction(e.X, pkgName)
+	case *ast.CompositeLit:
+		return selectsPackage(e.Type, pkgName)
+	}
+	return false
+}
+
+func selectsPackage(expr ast.Expr, pkgName string) bool {
+	sel, ok := expr.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	ident, ok := sel.X.(*ast.Ident)
+	return ok && ident.Name == pkgName
+}
+
+// isRecordValue reports whether receiver names a record value: an identifier
+// or a selected field whose name is in names.
+func isRecordValue(receiver ast.Expr, names map[string]bool) bool {
+	switch r := receiver.(type) {
+	case *ast.Ident:
+		return names[r.Name]
+	case *ast.SelectorExpr:
+		return names[r.Sel.Name]
+	}
+	return false
+}
