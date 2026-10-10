@@ -19,6 +19,8 @@ const goroutineHeaderBytes = 64
 var (
 	goroutinePrefix = []byte("goroutine ")
 	creatorMarker   = []byte(" in goroutine ")
+	// goroutineSeparator is the blank line between two goroutines' tracebacks.
+	goroutineSeparator = []byte("\n\n")
 )
 
 // CurrentGoroutine is the calling goroutine's id, read from the header of
@@ -38,6 +40,36 @@ func CurrentGoroutineLineage() (self, creator GoroutineID) {
 		if n < size {
 			trace := buf[:n]
 			return parseGoroutineHeader(trace), parseGoroutineCreator(trace)
+		}
+	}
+}
+
+// GoroutineAncestors lists the goroutines that started the calling one,
+// nearest first, as far as the runtime still names them: a creator that has
+// exited ends the chain. It reads every goroutine's traceback, which stops the
+// world, so callers ask only once the direct creator was not enough.
+func GoroutineAncestors() []GoroutineID {
+	dump := allGoroutineTraces()
+	creators := make(map[GoroutineID]GoroutineID)
+	for trace := range bytes.SplitSeq(dump, goroutineSeparator) {
+		if id := parseGoroutineHeader(trace); id != 0 {
+			creators[id] = parseGoroutineCreator(trace)
+		}
+	}
+	var chain []GoroutineID
+	for id := creators[parseGoroutineHeader(dump)]; id != 0 && len(chain) <= len(creators); id = creators[id] {
+		chain = append(chain, id)
+	}
+	return chain
+}
+
+// allGoroutineTraces is every goroutine's traceback, the calling goroutine's
+// first, one blank line between them.
+func allGoroutineTraces() []byte {
+	for size := 64 * goroutineHeaderBytes; ; size *= 2 {
+		buf := make([]byte, size)
+		if n := runtime.Stack(buf, true); n < size {
+			return buf[:n]
 		}
 	}
 }

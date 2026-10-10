@@ -105,7 +105,7 @@ func (g *Graph) refuseUnorderedInBuilder(t *Task, stack *WaiterStack) error {
 }
 
 // enclosingBuilder is the gate of the container builder the waiting goroutine
-// is running, on its own stack or through the goroutine that started it: the
+// is running, on its own stack or through the goroutines that started it: the
 // errgroup shape hands the Wait to a goroutine whose stack shows no builder.
 // A run with no builder running reads nothing.
 func (g *Graph) enclosingBuilder(stack *WaiterStack) (gate *Task, inside bool) {
@@ -115,7 +115,7 @@ func (g *Graph) enclosingBuilder(stack *WaiterStack) (gate *Task, inside bool) {
 	if stack.InsideBuilder() {
 		return g.builderGateOf(CurrentGoroutine()), true
 	}
-	if creator := stack.Creator(); g.isRunningBuilder(creator) {
+	if creator := g.startingGoroutine(stack.Creator(), goroutineLoad.runsBuilder); g.isRunningBuilder(creator) {
 		return g.builderGateOf(creator), true
 	}
 	return nil, false

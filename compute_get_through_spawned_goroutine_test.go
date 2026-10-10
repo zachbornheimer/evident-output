@@ -43,6 +43,34 @@ func TestComputedGet_UnorderedCallbackReadingThroughASpawnedGoroutineIsRefused(t
 	}
 }
 
+// The callback's hands reach through any number of goroutines: a read from a
+// goroutine started by a goroutine the callback started is refused the same.
+func TestComputedGet_UnorderedCallbackReadingThroughAGrandchildGoroutineIsRefused(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true})
+	defer func() { _ = out.Close() }()
+	made := out.Group("producers").Task("make")
+	producer := evo.Compute(made, func(context.Context) (int, error) { return 1, nil })
+	read := out.Group("consumers").Task("read")
+	read.Define(func(context.Context) error {
+		_ = made.Wait()
+		outer := make(chan struct{})
+		go func() {
+			defer close(outer)
+			inner := make(chan struct{})
+			go func() { defer close(inner); _ = producer.Get() }()
+			<-inner
+		}()
+		<-outer
+		return nil
+	})
+
+	_ = out.Finish()
+
+	if err := read.Wait(); !errors.Is(err, evo.ErrComputedUnordered) {
+		t.Errorf("read.Wait() = %v, want ErrComputedUnordered", err)
+	}
+}
+
 // The same read from a callback ordered after the producer is fine.
 func TestComputedGet_OrderedCallbackReadingThroughASpawnedGoroutineGetsTheValue(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true})

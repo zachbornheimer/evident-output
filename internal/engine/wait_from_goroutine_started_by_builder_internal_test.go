@@ -36,3 +36,28 @@ func TestSlice36_WaitFromAGoroutineABuilderStartedIsRefused(t *testing.T) {
 		})
 	}
 }
+
+// The refusal follows the whole chain: a Wait from a goroutine started by a
+// goroutine the builder started is the builder's Wait all the same.
+func TestWaitFromAGrandchildGoroutineOfABuilderIsRefused(t *testing.T) {
+	out := quietOutput(Config{MaxConcurrency: 4})
+	t.Cleanup(func() { _ = out.Close() })
+	var waitErr error
+	out.Group("builder").Define(func(g *GroupHandle) {
+		child := g.Task("child").Define(noop)
+		var outer sync.WaitGroup
+		outer.Go(func() {
+			var inner sync.WaitGroup
+			inner.Go(func() { waitErr = child.Wait() })
+			inner.Wait()
+		})
+		outer.Wait()
+	})
+
+	if _, finished := within(5*time.Second, out.Finish); !finished {
+		t.Fatalf("Finish hung: the Wait is neither refused nor released (waits=%d executing=%d)", out.graph.Waits(), out.graph.Executing())
+	}
+	if !errors.Is(waitErr, graph.ErrWaitInBuilder) {
+		t.Errorf("Wait from the builder's grandchild goroutine = %v, want ErrWaitInBuilder", waitErr)
+	}
+}

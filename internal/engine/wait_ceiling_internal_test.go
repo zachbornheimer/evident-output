@@ -106,6 +106,49 @@ func TestSpawnedWaiterBlockingItsCallbackFailsNamed(t *testing.T) {
 	}
 }
 
+// TestGrandchildWaiterBlockingItsCallbackFailsNamed: the spawned-waiter
+// deadlock holds however many goroutines sit between the callback and the
+// Wait. Here the callback blocks on a goroutine that blocks on the goroutine
+// that Waits, so the stall must be found through the whole chain, not only
+// through the Wait goroutine's direct creator.
+func TestGrandchildWaiterBlockingItsCallbackFailsNamed(t *testing.T) {
+	out := quietOutput(Config{MaxConcurrency: 1})
+	t.Cleanup(func() {
+		closed := make(chan struct{})
+		go func() { _ = out.Close(); close(closed) }()
+		select {
+		case <-closed:
+		case <-time.After(5 * time.Second):
+			t.Error("Close hung")
+		}
+	})
+
+	done := make(chan error, 1)
+	go func() {
+		a := out.Task("a").Define(func(context.Context) error {
+			outer := make(chan error, 1)
+			go func() {
+				inner := make(chan error, 1)
+				go func() {
+					inner <- out.Task("b").Define(func(context.Context) error { return nil }).Wait()
+				}()
+				outer <- <-inner
+			}()
+			return <-outer
+		})
+		done <- a.Wait()
+	}()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrWaitDeadlock) || !strings.Contains(err.Error(), "API-041") {
+			t.Fatalf("a.Wait() = %v, want ErrWaitDeadlock naming API-041", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a.Wait() hung: the grandchild waiter was never released")
+	}
+}
+
 // TestSpawnedWaiterRunsOnceItsCallbackFreesTheSlot: a goroutine a callback
 // started may Wait while that callback keeps working; the wait completes
 // once the callback returns and frees the slot.

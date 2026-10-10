@@ -14,9 +14,11 @@ var ErrWaitDeadlock = errors.New("evo: awaited task can never be reached")
 // own stack, the goroutine that started it, and the channel the scheduler
 // closes to release it when it proves the wait can never be satisfied.
 type WaitTicket struct {
-	task    *Task
-	depth   int
-	self    GoroutineID
+	task  *Task
+	depth int
+	self  GoroutineID
+	// creator is the goroutine that started the waiting one or, when that
+	// runs no callback, the nearest ancestor that does (see startingGoroutine).
 	creator GoroutineID
 	// owner is the Task or builder gate whose callback is waiting here, or
 	// whose callback started the waiting goroutine; nil for a plain caller.
@@ -38,6 +40,7 @@ func (w *WaitTicket) Released() error { return w.released }
 // the ticket behind.
 func (g *Graph) BeginWait(t *Task, depth int) *WaitTicket {
 	self, creator := CurrentGoroutineLineage()
+	creator = g.startingGoroutine(creator, goroutineLoad.runsAny)
 	w := &WaitTicket{task: t, depth: depth, self: self, creator: creator, abort: make(chan struct{})}
 	g.lock()
 	w.owner = g.consumerThroughLocked(self, creator)
