@@ -9,9 +9,13 @@ package engine
 //   - the active phase clears;
 //   - every Wait parked on the Task wakes;
 //   - submitted work that never started releases its hold on the drain;
-//   - the snapshot version advances and the task.<state> event is journaled;
 //   - its collections' tallies move, and every Task parked on it (or on a
 //     collection it just resolved) is placed again (see wakeLocked).
+//
+// What the render state owes a terminal transition (the snapshot version,
+// the task.<state> event, the live census and filing, the plain heartbeat)
+// is the engine listener's job: it hears the transition once the lock is
+// free (see outputListener).
 //
 // It also owns the evidence rule (Task.HonestOutcome): a success-class target
 // over a Task holding a Problem settles Failed, whichever path asked.
@@ -20,20 +24,15 @@ package engine
 // and where the settled row is committed. Callers must already hold o.mu.
 func (o *Output) settleLocked(st *taskState, state EntityState) {
 	state = st.rec.HonestOutcome(state)
-	from := st.rec.Transition(state)
+	st.rec.Transition(state)
 	if st.gateFor != nil {
 		o.concludeGateLocked(st)
 		return
 	}
-	st.censusMoved(from)
 	st.rec.ClearPhase()
-	st.markFiling()
-	o.stopPlainHeartbeatLocked(st)
 	st.closeDoneLocked()
 	if st.sched.awaitingStart() {
 		o.abandonLocked(st)
 	}
-	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "task." + string(state), EntityID: st.id})
 	o.propagateSettleLocked(st)
 }

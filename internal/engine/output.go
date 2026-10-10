@@ -19,7 +19,10 @@ import (
 
 // Output is the aggregate root for one command's presentation lifecycle.
 type Output struct {
-	mu sync.Mutex
+	// mu guards the render state. Its sections hold the run's notifications,
+	// so the listener (this Output) hears what a section wrote only after mu
+	// is free.
+	mu record.Mutex
 	// facade holds this Output's public wrapper (see FacadeSlot).
 	facade FacadeSlot
 
@@ -247,6 +250,8 @@ func newOutput(subject string, options ...Option) *Output {
 		ctx:             runCtx,
 		cancelRun:       cancelRun,
 	}
+	o.mu.Bind(run)
+	run.SetListener(outputListener{o: o})
 	// Stable-enough id for a process-local output instance.
 	o.outputID = o.graph.NextID("out")
 	o.startedAt = o.cfg.clock.Now()

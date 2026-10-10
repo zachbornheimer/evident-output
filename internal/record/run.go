@@ -28,6 +28,8 @@ type Run struct {
 	conclusion *Conclusion
 	// listener hears changes after the lock is released (see SetListener).
 	listener atomic.Pointer[listenerBox]
+	// notes holds the notifications a Hold keeps back from the listener.
+	notes notifier
 }
 
 // NewRun is an empty record of a run that has not started.

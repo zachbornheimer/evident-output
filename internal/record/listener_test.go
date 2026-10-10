@@ -10,18 +10,20 @@ import (
 type callbackListener struct {
 	mu      sync.Mutex
 	tasks   []TaskID
+	moves   [][2]EntityState
 	events  []Event
 	onEvent func()
 	onTask  func()
 }
 
-func (l *callbackListener) TaskChanged(id TaskID) {
+func (l *callbackListener) TaskChanged(id TaskID, from, to EntityState) {
 	if l.onTask != nil {
 		l.onTask()
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.tasks = append(l.tasks, id)
+	l.moves = append(l.moves, [2]EntityState{from, to})
 }
 
 func (l *callbackListener) EventAppended(e Event) {

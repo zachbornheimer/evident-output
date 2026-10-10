@@ -100,7 +100,13 @@ func (t *Task) State() EntityState {
 
 // Transition moves the Task to state and returns the state it left.
 func (t *Task) Transition(to EntityState) (from EntityState) {
-	defer t.changed()
+	from = t.swapState(to)
+	t.changedState(from, to)
+	return from
+}
+
+// swapState sets the state under the run lock and returns the one it left.
+func (t *Task) swapState(to EntityState) (from EntityState) {
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	from, t.state = t.state, to
