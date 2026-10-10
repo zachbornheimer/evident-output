@@ -1,6 +1,6 @@
 //go:build unix
 
-package publish
+package fs
 
 import (
 	"context"
@@ -55,13 +55,13 @@ var lockDir = sync.OnceValues(func() (string, error) {
 	return dir, nil
 })
 
-// pathLock is a destination's cross-process claim: a shared flock on the
+// PathLock is a destination's cross-process claim: a shared flock on the
 // lock file of every ancestor and an exclusive one on the destination's
 // own. Two claims conflict exactly when one's exclusive path is the other's
 // path or ancestor, so siblings run together while parent and child
 // serialize. Lock files are unlinked when their last holder can prove it
-// is the last (see release), so they do not accumulate.
-type pathLock struct{ held []heldLock }
+// is the last (see Release), so they do not accumulate.
+type PathLock struct{ held []heldLock }
 
 // heldLock is one flocked lock file.
 type heldLock struct {
@@ -70,36 +70,46 @@ type heldLock struct {
 	op   int
 }
 
-// acquirePathLock polls tryPathLock until it succeeds or ctx is done.
-func acquirePathLock(ctx context.Context, key string) (pathLock, error) {
+// PathLockFile is the lock file that key's exclusive claim locks. Another
+// process, or a test standing in for one, opens it to contend for key.
+func PathLockFile(key string) (string, error) {
+	dir, err := lockDir()
+	if err != nil {
+		return "", fmt.Errorf("locate lock file for %s: %w", key, err)
+	}
+	return filepath.Join(dir, lockName(key)), nil
+}
+
+// AcquirePathLock polls TryPathLock until it succeeds or ctx is done.
+func AcquirePathLock(ctx context.Context, key string) (PathLock, error) {
 	wait := lockPollMin
 	for {
-		held, ok, err := tryPathLock(key)
+		held, ok, err := TryPathLock(key)
 		if err != nil || ok {
 			return held, err
 		}
 		select {
 		case <-ctx.Done():
-			return pathLock{}, fmt.Errorf("wait for destination lock: %w", ctx.Err())
+			return PathLock{}, fmt.Errorf("wait for destination lock: %w", ctx.Err())
 		case <-clock.System().After(wait):
 		}
 		wait = min(wait*2, lockPollMax)
 	}
 }
 
-// tryPathLock takes every lock of key's claim without blocking, outermost
+// TryPathLock takes every lock of key's claim without blocking, outermost
 // ancestor first, or none of them.
-func tryPathLock(key string) (pathLock, bool, error) {
+func TryPathLock(key string) (PathLock, bool, error) {
 	dir, err := lockDir()
 	if err != nil {
-		return pathLock{}, false, err
+		return PathLock{}, false, err
 	}
-	var l pathLock
+	var l PathLock
 	for _, step := range claimSteps(key) {
 		held, ok, err := tryLockFile(filepath.Join(dir, lockName(step.path)), step.op)
 		if err != nil || !ok {
-			_ = l.release()
-			return pathLock{}, false, err
+			_ = l.Release()
+			return PathLock{}, false, err
 		}
 		l.held = append(l.held, held)
 	}
@@ -185,11 +195,11 @@ func stillAt(f *os.File, path string) (bool, error) {
 	return os.SameFile(held, current), nil
 }
 
-// release drops every lock, innermost first. An exclusive holder is the
+// Release drops every lock, innermost first. An exclusive holder is the
 // only holder, so it unlinks its file before unlocking; a shared holder
 // unlinks only if it can then take the file exclusively, proving nobody
 // else holds or waits on that inode.
-func (l pathLock) release() error {
+func (l PathLock) Release() error {
 	var errs []error
 	for _, h := range slices.Backward(l.held) {
 		if h.op == lockExclusive {

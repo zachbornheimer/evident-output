@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 	"github.com/zachbornheimer/evident-output/internal/publish/stagename"
 )
 
@@ -121,7 +121,7 @@ func StageTree(ctx context.Context, dest string, mode fs.FileMode, fill func(ctx
 	if mode == 0 {
 		mode = defaultTreeMode
 	}
-	if err := os.Chmod(temp, mode.Perm()); err != nil {
+	if err := sysfs.Chmod(temp, mode.Perm()); err != nil {
 		return nil, s.abandon(fmt.Errorf("chmod staged tree: %w", err))
 	}
 	return s, nil
@@ -133,7 +133,7 @@ func (s *Staged) Discard() error {
 		return s.lease.release()
 	}
 	s.spent = true
-	err := os.RemoveAll(s.temp)
+	err := sysfs.RemoveAll(s.temp)
 	s.discardParents()
 	err = errors.Join(err, s.lease.release())
 	if err != nil {
@@ -167,7 +167,7 @@ func (s *Staged) abandon(cause error) error {
 // created, leaving any that something else has since filled.
 func (s *Staged) discardParents() {
 	for _, v := range slices.Backward(s.created) {
-		if os.Remove(v) != nil {
+		if sysfs.Remove(v) != nil {
 			break
 		}
 	}
@@ -175,7 +175,7 @@ func (s *Staged) discardParents() {
 }
 
 // fillFile runs fill into f, then flushes, sets mode, and closes it.
-func fillFile(ctx context.Context, f *os.File, mode fs.FileMode, fill func(io.Writer) error) error {
+func fillFile(ctx context.Context, f *sysfs.File, mode fs.FileMode, fill func(io.Writer) error) error {
 	err := fill(f)
 	if err == nil {
 		err = ctx.Err()
@@ -200,12 +200,12 @@ func fillFile(ctx context.Context, f *os.File, mode fs.FileMode, fill func(io.Wr
 func makeParents(dir string) ([]string, error) {
 	var missing []string
 	for at := dir; filepath.Dir(at) != at; at = filepath.Dir(at) {
-		if _, err := os.Lstat(at); !errors.Is(err, fs.ErrNotExist) {
+		if _, err := sysfs.Lstat(at); !errors.Is(err, fs.ErrNotExist) {
 			break
 		}
 		missing = append([]string{at}, missing...)
 	}
-	if err := os.MkdirAll(dir, parentDirMode); err != nil {
+	if err := sysfs.MkdirAll(dir, parentDirMode); err != nil {
 		return nil, fmt.Errorf("create parent directories %s: %w", dir, err)
 	}
 	return missing, nil
@@ -227,7 +227,7 @@ func Leftovers(dest string) ([]string, error) {
 		return nil, fmt.Errorf("publish: leftovers of %s: %w", dest, err)
 	}
 	dir := filepath.Dir(abs)
-	entries, err := os.ReadDir(dir)
+	entries, err := sysfs.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("publish: leftovers of %s: %w", abs, err)
 	}
@@ -241,9 +241,9 @@ func Leftovers(dest string) ([]string, error) {
 	return found, nil
 }
 
-func createStagingFile(dest string) (*os.File, error) {
+func createStagingFile(dest string) (*sysfs.File, error) {
 	for range stagingAttempts {
-		f, err := os.OpenFile(stagingName(dest), os.O_RDWR|os.O_CREATE|os.O_EXCL, stagingFileMode)
+		f, err := sysfs.CreateExclusive(stagingName(dest), stagingFileMode)
 		if err == nil {
 			return f, nil
 		}
@@ -257,7 +257,7 @@ func createStagingFile(dest string) (*os.File, error) {
 func createStagingDir(dest string) (string, error) {
 	for range stagingAttempts {
 		name := stagingName(dest)
-		err := os.Mkdir(name, stagingDirMode)
+		err := sysfs.Mkdir(name, stagingDirMode)
 		if err == nil {
 			return name, nil
 		}

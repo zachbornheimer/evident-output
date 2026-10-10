@@ -2,36 +2,19 @@ package fingerprint
 
 import (
 	"io/fs"
-	"os"
 	"sort"
+
+	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 )
 
 // FS is the facade every FSPath observation reads through instead of the
 // os package directly (facade rule) — swapped for a fake in this package's
 // own tests via withFS.
-type FS interface {
-	// Lstat reports Path's own metadata without following a final symlink.
-	// A missing path returns an error satisfying os.IsNotExist.
-	Lstat(path string) (fs.FileInfo, error)
-	// ReadFile returns a regular file's full contents.
-	ReadFile(path string) ([]byte, error)
-	// ReadDir returns a directory's entries, any order.
-	ReadDir(path string) ([]fs.DirEntry, error)
-	// Readlink returns a symlink's raw target text.
-	Readlink(path string) (string, error)
-}
-
-// osFS is the real filesystem.
-type osFS struct{}
-
-func (osFS) Lstat(path string) (fs.FileInfo, error)     { return os.Lstat(path) }
-func (osFS) ReadFile(path string) ([]byte, error)       { return os.ReadFile(path) }
-func (osFS) ReadDir(path string) ([]fs.DirEntry, error) { return os.ReadDir(path) }
-func (osFS) Readlink(path string) (string, error)       { return os.Readlink(path) }
+type FS = sysfs.Inspector
 
 // activeFS is the package-level FS seam. Production code always observes
 // the real filesystem; only this package's own white-box tests swap it.
-var activeFS FS = osFS{}
+var activeFS FS = sysfs.System()
 
 // withFS runs fn with the package's FS facade swapped to f, restoring the
 // previous facade afterward. Test-only: unexported, used from

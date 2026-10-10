@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
+
+	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 )
 
 // ErrSatisfied is what a Guard's Revalidate returns when the destination
@@ -116,7 +117,7 @@ func (s *Staged) commitLocked(ctx context.Context, g Guard) (string, error) {
 	if s.tree {
 		replaced, err = s.moveTree()
 	} else {
-		err = os.Rename(s.temp, s.dest)
+		err = sysfs.Rename(s.temp, s.dest)
 	}
 	if err != nil {
 		return "", fmt.Errorf("rename %s to %s: %w", s.temp, s.dest, err)
@@ -138,7 +139,7 @@ func (s *Staged) commitLocked(ctx context.Context, g Guard) (string, error) {
 // the directories staging created now belong to whatever replaced them:
 // they are not this commit's to remove.
 func (s *Staged) requireStaged() error {
-	_, err := os.Lstat(s.temp)
+	_, err := sysfs.Lstat(s.temp)
 	if errors.Is(err, fs.ErrNotExist) {
 		s.created = nil
 		return fmt.Errorf("%w: %s", ErrStagedGone, s.temp)
@@ -154,17 +155,17 @@ func (s *Staged) requireStaged() error {
 // the rejected tree moves aside. It returns where the rejected tree now
 // lives, for deletion after release.
 func rollBackTree(dest, replaced string) (string, error) {
-	if replaced != "" && exchange(replaced, dest) == nil {
+	if replaced != "" && sysfs.Exchange(replaced, dest) == nil {
 		return replaced, nil
 	}
 	rejected := stagingName(dest)
-	if err := os.Rename(dest, rejected); err != nil {
+	if err := sysfs.Rename(dest, rejected); err != nil {
 		return "", fmt.Errorf("move rejected tree aside: %w", err)
 	}
 	if replaced == "" {
 		return rejected, nil
 	}
-	if err := os.Rename(replaced, dest); err != nil {
+	if err := sysfs.Rename(replaced, dest); err != nil {
 		// The original stays at replaced, never deleted: it is the only copy.
 		return "", fmt.Errorf("restore original from %s: %w", replaced, err)
 	}
@@ -176,23 +177,23 @@ func rollBackTree(dest, replaced string) (string, error) {
 // missing; otherwise it moves the old entry aside first and puts it back
 // if the second rename fails. It returns where the old entry now lives.
 func (s *Staged) moveTree() (string, error) {
-	info, err := os.Lstat(s.dest)
+	info, err := sysfs.Lstat(s.dest)
 	if errors.Is(err, fs.ErrNotExist) {
-		return "", os.Rename(s.temp, s.dest)
+		return "", sysfs.Rename(s.temp, s.dest)
 	}
 	if err != nil {
 		return "", fmt.Errorf("inspect destination: %w", err)
 	}
-	if info.IsDir() && exchangeAllowed() && exchange(s.temp, s.dest) == nil {
+	if info.IsDir() && exchangeAllowed() && sysfs.Exchange(s.temp, s.dest) == nil {
 		return s.temp, nil
 	}
 	aside := stagingName(s.dest)
-	if err := os.Rename(s.dest, aside); err != nil {
+	if err := sysfs.Rename(s.dest, aside); err != nil {
 		return "", fmt.Errorf("move old entry aside: %w", err)
 	}
 	reach(StepAside, s.dest)
-	if err := os.Rename(s.temp, s.dest); err != nil {
-		if restoreErr := os.Rename(aside, s.dest); restoreErr != nil {
+	if err := sysfs.Rename(s.temp, s.dest); err != nil {
+		if restoreErr := sysfs.Rename(aside, s.dest); restoreErr != nil {
 			// The old entry stays at aside, never deleted: it is the only copy.
 			return "", errors.Join(err, fmt.Errorf("restore old entry from %s: %w", aside, restoreErr))
 		}
@@ -203,7 +204,7 @@ func (s *Staged) moveTree() (string, error) {
 
 // removeReplaced deletes an entry a commit or Remove moved aside.
 func removeReplaced(path string) error {
-	if err := removeAll(path); err != nil {
+	if err := sysfs.RemoveTree(path); err != nil {
 		return fmt.Errorf("publish: delete replaced %s: %w", path, err)
 	}
 	return nil
@@ -218,7 +219,7 @@ func Remove(ctx context.Context, dest string, g Guard) error {
 	if err != nil {
 		return fmt.Errorf("publish: remove %s: %w", dest, err)
 	}
-	if _, err := os.Lstat(filepath.Dir(abs)); errors.Is(err, fs.ErrNotExist) {
+	if _, err := sysfs.Lstat(filepath.Dir(abs)); errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
 	hold, err := Lock(ctx, abs)
@@ -246,7 +247,7 @@ func removeLocked(ctx context.Context, dest string, g Guard) (string, error) {
 	if err := g.revalidate(ctx, dest); err != nil {
 		return "", err
 	}
-	info, err := os.Lstat(dest)
+	info, err := sysfs.Lstat(dest)
 	if errors.Is(err, fs.ErrNotExist) {
 		return "", g.verify(ctx, dest)
 	}
@@ -256,9 +257,9 @@ func removeLocked(ctx context.Context, dest string, g Guard) (string, error) {
 	var aside string
 	if info.IsDir() {
 		aside = stagingName(dest)
-		err = os.Rename(dest, aside)
+		err = sysfs.Rename(dest, aside)
 	} else {
-		err = os.Remove(dest)
+		err = sysfs.Remove(dest)
 	}
 	if err != nil {
 		return "", fmt.Errorf("unlink %s: %w", dest, err)

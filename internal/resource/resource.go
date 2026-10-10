@@ -15,6 +15,8 @@ import (
 	"io/fs"
 	"path/filepath"
 	"strings"
+
+	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 )
 
 // Resource names one unit of shared state. It is sealed: the unexported
@@ -117,7 +119,7 @@ type resolver struct {
 }
 
 // diskResolver is the resolver every claim uses.
-var diskResolver = resolver{evalSymlinks: filepath.EvalSymlinks}
+var diskResolver = resolver{evalSymlinks: sysfs.EvalSymlinks}
 
 // Resolve returns r's canonical Key. workspace anchors a relative FS path
 // and must be absolute when one is given.

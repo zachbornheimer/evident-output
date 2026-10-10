@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 )
 
 // Hold is a held destination claim. Claims on overlapping destinations
@@ -22,7 +24,7 @@ import (
 // the holder exits, so a crash leaves nothing held.
 type Hold struct {
 	key string
-	os  pathLock
+	os  sysfs.PathLock
 }
 
 // Lock blocks until the destination dest may be committed, or ctx is done.
@@ -36,7 +38,7 @@ func Lock(ctx context.Context, dest string) (*Hold, error) {
 	if err := localClaims.claim(ctx, key); err != nil {
 		return nil, fmt.Errorf("publish: lock %s: %w", key, err)
 	}
-	held, err := acquirePathLock(ctx, key)
+	held, err := sysfs.AcquirePathLock(ctx, key)
 	if err != nil {
 		localClaims.release(key)
 		return nil, fmt.Errorf("publish: lock %s: %w", key, err)
@@ -54,7 +56,7 @@ func TryLock(dest string) (hold *Hold, ok bool, err error) {
 	if !localClaims.tryClaim(key) {
 		return nil, false, nil
 	}
-	held, ok, err := tryPathLock(key)
+	held, ok, err := sysfs.TryPathLock(key)
 	if err != nil || !ok {
 		localClaims.release(key)
 		if err != nil {
@@ -70,7 +72,7 @@ func (h *Hold) Release() error {
 	if h == nil || h.key == "" {
 		return nil
 	}
-	err := h.os.release()
+	err := h.os.Release()
 	localClaims.release(h.key)
 	h.key = ""
 	if err != nil {
@@ -86,7 +88,7 @@ func claimKey(dest string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	parent, err := filepath.EvalSymlinks(filepath.Dir(abs))
+	parent, err := sysfs.EvalSymlinks(filepath.Dir(abs))
 	if err != nil {
 		return "", fmt.Errorf("resolve parent directory: %w", err)
 	}

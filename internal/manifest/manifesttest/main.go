@@ -4,28 +4,24 @@ package manifesttest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/fs"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 )
 
 // Main runs m with every default-located manifest redirected to a fresh
-// temporary directory, removed afterward, then exits with m's code. Call
-// it from a package's TestMain so state from one test (or one earlier
-// `go test` run) can never leak into another.
+// temporary directory, removed afterward. Call it from a package's TestMain
+// so state from one test (or one earlier `go test` run) can never leak into
+// another. It returns when the run ends and the test binary exits with m's
+// result, so the temporary directory is removed before the process exits.
 func Main(m *testing.M) {
-	os.Exit(run(m))
-}
-
-func run(m *testing.M) int {
-	dir, err := os.MkdirTemp("", "evo-manifest-test-*")
+	dir, err := fs.MkdirTemp("", "evo-manifest-test-*")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "manifesttest: create temp cache dir: %v\n", err)
-		return 1
+		panic(fmt.Sprintf("manifesttest: create temp cache dir: %v", err))
 	}
-	defer func() { _ = os.RemoveAll(dir) }()
+	defer func() { _ = fs.RemoveAll(dir) }()
 	restore := manifest.RedirectCacheDir(dir)
 	defer restore()
-	return m.Run()
+	m.Run()
 }

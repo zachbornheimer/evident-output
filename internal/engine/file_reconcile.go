@@ -247,7 +247,7 @@ func (o *Output) mutateFile(fsys FileFS, op fileOperation, delta fileDelta) erro
 // FileFS that can apply the umask itself create an unmanaged-mode file.
 func writeContents(fsys FileFS, path string, contents []byte, delta fileDelta) error {
 	if creator, ok := fsys.(ordinaryCreator); ok && delta.ordinaryCreate {
-		return creator.createOrdinary(path, contents)
+		return creator.CreateOrdinary(path, contents)
 	}
 	return fsys.WriteAtomic(path, contents, delta.writeMode)
 }

@@ -3,6 +3,8 @@ package publish
 import (
 	"fmt"
 	"sync"
+
+	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 )
 
 // stageLease marks a staging entry as owned by a live writer, from the
@@ -13,7 +15,7 @@ import (
 // never blocks a commit; the kernel drops it when its holder dies.
 type stageLease struct {
 	path string
-	os   leaseLock
+	os   sysfs.LeaseLock
 }
 
 // liveStages is this process's held leases; cross-process exclusion is
@@ -30,7 +32,7 @@ func tryLease(path string) (*stageLease, bool, error) {
 	if _, held := liveStages.held[path]; held {
 		return nil, false, nil
 	}
-	l, ok, err := tryLeaseLock(path)
+	l, ok, err := sysfs.TryLeaseLock(path)
 	if err != nil || !ok {
 		if err != nil {
 			err = fmt.Errorf("publish: lease %s: %w", path, err)
@@ -49,7 +51,7 @@ func (l *stageLease) release() error {
 	liveStages.mu.Lock()
 	delete(liveStages.held, l.path)
 	liveStages.mu.Unlock()
-	err := l.os.release()
+	err := l.os.Release()
 	l.path = ""
 	if err != nil {
 		return fmt.Errorf("publish: release lease: %w", err)

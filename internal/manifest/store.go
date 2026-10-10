@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"sync"
+
+	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 )
 
 // Store is one Run's exclusive handle on a single manifest file. Open
@@ -20,7 +22,7 @@ import (
 // Flush and Close wait for the writer and report its failure.
 type Store struct {
 	path string
-	lock *fileLock
+	lock *sysfs.FileLock
 	// missWarning is non-nil when Open found an existing manifest file it
 	// could not trust (ErrCorrupt) — a safe cache miss, surfaced to the
 	// caller instead of silently treated as "no history" with no signal.
@@ -54,21 +56,21 @@ func Open(ctx context.Context, cfg Config, env Environment) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	if err := sysfs.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("manifest: create state dir for %q: %w", path, err)
 	}
-	lock, err := acquireLock(ctx, path+".lock")
+	lock, err := sysfs.AcquireFileLock(ctx, path+".lock")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("manifest: %w", err)
 	}
 
 	s := newStore(path, lock)
-	raw, readErr := os.ReadFile(path)
+	raw, readErr := sysfs.ReadFile(path)
 	switch {
-	case os.IsNotExist(readErr):
+	case errors.Is(readErr, fs.ErrNotExist):
 		s.doc = newDocument(ApplicationRecord{})
 	case readErr != nil:
-		_ = lock.release()
+		_ = lock.Release()
 		return nil, fmt.Errorf("manifest: read %q: %w", path, readErr)
 	default:
 		doc, decodeErr := decodeDocument(raw)
@@ -82,7 +84,7 @@ func Open(ctx context.Context, cfg Config, env Environment) (*Store, error) {
 	return s, nil
 }
 
-func newStore(path string, lock *fileLock) *Store {
+func newStore(path string, lock *sysfs.FileLock) *Store {
 	s := &Store{path: path, lock: lock}
 	s.write = s.writeAtomic
 	s.settled = sync.NewCond(&s.mu)
@@ -238,31 +240,31 @@ func (s *Store) writeLoop() {
 // leaves a half-written manifest.
 func (s *Store) writeAtomic(raw []byte) error {
 	dir := filepath.Dir(s.path)
-	tmp, err := os.CreateTemp(dir, ".manifest-*.tmp")
+	tmp, err := sysfs.CreateTemp(dir, ".manifest-*.tmp")
 	if err != nil {
 		return fmt.Errorf("manifest: create temp file in %q: %w", dir, err)
 	}
 	tmpPath := tmp.Name()
 	if _, err := tmp.Write(raw); err != nil {
 		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
+		_ = sysfs.Remove(tmpPath)
 		return fmt.Errorf("manifest: write temp file %q: %w", tmpPath, err)
 	}
 	if err := tmp.Sync(); err != nil {
 		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
+		_ = sysfs.Remove(tmpPath)
 		return fmt.Errorf("manifest: fsync temp file %q: %w", tmpPath, err)
 	}
 	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpPath)
+		_ = sysfs.Remove(tmpPath)
 		return fmt.Errorf("manifest: close temp file %q: %w", tmpPath, err)
 	}
-	if err := os.Chmod(tmpPath, 0o600); err != nil {
-		_ = os.Remove(tmpPath)
+	if err := sysfs.Chmod(tmpPath, 0o600); err != nil {
+		_ = sysfs.Remove(tmpPath)
 		return fmt.Errorf("manifest: chmod temp file %q: %w", tmpPath, err)
 	}
-	if err := os.Rename(tmpPath, s.path); err != nil {
-		_ = os.Remove(tmpPath)
+	if err := sysfs.Rename(tmpPath, s.path); err != nil {
+		_ = sysfs.Remove(tmpPath)
 		return fmt.Errorf("manifest: rename %q to %q: %w", tmpPath, s.path, err)
 	}
 	return nil
@@ -277,5 +279,5 @@ func (s *Store) Close() error {
 	if s == nil {
 		return nil
 	}
-	return errors.Join(s.Flush(context.Background()), s.lock.release())
+	return errors.Join(s.Flush(context.Background()), s.lock.Release())
 }

@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"runtime/debug"
+
+	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 )
 
 // ErrAppFingerprintUnavailable is returned by App's Fingerprint when neither
@@ -24,8 +25,8 @@ type appEnvironment interface {
 // osAppEnvironment is the real process/filesystem.
 type osAppEnvironment struct{}
 
-func (osAppEnvironment) Executable() (string, error)          { return os.Executable() }
-func (osAppEnvironment) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
+func (osAppEnvironment) Executable() (string, error)          { return sysfs.Executable() }
+func (osAppEnvironment) ReadFile(path string) ([]byte, error) { return sysfs.ReadFile(path) }
 func (osAppEnvironment) ReadBuildInfo() (string, bool) {
 	info, ok := debug.ReadBuildInfo()
 	if !ok {

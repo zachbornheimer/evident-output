@@ -1,6 +1,6 @@
 //go:build windows
 
-package manifest
+package fs
 
 import (
 	"time"
@@ -8,11 +8,11 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/clock"
 )
 
-// windowsLockPollInterval bounds how often acquireLock retries exclusive
+// windowsLockPollInterval bounds how often AcquireFileLock retries exclusive
 // file creation on Windows (lock_windows.go's best-effort fallback).
 const windowsLockPollInterval = 10 * time.Millisecond
 
-// pollTicker is the facade acquireLock polls through instead of calling
+// pollTicker is the facade AcquireFileLock polls through instead of calling
 // time.NewTicker directly.
 type pollTicker struct{ t *time.Ticker }
 

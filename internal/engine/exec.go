@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/zachbornheimer/evident-output/internal/fingerprint"
+	"github.com/zachbornheimer/evident-output/internal/fs"
 	"github.com/zachbornheimer/evident-output/internal/manifest"
 	"github.com/zachbornheimer/evident-output/internal/process"
 	"github.com/zachbornheimer/evident-output/internal/wire"
@@ -229,7 +229,7 @@ func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecS
 // has as many tracked resources as it has declared Outputs.
 func (o *Output) observeVerifiedExecOutputs(ctx context.Context, taskID string, outputs []string) ([]manifest.OutputRecord, error) {
 	for _, out := range outputs {
-		_, statErr := os.Stat(out)
+		_, statErr := fs.Stat(out)
 		o.mu.Lock()
 		o.emitWireEventLocked(wire.EventTrackedResourceObserved, taskID, map[string]any{
 			"kind": "exec-output", "path": out, "exists": statErr == nil,
@@ -265,7 +265,7 @@ var lookPath = process.LookPath
 func verifiedExecOutputs(ctx context.Context, outputs []string) ([]manifest.OutputRecord, error) {
 	records := make([]manifest.OutputRecord, len(outputs))
 	for i, out := range outputs {
-		if _, statErr := os.Stat(out); statErr != nil {
+		if _, statErr := fs.Stat(out); statErr != nil {
 			return nil, fmt.Errorf("%w: %s", ErrExecOutputMissingAfterSuccess, out)
 		}
 		digest, digestErr := pathOutputDigest(ctx, out)

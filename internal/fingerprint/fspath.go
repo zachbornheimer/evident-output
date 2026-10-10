@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
+
+	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 )
 
 // Type markers distinguish otherwise-identical byte preimages (a symlink
@@ -88,7 +89,7 @@ func missingDigest() Digest { return sum256([]byte(markerMissing)) }
 // traversal (fingerprintDir) can recurse into it for each entry.
 func fingerprintPath(vfs FS, path string) (Digest, error) {
 	info, err := vfs.Lstat(path)
-	if errors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return missingDigest(), nil
 	}
 	if err != nil {
@@ -154,15 +155,15 @@ func readRegular(vfs FS, path string, mode fs.FileMode) ([]byte, error) {
 	if err == nil || !errors.Is(err, fs.ErrPermission) {
 		return contents, err
 	}
-	if _, ok := vfs.(osFS); !ok {
+	if _, ok := vfs.(sysfs.Disk); !ok {
 		return nil, err
 	}
 	original := mode & keptModeBits
-	if chmodErr := os.Chmod(path, original|ownerRead); chmodErr != nil {
+	if chmodErr := sysfs.Chmod(path, original|ownerRead); chmodErr != nil {
 		return nil, err
 	}
 	contents, readErr := vfs.ReadFile(path)
-	if chmodErr := os.Chmod(path, original); chmodErr != nil && readErr == nil {
+	if chmodErr := sysfs.Chmod(path, original); chmodErr != nil && readErr == nil {
 		return nil, chmodErr
 	}
 	return contents, readErr

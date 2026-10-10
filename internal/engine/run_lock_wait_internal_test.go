@@ -13,10 +13,10 @@ import (
 
 // lockWaiterFrame is the stack frame of a run blocked on another run's
 // exclusive manifest lock.
-var lockWaiterFrame = []byte("internal/manifest.acquireLock(")
+var lockWaiterFrame = []byte("internal/fs.AcquireFileLock(")
 
 // waitForLockWaiter busy-polls (no sleep) until some goroutine is blocked
-// inside manifest.acquireLock, so a test knows a run is already queued on
+// inside fs.AcquireFileLock, so a test knows a run is already queued on
 // the state lock before it sends the signal under test.
 func waitForLockWaiter(t *testing.T) {
 	t.Helper()

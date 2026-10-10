@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 )
 
 func writeString(body string) func(io.Writer) error {
@@ -256,11 +258,11 @@ func destLockFile(t *testing.T, dest string) *os.File {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir, err := lockDir()
+	lockFile, err := sysfs.PathLockFile(key)
 	if err != nil {
 		t.Fatal(err)
 	}
-	f, err := os.OpenFile(filepath.Join(dir, lockName(key)), lockOpenFlags, lockFileMode)
+	f, err := os.OpenFile(lockFile, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		t.Fatal(err)
 	}

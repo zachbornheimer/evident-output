@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
+
+	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 )
 
 // leftover is a staging entry beside dest. tree is its digest, "" when it
@@ -135,7 +136,7 @@ func (d decision) apply(ctx context.Context, dest string, ev Evidence) (Recovery
 // restoreOriginal renames the leftover at from back to the absent dest and
 // re-verifies it there.
 func restoreOriginal(ctx context.Context, dest, from string, ev Evidence) error {
-	if err := os.Rename(from, dest); err != nil {
+	if err := sysfs.Rename(from, dest); err != nil {
 		return fmt.Errorf("restore original from %s: %w", from, err)
 	}
 	tree, err := treeDigest(ctx, dest, ev)
@@ -151,7 +152,7 @@ func restoreOriginal(ctx context.Context, dest, from string, ev Evidence) error 
 // treeDigest digests the real directory at path: fs.ErrNotExist when it is
 // absent, an error for anything that is not a directory.
 func treeDigest(ctx context.Context, path string, ev Evidence) (string, error) {
-	info, err := os.Lstat(path)
+	info, err := sysfs.Lstat(path)
 	if err != nil {
 		return "", err
 	}
