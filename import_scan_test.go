@@ -115,9 +115,14 @@ func isGraphImport(importPath string) bool {
 // neverBanned is the import rule that bans no import.
 func neverBanned(string) bool { return false }
 
-// touches parses file and reports each import for which banned reports true
-// and each reference to a function in calls (import path to function names),
-// whether called or taken as a value, as "file:line:col import|call name".
+// dotImportName is the local name of an import that merges the package's
+// exported names into the file scope, where a selector scan cannot see them.
+const dotImportName = "."
+
+// touches parses file and reports each import for which banned reports true,
+// each dot-import of a package in calls, and each reference to a function in
+// calls (import path to function names), whether called or taken as a value,
+// as "file:line:col import|dot-import|call name".
 func touches(file string, banned func(importPath string) bool, calls map[string]map[string]bool) ([]string, error) {
 	fset := token.NewFileSet()
 	parsed, err := parser.ParseFile(fset, file, nil, 0)
@@ -135,6 +140,10 @@ func touches(file string, banned func(importPath string) bool, calls map[string]
 			found = append(found, fset.Position(spec.Pos()).String()+" import "+importPath)
 		}
 		if _, watched := calls[importPath]; watched {
+			if isDotImport(spec) {
+				found = append(found, fset.Position(spec.Pos()).String()+" dot-import "+importPath)
+				continue
+			}
 			localNames[localPackageName(spec, importPath)] = importPath
 		}
 	}
@@ -157,6 +166,10 @@ func touches(file string, banned func(importPath string) bool, calls map[string]
 		return true
 	})
 	return found, nil
+}
+
+func isDotImport(spec *ast.ImportSpec) bool {
+	return spec.Name != nil && spec.Name.Name == dotImportName
 }
 
 // localPackageName is the name a file refers to an import by.

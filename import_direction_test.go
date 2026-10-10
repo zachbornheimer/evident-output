@@ -49,8 +49,10 @@ var bannedCalls = map[string]map[string]bool{
 		"WalkDir":      true,
 	},
 	"context": {
-		"WithTimeout":  true,
-		"WithDeadline": true,
+		"WithTimeout":       true,
+		"WithTimeoutCause":  true,
+		"WithDeadline":      true,
+		"WithDeadlineCause": true,
 	},
 }
 
