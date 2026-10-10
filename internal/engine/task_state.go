@@ -56,6 +56,8 @@ type taskState struct {
 	// followed as declaredState, so a Task settled before the engine ever
 	// saw it still gets its first reaction.
 	followed EntityState
+	// settleAnswered is set once the render work a settle owes was queued.
+	settleAnswered bool
 
 	// filing is where this Task stands in its collection's childIndex.
 	filing filing

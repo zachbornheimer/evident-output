@@ -178,6 +178,8 @@ func (l *reentrantListener) TaskChanged(record.TaskID, record.EntityState, recor
 	_ = l.g.Parked()
 }
 
+func (l *reentrantListener) TaskSettled(record.TaskID, record.EntityState, record.EntityState) {}
+
 func (l *reentrantListener) EventAppended(record.Event) {}
 
 func TestListenerMayCallTheGraphWhileASettleCascades(t *testing.T) {

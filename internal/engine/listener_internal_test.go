@@ -28,6 +28,16 @@ func (l lockTakingListener) TaskChanged(id record.TaskID, from, to record.Entity
 	l.inner.TaskChanged(id, from, to)
 }
 
+func (l lockTakingListener) TaskSettled(id record.TaskID, from, to record.EntityState) {
+	l.o.mu.Lock()
+	select {
+	case l.heard <- struct{}{}:
+	default:
+	}
+	l.o.mu.Unlock()
+	l.inner.TaskSettled(id, from, to)
+}
+
 func (l lockTakingListener) EventAppended(e record.Event) { l.inner.EventAppended(e) }
 
 func newListenerTestOutput(t *testing.T) *Output {

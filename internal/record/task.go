@@ -31,6 +31,9 @@ type Task struct {
 	skipped        []TaxonomyRecord
 	kept           []TaxonomyRecord
 
+	// settled is set by Settle and never cleared.
+	settled bool
+
 	// logged is set while the Task waits in the run's change log; the log
 	// guards it.
 	logged bool
@@ -106,6 +109,32 @@ func (t *Task) State() EntityState {
 func (t *Task) Transition(to EntityState) (from EntityState) {
 	from = t.swapState(to)
 	t.changedState(from, to)
+	return from
+}
+
+// Settle ends the Task in state to and returns the state it left. It is the
+// one write that settles a Task, and what tells a projection to answer a
+// settle: the listener hears it as TaskSettled after the TaskChanged of the
+// same write.
+func (t *Task) Settle(to EntityState) (from EntityState) {
+	from = t.swapSettledState(to)
+	t.changedState(from, to)
+	t.settledState(from, to)
+	return from
+}
+
+// IsSettled reports whether Settle ended the Task.
+func (t *Task) IsSettled() bool {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return t.settled
+}
+
+// swapSettledState is swapState that also marks the Task settled.
+func (t *Task) swapSettledState(to EntityState) (from EntityState) {
+	t.lockForWrite()
+	defer t.run.mu.Unlock()
+	from, t.state, t.settled = t.state, to, true
 	return from
 }
 

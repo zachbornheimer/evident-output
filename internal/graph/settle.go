@@ -34,7 +34,7 @@ func (g *Graph) Settle(t *Task, state record.EntityState) {
 
 func (g *Graph) settleLocked(t *Task, state record.EntityState) {
 	state = t.Rec.HonestOutcome(state)
-	t.Rec.Transition(state)
+	t.Rec.Settle(state)
 	if t.gateFor != nil {
 		g.concludeGateLocked(t)
 		return

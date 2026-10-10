@@ -1,9 +1,6 @@
 package engine
 
-import (
-	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/record"
-)
+import "github.com/zachbornheimer/evident-output/internal/record"
 
 // declaredState is the state a Task is declared in, and so the state the
 // render state first follows it from.
@@ -21,12 +18,14 @@ const declaredState = Pending
 // outputListener is how the engine hears a change made by any writer.
 type outputListener struct{ o *Output }
 
-// TaskChanged follows the record when a Task settled. Every other change
-// waits in the log for the next read of the index.
-func (l outputListener) TaskChanged(_ record.TaskID, from, to record.EntityState) {
-	if !settled(from, to) {
-		return
-	}
+// TaskChanged has nothing to do: a change waits in the log for the next
+// read of the index.
+func (outputListener) TaskChanged(record.TaskID, record.EntityState, record.EntityState) {}
+
+// TaskSettled follows the record, so the settle is answered promptly even
+// when nothing reads the index. The record names the settle itself, so the
+// engine cannot disagree with the writer about which states end a Task.
+func (l outputListener) TaskSettled(record.TaskID, record.EntityState, record.EntityState) {
 	l.o.mu.Lock()
 	defer l.o.mu.Unlock()
 	l.o.followRecordLocked()
@@ -34,11 +33,6 @@ func (l outputListener) TaskChanged(_ record.TaskID, from, to record.EntityState
 
 // EventAppended has nothing to repaint: the journal is read at Finish.
 func (outputListener) EventAppended(record.Event) {}
-
-// settled reports whether a change moved a Task into a terminal state.
-func settled(from, to record.EntityState) bool {
-	return from != to && core.IsTerminalTask(to)
-}
 
 // settleReaction is a Task that settled and the state it settled into.
 type settleReaction struct {
@@ -67,9 +61,9 @@ func (o *Output) pullRecordLocked() {
 			continue
 		}
 		st.markFiling()
-		from := st.followed
 		st.censusSync()
-		if settled(from, st.followed) {
+		if st.rec.IsSettled() && !st.settleAnswered {
+			st.settleAnswered = true
 			o.settles = append(o.settles, settleReaction{st: st, to: st.followed})
 		}
 	}
