@@ -63,7 +63,9 @@ func (c *Computed[T]) Producer() *TaskHandle {
 }
 
 // Get returns the produced value. It is valid once the producing Task
-// settled successfully; earlier, it records ErrComputedUnsettled and
+// settled successfully by running its callback; earlier, or when a Verify
+// found the work already satisfied and the callback never ran, it records
+// ErrComputedUnsettled (graph.ErrComputedNoValue in the second case) and
 // returns the zero value. A read the declared order does not prove (no
 // Sequence order and no After edge to the producer) records
 // ErrComputedUnordered and unwinds the calling callback in every mode, so

@@ -3,6 +3,8 @@ package engine
 import (
 	"errors"
 	"fmt"
+
+	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 // misuseGlyph prefixes the one required misuse line the same way the
@@ -51,6 +53,8 @@ func misuseHintFor(err error, subject, rejectedSummary string) string {
 		return "a Reason built with OnTask only attaches to that named task"
 	case errors.Is(err, ErrConcurrentRunning):
 		return "only one child of a Sequence runs at a time; use Group for independent children"
+	case errors.Is(err, graph.ErrComputedNoValue):
+		return fmt.Sprintf("%s succeeded without producing a value (its Verify found the work already satisfied, so its callback never ran); read Get only from a producer without a Verify that can skip it", subject)
 	case errors.Is(err, ErrComputedUnsettled):
 		return fmt.Sprintf("%s has not settled; read Get only from a Task declared After it, or from a container builder whose After includes it", subject)
 	case errors.Is(err, ErrComputedUnordered):

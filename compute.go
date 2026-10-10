@@ -27,9 +27,11 @@ func Compute[T any](task *TaskHandle, fn func(context.Context) (T, error)) *Comp
 }
 
 // Get returns the produced value. It is valid once the producing Task
-// settled successfully (Done or AlreadySatisfied). Calling it earlier is
+// settled successfully by running its callback. Calling it earlier is
 // misuse: it records ErrComputedUnsettled with its remedy (a panic under
-// Config.Strict) and returns the zero value. It is never a data race.
+// Config.Strict) and returns the zero value. So is reading a producer whose
+// Verify found the work already satisfied: its callback never ran, there is
+// no value, and the read is refused the same way. It is never a data race.
 func (c *Computed[T]) Get() T {
 	if c == nil {
 		var zero T
