@@ -400,7 +400,10 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   longer ends the process with a panic that goroutine cannot recover. The
   misuse is recorded and the callback's Task fails with
   `ErrComputedUnordered`, as it does outside `Strict`; a `Get` on the
-  callback's own goroutine still panics there.
+  callback's own goroutine still panics there. A `Wait` that a container
+  builder hands to a goroutine it started is refused the same way: the misuse
+  is recorded, the refusal comes back as the `Wait`'s error, and the process
+  keeps running.
 
 - A Task `Block`ed inside a Group or Sequence now concludes `[blocked]`
   with exit 1. It concluded `[ready]` with exit 0, because the Conclusion

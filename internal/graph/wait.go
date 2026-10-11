@@ -94,13 +94,21 @@ func (g *Graph) waitChecked(t *Task, stack *WaiterStack, seen *InputSeals) error
 // a wait could never end and Finish would hang behind it. A builder ordered
 // After t runs only once t settled, so that wait is answered. Which of the
 // two it is follows from the declared order alone, so the outcome never
-// depends on the ceiling or on whether t happened to settle first.
+// depends on the ceiling or on whether t happened to settle first. A strict
+// sink panics into the builder when the wait is its own; a goroutine the
+// builder started has no caller to take that panic, so the misuse is only
+// recorded there and the refusal reaches that goroutine as the returned error.
 func (g *Graph) refuseUnorderedInBuilder(t *Task, stack *WaiterStack) error {
 	gate, inside := g.enclosingBuilder(stack)
 	if !inside || (gate != nil && g.OrderedAfter(gate, t)) {
 		return nil
 	}
-	g.misuse.RecordMisuseFor(t.Name, ErrWaitInBuilder)
+	refused := misuseNote{subject: t.Name, err: ErrWaitInBuilder}
+	if stack.InsideBuilder() {
+		g.tellMisuse([]misuseNote{refused})
+	} else {
+		g.tellContained(refused)
+	}
 	return fmt.Errorf("%w: Wait on %q inside a container builder; declare the work and Wait outside it", ErrWaitInBuilder, t.Name)
 }
 
