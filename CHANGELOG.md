@@ -371,6 +371,23 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   `operations`) and records the After evidence in `evo.run`, as the real run
   does; it emitted neither.
 
+- A dry run no longer commits freshness records. It judged each File and
+  Exec and then wrote the record a real run writes, so the next real run
+  skipped work whose inputs had changed, or re-ran work that was current.
+  A dry run only reads the records now.
+
+- A `Get` or `Wait` from a grandchild goroutine, one that a goroutine of a
+  callback started, is the callback's, as one from the callback's own
+  goroutine is. An unordered callback's `Get` through one fails with
+  `ErrComputedUnordered`; a `Wait` from one that parks while the callback
+  blocks on it is released with `ErrWaitDeadlock`; a `Wait` from one a
+  container builder started is refused with `ErrWaitInBuilder`. A goroutine
+  a callback started before it
+  lent its slot to nested work (a `Define` and `Wait` on a Task the pool has
+  not started, at `MaxConcurrency` 1) stays the callback's, not the nested
+  Task's, so the outcome no longer depends on the ceiling. Attribution ends
+  at a goroutine that exited before anything asked about it (CONTRACT §2).
+
 - A Task `Block`ed inside a Group or Sequence now concludes `[blocked]`
   with exit 1. It concluded `[ready]` with exit 0, because the Conclusion
   ignored a container whose derived state was Blocked; a container whose
