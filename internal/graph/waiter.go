@@ -44,12 +44,16 @@ func (w *WaitTicket) Released() error { return w.released }
 // that may be holding still.
 func (g *Graph) BeginWait(t *Task, stack *WaiterStack) *WaitTicket {
 	self, creator := CurrentGoroutineLineage()
+	var started starter
 	if !stack.RunsWork() {
-		creator = g.startingGoroutine(self, creator)
+		started = g.startingGoroutine(self, creator)
+		creator = started.goroutine
 	}
 	w := &WaitTicket{task: t, depth: stack.CallbackDepth(), self: self, creator: creator, abort: make(chan struct{})}
 	g.lock()
-	w.owner = g.consumerThroughLocked(self, creator)
+	if w.owner = g.consumerOnLocked(self); w.owner == nil {
+		w.owner = started.task
+	}
 	if g.exec.waits == nil {
 		g.exec.waits = make(map[*WaitTicket]struct{})
 	}

@@ -41,7 +41,7 @@ type executor struct {
 	buildersRunning int
 	// consumers is, per goroutine, the stack of Tasks and builder gates it
 	// is running (see enterConsumer).
-	consumers map[GoroutineID][]*Task
+	consumers map[GoroutineID][]consumerFrame
 	// cancelled stops dispatching anything new: after an interrupt the queue
 	// is abandoned, not drained.
 	cancelled bool
@@ -158,18 +158,14 @@ func (g *Graph) runPooled(c *claim) {
 // whether there was one. A plain caller holds the slot it took (pooled) and
 // has started goroutines before the claim began; none of them is the
 // callback's. A callback lends the slot it already holds, and what it started
-// is still its.
+// before the claim began is still its own, not the claim's.
 func (g *Graph) runClaimed(c *claim) bool {
 	if c == nil {
 		return false
 	}
 	c.start()
 	defer g.finishClaimed(c)
-	if c.pooled {
-		g.execute(c, mayPredateClaim)
-	} else {
-		g.execute(c, ownsStarted)
-	}
+	g.execute(c, mayPredateClaim)
 	return true
 }
 
@@ -216,14 +212,14 @@ func (g *Graph) execute(c *claim, own goroutineOwnership) {
 	if !c.began {
 		return
 	}
-	defer g.enterConsumer(c.task)()
+	defer g.enterConsumer(c.task, predatingGoroutines(own))()
 	if c.task.IsGate() {
-		g.runGate(c, own)
+		g.runGate(c)
 		return
 	}
 	var err error
 	if c.work.Run != nil {
-		err = g.failedByRefusedRead(c.task, g.runTrackedCallback(c.work.Run, own))
+		err = g.failedByRefusedRead(c.task, g.runTrackedCallback(c.work.Run))
 	}
 	g.recordCallbackReturn(c.task, err)
 	// A callback that settled its own Task (a verb inside Run, or an
