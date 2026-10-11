@@ -1,4 +1,6 @@
-package patch
+// This file reads a hunk and applies a file edit to a file's prior bytes.
+
+package change
 
 import (
 	"bytes"
@@ -12,9 +14,9 @@ import (
 // means 1.
 var hunkHeader = regexp.MustCompile(`^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@`)
 
-// Hunk is one contiguous edit: the old and new line ranges it covers and
+// PatchHunk is one contiguous edit: the old and new line ranges it covers and
 // the context, removed, and added lines between them.
-type Hunk struct {
+type PatchHunk struct {
 	OldStart, OldCount int
 	NewStart, NewCount int
 	lines              []hunkLine
@@ -47,16 +49,16 @@ func (l hunkLine) bytes() []byte {
 
 // hunk reads one hunk: its header, then exactly as many old and new lines
 // as the header counts.
-func (p *parser) hunk() (Hunk, error) {
+func (p *diffParser) hunk() (PatchHunk, error) {
 	header := trimCR(p.next())
 	h, err := parseHunkHeader(header)
 	if err != nil {
-		return Hunk{}, err
+		return PatchHunk{}, err
 	}
 	oldLeft, newLeft := h.OldCount, h.NewCount
 	for oldLeft > 0 || newLeft > 0 {
 		if !p.more() {
-			return Hunk{}, fmt.Errorf("%w: hunk %q is truncated", ErrMalformed, header)
+			return PatchHunk{}, fmt.Errorf("%w: hunk %q is truncated", ErrPatchMalformed, header)
 		}
 		raw := p.next()
 		if raw == "" {
@@ -72,32 +74,32 @@ func (p *parser) hunk() (Hunk, error) {
 			newLeft--
 		case opNoNewline:
 			if err := h.markNoNewline(); err != nil {
-				return Hunk{}, err
+				return PatchHunk{}, err
 			}
 			continue
 		default:
-			return Hunk{}, fmt.Errorf("%w: unexpected line %q in hunk %q", ErrMalformed, raw, header)
+			return PatchHunk{}, fmt.Errorf("%w: unexpected line %q in hunk %q", ErrPatchMalformed, raw, header)
 		}
 		if oldLeft < 0 || newLeft < 0 {
-			return Hunk{}, fmt.Errorf("%w: hunk %q has more lines than its header counts", ErrMalformed, header)
+			return PatchHunk{}, fmt.Errorf("%w: hunk %q has more lines than its header counts", ErrPatchMalformed, header)
 		}
 		h.lines = append(h.lines, hunkLine{op: raw[0], text: raw[1:], eol: true})
 	}
 	if p.more() && strings.HasPrefix(p.peek(), string(opNoNewline)) {
 		p.next()
 		if err := h.markNoNewline(); err != nil {
-			return Hunk{}, err
+			return PatchHunk{}, err
 		}
 	}
 	return h, nil
 }
 
-func parseHunkHeader(header string) (Hunk, error) {
+func parseHunkHeader(header string) (PatchHunk, error) {
 	m := hunkHeader.FindStringSubmatch(header)
 	if m == nil {
-		return Hunk{}, fmt.Errorf("%w: hunk header %q", ErrMalformed, header)
+		return PatchHunk{}, fmt.Errorf("%w: hunk header %q", ErrPatchMalformed, header)
 	}
-	return Hunk{
+	return PatchHunk{
 		OldStart: atoiOr(m[1], 0), OldCount: atoiOr(m[2], 1),
 		NewStart: atoiOr(m[3], 0), NewCount: atoiOr(m[4], 1),
 	}, nil
@@ -116,9 +118,9 @@ func atoiOr(s string, fallback int) int {
 	return n
 }
 
-func (h *Hunk) markNoNewline() error {
+func (h *PatchHunk) markNoNewline() error {
 	if len(h.lines) == 0 {
-		return fmt.Errorf("%w: no-newline marker before any hunk line", ErrMalformed)
+		return fmt.Errorf("%w: no-newline marker before any hunk line", ErrPatchMalformed)
 	}
 	h.lines[len(h.lines)-1].eol = false
 	return nil
@@ -127,7 +129,7 @@ func (h *Hunk) markNoNewline() error {
 // Apply returns old with f's hunks applied. Each hunk must match at
 // exactly the line its header names: a patch derives from one precise
 // source, so a hunk that only matches elsewhere does not apply.
-func (f File) Apply(old []byte) ([]byte, error) {
+func (f FileEdit) Apply(old []byte) ([]byte, error) {
 	src := fileLines(old)
 	var out []byte
 	pos := 0
@@ -137,10 +139,10 @@ func (f File) Apply(old []byte) ([]byte, error) {
 			start = h.OldStart
 		}
 		if start < pos {
-			return nil, fmt.Errorf("%w: %s hunk %d overlaps the previous hunk", ErrMalformed, f.Path, i+1)
+			return nil, fmt.Errorf("%w: %s hunk %d overlaps the previous hunk", ErrPatchMalformed, f.Path, i+1)
 		}
 		if start > len(src) {
-			return nil, fmt.Errorf("%w: %s hunk %d starts past the end of the file", ErrDoesNotApply, f.Path, i+1)
+			return nil, fmt.Errorf("%w: %s hunk %d starts past the end of the file", ErrPatchDoesNotApply, f.Path, i+1)
 		}
 		out = append(out, bytes.Join(src[pos:start], nil)...)
 		pos = start
@@ -150,7 +152,7 @@ func (f File) Apply(old []byte) ([]byte, error) {
 				continue
 			}
 			if pos >= len(src) || !bytes.Equal(src[pos], l.bytes()) {
-				return nil, fmt.Errorf("%w: %s hunk %d does not match line %d", ErrDoesNotApply, f.Path, i+1, pos+1)
+				return nil, fmt.Errorf("%w: %s hunk %d does not match line %d", ErrPatchDoesNotApply, f.Path, i+1, pos+1)
 			}
 			if l.op == opContext {
 				out = append(out, src[pos]...)
@@ -181,7 +183,7 @@ func fileLines(contents []byte) [][]byte {
 // f's hunks on current succeeds, and applying them forward again yields
 // current exactly (patch -N's already-applied test). A creation also
 // requires the reversed source to be empty.
-func (f File) AppliedTo(current []byte) bool {
+func (f FileEdit) AppliedTo(current []byte) bool {
 	prior, err := f.reversed().Apply(current)
 	if err != nil || (f.Create && len(prior) != 0) {
 		return false
@@ -192,10 +194,10 @@ func (f File) AppliedTo(current []byte) bool {
 
 // reversed is f with every hunk turned around: old and new ranges swap
 // and removed lines become added ones.
-func (f File) reversed() File {
-	r := File{Path: f.Path, Hunks: make([]Hunk, len(f.Hunks))}
+func (f FileEdit) reversed() FileEdit {
+	r := FileEdit{Path: f.Path, Hunks: make([]PatchHunk, len(f.Hunks))}
 	for i, h := range f.Hunks {
-		back := Hunk{OldStart: h.NewStart, OldCount: h.NewCount, NewStart: h.OldStart, NewCount: h.OldCount}
+		back := PatchHunk{OldStart: h.NewStart, OldCount: h.NewCount, NewStart: h.OldStart, NewCount: h.OldCount}
 		back.lines = make([]hunkLine, len(h.lines))
 		for j, l := range h.lines {
 			switch l.op {

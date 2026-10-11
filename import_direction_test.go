@@ -1,8 +1,12 @@
 package evo_test
 
 import (
+	"errors"
 	"go/parser"
 	"go/token"
+	"io/fs"
+	"os"
+	"path"
 	"slices"
 	"strings"
 	"testing"
@@ -331,4 +335,46 @@ func reads(h *holder, task *record.Task, other fakeStore) {
 	if !slices.Equal(got, want) {
 		t.Errorf("flagged %v, want %v", got, want)
 	}
+}
+
+// dissolvedPackages are the packages whose contents became part of
+// internal/change. None may exist again, and nothing may import one.
+var dissolvedPackages = []string{
+	"internal/patch",
+}
+
+// TestDissolvedPackagesStayGone fails when a dissolved package's directory
+// exists, or when any non-test Go file of the module imports one. The diff
+// parser, the atomic publisher and the claim registry are internal/change's
+// alone: a second copy beside it would be a second owner of the same logic.
+func TestDissolvedPackagesStayGone(t *testing.T) {
+	var problems []string
+	for _, dissolved := range dissolvedPackages {
+		if _, err := os.Stat(dissolved); !errors.Is(err, fs.ErrNotExist) {
+			problems = append(problems, dissolved+" still exists")
+		}
+	}
+	importers, _, err := scanProductionFiles(".", skipHiddenAndTestdata, func(file string) ([]string, error) {
+		return touches(file, isDissolvedImport, nil)
+	})
+	if err != nil {
+		t.Fatalf("scan module: %v", err)
+	}
+	problems = append(problems, importers...)
+	if len(problems) > 0 {
+		t.Errorf("%d references to packages folded into %s:\n  %s",
+			len(problems), changePackage, strings.Join(problems, "\n  "))
+	}
+}
+
+func isDissolvedImport(importPath string) bool {
+	local, inModule := strings.CutPrefix(importPath, modulePath+"/")
+	return inModule && slices.Contains(dissolvedPackages, local)
+}
+
+// skipHiddenAndTestdata skips version-control and tool directories and
+// fixture trees, none of which hold the module's production code.
+func skipHiddenAndTestdata(dir string) bool {
+	base := path.Base(dir)
+	return dir != "." && (strings.HasPrefix(base, ".") || base == "testdata")
 }

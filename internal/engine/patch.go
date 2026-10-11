@@ -8,8 +8,8 @@ import (
 	"io/fs"
 	"slices"
 
+	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/patch"
 )
 
 // FileSet is the desired file states a Patch derived, each bound to the
@@ -40,7 +40,7 @@ const patchEditBasisKind = "patch-edit"
 
 // editRecord is edit's identity as the Basis record its derived File
 // operation carries.
-func editRecord(path string, edit patch.File) freshness.BasisRecord {
+func editRecord(path string, edit change.FileEdit) freshness.BasisRecord {
 	identity := edit.Identity()
 	return freshness.BasisRecord{Kind: patchEditBasisKind, Key: path, Digest: hex.EncodeToString(identity[:])}
 }
@@ -48,20 +48,20 @@ func editRecord(path string, edit patch.File) freshness.BasisRecord {
 // Patch errors. Every unsupported form wraps ErrPatchUnsupported.
 var (
 	// ErrPatchMalformed is a diff that is not a readable unified diff.
-	ErrPatchMalformed = patch.ErrMalformed
+	ErrPatchMalformed = change.ErrPatchMalformed
 	// ErrPatchDoesNotApply is a diff whose context does not match the
 	// current source, a creation over an existing file, or a modification
 	// of a missing one.
-	ErrPatchDoesNotApply = patch.ErrDoesNotApply
+	ErrPatchDoesNotApply = change.ErrPatchDoesNotApply
 	// ErrPatchUnsupported is any patch form that cannot reduce to a
 	// desired regular-file state.
-	ErrPatchUnsupported = patch.ErrUnsupported
+	ErrPatchUnsupported = change.ErrPatchUnsupported
 	// ErrPatchDeleteUnsupported is a patch that deletes a file.
-	ErrPatchDeleteUnsupported = patch.ErrDeleteUnsupported
+	ErrPatchDeleteUnsupported = change.ErrPatchDeleteUnsupported
 	// ErrPatchRenameUnsupported is a patch that renames or copies a file.
-	ErrPatchRenameUnsupported = patch.ErrRenameUnsupported
+	ErrPatchRenameUnsupported = change.ErrPatchRenameUnsupported
 	// ErrPatchBinaryUnsupported is a binary patch.
-	ErrPatchBinaryUnsupported = patch.ErrBinaryUnsupported
+	ErrPatchBinaryUnsupported = change.ErrPatchBinaryUnsupported
 )
 
 // Patch derives the desired file states a unified text diff describes,
@@ -78,7 +78,7 @@ func Patch(ctx context.Context, diff []byte) (FileSet, error) {
 }
 
 func (o *Output) derivePatch(ctx context.Context, taskID string, diff []byte) (FileSet, error) {
-	edits, parseErr := patch.Parse(diff)
+	edits, parseErr := change.ParsePatch(diff)
 	if parseErr != nil {
 		return FileSet{}, parseErr
 	}
@@ -95,7 +95,7 @@ func (o *Output) derivePatch(ctx context.Context, taskID string, diff []byte) (F
 
 // deriveFile observes edit's source under a read claim on its path and
 // applies edit to exactly the bytes observed.
-func (o *Output) deriveFile(ctx context.Context, taskID string, edit patch.File) (desiredFile, error) {
+func (o *Output) deriveFile(ctx context.Context, taskID string, edit change.FileEdit) (desiredFile, error) {
 	target := workspaceFile{root: o.workspace(), rel: edit.Path}
 	path := target.path()
 	var source observedSource
@@ -127,7 +127,7 @@ func (o *Output) deriveFile(ctx context.Context, taskID string, edit patch.File)
 // apply fails and the reverse matches (patch -N), or when source matches
 // both sides and resultOfLastRun confirms these bytes are what this
 // Task's previous Run left there by applying this same edit.
-func desiredContents(edit patch.File, source observedSource, path string, resultOfLastRun func() bool) ([]byte, error) {
+func desiredContents(edit change.FileEdit, source observedSource, path string, resultOfLastRun func() bool) ([]byte, error) {
 	applied := source.exists && edit.AppliedTo(source.contents)
 	switch {
 	case !edit.Create && !source.exists:

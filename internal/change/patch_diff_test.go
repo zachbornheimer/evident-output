@@ -1,4 +1,4 @@
-package patch
+package change
 
 import (
 	"errors"
@@ -7,16 +7,16 @@ import (
 	"testing"
 )
 
-func mustParse(t *testing.T, diff string) []File {
+func mustParse(t *testing.T, diff string) []FileEdit {
 	t.Helper()
-	files, err := Parse([]byte(diff))
+	files, err := ParsePatch([]byte(diff))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
 	return files
 }
 
-func mustApply(t *testing.T, f File, old string) string {
+func mustApply(t *testing.T, f FileEdit, old string) string {
 	t.Helper()
 	got, err := f.Apply([]byte(old))
 	if err != nil {
@@ -130,7 +130,7 @@ func TestApplyNoNewlineAtEndOfFile(t *testing.T) {
 	if got := mustApply(t, f, "old"); got != "new" {
 		t.Fatalf("Apply = %q", got)
 	}
-	if _, err := f.Apply([]byte("old\n")); !errors.Is(err, ErrDoesNotApply) {
+	if _, err := f.Apply([]byte("old\n")); !errors.Is(err, ErrPatchDoesNotApply) {
 		t.Fatalf("a trailing newline the patch says is absent must not match: %v", err)
 	}
 }
@@ -138,7 +138,7 @@ func TestApplyNoNewlineAtEndOfFile(t *testing.T) {
 func TestApplyContextMismatchFails(t *testing.T) {
 	f := mustParse(t, gitModify)[0]
 	_, err := f.Apply([]byte("hello\nplanet\nbye\n"))
-	if !errors.Is(err, ErrDoesNotApply) {
+	if !errors.Is(err, ErrPatchDoesNotApply) {
 		t.Fatalf("err = %v, want ErrDoesNotApply", err)
 	}
 }
@@ -150,41 +150,41 @@ func TestUnsupportedFormsFailExplicitly(t *testing.T) {
 	}{
 		"git deletion": {
 			"diff --git a/gone b/gone\ndeleted file mode 100644\nindex e69de29..0000000\n",
-			ErrDeleteUnsupported,
+			ErrPatchDeleteUnsupported,
 		},
 		"plain deletion": {
 			"--- a/gone\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n",
-			ErrDeleteUnsupported,
+			ErrPatchDeleteUnsupported,
 		},
 		"git rename": {
 			"diff --git a/old b/new\nsimilarity index 100%\nrename from old\nrename to new\n",
-			ErrRenameUnsupported,
+			ErrPatchRenameUnsupported,
 		},
 		"git copy": {
 			"diff --git a/old b/new\nsimilarity index 100%\ncopy from old\ncopy to new\n",
-			ErrRenameUnsupported,
+			ErrPatchRenameUnsupported,
 		},
 		"plain path change": {
 			"--- a/old\n+++ b/new\n@@ -1 +1 @@\n-x\n+y\n",
-			ErrRenameUnsupported,
+			ErrPatchRenameUnsupported,
 		},
 		"binary differ": {
 			"diff --git a/img.png b/img.png\nindex 1..2 100644\nBinary files a/img.png and b/img.png differ\n",
-			ErrBinaryUnsupported,
+			ErrPatchBinaryUnsupported,
 		},
 		"git binary patch": {
 			"diff --git a/img.png b/img.png\nindex 1..2 100644\nGIT binary patch\nliteral 3\nKcmZ?wbN~PV\n\nliteral 0\nHcmV?d00001\n\n",
-			ErrBinaryUnsupported,
+			ErrPatchBinaryUnsupported,
 		},
 		"symlink creation": {
 			"diff --git a/link b/link\nnew file mode 120000\n--- /dev/null\n+++ b/link\n@@ -0,0 +1 @@\n+target\n\\ No newline at end of file\n",
-			ErrUnsupported,
+			ErrPatchUnsupported,
 		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, err := Parse([]byte(tc.diff))
-			if !errors.Is(err, tc.want) || !errors.Is(err, ErrUnsupported) {
+			_, err := ParsePatch([]byte(tc.diff))
+			if !errors.Is(err, tc.want) || !errors.Is(err, ErrPatchUnsupported) {
 				t.Fatalf("err = %v, want %v (an ErrUnsupported)", err, tc.want)
 			}
 		})
@@ -205,11 +205,11 @@ func TestMalformedDiffsFail(t *testing.T) {
 	}
 	for name, diff := range cases {
 		t.Run(name, func(t *testing.T) {
-			files, err := Parse([]byte(diff))
+			files, err := ParsePatch([]byte(diff))
 			if err == nil && len(files) == 1 {
 				_, err = files[0].Apply([]byte("a\nb\nc\n"))
 			}
-			if !errors.Is(err, ErrMalformed) {
+			if !errors.Is(err, ErrPatchMalformed) {
 				t.Fatalf("err = %v, want ErrMalformed", err)
 			}
 		})
@@ -229,7 +229,7 @@ func TestParseIgnoresPreambleAndCRLFContent(t *testing.T) {
 }
 
 func TestAppliedToRecognizesOnlyTheExactResult(t *testing.T) {
-	files, err := Parse([]byte("--- a/g.txt\n+++ b/g.txt\n@@ -1,2 +1,2 @@\n hello\n-world\n+there\n"))
+	files, err := ParsePatch([]byte("--- a/g.txt\n+++ b/g.txt\n@@ -1,2 +1,2 @@\n hello\n-world\n+there\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,9 +250,9 @@ func TestAppliedToRecognizesOnlyTheExactResult(t *testing.T) {
 // TestIdentityDistinguishesEdits proves Identity is stable for one edit
 // and differs for any change to what the edit does.
 func TestIdentityDistinguishesEdits(t *testing.T) {
-	parse := func(diff string) File {
+	parse := func(diff string) FileEdit {
 		t.Helper()
-		files, err := Parse([]byte(diff))
+		files, err := ParsePatch([]byte(diff))
 		if err != nil || len(files) != 1 {
 			t.Fatalf("Parse(%q) = %v, %v", diff, files, err)
 		}

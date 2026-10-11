@@ -7,8 +7,8 @@ import (
 	"io"
 	"io/fs"
 
+	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/patch"
 	"github.com/zachbornheimer/evident-output/internal/publish"
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
@@ -19,7 +19,7 @@ const defaultFileMode fs.FileMode = 0o644
 
 // ErrPatchUnsafePath is a diff path outside the workspace, or one that
 // reaches it through a symlinked directory.
-var ErrPatchUnsafePath = patch.ErrUnsafePath
+var ErrPatchUnsafePath = change.ErrPatchUnsafePath
 
 // ErrPatchStale is a file that changed between Patch reading it and
 // committing: the concurrent edit is never overwritten.
@@ -49,7 +49,7 @@ func ApplyPatch(ctx context.Context, diff []byte) error {
 	if err != nil {
 		return err
 	}
-	edits, parseErr := patch.ParseStandard(diff)
+	edits, parseErr := change.ParseStandardPatch(diff)
 	if parseErr != nil {
 		return parseErr
 	}
@@ -68,7 +68,7 @@ func ApplyPatch(ctx context.Context, diff []byte) error {
 	return nil
 }
 
-func (o *Output) planPatch(ctx context.Context, taskID string, edits []patch.File) ([]patchStep, error) {
+func (o *Output) planPatch(ctx context.Context, taskID string, edits []change.FileEdit) ([]patchStep, error) {
 	var steps []patchStep
 	for _, edit := range edits {
 		planned, err := o.planEdit(ctx, taskID, edit)
@@ -82,7 +82,7 @@ func (o *Output) planPatch(ctx context.Context, taskID string, edits []patch.Fil
 
 // planEdit turns one file's edit into commits, in an order that never
 // loses data: a rename writes the destination before removing the source.
-func (o *Output) planEdit(ctx context.Context, taskID string, edit patch.File) ([]patchStep, error) {
+func (o *Output) planEdit(ctx context.Context, taskID string, edit change.FileEdit) ([]patchStep, error) {
 	if edit.Delete {
 		return o.planDelete(ctx, edit)
 	}
@@ -96,7 +96,7 @@ func (o *Output) planEdit(ctx context.Context, taskID string, edit patch.File) (
 	return []patchStep{{write: &desired}}, nil
 }
 
-func (o *Output) planDelete(ctx context.Context, edit patch.File) ([]patchStep, error) {
+func (o *Output) planDelete(ctx context.Context, edit change.FileEdit) ([]patchStep, error) {
 	target := workspaceFile{root: o.workspace(), rel: edit.Path}
 	source, err := o.observeTarget(ctx, target)
 	if err != nil {
@@ -115,7 +115,7 @@ func (o *Output) planDelete(ctx context.Context, edit patch.File) ([]patchStep, 
 	return []patchStep{{remove: &plannedRemoval{target: target, basis: source.basis}}}, nil
 }
 
-func (o *Output) planRename(ctx context.Context, taskID string, edit patch.File) ([]patchStep, error) {
+func (o *Output) planRename(ctx context.Context, taskID string, edit change.FileEdit) ([]patchStep, error) {
 	from := workspaceFile{root: o.workspace(), rel: edit.From}
 	to := workspaceFile{root: o.workspace(), rel: edit.Path}
 	source, err := o.observeTarget(ctx, from)
@@ -146,7 +146,7 @@ func (o *Output) planRename(ctx context.Context, taskID string, edit patch.File)
 
 // deriveStandardFile is deriveFile for a create or modify under the
 // standard forms: missing parents are allowed (Patch creates them).
-func (o *Output) deriveStandardFile(ctx context.Context, taskID string, edit patch.File) (desiredFile, error) {
+func (o *Output) deriveStandardFile(ctx context.Context, taskID string, edit change.FileEdit) (desiredFile, error) {
 	target := workspaceFile{root: o.workspace(), rel: edit.Path}
 	source, err := o.observeTarget(ctx, target)
 	if err != nil {

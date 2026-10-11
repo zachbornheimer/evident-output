@@ -1,4 +1,6 @@
-package patch
+// This file reads one file section of a diff: its header lines and paths.
+
+package change
 
 import (
 	"fmt"
@@ -18,8 +20,8 @@ const (
 	gitSubmodule   = "160"
 )
 
-// header is one file section as read, before it is judged representable.
-type header struct {
+// diffHeader is one file section as read, before it is judged representable.
+type diffHeader struct {
 	gitPath  string // from "diff --git", when both sides name one path
 	hasPaths bool   // a "---"/"+++" pair was present
 	oldPath  string
@@ -32,25 +34,25 @@ type header struct {
 	to       string // "rename to"
 	binary   bool
 	mode     string // raw octal from "new file mode"/"new mode"
-	hunks    []Hunk
+	hunks    []PatchHunk
 }
 
 // section reads the file section starting at the current line, if one
 // starts there.
-func (p *parser) section() (header, bool, error) {
+func (p *diffParser) section() (diffHeader, bool, error) {
 	line := trimCR(p.peek())
 	switch {
 	case strings.HasPrefix(line, "diff --git "):
 		p.next()
-		h := header{gitPath: gitHeaderPath(strings.TrimPrefix(line, "diff --git "))}
+		h := diffHeader{gitPath: gitHeaderPath(strings.TrimPrefix(line, "diff --git "))}
 		return h, true, p.gitExtended(&h)
 	case isFileHeaderPair(line, p.peekAt(1)):
-		var h header
+		var h diffHeader
 		return h, true, p.pathsAndHunks(&h)
 	case strings.HasPrefix(line, "Binary files ") && strings.HasSuffix(line, " differ"):
-		return header{}, false, fmt.Errorf("%w: %s", ErrBinaryUnsupported, line)
+		return diffHeader{}, false, fmt.Errorf("%w: %s", ErrPatchBinaryUnsupported, line)
 	}
-	return header{}, false, nil
+	return diffHeader{}, false, nil
 }
 
 func isFileHeaderPair(first, second string) bool {
@@ -59,7 +61,7 @@ func isFileHeaderPair(first, second string) bool {
 
 // gitExtended reads git's extended header lines up to the "---"/"+++"
 // pair, or to the first line that is not one (the next section).
-func (p *parser) gitExtended(h *header) error {
+func (p *diffParser) gitExtended(h *diffHeader) error {
 	for p.more() {
 		line := trimCR(p.peek())
 		if isFileHeaderPair(line, p.peekAt(1)) {
@@ -75,7 +77,7 @@ func (p *parser) gitExtended(h *header) error {
 
 // extendedLine records one git extended header line, reporting whether
 // line was one.
-func (h *header) extendedLine(line string) bool {
+func (h *diffHeader) extendedLine(line string) bool {
 	switch {
 	case strings.HasPrefix(line, "new file mode "):
 		h.create, h.mode = true, strings.TrimPrefix(line, "new file mode ")
@@ -99,7 +101,7 @@ func (h *header) extendedLine(line string) bool {
 }
 
 // pathsAndHunks reads a "---"/"+++" pair and the hunks that follow it.
-func (p *parser) pathsAndHunks(h *header) error {
+func (p *diffParser) pathsAndHunks(h *diffHeader) error {
 	h.hasPaths = true
 	h.oldPath = headerPath(strings.TrimPrefix(trimCR(p.next()), "--- "))
 	h.newPath = headerPath(strings.TrimPrefix(trimCR(p.next()), "+++ "))
@@ -109,7 +111,7 @@ func (p *parser) pathsAndHunks(h *header) error {
 			return fmt.Errorf("%s: %w", h.newPath, err)
 		}
 		if n := len(h.hunks); n > 0 && hunk.OldStart <= h.hunks[n-1].OldStart {
-			return fmt.Errorf("%w: hunks for %s are out of order", ErrMalformed, h.newPath)
+			return fmt.Errorf("%w: hunks for %s are out of order", ErrPatchMalformed, h.newPath)
 		}
 		h.hunks = append(h.hunks, hunk)
 	}
@@ -117,30 +119,30 @@ func (p *parser) pathsAndHunks(h *header) error {
 }
 
 // file judges h representable as a desired regular-file state.
-func (h header) file() (File, error) {
+func (h diffHeader) file() (FileEdit, error) {
 	oldPath, newPath := h.sidePaths()
 	switch {
 	case h.delete || newPath == devNull:
-		return File{}, fmt.Errorf("%w: %s", ErrDeleteUnsupported, oldPath)
+		return FileEdit{}, fmt.Errorf("%w: %s", ErrPatchDeleteUnsupported, oldPath)
 	case h.rename || (h.hasPaths && oldPath != devNull && oldPath != newPath):
-		return File{}, fmt.Errorf("%w: %s -> %s", ErrRenameUnsupported, oldPath, newPath)
+		return FileEdit{}, fmt.Errorf("%w: %s -> %s", ErrPatchRenameUnsupported, oldPath, newPath)
 	case h.binary:
-		return File{}, fmt.Errorf("%w: %s", ErrBinaryUnsupported, newPath)
+		return FileEdit{}, fmt.Errorf("%w: %s", ErrPatchBinaryUnsupported, newPath)
 	}
 	target, err := workspacePath(newPath)
 	if err != nil {
-		return File{}, err
+		return FileEdit{}, err
 	}
 	mode, err := regularFileMode(h.mode)
 	if err != nil {
-		return File{}, fmt.Errorf("%s: %w", target, err)
+		return FileEdit{}, fmt.Errorf("%s: %w", target, err)
 	}
-	return File{Path: target, Create: h.create || oldPath == devNull, Mode: mode, Hunks: h.hunks}, nil
+	return FileEdit{Path: target, Create: h.create || oldPath == devNull, Mode: mode, Hunks: h.hunks}, nil
 }
 
 // sidePaths returns the old and new paths with git's "a/"/"b/" prefixes
 // removed when both present sides carry them.
-func (h header) sidePaths() (oldPath, newPath string) {
+func (h diffHeader) sidePaths() (oldPath, newPath string) {
 	if !h.hasPaths {
 		return h.gitPath, h.gitPath
 	}
@@ -161,20 +163,20 @@ func regularFileMode(raw string) (fs.FileMode, error) {
 		return 0, nil
 	}
 	if len(raw) != 6 {
-		return 0, fmt.Errorf("%w: file mode %q", ErrMalformed, raw)
+		return 0, fmt.Errorf("%w: file mode %q", ErrPatchMalformed, raw)
 	}
 	switch raw[:3] {
 	case gitRegularFile:
 	case gitSymlink:
-		return 0, fmt.Errorf("%w: symlink", ErrUnsupported)
+		return 0, fmt.Errorf("%w: symlink", ErrPatchUnsupported)
 	case gitSubmodule:
-		return 0, fmt.Errorf("%w: submodule", ErrUnsupported)
+		return 0, fmt.Errorf("%w: submodule", ErrPatchUnsupported)
 	default:
-		return 0, fmt.Errorf("%w: file mode %q", ErrMalformed, raw)
+		return 0, fmt.Errorf("%w: file mode %q", ErrPatchMalformed, raw)
 	}
 	perm, err := strconv.ParseUint(raw[3:], 8, 32)
 	if err != nil {
-		return 0, fmt.Errorf("%w: file mode %q", ErrMalformed, raw)
+		return 0, fmt.Errorf("%w: file mode %q", ErrPatchMalformed, raw)
 	}
 	return fs.FileMode(perm), nil
 }

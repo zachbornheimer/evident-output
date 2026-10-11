@@ -1,4 +1,6 @@
-package patch
+// This file owns an edit's identity: the digest that tells one edit from another.
+
+package change
 
 import (
 	"crypto/sha256"
@@ -12,7 +14,7 @@ const identityDomain = "evident-output:patch:edit:v1\x00"
 // Identity is the sha256 of everything that determines what f does to a
 // source: its path, whether it creates, the mode it sets, and every hunk
 // line. Two edits share an Identity exactly when they are the same edit.
-func (f File) Identity() [sha256.Size]byte {
+func (f FileEdit) Identity() [sha256.Size]byte {
 	h := sha256.New()
 	_, _ = h.Write([]byte(identityDomain))
 	_, _ = fmt.Fprintf(h, "%q %t %t %q %o\x00", f.Path, f.Create, f.Delete, f.From, f.Mode)
