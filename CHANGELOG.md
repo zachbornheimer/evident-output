@@ -387,9 +387,9 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   not started, at `MaxConcurrency` 1) stays the callback's, not the nested
   Task's, so the outcome no longer depends on the ceiling. A goroutine a
   nested Task left running when it ended is not the next nested Task's
-  either; a rise in the process's running goroutines tells the scheduler to
-  look, and other goroutines ending in the same moment can hide it
-  (CONTRACT §2). Attribution ends
+  either; a change in the count of the process's running goroutines tells
+  the scheduler to look, and as many other goroutines ending in the same
+  moment can hide it (CONTRACT §2). Attribution ends
   at a goroutine that exited before anything asked about it, and at one first
   seen after the run's allowance of lookups: eight for each callback or container
   builder running, shared by those running together, because the lookup that

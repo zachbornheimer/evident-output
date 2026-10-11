@@ -119,8 +119,8 @@ that exited before anything asked about it, and at one first seen after the
 run's bounded allowance of lookups (eight for each callback or container builder
 running, shared by those running together), so a `Get` or `Wait` through such a
 goroutine is not caught. A goroutine that a finished nested Task left running
-is told from the next nested Task's by a rise in the process's running
-goroutines, so it can be missed when other goroutines end in the same moment.
+is found by a change in the count of the process's running goroutines, so it
+can be missed when as many other goroutines end in the same moment.
 `Compute` on a Task that has a
 `Verify` is `ErrInvalidConfig` at declaration: a satisfied `Verify` skips the
 callback, so a value would exist only when the world says so. A `Build` runs

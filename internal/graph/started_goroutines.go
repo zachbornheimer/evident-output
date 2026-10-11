@@ -30,16 +30,17 @@ func (s startedGoroutines) current() bool {
 // had running when it began. The work's own goroutines are not in s, so s
 // names everything only if the work left none running. A goroutine that
 // started and exited while the work ran is no loss, and a count of running
-// goroutines that did not rise shows none was left, without stopping the
-// world. A count that rose may hide one left running, so the result is then
-// stamped with the count s was taken at: the next claim sees the process has
-// started goroutines since and lists them afresh. Other goroutines ending in
-// the same moment can hide a left one from the count (see CONTRACT.md,
-// section 2).
+// goroutines that is the same as when the work began shows none was left,
+// without stopping the world. A count that differs may hide one left running
+// (a rise is one; a fall is other goroutines ending, which can cover it), so
+// the result is then stamped with the count s was taken at: the next claim
+// sees the process has started goroutines since and lists them afresh. As many
+// other goroutines ending in the same moment as the work left running hide it
+// from the count (see CONTRACT.md, section 2).
 func (s startedGoroutines) afterNested(liveAtEntry int) startedGoroutines {
 	ended := startedGoroutines{ids: s.ids}
 	ended.created, ended.counted = goroutinesCreated()
-	if ended.created != s.created && runtime.NumGoroutine() > liveAtEntry {
+	if ended.created != s.created && runtime.NumGoroutine() != liveAtEntry {
 		ended.created = s.created
 	}
 	return ended
