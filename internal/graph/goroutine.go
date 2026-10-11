@@ -48,12 +48,6 @@ func CurrentGoroutineLineage() (self, creator GoroutineID) {
 	}
 }
 
-// StartingChain lists creator, then the goroutines that started it, nearest
-// first, as far as the runtime still names them: a goroutine that exited ends
-// the chain. A goroutine's creator is read once per process (see lineage), so
-// any number of goroutines one creator started cost one dump between them.
-func StartingChain(creator GoroutineID) []GoroutineID { return processLineage.chain(creator) }
-
 // goroutinesStartedBy is every goroutine alive now that root started,
 // directly or through others, read from a fresh dump of every goroutine.
 func goroutinesStartedBy(root GoroutineID) map[GoroutineID]struct{} {

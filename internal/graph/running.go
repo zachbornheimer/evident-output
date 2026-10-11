@@ -66,8 +66,9 @@ func (l goroutineLoad) owns(child GoroutineID) bool {
 // goroutine on the way that started its child before its own work began does
 // not count: the work did not start that child. Walking starts from creator,
 // and stops the world only when creator is one nothing has asked about yet
-// (see lineage), so every goroutine one creator starts shares a single dump;
-// with no goroutine running anything it reads nothing.
+// (see lineage), so every goroutine one creator starts shares a single dump,
+// and a callback's goroutines cost a bounded number of dumps in all (see
+// refreshesPerCallback); with no goroutine running anything it reads nothing.
 func (g *Graph) startingGoroutine(self, creator GoroutineID) GoroutineID {
 	if creator == 0 {
 		return 0
@@ -81,7 +82,7 @@ func (g *Graph) startingGoroutine(self, creator GoroutineID) GoroutineID {
 	if !working {
 		return 0
 	}
-	chain := StartingChain(creator)
+	chain := processLineage.chain(creator, &g.exec.refreshes)
 	g.lockRead()
 	defer g.unlockRead()
 	child := self
@@ -104,6 +105,7 @@ func (g *Graph) trackRunning(added goroutineLoad, own goroutineOwnership) (done 
 	if own == mayPredateClaim {
 		added.predating = goroutinesStartedBy(id)
 	}
+	g.exec.refreshes.refill()
 	g.lock()
 	g.addLoadLocked(id, added)
 	g.unlock()

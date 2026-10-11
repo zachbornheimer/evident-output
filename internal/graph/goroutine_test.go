@@ -13,7 +13,7 @@ func TestStartingChainRunsNearestFirst(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			_, creator := CurrentGoroutineLineage()
-			ancestors <- StartingChain(creator)
+			ancestors <- processLineage.chain(creator, nil)
 			close(done)
 		}()
 		<-done

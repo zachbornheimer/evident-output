@@ -21,7 +21,7 @@ func startLineageTree(l *lineage) lineageTree {
 	go func() {
 		parent := CurrentGoroutine()
 		go func() {
-			l.chain(CurrentGoroutine())
+			l.chain(CurrentGoroutine(), nil)
 			ids <- [2]GoroutineID{parent, CurrentGoroutine()}
 			<-tr.exitChild
 		}()
@@ -44,7 +44,7 @@ func (l *lineage) remembers(id GoroutineID) bool {
 // one l cannot have seen.
 func dumpFromANewGoroutine(l *lineage) {
 	done := make(chan struct{})
-	go func() { l.chain(CurrentGoroutine()); close(done) }()
+	go func() { l.chain(CurrentGoroutine(), nil); close(done) }()
 	<-done
 }
 
@@ -67,7 +67,7 @@ func TestLineageKeepsAnExitedCreatorALiveGoroutineNames(t *testing.T) {
 	var l lineage
 	tr := startLineageTree(&l)
 	defer close(tr.exitChild)
-	want := l.chain(tr.child)
+	want := l.chain(tr.child, nil)
 	if len(want) < 3 || want[0] != tr.child || want[1] != tr.parent {
 		t.Fatalf("chain(child) = %v, want the child, then the parent %d, then who started it", want, tr.parent)
 	}
@@ -76,7 +76,7 @@ func TestLineageKeepsAnExitedCreatorALiveGoroutineNames(t *testing.T) {
 	goneFromDumps(t, tr.parent)
 	dumpFromANewGoroutine(&l)
 
-	if got := l.chain(tr.child); !slices.Equal(got, want) {
+	if got := l.chain(tr.child, nil); !slices.Equal(got, want) {
 		t.Fatalf("chain(child) after the parent exited = %v, want %v", got, want)
 	}
 }
@@ -105,12 +105,12 @@ func TestLineageForgetsExitedGoroutinesNobodyNames(t *testing.T) {
 func TestLineageAnswersAKnownGoroutineFromMemory(t *testing.T) {
 	var l lineage
 	self := CurrentGoroutine()
-	first := l.chain(self)
+	first := l.chain(self, nil)
 	l.mu.Lock()
 	l.creators[GoroutineID(1<<62)] = 0 // a dump would drop an id nothing runs as
 	l.mu.Unlock()
 
-	if got := l.chain(self); !slices.Equal(got, first) || !l.remembers(GoroutineID(1<<62)) {
+	if got := l.chain(self, nil); !slices.Equal(got, first) || !l.remembers(GoroutineID(1<<62)) {
 		t.Fatalf("a known goroutine asked again: chain = %v (was %v), marker kept = %v: it dumped again",
 			got, first, l.remembers(GoroutineID(1<<62)))
 	}
@@ -142,14 +142,14 @@ func TestLineageDescendantsAreWhatARootStartedThroughOthers(t *testing.T) {
 func TestLineageAnswersFreshGoroutinesOfAKnownCreatorFromMemory(t *testing.T) {
 	var l lineage
 	creator := CurrentGoroutine()
-	want := l.chain(creator)
+	want := l.chain(creator, nil)
 	l.mu.Lock()
 	l.creators[GoroutineID(1<<62)] = 0 // a dump would drop an id nothing runs as
 	l.mu.Unlock()
 
 	for range 3 {
 		got := make(chan []GoroutineID)
-		go func() { got <- l.chain(creator) }()
+		go func() { got <- l.chain(creator, nil) }()
 		if chain := <-got; !slices.Equal(chain, want) || !l.remembers(GoroutineID(1<<62)) {
 			t.Fatalf("a fresh goroutine asked about the known creator: chain = %v (was %v), marker kept = %v: it dumped",
 				chain, want, l.remembers(GoroutineID(1<<62)))
@@ -166,14 +166,14 @@ func TestLineageAnswersAnExitedUnseenCreatorFromMemory(t *testing.T) {
 	go func() { ids <- CurrentGoroutine() }()
 	gone := <-ids
 	goneFromDumps(t, gone)
-	if chain := l.chain(gone); !slices.Equal(chain, []GoroutineID{gone}) {
+	if chain := l.chain(gone, nil); !slices.Equal(chain, []GoroutineID{gone}) {
 		t.Fatalf("chain(exited) = %v, want only %d", chain, gone)
 	}
 	l.mu.Lock()
 	l.creators[GoroutineID(1<<62)] = 0 // a dump would drop an id nothing runs as
 	l.mu.Unlock()
 
-	if l.chain(gone); !l.remembers(GoroutineID(1 << 62)) {
+	if l.chain(gone, nil); !l.remembers(GoroutineID(1 << 62)) {
 		t.Fatal("an exited creator asked again: it dumped again")
 	}
 }

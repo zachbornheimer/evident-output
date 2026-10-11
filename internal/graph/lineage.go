@@ -4,6 +4,7 @@ import (
 	"maps"
 	"slices"
 	"sync"
+	"sync/atomic"
 )
 
 // processLineage covers every goroutine in the process: who started a
@@ -19,19 +20,55 @@ var processLineage lineage
 type lineage struct {
 	mu       sync.Mutex
 	creators map[GoroutineID]GoroutineID
+	// dumps counts the stops of the world this lineage took.
+	dumps atomic.Int64
+}
+
+// refreshesPerCallback is how many dumps asking about unknown creators may
+// cost while one callback runs. A creator that started after the last dump is
+// unknown, and the dump that would name it cannot if it already exited, so a
+// fan-out of short-lived intermediate goroutines would pay one dump each; the
+// allowance caps the run's cost at a handful of dumps per callback, and a
+// creator still unknown past it ends the chain.
+const refreshesPerCallback = 8
+
+// refreshBudget is the dumps a run may still take for unknown creators (see
+// refreshesPerCallback). Its zero value allows none.
+type refreshBudget struct{ left atomic.Int64 }
+
+// refill restores the full allowance: a callback began.
+func (b *refreshBudget) refill() { b.left.Store(refreshesPerCallback) }
+
+// take spends one dump and reports whether one was left. A nil budget has no
+// limit.
+func (b *refreshBudget) take() bool {
+	if b == nil {
+		return true
+	}
+	for {
+		left := b.left.Load()
+		if left <= 0 {
+			return false
+		}
+		if b.left.CompareAndSwap(left, left-1) {
+			return true
+		}
+	}
 }
 
 // chain lists from, then the goroutines that started it, nearest first, as
 // far as the runtime named them: a creator that exited before anything saw it
-// ends the chain. Only a goroutine the lineage has never seen costs a dump, so
-// every goroutine one creator started pays nothing once the creator is known.
-func (l *lineage) chain(from GoroutineID) []GoroutineID {
+// ends the chain, and so does one still unknown once budget has no dump left.
+// Only a goroutine the lineage has never seen costs a dump, so every goroutine
+// one creator started pays nothing once the creator is known. A nil budget has
+// no limit.
+func (l *lineage) chain(from GoroutineID, budget *refreshBudget) []GoroutineID {
 	if from == 0 {
 		return nil
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if _, known := l.creators[from]; !known {
+	if _, known := l.creators[from]; !known && budget.take() {
 		l.learnLocked()
 		if _, seen := l.creators[from]; !seen {
 			// Gone before the dump: ids are never reused, so nothing will
@@ -72,6 +109,7 @@ func (l *lineage) descendantsOf(root GoroutineID) map[GoroutineID]struct{} {
 // ancestor, so a chain through an exited creator survives while it is useful
 // and the memory follows the live goroutines rather than every goroutine ever.
 func (l *lineage) learnLocked() {
+	l.dumps.Add(1)
 	live := goroutineCreators(allGoroutineTraces())
 	for _, creator := range slices.Collect(maps.Values(live)) {
 		for id := creator; id != 0; {
