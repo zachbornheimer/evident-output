@@ -408,7 +408,7 @@ func (r secretRedactor) RedactString(s string) string {
 // concurrent Basis fingerprint on that same path blocks until the producer
 // settles, then observes its *final* written content — never an
 // intermediate/missing state. Both Exec calls run concurrently from within
-// one Task's Define (taskScope keys off ctx, not goroutine) so the test
+// one Task's Define (the Define scope keys off ctx, not goroutine) so the test
 // controls ordering directly instead of racing the scheduler's own Task
 // start order — the scheduler is deliberately not exercised here; a real
 // pipeline still declares After()/Sequence for real ordering, proven

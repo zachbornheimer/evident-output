@@ -20,7 +20,9 @@ const workspaceFallback = "."
 // carries (see graph.Scope), so File, Exec, Patch and Effect find it from the
 // context a Task's callback received.
 //
-// Its mutexes are leaves: none is held across a call into the Host.
+// Its mutexes sit between the engine's and the graph's in the lock order
+// (o.mu, then these, then graph.mu): none is held across a call into the
+// Host, and outputsMu is held while the graph opens or settles a gate.
 type Run struct {
 	host  Host
 	graph *graph.Graph

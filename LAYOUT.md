@@ -130,3 +130,5 @@ or a terminal library.
 | `import_direction_test.go` | `project` importing `change`; a non-producer writing `record`; a non-facade importing `os`, `os/exec`, `syscall`; root importing `mcp` |
 | `examples_test.go`         | an example that fails to compile, or a contract section with no example                                                                |
 | `spec_ratchet`             | a requirement that passed once failing now                                                                                             |
+
+`import_direction_test.go` also fails on `change` importing anything but the standard library, `record`, `graph`, `freshness` and the facades; on any package outside `change` holding a claim; and on any import of the packages `change` absorbed (`internal/patch`, `internal/publish`, `internal/resource`).

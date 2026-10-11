@@ -27,11 +27,11 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/engine",
+        "pkg": "./internal/change",
         "run": "TestPatchOneFileDerivesDesiredStateWithSourceBasis"
       },
       {
-        "pkg": "./internal/engine",
+        "pkg": "./internal/change",
         "run": "TestPatchMultiFileDerivesEachDesiredStateWithSourceBasis"
       }
     ],
@@ -44,7 +44,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/engine",
+        "pkg": "./internal/change",
         "run": "TestPatchMultiFileDerivesEachDesiredStateWithSourceBasis"
       },
       {
@@ -150,7 +150,7 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/engine",
+        "pkg": "./internal/change",
         "run": "TestPatchOneFileDerivesDesiredStateWithSourceBasis"
       },
       {

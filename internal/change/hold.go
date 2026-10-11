@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
@@ -33,6 +34,9 @@ func (r *Run) Hold(ctx context.Context, res Resource, mode ClaimMode, fn func(co
 		return runHoldingResource(held, fn)
 	})
 }
+
+// Run holds the read claims freshness observes Basis under.
+var _ freshness.Claimer = (*Run)(nil)
 
 // HoldRead runs observe holding a read claim on path's filesystem resource.
 // It is what freshness asks of its Claimer.
