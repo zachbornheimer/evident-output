@@ -8,8 +8,9 @@ import (
 
 // A Get or Wait through a goroutine the runtime cannot trace to the callback
 // that started it is not caught: no call names the creator of an exited
-// goroutine, and the lookups that name the rest are bounded. CONTRACT.md must
-// state both limits beside the rule they limit, so "in every mode" is never
+// goroutine, the lookups that name the rest are bounded, and a goroutine a
+// finished nested Task left running is told apart by a count. CONTRACT.md must
+// state each limit beside the rule it limits, so "in every mode" is never
 // read as covering those shapes.
 func TestContractStatesWhereGoroutineAttributionEnds(t *testing.T) {
 	body, err := os.ReadFile("CONTRACT.md")
@@ -20,6 +21,7 @@ func TestContractStatesWhereGoroutineAttributionEnds(t *testing.T) {
 	limits := []string{
 		"Attribution ends at a goroutine that exited before anything asked about it",
 		"and at one first seen after the run's bounded allowance of lookups (eight for each callback running, shared by the callbacks running together)",
+		"A goroutine that a finished nested Task left running is told from the next nested Task's by a rise in the process's running goroutines, so it can be missed when other goroutines end in the same moment.",
 	}
 	for _, limit := range limits {
 		if !strings.Contains(text, limit) {

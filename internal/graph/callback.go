@@ -2,6 +2,7 @@ package graph
 
 import (
 	"fmt"
+	"runtime"
 	"slices"
 
 	"github.com/zachbornheimer/evident-output/internal/record"
@@ -86,8 +87,9 @@ type consumerFrame struct {
 	// known is what the goroutine is known to have started, as of when the
 	// work began or when the Task it lent its slot to last ended: a claim
 	// that begins while no goroutine has started since needs no new dump to
-	// learn what the goroutine had started (see startedBeforeClaim). A
-	// goroutine that nested work started and left running is not in it.
+	// learn what the goroutine had started (see startedBeforeClaim). It is
+	// stamped current only when the nested work left no goroutine running
+	// (see startedGoroutines.afterNested).
 	known startedGoroutines
 }
 
@@ -121,6 +123,7 @@ func (g *Graph) knownStartedBy(id GoroutineID) (startedGoroutines, bool) {
 // entry began.
 func (g *Graph) enterConsumer(t *Task, predating startedGoroutines) (leave func()) {
 	id := CurrentGoroutine()
+	liveAtEntry := runtime.NumGoroutine()
 	g.lock()
 	if g.exec.consumers == nil {
 		g.exec.consumers = make(map[GoroutineID][]consumerFrame)
@@ -128,8 +131,7 @@ func (g *Graph) enterConsumer(t *Task, predating startedGoroutines) (leave func(
 	g.exec.consumers[id] = append(g.exec.consumers[id], consumerFrame{task: t, predating: predating.ids, known: predating})
 	g.unlock()
 	return func() {
-		ended := startedGoroutines{ids: predating.ids}
-		ended.created, ended.counted = goroutinesCreated()
+		ended := predating.afterNested(liveAtEntry)
 		g.lock()
 		defer g.unlock()
 		stack := g.exec.consumers[id]

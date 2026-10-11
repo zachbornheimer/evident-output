@@ -385,7 +385,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   a callback started before it
   lent its slot to nested work (a `Define` and `Wait` on a Task the pool has
   not started, at `MaxConcurrency` 1) stays the callback's, not the nested
-  Task's, so the outcome no longer depends on the ceiling. Attribution ends
+  Task's, so the outcome no longer depends on the ceiling. A goroutine a
+  nested Task left running when it ended is not the next nested Task's
+  either; a rise in the process's running goroutines tells the scheduler to
+  look, and other goroutines ending in the same moment can hide it
+  (CONTRACT §2). Attribution ends
   at a goroutine that exited before anything asked about it, and at one first
   seen after the run's allowance of lookups: eight for each callback running,
   shared by the callbacks running together, because the lookup that names a
