@@ -19,18 +19,26 @@ func (o *Output) recordMisuse(err error) {
 }
 
 // noteMisuse records err as the run's misuse when it is the first, with the
-// entity and rejected summary that name it. Any goroutine may call it.
+// entity and rejected summary that name it, and panics with it in strict mode.
+// Any goroutine may call it.
 func (o *Output) noteMisuse(err error, subject, rejectedSummary string) {
 	if err == nil {
 		return
 	}
-	o.misuseMu.Lock()
-	if o.misuse == nil {
-		o.misuse, o.misuseSubject, o.misuseRejectedSummary = err, subject, rejectedSummary
-	}
-	o.misuseMu.Unlock()
+	o.keepMisuse(err, subject, rejectedSummary)
 	if o.cfg.strict {
 		panic(err)
+	}
+}
+
+// keepMisuse records err as the run's misuse when it is the first, with the
+// entity and rejected summary that name it, in every mode and without a
+// strict panic: for a goroutine no caller's code is beneath to take one.
+func (o *Output) keepMisuse(err error, subject, rejectedSummary string) {
+	o.misuseMu.Lock()
+	defer o.misuseMu.Unlock()
+	if o.misuse == nil {
+		o.misuse, o.misuseSubject, o.misuseRejectedSummary = err, subject, rejectedSummary
 	}
 }
 

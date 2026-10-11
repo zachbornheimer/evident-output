@@ -392,6 +392,12 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   goroutine's creator runs before the callback it speaks for is known
   (CONTRACT §2).
 
+- In `Strict` mode, an unordered `Get` from a goroutine a callback started no
+  longer ends the process with a panic that goroutine cannot recover. The
+  misuse is recorded and the callback's Task fails with
+  `ErrComputedUnordered`, as it does outside `Strict`; a `Get` on the
+  callback's own goroutine still panics there.
+
 - A Task `Block`ed inside a Group or Sequence now concludes `[blocked]`
   with exit 1. It concluded `[ready]` with exit 0, because the Conclusion
   ignored a container whose derived state was Blocked; a container whose

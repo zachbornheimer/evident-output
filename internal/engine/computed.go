@@ -118,10 +118,15 @@ func (c *Computed[T]) Get() T {
 // refuseComputedReadLocked records a refused Computed read by reader naming
 // subject. A read on the goroutine of a callback or container builder unwinds
 // it with err. One from a goroutine the callback started cannot: the graph
-// fails the callback's Task when it returns.
+// fails the callback's Task when it returns, and a strict panic on that
+// goroutine, which nothing recovers, would end the process instead.
 func (o *Output) refuseComputedReadLocked(subject string, err error, reader graph.Reader) {
 	if subject != "" {
 		err = fmt.Errorf("%w: read of %q", err, subject)
+	}
+	if reader.Task != nil && !reader.Unwinds() {
+		o.keepMisuse(err, subject, "")
+		return
 	}
 	o.recordMisuseFor(subject, err)
 	if reader.Unwinds() {
