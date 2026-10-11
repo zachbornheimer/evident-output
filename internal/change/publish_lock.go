@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
@@ -95,17 +94,6 @@ func claimKey(dest string) (string, error) {
 	return filepath.Join(parent, filepath.Base(abs)), nil
 }
 
-// overlaps reports whether claims on a and b exclude each other: the same
-// path, or one an ancestor of the other.
-func overlaps(a, b string) bool {
-	return a == b || within(a, b) || within(b, a)
-}
-
-// within reports whether path lies strictly inside dir.
-func within(path, dir string) bool {
-	return strings.HasPrefix(path, strings.TrimSuffix(dir, string(filepath.Separator))+string(filepath.Separator))
-}
-
 // claimTable is this process's held claims. Its mutex guards only the
 // table, never a commit: a waiter sleeps on changed, which closes on every
 // release, then re-checks.
@@ -129,7 +117,7 @@ func (c *claimTable) tryClaimOrWait(key string) (bool, <-chan struct{}) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for held := range c.held {
-		if overlaps(held, key) {
+		if pathsOverlap(held, key) {
 			return false, c.changed
 		}
 	}

@@ -1,4 +1,4 @@
-package resource
+package change
 
 import (
 	"context"
@@ -15,8 +15,8 @@ const grantVisitsPerClaim = 8
 // one repository root): n writers claiming one key drain in linear work.
 func TestContendedDrainIsLinear(t *testing.T) {
 	const n = 2000
-	r := NewRegistry()
-	claim := Claim{Key: Key{space: spaceLogical, name: "repo"}, Mode: Write}
+	r := NewClaimRegistry()
+	claim := Claim{Key: ResourceKey{space: spaceLogical, name: "repo"}, Mode: ClaimWrite}
 	gate, holding := make(chan struct{}), make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Go(func() {

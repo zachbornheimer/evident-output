@@ -1,4 +1,4 @@
-package resource
+package change
 
 import (
 	"go/ast"

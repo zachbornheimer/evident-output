@@ -4,40 +4,40 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/graph"
-	"github.com/zachbornheimer/evident-output/internal/resource"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
 // Resource names one unit of shared state an operation coordinates on
 // (ZYS-840). It is sealed: only FSResource and LogicalResource make one.
-type Resource = resource.Resource
+type Resource = change.Resource
 
 // FSResource names the filesystem path path. A relative path resolves
 // against the Run's workspace directory, the same way FileSpec.Path does,
 // and symlinked ancestors resolve to their targets so an alias cannot
 // bypass coordination. A claim on a directory overlaps every claim on a
 // path beneath it. Construction performs no I/O.
-func FSResource(path string) Resource { return resource.FS(path) }
+func FSResource(path string) Resource { return change.FSResource(path) }
 
 // LogicalResource names non-filesystem shared state (a package manager, a
 // remote, a database) where no truthful filesystem path exists. Two
 // logical resources overlap only when their names match exactly after
 // surrounding whitespace is trimmed; names are not hierarchical.
-func LogicalResource(name string) Resource { return resource.Logical(name) }
+func LogicalResource(name string) Resource { return change.LogicalResource(name) }
 
 // Resource access modes stay internal: callers never pick a mode, the
 // operation (File, Basis, Effect) implies it.
 const (
-	resourceRead  = resource.Read
-	resourceWrite = resource.Write
+	resourceRead  = change.ClaimRead
+	resourceWrite = change.ClaimWrite
 )
 
 // processResources coordinates every Output in this process: two Outputs
 // touching the same file must exclude each other just as two tasks in one
 // Output do.
-var processResources = resource.NewRegistry()
+var processResources = change.NewClaimRegistry()
 
 // holdResource holds r in mode for fn's duration and releases it however
 // fn ends. It is the only way engine code acquires a resource; there is no
@@ -47,10 +47,10 @@ var processResources = resource.NewRegistry()
 // An uncontended claim is invisible. When the claim has to wait and ctx
 // belongs to a Task's Define callback, that Task shows "waiting for
 // <resource>" as its live activity until the claim is granted.
-func (o *Output) holdResource(ctx context.Context, r Resource, mode resource.Mode, fn func(context.Context) error) error {
+func (o *Output) holdResource(ctx context.Context, r Resource, mode change.ClaimMode, fn func(context.Context) error) error {
 	wait := o.resourceWaitFor(ctx, r)
 	defer wait.clear()
-	req := resource.Request{Resource: r, Workspace: o.workspace(), Mode: mode, OnContended: wait.show}
+	req := change.ClaimRequest{Resource: r, Workspace: o.workspace(), Mode: mode, OnContended: wait.show}
 	return processResources.HoldResource(ctx, req, func(held context.Context) error {
 		wait.clear()
 		return runHoldingResource(held, fn)
@@ -70,14 +70,14 @@ func runHoldingResource(held context.Context, fn func(context.Context) error) er
 // already holds a resource. Operations that may block before claiming
 // their own resource (opening the cross-process manifest lock) call it
 // first, so a held claim can never wait on anything else.
-func checkResourceFree(ctx context.Context, r Resource, mode resource.Mode) error {
-	return resource.CheckFree(ctx, fmt.Sprintf("%s %v", mode, r))
+func checkResourceFree(ctx context.Context, r Resource, mode change.ClaimMode) error {
+	return change.CheckClaimFree(ctx, fmt.Sprintf("%s %v", mode, r))
 }
 
 // validateResource resolves r without claiming it, so a dry run rejects
 // an invalid Resource exactly like an applied run does.
 func (o *Output) validateResource(r Resource) error {
-	if _, err := resource.Resolve(r, o.workspace()); err != nil {
+	if _, err := change.ResolveResource(r, o.workspace()); err != nil {
 		return fmt.Errorf("evo: resource %v: %w", r, err)
 	}
 	return nil
@@ -98,14 +98,14 @@ type resourceWait struct {
 // to. Outside a Define callback there is no row to show it on, and show
 // is a no-op.
 func (o *Output) resourceWaitFor(ctx context.Context, r Resource) *resourceWait {
-	wait := &resourceWait{out: o, text: txt.Text(resourceWaitingPrefix + resource.Label(r))}
+	wait := &resourceWait{out: o, text: txt.Text(resourceWaitingPrefix + change.ResourceLabel(r))}
 	if task, err := taskScope(ctx); err == nil && task.out == o {
 		wait.taskID = task.id
 	}
 	return wait
 }
 
-func (w *resourceWait) show(resource.Claim) {
+func (w *resourceWait) show(change.Claim) {
 	if w.taskID == "" {
 		return
 	}
@@ -149,10 +149,10 @@ var (
 	// stack: a goroutine the claim holder starts and then Waits from is not
 	// caught, and can deadlock. Pass the held context instead, and never
 	// Wait from a goroutine spawned while holding a resource.
-	ErrNestedResourceAcquisition = resource.ErrNested
+	ErrNestedResourceAcquisition = change.ErrNestedResourceAcquisition
 	// ErrInvalidResource is returned when a Resource names nothing: an
 	// empty path or logical name.
-	ErrInvalidResource = resource.ErrInvalid
+	ErrInvalidResource = change.ErrInvalidResource
 )
 
 // resourceWaitingPrefix opens the live activity a Task shows while one of

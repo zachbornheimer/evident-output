@@ -1195,11 +1195,11 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/resource",
+        "pkg": "./internal/change",
         "run": "TestHoldNestedAcquisitionFailsDirectly"
       },
       {
-        "pkg": "./internal/resource",
+        "pkg": "./internal/change",
         "run": "TestHoldNestedAcquisitionFailsThroughHelpers"
       },
       {
@@ -1216,11 +1216,11 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/resource",
+        "pkg": "./internal/change",
         "run": "TestKeyOverlap"
       },
       {
-        "pkg": "./internal/resource",
+        "pkg": "./internal/change",
         "run": "TestResolveFSSymlinkAliasSharesIdentity"
       },
       {
@@ -1237,11 +1237,11 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/resource",
+        "pkg": "./internal/change",
         "run": "TestKeyOverlap"
       },
       {
-        "pkg": "./internal/resource",
+        "pkg": "./internal/change",
         "run": "TestResolveLogicalTrimsSurroundingSpace"
       }
     ],
@@ -1254,11 +1254,11 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/resource",
+        "pkg": "./internal/change",
         "run": "TestHoldCompatibleClaimsOverlap"
       },
       {
-        "pkg": "./internal/resource",
+        "pkg": "./internal/change",
         "run": "TestHoldConflictingClaimsExclude"
       }
     ],

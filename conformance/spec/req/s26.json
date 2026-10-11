@@ -65,7 +65,7 @@
         "run": "TestHoldResource_UncontendedProducesNoOutput"
       },
       {
-        "pkg": "./internal/resource",
+        "pkg": "./internal/change",
         "run": "TestHoldUncontendedNeverReportsContention"
       }
     ],
@@ -91,11 +91,11 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/resource",
+        "pkg": "./internal/change",
         "run": "TestHoldNestedAcquisitionFailsDirectly"
       },
       {
-        "pkg": "./internal/resource",
+        "pkg": "./internal/change",
         "run": "TestHoldNestedAcquisitionFailsThroughHelpers"
       }
     ],
@@ -108,11 +108,11 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./internal/resource",
+        "pkg": "./internal/change",
         "run": "TestHoldNestedAcquisitionFailsThroughHelpers"
       },
       {
-        "pkg": "./internal/resource",
+        "pkg": "./internal/change",
         "run": "TestHoldNestedAcquisitionFailsBeforeDeadlock"
       },
       {

@@ -1,4 +1,4 @@
-package resource
+package change
 
 import (
 	"context"
@@ -13,16 +13,16 @@ var contentionObservers sync.Map
 
 // newObservedRegistry is a Registry whose Hold calls report every claim
 // made to wait to observe.
-func newObservedRegistry(observe func(Claim)) *Registry {
-	r := NewRegistry()
+func newObservedRegistry(observe func(Claim)) *ClaimRegistry {
+	r := NewClaimRegistry()
 	contentionObservers.Store(r, observe)
 	return r
 }
 
 // Hold holds an already-resolved Claim for fn, the test-side counterpart of
 // HoldResource.
-func (r *Registry) Hold(ctx context.Context, c Claim, fn func(context.Context) error) error {
-	if err := CheckFree(ctx, c.String()); err != nil {
+func (r *ClaimRegistry) Hold(ctx context.Context, c Claim, fn func(context.Context) error) error {
+	if err := CheckClaimFree(ctx, c.String()); err != nil {
 		return err
 	}
 	observe, _ := contentionObservers.Load(r)

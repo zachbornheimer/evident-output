@@ -1,4 +1,4 @@
-package resource
+package change
 
 import (
 	"errors"
@@ -7,11 +7,11 @@ import (
 	"testing"
 )
 
-func fsKey(path string) Key      { return Key{space: spaceFS, name: path} }
-func logicalKey(name string) Key { return Key{space: spaceLogical, name: name} }
-func claim(k Key, m Mode) Claim  { return Claim{Key: k, Mode: m} }
-func readOf(k Key) Claim         { return claim(k, Read) }
-func writeOf(k Key) Claim        { return claim(k, Write) }
+func fsKey(path string) ResourceKey          { return ResourceKey{space: spaceFS, name: path} }
+func logicalKey(name string) ResourceKey     { return ResourceKey{space: spaceLogical, name: name} }
+func claim(k ResourceKey, m ClaimMode) Claim { return Claim{Key: k, Mode: m} }
+func readOf(k ResourceKey) Claim             { return claim(k, ClaimRead) }
+func writeOf(k ResourceKey) Claim            { return claim(k, ClaimWrite) }
 func realTempDir(t *testing.T) string {
 	t.Helper()
 	dir, err := filepath.EvalSymlinks(t.TempDir())
@@ -24,7 +24,7 @@ func realTempDir(t *testing.T) string {
 func TestKeyOverlap(t *testing.T) {
 	cases := []struct {
 		name string
-		a, b Key
+		a, b ResourceKey
 		want bool
 	}{
 		{"same fs path", fsKey("/repo/a.go"), fsKey("/repo/a.go"), true},
@@ -71,7 +71,7 @@ func TestClaimConflict(t *testing.T) {
 
 func TestResolveFSRelativeJoinsWorkspace(t *testing.T) {
 	ws := realTempDir(t)
-	got, err := Resolve(FS("pkg/../a.go"), ws)
+	got, err := ResolveResource(FSResource("pkg/../a.go"), ws)
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestResolveFSRelativeJoinsWorkspace(t *testing.T) {
 
 func TestResolveFSAbsoluteIgnoresWorkspace(t *testing.T) {
 	ws := realTempDir(t)
-	got, err := Resolve(FS(filepath.Join(ws, "x", "..", "a.go")), "/elsewhere")
+	got, err := ResolveResource(FSResource(filepath.Join(ws, "x", "..", "a.go")), "/elsewhere")
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -104,18 +104,18 @@ func TestResolveFSSymlinkAliasSharesIdentity(t *testing.T) {
 	if err := os.Symlink(real, alias); err != nil {
 		t.Fatal(err)
 	}
-	viaAlias, err := Resolve(FS("alias/missing/new.go"), ws)
+	viaAlias, err := ResolveResource(FSResource("alias/missing/new.go"), ws)
 	if err != nil {
 		t.Fatalf("Resolve alias: %v", err)
 	}
-	viaReal, err := Resolve(FS(filepath.Join(real, "missing", "new.go")), ws)
+	viaReal, err := ResolveResource(FSResource(filepath.Join(real, "missing", "new.go")), ws)
 	if err != nil {
 		t.Fatalf("Resolve real: %v", err)
 	}
 	if viaAlias != viaReal {
 		t.Fatalf("alias key %v != real key %v", viaAlias, viaReal)
 	}
-	dirViaAlias, err := Resolve(FS("alias"), ws)
+	dirViaAlias, err := ResolveResource(FSResource("alias"), ws)
 	if err != nil {
 		t.Fatalf("Resolve alias dir: %v", err)
 	}
@@ -127,8 +127,8 @@ func TestResolveFSSymlinkAliasSharesIdentity(t *testing.T) {
 func TestResolveFSPropagatesNonMissingErrors(t *testing.T) {
 	t.Parallel()
 	boom := errors.New("boom")
-	failing := resolver{evalSymlinks: func(string) (string, error) { return "", boom }}
-	if _, err := failing.resolve(FS("/a"), "/"); !errors.Is(err, boom) {
+	failing := resourceResolver{evalSymlinks: func(string) (string, error) { return "", boom }}
+	if _, err := failing.resolve(FSResource("/a"), "/"); !errors.Is(err, boom) {
 		t.Fatalf("Resolve error = %v, want wrapping %v", err, boom)
 	}
 }
@@ -139,14 +139,14 @@ func TestResolveRejectsInvalid(t *testing.T) {
 		r    Resource
 		ws   string
 	}{
-		{"empty fs path", FS(""), "/ws"},
-		{"relative fs path without absolute workspace", FS("a.go"), "."},
-		{"empty logical name", Logical("  \t"), "/ws"},
+		{"empty fs path", FSResource(""), "/ws"},
+		{"relative fs path without absolute workspace", FSResource("a.go"), "."},
+		{"empty logical name", LogicalResource("  \t"), "/ws"},
 		{"nil resource", nil, "/ws"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := Resolve(tc.r, tc.ws); !errors.Is(err, ErrInvalid) {
+			if _, err := ResolveResource(tc.r, tc.ws); !errors.Is(err, ErrInvalidResource) {
 				t.Fatalf("Resolve error = %v, want ErrInvalid", err)
 			}
 		})
@@ -154,7 +154,7 @@ func TestResolveRejectsInvalid(t *testing.T) {
 }
 
 func TestResolveLogicalTrimsSurroundingSpace(t *testing.T) {
-	got, err := Resolve(Logical("  homebrew "), "/ws")
+	got, err := ResolveResource(LogicalResource("  homebrew "), "/ws")
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -164,10 +164,10 @@ func TestResolveLogicalTrimsSurroundingSpace(t *testing.T) {
 }
 
 func TestResourceString(t *testing.T) {
-	if got := FS("go.mod").(fmtStringer).String(); got != "fs:go.mod" {
+	if got := FSResource("go.mod").(fmtStringer).String(); got != "fs:go.mod" {
 		t.Fatalf("FS String = %q", got)
 	}
-	if got := Logical("homebrew").(fmtStringer).String(); got != "logical:homebrew" {
+	if got := LogicalResource("homebrew").(fmtStringer).String(); got != "logical:homebrew" {
 		t.Fatalf("Logical String = %q", got)
 	}
 }
@@ -176,10 +176,10 @@ type fmtStringer interface{ String() string }
 
 func TestLabelIsTheCallersName(t *testing.T) {
 	for r, want := range map[Resource]string{
-		FS("./go.mod"):         "./go.mod",
-		Logical("  homebrew "): "homebrew",
+		FSResource("./go.mod"):         "./go.mod",
+		LogicalResource("  homebrew "): "homebrew",
 	} {
-		if got := Label(r); got != want {
+		if got := ResourceLabel(r); got != want {
 			t.Errorf("Label(%v) = %q, want %q", r, got, want)
 		}
 	}

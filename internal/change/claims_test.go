@@ -1,4 +1,4 @@
-package resource
+package change
 
 import (
 	"context"
@@ -21,7 +21,7 @@ type holder struct {
 	done    chan error
 }
 
-func startHolder(ctx context.Context, r *Registry, c Claim) *holder {
+func startHolder(ctx context.Context, r *ClaimRegistry, c Claim) *holder {
 	h := &holder{entered: make(chan struct{}), release: make(chan struct{}), done: make(chan error, 1)}
 	go func() {
 		h.done <- r.Hold(ctx, c, func(context.Context) error {
@@ -66,7 +66,7 @@ func (h *holder) hasEntered() bool {
 
 // contendedSignal returns a registry whose OnContended hook reports each
 // claim that had to wait, so tests observe "blocked" without sleeping.
-func contendedSignal() (*Registry, <-chan Claim) {
+func contendedSignal() (*ClaimRegistry, <-chan Claim) {
 	ch := make(chan Claim, 16)
 	return newObservedRegistry(func(c Claim) { ch <- c }), ch
 }
@@ -83,7 +83,7 @@ func awaitContended(t *testing.T, ch <-chan Claim, want Claim) {
 	}
 }
 
-func assertIdle(t *testing.T, r *Registry) {
+func assertIdle(t *testing.T, r *ClaimRegistry) {
 	t.Helper()
 	held, queued := r.occupancy()
 	if held != 0 || queued != 0 {
@@ -152,9 +152,9 @@ func TestHoldConflictingClaimsExclude(t *testing.T) {
 // Under -race any lapse in exclusion is a reported data race, and the
 // final count is exact only if no two writers ever overlapped.
 func TestHoldWriteExclusionUnderRace(t *testing.T) {
-	r := NewRegistry()
+	r := NewClaimRegistry()
 	// Every pair overlaps: each key is an ancestor or descendant of the others.
-	keys := []Key{fsKey("/repo"), fsKey("/repo/pkg"), fsKey("/repo/pkg/b.go")}
+	keys := []ResourceKey{fsKey("/repo"), fsKey("/repo/pkg"), fsKey("/repo/pkg/b.go")}
 	const workers, rounds = 8, 50
 	counter := 0
 	var wg sync.WaitGroup
@@ -183,18 +183,18 @@ func TestHoldWriteExclusionUnderRace(t *testing.T) {
 // writers correctly: readers only read the value, writers mutate it, and
 // the race detector flags any reader that overlapped a writer.
 func TestHoldReadersShareUnderRace(t *testing.T) {
-	r := NewRegistry()
+	r := NewClaimRegistry()
 	k := fsKey("/repo/state.json")
 	value := 0
 	var wg sync.WaitGroup
 	for i := range 16 {
 		wg.Go(func() {
-			mode := Read
+			mode := ClaimRead
 			if i%4 == 0 {
-				mode = Write
+				mode = ClaimWrite
 			}
 			_ = r.Hold(context.Background(), claim(k, mode), func(context.Context) error {
-				if mode == Write {
+				if mode == ClaimWrite {
 					value++
 				} else {
 					_ = value
@@ -233,7 +233,7 @@ func TestHoldQueuedWriterIsNotStarvedByLaterReaders(t *testing.T) {
 }
 
 func TestHoldNestedAcquisitionFailsDirectly(t *testing.T) {
-	r := NewRegistry()
+	r := NewClaimRegistry()
 	outer := writeOf(fsKey("/repo/a.go"))
 	for _, inner := range []Claim{readOf(fsKey("/other")), outer, writeOf(logicalKey("brew"))} {
 		t.Run(inner.String(), func(t *testing.T) {
@@ -243,7 +243,7 @@ func TestHoldNestedAcquisitionFailsDirectly(t *testing.T) {
 					ran = true
 					return nil
 				})
-				if !errors.Is(innerErr, ErrNested) {
+				if !errors.Is(innerErr, ErrNestedResourceAcquisition) {
 					t.Errorf("nested Hold error = %v, want ErrNested", innerErr)
 				}
 				return nil
@@ -261,7 +261,7 @@ func TestHoldNestedAcquisitionFailsDirectly(t *testing.T) {
 
 // saveReport is a helper a caller might write without knowing it acquires
 // a resource; its caller already holds one.
-func saveReport(ctx context.Context, r *Registry) error {
+func saveReport(ctx context.Context, r *ClaimRegistry) error {
 	return r.Hold(ctx, writeOf(fsKey("/repo/report.txt")), func(context.Context) error { return nil })
 }
 
@@ -270,13 +270,13 @@ func saveReport(ctx context.Context, r *Registry) error {
 type helperKey struct{}
 
 func TestHoldNestedAcquisitionFailsThroughHelpers(t *testing.T) {
-	r := NewRegistry()
+	r := NewClaimRegistry()
 	err := r.Hold(context.Background(), writeOf(logicalKey("db")), func(ctx context.Context) error {
 		derived, cancel := context.WithTimeout(context.WithValue(ctx, helperKey{}, "report"), time.Minute)
 		defer cancel()
 		return saveReport(derived, r)
 	})
-	if !errors.Is(err, ErrNested) {
+	if !errors.Is(err, ErrNestedResourceAcquisition) {
 		t.Fatalf("Hold error = %v, want ErrNested propagated from the helper", err)
 	}
 	assertIdle(t, r)
@@ -285,11 +285,11 @@ func TestHoldNestedAcquisitionFailsThroughHelpers(t *testing.T) {
 // Nesting is misuse across registries too: the invariant is "one resource
 // held", not "one resource per registry".
 func TestHoldNestedAcquisitionFailsAcrossRegistries(t *testing.T) {
-	a, b := NewRegistry(), NewRegistry()
+	a, b := NewClaimRegistry(), NewClaimRegistry()
 	err := a.Hold(context.Background(), readOf(logicalKey("x")), func(ctx context.Context) error {
 		return b.Hold(ctx, readOf(logicalKey("y")), func(context.Context) error { return nil })
 	})
-	if !errors.Is(err, ErrNested) {
+	if !errors.Is(err, ErrNestedResourceAcquisition) {
 		t.Fatalf("Hold error = %v, want ErrNested", err)
 	}
 }
@@ -298,7 +298,7 @@ func TestHoldNestedAcquisitionFailsAcrossRegistries(t *testing.T) {
 // other holds. Both must fail fast as misuse instead of waiting forever,
 // even though the requested resource is contended.
 func TestHoldNestedAcquisitionFailsBeforeDeadlock(t *testing.T) {
-	r := NewRegistry()
+	r := NewClaimRegistry()
 	a, b := writeOf(fsKey("/a")), writeOf(fsKey("/b"))
 	bothHeld := sync.WaitGroup{}
 	bothHeld.Add(2)
@@ -315,7 +315,7 @@ func TestHoldNestedAcquisitionFailsBeforeDeadlock(t *testing.T) {
 	for range 2 {
 		select {
 		case err := <-errs:
-			if !errors.Is(err, ErrNested) {
+			if !errors.Is(err, ErrNestedResourceAcquisition) {
 				t.Fatalf("Hold error = %v, want ErrNested", err)
 			}
 		case <-time.After(deadlockBudget):
@@ -326,7 +326,7 @@ func TestHoldNestedAcquisitionFailsBeforeDeadlock(t *testing.T) {
 }
 
 func TestHoldNestedErrorNamesBothClaims(t *testing.T) {
-	r := NewRegistry()
+	r := NewClaimRegistry()
 	err := r.Hold(context.Background(), writeOf(fsKey("/repo")), func(ctx context.Context) error {
 		return r.Hold(ctx, readOf(logicalKey("brew")), func(context.Context) error { return nil })
 	})
@@ -339,7 +339,7 @@ func TestHoldNestedErrorNamesBothClaims(t *testing.T) {
 // A context captured during a hold and reused after release carries no
 // live claim, so it may acquire again.
 func TestHoldCapturedContextAfterReleaseIsNotNested(t *testing.T) {
-	r := NewRegistry()
+	r := NewClaimRegistry()
 	var captured context.Context
 	if err := r.Hold(context.Background(), writeOf(logicalKey("a")), func(ctx context.Context) error {
 		captured = ctx
@@ -354,7 +354,7 @@ func TestHoldCapturedContextAfterReleaseIsNotNested(t *testing.T) {
 }
 
 func TestHoldReleasesAfterCallbackError(t *testing.T) {
-	r := NewRegistry()
+	r := NewClaimRegistry()
 	boom := errors.New("boom")
 	c := writeOf(fsKey("/repo/a.go"))
 	if err := r.Hold(context.Background(), c, func(context.Context) error { return boom }); !errors.Is(err, boom) {
@@ -364,7 +364,7 @@ func TestHoldReleasesAfterCallbackError(t *testing.T) {
 }
 
 func TestHoldReleasesAfterCallbackPanic(t *testing.T) {
-	r := NewRegistry()
+	r := NewClaimRegistry()
 	c := writeOf(fsKey("/repo/a.go"))
 	func() {
 		defer func() {
@@ -381,7 +381,7 @@ func TestHoldReleasesAfterCallbackPanic(t *testing.T) {
 }
 
 func TestHoldAlreadyCancelledNeverRuns(t *testing.T) {
-	r := NewRegistry()
+	r := NewClaimRegistry()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	ran := false
@@ -427,7 +427,7 @@ func TestHoldCancelledWaiterLeavesNoGhost(t *testing.T) {
 }
 
 func TestHoldCancelledDuringCallbackStillReleases(t *testing.T) {
-	r := NewRegistry()
+	r := NewClaimRegistry()
 	ctx, cancel := context.WithCancel(context.Background())
 	err := r.Hold(ctx, writeOf(fsKey("/a")), func(inner context.Context) error {
 		cancel()
@@ -452,11 +452,11 @@ func TestHoldUncontendedNeverReportsContention(t *testing.T) {
 // Nesting is reported as ErrNested even when the requested Resource would
 // not even resolve: misuse is decided before any resolution I/O.
 func TestHoldResourceNestedCheckPrecedesResolution(t *testing.T) {
-	r := NewRegistry()
-	err := r.HoldResource(context.Background(), Request{Resource: Logical("db"), Mode: Write}, func(ctx context.Context) error {
-		return r.HoldResource(ctx, Request{Resource: FS(""), Mode: Read}, func(context.Context) error { return nil })
+	r := NewClaimRegistry()
+	err := r.HoldResource(context.Background(), ClaimRequest{Resource: LogicalResource("db"), Mode: ClaimWrite}, func(ctx context.Context) error {
+		return r.HoldResource(ctx, ClaimRequest{Resource: FSResource(""), Mode: ClaimRead}, func(context.Context) error { return nil })
 	})
-	if !errors.Is(err, ErrNested) {
+	if !errors.Is(err, ErrNestedResourceAcquisition) {
 		t.Fatalf("HoldResource error = %v, want ErrNested", err)
 	}
 	assertIdle(t, r)
@@ -464,13 +464,13 @@ func TestHoldResourceNestedCheckPrecedesResolution(t *testing.T) {
 
 func TestHoldResourceResolvesAgainstWorkspace(t *testing.T) {
 	ws := realTempDir(t)
-	r := NewRegistry()
+	r := NewClaimRegistry()
 	contended := make(chan Claim, 1)
 	coarse := startHolder(context.Background(), r, writeOf(fsKey(ws)))
 	coarse.waitEntered(t)
 	done := make(chan error, 1)
 	go func() {
-		req := Request{Resource: FS("a.go"), Workspace: ws, Mode: Read, OnContended: func(c Claim) { contended <- c }}
+		req := ClaimRequest{Resource: FSResource("a.go"), Workspace: ws, Mode: ClaimRead, OnContended: func(c Claim) { contended <- c }}
 		done <- r.HoldResource(context.Background(), req, func(context.Context) error { return nil })
 	}()
 	awaitContended(t, contended, readOf(fsKey(filepath.Join(ws, "a.go"))))
@@ -482,12 +482,12 @@ func TestHoldResourceResolvesAgainstWorkspace(t *testing.T) {
 }
 
 func TestHoldResourceRejectsInvalid(t *testing.T) {
-	r := NewRegistry()
-	err := r.HoldResource(context.Background(), Request{Resource: Logical(""), Mode: Read}, func(context.Context) error {
+	r := NewClaimRegistry()
+	err := r.HoldResource(context.Background(), ClaimRequest{Resource: LogicalResource(""), Mode: ClaimRead}, func(context.Context) error {
 		t.Error("callback ran for an invalid resource")
 		return nil
 	})
-	if !errors.Is(err, ErrInvalid) {
+	if !errors.Is(err, ErrInvalidResource) {
 		t.Fatalf("HoldResource error = %v, want ErrInvalid", err)
 	}
 	assertIdle(t, r)
@@ -506,7 +506,7 @@ func TestHoldResourceRequestHookReportsItsOwnContention(t *testing.T) {
 	requestHook := make(chan Claim, 1)
 	done := make(chan error, 1)
 	go func() {
-		req := Request{Resource: Logical(name), Mode: Write, OnContended: func(c Claim) { requestHook <- c }}
+		req := ClaimRequest{Resource: LogicalResource(name), Mode: ClaimWrite, OnContended: func(c Claim) { requestHook <- c }}
 		done <- r.HoldResource(context.Background(), req, func(context.Context) error { return nil })
 	}()
 	awaitContended(t, requestHook, writeOf(key))
@@ -523,14 +523,14 @@ func TestHoldResourceRequestHookReportsItsOwnContention(t *testing.T) {
 }
 
 func TestCheckFreeReportsHeldClaim(t *testing.T) {
-	r := NewRegistry()
-	if err := CheckFree(context.Background(), "write fs:/x"); err != nil {
+	r := NewClaimRegistry()
+	if err := CheckClaimFree(context.Background(), "write fs:/x"); err != nil {
 		t.Fatalf("CheckFree on a bare context = %v, want nil", err)
 	}
 	err := r.Hold(context.Background(), readOf(logicalKey("cache")), func(held context.Context) error {
-		return CheckFree(held, "write fs:/x")
+		return CheckClaimFree(held, "write fs:/x")
 	})
-	if !errors.Is(err, ErrNested) {
+	if !errors.Is(err, ErrNestedResourceAcquisition) {
 		t.Fatalf("CheckFree while holding = %v, want ErrNested", err)
 	}
 }

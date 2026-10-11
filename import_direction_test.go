@@ -342,6 +342,7 @@ func reads(h *holder, task *record.Task, other fakeStore) {
 var dissolvedPackages = []string{
 	"internal/patch",
 	"internal/publish",
+	"internal/resource",
 }
 
 // TestDissolvedPackagesStayGone fails when a dissolved package's directory
