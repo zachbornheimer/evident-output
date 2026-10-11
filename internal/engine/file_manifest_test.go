@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
+	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // runFileTask runs one Task named name whose Define calls evo.File(spec)
@@ -77,44 +78,27 @@ func TestFileManifestBasisDriftForcesReconciliation(t *testing.T) {
 	}
 	_ = first.Close()
 
-	second := Init(Config{Isolated: true, StateDir: state})
-	t.Cleanup(func() { _ = second.Close() })
-	task := second.Task("file")
-	store, err := second.manifestFor(context.Background())
-	if err != nil {
-		t.Fatalf("open manifest: %v", err)
+	var stdout nopFlushWriter
+	second := Init(Config{Isolated: true, StateDir: state, Format: FormatJSONL, Stdout: &stdout})
+	spec2 := FileSpec{Path: path, Contents: []byte("desired"), Basis: []freshness.Fingerprint{freshness.Value("input", 2)}}
+	if err := runFileTask(t, second, "file", spec2); err != nil {
+		t.Fatalf("second run: %v", err)
 	}
-	second.mu.Lock()
-	key, _, ok := second.taskManifestKeyLocked(task.id)
-	second.mu.Unlock()
-	if !ok {
-		t.Fatal("expected a declared task")
-	}
-	priorBefore, hadPrior := store.Operation(key, 0)
-	if !hadPrior {
-		t.Fatal("expected a prior operation record from the first run")
+	if err := second.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
 	}
 
-	spec2 := FileSpec{Path: path, Contents: []byte("desired"), Basis: []freshness.Fingerprint{freshness.Value("input", 2)}}
-	basis2, err := second.observeBasis(context.Background(), spec2.Basis)
-	if err != nil {
-		t.Fatalf("observe Basis: %v", err)
+	events := decodeWireEvents(t, stdout.String())
+	if idx := indexOfType(events, wire.EventOperationSkippedCurrent); idx != -1 {
+		t.Fatalf("Basis drift must not report the operation as current, got: %v", wireEventTypes(events))
 	}
-	current, prior, reason, checkErr := second.fileConsultManifest(context.Background(), task.id, spec2, second.resolveWorkspacePath(path), basis2)
-	if checkErr != nil {
-		t.Fatalf("consult manifest: %v", checkErr)
+	started := indexOfType(events, wire.EventOperationStarted)
+	if started == -1 {
+		t.Fatalf("Basis drift must reconcile, got: %v", wireEventTypes(events))
 	}
-	if current {
-		t.Fatal("Basis drift must not report the operation as current")
+	if reason := events[started].Payload["reason"]; reason != freshness.ReasonBasisDrift {
+		t.Fatalf("freshness reason = %v, want %q (spec §38: Basis drift must be distinguishable)", reason, freshness.ReasonBasisDrift)
 	}
-	if reason != freshness.ReasonBasisDrift {
-		t.Fatalf("freshness reason = %q, want %q (spec §38: Basis drift must be distinguishable)", reason, freshness.ReasonBasisDrift)
-	}
-	if prior.DefinitionFingerprint != priorBefore.DefinitionFingerprint {
-		t.Fatalf("prior record fingerprint mismatch: got %q want %q", prior.DefinitionFingerprint, priorBefore.DefinitionFingerprint)
-	}
-	task.Define(func(ctx context.Context) error { return nil })
-	_ = task.Wait()
 }
 
 // TestFileManifestOutputDriftForcesReconciliation proves spec §11.5: a

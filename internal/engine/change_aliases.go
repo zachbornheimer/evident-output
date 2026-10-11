@@ -2,9 +2,9 @@ package engine
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/zachbornheimer/evident-output/internal/change"
+	"github.com/zachbornheimer/evident-output/internal/fs"
 )
 
 // The changes a Task's callback performs live in internal/change. Engine
@@ -12,6 +12,15 @@ import (
 // until it speaks internal/change directly.
 
 type (
+	// FileSpec declares one managed-state file resource (spec §8/§8.1).
+	FileSpec = change.FileSpec
+	// FileSet is the desired file states a Patch derived, each bound to the
+	// Basis it was derived from.
+	FileSet = change.FileSet
+	// ExecSpec declares one managed-state subprocess invocation (spec §8.4).
+	ExecSpec = change.ExecSpec
+	// ExecResult is one Exec attempt's immutable outcome (spec §8.4).
+	ExecResult = change.ExecResult
 	// EffectVerb is the closed set of imperative verbs an opaque Effect may
 	// declare. There is deliberately no write verb: file state goes through
 	// File (and Patch), never an opaque callback.
@@ -22,6 +31,15 @@ type (
 	// Resource names one unit of shared state an operation coordinates on
 	// (ZYS-840). It is sealed: only FSResource and LogicalResource make one.
 	Resource = change.Resource
+
+	// FileFS is the facade evo.File performs every filesystem inspection and
+	// mutation through, instead of the os package directly (facade rule): the
+	// real filesystem backs every production Output; a test injects a fake to
+	// script a filesystem outcome (e.g. a chmod failure) deterministically,
+	// without depending on a real disk's permission behavior.
+	FileFS = fs.FS
+	// osFileFS is FileFS's real implementation, backing every production Output.
+	osFileFS = fs.Disk
 )
 
 // The complete EffectVerb enum.
@@ -35,6 +53,23 @@ const (
 	EffectUninstall = change.EffectUninstall
 	EffectUpdate    = change.EffectUpdate
 )
+
+// File declares/reconciles one managed-state file resource; see change.File.
+func File(ctx context.Context, spec FileSpec) error { return change.File(ctx, spec) }
+
+// Files commits each desired state a Patch derived; see change.Files.
+func Files(ctx context.Context, files FileSet) error { return change.Files(ctx, files) }
+
+// Patch derives the desired file states a unified text diff describes; see
+// change.Patch.
+func Patch(ctx context.Context, diff []byte) (FileSet, error) { return change.Patch(ctx, diff) }
+
+// ApplyPatch applies a unified diff directly; see change.ApplyPatch.
+func ApplyPatch(ctx context.Context, diff []byte) error { return change.ApplyPatch(ctx, diff) }
+
+// Exec declares/reconciles one managed-state subprocess invocation; see
+// change.Exec.
+func Exec(ctx context.Context, spec ExecSpec) (ExecResult, error) { return change.Exec(ctx, spec) }
 
 // Effect performs one opaque mutation inside a Task's Define callback; see
 // change.Effect.
@@ -60,13 +95,32 @@ func FSResource(path string) Resource { return change.FSResource(path) }
 // whitespace is trimmed; names are not hierarchical.
 func LogicalResource(name string) Resource { return change.LogicalResource(name) }
 
-// Effect, PartialEffect and resource sentinels.
+// File, Exec, Patch, Effect and resource sentinels.
 var (
-	ErrEffectVerbInvalid         = change.ErrEffectVerbInvalid
-	ErrEffectObjectMissing       = change.ErrEffectObjectMissing
-	ErrEffectQuantityNotPositive = change.ErrEffectQuantityNotPositive
-	ErrEffectCallbackMissing     = change.ErrEffectCallbackMissing
-	ErrInvalidPartialEffect      = change.ErrInvalidPartialEffect
+	ErrFileSpecMissingPath           = change.ErrFileSpecMissingPath
+	ErrFileUnmanagedContentsMissing  = change.ErrFileUnmanagedContentsMissing
+	ErrFilePathIsSymlink             = change.ErrFilePathIsSymlink
+	ErrFilePathTypeMismatch          = change.ErrFilePathTypeMismatch
+	ErrFilePermissionsFailed         = change.ErrFilePermissionsFailed
+	ErrFileConflictingProducer       = change.ErrFileConflictingProducer
+	ErrExecSpecMissingExecutable     = change.ErrExecSpecMissingExecutable
+	ErrExecExecutableNotFound        = change.ErrExecExecutableNotFound
+	ErrExecNonzeroExit               = change.ErrExecNonzeroExit
+	ErrExecOutputMissingAfterSuccess = change.ErrExecOutputMissingAfterSuccess
+	ErrStaleBasis                    = change.ErrStaleBasis
+	ErrPatchMalformed                = change.ErrPatchMalformed
+	ErrPatchDoesNotApply             = change.ErrPatchDoesNotApply
+	ErrPatchUnsupported              = change.ErrPatchUnsupported
+	ErrPatchDeleteUnsupported        = change.ErrPatchDeleteUnsupported
+	ErrPatchRenameUnsupported        = change.ErrPatchRenameUnsupported
+	ErrPatchBinaryUnsupported        = change.ErrPatchBinaryUnsupported
+	ErrPatchUnsafePath               = change.ErrPatchUnsafePath
+	ErrPatchStale                    = change.ErrPatchStale
+	ErrEffectVerbInvalid             = change.ErrEffectVerbInvalid
+	ErrEffectObjectMissing           = change.ErrEffectObjectMissing
+	ErrEffectQuantityNotPositive     = change.ErrEffectQuantityNotPositive
+	ErrEffectCallbackMissing         = change.ErrEffectCallbackMissing
+	ErrInvalidPartialEffect          = change.ErrInvalidPartialEffect
 	// ErrNestedResourceAcquisition is returned, without waiting, when code
 	// already holding a resource (directly, or through any helper it passed
 	// its context to) asks for a second one, or calls Wait on a Task, Group,
@@ -83,23 +137,3 @@ var (
 	// path or logical name.
 	ErrInvalidResource = change.ErrInvalidResource
 )
-
-// Resource access modes stay internal: callers never pick a mode, the
-// operation (File, Basis, Effect) implies it.
-const (
-	resourceRead  = change.ClaimRead
-	resourceWrite = change.ClaimWrite
-)
-
-// checkResourceFree fails with ErrNestedResourceAcquisition when ctx already
-// holds a resource. Operations that may block before claiming their own
-// resource (opening the cross-process manifest lock) call it first, so a held
-// claim can never wait on anything else.
-func checkResourceFree(ctx context.Context, r Resource, mode change.ClaimMode) error {
-	return change.CheckClaimFree(ctx, fmt.Sprintf("%s %v", mode, r))
-}
-
-// holdResource holds r in mode for fn's duration; see change.Run.Hold.
-func (o *Output) holdResource(ctx context.Context, r Resource, mode change.ClaimMode, fn func(context.Context) error) error {
-	return o.changes.Hold(ctx, r, mode, fn)
-}

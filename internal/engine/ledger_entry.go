@@ -15,8 +15,8 @@ type ledgerTarget struct {
 }
 
 // resolveLedgerTarget resolves the task named by taskID to its ledger
-// target — the shared guard (open, not yet resolved) behind Effect and
-// recordLedgerEntry. err is non-nil (already recorded as misuse where the
+// target — the shared guard (open, not yet resolved) behind every change a
+// Task records. err is non-nil (already recorded as misuse where the
 // cause is not simply "the task no longer exists") when the caller should
 // record nothing further.
 func (o *Output) resolveLedgerTarget(taskID string) (ledgerTarget, error) {
@@ -35,18 +35,6 @@ func (o *Output) resolveLedgerTarget(taskID string) (ledgerTarget, error) {
 		return ledgerTarget{}, ErrAlreadyResolved
 	}
 	return ledgerTarget{owner: st, tense: record.TenseFor(o.cfg.dryRun)}, nil
-}
-
-// recordLedgerEntry resolves taskID's ledger target and records e there —
-// the entry point for File and Exec, whose rows carry no callback, so
-// there is no window between resolving and recording (compare Effect,
-// which resolves before its callback runs).
-func (o *Output) recordLedgerEntry(taskID string, e record.LedgerEntry) {
-	target, err := o.resolveLedgerTarget(taskID)
-	if err != nil {
-		return
-	}
-	o.recordResolvedEntry(taskID, target, e)
 }
 
 // recordResolvedEntry records e into target's section, conjugating the verb

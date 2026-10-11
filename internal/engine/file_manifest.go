@@ -2,20 +2,12 @@ package engine
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/record"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
-
-// ErrFileConflictingProducer is returned when two Tasks in one Run both
-// claim the same canonical File output path (spec §8.3/§11.4: "more than
-// one producing operation claiming the same canonical file output in one
-// Run is a conflict").
-var ErrFileConflictingProducer = errors.New("evo: File output path already claimed by another Task in this Run")
 
 // emitManifestWarningOnce surfaces a manifest Store's safe cache-miss
 // warning (corrupt/unknown prior manifest, spec §11.3) as a run-scoped Fact
@@ -26,22 +18,6 @@ func (o *Output) emitManifestWarningOnce(w error) {
 		return
 	}
 	o.Fact("manifest", w.Error())
-}
-
-// claimManifestOutputLocked records that taskID is the producing Task for
-// canonical path, or reports ErrFileConflictingProducer when a different
-// Task already claimed it in this Run (spec §8.3/§11.4). Callers must
-// already hold o.mu.
-func (o *Output) claimManifestOutputLocked(taskID, path string) error {
-	if o.manifestClaims == nil {
-		o.manifestClaims = make(map[string]string)
-	}
-	if owner, claimed := o.manifestClaims[path]; claimed && owner != taskID {
-		return fmt.Errorf("%w: %s", ErrFileConflictingProducer, path)
-	}
-	o.manifestClaims[path] = taskID
-	o.outputBarrier().Open(path)
-	return nil
 }
 
 // taskManifestKeyLocked returns taskID's stable manifest Task key (§3.1's

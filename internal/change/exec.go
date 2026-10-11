@@ -1,4 +1,8 @@
-package engine
+// This file owns Exec: one managed-state subprocess invocation, skipped when
+// the manifest proves it current and verified against its declared Outputs
+// when it runs (spec §8.4).
+
+package change
 
 import (
 	"context"
@@ -6,10 +10,8 @@ import (
 	"fmt"
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/fs"
-	"github.com/zachbornheimer/evident-output/internal/process"
+	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/record"
-	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // ExecSpec declares one managed-state subprocess invocation (spec §8.4).
@@ -92,90 +94,74 @@ type execTarget struct {
 // captured stdout/stderr without owning capture itself (spec §8.4/ZYS-850);
 // ordinary callers that don't parse output may ignore it with
 // `_, err := evo.Exec(...)`. ctx must come from a Task's Define callback
-// (see taskScope) — Exec returns ErrNoTaskContext or ErrTaskClosed
-// otherwise, exactly as taskScope reports them (already fully descriptive
+// (see graph.ScopeOf) — Exec returns ErrNoTaskContext or ErrTaskClosed
+// otherwise, exactly as ScopeOf reports them (already fully descriptive
 // sentinels — wrapping would add nothing and would break a bare errors.Is
 // check on either).
 func Exec(ctx context.Context, spec ExecSpec) (ExecResult, error) {
-	task, scopeErr := beginOperation(ctx, fmt.Sprintf("Exec %q", spec.Executable))
+	scope, scopeErr := graph.BeginOperation[*Run](ctx, fmt.Sprintf("Exec %q", spec.Executable))
 	if scopeErr != nil {
 		return ExecResult{}, scopeErr
 	}
-	return task.out.reconcileExec(ctx, task.id, spec)
+	return scope.Owner().reconcileExec(ctx, scope.Task(), spec)
 }
 
 // reconcileExec is Exec's implementation, mirroring reconcileFile's shape
 // (spec §11.3-11.6): resolve paths, claim/settle the output freshness
 // barrier, consult the manifest for a skip, otherwise spawn and verify.
-func (o *Output) reconcileExec(ctx context.Context, taskID string, spec ExecSpec) (ExecResult, error) {
+func (r *Run) reconcileExec(ctx context.Context, id record.TaskID, spec ExecSpec) (ExecResult, error) {
 	if spec.Executable == "" {
 		return ExecResult{}, ErrExecSpecMissingExecutable
 	}
 
-	dir := o.resolveWorkspacePath(spec.Dir)
+	dir := r.resolvePath(spec.Dir)
 	outputs := resolveExecOutputs(dir, spec.Outputs)
 
-	release, claimErr := o.claimExecOutputs(taskID, outputs)
+	release, claimErr := r.claimExecOutputs(id, outputs)
 	if claimErr != nil {
 		return ExecResult{}, claimErr
 	}
 	defer release()
 
-	executablePath, resolveErr := o.resolveExecutable(spec.Executable, dir)
+	executablePath, resolveErr := resolveExecutable(spec.Executable, dir)
 	if resolveErr != nil {
 		return ExecResult{}, fmt.Errorf("evo: Exec: %w", resolveErr)
 	}
 	target := execTarget{Dir: dir, ExecutablePath: executablePath, Outputs: outputs}
 
-	eval, evalErr := o.execEvaluate(ctx, taskID, spec, target)
+	eval, evalErr := r.execEvaluate(ctx, id, spec, target)
 	if evalErr != nil {
 		return ExecResult{}, fmt.Errorf("evo: Exec: %w", evalErr)
 	}
 	if !eval.Spawns() {
 		return ExecResult{Ran: false}, nil
 	}
-	return o.execRunAndRecord(ctx, taskID, spec, target, eval)
+	return r.execRunAndRecord(ctx, id, spec, target, eval)
 }
 
 // execEvaluate resolves this call's manifest verdict and narrates it:
 // current (skip, forwarding the prior record), stale-but-dry-run (skip,
 // planning an Effect), or stale (spawn, carrying the fresh definition/Basis
 // the caller commits after a successful run).
-func (o *Output) execEvaluate(ctx context.Context, taskID string, spec ExecSpec, target execTarget) (freshness.ExecEvaluation, error) {
-	eval, consultErr := o.execConsultManifest(ctx, taskID, spec, target)
+func (r *Run) execEvaluate(ctx context.Context, id record.TaskID, spec ExecSpec, target execTarget) (freshness.ExecEvaluation, error) {
+	eval, consultErr := r.consultExec(ctx, id, spec, target)
 	if consultErr != nil {
 		return freshness.ExecEvaluation{}, consultErr
 	}
+	subject := Subject{Kind: SubjectExec, Name: spec.Executable}
 	switch eval.Disposition {
 	case freshness.ExecIsCurrent:
-		o.mu.Lock()
-		o.emitWireEventLocked(wire.EventOperationSkippedCurrent, taskID, map[string]any{
-			"kind": wire.PayloadKindExec, "executable": spec.Executable, "reason": eval.Reason,
-		})
-		o.appendManifestOperationLocked(taskID, eval.Prior)
-		o.mu.Unlock()
+		r.host.Observe(Observation{Task: id, Kind: OperationSkippedCurrent, Subject: subject, Reason: eval.Reason})
+		r.host.AppendOperation(id, eval.Prior)
 	case freshness.ExecIsPlanned:
-		o.emitExecStarted(taskID, spec, eval.Reason)
-		o.recordExecEffect(taskID, spec.Executable)
-		o.mu.Lock()
-		o.planManifestOperationLocked(taskID)
-		o.emitWireEventLocked(wire.EventOperationFinished, taskID, map[string]any{
-			"kind": wire.PayloadKindExec, "executable": spec.Executable, "changed": true,
-		})
-		o.mu.Unlock()
+		r.host.Observe(Observation{Task: id, Kind: OperationStarted, Subject: subject, Reason: eval.Reason})
+		r.recordEntry(id, record.NamedEntry("run", spec.Executable))
+		r.host.PlanOperation(id)
+		r.host.Observe(Observation{Task: id, Kind: OperationFinished, Subject: subject, Changed: true})
 	default:
-		o.emitExecStarted(taskID, spec, eval.Reason)
+		r.host.Observe(Observation{Task: id, Kind: OperationStarted, Subject: subject, Reason: eval.Reason})
 	}
 	return eval, nil
-}
-
-// emitExecStarted announces that Exec reconciles because of reason.
-func (o *Output) emitExecStarted(taskID string, spec ExecSpec, reason string) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.emitWireEventLocked(wire.EventOperationStarted, taskID, map[string]any{
-		"kind": wire.PayloadKindExec, "executable": spec.Executable, "reason": reason,
-	})
 }
 
 // execRunAndRecord spawns the child, verifies its declared Outputs after a
@@ -185,8 +171,13 @@ func (o *Output) emitExecStarted(taskID string, spec ExecSpec, reason string) {
 // exit status, even when that attempt then fails verification or exits
 // nonzero — only a spawn/cancellation failure (runErr != nil) leaves it
 // zero-valued, matching ProcessOutcome's own terminal-status semantics.
-func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecSpec, target execTarget, eval freshness.ExecEvaluation) (ExecResult, error) {
-	result, runErr := o.spawnExec(ctx, taskID, spec, target)
+func (r *Run) execRunAndRecord(ctx context.Context, id record.TaskID, spec ExecSpec, target execTarget, eval freshness.ExecEvaluation) (ExecResult, error) {
+	result, runErr := r.host.Spawn(ctx, id, SpawnCommand{
+		Path: target.ExecutablePath,
+		Args: append([]string(nil), spec.Args...),
+		Dir:  target.Dir,
+		Env:  mergedExecEnv(spec.Env),
+	})
 	if runErr != nil {
 		return ExecResult{}, fmt.Errorf("evo: Exec %q: %w", spec.Executable, runErr)
 	}
@@ -194,84 +185,18 @@ func (o *Output) execRunAndRecord(ctx context.Context, taskID string, spec ExecS
 		return result, fmt.Errorf("%w (exit %d): %s", ErrExecNonzeroExit, result.ExitCode, spec.Executable)
 	}
 
-	outputRecords, verifyErr := o.observeVerifiedExecOutputs(ctx, taskID, target.Outputs)
+	outputRecords, verifyErr := r.observeVerifiedExecOutputs(ctx, id, target.Outputs)
 	if verifyErr != nil {
 		return result, fmt.Errorf("evo: Exec %q: %w", spec.Executable, verifyErr)
 	}
 
-	o.recordExecEffect(taskID, spec.Executable)
-	rec := freshness.OperationRecord{
+	r.recordEntry(id, record.NamedEntry("run", spec.Executable))
+	r.host.AppendOperation(id, freshness.OperationRecord{
 		Kind:                  freshness.OperationKindExec,
 		DefinitionFingerprint: eval.DefinitionFingerprint,
 		Basis:                 eval.Basis,
 		Outputs:               outputRecords,
-	}
-	o.mu.Lock()
-	o.appendManifestOperationLocked(taskID, rec)
-	o.emitWireEventLocked(wire.EventOperationFinished, taskID, map[string]any{
-		"kind": wire.PayloadKindExec, "executable": spec.Executable, "changed": true,
 	})
-	o.mu.Unlock()
+	r.host.Observe(Observation{Task: id, Kind: OperationFinished, Subject: Subject{Kind: SubjectExec, Name: spec.Executable}, Changed: true})
 	return result, nil
-}
-
-// observeVerifiedExecOutputs wraps verifiedExecOutputs with one
-// tracked_resource.observed event per declared output (spec §38), mirroring
-// File's single tracked_resource.observed for its one managed path — Exec
-// has as many tracked resources as it has declared Outputs.
-func (o *Output) observeVerifiedExecOutputs(ctx context.Context, taskID string, outputs []string) ([]freshness.OutputRecord, error) {
-	for _, out := range outputs {
-		_, statErr := fs.Stat(out)
-		o.mu.Lock()
-		o.emitWireEventLocked(wire.EventTrackedResourceObserved, taskID, map[string]any{
-			"kind": wire.PayloadKindExecOutput, "path": out, "exists": statErr == nil,
-		})
-		o.mu.Unlock()
-	}
-	return verifiedExecOutputs(ctx, outputs)
-}
-
-// resolveExecutable resolves ExecSpec.Executable to an absolute path: a
-// name containing a path separator resolves against dir like a shell would
-// (spec §8.4 does not PATH-search an explicit path); a bare name is
-// resolved on PATH via the lookPath facade.
-func (o *Output) resolveExecutable(executable, dir string) (string, error) {
-	if process.IsExplicitPath(executable) {
-		return resolvePathAgainst(dir, executable), nil
-	}
-	resolved, lookErr := lookPath(executable)
-	if lookErr != nil {
-		return "", fmt.Errorf("%w: %s", ErrExecExecutableNotFound, executable)
-	}
-	return resolved, nil
-}
-
-// lookPath is the facade resolveExecutable reads PATH through, instead of
-// exec.LookPath directly (facade rule).
-var lookPath = process.LookPath
-
-// verifiedExecOutputs re-inspects every declared output after a successful
-// (exit 0) run (spec §8.4: "after exit 0 every declared output must exist
-// and fingerprint, else verification failure") and returns their tracked
-// output records.
-func verifiedExecOutputs(ctx context.Context, outputs []string) ([]freshness.OutputRecord, error) {
-	records := make([]freshness.OutputRecord, len(outputs))
-	for i, out := range outputs {
-		if _, statErr := fs.Stat(out); statErr != nil {
-			return nil, fmt.Errorf("%w: %s", ErrExecOutputMissingAfterSuccess, out)
-		}
-		digest, digestErr := freshness.PathOutputDigest(ctx, out)
-		if digestErr != nil {
-			return nil, fmt.Errorf("evo: Exec output %q: %w", out, digestErr)
-		}
-		records[i] = freshness.OutputRecord{Kind: freshness.OutputKindExec, Path: out, Digest: digest}
-	}
-	return records, nil
-}
-
-// recordExecEffect records Exec's planned (dry-run) or committed (applied)
-// Effect under taskID's own ledger section — the same routing recordFileEffect
-// uses for File (spec §8.4/§27/§51).
-func (o *Output) recordExecEffect(taskID, displayExecutable string) {
-	o.recordLedgerEntry(taskID, record.NamedEntry("run", displayExecutable))
 }

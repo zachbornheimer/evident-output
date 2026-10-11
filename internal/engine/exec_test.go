@@ -449,12 +449,9 @@ func TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput(t *testing.
 		// Wait for the producer's claim (spec: opened at claim time, before
 		// its spawn) so the consumer's check is guaranteed to find the gate
 		// already open — proving the barrier, not luck, does the blocking.
-		canonPath := out.resolveWorkspacePath(schemaPath)
+		canonPath := filepath.Clean(schemaPath)
 		for {
-			out.mu.Lock()
-			_, claimed := out.manifestClaims[canonPath]
-			out.mu.Unlock()
-			if claimed {
+			if _, opened := out.graph.Barrier(canonPath); opened {
 				break
 			}
 			time.Sleep(time.Millisecond)

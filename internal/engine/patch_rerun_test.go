@@ -35,7 +35,7 @@ func TestPatchRerunRejectsASourceThatIsNotTheResult(t *testing.T) {
 	_, out := patchWorkspace(t, map[string]string{"greeting.txt": "hello\nthere\n", "notes.txt": "other\n"})
 	set, err := runPatchTask(t, out, twoFileEditDiff)
 	if !errors.Is(err, ErrPatchDoesNotApply) {
-		t.Fatalf("err = %v (set %d files), want ErrPatchDoesNotApply", err, len(set.files))
+		t.Fatalf("err = %v (set %+v), want ErrPatchDoesNotApply", err, set)
 	}
 }
 

@@ -6,6 +6,7 @@ package change
 import (
 	"sync"
 
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/fs"
 	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/record"
@@ -24,6 +25,14 @@ type Run struct {
 	host  Host
 	graph *graph.Graph
 
+	barrier freshness.OutputBarrier
+
+	outputsMu sync.Mutex
+	// outputs records which Task first claimed each canonical File or Exec
+	// output path in this Run (spec §11.4/§8.3): a second Task claiming the
+	// same path is a producer conflict.
+	outputs map[string]record.TaskID
+
 	workspaceMu  sync.Mutex
 	workspaceDir string
 
@@ -33,12 +42,8 @@ type Run struct {
 // NewRun is the change side of the Run whose Tasks g declares, reporting
 // through host.
 func NewRun(host Host, g *graph.Graph) *Run {
-	return &Run{host: host, graph: g}
+	return &Run{host: host, graph: g, barrier: freshness.NewOutputBarrier(g)}
 }
-
-// Host is the engine around this Run, for the engine operations that have
-// not moved here yet.
-func (r *Run) Host() Host { return r.host }
 
 // Workspace is the directory relative paths resolve against, captured once
 // on first use so every relative path in this Run resolves against the same

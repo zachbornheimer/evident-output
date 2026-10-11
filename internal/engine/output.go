@@ -130,10 +130,6 @@ type Output struct {
 	// taskFreshness remembers each Task's declared inputs, observed Basis,
 	// pending operation records and Verify checks.
 	taskFreshness *freshness.TaskTable
-	// manifestClaims records which Task first claimed each canonical File/
-	// Exec output path in this Run (spec §11.4/§8.3): a second Task
-	// claiming the same path is a producer conflict.
-	manifestClaims map[string]string
 }
 
 func newOutput(subject string, options ...Option) *Output {

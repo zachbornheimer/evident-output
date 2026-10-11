@@ -49,6 +49,14 @@ func runHoldingResource(held context.Context, fn func(context.Context) error) er
 	return fn(held)
 }
 
+// checkResourceFree fails with ErrNestedResourceAcquisition when ctx already
+// holds a resource. Operations that may block before claiming their own
+// resource (opening the cross-process manifest lock) call it first, so a held
+// claim can never wait on anything else.
+func checkResourceFree(ctx context.Context, res Resource, mode ClaimMode) error {
+	return CheckClaimFree(ctx, fmt.Sprintf("%s %v", mode, res))
+}
+
 // validateResource resolves res without claiming it, so a dry run rejects an
 // invalid Resource exactly like an applied run does.
 func (r *Run) validateResource(res Resource) error {

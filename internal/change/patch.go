@@ -1,4 +1,7 @@
-package engine
+// This file owns Patch: deriving the desired file states a unified diff
+// describes, without mutating anything.
+
+package change
 
 import (
 	"context"
@@ -8,30 +11,11 @@ import (
 	"io/fs"
 	"slices"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
+	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
+	"github.com/zachbornheimer/evident-output/internal/graph"
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
-
-// FileSet is the desired file states a Patch derived, each bound to the
-// Basis (source fingerprint) it was derived from. It is opaque on purpose:
-// there is no way to take the desired contents out without their Basis,
-// so a stale-write guard can never be stripped before commit.
-type FileSet struct {
-	files []desiredFile
-}
-
-// desiredFile is one derived state: the workspace file the diff named,
-// the desired bytes and permission bits (0 leaves the mode alone), the
-// observed source identity they derive from, and the identity of the edit
-// that derived them.
-type desiredFile struct {
-	target   workspaceFile
-	contents []byte
-	mode     fs.FileMode
-	basis    freshness.FingerprintValue
-	edit     freshness.BasisRecord
-	standard bool // planned by ApplyPatch: missing parents are created
-}
 
 // patchEditBasisKind is the manifest Basis kind that records which edit a
 // Patch-derived File applied, so a later Run can tell its own earlier
@@ -40,29 +24,10 @@ const patchEditBasisKind = "patch-edit"
 
 // editRecord is edit's identity as the Basis record its derived File
 // operation carries.
-func editRecord(path string, edit change.FileEdit) freshness.BasisRecord {
+func editRecord(path string, edit FileEdit) freshness.BasisRecord {
 	identity := edit.Identity()
 	return freshness.BasisRecord{Kind: patchEditBasisKind, Key: path, Digest: hex.EncodeToString(identity[:])}
 }
-
-// Patch errors. Every unsupported form wraps ErrPatchUnsupported.
-var (
-	// ErrPatchMalformed is a diff that is not a readable unified diff.
-	ErrPatchMalformed = change.ErrPatchMalformed
-	// ErrPatchDoesNotApply is a diff whose context does not match the
-	// current source, a creation over an existing file, or a modification
-	// of a missing one.
-	ErrPatchDoesNotApply = change.ErrPatchDoesNotApply
-	// ErrPatchUnsupported is any patch form that cannot reduce to a
-	// desired regular-file state.
-	ErrPatchUnsupported = change.ErrPatchUnsupported
-	// ErrPatchDeleteUnsupported is a patch that deletes a file.
-	ErrPatchDeleteUnsupported = change.ErrPatchDeleteUnsupported
-	// ErrPatchRenameUnsupported is a patch that renames or copies a file.
-	ErrPatchRenameUnsupported = change.ErrPatchRenameUnsupported
-	// ErrPatchBinaryUnsupported is a binary patch.
-	ErrPatchBinaryUnsupported = change.ErrPatchBinaryUnsupported
-)
 
 // Patch derives the desired file states a unified text diff describes,
 // without mutating anything. ctx must come from a Task's Define callback.
@@ -70,21 +35,21 @@ var (
 // Basis recorded for it is the identity of exactly the bytes the hunks
 // were applied to (an absent file's Basis is its observed absence).
 func Patch(ctx context.Context, diff []byte) (FileSet, error) {
-	task, err := beginOperation(ctx, "Patch")
-	if err != nil {
-		return FileSet{}, err
+	scope, beginErr := graph.BeginOperation[*Run](ctx, "Patch")
+	if beginErr != nil {
+		return FileSet{}, beginErr
 	}
-	return task.out.derivePatch(ctx, task.id, diff)
+	return scope.Owner().derivePatch(ctx, scope.Task(), diff)
 }
 
-func (o *Output) derivePatch(ctx context.Context, taskID string, diff []byte) (FileSet, error) {
-	edits, parseErr := change.ParsePatch(diff)
+func (r *Run) derivePatch(ctx context.Context, id record.TaskID, diff []byte) (FileSet, error) {
+	edits, parseErr := ParsePatch(diff)
 	if parseErr != nil {
 		return FileSet{}, parseErr
 	}
 	files := make([]desiredFile, 0, len(edits))
 	for _, edit := range edits {
-		desired, deriveErr := o.deriveFile(ctx, taskID, edit)
+		desired, deriveErr := r.deriveFile(ctx, id, edit)
 		if deriveErr != nil {
 			return FileSet{}, fmt.Errorf("evo: Patch %q: %w", edit.Path, deriveErr)
 		}
@@ -95,15 +60,16 @@ func (o *Output) derivePatch(ctx context.Context, taskID string, diff []byte) (F
 
 // deriveFile observes edit's source under a read claim on its path and
 // applies edit to exactly the bytes observed.
-func (o *Output) deriveFile(ctx context.Context, taskID string, edit change.FileEdit) (desiredFile, error) {
-	target := workspaceFile{root: o.workspace(), rel: edit.Path}
+func (r *Run) deriveFile(ctx context.Context, id record.TaskID, edit FileEdit) (desiredFile, error) {
+	target := workspaceFile{root: r.Workspace(), rel: edit.Path}
 	path := target.path()
 	var source observedSource
-	claimErr := o.holdResource(ctx, FSResource(path), resourceRead, func(context.Context) error {
-		if parentErr := target.checkParents(o.fileFS()); parentErr != nil {
+	claimErr := r.Hold(ctx, FSResource(path), ClaimRead, func(context.Context) error {
+		fsys := r.host.FS()
+		if parentErr := target.checkParents(fsys); parentErr != nil {
 			return parentErr
 		}
-		observed, observeErr := observeSource(o.fileFS(), path)
+		observed, observeErr := observeSource(fsys, path)
 		source = observed
 		return observeErr
 	})
@@ -112,7 +78,7 @@ func (o *Output) deriveFile(ctx context.Context, taskID string, edit change.File
 	}
 	identity := editRecord(path, edit)
 	contents, applyErr := desiredContents(edit, source, path, func() bool {
-		return o.taskLastLeft(ctx, taskID, source.basis, identity)
+		return r.taskLastLeft(ctx, id, source.basis, identity)
 	})
 	if applyErr != nil {
 		return desiredFile{}, applyErr
@@ -127,7 +93,7 @@ func (o *Output) deriveFile(ctx context.Context, taskID string, edit change.File
 // apply fails and the reverse matches (patch -N), or when source matches
 // both sides and resultOfLastRun confirms these bytes are what this
 // Task's previous Run left there by applying this same edit.
-func desiredContents(edit change.FileEdit, source observedSource, path string, resultOfLastRun func() bool) ([]byte, error) {
+func desiredContents(edit FileEdit, source observedSource, path string, resultOfLastRun func() bool) ([]byte, error) {
 	applied := source.exists && edit.AppliedTo(source.contents)
 	switch {
 	case !edit.Create && !source.exists:
@@ -149,18 +115,16 @@ func desiredContents(edit change.FileEdit, source observedSource, path string, r
 	return forward, nil
 }
 
-// taskLastLeft reports whether taskID's previous Run recorded observed as
-// the output an operation of edit left at observed's path: the manifest's
-// proof that the bytes there are this Task's own earlier result of this
-// same edit, not of a different diff that happened to leave them.
-func (o *Output) taskLastLeft(ctx context.Context, taskID string, observed freshness.FingerprintValue, edit freshness.BasisRecord) bool {
-	store, openErr := o.manifestFor(ctx)
+// taskLastLeft reports whether id's previous Run recorded observed as the
+// output an operation of edit left at observed's path: the manifest's proof
+// that the bytes there are this Task's own earlier result of this same edit,
+// not of a different diff that happened to leave them.
+func (r *Run) taskLastLeft(ctx context.Context, id record.TaskID, observed freshness.FingerprintValue, edit freshness.BasisRecord) bool {
+	store, openErr := r.host.Manifest(ctx)
 	if openErr != nil {
 		return false
 	}
-	o.mu.Lock()
-	key, _, ok := o.taskManifestKeyLocked(taskID)
-	o.mu.Unlock()
+	key, _, ok := r.host.TaskManifest(id)
 	if !ok {
 		return false
 	}
@@ -189,7 +153,7 @@ type observedSource struct {
 // observeSource reads path read-only. Only a regular file or an absent
 // path can be a patch source; a symlink or other type fails as it does for
 // File.
-func observeSource(fsys FileFS, path string) (observedSource, error) {
+func observeSource(fsys sysfs.FS, path string) (observedSource, error) {
 	info, exists, inspectErr := inspectFilePath(fsys, path)
 	if inspectErr != nil {
 		return observedSource{}, inspectErr

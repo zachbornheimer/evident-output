@@ -8,12 +8,12 @@ import (
 )
 
 // This file is the engine's side of the interfaces freshness declares: the
-// manifest session's location, the read claims, and the output barrier.
+// manifest session's location and the manifest it opens.
 
 // manifestConfig names the manifest this Run reads: the configured
 // application id and state directory, scoped to the Run's workspace.
 func (o *Output) manifestConfig() freshness.ManifestConfig {
-	return freshness.ManifestConfig{AppID: o.cfg.appID, StateDir: o.cfg.stateDir, Workspace: o.workspace()}
+	return freshness.ManifestConfig{AppID: o.cfg.appID, StateDir: o.cfg.stateDir, Workspace: o.changes.Workspace()}
 }
 
 // manifestFor returns this Run's manifest Store, opening it on first use
@@ -34,17 +34,4 @@ func (o *Output) runModeLocked() freshness.RunMode {
 		return freshness.RunPlans
 	}
 	return freshness.RunApplies
-}
-
-// observeBasis fingerprints basis for one tracked operation (spec §11.1)
-// under read claims on each path (ZYS-840): the Run's changes hold them,
-// as freshness asks.
-func (o *Output) observeBasis(ctx context.Context, basis []freshness.Fingerprint) ([]freshness.BasisRecord, error) {
-	return freshness.ObserveBasis(ctx, o.changes, basis)
-}
-
-// outputBarrier is the freshness gates the scheduler keeps for this Run
-// (spec §11.6).
-func (o *Output) outputBarrier() freshness.OutputBarrier {
-	return freshness.NewOutputBarrier(o.graph)
 }

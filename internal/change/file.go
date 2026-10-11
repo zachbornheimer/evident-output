@@ -1,15 +1,18 @@
-package engine
+// This file owns File: one managed-state file reconciled against its desired
+// contents and mode (spec §8.2).
+
+package change
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io/fs"
 	"path/filepath"
 
-	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
+	"github.com/zachbornheimer/evident-output/internal/graph"
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 // FileSpec declares one managed-state file resource (spec §8/§8.1).
@@ -59,33 +62,14 @@ var (
 // (spec §8.2's reconciliation algorithm): inspect the existing path safely,
 // no-op when every managed attribute already matches, otherwise write
 // replacement contents and/or chmod, then re-verify. ctx must come from a
-// Task's Define callback (see taskScope) — File returns ErrNoTaskContext or
-// ErrTaskClosed otherwise.
+// Task's Define callback (see graph.ScopeOf) — File returns ErrNoTaskContext
+// or ErrTaskClosed otherwise.
 func File(ctx context.Context, spec FileSpec) error {
-	task, err := beginOperation(ctx, fmt.Sprintf("File %q", spec.Path))
-	if err != nil {
-		return err
+	scope, beginErr := graph.BeginOperation[*Run](ctx, fmt.Sprintf("File %q", spec.Path))
+	if beginErr != nil {
+		return beginErr
 	}
-	return task.out.reconcileFile(ctx, task.id, spec)
-}
-
-// DryRun reports whether this Output is configured for dry-run/preview
-// tense — the same flag evo.Effect and evo.File render by.
-func (o *Output) DryRun() bool {
-	if o == nil {
-		return false
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.cfg.dryRun
-}
-
-// fileFS returns the facade File performs filesystem I/O through — real
-// os calls in ordinary use, a scripted fake under test (facade rule).
-func (o *Output) fileFS() FileFS {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.cfg.fileFS
+	return scope.Owner().reconcileFile(ctx, scope.Task(), spec)
 }
 
 // fileVerificationDetails builds this reconcile's per-attribute evidence
@@ -94,91 +78,45 @@ func (o *Output) fileFS() FileFS {
 // Satisfied with no Facts; permissions' chmod failure is VerificationError
 // with the Facts spec §8.2's worked example nests under it — the operation
 // (error), the target (path), and the mode that failed to apply.
-func fileVerificationDetails(contentsManaged, modeManaged bool, chmodErr error, displayPath string, mode fs.FileMode) []core.VerificationDetail {
-	var details []core.VerificationDetail
+func fileVerificationDetails(contentsManaged, modeManaged bool, chmodErr error, displayPath string, mode fs.FileMode) []record.VerificationDetail {
+	var details []record.VerificationDetail
 	if contentsManaged {
-		details = append(details, core.VerificationDetail{Name: "contents", Status: core.VerificationSatisfied})
+		details = append(details, record.VerificationDetail{Name: "contents", Status: record.VerificationSatisfied})
 	}
 	switch {
 	case !modeManaged:
 		// Mode unmanaged: no "permissions" attribute to report on at all.
 	case chmodErr != nil:
-		details = append(details, core.VerificationDetail{
+		details = append(details, record.VerificationDetail{
 			Name:   "permissions",
-			Status: core.VerificationError,
-			Facts: []core.Fact{
+			Status: record.VerificationError,
+			Facts: []record.Fact{
 				{Name: "error", Value: chmodErr.Error()},
 				{Name: "path", Value: displayPath},
 				{Name: "mode", Value: fmt.Sprintf("%#o", mode.Perm())},
 			},
 		})
 	default:
-		details = append(details, core.VerificationDetail{Name: "permissions", Status: core.VerificationSatisfied})
+		details = append(details, record.VerificationDetail{Name: "permissions", Status: record.VerificationSatisfied})
 	}
 	return details
 }
 
-// resolveWorkspacePath resolves a possibly-relative FileSpec.Path against
-// the workspace directory captured once for this Output (spec §8.1: "the
-// Run's workspace directory captured once at Run start; changing process
-// CWD later does not retarget an operation").
-func (o *Output) resolveWorkspacePath(path string) string {
-	return resolvePathAgainst(o.workspace(), path)
+// resolvePath resolves a possibly-relative path against the workspace
+// directory captured once for this Run (spec §8.1: "the Run's workspace
+// directory captured once at Run start; changing process CWD later does not
+// retarget an operation").
+func (r *Run) resolvePath(path string) string {
+	return resolvePathAgainst(r.Workspace(), path)
 }
 
 // resolvePathAgainst resolves path against base: an absolute path is
 // cleaned and returned as-is (base never applies), a relative path
 // (including empty, which resolves to base itself) joins base. Shared by
-// File's workspace-relative Path (resolveWorkspacePath) and Exec's
-// dir-relative Outputs (spec §8.4).
+// File's workspace-relative Path and Exec's dir-relative Outputs (spec §8.4).
 func resolvePathAgainst(base, path string) string {
 	if filepath.IsAbs(path) {
 		return filepath.Clean(path)
 	}
 	return filepath.Join(base, path)
-}
-
-// workspace is the directory relative paths in this Run resolve against.
-func (o *Output) workspace() string { return o.changes.Workspace() }
-
-// fileNeedsContentWrite reports whether Contents must be (re)written for
-// the file to match spec: unmanaged Contents never triggers a write; a
-// missing file with managed Contents always does; an existing file needs
-// one only when its current bytes differ from the desired ones.
-func fileNeedsContentWrite(fsys FileFS, path string, exists, contentsManaged bool, desired []byte) (bool, error) {
-	if !contentsManaged {
-		return false, nil
-	}
-	if !exists {
-		return true, nil
-	}
-	current, err := readExisting(fsys, path)
-	if err != nil {
-		return false, err
-	}
-	return !bytes.Equal(current, desired), nil
-}
-
-// readExisting reads path. A mode of 0000 is unreadable, so an existing
-// file that denies the read is opened by adding owner-read, then its mode
-// is put back before the caller decides whether to rewrite. The rewrite
-// itself still uses the original mode, so an unmanaged 0000 stays 0000.
-func readExisting(fsys FileFS, path string) ([]byte, error) {
-	current, err := fsys.ReadFile(path)
-	if err == nil || !errors.Is(err, fs.ErrPermission) {
-		return current, err
-	}
-	info, statErr := fsys.Lstat(path)
-	if statErr != nil {
-		return nil, err
-	}
-	original := info.Mode() & inheritedModeBits
-	if chmodErr := fsys.Chmod(path, original|ownerRead); chmodErr != nil {
-		return nil, err
-	}
-	current, readErr := fsys.ReadFile(path)
-	if chmodErr := fsys.Chmod(path, original); chmodErr != nil && readErr == nil {
-		return nil, chmodErr
-	}
-	return current, readErr
 }

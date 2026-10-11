@@ -7,9 +7,8 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
-
-	"github.com/zachbornheimer/evident-output/internal/freshness"
 )
 
 // patchWorkspace is a temp workspace and an Output whose relative paths
@@ -126,66 +125,6 @@ func TestPatchPerformsNoWorkspaceMutation(t *testing.T) {
 	assertTreeUnchanged(t, before, treeSnapshot(t, dir))
 }
 
-func TestPatchOneFileDerivesDesiredStateWithSourceBasis(t *testing.T) {
-	dir, out := patchWorkspace(t, map[string]string{"greeting.txt": "hello\nworld\n"})
-	set, err := runPatchTask(t, out, modifyGreetingDiff)
-	if err != nil {
-		t.Fatalf("Patch: %v", err)
-	}
-	if len(set.files) != 1 {
-		t.Fatalf("got %d desired files", len(set.files))
-	}
-	assertDesired(t, set.files[0], desiredFile{
-		target: workspaceFile{root: dir, rel: "greeting.txt"}, contents: []byte("hello\nthere\n"),
-	})
-	assertBasisMatchesFSPath(t, set.files[0])
-}
-
-func TestPatchMultiFileDerivesEachDesiredStateWithSourceBasis(t *testing.T) {
-	dir, out := patchWorkspace(t, docsWorkspace)
-	set, err := runPatchTask(t, out, twoFileDiff)
-	if err != nil {
-		t.Fatalf("Patch: %v", err)
-	}
-	if len(set.files) != 2 {
-		t.Fatalf("got %d desired files", len(set.files))
-	}
-	assertDesired(t, set.files[0], desiredFile{
-		target: workspaceFile{root: dir, rel: "greeting.txt"}, contents: []byte("hello\nthere\n"),
-	})
-	created := filepath.Join(dir, "docs", "new.md")
-	assertDesired(t, set.files[1], desiredFile{
-		target: workspaceFile{root: dir, rel: filepath.Join("docs", "new.md")}, contents: []byte("# New\n"), mode: 0o644,
-	})
-	for _, f := range set.files {
-		assertBasisMatchesFSPath(t, f)
-	}
-	if set.files[1].basis != freshness.ObservedMissing(created) {
-		t.Fatalf("a created file's Basis must be its observed absence, got %+v", set.files[1].basis)
-	}
-}
-
-func assertDesired(t *testing.T, got, want desiredFile) {
-	t.Helper()
-	if got.target != want.target || string(got.contents) != string(want.contents) || got.mode != want.mode {
-		t.Fatalf("desired file = {%+v %q %v}, want {%+v %q %v}",
-			got.target, got.contents, got.mode, want.target, want.contents, want.mode)
-	}
-}
-
-// assertBasisMatchesFSPath proves the recorded Basis is the source's
-// current FSPath identity, so a later revalidation compares like with like.
-func assertBasisMatchesFSPath(t *testing.T, f desiredFile) {
-	t.Helper()
-	want, err := freshness.FSPath(f.target.path()).Fingerprint(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if f.basis != want {
-		t.Fatalf("Basis for %s = %+v, want FSPath identity %+v", f.target.path(), f.basis, want)
-	}
-}
-
 func TestPatchUnsupportedFormsFailExplicitly(t *testing.T) {
 	cases := map[string]struct {
 		diff string
@@ -202,7 +141,7 @@ func TestPatchUnsupportedFormsFailExplicitly(t *testing.T) {
 			if !errors.Is(err, tc.want) || !errors.Is(err, ErrPatchUnsupported) {
 				t.Fatalf("err = %v, want %v", err, tc.want)
 			}
-			if len(set.files) != 0 {
+			if !reflect.DeepEqual(set, FileSet{}) {
 				t.Fatal("a failed Patch returned desired files")
 			}
 		})

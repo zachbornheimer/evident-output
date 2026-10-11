@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/change"
 )
 
 // renderDefine runs one Task whose Define body is body and returns the
@@ -20,6 +22,16 @@ func renderDefine(t *testing.T, body func(ctx context.Context) error) (string, e
 	return buf.String(), waitErr
 }
 
+// holdIn holds res in mode for fn, through the Run whose Define callback
+// ctx belongs to.
+func holdIn(ctx context.Context, res Resource, mode change.ClaimMode, fn func(context.Context) error) error {
+	scope, err := runOf(ctx)
+	if err != nil {
+		return err
+	}
+	return scope.Owner().Hold(ctx, res, mode, fn)
+}
+
 // A short uncontended acquisition is an implementation detail: the
 // rendering must be byte-identical to the same task with no resource at
 // all.
@@ -32,42 +44,34 @@ func TestHoldResource_UncontendedProducesNoOutput(t *testing.T) {
 	if bare == "" {
 		t.Fatal("bare task rendered nothing; the comparison would be vacuous")
 	}
-	var out *Output
-	held, err := renderDefine(t, func(ctx context.Context) error {
-		scoped, scopeErr := taskScope(ctx)
-		if scopeErr != nil {
-			return scopeErr
-		}
-		out = scoped.out
-		return out.holdResource(ctx, FSResource(dir), resourceWrite, func(context.Context) error { return nil })
+	held := false
+	rendered, err := renderDefine(t, func(ctx context.Context) error {
+		return holdIn(ctx, FSResource(dir), change.ClaimWrite, func(context.Context) error {
+			held = true
+			return nil
+		})
 	})
 	if err != nil {
 		t.Fatalf("holding task: %v", err)
 	}
-	if out == nil {
-		t.Fatal("holdResource never ran")
+	if !held {
+		t.Fatal("the claimed work never ran")
 	}
-	if held != bare {
-		t.Fatalf("uncontended acquisition changed the rendering:\n--- bare ---\n%s\n--- held ---\n%s", bare, held)
+	if rendered != bare {
+		t.Fatalf("uncontended acquisition changed the rendering:\n--- bare ---\n%s\n--- held ---\n%s", bare, rendered)
 	}
 }
 
 // writeAudit is the kind of helper a callback calls without knowing it
 // acquires a resource of its own.
-func writeAudit(ctx context.Context, out *Output) error {
-	return out.holdResource(ctx, LogicalResource("audit-log"), resourceWrite, func(context.Context) error { return nil })
+func writeAudit(ctx context.Context) error {
+	return holdIn(ctx, LogicalResource("audit-log"), change.ClaimWrite, func(context.Context) error { return nil })
 }
 
 func TestHoldResource_NestedThroughHelperIsMisuse(t *testing.T) {
 	dir := t.TempDir()
 	_, err := renderDefine(t, func(ctx context.Context) error {
-		scoped, scopeErr := taskScope(ctx)
-		if scopeErr != nil {
-			return scopeErr
-		}
-		return scoped.out.holdResource(ctx, FSResource(dir), resourceRead, func(held context.Context) error {
-			return writeAudit(held, scoped.out)
-		})
+		return holdIn(ctx, FSResource(dir), change.ClaimRead, writeAudit)
 	})
 	if !errors.Is(err, ErrNestedResourceAcquisition) {
 		t.Fatalf("task error = %v, want ErrNestedResourceAcquisition", err)
@@ -76,11 +80,7 @@ func TestHoldResource_NestedThroughHelperIsMisuse(t *testing.T) {
 
 func TestHoldResource_InvalidResourceIsReported(t *testing.T) {
 	_, err := renderDefine(t, func(ctx context.Context) error {
-		scoped, scopeErr := taskScope(ctx)
-		if scopeErr != nil {
-			return scopeErr
-		}
-		return scoped.out.holdResource(ctx, LogicalResource(""), resourceRead, func(context.Context) error { return nil })
+		return holdIn(ctx, LogicalResource(""), change.ClaimRead, func(context.Context) error { return nil })
 	})
 	if !errors.Is(err, ErrInvalidResource) {
 		t.Fatalf("task error = %v, want ErrInvalidResource", err)

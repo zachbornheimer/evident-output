@@ -1,4 +1,4 @@
-package engine
+package change
 
 import (
 	"errors"
@@ -6,6 +6,8 @@ import (
 	"io/fs"
 	"path/filepath"
 	"strings"
+
+	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 )
 
 // workspaceFile is a patch target: the workspace root it was resolved
@@ -24,7 +26,7 @@ func (w workspaceFile) path() string { return filepath.Join(w.root, w.rel) }
 // ErrPatchUnsupported (git apply: "beyond a symbolic link"); a missing or
 // non-directory parent fails with ErrPatchDoesNotApply, because Patch
 // never creates directories.
-func (w workspaceFile) checkParents(fsys FileFS) error {
+func (w workspaceFile) checkParents(fsys sysfs.FS) error {
 	dir := filepath.Dir(w.rel)
 	if dir == "." {
 		return nil
@@ -52,7 +54,7 @@ func (w workspaceFile) checkParents(fsys FileFS) error {
 // parent is ErrPatchUnsafePath, a non-directory parent does not apply, and
 // a missing parent is fine because Patch creates it (nothing below a
 // missing directory exists to inspect).
-func (w workspaceFile) checkStandardParents(fsys FileFS) error {
+func (w workspaceFile) checkStandardParents(fsys sysfs.FS) error {
 	dir := filepath.Dir(w.rel)
 	if dir == "." {
 		return nil
