@@ -83,6 +83,12 @@ func panicError(recovered any) error {
 type consumerFrame struct {
 	task      *Task
 	predating map[GoroutineID]struct{}
+	// known is what the goroutine is known to have started, as of when the
+	// work began or when the Task it lent its slot to last ended: a claim
+	// that begins while no goroutine has started since needs no new dump to
+	// learn what the goroutine had started (see startedBeforeClaim). A
+	// goroutine that nested work started and left running is not in it.
+	known startedGoroutines
 }
 
 // started reports whether the work in f started goroutine child, which the
@@ -93,21 +99,37 @@ func (f consumerFrame) started(child GoroutineID) bool {
 	return !predates
 }
 
+// knownStartedBy is what the work innermost on goroutine id knows the
+// goroutine to have started, and false when the goroutine runs no work.
+func (g *Graph) knownStartedBy(id GoroutineID) (startedGoroutines, bool) {
+	g.lockRead()
+	defer g.unlockRead()
+	stack := g.exec.consumers[id]
+	if len(stack) == 0 {
+		return startedGoroutines{}, false
+	}
+	return stack[len(stack)-1].known, true
+}
+
 // enterConsumer names the Task (or container builder gate) whose callback the
 // calling goroutine is running, so a Computed read can ask whether that
 // consumer is ordered after the producer. Go has no goroutine-local storage
 // and a read takes no context, so the scheduler records it per goroutine.
 // predating is the goroutines the calling goroutine had started before the
-// work began (see predatingGoroutines). The returned func ends the entry.
-func (g *Graph) enterConsumer(t *Task, predating map[GoroutineID]struct{}) (leave func()) {
+// work began (see startedBeforeClaim). The returned func ends the entry, and
+// tells the work beneath it, if any, what the goroutine had started when the
+// entry began.
+func (g *Graph) enterConsumer(t *Task, predating startedGoroutines) (leave func()) {
 	id := CurrentGoroutine()
 	g.lock()
 	if g.exec.consumers == nil {
 		g.exec.consumers = make(map[GoroutineID][]consumerFrame)
 	}
-	g.exec.consumers[id] = append(g.exec.consumers[id], consumerFrame{task: t, predating: predating})
+	g.exec.consumers[id] = append(g.exec.consumers[id], consumerFrame{task: t, predating: predating.ids, known: predating})
 	g.unlock()
 	return func() {
+		ended := startedGoroutines{ids: predating.ids}
+		ended.created, ended.counted = goroutinesCreated()
 		g.lock()
 		defer g.unlock()
 		stack := g.exec.consumers[id]
@@ -115,6 +137,7 @@ func (g *Graph) enterConsumer(t *Task, predating map[GoroutineID]struct{}) (leav
 			delete(g.exec.consumers, id)
 			return
 		}
+		stack[len(stack)-2].known = ended
 		g.exec.consumers[id] = stack[:len(stack)-1]
 	}
 }

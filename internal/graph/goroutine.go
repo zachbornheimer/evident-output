@@ -64,8 +64,10 @@ func goroutinesCreated() (uint64, bool) {
 }
 
 // goroutinesStartedBy is every goroutine alive now that root started,
-// directly or through others, read from a fresh dump of every goroutine.
-func goroutinesStartedBy(root GoroutineID) map[GoroutineID]struct{} {
+// directly or through others. It is read from the last dump of every
+// goroutine while the process has started none since, and from a fresh one
+// otherwise.
+func goroutinesStartedBy(root GoroutineID) startedGoroutines {
 	return processLineage.descendantsOf(root)
 }
 

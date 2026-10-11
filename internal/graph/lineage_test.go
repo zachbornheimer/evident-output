@@ -124,14 +124,14 @@ func TestLineageDescendantsAreWhatARootStartedThroughOthers(t *testing.T) {
 	defer close(tr.exitChild)
 	defer close(tr.exitParent)
 
-	underParent := l.descendantsOf(tr.parent)
+	underParent := l.descendantsOf(tr.parent).ids
 	if _, ok := underParent[tr.child]; !ok {
 		t.Fatalf("descendantsOf(parent) = %v, want the child %d", underParent, tr.child)
 	}
 	if _, ok := underParent[tr.parent]; ok {
 		t.Fatalf("descendantsOf(parent) = %v lists the parent itself", underParent)
 	}
-	if underChild := l.descendantsOf(tr.child); len(underChild) != 0 {
+	if underChild := l.descendantsOf(tr.child).ids; len(underChild) != 0 {
 		t.Fatalf("descendantsOf(child) = %v, want none: the child started no goroutine", underChild)
 	}
 }
@@ -189,7 +189,7 @@ func TestLineageDescendantsSeeAGoroutineStartedSinceTheLastDump(t *testing.T) {
 	go func() { started <- CurrentGoroutine(); <-stop }()
 	child := <-started
 
-	if _, ok := l.descendantsOf(self)[child]; !ok {
+	if _, ok := l.descendantsOf(self).ids[child]; !ok {
 		t.Fatalf("descendantsOf(self) misses goroutine %d, started after the last dump", child)
 	}
 }

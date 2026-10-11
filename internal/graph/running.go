@@ -22,17 +22,6 @@ const (
 	mayPredateClaim
 )
 
-// predatingGoroutines is the goroutines the calling goroutine had started,
-// directly or through others, when work of its own began (see
-// mayPredateClaim): none when own says the work started them all. Listing
-// them stops the world, so it is called before any lock is taken.
-func predatingGoroutines(own goroutineOwnership) map[GoroutineID]struct{} {
-	if own != mayPredateClaim {
-		return nil
-	}
-	return goroutinesStartedBy(CurrentGoroutine())
-}
-
 // runTrackedCallback runs fn while the scheduler knows which goroutine is
 // running it, so a goroutine fn starts and then parks in a wait can be traced
 // back to the callback it may be holding still.

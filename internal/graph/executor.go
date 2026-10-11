@@ -215,7 +215,7 @@ func (g *Graph) execute(c *claim, own goroutineOwnership) {
 	if !c.began {
 		return
 	}
-	defer g.enterConsumer(c.task, predatingGoroutines(own))()
+	defer g.enterConsumer(c.task, g.startedBeforeClaim(own))()
 	if c.task.IsGate() {
 		g.runGate(c)
 		return
