@@ -1,4 +1,7 @@
-package engine
+// This file owns PartialEffect: how an Effect callback reports that it
+// committed part of its aggregate before failing.
+
+package change
 
 import (
 	"errors"
@@ -67,17 +70,17 @@ func claimPartialEffect(err error) *partialEffect {
 // a PartialEffect, or carries one another Effect already consumed,
 // committed nothing. An invalid PartialEffect yields ErrInvalidPartialEffect (still
 // wrapping the cause) and zero, so no invented count reaches the ledger.
-func (s EffectSpec) committedOf(err error) (int, error) {
-	p := claimPartialEffect(err)
+func (s EffectSpec) committedOf(callbackErr error) (int, error) {
+	p := claimPartialEffect(callbackErr)
 	if p == nil {
-		return 0, err
+		return 0, callbackErr
 	}
 	switch {
 	case p.cause == nil:
 		return 0, fmt.Errorf("%w: %s %q: nil cause", ErrInvalidPartialEffect, s.Verb, s.Object)
 	case p.committed < 0 || p.committed > s.Quantity:
 		return 0, fmt.Errorf("%w: %s %q: committed %d of %d: %w",
-			ErrInvalidPartialEffect, s.Verb, s.Object, p.committed, s.Quantity, err)
+			ErrInvalidPartialEffect, s.Verb, s.Object, p.committed, s.Quantity, callbackErr)
 	}
-	return p.committed, err
+	return p.committed, callbackErr
 }

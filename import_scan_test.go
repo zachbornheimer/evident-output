@@ -204,6 +204,41 @@ func localPackageName(spec *ast.ImportSpec, importPath string) string {
 	return path.Base(importPath)
 }
 
+// claimHolderNames are the names by which code holds a claim or reports one
+// held: the registry's HoldResource, and the sensor graph.ProcessHolds the
+// code that grants a claim reports into.
+var claimHolderNames = map[string]bool{
+	"HoldResource": true,
+	"ProcessHolds": true,
+}
+
+// claimHolds parses file and reports each selection of a claimHolderNames
+// name ("file:line:col call Name") and each method or function the file
+// declares under the name HoldResource ("file:line:col declaration Name"):
+// a second registry beside the one in internal/change.
+func claimHolds(file string) ([]string, error) {
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, file, nil, 0)
+	if err != nil {
+		return nil, fmt.Errorf("parse: %w", err)
+	}
+	var found []string
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.SelectorExpr:
+			if claimHolderNames[node.Sel.Name] {
+				found = append(found, fset.Position(node.Sel.Pos()).String()+" call "+node.Sel.Name)
+			}
+		case *ast.FuncDecl:
+			if node.Name.Name == "HoldResource" {
+				found = append(found, fset.Position(node.Name.Pos()).String()+" declaration "+node.Name.Name)
+			}
+		}
+		return true
+	})
+	return found, nil
+}
+
 // recordMutatorPrefixes begin the name of every method that writes run truth
 // into package record.
 var recordMutatorPrefixes = []string{

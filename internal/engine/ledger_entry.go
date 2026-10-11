@@ -7,12 +7,6 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
-// entry is s's ledger row for quantity objects: s.Quantity for a
-// committed Effect, the committed subset for a PartialEffect.
-func (s EffectSpec) entry(quantity int) record.LedgerEntry {
-	return record.CountedEntry(string(s.Verb), s.Object, quantity)
-}
-
 // ledgerTarget is where a Task's ledger rows go: the Task that owns the
 // section, and the tense the run records in.
 type ledgerTarget struct {

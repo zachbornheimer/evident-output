@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/graph"
@@ -115,7 +116,7 @@ func (t *TaskHandle) Define(fn func(context.Context) error) *TaskHandle {
 // Verify-less Define always has.
 func (t *TaskHandle) runDefine(verifiers []freshness.Verifier, fn func(context.Context) error) error {
 	o := t.out
-	scope := graph.NewScope(o.graph, record.TaskID(t.id), o)
+	scope := graph.NewScope(o.graph, record.TaskID(t.id), o.changes)
 
 	if current, basisErr := t.basisIsCurrent(o.Context()); basisErr != nil {
 		t.failScheduled(basisErr.Error())
@@ -164,7 +165,7 @@ func (t *TaskHandle) runDefine(verifiers []freshness.Verifier, fn func(context.C
 // registered Verify must now hold, or, with none, tracked operations
 // supply the After phase. It returns the carrier error when the Task
 // already failed.
-func (t *TaskHandle) checkAfterDefine(verifiers []freshness.Verifier, scope *graph.Scope[*Output]) error {
+func (t *TaskHandle) checkAfterDefine(verifiers []freshness.Verifier, scope *graph.Scope[*change.Run]) error {
 	o := t.out
 	switch {
 	case !t.hasPostStateToVerify():

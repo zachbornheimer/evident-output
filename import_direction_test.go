@@ -337,6 +337,58 @@ func reads(h *holder, task *record.Task, other fakeStore) {
 	}
 }
 
+// TestOnlyChangeHoldsClaims fails when any production file outside
+// internal/change selects HoldResource or graph.ProcessHolds, or declares a
+// HoldResource of its own. change owns the one claim registry and is the only
+// code that reports a held claim to the scheduler's hold sensor, so a second
+// holder would let two Runs of this process disagree about who owns a path.
+// The tests of other packages may build fixtures around claims.
+func TestOnlyChangeHoldsClaims(t *testing.T) {
+	violations, _, err := scanProductionFiles(".", func(dir string) bool {
+		return skipHiddenAndTestdata(dir) || dir == changePackage
+	}, claimHolds)
+	if err != nil {
+		t.Fatalf("scan module: %v", err)
+	}
+	if len(violations) > 0 {
+		t.Errorf("%d claim holds outside %s:\n  %s",
+			len(violations), changePackage, strings.Join(violations, "\n  "))
+	}
+}
+
+// TestClaimHoldScanRecognisesTheShapes pins what the claim guard flags and
+// what it leaves alone.
+func TestClaimHoldScanRecognisesTheShapes(t *testing.T) {
+	const source = `package probe
+
+type registry struct{}
+
+func (registry) HoldResource() {}
+
+func holds(r registry) {
+	r.HoldResource()
+	defer graph.ProcessHolds().Enter().Leave()
+	r.HoldRead()
+}
+`
+	file := path.Join(t.TempDir(), "probe.go")
+	if err := os.WriteFile(file, []byte(source), 0o600); err != nil {
+		t.Fatalf("write probe: %v", err)
+	}
+	found, err := claimHolds(file)
+	if err != nil {
+		t.Fatalf("scan probe: %v", err)
+	}
+	var got []string
+	for _, hit := range found {
+		got = append(got, hit[strings.Index(hit, " ")+1:])
+	}
+	want := []string{"declaration HoldResource", "call HoldResource", "call ProcessHolds"}
+	if !slices.Equal(got, want) {
+		t.Errorf("flagged %v, want %v", got, want)
+	}
+}
+
 // dissolvedPackages are the packages whose contents became part of
 // internal/change. None may exist again, and nothing may import one.
 var dissolvedPackages = []string{

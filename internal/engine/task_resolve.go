@@ -112,8 +112,8 @@ func (t *TaskHandle) resolveScheduled(state EntityState, summary string, problem
 // and both still owe the reader `! already mutated: …`. The separator is
 // the resolving goroutine's own stack: callbackDepth is non-zero only
 // inside a task callback, which is precisely "the row resolved itself".
-func deniesItsOwnEffect(st *taskState, state EntityState, authority graph.Authority) bool {
-	if st.effectsInFlight == 0 || st.node.Phase() != graph.PhaseRunning || authority != graph.ByCaller || state == Done {
+func (o *Output) deniesItsOwnEffect(st *taskState, state EntityState, authority graph.Authority) bool {
+	if !o.changes.EffectInFlight(record.TaskID(st.id)) || st.node.Phase() != graph.PhaseRunning || authority != graph.ByCaller || state == Done {
 		return false
 	}
 	return graph.CallbackDepth() > 0
@@ -143,8 +143,8 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		t.out.recordAlreadyResolvedLocked(st.name, summary)
 		return t
 	}
-	if deniesItsOwnEffect(st, state, authority) {
-		st.effectDenials++
+	if t.out.deniesItsOwnEffect(st, state, authority) {
+		t.out.changes.DenyEffect(record.TaskID(st.id))
 	}
 	if admission.Verdict == graph.Proposed {
 		return t

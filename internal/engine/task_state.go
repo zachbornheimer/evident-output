@@ -87,14 +87,6 @@ type taskState struct {
 	// Task whose own row already says the same thing.
 	synthetic bool
 
-	// effectDenials counts the times this task's own mutation callback
-	// resolved the row as something other than Done while an Effect ran, so
-	// that Effect's work must not reach the ledger (see deniesItsOwnEffect).
-	// Every in-flight Effect compares it at entry and exit.
-	effectDenials int
-	// effectsInFlight counts evo.Effect callbacks currently running for this
-	// task; a non-Done resolution while one runs disowns that Effect.
-	effectsInFlight int
 	// plainStream is what plain progressive streaming already emitted for
 	// this still-Running standalone task.
 	plainStream plainStreamMark

@@ -138,22 +138,8 @@ func resolvePathAgainst(base, path string) string {
 	return filepath.Join(base, path)
 }
 
-// workspace lazily captures and caches the process working
-// directory the first time any operation needs it, so every relative path
-// in this Run resolves against the same snapshot even if the process CWD
-// later changes.
-func (o *Output) workspace() string {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if o.workspaceDir == "" {
-		dir, err := getwd()
-		if err != nil {
-			dir = "."
-		}
-		o.workspaceDir = dir
-	}
-	return o.workspaceDir
-}
+// workspace is the directory relative paths in this Run resolve against.
+func (o *Output) workspace() string { return o.changes.Workspace() }
 
 // fileNeedsContentWrite reports whether Contents must be (re)written for
 // the file to match spec: unmanaged Contents never triggers a write; a

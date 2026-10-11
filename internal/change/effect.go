@@ -1,4 +1,7 @@
-package engine
+// This file owns Effect: one opaque mutation inside a Task's Define callback,
+// recorded in the ledger as planned or changed.
+
+package change
 
 import (
 	"context"
@@ -6,31 +9,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/graph"
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
-
-// EffectVerb is the closed set of imperative verbs an opaque Effect may
-// declare. There is deliberately no write verb: file state goes through
-// File (and Patch), never an opaque callback.
-type EffectVerb string
-
-// The complete EffectVerb enum.
-const (
-	EffectAdd       EffectVerb = core.EffectVerbAdd
-	EffectCreate    EffectVerb = core.EffectVerbCreate
-	EffectDelete    EffectVerb = core.EffectVerbDelete
-	EffectInstall   EffectVerb = core.EffectVerbInstall
-	EffectPush      EffectVerb = core.EffectVerbPush
-	EffectRemove    EffectVerb = core.EffectVerbRemove
-	EffectUninstall EffectVerb = core.EffectVerbUninstall
-	EffectUpdate    EffectVerb = core.EffectVerbUpdate
-)
-
-// valid reports whether v is one of the declared EffectVerb constants.
-func (v EffectVerb) valid() bool {
-	_, ok := core.EffectVerbConstant(string(v))
-	return ok
-}
 
 // EffectSpec describes one aggregate opaque mutation Evo cannot model as
 // desired state (a Git ref deletion, a remote push, an API-side change).
@@ -60,47 +41,50 @@ var (
 	ErrEffectCallbackMissing     = errors.New("evo: Effect requires a non-nil callback")
 )
 
-// Effect performs one opaque mutation inside a Task's Define callback
-// (ctx must come from one; see taskScope). A dry run records one planned
+// Effect performs one opaque mutation inside a Task's Define callback (ctx
+// must come from one; see graph.ScopeOf). A dry run records one planned
 // Effect and never invokes fn. An apply run invokes fn with ctx — the
 // scheduler-owned context — and records the changed Effect only when fn
 // returns nil; fn's error is returned unchanged so Define can return it,
 // except that a PartialEffect records its committed subset first (see
 // recordPartialEffect) and an invalid one wraps ErrInvalidPartialEffect. A
 // callback that resolved its own task as anything but Done (Skipped, Fail,
-// Block) disowned the work, so nothing reaches the ledger (see
-// deniesItsOwnEffect).
+// Block) disowned the work, so nothing reaches the ledger.
 func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error) error {
-	task, err := beginOperation(ctx, fmt.Sprintf("Effect %s %q", spec.Verb, spec.Object))
-	if err != nil {
-		return err
+	scope, beginErr := graph.BeginOperation[*Run](ctx, fmt.Sprintf("Effect %s %q", spec.Verb, spec.Object))
+	if beginErr != nil {
+		return beginErr
 	}
-	if err := spec.validate(fn); err != nil {
-		return err
+	return scope.Owner().effect(ctx, scope.Task(), spec, fn)
+}
+
+func (r *Run) effect(ctx context.Context, id record.TaskID, spec EffectSpec, fn func(context.Context) error) error {
+	if invalid := spec.validate(fn); invalid != nil {
+		return invalid
 	}
-	// Resolve the ledger target once, before fn runs: an interrupt that
-	// cancels the row while fn runs describes work that really happened,
-	// and the reader is still owed "! already mutated: ...".
-	target, err := task.out.resolveLedgerTarget(task.id)
-	if err != nil {
-		return err
+	// Resolve the ledger once, before fn runs: an interrupt that cancels the
+	// row while fn runs describes work that really happened, and the reader
+	// is still owed "! already mutated: ...".
+	ledger, ledgerErr := r.host.Ledger(id)
+	if ledgerErr != nil {
+		return ledgerErr
 	}
-	if target.tense == tenseChanged {
-		disowned, err := task.out.runEffectCallback(ctx, task.id, func(ctx context.Context) error {
-			return task.out.performEffect(ctx, spec.Resource, fn)
+	if ledger.Applies() {
+		disowned, callbackErr := r.runEffectCallback(ctx, id, func(ctx context.Context) error {
+			return r.performEffect(ctx, spec.Resource, fn)
 		})
-		if err != nil {
-			return task.out.recordPartialEffect(task.id, target, spec, err)
+		if callbackErr != nil {
+			return recordPartialEffect(ledger, spec, callbackErr)
 		}
 		if disowned {
 			return nil
 		}
 	} else if spec.Resource != nil {
-		if err := task.out.validateResource(spec.Resource); err != nil {
-			return err
+		if resourceErr := r.validateResource(spec.Resource); resourceErr != nil {
+			return resourceErr
 		}
 	}
-	task.out.recordResolvedEntry(task.id, target, spec.entry(spec.Quantity))
+	ledger.Record(spec.entry(spec.Quantity))
 	return nil
 }
 
@@ -109,26 +93,26 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 // recorded as changed (the original Verb/Object, Quantity=committed) before
 // the error is returned, so the Task fails over a truthful ledger. The
 // callback's own verdict on its row does not erase work it says committed.
-func (o *Output) recordPartialEffect(taskID string, target ledgerTarget, spec EffectSpec, err error) error {
-	committed, err := spec.committedOf(err)
+func recordPartialEffect(ledger Ledger, spec EffectSpec, callbackErr error) error {
+	committed, effectErr := spec.committedOf(callbackErr)
 	if committed > 0 {
-		o.recordResolvedEntry(taskID, target, spec.entry(committed))
+		ledger.Record(spec.entry(committed))
 	}
-	return err
+	return effectErr
 }
 
-// performEffect invokes fn, holding r for writing when the Effect claims
-// one. fn receives the holding context, so tracked work inside it that
-// would need a second resource fails as nested acquisition.
-func (o *Output) performEffect(ctx context.Context, r Resource, fn func(context.Context) error) error {
-	if r == nil {
+// performEffect invokes fn, holding res for writing when the Effect claims
+// one. fn receives the holding context, so tracked work inside it that would
+// need a second resource fails as nested acquisition.
+func (r *Run) performEffect(ctx context.Context, res Resource, fn func(context.Context) error) error {
+	if res == nil {
 		return fn(ctx)
 	}
-	return o.holdResource(ctx, r, resourceWrite, fn)
+	return r.Hold(ctx, res, ClaimWrite, fn)
 }
 
-// validate rejects a content-free Effect: one with no known verb, no
-// object, no positive quantity, or no callback to perform it.
+// validate rejects a content-free Effect: one with no known verb, no object,
+// no positive quantity, or no callback to perform it.
 func (s EffectSpec) validate(fn func(context.Context) error) error {
 	switch {
 	case !s.Verb.valid():
@@ -143,6 +127,12 @@ func (s EffectSpec) validate(fn func(context.Context) error) error {
 	return nil
 }
 
+// entry is s's ledger row for quantity objects: s.Quantity for a committed
+// Effect, the committed subset for a PartialEffect.
+func (s EffectSpec) entry(quantity int) record.LedgerEntry {
+	return record.CountedEntry(string(s.Verb), s.Object, quantity)
+}
+
 // runEffectCallback invokes an Effect's fn with the task marked as having an
 // Effect in flight, and reports whether the work was disowned: the task
 // resolved itself as anything but Done from inside a callback while fn ran.
@@ -152,23 +142,8 @@ func (s EffectSpec) validate(fn func(context.Context) error) error {
 // denial from any of them disowns every Effect in flight at that moment:
 // their rows record nothing, matching the task's own "I handled it"
 // verdict.
-func (o *Output) runEffectCallback(ctx context.Context, taskID string, fn func(context.Context) error) (disowned bool, err error) {
-	o.mu.Lock()
-	st := o.taskStates[taskID]
-	var deniedAtEntry int
-	if st != nil {
-		st.effectsInFlight++
-		deniedAtEntry = st.effectDenials
-	}
-	o.mu.Unlock()
-	defer func() {
-		o.mu.Lock()
-		defer o.mu.Unlock()
-		if st == nil {
-			return
-		}
-		st.effectsInFlight--
-		disowned = st.effectDenials != deniedAtEntry
-	}()
+func (r *Run) runEffectCallback(ctx context.Context, id record.TaskID, fn func(context.Context) error) (disowned bool, err error) {
+	deniedAtEntry := r.effects.enter(id)
+	defer func() { disowned = r.effects.exit(id, deniedAtEntry) }()
 	return false, fn(ctx)
 }

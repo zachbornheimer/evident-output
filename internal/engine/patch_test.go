@@ -28,9 +28,7 @@ func patchWorkspace(t *testing.T, files map[string]string) (string, *Output) {
 	}
 	out := Init(Config{Isolated: true, StateDir: t.TempDir()})
 	t.Cleanup(func() { _ = out.Close() })
-	out.mu.Lock()
-	out.workspaceDir = dir
-	out.mu.Unlock()
+	out.changes.PinWorkspace(dir)
 	return dir, out
 }
 

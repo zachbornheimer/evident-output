@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/graph"
@@ -69,10 +70,9 @@ type Output struct {
 	misuseRejectedSummary string
 	live                  *liveEngine
 
-	// workspaceDir is the process working directory, captured once on first
-	// use by File (workspace in file.go) so relative paths resolve
-	// consistently even if the process CWD changes mid-Run (§8.1).
-	workspaceDir string
+	// changes performs the File, Exec, Patch and Effect operations of this
+	// Run, and owns the workspace relative paths resolve against.
+	changes *change.Run
 
 	tasks []*taskState
 	// rootTasks are the tasks outside every collection, in declaration
@@ -221,6 +221,7 @@ func newOutput(subject string, options ...Option) *Output {
 	o.manifest = freshness.NewManifestSession(o.manifestConfig)
 	o.taskFreshness = freshness.NewTaskTable()
 	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(misuseSink{o: o}), graph.WithWaitUnderClaimError(ErrNestedResourceAcquisition))
+	o.changes = change.NewRun(changeHost{out: o}, o.graph)
 	o.mu.Bind(run)
 	run.SetListener(outputListener{o: o})
 	// Stable-enough id for a process-local output instance.

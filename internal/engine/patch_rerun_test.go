@@ -16,9 +16,7 @@ func TestPatchRerunOfAppliedDiffIsSatisfied(t *testing.T) {
 	}
 	second := Init(Config{Isolated: true, StateDir: t.TempDir()})
 	t.Cleanup(func() { _ = second.Close() })
-	second.mu.Lock()
-	second.workspaceDir = dir
-	second.mu.Unlock()
+	second.changes.PinWorkspace(dir)
 	if err := runFilesTask(t, second, twoFileEditDiff, nil); err != nil {
 		t.Fatalf("run 2 = %v, want already satisfied", err)
 	}
@@ -69,9 +67,7 @@ func TestPatchAmbiguousFirstRunAppliesForward(t *testing.T) {
 	}
 	second := Init(Config{Isolated: true, StateDir: state})
 	t.Cleanup(func() { _ = second.Close() })
-	second.mu.Lock()
-	second.workspaceDir = dir
-	second.mu.Unlock()
+	second.changes.PinWorkspace(dir)
 	if err := runFilesTask(t, second, duplicateInsertionDiff, nil); err != nil {
 		t.Fatalf("run 2: %v", err)
 	}
@@ -104,9 +100,7 @@ func TestPatchAmbiguousSourceTrustsOnlyTheSameDiffsResult(t *testing.T) {
 	}
 	second := Init(Config{Isolated: true, StateDir: state})
 	t.Cleanup(func() { _ = second.Close() })
-	second.mu.Lock()
-	second.workspaceDir = dir
-	second.mu.Unlock()
+	second.changes.PinWorkspace(dir)
 	if err := runFilesTask(t, second, duplicateInsertionDiff, nil); err != nil {
 		t.Fatalf("run 2: %v", err)
 	}
