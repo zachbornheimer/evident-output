@@ -391,9 +391,9 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   look, and other goroutines ending in the same moment can hide it
   (CONTRACT §2). Attribution ends
   at a goroutine that exited before anything asked about it, and at one first
-  seen after the run's allowance of lookups: eight for each callback running,
-  shared by the callbacks running together, because the lookup that names a
-  goroutine's creator runs before the callback it speaks for is known
+  seen after the run's allowance of lookups: eight for each callback or container
+  builder running, shared by those running together, because the lookup that
+  names a goroutine's creator runs before the work it speaks for is known
   (CONTRACT §2).
 
 - In `Strict` mode, an unordered `Get` from a goroutine a callback started no

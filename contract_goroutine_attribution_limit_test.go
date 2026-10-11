@@ -20,7 +20,7 @@ func TestContractStatesWhereGoroutineAttributionEnds(t *testing.T) {
 	text := strings.Join(strings.Fields(string(body)), " ")
 	limits := []string{
 		"Attribution ends at a goroutine that exited before anything asked about it",
-		"and at one first seen after the run's bounded allowance of lookups (eight for each callback running, shared by the callbacks running together)",
+		"and at one first seen after the run's bounded allowance of lookups (eight for each callback or container builder running, shared by those running together)",
 		"A goroutine that a finished nested Task left running is told from the next nested Task's by a rise in the process's running goroutines, so it can be missed when other goroutines end in the same moment.",
 	}
 	for _, limit := range limits {
