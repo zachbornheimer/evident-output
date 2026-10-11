@@ -33,8 +33,11 @@ type executor struct {
 	// heldCallbacksLocked), and a Wait from a goroutine a builder started is
 	// refused like one from the builder (see insideBuilder).
 	runningGoroutines map[GoroutineID]goroutineLoad
-	// refreshes is how many more dumps asking about unknown creators may
-	// cost until the next callback begins (see refreshesPerCallback).
+	// loaded is how many task callbacks and container builders run right now,
+	// across every goroutine: the sum of runningGoroutines' loads.
+	loaded int
+	// refreshes is how many more dumps asking about unknown creators the run
+	// may take, earned by the work running (see refreshesPerCallback).
 	refreshes refreshBudget
 	// buildersRunning is how many container builders run right now across
 	// every goroutine: zero lets a Wait skip reading its stack for one.

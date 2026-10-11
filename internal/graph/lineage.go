@@ -41,20 +41,34 @@ func (l *lineage) completeLocked() bool {
 	return counted && l.counted && created == l.created
 }
 
-// refreshesPerCallback is how many dumps asking about unknown creators may
-// cost while one callback runs. A creator that started after the last dump is
-// unknown, and the dump that would name it cannot if it already exited, so a
-// fan-out of short-lived intermediate goroutines would pay one dump each; the
-// allowance caps the run's cost at a handful of dumps per callback, and a
-// creator still unknown past it ends the chain.
+// refreshesPerCallback is how many dumps asking about unknown creators each
+// running callback adds to what the run may take. A creator that started after
+// the last dump is unknown, and the dump that would name it cannot if it
+// already exited, so a fan-out of short-lived intermediate goroutines would
+// pay one dump each; the allowance caps the run's cost at a handful of dumps
+// per running callback, and a creator still unknown past it ends the chain.
+// The dump that names a creator is taken before the callback it speaks for is
+// known, so the callbacks running together hold the allowance together, not
+// each its own: one callback's lookups use up the others' share, but never
+// more than the running callbacks earned between them.
 const refreshesPerCallback = 8
 
 // refreshBudget is the dumps a run may still take for unknown creators (see
 // refreshesPerCallback). Its zero value allows none.
 type refreshBudget struct{ left atomic.Int64 }
 
-// refill restores the full allowance: a callback began.
-func (b *refreshBudget) refill() { b.left.Store(refreshesPerCallback) }
+// settle adds earned dumps to the budget, then trims it to the allowance of
+// the running callbacks and builders: work that finished leaves nothing behind
+// for the work still running to spend.
+func (b *refreshBudget) settle(running int, earned int64) {
+	limit := int64(running) * refreshesPerCallback
+	for {
+		left := b.left.Load()
+		if b.left.CompareAndSwap(left, min(left+earned, limit)) {
+			return
+		}
+	}
+}
 
 // take spends one dump and reports whether one was left. A nil budget has no
 // limit.

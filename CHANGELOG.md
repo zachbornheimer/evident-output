@@ -386,7 +386,11 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   lent its slot to nested work (a `Define` and `Wait` on a Task the pool has
   not started, at `MaxConcurrency` 1) stays the callback's, not the nested
   Task's, so the outcome no longer depends on the ceiling. Attribution ends
-  at a goroutine that exited before anything asked about it (CONTRACT §2).
+  at a goroutine that exited before anything asked about it, and at one first
+  seen after the run's allowance of lookups: eight for each callback running,
+  shared by the callbacks running together, because the lookup that names a
+  goroutine's creator runs before the callback it speaks for is known
+  (CONTRACT §2).
 
 - A Task `Block`ed inside a Group or Sequence now concludes `[blocked]`
   with exit 1. It concluded `[ready]` with exit 0, because the Conclusion

@@ -74,8 +74,8 @@ type starter struct {
 // child before its own work began does not count: the work did not start that
 // child. Walking starts from creator, and stops the world only when creator
 // is one nothing has asked about yet (see lineage), so every goroutine one
-// creator starts shares a single dump, and a callback's goroutines cost a
-// bounded number of dumps in all (see refreshesPerCallback); with no
+// creator starts shares a single dump, and the running callbacks' goroutines
+// cost a bounded number of dumps in all (see refreshesPerCallback); with no
 // goroutine running anything it reads nothing.
 func (g *Graph) startingGoroutine(self, creator GoroutineID) starter {
 	if creator == 0 {
@@ -104,18 +104,20 @@ func (g *Graph) startingGoroutine(self, creator GoroutineID) starter {
 }
 
 // trackRunning adds added to the calling goroutine's load, and returns the
-// func that takes it back out. A callback beginning also restores the dumps
-// asking about unknown creators may cost (see refreshesPerCallback).
+// func that takes it back out. Work beginning also earns the run the dumps
+// asking about unknown creators may cost, and work ending gives back the share
+// it held (see refreshesPerCallback).
 func (g *Graph) trackRunning(added goroutineLoad) (done func()) {
 	id := CurrentGoroutine()
-	g.exec.refreshes.refill()
 	g.lock()
 	g.addLoadLocked(id, added)
+	g.exec.refreshes.settle(g.exec.loaded, int64(added.total())*refreshesPerCallback)
 	g.unlock()
 	return func() {
 		g.lock()
 		defer g.unlock()
 		g.removeLoadLocked(id, added)
+		g.exec.refreshes.settle(g.exec.loaded, 0)
 	}
 }
 
@@ -128,6 +130,7 @@ func (g *Graph) addLoadLocked(id GoroutineID, added goroutineLoad) {
 	load.callbacks += added.callbacks
 	load.builders += added.builders
 	g.exec.buildersRunning += added.builders
+	g.exec.loaded += added.total()
 	g.exec.runningGoroutines[id] = load
 }
 
@@ -137,6 +140,7 @@ func (g *Graph) removeLoadLocked(id GoroutineID, removed goroutineLoad) {
 	load.callbacks -= removed.callbacks
 	load.builders -= removed.builders
 	g.exec.buildersRunning -= removed.builders
+	g.exec.loaded -= removed.total()
 	if load.total() <= 0 {
 		delete(g.exec.runningGoroutines, id)
 		return
