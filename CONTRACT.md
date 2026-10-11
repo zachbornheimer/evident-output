@@ -112,7 +112,12 @@ Satisfied and the callback never runs; false after a successful callback
 fails the Task. A Failed, Refused, Excluded or Cancelled predecessor leaves
 its dependents NotStarted. `Get` is valid only from work ordered after the
 producer by Sequence position or `After`; an unordered `Get` fails the run
-with `ErrComputedUnordered` in every mode. `Compute` on a Task that has a
+with `ErrComputedUnordered` in every mode. A goroutine a callback started is
+the callback's hands: its `Get` and `Wait` are judged as the callback's, as
+far as the runtime names who started it. Attribution ends at a goroutine
+that exited before anything asked about it, and at one first seen after a
+callback's bounded allowance of lookups, so a `Get` or `Wait` through such a
+goroutine is not caught. `Compute` on a Task that has a
 `Verify` is `ErrInvalidConfig` at declaration: a satisfied `Verify` skips the
 callback, so a value would exist only when the world says so. A `Build` runs
 once when its container becomes eligible, declares topology only, and closes
