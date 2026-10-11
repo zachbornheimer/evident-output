@@ -1,4 +1,4 @@
-package publish
+package change
 
 import (
 	"context"
@@ -23,7 +23,7 @@ func TestCommitOfAStageCarriedAwayIsStagedGone(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(parent, "made"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Commit(context.Background(), Guard{}); !errors.Is(err, ErrStagedGone) {
+	if err := s.Commit(context.Background(), PublishGuard{}); !errors.Is(err, ErrStagedGone) {
 		t.Fatalf("Commit of a carried-away stage = %v, want ErrStagedGone", err)
 	}
 	requireOnly(t, parent, "made")

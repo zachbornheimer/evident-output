@@ -341,6 +341,7 @@ func reads(h *holder, task *record.Task, other fakeStore) {
 // internal/change. None may exist again, and nothing may import one.
 var dissolvedPackages = []string{
 	"internal/patch",
+	"internal/publish",
 }
 
 // TestDissolvedPackagesStayGone fails when a dissolved package's directory

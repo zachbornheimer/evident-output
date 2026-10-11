@@ -1,4 +1,4 @@
-package publish
+package change
 
 import (
 	"context"
@@ -83,13 +83,13 @@ func (f recoverFixture) leftover(t *testing.T, files map[string]string) string {
 	return path
 }
 
-func (f recoverFixture) evidence() Evidence {
-	return Evidence{Original: f.original, Replacement: f.replacement, Digest: testDigest}
+func (f recoverFixture) evidence() RecoveryEvidence {
+	return RecoveryEvidence{Original: f.original, Replacement: f.replacement, Digest: testDigest}
 }
 
-func (f recoverFixture) recover(t *testing.T, ev Evidence) (Recovery, error) {
+func (f recoverFixture) recover(t *testing.T, ev RecoveryEvidence) (Recovery, error) {
 	t.Helper()
-	return Recover(context.Background(), f.dest, ev)
+	return RecoverPublish(context.Background(), f.dest, ev)
 }
 
 func requireDigest(t *testing.T, path, want string) {
@@ -101,7 +101,7 @@ func requireDigest(t *testing.T, path, want string) {
 
 func requireLeftovers(t *testing.T, dest string, want ...string) {
 	t.Helper()
-	got, err := Leftovers(dest)
+	got, err := StagingLeftovers(dest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestRecoverIntactRemovesPlannedLeftoversAndKeepsForeignOnes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Outcome != OutcomeIntact || !slices.Equal(got.Kept, []string{foreign}) {
+	if got.Outcome != RecoveryIntact || !slices.Equal(got.Kept, []string{foreign}) {
 		t.Fatalf("Recover = %+v, want Intact keeping only %s", got, foreign)
 	}
 	requireDigest(t, f.dest, f.original)
@@ -133,7 +133,7 @@ func TestRecoverCompletesAReplacementByRemovingTheOriginal(t *testing.T) {
 	plantTree(t, f.dest, replacementFiles)
 	f.leftover(t, originalFiles)
 	got, err := f.recover(t, f.evidence())
-	if err != nil || got.Outcome != OutcomeCompletedReplacement || len(got.Kept) != 0 {
+	if err != nil || got.Outcome != RecoveryCompletedReplacement || len(got.Kept) != 0 {
 		t.Fatalf("Recover = %+v, %v; want CompletedReplacement keeping nothing", got, err)
 	}
 	requireDigest(t, f.dest, f.replacement)
@@ -145,7 +145,7 @@ func TestRecoverRestoresTheOriginalOverAMissingDestination(t *testing.T) {
 	f.leftover(t, replacementFiles)
 	f.leftover(t, originalFiles)
 	got, err := f.recover(t, f.evidence())
-	if err != nil || got.Outcome != OutcomeRestoredOriginal || len(got.Kept) != 0 {
+	if err != nil || got.Outcome != RecoveryRestoredOriginal || len(got.Kept) != 0 {
 		t.Fatalf("Recover = %+v, %v; want RestoredOriginal keeping nothing", got, err)
 	}
 	requireDigest(t, f.dest, f.original)
@@ -157,7 +157,7 @@ func TestRecoverWithoutTheOriginalChangesNothing(t *testing.T) {
 	staged := f.leftover(t, replacementFiles)
 	foreign := f.leftover(t, foreignFiles)
 	got, err := f.recover(t, f.evidence())
-	if !errors.Is(err, ErrUnrecoverable) || got.Outcome != OutcomeUnrecoverable {
+	if !errors.Is(err, ErrPublishUnrecoverable) || got.Outcome != RecoveryUnrecoverable {
 		t.Fatalf("Recover = %+v, %v; want Unrecoverable", got, err)
 	}
 	if want := []string{staged, foreign}; !sameSet(got.Kept, want) {
@@ -174,7 +174,7 @@ func TestRecoverOfAForeignDestinationChangesNothing(t *testing.T) {
 	foreign := plantTree(t, f.dest, foreignFiles)
 	original := f.leftover(t, originalFiles)
 	got, err := f.recover(t, f.evidence())
-	if !errors.Is(err, ErrUnrecoverable) || got.Outcome != OutcomeUnrecoverable || !slices.Equal(got.Kept, []string{original}) {
+	if !errors.Is(err, ErrPublishUnrecoverable) || got.Outcome != RecoveryUnrecoverable || !slices.Equal(got.Kept, []string{original}) {
 		t.Fatalf("Recover = %+v, %v; want Unrecoverable keeping %s", got, err, original)
 	}
 	requireDigest(t, f.dest, foreign)
@@ -189,7 +189,7 @@ func TestRecoverWithAnUnknownReplacementKeepsWhatItCannotIdentify(t *testing.T) 
 	ev := f.evidence()
 	ev.Replacement = ""
 	got, err := f.recover(t, ev)
-	if err != nil || got.Outcome != OutcomeIntact || !slices.Equal(got.Kept, []string{staged}) {
+	if err != nil || got.Outcome != RecoveryIntact || !slices.Equal(got.Kept, []string{staged}) {
 		t.Fatalf("Recover = %+v, %v; want Intact keeping the unidentified %s", got, err, staged)
 	}
 	requireLeftovers(t, f.dest, staged)
@@ -204,7 +204,7 @@ func TestRecoverNeverRestoresThroughASymlinkLeftover(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := f.recover(t, f.evidence())
-	if !errors.Is(err, ErrUnrecoverable) || !slices.Equal(got.Kept, []string{link}) {
+	if !errors.Is(err, ErrPublishUnrecoverable) || !slices.Equal(got.Kept, []string{link}) {
 		t.Fatalf("Recover = %+v, %v; want Unrecoverable keeping the symlink", got, err)
 	}
 	if _, err := os.Lstat(f.dest); !errors.Is(err, fs.ErrNotExist) {
@@ -219,10 +219,10 @@ func TestRecoverKeepsAStageALiveWriterOwns(t *testing.T) {
 	plantTree(t, f.dest, originalFiles)
 	live := stageTree(t, f.dest, replacementFiles)
 	got, err := f.recover(t, f.evidence())
-	if err != nil || got.Outcome != OutcomeIntact || !slices.Equal(got.Kept, []string{live.Path()}) {
+	if err != nil || got.Outcome != RecoveryIntact || !slices.Equal(got.Kept, []string{live.Path()}) {
 		t.Fatalf("Recover = %+v, %v; want Intact keeping the live stage %s", got, err, live.Path())
 	}
-	if err := live.Commit(context.Background(), Guard{}); err != nil {
+	if err := live.Commit(context.Background(), PublishGuard{}); err != nil {
 		t.Fatalf("the live writer's commit after Recover = %v", err)
 	}
 	requireDigest(t, f.dest, f.replacement)
@@ -232,8 +232,8 @@ func TestPlanRecoverReportsTheDecisionAndChangesNothing(t *testing.T) {
 	f := newRecoverFixture(t)
 	staged := f.leftover(t, replacementFiles)
 	original := f.leftover(t, originalFiles)
-	got, err := PlanRecover(context.Background(), f.dest, f.evidence())
-	if err != nil || got.Outcome != OutcomeRestoredOriginal || len(got.Kept) != 0 {
+	got, err := PlanPublishRecovery(context.Background(), f.dest, f.evidence())
+	if err != nil || got.Outcome != RecoveryRestoredOriginal || len(got.Kept) != 0 {
 		t.Fatalf("PlanRecover = %+v, %v; want RestoredOriginal keeping nothing", got, err)
 	}
 	if _, err := os.Lstat(f.dest); !errors.Is(err, fs.ErrNotExist) {

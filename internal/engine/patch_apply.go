@@ -9,7 +9,6 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/publish"
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
@@ -236,21 +235,21 @@ func (o *Output) publishPatchedFile(ctx context.Context, taskID string, file des
 			mode = defaultFileMode
 		}
 	}
-	staged, stageErr := publish.StageFile(ctx, path, mode, func(w io.Writer) error {
+	staged, stageErr := change.StageFile(ctx, path, mode, func(w io.Writer) error {
 		_, writeErr := w.Write(file.contents)
 		return writeErr
 	})
 	if stageErr != nil {
 		return fmt.Errorf("evo: Patch %q: %w", file.target.rel, stageErr)
 	}
-	commitErr := staged.Commit(ctx, publish.Guard{
+	commitErr := staged.Commit(ctx, change.PublishGuard{
 		Revalidate: func(context.Context, string) error {
 			done, err := check()
 			if err != nil {
 				return err
 			}
 			if done {
-				return publish.ErrSatisfied
+				return change.ErrPublishSatisfied
 			}
 			return nil
 		},
@@ -285,7 +284,7 @@ func (o *Output) removePlanned(ctx context.Context, taskID string, removal plann
 		if err := check(ctx, path); err != nil {
 			return fmt.Errorf("evo: Patch remove %q: %w", removal.target.rel, err)
 		}
-	} else if err := publish.Remove(ctx, path, publish.Guard{Revalidate: check}); err != nil {
+	} else if err := change.RemoveGuarded(ctx, path, change.PublishGuard{Revalidate: check}); err != nil {
 		return fmt.Errorf("evo: Patch remove %q: %w", removal.target.rel, err)
 	}
 	o.recordLedgerEntry(taskID, record.NamedEntry("remove", removal.target.rel))

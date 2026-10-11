@@ -1,6 +1,6 @@
 //go:build unix
 
-package publish
+package change
 
 import (
 	"context"
@@ -56,7 +56,7 @@ func inode(t *testing.T, path string) uint64 {
 	return info.Sys().(*syscall.Stat_t).Ino
 }
 
-func publishFile(t *testing.T, dest, body string, g Guard) error {
+func publishFile(t *testing.T, dest, body string, g PublishGuard) error {
 	t.Helper()
 	s, err := StageFile(context.Background(), dest, 0o640, writeString(body))
 	if err != nil {
@@ -73,7 +73,7 @@ func TestFileCommitReplacesAtomicallyAndLeavesNoStaging(t *testing.T) {
 	}
 	before := inode(t, dest)
 	var verified string
-	g := Guard{Verify: func(_ context.Context, path string) error {
+	g := PublishGuard{Verify: func(_ context.Context, path string) error {
 		b, err := os.ReadFile(path)
 		verified = string(b)
 		return err
@@ -101,7 +101,7 @@ func TestSatisfiedRevalidationKeepsTheInode(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := inode(t, dest)
-	g := Guard{Revalidate: func(context.Context, string) error { return ErrSatisfied }}
+	g := PublishGuard{Revalidate: func(context.Context, string) error { return ErrPublishSatisfied }}
 	if err := publishFile(t, dest, "same", g); err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestFailedRevalidationPublishesNothing(t *testing.T) {
 	dir := t.TempDir()
 	dest := filepath.Join(dir, "f")
 	errStale := errors.New("stale")
-	g := Guard{Revalidate: func(context.Context, string) error { return errStale }}
+	g := PublishGuard{Revalidate: func(context.Context, string) error { return errStale }}
 	if err := publishFile(t, dest, "x", g); !errors.Is(err, errStale) {
 		t.Fatalf("Commit = %v, want errStale", err)
 	}
@@ -142,11 +142,11 @@ func TestCancelledCommitPublishesNothing(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := s.Commit(ctx, Guard{}); !errors.Is(err, context.Canceled) {
+	if err := s.Commit(ctx, PublishGuard{}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Commit(cancelled) = %v, want context.Canceled", err)
 	}
 	requireOnly(t, dir)
-	if err := s.Commit(context.Background(), Guard{}); !errors.Is(err, ErrSpent) {
+	if err := s.Commit(context.Background(), PublishGuard{}); !errors.Is(err, ErrStagedSpent) {
 		t.Fatalf("second Commit = %v, want ErrSpent", err)
 	}
 }
@@ -174,10 +174,10 @@ func stageTree(t *testing.T, dest string, files map[string]string) *Staged {
 func TestTreeCommitReplacesWholesale(t *testing.T) {
 	dir := t.TempDir()
 	dest := filepath.Join(dir, "pkg")
-	if err := stageTree(t, dest, map[string]string{"old": "1", "keep/x": "2"}).Commit(context.Background(), Guard{}); err != nil {
+	if err := stageTree(t, dest, map[string]string{"old": "1", "keep/x": "2"}).Commit(context.Background(), PublishGuard{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageTree(t, dest, map[string]string{"new": "3"}).Commit(context.Background(), Guard{}); err != nil {
+	if err := stageTree(t, dest, map[string]string{"new": "3"}).Commit(context.Background(), PublishGuard{}); err != nil {
 		t.Fatal(err)
 	}
 	requireOnly(t, dest, "new")
@@ -194,7 +194,7 @@ func TestTreeCommitOverAFileMovesItAside(t *testing.T) {
 	if err := os.WriteFile(dest, []byte("a file"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageTree(t, dest, map[string]string{"a": "1"}).Commit(context.Background(), Guard{}); err != nil {
+	if err := stageTree(t, dest, map[string]string{"a": "1"}).Commit(context.Background(), PublishGuard{}); err != nil {
 		t.Fatal(err)
 	}
 	requireOnly(t, dest, "a")
@@ -204,14 +204,14 @@ func TestTreeCommitOverAFileMovesItAside(t *testing.T) {
 func TestRemove(t *testing.T) {
 	dir := t.TempDir()
 	tree, file := filepath.Join(dir, "tree"), filepath.Join(dir, "file")
-	if err := stageTree(t, tree, map[string]string{"d/a": "1"}).Commit(context.Background(), Guard{}); err != nil {
+	if err := stageTree(t, tree, map[string]string{"d/a": "1"}).Commit(context.Background(), PublishGuard{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(file, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{tree, file, filepath.Join(dir, "absent"), filepath.Join(dir, "no", "parent")} {
-		if err := Remove(context.Background(), path, Guard{}); err != nil {
+		if err := RemoveGuarded(context.Background(), path, PublishGuard{}); err != nil {
 			t.Fatalf("Remove(%s): %v", path, err)
 		}
 	}
@@ -229,7 +229,7 @@ func TestConcurrentCommitsSerialize(t *testing.T) {
 	for i := range writers {
 		wg.Go(func() {
 			body := strings.Repeat(fmt.Sprint(i%10), 4096)
-			errs[i] = publishFile(t, dest, body, Guard{Verify: func(_ context.Context, path string) error {
+			errs[i] = publishFile(t, dest, body, PublishGuard{Verify: func(_ context.Context, path string) error {
 				got, err := os.ReadFile(path)
 				if err == nil && string(got) != body {
 					err = fmt.Errorf("verify saw another writer's content under the lock")
@@ -276,7 +276,7 @@ func destLockFile(t *testing.T, dest string) *os.File {
 func TestLockIsCrossDescriptor(t *testing.T) {
 	dir := t.TempDir()
 	dest := filepath.Join(dir, "f")
-	hold, err := Lock(context.Background(), dest)
+	hold, err := LockDestination(context.Background(), dest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,11 +302,11 @@ func TestLockWaitHonoursCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
-	if _, err := Lock(ctx, dest); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := LockDestination(ctx, dest); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Lock while another descriptor holds it = %v, want DeadlineExceeded", err)
 	}
 	_ = syscall.Flock(int(other.Fd()), syscall.LOCK_UN)
-	hold, err := Lock(context.Background(), dest)
+	hold, err := LockDestination(context.Background(), dest)
 	if err != nil {
 		t.Fatalf("Lock after release: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestTreeCommitRollsBackAFailedVerification(t *testing.T) {
 		t.Fatal(err)
 	}
 	refused := errors.New("refused")
-	err = staged.Commit(context.Background(), Guard{Verify: func(context.Context, string) error { return refused }})
+	err = staged.Commit(context.Background(), PublishGuard{Verify: func(context.Context, string) error { return refused }})
 	if !errors.Is(err, refused) {
 		t.Fatalf("Commit = %v, want the verification error", err)
 	}

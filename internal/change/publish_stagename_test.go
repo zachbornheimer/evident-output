@@ -1,42 +1,40 @@
-package stagename_test
+package change
 
 import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/zachbornheimer/evident-output/internal/publish/stagename"
 )
 
-func TestNewIsAStagingNameBesideTheDestination(t *testing.T) {
+func TestStagingNameIsAStagingNameBesideTheDestination(t *testing.T) {
 	dest := filepath.Join("some", "dir", "report.txt")
-	got := stagename.New(dest)
+	got := stagingName(dest)
 	if filepath.Dir(got) != filepath.Dir(dest) {
-		t.Fatalf("New(%q) = %q, want a sibling of the destination", dest, got)
+		t.Fatalf("stagingName(%q) = %q, want a sibling of the destination", dest, got)
 	}
-	if name := filepath.Base(got); !stagename.Is(name) {
-		t.Fatalf("New(%q) = %q, whose name is not the staging shape", dest, got)
-	}
-}
-
-func TestNewNamesAreUnpredictable(t *testing.T) {
-	dest := filepath.Join("dir", "report.txt")
-	if first, second := stagename.New(dest), stagename.New(dest); first == second {
-		t.Fatalf("New returned %q twice", first)
+	if name := filepath.Base(got); !IsStaging(name) {
+		t.Fatalf("stagingName(%q) = %q, whose name is not the staging shape", dest, got)
 	}
 }
 
-func TestNewNameCarriesTheOwnersPrefix(t *testing.T) {
+func TestStagingNamesAreUnpredictable(t *testing.T) {
 	dest := filepath.Join("dir", "report.txt")
-	if name := filepath.Base(stagename.New(dest)); !strings.HasPrefix(name, stagename.Owner(dest)) {
-		t.Fatalf("name %q lacks the owner prefix %q", name, stagename.Owner(dest))
+	if first, second := stagingName(dest), stagingName(dest); first == second {
+		t.Fatalf("stagingName returned %q twice", first)
+	}
+}
+
+func TestStagingNameCarriesTheOwnersPrefix(t *testing.T) {
+	dest := filepath.Join("dir", "report.txt")
+	if name := filepath.Base(stagingName(dest)); !strings.HasPrefix(name, stagingOwner(dest)) {
+		t.Fatalf("name %q lacks the owner prefix %q", name, stagingOwner(dest))
 	}
 }
 
 func TestOwnerBindsToTheDestinationsBaseNameOnly(t *testing.T) {
-	a := stagename.Owner(filepath.Join("one", "report.txt"))
-	b := stagename.Owner(filepath.Join("two", "report.txt"))
-	other := stagename.Owner(filepath.Join("one", "other.txt"))
+	a := stagingOwner(filepath.Join("one", "report.txt"))
+	b := stagingOwner(filepath.Join("two", "report.txt"))
+	other := stagingOwner(filepath.Join("one", "other.txt"))
 	if a != b {
 		t.Fatalf("the same base name in two directories has owners %q and %q", a, b)
 	}
@@ -45,9 +43,9 @@ func TestOwnerBindsToTheDestinationsBaseNameOnly(t *testing.T) {
 	}
 }
 
-func TestIsAcceptsOnlyTheExactShape(t *testing.T) {
-	good := filepath.Base(stagename.New("report.txt"))
-	owner := stagename.Owner("report.txt")
+func TestIsStagingAcceptsOnlyTheExactShape(t *testing.T) {
+	good := filepath.Base(stagingName("report.txt"))
+	owner := stagingOwner("report.txt")
 	random := strings.TrimSuffix(strings.TrimPrefix(good, owner), ".tmp")
 	cases := []struct {
 		name string
@@ -67,8 +65,8 @@ func TestIsAcceptsOnlyTheExactShape(t *testing.T) {
 		{"no separator", ".evo-" + strings.Repeat("a", 8) + "x" + random + ".tmp", false},
 	}
 	for _, tc := range cases {
-		if got := stagename.Is(tc.in); got != tc.want {
-			t.Errorf("%s: Is(%q) = %v, want %v", tc.name, tc.in, got, tc.want)
+		if got := IsStaging(tc.in); got != tc.want {
+			t.Errorf("%s: IsStaging(%q) = %v, want %v", tc.name, tc.in, got, tc.want)
 		}
 	}
 }

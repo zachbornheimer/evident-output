@@ -1,4 +1,7 @@
-package publish
+// This file owns staging: content prepared beside its destination, invisible
+// there until a commit publishes it.
+
+package change
 
 import (
 	"context"
@@ -11,11 +14,10 @@ import (
 	"strings"
 
 	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
-	"github.com/zachbornheimer/evident-output/internal/publish/stagename"
 )
 
-// Staging entries are private siblings of the destination (see stagename),
-// so the final rename never crosses a filesystem.
+// Staging entries are private siblings of the destination (see
+// stagingName), so the final rename never crosses a filesystem.
 const (
 	// stagingAttempts bounds the search for an unused staging name.
 	stagingAttempts = 100
@@ -29,14 +31,8 @@ const (
 	stagingDirMode fs.FileMode = 0o700
 )
 
-// ErrSpent is a Staged whose content was already committed or discarded.
-var ErrSpent = errors.New("publish: staged content already committed or discarded")
-
-// IsStaging reports whether name is exactly a publish staging entry.
-// Readers that enumerate a directory (Find, Tree.Read) and tree digests
-// skip these: they are another writer's uncommitted state, never part of
-// the tree.
-func IsStaging(name string) bool { return stagename.Is(name) }
+// ErrStagedSpent is a Staged whose content was already committed or discarded.
+var ErrStagedSpent = errors.New("publish: staged content already committed or discarded")
 
 // Staged is content prepared beside its destination and not yet visible
 // there. Commit publishes it; Discard abandons it. Exactly one of the two
@@ -211,17 +207,14 @@ func makeParents(dir string) ([]string, error) {
 	return missing, nil
 }
 
-// stagingName is a fresh staging path beside dest, owned by dest.
-func stagingName(dest string) string { return stagename.New(dest) }
-
-// Leftovers lists the staging entries beside dest that belong to it: a
+// StagingLeftovers lists the staging entries beside dest that belong to it: a
 // tree an interrupted commit staged but never published, or the original
 // a commit swapped out and had not yet deleted (Commit says which crash
 // leaves which). dest itself is always one whole tree. Presence proves
 // nothing about content: a caller identifies an original by the digest it
 // planned against, and reaps nothing while a writer of dest may still be
 // staging.
-func Leftovers(dest string) ([]string, error) {
+func StagingLeftovers(dest string) ([]string, error) {
 	abs, err := sysfs.Abs(dest)
 	if err != nil {
 		return nil, fmt.Errorf("publish: leftovers of %s: %w", dest, err)
@@ -231,7 +224,7 @@ func Leftovers(dest string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("publish: leftovers of %s: %w", abs, err)
 	}
-	owner := stagename.Owner(abs)
+	owner := stagingOwner(abs)
 	var found []string
 	for _, entry := range entries {
 		if name := entry.Name(); IsStaging(name) && strings.HasPrefix(name, owner) {

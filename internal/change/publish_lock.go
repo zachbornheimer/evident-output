@@ -1,10 +1,10 @@
-// Package publish puts a file or a whole tree at its destination
-// atomically. Content is staged in a private temporary beside the
-// destination with no lock held (download, extract, and write happen
-// there), then committed under a short destination lock: revalidate,
-// rename, verify, release. A reader sees the old state or the new one,
-// never a mix, and a failure leaves no temporaries behind.
-package publish
+// This file owns the destination lock that makes a publish atomic. Content
+// is staged in a private temporary beside the destination with no lock held,
+// then committed under a short destination lock: revalidate, rename, verify,
+// release. A reader sees the old state or the new one, never a mix, and a
+// failure leaves no temporaries behind.
+
+package change
 
 import (
 	"context"
@@ -16,21 +16,21 @@ import (
 	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 )
 
-// Hold is a held destination claim. Claims on overlapping destinations
+// DestinationHold is a held destination claim. Claims on overlapping destinations
 // (the same path, or one inside the other) exclude each other; claims on
 // disjoint destinations, siblings included, never wait for one another.
 // Across goroutines an in-process table enforces this; across processes a
 // lock file per path does (see pathLock), which the kernel releases when
 // the holder exits, so a crash leaves nothing held.
-type Hold struct {
+type DestinationHold struct {
 	key string
 	os  sysfs.PathLock
 }
 
-// Lock blocks until the destination dest may be committed, or ctx is done.
+// LockDestination blocks until the destination dest may be committed, or ctx is done.
 // dest's parent directory must exist. Hold it only for the commit itself:
 // revalidate, rename, verify.
-func Lock(ctx context.Context, dest string) (*Hold, error) {
+func LockDestination(ctx context.Context, dest string) (*DestinationHold, error) {
 	key, err := claimKey(dest)
 	if err != nil {
 		return nil, fmt.Errorf("publish: lock %s: %w", dest, err)
@@ -43,12 +43,12 @@ func Lock(ctx context.Context, dest string) (*Hold, error) {
 		localClaims.release(key)
 		return nil, fmt.Errorf("publish: lock %s: %w", key, err)
 	}
-	return &Hold{key: key, os: held}, nil
+	return &DestinationHold{key: key, os: held}, nil
 }
 
-// TryLock takes dest's claim only if no overlapping claim is held, in this
+// TryLockDestination takes dest's claim only if no overlapping claim is held, in this
 // process or another; ok is false when it would have to wait.
-func TryLock(dest string) (hold *Hold, ok bool, err error) {
+func TryLockDestination(dest string) (hold *DestinationHold, ok bool, err error) {
 	key, err := claimKey(dest)
 	if err != nil {
 		return nil, false, fmt.Errorf("publish: lock %s: %w", dest, err)
@@ -64,11 +64,11 @@ func TryLock(dest string) (hold *Hold, ok bool, err error) {
 		}
 		return nil, false, nil
 	}
-	return &Hold{key: key, os: held}, true, nil
+	return &DestinationHold{key: key, os: held}, true, nil
 }
 
 // Release drops the claim. It is safe to call more than once.
-func (h *Hold) Release() error {
+func (h *DestinationHold) Release() error {
 	if h == nil || h.key == "" {
 		return nil
 	}

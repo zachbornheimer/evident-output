@@ -1,4 +1,7 @@
-package publish
+// This file owns deciding, from the leftovers beside a destination, which
+// tree to keep.
+
+package change
 
 import (
 	"context"
@@ -22,8 +25,8 @@ type leftovers []leftover
 
 // inspectLeftovers leases and digests dest's leftovers. One whose lease a
 // live writer holds is marked live and never digested.
-func inspectLeftovers(ctx context.Context, dest string, ev Evidence) (leftovers, error) {
-	entries, err := Leftovers(dest)
+func inspectLeftovers(ctx context.Context, dest string, ev RecoveryEvidence) (leftovers, error) {
+	entries, err := StagingLeftovers(dest)
 	if err != nil {
 		return nil, err
 	}
@@ -65,31 +68,31 @@ func (found leftovers) paths() []string {
 // decision is what Recover will do: the outcome, the leftover to restore
 // to dest (if any), the ones to delete, and the ones it keeps.
 type decision struct {
-	outcome Outcome
+	outcome RecoveryOutcome
 	restore string
 	remove  []string
 	kept    []string
 }
 
 // decide settles dest from ev's digests without changing anything.
-func decide(ctx context.Context, dest string, ev Evidence, found leftovers) (decision, error) {
-	d := decision{outcome: OutcomeUnrecoverable, kept: found.paths()}
+func decide(ctx context.Context, dest string, ev RecoveryEvidence, found leftovers) (decision, error) {
+	d := decision{outcome: RecoveryUnrecoverable, kept: found.paths()}
 	tree, err := treeDigest(ctx, dest, ev)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		d.restore = found.original(ev)
 		if d.restore == "" {
-			return d, fmt.Errorf("%w: %s is absent and no leftover digests to the original", ErrUnrecoverable, dest)
+			return d, fmt.Errorf("%w: %s is absent and no leftover digests to the original", ErrPublishUnrecoverable, dest)
 		}
-		d.outcome = OutcomeRestoredOriginal
+		d.outcome = RecoveryRestoredOriginal
 	case err != nil:
-		return d, fmt.Errorf("%w: %w", ErrUnrecoverable, err)
+		return d, fmt.Errorf("%w: %w", ErrPublishUnrecoverable, err)
 	case ev.isOriginal(tree):
-		d.outcome = OutcomeIntact
+		d.outcome = RecoveryIntact
 	case ev.isReplacement(tree):
-		d.outcome = OutcomeCompletedReplacement
+		d.outcome = RecoveryCompletedReplacement
 	default:
-		return d, fmt.Errorf("%w: %s digests to %s, neither the original nor the replacement", ErrUnrecoverable, dest, tree)
+		return d, fmt.Errorf("%w: %s digests to %s, neither the original nor the replacement", ErrPublishUnrecoverable, dest, tree)
 	}
 	d.kept = nil
 	for _, l := range found {
@@ -105,7 +108,7 @@ func decide(ctx context.Context, dest string, ev Evidence, found leftovers) (dec
 }
 
 // original is the first leftover that provably holds ev.Original.
-func (found leftovers) original(ev Evidence) string {
+func (found leftovers) original(ev RecoveryEvidence) string {
 	for _, l := range found {
 		if !l.live && ev.isOriginal(l.tree) {
 			return l.path
@@ -116,10 +119,10 @@ func (found leftovers) original(ev Evidence) string {
 
 // apply carries d out: restore and re-verify the original, then delete
 // what d proved redundant. A failed restore deletes nothing.
-func (d decision) apply(ctx context.Context, dest string, ev Evidence) (Recovery, error) {
+func (d decision) apply(ctx context.Context, dest string, ev RecoveryEvidence) (Recovery, error) {
 	if d.restore != "" {
 		if err := restoreOriginal(ctx, dest, d.restore, ev); err != nil {
-			return Recovery{Outcome: OutcomeUnrecoverable, Kept: append(d.kept, d.remove...)}, err
+			return Recovery{Outcome: RecoveryUnrecoverable, Kept: append(d.kept, d.remove...)}, err
 		}
 	}
 	kept := d.kept
@@ -135,7 +138,7 @@ func (d decision) apply(ctx context.Context, dest string, ev Evidence) (Recovery
 
 // restoreOriginal renames the leftover at from back to the absent dest and
 // re-verifies it there.
-func restoreOriginal(ctx context.Context, dest, from string, ev Evidence) error {
+func restoreOriginal(ctx context.Context, dest, from string, ev RecoveryEvidence) error {
 	if err := sysfs.Rename(from, dest); err != nil {
 		return fmt.Errorf("restore original from %s: %w", from, err)
 	}
@@ -151,7 +154,7 @@ func restoreOriginal(ctx context.Context, dest, from string, ev Evidence) error 
 
 // treeDigest digests the real directory at path: fs.ErrNotExist when it is
 // absent, an error for anything that is not a directory.
-func treeDigest(ctx context.Context, path string, ev Evidence) (string, error) {
+func treeDigest(ctx context.Context, path string, ev RecoveryEvidence) (string, error) {
 	info, err := sysfs.Lstat(path)
 	if err != nil {
 		return "", err

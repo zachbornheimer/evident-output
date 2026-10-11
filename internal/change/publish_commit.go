@@ -1,4 +1,7 @@
-package publish
+// This file owns committing staged content to its destination, or removing
+// the destination, under the destination lock.
+
+package change
 
 import (
 	"context"
@@ -10,19 +13,19 @@ import (
 	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
 )
 
-// ErrSatisfied is what a Guard's Revalidate returns when the destination
+// ErrPublishSatisfied is what a Guard's Revalidate returns when the destination
 // already holds the desired state: nothing is renamed, the staged content
 // is discarded, and the commit succeeds (the destination keeps its inode).
-var ErrSatisfied = errors.New("publish: destination already satisfied")
+var ErrPublishSatisfied = errors.New("publish: destination already satisfied")
 
 // ErrStagedGone is a commit whose staged content is no longer at its
 // staging path: something that held an ancestor's lock (a parent tree's
 // commit) moved the directory it lived in. Nothing is published.
 var ErrStagedGone = errors.New("publish: staged content is gone from its staging path")
 
-// Guard is what a commit checks while it holds the destination lock. Both
+// PublishGuard is what a commit checks while it holds the destination lock. Both
 // callbacks observe the destination path; either may be nil.
-type Guard struct {
+type PublishGuard struct {
 	// Revalidate runs immediately before the rename. ErrSatisfied skips
 	// the rename; any other error abandons the commit with nothing
 	// published. This is where a caller re-proves what it decided before
@@ -34,14 +37,14 @@ type Guard struct {
 	Verify func(ctx context.Context, dest string) error
 }
 
-func (g Guard) revalidate(ctx context.Context, dest string) error {
+func (g PublishGuard) revalidate(ctx context.Context, dest string) error {
 	if g.Revalidate == nil {
 		return nil
 	}
 	return g.Revalidate(ctx, dest)
 }
 
-func (g Guard) verify(ctx context.Context, dest string) error {
+func (g PublishGuard) verify(ctx context.Context, dest string) error {
 	if g.Verify == nil {
 		return nil
 	}
@@ -72,24 +75,24 @@ func (g Guard) verify(ctx context.Context, dest string) error {
 // Where the OS has no exchange, a crash between moving the original aside
 // and renaming the new tree in leaves dest absent and the original a
 // Leftover. Faults can stop a commit at each of these Steps.
-func (s *Staged) Commit(ctx context.Context, g Guard) error {
+func (s *Staged) Commit(ctx context.Context, g PublishGuard) error {
 	if s.spent {
-		return ErrSpent
+		return ErrStagedSpent
 	}
-	reach(StepStaged, s.dest)
-	hold, err := Lock(ctx, s.dest)
+	reach(PublishStaged, s.dest)
+	hold, err := LockDestination(ctx, s.dest)
 	if err != nil {
 		_ = s.Discard()
 		return fmt.Errorf("publish: commit %s: %w", s.dest, err)
 	}
-	reach(StepLocked, s.dest)
+	reach(PublishLocked, s.dest)
 	replaced, commitErr := s.commitLocked(ctx, g)
-	reach(StepReleasing, s.dest)
+	reach(PublishReleasing, s.dest)
 	releaseErr := hold.Release()
 	if replaced != "" {
 		releaseErr = errors.Join(releaseErr, removeReplaced(replaced))
 	}
-	if errors.Is(commitErr, ErrSatisfied) {
+	if errors.Is(commitErr, ErrPublishSatisfied) {
 		return errors.Join(s.Discard(), releaseErr)
 	}
 	if commitErr != nil {
@@ -102,7 +105,7 @@ func (s *Staged) Commit(ctx context.Context, g Guard) error {
 
 // commitLocked is the part of Commit that runs under the lock. It returns
 // the path a replaced tree was moved to, for deletion after release.
-func (s *Staged) commitLocked(ctx context.Context, g Guard) (string, error) {
+func (s *Staged) commitLocked(ctx context.Context, g PublishGuard) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -124,7 +127,7 @@ func (s *Staged) commitLocked(ctx context.Context, g Guard) (string, error) {
 	}
 	s.spent = true
 	s.created = nil
-	reach(StepSwapped, s.dest)
+	reach(PublishSwapped, s.dest)
 	verifyErr := g.verify(ctx, s.dest)
 	if verifyErr == nil || !s.tree {
 		return replaced, verifyErr
@@ -191,7 +194,7 @@ func (s *Staged) moveTree() (string, error) {
 	if err := sysfs.Rename(s.dest, aside); err != nil {
 		return "", fmt.Errorf("move old entry aside: %w", err)
 	}
-	reach(StepAside, s.dest)
+	reach(PublishAside, s.dest)
 	if err := sysfs.Rename(s.temp, s.dest); err != nil {
 		if restoreErr := sysfs.Rename(aside, s.dest); restoreErr != nil {
 			// The old entry stays at aside, never deleted: it is the only copy.
@@ -210,11 +213,11 @@ func removeReplaced(path string) error {
 	return nil
 }
 
-// Remove deletes dest under its lock: revalidate, then a directory is
+// RemoveGuarded deletes dest under its lock: revalidate, then a directory is
 // renamed aside atomically and deleted after release, anything else is
 // unlinked. A missing dest (or parent) is success. Verify runs after the
 // removal, under the lock.
-func Remove(ctx context.Context, dest string, g Guard) error {
+func RemoveGuarded(ctx context.Context, dest string, g PublishGuard) error {
 	abs, err := sysfs.Abs(dest)
 	if err != nil {
 		return fmt.Errorf("publish: remove %s: %w", dest, err)
@@ -222,7 +225,7 @@ func Remove(ctx context.Context, dest string, g Guard) error {
 	if _, err := sysfs.Lstat(filepath.Dir(abs)); errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
-	hold, err := Lock(ctx, abs)
+	hold, err := LockDestination(ctx, abs)
 	if err != nil {
 		return fmt.Errorf("publish: remove %s: %w", abs, err)
 	}
@@ -231,7 +234,7 @@ func Remove(ctx context.Context, dest string, g Guard) error {
 	if aside != "" {
 		releaseErr = errors.Join(releaseErr, removeReplaced(aside))
 	}
-	if errors.Is(removeErr, ErrSatisfied) {
+	if errors.Is(removeErr, ErrPublishSatisfied) {
 		return releaseErr
 	}
 	if removeErr != nil {
@@ -240,7 +243,7 @@ func Remove(ctx context.Context, dest string, g Guard) error {
 	return releaseErr
 }
 
-func removeLocked(ctx context.Context, dest string, g Guard) (string, error) {
+func removeLocked(ctx context.Context, dest string, g PublishGuard) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}

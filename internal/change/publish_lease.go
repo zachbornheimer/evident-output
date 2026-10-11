@@ -1,4 +1,7 @@
-package publish
+// This file owns the lease a live writer holds on its staging entry, so
+// recovery never reaps a stage that is still being written.
+
+package change
 
 import (
 	"fmt"
