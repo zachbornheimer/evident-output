@@ -7,6 +7,8 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
+	"github.com/zachbornheimer/evident-output/internal/graph"
+	"github.com/zachbornheimer/evident-output/internal/record"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
@@ -113,7 +115,7 @@ func (t *TaskHandle) Define(fn func(context.Context) error) *TaskHandle {
 // Verify-less Define always has.
 func (t *TaskHandle) runDefine(verifiers []freshness.Verifier, fn func(context.Context) error) error {
 	o := t.out
-	scope := &taskScopeHandle{out: o, taskID: t.id}
+	scope := graph.NewScope(o.graph, record.TaskID(t.id), o)
 
 	if current, basisErr := t.basisIsCurrent(o.Context()); basisErr != nil {
 		t.failScheduled(basisErr.Error())
@@ -125,7 +127,7 @@ func (t *TaskHandle) runDefine(verifiers []freshness.Verifier, fn func(context.C
 	}
 
 	if len(verifiers) > 0 {
-		allSatisfied, obsErr := evaluateVerifiers(withTaskScope(o.Context(), scope), o, t.id, verifiers)
+		allSatisfied, obsErr := evaluateVerifiers(graph.WithScope(o.Context(), scope), o, t.id, verifiers)
 		if obsErr != nil {
 			o.recordEvidencePhase(t.id, evidencePhaseBefore, true, false)
 			t.failScheduled(obsErr.Error())
@@ -142,9 +144,9 @@ func (t *TaskHandle) runDefine(verifiers []freshness.Verifier, fn func(context.C
 	o.mu.Lock()
 	o.emitWireEventLocked(wire.EventDefinitionStarted, t.id, nil)
 	o.mu.Unlock()
-	callbackErr := fn(withTaskScope(o.Context(), scope))
+	callbackErr := fn(graph.WithScope(o.Context(), scope))
 	o.mu.Lock()
-	closeTaskScopeLocked(scope)
+	scope.Close()
 	o.emitWireEventLocked(wire.EventDefinitionFinished, t.id, map[string]any{"failed": callbackErr != nil})
 	o.mu.Unlock()
 	if callbackErr != nil {
@@ -162,13 +164,13 @@ func (t *TaskHandle) runDefine(verifiers []freshness.Verifier, fn func(context.C
 // registered Verify must now hold, or, with none, tracked operations
 // supply the After phase. It returns the carrier error when the Task
 // already failed.
-func (t *TaskHandle) checkAfterDefine(verifiers []freshness.Verifier, scope *taskScopeHandle) error {
+func (t *TaskHandle) checkAfterDefine(verifiers []freshness.Verifier, scope *graph.Scope[*Output]) error {
 	o := t.out
 	switch {
 	case !t.hasPostStateToVerify():
 		// The After phase stays unevaluated.
 	case len(verifiers) > 0:
-		allSatisfied, obsErr := evaluateVerifiers(withTaskScope(o.Context(), scope), o, t.id, verifiers)
+		allSatisfied, obsErr := evaluateVerifiers(graph.WithScope(o.Context(), scope), o, t.id, verifiers)
 		if obsErr != nil {
 			o.recordEvidencePhase(t.id, evidencePhaseAfter, true, false)
 			t.failScheduled(obsErr.Error())

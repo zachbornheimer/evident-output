@@ -69,13 +69,13 @@ var (
 	// Define: §7 freezes dependency/verification/execution configuration at
 	// Define, and identity (§3.1) is part of that configuration.
 	ErrKeyAfterDefine = errors.New("evo: Key called after Define")
-	// ErrNoTaskContext is what taskScope (and, in a later increment,
-	// evo.File/evo.Exec) returns for a context that never came from a
-	// Define callback (§7.1).
-	ErrNoTaskContext = errors.New("evo: context carries no task scope")
-	// ErrTaskClosed is what taskScope returns for a context captured during
-	// a Define callback and reused after that callback returned (§7.1).
-	ErrTaskClosed = errors.New("evo: task scope is closed")
+	// ErrNoTaskContext is what evo.File, evo.Exec and every other operation
+	// return for a context that never came from a Define callback (§7.1).
+	ErrNoTaskContext = graph.ErrNoTaskContext
+	// ErrTaskClosed is what an operation returns for a context captured
+	// during a Define callback and reused after that callback returned
+	// (§7.1).
+	ErrTaskClosed = graph.ErrTaskClosed
 	// ErrBasisAfterDefine is recorded when TaskHandle.Basis is called after
 	// Define; the call is ignored.
 	ErrBasisAfterDefine = errors.New("evo: Basis called after Define")
