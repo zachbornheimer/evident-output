@@ -3,6 +3,7 @@ package graph
 import (
 	"bytes"
 	"runtime"
+	"runtime/metrics"
 	"strconv"
 )
 
@@ -46,6 +47,20 @@ func CurrentGoroutineLineage() (self, creator GoroutineID) {
 			return parseGoroutineHeader(trace), parseGoroutineCreator(trace)
 		}
 	}
+}
+
+// createdMetric counts every goroutine the process ever started.
+const createdMetric = "/sched/goroutines-created:goroutines"
+
+// goroutinesCreated is how many goroutines the process has started so far, and
+// false on a toolchain that does not count them. It never stops the world.
+func goroutinesCreated() (uint64, bool) {
+	sample := [1]metrics.Sample{{Name: createdMetric}}
+	metrics.Read(sample[:])
+	if sample[0].Value.Kind() != metrics.KindUint64 {
+		return 0, false
+	}
+	return sample[0].Value.Uint64(), true
 }
 
 // goroutinesStartedBy is every goroutine alive now that root started,

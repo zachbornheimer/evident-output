@@ -16,12 +16,29 @@ var processLineage lineage
 // remembered creator never goes stale. Reading creators means a traceback of
 // every goroutine, which stops the world: one dump teaches the creator of
 // every goroutine alive then, so a creator pays for at most one, and the
-// goroutines it started, asking about it afterwards, pay for none.
+// goroutines it started, asking about it afterwards, pay for none. While the
+// process starts no goroutine (see goroutinesCreated) the last dump is still
+// the whole truth, and a question about a goroutine it did not name, or about
+// who started which, is answered without another.
 type lineage struct {
 	mu       sync.Mutex
 	creators map[GoroutineID]GoroutineID
+	// started inverts creators as of the last dump: the goroutines each
+	// goroutine started.
+	started map[GoroutineID][]GoroutineID
+	// created is how many goroutines the process had started when the last
+	// dump began; counted is false where the toolchain keeps no such count.
+	created uint64
+	counted bool
 	// dumps counts the stops of the world this lineage took.
 	dumps atomic.Int64
+}
+
+// completeLocked reports whether no goroutine started since the last dump
+// began, so every goroutine alive now was alive for it.
+func (l *lineage) completeLocked() bool {
+	created, counted := goroutinesCreated()
+	return counted && l.counted && created == l.created
 }
 
 // refreshesPerCallback is how many dumps asking about unknown creators may
@@ -68,12 +85,19 @@ func (l *lineage) chain(from GoroutineID, budget *refreshBudget) []GoroutineID {
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if _, known := l.creators[from]; !known && budget.take() {
-		l.learnLocked()
-		if _, seen := l.creators[from]; !seen {
-			// Gone before the dump: ids are never reused, so nothing will
-			// ever name its creator, and asking again need not dump again.
+	if _, known := l.creators[from]; !known {
+		switch {
+		case l.completeLocked():
+			// Nothing started since the dump, so a goroutine it did not
+			// name is gone.
 			l.creators[from] = 0
+		case budget.take():
+			l.learnLocked()
+			if _, seen := l.creators[from]; !seen {
+				// Gone before the dump: ids are never reused, so nothing will
+				// ever name its creator, and asking again need not dump again.
+				l.creators[from] = 0
+			}
 		}
 	}
 	chain := []GoroutineID{from}
@@ -85,21 +109,20 @@ func (l *lineage) chain(from GoroutineID, budget *refreshBudget) []GoroutineID {
 
 // descendantsOf lists the goroutines that root started, directly or through
 // others, among those alive now and the exited ones a live goroutine still
-// names, from one fresh dump. It is never nil.
+// names, as of now: from the last dump while the process has started no
+// goroutine since, from a fresh one otherwise. It is never nil.
 func (l *lineage) descendantsOf(root GoroutineID) map[GoroutineID]struct{} {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.learnLocked()
-	started := make(map[GoroutineID][]GoroutineID)
-	for id, creator := range l.creators {
-		started[creator] = append(started[creator], id)
+	if !l.completeLocked() {
+		l.learnLocked()
 	}
 	descendants := make(map[GoroutineID]struct{})
-	for pending := started[root]; len(pending) > 0; {
+	for pending := slices.Clone(l.started[root]); len(pending) > 0; {
 		id := pending[len(pending)-1]
 		pending = pending[:len(pending)-1]
 		descendants[id] = struct{}{}
-		pending = append(pending, started[id]...)
+		pending = append(pending, l.started[id]...)
 	}
 	return descendants
 }
@@ -110,6 +133,7 @@ func (l *lineage) descendantsOf(root GoroutineID) map[GoroutineID]struct{} {
 // and the memory follows the live goroutines rather than every goroutine ever.
 func (l *lineage) learnLocked() {
 	l.dumps.Add(1)
+	l.created, l.counted = goroutinesCreated()
 	live := goroutineCreators(allGoroutineTraces())
 	for _, creator := range slices.Collect(maps.Values(live)) {
 		for id := creator; id != 0; {
@@ -125,4 +149,8 @@ func (l *lineage) learnLocked() {
 		}
 	}
 	l.creators = live
+	l.started = make(map[GoroutineID][]GoroutineID, len(live))
+	for id, creator := range live {
+		l.started[creator] = append(l.started[creator], id)
+	}
 }

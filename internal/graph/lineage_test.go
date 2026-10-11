@@ -177,3 +177,35 @@ func TestLineageAnswersAnExitedUnseenCreatorFromMemory(t *testing.T) {
 		t.Fatal("an exited creator asked again: it dumped again")
 	}
 }
+
+// A goroutine started since the last dump is a descendant the next question
+// must see: the last dump no longer tells the whole truth.
+func TestLineageDescendantsSeeAGoroutineStartedSinceTheLastDump(t *testing.T) {
+	var l lineage
+	self := CurrentGoroutine()
+	l.descendantsOf(self)
+	stop, started := make(chan struct{}), make(chan GoroutineID)
+	defer close(stop)
+	go func() { started <- CurrentGoroutine(); <-stop }()
+	child := <-started
+
+	if _, ok := l.descendantsOf(self)[child]; !ok {
+		t.Fatalf("descendantsOf(self) misses goroutine %d, started after the last dump", child)
+	}
+}
+
+// While no goroutine starts, the last dump answers every question about who
+// started whom.
+func TestLineageDescendantsTakeNoDumpWhileNoGoroutineStarts(t *testing.T) {
+	if _, counted := goroutinesCreated(); !counted {
+		t.Skip("this toolchain does not count the goroutines the process started")
+	}
+	var l lineage
+	self := CurrentGoroutine()
+	for range 50 {
+		l.descendantsOf(self)
+	}
+	if dumps := l.dumps.Load(); dumps > maxDumpsWhenNothingStarts {
+		t.Fatalf("50 questions took %d dumps, over %d", dumps, maxDumpsWhenNothingStarts)
+	}
+}
