@@ -2,9 +2,9 @@ package graph
 
 import "testing"
 
-// A goroutine's starting chain runs from the one that started it outward,
+// A goroutine's lineage chain runs from the one that started it outward,
 // however many goroutines sit between it and the test.
-func TestStartingChainRunsNearestFirst(t *testing.T) {
+func TestLineageChainRunsNearestFirst(t *testing.T) {
 	parentID := make(chan GoroutineID, 1)
 	ancestors := make(chan []GoroutineID, 1)
 	release := make(chan struct{})
