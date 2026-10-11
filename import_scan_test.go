@@ -120,6 +120,17 @@ func isFreshnessForbiddenImport(importPath string) bool {
 	return local != recordPackage && local != graphPackage && !isFacadeImport(importPath)
 }
 
+// isChangeForbiddenImport reports whether importPath is a package of this
+// module other than record, graph, freshness and the facades: the only
+// packages internal/change may import.
+func isChangeForbiddenImport(importPath string) bool {
+	local, inModule := strings.CutPrefix(importPath, modulePath+"/")
+	if !inModule {
+		return false
+	}
+	return local != recordPackage && local != graphPackage && local != freshnessPackage && !isFacadeImport(importPath)
+}
+
 // isGraphImport reports whether importPath is internal/graph.
 func isGraphImport(importPath string) bool {
 	return importPath == modulePath+"/"+graphPackage

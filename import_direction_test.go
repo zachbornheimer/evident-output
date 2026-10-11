@@ -200,6 +200,33 @@ func TestFreshnessImportsOnlyRecordGraphAndFacades(t *testing.T) {
 	}
 }
 
+// changePackage decides what is done.
+const changePackage = "internal/change"
+
+// TestChangeImportsOnlyRecordGraphFreshnessAndFacades fails when
+// internal/change is missing, or when a non-test file under it imports a
+// package of this module other than record, graph, freshness and the
+// facades. change sits beside graph and freshness, above record: reaching
+// into engine, render, core, wire or the packages it grew from (patch,
+// publish, resource) would let performing a change depend on presentation
+// or on how it is scheduled. What it needs of the run around it leaves
+// through change.Host, a consumer-defined interface the engine implements.
+func TestChangeImportsOnlyRecordGraphFreshnessAndFacades(t *testing.T) {
+	violations, checked, err := scanProductionFiles(changePackage, skipNothing, func(file string) ([]string, error) {
+		return touches(file, isChangeForbiddenImport, nil)
+	})
+	if err != nil {
+		t.Fatalf("scan %s: %v", changePackage, err)
+	}
+	if checked == 0 {
+		t.Fatalf("%s holds no Go files", changePackage)
+	}
+	if len(violations) > 0 {
+		t.Errorf("%d imports under %s are neither record, graph, freshness nor a facade:\n  %s",
+			len(violations), changePackage, strings.Join(violations, "\n  "))
+	}
+}
+
 // graphImporters are the only packages that may import internal/graph: the
 // engine that wires it today, and the packages that report into it later.
 var graphImporters = []string{
