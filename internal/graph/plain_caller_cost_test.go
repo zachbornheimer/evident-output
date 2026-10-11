@@ -3,7 +3,6 @@ package graph
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
@@ -11,10 +10,11 @@ import (
 const (
 	idleGoroutines = 5000
 	plainCalls     = 200
-	// plainCallBudget is all the time plainCalls reads may take together:
-	// generous for a read that costs microseconds, far under one that stops
-	// the world per call (about 10ms with idleGoroutines alive).
-	plainCallBudget = 100 * time.Millisecond
+	// fewDumps is the stops of the world a stretch of calls may take
+	// together: the first one learns what is alive, a spare covers a
+	// goroutine the runtime starts meanwhile. A call that stops the world
+	// each time takes plainCalls of them, however fast the machine.
+	fewDumps = 3
 )
 
 // withBusyCallback runs body from the test goroutine (a plain caller, outside
@@ -38,45 +38,53 @@ func withBusyCallback(t *testing.T, idle int, body func(g *Graph)) {
 	g.Drain()
 }
 
+// dumpsDuring is the stops of the world the process's lineage took while body
+// ran. Counting them instead of timing body keeps the verdict the same on a
+// slow machine, under the race detector, and next to other test packages.
+func dumpsDuring(body func()) int64 {
+	before := processLineage.dumps.Load()
+	body()
+	return processLineage.dumps.Load() - before
+}
+
 // A plain caller's Computed read while any callback runs must not stop the
 // world to dump every goroutine each time: its cost must not scale with the
 // process's goroutine count.
 func TestPlainCallerReadCostIsIndependentOfGoroutineCount(t *testing.T) {
-	var took time.Duration
+	var dumps int64
 	withBusyCallback(t, idleGoroutines, func(g *Graph) {
-		start := time.Now()
-		for range plainCalls {
-			if r := g.CurrentReader(); r.Task != nil {
-				t.Fatalf("plain caller read as %v", r.Task.Name)
+		dumps = dumpsDuring(func() {
+			for range plainCalls {
+				if r := g.CurrentReader(); r.Task != nil {
+					t.Fatalf("plain caller read as %v", r.Task.Name)
+				}
 			}
-		}
-		took = time.Since(start)
+		})
 	})
-	if took > plainCallBudget {
-		t.Fatalf("%d plain-caller reads with %d idle goroutines took %v, over %v: each read stops the world",
-			plainCalls, idleGoroutines, took, plainCallBudget)
+	if dumps > fewDumps {
+		t.Fatalf("%d plain-caller reads with %d idle goroutines took %d dumps, over %d: each read stops the world",
+			plainCalls, idleGoroutines, dumps, fewDumps)
 	}
 }
 
 // A plain caller's parked Wait while a callback runs must not stop the world
 // each time either.
 func TestPlainCallerWaitCostIsIndependentOfGoroutineCount(t *testing.T) {
-	var took time.Duration
+	var dumps int64
 	withBusyCallback(t, idleGoroutines, func(g *Graph) {
-		start := time.Now()
-		for i := range plainCalls {
-			task := declare(g, fmt.Sprint("w", i))
-			submitWork(g, task, settlingWork(g, task, func() error { time.Sleep(100 * time.Microsecond); return nil }))
-			g.Kick()
-			if err := g.Wait(task); err != nil {
-				t.Fatal(err)
+		dumps = dumpsDuring(func() {
+			for i := range plainCalls {
+				task := declare(g, fmt.Sprint("w", i))
+				submitWork(g, task, settlingWork(g, task, func() error { return nil }))
+				g.Kick()
+				if err := g.Wait(task); err != nil {
+					t.Fatal(err)
+				}
 			}
-		}
-		took = time.Since(start)
+		})
 	})
-	budget := plainCallBudget + plainCalls*time.Millisecond
-	if took > budget {
-		t.Fatalf("%d plain-caller Waits with %d idle goroutines took %v, over %v: each Wait stops the world",
-			plainCalls, idleGoroutines, took, budget)
+	if dumps > fewDumps {
+		t.Fatalf("%d plain-caller Waits with %d idle goroutines took %d dumps, over %d: each Wait stops the world",
+			plainCalls, idleGoroutines, dumps, fewDumps)
 	}
 }

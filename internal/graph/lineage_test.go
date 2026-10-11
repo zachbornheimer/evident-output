@@ -205,7 +205,7 @@ func TestLineageDescendantsTakeNoDumpWhileNoGoroutineStarts(t *testing.T) {
 	for range 50 {
 		l.descendantsOf(self)
 	}
-	if dumps := l.dumps.Load(); dumps > maxDumpsWhenNothingStarts {
-		t.Fatalf("50 questions took %d dumps, over %d", dumps, maxDumpsWhenNothingStarts)
+	if dumps := l.dumps.Load(); dumps > fewDumps {
+		t.Fatalf("50 questions took %d dumps, over %d", dumps, fewDumps)
 	}
 }

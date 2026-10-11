@@ -25,8 +25,11 @@ func TestStartingChainRunsNearestFirst(t *testing.T) {
 	if len(got) < 2 || got[0] != parent {
 		t.Fatalf("ancestors = %v, want parent %d first, then the goroutine that started it", got, parent)
 	}
-	if got[1] >= got[0] {
-		t.Fatalf("ancestors = %v, want each older than the goroutine it started", got)
+	// Goroutine ids are handed out in batches per processor, so a creator's id
+	// may be the larger: the chain's second link is the test, which started
+	// the parent, whatever the ids.
+	if self := CurrentGoroutine(); got[1] != self {
+		t.Fatalf("ancestors = %v, want the test goroutine %d after the parent", got, self)
 	}
 }
 

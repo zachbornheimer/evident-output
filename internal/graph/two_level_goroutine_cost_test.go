@@ -10,15 +10,15 @@ import "testing"
 func TestTwoLevelFreshGoroutineReadsTakeAtMostTheRefreshAllowanceInDumps(t *testing.T) {
 	var dumps int64
 	withBusyCallback(t, idleGoroutines, func(g *Graph) {
-		before := processLineage.dumps.Load()
-		for range plainCalls {
-			got := make(chan Reader)
-			go func() { go func() { got <- g.CurrentReader() }() }()
-			if r := <-got; r.Task != nil {
-				t.Fatalf("plain reader read as %s", r.Task.Name)
+		dumps = dumpsDuring(func() {
+			for range plainCalls {
+				got := make(chan Reader)
+				go func() { go func() { got <- g.CurrentReader() }() }()
+				if r := <-got; r.Task != nil {
+					t.Fatalf("plain reader read as %s", r.Task.Name)
+				}
 			}
-		}
-		dumps = processLineage.dumps.Load() - before
+		})
 	})
 	if dumps > refreshesPerCallback {
 		t.Fatalf("%d two-level fresh-goroutine reads took %d dumps, over the allowance of %d",
