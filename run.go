@@ -248,7 +248,7 @@ func concludeRun(out *Run, runErr error) Result {
 		// Synchronize the presentation model with the application error only when
 		// no entity already recorded Failed — avoids a duplicate synthetic Fail row
 		// on top of an existing task/item Fail. Exit code still comes from conclusion.
-		out.fail(runErr.Error())
+		out.end(runErr)
 	}
 	finishErr := out.finish()
 	closeErr := out.close()
