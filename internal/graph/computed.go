@@ -1,8 +1,7 @@
 package graph
 
 import (
-	"errors"
-
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
@@ -10,10 +9,10 @@ var (
 	// ErrComputedUnsettled is why a Computed read was refused: the Task that
 	// produces the value has not settled successfully, or settled without
 	// producing one.
-	ErrComputedUnsettled = errors.New("evo: Computed read before its Task settled")
+	ErrComputedUnsettled = misuse.ErrComputedUnsettled
 	// ErrComputedUnordered is why a Computed read was refused: the reader is
 	// a Task or container builder that is not ordered after the producing Task.
-	ErrComputedUnordered = errors.New("evo: Computed read without an After edge or Sequence order to its Task")
+	ErrComputedUnordered = misuse.ErrComputedUnordered
 )
 
 // Computed is the value one Task produces for the Tasks and containers

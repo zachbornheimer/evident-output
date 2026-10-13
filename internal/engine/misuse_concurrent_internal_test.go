@@ -16,7 +16,7 @@ func TestMisuseRecordedFromGraphGoroutinesNeedsNoOutputLock(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 8 {
 		wg.Go(func() {
-			misuseSink{o: o}.RecordMisuseFor("task", errFirst)
+			o.misuse.RecordMisuseFor("task", errFirst)
 		})
 	}
 	wg.Wait()

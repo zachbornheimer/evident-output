@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 )
 
 func quietOutput(cfg Config) *Output {
@@ -87,7 +89,7 @@ func TestRejectedDeclaration_DefineRecordsMisuse(t *testing.T) {
 	ran := false
 	dup := out.Task("x")
 	out.mu.Lock()
-	out.misuse = nil
+	out.misuse = misuse.New(false)
 	out.mu.Unlock()
 	dup.Define(func(context.Context) error { ran = true; return nil })
 	_ = out.Finish()

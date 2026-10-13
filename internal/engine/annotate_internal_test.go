@@ -19,9 +19,7 @@ var annotationVerbs = map[string]func(*TaskHandle){
 }
 
 func misuseOf(o *Output) error {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.misuse
+	return o.firstMisuse()
 }
 
 // TestAnnotation_AfterInterruptIsNotMisuse pins that a straggling

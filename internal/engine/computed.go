@@ -125,7 +125,7 @@ func (o *Output) refuseComputedReadLocked(subject string, err error, reader grap
 		err = fmt.Errorf("%w: read of %q", err, subject)
 	}
 	if reader.Task != nil && !reader.Unwinds() {
-		o.keepMisuse(err, subject, "")
+		o.misuse.Keep(err, subject, "")
 		return
 	}
 	o.recordMisuseFor(subject, err)

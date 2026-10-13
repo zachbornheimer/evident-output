@@ -17,10 +17,10 @@ var (
 	ErrClosed = errors.New("evo: graph is closed")
 )
 
-// MisuseSink hears the misuse the scheduler finds while it works, so the
-// engine can keep recording it until misuse has a home of its own. It is
-// the one callback the graph makes, besides the record's listener, and it
-// is called with no graph lock held. A strict sink panics after recording.
+// MisuseSink hears the misuse the scheduler finds while it works.
+// internal/misuse.Recorder implements it. It is the one callback the graph
+// makes, besides the record's listener, and it is called with no graph lock
+// held. A strict sink panics after recording.
 type MisuseSink interface {
 	// RecordMisuseFor reports err, naming the entity it happened on.
 	RecordMisuseFor(subject string, err error)

@@ -39,7 +39,7 @@ func TestResidualComposition_PlainAndInteractiveSectionParity(t *testing.T) {
 		out.mu.Lock()
 		snap := out.snapshotLocked()
 		conc := core.InferConclusion(snap)
-		core.FoldLeftoverMisuse(&conc, out.misuse)
+		core.FoldLeftoverMisuse(&conc, out.firstMisuse())
 		core.ApplyFailedExitCode(&conc, out.cfg.failedExitCode)
 		snap.Conclusion = &conc
 		linesFrom := out.linesEmitted

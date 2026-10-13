@@ -1,13 +1,14 @@
 package graph
 
 import (
-	"errors"
 	"fmt"
+
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 )
 
 // ErrWaitDeadlock is why a wait was released instead of satisfied: nothing
 // left in the run can ever reach the Task it awaits.
-var ErrWaitDeadlock = errors.New("evo: awaited task can never be reached")
+var ErrWaitDeadlock = misuse.ErrWaitDeadlock
 
 // WaitTicket is one goroutine's registration while it is parked waiting for a
 // Task: the Task it awaits, how many task callbacks it is holding still on its

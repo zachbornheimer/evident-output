@@ -3,72 +3,38 @@ package engine
 import (
 	"fmt"
 
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
-// misuseSink lets the graph report the misuse it finds into the Output. The
-// graph calls it from its own goroutines, with or without Output.mu held, so
-// recording misuse takes only the leaf lock that guards the first misuse
-// (misuseMu), never Output.mu.
-type misuseSink struct{ o *Output }
-
-func (s misuseSink) RecordMisuseFor(subject string, err error) { s.o.recordMisuseFor(subject, err) }
+// misuseGlyph prefixes the one required misuse line the same way the
+// existing "! already mutated: ..." row does (writeAlreadyMutated) — "!" is
+// attention-only per evo-rec.md's glyph vocabulary, and a misuse line always
+// demands attention.
+const misuseGlyph = "!"
 
 func (o *Output) recordMisuse(err error) {
-	o.noteMisuse(err, "", "")
+	o.misuse.Record(err)
 }
 
-// noteMisuse records err as the run's misuse when it is the first, with the
-// entity and rejected summary that name it, and panics with it in strict mode.
-// Any goroutine may call it.
-func (o *Output) noteMisuse(err error, subject, rejectedSummary string) {
-	if err == nil {
-		return
-	}
-	o.keepMisuse(err, subject, rejectedSummary)
-	if o.cfg.strict {
-		panic(err)
-	}
+func (o *Output) recordMisuseFor(subject string, err error) {
+	o.misuse.RecordMisuseFor(subject, err)
 }
 
-// keepMisuse records err as the run's misuse when it is the first, with the
-// entity and rejected summary that name it, in every mode and without a
-// strict panic: for a goroutine no caller's code is beneath to take one.
-func (o *Output) keepMisuse(err error, subject, rejectedSummary string) {
-	o.misuseMu.Lock()
-	defer o.misuseMu.Unlock()
-	if o.misuse == nil {
-		o.misuse, o.misuseSubject, o.misuseRejectedSummary = err, subject, rejectedSummary
-	}
-}
-
-// firstMisuse is the first misuse recorded, nil when there is none.
 func (o *Output) firstMisuse() error {
-	o.misuseMu.Lock()
-	defer o.misuseMu.Unlock()
-	return o.misuse
+	return o.misuse.First()
 }
 
 // appendMisuseLineLocked renders the one required line for the first
 // recorded misuse — an exit code may never disagree with everything the
-// caller saw printed (beginner-1). The line is misuseHintFor's corrective
-// sentence for the recorded sentinel, never the raw "evo: ..." sentinel text
-// (release-gate round 4 finding 2): machine detail stays in JSON/debug, the
-// human stream gets told what to do next.
+// caller saw printed (beginner-1). The line is the recorder's corrective
+// sentence for the recorded sentinel, never the raw "evo: ..." sentinel
+// text (release-gate round 4 finding 2): machine detail stays in
+// JSON/debug, the human stream gets told what to do next.
 func (o *Output) appendMisuseLineLocked() {
-	o.misuseMu.Lock()
-	hint := misuseHintFor(o.misuse, o.misuseSubject, o.misuseRejectedSummary)
-	o.misuseMu.Unlock()
+	hint := o.misuse.Hint()
 	glyph := txt.StyleGlyph(misuseGlyph, txt.SGRYellow, !o.cfg.noColor)
 	o.rec.AppendLine(fmt.Sprintf("%s  %s", glyph, hint))
-}
-
-// recordMisuseFor is recordMisuse with the offending entity's name attached,
-// so Finish can name it in the one required misuse line (beginner-1) instead
-// of an exit code silently disagreeing with everything the caller saw
-// rendered.
-func (o *Output) recordMisuseFor(subject string, err error) {
-	o.noteMisuse(err, subject, "")
 }
 
 // recordAlreadyResolvedLocked records ErrAlreadyResolved for a second
@@ -77,7 +43,7 @@ func (o *Output) recordMisuseFor(subject string, err error) {
 // misuse line can show what got dropped instead of only naming the task
 // (release-gate round 5 finding 4).
 func (o *Output) recordAlreadyResolvedLocked(name, rejectedSummary string) {
-	o.noteMisuse(ErrAlreadyResolved, name, rejectedSummary)
+	o.misuse.Note(misuse.ErrAlreadyResolved, name, rejectedSummary)
 }
 
 // Err returns the first recorded misuse error, if any.

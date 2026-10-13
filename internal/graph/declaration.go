@@ -1,11 +1,11 @@
 package graph
 
-import "errors"
+import "github.com/zachbornheimer/evident-output/internal/misuse"
 
 // ErrDeclaredInCallback is why a declaration was refused: a Task, Group, or
 // Sequence was declared from inside a Task's Define callback. Declare it
 // from a container builder, or before the run.
-var ErrDeclaredInCallback = errors.New("evo: declared from inside a Task callback")
+var ErrDeclaredInCallback = misuse.ErrDeclaredInCallback
 
 // DeclaredInCallback reports whether the calling goroutine is inside a Task
 // callback that is not running a container builder. A builder declares the

@@ -3,13 +3,13 @@ package engine
 import (
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/graph"
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 	"github.com/zachbornheimer/evident-output/internal/process"
 	renderplain "github.com/zachbornheimer/evident-output/internal/project/plain"
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
@@ -51,24 +51,11 @@ type Output struct {
 	finishing   bool
 	finished    bool
 	armed       bool // set by arm(): live surface may paint before any entity exists
-	// misuseMu guards misuse, misuseSubject and misuseRejectedSummary. It is
-	// a leaf lock, taken without Output.mu by the graph's own goroutines.
-	misuseMu sync.Mutex
-	misuse   error
-	// misuseSubject names the task/entity the first recorded misuse happened
-	// on, when known — Finish renders one line naming it whenever that misuse
-	// is about to change the exit code, so a caller never sees an exit code
-	// contradict what the printed band showed (beginner-1).
-	misuseSubject string
-	// misuseRejectedSummary is the summary text a second terminal verb
-	// (Fail/Block/Warn/Cancel/Skipped) tried to attach to an
-	// already-resolved task, captured on the first recorded misuse only —
-	// the same "first ever recorded" scope as misuseSubject. Empty when the
-	// rejected call carried no summary, or the first misuse wasn't this kind
-	// (release-gate round 5 finding 4: the band's severity otherwise has no
-	// visible cause beyond "was already resolved").
-	misuseRejectedSummary string
-	live                  *liveEngine
+	// misuse records the first API misuse of this run. Graph workers call it
+	// without Output.mu; a strict recorder panics after recording, never
+	// under graph.mu.
+	misuse *misuse.Recorder
+	live   *liveEngine
 
 	// changes performs the File, Exec, Patch and Effect operations of this
 	// Run, and owns the workspace relative paths resolve against.
@@ -205,13 +192,14 @@ func newOutput(subject string, options ...Option) *Output {
 	o := &Output{
 		cfg:             cfg,
 		rec:             run,
+		misuse:          misuse.New(cfg.strict),
 		outputID:        "out_1",
 		taskStates:      make(map[string]*taskState),
 		containerStates: make(map[string]*tasksState),
 	}
 	o.manifest = freshness.NewManifestSession(o.manifestConfig)
 	o.taskFreshness = freshness.NewTaskTable()
-	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(misuseSink{o: o}), graph.WithWaitUnderClaimError(ErrNestedResourceAcquisition))
+	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(o.misuse), graph.WithWaitUnderClaimError(ErrNestedResourceAcquisition))
 	o.changes = change.NewRun(changeHost{out: o}, o.graph)
 	o.mu.Bind(run)
 	run.SetListener(outputListener{o: o})

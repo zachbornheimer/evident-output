@@ -160,9 +160,9 @@ const graphPackage = "internal/graph"
 
 // TestGraphImportsOnlyRecordAndFacades fails when internal/graph is missing,
 // or when a non-test file under it imports a package of this module other
-// than record and the facades. graph sits beside freshness and change, above
-// record: reaching into engine, render, core or a sibling would let
-// scheduling depend on presentation or on what it schedules.
+// than record, misuse and the facades. graph sits beside freshness and
+// change, above record: reaching into engine, render, core or a sibling
+// would let scheduling depend on presentation or on what it schedules.
 func TestGraphImportsOnlyRecordAndFacades(t *testing.T) {
 	violations, checked, err := scanProductionFiles(graphPackage, skipNothing, func(file string) ([]string, error) {
 		return touches(file, isGraphForbiddenImport, nil)
@@ -174,7 +174,7 @@ func TestGraphImportsOnlyRecordAndFacades(t *testing.T) {
 		t.Fatalf("%s holds no Go files", graphPackage)
 	}
 	if len(violations) > 0 {
-		t.Errorf("%d imports under %s are neither record nor a facade:\n  %s",
+		t.Errorf("%d imports under %s are neither record, misuse nor a facade:\n  %s",
 			len(violations), graphPackage, strings.Join(violations, "\n  "))
 	}
 }
@@ -206,6 +206,30 @@ func TestFreshnessImportsOnlyRecordGraphAndFacades(t *testing.T) {
 
 // projectPackage decides how a run is shown: live TTY, plain text, and wire.
 const projectPackage = "internal/project"
+
+// misusePackage owns misuse codes, remedy text and the first-misuse store.
+const misusePackage = "internal/misuse"
+
+// TestMisuseImportsOnlyRecordAndFacades fails when internal/misuse is
+// missing, or when a non-test file under it imports a package of this
+// module other than record and the facades. misuse sits beside graph,
+// freshness, change and project, above record: reaching into any of them
+// would let recording depend on scheduling or presentation.
+func TestMisuseImportsOnlyRecordAndFacades(t *testing.T) {
+	violations, checked, err := scanProductionFiles(misusePackage, skipNothing, func(file string) ([]string, error) {
+		return touches(file, isMisuseForbiddenImport, nil)
+	})
+	if err != nil {
+		t.Fatalf("scan %s: %v", misusePackage, err)
+	}
+	if checked == 0 {
+		t.Fatalf("%s holds no Go files", misusePackage)
+	}
+	if len(violations) > 0 {
+		t.Errorf("%d imports under %s are neither record nor a facade:\n  %s",
+			len(violations), misusePackage, strings.Join(violations, "\n  "))
+	}
+}
 
 // TestProjectImportsOnlyRecordAndFacades fails when internal/project is
 // missing, or when a non-test file under it imports a package of this
@@ -300,6 +324,61 @@ func isRecordProducerOrOwner(dir string) bool {
 // Transition, Mark or Clear, on a record value. core, render, text, wire and
 // the rest may read record, never write it. The scan has no type
 // information; recordWriteCallsIn documents how it recognises a record value.
+func TestOnlyMisuseRecordsMisuse(t *testing.T) {
+	violations, _, err := scanProductionFiles("internal",
+		func(dir string) bool { return dir == misusePackage },
+		misuseRecording)
+	if err != nil {
+		t.Fatalf("scan internal/: %v", err)
+	}
+	if len(violations) > 0 {
+		t.Errorf("%d first-misuse stores live outside %s:\n  %s",
+			len(violations), misusePackage, strings.Join(violations, "\n  "))
+	}
+}
+
+func TestMisuseRecordingScanRecognisesTheShapes(t *testing.T) {
+	const source = `package probe
+
+type Output struct {
+	misuseMu              int
+	misuseSubject         string
+	misuseRejectedSummary string
+	misuse                error
+	recorder              *Recorder
+}
+
+func (o *Output) keepMisuse() {}
+func (o *Output) noteMisuse() {}
+func (discardMisuse) RecordMisuseFor(string, error) {}
+func (s sink) RecordMisuseFor(subject string, err error) { s.store(err) }
+`
+	file := path.Join(t.TempDir(), "probe.go")
+	if err := os.WriteFile(file, []byte(source), 0o600); err != nil {
+		t.Fatalf("write probe: %v", err)
+	}
+	found, err := misuseRecording(file)
+	if err != nil {
+		t.Fatalf("scan probe: %v", err)
+	}
+	var got []string
+	for _, hit := range found {
+		got = append(got, hit[strings.Index(hit, " ")+1:])
+	}
+	want := []string{
+		"field misuseMu",
+		"field misuseSubject",
+		"field misuseRejectedSummary",
+		"store misuse error",
+		"declaration keepMisuse",
+		"declaration noteMisuse",
+		"declaration RecordMisuseFor",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("flagged %v, want %v", got, want)
+	}
+}
+
 func TestOnlyProducersWriteRecord(t *testing.T) {
 	violations, _, err := scanProductionFiles("internal", isRecordProducerOrOwner, recordWriteCalls)
 	if err != nil {

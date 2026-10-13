@@ -1,15 +1,15 @@
 package graph
 
 import (
-	"errors"
 	"strings"
 
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 // ErrDependencyCycle is what the MisuseSink hears when After edges close a
 // cycle: those Tasks can never start, and each row says so.
-var ErrDependencyCycle = errors.New("evo: After dependency cycle")
+var ErrDependencyCycle = misuse.ErrDependencyCycle
 
 // depNode is one vertex of the run's waits-for graph: a Task or a
 // Group/Sequence.

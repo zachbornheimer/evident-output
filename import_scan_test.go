@@ -96,15 +96,15 @@ func isNonFacadeImport(importPath string) bool {
 }
 
 // isGraphForbiddenImport reports whether importPath is a package of this
-// module other than record and the facades: the only packages internal/graph
-// may import. Misuse it finds leaves through graph.MisuseSink, a one-method
-// interface the caller implements, never through an import.
+// module other than record, misuse and the facades: the only packages
+// internal/graph may import. Misuse it finds leaves through graph.MisuseSink
+// (implemented by misuse.Recorder) and the sentinel codes owned by misuse.
 func isGraphForbiddenImport(importPath string) bool {
 	local, inModule := strings.CutPrefix(importPath, modulePath+"/")
 	if !inModule {
 		return false
 	}
-	return local != recordPackage && !isFacadeImport(importPath)
+	return local != recordPackage && local != misusePackage && !isFacadeImport(importPath)
 }
 
 // isFreshnessForbiddenImport reports whether importPath is a package of this
@@ -118,6 +118,17 @@ func isFreshnessForbiddenImport(importPath string) bool {
 		return false
 	}
 	return local != recordPackage && local != graphPackage && !isFacadeImport(importPath)
+}
+
+// isMisuseForbiddenImport reports whether importPath is a package of this
+// module other than record and the facades: the only packages
+// internal/misuse may import.
+func isMisuseForbiddenImport(importPath string) bool {
+	local, inModule := strings.CutPrefix(importPath, modulePath+"/")
+	if !inModule {
+		return false
+	}
+	return local != recordPackage && !isFacadeImport(importPath)
 }
 
 // isProjectForbiddenImport reports whether importPath is a package of this
@@ -252,6 +263,72 @@ func claimHolds(file string) ([]string, error) {
 		return true
 	})
 	return found, nil
+}
+
+// misuseStoreFields are the first-misuse store fields that may exist only
+// inside internal/misuse.
+var misuseStoreFields = map[string]bool{
+	"misuseMu":              true,
+	"misuseSubject":         true,
+	"misuseRejectedSummary": true,
+}
+
+// misuseStoreFuncs are the methods that write the first-misuse store. Engine
+// may call into a Recorder; it may not declare these itself.
+var misuseStoreFuncs = map[string]bool{
+	"keepMisuse": true,
+	"noteMisuse": true,
+}
+
+// misuseRecording parses file and reports each first-misuse store that is
+// not a call into internal/misuse: a keepMisuse/noteMisuse declaration, a
+// RecordMisuseFor implementation with a body, the old Output store fields,
+// or a field named misuse of type error.
+func misuseRecording(file string) ([]string, error) {
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, file, nil, 0)
+	if err != nil {
+		return nil, fmt.Errorf("parse: %w", err)
+	}
+	var found []string
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.FuncDecl:
+			name := node.Name.Name
+			if misuseStoreFuncs[name] {
+				found = append(found, fset.Position(node.Name.Pos()).String()+" declaration "+name)
+			}
+			if name == "RecordMisuseFor" && !emptyFuncBody(node.Body) {
+				found = append(found, fset.Position(node.Name.Pos()).String()+" declaration "+name)
+			}
+		case *ast.StructType:
+			if node.Fields == nil {
+				return true
+			}
+			for _, field := range node.Fields.List {
+				for _, ident := range field.Names {
+					if misuseStoreFields[ident.Name] {
+						found = append(found, fset.Position(ident.Pos()).String()+" field "+ident.Name)
+					}
+					if ident.Name == "misuse" && isBareErrorType(field.Type) {
+						found = append(found, fset.Position(ident.Pos()).String()+" store misuse error")
+					}
+				}
+			}
+			return false
+		}
+		return true
+	})
+	return found, nil
+}
+
+func emptyFuncBody(body *ast.BlockStmt) bool {
+	return body == nil || len(body.List) == 0
+}
+
+func isBareErrorType(expr ast.Expr) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && ident.Name == "error"
 }
 
 // recordMutatorPrefixes begin the name of every method that writes run truth

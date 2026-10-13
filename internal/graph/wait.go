@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
@@ -26,7 +27,7 @@ var (
 	// ErrWaitInBuilder is why a wait was refused: the caller is a container
 	// builder, which declares the topology the awaited work is part of and
 	// settles only when it returns, so waiting inside it can never end.
-	ErrWaitInBuilder = errors.New("evo: wait inside a container builder")
+	ErrWaitInBuilder = misuse.ErrWaitInBuilder
 )
 
 // WithWaitUnderClaimError makes err the sentinel a wait refused for a held
