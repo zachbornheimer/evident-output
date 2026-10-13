@@ -67,7 +67,12 @@ docs/decisions/
 ## Root package `evo`
 
 One file per contract section; the file holds that section's exported
-surface and nothing else.
+surface plus the composition root, and nothing else. The composition root
+is the `Run` aggregate in `run.go` (handles to graph, record, change,
+freshness, misuse and project), the `Config` -> option wiring, the env seam
+and the signal seam, also in `run.go`; Finish sequencing in `ending.go`;
+and facade wiring in `facades.go`. Root writes no record truth and imports
+no system package, except `os` for the `os.Signal` type `CleanStop` names.
 
 | File         | Contract | Owns                                                                            |
 | ------------ | -------- | ------------------------------------------------------------------------------- |
@@ -95,18 +100,18 @@ and `change` append to it; `project` reads it; nothing else touches it. The
 four facades are the only packages that import `os`, `os/exec`, `syscall`
 or a terminal library.
 
-| Package              | Decides | Owns                                                                                                             |
-| -------------------- | ------- | ---------------------------------------------------------------------------------------------------------------- |
-| `internal/graph`     | when    | nodes, edges, eligibility, bounded scheduler, cancellation, Build, Computed                                      |
-| `internal/freshness` | whether | Inputs, Values, manifest, satisfied-or-stale, Verify                                                             |
-| `internal/change`    | what    | File, Exec, Patch, Effect reconciliation; atomic publish; claims                                                 |
-| `internal/record`    | truth   | the event journal, the run document, outcomes, Conclusion                                                        |
-| `internal/project`   | how     | shared row model; `live/` TTY frame, heartbeat, tail, fold; `plain/` durable text; `wire/` evo.run and evo.event |
-| `internal/misuse`    |         | misuse codes, remedy text, recording                                                                             |
-| `internal/terminal`  | facade  | ANSI driver, size, char-device                                                                                   |
-| `internal/process`   | facade  | spawn, capture, redaction                                                                                        |
-| `internal/fs`        | facade  | filesystem, locks, canonical paths                                                                               |
-| `internal/clock`     | facade  | time source, timers, sleep                                                                                       |
+| Package              | Decides | Owns                                                                                                                                                                                   |
+| -------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `internal/graph`     | when    | nodes, edges, eligibility, bounded scheduler, cancellation, Build, Computed; per-Task callback bookkeeping; the run root node, which carries run-scoped annotations and the Conclusion |
+| `internal/freshness` | whether | Inputs, Values, manifest, satisfied-or-stale, Verify                                                                                                                                   |
+| `internal/change`    | what    | File, Exec, Patch, Effect reconciliation; atomic publish; claims                                                                                                                       |
+| `internal/record`    | truth   | the event journal, the run document, outcomes, Conclusion                                                                                                                              |
+| `internal/project`   | how     | shared row model; `live/` TTY frame, heartbeat, tail, fold; `plain/` durable text; `wire/` evo.run and evo.event                                                                       |
+| `internal/misuse`    |         | misuse codes, remedy text, recording                                                                                                                                                   |
+| `internal/terminal`  | facade  | ANSI driver, size, char-device                                                                                                                                                         |
+| `internal/process`   | facade  | spawn, capture, redaction                                                                                                                                                              |
+| `internal/fs`        | facade  | filesystem, locks, canonical paths                                                                                                                                                     |
+| `internal/clock`     | facade  | time source, timers, sleep                                                                                                                                                             |
 
 ## Other trees
 
@@ -123,12 +128,12 @@ or a terminal library.
 
 ## Guards
 
-| Test                        | Fails on                                                                                                                                                                                   |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `contract_test.go`          | an exported name not in `CONTRACT.md`, or a contract name not exported                                                                                                                     |
-| `layout_test.go`            | a tracked file outside the layout, or a layout path missing                                                                                                                                |
-| `import_direction_test.go`  | `project` importing `change`; a non-producer writing `record`; a non-misuse package owning the first-misuse store; a non-facade importing `os`, `os/exec`, `syscall`; root importing `mcp` |
-| `examples/examples_test.go` | an example program that fails to build or run                                                                                                                                              |
-| `spec_ratchet`              | a requirement that passed once failing now                                                                                                                                                 |
+| Test                        | Fails on                                                                                                                                                                                                                                        |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contract_test.go`          | an exported name not in `CONTRACT.md`, or a contract name not exported                                                                                                                                                                          |
+| `layout_test.go`            | a tracked file outside the layout, or a layout path missing; root over 4,000 non-test lines or holding a `folded from` seam                                                                                                                     |
+| `import_direction_test.go`  | `project` importing `change`; a non-producer writing `record`; a non-misuse package owning the first-misuse store; a non-facade importing `os`, `os/exec`, `syscall`; root importing `mcp`. The record-write and system-import rules cover root |
+| `examples/examples_test.go` | an example program that fails to build or run                                                                                                                                                                                                   |
+| `spec_ratchet`              | a requirement that passed once failing now                                                                                                                                                                                                      |
 
 `import_direction_test.go` also fails on `change` importing anything but the standard library, `record`, `graph`, `freshness` and the facades; on `misuse` importing anything but the standard library, `record` and the facades; on `graph` importing anything but `record`, `misuse` and the facades; on any package outside `change` holding a claim; and on any import of the packages `change` absorbed (`internal/patch`, `internal/publish`, `internal/resource`).
