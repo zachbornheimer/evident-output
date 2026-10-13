@@ -75,7 +75,7 @@
     "quote": "This is a semantic rule, not a grammar linter",
     "tier": "1.1",
     "tests": [],
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
+    "waiver": "JUDGMENT: Task naming (verb + concrete object) is a semantic convention the contract itself says is not mechanically checkable.",
     "default": false
   }
 ]

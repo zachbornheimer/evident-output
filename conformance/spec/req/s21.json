@@ -251,7 +251,7 @@
     "quote": "Findings should include severity, file/line, violated rule, why it matters, smallest migration, corrected syntax, and required target version.",
     "tier": "1.1",
     "tests": [],
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
+    "waiver": "DECISION: Finding carries rule_id, severity, message, file, line, suggestion and required_version; the `why it matters` text lives in the rules catalog behind evident_output_explain, not inline. Decide whether `why` must be inline before writing a test.",
     "default": false
   },
   {

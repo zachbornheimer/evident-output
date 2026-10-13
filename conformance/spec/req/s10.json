@@ -128,7 +128,7 @@
     "quote": "Use stable Task/resource identities, not human display labels alone.",
     "tier": "1.1",
     "tests": [],
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
+    "waiver": "UNCLASSIFIED: no public test proves manifest identity survives a display-name change; needs a renamed-Task-same-Key scenario (WP2).",
     "default": false
   },
   {
@@ -137,7 +137,7 @@
     "quote": "application/definition changes;",
     "tier": "1.1",
     "tests": [],
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
+    "waiver": "UNCLASSIFIED: a changed application/definition fingerprint cannot be produced from a Go test without rebuilding the binary; needs an AppID/definition seam.",
     "default": false
   }
 ]

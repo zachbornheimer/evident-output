@@ -185,7 +185,7 @@
     "quote": "18. zq prune acceptance fixture",
     "tier": "1.1",
     "tests": [],
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
+    "waiver": "CONSUMER: that the real `zq prune` command produces this fixture from Evo is a property of the zq repository (zq main still calls the removed Step at internal/prune/classify/prune.go:236); the Evo side of every output rule is bound in C18-001..C18-010.",
     "default": false
   }
 ]

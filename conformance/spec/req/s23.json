@@ -5,7 +5,7 @@
     "quote": "A junior developer should not need comments explaining how to produce acceptable output.",
     "tier": "1.1",
     "tests": [],
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
+    "waiver": "PROCESS: a reviewer judgment over consumer code; the automatic behaviors it lists are bound individually in \u00a722 and \u00a730.",
     "default": false
   },
   {
@@ -14,7 +14,7 @@
     "quote": "Prefer compiler/type-system constraints over documentation saying \u201cdo not do this.\u201d",
     "tier": "1.1",
     "tests": [],
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
+    "waiver": "PROCESS: a design preference applied at review; no single behavior to test.",
     "default": false
   }
 ]

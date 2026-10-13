@@ -157,7 +157,7 @@
     "quote": "Verification details surface when they explain partial truth, skipped work, or failure:",
     "tier": "1.1",
     "tests": [],
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
+    "waiver": "UNCLASSIFIED: per-attribute File verification detail rows were landed as goldens in commits 3ed1905/7af897e/0123cae, but no test with that name/behavior was located to bind; WP2 must bind the golden test.",
     "default": false
   }
 ]

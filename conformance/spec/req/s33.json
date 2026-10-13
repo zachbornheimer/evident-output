@@ -115,7 +115,7 @@
     "quote": "SIGTERM and SIGINT are clean stops by default for a Task that opts in.",
     "tier": "1.2",
     "tests": [],
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
+    "waiver": "NO-TEST-YET: no existing test asserts the default signals; the red daemon test passes the signals explicitly to StoppedBy. Needs a pending test once the opt-in spelling is settled.",
     "default": false
   },
   {

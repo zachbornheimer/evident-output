@@ -117,7 +117,7 @@
     "quote": "record useful Facts;",
     "tier": "1.1",
     "tests": [],
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
+    "waiver": "UNCLASSIFIED: the contract does not say which Facts File records, and no public observable for them was located; needs decision on the Fact set.",
     "default": false
   },
   {
@@ -126,7 +126,7 @@
     "quote": "preserve partial truth on failure.",
     "tier": "1.1",
     "tests": [],
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
+    "waiver": "UNCLASSIFIED: no public partial-File-failure seam found (only Effect has PartialEffect); needs a failing-FileFS scenario via testkit.FileFS (WP2).",
     "default": false
   }
 ]

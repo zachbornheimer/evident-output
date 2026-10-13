@@ -75,7 +75,7 @@
     "quote": "Shown Facts render with muted labels and normal-intensity values:",
     "tier": "1.1",
     "tests": [],
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
+    "waiver": "UNCLASSIFIED: muted-label styling needs a color-capable render golden; plain output cannot observe it.",
     "default": false
   }
 ]

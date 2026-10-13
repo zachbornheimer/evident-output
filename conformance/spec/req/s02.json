@@ -832,7 +832,7 @@
     "quote": "`\u25cb` pending",
     "tier": "1.1",
     "tests": [],
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
+    "waiver": "UNCLASSIFIED: no Go test observes the pending glyph or the `?` waiting-for-input glyph in the Unicode profile; needs a live-TTY harness seam (WP2).",
     "default": false
   },
   {

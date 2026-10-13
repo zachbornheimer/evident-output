@@ -5,7 +5,7 @@
     "quote": "Split implementation work into issues only when a unit has its own independently testable invariant and review boundary.",
     "tier": "1.1",
     "tests": [],
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
+    "waiver": "PROCESS: how Linear issues are cut; a planning rule with no code artifact.",
     "default": false
   },
   {
@@ -14,7 +14,7 @@
     "quote": "Do not scatter product semantics across many tickets such that an implementer must reconstruct the design from issue archaeology.",
     "tier": "1.1",
     "tests": [],
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
+    "waiver": "PROCESS: ticket hygiene; checked by reading the tracker.",
     "default": false
   },
   {
@@ -23,7 +23,7 @@
     "quote": "Milestones represent coherent proof points, not directory/component buckets.",
     "tier": "1.1",
     "tests": [],
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
+    "waiver": "PROCESS: milestone design in Linear; no code artifact.",
     "default": false
   }
 ]
