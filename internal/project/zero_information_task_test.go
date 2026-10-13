@@ -47,7 +47,9 @@ var zeroInformationFields = map[string]taskFieldRole{
 	"Resolution":      roleOutcome,
 	// Evidence is the proof behind an AlreadySatisfied resolution, which a
 	// proven no-op always carries; the row states nothing new with it.
-	"Evidence":  roleIdentity,
+	"Evidence": roleIdentity,
+	// Tracked is wire-document detail the human rows never draw.
+	"Tracked":   roleIdentity,
 	"synthetic": roleOutcome,
 	// liveTail is a live-frame window onto Writer lines whose newest entry
 	// Phase already carries; it adds no information of its own.

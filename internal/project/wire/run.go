@@ -148,8 +148,7 @@ type TimingDoc struct {
 }
 
 // TrackedResourceDoc is one observable, fingerprintable resource (spec §36).
-// The runtime model has no tracked-resource instrumentation yet (that is
-// increment 2's File/manifest work) — always an empty slice for now.
+// Drawn from the Task's File and Exec operation records; empty when it ran none.
 type TrackedResourceDoc struct {
 	Kind        string `json:"kind"`
 	Path        string `json:"path"`
@@ -157,15 +156,16 @@ type TrackedResourceDoc struct {
 	Mode        string `json:"mode,omitempty"`
 }
 
-// BasisDoc is one semantic operation dependency (spec §36). Always an empty
-// slice for now — see TrackedResourceDoc.
+// BasisDoc is one semantic operation dependency (spec §36): Value is the
+// observed input's key.
 type BasisDoc struct {
 	Kind  string `json:"kind"`
 	Value string `json:"value"`
 }
 
 // OperationDoc is one nested Evo-native operation's state (spec §36).
-// Always an empty slice for now — see TrackedResourceDoc.
+// Current is true for every listed operation: only operations whose record
+// holds this run's state are listed.
 type OperationDoc struct {
 	Kind     string `json:"kind"`
 	Executed bool   `json:"executed"`
@@ -334,13 +334,13 @@ func toTaskDoc(parentID string, t record.TaskSnapshot) TaskDoc {
 		Activity:           toActivityDoc(t.Phase),
 		Timing:             TimingDoc{},
 		Verification:       toVerificationDocs(t.Verification),
-		TrackedResources:   []TrackedResourceDoc{},
-		Basis:              []BasisDoc{},
+		TrackedResources:   toTrackedResourceDocs(t.Tracked.Resources),
+		Basis:              toBasisDocs(t.Tracked.Basis),
 		Facts:              toFactDocs(t.Facts),
 		Dispositions:       toDispositionDocs(t),
 		Problems:           toProblemDocs(t.Problems),
 		Warnings:           warningDocs(t.Warnings),
-		Operations:         []OperationDoc{},
+		Operations:         toOperationDocs(t.Tracked.Operations),
 	}
 	return td
 }
@@ -395,4 +395,28 @@ func warningDocs(in []record.Problem) []ProblemDoc {
 		return nil
 	}
 	return toProblemDocs(in)
+}
+
+func toOperationDocs(in []record.TaskOperation) []OperationDoc {
+	out := make([]OperationDoc, 0, len(in))
+	for _, op := range in {
+		out = append(out, OperationDoc{Kind: op.Kind, Executed: op.Executed, Current: true})
+	}
+	return out
+}
+
+func toBasisDocs(in []record.TaskBasisEntry) []BasisDoc {
+	out := make([]BasisDoc, 0, len(in))
+	for _, b := range in {
+		out = append(out, BasisDoc{Kind: b.Kind, Value: b.Key})
+	}
+	return out
+}
+
+func toTrackedResourceDocs(in []record.TaskResource) []TrackedResourceDoc {
+	out := make([]TrackedResourceDoc, 0, len(in))
+	for _, r := range in {
+		out = append(out, TrackedResourceDoc{Kind: r.Kind, Path: r.Path, Fingerprint: r.Fingerprint})
+	}
+	return out
 }

@@ -49,6 +49,9 @@ type OperationRecord struct {
 	DefinitionFingerprint string         `json:"definition_fingerprint"`
 	Basis                 []BasisRecord  `json:"basis,omitempty"`
 	Outputs               []OutputRecord `json:"outputs,omitempty"`
+	// Carried marks a record adopted from the manifest because the operation
+	// was already current; the run did not execute it. Never persisted.
+	Carried bool `json:"-"`
 }
 
 // TaskRecord is one Task's committed reconciliation truth.

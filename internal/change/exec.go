@@ -152,7 +152,9 @@ func (r *Run) execEvaluate(ctx context.Context, id record.TaskID, spec ExecSpec,
 	switch eval.Disposition {
 	case freshness.ExecIsCurrent:
 		r.host.Observe(Observation{Task: id, Kind: OperationSkippedCurrent, Subject: subject, Reason: eval.Reason})
-		r.host.AppendOperation(id, eval.Prior)
+		carried := eval.Prior
+		carried.Carried = true
+		r.host.AppendOperation(id, carried)
 	case freshness.ExecIsPlanned:
 		r.host.Observe(Observation{Task: id, Kind: OperationStarted, Subject: subject, Reason: eval.Reason})
 		r.recordEntry(id, record.NamedEntry("run", spec.Executable))

@@ -2989,6 +2989,9 @@ func (t *taskState) snapshot() taskSnapshot {
 	s.Actions = record.CloneActions(s.Actions)
 	s.Skipped = cloneTaxonomy(s.Skipped)
 	s.Kept = cloneTaxonomy(s.Kept)
+	if t.handle != nil {
+		s.Tracked = t.handle.out.taskFreshness.Tracked(t.TaskID())
+	}
 	tail := record.LiveTailOf(s)
 	tail.Lines = slices.Clone(tail.Lines)
 	return record.WithLiveTail(s, tail)

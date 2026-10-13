@@ -114,3 +114,19 @@ func (t *TaskTable) Operations(id record.TaskID) []OperationRecord {
 	}
 	return nil
 }
+
+// Tracked is what id's pending operations observed and produced, in call
+// order, for the run's final document.
+func (t *TaskTable) Tracked(id record.TaskID) record.TaskOperations {
+	var tracked record.TaskOperations
+	for _, op := range t.Operations(id) {
+		tracked.Operations = append(tracked.Operations, record.TaskOperation{Kind: op.Kind, Executed: !op.Carried})
+		for _, b := range op.Basis {
+			tracked.Basis = append(tracked.Basis, record.TaskBasisEntry{Kind: b.Kind, Key: b.Key})
+		}
+		for _, out := range op.Outputs {
+			tracked.Resources = append(tracked.Resources, record.TaskResource{Kind: out.Kind, Path: out.Path, Fingerprint: out.Digest})
+		}
+	}
+	return tracked
+}
