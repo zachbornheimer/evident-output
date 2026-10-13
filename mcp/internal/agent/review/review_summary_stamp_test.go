@@ -11,7 +11,7 @@ import (
 // a Summary whose text narrates a mutation ("wrote ..."), a dry-run
 // hypothetical ("would add ..."), a no-op ("nothing to write"), or an
 // already-satisfied precondition ("already ...") belongs to
-// evo.File/evo.Effect/ResolutionAlreadySatisfied/evo.Fact instead.
+// evo.File/evo.Effect/the Satisfied outcome/evo.Fact instead.
 
 const summaryStampWroteSrc = `package p
 import evo "github.com/zachbornheimer/evident-output"

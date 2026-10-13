@@ -13,7 +13,7 @@ import (
 const AlreadySatisfiedDetail = "already satisfied"
 
 // AlreadySatisfiedRowDetail returns the dim §19 suffix when t settled
-// ResolutionAlreadySatisfied. Summary does not replace it. Empty when
+// Satisfied. Summary does not replace it. Empty when
 // this is not that resolution, so callers keep today's Summary behavior.
 func AlreadySatisfiedRowDetail(t record.TaskSnapshot, color bool) string {
 	if t.State != record.Satisfied {

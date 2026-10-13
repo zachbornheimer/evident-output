@@ -2634,7 +2634,7 @@ func (o *Run) resolveObserved(st *taskState, err error) {
 	observation := o.graph.Observe(st.node, err)
 	switch observation.Kind {
 	case graph.ObservedFailure:
-		st.handle.failScheduled(observation.Failure)
+		st.handle.settleEnding(err)
 	case graph.ObservedProposal:
 		proposal := observation.Proposal
 		st.handle.resolveScheduled(proposal.State, proposal.Summary, proposal.Problems)
@@ -3178,8 +3178,8 @@ var errVerificationUnsatisfied = errors.New("evo: postcondition not satisfied")
 //
 // Define's own execution wiring (see runDefine) runs every registered
 // Verify twice: once before the callback (with the Task already Running) —
-// all true skips the callback entirely and resolves the Task successfully
-// with ResolutionAlreadySatisfied; any false enters the callback; an
+// all true skips the callback entirely and settles the Task Satisfied;
+// any false enters the callback; an
 // observation error fails the Task without entering the callback — and
 // once after a successful callback, where any false fails the Task with
 // ProblemCodeVerificationUnsatisfied and an observation error fails it

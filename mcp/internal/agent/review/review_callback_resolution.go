@@ -45,7 +45,7 @@ func detectFailInResolvedCallback(filename string, file *ast.File, fset *token.F
 			return true
 		})
 	}
-	for _, fl := range evoResolutionCallbacks(file) {
+	for _, fl := range evoSettlingCallbacks(file) {
 		visit(fl.Body, 0)
 	}
 	return findings

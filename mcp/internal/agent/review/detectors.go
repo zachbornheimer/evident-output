@@ -243,7 +243,7 @@ var fileDetectors = []detector{
 	{needsEvo: true, run: astRule(detectMutatingVerify)},
 	// API-046: Skipped(evo.Reason("...")) whose reason names an
 	// already-satisfied condition instead of true inapplicability
-	// (ResolutionAlreadySatisfied, via Verify or evo.File/evo.Exec).
+	// (the Satisfied outcome, via Verify or evo.File/evo.Exec).
 	{needsEvo: true, run: astRule(detectSkippedForAlreadySatisfied)},
 	// API-060: Summary text that is actually mutation/dry-run/already-
 	// satisfied narration rather than the caller's own result metadata.

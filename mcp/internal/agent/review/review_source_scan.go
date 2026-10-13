@@ -10,10 +10,10 @@ import (
 	"strings"
 )
 
-// evoResolutionCallbacks collects every FuncLit passed directly as a
+// evoSettlingCallbacks collects every FuncLit passed directly as a
 // Define callback — the shape whose return value resolves the task through
 // evo's own scheduler (API-040/FP-006's scope).
-func evoResolutionCallbacks(file *ast.File) []*ast.FuncLit {
+func evoSettlingCallbacks(file *ast.File) []*ast.FuncLit {
 	var out []*ast.FuncLit
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)

@@ -62,7 +62,7 @@ task.Define(func(context.Context) error { return nil })`,
 			Category:   "API",
 			Severity:   SeverityWarning,
 			Invariant:  "Task.Summary/Group.Summary carries the caller's own result metadata, not mutation, dry-run, or already-satisfied narration that belongs to File/Effect/AlreadySatisfied/Facts",
-			Why:        "Summary is non-terminal result metadata (1.1/ZYS-971 Decisions, 2026-09-23): it never resolves the Task, and Define/the evo-native operation outcome remains the only normal success resolution path. A caller who reaches for it as a replacement stamp channel — narrating what a mutation did (\"wrote config.json\"), what a dry run would do (\"would add 3 refs\"), that nothing changed (\"nothing to write\"), or that a precondition already held (\"already up to date\") — recreates the exact success-stamp footgun Done(text) was removed in 1.1 for, one call away: that narration belongs to evo.File/evo.Effect's own Basis-tracked record, ResolutionAlreadySatisfied, or evo.Fact, each of which carries structured evidence Summary's bare string cannot.",
+			Why:        "Summary is non-terminal result metadata (1.1/ZYS-971 Decisions, 2026-09-23): it never resolves the Task, and Define/the evo-native operation outcome remains the only normal success resolution path. A caller who reaches for it as a replacement stamp channel — narrating what a mutation did (\"wrote config.json\"), what a dry run would do (\"would add 3 refs\"), that nothing changed (\"nothing to write\"), or that a precondition already held (\"already up to date\") — recreates the exact success-stamp footgun Done(text) was removed in 1.1 for, one call away: that narration belongs to evo.File/evo.Effect's own Basis-tracked record, the Satisfied outcome, or evo.Fact, each of which carries structured evidence Summary's bare string cannot.",
 			BadCode: `task.Define(func(ctx context.Context) error {
   if err := evo.File(ctx, spec); err != nil {
     return err
@@ -78,7 +78,7 @@ task.Define(func(context.Context) error { return nil })`,
   task.Summary(fmt.Sprintf("%d checked", n))
   return nil
 })`,
-			Remediation:     "Move mutation/dry-run/already-satisfied narration to the primitive that owns it — evo.File/evo.Effect's own record, ResolutionAlreadySatisfied, or evo.Fact — and use Summary only for the caller's own result metadata (a count, a rate, a verdict) that isn't already represented elsewhere.",
+			Remediation:     "Move mutation/dry-run/already-satisfied narration to the primitive that owns it — evo.File/evo.Effect's own record, the Satisfied outcome, or evo.Fact — and use Summary only for the caller's own result metadata (a count, a rate, a verdict) that isn't already represented elsewhere.",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-060"},
 			Since:           "1.1.0",

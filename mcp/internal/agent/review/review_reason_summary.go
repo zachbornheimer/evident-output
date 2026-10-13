@@ -83,7 +83,7 @@ func inlineReasonFinding(filename string, pos token.Position, pkg string, outerS
 // obvious already-satisfied condition (already up to date, unchanged,
 // already latest, already current) rather than true inapplicability (no
 // project config, no Go module). Skipped means the check never applied;
-// ResolutionAlreadySatisfied — produced by a Verify precondition, or derived
+// the Satisfied outcome — produced by a Verify precondition, or derived
 // automatically from evo.File/evo.Exec's own tracked comparison — means the
 // check applied and already held. Collapsing the two into Skipped hides a
 // real, checked precondition behind the "did not apply" glyph.
@@ -170,12 +170,12 @@ func skippedAlreadySatisfiedFinding(filename string, pos token.Position, recv, t
 	}
 	return Finding{
 		RuleID:  "API-046",
-		Message: "Skipped(evo.Reason(" + strconv.Quote(text) + ")) reports \"did not apply\"; the reason names a condition that was checked and already held, which is ResolutionAlreadySatisfied",
+		Message: "Skipped(evo.Reason(" + strconv.Quote(text) + ")) reports \"did not apply\"; the reason names a condition that was checked and already held, which is the Satisfied outcome",
 		File:    filename,
 		Line:    pos.Line,
 		Column:  pos.Column,
 		Suggestion: "add a precondition check via " + recv + ".Verify(func(ctx context.Context) (bool, error) { ... }) before " + recv +
-			".Define(...) so evo resolves ResolutionAlreadySatisfied on its own, or let evo.File/evo.Exec derive it from their own tracked comparison; reserve Skipped for true inapplicability (no project config, no Go module)",
+			".Define(...) so evo settles Satisfied on its own, or let evo.File/evo.Exec derive it from their own tracked comparison; reserve Skipped for true inapplicability (no project config, no Go module)",
 	}
 }
 
@@ -184,7 +184,7 @@ func skippedAlreadySatisfiedFinding(filename string, pos token.Position, recv, t
 // Decisions, 2026-09-23) — Summary is non-terminal result metadata, not a
 // replacement for the success-stamp channel Done(text) removed in 1.1.
 // That narration belongs to evo.File/evo.Effect's own record,
-// ResolutionAlreadySatisfied, or evo.Fact instead.
+// the Satisfied outcome, or evo.Fact instead.
 
 // summaryStampMarkers are substrings (checked case-insensitive against the
 // full Summary text) that only ever narrate a mutation that already
@@ -246,7 +246,7 @@ func summaryStampNarrationFinding(filename string, pos token.Position, recv, tex
 		File:    filename,
 		Line:    pos.Line,
 		Column:  pos.Column,
-		Suggestion: "move this narration to the primitive that owns it — evo.File/evo.Effect's own record, ResolutionAlreadySatisfied (via " + recv +
+		Suggestion: "move this narration to the primitive that owns it — evo.File/evo.Effect's own record, the Satisfied outcome (via " + recv +
 			".Verify), or evo.Fact — and reserve " + recv + ".Summary for result metadata such as a count or verdict",
 	}
 }

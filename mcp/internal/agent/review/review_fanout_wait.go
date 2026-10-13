@@ -7,7 +7,7 @@ import "strings"
 // (Doing/Fail/Progress) with no Define inside it — the scheduler never
 // received the work (zq axis-11 P1).
 
-var fanOutResolutionVerbMarkers = []string{".Doing(", ".Done(", ".Fail(", ".Progress("}
+var fanOutSettleVerbMarkers = []string{".Doing(", ".Done(", ".Fail(", ".Progress("}
 
 func detectGoroutineResolvesPredeclaredTask(filename, src string) []Finding {
 	var findings []Finding
@@ -22,7 +22,7 @@ func detectGoroutineResolvesPredeclaredTask(filename, src string) []Finding {
 			if !ok {
 				break
 			}
-			if !strings.Contains(body, ".Define(") && containsAny(body, fanOutResolutionVerbMarkers) {
+			if !strings.Contains(body, ".Define(") && containsAny(body, fanOutSettleVerbMarkers) {
 				findings = append(findings, Finding{
 					RuleID:     "API-041",
 					Message:    "goroutine/fan-out closure resolves a predeclared Task (Doing/Fail/Progress) with no Define; evo never received this work to schedule",

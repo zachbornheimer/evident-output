@@ -10,8 +10,8 @@ func defineRules() []Rule {
 			MinDialect: "1.0.0",
 			Category:   "API",
 			Severity:   SeverityWarning,
-			Invariant:  "Skipped means a check never applied; ResolutionAlreadySatisfied means the check applied and was already true — a reason naming a checked-and-already-true condition belongs to the latter",
-			Why:        "task.Skipped(evo.Reason(\"already up to date\")) reports \"did not apply\" for a precondition that was in fact checked and found already true; Verify (run before Define) or evo.File/evo.Exec's own tracked comparison resolve ResolutionAlreadySatisfied for exactly this case, and collapsing it into Skipped hides a real checked precondition behind the wrong glyph. True inapplicability (no project config, no Go module) stays Skipped.",
+			Invariant:  "Skipped means a check never applied; Satisfied means the check applied and was already true — a reason naming a checked-and-already-true condition belongs to the latter",
+			Why:        "task.Skipped(evo.Reason(\"already up to date\")) reports \"did not apply\" for a precondition that was in fact checked and found already true; Verify (run before Define) or evo.File/evo.Exec's own tracked comparison settle Satisfied for exactly this case, and collapsing it into Skipped hides a real checked precondition behind the wrong glyph. True inapplicability (no project config, no Go module) stays Skipped.",
 			BadCode: `if installedVersion == latestVersion {
   task.Skipped(evo.Reason("already up to date"))
   return
@@ -21,7 +21,7 @@ task.Define(func(ctx context.Context) error { return install(ctx) })`,
   return installedVersion == latestVersion, nil
 })
 task.Define(func(ctx context.Context) error { return install(ctx) })`,
-			Remediation:     "Move the already-true check into task.Verify(...) before Define, or rely on evo.File/evo.Exec's own tracked comparison, so evo resolves ResolutionAlreadySatisfied instead of Skipped; keep Skipped only for true inapplicability",
+			Remediation:     "Move the already-true check into task.Verify(...) before Define, or rely on evo.File/evo.Exec's own tracked comparison, so evo settles Satisfied instead of Skipped; keep Skipped only for true inapplicability",
 			RelatedGuidance: []string{"tasks", "evidence-provenance"},
 			VerificationIDs: []string{"API-046"},
 			Since:           "1.1.0",

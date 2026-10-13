@@ -475,8 +475,8 @@ func TestAPI046_SkippedAlreadyUpToDate_Fires(t *testing.T) {
 	if !strings.Contains(f.Suggestion, "Verify") {
 		t.Fatalf("API-046 suggestion does not name Verify: %q", f.Suggestion)
 	}
-	if !strings.Contains(f.Suggestion, "ResolutionAlreadySatisfied") {
-		t.Fatalf("API-046 suggestion does not name ResolutionAlreadySatisfied: %q", f.Suggestion)
+	if !strings.Contains(f.Suggestion, "the Satisfied outcome") {
+		t.Fatalf("API-046 suggestion does not name the Satisfied outcome: %q", f.Suggestion)
 	}
 }
 

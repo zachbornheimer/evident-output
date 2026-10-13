@@ -470,3 +470,16 @@ func Refuse(summary string, opts ...ProblemOption) error {
 func Exclude(reason string) error {
 	return endingError{outcome: Excluded, summary: reason}
 }
+
+// settleEnding settles the Task with the Outcome its callback's returned
+// error names (CONTRACT §4): the ending Fail, Refuse or Exclude carries,
+// wrapped or not, and Failed for any other error.
+func (t *Task) settleEnding(err error) {
+	var ending endingError
+	if !errors.As(err, &ending) {
+		t.failScheduled(err.Error())
+		return
+	}
+	summary := txt.Text(ending.summary)
+	t.resolveScheduled(entityState(ending.outcome), summary, []problem{record.ApplyProblemOptions(summary, nil)})
+}

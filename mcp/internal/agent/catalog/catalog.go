@@ -183,7 +183,7 @@ track automatically. Never lead with manifest internals or renderer controls.
 
 Teach the exact distinction (spec §56) — these are four different claims, not synonyms:
   - Task.Verify controls whole-Task fast skipping in 1.0: a pre-Define check that, when true, skips Define
-    entirely and resolves ResolutionAlreadySatisfied.
+    entirely and settles Satisfied.
   - Application fingerprint (evo.App) is definition identity/invalidation metadata, not positive Evidence by
     itself.
   - Evo-native operation identity (evo.File's own tracked record) controls operation-level no-op/recompilation
