@@ -6,8 +6,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-
-	"github.com/zachbornheimer/evident-output/mcp/internal/apisurface"
 )
 
 const (
@@ -34,7 +32,7 @@ type docSignature struct {
 }
 
 // TestMigrationGuide_OneOneSignaturesExistInAPIGolden fails when the 1.1
-// guide presents a func signature as current that the frozen API contract
+// guide presents a func signature as current that the released API contract
 // does not declare (the removed Warn taught as 1.1 API was this defect).
 func TestMigrationGuide_OneOneSignaturesExistInAPIGolden(t *testing.T) {
 	root := moduleRoot(t)
@@ -50,17 +48,18 @@ func TestMigrationGuide_OneOneSignaturesExistInAPIGolden(t *testing.T) {
 	for _, sig := range signatures {
 		if !declared[sig.key] {
 			t.Errorf("%s:%d: %q is presented as 1.1 API but %s does not declare %s",
-				oneOneGuideRelPath, sig.line, sig.text, apisurface.GoldenRelPath, sig.key)
+				oneOneGuideRelPath, sig.line, sig.text, releasedGoldenRelPath, sig.key)
 		}
 	}
 }
 
-// goldenFuncKeys is the set of Recv.Name / Name keys of every func the API
-// contract declares.
+// goldenFuncKeys is the set of Recv.Name / Name keys of every func the last
+// release's API contract declares: the 1.1 guide describes 1.x, which 2.0
+// replaced, so it is checked against the released golden.
 func goldenFuncKeys(t *testing.T, root string) map[string]bool {
 	t.Helper()
 	keys := map[string]bool{}
-	for line := range readLineSet(t, filepath.Join(root, apisurface.GoldenRelPath)) {
+	for line := range readLineSet(t, filepath.Join(root, releasedGoldenRelPath)) {
 		if m := goldenFuncDecl.FindStringSubmatch(line); m != nil {
 			keys[funcKey(m[1], m[2])] = true
 		}

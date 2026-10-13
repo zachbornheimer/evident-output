@@ -18,6 +18,7 @@ const (
 	RetiredRelease1_0 RetiredRelease = "1.0"
 	RetiredRelease1_1 RetiredRelease = "1.1"
 	RetiredRelease1_2 RetiredRelease = "1.2"
+	RetiredRelease2_0 RetiredRelease = "2.0"
 )
 
 // RetiredSymbol is one retired API name.
@@ -163,6 +164,28 @@ var retiredSymbols = []RetiredSymbol{
 	{Contract: "Extract", RemovedIn: RetiredRelease1_2, Replacement: "caller unpack, then evo.File", Taught: regexp.MustCompile(`\bevo\.Extract\b`)},
 	{Contract: "Clone", RemovedIn: RetiredRelease1_2, Replacement: "caller copy, then evo.File", Taught: regexp.MustCompile(`\bevo\.Clone\b`)},
 	{Contract: "Checksum", RemovedIn: RetiredRelease1_2, Replacement: "not evo", Taught: regexp.MustCompile(`\bevo\.Checksum\b|\.Checksum\(`)},
+
+	// 2.0 (CONTRACT.md): the surface is exactly the contract tables. These
+	// 1.x names are gone.
+	{Contract: "Init", RemovedIn: RetiredRelease2_0, Replacement: "evo.Main(run) or evo.Execute(ctx, cfg, run)"},
+	{Contract: "TaskHandle", RemovedIn: RetiredRelease2_0, Replacement: "Task"},
+	{Contract: "Files", RemovedIn: RetiredRelease2_0, Replacement: "evo.File per file"},
+	{Contract: "Fingerprint", RemovedIn: RetiredRelease2_0, Replacement: "FileSpec/ExecSpec Inputs and Values"},
+	{Contract: "FSPath", RemovedIn: RetiredRelease2_0, Replacement: "EffectSpec.Path"},
+	{Contract: "Value", RemovedIn: RetiredRelease2_0, Replacement: "FileSpec/ExecSpec Values"},
+	{Contract: "App", RemovedIn: RetiredRelease2_0, Replacement: "State.AppID"},
+	{Contract: "Location", RemovedIn: RetiredRelease2_0, Replacement: "evo.On(\"path:line:col\")"},
+	{Contract: "Severity", RemovedIn: RetiredRelease2_0, Replacement: "Problem is always non-fatal; there is no severity"},
+	{Contract: "SeverityWarning", RemovedIn: RetiredRelease2_0, Replacement: "Problem"},
+	{Contract: "ColorNever", RemovedIn: RetiredRelease2_0, Replacement: "NO_COLOR"},
+	{Contract: "FormatData", RemovedIn: RetiredRelease2_0, Replacement: "Run.ResultWriter"},
+	{Contract: "EffectAdd", RemovedIn: RetiredRelease2_0, Replacement: "evo.Create"},
+	{Contract: "EffectCreate", RemovedIn: RetiredRelease2_0, Replacement: "evo.Create"},
+	{Contract: "EffectDelete", RemovedIn: RetiredRelease2_0, Replacement: "evo.Delete"},
+	{Contract: "EffectPush", RemovedIn: RetiredRelease2_0, Replacement: "evo.Update"},
+	{Contract: "EffectRemove", RemovedIn: RetiredRelease2_0, Replacement: "evo.Delete"},
+	{Contract: "EffectUpdate", RemovedIn: RetiredRelease2_0, Replacement: "evo.Update"},
+	{Contract: "EffectInstall", RemovedIn: RetiredRelease2_0, Replacement: "evo.Create"},
 }
 
 // apiSpelling matches a retired method taught as current API: a known evo

@@ -8,40 +8,26 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/internal/apisurface"
 )
 
-// satisfactionEvidence is the 1.1 allowlist of exported identifiers that
-// contain "Evidence" and mean state-proof, not retained stdout/stderr.
-var satisfactionEvidence = map[string]struct{}{
-	"EvidencePhase": {},
-	"TaskEvidence":  {},
-}
-
-func TestExportedEvidenceNamesAreSatisfactionMeaning(t *testing.T) {
+// TestNoExportedEvidenceNames pins ZYS-1185 through 2.0: capture is spelled
+// Capture, and 2.0 removed the satisfaction-meaning EvidencePhase and
+// TaskEvidence too, so no exported identifier contains "Evidence".
+func TestNoExportedEvidenceNames(t *testing.T) {
 	t.Parallel()
 	live, err := apisurface.Walk(".")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var unexpected []string
-	seen := map[string]struct{}{}
 	for _, line := range live {
 		for _, ident := range exportedIdents(line) {
 			if !strings.Contains(ident, "Evidence") {
-				continue
-			}
-			if _, ok := satisfactionEvidence[ident]; ok {
-				seen[ident] = struct{}{}
 				continue
 			}
 			unexpected = append(unexpected, line+": "+ident)
 		}
 	}
 	if len(unexpected) > 0 {
-		t.Fatalf("capture-meaning Evidence identifier still exported (ZYS-1185):\n  %s", strings.Join(unexpected, "\n  "))
-	}
-	for name := range satisfactionEvidence {
-		if _, ok := seen[name]; !ok {
-			t.Errorf("allowlisted satisfaction name %s missing from live surface", name)
-		}
+		t.Fatalf("Evidence identifier still exported (ZYS-1185, removed in 2.0):\n  %s", strings.Join(unexpected, "\n  "))
 	}
 }
 

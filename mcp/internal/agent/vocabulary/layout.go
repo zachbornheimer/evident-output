@@ -10,33 +10,21 @@ import (
 
 // packageDocFile holds package documentation only; it declares no exported
 // identifier.
-const packageDocFile = "doc.go"
+const packageDocFile = "evo.go"
 
-// conceptFile is the root file that owns each vocabulary concept family.
+// patchPlaceholderFile is the root file CONTRACT.md §3 gives Patch. Patch
+// is not in the golden surface yet (its result type is still unexported), so
+// the file is expected without owning a concept.
+const patchPlaceholderFile = "patch.go"
+
+// conceptFile is the root file that owns each vocabulary concept: one per
+// contract section, named for the file stem.
 var conceptFile = map[string]string{
-	"Run": "run.go", "Task": "task.go", "Define": "task.go", "Wait": "task.go",
-	"Summary": "task.go", "Doing": "task.go", "Progress": "task.go",
-	"Group": "group.go", "Sequence": "group.go", "After": "group.go",
-	"Skipped": "outcome.go", "Blocked": "outcome.go", "Failed": "outcome.go",
-	"Cancelled": "outcome.go", "Conclusion": "outcome.go",
-	"Problem": "problem.go", "Action": "action.go", "Fact": "fact.go",
-	"Verify": "verify.go", "Evidence": "verify.go", "Fingerprint": "basis.go",
-	"Basis": "basis.go", "File": "file.go",
-	"Patch": "patch.go", "Exec": "exec.go", "Files": "patch.go",
-	"Capture": "capture.go", "Compute": "compute.go", "Effect": "effect.go",
-	"Resource": "resource.go",
-	"Snapshot": "snapshot.go", "Machine output": "format.go",
-	"Human output": "human.go", "Debug journal": "debug.go", "Misuse": "misuse.go",
-}
-
-// receiverFile places every method of a container handle in one file.
-var receiverFile = map[string]string{
-	"GroupHandle": "group.go", "SequenceHandle": "group.go",
-}
-
-// symbolFile overrides the concept placement for single identifiers.
-var symbolFile = map[string]string{
-	"Output.Context": "run.go", "Next": "problem.go", "NextCommand": "problem.go",
+	"Run": "run.go", "Facades": "facades.go", "Task": "task.go",
+	"Compute": "compute.go", "File": "file.go", "Exec": "exec.go",
+	"Effect": "effect.go", "Report": "report.go",
+	"Problem": "problem.go", "Ending": "ending.go", "Confirm": "confirm.go",
+	"Output": "output.go", "Errors": "errors.go",
 }
 
 // LayoutReport lists every way the root package departs from the layout.
@@ -53,25 +41,15 @@ func (r LayoutReport) String() string { return strings.Join(r.Problems, "\n") }
 // Home is the root file that must declare entry, or "" when its concept has
 // no file.
 func Home(entry Entry) string {
-	if file, ok := symbolFile[entry.Name]; ok {
-		return file
-	}
-	if recv, _, ok := strings.Cut(entry.Name, "."); ok {
-		if file, ok := receiverFile[recv]; ok {
-			return file
-		}
-	}
 	return conceptFile[entry.Concept]
 }
 
 // ExpectedRootFiles is the sorted set of non-test root files: one per
 // concept family, plus doc.go.
 func ExpectedRootFiles() []string {
-	set := map[string]bool{packageDocFile: true}
-	for _, files := range []map[string]string{conceptFile, receiverFile, symbolFile} {
-		for _, file := range files {
-			set[file] = true
-		}
+	set := map[string]bool{packageDocFile: true, patchPlaceholderFile: true}
+	for _, file := range conceptFile {
+		set[file] = true
 	}
 	return slices.Sorted(maps.Keys(set))
 }
@@ -88,15 +66,11 @@ func CheckLayout(golden []string, entries []Entry, decls map[string]string, root
 	problem := func(msg string) { r.Problems = append(r.Problems, msg) }
 
 	usedConcept := make(map[string]bool)
-	usedSymbol := make(map[string]bool)
 	for _, line := range golden {
 		ident := apisurface.Ident(line)
 		entry, ok := byName[ident]
 		if !ok || entry.Class == ClassRemoved {
 			continue
-		}
-		if _, ok := symbolFile[ident]; ok {
-			usedSymbol[ident] = true
 		}
 		home := Home(entry)
 		if home == "" {
@@ -121,11 +95,6 @@ func CheckLayout(golden []string, entries []Entry, decls map[string]string, root
 	for _, concept := range slices.Sorted(maps.Keys(conceptFile)) {
 		if !usedConcept[concept] {
 			problem("conceptFile row \"" + concept + "\" matches no golden identifier")
-		}
-	}
-	for _, ident := range slices.Sorted(maps.Keys(symbolFile)) {
-		if !usedSymbol[ident] {
-			problem("symbolFile row \"" + ident + "\" matches no golden identifier")
 		}
 	}
 	for _, ident := range slices.Sorted(maps.Keys(decls)) {

@@ -54,8 +54,8 @@ func TestAPIContract_RetiredPresentEvenIfGoldenRewrittenFails(t *testing.T) {
 
 func TestAPIContract_RetiredSingleWordNameDoesNotFalsePositiveOnSubstringIdent(t *testing.T) {
 	t.Parallel()
-	live := []string{"func Init()", "func DisplayGroupID() string"}
-	golden := []string{"func Init()", "func DisplayGroupID() string"}
+	live := []string{"func Main()", "func DisplayGroupID() string"}
+	golden := []string{"func Main()", "func DisplayGroupID() string"}
 	got := apisurface.Check(live, golden, nil, apisurface.RetiredNames)
 	if !got.OK() {
 		t.Fatalf("DisplayGroupID must not false-positive against retired name DisplayGroup, got retired-present=%v", got.RetiredPresent)
@@ -90,9 +90,9 @@ func TestAPIContract_RequiredFileListsSpecFloor(t *testing.T) {
 		got[line] = struct{}{}
 	}
 	floor := []string{
-		"Init", "Run", "Main", "Task", "Group", "Sequence", "Define",
-		"File", "Exec", "FSPath", "Fact", "Effect", "PartialEffect", "Verify",
-		"func (TaskHandle) After", "func (TaskHandle) Summary", "FileSpec", "ExecSpec", "func (TaskHandle) Basis",
+		"Main", "Execute", "Run", "RunFunc", "Task", "Group", "Sequence", "Define",
+		"File", "Exec", "Fact", "Effect", "PartialEffect", "Verify",
+		"FileSpec", "ExecSpec", "Fail", "Refuse", "Exclude",
 	}
 	for _, name := range floor {
 		if _, ok := got[name]; !ok {

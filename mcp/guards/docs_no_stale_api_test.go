@@ -37,7 +37,7 @@ var staleAPIScanRoots = []string{
 var staleAPIScanFiles = []string{
 	"README.md",
 	"AGENTS.md",
-	"doc.go",
+	"evo.go",
 }
 
 // staleAPIHistoricalFragments are the only current-docs scan skip: migration

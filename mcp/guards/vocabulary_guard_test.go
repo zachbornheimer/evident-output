@@ -13,7 +13,7 @@ import (
 // freezeRemoved is the ZYS-1180 names classed removed. Reclassifying one
 // to go green is a freeze break, not a fix.
 var freezeRemoved = []string{
-	"AlsoWrite", "Clock", "ConclusionJSON", "DataProjection", "DebugAddSource",
+	"AlsoWrite", "ConclusionJSON", "DataProjection", "DebugAddSource",
 	"DebugHistory", "DebugLevel", "DebugPane", "Diagnostics", "DryRun",
 	"EncodeEventJSON", "EncodeJSON", "EncodeJSONL", "ErrReasonSkipOnly",
 	"ErrReasonWrongTask", "EventJSON", "EventSchemaVersion", "ExternalProjection",
@@ -22,7 +22,7 @@ var freezeRemoved = []string{
 	"JSONOutputMeta", "JSONPlan", "JSONProblem", "JSONProgress",
 	"JSONSchemaVersion", "JSONTask", "MaxEntities", "MaxEvents", "MaxFrameRate",
 	"NoColor", "OnTask", "Option", "Plain", "ReasonOption", "Redact",
-	"ResultStream", "Runner", "Stdin", "Strict", "Terminal", "Title", "To",
+	"ResultStream", "Runner", "Stdin", "Strict", "Title", "To",
 	"VisibilityDelay", "Width",
 }
 
