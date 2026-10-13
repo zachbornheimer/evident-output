@@ -228,9 +228,11 @@ return evo.Exclude("protected")                         // Excluded, folds into 
 t.Problem("protected ref", evo.On("origin/main"), evo.Code("protected"))  // non-fatal
 ```
 
-A Task ends exactly once, by returning. Problems never end a Task. The value
-a Define callback or the run body returns settles its Outcome, wrapped or
-not: nil is Succeeded, `Refuse` Refused, `Exclude` Excluded, and `Fail` or
+A Task ends exactly once, by returning. Problems never end a Task: a Task
+that records Problems keeps the Outcome its return gives, and the Problems
+stay attached, so a Problem and a nil return are Succeeded with exit 0. The
+value a Define callback or the run body returns settles its Outcome, wrapped
+or not: nil is Succeeded, `Refuse` Refused, `Exclude` Excluded, and `Fail` or
 any other error Failed. The exit code follows the Conclusion: 0 for
 Succeeded, Satisfied and Excluded, 1 for Refused, 2 for Failed, 130 for
 Cancelled. `Fail`, `Refuse` and `Exclude` record every `ProblemOption` on the
