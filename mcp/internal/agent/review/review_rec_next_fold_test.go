@@ -7,7 +7,7 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
 )
 
-const remedyPlaceholder = "TODO state why this remedy is suggested"
+const remedyPlaceholder = "next step suggested; the reason is not yet stated"
 
 func remedySource(imports, body string) string {
 	return "package p\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"testing\"\n\n\tevo \"github.com/zachbornheimer/evident-output\"\n)\n\n" +

@@ -17,7 +17,7 @@ import (
 
 // remedyWarningSummary is the placeholder Problem summary the fallback rewrite
 // introduces.
-const remedyWarningSummary = "TODO state why this remedy is suggested"
+const remedyWarningSummary = "next step suggested; the reason is not yet stated"
 
 // remedyOutputTaskName is the Task an Output-level remedy lands on when the
 // function declares no diagnostic to own it.
