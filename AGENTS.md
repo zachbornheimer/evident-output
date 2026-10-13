@@ -25,7 +25,7 @@ Call the tools. A passing `go test` is not a review.
 | `npx -y @sveltejs/mcp` (always latest at spawn)                                                    | Spawn-time auto-update from the cwd `go.mod` pin (or path replace). Skip with `EVO_MCP_NO_AUTO_UPDATE`. |
 
 Svelte does not let the model “remember Svelte 4.” We do not let the model
-remember `DisplayGroup` / `Task.Each` (both removed in 1.0) / quantity-first
+remember retired 1.x group and per-item APIs / quantity-first
 `Delete` / `Task.Delete(object, fn)` and its six siblings (removed in 1.1).
 
 ## Tools (underscores)
@@ -125,7 +125,6 @@ classifying — it serializes on the same git dirs.
 ## Dialect the MCP enforces (current rec)
 
 ```go
-evo.Init(evo.Config{Title: "tool", DryRun: dry})
 os.Exit(evo.Main(run)) // Main returns the exit code; it never exits itself
 
 evo.Task("check config").Define(checkConfig)
@@ -142,9 +141,7 @@ for _, path := range paths {
 evo.Task("fetch").After(worktrees, branches).Define(fetchPrune)
 ```
 
-- **Task** is atomic. No `Task.Each`, no `Task.Run` (both removed in 1.0; use
-  `task.Writer()` on `cmd.Stdout`/`Stderr`), no `DisplayGroup` (removed in
-  1.0; it is `Group`).
+- **Task** is atomic. Use `task.Writer()` on `cmd.Stdout`/`Stderr`. Parallel work is a `Group`; ordered work is a `Sequence`.
 - **Group** = independent children (scheduler may overlap). **Sequence** =
   declaration order, one Running child.
 - **Define** submits work. It does not mean “run this callback synchronously
@@ -156,7 +153,7 @@ evo.Task("fetch").After(worktrees, branches).Define(fetchPrune)
   is a `Define` callback returning `nil`; result text is `task.Summary(text)`
   (non-terminal). Information is `task.Fact`, never a ledger row.
 - Dry-run skips **Effect** callbacks (and File writes) only. `Define` still runs.
-- `Group.Each` was removed in 1.0. Callers do not `errgroup` / `go func` to
+- Callers do not `errgroup` / `go func` to
   make evo rows parallel either — predeclare one named child `Task` per item
   under a `Group` + `Define` and let evo’s scheduler run them. A domain graph
   engine (zq mise/gate) may still own _eligibility_; wrap the executor body in
@@ -211,8 +208,7 @@ for a container.
 ## Release policy
 
 Evident Output 1.x ships breaking changes in minor releases when the owner's
-API-freeze decisions call for them, with no compatibility shims. `MainWith`
-and `Task.Each` were removed in 1.0 outright. Removed in 1.1: the TaskHandle mutation verbs, `Done`,
+API-freeze decisions call for them, with no compatibility shims. 1.0 dropped extra constructors and per-item helpers. Removed in 1.1: the TaskHandle mutation verbs, `Done`,
 `Record*`, `Affected`/`MutationOption`, `Warn`, `Step`,
 `Kept`, and capture-meaning `Evidence*` (`Capture` is the retained sink);
 the printf Fail and Block verbs are in docs/migration/1.1.md. 1.1 also
