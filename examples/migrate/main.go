@@ -13,7 +13,9 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
+	"path/filepath"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -22,6 +24,12 @@ func main() {
 	apply := flag.Bool("apply", false, "apply migration (default: dry-run plan only)")
 	fail := flag.Bool("fail", false, "with --apply, simulate backup failure")
 	flag.Parse()
+
+	migrationsDir, err := os.MkdirTemp("", "evo-migrate-")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "create migrations dir: %v\n", err)
+		os.Exit(1)
+	}
 
 	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
 		backups := &backupStore{}
@@ -55,8 +63,11 @@ func main() {
 				return db.ExecContext(ctx, createIndexDDL)
 			})
 		})
-		schema.Task("migration file").Define(func(ctx context.Context) error {
-			return evo.File(ctx, evo.FileSpec{Path: migrationPath, Contents: []byte(migrationSQL), Mode: 0o644})
+		migrationFile := schema.Task("migration file")
+		migrationFile.Define(func(ctx context.Context) error {
+			path := filepath.Join(migrationsDir, migrationName)
+			migrationFile.Doing("writing %s", path)
+			return evo.File(ctx, evo.FileSpec{Path: path, Contents: []byte(migrationSQL), Mode: 0o644})
 		})
 		return nil
 	}))
@@ -65,7 +76,7 @@ func main() {
 const (
 	addColumnDDL   = "ALTER TABLE users ADD COLUMN email_verified boolean NOT NULL DEFAULT false;"
 	createIndexDDL = "CREATE INDEX idx_users_email ON users (email);"
-	migrationPath  = "20260727_email_verified.sql"
+	migrationName  = "20260727_email_verified.sql"
 	migrationSQL   = addColumnDDL + "\n" + createIndexDDL + "\n"
 )
 

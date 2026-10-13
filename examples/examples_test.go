@@ -161,6 +161,33 @@ func joinArgs(args []string) string {
 	return out.String()
 }
 
+// TestMigrateExample_LeavesRepoTreeClean runs the migrate example from the
+// examples/ directory, as the smoke test does, and asserts it created no
+// untracked file in the checkout.
+func TestMigrateExample_LeavesRepoTreeClean(t *testing.T) {
+	root := findRepoRoot(t)
+	bin := filepath.Join(t.TempDir(), "migrate")
+	build := buildExampleBinary(bin, filepath.Join(root, "examples", "migrate"))
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
+	run := runExampleBinary(bin)
+	run.Dir = filepath.Join(root, "examples")
+	run.Env = append(os.Environ(), "NO_COLOR=1")
+	if out, err := run.CombinedOutput(); err != nil {
+		t.Fatalf("run: %v\n%s", err, out)
+	}
+	untracked := newCommand("git", "ls-files", "--others", "--exclude-standard")
+	untracked.Dir = root
+	out, err := untracked.Output()
+	if err != nil {
+		t.Fatalf("git ls-files: %v", err)
+	}
+	if got := strings.TrimSpace(string(out)); got != "" {
+		t.Fatalf("migrate example left untracked files:\n%s", got)
+	}
+}
+
 func findRepoRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()
