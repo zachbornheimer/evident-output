@@ -1,7 +1,8 @@
 package rules
 
-// patchRules is the evo.Patch/evo.Files family (1.1): apply a diff through
-// Patch + Files (API-058) and commit the FileSet Patch returns (API-059).
+// patchRules is the evo.Patch family: apply a diff through evo.Patch rather than
+// os/exec (API-058), and, for pins below 2.0.0 where Patch returned a FileSet,
+// commit that FileSet through evo.Files (API-059).
 func patchRules() []Rule {
 	return []Rule{
 		{
@@ -9,8 +10,8 @@ func patchRules() []Rule {
 			MinDialect: "1.1.0",
 			Category:   "API",
 			Severity:   SeverityError,
-			Invariant:  "a patch is never applied straight to the real workspace through os/exec; the call site derives desired file states with evo.Patch and commits them through evo.Files/evo.File",
-			Why:        "evo.Patch(ctx, diff) reads each referenced source once under its own read claim and mutates nothing; evo.Files(ctx, files) then commits each derived state through evo.File, so dry-run planning, the stale-write guard (ErrStaleBasis), desired-state comparison, and already-satisfied all apply exactly as they do for a single File call (ZYS-934). Shelling out to `patch` or `git apply`/`git am` bypasses every one of those guarantees at once — the workspace is mutated whether or not a dry run was requested, a source that changed after the diff was derived is overwritten instead of failing with ErrStaleBasis, and there is no Effect record of what changed. Domain code that only parses or reads a patch's hunks, with no exec and no direct filesystem mutation, is not this rule's target — evo.Patch itself is exactly that shape.",
+			Invariant:  "a patch is never applied straight to the real workspace through os/exec; the call site calls evo.Patch(ctx, diff), which derives desired file states and commits them through evo.File",
+			Why:        "evo.Patch(ctx, diff) reads each referenced source once under its own read claim and commits each derived state through evo.File, so dry-run planning, the stale-write guard (ErrStaleBasis), desired-state comparison, and already-satisfied all apply exactly as they do for a single File call (ZYS-934). Shelling out to `patch` or `git apply`/`git am` bypasses every one of those guarantees at once — the workspace is mutated whether or not a dry run was requested, a source that changed after the diff was derived is overwritten instead of failing with ErrStaleBasis, and there is no Effect record of what changed. Domain code that only parses or reads a patch's hunks, with no exec and no direct filesystem mutation, is not this rule's target — evo.Patch itself is exactly that shape.",
 			BadCode: `task.Define(func(ctx context.Context) error {
   cmd := exec.Command("patch", "-p1", "-i", diffPath)
   return cmd.Run()
@@ -19,7 +20,7 @@ func patchRules() []Rule {
   err := evo.Patch(ctx, diff) // Patch commits through File itself
   return err
 })`,
-			Remediation:     "Replace the exec.Command(\"patch\"/\"git apply\"/\"git am\", ...) call with files, err := evo.Patch(ctx, diff) to derive the desired file states, then evo.Files(ctx, files) to commit them",
+			Remediation:     "Replace the exec.Command(\"patch\"/\"git apply\"/\"git am\", ...) call with evo.Patch(ctx, diff), which derives the desired file states and commits them through evo.File",
 			RelatedGuidance: []string{"evo-file-exec"},
 			VerificationIDs: []string{"API-058"},
 			Since:           "1.1.0",
@@ -28,6 +29,7 @@ func patchRules() []Rule {
 		{
 			ID:         "API-059",
 			MinDialect: "1.1.0",
+			MaxDialect: "2.0.0", // 2.0 Patch commits itself; there is no FileSet or evo.Files
 			Category:   "API",
 			Severity:   SeverityError,
 			Invariant:  "a FileSet evo.Patch returns is opaque so its source Basis and stale-write guard cannot be stripped before commit; a function that derives one from a diff always commits it through evo.Files, never by building a fresh evo.FileSpec and calling evo.File",

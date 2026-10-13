@@ -19,7 +19,7 @@ Order for learning and documentation. Advanced paths are studio notes, not the l
 7. Facts / warnings / Effects / dry-run — Task.Fact, Task.Problem with SeverityWarning, Config.DryRun.
 8. Task.Verify(func(context.Context) (bool, error)) only for domains Evo cannot track
    automatically — never the default way to make ordinary work idempotent.
-9. Top-level Config.Format / Config.Verbosity — only when the host CLI needs machine or
+9. Top-level Config.Output / Config.Verbose — only when the host CLI needs machine or
    verbose output; never set per Task.
 
 Inside Define, evo.Effect (opaque mutations: a git ref, a worktree, an API change) and evo.File

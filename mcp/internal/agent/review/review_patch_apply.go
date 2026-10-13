@@ -1,9 +1,9 @@
 // Package review — API-058 (ZYS-934): a patch applied straight to the real
 // workspace through os/exec ("patch", "git apply", "git am", or an
-// equivalent direct mutation) instead of deriving desired file states with
-// evo.Patch and committing them through evo.Files/evo.File. evo.Patch reads
-// each referenced source once under its own read claim and mutates
-// nothing; evo.Files then commits each derived state through evo.File, so
+// equivalent direct mutation) instead of calling
+// evo.Patch, which commits through evo.File. evo.Patch reads
+// each referenced source once under its own read claim and commits each
+// derived state through evo.File, so
 // dry-run planning, the stale-write guard (ErrStaleBasis), and
 // already-satisfied all apply — exactly the coverage a raw `patch`/`git
 // apply` subprocess bypasses outright.
@@ -99,11 +99,11 @@ func argvAppliesPatch(argv []string) bool {
 func directWorkspacePatchApplyFinding(filename string, pos token.Position, program string) Finding {
 	return Finding{
 		RuleID:     "API-058",
-		Message:    "exec.Command(" + goQuote(program) + ", ...) applies a patch straight to the real workspace, bypassing evo.Patch's Basis derivation and evo.Files/evo.File's stale-write guard, dry-run planning, and already-satisfied resolution",
+		Message:    "exec.Command(" + goQuote(program) + ", ...) applies a patch straight to the real workspace, bypassing evo.Patch's Basis derivation and evo.File's stale-write guard, dry-run planning, and already-satisfied resolution",
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,
-		Suggestion: "derive desired file states with files, err := evo.Patch(ctx, diff), then commit them with evo.Files(ctx, files) instead of shelling out to " + program,
+		Suggestion: "call evo.Patch(ctx, diff), which derives the desired file states and commits them through evo.File, instead of shelling out to " + program,
 	}
 }
 

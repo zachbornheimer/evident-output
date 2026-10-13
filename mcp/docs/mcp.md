@@ -26,7 +26,7 @@ access to read authoritative docs — call `list_sections` for the table of cont
 `get_documentation` with the `id`s you need.
 
 `evident_output_adopt_plan` takes `{ "directory": "...", "cursor": "...", "limit": 40 }`,
-statically inventories `fmt.Print*`/`log.*`/`os.Stdout` writes and manual spinner
+statically inventories `fmt.Print`, `fmt.Printf` and `fmt.Println`, `log.*`/`os.Stdout` writes and manual spinner
 imports under it, and returns one page (`findings`, `rung`, `remaining`, `next_cursor`,
 `next_action`). Re-call with `cursor` until `next_action` is `clean`. See the
 adoption workflow in [`../skills/cli-output/SKILL.md`](../skills/cli-output/SKILL.md).

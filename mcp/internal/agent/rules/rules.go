@@ -22,7 +22,12 @@ type Rule struct {
 	// reports the rule for an older desired_version, and every finding of
 	// it carries this as RequiredVersion. It is stated here once, never on
 	// a detector.
-	MinDialect  string    `json:"min_dialect,omitempty"`
+	MinDialect string `json:"min_dialect,omitempty"`
+	// MaxDialect is the exclusive ceiling: a rule that encodes a shape the
+	// latest contract removed applies only to pins strictly below it, so
+	// review never reports it for the current dialect (empty desired_version)
+	// or any pin at or above the ceiling. Empty means no ceiling.
+	MaxDialect  string    `json:"max_dialect,omitempty"`
 	Deprecated  bool      `json:"deprecated"`
 	Replacement string    `json:"replacement,omitempty"`
 	Certainty   Certainty `json:"certainty,omitempty"`

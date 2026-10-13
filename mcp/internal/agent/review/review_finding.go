@@ -28,11 +28,15 @@ func finalize(fs []Finding) []Finding {
 }
 
 // admitDialect drops every finding whose rule needs a newer release than
-// desiredVersion: its suggestion names API that pin cannot call.
+// desiredVersion (its suggestion names API that pin cannot call) or whose
+// ceiling that pin has reached (its suggestion names API the pin removed).
 func admitDialect(fs []Finding, desiredVersion string) []Finding {
 	return slices.DeleteFunc(fs, func(f Finding) bool {
 		minDialect, _ := rules.MinDialectOf(f.RuleID)
-		return minDialect != "" && !dialectAtLeast(desiredVersion, minDialect)
+		maxDialect, _ := rules.MaxDialectOf(f.RuleID)
+		belowMin := minDialect != "" && !dialectAtLeast(desiredVersion, minDialect)
+		atOrAboveMax := maxDialect != "" && dialectAtLeast(desiredVersion, maxDialect)
+		return belowMin || atOrAboveMax
 	})
 }
 

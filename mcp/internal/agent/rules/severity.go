@@ -77,3 +77,10 @@ func MinDialectOf(id string) (string, bool) {
 	r, ok := catalogIndex()[id]
 	return r.MinDialect, ok
 }
+
+// MaxDialectOf returns rule id's MaxDialect ("" for no ceiling), and
+// false when no catalog rule has that id.
+func MaxDialectOf(id string) (string, bool) {
+	r, ok := catalogIndex()[id]
+	return r.MaxDialect, ok
+}

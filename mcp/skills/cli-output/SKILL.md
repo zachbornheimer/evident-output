@@ -136,7 +136,7 @@ Secrets: set `Config.Redactor`.
 | Named work  | `out.Task("download")`                                          |
 | Collection  | `out.Group("packages")`, one `.Task(name).Define(...)` per item |
 | Child stdio | `cmd.Stdout = task.Writer()` (and stderr)                       |
-| Domain JSON | `FormatData` + `out.ResultWriter()` (human on stderr)           |
+| Domain JSON | `r.ResultWriter()` (human on stderr)                            |
 
 ## Severity
 

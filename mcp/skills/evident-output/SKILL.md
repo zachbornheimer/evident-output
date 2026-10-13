@@ -26,7 +26,7 @@ license: Apache-2.0
 ## Workflow when MCP is connected
 
 1. `evident_output_list_sections` / `evident_output_get_documentation`
-2. Implement with `Init(Config)`, `Print*`, `Task.Define`, one Task per item under a `Group`/`Sequence`, mutation callbacks, `Writer()`, `Main`
+2. Implement with `Main(run)`, `Task.Define`, one Task per item under a `Group`/`Sequence`, mutation callbacks, `Writer()`
 3. `evident_output_review` until `recheck_required=false` (loop until its
    `next_action` field says `clean`). If it reports `update_needed`, call
    `evident_output_update` then restart the MCP host first.
@@ -68,6 +68,6 @@ grok mcp doctor evident-output --json
 - Sanitize is automatic; `Config.Redactor` scrubs the Capture ring + Debug fields
 - `Fail`/`Block` are statements (no return); inside Define, `return fmt.Errorf` and let Define resolve
 - Task is name-only: `out.Task("download")`. Child stdio: `cmd.Stdout = task.Writer()`
-- Data commands: `FormatData` + write domain payload to `out.ResultWriter()`
+- Data commands: write the domain payload to `r.ResultWriter()`
 - Prefer plain labels over `*f` constructors when identity must stay stable
 - Predeclare concurrent Tasks; scale cardinality to product need

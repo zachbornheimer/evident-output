@@ -199,11 +199,11 @@ Never invent a Basis entry the source code does not actually read (EVO-PROVENANC
 			ID:       "streams",
 			Title:    "Stdout and stderr contracts",
 			UseCases: []string{"json", "data-command", "progress-stderr", "pipe", "color", "child", "exit-code", "signal"},
-			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "Config", "FormatData", "Main", "Writer"},
+			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "Config", "ResultWriter", "Main", "Writer"},
 			Rules:    []string{"STREAM-003", "STREAM-004", "OUT-001", "OUT-003", "OUT-004", "API-031", "EV-001", "SIG-001", "SIG-002"},
 			Body: `Human UI and logs must not contaminate structured stdout.
 Ordinary dual-stream: os.Exit(evo.Main(run)) — a zero Config picks Plain off-TTY and honours NO_COLOR.
-FormatData reserves stdout for domain payload via ResultWriter; human presentation moves to stderr; a failed
+Run.ResultWriter carries the stdout domain payload; human presentation stays on stderr; a failed
 data command emits no partial payload by default.
 
 Exit codes come only from evo.Main's returned code (os.Exit(evo.Main(run))), or evo.Run/Output.Run's returned Result.ExitCode() for a caller that needs the Conclusion and application error, not just the code (evo.MainWith was removed in 1.0 — an Isolated *Output now calls its own Output.Run instead): run(ctx) returns error, nothing else picks the code. Never hand-map an int
@@ -286,10 +286,10 @@ Effect records the committed subset as changed and still fails the Task with err
 invalid count or nil err returns evo.ErrInvalidPartialEffect and records nothing.
 
 evo.Patch(ctx, diff) derives the desired file states a unified diff describes — reading each source once under
-its own read claim and mutating nothing — and evo.Files(ctx, files) commits them through evo.File, so dry-run
+its own read claim — and commits each through evo.File, so dry-run
 planning, the stale-write guard (ErrStaleBasis), and already-satisfied all apply exactly as they do for a single
 File call. Applying a patch through os/exec ("patch", "git apply", "git am") straight to the real workspace
-bypasses that coverage outright and is never correct (API-058) — derive with evo.Patch, commit with evo.Files.
+bypasses that coverage outright and is never correct (API-058) — call evo.Patch(ctx, diff) instead.
 Domain code that only parses or reads a patch's hunks, with no exec and no direct filesystem mutation, is not
 this rule's target.`,
 			TokenEstimate: 320,
@@ -318,7 +318,7 @@ pre-definition Verify (or a tracked evo.File/evo.Exec check) that proves the cur
 			Concepts: []string{"LiveSurface", "VisibilityDelay", "Terminal", "Confirm", "Println"},
 			Rules:    []string{"TERM-001", "TERM-006", "TERM-015", "CONFIRM-001", "CONFIRM-002", "LOG-001"},
 			Body: `A Task that resolves before the visibility threshold must not flash a spinner.
-Durable notes go through fmt.Fprintln(r.Text(), ...) — never fmt.Print* — while a live region is open: evo clears
+Durable notes go through fmt.Fprintln(r.Text(), ...) — never the fmt print functions — while a live region is open: evo clears
 the region, writes the line, redraws, atomically. fmt bypassing that path is how frames tear.
 evo.Confirm(question, ...) quiesces the live region for the whole ask-decide-resolve window before it prompts:
 no spinner ever animates while waiting on a human, and the answer resolves to OK, ⊘ declined, or ⊘ blocked by

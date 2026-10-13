@@ -31,8 +31,8 @@ func TestAPI058_ExecPatchCommand_Fires(t *testing.T) {
 	if f.Severity != "error" {
 		t.Fatalf("API-058 severity = %q, want error", f.Severity)
 	}
-	if !strings.Contains(f.Suggestion, "evo.Patch") || !strings.Contains(f.Suggestion, "evo.Files") {
-		t.Fatalf("API-058 suggestion does not name evo.Patch/evo.Files: %q", f.Suggestion)
+	if !strings.Contains(f.Suggestion, "evo.Patch") {
+		t.Fatalf("API-058 suggestion does not name evo.Patch: %q", f.Suggestion)
 	}
 	if f.RequiredVersion != "1.1.0" {
 		t.Fatalf("API-058 required_version = %q, want 1.1.0", f.RequiredVersion)
@@ -99,11 +99,7 @@ func TestAPI058_ExecPatchFullPath_Fires(t *testing.T) {
 const domainPatchParseOnlySrc = `package p
 import evo "github.com/zachbornheimer/evident-output"
 func run(ctx context.Context, diff []byte) error {
-  files, err := evo.Patch(ctx, diff)
-  if err != nil {
-    return err
-  }
-  return evo.Files(ctx, files)
+  return evo.Patch(ctx, diff)
 }
 `
 

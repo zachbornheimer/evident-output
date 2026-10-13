@@ -12,6 +12,10 @@ import (
 // through evo.File, discarding the Basis/stale-write guard the FileSet
 // carried.
 
+// patchFileSetPin is the newest pin whose evo.Patch returns a FileSet;
+// API-059 applies only below 2.0.0.
+const patchFileSetPin = "1.9.0"
+
 const patchFileSetDiscardedNamedVarSrc = `package p
 import (
   "os"
@@ -32,7 +36,7 @@ func run(ctx context.Context, diff []byte, path string) error {
 `
 
 func TestAPI059_PatchFileSetDiscardedNamedVar_Fires(t *testing.T) {
-	res := review.GoSource("apply.go", patchFileSetDiscardedNamedVarSrc)
+	res := review.GoSourceAt("apply.go", patchFileSetDiscardedNamedVarSrc, patchFileSetPin)
 	f := findingByID(t, res, "API-059")
 	if f.Severity != "error" {
 		t.Fatalf("API-059 severity = %q, want error", f.Severity)
@@ -64,7 +68,7 @@ func run(ctx context.Context, diff []byte, path string, contents []byte) error {
 `
 
 func TestAPI059_PatchFileSetDiscardedBlank_Fires(t *testing.T) {
-	res := review.GoSource("apply_blank.go", patchFileSetDiscardedBlankSrc)
+	res := review.GoSourceAt("apply_blank.go", patchFileSetDiscardedBlankSrc, patchFileSetPin)
 	findingByID(t, res, "API-059")
 }
 
@@ -82,7 +86,7 @@ func run(ctx context.Context, diff []byte) error {
 `
 
 func TestAPI059_EvoFilesGoodCode_StaysSilent(t *testing.T) {
-	res := review.GoSource("apply_good.go", patchFilesGoodCodeSrc)
+	res := review.GoSourceAt("apply_good.go", patchFilesGoodCodeSrc, patchFileSetPin)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-059" {
 			t.Fatalf("false positive API-059 on evo.Files(ctx, fileSet): %+v", f)
@@ -101,7 +105,7 @@ func run(ctx context.Context, path string, contents []byte) error {
 `
 
 func TestAPI059_NoPatchInScope_StaysSilent(t *testing.T) {
-	res := review.GoSource("configure.go", evoFileNoPatchInScopeSrc)
+	res := review.GoSourceAt("configure.go", evoFileNoPatchInScopeSrc, patchFileSetPin)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-059" {
 			t.Fatalf("false positive API-059 with no evo.Patch call in scope: %+v", f)
@@ -119,13 +123,24 @@ func TestAPI059_PreOneOneOnePin_StaysSilent(t *testing.T) {
 }
 
 func TestAPI059_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
-	res := review.GoSource("apply.go", patchFileSetDiscardedNamedVarSrc)
+	res := review.GoSourceAt("apply.go", patchFileSetDiscardedNamedVarSrc, patchFileSetPin)
 	findingByID(t, res, "API-059")
 
-	after := review.GoSource("apply_good.go", patchFilesGoodCodeSrc)
+	after := review.GoSourceAt("apply_good.go", patchFilesGoodCodeSrc, patchFileSetPin)
 	for _, f := range after.Findings {
 		if f.RuleID == "API-059" {
 			t.Fatalf("API-059 still fires after remediation to evo.Files: %+v", f)
+		}
+	}
+}
+
+func TestAPI059_CurrentDialectNeverFires(t *testing.T) {
+	for _, pin := range []string{"", "2.0.0"} {
+		res := review.GoSourceAt("apply.go", patchFileSetDiscardedNamedVarSrc, pin)
+		for _, f := range res.Findings {
+			if f.RuleID == "API-059" {
+				t.Fatalf("API-059 fired for pin %q; evo.Files was removed in 2.0: %+v", pin, f)
+			}
 		}
 	}
 }
