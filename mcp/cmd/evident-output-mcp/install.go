@@ -55,12 +55,14 @@ func PlanInstall(version, directory string, env Env, files Files) (InstallPlan, 
 	plan.Pin = pin
 	switch {
 	case pin.ReplacePath != "":
-		plan.Dir = pin.ReplacePath
-		plan.GoArgs = []string{"install", "-C", pin.ReplacePath, mcpLocalPkg}
+		mcpDir := filepath.Join(pin.ReplacePath, "mcp")
+		plan.Dir = mcpDir
+		plan.GoArgs = []string{"install", "-C", mcpDir, mcpLocalPkg}
 		plan.BuiltFrom = pin.ReplacePath
 	case pin.SelfModule:
-		plan.Dir = modDir
-		plan.GoArgs = []string{"install", "-C", modDir, mcpLocalPkg}
+		mcpDir := filepath.Join(modDir, "mcp")
+		plan.Dir = mcpDir
+		plan.GoArgs = []string{"install", "-C", mcpDir, mcpLocalPkg}
 		plan.BuiltFrom = modDir
 	case pin.Version != "":
 		plan.GoArgs = []string{"install", mcpInstallPkg + "@" + pin.Version}

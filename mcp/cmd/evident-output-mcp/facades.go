@@ -12,7 +12,7 @@ import (
 const (
 	evoModulePath   = "github.com/zachbornheimer/evident-output"
 	mcpInstallPkg   = evoModulePath + "/mcp/cmd/evident-output-mcp"
-	mcpLocalPkg     = "./mcp/cmd/evident-output-mcp"
+	mcpLocalPkg     = "./cmd/evident-output-mcp"
 	mcpBinaryName   = "evident-output-mcp"
 	envNoAutoUpdate = "EVO_MCP_NO_AUTO_UPDATE"
 	envBuiltFrom    = "EVO_MCP_BUILT_FROM"

@@ -22,8 +22,6 @@ import (
 	"go/types"
 	"strconv"
 	"strings"
-
-	"github.com/zachbornheimer/evident-output/internal/change"
 )
 
 // recordVerbArgCount is the exact argument count each deprecated verb
@@ -109,7 +107,7 @@ func recordRewrite(recv, verb string, args []ast.Expr) string {
 	if lit == "write" {
 		return "move the write into " + recv + ".Define(func(ctx context.Context) error { return evo.File(ctx, evo.FileSpec{Path: " + object + ", Contents: data}) })"
 	}
-	constant, ok := change.EffectVerbConstant(lit)
+	constant, ok := effectVerbConstant(lit)
 	if !ok {
 		return "no EffectVerb is spelled " + strconv.Quote(lit) + "; pick the closest of " + strings.Join(effectVerbValues(), "/")
 	}
@@ -117,12 +115,35 @@ func recordRewrite(recv, verb string, args []ast.Expr) string {
 		", Object: " + object + ", Quantity: " + quantity + "}, fn) })"
 }
 
+// effectVerbSpellings is the closed EffectVerb set, copied from
+// internal/change so this nested module does not import that package.
+var effectVerbSpellings = []struct {
+	value, constant string
+}{
+	{"add", "EffectAdd"},
+	{"create", "EffectCreate"},
+	{"delete", "EffectDelete"},
+	{"install", "EffectInstall"},
+	{"push", "EffectPush"},
+	{"remove", "EffectRemove"},
+	{"uninstall", "EffectUninstall"},
+	{"update", "EffectUpdate"},
+}
+
+func effectVerbConstant(value string) (string, bool) {
+	for _, v := range effectVerbSpellings {
+		if v.value == value {
+			return v.constant, true
+		}
+	}
+	return "", false
+}
+
 // effectVerbValues is every EffectVerb spelling, in declaration order.
 func effectVerbValues() []string {
-	verbs := change.EffectVerbs()
-	values := make([]string, len(verbs))
-	for i, v := range verbs {
-		values[i] = v.Value
+	values := make([]string, len(effectVerbSpellings))
+	for i, v := range effectVerbSpellings {
+		values[i] = v.value
 	}
 	return values
 }

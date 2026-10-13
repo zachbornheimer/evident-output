@@ -39,7 +39,7 @@ var docFixtures = []docexamples.DocFixture{
 	{Doc: "mcp/docs/reference.md", FenceIndex: 2, Fixture: "fixtures/reference_3"},
 
 	{Doc: "mcp/docs/development.md", FenceIndex: 0, Fixture: "fixtures/development_1"},
-	{Doc: "mcp/docs/development.md", FenceIndex: 1, Fixture: "fixtures/development_2"},
+	{Doc: "mcp/docs/development.md", FenceIndex: 1, Fixture: "fixtures/development_2", TextOnly: true},
 	{Doc: "mcp/docs/development.md", FenceIndex: 2, Fixture: "fixtures/development_3"},
 
 	{Doc: "mcp/docs/teaching-ladder.md", FenceIndex: 0, Fixture: "fixtures/teaching_ladder_1"},
@@ -189,12 +189,12 @@ func repoRoot(t *testing.T) string {
 		t.Fatal(err)
 	}
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "CONTRACT.md")); err == nil {
 			return dir
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			t.Fatal("go.mod not found above test working directory")
+			t.Fatal("CONTRACT.md not found above test working directory")
 		}
 		dir = parent
 	}

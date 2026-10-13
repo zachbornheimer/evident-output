@@ -51,14 +51,15 @@ func TestPlanInstall_ReplacePathUsesTreeAsCwd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Dir != evoTree {
-		t.Fatalf("cwd=%q want replace tree %q", plan.Dir, evoTree)
+	mcpDir := filepath.Join(evoTree, "mcp")
+	if plan.Dir != mcpDir {
+		t.Fatalf("cwd=%q want mcp tree %q", plan.Dir, mcpDir)
 	}
 	if !containsArg(plan.GoArgs, mcpLocalPkg) {
 		t.Fatalf("pkg=%v want %s", plan.GoArgs, mcpLocalPkg)
 	}
-	if !containsArg(plan.GoArgs, "-C") || !containsArg(plan.GoArgs, evoTree) {
-		t.Fatalf("want go install -C %s, got %v", evoTree, plan.GoArgs)
+	if !containsArg(plan.GoArgs, "-C") || !containsArg(plan.GoArgs, mcpDir) {
+		t.Fatalf("want go install -C %s, got %v", mcpDir, plan.GoArgs)
 	}
 	assertNoCopyArgs(t, plan.GoArgs)
 }
@@ -75,8 +76,9 @@ func TestPlanInstall_SelfModuleUsesLocalTree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Dir != tree {
-		t.Fatalf("cwd=%q want module dir %q", plan.Dir, tree)
+	mcpDir := filepath.Join(tree, "mcp")
+	if plan.Dir != mcpDir {
+		t.Fatalf("cwd=%q want mcp tree %q", plan.Dir, mcpDir)
 	}
 	if !containsArg(plan.GoArgs, mcpLocalPkg) {
 		t.Fatalf("self-module must install %s, got %v", mcpLocalPkg, plan.GoArgs)

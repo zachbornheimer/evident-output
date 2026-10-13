@@ -66,7 +66,7 @@ func TestPackageDocQuickstartRuns(t *testing.T) {
 		t.Skip("the quickstart runs git, which is not installed")
 	}
 	binary := filepath.Join(t.TempDir(), "quickstart")
-	build := exec.Command("go", "build", "-buildvcs=false", "-o", binary, "./mcp/internal/docexamples/"+packageDocFixture)
+	build := exec.Command("go", "build", "-C", "mcp", "-buildvcs=false", "-o", binary, "./internal/docexamples/"+packageDocFixture)
 	build.Dir = repoRoot(t)
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build quickstart: %v\n%s", err, out)

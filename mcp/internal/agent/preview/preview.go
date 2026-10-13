@@ -3,7 +3,6 @@ package preview
 
 import (
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/project/plain"
 )
 
 // Profile is one terminal profile rendering.
@@ -24,8 +23,15 @@ func DefaultProfiles(snap evo.Snapshot) []Profile {
 	}
 	var out []Profile
 	for _, s := range specs {
-		text := plain.Plain(snap, s.width, true, false, evo.GlyphsUnicode)
-		out = append(out, Profile{Name: s.name, Text: text})
+		body, err := evo.RenderPlain(snap, evo.PlainOptions{
+			Width:   s.width,
+			NoColor: true,
+			Glyphs:  evo.GlyphsUnicode,
+		})
+		if err != nil {
+			body = nil
+		}
+		out = append(out, Profile{Name: s.name, Text: string(body)})
 	}
 	return out
 }

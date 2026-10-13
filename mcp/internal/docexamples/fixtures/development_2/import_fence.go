@@ -1,7 +1,10 @@
+//go:build ignore
+
 // Package main compiles mcp/docs/development.md's "Production ANSI driver"
 // fence verbatim, split across this file and main.go — see
 // TestDocFencesMatchFixtures and FixtureRegion in the parent package for
-// why. Never run.
+// why. Never run. The fence imports internal/terminal, which a nested
+// mcp module cannot compile against.
 package main
 
 // docexamples:snippet start

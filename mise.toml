@@ -9,6 +9,7 @@ go = "1.27.2"
 description = "Bootstrap dev environment"
 run = [
   "go mod download",
+  "go mod download -C mcp",
   "echo setup complete",
 ]
 
@@ -16,7 +17,8 @@ run = [
 description = "Verify packages compile; stamp evident-output-mcp's --version so a stale host can never read the literal string 'dev'"
 run = [
   "go build ./...",
-  "go build -ldflags \"-X main.Version=$(git describe --tags --always --dirty)\" -o /dev/null ./mcp/cmd/evident-output-mcp",
+  "go build -C mcp ./...",
+  "go build -C mcp -ldflags \"-X main.Version=$(git describe --tags --always --dirty)\" -o /dev/null ./cmd/evident-output-mcp",
 ]
 
 [tasks.lint]
@@ -24,18 +26,27 @@ description = "Format check, vet, staticcheck, golangci-lint, gitleaks — every
 run = [
   "test -z \"$(gofmt -l .)\" || { gofmt -l .; echo 'gofmt: files need formatting'; exit 1; }",
   "go vet ./...",
+  "go vet -C mcp ./...",
   "staticcheck ./...",
+  "sh -c 'cd mcp && staticcheck ./...'",
   "golangci-lint run ./...",
+  "sh -c 'cd mcp && golangci-lint run ./...'",
   "gitleaks detect --no-git -v",
 ]
 
 [tasks.test]
 description = "Run all tests"
-run = "go test -timeout 20m ./..."
+run = [
+  "go test -timeout 20m ./...",
+  "go test -C mcp -timeout 20m ./...",
+]
 
 [tasks.test-race]
 description = "Run tests with race detector"
-run = "go test -race -timeout 30m ./..."
+run = [
+  "go test -race -timeout 30m ./...",
+  "go test -C mcp -race -timeout 30m ./...",
+]
 
 [tasks.conformance]
 description = "Run roast/conformance suite"
@@ -73,7 +84,7 @@ run = [
 [tasks.scan]
 description = "Security scan (govulncheck; installed on the fly if absent)"
 run = [
-  "if command -v govulncheck >/dev/null 2>&1; then govulncheck ./...; else go run golang.org/x/vuln/cmd/govulncheck@latest ./...; fi",
+  "if command -v govulncheck >/dev/null 2>&1; then govulncheck ./... && govulncheck -C mcp ./...; else go run golang.org/x/vuln/cmd/govulncheck@latest ./... && go run golang.org/x/vuln/cmd/govulncheck@latest -C mcp ./...; fi",
 ]
 
 [tasks.traceability]
@@ -114,7 +125,7 @@ run = "bash tools/scripts/run-examples.sh"
 
 [tasks.api-contract]
 description = "Public API surface matches testdata/api_golden.txt plus required/retired floors"
-run = "go run ./mcp/cmd/evident-output contract"
+run = "go run -C mcp ./cmd/evident-output contract"
 
 [tasks.spec-score]
 description = "Lint the spec requirement registry against conformance/spec/contract-1.x.md"

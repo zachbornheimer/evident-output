@@ -82,12 +82,12 @@ func repoRoot(t *testing.T) string {
 		t.Fatal(err)
 	}
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "CONTRACT.md")); err == nil {
 			return dir
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			t.Fatal("go.mod not found above test working directory")
+			t.Fatal("CONTRACT.md not found above test working directory")
 		}
 		dir = parent
 	}
