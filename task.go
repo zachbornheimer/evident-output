@@ -1937,10 +1937,10 @@ func (o *Run) followRecordAfterWait() {
 
 type DefineOption func(*defineConfig)
 
-type defineConfig struct{}
+type defineConfig struct{ cleanStopSignals []os.Signal }
 
 func CleanStop(signals ...os.Signal) DefineOption {
-	return func(*defineConfig) {}
+	return func(c *defineConfig) { c.cleanStopSignals = append(c.cleanStopSignals, signals...) }
 }
 
 func (g *Group) Build(fn func(*Group)) { g.define(fn) }

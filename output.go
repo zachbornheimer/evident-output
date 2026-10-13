@@ -117,6 +117,8 @@ type Run struct {
 	// taskFreshness remembers each Task's declared inputs, observed Basis,
 	// pending operation records and Verify checks.
 	taskFreshness *freshness.TaskTable
+	// cleanStops tracks running Tasks that end Succeeded on a named signal.
+	cleanStops cleanStopRegistry
 }
 
 func newOutput(subject string, options ...option) *Run {

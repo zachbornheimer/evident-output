@@ -184,11 +184,18 @@ func runInterruptible(ctx context.Context, out *Run, run RunFunc) Result {
 		finished = true
 	}()
 
-	select {
-	case result := <-done:
-		return result
-	case <-sigCh:
-	case <-ctx.Done():
+	for {
+		select {
+		case result := <-done:
+			return result
+		case sig := <-sigCh:
+			// A signal a running Task named in CleanStop ends only that Task.
+			if out.cleanStops.stop(sig) {
+				continue
+			}
+		case <-ctx.Done():
+		}
+		break
 	}
 	interrupted.Store(true)
 	out.interrupt("interrupted")
@@ -3242,6 +3249,11 @@ func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Tas
 	verifiers := o.taskFreshness.Verifiers(st.TaskID())
 	o.mu.Unlock()
 
+	var cfg defineConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	fn = o.cleanStops.wrap(cfg.cleanStopSignals, fn)
 	t.submitWork(func() error { return t.runDefine(verifiers, fn) })
 	return t
 }
