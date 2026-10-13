@@ -30,7 +30,7 @@ var dialectSurface = map[string][]string{
 		"Destructive()",
 		"Detail(text string)",
 		"Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error)",
-		"Exclude(reason string)",
+		"Exclude(reason string, opts ...ProblemOption)",
 		"Exec(ctx context.Context, spec ExecSpec)",
 		"Execute(ctx context.Context, cfg Config, run RunFunc)",
 		"Fail(summary string, opts ...ProblemOption)",
