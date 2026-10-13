@@ -8,7 +8,7 @@ log file, and the exit code always matches what the screen just said.
 ## Install
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v1.0.0
+go get github.com/zachbornheimer/evident-output@v2.0.0
 ```
 
 Requires **Go 1.25+**. License: **Apache-2.0**.
@@ -16,94 +16,89 @@ Requires **Go 1.25+**. License: **Apache-2.0**.
 ## Quickstart
 
 ```go
-import (
-    "context"
-    "os"
+package main
 
-    evo "github.com/zachbornheimer/evident-output"
+import (
+ "context"
+ "os"
+
+ evo "github.com/zachbornheimer/evident-output"
 )
 
-func main() {
-    evo.Init(evo.Config{Title: "bpp-csharp"}) // first statement — arms first paint before any I/O
-    os.Exit(evo.Main(run)) // Main returns the exit code; evo.Run(ctx, run) if you need the whole Result
-}
+func main() { os.Exit(evo.Main(run)) } // Main wires SIGINT/SIGTERM and returns the exit code
 
-func run(ctx context.Context) error {
-    // Start as casually as fmt — then promote to structure when useful.
-    evo.Println("Reading configuration")
-    evo.Printf("Found %d packages\n", 18)
+func run(ctx context.Context, r *evo.Run) error {
+ r.Task("check config").Define(checkConfig)
 
-    evo.Task("working tree").Define(checkWorkingTree)
-    evo.Task("branches").Block(
-        "local-only branch",
-        evo.Detail("commit or stash before continuing"),
-    )
+ installs := r.Group("install") // children may overlap
+ for _, pkg := range packages {
+  installs.Task(pkg).Define(func(ctx context.Context) error { return install(pkg) })
+ }
 
-    evo.Task("cleanup").Define(func(ctx context.Context) error {
-        spec := evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale local branch", Quantity: 2}
-        return evo.Effect(ctx, spec, removeStaleBranches) // singular Object; ledger renders "deleted 2 stale local branches"
-    })
-
-    installs := evo.Group("install")
-    for _, pkg := range packages {
-        installs.Task(pkg).Define(func(ctx context.Context) error { return install(pkg) })
-    }
-    return nil // Block is a presentation outcome, not a Go error
+ r.Sequence("publish").After(installs).Build(func(s *evo.Sequence) {
+  s.Task("generate").Define(func(ctx context.Context) error {
+   return evo.File(ctx, evo.FileSpec{Path: "out.txt", Contents: []byte("ok\n"), Mode: 0o644})
+  })
+  s.Task("prune").Define(func(ctx context.Context) error {
+   spec := evo.EffectSpec{Verb: evo.Delete, Object: "stale branch", Quantity: 2}
+   return evo.Effect(ctx, spec, removeStaleBranches) // ledger: "deleted 2 stale branches"
+  })
+ })
+ return nil
 }
 ```
 
-On a real terminal, `install` draws an in-place, colored, animated progress
-line while it runs — no extra code. Piped (`prog > log.txt`, CI, an agent
-harness), the same call sites fall back to plain, durable lines:
+A Task ends by returning: `nil` succeeds, `evo.Fail("lint failed")` fails,
+`evo.Refuse("no remote")` stops before any change, `evo.Exclude("protected")`
+records that policy skipped it. `Verify` true before `Define` resolves the
+Task Satisfied and the callback never runs. `evo.File` and `evo.Exec` are
+Satisfied when their inputs and recorded outputs are current. Set
+`EVO_OUTPUT=human|plain|json|jsonl` to pick the encoding.
+
+On a real terminal the frame is live and colored. Piped (CI, an agent
+harness), the same code prints durable plain lines:
 
 ```text
-Reading configuration
-Found 18 packages
-✓ working tree
-⊘ branches      local-only branch
-   └─ commit or stash before continuing
-◐ install  0/2
-◐ install  1/2  a
-◐ install  2/2  b
-✓ cleanup
-✓ install
-
-[changed] cleanup  deleted 2 stale local branches
-
-[blocked]  bpp-csharp
+◐ pipeline  go mod download  2/4  resolving modules
+✓ pipeline
+   ✓ go mod download
+   ✓ go generate
+   ✓ go test ./...
 ```
 
-Exit code `1` — see the table below. Try the live, colored version:
-`go run ./examples/repo-status/`.
+Try it: `go run ./examples/install-pipeline/ --fast`.
 
-## Conclusion band → exit code
+## Outcome and exit code
 
-The trailing `[state]` band and the process exit code always agree — never read
-one without checking the other. `· partial` and `· warned` are modifiers on
-the state, not a state of their own.
+One verdict drives the screen and the process exit code. A Task ends in
+exactly one outcome:
 
-| Band                           | Exit code | Meaning                                                                                                                                                                              |
-| ------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `[changed]`                    | `0`       | An `evo.Effect`/`evo.File`/`evo.Exec` mutation recorded outside `DryRun`                                                                                                             |
-| `[planned]`                    | `0`       | A mutation recorded under `Config.DryRun` (would, not did)                                                                                                                           |
-| `[ready]`                      | `0`       | Every task resolved `Done`; no mutation recorded                                                                                                                                     |
-| `[blocked]`                    | `1`       | At least one `Block`, and nothing `Fail`ed                                                                                                                                           |
-| `[failed]`                     | `2`       | At least one `Fail`, or a caller-supplied misuse                                                                                                                                     |
-| `[cancelled]`                  | `130`     | `Cancel` or an interrupt ended the run early                                                                                                                                         |
-| any of the above + `· partial` | unchanged | The run also left an unresolved task — same exit code as the state above                                                                                                             |
-| any of the above + `· warned`  | unchanged | At least one `Problem` at warning severity annotated a task without otherwise changing the headline — a warning never resolves the task itself; `Define`/`Fail`/`Block`/… still must |
+| Outcome     | Meaning                                       | Exit code |
+| ----------- | --------------------------------------------- | --------- |
+| `Succeeded` | ran and succeeded                             | `0`       |
+| `Satisfied` | requested state already true; nothing ran     | `0`       |
+| `Excluded`  | policy chose not to run it                    | `0`       |
+| `Refused`   | a precondition stopped it before any mutation | `1`       |
+| `Failed`    | ran and failed                                | `2`       |
+| `Cancelled` | interrupted (SIGINT/SIGTERM)                  | `130`     |
+
+The run's exit code is that of its worst Task outcome. Under `Config.DryRun`
+every mutation is planned (`[planned]`) and none runs.
 
 ## Pick the entity
 
-| Shape        | Use when                                                                                                                                                                      |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**     | One atomic unit — its check or work submitted with `Define` (success is the callback returning `nil`); `Problem`/`Block`/`Fail`/`Skipped` state a condition directly          |
-| **Group**    | Independent collection of atomic tasks (state is **derived**); the scheduler may overlap eligible children; one `group.Task(name).Define(...)` per item for homogeneous items |
-| **Sequence** | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both nest via `.Sequence`/`.Group`                             |
+| Shape        | Use when                                                                       |
+| ------------ | ------------------------------------------------------------------------------ |
+| **Task**     | One atomic promise; its work is submitted with `Define`                        |
+| **Group**    | Independent children; the scheduler may overlap them                           |
+| **Sequence** | Children run in declaration order; a failed child leaves later ones NotStarted |
+
+`After` orders any Task, Group or Sequence behind another.
 
 ## Learn more
 
-- [`docs/migration/1.0.md`](docs/migration/1.0.md) — upgrading from 0.5: every breaking change with before/after code
+- [`CONTRACT.md`](CONTRACT.md) — the 2.0 usage contract and full exported surface
+- [`docs/migration/2.0.md`](docs/migration/2.0.md) — upgrading from 1.x: every removed symbol with its replacement
 - [`mcp/docs/reference.md`](mcp/docs/reference.md) — construction, config, lifecycle, severity dialect, evidence capture, platform adapters, vocabulary
 - [`mcp/docs/development.md`](mcp/docs/development.md) — mise commands, conformance suite, examples ladder, CLI, machine output, production ANSI driver, testkit
 - [`mcp/docs/mcp.md`](mcp/docs/mcp.md) — the `evident-output-mcp` stdio server (Grok, Claude Code, Codex, …)
