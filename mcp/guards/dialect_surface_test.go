@@ -56,7 +56,7 @@ var dialectSurface = map[string][]string{
 		"Text()",
 	},
 	"*Task": {
-		"After(preds ...any)",
+		"After(preds ...Predecessor)",
 		"Define(fn func(context.Context) error, opts ...DefineOption)",
 		"Doing(text string, args ...any)",
 		"Fact(name string, value string)",
@@ -67,7 +67,7 @@ var dialectSurface = map[string][]string{
 		"Writer()",
 	},
 	"*Group": {
-		"After(preds ...any)",
+		"After(preds ...Predecessor)",
 		"Build(fn func(*Group))",
 		"Group(name string)",
 		"Sequence(name string)",
@@ -75,7 +75,7 @@ var dialectSurface = map[string][]string{
 		"Task(name string)",
 	},
 	"*Sequence": {
-		"After(preds ...any)",
+		"After(preds ...Predecessor)",
 		"Build(fn func(*Sequence))",
 		"Group(name string)",
 		"Sequence(name string)",

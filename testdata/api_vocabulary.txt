@@ -161,6 +161,7 @@ Output.Warn	removed	Problem
 PartialEffect	helper	File
 Patch	canonical	Patch
 Plain	helper	Output
+Predecessor	helper	Task
 ProblemOption	helper	Problem
 Process	helper	Facades
 ReasonOption	removed	Skipped
