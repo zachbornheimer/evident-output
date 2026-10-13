@@ -148,7 +148,10 @@ can be missed when as many other goroutines end in the same moment.
 callback, so a value would exist only when the world says so. A `Build` runs
 once when its container becomes eligible, declares topology only, and closes
 the container's declaration phase; declaring work from inside a Task's
-callback is misuse.
+callback is misuse. A signal named in `CleanStop`, arriving while that Task
+runs, cancels only that Task's context and ends it Succeeded; it does not
+cancel the run, so a run with nothing else left exits 0. A signal it does not
+name still cancels the run.
 
 | Symbol              | Kind   | Meaning                                                                        |
 | ------------------- | ------ | ------------------------------------------------------------------------------ |
