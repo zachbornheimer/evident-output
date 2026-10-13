@@ -114,7 +114,7 @@ or a terminal library.
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `mcp/`            | separate Go module: the MCP server, the CLI, review rules, docs corpus, host integrations, agent skills, API surface walker, go.mod pin tooling, compile-tested doc examples; imports only the root package |
 | `conformance/`    | spec registry keyed to `CONTRACT.md` headings, ratchet, goldens, scenarios, architecture tests                                                                                                              |
-| `examples/`       | one directory per contract section, compile-tested                                                                                                                                                          |
+| `examples/`       | 15 runnable demo programs, one directory each (`examples/<name>/main.go`), plus `examples/internal/` shared demo helpers and `examples/examples_test.go`, which builds and runs every program               |
 | `schema/`         | `run.v3.json`, `event.v2.json`                                                                                                                                                                              |
 | `testkit/`        | clock, screen, fake fs and process for consumers' tests; scale and wire-schema helpers                                                                                                                      |
 | `tools/`          | gate tooling: spec-score, spec-guard, traceability, bisectability, gitenv                                                                                                                                   |
@@ -123,12 +123,12 @@ or a terminal library.
 
 ## Guards
 
-| Test                       | Fails on                                                                                                                                                                                   |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `contract_test.go`         | an exported name not in `CONTRACT.md`, or a contract name not exported                                                                                                                     |
-| `layout_test.go`           | a tracked file outside the layout, or a layout path missing                                                                                                                                |
-| `import_direction_test.go` | `project` importing `change`; a non-producer writing `record`; a non-misuse package owning the first-misuse store; a non-facade importing `os`, `os/exec`, `syscall`; root importing `mcp` |
-| `examples_test.go`         | an example that fails to compile, or a contract section with no example                                                                                                                    |
-| `spec_ratchet`             | a requirement that passed once failing now                                                                                                                                                 |
+| Test                        | Fails on                                                                                                                                                                                   |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `contract_test.go`          | an exported name not in `CONTRACT.md`, or a contract name not exported                                                                                                                     |
+| `layout_test.go`            | a tracked file outside the layout, or a layout path missing                                                                                                                                |
+| `import_direction_test.go`  | `project` importing `change`; a non-producer writing `record`; a non-misuse package owning the first-misuse store; a non-facade importing `os`, `os/exec`, `syscall`; root importing `mcp` |
+| `examples/examples_test.go` | an example program that fails to build or run                                                                                                                                              |
+| `spec_ratchet`              | a requirement that passed once failing now                                                                                                                                                 |
 
 `import_direction_test.go` also fails on `change` importing anything but the standard library, `record`, `graph`, `freshness` and the facades; on `misuse` importing anything but the standard library, `record` and the facades; on `graph` importing anything but `record`, `misuse` and the facades; on any package outside `change` holding a claim; and on any import of the packages `change` absorbed (`internal/patch`, `internal/publish`, `internal/resource`).
