@@ -119,7 +119,7 @@ func fmtPrintAlongsideEvo(c selectorCall) []Finding {
 	switch c.name {
 	case "Print", "Printf", "Println":
 	case "Fprint", "Fprintf", "Fprintln":
-		if len(c.call.Args) > 0 && (isOSStderrArg(c.call.Args[0]) || isSafeWriterArg(c.call.Args[0], c.safeWriters) ||
+		if len(c.call.Args) > 0 && (isOSStderrArg(c.call.Args[0]) || isEvoManagedWriterCall(c.call.Args[0]) || isSafeWriterArg(c.call.Args[0], c.safeWriters) ||
 			writesOwnDriverSink(c.call, c.call.Args[0], c.driverSinks)) {
 			return nil
 		}

@@ -11,30 +11,12 @@ Action	helper	Run
 Action.Command	helper	Run
 Action.Label	helper	Run
 AlsoWrite	removed	Run
-App	removed	Fingerprint
-AssumeYes	removed	Human output
-Attachment	removed	Problem
-Blocked	removed	Conclusion
-BytesKind	removed	Progress
 Cancelled	helper	Run
-Capture	removed	Capture
-CaptureOption	removed	Capture
-CaptureStream	removed	Capture
-CaptureStreamCombined	removed	Capture
-CaptureStreamStderr	removed	Capture
-CaptureStreamStdout	removed	Capture
-ChangesSnapshot	removed	Snapshot
 Checksum	removed	Checksum
 CleanStop	helper	Task
 Clock	helper	Facades
 Clone	removed	Tree
 Code	helper	Problem
-ColorAlways	removed	Human output
-ColorAuto	removed	Human output
-ColorMode	removed	Human output
-ColorNever	removed	Human output
-Command	removed	Action
-CommandSpec	removed	Action
 Compute	canonical	Compute
 Computed	canonical	Compute
 Computed.Get	helper	Compute
@@ -44,7 +26,6 @@ Conclusion.DryRun	helper	Run
 Conclusion.Explanation	helper	Run
 Conclusion.Outcome	helper	Run
 ConclusionJSON	removed	Machine output
-ConclusionState	removed	Conclusion
 Config	canonical	Run
 Config.Debug	helper	Run
 Config.DryRun	helper	Run
@@ -54,108 +35,40 @@ Config.Name	helper	Run
 Config.Output	helper	Run
 Config.State	helper	Run
 Config.Verbose	helper	Run
-Confirm	removed	Human output
-ConfirmDetail	removed	Human output
 ConfirmOption	helper	Confirm
 Container	helper	Task
-Count	removed	Problem
 DataProjection	removed	Run
 DebugAddSource	removed	Run
-DebugConfig	removed	Debug journal
 DebugHistory	removed	Run
 DebugLevel	removed	Run
 DebugPane	removed	Run
-DebugPaneOption	removed	Debug journal
-DebugPresentation	removed	Debug journal
-DebugPresentationHistory	removed	Debug journal
-DebugPresentationPane	removed	Debug journal
-Default	removed	Run
-DefaultConfig	removed	Run
-DefaultVisibleNames	removed	Human output
 DefineOption	helper	Task
-Delay	removed	Run
 Destructive	helper	Confirm
 Detail	helper	Problem
-Determinate	removed	Progress
 Diagnostics	removed	Run
-Done	removed	Conclusion
 Download	removed	Download
 DryRun	removed	Run
 Effect	canonical	File
-EffectAdd	removed	Effect
-EffectCreate	removed	Effect
-EffectDelete	removed	Effect
-EffectInstall	removed	Effect
-EffectPush	removed	Effect
-EffectRecord	removed	Effect
-EffectRemove	removed	Effect
 EffectSpec	canonical	Effect
 EffectSpec.Object	helper	Effect
 EffectSpec.Path	helper	Effect
 EffectSpec.Quantity	helper	Effect
 EffectSpec.Resource	helper	Effect
 EffectSpec.Verb	helper	Effect
-EffectUninstall	removed	Effect
-EffectUpdate	removed	Effect
-EffectVerb	removed	Effect
-Empty	removed	Conclusion
 EncodeEventJSON	removed	Machine output
 EncodeJSON	removed	Machine output
 EncodeJSONL	removed	Machine output
-EntityState	removed	Conclusion
-ErrAlreadyResolved	removed	Misuse
-ErrBasisAfterDefine	removed	Basis
-ErrClosed	removed	Misuse
 ErrComputedUnordered	helper	Errors
-ErrComputedUnsettled	removed	Misuse
-ErrConcurrentRunning	removed	Misuse
-ErrDeclaredInCallback	removed	Misuse
-ErrDryRunDeclaredLate	removed	Misuse
-ErrDuplicateKey	removed	Misuse
-ErrDuplicateSiblingName	removed	Misuse
-ErrEffectCallbackMissing	removed	Effect
-ErrEffectObjectMissing	removed	Effect
-ErrEffectQuantityNotPositive	removed	Effect
-ErrEffectVerbInvalid	removed	Effect
-ErrExecExecutableNotFound	removed	Exec
 ErrExecNonzeroExit	helper	File
 ErrExecOutputMissing	helper	File
-ErrExecOutputMissingAfterSuccess	removed	Exec
-ErrExecSpecMissingExecutable	removed	Exec
-ErrFilePathIsSymlink	removed	File
-ErrFilePathTypeMismatch	removed	File
-ErrFileSpecMissingPath	removed	File
-ErrFileUnmanagedContentsMissing	removed	File
-ErrInvalidConfig	removed	Misuse
-ErrInvalidPartialEffect	removed	Effect
-ErrInvalidProgress	removed	Progress
-ErrInvalidResource	removed	Resource
-ErrKeyAfterDefine	removed	Misuse
-ErrLimitExceeded	removed	Misuse
-ErrNestedResourceAcquisition	removed	Resource
-ErrNoTaskContext	removed	Misuse
-ErrNotStarted	removed	Misuse
-ErrPatchBinaryUnsupported	removed	Patch
-ErrPatchDeleteUnsupported	removed	Patch
 ErrPatchDoesNotApply	helper	File
-ErrPatchMalformed	removed	Patch
-ErrPatchRenameUnsupported	removed	Patch
-ErrPatchUnsupported	removed	Patch
-ErrProgressRegression	removed	Progress
 ErrReasonSkipOnly	removed	Skipped
 ErrReasonWrongTask	removed	Skipped
-ErrRenderer	removed	Misuse
 ErrStaleBasis	helper	File
-ErrTaskClosed	removed	Misuse
-ErrTerminalWithoutSink	removed	Misuse
-ErrUnresolvedTask	removed	Misuse
-ErrWaitDeadlock	removed	Misuse
-Event	removed	Snapshot
 EventJSON	removed	Machine output
 EventSchemaVersion	removed	Machine output
 Evidence	removed	Capture
 EvidenceOption	removed	Capture
-EvidencePhase	removed	Evidence
 EvidenceStream	removed	Capture
 EvidenceStreamCombined	removed	Capture
 EvidenceStreamStderr	removed	Capture
@@ -176,15 +89,9 @@ ExecSpec.Inputs	helper	Exec
 ExecSpec.Outputs	helper	Exec
 ExecSpec.Values	helper	Exec
 Execute	canonical	Run
-ExitBlocked	removed	Conclusion
-ExitCancelled	removed	Conclusion
-ExitFailed	removed	Conclusion
-ExitOK	removed	Conclusion
 ExternalProjection	removed	Run
 Extract	removed	Extract
 FS	helper	Facades
-FSPath	removed	Fingerprint
-FSResource	removed	Resource
 Facades	canonical	Facades
 Facades.Clock	helper	Facades
 Facades.FS	helper	Facades
@@ -194,43 +101,20 @@ Facades.Stderr	helper	Facades
 Facades.Stdin	helper	Facades
 Facades.Stdout	helper	Facades
 Facades.Terminal	helper	Facades
-Fact	removed	Fact
-FactRecord	removed	Fact
 Fail	canonical	Ending
 Failed	helper	Run
-Failure	removed	Problem
-Failure.Error	removed	Problem
 Failure.Next	removed	Action
 Failure.NextCommand	removed	Action
-Failure.Unwrap	removed	Problem
-Field	removed	Problem
 File	canonical	File
-FileFS	removed	File
-FileSet	removed	Patch
 FileSpec	canonical	File
 FileSpec.Contents	helper	File
 FileSpec.Inputs	helper	File
 FileSpec.Mode	helper	File
 FileSpec.Path	helper	File
 FileSpec.Values	helper	File
-Files	removed	Files
 Find	removed	Find
-Fingerprint	removed	Fingerprint
-Fingerprint.Fingerprint	removed	Fingerprint
-FingerprintValue	removed	Fingerprint
-FixedClock	removed	Human output
 ForSkip	removed	Skipped
-Format	removed	Machine output
-FormatData	removed	Machine output
-FormatExternal	removed	Machine output
-FormatHuman	removed	Machine output
-FormatJSON	removed	Machine output
-FormatJSONL	removed	Machine output
-GlyphProfile	removed	Human output
 Glyphs	removed	Run
-GlyphsASCII	removed	Human output
-GlyphsAuto	removed	Human output
-GlyphsUnicode	removed	Human output
 Group	canonical	Task
 Group.After	helper	Task
 Group.Build	helper	Task
@@ -238,19 +122,6 @@ Group.Group	helper	Task
 Group.Sequence	helper	Task
 Group.Summary	helper	Task
 Group.Task	helper	Task
-GroupHandle	removed	Group
-GroupHandle.After	removed	After
-GroupHandle.Define	removed	Define
-GroupHandle.Group	removed	Group
-GroupHandle.Sequence	removed	Sequence
-GroupHandle.Snapshot	removed	Snapshot
-GroupHandle.Summary	removed	Summary
-GroupHandle.Task	removed	Task
-GroupHandle.Wait	removed	Wait
-Incomplete	removed	Conclusion
-Indeterminate	removed	Progress
-Init	removed	Run
-IsCharDevice	removed	Human output
 JSONAction	removed	Machine output
 JSONChanges	removed	Machine output
 JSONCollection	removed	Machine output
@@ -264,115 +135,31 @@ JSONProblem	removed	Machine output
 JSONProgress	removed	Machine output
 JSONSchemaVersion	removed	Machine output
 JSONTask	removed	Machine output
-KeepLastLines	removed	Capture
-Label	removed	Action
-LevelDebug	removed	Debug journal
-LevelError	removed	Debug journal
-LevelInfo	removed	Debug journal
-LevelTrace	removed	Debug journal
-LevelUnset	removed	Debug journal
-LevelWarn	removed	Debug journal
-LiveSurface	removed	Human output
-Location	removed	Problem
-LogLevel	removed	Debug journal
-LogRecord	removed	Debug journal
-LogicalResource	removed	Resource
 Main	canonical	Run
-MaxCaptureBytes	removed	Capture
 MaxEntities	removed	Run
 MaxEvents	removed	Run
 MaxEvidenceBytes	removed	Capture
 MaxFrameRate	removed	Run
-MessageSnapshot	removed	Snapshot
-MirrorToDebug	removed	Capture
-MirrorToDiagnostics	removed	Capture
-NewestFirst	removed	Debug journal
 Next	helper	Problem
-NextCommand	removed	Action
 NoColor	removed	Run
 NonInteractive	helper	Confirm
-NoopRedactor	removed	Human output
-NotStarted	removed	Conclusion
-OldestFirst	removed	Debug journal
 On	helper	Problem
 OnTask	removed	Skipped
 Option	removed	Run
 Outcome	canonical	Ending
 Output	canonical	Output
-Output.Cancel	removed	Cancelled
-Output.Close	removed	Run
-Output.Conclusion	removed	Run
-Output.Confirm	removed	Human output
-Output.Context	removed	Define
-Output.Err	removed	Run
-Output.Events	removed	Run
-Output.Fact	removed	Fact
-Output.Fail	removed	Failed
 Output.Failf	removed	Fail
-Output.Finish	removed	Run
-Output.Group	removed	Group
 Output.Next	removed	Action
 Output.NextCommand	removed	Action
-Output.Print	removed	Human output
-Output.Printf	removed	Human output
-Output.Println	removed	Human output
-Output.ResultWriter	removed	Human output
-Output.Run	removed	Run
-Output.Sequence	removed	Sequence
-Output.Snapshot	removed	Snapshot
-Output.Suspend	removed	Human output
-Output.Task	removed	Task
 Output.Warn	removed	Problem
-Output.Writer	removed	Human output
-PaneHeight	removed	Debug journal
-ParseFormat	removed	Machine output
 PartialEffect	helper	File
-Patch	removed	Patch
-Pending	removed	Conclusion
 Plain	removed	Run
-PlainOptions	removed	Snapshot
-PlanSnapshot	removed	Snapshot
-Pluralize	removed	Human output
-PolicyFlag	removed	Human output
-PolicyHint	removed	Human output
-PreserveDebugTail	removed	Debug journal
-Print	removed	Human output
-Printer	removed	Human output
-Printer.Print	removed	Human output
-Printer.Printf	removed	Human output
-Printer.Println	removed	Human output
-Printer.Writer	removed	Human output
-Printf	removed	Human output
-Println	removed	Human output
-Problem	removed	Problem
-ProblemCodeDuplicateSiblingName	removed	Problem
-ProblemCodeVerificationUnsatisfied	removed	Problem
 ProblemOption	helper	Problem
-ProblemSeverity	removed	Problem
 Process	helper	Facades
-ProcessCommand	removed	Exec
-ProcessOutcome	removed	Exec
-ProcessRunner	removed	Exec
-Progress	removed	Progress
-ProgressKind	removed	Progress
-Projection	removed	Machine output
-ProjectionHuman	removed	Machine output
-ProjectionJSON	removed	Machine output
-ProjectionJSONL	removed	Machine output
-ProjectionPlain	removed	Machine output
-ProjectionStreamJSON	removed	Machine output
-PublishedRelease	removed	Machine output
-Reason	removed	Skipped
 ReasonOption	removed	Skipped
 Redact	removed	Run
 Redactor	helper	Run
 Refuse	canonical	Ending
-RenderPlain	removed	Snapshot
-Resolution	removed	Conclusion
-ResolutionAlreadySatisfied	removed	Conclusion
-ResolutionExecuted	removed	Conclusion
-ResolutionNoWork	removed	Conclusion
-Resource	removed	Resource
 Result	canonical	Run
 Result.Conclusion	helper	Run
 Result.Err	helper	Run
@@ -391,7 +178,6 @@ Run.Task	helper	Task
 Run.Text	helper	Report
 RunFunc	canonical	Run
 Runner	removed	Run
-Running	removed	Conclusion
 Sequence	canonical	Task
 Sequence.After	helper	Task
 Sequence.Build	helper	Task
@@ -399,36 +185,11 @@ Sequence.Group	helper	Task
 Sequence.Sequence	helper	Task
 Sequence.Summary	helper	Task
 Sequence.Task	helper	Task
-SequenceHandle	removed	Sequence
-SequenceHandle.After	removed	After
-SequenceHandle.Define	removed	Define
-SequenceHandle.Group	removed	Group
-SequenceHandle.Sequence	removed	Sequence
-SequenceHandle.Snapshot	removed	Snapshot
-SequenceHandle.Summary	removed	Summary
-SequenceHandle.Task	removed	Task
-SequenceHandle.Wait	removed	Wait
-SetDefault	removed	Run
-Severity	removed	Problem
-SeverityError	removed	Problem
-SeverityWarning	removed	Problem
-Skipped	removed	Conclusion
-SlogHandler	removed	Debug journal
-Snapshot	removed	Snapshot
-SourceLocation	removed	Problem
 State	helper	Run
 State.AppID	helper	Run
 State.Dir	helper	Run
-StateBlocked	removed	Conclusion
-StateCancelled	removed	Conclusion
-StateChanged	removed	Conclusion
-StateFailed	removed	Conclusion
-StatePlanned	removed	Conclusion
-StateReady	removed	Conclusion
-StateWarning	removed	Conclusion
 Stdin	removed	Run
 Strict	removed	Run
-SystemClock	removed	Human output
 Task	canonical	Task
 Task.After	helper	Task
 Task.Define	helper	Run
@@ -439,57 +200,18 @@ Task.Progress	helper	Task
 Task.Summary	helper	Task
 Task.Verify	helper	Run
 Task.Writer	helper	Output
-TaskEvidence	removed	Evidence
-TaskHandle	removed	Task
-TaskHandle.After	removed	After
-TaskHandle.Basis	removed	Basis
-TaskHandle.Block	removed	Blocked
 TaskHandle.Blockf	removed	Block
-TaskHandle.Bytes	removed	Progress
-TaskHandle.Cancel	removed	Cancelled
-TaskHandle.Capture	removed	Capture
-TaskHandle.Context	removed	Define
-TaskHandle.Define	removed	Define
-TaskHandle.Doing	removed	Doing
-TaskHandle.Fact	removed	Fact
-TaskHandle.Fail	removed	Failed
 TaskHandle.Failf	removed	Fail
 TaskHandle.Kept	removed	Skipped
-TaskHandle.Key	removed	Task
 TaskHandle.Next	removed	Action
 TaskHandle.NextCommand	removed	Action
-TaskHandle.Problem	removed	Problem
-TaskHandle.Progress	removed	Progress
-TaskHandle.Skipped	removed	Skipped
-TaskHandle.Snapshot	removed	Snapshot
 TaskHandle.Step	removed	Progress
-TaskHandle.Summary	removed	Summary
-TaskHandle.Verify	removed	Verify
-TaskHandle.Wait	removed	Wait
 TaskHandle.Warn	removed	Problem
-TaskHandle.Writer	removed	Doing
-TaskSnapshot	removed	Snapshot
-TasksSnapshot	removed	Snapshot
-TaxonomyReason	removed	Skipped
-TaxonomyReason.Name	removed	Skipped
-TaxonomyRecord	removed	Skipped
 Terminal	helper	Facades
-TerminalDriver	removed	Human output
-TimeSource	removed	Human output
 Title	removed	Run
 To	removed	Run
 Tree	removed	Tree
-TruncateNames	removed	Human output
-Value	removed	Fingerprint
 Verb	helper	Effect
-Verbose	removed	Human output
-Verbosity	removed	Human output
-VerbosityNormal	removed	Human output
-VerbosityVerbose	removed	Human output
-Visibility	removed	Human output
 VisibilityDelay	removed	Run
-VisibilityNormal	removed	Human output
-VisibilityVerbose	removed	Human output
 Warn	removed	Problem
 Width	removed	Run
-WriteJSON	removed	Machine output

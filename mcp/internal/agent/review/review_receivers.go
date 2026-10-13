@@ -70,6 +70,22 @@ func isEvoOwnedWriterExpr(expr ast.Expr) bool {
 	return evoOwnedWriterNames[sel.Sel.Name]
 }
 
+// evoManagedWriterMethods are the 2.0 methods that return a writer Evo
+// routes with the presentation: Run.Text, Run.ResultWriter, Task.Writer.
+var evoManagedWriterMethods = map[string]bool{"Text": true, "ResultWriter": true, "Writer": true}
+
+// isEvoManagedWriterCall reports whether expr is a call of an Evo
+// managed-writer method (r.Text(), r.ResultWriter(), task.Writer()), the
+// sanctioned target of fmt.Fprint*.
+func isEvoManagedWriterCall(expr ast.Expr) bool {
+	call, ok := expr.(*ast.CallExpr)
+	if !ok || len(call.Args) != 0 {
+		return false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	return ok && evoManagedWriterMethods[sel.Sel.Name]
+}
+
 // looksLikeStreamWriterName is the naming heuristic for STREAM-003's
 // indirection widening (evo-rec.md "B"): a field/variable whose name reads
 // like an output/error stream one hop from os.Stdout/os.Stderr (the real zq
