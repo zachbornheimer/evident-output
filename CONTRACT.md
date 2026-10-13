@@ -179,7 +179,9 @@ return evo.PartialEffect(committed, err)
 
 Every call takes the Define `ctx`. File and Exec are Satisfied when their
 Inputs, Values and recorded outputs are current; opaque Define work runs
-every Run. Dry run plans every mutation and runs no callback. Each mutation
+every Run. File and Exec fingerprint the content of every Input and every
+Value, so a changed Input byte or Value runs the operation again on the next
+Run, even when a File's Contents is unchanged. Dry run plans every mutation and runs no callback. Each mutation
 appears once in the ledger as `[planned]` or `[changed]`; per-item mutations
 with one Verb and Object fold into one counted row. Overlapping Paths wait
 for each other; two Resources overlap only by equal name; holding two claims
@@ -201,8 +203,8 @@ re-executes; it never reports Satisfied.
 | `ExecSpec.Argv`        | field | executable and arguments, no shell                                                  |
 | `ExecSpec.Dir`         | field |                                                                                     |
 | `ExecSpec.Env`         | field | explicit entries only; they enter freshness                                         |
-| `ExecSpec.Inputs`      | field |                                                                                     |
-| `ExecSpec.Values`      | field |                                                                                     |
+| `ExecSpec.Inputs`      | field | paths whose content decides freshness                                               |
+| `ExecSpec.Values`      | field | named values that decide freshness                                                  |
 | `ExecSpec.Outputs`     | field | declared outputs; none means always run                                             |
 | `ExecResult`           | type  |                                                                                     |
 | `ExecResult.Ran`       | field | false on Satisfied, dry run, or spawn failure                                       |
