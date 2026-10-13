@@ -84,9 +84,10 @@ func fail(err error) {
 }
 
 func publishedReleaseFrom(root string) (string, error) {
-	body, err := os.ReadFile(filepath.Join(root, "output.go"))
+	// Literal name: this command already required cwd to be the module root.
+	body, err := os.ReadFile("output.go")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("read output.go in %s: %w", root, err)
 	}
 	m := regexp.MustCompile(`(?m)^const publishedRelease = "([^"]+)"`).FindSubmatch(body)
 	if m == nil {

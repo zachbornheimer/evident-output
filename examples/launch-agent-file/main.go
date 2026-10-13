@@ -91,5 +91,5 @@ func markerExists(path string) (bool, error) {
 }
 
 func writeMarker(path string) error {
-	return os.WriteFile(path, []byte("ok\n"), 0o644)
+	return os.WriteFile(path, []byte("ok\n"), 0o600)
 }
