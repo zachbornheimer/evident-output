@@ -18,7 +18,7 @@ import (
 // say nothing its Group's tally does not. The Group's own Task is never an item: it is
 // the row the tally hangs under.
 func IsDispositionItem(group string, t *record.TaskSnapshot) bool {
-	if t.State != record.Done && t.State != record.Skipped || t.Synthetic() || IsOwnTask(group, t) {
+	if !t.State.Succeeded() && t.State != record.Excluded || t.Synthetic() || IsOwnTask(group, t) {
 		return false
 	}
 	if len(t.Kept) == 0 && len(t.Skipped) == 0 {

@@ -28,8 +28,8 @@ func TestDryRun_UnsatisfiedVerifyPlansInsteadOfFailing(t *testing.T) {
 			})
 		_ = out.finish()
 		c := out.conclusion()
-		if c.state != statePlanned || c.exitCode != exitOK {
-			t.Errorf("%s: conclusion = %s exit %d, want %s exit %d\n%s", name, c.state, c.exitCode, statePlanned, exitOK, buf.String())
+		if c.headline() != headlinePlanned || c.exitCode != exitOK {
+			t.Errorf("%s: conclusion = %s exit %d, want %s exit %d\n%s", name, c.headline(), c.exitCode, headlinePlanned, exitOK, buf.String())
 		}
 		if strings.Contains(buf.String(), "postcondition not satisfied") {
 			t.Errorf("%s: a planned run checked its postcondition:\n%s", name, buf.String())
@@ -58,8 +58,8 @@ func TestDryRun_UnsatisfiedVerifyWithNothingPlannedFails(t *testing.T) {
 			Define(func(context.Context) error { return nil })
 		_ = out.finish()
 		c := out.conclusion()
-		if c.state != stateFailed || c.exitCode != exitFailed {
-			t.Errorf("%s: conclusion = %s exit %d, want %s exit %d\n%s", name, c.state, c.exitCode, stateFailed, exitFailed, buf.String())
+		if c.headline() != headlineFailed || c.exitCode != exitFailed {
+			t.Errorf("%s: conclusion = %s exit %d, want %s exit %d\n%s", name, c.headline(), c.exitCode, headlineFailed, exitFailed, buf.String())
 		}
 		if !strings.Contains(buf.String(), "postcondition not satisfied") {
 			t.Errorf("%s: the unchanged postcondition was not checked:\n%s", name, buf.String())
@@ -81,22 +81,22 @@ func TestVerify_SelfResolvedDefineIsNotRechecked(t *testing.T) {
 	}
 	for name, tc := range map[string]struct {
 		define  func(context.Context, *Task) error
-		state   conclusionState
+		state   string
 		exit    int
 		want    []string
 		wantNot []string
 	}{
 		"kept": {
 			define: func(_ context.Context, t *Task) error { t.skipped(reason("in use")); return nil },
-			state:  stateReady, exit: exitOK, wantNot: []string{"postcondition not satisfied"},
+			state:  headlineExcluded, exit: exitOK, wantNot: []string{"postcondition not satisfied"},
 		},
 		"skipped": {
 			define: func(_ context.Context, t *Task) error { t.skipped(reason("not needed")); return nil },
-			state:  stateReady, exit: exitOK, wantNot: []string{"postcondition not satisfied"},
+			state:  headlineExcluded, exit: exitOK, wantNot: []string{"postcondition not satisfied"},
 		},
 		"blocked": {
 			define: func(_ context.Context, t *Task) error { t.block("refused"); return nil },
-			state:  stateBlocked, exit: exitBlocked, wantNot: []string{"postcondition not satisfied"},
+			state:  headlineRefused, exit: exitRefused, wantNot: []string{"postcondition not satisfied"},
 		},
 		"effect then kept": {
 			define: func(ctx context.Context, t *Task) error {
@@ -106,7 +106,7 @@ func TestVerify_SelfResolvedDefineIsNotRechecked(t *testing.T) {
 				t.skipped(reason("in use"))
 				return nil
 			},
-			state: stateFailed, exit: exitFailed, want: []string{"postcondition not satisfied"},
+			state: headlineFailed, exit: exitFailed, want: []string{"postcondition not satisfied"},
 		},
 		"effect then skipped": {
 			define: func(ctx context.Context, t *Task) error {
@@ -116,14 +116,14 @@ func TestVerify_SelfResolvedDefineIsNotRechecked(t *testing.T) {
 				t.skipped(reason("not needed"))
 				return nil
 			},
-			state: stateFailed, exit: exitFailed, want: []string{"postcondition not satisfied"},
+			state: headlineFailed, exit: exitFailed, want: []string{"postcondition not satisfied"},
 		},
 		"kept then error": {
 			define: func(_ context.Context, t *Task) error {
 				t.skipped(reason("in use"))
 				return errors.New("boom")
 			},
-			state: stateFailed, exit: exitFailed, want: []string{"boom"},
+			state: headlineFailed, exit: exitFailed, want: []string{"boom"},
 			wantNot: []string{"already resolved", "postcondition not satisfied"},
 		},
 		"skipped then error": {
@@ -131,7 +131,7 @@ func TestVerify_SelfResolvedDefineIsNotRechecked(t *testing.T) {
 				t.skipped(reason("n/a"))
 				return errors.New("boom")
 			},
-			state: stateFailed, exit: exitFailed, want: []string{"boom"},
+			state: headlineFailed, exit: exitFailed, want: []string{"boom"},
 			wantNot: []string{"already resolved", "postcondition not satisfied"},
 		},
 	} {
@@ -142,8 +142,8 @@ func TestVerify_SelfResolvedDefineIsNotRechecked(t *testing.T) {
 			Define(func(ctx context.Context) error { return tc.define(ctx, task) })
 		_ = out.finish()
 		got := buf.String()
-		if c := out.conclusion(); c.state != tc.state || c.exitCode != tc.exit {
-			t.Errorf("%s: conclusion = %s exit %d, want %s exit %d\n%s", name, c.state, c.exitCode, tc.state, tc.exit, got)
+		if c := out.conclusion(); c.headline() != tc.state || c.exitCode != tc.exit {
+			t.Errorf("%s: conclusion = %s exit %d, want %s exit %d\n%s", name, c.headline(), c.exitCode, tc.state, tc.exit, got)
 		}
 		for _, w := range tc.want {
 			if !strings.Contains(got, w) {

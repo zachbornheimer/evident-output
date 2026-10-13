@@ -29,7 +29,7 @@ func settlingWork(g *Graph, t *Task, run func() error) Work {
 				g.Settle(t, record.Failed)
 				return
 			}
-			g.Settle(t, record.Done)
+			g.Settle(t, record.Succeeded)
 		},
 		Panicked: func(string) { g.Settle(t, record.Failed) },
 	}
@@ -65,7 +65,7 @@ func TestKickRunsEverySubmittedTaskWithinTheConcurrencyCeiling(t *testing.T) {
 	g.Drain()
 
 	for _, task := range tasks {
-		if got := task.Rec.State(); got != record.Done {
+		if got := task.Rec.State(); got != record.Succeeded {
 			t.Errorf("%s = %s, want done", task.Name, got)
 		}
 	}
@@ -164,7 +164,7 @@ func TestPanickedHearsAPanicThatEscapedRun(t *testing.T) {
 func TestSubmitReportsWorkThatCannotBeAccepted(t *testing.T) {
 	g := New(record.NewRun())
 	settled := declare(g, "settled")
-	g.Settle(settled, record.Done)
+	g.Settle(settled, record.Succeeded)
 	twice := declare(g, "twice")
 	submitWork(g, twice, Work{Run: func() error { return nil }})
 
@@ -181,7 +181,7 @@ func TestInterruptClosesDispatchThenCancelsRowsThenTheContext(t *testing.T) {
 	queued := declare(g, "queued")
 	submitWork(g, queued, Work{Run: func() error { return nil }})
 	var contextLiveDuringRows bool
-	var queuedStateDuringRows record.EntityState
+	var queuedStateDuringRows record.State
 
 	g.Interrupt("by user", func() {
 		contextLiveDuringRows = g.Context().Err() == nil
@@ -233,7 +233,7 @@ func TestAWaitOnATaskInADependencyCycleIsAnsweredNotParkedForever(t *testing.T) 
 	case <-time.After(executorTimeout):
 		t.Fatal("the stalled wait was never answered")
 	}
-	if got := first.Rec.State(); got != record.Blocked {
+	if got := first.Rec.State(); got != record.Refused {
 		t.Errorf("first = %s, want blocked by the cycle", got)
 	}
 	if len(sink.errs) != 1 || !errors.Is(sink.errs[0], ErrDependencyCycle) {

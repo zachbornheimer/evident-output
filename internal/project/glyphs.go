@@ -56,7 +56,7 @@ func (g glyphSpec) CellWidth(profile GlyphProfile) int {
 var (
 	GlyphDone         = glyphSpec{"✓", "[ok]"}
 	GlyphFailedState  = glyphSpec{"✗", "[x]"}
-	GlyphBlockedState = glyphSpec{"⊘", "[blocked]"}
+	GlyphBlockedState = glyphSpec{"⊘", "[refused]"}
 	GlyphWarningState = glyphSpec{"!", "[!]"}
 	GlyphCancelled    = glyphSpec{"■", "[cancel]"}
 	GlyphNotStarted   = glyphSpec{"-", "[-]"}

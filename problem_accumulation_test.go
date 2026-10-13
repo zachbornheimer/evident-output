@@ -37,7 +37,7 @@ func TestProblem_TenPlusIndependentFindings(t *testing.T) {
 
 	snap := out.snapshot()
 	got := snap.Tasks[0]
-	if got.State != done {
+	if got.State != succeeded {
 		t.Fatalf("want Done (Problems never end a Task), got %v", got.State)
 	}
 	if len(got.Problems) != n {
@@ -97,7 +97,7 @@ func TestProblem_DoneWithAccumulatedProblemsStaysDone(t *testing.T) {
 	}
 
 	snap := out.snapshot()
-	if snap.Tasks[0].State != done {
+	if snap.Tasks[0].State != succeeded {
 		t.Fatalf("a Problem must not override a nil-error Define, want Done, got %v", snap.Tasks[0].State)
 	}
 }
@@ -119,7 +119,7 @@ func TestProblem_BareDoneWithAccumulatedProblemsStaysDone(t *testing.T) {
 	}
 
 	snap := out.snapshot()
-	if snap.Tasks[0].State != done {
+	if snap.Tasks[0].State != succeeded {
 		t.Fatalf("want Done, got %v", snap.Tasks[0].State)
 	}
 	if len(snap.Tasks[0].Problems) != 2 {
@@ -141,7 +141,7 @@ func TestProblem_NoAccumulationLeavesDoneUntouched(t *testing.T) {
 	}
 
 	snap := out.snapshot()
-	if snap.Tasks[0].State != done {
+	if snap.Tasks[0].State != succeeded {
 		t.Fatalf("want Done, got %v", snap.Tasks[0].State)
 	}
 }
@@ -331,7 +331,7 @@ func TestProblem_SkippedKeepsItsProblem(t *testing.T) {
 			return nil
 		})
 	})
-	assertProblemKeptOnTask(t, got, skipped, human)
+	assertProblemKeptOnTask(t, got, excluded, human)
 }
 
 // TestProblem_UnresolvedWarnedTaskKeepsItsProblem: Finish's amnesty for a
@@ -340,7 +340,7 @@ func TestProblem_UnresolvedWarnedTaskKeepsItsProblem(t *testing.T) {
 	got, human := finishProblemRun(t, func(out *Run) {
 		out.Task("scan").Problem("blocking finding").Problem("also a warning", severity(severityWarning))
 	})
-	assertProblemKeptOnTask(t, got, done, human)
+	assertProblemKeptOnTask(t, got, succeeded, human)
 }
 
 // TestProblem_UnresolvedTaskKeepsItsProblem: a Task that recorded a
@@ -349,7 +349,7 @@ func TestProblem_UnresolvedTaskKeepsItsProblem(t *testing.T) {
 	got, human := finishProblemRun(t, func(out *Run) {
 		out.Task("scan").Problem("blocking finding")
 	})
-	assertProblemKeptOnTask(t, got, done, human)
+	assertProblemKeptOnTask(t, got, succeeded, human)
 }
 
 // TestProblem_VisibleInSnapshotWhileRunning: every Problem is kept in the

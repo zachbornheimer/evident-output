@@ -22,21 +22,6 @@ const (
 	ModeDryRun = "dry_run"
 )
 
-// Run outcomes (spec §35: "outcome: ok | blocked | failed | cancelled").
-const (
-	OutcomeOK        = "ok"
-	OutcomeBlocked   = "blocked"
-	OutcomeFailed    = "failed"
-	OutcomeCancelled = "cancelled"
-)
-
-// Task resolutions (spec §36).
-const (
-	ResolutionExecuted         = "executed"
-	ResolutionAlreadySatisfied = "already_satisfied"
-	ResolutionNoWork           = "no_work"
-)
-
 // Evidence phase sources (spec §36).
 const (
 	EvidenceSourceVerify     = "verify"
@@ -181,7 +166,7 @@ type TaskDoc struct {
 	Name               string               `json:"name"`
 	Summary            string               `json:"summary,omitempty"`
 	State              string               `json:"state"`
-	Resolution         string               `json:"resolution,omitempty"`
+	Outcome            string               `json:"outcome,omitempty"`
 	DefinitionExecuted bool                 `json:"definition_executed"`
 	Evidence           EvidenceDoc          `json:"evidence"`
 	Progress           *ProgressDoc         `json:"progress"`
@@ -225,7 +210,7 @@ func ToRunDocument(result record.Result, evoVersion string) RunDocument {
 		FinishedAt:    c.FinishedAt,
 		DurationMs:    durationMs(c.StartedAt, c.FinishedAt),
 		Mode:          modeFor(c.DryRun),
-		Outcome:       outcomeFor(c.State),
+		Outcome:       string(c.Outcome),
 		ExitCode:      c.ExitCode,
 		Data: RunData{
 			Collections: make([]CollectionDoc, 0, len(c.Collections)),
@@ -275,19 +260,6 @@ func modeFor(dryRun bool) string {
 	return ModeApply
 }
 
-func outcomeFor(state record.ConclusionState) string {
-	switch state {
-	case record.StateFailed:
-		return OutcomeFailed
-	case record.StateBlocked:
-		return OutcomeBlocked
-	case record.StateCancelled:
-		return OutcomeCancelled
-	default:
-		return OutcomeOK
-	}
-}
-
 // appendCollectionDoc flattens col — and, recursively, every collection it
 // nests — into data.Collections/data.Tasks, mirroring
 // internal/render.appendJSONCollection's flattening for the v1 encoder.
@@ -327,8 +299,8 @@ func toTaskDoc(parentID string, t record.TaskSnapshot) TaskDoc {
 		Name:               t.Name,
 		Summary:            t.Summary,
 		State:              string(t.State),
-		Resolution:         string(t.Resolution),
-		DefinitionExecuted: t.Resolution == record.ResolutionExecuted,
+		Outcome:            string(t.State.Outcome()),
+		DefinitionExecuted: t.DefineRan,
 		Evidence:           toEvidenceDoc(t.Evidence),
 		Progress:           toProgressDoc(t.Progress),
 		Activity:           toActivityDoc(t.Phase),

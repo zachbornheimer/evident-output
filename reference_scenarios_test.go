@@ -91,8 +91,8 @@ func TestH6_Item_BlockCreatesSingleProblem(t *testing.T) {
 	)
 
 	got := workingTree.snapshot()
-	if got.State != blocked {
-		t.Fatalf("state = %q, want %q", got.State, blocked)
+	if got.State != refused {
+		t.Fatalf("state = %q, want %q", got.State, refused)
 	}
 	if len(got.Problems) != 1 {
 		t.Fatalf("problems = %d, want 1", len(got.Problems))
@@ -110,8 +110,8 @@ func TestH9_Task_FirstTerminalStateWins(t *testing.T) {
 	succeed(item)
 	item.block("unstashed changes")
 
-	if got := item.snapshot().State; got != done {
-		t.Fatalf("state = %q, want %q", got, done)
+	if got := item.snapshot().State; got != succeeded {
+		t.Fatalf("state = %q, want %q", got, succeeded)
 	}
 	if !errors.Is(out.err(), errAlreadyResolved) {
 		t.Fatalf("error = %v, want ErrAlreadyResolved", out.err())
@@ -286,7 +286,7 @@ func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
 	}
 
 	got := out.conclusion()
-	if got.state != statePlanned || got.Changed {
+	if got.headline() != headlinePlanned || got.Changed {
 		t.Fatalf("conclusion = %#v, want planned and unchanged", got)
 	}
 }
@@ -329,8 +329,8 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 	if machineSnap.Conclusion == nil {
 		t.Fatal("missing conclusion on snapshot after finish")
 	}
-	if human.state != machineSnap.Conclusion.State {
-		t.Fatalf("human = %q, machine = %q", human.state, machineSnap.Conclusion.State)
+	if human.Outcome != Outcome(machineSnap.Conclusion.Outcome) {
+		t.Fatalf("human = %q, machine = %q", human.Outcome, machineSnap.Conclusion.Outcome)
 	}
 	if human.exitCode != machineSnap.Conclusion.ExitCode {
 		t.Fatalf("human exit = %d, machine exit = %d", human.exitCode, machineSnap.Conclusion.ExitCode)
@@ -342,8 +342,8 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 	if !strings.Contains(string(raw), `"schema_version": "0.4"`) {
 		t.Fatalf("json missing schema_version:\n%s", raw)
 	}
-	if !strings.Contains(string(raw), `"state": "blocked"`) {
-		t.Fatalf("json missing blocked state:\n%s", raw)
+	if !strings.Contains(string(raw), `"state": "refused"`) {
+		t.Fatalf("json missing refused state:\n%s", raw)
 	}
 	// JSONL: one object per line, increasing sequence
 	lines, err := wire.EncodeJSONL(out.events())

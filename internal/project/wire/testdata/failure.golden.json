@@ -17,6 +17,7 @@
         "key": "deploy",
         "name": "deploy",
         "state": "failed",
+        "outcome": "failed",
         "definition_executed": false,
         "evidence": {
           "before": {

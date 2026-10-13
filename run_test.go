@@ -31,8 +31,8 @@ func TestMainWith_BlockedExitOne(t *testing.T) {
 		out.Task("working tree").block("dirty")
 		return nil
 	}).ExitCode()
-	if code != exitBlocked {
-		t.Fatalf("exit %d, want %d", code, exitBlocked)
+	if code != exitRefused {
+		t.Fatalf("exit %d, want %d", code, exitRefused)
 	}
 }
 

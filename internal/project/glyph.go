@@ -8,17 +8,17 @@ import (
 // gets its own face (GlyphCancelled) per the tightened vocabulary table —
 // it must be visually distinct from a task that never got attention.
 // Skipped keeps Pending's glyph, unchanged from before the table existed.
-func TaskGlyph(s record.EntityState, profile GlyphProfile) string {
+func TaskGlyph(s record.State, profile GlyphProfile) string {
 	switch s {
-	case record.Done:
+	case record.Succeeded, record.Satisfied:
 		return GlyphDone.Render(profile)
 	case record.Failed:
 		return GlyphFailedState.Render(profile)
-	case record.Blocked:
+	case record.Refused:
 		return GlyphBlockedState.Render(profile)
 	case record.Running:
 		return GlyphRunning.Render(profile)
-	case record.Pending, record.Skipped:
+	case record.Pending, record.Excluded:
 		return GlyphPending.Render(profile)
 	case record.Cancelled:
 		return GlyphCancelled.Render(profile)

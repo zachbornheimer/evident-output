@@ -33,23 +33,22 @@ func baseConclusion() record.Conclusion {
 func runFixtures() map[string]record.Result {
 	return map[string]record.Result{
 		"success": {Conclusion: withConc(func(c *record.Conclusion) {
-			c.State = record.StateChanged
+			c.Outcome = record.OutcomeSucceeded
 			c.Changed = true
 			c.ExitCode = record.ExitOK
 			c.Tasks = []record.TaskSnapshot{
 				record.NewTaskSnapshot(record.TaskSnapshot{
-					ID: "task_1", Key: "build", Name: "build", State: record.Done,
-					Resolution: record.ResolutionExecuted,
+					ID: "task_1", Key: "build", Name: "build", State: record.Succeeded,
+					DefineRan: true,
 				}, time.Time{}, false),
 			}
 		})},
 		"already_satisfied": {Conclusion: withConc(func(c *record.Conclusion) {
-			c.State = record.StateReady
+			c.Outcome = record.OutcomeSatisfied
 			c.ExitCode = record.ExitOK
 			c.Tasks = []record.TaskSnapshot{
 				record.NewTaskSnapshot(record.TaskSnapshot{
-					ID: "task_1", Key: "install", Name: "install", State: record.Done,
-					Resolution: record.ResolutionAlreadySatisfied,
+					ID: "task_1", Key: "install", Name: "install", State: record.Satisfied,
 					Evidence: record.TaskEvidence{
 						Before: record.EvidencePhase{Evaluated: true, Satisfied: true, Source: "verify"},
 					},
@@ -57,7 +56,7 @@ func runFixtures() map[string]record.Result {
 			}
 		})},
 		"failure": {Conclusion: withConc(func(c *record.Conclusion) {
-			c.State = record.StateFailed
+			c.Outcome = record.OutcomeFailed
 			c.ExitCode = record.ExitFailed
 			c.Tasks = []record.TaskSnapshot{
 				record.NewTaskSnapshot(record.TaskSnapshot{
@@ -67,21 +66,21 @@ func runFixtures() map[string]record.Result {
 			}
 		})},
 		"blocked": {Conclusion: withConc(func(c *record.Conclusion) {
-			c.State = record.StateBlocked
-			c.ExitCode = record.ExitBlocked
+			c.Outcome = record.OutcomeRefused
+			c.ExitCode = record.ExitRefused
 			c.Tasks = []record.TaskSnapshot{
 				record.NewTaskSnapshot(record.TaskSnapshot{
-					ID: "task_1", Key: "confirm", Name: "confirm", State: record.Blocked,
+					ID: "task_1", Key: "confirm", Name: "confirm", State: record.Refused,
 				}, time.Time{}, false),
 			}
 		})},
 		"cancelled": {Conclusion: withConc(func(c *record.Conclusion) {
-			c.State = record.StateCancelled
+			c.Outcome = record.OutcomeCancelled
 			c.Cancelled = true
 			c.ExitCode = record.ExitCancelled
 			c.Tasks = []record.TaskSnapshot{
 				record.NewTaskSnapshot(record.TaskSnapshot{
-					ID: "task_1", Key: "scan", Name: "scan", State: record.Done,
+					ID: "task_1", Key: "scan", Name: "scan", State: record.Succeeded,
 				}, time.Time{}, false),
 				record.NewTaskSnapshot(record.TaskSnapshot{
 					ID: "task_2", Key: "venv", Name: "venv", State: record.Cancelled,
@@ -89,7 +88,7 @@ func runFixtures() map[string]record.Result {
 			}
 		})},
 		"dry_run": {Conclusion: withConc(func(c *record.Conclusion) {
-			c.State = record.StatePlanned
+			c.Outcome = record.OutcomeSucceeded
 			c.DryRun = true
 			c.ExitCode = record.ExitOK
 			c.Plans = []record.PlanSnapshot{
@@ -99,13 +98,13 @@ func runFixtures() map[string]record.Result {
 			}
 		})},
 		"provenance_revalidation": {Conclusion: withConc(func(c *record.Conclusion) {
-			c.State = record.StateChanged
+			c.Outcome = record.OutcomeSucceeded
 			c.Changed = true
 			c.ExitCode = record.ExitOK
 			c.Tasks = []record.TaskSnapshot{
 				record.NewTaskSnapshot(record.TaskSnapshot{
-					ID: "task_1", Key: "producer", Name: "producer", State: record.Done,
-					Resolution: record.ResolutionExecuted,
+					ID: "task_1", Key: "producer", Name: "producer", State: record.Succeeded,
+					DefineRan: true,
 					Evidence: record.TaskEvidence{
 						Before: record.EvidencePhase{Evaluated: false},
 						After:  record.EvidencePhase{Evaluated: true, Satisfied: true, Source: "operations"},
@@ -114,7 +113,7 @@ func runFixtures() map[string]record.Result {
 			}
 		})},
 		"partial_effects": {Conclusion: withConc(func(c *record.Conclusion) {
-			c.State = record.StateChanged
+			c.Outcome = record.OutcomeSucceeded
 			c.Changed = true
 			c.Partial = true
 			c.ExitCode = record.ExitOK
@@ -261,7 +260,7 @@ func TestEncodeRun_ProblemLocationAndRemediesSurviveEncoding(t *testing.T) {
 	result := record.Result{Conclusion: withConc(func(c *record.Conclusion) {
 		c.Tasks = []record.TaskSnapshot{
 			record.NewTaskSnapshot(record.TaskSnapshot{
-				ID: "task_1", Name: "build", State: record.Done,
+				ID: "task_1", Name: "build", State: record.Succeeded,
 				Problems: []record.Problem{{
 					Code: "A1", Summary: "finding",
 					Location: &record.SourceLocation{Path: "main.go", Line: 12, Column: 3},
@@ -282,26 +281,6 @@ func TestEncodeRun_ProblemLocationAndRemediesSurviveEncoding(t *testing.T) {
 	}
 }
 
-func TestOutcomeFor(t *testing.T) {
-	cases := []struct {
-		state record.ConclusionState
-		want  string
-	}{
-		{record.StateReady, OutcomeOK},
-		{record.StateChanged, OutcomeOK},
-		{record.StateWarning, OutcomeOK},
-		{record.StatePlanned, OutcomeOK},
-		{record.StateBlocked, OutcomeBlocked},
-		{record.StateFailed, OutcomeFailed},
-		{record.StateCancelled, OutcomeCancelled},
-	}
-	for _, tc := range cases {
-		if got := outcomeFor(tc.state); got != tc.want {
-			t.Errorf("outcomeFor(%s) = %s, want %s", tc.state, got, tc.want)
-		}
-	}
-}
-
 func TestModeFor(t *testing.T) {
 	if got := modeFor(true); got != ModeDryRun {
 		t.Errorf("modeFor(true) = %s, want %s", got, ModeDryRun)
@@ -315,8 +294,7 @@ func TestToRunDocument_EvidenceOmitsAfterWhenBeforeSatisfied(t *testing.T) {
 	result := record.Result{Conclusion: withConc(func(c *record.Conclusion) {
 		c.Tasks = []record.TaskSnapshot{
 			record.NewTaskSnapshot(record.TaskSnapshot{
-				ID: "task_1", Name: "install", State: record.Done,
-				Resolution: record.ResolutionAlreadySatisfied,
+				ID: "task_1", Name: "install", State: record.Satisfied,
 				Evidence: record.TaskEvidence{
 					Before: record.EvidencePhase{Evaluated: true, Satisfied: true, Source: "verify"},
 				},

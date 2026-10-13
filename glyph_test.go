@@ -21,7 +21,7 @@ func TestGlyphsASCII_StateRowsUseTightenedVocabulary(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := buf.String()
-	for _, want := range []string{"[ok]", "[x]", "[blocked]"} {
+	for _, want := range []string{"[ok]", "[x]", "[refused]"} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("expected %q in ASCII-profile output:\n%s", want, s)
 		}

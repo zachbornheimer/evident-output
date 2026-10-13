@@ -42,9 +42,9 @@ func ExampleTask_Verify() {
 		panic("Define must not run once Verify reports already satisfied")
 	})
 	_ = task.wait()
-	fmt.Println(task.snapshot().Resolution)
+	fmt.Println(task.snapshot().State)
 	// Output:
-	// already_satisfied
+	// satisfied
 }
 
 // ExampleFile declares/reconciles one managed-state file resource: Evo

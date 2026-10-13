@@ -81,7 +81,7 @@ func WriteDebugOrLine(b *strings.Builder, line string, color bool) {
 
 // WriteCollection renders a Tasks group: the parent glyph/name (with its own
 // Summary when set), then every resolved child row with its own summary or
-// problem — record.Done included. Evo-rec.md record.Problem 1's final ledger keeps ✓ rows
+// problem — Succeeded included. Evo-rec.md record.Problem 1's final ledger keeps ✓ rows
 // like "✓  branches   14 deleted" instead of the parent collapsing to one
 // line and erasing the children whose evidence lived only in the live
 // region while it was running.

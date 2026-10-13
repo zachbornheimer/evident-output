@@ -83,7 +83,7 @@ func TestAfterCycle_SettlesBlockedInsteadOfHanging(t *testing.T) {
 			}
 			for _, task := range tasks {
 				snap := task.snapshot()
-				if snap.State != blocked || !strings.Contains(snap.Summary, tc.path) {
+				if snap.State != refused || !strings.Contains(snap.Summary, tc.path) {
 					t.Errorf("%s = %s %q, want blocked naming %q", snap.Name, snap.State, snap.Summary, tc.path)
 				}
 			}
@@ -170,7 +170,7 @@ func TestAfterEmptyGroup_DrainRunsIt(t *testing.T) {
 	if err := closeWithin(t, out); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
-	if got := fetch.snapshot().State; got != done {
+	if got := fetch.snapshot().State; got != succeeded {
 		t.Fatalf("fetch = %s, want done", got)
 	}
 }

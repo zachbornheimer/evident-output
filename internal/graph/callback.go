@@ -51,7 +51,7 @@ func (g *Graph) runGate(c *claim) {
 		g.settleLocked(c.task, record.Failed)
 		return
 	}
-	g.settleLocked(c.task, record.Done)
+	g.settleLocked(c.task, record.Succeeded)
 }
 
 // runBuilder runs work and returns what it panicked with, nil when it did

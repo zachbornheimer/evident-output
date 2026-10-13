@@ -7,7 +7,7 @@
   "finished_at": "2026-09-15T20:00:02.147Z",
   "duration_ms": 2147,
   "mode": "apply",
-  "outcome": "blocked",
+  "outcome": "refused",
   "exit_code": 1,
   "data": {
     "collections": [],
@@ -16,7 +16,8 @@
         "id": "task_1",
         "key": "confirm",
         "name": "confirm",
-        "state": "blocked",
+        "state": "refused",
+        "outcome": "refused",
         "definition_executed": false,
         "evidence": {
           "before": {

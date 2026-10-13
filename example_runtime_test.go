@@ -32,7 +32,7 @@ func ExampleConfig() {
 	// Output:
 	// ✓ scan
 	//
-	// [ready]  demo
+	// [succeeded]  demo
 }
 
 // ExampleGlyphProfile selects the state-glyph vocabulary Init applies via
@@ -100,10 +100,10 @@ func ExampleRun() {
 		return nil
 	})
 	fmt.Println(result.Err)
-	fmt.Println(result.Conclusion.state)
+	fmt.Println(result.Conclusion.headline())
 	// Output:
 	// <nil>
-	// ready
+	// succeeded
 }
 
 // ExampleMain shows deriving a process exit code from a RunFunc without
@@ -121,7 +121,7 @@ func ExampleMain() {
 // ExampleResult shows the outcome of Run/Main/Output.Run: the finished
 // Conclusion plus the application error, if any.
 func ExampleResult() {
-	result := Result{Conclusion: Conclusion{state: stateFailed, exitCode: exitFailed}}
+	result := Result{Conclusion: Conclusion{Outcome: Failed, exitCode: exitFailed}}
 	fmt.Println(result.ExitCode())
 	// Output:
 	// 2

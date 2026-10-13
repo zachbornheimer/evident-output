@@ -190,7 +190,7 @@ func (t *Task) errorStillOwedLocked() bool {
 		return false
 	}
 	state := t.Rec.State()
-	return state == record.Failed || state == record.Blocked
+	return state == record.Failed || state == record.Refused
 }
 
 // waitOutcome is the truth Wait owes its caller: the error the callback
@@ -214,7 +214,7 @@ func (g *Graph) waitOutcome(t *Task) error {
 		return fmt.Errorf("%w: %s was never defined", ErrNotStarted, t.Name)
 	case state == record.NotStarted:
 		return ErrNotStarted
-	case state == record.Failed || state == record.Blocked:
+	case state == record.Failed || state == record.Refused:
 		// The callback stated its own failure (Fail or Block settle the row
 		// at once) and returned nil. The work did not succeed, and Wait must
 		// not say it did.

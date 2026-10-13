@@ -593,8 +593,8 @@ func (o *Run) shouldPreserveDebugTailLocked(conc Conclusion) bool {
 	if !o.cfg.debugPane.preserveOnBad {
 		return false
 	}
-	switch conc.state {
-	case stateFailed, stateBlocked, stateCancelled:
+	switch conc.Outcome {
+	case Failed, Refused, Cancelled:
 		return true
 	default:
 		return false
@@ -1036,12 +1036,12 @@ type outputListener struct{ o *Run }
 
 // TaskChanged has nothing to do: a change waits in the log for the next
 // read of the index.
-func (outputListener) TaskChanged(record.TaskID, record.EntityState, record.EntityState) {}
+func (outputListener) TaskChanged(record.TaskID, record.State, record.State) {}
 
 // TaskSettled follows the record, so the settle is answered promptly even
 // when nothing reads the index. The record names the settle itself, so the
 // engine cannot disagree with the writer about which states end a Task.
-func (l outputListener) TaskSettled(record.TaskID, record.EntityState, record.EntityState) {
+func (l outputListener) TaskSettled(record.TaskID, record.State, record.State) {
 	l.o.mu.Lock()
 	defer l.o.mu.Unlock()
 	l.o.followRecordLocked()
@@ -1328,7 +1328,7 @@ func (o *Run) hasLiveActivityLocked() bool {
 			return true
 		}
 		if t.node.Rec.Progress().Kind == determinate || t.node.Rec.Progress().Kind == bytesKind {
-			if t.node.Rec.State() == running || t.node.Rec.State() == done || t.node.Rec.State() == failed {
+			if t.node.Rec.State() == running || t.node.Rec.State().Succeeded() || t.node.Rec.State() == failed {
 				return true
 			}
 		}
@@ -1693,7 +1693,7 @@ func (c *liveCensus) rank() int {
 // count moves the per-state counts of one Task in state by delta.
 func (c *liveCensus) count(state entityState, delta int) {
 	switch state {
-	case done, skipped:
+	case succeeded, record.Satisfied, excluded:
 		c.done += delta
 	case running:
 		c.running += delta
@@ -3025,7 +3025,7 @@ func (t *taskState) view() taskSnapshot {
 		Kept:         truth.Kept,
 		Collection:   colID,
 		Declaration:  t.node.Declaration,
-		Resolution:   truth.Resolution,
+		DefineRan:    truth.DefineRan,
 		Evidence:     truth.VerifyEvidence,
 	}
 	return record.WithLiveTail(record.NewTaskSnapshot(base, t.liveFirstSeenAt, t.synthetic), t.tail.view())
@@ -3086,11 +3086,11 @@ func (g *tasksState) allTasksNotStarted(tasks int) bool {
 }
 
 // verdictFold accumulates member states into one container verdict. A
-// Blocked member counts like a Failed one does for the Tasks After the
+// Refused member counts like a Failed one does for the Tasks After the
 // container (see stateOutcome): the container finished and did not
 // succeed, so its header never reads Incomplete for it.
 type verdictFold struct {
-	running, failed, blocked, cancelled, unresolved bool
+	running, failed, refused, cancelled, unresolved bool
 }
 
 func (v *verdictFold) add(s entityState) {
@@ -3099,11 +3099,11 @@ func (v *verdictFold) add(s entityState) {
 		v.running = true
 	case failed:
 		v.failed = true
-	case blocked:
-		v.blocked = true
+	case refused:
+		v.refused = true
 	case cancelled:
 		v.cancelled = true
-	case done, skipped, notStarted:
+	case succeeded, record.Satisfied, excluded, notStarted:
 	default:
 		v.unresolved = true
 	}
@@ -3115,21 +3115,21 @@ func (v verdictFold) state() entityState {
 		return running
 	case v.failed:
 		return failed
-	case v.blocked:
-		return blocked
+	case v.refused:
+		return refused
 	case v.cancelled:
 		return cancelled
 	case v.unresolved:
 		return incomplete
 	default:
-		return done
+		return succeeded
 	}
 }
 
 // displaySummary is g's Summary as its row shows it, given its derived
 // state st: only when all children done/skipped successfully.
 func (g *tasksState) displaySummary(st entityState) string {
-	if st == done && g.node.Rec.Summary() != "" && !g.hasWarnedOrFailedDescendant() {
+	if st.Succeeded() && g.node.Rec.Summary() != "" && !g.hasWarnedOrFailedDescendant() {
 		return g.node.Rec.Summary()
 	}
 	return ""
@@ -3318,24 +3318,6 @@ func (o *Run) emitCollectionDeclaredLocked(st *tasksState, parentID string) {
 		"kind":      kind,
 		"parent_id": parentID,
 	})
-}
-
-// wireRunOutcome maps a finished Conclusion's state to the §38/§35 outcome
-// vocabulary (spec §35: "outcome: ok | blocked | failed | cancelled") — the
-// same mapping wire.ToRunDocument uses for the final "evo.run" document,
-// duplicated locally rather than imported since internal/wire's version is
-// unexported (ToRunDocument's own outcomeFor).
-func wireRunOutcome(state conclusionState) string {
-	switch state {
-	case stateFailed:
-		return wire.OutcomeFailed
-	case stateBlocked:
-		return wire.OutcomeBlocked
-	case stateCancelled:
-		return wire.OutcomeCancelled
-	default:
-		return wire.OutcomeOK
-	}
 }
 
 // --- folded from wireformat.go ---

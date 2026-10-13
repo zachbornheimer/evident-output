@@ -176,7 +176,7 @@ func (o *Run) settleGate(gate *Task, answer graph.Answer, cfg confirmConfig) boo
 	case cancelled:
 		// cancelPendingConfirmLocked already resolved the gate as Cancelled.
 		return false
-	case done:
+	case succeeded:
 		gate.succeed(confirmSummaryOf(answer))
 		o.flushGateNow(gate.id)
 		return true

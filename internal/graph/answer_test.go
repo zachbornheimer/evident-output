@@ -7,12 +7,12 @@ import (
 )
 
 func TestAnswerOutcomeDecidesTheGateState(t *testing.T) {
-	cases := map[Answer]record.EntityState{
-		AnswerYes:         record.Done,
-		AnswerAssumedYes:  record.Done,
-		AnswerNo:          record.Blocked,
-		AnswerPolicy:      record.Blocked,
-		AnswerClosed:      record.Blocked,
+	cases := map[Answer]record.State{
+		AnswerYes:         record.Succeeded,
+		AnswerAssumedYes:  record.Succeeded,
+		AnswerNo:          record.Refused,
+		AnswerPolicy:      record.Refused,
+		AnswerClosed:      record.Refused,
 		AnswerInterrupted: record.Cancelled,
 	}
 	for answer, want := range cases {

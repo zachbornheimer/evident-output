@@ -100,13 +100,13 @@ func TestScheduler_GroupSiblingsReportTruthfulIndependentOutcomes(t *testing.T) 
 	for _, child := range snap.Tasks {
 		states[child.Name] = child.State
 	}
-	if states["ok-a"] != done {
+	if states["ok-a"] != succeeded {
 		t.Fatalf("ok-a state = %s, want Done", states["ok-a"])
 	}
 	if states["broken"] != failed {
 		t.Fatalf("broken state = %s, want Failed", states["broken"])
 	}
-	if states["ok-b"] != done {
+	if states["ok-b"] != succeeded {
 		t.Fatalf("ok-b state = %s, want Done — a Group sibling's failure must not cascade to NotStarted (that is Sequence's contract, not Group's)", states["ok-b"])
 	}
 }
@@ -257,7 +257,7 @@ func TestScheduler_GroupChildrenSettleSubmittedWork(t *testing.T) {
 		t.Fatalf("children = %d, want %d", len(snap.Tasks), len(paths))
 	}
 	for _, child := range snap.Tasks {
-		if child.State != done {
+		if child.State != succeeded {
 			t.Fatalf("child %q state = %s, want Done", child.Name, child.State)
 		}
 	}
@@ -290,7 +290,7 @@ func TestScheduler_UndefinedGroupChildDoesNotBlockItsSibling(t *testing.T) {
 			undefinedSnap = child
 		}
 	}
-	if definedSnap.State != done {
+	if definedSnap.State != succeeded {
 		t.Fatalf("defined child state = %s, want Done", definedSnap.State)
 	}
 	if undefinedSnap.State != pending {

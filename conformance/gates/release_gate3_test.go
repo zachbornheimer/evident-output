@@ -87,7 +87,7 @@ func TestRun_NeverResolvedBareTask_BandAndExitCodeAgree(t *testing.T) {
 	}).ExitCode()
 
 	rendered := buf.String()
-	bandIsOKFamily := strings.Contains(rendered, "[ready") ||
+	bandIsOKFamily := strings.Contains(rendered, "[succeeded") ||
 		strings.Contains(rendered, "[changed") ||
 		strings.Contains(rendered, "[unchanged") ||
 		strings.Contains(rendered, "[planned")

@@ -17,11 +17,11 @@ import (
 func branchesWithWorkChild(work record.TaskSnapshot) record.TasksSnapshot {
 	protected := []record.TaxonomyRecord{{Reason: "protected"}}
 	unpushed := []record.TaxonomyRecord{{Reason: "unpushed"}}
-	return record.TasksSnapshot{Name: "branches", State: record.Done, Summary: "14 deleted", Tasks: []record.TaskSnapshot{
-		{Name: "main", State: record.Skipped, Skipped: protected},
-		{Name: "develop", State: record.Skipped, Skipped: protected},
-		{Name: "feature-a", State: record.Done, Kept: unpushed},
-		{Name: "feature-b", State: record.Done, Kept: unpushed},
+	return record.TasksSnapshot{Name: "branches", State: record.Succeeded, Summary: "14 deleted", Tasks: []record.TaskSnapshot{
+		{Name: "main", State: record.Excluded, Skipped: protected},
+		{Name: "develop", State: record.Excluded, Skipped: protected},
+		{Name: "feature-a", State: record.Succeeded, Kept: unpushed},
+		{Name: "feature-b", State: record.Succeeded, Kept: unpushed},
 		work,
 	}}
 }
@@ -32,7 +32,7 @@ func branchesWithWorkChild(work record.TaskSnapshot) record.TasksSnapshot {
 func TestGroupTallies_ShareTheChildColumn(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
-	plain.WriteCollection(&b, branchesWithWorkChild(record.TaskSnapshot{Name: "deleted", State: record.Done, Summary: "14 deleted"}), project.Style{Profile: project.GlyphsUnicode})
+	plain.WriteCollection(&b, branchesWithWorkChild(record.TaskSnapshot{Name: "deleted", State: record.Succeeded, Summary: "14 deleted"}), project.Style{Profile: project.GlyphsUnicode})
 	want := "✓ branches  14 deleted\n" +
 		"   - skipped 2 (protected)\n" +
 		"   ! kept 2 (unpushed)\n" +

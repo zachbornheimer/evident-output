@@ -35,10 +35,10 @@ func TestFinish_ReadmeQuickstart_EachLoopAutoResolvesDone(t *testing.T) {
 	if strings.Contains(rendered, "misuse") {
 		t.Fatalf("no misuse expected once the sealed loop auto-resolves:\n%s", rendered)
 	}
-	if code := out.conclusion().exitCode; code != exitBlocked {
+	if code := out.conclusion().exitCode; code != exitRefused {
 		// "branches" is deliberately Blocked in this quickstart-verbatim
 		// scenario; the band must stay sane (Blocked → exit 1), not escalate.
-		t.Fatalf("exit code = %d, want %d (ExitBlocked, the quickstart's own Block)", code, exitBlocked)
+		t.Fatalf("exit code = %d, want %d (ExitBlocked, the quickstart's own Block)", code, exitRefused)
 	}
 }
 
@@ -62,7 +62,7 @@ func TestFinish_TeachingLadder_EachThenReturnNil_NeverCancels(t *testing.T) {
 	if code := out.conclusion().exitCode; code != exitOK {
 		t.Fatalf("exit code = %d, want %d (ExitOK) — a sealed Each loop must never read as cancelled", code, exitOK)
 	}
-	if state := out.conclusion().state; state == stateCancelled {
+	if state := out.conclusion().headline(); state == headlineCancelled {
 		t.Fatalf("state = %v, want anything but StateCancelled on an uninterrupted run", state)
 	}
 	rendered := buf.String()
@@ -99,11 +99,11 @@ func TestFinish_TaxonomyOnlyTaskWithDeclinedConfirm_BlockedNeverEscalates(t *tes
 		t.Fatalf("no misuse expected — taxonomy-only task auto-resolves, and Confirm's Blocked is not misuse:\n%s", rendered)
 	}
 	conc := out.conclusion()
-	if conc.state != stateBlocked {
-		t.Fatalf("state = %v, want StateBlocked (the declined Confirm gate)", conc.state)
+	if conc.headline() != headlineRefused {
+		t.Fatalf("state = %v, want StateBlocked (the declined Confirm gate)", conc.headline())
 	}
-	if conc.exitCode != exitBlocked {
-		t.Fatalf("exit code = %d, want %d (ExitBlocked) — a recorded misuse must never escalate Block to Failed", conc.exitCode, exitBlocked)
+	if conc.exitCode != exitRefused {
+		t.Fatalf("exit code = %d, want %d (ExitBlocked) — a recorded misuse must never escalate Block to Failed", conc.exitCode, exitRefused)
 	}
 }
 
@@ -126,7 +126,7 @@ func TestRun_BlockedWithLeftoverMisuse_NeverEscalatesToFailed(t *testing.T) {
 		return nil
 	}).ExitCode()
 
-	if code != exitBlocked {
-		t.Fatalf("exit code = %d, want %d (ExitBlocked) — leftover misuse must not escalate the printed Block band to Failed:\n%s", code, exitBlocked, buf.String())
+	if code != exitRefused {
+		t.Fatalf("exit code = %d, want %d (ExitBlocked) — leftover misuse must not escalate the printed Block band to Failed:\n%s", code, exitRefused, buf.String())
 	}
 }

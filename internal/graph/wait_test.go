@@ -31,7 +31,7 @@ const settleToReturnGap = 5 * time.Millisecond
 // the answer, so Wait does not hold for a callback that ignores its context
 // (see TestWait_OnACancelledRowWhoseCallbackIgnoresItsContextAnswersCancelled).
 func TestWaitReturnsTheErrorACallbackReturnsAfterSettlingItsOwnRow(t *testing.T) {
-	for _, state := range []record.EntityState{record.Failed, record.Blocked} {
+	for _, state := range []record.State{record.Failed, record.Refused} {
 		for _, parkedFirst := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/waiter parked first=%v", state, parkedFirst), func(t *testing.T) {
 				g := New(record.NewRun())
@@ -134,7 +134,7 @@ func TestWaitIsRefusedWhileHoldingAClaim(t *testing.T) {
 	if !errors.Is(got, sentinel) {
 		t.Errorf("Wait under a claim = %v, want the configured sentinel", got)
 	}
-	if task.Rec.State() == record.Done {
+	if task.Rec.State() == record.Succeeded {
 		t.Error("the refused Wait ran the awaited Task")
 	}
 }

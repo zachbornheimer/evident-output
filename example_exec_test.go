@@ -125,6 +125,8 @@ func ExampleExecResult() {
 	//    └─ Last 2 lines:
 	//       file.go:10: unused variable
 	//       file.go:22: missing return
+	//
+	// [failed]
 }
 
 // ExampleProcessRunner is the facade every Exec spawn goes through

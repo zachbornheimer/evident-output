@@ -153,7 +153,7 @@ func TestTaskHandle_SkippedDoesNotResolveTask(t *testing.T) {
 	branches := out.Task("branches")
 	branches.skipped(reason("protected"))
 
-	if state := branches.snapshot().State; state != skipped {
+	if state := branches.snapshot().State; state != excluded {
 		t.Fatalf("Skipped must resolve the task, state = %v, want Skipped", state)
 	}
 }
@@ -309,7 +309,7 @@ func TestGroup_KeptChildrenAggregateUnderGroupRow(t *testing.T) {
 		if summary != "" {
 			row = "✓ branches  " + summary + "\n"
 		}
-		want := row + "  - skipped 3 (2 unpushed, 1 protected)\n"
+		want := row + "  - skipped 3 (2 unpushed, 1 protected)\n" + "\n[excluded]\n"
 		if got := buf.String(); got != want {
 			t.Fatalf("summary %q mismatch:\n--- want ---\n%s\n--- got ---\n%s", summary, want, got)
 		}

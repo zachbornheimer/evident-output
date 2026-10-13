@@ -54,7 +54,7 @@ func TestSequence_EarlierCompletedSiblingKeepsItsResolvedState(t *testing.T) {
 	venv.fail("uv exited 1")
 	_ = out.finish()
 
-	if got := scan.snapshot().State; got != done {
+	if got := scan.snapshot().State; got != succeeded {
 		t.Fatalf("scan state = %v, want Done (must not be rewritten)", got)
 	}
 }
@@ -77,7 +77,7 @@ func TestSequence_ExplicitResolutionWinsOverAutoResolution(t *testing.T) {
 
 	_ = out.finish()
 
-	if got := extras.snapshot().State; got != skipped {
+	if got := extras.snapshot().State; got != excluded {
 		t.Fatalf("extras state = %v, want Skipped (explicit resolution must win)", got)
 	}
 }
@@ -123,8 +123,8 @@ func TestSequence_ConclusionAndExitCodeComeFromFailedChildNotFromNotStarted(t *t
 	_ = out.finish()
 
 	conc := out.conclusion()
-	if conc.state != stateFailed {
-		t.Fatalf("conclusion state = %v, want StateFailed", conc.state)
+	if conc.headline() != headlineFailed {
+		t.Fatalf("conclusion state = %v, want StateFailed", conc.headline())
 	}
 	if conc.exitCode != exitFailed {
 		t.Fatalf("exit code = %d, want %d (ExitFailed)", conc.exitCode, exitFailed)
@@ -149,7 +149,7 @@ func TestSequence_AllChildrenDoneRendersAsToday(t *testing.T) {
 	if strings.Contains(buf.String(), "not started") {
 		t.Fatalf("unexpected \"not started\" row in an all-done group:\n%s", buf.String())
 	}
-	if got := setup.snapshot().State; got != done {
+	if got := setup.snapshot().State; got != succeeded {
 		t.Fatalf("group state = %v, want Done", got)
 	}
 }
@@ -162,7 +162,7 @@ func TestSequence_AllChildrenDoneRendersAsToday(t *testing.T) {
 // must Finish cleanly with no misuse recorded. It failed before this fix
 // because examples/live-progress declared download.Bytes(0, total) then
 // started a sibling's Phase before download resolved, tripping
-// ErrConcurrentRunning and exiting 2 despite printing "[ready]".
+// ErrConcurrentRunning and exiting 2 despite printing "[succeeded]".
 func TestSequence_SequentialBytesProgressFinishesClean(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})

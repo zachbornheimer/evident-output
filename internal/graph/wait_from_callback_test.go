@@ -49,7 +49,7 @@ func chainedInCallbackWaits(t *testing.T, n, idle int) int64 {
 		}
 		g.Drain()
 	})
-	if got := prev.Rec.State(); got != record.Done {
+	if got := prev.Rec.State(); got != record.Succeeded {
 		t.Fatalf("last chained Task = %s, want done", got)
 	}
 	return dumps

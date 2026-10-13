@@ -13,7 +13,7 @@ import (
 
 // TestConclusion_WarnedModifierSurvivesOKHeadline is release-gate round 8
 // finding 3: a run with one Done task and one Warn task must not read as
-// silently clean — a [ready] band may not hide a warning that occurred
+// silently clean — a [succeeded] band may not hide a warning that occurred
 // during the run. Conclusion.Warned and the "· warned" band modifier make
 // it visible without changing the exit code (precedent: "· partial").
 func TestConclusion_WarnedModifierSurvivesOKHeadline(t *testing.T) {
@@ -41,7 +41,7 @@ func TestConclusion_WarnedModifierSurvivesOKHeadline(t *testing.T) {
 	}
 
 	rendered := buf.String()
-	if !strings.Contains(rendered, "[ready · warned]") {
+	if !strings.Contains(rendered, "[succeeded · warned]") {
 		t.Fatalf("want the band to carry the · warned modifier, got:\n%s", rendered)
 	}
 }

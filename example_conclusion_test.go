@@ -14,18 +14,18 @@ func ExampleConclusion() {
 	out.Task("apply patch").Define(func(context.Context) error { return nil })
 	_ = out.finish()
 	c := out.conclusion()
-	fmt.Println(c.state, c.exitCode)
+	fmt.Println(c.headline(), c.exitCode)
 	// Output:
-	// ready 0
+	// succeeded 0
 }
 
-// ExampleResolution names why a Task settled successfully.
+// ExampleResolution shows that a Task whose Define ran records it.
 func ExampleResolution() {
 	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
 	task := out.Task("apply patch")
 	task.Define(func(context.Context) error { return nil })
 	_ = out.finish()
-	fmt.Println(task.snapshot().Resolution == resolutionExecuted)
+	fmt.Println(task.snapshot().DefineRan)
 	// Output:
 	// true
 }

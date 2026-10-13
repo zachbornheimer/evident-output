@@ -26,7 +26,7 @@ func keptCategory(items int) record.TasksSnapshot {
 	for i := range items {
 		name := fmt.Sprintf("feat/branch-%04d", i)
 		tasks = append(tasks, record.TaskSnapshot{
-			Name: name, State: record.Done,
+			Name: name, State: record.Succeeded,
 			Kept: []record.TaxonomyRecord{{Reason: reasons[i%len(reasons)], Name: name}},
 		})
 	}

@@ -18,7 +18,7 @@ const (
 // Resolution is what an authority asks of a Task: the state it should reach,
 // the words that say why, and the Problems it found.
 type Resolution struct {
-	State    record.EntityState
+	State    record.State
 	Summary  string
 	Problems []record.Problem
 	By       Authority
@@ -45,7 +45,7 @@ type Admission struct {
 	Verdict Verdict
 	// State is, for Settling, the state the Task reaches: the evidence rule
 	// has already turned a success over a Problem into Failed.
-	State record.EntityState
+	State record.State
 
 	stopsFollowers bool
 }

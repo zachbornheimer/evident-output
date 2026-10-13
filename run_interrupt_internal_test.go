@@ -107,7 +107,7 @@ func TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue(t *testing.T) {
 	if strings.Contains(rendered, "✓") {
 		t.Fatalf("nothing may complete after the cancel:\n%s", rendered)
 	}
-	if got := out.conclusion().state; got != stateCancelled {
+	if got := out.conclusion().headline(); got != headlineCancelled {
 		t.Fatalf("conclusion = %v, want StateCancelled", got)
 	}
 }

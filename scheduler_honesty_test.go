@@ -35,7 +35,7 @@ func TestScheduler_P13_FailfInsideDefineDoesNotDoubleResolve(t *testing.T) {
 	if err := out.err(); err != nil {
 		t.Fatalf("misuse = %v, want none: the callback resolved itself once", err)
 	}
-	requireConclusion(t, out, stateFailed)
+	requireConclusion(t, out, headlineFailed)
 }
 
 // TestScheduler_P17_PluralizeNeverInflectsAnAlreadyPluralObject pins the
@@ -102,7 +102,7 @@ func TestScheduler_P15_WaitOnTerminalTaskReturnsInsteadOfHanging(t *testing.T) {
 	if err := out.err(); !errors.Is(err, errAlreadyResolved) {
 		t.Fatalf("misuse = %v, want ErrAlreadyResolved", err)
 	}
-	if got := task.snapshot().State; got != skipped {
+	if got := task.snapshot().State; got != excluded {
 		t.Fatalf("task state = %v, want Skipped", got)
 	}
 }
@@ -140,7 +140,7 @@ func TestScheduler_P16_NestedWaitAtCeilingCompletes(t *testing.T) {
 	if innerErr != nil {
 		t.Fatalf("inner Wait = %v, want nil", innerErr)
 	}
-	if got := outer.snapshot().State; got != done {
+	if got := outer.snapshot().State; got != succeeded {
 		t.Fatalf("outer state = %v, want Done", got)
 	}
 }

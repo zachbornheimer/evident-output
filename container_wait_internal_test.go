@@ -180,12 +180,12 @@ func TestGroupHandle_Wait_BlockedChildSurfacesFailure(t *testing.T) {
 		if err == nil {
 			t.Fatal("jobs.Wait() = nil, want the Blocked child's failure")
 		}
-		if got := blocked.snapshot().State; got != record.Blocked {
+		if got := blocked.snapshot().State; got != record.Refused {
 			t.Fatalf("child state = %v, want Blocked", got)
 		}
 		// The header agrees with what Tasks After the Group see: it
 		// finished, and it did not succeed.
-		if got := jobs.snapshot().State; got != record.Blocked {
+		if got := jobs.snapshot().State; got != record.Refused {
 			t.Errorf("group state = %v, want Blocked", got)
 		}
 		nested := out.Group("outer")
@@ -193,7 +193,7 @@ func TestGroupHandle_Wait_BlockedChildSurfacesFailure(t *testing.T) {
 		innerBlocked := inner.Task("c")
 		innerBlocked.Define(func(ctx context.Context) error { innerBlocked.block("held"); return nil })
 		_ = nested.wait()
-		if got := nested.snapshot().State; got != record.Blocked {
+		if got := nested.snapshot().State; got != record.Refused {
 			t.Errorf("outer group state = %v, want Blocked from its nested Group", got)
 		}
 		return err

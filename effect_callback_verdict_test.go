@@ -154,7 +154,7 @@ func TestEffect_SuccessCommitsChangedEffect(t *testing.T) {
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if got := out.conclusion().state; got != stateChanged {
+	if got := out.conclusion().headline(); got != headlineChanged {
 		t.Fatalf("state = %v, want StateChanged", got)
 	}
 	if !strings.Contains(buf.String(), "deleted 2 stale local branches") {
@@ -175,7 +175,7 @@ func TestEffect_NilCallRecordsWithoutExecuting(t *testing.T) {
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if got := out.conclusion().state; got != stateChanged {
+	if got := out.conclusion().headline(); got != headlineChanged {
 		t.Fatalf("state = %v, want StateChanged", got)
 	}
 }
@@ -199,7 +199,7 @@ func TestEffect_CallErrorCommitsNothing(t *testing.T) {
 			t.Fatalf("want no committed records after a call error, got %+v", ch.Records)
 		}
 	}
-	if got := out.conclusion().state; got != stateFailed {
+	if got := out.conclusion().headline(); got != headlineFailed {
 		t.Fatalf("state = %v, want StateFailed", got)
 	}
 }
@@ -226,7 +226,7 @@ func TestEffect_DryRunNeverExecutesCallAndPlansEffect(t *testing.T) {
 	if called {
 		t.Fatal("dry-run must not invoke the mutation callback")
 	}
-	if got := out.conclusion().state; got != statePlanned {
+	if got := out.conclusion().headline(); got != headlinePlanned {
 		t.Fatalf("state = %v, want StatePlanned", got)
 	}
 	if !strings.Contains(buf.String(), "delete 2 stale local branches") {

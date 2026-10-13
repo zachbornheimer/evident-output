@@ -69,7 +69,7 @@ func TestFinish_SharedPrimaryTerminalRendersConclusionOnce(t *testing.T) {
 	}
 
 	got := shared.String()
-	if n := strings.Count(got, "[ready]"); n != 1 {
+	if n := strings.Count(got, "[succeeded]"); n != 1 {
 		t.Fatalf("conclusion band count = %d, want exactly 1 in:\n%s", n, got)
 	}
 }
@@ -96,10 +96,10 @@ func TestFinish_DistinctPrimaryAndTerminalKeepBothConclusions(t *testing.T) {
 		t.Fatalf("Finish: %v", err)
 	}
 
-	if !strings.Contains(primary.String(), "[ready]") {
+	if !strings.Contains(primary.String(), "[succeeded]") {
 		t.Fatalf("distinct primary must still receive the conclusion:\n%s", primary.String())
 	}
-	if !strings.Contains(screenBuf.String(), "[ready]") {
+	if !strings.Contains(screenBuf.String(), "[succeeded]") {
 		t.Fatalf("terminal must still receive the conclusion:\n%s", screenBuf.String())
 	}
 }

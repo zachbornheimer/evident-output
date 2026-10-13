@@ -140,8 +140,8 @@ func TestWireEvents_AlreadySatisfiedSkipsDefinition(t *testing.T) {
 		t.Fatalf("evidence.evaluated payload = %+v, want phase=before_definition satisfied=true", ev.Payload)
 	}
 	finIdx := indexOfType(events, wire.EventTaskFinished)
-	if finIdx == -1 || events[finIdx].Payload["resolution"] != string(resolutionAlreadySatisfied) {
-		t.Fatalf("task.finished payload = %+v, want resolution=%s", events[finIdx].Payload, resolutionAlreadySatisfied)
+	if finIdx == -1 || events[finIdx].Payload["outcome"] != string(Satisfied) {
+		t.Fatalf("task.finished payload = %+v, want outcome=%s", events[finIdx].Payload, Satisfied)
 	}
 	if evIdx >= finIdx {
 		t.Fatalf("evidence.evaluated (%d) must precede task.finished (%d): %v", evIdx, finIdx, types)
@@ -356,8 +356,8 @@ func TestWireEvents_RunFinishedOnFailure(t *testing.T) {
 	if idx == -1 {
 		t.Fatalf("run.finished must fire on a failed run, got: %v", wireEventTypes(events))
 	}
-	if events[idx].Payload["outcome"] != wire.OutcomeFailed {
-		t.Fatalf("run.finished outcome = %v, want %q", events[idx].Payload["outcome"], wire.OutcomeFailed)
+	if events[idx].Payload["outcome"] != string(Failed) {
+		t.Fatalf("run.finished outcome = %v, want %q", events[idx].Payload["outcome"], string(Failed))
 	}
 	if idx != len(events)-1 {
 		t.Fatalf("run.finished must be the last recEvent, got index %d of %d", idx, len(events))
@@ -378,8 +378,8 @@ func TestWireEvents_RunFinishedOnCancel(t *testing.T) {
 	if idx == -1 {
 		t.Fatalf("run.finished must fire on a cancelled run, got: %v", wireEventTypes(events))
 	}
-	if events[idx].Payload["outcome"] != wire.OutcomeCancelled {
-		t.Fatalf("run.finished outcome = %v, want %q", events[idx].Payload["outcome"], wire.OutcomeCancelled)
+	if events[idx].Payload["outcome"] != string(Cancelled) {
+		t.Fatalf("run.finished outcome = %v, want %q", events[idx].Payload["outcome"], string(Cancelled))
 	}
 }
 
@@ -752,8 +752,8 @@ func TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning(t *testing.T) 
 	}
 	// The task resolves from the Define return alone: Problems never end it.
 	finished := events[indexOfType(events, wire.EventTaskFinished)]
-	if finished.Payload["state"] != "done" {
-		t.Fatalf("want task.finished state=done, got %v", finished.Payload["state"])
+	if finished.Payload["outcome"] != string(Succeeded) {
+		t.Fatalf("want task.finished outcome=succeeded, got %v", finished.Payload["outcome"])
 	}
 }
 

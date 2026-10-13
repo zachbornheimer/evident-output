@@ -61,13 +61,13 @@ func TestTakeChangedFindsAWriteTheListenerHasNotHeardYet(t *testing.T) {
 	run.SetListener(heard)
 
 	run.Hold()
-	task.Transition(Done)
+	task.Transition(Succeeded)
 	changed := run.TakeChanged(nil)
 	heardInside := len(heard.tasks)
 	run.Release()
 
-	if !slices.Equal(changed, []TaskID{"task_1"}) || task.State() != Done {
-		t.Errorf("TakeChanged = %v with the Task %s, want task_1 settled Done", changed, task.State())
+	if !slices.Equal(changed, []TaskID{"task_1"}) || task.State() != Succeeded {
+		t.Errorf("TakeChanged = %v with the Task %s, want task_1 settled Succeeded", changed, task.State())
 	}
 	if heardInside != 0 {
 		t.Errorf("the listener heard %d changes while a Hold was open", heardInside)

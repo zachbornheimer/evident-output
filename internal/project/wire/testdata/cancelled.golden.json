@@ -16,7 +16,8 @@
         "id": "task_1",
         "key": "scan",
         "name": "scan",
-        "state": "done",
+        "state": "succeeded",
+        "outcome": "succeeded",
         "definition_executed": false,
         "evidence": {
           "before": {
@@ -46,6 +47,7 @@
         "key": "venv",
         "name": "venv",
         "state": "cancelled",
+        "outcome": "cancelled",
         "definition_executed": false,
         "evidence": {
           "before": {

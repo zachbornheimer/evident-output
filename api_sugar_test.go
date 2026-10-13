@@ -214,7 +214,7 @@ func TestAPISugar_ItemBlockSetsBlockedState(t *testing.T) {
 	item := out.Task("policy gate")
 	cause := errors.New("denied")
 	item.block("blocked by policy", Detail(cause.Error()))
-	if got := item.snapshot().State; got != blocked {
+	if got := item.snapshot().State; got != refused {
 		t.Fatalf("state = %q, want Blocked", got)
 	}
 }

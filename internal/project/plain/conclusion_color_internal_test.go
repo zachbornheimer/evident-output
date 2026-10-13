@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/project"
-
-	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 // TestConclusionColor_PlannedIsBlue reproduces gate-7 finding 3: StatePlanned
@@ -16,7 +14,7 @@ import (
 // closes the gap by naming StatePlanned's color explicitly, so the next new
 // ConclusionState can't silently diverge between the two sites either.
 func TestConclusionColor_PlannedIsBlue(t *testing.T) {
-	if got := project.ConclusionColor(record.StatePlanned); got != project.SGRBlue {
+	if got := project.HeadlineColor(project.HeadlinePlanned); got != project.SGRBlue {
 		t.Fatalf("conclusionColor(StatePlanned) = %q, want SGRBlue (%q)", got, project.SGRBlue)
 	}
 }

@@ -100,7 +100,7 @@ func TestWait_ReleasesSlotWhileBlocked(t *testing.T) {
 	for name, task := range map[string]*Task{
 		"unlock": unlock, "locked": locked, "waiter": waiter,
 	} {
-		if got := task.snapshot().State; got != done {
+		if got := task.snapshot().State; got != succeeded {
 			t.Fatalf("%s state = %v, want Done", name, got)
 		}
 	}
@@ -231,7 +231,7 @@ func TestWait_FromOutsideAnyCallbackStillBlocks(t *testing.T) {
 	if !ran.Load() {
 		t.Fatal("the awaited callback never completed")
 	}
-	if got := task.snapshot().State; got != done {
+	if got := task.snapshot().State; got != succeeded {
 		t.Fatalf("task state = %v, want Done", got)
 	}
 }

@@ -406,7 +406,7 @@ type holder struct {
 func writes(h *holder, task *record.Task, run record.Run) {
 	h.journal.AppendLine("a")
 	h.rec.SetSummary("b")
-	task.Transition(record.Done)
+	task.Transition(record.Succeeded)
 	task.Settle(record.Failed)
 	run.RecordRunFact(record.Fact{})
 	built := record.NewRun()

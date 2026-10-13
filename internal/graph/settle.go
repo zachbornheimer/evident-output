@@ -22,13 +22,13 @@ const NotStartedSummary = "not started"
 // Callers own only what differs between paths: the summary, the Problems,
 // and where the settled row is committed. What a projection owes a terminal
 // transition it learns from the record's listener.
-func (g *Graph) Settle(t *Task, state record.EntityState) {
+func (g *Graph) Settle(t *Task, state record.State) {
 	g.lock()
 	defer g.unlock()
 	g.settleLocked(t, state)
 }
 
-func (g *Graph) settleLocked(t *Task, state record.EntityState) {
+func (g *Graph) settleLocked(t *Task, state record.State) {
 	t.Rec.Settle(state)
 	if t.gateFor != nil {
 		g.concludeGateLocked(t)

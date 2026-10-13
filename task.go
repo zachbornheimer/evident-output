@@ -314,7 +314,7 @@ func (c *childCounters) remove(f *filing) {
 func (c *childCounters) move(f *filing, delta int) {
 	c.total += delta
 	switch f.state {
-	case done, skipped:
+	case succeeded, record.Satisfied, excluded:
 		c.done += delta
 	case running:
 		c.running += delta
@@ -342,7 +342,7 @@ func (c *childCounters) counts(earliest time.Time) project.ChildCounts {
 // slice 6: one of three counters of a collection's descendants by state, with
 // the graph's tally and liveCensus; they fold into one count owned by project.
 type stateCounts struct {
-	running, failed, blocked, cancelled, notStarted, unresolved, warned int
+	running, failed, refused, cancelled, notStarted, unresolved, warned int
 }
 
 func (s *stateCounts) add(f *filing)    { s.move(f, 1) }
@@ -354,13 +354,13 @@ func (s *stateCounts) move(f *filing, delta int) {
 		s.running += delta
 	case failed:
 		s.failed += delta
-	case blocked:
-		s.blocked += delta
+	case refused:
+		s.refused += delta
 	case cancelled:
 		s.cancelled += delta
 	case notStarted:
 		s.notStarted += delta
-	case done, skipped:
+	case succeeded, record.Satisfied, excluded:
 	default:
 		s.unresolved += delta
 	}
@@ -372,7 +372,7 @@ func (s *stateCounts) move(f *filing, delta int) {
 // fold is the verdict of the counted Tasks alone.
 func (s stateCounts) fold() verdictFold {
 	return verdictFold{
-		running: s.running > 0, failed: s.failed > 0, blocked: s.blocked > 0,
+		running: s.running > 0, failed: s.failed > 0, refused: s.refused > 0,
 		cancelled: s.cancelled > 0, unresolved: s.unresolved > 0,
 	}
 }
@@ -787,7 +787,7 @@ func (o *Run) declareTaskLocked(name string, col *tasksState) *Task {
 		return o.rejectedTask(errDeclaredInCallback)
 	}
 	node, err := o.graph.AddTask(containerNode(col), name, record.TaskInit{
-		State: declaredState, Progress: progress{Kind: indeterminate}, Resolution: resolutionNoWork,
+		State: declaredState, Progress: progress{Kind: indeterminate},
 	})
 	if err != nil {
 		err = declarationRefusal(err)
@@ -1286,7 +1286,7 @@ func (o *Run) commitSettledLocked(st *taskState) {
 		o.commitResolvedTaskLocked(st.id)
 		o.commitNamedEffectsLocked(st.id)
 	}
-	if st.node.Rec.State() != done {
+	if !st.node.Rec.State().Succeeded() {
 		return
 	}
 	o.commitManifestTaskLocked(o.graph.Context(), st.id)
@@ -1355,7 +1355,7 @@ func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind p
 // The public Task has no equivalent since 1.1: callers resolve
 // through Define, and Summary carries their result project.
 func (t *Task) succeed(summary string) {
-	t.finish(done, project.Text(summary), nil)
+	t.finish(succeeded, project.Text(summary), nil)
 }
 
 // Fail resolves the task as failed. This is a statement, not a fluent
@@ -1379,7 +1379,7 @@ func (t *Task) resolveWithProblem(state entityState, summary string, options []P
 // Define, Block then return nil: Wait still reports failure from the
 // Blocked row.
 func (t *Task) block(summary string, options ...ProblemOption) {
-	t.resolveWithProblem(blocked, summary, options)
+	t.resolveWithProblem(refused, summary, options)
 }
 
 // Cancel resolves the task as cancelled. A nil *Task is safe and
@@ -1394,7 +1394,7 @@ func (t *Task) skip(reason string, args ...any) *Task {
 	if len(args) > 0 {
 		reason = fmt.Sprintf(reason, args...)
 	}
-	return t.finish(skipped, project.Text(reason), nil)
+	return t.finish(excluded, project.Text(reason), nil)
 }
 
 // failScheduled resolves the task Failed on the scheduler's authority,
@@ -1405,10 +1405,16 @@ func (t *Task) failScheduled(summary string) {
 	t.resolveScheduled(failed, project.Text(summary), []problem{p})
 }
 
-// doneScheduled resolves the task Done on the scheduler's authority — the
-// one path that may declare a submitted task successful (see finish).
-func (t *Task) doneScheduled() {
-	t.resolveScheduled(done, "", nil)
+// succeedScheduled resolves the task Succeeded on the scheduler's authority:
+// the one path that may declare a submitted task successful (see finish).
+func (t *Task) succeedScheduled() {
+	t.resolveScheduled(succeeded, "", nil)
+}
+
+// satisfyScheduled resolves the task Satisfied on the scheduler's authority:
+// its requested state was already true, so its callback never ran.
+func (t *Task) satisfyScheduled() {
+	t.resolveScheduled(record.Satisfied, "", nil)
 }
 
 // finish is the caller-facing resolution path — every terminal verb
@@ -1454,7 +1460,7 @@ func (t *Task) resolveScheduled(state entityState, summary string, problems []pr
 // the resolving goroutine's own stack: callbackDepth is non-zero only
 // inside a task callback, which is precisely "the row resolved itself".
 func (o *Run) deniesItsOwnEffect(st *taskState, state entityState, authority graph.Authority) bool {
-	if !o.changes.EffectInFlight(record.TaskID(st.id)) || st.node.Phase() != graph.PhaseRunning || authority != graph.ByCaller || state == done {
+	if !o.changes.EffectInFlight(record.TaskID(st.id)) || st.node.Phase() != graph.PhaseRunning || authority != graph.ByCaller || state.Succeeded() {
 		return false
 	}
 	return graph.CallbackDepth() > 0
@@ -1500,12 +1506,11 @@ func (t *Task) resolve(state entityState, summary string, problems []problem, au
 	return t
 }
 
-// taskFinishedPayload is the task.finished event's payload: the settled
-// state, why it settled, and its Summary when it has one (ZYS-971).
+// taskFinishedPayload is the task.finished event's payload: the Outcome
+// the Task settled with, and its Summary when it has one (ZYS-971).
 func taskFinishedPayload(st *taskState) map[string]any {
 	payload := map[string]any{
-		"state":      string(st.node.Rec.State()),
-		"resolution": string(st.node.Rec.Resolution()),
+		"outcome": string(st.node.Rec.State().Outcome()),
 	}
 	if st.node.Rec.Summary() != "" {
 		payload["summary"] = st.node.Rec.Summary()
@@ -1809,7 +1814,7 @@ func (v dispositionVerb) wireName() string {
 // full list under Verbose.
 func (t *Task) skipped(reason taxonomyReason) {
 	t.recordTaxonomy(reason, "", dispositionSkip, nil)
-	t.finish(skipped, "", nil)
+	t.finish(excluded, "", nil)
 }
 
 func (t *Task) recordTaxonomy(reason taxonomyReason, name string, verb dispositionVerb, errs []error) {

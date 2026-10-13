@@ -78,7 +78,7 @@ func baseRunDocument(t *testing.T) map[string]any {
 	result := record.Result{Conclusion: withConc(func(c *record.Conclusion) {
 		c.Tasks = []record.TaskSnapshot{
 			record.NewTaskSnapshot(record.TaskSnapshot{
-				ID: "task_1", Name: "build", State: record.Done,
+				ID: "task_1", Name: "build", State: record.Succeeded,
 				Problems: []record.Problem{{
 					Code: "A1", Summary: "finding", Subject: "file.go", Detail: "why", Count: 2, Unit: "line",
 					EvidenceTail: "file.go:3:1: why",

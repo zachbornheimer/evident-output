@@ -1,58 +1,42 @@
 package record
 
-// EntityState is the lifecycle state of an item or task.
-//
-// C11 naming sweep: these members stay bare (Done, Failed, Blocked, ...)
-// rather than gaining a State* prefix to match ConclusionState below —
-// prefixing would collide outright with ConclusionState's own StateFailed/
-// StateBlocked/StateCancelled/StateWarning constants (same package, same
-// identifiers, different types is still a duplicate declaration in Go).
-// Renaming ConclusionState's constants instead would ripple into the JSON
-// wire and every existing golden — this is the "document instead" branch
-// the census decision allows.
-type EntityState string
+// State is where a Task or collection stands in its life: not yet started,
+// working, settled with one of the six Outcomes, or abandoned by the run
+// without one. A settled State is spelled exactly as its Outcome, so a
+// projection that shows either shows the one vocabulary CONTRACT §4 names.
+type State string
 
 const (
-	Pending    EntityState = "pending"
-	Running    EntityState = "running"
-	Done       EntityState = "done"
-	Blocked    EntityState = "blocked"
-	Failed     EntityState = "failed"
-	Skipped    EntityState = "skipped"
-	Cancelled  EntityState = "cancelled"
-	Empty      EntityState = "empty"
-	Incomplete EntityState = "incomplete"
-	// NotStarted marks a group task that never ran because an earlier sibling
-	// already failed or was cancelled — rendered "-  <name>  not started" and
-	// excluded from the conclusion (the group's verdict comes from the
-	// failed/cancelled sibling, not from its unstarted followers).
-	NotStarted EntityState = "not_started"
+	Pending   State = "pending"
+	Running   State = "running"
+	Succeeded       = State(OutcomeSucceeded)
+	Satisfied       = State(OutcomeSatisfied)
+	Excluded        = State(OutcomeExcluded)
+	Refused         = State(OutcomeRefused)
+	Failed          = State(OutcomeFailed)
+	Cancelled       = State(OutcomeCancelled)
+	// Empty is a collection that settled with no members.
+	Empty State = "empty"
+	// Incomplete is a Task the run finished without ever settling: misuse.
+	Incomplete State = "incomplete"
+	// NotStarted is a Task that never ran because a predecessor or an earlier
+	// sibling ended Failed, Refused, Excluded or Cancelled (CONTRACT §2).
+	NotStarted State = "not_started"
 )
 
-// ConclusionState is the human headline for a finished output.
-type ConclusionState string
+// Outcome is the verdict s settled with, or the zero Outcome for a State
+// that is not one of the six.
+func (s State) Outcome() Outcome {
+	switch s {
+	case Succeeded, Satisfied, Excluded, Refused, Failed, Cancelled:
+		return Outcome(s)
+	}
+	return ""
+}
 
-const (
-	StateReady   ConclusionState = "ready"
-	StateChanged ConclusionState = "changed"
-	// StateWarning is reserved-unreachable through evo's own public surface
-	// today (E3 deletion census, KEEP-documented rather than deleted):
-	// deriveConclusion only reaches its hasWarning case when no task has
-	// resolved Done, but a warned-and-still-unresolved task auto-resolves
-	// Done at Finish (P2 amnesty) before any post-Finish Conclusion is
-	// computed — so hasDone wins first in every conclusion built after a
-	// real Finish. It stays live algebra, not dead code: a caller that
-	// calls Conclusion()/InferConclusion mid-run (before Finish) on a
-	// warned-but-still-running task with nothing else Done yet can reach
-	// it today, and it is the landing state a run-scoped warning Problem
-	// (P8, unbuilt this stage) needs once nothing else in the run
-	// classifies.
-	StateWarning   ConclusionState = "warning"
-	StateBlocked   ConclusionState = "blocked"
-	StateFailed    ConclusionState = "failed"
-	StateCancelled ConclusionState = "cancelled"
-	StatePlanned   ConclusionState = "planned"
-)
+// Succeeded reports whether s settled with the work done: Succeeded, or
+// Satisfied because it was already done.
+func (s State) Succeeded() bool { return s == Succeeded || s == Satisfied }
 
 // ProgressKind classifies task measurement.
 type ProgressKind string
@@ -71,11 +55,6 @@ type Progress struct {
 }
 
 // IsTerminalTask reports whether s is a terminal task state.
-func IsTerminalTask(s EntityState) bool {
-	switch s {
-	case Done, Blocked, Failed, Cancelled, Skipped, NotStarted:
-		return true
-	default:
-		return false
-	}
+func IsTerminalTask(s State) bool {
+	return s.Outcome() != "" || s == NotStarted
 }

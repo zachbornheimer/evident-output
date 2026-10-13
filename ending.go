@@ -79,7 +79,7 @@ func (o *Run) settleUnresolvedTasksLocked() {
 			continue
 		}
 		if t.node.Rec.ProblemCount() > 0 || o.hasRecordedEffectLocked(t.id) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || t.node.Rec.WarningCount() > 0 {
-			o.settleLocked(t, done)
+			o.settleLocked(t, succeeded)
 			continue
 		}
 		if !abnormal {
@@ -129,13 +129,13 @@ func (o *Run) concludeLocked() snapshot {
 	snap.Conclusion = &conc
 	o.appendEventLocked(recEvent{
 		Type:  "output.finished",
-		State: string(conc.State),
+		State: string(conc.Outcome),
 	})
 	// run.finished (spec §38) fires on every path through Finish, including
-	// failure and cancel — conc.State already reflects whichever outcome
+	// failure and cancel — conc.Outcome already reflects whichever outcome
 	// this run reached, the same single choke point output.finished uses.
 	o.emitWireEventLocked(wire.EventRunFinished, "", map[string]any{
-		"outcome":   wireRunOutcome(conc.State),
+		"outcome":   string(conc.Outcome),
 		"exit_code": conc.ExitCode,
 	})
 	return snap

@@ -71,7 +71,7 @@ func Headline(t record.TaskSnapshot) string {
 // progress/phase, or nothing.
 func (r TaskRow) head(s Style) (rowHead, Disposition) {
 	t := r.t
-	if t.Resolution == record.ResolutionAlreadySatisfied {
+	if t.State == record.Satisfied {
 		return rowHead{detail: AlreadySatisfiedRowDetail(t, s.Color), headline: AlreadySatisfiedDetail}, NoDisposition
 	}
 	if line := Headline(t); line != "" {
@@ -103,7 +103,7 @@ func headlineDetail(t record.TaskSnapshot, line string, s Style) string {
 			return count + "  " + line
 		}
 		return line
-	case record.Blocked:
+	case record.Refused:
 		return line
 	default:
 		return s.Dim(line)
@@ -128,7 +128,7 @@ func (r TaskRow) writeLine(b *strings.Builder, head rowHead, s Style) {
 // that only repeats the row's headline is dropped, and one whose Detail
 // carries the evidence loses its repeated summary.
 func (r TaskRow) writeProblems(b *strings.Builder, rowHeadline string, s Style) {
-	emphasize := r.t.State == record.Failed || r.t.State == record.Blocked
+	emphasize := r.t.State == record.Failed || r.t.State == record.Refused
 	problems := r.t.Problems
 	omitted := max(len(problems)-maxVisibleProblems, 0)
 	problems = problems[:len(problems)-omitted]

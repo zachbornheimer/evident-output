@@ -219,8 +219,8 @@ func TestDryRun_ConclusionReadsPlannedNotDone(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := out.conclusion()
-	if c.state != statePlanned {
-		t.Fatalf("conclusion state = %v, want StatePlanned for a dry run", c.state)
+	if c.headline() != headlinePlanned {
+		t.Fatalf("conclusion state = %v, want StatePlanned for a dry run", c.headline())
 	}
 	if c.exitCode != exitOK {
 		t.Fatalf("exit code = %d, want unchanged ExitOK", c.exitCode)
@@ -240,7 +240,7 @@ func TestDryRun_ConclusionReadsPlannedEvenWithoutAPlanSection(t *testing.T) {
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if c := out.conclusion(); c.state != statePlanned {
-		t.Fatalf("conclusion state = %v, want StatePlanned even with no Plan section", c.state)
+	if c := out.conclusion(); c.headline() != headlinePlanned {
+		t.Fatalf("conclusion state = %v, want StatePlanned even with no Plan section", c.headline())
 	}
 }

@@ -42,7 +42,7 @@ func TestRun_ThenFail_RendersChildStderrInFinalReport(t *testing.T) {
 	if err := out.finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (a resolved Fail is not misuse)", err)
 	}
-	if state := out.conclusion().state; state != stateFailed {
+	if state := out.conclusion().headline(); state != headlineFailed {
 		t.Fatalf("state = %v, want StateFailed", state)
 	}
 	// Fail commits the resolved row durably at resolution time

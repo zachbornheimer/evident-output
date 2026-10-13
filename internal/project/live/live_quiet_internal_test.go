@@ -62,7 +62,7 @@ func TestLiveQuiet_TaskWithoutWriterOutputIsNeverQuiet(t *testing.T) {
 func TestLiveQuiet_SettledTaskIsNeverQuiet(t *testing.T) {
 	t.Parallel()
 	task := quietTask(quietT0)
-	task.State = record.Done
+	task.State = record.Succeeded
 	if got := ownerRowAt(task, testLiveStyle, time.Hour); strings.Contains(got, "quiet") {
 		t.Fatalf("owner row = %q, want no quiet suffix", got)
 	}

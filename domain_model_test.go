@@ -42,8 +42,8 @@ func TestDOM037_FailedConclusion(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("i").fail("no")
 	_ = out.finish()
-	if out.conclusion().state != stateFailed {
-		t.Fatal(out.conclusion().state)
+	if out.conclusion().headline() != headlineFailed {
+		t.Fatal(out.conclusion().headline())
 	}
 	if out.conclusion().exitCode != 2 {
 		t.Fatal(out.conclusion().exitCode)
@@ -60,7 +60,7 @@ func TestDOM038_WarningOnly(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("i").Problem("careful", severity(severityWarning))
 	_ = out.finish()
-	if got := out.conclusion().state; got != stateReady {
+	if got := out.conclusion().headline(); got != headlineSucceeded {
 		t.Fatalf("state = %v, want StateReady (Warn auto-resolves Done, P2)", got)
 	}
 	if !out.conclusion().warned {
@@ -189,7 +189,7 @@ func TestDOM031_CollectionAllDone(t *testing.T) {
 	g.Summary("all good")
 	succeed(g.Task("a"))
 	succeed(g.Task("b"))
-	if g.snapshot().State != done {
+	if g.snapshot().State != succeeded {
 		t.Fatal(g.snapshot().State)
 	}
 	if g.snapshot().Summary != "all good" {
@@ -219,8 +219,8 @@ func TestDOM049_OutputFail(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 	out.fail("stopped", Detail("disk"))
 	_ = out.finish()
-	if out.conclusion().state != stateFailed {
-		t.Fatal(out.conclusion().state)
+	if out.conclusion().headline() != headlineFailed {
+		t.Fatal(out.conclusion().headline())
 	}
 }
 
@@ -237,8 +237,8 @@ func TestDOM048_BlockedWithNilErrorReturn(t *testing.T) {
 		t.Fatal(ret)
 	}
 	_ = out.finish()
-	if out.conclusion().state != stateBlocked {
-		t.Fatal(out.conclusion().state)
+	if out.conclusion().headline() != headlineRefused {
+		t.Fatal(out.conclusion().headline())
 	}
 }
 
@@ -271,7 +271,7 @@ func TestDOM006_TaskDoneWithoutPhase(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 	item := out.Task("working tree")
 	succeed(item)
-	if item.snapshot().State != done {
+	if item.snapshot().State != succeeded {
 		t.Fatalf("state = %q", item.snapshot().State)
 	}
 }
@@ -285,8 +285,8 @@ func TestDOM039_ChangesPlusFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := out.conclusion()
-	if c.state != stateFailed {
-		t.Fatalf("state = %q, want failed", c.state)
+	if c.headline() != headlineFailed {
+		t.Fatalf("state = %q, want failed", c.headline())
 	}
 	if !c.Changed {
 		t.Fatal("expected Changed=true with changes present")
@@ -322,14 +322,14 @@ func TestDOM010_WarnAndFailWithStructuredSummary(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 	w := out.Task("w")
 	w.Problem("soft", severity(severityWarning))
-	if got := w.snapshot().State; got == done || got == failed || got == blocked {
+	if got := w.snapshot().State; got == succeeded || got == failed || got == refused {
 		t.Fatalf("state = %q, want non-terminal: Warn must not resolve the task", got)
 	}
 	if warnings := w.snapshot().Warnings; len(warnings) != 1 || warnings[0].Summary != "soft" {
 		t.Fatalf("warnings = %+v, want one warning %q", warnings, "soft")
 	}
 	succeed(w)
-	if got := w.snapshot().State; got != done {
+	if got := w.snapshot().State; got != succeeded {
 		t.Fatalf("state = %q, want Done after Warn then Done", got)
 	}
 	f := out.Task("f")
@@ -382,7 +382,7 @@ func TestDOM045_EmptyOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := out.conclusion()
-	if c.state != stateReady {
-		t.Fatalf("state=%q, want StateReady (StateUnchanged was deleted, P1)", c.state)
+	if c.headline() != headlineSucceeded {
+		t.Fatalf("state=%q, want StateReady (StateUnchanged was deleted, P1)", c.headline())
 	}
 }

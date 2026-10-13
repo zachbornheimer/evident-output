@@ -16,7 +16,7 @@ type Task struct {
 	run *Run
 	id  TaskID
 
-	state          EntityState
+	state          State
 	phase          string
 	progress       Progress
 	summary        string
@@ -26,7 +26,7 @@ type Task struct {
 	actions        []Action
 	activityAt     time.Time
 	verification   []VerificationDetail
-	resolution     Resolution
+	defineRan      bool
 	verifyEvidence TaskEvidence
 	skipped        []TaxonomyRecord
 	kept           []TaxonomyRecord
@@ -41,26 +41,26 @@ type Task struct {
 
 // TaskInit is what a Task's record starts with. Zero fields stay zero.
 type TaskInit struct {
-	ID         TaskID
-	State      EntityState
-	Progress   Progress
-	Resolution Resolution
-	Summary    string
-	Problems   []Problem
+	ID        TaskID
+	State     State
+	Progress  Progress
+	DefineRan bool
+	Summary   string
+	Problems  []Problem
 }
 
 // NewTask starts the record of a Task in this run.
 func (r *Run) NewTask(init TaskInit) *Task {
 	return &Task{
-		run: r, id: init.ID, state: init.State, progress: init.Progress, resolution: init.Resolution,
+		run: r, id: init.ID, state: init.State, progress: init.Progress, defineRan: init.DefineRan,
 		summary: init.Summary, problems: init.Problems,
 	}
 }
 
 // DeclaresSuccess reports whether state claims the work went well — the
 // class of claim only the scheduler's observation can ratify.
-func DeclaresSuccess(state EntityState) bool {
-	return state == Done || state == Skipped
+func DeclaresSuccess(state State) bool {
+	return state.Succeeded() || state == Excluded
 }
 
 // TaskTruth is a view of a Task's record that shares its slices: read it
@@ -68,7 +68,7 @@ func DeclaresSuccess(state EntityState) bool {
 // write to the Task can change what it shows. It costs no allocation, so a
 // live frame can classify every Task by it and copy only the ones it shows.
 type TaskTruth struct {
-	State          EntityState
+	State          State
 	Phase          string
 	Progress       Progress
 	Summary        string
@@ -78,7 +78,7 @@ type TaskTruth struct {
 	Actions        []Action
 	ActivityAt     time.Time
 	Verification   []VerificationDetail
-	Resolution     Resolution
+	DefineRan      bool
 	VerifyEvidence TaskEvidence
 	Skipped        []TaxonomyRecord
 	Kept           []TaxonomyRecord
@@ -91,7 +91,7 @@ func (t *Task) Truth() TaskTruth {
 	return TaskTruth{
 		State: t.state, Phase: t.phase, Progress: t.progress, Summary: t.summary,
 		Problems: t.problems, Warnings: t.warnings, Facts: t.facts, Actions: t.actions, ActivityAt: t.activityAt, Verification: t.verification,
-		Resolution: t.resolution, VerifyEvidence: t.verifyEvidence, Skipped: t.skipped, Kept: t.kept,
+		DefineRan: t.defineRan, VerifyEvidence: t.verifyEvidence, Skipped: t.skipped, Kept: t.kept,
 	}
 }
 
@@ -99,14 +99,14 @@ func (t *Task) Truth() TaskTruth {
 func (t *Task) ID() TaskID { return t.id }
 
 // State is where the Task stands.
-func (t *Task) State() EntityState {
+func (t *Task) State() State {
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
 	return t.state
 }
 
 // Transition moves the Task to state and returns the state it left.
-func (t *Task) Transition(to EntityState) (from EntityState) {
+func (t *Task) Transition(to State) (from State) {
 	from = t.swapState(to)
 	t.changedState(from, to)
 	return from
@@ -116,7 +116,7 @@ func (t *Task) Transition(to EntityState) (from EntityState) {
 // one write that settles a Task, and what tells a projection to answer a
 // settle: the listener hears it as TaskSettled after the TaskChanged of the
 // same write.
-func (t *Task) Settle(to EntityState) (from EntityState) {
+func (t *Task) Settle(to State) (from State) {
 	from = t.swapSettledState(to)
 	t.changedState(from, to)
 	t.settledState(from, to)
@@ -131,7 +131,7 @@ func (t *Task) IsSettled() bool {
 }
 
 // swapSettledState is swapState that also marks the Task settled.
-func (t *Task) swapSettledState(to EntityState) (from EntityState) {
+func (t *Task) swapSettledState(to State) (from State) {
 	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	from, t.state, t.settled = t.state, to, true
@@ -139,7 +139,7 @@ func (t *Task) swapSettledState(to EntityState) (from EntityState) {
 }
 
 // swapState sets the state under the run lock and returns the one it left.
-func (t *Task) swapState(to EntityState) (from EntityState) {
+func (t *Task) swapState(to State) (from State) {
 	t.lockForWrite()
 	defer t.run.mu.Unlock()
 	from, t.state = t.state, to
@@ -275,19 +275,21 @@ func (t *Task) SetSummary(text string) {
 	t.summary = SanitizeText(text)
 }
 
-// Resolution is why the Task settled successfully.
-func (t *Task) Resolution() Resolution {
+// DefineRan reports whether the Task's Define callback was entered and
+// returned successfully.
+func (t *Task) DefineRan() bool {
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
-	return t.resolution
+	return t.defineRan
 }
 
-// SetResolution records why the Task settled successfully.
-func (t *Task) SetResolution(r Resolution) {
+// MarkDefineRan records that the Task's Define callback was entered and
+// returned successfully.
+func (t *Task) MarkDefineRan() {
 	defer t.changed()
 	t.lockForWrite()
 	defer t.run.mu.Unlock()
-	t.resolution = r
+	t.defineRan = true
 }
 
 // VerifyEvidence is both observation phases a Verify recorded.
@@ -339,7 +341,7 @@ func (t *Task) AppendProblems(problems ...Problem) {
 // state. A Failed or Blocked row's Problems that carry no detail of their
 // own gain evidenceTail, the capture tail the Task already gathered, so the
 // evidence a caller collected needs no opt-in.
-func (t *Task) ResolveProblems(state EntityState, extra []Problem, evidenceTail string) {
+func (t *Task) ResolveProblems(state State, extra []Problem, evidenceTail string) {
 	defer t.changed()
 	t.lockForWrite()
 	defer t.run.mu.Unlock()
@@ -359,7 +361,7 @@ func (t *Task) ResolveProblems(state EntityState, extra []Problem, evidenceTail 
 
 // NeedsEvidenceTail reports whether settling into state with extra would give
 // some Problem the capture tail, so the caller reads the capture only then.
-func (t *Task) NeedsEvidenceTail(state EntityState, extra []Problem) bool {
+func (t *Task) NeedsEvidenceTail(state State, extra []Problem) bool {
 	if !takesEvidenceTail(state) {
 		return false
 	}
@@ -368,7 +370,7 @@ func (t *Task) NeedsEvidenceTail(state EntityState, extra []Problem) bool {
 	return slices.ContainsFunc(t.problems, lacksDetail) || slices.ContainsFunc(extra, lacksDetail)
 }
 
-func takesEvidenceTail(state EntityState) bool { return state == Failed || state == Blocked }
+func takesEvidenceTail(state State) bool { return state == Failed || state == Refused }
 
 func lacksDetail(p Problem) bool { return p.Detail == "" && p.EvidenceTail == "" }
 

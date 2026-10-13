@@ -17,10 +17,9 @@ import (
 func TestAlreadySatisfiedRowDetail_IgnoresSummary(t *testing.T) {
 	t.Parallel()
 	snap := record.TaskSnapshot{
-		Name:       "write launch agent",
-		State:      record.Done,
-		Summary:    "nope",
-		Resolution: record.ResolutionAlreadySatisfied,
+		Name:    "write launch agent",
+		State:   record.Satisfied,
+		Summary: "nope",
 	}
 	var b strings.Builder
 	project.WriteTaskAligned(&b, snap, 0, project.Style{Profile: project.GlyphsUnicode})
@@ -36,10 +35,9 @@ func TestAlreadySatisfiedRowDetail_IgnoresSummary(t *testing.T) {
 func TestAlreadySatisfiedRowDetail_LiveUnit(t *testing.T) {
 	t.Parallel()
 	snap := record.TaskSnapshot{
-		Name:       "services",
-		State:      record.Done,
-		Summary:    "nope",
-		Resolution: record.ResolutionAlreadySatisfied,
+		Name:    "services",
+		State:   record.Satisfied,
+		Summary: "nope",
 	}
 	unit := liveTaskUnit(snap, 1, liveStyle{Style: project.Style{Profile: project.GlyphsUnicode}, width: 80, spin: "⠋"})
 	if unit.Detail != project.AlreadySatisfiedDetail {

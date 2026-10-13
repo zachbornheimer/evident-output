@@ -9,7 +9,7 @@ import (
 
 // writeProblem renders one problem row, indent being its task row's own
 // prefix, so a child's Problems sit under the child glyph as a root row's
-// sit under its own. emphasize is true for a record.Failed/record.Blocked
+// sit under its own. emphasize is true for a record.Failed/record.Refused
 // task's evidence (release-gate round 6 finding 5): the ├─/│/evidence-glyph
 // connectors stay Dim either way — they are decoration — but the evidence
 // text itself renders at full intensity so a failure's proof is never the

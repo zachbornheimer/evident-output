@@ -12,7 +12,7 @@ import (
 // exactly one warning, it is short enough, and the row isn't already
 // carrying a Summary of its own. Everything else nests below the row.
 func inlineTaskWarning(t record.TaskSnapshot) (string, bool) {
-	if t.State != record.Done || t.Summary != "" || len(t.Warnings) != 1 {
+	if !t.State.Succeeded() || t.Summary != "" || len(t.Warnings) != 1 {
 		return "", false
 	}
 	msg := WarningText(t.Warnings[0])
@@ -53,7 +53,7 @@ func inlineWarningText(msg string, s Style) string {
 // (writeTaxonomy's other output) still renders below the row — inlining
 // only replaces the headline count line, never the evidence under it.
 func inlineTaskTaxonomy(t record.TaskSnapshot) (text string, verb Disposition, ok bool) {
-	if t.State != record.Done || t.Summary != "" || len(t.Warnings) != 0 || len(t.Facts) != 0 {
+	if !t.State.Succeeded() || t.Summary != "" || len(t.Warnings) != 0 || len(t.Facts) != 0 {
 		return "", NoDisposition, false
 	}
 	var records []record.TaxonomyRecord
@@ -78,7 +78,7 @@ func inlineTaskTaxonomy(t record.TaskSnapshot) (text string, verb Disposition, o
 // "one short annotation inlines" rule Warn's severity already follows,
 // applied to Fact's severity too (one placement rule, two severities).
 func inlineTaskFact(t record.TaskSnapshot) (record.Fact, bool) {
-	if t.State != record.Done || t.Summary != "" || len(t.Warnings) != 0 || len(t.Facts) != 1 {
+	if !t.State.Succeeded() || t.Summary != "" || len(t.Warnings) != 0 || len(t.Facts) != 1 {
 		return record.Fact{}, false
 	}
 	f := t.Facts[0]

@@ -8,7 +8,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
-func tailedTask(state record.EntityState, tail record.LiveTail) record.TaskSnapshot {
+func tailedTask(state record.State, tail record.LiveTail) record.TaskSnapshot {
 	t := record.TaskSnapshot{Name: "build", State: state, Phase: tail.Lines[len(tail.Lines)-1]}
 	return record.WithLiveTail(t, tail)
 }
@@ -65,7 +65,7 @@ func TestWriteLiveTaskLine_SettledTaskDropsItsTail(t *testing.T) {
 	var b strings.Builder
 	tail := record.LiveTail{Lines: []string{"x"}, Evidence: 3}
 
-	rows := writeLiveTaskLine(&b, tailedTask(record.Done, tail), 0, 0, testLiveStyle)
+	rows := writeLiveTaskLine(&b, tailedTask(record.Succeeded, tail), 0, 0, testLiveStyle)
 
 	if rows != 1 || strings.Contains(b.String(), "evidence") {
 		t.Fatalf("settled row kept its live tail:\n%s", b.String())

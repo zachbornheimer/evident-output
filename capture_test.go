@@ -124,7 +124,7 @@ func TestRunErrorCannotRenderReady(t *testing.T) {
 	if code != exitFailed {
 		t.Fatalf("exit %d, want %d", code, exitFailed)
 	}
-	if strings.Contains(buf.String(), "[ready]") {
+	if strings.Contains(buf.String(), "[succeeded]") {
 		t.Fatalf("must not render ready on run error:\n%s", buf.String())
 	}
 	if !strings.Contains(buf.String(), "[failed]") && !strings.Contains(buf.String(), "command failed") {

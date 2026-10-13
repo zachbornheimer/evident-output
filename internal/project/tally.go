@@ -134,7 +134,7 @@ func (d Dispositions) Clone() Dispositions {
 	return Dispositions{Skipped: d.Skipped.Clone(), Kept: d.Kept.Clone()}
 }
 
-// AddTask counts t's own record.Skipped and Kept records, each carrying t's
+// AddTask counts t's own record.Excluded and Kept records, each carrying t's
 // Facts: t is the item the records name.
 func (d *Dispositions) AddTask(t *record.TaskSnapshot) {
 	for _, rec := range t.Skipped {

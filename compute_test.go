@@ -289,9 +289,9 @@ func TestCompute_FullRepositoryAndPackagesScenario(t *testing.T) {
 		var done, skipped int
 		for _, task := range mg.Tasks {
 			switch task.State {
-			case record.Done:
+			case record.Succeeded:
 				done++
-			case record.Skipped:
+			case record.Excluded:
 				skipped++
 			}
 		}

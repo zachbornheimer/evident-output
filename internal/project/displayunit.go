@@ -16,7 +16,7 @@ const AlreadySatisfiedDetail = "already satisfied"
 // ResolutionAlreadySatisfied. Summary does not replace it. Empty when
 // this is not that resolution, so callers keep today's Summary behavior.
 func AlreadySatisfiedRowDetail(t record.TaskSnapshot, color bool) string {
-	if t.Resolution != record.ResolutionAlreadySatisfied {
+	if t.State != record.Satisfied {
 		return ""
 	}
 	return Dim(AlreadySatisfiedDetail, color)

@@ -57,7 +57,7 @@ func TestInterrupt_ATaskClaimedBeforeItsRowStartedDoesNotRunToDone(t *testing.T)
 		close(releaseA)
 		_ = o.finish()
 
-		if b.snapshot().State == done {
+		if b.snapshot().State == succeeded {
 			escaped++
 		}
 	}

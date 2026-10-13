@@ -24,16 +24,16 @@ const (
 	AnswerInterrupted
 )
 
-// Outcome is the state the gate Task reaches for the answer: Done for yes,
-// Blocked for every refusal (never Failed: declining is not an error), and
+// Outcome is the state the gate Task reaches for the answer: Succeeded for yes,
+// Refused for every refusal (never Failed: declining is not an error), and
 // Cancelled for an interrupt.
-func (a Answer) Outcome() record.EntityState {
+func (a Answer) Outcome() record.State {
 	switch a {
 	case AnswerYes, AnswerAssumedYes:
-		return record.Done
+		return record.Succeeded
 	case AnswerInterrupted:
 		return record.Cancelled
 	default:
-		return record.Blocked
+		return record.Refused
 	}
 }

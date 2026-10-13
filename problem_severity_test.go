@@ -21,11 +21,11 @@ func TestProblem_DefaultSeverityNeverEndsTaskOrRun(t *testing.T) {
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if got := task.snapshot().State; got != done {
+	if got := task.snapshot().State; got != succeeded {
 		t.Fatalf("task state = %s, want Done", got)
 	}
 	if c := out.conclusion(); c.exitCode != 0 {
-		t.Fatalf("conclusion = %s exit %d, want exit 0\n%s", c.state, c.exitCode, buf.String())
+		t.Fatalf("conclusion = %s exit %d, want exit 0\n%s", c.headline(), c.exitCode, buf.String())
 	}
 }
 
@@ -43,7 +43,7 @@ func TestProblem_WarningSeveritySettlesDoneAndWarns(t *testing.T) {
 		t.Fatal(err)
 	}
 	snap := task.snapshot()
-	if snap.State != done {
+	if snap.State != succeeded {
 		t.Fatalf("task state = %s, want Done", snap.State)
 	}
 	if len(snap.Warnings) != 1 || snap.Warnings[0].Summary != "x" {
@@ -135,11 +135,11 @@ func TestProblemWarning_DoesNotResolveTask(t *testing.T) {
 
 	task := out.Task("cache")
 	task.Problem("stale entry ignored", severity(severityWarning))
-	if got := task.snapshot().State; got == done || got == failed || got == blocked {
+	if got := task.snapshot().State; got == succeeded || got == failed || got == refused {
 		t.Fatalf("state = %v, want non-terminal (Warn must not resolve the task)", got)
 	}
 	succeed(task)
-	if got := task.snapshot().State; got != done {
+	if got := task.snapshot().State; got != succeeded {
 		t.Fatalf("state = %v, want Done", got)
 	}
 	_ = out.finish()
@@ -156,8 +156,8 @@ func TestProblemWarning_UnresolvedTaskAutoResolvesDoneAtFinish(t *testing.T) {
 		t.Fatalf("Finish() = %v, want nil (Warn-only task should auto-resolve Done)", err)
 	}
 	conc := out.conclusion()
-	if conc.state != stateReady {
-		t.Fatalf("state = %v, want StateReady", conc.state)
+	if conc.headline() != headlineSucceeded {
+		t.Fatalf("state = %v, want StateReady", conc.headline())
 	}
 	if !conc.warned {
 		t.Fatal("Conclusion.Warned = false, want true")

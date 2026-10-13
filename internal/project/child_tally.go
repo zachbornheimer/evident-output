@@ -18,7 +18,7 @@ type ChildTally struct {
 	// Folded reports whether the collection's disposition items fold into
 	// Items (the renderer's rule, decided over every child).
 	Folded bool
-	// Items sums the folded items' record.Skipped and Kept records.
+	// Items sums the folded items' record.Excluded and Kept records.
 	Items Dispositions
 	// Rest counts the children that remain once items fold: All when
 	// they do not.
@@ -42,7 +42,7 @@ type ChildCounts struct {
 func (c *ChildCounts) Add(t *record.TaskSnapshot) {
 	c.Total++
 	switch t.State {
-	case record.Done, record.Skipped:
+	case record.Succeeded, record.Satisfied, record.Excluded:
 		c.Done++
 	case record.Running:
 		c.Running = true

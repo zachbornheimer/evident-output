@@ -81,11 +81,11 @@ const (
 )
 
 // stateOutcome classifies a Task state for the Tasks after it.
-func stateOutcome(s record.EntityState) predOutcome {
+func stateOutcome(s record.State) predOutcome {
 	switch s {
-	case record.Done, record.Skipped:
+	case record.Succeeded, record.Satisfied, record.Excluded:
 		return predSucceeded
-	case record.Failed, record.Blocked, record.Cancelled, record.NotStarted:
+	case record.Failed, record.Refused, record.Cancelled, record.NotStarted:
 		return predFailed
 	default:
 		return predPending
@@ -95,14 +95,14 @@ func stateOutcome(s record.EntityState) predOutcome {
 // StopsSequenceFollowers reports whether a step settling in state keeps
 // every later step of its Sequence from starting: the same states that can
 // never satisfy a dependent.
-func StopsSequenceFollowers(state record.EntityState) bool {
+func StopsSequenceFollowers(state record.State) bool {
 	return stateOutcome(state) == predFailed
 }
 
 // Proposal is a caller's unratified success claim on a submitted Task, held
 // until the callback's return value confirms or contradicts it.
 type Proposal struct {
-	State    record.EntityState
+	State    record.State
 	Summary  string
 	Problems []record.Problem
 }

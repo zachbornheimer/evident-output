@@ -230,7 +230,7 @@ func liveRank(t record.TaskSnapshot) int {
 		return 2
 	case t.State == record.Pending:
 		return 3
-	case t.State == record.Done, t.State == record.Skipped:
+	case t.State.Succeeded(), t.State == record.Excluded:
 		return 4
 	default:
 		return 5
@@ -443,13 +443,13 @@ func liveTaskUnit(t record.TaskSnapshot, indent int, st liveStyle) project.Displ
 // rest (plain mode nests them instead).
 func liveSettledDetail(t record.TaskSnapshot, st liveStyle) string {
 	switch {
-	case t.State == record.Done && t.Progress.Kind == record.BytesKind:
+	case t.State.Succeeded() && t.Progress.Kind == record.BytesKind:
 		return project.FormatBytes(t.Progress.Completed)
-	case t.Resolution == record.ResolutionAlreadySatisfied:
+	case t.State == record.Satisfied:
 		return project.AlreadySatisfiedRowDetail(t, st.Color)
-	case t.State == record.Done && t.Summary != "":
+	case t.State.Succeeded() && t.Summary != "":
 		return st.Dim(t.Summary)
-	case t.State == record.Done && len(t.Warnings) > 0:
+	case t.State.Succeeded() && len(t.Warnings) > 0:
 		msg := project.WarningText(t.Warnings[0])
 		if more := len(t.Warnings) - 1; more > 0 {
 			msg = fmt.Sprintf("%s (+%d more)", msg, more)

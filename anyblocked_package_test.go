@@ -21,7 +21,7 @@ func TestAnyBlockedSoFar_BeforeMutate(t *testing.T) {
 		t.Fatal("no failures")
 	}
 	_ = out.finish()
-	if out.conclusion().state != stateBlocked {
+	if out.conclusion().headline() != headlineRefused {
 		t.Fatal("conclusion AnyBlocked")
 	}
 }

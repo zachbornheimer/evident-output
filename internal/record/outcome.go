@@ -1,12 +1,7 @@
 package record
 
-// Outcome is how a Task ended: the closed set CONTRACT §4 names. It is the
-// one vocabulary for a verdict; EntityState, Resolution and ConclusionState
-// are older spellings derived from it (see internal/core) until the root
-// package adopts it directly.
-//
-// The members carry an Outcome prefix only while EntityState still owns the
-// bare names Failed and Cancelled in this package.
+// Outcome is how a Task ended: the closed set CONTRACT §4 names and the only
+// verdict type. A settled State is spelled as its Outcome (see State.Outcome).
 type Outcome string
 
 const (
@@ -24,36 +19,60 @@ const (
 	OutcomeCancelled Outcome = "cancelled"
 )
 
-// outcomeRanks orders the outcomes that decide a run's headline: Failed
-// outranks Refused outranks Cancelled. Every other outcome shares rank zero.
+// outcomeRanks orders the outcomes that decide a run on their own: Failed
+// outranks Refused outranks Cancelled.
 var outcomeRanks = map[Outcome]int{
 	OutcomeFailed:    3,
 	OutcomeRefused:   2,
 	OutcomeCancelled: 1,
 }
 
-// WorstOutcome is the outcome that decides the headline of a run whose Tasks
-// ended as outcomes: Failed > Refused > Cancelled > the rest. Among outcomes
-// of equal rank the first one wins. It is the zero Outcome for no outcomes.
-func WorstOutcome(outcomes ...Outcome) Outcome {
+// RunOutcome is the Conclusion's Outcome for a run whose Tasks ended as
+// outcomes (CONTRACT §4): the worst outcome decides, Failed > Refused >
+// Cancelled. Excluded folds into the tally and decides only when everything
+// was Excluded. Otherwise the run is Satisfied when all its work was already
+// current, and Succeeded when any of it ran or there was none.
+func RunOutcome(outcomes ...Outcome) Outcome {
 	var worst Outcome
-	for i, outcome := range outcomes {
-		if i == 0 || outcomeRanks[outcome] > outcomeRanks[worst] {
+	excluded, satisfied, other := 0, 0, 0
+	for _, outcome := range outcomes {
+		if outcomeRanks[outcome] > outcomeRanks[worst] {
 			worst = outcome
 		}
+		switch outcome {
+		case OutcomeExcluded:
+			excluded++
+		case OutcomeSatisfied:
+			satisfied++
+		case "":
+		default:
+			other++
+		}
 	}
-	return worst
+	switch {
+	case worst != "":
+		return worst
+	case other > 0:
+		return OutcomeSucceeded
+	case satisfied > 0:
+		return OutcomeSatisfied
+	case excluded > 0:
+		return OutcomeExcluded
+	}
+	return OutcomeSucceeded
 }
 
-// Phase is where a Task stands in its life. A Task has an Outcome only once
-// its Phase is PhaseSettled.
-type Phase string
-
-const (
-	// PhasePending means the Task has not started.
-	PhasePending Phase = "pending"
-	// PhaseRunning means the Task is working.
-	PhaseRunning Phase = "running"
-	// PhaseSettled means the Task ended, with exactly one Outcome.
-	PhaseSettled Phase = "settled"
-)
+// ExitCode is the process exit code CONTRACT §1 assigns a run that concluded
+// outcome: 0 for Succeeded, Satisfied and Excluded, 1 for Refused, 2 for
+// Failed and 130 for Cancelled.
+func (o Outcome) ExitCode() int {
+	switch o {
+	case OutcomeRefused:
+		return ExitRefused
+	case OutcomeFailed:
+		return ExitFailed
+	case OutcomeCancelled:
+		return ExitCancelled
+	}
+	return ExitOK
+}

@@ -22,8 +22,8 @@ func TestTaskSnapshot_ResolutionNoWorkByDefault(t *testing.T) {
 	}
 	snap := task.snapshot()
 
-	if snap.Resolution != resolutionNoWork {
-		t.Fatalf("Resolution = %q, want ResolutionNoWork", snap.Resolution)
+	if snap.DefineRan {
+		t.Fatal("DefineRan = true for a Task with no Define")
 	}
 	if snap.Evidence.Before.Evaluated || snap.Evidence.After.Evaluated {
 		t.Fatalf("Evidence = %+v, want both phases unevaluated", snap.Evidence)
@@ -44,8 +44,8 @@ func TestTaskSnapshot_ResolutionExecutedWithoutVerify(t *testing.T) {
 	_ = task.wait()
 	snap := task.snapshot()
 
-	if snap.Resolution != resolutionExecuted {
-		t.Fatalf("Resolution = %q, want ResolutionExecuted", snap.Resolution)
+	if !snap.DefineRan || snap.State != succeeded {
+		t.Fatalf("DefineRan = %v, State = %q, want a Succeeded Task whose Define ran", snap.DefineRan, snap.State)
 	}
 	if snap.Evidence.Before.Evaluated || snap.Evidence.After.Evaluated {
 		t.Fatalf("Evidence = %+v, want both phases unevaluated (no Verify registered)", snap.Evidence)
@@ -67,8 +67,8 @@ func TestTaskSnapshot_ResolutionAlreadySatisfiedPreservesBeforeEvidence(t *testi
 	_ = task.wait()
 	snap := task.snapshot()
 
-	if snap.Resolution != resolutionAlreadySatisfied {
-		t.Fatalf("Resolution = %q, want ResolutionAlreadySatisfied", snap.Resolution)
+	if snap.State != entityState(Satisfied) {
+		t.Fatalf("State = %q, want Satisfied", snap.State)
 	}
 	before := snap.Evidence.Before
 	if !before.Evaluated || !before.Satisfied || before.Source != "verify" {
@@ -99,8 +99,8 @@ func TestTaskSnapshot_BeforeFalseAfterTruePreservesBothPhases(t *testing.T) {
 	_ = task.wait()
 	snap := task.snapshot()
 
-	if snap.Resolution != resolutionExecuted {
-		t.Fatalf("Resolution = %q, want ResolutionExecuted", snap.Resolution)
+	if !snap.DefineRan || snap.State != succeeded {
+		t.Fatalf("DefineRan = %v, State = %q, want a Succeeded Task whose Define ran", snap.DefineRan, snap.State)
 	}
 	before, after := snap.Evidence.Before, snap.Evidence.After
 	if !before.Evaluated || before.Satisfied {
@@ -129,7 +129,7 @@ func TestResult_ExitCodeMapping(t *testing.T) {
 				out.Task("gate").block("no")
 				return nil
 			}
-		}, exitBlocked},
+		}, exitRefused},
 		{"failed", func(out *Run) RunFunc {
 			return func(ctx context.Context, r *Run) error { return errors.New("boom") }
 		}, exitFailed},

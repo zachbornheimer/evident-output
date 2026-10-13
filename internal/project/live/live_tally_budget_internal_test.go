@@ -24,8 +24,8 @@ func causedItems(running int) record.TasksSnapshot {
 		name := fmt.Sprintf("item-%d", i)
 		rec := []record.TaxonomyRecord{{Reason: "pinned", Name: name, Causes: []string{"lockfile pins " + name}}}
 		tasks = append(tasks,
-			record.TaskSnapshot{Name: "kept-" + name, State: record.Done, Kept: rec},
-			record.TaskSnapshot{Name: "skipped-" + name, State: record.Skipped, Skipped: rec})
+			record.TaskSnapshot{Name: "kept-" + name, State: record.Succeeded, Kept: rec},
+			record.TaskSnapshot{Name: "skipped-" + name, State: record.Excluded, Skipped: rec})
 	}
 	return record.TasksSnapshot{Name: "packages", State: record.Running, Tasks: tasks}
 }

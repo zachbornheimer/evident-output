@@ -47,7 +47,7 @@ func WritePlannedHeader(b *strings.Builder, color, preview bool, subject string)
 // modifier form here is the documented implementation choice (see work
 // order for the corresponding spec-edit note).
 func conclusionBandTag(c record.Conclusion) string {
-	tag := string(c.State)
+	tag := project.ConclusionHeadline(c)
 	if c.Partial {
 		tag += conclusionPartialModifier
 	}
@@ -58,17 +58,17 @@ func conclusionBandTag(c record.Conclusion) string {
 }
 
 func WriteConclusion(b *strings.Builder, c record.Conclusion, s project.Style) {
-	if c.State == record.StateCancelled {
+	if c.Outcome == record.OutcomeCancelled {
 		writeCancellationBand(b, c, s)
 		return
 	}
-	tag := s.Paint(conclusionBandTag(c), project.ConclusionColor(c.State))
+	tag := s.Paint(conclusionBandTag(c), project.HeadlineColor(project.ConclusionHeadline(c)))
 	// A bare Subject that equals the headline state word itself ("changed",
 	// "failed", ...) says nothing the bracketed tag hasn't already said — it
 	// is what an unconfigured Config.Title falls back to, not a caller's
 	// chosen subject, so printing it stutters the band ("[changed]  changed",
 	// release-gate round 10 finding 1). Suppress it instead of repeating it.
-	if c.Subject != "" && c.Subject != string(c.State) {
+	if c.Subject != "" && c.Subject != project.ConclusionHeadline(c) {
 		fmt.Fprintf(b, "\n%s  %s\n", tag, s.Paint(c.Subject, project.SGRBold))
 	} else {
 		fmt.Fprintf(b, "\n%s\n", tag)
@@ -76,7 +76,7 @@ func WriteConclusion(b *strings.Builder, c record.Conclusion, s project.Style) {
 	if c.Explanation != "" {
 		fmt.Fprintf(b, "  %s\n", c.Explanation)
 	}
-	if c.State == record.StateFailed {
+	if c.Outcome == record.OutcomeFailed {
 		project.WriteAlreadyMutated(b, c.Changes, s)
 	}
 	for _, a := range c.Actions {
@@ -94,8 +94,8 @@ func writeCancellationBand(b *strings.Builder, c record.Conclusion, s project.St
 	// beside it would only repeat that (the not-started rows say which part).
 	tagged := c
 	tagged.Partial = false
-	line := s.Paint(conclusionBandTag(tagged), project.ConclusionColor(c.State))
-	if c.Subject != "" && c.Subject != string(c.State) {
+	line := s.Paint(conclusionBandTag(tagged), project.HeadlineColor(project.ConclusionHeadline(c)))
+	if c.Subject != "" && c.Subject != project.ConclusionHeadline(c) {
 		line += " " + s.Paint(c.Subject, project.SGRBold)
 	}
 	if c.Explanation != "" {

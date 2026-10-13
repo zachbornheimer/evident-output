@@ -165,10 +165,10 @@ func TestOpaqueTaskDefinitionRunsEveryRun(t *testing.T) {
 			t.Fatalf("run %d push task: %v", run, err)
 		}
 		out.mu.Lock()
-		got := out.taskStates[push.id].node.Rec.Resolution()
+		ran := out.taskStates[push.id].node.Rec.DefineRan()
 		out.mu.Unlock()
-		if got != resolutionExecuted {
-			t.Fatalf("run %d push resolution = %q, want %q", run, got, resolutionExecuted)
+		if !ran {
+			t.Fatalf("run %d push: Define did not run", run)
 		}
 		return pushes
 	}

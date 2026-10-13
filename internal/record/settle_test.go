@@ -3,7 +3,7 @@ package record
 import "testing"
 
 func TestSettleIsHeardAsASettleInAnyEndingState(t *testing.T) {
-	for _, ending := range []EntityState{Done, Failed, Incomplete} {
+	for _, ending := range []State{Succeeded, Failed, Incomplete} {
 		run := NewRun()
 		task := run.NewTask(TaskInit{ID: "task_1", State: Pending})
 		heard := &callbackListener{}
@@ -11,7 +11,7 @@ func TestSettleIsHeardAsASettleInAnyEndingState(t *testing.T) {
 
 		task.Settle(ending)
 
-		if len(heard.settles) != 1 || heard.settles[0] != [2]EntityState{Pending, ending} || !task.IsSettled() {
+		if len(heard.settles) != 1 || heard.settles[0] != [2]State{Pending, ending} || !task.IsSettled() {
 			t.Errorf("settling %s: heard settles %v, settled %t, want one Pending to %[1]s", ending, heard.settles, task.IsSettled())
 		}
 	}

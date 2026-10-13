@@ -43,10 +43,10 @@ type JSONOutputMeta struct {
 
 // ConclusionJSON is JSON-friendly conclusion.
 type ConclusionJSON struct {
-	State     record.ConclusionState `json:"state"`
-	Changed   bool                   `json:"changed"`
-	Partial   bool                   `json:"partial"`
-	Cancelled bool                   `json:"cancelled"`
+	Outcome   record.Outcome `json:"state"` // output.v1 is frozen: its key stays, its value is the Outcome
+	Changed   bool           `json:"changed"`
+	Partial   bool           `json:"partial"`
+	Cancelled bool           `json:"cancelled"`
 	// Warned mirrors record.Conclusion.Warned (v0.4.0/P8, wire 0.4): at least
 	// one task warned (or a run-scoped warning Problem fired) without the run
 	// otherwise failing/blocking. The 0.3 wire had no field for this at
@@ -69,12 +69,12 @@ type JSONProblem struct {
 
 // JSONTask is a wire-format task.
 type JSONTask struct {
-	ID      string             `json:"id"`
-	Key     string             `json:"key,omitempty"`
-	Name    string             `json:"name"`
-	State   record.EntityState `json:"state"`
-	Phase   string             `json:"phase,omitempty"`
-	Summary string             `json:"summary,omitempty"`
+	ID      string       `json:"id"`
+	Key     string       `json:"key,omitempty"`
+	Name    string       `json:"name"`
+	State   record.State `json:"state"`
+	Phase   string       `json:"phase,omitempty"`
+	Summary string       `json:"summary,omitempty"`
 	// Warnings mirrors TaskSnapshot.Warnings (v0.4.0/P8, wire 0.4) — the 0.3
 	// wire dropped a warned task's annotations entirely, a machine-consumer
 	// signal loss the render layer's "· warned" band already surfaced to a
@@ -93,11 +93,11 @@ type JSONProgress struct {
 
 // JSONCollection is a wire-format task collection with child IDs (§25.1).
 type JSONCollection struct {
-	ID       string             `json:"id"`
-	Name     string             `json:"name"`
-	State    record.EntityState `json:"state"`
-	Summary  string             `json:"summary,omitempty"`
-	Children []string           `json:"children"`
+	ID       string       `json:"id"`
+	Name     string       `json:"name"`
+	State    record.State `json:"state"`
+	Summary  string       `json:"summary,omitempty"`
+	Children []string     `json:"children"`
 }
 
 // JSONChanges is wire-format changes.
@@ -188,7 +188,7 @@ func toJSONDocument(s record.Snapshot) JSONDocument {
 			Subject: s.Subject,
 		},
 		Conclusion: ConclusionJSON{
-			State:       c.State,
+			Outcome:     c.Outcome,
 			Changed:     c.Changed,
 			Partial:     c.Partial,
 			Cancelled:   c.Cancelled,

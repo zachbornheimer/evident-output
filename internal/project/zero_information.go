@@ -66,7 +66,7 @@ type zeroInformationScan struct {
 
 func (scan *zeroInformationScan) visit(t record.TaskSnapshot, scope hideScope) {
 	switch t.State {
-	case record.Failed, record.Blocked, record.Cancelled:
+	case record.Failed, record.Refused, record.Cancelled:
 		scan.stopped = true
 	}
 	if scope.admits(t) && !scan.ledgerOwners[t.ID] {

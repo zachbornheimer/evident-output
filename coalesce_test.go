@@ -25,8 +25,8 @@ func TestCoalesce_SingleMatchingChanges_SuppressesTrailingConclusion(t *testing.
 		t.Fatalf("missing body:\n%s", got)
 	}
 	// Structured model still has conclusion.
-	if out.conclusion().state != stateChanged {
-		t.Fatalf("conclusion state = %v", out.conclusion().state)
+	if out.conclusion().headline() != headlineChanged {
+		t.Fatalf("conclusion state = %v", out.conclusion().headline())
 	}
 }
 
@@ -172,8 +172,8 @@ func TestCoalesce_JSONStillHasConclusion(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Projection may suppress human footer; model retains conclusion + changes.
-	if out.conclusion().state != stateChanged {
-		t.Fatalf("conclusion state = %v", out.conclusion().state)
+	if out.conclusion().headline() != headlineChanged {
+		t.Fatalf("conclusion state = %v", out.conclusion().headline())
 	}
 	snap := out.snapshot()
 	if snap.Conclusion == nil || len(snap.Changes) != 1 {
@@ -191,11 +191,11 @@ func TestCoalesce_TitleWithoutSemanticReport_OmitsHumanConclusion(t *testing.T) 
 		t.Fatal(err)
 	}
 
-	if strings.Contains(buf.String(), "[ready]") || strings.Contains(buf.String(), "[unchanged]") {
+	if strings.Contains(buf.String(), "[succeeded]") || strings.Contains(buf.String(), "[unchanged]") {
 		t.Fatalf("title alone must not fabricate a human conclusion:\n%s", buf.String())
 	}
-	if out.conclusion().state != stateReady {
-		t.Fatalf("title-only conclusion = %q, want ready (StateUnchanged was deleted, P1)", out.conclusion().state)
+	if out.conclusion().headline() != headlineSucceeded {
+		t.Fatalf("title-only conclusion = %q, want ready (StateUnchanged was deleted, P1)", out.conclusion().headline())
 	}
 }
 
@@ -209,7 +209,7 @@ func TestCoalesce_SingleMatchingItem_OmitsRepeatedConclusion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if strings.Contains(buf.String(), "[ready]") {
+	if strings.Contains(buf.String(), "[succeeded]") {
 		t.Fatalf("matching item already carries the conclusion:\n%s", buf.String())
 	}
 	if strings.Count(buf.String(), "database") != 1 {
@@ -227,7 +227,7 @@ func TestCoalesce_SingleItemForBroaderSubject_KeepsConclusion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !strings.Contains(buf.String(), "[blocked]  release v1.4") {
+	if !strings.Contains(buf.String(), "[refused]  release v1.4") {
 		t.Fatalf("broader subject conclusion adds information:\n%s", buf.String())
 	}
 }
@@ -243,7 +243,7 @@ func TestCoalesce_MultipleItems_KeepsAggregateConclusion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !strings.Contains(buf.String(), "[ready]  repository") {
+	if !strings.Contains(buf.String(), "[succeeded]  repository") {
 		t.Fatalf("multiple results need an aggregate conclusion:\n%s", buf.String())
 	}
 }

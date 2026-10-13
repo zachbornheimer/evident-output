@@ -7,7 +7,7 @@ import (
 )
 
 // TestBlockedInsideContainer_ConcludesBlocked pins E-098: a Task Blocked
-// inside a Group or Sequence concluded "[ready]" with exit 0, because the
+// inside a Group or Sequence concluded "[succeeded]" with exit 0, because the
 // Conclusion read a container's Blocked state as nothing. A refusal is a
 // refusal at any depth.
 func TestBlockedInsideContainer_ConcludesBlocked(t *testing.T) {
@@ -22,11 +22,11 @@ func TestBlockedInsideContainer_ConcludesBlocked(t *testing.T) {
 		declare(out)
 		_ = out.finish()
 		c := out.conclusion()
-		if c.state != stateBlocked || c.exitCode != exitBlocked {
-			t.Errorf("%s: conclusion = %s exit %d, want %s exit %d\n%s", name, c.state, c.exitCode, stateBlocked, exitBlocked, buf.String())
+		if c.headline() != headlineRefused || c.exitCode != exitRefused {
+			t.Errorf("%s: conclusion = %s exit %d, want %s exit %d\n%s", name, c.headline(), c.exitCode, headlineRefused, exitRefused, buf.String())
 		}
-		if !strings.Contains(buf.String(), "[blocked]") {
-			t.Errorf("%s: output lacks the [blocked] band:\n%s", name, buf.String())
+		if !strings.Contains(buf.String(), "[refused]") {
+			t.Errorf("%s: output lacks the [refused] band:\n%s", name, buf.String())
 		}
 		_ = out.close()
 	}

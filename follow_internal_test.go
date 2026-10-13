@@ -27,7 +27,7 @@ func TestLiveIndexFollowsASettleTheListenerHasNotHeardYet(t *testing.T) {
 	items := out.Group("items")
 	first, _ := items.Task("first"), items.Task("second")
 
-	deliver := settleOutsideTheLock(out, first.id, done)
+	deliver := settleOutsideTheLock(out, first.id, succeeded)
 
 	out.mu.Lock()
 	_ = out.liveSnapshotLocked(24, clock.t)

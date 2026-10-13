@@ -61,7 +61,7 @@ func TestWriteLiveTaskLine_GroupChildSplitsActivity(t *testing.T) {
 func TestLiveRegion_ProjectsChangedAndPlannedLedger(t *testing.T) {
 	t.Parallel()
 	snap := record.Snapshot{
-		Tasks: []record.TaskSnapshot{{Name: "work", State: record.Done}},
+		Tasks: []record.TaskSnapshot{{Name: "work", State: record.Succeeded}},
 		Changes: []record.ChangesSnapshot{{
 			Subject: "branches",
 			Records: []record.EffectRecord{{Verb: "deleted", Quantity: 5, HasQty: true, Object: "local tip"}},

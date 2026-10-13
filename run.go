@@ -69,12 +69,12 @@ var errRunExitedWithoutReturn = errors.New("run callback exited without returnin
 // conclusion so CLIs that contract on exit 1 can set FailedExitCode: 1.
 //
 // A non-nil application error is recorded as an output-level Fail before Finish
-// so the human conclusion cannot show [ready] while the process fails, and is
+// so the human conclusion cannot read as success while the process fails, and is
 // also returned as Result.Err so embedders can distinguish work failure from
 // presentation/transport failure.
 func (o *Run) run(ctx context.Context, run RunFunc) Result {
 	if o == nil {
-		return Result{Conclusion: Conclusion{state: stateFailed, exitCode: exitFailed}}
+		return Result{Conclusion: Conclusion{Outcome: Failed, exitCode: exitFailed}}
 	}
 	o.arm()
 	if ctx == nil {
@@ -202,7 +202,7 @@ func awaitInterrupted(sigCh <-chan process.Signal, done <-chan Result) Result {
 	case result := <-done:
 		return result
 	case <-sigCh:
-		return Result{Conclusion: Conclusion{state: stateCancelled, cancelled: true, exitCode: exitCancelled}}
+		return Result{Conclusion: Conclusion{Outcome: Cancelled, cancelled: true, exitCode: exitCancelled}}
 	}
 }
 
@@ -281,7 +281,7 @@ func (o *Run) anyBlockedSoFar() bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	for _, t := range o.tasks {
-		if t.node.Rec.State() == blocked {
+		if t.node.Rec.State() == refused {
 			return true
 		}
 	}
@@ -1498,7 +1498,7 @@ const cancelCauseClose = "run closed"
 // explainCancellationLocked names the cancellation cause on a cancelled
 // conclusion. Any other outcome keeps its own Explanation untouched.
 func (o *Run) explainCancellationLocked(c *record.Conclusion) {
-	if c.State == record.StateCancelled && c.Explanation == "" {
+	if c.Outcome == record.OutcomeCancelled && c.Explanation == "" {
 		c.Explanation = o.graph.CancelCause()
 	}
 }
@@ -1509,31 +1509,19 @@ func (o *Run) explainCancellationLocked(c *record.Conclusion) {
 // implementation files keep unqualified names; the public evo package aliases
 // the same underlying types directly (not through this package).
 
-type entityState = record.EntityState
+type entityState = record.State
 
 const (
 	pending    = record.Pending
 	running    = record.Running
-	done       = record.Done
-	blocked    = record.Blocked
+	succeeded  = record.Succeeded
+	refused    = record.Refused
 	failed     = record.Failed
-	skipped    = record.Skipped
+	excluded   = record.Excluded
 	cancelled  = record.Cancelled
 	empty      = record.Empty
 	incomplete = record.Incomplete
 	notStarted = record.NotStarted
-)
-
-type conclusionState = record.ConclusionState
-
-const (
-	stateReady     = record.StateReady
-	stateChanged   = record.StateChanged
-	stateWarning   = record.StateWarning
-	stateBlocked   = record.StateBlocked
-	stateFailed    = record.StateFailed
-	stateCancelled = record.StateCancelled
-	statePlanned   = record.StatePlanned
 )
 
 type progressKind = record.ProgressKind
@@ -1564,17 +1552,9 @@ type (
 
 const (
 	exitOK        = record.ExitOK
-	exitBlocked   = record.ExitBlocked
+	exitRefused   = record.ExitRefused
 	exitFailed    = record.ExitFailed
 	exitCancelled = record.ExitCancelled
-)
-
-type resolution = record.Resolution
-
-const (
-	resolutionExecuted         = record.ResolutionExecuted
-	resolutionAlreadySatisfied = record.ResolutionAlreadySatisfied
-	resolutionNoWork           = record.ResolutionNoWork
 )
 
 type evidencePhase = record.EvidencePhase
@@ -2659,7 +2639,7 @@ func (o *Run) resolveObserved(st *taskState, err error) {
 		proposal := observation.Proposal
 		st.handle.resolveScheduled(proposal.State, proposal.Summary, proposal.Problems)
 	default:
-		st.handle.doneScheduled()
+		st.handle.succeedScheduled()
 	}
 }
 
@@ -3280,8 +3260,7 @@ func (t *Task) runDefine(verifiers []freshness.Verifier, fn func(context.Context
 		t.failScheduled(basisErr.Error())
 		return passthroughCallbackOutcome(basisErr)
 	} else if current {
-		o.setResolution(t.id, resolutionAlreadySatisfied)
-		t.doneScheduled()
+		t.satisfyScheduled()
 		return nil
 	}
 
@@ -3294,8 +3273,7 @@ func (t *Task) runDefine(verifiers []freshness.Verifier, fn func(context.Context
 		}
 		o.recordEvidencePhase(t.id, evidencePhaseBefore, true, allSatisfied)
 		if allSatisfied {
-			o.setResolution(t.id, resolutionAlreadySatisfied)
-			t.doneScheduled()
+			t.satisfyScheduled()
 			return nil
 		}
 	}
@@ -3315,7 +3293,7 @@ func (t *Task) runDefine(verifiers []freshness.Verifier, fn func(context.Context
 	if err := t.checkAfterDefine(verifiers, scope); err != nil {
 		return err
 	}
-	o.setResolution(t.id, resolutionExecuted)
+	o.markDefineRan(t.id)
 	return nil
 }
 
@@ -3490,12 +3468,13 @@ func evidencePhaseWireName(phase evidencePhaseName) string {
 	return "before_definition"
 }
 
-// setResolution stores why a Task settled successfully (§29/§30).
-func (o *Run) setResolution(taskID string, r resolution) {
+// markDefineRan records that a Task's Define callback ran and returned
+// successfully (§29/§30).
+func (o *Run) markDefineRan(taskID string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if st := o.taskStates[taskID]; st != nil {
-		st.node.Rec.SetResolution(r)
+		st.node.Rec.MarkDefineRan()
 		st.markFiling()
 	}
 }
@@ -3526,7 +3505,6 @@ type Conclusion struct {
 	Changed     bool
 	DryRun      bool
 	Explanation string
-	state       conclusionState
 	subject     string
 	partial     bool
 	warned      bool
@@ -3583,8 +3561,8 @@ func asRecordActions(in []Action) []record.Action {
 
 func asEvoConclusion(c record.Conclusion) Conclusion {
 	return Conclusion{
-		Outcome: outcomeFromState(c.State), Changed: c.Changed, DryRun: c.DryRun,
-		Explanation: c.Explanation, state: c.State, subject: c.Subject,
+		Outcome: Outcome(c.Outcome), Changed: c.Changed, DryRun: c.DryRun,
+		Explanation: c.Explanation, subject: c.Subject,
 		partial: c.Partial, warned: c.Warned, cancelled: c.Cancelled,
 		tasks: c.Tasks, collections: c.Collections, changes: c.Changes,
 		plans: c.Plans, actions: asEvoActions(c.Actions), exitCode: c.ExitCode,
@@ -3595,7 +3573,7 @@ func asEvoConclusion(c record.Conclusion) Conclusion {
 
 func asRecordConclusion(c Conclusion) record.Conclusion {
 	return record.Conclusion{
-		State: c.state, Subject: c.subject, Changed: c.Changed, Partial: c.partial,
+		Outcome: record.Outcome(c.Outcome), Subject: c.subject, Changed: c.Changed, Partial: c.partial,
 		Warned: c.warned, Cancelled: c.cancelled, Explanation: c.Explanation,
 		Tasks: c.tasks, Collections: c.collections, Changes: c.changes,
 		Plans: c.plans, Actions: asRecordActions(c.actions), ExitCode: c.exitCode,
@@ -3606,21 +3584,6 @@ func asRecordConclusion(c Conclusion) record.Conclusion {
 
 func asRecordResult(r Result) record.Result {
 	return record.Result{Conclusion: asRecordConclusion(r.Conclusion), Err: r.Err}
-}
-
-func outcomeFromState(s conclusionState) Outcome {
-	switch s {
-	case stateFailed:
-		return Failed
-	case stateBlocked:
-		return Refused
-	case stateCancelled:
-		return Cancelled
-	case statePlanned, stateChanged, stateReady, stateWarning:
-		return Succeeded
-	default:
-		return Succeeded
-	}
 }
 
 type Action struct {

@@ -48,8 +48,8 @@ func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := out.conclusion()
-	if c.state == stateWarning {
-		t.Fatalf("warning must not override an otherwise-OK outcome, got conclusion state %v", c.state)
+	if c.headline() == "warning" {
+		t.Fatalf("warning must not override an otherwise-OK outcome, got conclusion state %v", c.headline())
 	}
 	got := buf.String()
 	if strings.Contains(got, "[warning]") {
@@ -71,7 +71,7 @@ func TestConclusion_WarnOnlyAutoResolvesDoneAndStaysWarned(t *testing.T) {
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if got := out.conclusion().state; got != stateReady {
+	if got := out.conclusion().headline(); got != headlineSucceeded {
 		t.Fatalf("conclusion state = %v, want StateReady (Warn auto-resolves Done, P2)", got)
 	}
 	if !out.conclusion().warned {
@@ -94,11 +94,11 @@ func TestConclusion_LoneIncompleteTaskIsNotPartialHeadline(t *testing.T) {
 	_ = out.finish()
 	conc := out.conclusion()
 
-	switch conc.state {
-	case stateReady, stateChanged, stateWarning,
-		stateBlocked, stateFailed, stateCancelled, statePlanned:
+	switch conc.headline() {
+	case headlineSucceeded, headlineChanged, "warning",
+		headlineRefused, headlineFailed, headlineCancelled, headlinePlanned:
 	default:
-		t.Fatalf("headline = %v, want one of the documented Outcome states", conc.state)
+		t.Fatalf("headline = %v, want one of the documented Outcome states", conc.headline())
 	}
 	if !conc.partial {
 		t.Fatal("want Partial=true retained as evidence")
@@ -123,8 +123,8 @@ func TestConclusion_WarnedGroupChildReachesConclusion(t *testing.T) {
 		t.Fatalf("Finish: %v", err)
 	}
 	conc := out.conclusion()
-	if conc.state != stateReady {
-		t.Fatalf("state = %v, want StateReady", conc.state)
+	if conc.headline() != headlineSucceeded {
+		t.Fatalf("state = %v, want StateReady", conc.headline())
 	}
 	if !conc.warned {
 		t.Fatal("Conclusion.Warned = false, want true (group-child warning must reach the conclusion)")
@@ -132,8 +132,8 @@ func TestConclusion_WarnedGroupChildReachesConclusion(t *testing.T) {
 	if conc.exitCode != exitOK {
 		t.Fatalf("exit code = %d, want %d", conc.exitCode, exitOK)
 	}
-	if !strings.Contains(buf.String(), "[ready · warned]") {
-		t.Fatalf("want the \"[ready · warned]\" conclusion band, got:\n%s", buf.String())
+	if !strings.Contains(buf.String(), "[succeeded · warned]") {
+		t.Fatalf("want the \"[succeeded · warned]\" conclusion band, got:\n%s", buf.String())
 	}
 }
 
@@ -142,6 +142,6 @@ func TestConclusion_PlanOnlyIsPlanned(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("delete").Define(effectOf(Delete, "thing", 1))
 	_ = out.finish()
-	requireConclusion(t, out, statePlanned)
+	requireConclusion(t, out, headlinePlanned)
 	requireClean(t, out)
 }

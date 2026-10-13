@@ -69,6 +69,8 @@ func ExampleDetail() {
 	// Output:
 	// ✗ read config  parse error
 	//    └─ unexpected token at line 4
+	//
+	// [failed]
 }
 
 // ExampleCode sets a stable, machine-readable Problem code a consumer can
@@ -81,6 +83,8 @@ func ExampleCode() {
 	fmt.Print(buf.String())
 	// Output:
 	// ✗ apply migration  schema mismatch
+	//
+	// [failed]
 }
 
 // ExampleOn sets the problem subject.
@@ -93,6 +97,8 @@ func ExampleOn() {
 	// Output:
 	// ✗ clean workspace  permission denied
 	//    ├─ /var/cache  permission denied
+	//
+	// [failed]
 }
 
 // ExampleCount sets a quantity and optional unit on a Problem.
@@ -104,6 +110,8 @@ func ExampleCount() {
 	fmt.Print(buf.String())
 	// Output:
 	// ✗ upload artifacts  upload failed
+	//
+	// [failed]
 }
 
 // ExampleLocation sets a source location on a Problem.
@@ -115,6 +123,8 @@ func ExampleLocation() {
 	fmt.Print(buf.String())
 	// Output:
 	// ✗ validate manifest  unknown field
+	//
+	// [failed]
 }
 
 // ExampleNext attaches a recommended next step to a Problem. The remedy

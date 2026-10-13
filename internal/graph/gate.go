@@ -93,7 +93,7 @@ func (c *Container) BuilderNotStarted() bool {
 func (g *Graph) concludeGateLocked(gate *Task) {
 	c, state := gate.gateFor, gate.Rec.State()
 	switch state {
-	case record.Done:
+	case record.Succeeded:
 		c.builder.phase = builderDone
 	case record.NotStarted:
 		c.builder.phase = builderNotStarted
@@ -106,7 +106,7 @@ func (g *Graph) concludeGateLocked(gate *Task) {
 	}
 	var woken []*Task
 	for p := c; p != nil; p = p.Parent {
-		if state != record.Done {
+		if state != record.Succeeded {
 			woken = append(woken, p.tally.failBuilder()...)
 		}
 		woken = append(woken, p.tally.release(p == c, g.declSeq)...)

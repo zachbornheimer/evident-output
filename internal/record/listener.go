@@ -19,13 +19,13 @@ type Listener interface {
 	// that moves the Task between states reports the state it left and the
 	// state it entered; any other write reports the Task's current state as
 	// both.
-	TaskChanged(id TaskID, from, to EntityState)
+	TaskChanged(id TaskID, from, to State)
 	// TaskSettled reports that the Task named id was settled: the one write
 	// that ends it, whatever state it ended in. It follows the TaskChanged
 	// of the same write. A projection reacts to a settle here rather than
 	// guessing from the states, so it can never disagree with the writer
 	// about which states end a Task.
-	TaskSettled(id TaskID, from, to EntityState)
+	TaskSettled(id TaskID, from, to State)
 	// EventAppended reports an event the journal just stamped and kept.
 	EventAppended(e Event)
 }
@@ -37,7 +37,7 @@ type listenerBox struct{ Listener }
 // change (event nil) or an appended event.
 type notification struct {
 	task     TaskID
-	from, to EntityState
+	from, to State
 	settled  bool
 	event    *Event
 }
@@ -92,7 +92,7 @@ func (n *notifier) drop() (idle bool) {
 	return n.holds == 0
 }
 
-func (r *Run) notifyTaskChanged(id TaskID, from, to EntityState) {
+func (r *Run) notifyTaskChanged(id TaskID, from, to State) {
 	r.post(notification{task: id, from: from, to: to})
 }
 
@@ -218,9 +218,9 @@ func (t *Task) changed() {
 }
 
 // changedState tells the listener this Task moved from one state to another.
-func (t *Task) changedState(from, to EntityState) { t.run.notifyTaskChanged(t.id, from, to) }
+func (t *Task) changedState(from, to State) { t.run.notifyTaskChanged(t.id, from, to) }
 
 // settledState tells the listener this Task was settled, from one state to another.
-func (t *Task) settledState(from, to EntityState) {
+func (t *Task) settledState(from, to State) {
 	t.run.post(notification{task: t.id, from: from, to: to, settled: true})
 }

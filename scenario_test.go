@@ -125,7 +125,7 @@ func TestScenario_NothingToClean(t *testing.T) {
 		"✓ remote-tracking  nothing to clean\n" +
 		"prune  nothing to clean\n" +
 		"\n" +
-		"[ready]  prune\n"
+		"[succeeded]  prune\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -187,7 +187,8 @@ func TestScenario_PartialFailure(t *testing.T) {
 		"  ✗ permissions\n" +
 		"    error  operation not permitted\n" +
 		"    path   " + displayPath + "\n" +
-		"    mode   0644\n"
+		"    mode   0644\n" +
+		"\n[failed]\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}

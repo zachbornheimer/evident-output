@@ -60,7 +60,7 @@ func perItemGroups(name string, n int, summary string) record.TasksSnapshot {
 			Tasks: mixedTasks(fmt.Sprintf("i%d", i), 2),
 		}
 		if i%4 == 0 {
-			item.Tasks = []record.TaskSnapshot{seen(record.TaskSnapshot{Name: fmt.Sprintf("item-%d", i), State: record.Done}, time.Duration(i)*time.Second)}
+			item.Tasks = []record.TaskSnapshot{seen(record.TaskSnapshot{Name: fmt.Sprintf("item-%d", i), State: record.Succeeded}, time.Duration(i)*time.Second)}
 		}
 		col.Collections = append(col.Collections, item)
 	}
@@ -97,7 +97,7 @@ func seen(t record.TaskSnapshot, offset time.Duration) record.TaskSnapshot {
 func mixedTasks(prefix string, n int) []record.TaskSnapshot {
 	var tasks []record.TaskSnapshot
 	for i := range n {
-		t := record.TaskSnapshot{Name: fmt.Sprintf("%s-%d", prefix, i), State: record.Done}
+		t := record.TaskSnapshot{Name: fmt.Sprintf("%s-%d", prefix, i), State: record.Succeeded}
 		switch {
 		case i%17 == 0:
 			t.State, t.Summary = record.Failed, "exit 1"
@@ -108,7 +108,7 @@ func mixedTasks(prefix string, n int) []record.TaskSnapshot {
 		case i%3 == 0:
 			t.State = record.Pending
 		case i%7 == 0:
-			t.State = record.Blocked
+			t.State = record.Refused
 		}
 		tasks = append(tasks, seen(t, time.Duration(n-i)*time.Second))
 	}
@@ -122,9 +122,9 @@ func items(prefix string, n int) []record.TaskSnapshot {
 	for i := range n {
 		name := fmt.Sprintf("%s-%d", prefix, i)
 		rec := []record.TaxonomyRecord{{Reason: []string{"protected", "merged"}[i%2], Name: name, Causes: []string{"cause of " + name}}}
-		t := record.TaskSnapshot{Name: name, State: record.Done, Kept: rec}
+		t := record.TaskSnapshot{Name: name, State: record.Succeeded, Kept: rec}
 		if i%3 == 0 {
-			t = record.TaskSnapshot{Name: name, State: record.Skipped, Skipped: rec}
+			t = record.TaskSnapshot{Name: name, State: record.Excluded, Skipped: rec}
 		}
 		tasks = append(tasks, seen(t, time.Duration(i)*time.Second))
 	}
@@ -134,7 +134,7 @@ func items(prefix string, n int) []record.TaskSnapshot {
 func workPeers(n int) []record.TaskSnapshot {
 	var tasks []record.TaskSnapshot
 	for i := range n {
-		tasks = append(tasks, record.TaskSnapshot{Name: fmt.Sprintf("peer-%d", i), State: record.Done, Facts: []record.Fact{{Name: "files", Value: "3"}}})
+		tasks = append(tasks, record.TaskSnapshot{Name: fmt.Sprintf("peer-%d", i), State: record.Succeeded, Facts: []record.Fact{{Name: "files", Value: "3"}}})
 	}
 	return tasks
 }
@@ -177,7 +177,7 @@ func projectionShapes() map[string]record.Snapshot {
 			Collections: []record.TasksSnapshot{{Name: "done", State: record.Failed, Tasks: func() []record.TaskSnapshot {
 				var ts []record.TaskSnapshot
 				for i := range 500 {
-					t := record.TaskSnapshot{Name: fmt.Sprintf("a-much-longer-finished-name-%d", i), State: record.Done}
+					t := record.TaskSnapshot{Name: fmt.Sprintf("a-much-longer-finished-name-%d", i), State: record.Succeeded}
 					if i%100 == 0 {
 						t = record.TaskSnapshot{Name: "build", State: record.Failed, Summary: "exit 1"}
 					}

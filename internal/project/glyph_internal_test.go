@@ -11,13 +11,13 @@ import (
 // Confirm gate cancelled mid-prompt and is easier to pin at the table level
 // than to reproduce end-to-end.
 func TestTaskGlyph_ASCIITable(t *testing.T) {
-	cases := map[record.EntityState]string{
-		record.Done:       "[ok]",
+	cases := map[record.State]string{
+		record.Succeeded:  "[ok]",
 		record.Failed:     "[x]",
-		record.Blocked:    "[blocked]",
+		record.Refused:    "[refused]",
 		record.Pending:    "[.]",
 		record.Cancelled:  "[cancel]", // evo-rec.md: Cancelled gets its own face, no longer Pending's
-		record.Skipped:    "[.]",
+		record.Excluded:   "[.]",
 		record.NotStarted: "[-]",
 		record.Incomplete: "[-]", // an unresolved task at Finish reads as "not started"
 	}
@@ -30,13 +30,13 @@ func TestTaskGlyph_ASCIITable(t *testing.T) {
 
 // TestTaskGlyph_UnicodeUnchanged pins TaskGlyph's pre-existing Unicode faces.
 func TestTaskGlyph_UnicodeUnchanged(t *testing.T) {
-	cases := map[record.EntityState]string{
-		record.Done:       "✓",
+	cases := map[record.State]string{
+		record.Succeeded:  "✓",
 		record.Failed:     "✗",
-		record.Blocked:    "⊘",
+		record.Refused:    "⊘",
 		record.Pending:    "○",
 		record.Cancelled:  "■", // evo-rec.md: Cancelled gets its own face, no longer Pending's
-		record.Skipped:    "○",
+		record.Excluded:   "○",
 		record.NotStarted: "-",
 		record.Incomplete: "-", // an unresolved task at Finish reads as "not started"
 	}

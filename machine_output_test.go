@@ -134,7 +134,7 @@ func TestOUT007_DeterministicJSONWithFixedClock(t *testing.T) {
 		return c
 	}
 	a, b := mk(), mk()
-	if a.state != b.state || a.exitCode != b.exitCode {
+	if a.headline() != b.headline() || a.exitCode != b.exitCode {
 		t.Fatalf("%+v vs %+v", a, b)
 	}
 }

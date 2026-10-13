@@ -54,7 +54,7 @@ func ExampleTaskSnapshot() {
 	snap := task.snapshot()
 	fmt.Println(snap.Name, snap.State)
 	// Output:
-	// apply patch done
+	// apply patch succeeded
 }
 
 // ExampleEvidencePhase shows one Verify observation attempt: whether it was

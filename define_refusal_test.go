@@ -17,8 +17,8 @@ func TestDefine_BlockThenNilRefuses(t *testing.T) {
 		return nil
 	})
 	_ = out.finish()
-	if c := out.conclusion(); c.state != stateBlocked || c.exitCode != exitBlocked {
-		t.Fatalf("conclusion = %s exit %d, want %s exit %d\n%s", c.state, c.exitCode, stateBlocked, exitBlocked, buf.String())
+	if c := out.conclusion(); c.headline() != headlineRefused || c.exitCode != exitRefused {
+		t.Fatalf("conclusion = %s exit %d, want %s exit %d\n%s", c.headline(), c.exitCode, headlineRefused, exitRefused, buf.String())
 	}
 	_ = out.close()
 }

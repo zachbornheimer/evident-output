@@ -93,7 +93,7 @@ func TestAPI028_AbsoluteProgress(t *testing.T) {
 
 func TestAPI025_PackageNameEvo(t *testing.T) {
 	// Import path uses evo package name — compile proof via this test package.
-	_ = done
+	_ = succeeded
 }
 
 func TestAPI005_NoPublicIntentEnum(t *testing.T) {
@@ -120,8 +120,8 @@ func TestAPI008_CommonAdvancedParity(t *testing.T) {
 	b := initRun(Config{isolated: true, stdout: io.Discard})
 	succeed(b.Task("x"))
 	_ = b.finish()
-	if a.conclusion().state != b.conclusion().state {
-		t.Fatal(a.conclusion().state, b.conclusion().state)
+	if a.conclusion().headline() != b.conclusion().headline() {
+		t.Fatal(a.conclusion().headline(), b.conclusion().headline())
 	}
 	_ = a.close()
 	_ = b.close()
@@ -202,5 +202,5 @@ func TestAPI001_MinimalItemExample(t *testing.T) {
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	requireConclusion(t, out, stateBlocked)
+	requireConclusion(t, out, headlineRefused)
 }

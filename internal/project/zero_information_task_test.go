@@ -44,7 +44,7 @@ var zeroInformationFields = map[string]taskFieldRole{
 	"Kept":            roleInformation,
 	"Collection":      roleIdentity,
 	"Declaration":     roleIdentity,
-	"Resolution":      roleOutcome,
+	"DefineRan":       roleOutcome,
 	// Evidence is the proof behind an AlreadySatisfied resolution, which a
 	// proven no-op always carries; the row states nothing new with it.
 	"Evidence": roleIdentity,
@@ -70,9 +70,9 @@ func TestEveryTaskSnapshotFieldIsClassified(t *testing.T) {
 // field on an otherwise zero-information Task and requires the predicate to
 // notice.
 func TestEveryInformationFieldDefeatsZeroInformation(t *testing.T) {
-	base := record.TaskSnapshot{State: record.Done, Resolution: record.ResolutionNoWork}
+	base := record.TaskSnapshot{State: record.Succeeded}
 	if !IsZeroInformationTask(base) {
-		t.Fatal("a bare NoWork record.Done Task must be zero-information")
+		t.Fatal("a bare NoWork record.Succeeded Task must be zero-information")
 	}
 	for name, role := range zeroInformationFields {
 		if role != roleInformation {

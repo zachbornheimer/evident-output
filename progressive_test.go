@@ -42,7 +42,7 @@ func TestProgressive_ItemResolutionsStreamBeforeFinish(t *testing.T) {
 	if afterBranches == beforeBranches {
 		t.Fatal("branches resolve did not append progressive output")
 	}
-	if strings.Contains(afterBranches, "[blocked]") {
+	if strings.Contains(afterBranches, "[refused]") {
 		t.Fatalf("conclusion must not appear before Finish; buf=%q", afterBranches)
 	}
 
@@ -50,7 +50,7 @@ func TestProgressive_ItemResolutionsStreamBeforeFinish(t *testing.T) {
 		t.Fatal(err)
 	}
 	final := buf.String()
-	if !strings.Contains(final, "[blocked]") {
+	if !strings.Contains(final, "[refused]") {
 		t.Fatalf("Finish should stream conclusion; buf=%q", final)
 	}
 	if !strings.Contains(final, "git push") {
@@ -62,7 +62,7 @@ func TestProgressive_ItemResolutionsStreamBeforeFinish(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plain := string(rendered); !strings.Contains(plain, "working tree") || !strings.Contains(plain, "[blocked]") {
+	if plain := string(rendered); !strings.Contains(plain, "working tree") || !strings.Contains(plain, "[refused]") {
 		t.Fatalf("final plain incomplete:\n%s", plain)
 	}
 }
@@ -127,7 +127,7 @@ func TestProgressive_InteractiveNoDoublePrint(t *testing.T) {
 	if strings.Contains(final, "working tree") || strings.Contains(final, "branches") {
 		t.Fatalf("WriteFinal re-dumped an already-committed task:\n%s", final)
 	}
-	if !strings.Contains(final, "[blocked]") {
+	if !strings.Contains(final, "[refused]") {
 		t.Fatalf("WriteFinal missing conclusion:\n%s", final)
 	}
 	// Primary residual: conclusion only (no second task dump).
@@ -135,7 +135,7 @@ func TestProgressive_InteractiveNoDoublePrint(t *testing.T) {
 	if strings.Count(got, "working tree") != 0 {
 		t.Fatalf("primary residual re-printed tasks:\n%s", got)
 	}
-	if !strings.Contains(got, "[blocked]") {
+	if !strings.Contains(got, "[refused]") {
 		t.Fatalf("primary residual missing conclusion:\n%s", got)
 	}
 }

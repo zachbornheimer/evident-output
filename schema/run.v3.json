@@ -368,6 +368,9 @@
           },
           "type": "array"
         },
+        "outcome": {
+          "type": "string"
+        },
         "parent_id": {
           "type": "string"
         },
@@ -379,9 +382,6 @@
         },
         "progress": {
           "$ref": "#/$defs/progress"
-        },
-        "resolution": {
-          "type": "string"
         },
         "state": {
           "type": "string"

@@ -55,7 +55,7 @@ func ShouldSuppressStandaloneConclusion(s record.Snapshot) bool {
 	// "[planned]" band repeats information the header plus the per-section
 	// [planned] ledger rows already gave — regardless of how many effect
 	// sections exist, unlike the single-section rule below.
-	if s.DryRun && s.DryRunSubject != "" && c.State == record.StatePlanned {
+	if s.DryRun && s.DryRunSubject != "" && ConclusionHeadline(c) == HeadlinePlanned {
 		return true
 	}
 
@@ -63,12 +63,8 @@ func ShouldSuppressStandaloneConclusion(s record.Snapshot) bool {
 		return true
 	}
 
-	// Severity that is not pure planned/changed success.
-	switch c.State {
-	case record.StateChanged, record.StatePlanned, record.StateReady:
-		// candidates below
-	default:
-		// failed, blocked, warning, cancelled, partial, …
+	// Only a Succeeded or Satisfied run can be a pure planned/changed success.
+	if c.Outcome != record.OutcomeSucceeded && c.Outcome != record.OutcomeSatisfied {
 		return false
 	}
 
@@ -91,7 +87,7 @@ func ShouldSuppressStandaloneConclusion(s record.Snapshot) bool {
 			return false
 		}
 		// Compatible: changed (or ready with Changed flag from changes presence).
-		return c.State == record.StateChanged || (c.State == record.StateReady && c.Changed)
+		return ConclusionHeadline(c) == HeadlineChanged
 	}
 
 	// Exactly one Plan.
@@ -99,7 +95,7 @@ func ShouldSuppressStandaloneConclusion(s record.Snapshot) bool {
 	if !sameSemanticSubject(p.Subject, p.ID, c.Subject, s.Subject) {
 		return false
 	}
-	return c.State == record.StatePlanned || c.State == record.StateReady
+	return ConclusionHeadline(c) != HeadlineChanged
 }
 
 func semanticResultCount(s record.Snapshot) int {
@@ -112,7 +108,7 @@ func shouldSuppressRepeatedCondition(s record.Snapshot, c record.Conclusion) boo
 	}
 
 	var name string
-	var state record.EntityState
+	var state record.State
 	switch {
 	case len(s.Tasks) == 1:
 		// I2: a library-synthesized task (Output.Fail/Cancel's "command"
@@ -129,27 +125,19 @@ func shouldSuppressRepeatedCondition(s record.Snapshot, c record.Conclusion) boo
 	}
 
 	subjectRepeatsCondition := c.Subject == "" || normalizeSubject(c.Subject) == normalizeSubject(name)
-	return subjectRepeatsCondition && conclusionRepeatsEntityState(c.State, state)
+	return subjectRepeatsCondition && rowStatesHeadline(ConclusionHeadline(c), state)
 }
 
-func conclusionRepeatsEntityState(conclusion record.ConclusionState, entity record.EntityState) bool {
-	switch entity {
-	case record.Done, record.Skipped, record.Empty:
-		return conclusion == record.StateReady
-	case record.Blocked:
-		return conclusion == record.StateBlocked
-	case record.Failed:
-		return conclusion == record.StateFailed
-	case record.Cancelled:
-		return conclusion == record.StateCancelled
-	case record.Pending, record.Running, record.Incomplete:
-		// Partial is a completeness modifier now, not a headline state
-		// (conclusion.go); a lone unresolved entity concludes the same as
-		// an empty run — record.StateReady — so that is what "repeats" it.
-		return conclusion == record.StateReady
-	default:
-		return false
+// rowStatesHeadline reports whether a lone row in state already says what a
+// band naming headline would. Only a ✓ row does: Succeeded states itself,
+// and a Satisfied row says "already satisfied". Every other Outcome is named
+// in its own word on the band, so the band stays.
+func rowStatesHeadline(headline string, state record.State) bool {
+	switch state {
+	case record.Succeeded, record.Satisfied:
+		return headline == string(state.Outcome())
 	}
+	return false
 }
 
 // sameSemanticSubject compares effect-section identity to conclusion/output subject.

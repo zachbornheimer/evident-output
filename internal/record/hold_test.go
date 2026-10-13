@@ -11,7 +11,7 @@ func TestListenerHearsTheStateATransitionLeftAndEntered(t *testing.T) {
 	task.Transition(Running)
 	task.SetPhase("working")
 
-	want := [][2]EntityState{{Pending, Running}, {Running, Running}}
+	want := [][2]State{{Pending, Running}, {Running, Running}}
 	if len(heard.moves) != len(want) || heard.moves[0] != want[0] || heard.moves[1] != want[1] {
 		t.Errorf("heard moves %v, want %v", heard.moves, want)
 	}
@@ -46,10 +46,10 @@ func TestReleaseDeliversInTheOrderTheWritesHappened(t *testing.T) {
 
 	run.Hold()
 	task.Transition(Running)
-	task.Transition(Done)
+	task.Transition(Succeeded)
 	run.Release()
 
-	want := [][2]EntityState{{Pending, Running}, {Running, Done}}
+	want := [][2]State{{Pending, Running}, {Running, Succeeded}}
 	if len(heard.moves) != 2 || heard.moves[0] != want[0] || heard.moves[1] != want[1] {
 		t.Errorf("heard %v, want %v", heard.moves, want)
 	}

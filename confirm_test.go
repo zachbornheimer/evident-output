@@ -28,7 +28,7 @@ func TestConfirm_Yes_ResolvesOKAndReturnsTrue(t *testing.T) {
 		t.Fatalf("exit = %d, want ExitOK", out.conclusion().exitCode)
 	}
 	snap := out.snapshot()
-	if len(snap.Tasks) != 1 || snap.Tasks[0].State != done {
+	if len(snap.Tasks) != 1 || snap.Tasks[0].State != succeeded {
 		t.Fatalf("item state = %+v, want OK", snap.Tasks)
 	}
 }
@@ -46,14 +46,14 @@ func TestConfirm_No_ResolvesBlockedDeclinedAndExitsOne(t *testing.T) {
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if out.conclusion().state != stateBlocked {
-		t.Fatalf("state = %v, want StateBlocked", out.conclusion().state)
+	if out.conclusion().headline() != headlineRefused {
+		t.Fatalf("state = %v, want StateBlocked", out.conclusion().headline())
 	}
-	if out.conclusion().exitCode != exitBlocked {
+	if out.conclusion().exitCode != exitRefused {
 		t.Fatalf("exit = %d, want ExitBlocked (1)", out.conclusion().exitCode)
 	}
 	snap := out.snapshot()
-	if len(snap.Tasks) != 1 || snap.Tasks[0].State != blocked {
+	if len(snap.Tasks) != 1 || snap.Tasks[0].State != refused {
 		t.Fatalf("item state = %+v, want Blocked", snap.Tasks)
 	}
 	if len(snap.Tasks[0].Problems) == 0 || snap.Tasks[0].Problems[0].Summary != "declined" {
@@ -71,7 +71,7 @@ func TestConfirm_EmptyAnswer_Declines(t *testing.T) {
 		t.Fatal("Confirm(\"\") = true, want false")
 	}
 	snap := out.snapshot()
-	if snap.Tasks[0].State != blocked {
+	if snap.Tasks[0].State != refused {
 		t.Fatalf("item state = %v, want Blocked", snap.Tasks[0].State)
 	}
 }
@@ -106,7 +106,7 @@ func TestConfirm_ZeroByteEOF_BlocksByPolicyNotDecline(t *testing.T) {
 
 	snap := out.snapshot()
 	item := snap.Tasks[0]
-	if item.State != blocked {
+	if item.State != refused {
 		t.Fatalf("item state = %v, want Blocked", item.State)
 	}
 	if len(item.Problems) == 0 || item.Problems[0].Summary != "no answer — stdin closed" {
@@ -126,7 +126,7 @@ func TestConfirm_AssumeYes_SkipsPromptAndReadsNothing(t *testing.T) {
 		t.Fatal("Confirm with AssumeYes(true) = false, want true")
 	}
 	snap := out.snapshot()
-	if snap.Tasks[0].State != done {
+	if snap.Tasks[0].State != succeeded {
 		t.Fatalf("item state = %v, want OK", snap.Tasks[0].State)
 	}
 	if snap.Tasks[0].Summary != "assumed --yes" {
@@ -146,7 +146,7 @@ func TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin(t *testing.T) 
 
 	snap := out.snapshot()
 	item := snap.Tasks[0]
-	if item.State != blocked {
+	if item.State != refused {
 		t.Fatalf("item state = %v, want Blocked", item.State)
 	}
 	if len(item.Problems) == 0 || item.Problems[0].Summary != "blocked by policy" {
@@ -280,10 +280,10 @@ func TestConfirm_Declined_ResolvesBlockedWithExitOne(t *testing.T) {
 		t.Log(err)
 	}
 	conc := out.conclusion()
-	if conc.state != stateBlocked {
-		t.Fatalf("state = %v, want StateBlocked (a declined confirm is Blocked, never Failed)", conc.state)
+	if conc.headline() != headlineRefused {
+		t.Fatalf("state = %v, want StateBlocked (a declined confirm is Blocked, never Failed)", conc.headline())
 	}
-	if conc.exitCode != exitBlocked {
-		t.Fatalf("exit code = %d, want %d (ExitBlocked)", conc.exitCode, exitBlocked)
+	if conc.exitCode != exitRefused {
+		t.Fatalf("exit code = %d, want %d (ExitBlocked)", conc.exitCode, exitRefused)
 	}
 }

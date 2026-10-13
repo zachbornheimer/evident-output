@@ -40,7 +40,7 @@ func TestTaskFact_NeverResolvesTask(t *testing.T) {
 	task.Fact("language", "go")
 	succeed(task)
 	snap := out.snapshot()
-	if len(snap.Tasks) != 1 || snap.Tasks[0].State != done {
+	if len(snap.Tasks) != 1 || snap.Tasks[0].State != succeeded {
 		t.Fatalf("Fact must not resolve the task, got %+v", snap.Tasks)
 	}
 	if len(snap.Tasks[0].Facts) != 1 || snap.Tasks[0].Facts[0].Value != "go" {
@@ -61,8 +61,8 @@ func TestProblemWarning_FeedsWarnedModifierNotHeadline(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := out.conclusion()
-	if c.state != stateReady {
-		t.Fatalf("state = %v, want StateReady (a bare Warn must not invent a headline)", c.state)
+	if c.headline() != headlineSucceeded {
+		t.Fatalf("state = %v, want StateReady (a bare Warn must not invent a headline)", c.headline())
 	}
 	if !c.warned {
 		t.Fatal("want Conclusion.Warned = true after a warning-severity Problem")

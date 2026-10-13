@@ -42,7 +42,7 @@
       "type": "string"
     },
     "outcome": {
-      "type": "string"
+      "enum": ["succeeded", "satisfied", "excluded", "refused", "failed", "cancelled"]
     },
     "exit_code": {
       "type": "integer"
@@ -414,8 +414,8 @@
         "state": {
           "type": "string"
         },
-        "resolution": {
-          "type": "string"
+        "outcome": {
+          "enum": ["succeeded", "satisfied", "excluded", "refused", "failed", "cancelled"]
         },
         "definition_executed": {
           "type": "boolean"

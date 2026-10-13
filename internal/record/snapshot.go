@@ -76,7 +76,7 @@ type TaskSnapshot struct {
 	// override. Always populated once the task is declared.
 	Key   string
 	Name  string
-	State EntityState
+	State State
 	Phase string
 	// ActivityAt is the domain-clock time of the most recent Phase, Progress,
 	// or mutation-verb-callback-starting call. Zero when the task has never
@@ -121,9 +121,9 @@ type TaskSnapshot struct {
 	Kept        []TaxonomyRecord
 	Collection  string
 	Declaration int
-	// Resolution names why this Task settled successfully (§29/§30): empty
-	// until it does. See Resolution's own doc for the three reasons.
-	Resolution Resolution
+	// DefineRan reports that the Define callback was entered and returned
+	// successfully (§29/§30).
+	DefineRan bool
 	// Evidence preserves both Verify observation phases this Task recorded,
 	// if any (§30) — the zero value when Verify was never called.
 	Evidence TaskEvidence
@@ -204,7 +204,7 @@ type TasksSnapshot struct {
 	// because Task parent identity and manifest graph edges depend on them.
 	Key     string
 	Name    string
-	State   EntityState
+	State   State
 	Summary string
 	Tasks   []TaskSnapshot
 	// Collections holds nested child containers declared via

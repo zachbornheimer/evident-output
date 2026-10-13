@@ -7,7 +7,7 @@ import (
 )
 
 // readyBand is the trailing band a run of Skipped policy exclusions closes on.
-const readyBand = "\n[ready]  prune\n"
+const readyBand = "\n[succeeded]  prune\n"
 
 // renderCategory renders one category Group whose work Task is named
 // workName, with two kept items folded into its tally.
@@ -85,7 +85,7 @@ func renderSkippedFetch(t *testing.T, ownGroups bool, skipped ...string) string 
 // Skipped is the category's row, not one of its items, so it keeps its
 // own glyph and name.
 func TestOwnTask_IsNeverFoldedAsAnItem(t *testing.T) {
-	want := "✓ branches         3 checked\n○ remote-tracking\n  - skipped 1 (--skip-fetch)\n\n[ready]  prune\n"
+	want := "✓ branches         3 checked\n○ remote-tracking\n  - skipped 1 (--skip-fetch)\n\n[succeeded]  prune\n"
 	if got := renderSkippedFetch(t, true, "remote-tracking"); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -95,7 +95,7 @@ func TestOwnTask_IsNeverFoldedAsAnItem(t *testing.T) {
 // work is no aggregate, so it keeps its named row and the header-less
 // Group does not grow a header to carry a nameless tally.
 func TestOwnTask_LoneSkippedPeerKeepsItsRow(t *testing.T) {
-	want := "✓ branches         3 checked\n○ remote-tracking\n  - skipped 1 (--skip-fetch)\n\n[ready]  prune\n"
+	want := "✓ branches         3 checked\n○ remote-tracking\n  - skipped 1 (--skip-fetch)\n\n[succeeded]  prune\n"
 	if got := renderSkippedFetch(t, false, "remote-tracking"); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -106,7 +106,7 @@ func TestOwnTask_LoneSkippedPeerKeepsItsRow(t *testing.T) {
 // subject, so neither folds into a nameless tally under a header the
 // header-less Group never had.
 func TestOwnTask_SkippedPeersBesideWorkKeepTheirRows(t *testing.T) {
-	want := "✓ branches         3 checked\n○ remote-tracking\n  - skipped 1 (--skip-fetch)\n○ tags\n  - skipped 1 (--skip-fetch)\n\n[ready]  prune\n"
+	want := "✓ branches         3 checked\n○ remote-tracking\n  - skipped 1 (--skip-fetch)\n○ tags\n  - skipped 1 (--skip-fetch)\n\n[succeeded]  prune\n"
 	if got := renderSkippedFetch(t, false, "remote-tracking", "tags"); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}

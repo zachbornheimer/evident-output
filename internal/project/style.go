@@ -20,7 +20,7 @@ func (s Style) Dim(text string) string { return Dim(text, s.Color) }
 func (s Style) Paint(text, sgr string) string { return ApplySGR(text, sgr, s.Color) }
 
 // StateGlyph is a Task or container state's glyph in its state color.
-func (s Style) StateGlyph(state record.EntityState) string {
+func (s Style) StateGlyph(state record.State) string {
 	return StyleGlyph(TaskGlyph(state, s.Profile), StateColor(state), s.Color)
 }
 
@@ -45,37 +45,20 @@ func (s Style) Emphasized(text string, emphasize bool) string {
 	return s.Dim(text)
 }
 
-func StateColor(s record.EntityState) string {
+func StateColor(s record.State) string {
 	switch s {
-	case record.Done:
+	case record.Succeeded, record.Satisfied:
 		return SGRGreen
 	case record.Failed:
 		return SGRRed
-	case record.Blocked:
+	case record.Refused:
 		return SGRRed
 	case record.Running:
 		return SGRCyan
-	case record.Pending, record.Skipped, record.Cancelled, record.Incomplete, record.NotStarted:
+	case record.Pending, record.Excluded, record.Cancelled, record.Incomplete, record.NotStarted:
 		return SGRDim
 	default:
 		return ""
-	}
-}
-
-func ConclusionColor(s record.ConclusionState) string {
-	switch s {
-	case record.StateReady, record.StateChanged:
-		return SGRGreen
-	case record.StatePlanned:
-		return SGRBlue
-	case record.StateFailed:
-		return SGRRed
-	case record.StateBlocked:
-		return SGRRed
-	case record.StateCancelled:
-		return SGRDim
-	default:
-		return SGRCyan
 	}
 }
 

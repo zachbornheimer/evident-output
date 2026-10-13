@@ -15,7 +15,7 @@ func TestAdmitRefusesATaskThatAlreadySettled(t *testing.T) {
 	task := declare(g, "settled")
 	g.Settle(task, record.Failed)
 
-	got := g.Admit(task, Resolution{State: record.Done, By: ByCaller})
+	got := g.Admit(task, Resolution{State: record.Succeeded, By: ByCaller})
 
 	if got.Verdict != AlreadyResolved {
 		t.Errorf("Verdict = %v, want AlreadyResolved", got.Verdict)
@@ -26,7 +26,7 @@ func TestObserveRatifiesTheProposalAReturnedNilBacks(t *testing.T) {
 	g := New(record.NewRun())
 	task := declare(g, "proposing")
 	submitWork(g, task, blockedWork())
-	g.Admit(task, Resolution{State: record.Done, Summary: "8 deleted", By: ByCaller})
+	g.Admit(task, Resolution{State: record.Succeeded, Summary: "8 deleted", By: ByCaller})
 
 	got := g.Observe(task, nil)
 
@@ -39,7 +39,7 @@ func TestObserveDiscardsTheProposalAReturnedErrorContradicts(t *testing.T) {
 	g := New(record.NewRun())
 	task := declare(g, "proposing")
 	submitWork(g, task, blockedWork())
-	g.Admit(task, Resolution{State: record.Done, By: ByCaller})
+	g.Admit(task, Resolution{State: record.Succeeded, By: ByCaller})
 
 	got := g.Observe(task, errors.New("boom"))
 
@@ -79,7 +79,7 @@ func TestAdmitHoldsACallersSuccessOnSubmittedWorkAsAProposal(t *testing.T) {
 	task := declare(g, "submitted")
 	submitWork(g, task, blockedWork())
 
-	got := g.Admit(task, Resolution{State: record.Done, Summary: "all good", By: ByCaller})
+	got := g.Admit(task, Resolution{State: record.Succeeded, Summary: "all good", By: ByCaller})
 
 	if got.Verdict != Proposed {
 		t.Fatalf("Verdict = %v, want Proposed", got.Verdict)
@@ -88,7 +88,7 @@ func TestAdmitHoldsACallersSuccessOnSubmittedWorkAsAProposal(t *testing.T) {
 		t.Error("a proposal settled the Task")
 	}
 	proposal := task.TakeProposal()
-	if proposal == nil || proposal.State != record.Done || proposal.Summary != "all good" {
+	if proposal == nil || proposal.State != record.Succeeded || proposal.Summary != "all good" {
 		t.Errorf("held proposal = %+v, want Done \"all good\"", proposal)
 	}
 }
@@ -110,9 +110,9 @@ func TestAdmitLetsTheSchedulerDeclareSubmittedWorkDone(t *testing.T) {
 	task := declare(g, "submitted")
 	submitWork(g, task, blockedWork())
 
-	got := g.Admit(task, Resolution{State: record.Done, By: ByScheduler})
+	got := g.Admit(task, Resolution{State: record.Succeeded, By: ByScheduler})
 
-	if got.Verdict != Settling || got.State != record.Done {
+	if got.Verdict != Settling || got.State != record.Succeeded {
 		t.Errorf("Admission = %+v, want Settling as Done", got)
 	}
 }
@@ -121,9 +121,9 @@ func TestConcludeSettlesTheTaskAsAdmitted(t *testing.T) {
 	g := New(record.NewRun())
 	task := declare(g, "plain")
 
-	g.Conclude(task, g.Admit(task, Resolution{State: record.Skipped, By: ByCaller}))
+	g.Conclude(task, g.Admit(task, Resolution{State: record.Excluded, By: ByCaller}))
 
-	if got := task.Rec.State(); got != record.Skipped {
+	if got := task.Rec.State(); got != record.Excluded {
 		t.Errorf("state = %s, want skipped", got)
 	}
 }
@@ -133,7 +133,7 @@ func TestConcludeIgnoresAnAdmissionThatDidNotSettle(t *testing.T) {
 	task := declare(g, "submitted")
 	submitWork(g, task, blockedWork())
 
-	g.Conclude(task, g.Admit(task, Resolution{State: record.Done, By: ByCaller}))
+	g.Conclude(task, g.Admit(task, Resolution{State: record.Succeeded, By: ByCaller}))
 
 	if record.IsTerminalTask(task.Rec.State()) {
 		t.Error("Conclude settled a Task whose success was only proposed")

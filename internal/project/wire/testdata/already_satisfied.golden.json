@@ -7,7 +7,7 @@
   "finished_at": "2026-09-15T20:00:02.147Z",
   "duration_ms": 2147,
   "mode": "apply",
-  "outcome": "ok",
+  "outcome": "satisfied",
   "exit_code": 0,
   "data": {
     "collections": [],
@@ -16,8 +16,8 @@
         "id": "task_1",
         "key": "install",
         "name": "install",
-        "state": "done",
-        "resolution": "already_satisfied",
+        "state": "satisfied",
+        "outcome": "satisfied",
         "definition_executed": false,
         "evidence": {
           "before": {

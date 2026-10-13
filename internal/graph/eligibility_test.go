@@ -97,7 +97,7 @@ func TestSucceededPredecessorQueuesItsDependent(t *testing.T) {
 	second := submit(g, "second", AfterTask(first))
 
 	g.Claim(first)
-	g.Settle(first, record.Done)
+	g.Settle(first, record.Succeeded)
 
 	if next := g.NextEligible(); next != second {
 		t.Errorf("next eligible = %v, want second", next)
@@ -121,7 +121,7 @@ func TestBlockCyclesBlocksEveryTaskInTheCycleAndTellsTheSink(t *testing.T) {
 	}
 
 	for _, task := range []*Task{a, b} {
-		if got := task.Rec.State(); got != record.Blocked {
+		if got := task.Rec.State(); got != record.Refused {
 			t.Errorf("%s state = %q, want blocked", task.Name, got)
 		}
 	}
@@ -156,7 +156,7 @@ func TestBuilderGateHoldsTheContainerOpenUntilItConcludes(t *testing.T) {
 		g.Enqueue(gate, nil)
 		g.Place(gate)
 		g.Claim(gate)
-		g.Settle(gate, record.Done)
+		g.Settle(gate, record.Succeeded)
 	}
 
 	if group.BuilderFailed() || group.BuilderNotStarted() {
@@ -173,12 +173,12 @@ type reentrantListener struct {
 	heard int
 }
 
-func (l *reentrantListener) TaskChanged(record.TaskID, record.EntityState, record.EntityState) {
+func (l *reentrantListener) TaskChanged(record.TaskID, record.State, record.State) {
 	l.heard++
 	_ = l.g.Parked()
 }
 
-func (l *reentrantListener) TaskSettled(record.TaskID, record.EntityState, record.EntityState) {}
+func (l *reentrantListener) TaskSettled(record.TaskID, record.State, record.State) {}
 
 func (l *reentrantListener) EventAppended(record.Event) {}
 

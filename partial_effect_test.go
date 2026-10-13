@@ -94,7 +94,7 @@ func TestPartialEffect_ZeroOfThreeRecordsNothingAndFails(t *testing.T) {
 func TestPartialEffect_FullSuccessIsUnchanged(t *testing.T) {
 	t.Parallel()
 	r := partialRun(t, formatHuman, func(context.Context) error { return nil })
-	if r.effectErr != nil || r.state != done {
+	if r.effectErr != nil || r.state != succeeded {
 		t.Fatalf("err = %v state = %v, want nil and Done", r.effectErr, r.state)
 	}
 	if qs := changedQuantities(r.out.snapshot()); len(qs) != 1 || qs[0] != 3 {

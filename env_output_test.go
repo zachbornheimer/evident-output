@@ -105,7 +105,7 @@ func TestEVOOutput_JSONL_WritesEventLines(t *testing.T) {
 		if err := json.Unmarshal([]byte(line), &ev); err != nil || ev.Object != "evo.event" {
 			t.Fatalf("jsonl line is not an evo.event (%v):\n%s", err, line)
 		}
-		if ev.Type == "task.finished" && ev.Payload["state"] == "done" {
+		if ev.Type == "task.finished" && ev.Payload["outcome"] == string(Succeeded) {
 			sawTaskDone = true
 		}
 		if hasHumanGlyphs(line) {
@@ -113,7 +113,7 @@ func TestEVOOutput_JSONL_WritesEventLines(t *testing.T) {
 		}
 	}
 	if !sawTaskDone {
-		t.Fatalf("jsonl missing a task.finished done event:\n%s", got)
+		t.Fatalf("jsonl missing a task.finished succeeded event:\n%s", got)
 	}
 }
 

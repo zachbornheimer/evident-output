@@ -173,5 +173,5 @@ func (g *Graph) blockInCycleLocked(t *Task, path string) {
 	summary := record.SanitizeText("dependency cycle: " + path)
 	t.Rec.SetSummary(summary)
 	t.Rec.AppendProblems(record.Problem{Summary: summary})
-	g.settleLocked(t, record.Blocked)
+	g.settleLocked(t, record.Refused)
 }

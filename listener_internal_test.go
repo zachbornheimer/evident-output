@@ -18,7 +18,7 @@ type lockTakingListener struct {
 	heard chan struct{}
 }
 
-func (l lockTakingListener) TaskChanged(id record.TaskID, from, to record.EntityState) {
+func (l lockTakingListener) TaskChanged(id record.TaskID, from, to record.State) {
 	l.o.mu.Lock()
 	select {
 	case l.heard <- struct{}{}:
@@ -28,7 +28,7 @@ func (l lockTakingListener) TaskChanged(id record.TaskID, from, to record.Entity
 	l.inner.TaskChanged(id, from, to)
 }
 
-func (l lockTakingListener) TaskSettled(id record.TaskID, from, to record.EntityState) {
+func (l lockTakingListener) TaskSettled(id record.TaskID, from, to record.State) {
 	l.o.mu.Lock()
 	select {
 	case l.heard <- struct{}{}:
