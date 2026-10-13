@@ -19,9 +19,9 @@ type Finding struct {
 	Column   int    `json:"column,omitempty"`
 	// Suggestion is a one-line, mechanically-applicable fix using the
 	// matched call site's own identifiers where cheaply derivable from the
-	// AST/text match — e.g. "replace fmt.Println(...) with out.Println".
-	// It always names the simplest front-door API (Task.Skipped,
-	// Writer, Each, Confirm, Init+Main, ...), never Plan/Changes or
+	// AST/text match — e.g. "replace fmt.Println(...) with fmt.Fprintln(r.Text(), ...)".
+	// It always names the simplest front-door API (evo.Exclude,
+	// Writer, Confirm, Main, ...), never Plan/Changes or
 	// hand-rolled composition. Empty when no substitution is cheap to
 	// derive; the rule's GoodCode remains the fallback teaching example.
 	Suggestion string `json:"suggestion,omitempty"`

@@ -12,12 +12,41 @@ import (
 )
 
 // godocStaleAPIExempt holds the code whose comments must name retired API:
-// the table of retired names itself, the review detectors that recognise
-// the removed 1.x shapes in a consumer's source, and the 1.0 migration
-// fixtures that pin removed text on purpose.
+// the table of retired names itself, the review detector files listed here
+// by name (each recognises removed 1.x shapes in a consumer's source; a
+// new or other review file is NOT exempt, so stale prose there is caught),
+// the review fixtures, and the 1.0 migration fixtures that pin removed text
+// on purpose.
 var godocStaleAPIExempt = []string{
 	"mcp/internal/agent/rules/retired",
-	"mcp/internal/agent/review/",
+	"mcp/internal/agent/review/detectors.go",
+	"mcp/internal/agent/review/dialect.go",
+	"mcp/internal/agent/review/first_paint.go",
+	"mcp/internal/agent/review/review_call_site.go",
+	"mcp/internal/agent/review/review_dag_sequence.go",
+	"mcp/internal/agent/review/review_define_callbacks.go",
+	"mcp/internal/agent/review/review_define_context.go",
+	"mcp/internal/agent/review/review_deprecated.go",
+	"mcp/internal/agent/review/review_evidence_dag.go",
+	"mcp/internal/agent/review/review_fanout_wait.go",
+	"mcp/internal/agent/review/review_narration.go",
+	"mcp/internal/agent/review/review_output_bindings.go",
+	"mcp/internal/agent/review/review_problem_accumulation.go",
+	"mcp/internal/agent/review/review_reason_summary.go",
+	"mcp/internal/agent/review/review_rec_done.go",
+	"mcp/internal/agent/review/review_rec_mutation.go",
+	"mcp/internal/agent/review/review_rec_next.go",
+	"mcp/internal/agent/review/review_rec.go",
+	"mcp/internal/agent/review/review_record_migration.go",
+	"mcp/internal/agent/review/review_remedy_receivers.go",
+	"mcp/internal/agent/review/review_repeated_disposition.go",
+	"mcp/internal/agent/review/review_sibling_names.go",
+	"mcp/internal/agent/review/review_task_bindings.go",
+	"mcp/internal/agent/review/review_task_naming.go",
+	"mcp/internal/agent/review/review_topology_builder_purity.go",
+	"mcp/internal/agent/review/review_unresolved_task.go",
+	"mcp/internal/agent/review/review_verb_style.go",
+	"mcp/internal/agent/review/testdata/",
 	"mcp/internal/docexamples/fixtures/migration_",
 }
 
