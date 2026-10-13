@@ -148,7 +148,7 @@ func TestFileWaitsForCoarseEffectClaim(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	tidy := out.Task("tidy module")
 	tidy.Define(func(ctx context.Context) error {
-		spec := EffectSpec{Verb: Update, Object: "module", Quantity: 1, claim: fSResource(dir)}
+		spec := EffectSpec{Verb: Update, Object: "module", Quantity: 1, Path: dir}
 		return Effect(ctx, spec, func(context.Context) error {
 			close(entered)
 			<-release
@@ -203,12 +203,12 @@ func TestEffectsOnOneLogicalResourceNeverOverlap(t *testing.T) {
 	for _, pkg := range []string{"a", "b", "c", "d", "e", "f", "g", "h"} {
 		task := group.Task("install " + pkg)
 		// Surrounding whitespace names the same logical resource.
-		resource := logicalResource(name)
+		resource := name
 		if pkg == "b" {
-			resource = logicalResource("  " + name + "\t")
+			resource = "  " + name + "\t"
 		}
 		task.Define(func(ctx context.Context) error {
-			spec := EffectSpec{Verb: Verb(effectAdd), Object: "package", Quantity: 1, claim: resource}
+			spec := EffectSpec{Verb: Verb(effectAdd), Object: "package", Quantity: 1, Resource: resource}
 			return Effect(ctx, spec, func(context.Context) error {
 				n := active.Add(1)
 				for p := peak.Load(); n > p && !peak.CompareAndSwap(p, n); p = peak.Load() {
@@ -239,7 +239,7 @@ func TestFileInsideResourceEffectIsNestedMisuse(t *testing.T) {
 	task := out.Task("publish")
 	var fileErr error
 	task.Define(func(ctx context.Context) error {
-		spec := EffectSpec{Verb: Verb(effectPush), Object: "tag", Quantity: 1, claim: logicalResource("remote " + t.Name())}
+		spec := EffectSpec{Verb: Verb(effectPush), Object: "tag", Quantity: 1, Resource: "remote " + t.Name()}
 		return Effect(ctx, spec, func(held context.Context) error {
 			fileErr = File(held, FileSpec{Path: filepath.Join(dir, "stamp"), Contents: []byte("x")})
 			return fileErr
@@ -267,7 +267,7 @@ func TestEffectRejectsInvalidResource(t *testing.T) {
 		invoked := false
 		var effectErr error
 		task.Define(func(ctx context.Context) error {
-			spec := EffectSpec{Verb: Verb(effectPush), Object: "tag", Quantity: 1, claim: logicalResource(" ")}
+			spec := EffectSpec{Verb: Verb(effectPush), Object: "tag", Quantity: 1, Resource: " "}
 			effectErr = Effect(ctx, spec, func(context.Context) error { invoked = true; return nil })
 			return effectErr
 		})
@@ -285,12 +285,12 @@ func TestEffectRejectsInvalidResource(t *testing.T) {
 // An uncontended resource claim is invisible: an Effect that names a
 // resource renders byte-for-byte like one that does not.
 func TestUncontendedEffectResourceIsSilent(t *testing.T) {
-	render := func(resource resource) string {
+	render := func(path string) string {
 		var buf bytes.Buffer
 		out := newOutput("prune", to(&buf), plain(), withNoColor())
 		task := out.Task("prune worktrees")
 		task.Define(func(ctx context.Context) error {
-			spec := EffectSpec{Verb: Delete, Object: "worktree", Quantity: 2, claim: resource}
+			spec := EffectSpec{Verb: Delete, Object: "worktree", Quantity: 2, Path: path}
 			return Effect(ctx, spec, func(context.Context) error { return nil })
 		})
 		if err := task.wait(); err != nil {
@@ -299,8 +299,8 @@ func TestUncontendedEffectResourceIsSilent(t *testing.T) {
 		_ = out.finish()
 		return buf.String()
 	}
-	bare := render(nil)
-	claimed := render(fSResource(t.TempDir()))
+	bare := render("")
+	claimed := render(t.TempDir())
 	if bare != claimed {
 		t.Fatalf("uncontended claim changed the rendering:\n--- bare ---\n%s\n--- claimed ---\n%s", bare, claimed)
 	}

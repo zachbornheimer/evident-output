@@ -42,6 +42,9 @@ and its replacement.
   `EffectSpec.Resource` is a logical resource name, and `Clock`, `Terminal`,
   `Redactor`, `Process` and `FS` are interfaces a test can implement.
   `Detail` is both a `ProblemOption` and a `ConfirmOption`.
+- `EffectSpec.Path` claims that path while the callback runs, so Effects on
+  equal or nested paths wait for each other; an `EffectSpec` that sets both
+  `Path` and `Resource` is `ErrInvalidConfig` and its callback never runs.
 
 ### Added
 

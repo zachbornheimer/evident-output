@@ -43,7 +43,7 @@ func TestTaskHandle_Wait_UnderHeldClaimIsNestedAcquisition(t *testing.T) {
 		})
 		a := out.Task("effect")
 		a.Define(func(ctx context.Context) error {
-			spec := EffectSpec{Verb: Update, Object: "repo", Quantity: 1, claim: fSResource(dir)}
+			spec := EffectSpec{Verb: Update, Object: "repo", Quantity: 1, Path: dir}
 			return Effect(ctx, spec, func(context.Context) error {
 				waitErr = b.wait()
 				return waitErr
@@ -71,7 +71,7 @@ func TestGroupHandle_Wait_UnderHeldClaimIsNestedAcquisition(t *testing.T) {
 		})
 		a := out.Task("effect")
 		a.Define(func(ctx context.Context) error {
-			spec := EffectSpec{Verb: Update, Object: "repo", Quantity: 1, claim: fSResource(dir)}
+			spec := EffectSpec{Verb: Update, Object: "repo", Quantity: 1, Path: dir}
 			return Effect(ctx, spec, func(context.Context) error {
 				waitErr = files.wait()
 				return waitErr
@@ -109,7 +109,7 @@ func TestTaskHandle_Wait_WithoutClaimStillSucceeds(t *testing.T) {
 
 // gitClaim is an Effect that holds LogicalResource("git") while fn runs.
 func gitClaim(ctx context.Context, fn func(context.Context) error) error {
-	spec := EffectSpec{Verb: Update, Object: "repo", Quantity: 1, claim: logicalResource("git")}
+	spec := EffectSpec{Verb: Update, Object: "repo", Quantity: 1, Resource: "git"}
 	return Effect(ctx, spec, fn)
 }
 

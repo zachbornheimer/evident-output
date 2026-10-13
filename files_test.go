@@ -210,7 +210,7 @@ func TestFilesClaimsEachPathWithoutCallerLocks(t *testing.T) {
 	writer := out.Task("concurrent writer")
 	writer.Define(func(ctx context.Context) error {
 		<-derived
-		spec := EffectSpec{Verb: Update, Object: "greeting", Quantity: 1, claim: fSResource(path)}
+		spec := EffectSpec{Verb: Update, Object: "greeting", Quantity: 1, Path: path}
 		return Effect(ctx, spec, func(context.Context) error {
 			close(holding)
 			time.Sleep(50 * time.Millisecond)

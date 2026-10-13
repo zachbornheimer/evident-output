@@ -14,12 +14,13 @@ type EffectSpec struct {
 	Verb     Verb
 	Object   string
 	Quantity int
-	Path     string
-	// Resource is a logical resource name: two Effects whose Resources are
-	// equal after trimming surrounding whitespace never overlap.
+	// Path claims a filesystem path for the callback: Effects whose Paths
+	// are equal or one contains the other wait for each other.
+	Path string
+	// Resource is a logical resource name the callback claims: Effects
+	// whose Resources are equal after trimming surrounding whitespace wait
+	// for each other. Setting both Path and Resource is ErrInvalidConfig.
 	Resource string
-	// claim is a resource tests name directly.
-	claim resource
 }
 
 func (s EffectSpec) toChange() change.EffectSpec {
@@ -32,9 +33,5 @@ func (s EffectSpec) toChange() change.EffectSpec {
 	case Delete:
 		v = change.EffectDelete
 	}
-	claim := s.claim
-	if s.Resource != "" {
-		claim = change.LogicalResource(s.Resource)
-	}
-	return change.EffectSpec{Verb: v, Object: s.Object, Quantity: s.Quantity, Resource: claim}
+	return change.EffectSpec{Verb: v, Object: s.Object, Quantity: s.Quantity, Path: s.Path, Resource: s.Resource}
 }

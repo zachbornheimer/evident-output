@@ -25,11 +25,17 @@ type EffectSpec struct {
 	// Quantity is one aggregate count for this Effect, not N Effects. It
 	// must be > 0: when there is nothing to mutate, do not call Effect.
 	Quantity int
-	// Resource is an optional single resource the Effect claims for
-	// writing while fn runs; nil means none. Overlapping claims (the same
-	// logical name, or filesystem paths where one contains the other) wait
-	// for each other, and a waiting Task shows "waiting for <resource>".
-	Resource Resource
+	// Path is an optional filesystem path the Effect claims for writing
+	// while fn runs: Effects whose Paths are equal or one contains the
+	// other wait for each other. A relative Path resolves against the Run's
+	// workspace (see FSResource).
+	Path string
+	// Resource is an optional logical resource name the Effect claims for
+	// writing while fn runs: Effects whose names match after surrounding
+	// whitespace is trimmed wait for each other (see LogicalResource). An
+	// Effect claims at most one of Path and Resource, and a waiting Task
+	// shows "waiting for <claim>".
+	Resource string
 }
 
 // Effect usage errors: a content-free Effect describes no mutation the
@@ -39,6 +45,7 @@ var (
 	ErrEffectObjectMissing       = errors.New("evo: EffectSpec.Object is required")
 	ErrEffectQuantityNotPositive = errors.New("evo: EffectSpec.Quantity must be > 0")
 	ErrEffectCallbackMissing     = errors.New("evo: Effect requires a non-nil callback")
+	ErrEffectClaimsTwoResources  = fmt.Errorf("%w: EffectSpec sets both Path and Resource; an Effect claims one", graph.ErrInvalidConfig)
 )
 
 // Effect performs one opaque mutation inside a Task's Define callback (ctx
@@ -71,7 +78,7 @@ func (r *Run) effect(ctx context.Context, id record.TaskID, spec EffectSpec, fn 
 	}
 	if ledger.Applies() {
 		disowned, callbackErr := r.runEffectCallback(ctx, id, func(ctx context.Context) error {
-			return r.performEffect(ctx, spec.Resource, fn)
+			return r.performEffect(ctx, spec.claim(), fn)
 		})
 		if callbackErr != nil {
 			return recordPartialEffect(ledger, spec, callbackErr)
@@ -79,8 +86,8 @@ func (r *Run) effect(ctx context.Context, id record.TaskID, spec EffectSpec, fn 
 		if disowned {
 			return nil
 		}
-	} else if spec.Resource != nil {
-		if resourceErr := r.validateResource(spec.Resource); resourceErr != nil {
+	} else if claim := spec.claim(); claim != nil {
+		if resourceErr := r.validateResource(claim); resourceErr != nil {
 			return resourceErr
 		}
 	}
@@ -111,8 +118,9 @@ func (r *Run) performEffect(ctx context.Context, res Resource, fn func(context.C
 	return r.Hold(ctx, res, ClaimWrite, fn)
 }
 
-// validate rejects a content-free Effect: one with no known verb, no object,
-// no positive quantity, or no callback to perform it.
+// validate rejects a content-free Effect (one with no known verb, no object,
+// no positive quantity, or no callback to perform it) and one that claims
+// both a Path and a Resource.
 func (s EffectSpec) validate(fn func(context.Context) error) error {
 	switch {
 	case !s.Verb.valid():
@@ -123,8 +131,24 @@ func (s EffectSpec) validate(fn func(context.Context) error) error {
 		return fmt.Errorf("%w: %s %q has Quantity %d", ErrEffectQuantityNotPositive, s.Verb, s.Object, s.Quantity)
 	case fn == nil:
 		return ErrEffectCallbackMissing
+	case s.Path != "" && s.Resource != "":
+		return fmt.Errorf("%w: Path %q, Resource %q", ErrEffectClaimsTwoResources, s.Path, s.Resource)
 	}
 	return nil
+}
+
+// claim is the one Resource s holds while its callback runs, or nil when it
+// names none. A whitespace-only name still claims, so resolving the claim
+// rejects it instead of the Effect silently running unclaimed.
+func (s EffectSpec) claim() Resource {
+	switch {
+	case s.Path != "":
+		return FSResource(s.Path)
+	case s.Resource != "":
+		return LogicalResource(s.Resource)
+	default:
+		return nil
+	}
 }
 
 // entry is s's ledger row for quantity objects: s.Quantity for a committed

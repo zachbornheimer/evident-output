@@ -249,7 +249,7 @@ re-executes; it never reports Satisfied.
 | `EffectSpec.Object`    | field | singular noun; Evo pluralizes                                                                       |
 | `EffectSpec.Quantity`  | field | > 0                                                                                                 |
 | `EffectSpec.Path`      | field | filesystem claim, overlaps by ancestry; optional                                                    |
-| `EffectSpec.Resource`  | field | `string`; logical claim, overlaps by equal name; optional                                           |
+| `EffectSpec.Resource`  | field | `string`; logical resource name, overlaps by equal name; optional                                   |
 | `Verb`                 | type  | closed set                                                                                          |
 | `Create`               | const |                                                                                                     |
 | `Update`               | const |                                                                                                     |

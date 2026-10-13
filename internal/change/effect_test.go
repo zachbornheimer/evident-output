@@ -155,7 +155,7 @@ func TestEffectReturnsTheLedgerRefusal(t *testing.T) {
 func TestEffectDryRunRejectsAnInvalidResourceLikeAnAppliedRun(t *testing.T) {
 	_, ctx := scopedRun(t, &fakeHost{applies: false})
 	spec := deleteTwoBranches()
-	spec.Resource = LogicalResource("")
+	spec.Resource = " "
 
 	err := Effect(ctx, spec, func(context.Context) error { return nil })
 
@@ -164,10 +164,26 @@ func TestEffectDryRunRejectsAnInvalidResourceLikeAnAppliedRun(t *testing.T) {
 	}
 }
 
+func TestEffectClaimingPathAndResourceIsInvalidConfig(t *testing.T) {
+	for _, applies := range []bool{true, false} {
+		_, ctx := scopedRun(t, &fakeHost{applies: applies})
+		spec := deleteTwoBranches()
+		spec.Path = t.TempDir()
+		spec.Resource = "remote"
+		ran := false
+
+		err := Effect(ctx, spec, func(context.Context) error { ran = true; return nil })
+
+		if !errors.Is(err, graph.ErrInvalidConfig) || ran {
+			t.Fatalf("applies=%v: Effect with Path and Resource = %v, ran = %v; want ErrInvalidConfig and no run", applies, err, ran)
+		}
+	}
+}
+
 func TestEffectHoldsItsResourceWhileTheCallbackRuns(t *testing.T) {
 	_, ctx := scopedRun(t, &fakeHost{applies: true})
 	spec := deleteTwoBranches()
-	spec.Resource = LogicalResource("remote")
+	spec.Resource = "remote"
 
 	err := Effect(ctx, spec, func(held context.Context) error {
 		return CheckClaimFree(held, "write other")
