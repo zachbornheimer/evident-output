@@ -332,6 +332,10 @@ stdout is not a terminal). These are the only variables Evo reads, and a
 value outside its list is ignored. Machine output is never inferred from a
 piped stdout.
 
+A JSONL run emits exactly one `task.finished` event for every Task it
+declared, including a Task that never started because a predecessor failed
+or the run ended first.
+
 ## 7. Errors
 
 | Symbol                 | Meaning                                        |
