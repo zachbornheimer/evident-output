@@ -1,5 +1,5 @@
 // Pending: ZYS-1046 one elapsed format. Red today because the package does
-// not compile. GUESSED SIGNATURE: internal/text.FormatElapsed(time.Duration)
+// not compile. GUESSED SIGNATURE: internal/project.FormatElapsed(time.Duration)
 // string, the single formatter the live renderer, the plain renderer, and
 // the quiet suffix all call (today three shapes exist:
 // internal/render/live formatElapsed and formatQuiet, and Duration.String).
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/internal/project"
 )
 
 func TestElapsedFormatIsOneShapeAcrossRanges(t *testing.T) {
@@ -25,7 +25,7 @@ func TestElapsedFormatIsOneShapeAcrossRanges(t *testing.T) {
 		2*24*time.Hour + 3*time.Hour + 30*time.Minute: "2d3h",
 	}
 	for d, want := range cases {
-		if got := text.FormatElapsed(d); got != want {
+		if got := project.FormatElapsed(d); got != want {
 			t.Errorf("FormatElapsed(%v) = %q, want %q", d, got, want)
 		}
 	}

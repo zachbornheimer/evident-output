@@ -2,130 +2,67 @@ package evo
 
 import (
 	"context"
-	"io"
-
-	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/engine"
 )
 
-type TaskHandle struct{ inner *engine.TaskHandle }
-
-var (
-	ErrInvalidProgress    = engine.ErrInvalidProgress
-	ErrProgressRegression = engine.ErrProgressRegression
-)
-
-// Task declares a Task on the default instance.
-func Task(name string) *TaskHandle { return wrapTask(engine.Task(name)) }
-
-func (o *Output) Task(name string) *TaskHandle { return wrapTask(o.impl().Task(name)) }
-
-func wrapTask(inner *engine.TaskHandle) *TaskHandle {
-	return wrap(inner, func() *TaskHandle { return &TaskHandle{inner: inner} })
+// TaskHandle is a handle for one operation with phases or progress.
+type TaskHandle struct {
+	out *Output
+	id  string
+	// rejected is why the declaration was refused (see rejectedTask); nil
+	// for a declared Task.
+	rejected error
+	// facade holds this handle's public wrapper (see FacadeSlot).
+	facade FacadeSlot
 }
 
-func (t *TaskHandle) impl() *engine.TaskHandle {
-	if t == nil {
-		return nil
-	}
-	return t.inner
-}
-
-// ProgressKind classifies task measurement.
-type ProgressKind = core.ProgressKind
-
-// ProgressKind values — which measurement a task's Progress reports.
-const (
-	Indeterminate = core.Indeterminate
-	Determinate   = core.Determinate
-	BytesKind     = core.BytesKind
-)
-
-// Progress is absolute measurement for a task.
-type Progress = core.Progress
-
-func (t *TaskHandle) Bytes(completed, total int64) *TaskHandle {
-	t.impl().Bytes(completed, total)
-	return t
-}
-
+// Context reports the cancellation signal this task's work runs under — the
+// run's own (see Output.Context), so a Define or Effect callback
+// doing I/O selects on it and stops when the run is interrupted.
 func (t *TaskHandle) Context() context.Context {
-	if t == nil || t.inner == nil {
+	if t == nil {
 		return context.Background()
 	}
-	return t.inner.Context()
+	return t.out.Context()
 }
 
-// Define freezes this Task's configuration (After, Verify, Key) and submits
-// fn to the scheduler. It returns immediately, before fn runs; the
-// scheduler starts fn once the Task is eligible, and fn's error becomes the
-// Task's outcome. evo.Run and evo.Main wait for every submitted Task. A
-// second Define on the same Task is misuse.
-//
-// Define returns this same *TaskHandle so the single-Task shape reads
-// `return task.Define(fn).Wait()`. That is fluent sugar only: fn still runs
-// on the scheduler, not inline.
-func (t *TaskHandle) Define(fn func(context.Context) error) *TaskHandle {
-	t.impl().Define(fn)
-	return t
-}
-
-func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
-	t.impl().Doing(text, args...)
-	return t
-}
-
-// Key sets an advanced override for this Task's stable identity, so a
-// rename or refactor keeps its manifest history. Call it before Define; a
-// call after Define or after the Task settled records ErrKeyAfterDefine and
-// leaves the key unchanged. Repeating the Task's own key is a no-op. A key
-// another Task already claims is ErrDuplicateKey.
-func (t *TaskHandle) Key(key string) *TaskHandle {
-	t.impl().Key(key)
-	return t
-}
-
-func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
-	t.impl().Progress(completed, total)
-	return t
-}
-
-// Summary sets one line of result text rendered after the Task name on its
-// terminal row, and exposed as "summary" in Snapshot and JSON/JSONL. The
-// last call wins and an empty string clears it. It never resolves the Task
-// and is not live activity (Doing, Progress, and Bytes are). Calling
-// it after the Task resolved is misuse, unless an interrupt resolved it.
-func (t *TaskHandle) Summary(text string) *TaskHandle {
-	t.impl().Summary(text)
-	return t
-}
-
-// Wait blocks until the Task is terminal and returns the error its callback
-// returned: nil on success, ErrNotStarted when the work never ran (a failed
-// predecessor, a run that drained first, or a refused declaration such as a
-// duplicate name, wrapping the refusal), its cancellation when it was
-// cancelled, and ErrWaitDeadlock when nothing in the run can ever reach it.
-// A waiting callback lends its own goroutine to the awaited work, so nested
-// Define+Wait completes even at MaxConcurrency 1. MaxConcurrency bounds
-// every executing callback: a goroutine outside any callback runs work only
-// in a free slot and otherwise waits for the pool. A goroutine a callback
-// started, Waiting while that callback blocks on it and every slot is held,
-// gets ErrWaitDeadlock naming API-041 instead of hanging. Calling Wait
-// while holding a resource claim (inside an Effect, File, or Basis) returns
-// ErrNestedResourceAcquisition without waiting.
-func (t *TaskHandle) Wait() error {
-	if t == nil || t.inner == nil {
-		return nil
+// Snapshot returns the task snapshot.
+func (t *TaskHandle) Snapshot() TaskSnapshot {
+	if t == nil || t.out == nil {
+		return TaskSnapshot{State: Pending, Progress: Progress{Kind: Indeterminate}}
 	}
-	return t.inner.Wait()
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	st := t.out.taskStates[t.id]
+	if st == nil {
+		return TaskSnapshot{ID: t.id, State: Pending, Progress: Progress{Kind: Indeterminate}}
+	}
+	return st.snapshot()
 }
 
-// Writer returns a line-buffered sink for a child process: each complete
-// line becomes the task's live doing-text, and every byte is retained on
-// the same Capture ring Exec and TaskHandle.Capture share.
-func (t *TaskHandle) Writer() io.Writer {
-	if t == nil || t.inner == nil {
-		return io.Discard
+// Basis declares freshness inputs for this Task. Calls accumulate. Basis is
+// Task configuration frozen at Define: a call after Define records
+// ErrBasisAfterDefine and is ignored.
+func (t *TaskHandle) Basis(inputs ...Fingerprint) *TaskHandle {
+	if t == nil || t.out == nil {
+		return t
 	}
-	return t.inner.Writer()
+	o := t.out
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	st := o.taskStates[t.id]
+	if st == nil {
+		return t
+	}
+	if !st.neverDefined() {
+		o.recordMisuseFor(st.name, ErrBasisAfterDefine)
+		return t
+	}
+	sources := make([]BasisSource, 0, len(inputs))
+	for _, in := range inputs {
+		if in != nil {
+			sources = append(sources, FingerprintBasis(in))
+		}
+	}
+	o.taskFreshness.AddInputs(st.TaskID(), sources...)
+	return t
 }

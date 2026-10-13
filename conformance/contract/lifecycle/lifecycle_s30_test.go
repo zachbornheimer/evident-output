@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 const apiGoldenPath = "../../../testdata/api_golden.txt"
@@ -31,7 +31,7 @@ func TestC30_004_SuccessResolvesOnlyThroughDefine(t *testing.T) {
 
 	annotated := out.Task("annotated only")
 	annotated.Doing("working").Progress(1, 2).Fact("k", "v").Summary("s")
-	if core.IsTerminalTask(annotated.Snapshot().State) {
+	if record.IsTerminalTask(annotated.Snapshot().State) {
 		t.Fatalf("annotators alone settled the task: %s", annotated.Snapshot().State)
 	}
 
@@ -66,7 +66,7 @@ func TestC30_005_AnnotatorsNeverResolveAndVerbsDo(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			task := newOutput(t).Task("annotated")
 			annotate(task)
-			if got := task.Snapshot().State; core.IsTerminalTask(got) {
+			if got := task.Snapshot().State; record.IsTerminalTask(got) {
 				t.Fatalf("%s resolved the task: %s", name, got)
 			}
 		})

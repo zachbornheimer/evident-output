@@ -4,47 +4,14 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/zachbornheimer/evident-output/internal/engine"
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
-type (
-	Format     = engine.Format
-	Projection = engine.Projection
-)
-
-const (
-	FormatHuman    = engine.FormatHuman
-	FormatData     = engine.FormatData
-	FormatExternal = engine.FormatExternal
-	// FormatJSON writes one final v2 "evo.run" document to Stdout at
-	// Finish; human presentation still goes to Stderr (spec §32.1).
-	FormatJSON = engine.FormatJSON
-	// FormatJSONL streams v2 "evo.event" JSON lines to Stdout as they
-	// occur, plus a final run.finished line (spec §32.1).
-	FormatJSONL = engine.FormatJSONL
-)
-
-const (
-	ProjectionHuman      = engine.ProjectionHuman
-	ProjectionPlain      = engine.ProjectionPlain
-	ProjectionJSON       = engine.ProjectionJSON
-	ProjectionJSONL      = engine.ProjectionJSONL
-	ProjectionStreamJSON = engine.ProjectionStreamJSON
-)
-
 func init() {
-	// Single source of truth: PublishedRelease (below), pinned once
-	// into the engine's v2 wire encoder path (spec §32.1/§35's evo_version).
-	engine.SetWireEvoVersion(PublishedRelease)
+	// Single source of truth: PublishedRelease, pinned once into the
+	// v2 wire encoder path (spec §32.1/§35's evo_version).
+	SetWireEvoVersion(PublishedRelease)
 }
-
-// ParseFormat parses "human", "data", "external", "json", or "jsonl"
-// (case-insensitive, surrounding whitespace ignored) into a Format — the
-// entry point a host CLI's own --format/--json flag binds to (spec §32.1).
-// Evo does not parse os.Args itself, and never infers FormatJSON merely
-// because Stdout is a pipe.
-func ParseFormat(s string) (Format, error) { return engine.ParseFormat(s) }
 
 // WriteJSON serializes result as the stable v2 "evo.run" wire document plus
 // one trailing newline (spec §53) — the HTTP/embedding counterpart of
@@ -66,18 +33,10 @@ func WriteJSON(w io.Writer, result Result) error {
 // PublishedRelease is the single source of truth for the current published
 // module and MCP pin used in install guidance.
 //
-// Maintenance class this protects (v0.2.10 hygiene, generalized):
-//
-//   - skills / integrations / README disagree on which tag to install
-//   - MCP config generator falls back to a stale hardcoded tag
-//   - portable docs recommend @latest or a personal-machine clone path
-//   - signed tags ship with stale README pins (next patch, never rewrite history)
-//
 // When cutting a release:
 //  1. Promote CHANGELOG ## Unreleased → ## [X.Y.Z] (Keep a Changelog).
 //  2. Set PublishedRelease to the new tag (e.g. "v0.2.11").
 //  3. Prefer: mise run test && mise run cut-release
-//     (cut-release syncs pins, stages CHANGELOG, refuses Unreleased drift).
 //  4. Tag that commit; do not move prior tags.
 //
 // version_drift_test.go enforces the portable surface stays synchronized.

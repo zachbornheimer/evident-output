@@ -1,15 +1,11 @@
 package evo
 
 import (
-	"github.com/zachbornheimer/evident-output/internal/engine"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
 )
 
 // Fingerprint observes one Basis input's current content identity
 // (spec §11.1). Implementations must not mutate the world.
-//
-// Aliased into internal/freshness alongside FSPath/Value/App — the same
-// pattern action.go/fact.go use for the rest of the data model.
 type Fingerprint = freshness.Fingerprint
 
 // FingerprintValue is one Fingerprint's observed identity: a stable
@@ -34,23 +30,3 @@ func Value(name string, v any) Fingerprint { return freshness.Value(name, v) }
 // is taken. Include it in a Task's Basis only when the application's own
 // implementation is a semantic input to that Task's result.
 func App() Fingerprint { return freshness.App() }
-
-// Basis declares this Task's freshness inputs. With a shared StateDir, a
-// Task whose Basis identities are unchanged since its last success is
-// current and its Define callback does not run. Basis is content identity
-// only: it neither orders Tasks (that is After) nor locks anything. Call it
-// before Define; a call after Define records ErrBasisAfterDefine and is
-// ignored.
-func (t *TaskHandle) Basis(inputs ...Fingerprint) *TaskHandle {
-	sources := make([]engine.BasisSource, 0, len(inputs))
-	for _, in := range inputs {
-		if in != nil {
-			sources = append(sources, engine.FingerprintBasis(in))
-		}
-	}
-	t.impl().Basis(sources...)
-	return t
-}
-
-// ErrBasisAfterDefine is recorded when Basis is called after Define.
-var ErrBasisAfterDefine = engine.ErrBasisAfterDefine

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
+	txt "github.com/zachbornheimer/evident-output/internal/project"
 )
 
 func TestSEC013_NewlineCannotForgeLogRecords(t *testing.T) {

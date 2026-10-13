@@ -29,7 +29,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/internal/gitenv"
+	"github.com/zachbornheimer/evident-output/tools/gitenv"
 )
 
 func main() {

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
+	txt "github.com/zachbornheimer/evident-output/internal/project"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 

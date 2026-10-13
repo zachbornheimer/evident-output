@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/internal/project"
 )
 
 func TestFormatElapsed(t *testing.T) {
@@ -41,7 +41,7 @@ func TestFormatElapsed(t *testing.T) {
 		{2*24*time.Hour + 3*time.Hour + 30*time.Minute, "2d3h"},
 	}
 	for _, tc := range cases {
-		if got := text.FormatElapsed(tc.d); got != tc.want {
+		if got := project.FormatElapsed(tc.d); got != tc.want {
 			t.Errorf("FormatElapsed(%v) = %q, want %q", tc.d, got, tc.want)
 		}
 	}
@@ -55,7 +55,7 @@ var (
 func TestFormatElapsedAlwaysCompactWithUnits(t *testing.T) {
 	t.Parallel()
 	for d := time.Duration(0); d < 72*time.Hour; d += 7*time.Minute + 13*time.Second {
-		got := text.FormatElapsed(d)
+		got := project.FormatElapsed(d)
 		if !compactElapsed.MatchString(got) {
 			t.Fatalf("FormatElapsed(%v) = %q, not the compact unit-bearing form", d, got)
 		}
@@ -70,7 +70,7 @@ var zeroSuffix = regexp.MustCompile(`[1-9]m0s|\dh00m|\dd0h`)
 func TestFormatElapsedOmitsMeaninglessZeroSuffix(t *testing.T) {
 	t.Parallel()
 	for d := time.Duration(0); d < 72*time.Hour; d += time.Minute {
-		if got := text.FormatElapsed(d); zeroSuffix.MatchString(got) {
+		if got := project.FormatElapsed(d); zeroSuffix.MatchString(got) {
 			t.Fatalf("FormatElapsed(%v) = %q, carries a zero suffix", d, got)
 		}
 	}

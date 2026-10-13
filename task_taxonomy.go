@@ -1,0 +1,97 @@
+package evo
+
+import (
+	txt "github.com/zachbornheimer/evident-output/internal/project"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
+	"github.com/zachbornheimer/evident-output/internal/record"
+)
+
+// dispositionVerb names which accumulation act a Reason's usage constraints
+// are checked against — TaskHandle.Skipped, or the keep records Kept used
+// before it was removed in 1.1.
+type dispositionVerb string
+
+const (
+	dispositionSkip dispositionVerb = "skip"
+	dispositionKeep dispositionVerb = "keep"
+)
+
+// wireName is v's record kind on the machine wire.
+func (v dispositionVerb) wireName() string {
+	if v == dispositionSkip {
+		return wire.DispositionSkipped
+	}
+	return wire.DispositionKept
+}
+
+// Skipped accumulates a (reason, name) skip record on the task, with an
+// optional trailing errs for evidence of why. It returns nothing —
+// accumulating a record is an act, not a value to chain — is usable before
+// the task resolves, and does not itself resolve the task. The taxonomy line
+// ("- skipped N (a reasonA, b reasonB)") is derived from every accumulated
+// record at render time, so no caller can hand-build (and thereby miscount)
+// the summary; the aggregation key is untouched by errs. Any errs render as
+// one bounded evidence line under the count row (first cause + "(+N more)"),
+// full list under Verbose.
+func (t *TaskHandle) Skipped(reason TaxonomyReason) {
+	t.recordTaxonomy(reason, "", dispositionSkip, nil)
+	t.finish(Skipped, "", nil)
+}
+
+func (t *TaskHandle) recordTaxonomy(reason TaxonomyReason, name string, verb dispositionVerb, errs []error) {
+	t.withTask(func(st *taskState) { t.recordTaxonomyLocked(st, reason, name, verb, errs) })
+}
+
+func (t *TaskHandle) recordTaxonomyLocked(st *taskState, reason TaxonomyReason, name string, verb dispositionVerb, errs []error) {
+	if err := t.out.ensureOpen(); err != nil {
+		t.out.recordMisuse(err)
+		return
+	}
+	if record.IsTerminalTask(st.node.Rec.State()) {
+		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		return
+	}
+	t.out.enforceReasonConstraintLocked(reason, st.name, verb)
+	if name == "" {
+		name = st.name
+	}
+	rec := TaxonomyRecord{Reason: reason.Name(), Name: txt.Text(name), Causes: causesFromErrors(errs)}
+	switch verb {
+	case dispositionSkip:
+		st.node.Rec.AppendSkipped(rec)
+	case dispositionKeep:
+		st.node.Rec.AppendKept(rec)
+	}
+	t.out.bumpLocked()
+	t.out.appendEventLocked(Event{Type: "task." + string(verb) + "_recorded", EntityID: t.id})
+	t.out.emitWireEventLocked(wire.EventDispositionRecorded, t.id, wire.ToDispositionDoc(verb.wireName(), rec).EventPayload())
+}
+
+// causesFromErrors renders each non-nil err's text, sanitized like every
+// other human-visible taxonomy field, for TaxonomyRecord.Causes.
+func causesFromErrors(errs []error) []string {
+	if len(errs) == 0 {
+		return nil
+	}
+	var out []string
+	for _, err := range errs {
+		if err == nil {
+			continue
+		}
+		out = append(out, txt.Text(err.Error()))
+	}
+	return out
+}
+
+// enforceReasonConstraintLocked records misuse when reason's declared
+// constraints (ForSkip, OnTask) don't match how it is being used here.
+// Strict panics via recordMisuse; production still counts the record —
+// a constraint violation degrades to "counted anyway", never a dropped truth.
+func (o *Output) enforceReasonConstraintLocked(reason TaxonomyReason, taskName string, verb dispositionVerb) {
+	if reason.SkipOnly() && verb != dispositionSkip {
+		o.recordMisuse(ErrReasonSkipOnly)
+	}
+	if reason.OnlyOnTask() != "" && reason.OnlyOnTask() != taskName {
+		o.recordMisuse(ErrReasonWrongTask)
+	}
+}
