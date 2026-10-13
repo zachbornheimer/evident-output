@@ -13,7 +13,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -25,13 +24,11 @@ func main() {
 	fail := flag.Bool("fail", false, "with --apply, simulate backup failure")
 	flag.Parse()
 
-	migrationsDir, err := os.MkdirTemp("", "evo-migrate-")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "create migrations dir: %v\n", err)
-		os.Exit(1)
-	}
-
 	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+		migrationsDir, err := os.MkdirTemp("", "evo-migrate-")
+		if err != nil {
+			return evo.Refuse("cannot create the migrations directory", evo.Detail(err.Error()))
+		}
 		backups := &backupStore{}
 		backup := r.Task("backup")
 		backup.Define(func(ctx context.Context) error {
