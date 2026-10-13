@@ -230,6 +230,11 @@ t.Problem("protected ref", evo.On("origin/main"), evo.Code("protected"))  // non
 
 A Task ends exactly once, by returning. Problems never end a Task.
 
+`Outcome` is the only verdict type. Its six values appear unchanged as each
+Task's outcome, as `Conclusion.Outcome`, and as `outcome` in `evo.run` and
+`evo.event`; Human and Plain name every Outcome but Succeeded in its own
+word. No other verdict spelling exists.
+
 | Symbol           | Kind  | Meaning                                                                                          |
 | ---------------- | ----- | ------------------------------------------------------------------------------------------------ |
 | `Fail`           | func  | `Fail(summary string, opts ...ProblemOption) error`; ran and broke                               |
@@ -243,7 +248,7 @@ A Task ends exactly once, by returning. Problems never end a Task.
 | `Action`         | type  |                                                                                                  |
 | `Action.Command` | field | argv a machine can run                                                                           |
 | `Action.Label`   | field | text only a human can act on                                                                     |
-| `Outcome`        | type  | closed set                                                                                       |
+| `Outcome`        | type  | closed set; the only verdict type                                                                |
 | `Succeeded`      | const | ran and succeeded                                                                                |
 | `Satisfied`      | const | requested state already true; nothing ran                                                        |
 | `Excluded`       | const | policy chose not to run it                                                                       |
