@@ -34,6 +34,9 @@ type Run struct {
 	// output path in this Run (spec §11.4/§8.3): a second Task claiming the
 	// same path is a producer conflict.
 	outputs map[string]record.TaskID
+	// conflicts holds, for a Task whose claimed output another Task then
+	// claimed, the error its own File call returns before it settles.
+	conflicts map[record.TaskID]error
 
 	workspaceMu  sync.Mutex
 	workspaceDir string

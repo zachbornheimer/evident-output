@@ -491,6 +491,10 @@ func Exclude(reason string, opts ...ProblemOption) error {
 func endingOf(err error) (entityState, problem) {
 	var ending endingError
 	if !errors.As(err, &ending) {
+		var detailed interface{ ProblemDetail() string }
+		if errors.As(err, &detailed) {
+			return failed, record.ApplyProblemOptions(txt.Text(err.Error()), []record.ProblemOption{record.WithDetail(detailed.ProblemDetail())})
+		}
 		return failed, record.ApplyProblemOptions(txt.Text(err.Error()), nil)
 	}
 	return entityState(ending.outcome), record.ApplyProblemOptions(txt.Text(ending.summary), ending.opts)

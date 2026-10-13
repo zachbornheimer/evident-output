@@ -103,7 +103,7 @@ func (r *Run) claimExecOutputs(id record.TaskID, outputs []string) (release func
 				r.barrier.Settle(done)
 			}
 			r.outputsMu.Unlock()
-			return nil, claimErr
+			return nil, r.reportClash(id, claimErr)
 		}
 		claimed = append(claimed, out)
 	}

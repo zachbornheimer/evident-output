@@ -45,6 +45,13 @@ type Journal interface {
 	AttachVerification(id record.TaskID, details []record.VerificationDetail)
 	// Observe narrates one step of a tracked operation.
 	Observe(Observation)
+	// TaskName is the name id's row shows, or id itself when the Task is
+	// unknown.
+	TaskName(id record.TaskID) string
+	// RecordMisuse reports a program error that belongs to the Run rather
+	// than to one Task, so the Run fails even when every Task it names has
+	// already settled.
+	RecordMisuse(err error)
 }
 
 // Ledger is one Task's ledger section, resolved once.

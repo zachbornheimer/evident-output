@@ -2152,6 +2152,19 @@ func (h changeHost) AttachVerification(id record.TaskID, details []record.Verifi
 	h.out.attachVerificationLocked(string(id), details)
 }
 
+// TaskName is the name id's row shows, or id itself when it is unknown.
+func (h changeHost) TaskName(id record.TaskID) string {
+	h.out.mu.Lock()
+	defer h.out.mu.Unlock()
+	if st := h.out.taskStates[string(id)]; st != nil {
+		return st.name
+	}
+	return string(id)
+}
+
+// RecordMisuse fails the Run with err; see Output.recordMisuse.
+func (h changeHost) RecordMisuse(err error) { h.out.recordMisuse(err) }
+
 // Manifest opens this Run's manifest on first use; see Output.manifestFor.
 func (h changeHost) Manifest(ctx context.Context) (*freshness.ManifestStore, error) {
 	return h.out.manifestFor(ctx)

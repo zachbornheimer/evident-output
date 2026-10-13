@@ -25,6 +25,7 @@ type fakeHost struct {
 
 	observed []Observation
 	attached []record.VerificationDetail
+	misuse   []error
 	appended []freshness.OperationRecord
 	planned  int
 	spawned  []SpawnCommand
@@ -72,6 +73,14 @@ func (h *fakeHost) Observe(ob Observation) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.observed = append(h.observed, ob)
+}
+
+func (h *fakeHost) TaskName(id record.TaskID) string { return string(id) }
+
+func (h *fakeHost) RecordMisuse(err error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.misuse = append(h.misuse, err)
 }
 
 func (h *fakeHost) Manifest(ctx context.Context) (*freshness.ManifestStore, error) {

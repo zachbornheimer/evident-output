@@ -54,7 +54,12 @@ func (op fileOperation) subject() Subject { return Subject{Kind: SubjectFile, Na
 // establishFile claims op's path and reconciles it. op.derivedFrom, when
 // set, is checked while the path is held for writing, immediately before
 // the commit, so no write can land between the check and the commit.
-func (r *Run) establishFile(ctx context.Context, op fileOperation) error {
+func (r *Run) establishFile(ctx context.Context, op fileOperation) (err error) {
+	defer func() {
+		if err == nil {
+			err = r.conflictOf(op.taskID)
+		}
+	}()
 	target := FSResource(op.path)
 	if nestedErr := checkResourceFree(ctx, target, ClaimWrite); nestedErr != nil {
 		return fmt.Errorf("evo: File %q: %w", op.spec.Path, nestedErr)

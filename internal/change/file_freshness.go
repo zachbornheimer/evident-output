@@ -19,14 +19,42 @@ import (
 // Run is a conflict").
 var ErrFileConflictingProducer = errors.New("evo: File output path already claimed by another Task in this Run")
 
-// claimOutput records that id is the producing Task for canonical path, or
-// reports ErrFileConflictingProducer when a different Task already claimed
-// it in this Run (spec §8.3/§11.4). It opens path's freshness gate, so a
+// ConflictingProducerError is a same-output conflict as one of its two Tasks
+// sees it: Path was claimed by both this Task and Other.
+type ConflictingProducerError struct {
+	Path  string
+	Other string
+}
+
+func (e *ConflictingProducerError) Error() string {
+	return fmt.Sprintf("%s: %s (also claimed by Task %q)", ErrFileConflictingProducer, e.Path, e.Other)
+}
+
+func (e *ConflictingProducerError) Unwrap() error { return ErrFileConflictingProducer }
+
+// ProblemDetail is the text the failed Task's Problem shows beside its summary.
+func (e *ConflictingProducerError) ProblemDetail() string {
+	return fmt.Sprintf("Task %q also writes %s; two Tasks cannot produce one output", e.Other, e.Path)
+}
+
+// outputClash is the claim the caller lost: path already belongs to owner.
+type outputClash struct {
+	path  string
+	owner record.TaskID
+}
+
+func (c *outputClash) Error() string { return c.path }
+
+// claimOutput records that id is the producing Task for canonical path. When
+// a different Task already claimed it in this Run, both Tasks fail (spec
+// §8.3/§11.4): this call returns the conflict, and the owner's File call
+// returns it too if it has not settled. It opens path's freshness gate, so a
 // later Task reading path as a Basis input waits for the producer.
 func (r *Run) claimOutput(id record.TaskID, path string) error {
 	r.outputsMu.Lock()
-	defer r.outputsMu.Unlock()
-	return r.claimOutputLocked(id, path)
+	err := r.claimOutputLocked(id, path)
+	r.outputsMu.Unlock()
+	return r.reportClash(id, err)
 }
 
 func (r *Run) claimOutputLocked(id record.TaskID, path string) error {
@@ -34,11 +62,39 @@ func (r *Run) claimOutputLocked(id record.TaskID, path string) error {
 		r.outputs = make(map[string]record.TaskID)
 	}
 	if owner, claimed := r.outputs[path]; claimed && owner != id {
-		return fmt.Errorf("%w: %s", ErrFileConflictingProducer, path)
+		return &outputClash{path: path, owner: owner}
 	}
 	r.outputs[path] = id
 	r.barrier.Open(path)
 	return nil
+}
+
+// reportClash turns a lost claim into the conflict both Tasks fail with and
+// the Run-level misuse that names both, so the run fails even when the owner
+// has settled already. Any other err, or nil, passes through. It calls the
+// Host, so no lock may be held.
+func (r *Run) reportClash(id record.TaskID, err error) error {
+	clash, ok := err.(*outputClash)
+	if !ok {
+		return err
+	}
+	claimant, owner := r.host.TaskName(id), r.host.TaskName(clash.owner)
+	r.outputsMu.Lock()
+	if r.conflicts == nil {
+		r.conflicts = make(map[record.TaskID]error)
+	}
+	r.conflicts[clash.owner] = &ConflictingProducerError{Path: clash.path, Other: claimant}
+	r.outputsMu.Unlock()
+	r.host.RecordMisuse(fmt.Errorf("%w: %s is written by both Task %q and Task %q", ErrFileConflictingProducer, clash.path, owner, claimant))
+	return &ConflictingProducerError{Path: clash.path, Other: owner}
+}
+
+// conflictOf is the conflict another Task's claim raised against id's output,
+// or nil.
+func (r *Run) conflictOf(id record.TaskID) error {
+	r.outputsMu.Lock()
+	defer r.outputsMu.Unlock()
+	return r.conflicts[id]
 }
 
 // ObserveBasis fingerprints basis for one tracked operation (spec §11.1)
