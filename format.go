@@ -5,11 +5,13 @@ import (
 	"io"
 
 	"github.com/zachbornheimer/evident-output/internal/engine"
-	"github.com/zachbornheimer/evident-output/internal/wire"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
-type Format = engine.Format
-type Projection = engine.Projection
+type (
+	Format     = engine.Format
+	Projection = engine.Projection
+)
 
 const (
 	FormatHuman    = engine.FormatHuman

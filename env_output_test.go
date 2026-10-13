@@ -7,8 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
+
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/render"
 )
 
 func withLookupEnv(t *testing.T, env map[string]string) {
@@ -131,7 +132,7 @@ func TestEVOOutput_StreamJSON_TaskDoneEmitsEventJSONBeforeFinish(t *testing.T) {
 	}
 	var sawTaskDone bool
 	for line := range strings.SplitSeq(got, "\n") {
-		var ev render.EventJSON
+		var ev wire.EventJSON
 		if err := json.Unmarshal([]byte(line), &ev); err != nil {
 			t.Fatalf("stream-json line before Finish is not EventJSON: %v\n%s", err, line)
 		}
@@ -164,7 +165,7 @@ func TestEVOOutput_StreamJSON_FormatDataKeepsPayloadOnStdout(t *testing.T) {
 	}
 	var sawTaskDone bool
 	for line := range strings.SplitSeq(strings.TrimSpace(beforeFinish), "\n") {
-		var ev render.EventJSON
+		var ev wire.EventJSON
 		if err := json.Unmarshal([]byte(line), &ev); err != nil {
 			t.Fatalf("stderr JSONL is not EventJSON: %v\n%s", err, line)
 		}
@@ -230,7 +231,7 @@ func TestEVOOutput_StreamJSONAliasUnderscore(t *testing.T) {
 	if got == "" {
 		t.Fatal("EVO_OUTPUT=stream_json alias wrote nothing at Task.Done")
 	}
-	var ev render.EventJSON
+	var ev wire.EventJSON
 	first, _, _ := strings.Cut(got, "\n")
 	if err := json.Unmarshal([]byte(first), &ev); err != nil {
 		t.Fatalf("stream_json alias must emit EventJSON: %v\n%s", err, first)

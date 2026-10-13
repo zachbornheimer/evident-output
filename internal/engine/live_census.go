@@ -5,7 +5,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/render/live"
+	"github.com/zachbornheimer/evident-output/internal/project/live"
 )
 
 // liveCensus counts every Task at or below one collection by what a live

@@ -1,144 +1,47 @@
 package core
 
-import (
-	"maps"
-	"slices"
+import "github.com/zachbornheimer/evident-output/internal/project"
+
+// Presentation tallies live in internal/project. These names stay so engine
+// and remaining core callers need no edit yet; slice 8 deletes this file.
+
+type (
+	Tally           = project.Tally
+	ReasonTally     = project.ReasonTally
+	Dispositions    = project.Dispositions
+	ChildTally      = project.ChildTally
+	ChildCounts     = project.ChildCounts
+	CollectionTally = project.CollectionTally
 )
 
-// Tally is the counted partition of disposition records (Skipped
-// or TaskHandle.Skipped): how many, split by Reason in first-seen order,
-// with the item names under each reason. It is the one owner of that
-// count, whether the records sit on a single Task or come from a Group's
-// per-item children, so the headline and its reason parts always sum.
-//
-// Building one is a single O(records) pass with no sorting, so a renderer
-// may rebuild it every frame.
-type Tally struct {
-	reasons []ReasonTally
-	index   map[string]int
-	causes  []string
-	total   int
+func TallyOf(records []TaxonomyRecord) Tally { return project.TallyOf(records) }
+
+func CountTasks(tasks []TaskSnapshot) ChildCounts { return project.CountTasks(tasks) }
+
+func WithChildTally(col TasksSnapshot, t ChildTally) TasksSnapshot {
+	return project.WithChildTally(col, t)
 }
 
-// ReasonTally is one Reason's share of a Tally, with its item names in
-// record order. Facts, when set, is aligned with Names: the Facts of the
-// item Task each record came from (nil for an item with none).
-type ReasonTally struct {
-	Reason string
-	Names  []string
-	Facts  [][]Fact
+func WithoutChildTally(col TasksSnapshot) TasksSnapshot { return project.WithoutChildTally(col) }
+
+func ChildTallyOf(col TasksSnapshot) (ChildTally, bool) { return project.ChildTallyOf(col) }
+
+func WithRootTally(s Snapshot, t ChildTally) Snapshot { return project.WithRootTally(s, t) }
+
+func RootTallyOf(s Snapshot) (ChildTally, bool) { return project.RootTallyOf(s) }
+
+func WithCollectionTally(col TasksSnapshot, t CollectionTally) TasksSnapshot {
+	return project.WithCollectionTally(col, t)
 }
 
-// HasFacts reports whether any item under this Reason carries Facts.
-func (r ReasonTally) HasFacts() bool {
-	for _, f := range r.Facts {
-		if len(f) > 0 {
-			return true
-		}
-	}
-	return false
+func CollectionTallyOf(col TasksSnapshot) CollectionTally { return project.CollectionTallyOf(col) }
+
+func WithRootCollectionTally(s Snapshot, t CollectionTally) Snapshot {
+	return project.WithRootCollectionTally(s, t)
 }
 
-// Add counts rec under its Reason.
-func (t *Tally) Add(rec TaxonomyRecord) { t.addItem(rec, nil) }
+func RootCollectionTallyOf(s Snapshot) CollectionTally { return project.RootCollectionTallyOf(s) }
 
-// addItem counts rec, recording facts as its item's Facts.
-func (t *Tally) addItem(rec TaxonomyRecord, facts []Fact) {
-	if t.index == nil {
-		t.index = make(map[string]int)
-	}
-	i, seen := t.index[rec.Reason]
-	if !seen {
-		i = len(t.reasons)
-		t.index[rec.Reason] = i
-		t.reasons = append(t.reasons, ReasonTally{Reason: rec.Reason})
-	}
-	r := &t.reasons[i]
-	r.Names = append(r.Names, rec.Name)
-	if len(facts) > 0 || r.Facts != nil {
-		for len(r.Facts) < len(r.Names)-1 {
-			r.Facts = append(r.Facts, nil)
-		}
-		r.Facts = append(r.Facts, facts)
-	}
-	t.causes = append(t.causes, rec.Causes...)
-	t.total++
-}
+func IsZeroInformationTask(t TaskSnapshot) bool { return project.IsZeroInformationTask(t) }
 
-// AddAll counts every record in records.
-func (t *Tally) AddAll(records []TaxonomyRecord) {
-	for _, rec := range records {
-		t.Add(rec)
-	}
-}
-
-// Total is how many records the Tally counted.
-func (t Tally) Total() int { return t.total }
-
-// Reasons is the partition, in the order each Reason was first recorded.
-func (t Tally) Reasons() []ReasonTally { return t.reasons }
-
-// Causes is every counted record's evidence text, in record order.
-func (t Tally) Causes() []string { return t.causes }
-
-// Clone is a Tally the caller can hold after the original is mutated.
-// Slice and map fields are copied, so a live index can keep appending
-// while a frame reads this copy.
-func (t Tally) Clone() Tally {
-	out := Tally{total: t.total}
-	if n := len(t.reasons); n > 0 {
-		out.reasons = make([]ReasonTally, n)
-		for i, r := range t.reasons {
-			out.reasons[i] = ReasonTally{
-				Reason: r.Reason,
-				Names:  slices.Clone(r.Names),
-			}
-			if len(r.Facts) > 0 {
-				facts := make([][]Fact, len(r.Facts))
-				for j, f := range r.Facts {
-					facts[j] = CloneFacts(f)
-				}
-				out.reasons[i].Facts = facts
-			}
-		}
-	}
-	if len(t.index) > 0 {
-		out.index = maps.Clone(t.index)
-	}
-	if len(t.causes) > 0 {
-		out.causes = slices.Clone(t.causes)
-	}
-	return out
-}
-
-// TallyOf counts records.
-func TallyOf(records []TaxonomyRecord) Tally {
-	var t Tally
-	t.AddAll(records)
-	return t
-}
-
-// Dispositions are a Task's or a Group's two tallies.
-type Dispositions struct {
-	Skipped Tally
-	Kept    Tally
-}
-
-// Empty reports whether nothing was skipped or kept.
-func (d Dispositions) Empty() bool { return d.Skipped.Total() == 0 && d.Kept.Total() == 0 }
-
-// Clone is a Dispositions the caller can hold after the original is mutated.
-func (d Dispositions) Clone() Dispositions {
-	return Dispositions{Skipped: d.Skipped.Clone(), Kept: d.Kept.Clone()}
-}
-
-// AddTask counts t's own Skipped and Kept records, each carrying t's
-// Facts: t is the item the records name.
-func (d *Dispositions) AddTask(t *TaskSnapshot) {
-	for _, rec := range t.Skipped {
-		d.Skipped.addItem(rec, t.Facts)
-	}
-	for _, rec := range t.Kept {
-		d.Kept.addItem(rec, t.Facts)
-	}
-}
+func IsProvenNoOpTask(t TaskSnapshot) bool { return project.IsProvenNoOpTask(t) }

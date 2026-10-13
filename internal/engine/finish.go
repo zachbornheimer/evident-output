@@ -7,7 +7,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/graph"
-	"github.com/zachbornheimer/evident-output/internal/wire"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
 // Finish validates, computes conclusion, emits final projections.

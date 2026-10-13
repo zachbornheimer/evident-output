@@ -3,7 +3,7 @@ package engine
 import (
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/graph"
-	"github.com/zachbornheimer/evident-output/internal/wire"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
 // Define lives in verify.go, alongside its Verify-aware execution wiring

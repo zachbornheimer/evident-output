@@ -120,6 +120,21 @@ func isFreshnessForbiddenImport(importPath string) bool {
 	return local != recordPackage && local != graphPackage && !isFacadeImport(importPath)
 }
 
+// isProjectForbiddenImport reports whether importPath is a package of this
+// module other than record, the facades, and internal/project itself
+// (including live, plain and wire). project may read record; it must not
+// reach into graph, freshness, change, engine, or the packages it folded.
+func isProjectForbiddenImport(importPath string) bool {
+	local, inModule := strings.CutPrefix(importPath, modulePath+"/")
+	if !inModule {
+		return false
+	}
+	if local == recordPackage || isFacadeImport(importPath) {
+		return false
+	}
+	return local != projectPackage && !strings.HasPrefix(local, projectPackage+"/")
+}
+
 // isChangeForbiddenImport reports whether importPath is a package of this
 // module other than record, graph, freshness and the facades: the only
 // packages internal/change may import.

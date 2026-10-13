@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
 // appendEventLocked journals e. The journal is in the order things happened,
@@ -26,7 +26,7 @@ func (o *Output) writeStreamJSONLocked(e Event) {
 	if w == nil {
 		return
 	}
-	row, err := render.EncodeEventJSON(e)
+	row, err := wire.EncodeEventJSON(e)
 	if err != nil {
 		return
 	}

@@ -6,7 +6,7 @@
 // redundant. A lock that also guards other shared state is real and must
 // stay; holding it across the call is still worth a warning, because the call
 // can wait on a resource claim while the caller's lock is held, a wait Evo
-// cannot see or render.
+// cannot see or project.
 //
 // Detection walks the AST: an acquisition statement opens a region that runs
 // to its matching bare release (or to the end of the block under a deferred

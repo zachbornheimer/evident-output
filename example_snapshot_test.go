@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -73,7 +73,7 @@ func ExampleOutput_Events() {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
 	out.Task("apply patch").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
-	jsonl, err := render.EncodeJSONL(out.Events())
+	jsonl, err := wire.EncodeJSONL(out.Events())
 	fmt.Println(len(jsonl) > 0, err)
 	// Output:
 	// true <nil>

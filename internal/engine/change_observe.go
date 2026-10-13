@@ -2,7 +2,7 @@ package engine
 
 import (
 	"github.com/zachbornheimer/evident-output/internal/change"
-	"github.com/zachbornheimer/evident-output/internal/wire"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
 // Observe narrates one step of a tracked operation as the §38 "evo.event"

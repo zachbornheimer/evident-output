@@ -78,3 +78,17 @@ func TestJournalAppendIsAmortizedConstant(t *testing.T) {
 		t.Fatalf("snapshot holds %d events, want the cap %d", got, limit)
 	}
 }
+
+func TestAllocateSequenceSharesTheJournalCounter(t *testing.T) {
+	run := NewRun()
+	first := run.AppendEvent(Event{Type: "output.started"}, 0)
+	wire := run.AllocateSequence()
+	second := run.AppendEvent(Event{Type: "output.finished"}, 0)
+	if first.Sequence != 1 || wire != 2 || second.Sequence != 3 {
+		t.Fatalf("got journal %d, allocated %d, journal %d; want 1, 2, 3", first.Sequence, wire, second.Sequence)
+	}
+	kept := run.Events(0)
+	if len(kept) != 2 || kept[0].Sequence != 1 || kept[1].Sequence != 3 {
+		t.Fatalf("journal retained %v, want seq 1 then 3", sequences(kept))
+	}
+}

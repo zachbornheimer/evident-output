@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/wire"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
 // wireEvoVersion is the evo_version literal internal/wire's v2 encoder

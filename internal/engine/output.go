@@ -11,10 +11,10 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/process"
+	renderplain "github.com/zachbornheimer/evident-output/internal/project/plain"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 	"github.com/zachbornheimer/evident-output/internal/record"
-	renderplain "github.com/zachbornheimer/evident-output/internal/render/plain"
 	"github.com/zachbornheimer/evident-output/internal/terminal"
-	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // Output is the aggregate root for one command's presentation lifecycle.
@@ -83,14 +83,9 @@ type Output struct {
 	// messages, diagnostics, run-scoped facts and warnings, and Conclusion.
 	rec *record.Run
 
-	// slice 6: wireSeq is the second event sequence counter, beside the record
-	// journal's. The two streams number independently in the goldens, so they
-	// stay apart until project/wire owns both encoders.
-	// wireSeq/wireEventErr back the §38 "evo.event" JSONL stream
-	// (structured_events.go's emitWireEventLocked) — a counter and
-	// first-write-failure latch independent of the legacy events journal
-	// above.
-	wireSeq      uint64
+	// wireEventErr latches the first §38 "evo.event" JSONL write failure
+	// (structured_events.go's emitWireEventLocked). Sequence numbers come
+	// from rec.AllocateSequence, the same counter the journal uses.
 	wireEventErr error
 
 	// graph is the declared shape of the run: identity, keys and numbering.

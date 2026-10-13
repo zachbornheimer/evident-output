@@ -17,7 +17,7 @@ import (
 // live terminal solely through a distinct primary/AlsoWrite writer. The
 // promised failure tail was therefore unreachable on the terminal a TTY user
 // is actually watching. A DebugPane run that ends Failed must show its
-// diagnostic tail on the interactive final render.
+// diagnostic tail on the interactive final project.
 func TestInteractive_DebugTailReachesLiveTerminal(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	newest := true

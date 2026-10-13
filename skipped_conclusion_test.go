@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -36,7 +36,7 @@ func TestSkipped_DoesNotSetWarned(t *testing.T) {
 			Warned bool   `json:"warned"`
 		} `json:"conclusion"`
 	}
-	raw, err := render.EncodeJSON(out.Snapshot())
+	raw, err := wire.EncodeJSON(out.Snapshot())
 	if err != nil {
 		t.Fatal(err)
 	}

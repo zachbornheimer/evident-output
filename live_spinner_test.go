@@ -38,7 +38,7 @@ func TestLive_SpinnerGlyphAdvancesWithClock(t *testing.T) {
 	// First paint.
 	indeterminate.Doing("checking")
 	first := screen.LatestLiveText()
-	// Advance clock via progress on sibling — each Progress calls clock.Now() for render.
+	// Advance clock via progress on sibling — each Progress calls clock.Now() for project.
 	bar.Progress(1, 10)
 	second := screen.LatestLiveText()
 	bar.Progress(2, 10)

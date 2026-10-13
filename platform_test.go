@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -62,7 +62,7 @@ func TestEntityID_StableKeyInSnapshotAndJSON(t *testing.T) {
 		t.Fatalf("second task key: %+v", snap.Tasks)
 	}
 
-	raw, err := render.EncodeJSON(snap)
+	raw, err := wire.EncodeJSON(snap)
 	if err != nil {
 		t.Fatal(err)
 	}

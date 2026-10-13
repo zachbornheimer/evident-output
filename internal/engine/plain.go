@@ -1,7 +1,7 @@
 package engine
 
 import (
-	renderplain "github.com/zachbornheimer/evident-output/internal/render/plain"
+	renderplain "github.com/zachbornheimer/evident-output/internal/project/plain"
 )
 
 // PlainOptions configures pure plain projection (§25.4).

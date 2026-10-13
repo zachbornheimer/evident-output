@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 
 	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
@@ -21,7 +21,7 @@ func TestAPI017_PureProjection(t *testing.T) {
 	if err != nil || len(b) == 0 {
 		t.Fatal(err, len(b))
 	}
-	j, err := render.EncodeJSON(snap)
+	j, err := wire.EncodeJSON(snap)
 	if err != nil || !strings.Contains(string(j), "schema_version") {
 		t.Fatal(err, string(j))
 	}
@@ -94,7 +94,7 @@ func TestAPI028_AbsoluteProgress(t *testing.T) {
 
 func TestAPI025_PackageNameEvo(t *testing.T) {
 	// Import path uses evo package name — compile proof via this test package.
-	var _ = evo.Done
+	_ = evo.Done
 }
 
 func TestAPI005_NoPublicIntentEnum(t *testing.T) {
@@ -145,7 +145,7 @@ func TestAPI030_CompatMatrixSmoke(t *testing.T) {
 	succeed(out.Task("a"))
 	out.DebugForTest("d")
 	_ = out.Finish()
-	_, _ = render.EncodeJSON(out.Snapshot())
+	_, _ = wire.EncodeJSON(out.Snapshot())
 }
 
 func TestAPI011_CobraNotRequired(t *testing.T) {
@@ -169,7 +169,7 @@ func TestAPI022_DiscoverabilityNames(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := buf.String()
-	// "deps" is a Group with no Summary of its own, so only its children render.
+	// "deps" is a Group with no Summary of its own, so only its children project.
 	for _, need := range []string{"working tree", "scan", "✓ a", "✓ b"} {
 		if !strings.Contains(s, need) {
 			t.Fatalf("missing %q in %q", need, s)

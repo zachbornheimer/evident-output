@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/zachbornheimer/evident-output/internal/graph"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 	"github.com/zachbornheimer/evident-output/internal/record"
-	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // declarationRefusal is the engine's error for a declaration the graph refused.

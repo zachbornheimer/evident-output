@@ -6,9 +6,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/project"
+	renderplain "github.com/zachbornheimer/evident-output/internal/project/plain"
 	"github.com/zachbornheimer/evident-output/internal/record"
-	"github.com/zachbornheimer/evident-output/internal/render"
-	renderplain "github.com/zachbornheimer/evident-output/internal/render/plain"
 )
 
 // Progressive emission implements the spirit of §1 (live becomes durable) and
@@ -194,7 +194,7 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 	}
 	var b strings.Builder
 	nameWidth := o.rootColumn.nameWidth()
-	render.WriteTaskAligned(&b, st.snapshot(), nameWidth, o.humanStyle())
+	project.WriteTaskAligned(&b, st.snapshot(), nameWidth, o.humanStyle())
 	st.coreEmitted = true
 	if b.Len() == 0 {
 		return
@@ -241,7 +241,7 @@ func hasNamedEffectRecord(records []core.EffectRecord) bool {
 // section (Effect) is untouched — it always
 // waits for Finish, exactly as before (see hasNamedEffectRecord).
 //
-// This calls the same render.WriteEffects Finish already uses (merge,
+// This calls the same project.WriteEffects Finish already uses (merge,
 // bounded-rows cap, "+N more" overflow) so a task that records many named
 // items still collapses identical (verb, object) pairs and bounds distinct
 // ones — the model in o.plans/o.changes is the only place records
@@ -255,16 +255,16 @@ func (o *Output) commitNamedEffectsLocked(owner string) {
 			continue
 		}
 		var b strings.Builder
-		render.WriteEffects(&b, o.effectSectionLocked(s, o.rec.MaxSubjectWidth(tense)), o.humanStyle())
+		project.WriteEffects(&b, o.effectSectionLocked(s, o.rec.MaxSubjectWidth(tense)), o.humanStyle())
 		o.writeDurableTextLocked(b.String())
 		o.rec.MarkSectionStreamed(owner, tense)
 	}
 }
 
-// effectSectionLocked is s laid out for render.WriteEffects — the one
-// shape both the streamed and the Finish ledger render.
-func (o *Output) effectSectionLocked(s record.SectionView, nameWidth int) render.EffectSection {
-	return render.EffectSection{
+// effectSectionLocked is s laid out for project.WriteEffects — the one
+// shape both the streamed and the Finish ledger project.
+func (o *Output) effectSectionLocked(s record.SectionView, nameWidth int) project.EffectSection {
+	return project.EffectSection{
 		Kind: s.Tense.String(), Subject: s.Subject, Records: s.Records,
 		IntendedVerb: s.IntendedVerb, NameWidth: nameWidth, Width: o.ledgerWidthLocked(),
 	}
@@ -279,8 +279,8 @@ func (o *Output) ledgerWidthLocked() int {
 }
 
 // humanStyle is how this Output paints human rows.
-func (o *Output) humanStyle() render.Style {
-	return render.Style{Color: !o.cfg.noColor, Verbose: o.cfg.verbosity >= VerbosityVerbose, Profile: o.cfg.glyphs}
+func (o *Output) humanStyle() project.Style {
+	return project.Style{Color: !o.cfg.noColor, Verbose: o.cfg.verbosity >= VerbosityVerbose, Profile: o.cfg.glyphs}
 }
 
 // taskProgressiveTrigger names which evidence call is streaming a Running
@@ -373,7 +373,7 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 	row := st.snapshot()
 	row.Name = progressiveRowName(st)
 	var b strings.Builder
-	render.WriteTask(&b, row, o.humanStyle())
+	project.WriteTask(&b, row, o.humanStyle())
 	if b.Len() == 0 {
 		return
 	}
@@ -443,8 +443,8 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 		b.WriteByte('\n')
 	}
 	o.writeResidualLedgerLocked(&b, style)
-	if snap.Conclusion != nil && !render.ShouldSuppressStandaloneConclusion(snap) {
-		renderplain.WriteConclusion(&b, render.StandaloneConclusion(snap), style)
+	if snap.Conclusion != nil && !project.ShouldSuppressStandaloneConclusion(snap) {
+		renderplain.WriteConclusion(&b, project.StandaloneConclusion(snap), style)
 	}
 	o.writeDebugTailLocked(&b, snap, style.Color)
 	return b.String()
@@ -452,10 +452,10 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 
 // writeResidualEntitiesLocked writes every root Task row not already
 // streamed, then every collection, as human output shows them
-// (render.HumanProjection).
-func (o *Output) writeResidualEntitiesLocked(b *strings.Builder, snap Snapshot, style render.Style) {
+// (project.HumanProjection).
+func (o *Output) writeResidualEntitiesLocked(b *strings.Builder, snap Snapshot, style project.Style) {
 	nameWidth := o.rootColumn.nameWidth()
-	human := render.HumanProjection(snap, style.Verbose)
+	human := project.HumanProjection(snap, style.Verbose)
 	shown := make(map[string]bool, len(human.Tasks))
 	for _, t := range human.Tasks {
 		shown[t.ID] = true
@@ -465,7 +465,7 @@ func (o *Output) writeResidualEntitiesLocked(b *strings.Builder, snap Snapshot, 
 			continue
 		}
 		if shown[t.id] {
-			render.WriteTaskAligned(b, t.snapshot(), nameWidth, style)
+			project.WriteTaskAligned(b, t.snapshot(), nameWidth, style)
 		}
 		t.coreEmitted = true
 	}
@@ -476,32 +476,32 @@ func (o *Output) writeResidualEntitiesLocked(b *strings.Builder, snap Snapshot, 
 
 // writeResidualLedgerLocked writes every [changed] then [planned] section
 // that did not already stream at its Task's resolution, sibling same-effect
-// sections folded into one row (render.FoldEffectSections).
-func (o *Output) writeResidualLedgerLocked(b *strings.Builder, style render.Style) {
+// sections folded into one row (project.FoldEffectSections).
+func (o *Output) writeResidualLedgerLocked(b *strings.Builder, style project.Style) {
 	for _, tense := range []ledgerTense{tenseChanged, tensePlanned} {
 		for _, sec := range o.foldedSectionsLocked(tense) {
-			render.WriteEffects(b, sec, style)
+			project.WriteEffects(b, sec, style)
 		}
 	}
 }
 
 // foldSource is s as the renderer's ledger fold sees it.
-func foldSource(s record.SectionView) render.SectionSource {
-	return render.SectionSource{
+func foldSource(s record.SectionView) project.SectionSource {
+	return project.SectionSource{
 		Subject: s.Subject, Records: s.Records, IntendedVerb: s.IntendedVerb,
 		Containers: s.Containers, Streamed: s.Streamed,
 	}
 }
 
 // foldedSectionsLocked is tense's not-yet-streamed ledger, laid out for
-// render.WriteEffects.
-func (o *Output) foldedSectionsLocked(tense ledgerTense) []render.EffectSection {
+// project.WriteEffects.
+func (o *Output) foldedSectionsLocked(tense ledgerTense) []project.EffectSection {
 	sections := o.rec.Sections(tense)
-	sources := make([]render.SectionSource, len(sections))
+	sources := make([]project.SectionSource, len(sections))
 	for i, s := range sections {
 		sources[i] = foldSource(s)
 	}
-	return render.FoldEffectSections(tense.String(), o.ledgerWidthLocked(), sources)
+	return project.FoldEffectSections(tense.String(), o.ledgerWidthLocked(), sources)
 }
 
 // writeDebugTailLocked writes the pane-mode diagnostic tail under the final
@@ -528,7 +528,7 @@ func (o *Output) writeDebugTailLocked(b *strings.Builder, snap Snapshot, color b
 // line); this destination's own copy must not reprint them onto primary
 // (same stream as Terminal) — includeEntities is false whenever a live
 // interactive terminal owns them instead. See residualCompositionLocked for
-// the shared ordered sequence both destinations render.
+// the shared ordered sequence both destinations project.
 //
 // Plain order contract (P2): progressive Item/Task rows and Printf lines
 // interleave by completion/call time. Residual only appends entities that

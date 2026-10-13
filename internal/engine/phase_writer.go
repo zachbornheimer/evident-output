@@ -107,12 +107,10 @@ func lineEnding(rest []byte) (completed bool, width int) {
 // only c's own lock, so callers read it before taking the Output's.
 func (c *evidence) retainedLineCount() int {
 	root := c.root()
-	if root == nil {
+	if root == nil || root.ring == nil {
 		return 0
 	}
-	root.mu.Lock()
-	defer root.mu.Unlock()
-	return len(root.lines)
+	return root.ring.Len()
 }
 
 // appendLiveTail records one completed Writer line: it enters the live tail

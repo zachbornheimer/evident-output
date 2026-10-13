@@ -7,8 +7,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/render"
-	"github.com/zachbornheimer/evident-output/internal/render/live"
+	"github.com/zachbornheimer/evident-output/internal/project"
+	"github.com/zachbornheimer/evident-output/internal/project/live"
 )
 
 // childIndex keeps what a live frame needs of one collection's direct
@@ -224,7 +224,7 @@ func (x *childIndex) project(g *tasksState, rows int) ([]core.TaskSnapshot, live
 		All:    x.all.counts(x.seenAll.earliest(isFiled)),
 		Work:   x.workCounts.counts(x.seenWork.earliest(isWork)),
 		Items:  x.dispositions(g),
-		Census: render.ChildCensus{Items: x.items.len(), OwnTask: x.owns > 0, WorkPeer: x.peers > 0},
+		Census: project.ChildCensus{Items: x.items.len(), OwnTask: x.owns > 0, WorkPeer: x.peers > 0},
 	}
 }
 

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/render/live"
+	"github.com/zachbornheimer/evident-output/internal/project/live"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 

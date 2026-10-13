@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 
 	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/internal/wireschema"
@@ -16,7 +16,7 @@ import (
 )
 
 // TestWireSchema_RenderedDocumentValidates is the gate schema/output.v1.json
-// never had (P8): a real render.EncodeJSON(out.Snapshot()) document, covering a
+// never had (P8): a real wire.EncodeJSON(out.Snapshot()) document, covering a
 // warned task (JSONTask.Warnings, wire 0.4) and a blocked run
 // (ConclusionJSON.Warned), must validate against evo's own published JSON
 // Schema — so a future wire change that drifts from the schema fails here
@@ -31,7 +31,7 @@ func TestWireSchema_RenderedDocumentValidates(t *testing.T) {
 	succeed(seq.Task("remove tags"))
 	_ = out.Finish()
 
-	doc, err := render.EncodeJSON(out.Snapshot())
+	doc, err := wire.EncodeJSON(out.Snapshot())
 	if err != nil {
 		t.Fatalf("EncodeJSON: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestWireSchema_RenderedDocumentValidates(t *testing.T) {
 }
 
 // TestWireSchema_RichProblemStaysWithinFrozenOutputV1 pins the 1.1 API
-// freeze on render.EncodeJSON: a Task whose Problem sets Location, Next and an
+// freeze on wire.EncodeJSON: a Task whose Problem sets Location, Next and an
 // EvidenceTail, beside a File verification failure with Facts, must still
 // validate against the Strict output.v1 schema. None of that data may leak
 // into output.v1 as an undeclared field; machine consumers read it from the
@@ -66,7 +66,7 @@ func TestWireSchema_RichProblemStaysWithinFrozenOutputV1(t *testing.T) {
 		evo.Location("main.go", 12, 3), evo.NextCommand("go", "vet", "./..."))
 	_ = out.Finish()
 
-	doc, err := render.EncodeJSON(out.Snapshot())
+	doc, err := wire.EncodeJSON(out.Snapshot())
 	if err != nil {
 		t.Fatalf("EncodeJSON: %v", err)
 	}

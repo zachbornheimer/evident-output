@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -24,7 +24,7 @@ func TestPORT015_ReproducibleSchemaVersion(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	succeed(out.Task("a"))
 	_ = out.Finish()
-	b, _ := render.EncodeJSON(out.Snapshot())
+	b, _ := wire.EncodeJSON(out.Snapshot())
 	if !strings.Contains(string(b), `"schema_version": "0.4"`) {
 		t.Fatal(string(b))
 	}
@@ -43,7 +43,7 @@ func TestPORT013_PublicAPIStableShape(t *testing.T) {
 	if snap.Subject != "s" || len(snap.Tasks) != 2 {
 		t.Fatalf("%+v", snap)
 	}
-	b, err := render.EncodeJSON(snap)
+	b, err := wire.EncodeJSON(snap)
 	if err != nil || !strings.Contains(string(b), `"schema_version": "0.4"`) {
 		t.Fatal(err, string(b))
 	}
@@ -57,7 +57,7 @@ func TestPORT014_JSONDocumentHasRequiredFields(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	succeed(out.Task("a"))
 	_ = out.Finish()
-	b, _ := render.EncodeJSON(out.Snapshot())
+	b, _ := wire.EncodeJSON(out.Snapshot())
 	if strings.Contains(string(b), `"items"`) {
 		t.Fatal(string(b))
 	}

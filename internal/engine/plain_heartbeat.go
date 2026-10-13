@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/project"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
@@ -145,8 +145,8 @@ func (o *Output) checkPlainHeartbeat(id string) {
 func (o *Output) emitPlainHeartbeatLocked(st *taskState, now time.Time) {
 	color := !o.cfg.noColor
 	elapsed := now.Sub(st.heartbeat.runningAt)
-	unit := render.DisplayUnit{
-		Glyph:  txt.StyleGlyph(txt.GlyphHeartbeat.Render(o.cfg.glyphs), render.StateColor(Running), color),
+	unit := project.DisplayUnit{
+		Glyph:  txt.StyleGlyph(txt.GlyphHeartbeat.Render(o.cfg.glyphs), project.StateColor(Running), color),
 		Name:   progressiveRowName(st),
 		Detail: txt.Dim("— "+txt.FormatElapsed(elapsed), color),
 	}

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/project"
 	"github.com/zachbornheimer/evident-output/internal/scaletest"
 )
 
@@ -120,7 +120,7 @@ func TestLedgerFoldLeavesJSONLEveryPerItemEffect(t *testing.T) {
 }
 
 // TestLedgerFoldTerminalRowAlignsToFoldedSubject proves the terminal
-// projection (render.WriteLedger over a snapshot) folds and aligns the same
+// projection (project.WriteLedger over a snapshot) folds and aligns the same
 // way: the fold row and an unfolded row share one subject column.
 func TestLedgerFoldTerminalRowAlignsToFoldedSubject(t *testing.T) {
 	_, out := runPlain(t, Config{}, func(o *Output) {
@@ -128,7 +128,7 @@ func TestLedgerFoldTerminalRowAlignsToFoldedSubject(t *testing.T) {
 		o.Task("cleanup").Define(centralizeEffect(EffectDelete, "cache"))
 	})
 	var b strings.Builder
-	render.WriteLedger(&b, out.Snapshot(), 100, render.Style{})
+	project.WriteLedger(&b, out.Snapshot(), 100, project.Style{})
 	want := "[changed] centralize packages  updated 4 packages\n[changed] cleanup              deleted 1 cache\n"
 	if b.String() != want {
 		t.Errorf("WriteLedger =\n%q\nwant\n%q", b.String(), want)
@@ -137,30 +137,30 @@ func TestLedgerFoldTerminalRowAlignsToFoldedSubject(t *testing.T) {
 
 func TestLedgerGroupsThousandsOnEveryCountedQuantity(t *testing.T) {
 	var b strings.Builder
-	for _, sec := range render.FoldEffectSections("changed", 80, foldSources(1663)) {
-		render.WriteEffects(&b, sec, render.Style{})
+	for _, sec := range project.FoldEffectSections("changed", 80, foldSources(1663)) {
+		project.WriteEffects(&b, sec, project.Style{})
 	}
 	if want := "[changed] all  updated 1,663 packages\n"; b.String() != want {
 		t.Errorf("folded = %q, want %q", b.String(), want)
 	}
 	b.Reset()
-	render.WriteEffects(&b, render.EffectSection{Kind: "changed", Subject: "one", Records: []core.EffectRecord{{Verb: "updated", Object: "package", Quantity: 1663, HasQty: true}}}, render.Style{})
+	project.WriteEffects(&b, project.EffectSection{Kind: "changed", Subject: "one", Records: []core.EffectRecord{{Verb: "updated", Object: "package", Quantity: 1663, HasQty: true}}}, project.Style{})
 	if want := "[changed] one  updated 1,663 packages\n"; b.String() != want {
 		t.Errorf("unfolded = %q, want %q", b.String(), want)
 	}
 	b.Reset()
 	multi := []core.EffectRecord{{Verb: "updated", Object: "package", Quantity: 1663, HasQty: true}, {Verb: "deleted", Object: "lockfile", Quantity: 12, HasQty: true}}
-	render.WriteEffects(&b, render.EffectSection{Kind: "changed", Subject: "two", Records: multi, Width: 80}, render.Style{})
+	project.WriteEffects(&b, project.EffectSection{Kind: "changed", Subject: "two", Records: multi, Width: 80}, project.Style{})
 	if want := "[changed]  two\n  updated  1,663 packages\n  deleted     12 lockfiles\n"; b.String() != want {
 		t.Errorf("aligned = %q, want %q", b.String(), want)
 	}
 }
 
-func foldSources(n int) []render.SectionSource {
+func foldSources(n int) []project.SectionSource {
 	path := core.ContainerPath{{ID: "g", Name: "items"}, {ID: "root", Name: "all"}}
-	sources := make([]render.SectionSource, n)
+	sources := make([]project.SectionSource, n)
 	for i := range sources {
-		sources[i] = render.SectionSource{
+		sources[i] = project.SectionSource{
 			Subject: "item", Containers: path,
 			Records: []core.EffectRecord{{Verb: "updated", Object: "package", Quantity: 1, HasQty: true}},
 		}
@@ -176,12 +176,12 @@ func TestLedgerFoldScalesLinearlyAndBoundsRowMemory(t *testing.T) {
 		sources := foldSources(n)
 		return scaletest.Fastest(scaletest.CheapSamples, func() time.Duration {
 			runtime.GC()
-			var rows []render.EffectSection
+			var rows []project.EffectSection
 			cost := scaletest.CPUElapsed(func() {
-				rows = render.FoldEffectSections("changed", 80, sources)
+				rows = project.FoldEffectSections("changed", 80, sources)
 				var b strings.Builder
 				for _, r := range rows {
-					render.WriteEffects(&b, r, render.Style{})
+					project.WriteEffects(&b, r, project.Style{})
 				}
 			})
 			if len(rows) != 1 || len(rows[0].Records) != 1 || rows[0].Records[0].Quantity != int64(n) {

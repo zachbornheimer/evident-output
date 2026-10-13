@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 
 	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
@@ -18,7 +18,7 @@ func TestOUT008_InferenceInEvents(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	succeed(out.Task("a"))
 	_ = out.Finish()
-	raw, _ := render.EncodeJSONL(out.Events())
+	raw, _ := wire.EncodeJSONL(out.Events())
 	if !strings.Contains(string(raw), "output.finished") {
 		t.Fatal(string(raw))
 	}
@@ -29,7 +29,7 @@ func TestOUT009_UnknownJSONFieldsIgnoredByConsumers(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	succeed(out.Task("a"))
 	_ = out.Finish()
-	b, err := render.EncodeJSON(out.Snapshot())
+	b, err := wire.EncodeJSON(out.Snapshot())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestOUT006_JSONLOneObjectPerLine(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	succeed(out.Task("a"))
 	_ = out.Finish()
-	raw, err := render.EncodeJSONL(out.Events())
+	raw, err := wire.EncodeJSONL(out.Events())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func TestOUT010_UnknownEnumForwardCompat(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	succeed(out.Task("a"))
 	_ = out.Finish()
-	b, _ := render.EncodeJSON(out.Snapshot())
+	b, _ := wire.EncodeJSON(out.Snapshot())
 	if !strings.Contains(string(b), "ready") && !strings.Contains(string(b), "state") {
 		t.Fatal(string(b))
 	}

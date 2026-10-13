@@ -2,8 +2,8 @@ package engine
 
 import (
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
-	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // dispositionVerb names which accumulation act a Reason's usage constraints

@@ -1,0 +1,547 @@
+{
+  "$defs": {
+    "action": {
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/command"
+        },
+        "label": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "basis": {
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "type": "object"
+    },
+    "collection": {
+      "properties": {
+        "children": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parent_id": {
+          "type": "string"
+        },
+        "progress": {
+          "$ref": "#/$defs/progress"
+        },
+        "state": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "state",
+        "children"
+      ],
+      "type": "object"
+    },
+    "command": {
+      "properties": {
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "executable": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "executable"
+      ],
+      "type": "object"
+    },
+    "data": {
+      "properties": {
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/action"
+          },
+          "type": "array"
+        },
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/collection"
+          },
+          "type": "array"
+        },
+        "effects": {
+          "items": {
+            "$ref": "#/$defs/effect"
+          },
+          "type": "array"
+        },
+        "facts": {
+          "items": {
+            "$ref": "#/$defs/fact"
+          },
+          "type": "array"
+        },
+        "problems": {
+          "items": {
+            "$ref": "#/$defs/problem"
+          },
+          "type": "array"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/task"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "collections",
+        "tasks",
+        "facts",
+        "problems",
+        "effects",
+        "actions"
+      ],
+      "type": "object"
+    },
+    "disposition": {
+      "properties": {
+        "causes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "disposition": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "disposition",
+        "reason",
+        "name"
+      ],
+      "type": "object"
+    },
+    "effect": {
+      "properties": {
+        "object": {
+          "const": "evo.run"
+        },
+        "quantity": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "verb": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject",
+        "status",
+        "verb",
+        "object"
+      ],
+      "type": "object"
+    },
+    "evidence": {
+      "properties": {
+        "after": {
+          "$ref": "#/$defs/evidencePhase"
+        },
+        "before": {
+          "$ref": "#/$defs/evidencePhase"
+        }
+      },
+      "required": [
+        "before"
+      ],
+      "type": "object"
+    },
+    "evidencePhase": {
+      "properties": {
+        "evaluated": {
+          "type": "boolean"
+        },
+        "satisfied": {
+          "type": "boolean"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "evaluated"
+      ],
+      "type": "object"
+    },
+    "fact": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "type": "object"
+    },
+    "location": {
+      "properties": {
+        "column": {
+          "type": "integer"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    },
+    "operation": {
+      "properties": {
+        "current": {
+          "type": "boolean"
+        },
+        "executed": {
+          "type": "boolean"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "executed",
+        "current"
+      ],
+      "type": "object"
+    },
+    "problem": {
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "evidence_tail": {
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/$defs/location"
+        },
+        "message": {
+          "type": "string"
+        },
+        "remedies": {
+          "items": {
+            "$ref": "#/$defs/action"
+          },
+          "type": "array"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "progress": {
+      "properties": {
+        "completed": {
+          "type": "integer"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "completed",
+        "total"
+      ],
+      "type": "object"
+    },
+    "task": {
+      "properties": {
+        "activity": {
+          "type": "string"
+        },
+        "basis": {
+          "items": {
+            "$ref": "#/$defs/basis"
+          },
+          "type": "array"
+        },
+        "definition_executed": {
+          "type": "boolean"
+        },
+        "dispositions": {
+          "items": {
+            "$ref": "#/$defs/disposition"
+          },
+          "type": "array"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        },
+        "facts": {
+          "items": {
+            "$ref": "#/$defs/fact"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/$defs/operation"
+          },
+          "type": "array"
+        },
+        "parent_id": {
+          "type": "string"
+        },
+        "problems": {
+          "items": {
+            "$ref": "#/$defs/problem"
+          },
+          "type": "array"
+        },
+        "progress": {
+          "$ref": "#/$defs/progress"
+        },
+        "resolution": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "timing": {
+          "$ref": "#/$defs/timing"
+        },
+        "tracked_resources": {
+          "items": {
+            "$ref": "#/$defs/trackedResource"
+          },
+          "type": "array"
+        },
+        "verification": {
+          "items": {
+            "$ref": "#/$defs/verification"
+          },
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/problem"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "state",
+        "definition_executed",
+        "evidence",
+        "progress",
+        "activity",
+        "timing",
+        "verification",
+        "tracked_resources",
+        "basis",
+        "facts",
+        "dispositions",
+        "problems",
+        "operations"
+      ],
+      "type": "object"
+    },
+    "timing": {
+      "properties": {
+        "queued_ms": {
+          "type": "integer"
+        },
+        "running_ms": {
+          "type": "integer"
+        },
+        "total_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "queued_ms",
+        "running_ms",
+        "total_ms"
+      ],
+      "type": "object"
+    },
+    "trackedResource": {
+      "properties": {
+        "fingerprint": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "path"
+      ],
+      "type": "object"
+    },
+    "verification": {
+      "properties": {
+        "facts": {
+          "items": {
+            "$ref": "#/$defs/fact"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "status"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://evident-output.dev/schema/v3/run.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "data": {
+      "$ref": "#/$defs/data"
+    },
+    "duration_ms": {
+      "type": "integer"
+    },
+    "evo_version": {
+      "type": "string"
+    },
+    "exit_code": {
+      "type": "integer"
+    },
+    "finished_at": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string"
+    },
+    "object": {
+      "const": "evo.run"
+    },
+    "outcome": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "2.0"
+    },
+    "started_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "object",
+    "schema_version",
+    "evo_version",
+    "run_id",
+    "started_at",
+    "finished_at",
+    "duration_ms",
+    "mode",
+    "outcome",
+    "exit_code",
+    "data"
+  ],
+  "title": "Evident Output final JSON v3 (evo.run)",
+  "type": "object"
+}

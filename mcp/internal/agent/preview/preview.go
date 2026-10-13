@@ -3,7 +3,7 @@ package preview
 
 import (
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/render/plain"
+	"github.com/zachbornheimer/evident-output/internal/project/plain"
 )
 
 // Profile is one terminal profile rendering.

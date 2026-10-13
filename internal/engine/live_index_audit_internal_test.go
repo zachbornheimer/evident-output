@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/render/live"
+	"github.com/zachbornheimer/evident-output/internal/project/live"
 )
 
 // auditedCollectionLimit keeps the audit's full walk to collections small

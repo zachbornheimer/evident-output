@@ -2,9 +2,9 @@ package engine
 
 import (
 	"github.com/zachbornheimer/evident-output/internal/core"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 	"github.com/zachbornheimer/evident-output/internal/record"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
-	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
 // ledgerTarget is where a Task's ledger rows go: the Task that owns the

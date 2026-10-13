@@ -48,7 +48,8 @@ func TestSpecP6_BytesVsCounts_Failure(t *testing.T) {
 	for _, want := range []string{
 		"✓ generate 8.0 MB",
 		"✗ test tests failed",
-		"--- FAIL: TestFoo (0.01s)"} {
+		"--- FAIL: TestFoo (0.01s)",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -152,7 +153,8 @@ func TestSpecP6_EarlyTermination(t *testing.T) {
 	persisted := screen.PersistedText()
 	for _, want := range []string{
 		"■", "generate", "cancelled",
-		"partial changes were applied before cancellation"} {
+		"partial changes were applied before cancellation",
+	} {
 		if !strings.Contains(persisted, want) {
 			t.Fatalf("want %q in persisted live surface:\n%s", want, persisted)
 		}
@@ -324,7 +326,7 @@ func TestSpecP7_EarlyTermination(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestSpecP8_Success covers evo-rec.md Problem 8's success block: every
-// remote delete lands, effects and the task's own Done row both render.
+// remote delete lands, effects and the task's own Done row both project.
 //
 //	[changed]  remotes
 //	  deleted  3  origin tip
@@ -528,7 +530,8 @@ func TestSpecP9_EarlyTermination(t *testing.T) {
 		"✓ scan",
 		"■ venv cancelled — .venv partial",
 		"- install not started",
-		"partial changes were applied before cancellation"} {
+		"partial changes were applied before cancellation",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -607,7 +610,8 @@ func TestSpecP10_Success(t *testing.T) {
 		"✓ venv",
 		"✓ install 14 modules",
 		"✓ python setup",
-		"python was set up; 14 modules were installed"} {
+		"python was set up; 14 modules were installed",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -673,7 +677,8 @@ func TestSpecP10_Error(t *testing.T) {
 	for _, want := range []string{
 		"✓ scan",
 		"✗ install network unreachable",
-		"dial tcp: lookup pypi.org: no such host"} {
+		"dial tcp: lookup pypi.org: no such host",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}

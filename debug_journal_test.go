@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
+
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/render"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -122,7 +123,7 @@ func TestLOG013_DebugWithJSONStdout(t *testing.T) {
 	succeed(out.Task("a"))
 	_ = out.Finish()
 	// JSON encode separate stream
-	j, _ := render.EncodeJSON(out.Snapshot())
+	j, _ := wire.EncodeJSON(out.Snapshot())
 	if !strings.Contains(string(j), "schema_version") {
 		t.Fatal(string(j))
 	}

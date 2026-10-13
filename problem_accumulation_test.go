@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -214,7 +214,7 @@ func TestProblem_SurvivesInJSON(t *testing.T) {
 	}
 
 	snap := out.Snapshot()
-	encoded, err := render.EncodeJSON(snap)
+	encoded, err := wire.EncodeJSON(snap)
 	if err != nil {
 		t.Fatalf("EncodeJSON: %v", err)
 	}

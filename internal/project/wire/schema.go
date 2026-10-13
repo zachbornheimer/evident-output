@@ -1,0 +1,173 @@
+package wire
+
+//go:generate go run ../../../tools/genschema
+
+import (
+	"encoding/json"
+	"reflect"
+	"strings"
+	"time"
+)
+
+const (
+	runSchemaID     = "https://evident-output.dev/schema/v3/run.json"
+	eventSchemaID   = "https://evident-output.dev/schema/v2/event.json"
+	jsonSchemaDraft = "https://json-schema.org/draft/2020-12/schema"
+)
+
+// RunJSONSchema is the JSON Schema for RunDocument, the evo.run envelope.
+func RunJSONSchema() []byte {
+	return generateSchema(runSchemaID, "Evident Output final JSON v3 (evo.run)", reflect.TypeFor[RunDocument](), map[string]any{
+		"object":         map[string]any{"const": RunObject},
+		"schema_version": map[string]any{"const": RunSchemaVersion},
+	})
+}
+
+// EventJSONSchema is the JSON Schema for EventDocument, one evo.event line.
+func EventJSONSchema() []byte {
+	return generateSchema(eventSchemaID, "Evident Output JSONL event v2 (evo.event)", reflect.TypeFor[EventDocument](), map[string]any{
+		"object":         map[string]any{"const": EventObject},
+		"schema_version": map[string]any{"const": EventSchemaVersion},
+		"seq":            map[string]any{"type": "integer", "minimum": 1},
+	})
+}
+
+func generateSchema(id, title string, root reflect.Type, overrides map[string]any) []byte {
+	g := &schemaGen{defs: map[string]any{}, overrides: overrides}
+	schema := g.objectOf(root)
+	schema["$schema"] = jsonSchemaDraft
+	schema["$id"] = id
+	schema["title"] = title
+	if len(g.defs) > 0 {
+		schema["$defs"] = g.defs
+	}
+	body, err := json.MarshalIndent(schema, "", "  ")
+	if err != nil {
+		panic("wire: marshal JSON schema: " + err.Error())
+	}
+	return append(body, '\n')
+}
+
+type schemaGen struct {
+	defs      map[string]any
+	overrides map[string]any
+}
+
+func (g *schemaGen) objectOf(t reflect.Type) map[string]any {
+	t = unwrap(t)
+	props := map[string]any{}
+	required := make([]string, 0, t.NumField())
+	for i := range t.NumField() {
+		field := t.Field(i)
+		name, omitempty, skip := jsonField(field)
+		if skip {
+			continue
+		}
+		props[name] = g.property(field.Type, name)
+		if !omitempty {
+			required = append(required, name)
+		}
+	}
+	schema := map[string]any{"type": "object", "properties": props}
+	if len(required) > 0 {
+		schema["required"] = required
+	}
+	return schema
+}
+
+func (g *schemaGen) property(t reflect.Type, name string) any {
+	if override, ok := g.overrides[name]; ok {
+		return override
+	}
+	t = unwrap(t)
+	if t.Kind() == reflect.Struct && t != reflect.TypeFor[time.Time]() {
+		ref := g.define(t)
+		return map[string]any{"$ref": "#/$defs/" + ref}
+	}
+	return g.typeSchema(t)
+}
+
+func (g *schemaGen) define(t reflect.Type) string {
+	name := defName(t)
+	if _, exists := g.defs[name]; exists {
+		return name
+	}
+	g.defs[name] = map[string]any{"type": "object"}
+	g.defs[name] = g.objectOf(t)
+	return name
+}
+
+func (g *schemaGen) typeSchema(t reflect.Type) any {
+	t = unwrap(t)
+	switch t.Kind() {
+	case reflect.String:
+		return map[string]any{"type": "string"}
+	case reflect.Bool:
+		return map[string]any{"type": "boolean"}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return map[string]any{"type": "integer"}
+	case reflect.Slice, reflect.Array:
+		return map[string]any{"type": "array", "items": g.elemSchema(t.Elem())}
+	case reflect.Map:
+		return map[string]any{"type": "object"}
+	case reflect.Struct:
+		if t == reflect.TypeFor[time.Time]() {
+			return map[string]any{"type": "string"}
+		}
+		return g.objectOf(t)
+	default:
+		return map[string]any{}
+	}
+}
+
+func (g *schemaGen) elemSchema(t reflect.Type) any {
+	t = unwrap(t)
+	if t.Kind() == reflect.Struct && t != reflect.TypeFor[time.Time]() {
+		return map[string]any{"$ref": "#/$defs/" + g.define(t)}
+	}
+	return g.typeSchema(t)
+}
+
+func unwrap(t reflect.Type) reflect.Type {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	return t
+}
+
+func jsonField(field reflect.StructField) (name string, omitempty, skip bool) {
+	if !field.IsExported() {
+		return "", false, true
+	}
+	tag := field.Tag.Get("json")
+	if tag == "-" {
+		return "", false, true
+	}
+	if tag == "" {
+		return field.Name, false, false
+	}
+	name, rest, _ := strings.Cut(tag, ",")
+	if name == "" || name == "-" {
+		return "", false, true
+	}
+	return name, strings.Contains(rest, "omitempty"), false
+}
+
+func defName(t reflect.Type) string {
+	name := strings.TrimSuffix(t.Name(), "Doc")
+	name = strings.TrimSuffix(name, "Document")
+	if name == "RunData" {
+		return "data"
+	}
+	if name == "EvidencePhase" {
+		return "evidencePhase"
+	}
+	if name == "TrackedResource" {
+		return "trackedResource"
+	}
+	if name == "" {
+		return t.Name()
+	}
+	return strings.ToLower(name[:1]) + name[1:]
+}

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
-	"github.com/zachbornheimer/evident-output/internal/render/live"
+	"github.com/zachbornheimer/evident-output/internal/project"
+	"github.com/zachbornheimer/evident-output/internal/project/live"
 )
 
 // liveFrame is a live region as o.mu saw it: everything render needs, owned
@@ -17,7 +17,7 @@ type liveFrame struct {
 	snap          Snapshot
 	width, height int
 	now           time.Time
-	style         render.Style
+	style         project.Style
 	subject       string
 	armedTitle    bool
 	pane          string

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -135,7 +135,7 @@ func TestEncodeJSON_ContainsTasks(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
 	succeed(out.Task("a"))
 	_ = out.Finish()
-	b, err := render.EncodeJSON(out.Snapshot())
+	b, err := wire.EncodeJSON(out.Snapshot())
 	if err != nil {
 		t.Fatal(err)
 	}

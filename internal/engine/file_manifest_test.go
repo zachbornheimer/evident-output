@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/wire"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
 // runFileTask runs one Task named name whose Define calls evo.File(spec)

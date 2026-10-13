@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/zachbornheimer/evident-output/internal/wire"
+import "github.com/zachbornheimer/evident-output/internal/project/wire"
 
 // emitWireEventLocked appends one §38 "evo.event" JSONL line for eventType,
 // scoped to entityID (empty for a run-level event) with payload as its
@@ -9,12 +9,10 @@ import "github.com/zachbornheimer/evident-output/internal/wire"
 // every call site below fires unconditionally regardless of Format; this
 // guard is the one place that decides whether the line is worth building.
 //
-// wireSeq is its own counter, independent of the sequence the record journal
-// stamps in appendEventLocked (o.rec.AppendEvent): the two streams describe distinct
-// vocabularies (see internal/wire/event.go's §38 family constants vs. the
-// legacy Event.Type strings appendEventLocked still carries unchanged), and
-// §38 only requires seq strictly monotonic *within this stream*, not shared
-// with the legacy one.
+// seq comes from rec.AllocateSequence, the same counter the journal uses.
+// The two streams describe distinct vocabularies (see project/wire's §38
+// family constants vs. the legacy Event.Type strings AppendEvent still
+// carries); sharing the counter keeps one monotonic seq for the run.
 //
 // A write failure is recorded rather than surfaced here (first one wins):
 // this often runs deep inside the runtime's own lock, before any Task can
@@ -25,10 +23,9 @@ func (o *Output) emitWireEventLocked(eventType, entityID string, payload map[str
 	if o.cfg.wireFormat != FormatJSONL {
 		return
 	}
-	o.wireSeq++
 	ev := Event{
 		Type:      eventType,
-		Sequence:  o.wireSeq,
+		Sequence:  o.rec.AllocateSequence(),
 		Timestamp: o.cfg.clock.Now(),
 		OutputID:  o.outputID,
 		EntityID:  entityID,

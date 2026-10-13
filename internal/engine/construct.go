@@ -33,7 +33,7 @@ var processArgv0 = func() string {
 // the derived verdict settled on a pure StatePlanned (no failed/blocked/
 // warned/partial/cancelled), the trailing conclusion band itself is
 // suppressed as redundant with that header — see
-// render.ShouldSuppressStandaloneConclusion and evo-rec.md's dry-run
+// project.ShouldSuppressStandaloneConclusion and evo-rec.md's dry-run
 // section.
 func identityFallbackName() string {
 	if base := filepath.Base(processArgv0()); base != "." && base != string(filepath.Separator) {

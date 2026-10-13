@@ -2,7 +2,7 @@ package engine
 
 import (
 	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/render"
+	"github.com/zachbornheimer/evident-output/internal/project"
 )
 
 // appendTaskLocked adds st to the run's Tasks in declaration order. Caller
@@ -21,7 +21,7 @@ func (o *Output) appendTaskLocked(st *taskState) {
 // whether the run has anything else to show, and prints the row only if not.
 // Caller must hold o.mu.
 func (o *Output) heldBackAsNoOpLocked(t TaskSnapshot) bool {
-	if !core.IsProvenNoOpTask(render.TaskAtVerbosity(t, o.cfg.verbosity >= VerbosityVerbose)) {
+	if !core.IsProvenNoOpTask(project.TaskAtVerbosity(t, o.cfg.verbosity >= VerbosityVerbose)) {
 		return false
 	}
 	return !o.rec.HasLedgerSection(t.ID)

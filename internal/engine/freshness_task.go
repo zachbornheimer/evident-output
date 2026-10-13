@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/wire"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
 // BasisSource is one Task Basis input: something whose content identity is

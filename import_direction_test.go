@@ -204,6 +204,31 @@ func TestFreshnessImportsOnlyRecordGraphAndFacades(t *testing.T) {
 	}
 }
 
+// projectPackage decides how a run is shown: live TTY, plain text, and wire.
+const projectPackage = "internal/project"
+
+// TestProjectImportsOnlyRecordAndFacades fails when internal/project is
+// missing, or when a non-test file under it imports a package of this
+// module other than record, the facades, and its own subpackages. project
+// sits above record and beside graph, freshness and change: reaching into
+// engine, graph, freshness, change, core, text, render or wire would let
+// presentation depend on scheduling or on how a change is performed.
+func TestProjectImportsOnlyRecordAndFacades(t *testing.T) {
+	violations, checked, err := scanProductionFiles(projectPackage, skipNothing, func(file string) ([]string, error) {
+		return touches(file, isProjectForbiddenImport, nil)
+	})
+	if err != nil {
+		t.Fatalf("scan %s: %v", projectPackage, err)
+	}
+	if checked == 0 {
+		t.Fatalf("%s holds no Go files", projectPackage)
+	}
+	if len(violations) > 0 {
+		t.Errorf("%d imports under %s are neither record, a facade, nor a project subpackage:\n  %s",
+			len(violations), projectPackage, strings.Join(violations, "\n  "))
+	}
+}
+
 // changePackage decides what is done.
 const changePackage = "internal/change"
 
