@@ -187,9 +187,12 @@ again to restore it. Cascade is by content: a step whose Input is another
 step's Output runs again only when those bytes changed, not because its
 producer ran. Dry run plans every mutation and runs no callback. Each mutation
 appears once in the ledger as `[planned]` or `[changed]`; per-item mutations
-with one Verb and Object fold into one counted row. Overlapping Paths wait
-for each other; two Resources overlap only by equal name; holding two claims
-at once is misuse. A Patch whose source changed since it was read fails with
+with one Verb and Object fold into one counted row. `EffectSpec.Path` claims
+that path for the Effect's callback, so Effects whose Paths are equal or one
+contains the other wait for each other; two Resources overlap only by equal
+name; an `EffectSpec` that sets both `Path` and `Resource` is
+`ErrInvalidConfig` and its callback never runs; holding two claims at once is
+misuse. A Patch whose source changed since it was read fails with
 `ErrStaleBasis` instead of overwriting. Uncertain or missing recorded status
 re-executes; it never reports Satisfied.
 
