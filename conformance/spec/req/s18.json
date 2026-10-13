@@ -15,7 +15,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C18-002",
@@ -29,7 +29,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C18-003",
@@ -47,7 +47,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C18-004",
@@ -61,7 +61,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C18-005",
@@ -79,7 +79,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C18-006",
@@ -97,7 +97,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "removed in 2.0: Skipped (now Exclude); see docs/migration/2.0.md"
   },
   {
     "id": "C18-007",
@@ -119,7 +119,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C18-008",
@@ -137,7 +137,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C18-009",
@@ -159,7 +159,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C18-010",
@@ -177,7 +177,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C18-011",
@@ -185,7 +185,7 @@
     "quote": "18. zq prune acceptance fixture",
     "tier": "1.1",
     "tests": [],
-    "waiver": "CONSUMER: that the real `zq prune` command produces this fixture from Evo is a property of the zq repository (zq main still calls the removed Step at internal/prune/classify/prune.go:236); the Evo side of every output rule is bound in C18-001..C18-010.",
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
     "default": false
   }
 ]

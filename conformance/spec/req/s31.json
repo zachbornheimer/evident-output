@@ -11,7 +11,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-002",
@@ -25,7 +25,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "removed in 2.0: Into (now Compute and Computed.Get); see docs/migration/2.0.md"
   },
   {
     "id": "C31-003",
@@ -39,7 +39,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-004",
@@ -57,7 +57,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-005",
@@ -71,7 +71,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-006",
@@ -85,7 +85,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-007",
@@ -103,7 +103,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-008",
@@ -117,7 +117,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "removed in 2.0: TaskHandle/GroupHandle/SequenceHandle (now Task, Group, Sequence); see docs/migration/2.0.md"
   },
   {
     "id": "C31-009",
@@ -135,7 +135,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "removed in 2.0: TaskHandle/GroupHandle/SequenceHandle (now Task, Group, Sequence); see docs/migration/2.0.md"
   },
   {
     "id": "C31-010",
@@ -149,7 +149,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-011",
@@ -163,7 +163,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "removed in 2.0: TaskHandle/GroupHandle/SequenceHandle (now Task, Group, Sequence); see docs/migration/2.0.md"
   },
   {
     "id": "C31-012",
@@ -185,7 +185,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-013",
@@ -199,7 +199,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-014",
@@ -213,7 +213,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-015",
@@ -227,7 +227,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-016",
@@ -241,7 +241,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-017",
@@ -259,7 +259,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-018",
@@ -273,7 +273,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-019",
@@ -287,7 +287,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-020",
@@ -301,7 +301,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-021",
@@ -319,7 +319,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-022",
@@ -333,7 +333,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C31-023",
@@ -347,6 +347,6 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   }
 ]

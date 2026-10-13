@@ -1,0 +1,290 @@
+[
+  {
+    "id": "C42-001",
+    "section": "2.0 \u00a72 Work",
+    "quote": "Sibling names are unique per parent.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestDOM004_SameNameIsDuplicateSibling"
+      },
+      {
+        "pkg": ".",
+        "run": "TestDOM004_DistinctParentsAllowSameDisplayName"
+      },
+      {
+        "pkg": ".",
+        "run": "TestDuplicateSiblingRowStatesItOnce"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-002",
+    "section": "2.0 \u00a72 Work",
+    "quote": "Evo owns goroutines, bounded concurrency, dependency readiness and cancellation.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScheduler_AfterWaitsForPredecessors"
+      },
+      {
+        "pkg": ".",
+        "run": "TestScheduler_GroupOverlapRespectsCeiling"
+      },
+      {
+        "pkg": ".",
+        "run": "TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-003",
+    "section": "2.0 \u00a72 Work",
+    "quote": "`Define` submits and never runs inline; a nil return succeeds.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestDefine_SubmitsAndNeverRunsInline"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-004",
+    "section": "2.0 \u00a72 Work",
+    "quote": "`Verify` true before `Define` resolves Satisfied and the callback never runs",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScenario_AlreadySatisfied"
+      },
+      {
+        "pkg": ".",
+        "run": "TestWireEvents_AlreadySatisfiedSkipsDefinition"
+      },
+      {
+        "pkg": ".",
+        "run": "TestTaskSnapshot_ResolutionAlreadySatisfiedPreservesBeforeEvidence"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-005",
+    "section": "2.0 \u00a72 Work",
+    "quote": "false after a successful callback fails the Task.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestDryRun_UnsatisfiedVerifyWithNothingPlannedFails"
+      },
+      {
+        "pkg": ".",
+        "run": "TestVerify_SelfResolvedDefineIsNotRechecked"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-006",
+    "section": "2.0 \u00a72 Work",
+    "quote": "A Failed, Refused, Excluded or Cancelled predecessor leaves its dependents NotStarted.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestAfterPredecessorFails_BeforeDependentIsSubmitted_SettlesImmediately"
+      },
+      {
+        "pkg": ".",
+        "run": "TestCompute_FailedProducerNeverStartsConsumerOrBuilder"
+      },
+      {
+        "pkg": ".",
+        "run": "TestAfterCycle_DependentsDoNotStart"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-007",
+    "section": "2.0 \u00a72 Work",
+    "quote": "an unordered `Get` fails the run with `ErrComputedUnordered` in every mode.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestCompute_UnorderedGetFailsRunInDefaultMode"
+      },
+      {
+        "pkg": ".",
+        "run": "TestCompute_UnorderedGetBeforeTheProducerSettlesFailsInEveryMode"
+      },
+      {
+        "pkg": ".",
+        "run": "TestComputedGet_UnorderedBuilderFailsTheContainerWithTheSentinel"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-008",
+    "section": "2.0 \u00a72 Work",
+    "quote": "A goroutine a callback started is the callback's hands: its `Get` and `Wait` are judged as the callback's, as far as the runtime names who started it.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestComputedGet_UnorderedCallbackReadingThroughASpawnedGoroutineIsRefused"
+      },
+      {
+        "pkg": ".",
+        "run": "TestComputedGet_OrderedCallbackReadingThroughASpawnedGoroutineGetsTheValue"
+      },
+      {
+        "pkg": ".",
+        "run": "TestComputedGet_UnorderedCallbackReadingThroughAGrandchildGoroutineIsRefused"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-009",
+    "section": "2.0 \u00a72 Work",
+    "quote": "Attribution ends at a goroutine that exited before anything asked about it",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestContractStatesWhereGoroutineAttributionEnds"
+      },
+      {
+        "pkg": ".",
+        "run": "TestGoroutineOfAFinishedNestedTaskIsNotTheNextNestedTasks"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-010",
+    "section": "2.0 \u00a72 Work",
+    "quote": "`Compute` on a Task that has a `Verify` is `ErrInvalidConfig` at declaration",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestCompute_OnATaskWithAVerifyIsInvalidWhateverTheVerifyFinds"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-011",
+    "section": "2.0 \u00a72 Work",
+    "quote": "A `Build` runs once when its container becomes eligible, declares topology only, and closes the container's declaration phase; declaring work from inside a Task's callback is misuse.",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestContainerDefine_BuilderRunsOnceAfterPredecessor"
+      },
+      {
+        "pkg": ".",
+        "run": "TestContainerDefine_DeclaringFromTaskCallbackIsMisuse"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-012",
+    "section": "2.0 \u00a72 Work",
+    "quote": "ordered children; one Running child",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScheduler_SequenceDeclarationOrderMaxOne"
+      },
+      {
+        "pkg": ".",
+        "run": "TestSequence_TwoRunningChildrenRecordsMisuse"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-013",
+    "section": "2.0 \u00a72 Work",
+    "quote": "`io.Writer` whose lines become the live tail and Capture",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestWriter_BytesLandInCapture_DetailTailAfterFail"
+      },
+      {
+        "pkg": ".",
+        "run": "TestWriter_LiveTailStaysBoundedWhileCaptureKeepsTheStream"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-014",
+    "section": "2.0 \u00a72 Work",
+    "quote": "structured information learned",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestTaskFact_HiddenOnNormalSuccess"
+      },
+      {
+        "pkg": ".",
+        "run": "TestTaskFact_NeverResolvesTask"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-015",
+    "section": "2.0 \u00a72 Work",
+    "quote": "the settled row's headline",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestTask_SummaryRendersOnTheSuccessfulTerminalRow"
+      },
+      {
+        "pkg": ".",
+        "run": "TestTask_SummaryDoesNotResolveTheTask"
+      },
+      {
+        "pkg": ".",
+        "run": "TestTask_SummaryLastCallWinsAndEmptyClears"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-016",
+    "section": "2.0 \u00a72 Work",
+    "quote": "`CleanStop(signals ...os.Signal) DefineOption`; these end the Task Succeeded",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestCleanStop_SignalEndsTheTaskSucceeded"
+      }
+    ],
+    "default": false
+  }
+]

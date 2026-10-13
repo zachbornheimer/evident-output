@@ -1,0 +1,61 @@
+[
+  {
+    "id": "C40-001",
+    "section": "2.0 \u00a70 Preamble",
+    "quote": "one runtime truth drives TTY, plain text, JSON and JSONL.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestH19_Output_HumanAndJSONPreserveMeaning"
+      },
+      {
+        "pkg": ".",
+        "run": "TestProjection_StandaloneTaskPlainLiveParity"
+      },
+      {
+        "pkg": ".",
+        "run": "TestResidualComposition_PlainAndInteractiveSectionParity"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C40-002",
+    "section": "2.0 \u00a70 Preamble",
+    "quote": "Group and Sequence give parallelism without goroutines",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScheduler_GroupOverlapRespectsCeiling"
+      },
+      {
+        "pkg": ".",
+        "run": "TestScheduler_SequenceDeclarationOrderMaxOne"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C40-003",
+    "section": "2.0 \u00a70 Preamble",
+    "quote": "the live frame changes within 100ms",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestLive_QuietRunningTaskKeepsChangingFrames"
+      },
+      {
+        "pkg": ".",
+        "run": "TestLive_FastBindSpinnerVisibleOnWallClock"
+      },
+      {
+        "pkg": ".",
+        "run": "TestDefaultVisibilityDelay_WithinUserSLA"
+      }
+    ],
+    "default": false
+  }
+]

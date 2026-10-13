@@ -1,0 +1,95 @@
+[
+  {
+    "id": "C48-001",
+    "section": "2.0 \u00a78 What Evo promises",
+    "quote": "The live frame changes within 100ms of entering Running and at least every 100ms after, with a stable parent row and the current item beneath it.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestLive_QuietRunningTaskKeepsChangingFrames"
+      },
+      {
+        "pkg": ".",
+        "run": "TestLive_FastBindSpinnerVisibleOnWallClock"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C48-002",
+    "section": "2.0 \u00a78 What Evo promises",
+    "quote": "Facts are hidden at normal verbosity and always in machine output; routine rows collapse; passing verification is silent, failing verification is shown.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestTaskFact_HiddenOnNormalSuccess"
+      },
+      {
+        "pkg": ".",
+        "run": "TestEVOOutput_JSONCarriesFactsAndDispositions"
+      },
+      {
+        "pkg": ".",
+        "run": "TestEVOOutput_JSONLCarriesFactsAndDispositions"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C48-003",
+    "section": "2.0 \u00a78 What Evo promises",
+    "quote": "Per-item Excluded Tasks fold into one tally; per-item Effects with one Verb and Object fold into one counted row; JSON keeps every item.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPruneContract_KeptChildrenStayInMachineOutput"
+      },
+      {
+        "pkg": ".",
+        "run": "TestLedgerFoldLeavesJSONLEveryPerItemEffect"
+      },
+      {
+        "pkg": ".",
+        "run": "TestLedgerFoldsZqShapeToOneCategoryRow"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C48-004",
+    "section": "2.0 \u00a78 What Evo promises",
+    "quote": "Cancellation preserves committed truth and never implies rollback.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPartialEffect_InterruptAfterPartialCommitKeepsTheCommittedSubset"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C48-005",
+    "section": "2.0 \u00a78 What Evo promises",
+    "quote": "Misuse is recorded with a remedy, appears in `Result`, and never crashes the program.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestRejectedDeclaration_DefineRecordsMisuse"
+      },
+      {
+        "pkg": ".",
+        "run": "TestStrictSpawnedUnorderedReadFailsTheTaskInsteadOfEndingTheProcess"
+      }
+    ],
+    "default": false
+  }
+]

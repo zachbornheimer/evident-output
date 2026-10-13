@@ -5,7 +5,7 @@
     "quote": "a mapping zq discovers is a Fact or domain data;",
     "tier": "1.1",
     "tests": [],
-    "waiver": "CONSUMER: what zq adopt records as a Fact is decided inside the zq repository; Evo's Fact API is bound in C22-009.",
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
     "default": false
   },
   {
@@ -28,7 +28,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C19-003",
@@ -36,7 +36,7 @@
     "quote": "each house-style file is one `evo.File` declaration;",
     "tier": "1.1",
     "tests": [],
-    "waiver": "CONSUMER: one evo.File per house-style file is how zq adopt declares its files; verified by the zq repo audit, not by an Evo test.",
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
     "default": false
   },
   {
@@ -55,7 +55,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C19-005",
@@ -73,7 +73,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C19-006",
@@ -91,7 +91,7 @@
       }
     ],
     "default": false,
-    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
   {
     "id": "C19-007",
@@ -99,7 +99,7 @@
     "quote": "zq writes no per-mode narration and no compare/write/report code for files.",
     "tier": "1.1",
     "tests": [],
-    "waiver": "CONSUMER: what zq adopt writes is verified in the zq repo; Evo's detectors for manual file code are bound in C21-008.",
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
     "default": false
   },
   {
@@ -108,7 +108,7 @@
     "quote": "Acceptance: the dry-run, apply, and unchanged runs of zq adopt come from one declaration per file, with no application-authored mutation or already-satisfied prose.",
     "tier": "1.1",
     "tests": [],
-    "waiver": "CONSUMER: acceptance runs the zq adopt fixture against the Evo candidate in the zq repository.",
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
     "default": false
   }
 ]

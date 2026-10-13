@@ -5,7 +5,7 @@
     "quote": "The system is ready when a reviewer can answer **yes** to:",
     "tier": "1.1",
     "tests": [],
-    "waiver": "PROCESS: the release-readiness question is answered by a human reviewer after the zq canary passes.",
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
     "default": false
   },
   {
@@ -14,7 +14,7 @@
     "quote": "If the answer still requires application-specific terminal prose, duplicated state logic, manual already-satisfied checks, manual JSON construction, caller-managed concurrency, or comments explaining correct usage, 1.x is not complete.",
     "tier": "1.1",
     "tests": [],
-    "waiver": "PROCESS: a release-gate criterion evaluated over the zq canary, not an Evo unit behavior.",
+    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)",
     "default": false
   }
 ]

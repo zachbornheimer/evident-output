@@ -1,0 +1,225 @@
+[
+  {
+    "id": "C43-001",
+    "section": "2.0 \u00a73 Change",
+    "quote": "Every call takes the Define `ctx`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestEffect_OutsideDefineReturnsErrNoTaskContext"
+      },
+      {
+        "pkg": ".",
+        "run": "TestFilesRequiresTaskContext"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPatchRequiresTaskContext"
+      },
+      {
+        "pkg": ".",
+        "run": "TestEveryOperationRefusesACancelledContextTheSameWay"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C43-002",
+    "section": "2.0 \u00a73 Change",
+    "quote": "File and Exec are Satisfied when their Inputs, Values and recorded outputs are current; opaque Define work runs every Run.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestFileManifestFreshnessSkipsUnchangedOperation"
+      },
+      {
+        "pkg": ".",
+        "run": "TestExecSkipsSecondRunWhenOutputsUnchanged"
+      },
+      {
+        "pkg": ".",
+        "run": "TestOpaqueTaskDefinitionRunsEveryRun"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C43-003",
+    "section": "2.0 \u00a73 Change",
+    "quote": "Each mutation appears once in the ledger as `[planned]` or `[changed]`; per-item mutations with one Verb and Object fold into one counted row.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestLedgerFoldFrameZqShapeApply"
+      },
+      {
+        "pkg": ".",
+        "run": "TestLedgerFoldFrameZqShapeDryRun"
+      },
+      {
+        "pkg": ".",
+        "run": "TestLedgerFoldsZqShapeToOneCategoryRow"
+      },
+      {
+        "pkg": ".",
+        "run": "TestLedgerFoldLeavesJSONLEveryPerItemEffect"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C43-004",
+    "section": "2.0 \u00a73 Change",
+    "quote": "Overlapping Paths wait for each other",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestFileWaitsForCoarseEffectClaim"
+      },
+      {
+        "pkg": ".",
+        "run": "TestFilesClaimsEachPathWithoutCallerLocks"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C43-005",
+    "section": "2.0 \u00a73 Change",
+    "quote": "A Patch whose source changed since it was read fails with `ErrStaleBasis` instead of overwriting.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestFilesRefusesToOverwriteStaleSource"
+      },
+      {
+        "pkg": ".",
+        "run": "TestFilesStaleCreationRefusesToOverwrite"
+      },
+      {
+        "pkg": "./internal/change",
+        "run": "TestApplyPatchRefusesStaleSourceAtCommit"
+      },
+      {
+        "pkg": "./internal/change",
+        "run": "TestFilesCommitsADerivedSetAndRefusesAStaleOne"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C43-006",
+    "section": "2.0 \u00a73 Change",
+    "quote": "Uncertain or missing recorded status re-executes; it never reports Satisfied.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestManifestCorruptFileIsSafeMissWithWarning"
+      },
+      {
+        "pkg": ".",
+        "run": "TestExecBasisDriftForcesRespawn"
+      },
+      {
+        "pkg": "./internal/freshness",
+        "run": "TestStoreUnknownSchemaVersionIsSafeMiss"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C43-007",
+    "section": "2.0 \u00a73 Change",
+    "quote": "declared outputs; none means always run",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestExecSpawnsWhenNoOutputsDeclared"
+      },
+      {
+        "pkg": ".",
+        "run": "TestExecSkipsSecondRunWhenOutputsUnchanged"
+      },
+      {
+        "pkg": ".",
+        "run": "TestExecMissingOutputAfterSuccessFails"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C43-008",
+    "section": "2.0 \u00a73 Change",
+    "quote": "bounded, redacted tail",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestExecCapturedSecretIsRedactedBeforeRetention"
+      },
+      {
+        "pkg": ".",
+        "run": "TestCapture_RingBoundsAndTruncation"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C43-009",
+    "section": "2.0 \u00a73 Change",
+    "quote": "zero leaves mode unmanaged",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestFileRewriteKeepsModeZeroWhenUnmanaged"
+      },
+      {
+        "pkg": ".",
+        "run": "TestFileCreateHonorsUmaskWhenUnmanaged"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C43-010",
+    "section": "2.0 \u00a73 Change",
+    "quote": "singular noun; Evo pluralizes",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestLedger_PluralizesSingularObjectFromQuantity"
+      },
+      {
+        "pkg": ".",
+        "run": "TestScheduler_P17_PluralizeNeverInflectsAnAlreadyPluralObject"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C43-011",
+    "section": "2.0 \u00a73 Change",
+    "quote": "`Patch(ctx, diff []byte) error`; derive from a unified diff and commit through File",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPatchCommitsTheDerivedFilesAndReturnsOnlyAnError"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPatchPerformsNoWorkspaceMutation"
+      }
+    ],
+    "default": false
+  }
+]

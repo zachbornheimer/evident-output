@@ -1,0 +1,79 @@
+[
+  {
+    "id": "C47-001",
+    "section": "2.0 \u00a77 Errors",
+    "quote": "wrapped by Exec on a nonzero exit",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestExecNonzeroExitFailsAndCommitsNoRecord"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C47-002",
+    "section": "2.0 \u00a77 Errors",
+    "quote": "a declared Output is absent after exit 0",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestExecMissingOutputAfterSuccessFails"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C47-003",
+    "section": "2.0 \u00a77 Errors",
+    "quote": "a Patch source changed between read and commit",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestFilesRefusesToOverwriteStaleSource"
+      },
+      {
+        "pkg": "./internal/change",
+        "run": "TestFilesCommitsADerivedSetAndRefusesAStaleOne"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C47-004",
+    "section": "2.0 \u00a77 Errors",
+    "quote": "the diff does not match the source",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPatchSourceMismatchFails"
+      },
+      {
+        "pkg": "./internal/change",
+        "run": "TestPatchRefusesASourceTheDiffDoesNotMatch"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C47-005",
+    "section": "2.0 \u00a77 Errors",
+    "quote": "`Get` from work not ordered after the producer",
+    "tier": "1.2",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestCompute_UnorderedGetFailsRunInDefaultMode"
+      },
+      {
+        "pkg": ".",
+        "run": "TestComputedGet_UnorderedBuilderFailsTheContainerWithTheSentinel"
+      }
+    ],
+    "default": false
+  }
+]
