@@ -31,7 +31,7 @@ func TestLive_OneExplicitChildKeepsSubjectName(t *testing.T) {
 	frame := drv.latest()
 	out.mu.Unlock()
 
-	line := strings.SplitN(strings.TrimRight(frame, "\n"), "\n", 2)[0]
+	line, _, _ := strings.Cut(strings.TrimRight(frame, "\n"), "\n")
 	for _, want := range []string{"worktrees", "classify", "24/111", "agent-a254279"} {
 		if !strings.Contains(line, want) {
 			t.Fatalf("want %q on the single live subject line, got:\n%s", want, frame)
@@ -98,7 +98,7 @@ func TestLivePendingClassifyPromotedOntoHeader(t *testing.T) {
 	if strings.Contains(frame, "0/1 complete") {
 		t.Fatalf("a one-child Pending group must not paint a 0/1 complete spinner:\n%s", frame)
 	}
-	header := strings.SplitN(strings.TrimRight(frame, "\n"), "\n", 2)[0]
+	header, _, _ := strings.Cut(strings.TrimRight(frame, "\n"), "\n")
 	if !strings.Contains(header, "branches") {
 		t.Fatalf("want the group name on the header row, got:\n%s", frame)
 	}

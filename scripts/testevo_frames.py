@@ -154,7 +154,9 @@ def assert_spinner_moved(left: int, right: int, panes: dict[int, str]) -> Assert
     left_glyph = leading_spinner(panes.get(left, ""))
     right_glyph = leading_spinner(panes.get(right, ""))
     missing = [
-        str(index) for index, glyph in ((left, left_glyph), (right, right_glyph)) if glyph is None
+        str(index)
+        for index, glyph in ((left, left_glyph), (right, right_glyph))
+        if glyph is None
     ]
     if missing:
         return Assertion(name, STATUS_SKIP, f"no spinner on {', '.join(missing)}")
@@ -164,9 +166,13 @@ def assert_spinner_moved(left: int, right: int, panes: dict[int, str]) -> Assert
 
 
 def evaluate_mandatory_assertions(records: list[FrameRecord]) -> list[Assertion]:
-    panes = {record.index: record.text for record in records if record.kind == KIND_MANDATORY}
+    panes = {
+        record.index: record.text for record in records if record.kind == KIND_MANDATORY
+    }
     checks = [assert_nonempty_vary(panes)]
-    checks.extend(assert_spinner_moved(left, right, panes) for left, right in SPINNER_PAIRS)
+    checks.extend(
+        assert_spinner_moved(left, right, panes) for left, right in SPINNER_PAIRS
+    )
     return checks
 
 

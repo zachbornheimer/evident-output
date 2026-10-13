@@ -282,10 +282,10 @@ Eligible children may execute concurrently.
 packages := evo.Group("packages")
 
 for _, pkg := range required {
-	task := packages.Task(pkg.Name)
-	task.Define(func(ctx context.Context) error {
-		return installPackage(ctx, pkg)
-	})
+ task := packages.Task(pkg.Name)
+ task.Define(func(ctx context.Context) error {
+  return installPackage(ctx, pkg)
+ })
 }
 ```
 
@@ -749,10 +749,24 @@ A conceptual record:
         "ordinal": 0,
         "definition_fingerprint": "sha256:exec-def-123",
         "basis": [
-          { "kind": "fs_path", "path": "generate.py", "fingerprint": "sha256:111" },
-          { "kind": "fs_path", "path": "input.xlsx", "fingerprint": "sha256:222" }
+          {
+            "kind": "fs_path",
+            "path": "generate.py",
+            "fingerprint": "sha256:111"
+          },
+          {
+            "kind": "fs_path",
+            "path": "input.xlsx",
+            "fingerprint": "sha256:222"
+          }
         ],
-        "outputs": [{ "kind": "file", "path": "build/schema.bin", "fingerprint": "sha256:abc" }]
+        "outputs": [
+          {
+            "kind": "file",
+            "path": "build/schema.bin",
+            "fingerprint": "sha256:abc"
+          }
+        ]
       }
     ]
   }
@@ -1770,8 +1784,8 @@ Typed Go constants are appropriate:
 
 ```go
 const (
-	ErrWritePlist evo.ErrorCode = "launchd.plist.write"
-	ErrSetPerms   evo.ErrorCode = "launchd.plist.permissions"
+ ErrWritePlist evo.ErrorCode = "launchd.plist.write"
+ ErrSetPerms   evo.ErrorCode = "launchd.plist.permissions"
 )
 ```
 
