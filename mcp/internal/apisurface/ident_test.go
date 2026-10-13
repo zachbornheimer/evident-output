@@ -9,6 +9,7 @@ func TestIdent_WalkLines(t *testing.T) {
 		{"type Option", "Option"},
 		{"type Config.Stdout", "Config.Stdout"},
 		{"value EventSchemaVersion", "EventSchemaVersion"},
+		{"value Succeeded Outcome", "Succeeded"},
 		{"func AlsoWrite(w io.Writer)  Option", "AlsoWrite"},
 		{"func (Output) Cancel(reason string)", "Output.Cancel"},
 		{"func (Failure) Error()  string", "Failure.Error"},

@@ -37,12 +37,14 @@ Config.State	helper	Run
 Config.Verbose	helper	Run
 ConfirmOption	helper	Confirm
 Container	helper	Task
+Create	helper	Effect
 DataProjection	removed	Run
 DebugAddSource	removed	Run
 DebugHistory	removed	Run
 DebugLevel	removed	Run
 DebugPane	removed	Run
 DefineOption	helper	Task
+Delete	helper	Effect
 Destructive	helper	Confirm
 Detail	helper	Problem
 Diagnostics	removed	Run
@@ -74,6 +76,7 @@ EvidenceStreamCombined	removed	Capture
 EvidenceStreamStderr	removed	Capture
 EvidenceStreamStdout	removed	Capture
 Exclude	canonical	Ending
+Excluded	helper	Ending
 Exec	canonical	File
 ExecResult	canonical	Exec
 ExecResult.ExitCode	helper	Exec
@@ -122,12 +125,15 @@ Group.Group	helper	Task
 Group.Sequence	helper	Task
 Group.Summary	helper	Task
 Group.Task	helper	Task
+Human	helper	Output
+JSON	helper	Output
 JSONAction	removed	Machine output
 JSONChanges	removed	Machine output
 JSONCollection	removed	Machine output
 JSONCommand	removed	Machine output
 JSONDocument	removed	Machine output
 JSONEffectRecord	removed	Machine output
+JSONL	helper	Output
 JSONMessage	removed	Machine output
 JSONOutputMeta	removed	Machine output
 JSONPlan	removed	Machine output
@@ -154,13 +160,14 @@ Output.NextCommand	removed	Action
 Output.Warn	removed	Problem
 PartialEffect	helper	File
 Patch	canonical	Patch
-Plain	removed	Run
+Plain	helper	Output
 ProblemOption	helper	Problem
 Process	helper	Facades
 ReasonOption	removed	Skipped
 Redact	removed	Run
 Redactor	helper	Run
 Refuse	canonical	Ending
+Refused	helper	Ending
 Result	canonical	Run
 Result.Conclusion	helper	Run
 Result.Err	helper	Run
@@ -179,6 +186,7 @@ Run.Task	helper	Task
 Run.Text	helper	Report
 RunFunc	canonical	Run
 Runner	removed	Run
+Satisfied	helper	Ending
 Sequence	canonical	Task
 Sequence.After	helper	Task
 Sequence.Build	helper	Task
@@ -191,6 +199,7 @@ State.AppID	helper	Run
 State.Dir	helper	Run
 Stdin	removed	Run
 Strict	removed	Run
+Succeeded	helper	Ending
 Task	canonical	Task
 Task.After	helper	Task
 Task.Define	helper	Run
@@ -212,6 +221,7 @@ Terminal	helper	Facades
 Title	removed	Run
 To	removed	Run
 Tree	removed	Tree
+Update	helper	Effect
 Verb	helper	Effect
 VisibilityDelay	removed	Run
 Warn	removed	Problem

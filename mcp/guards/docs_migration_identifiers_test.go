@@ -48,9 +48,8 @@ func TestMigrationGuidesNameOnlyRealAPI(t *testing.T) {
 	}
 }
 
-// liveAPINames is every name the live API contract declares: the golden
-// plus every exported top-level declaration, which covers the typed consts
-// and Patch that go/doc files under another type and the golden omits.
+// liveAPINames is every name the live API contract declares, read from the
+// golden.
 func liveAPINames(t *testing.T, root string) map[string]bool {
 	t.Helper()
 	names := map[string]bool{}
@@ -62,13 +61,6 @@ func liveAPINames(t *testing.T, root string) map[string]bool {
 		if m := goldenDeclName.FindStringSubmatch(line); m != nil {
 			names[m[1]] = true
 		}
-	}
-	declared, err := apisurface.DeclFiles(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for name := range declared {
-		names[name] = true
 	}
 	return names
 }

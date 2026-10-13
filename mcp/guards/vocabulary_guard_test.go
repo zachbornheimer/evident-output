@@ -21,7 +21,7 @@ var freezeRemoved = []string{
 	"JSONCommand", "JSONDocument", "JSONEffectRecord", "JSONMessage",
 	"JSONOutputMeta", "JSONPlan", "JSONProblem", "JSONProgress",
 	"JSONSchemaVersion", "JSONTask", "MaxEntities", "MaxEvents", "MaxFrameRate",
-	"NoColor", "OnTask", "Option", "Plain", "ReasonOption", "Redact",
+	"NoColor", "OnTask", "Option", "ReasonOption", "Redact",
 	"ResultStream", "Runner", "Stdin", "Strict", "Title", "To",
 	"VisibilityDelay", "Width",
 }

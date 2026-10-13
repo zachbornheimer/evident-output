@@ -19,7 +19,8 @@ import (
 // Walk parses every non-test .go file in dir (the root package) and
 // renders one sorted, deterministic line per exported identifier: a type
 // declaration, its exported struct fields, its exported methods, then
-// top-level exported funcs, consts, and vars — go/doc's own grouping, so
+// top-level exported funcs, consts, and vars (typed ones are listed with
+// their type) — go/doc's own grouping, so
 // a rename or a new exported symbol always lands in a stable, reviewable
 // place in the diff.
 func Walk(dir string) ([]string, error) {
@@ -34,7 +35,7 @@ func Walk(dir string) ([]string, error) {
 	}
 	lines = append(lines, funcLines(fset, docPkg.Funcs)...)
 	for _, group := range [][]*doc.Value{docPkg.Consts, docPkg.Vars} {
-		lines = append(lines, valueLines(group)...)
+		lines = append(lines, valueLines(group, "")...)
 	}
 	sort.Strings(lines)
 	return lines, nil
@@ -95,6 +96,9 @@ func typeLines(fset *token.FileSet, typ *doc.Type) []string {
 			lines = append(lines, "func ("+typ.Name+") "+m.Name+renderParams(fset, m.Decl.Type))
 		}
 	}
+	for _, group := range [][]*doc.Value{typ.Consts, typ.Vars} {
+		lines = append(lines, valueLines(group, typ.Name)...)
+	}
 	return append(lines, funcLines(fset, typ.Funcs)...)
 }
 
@@ -109,13 +113,19 @@ func funcLines(fset *token.FileSet, funcs []*doc.Func) []string {
 	return lines
 }
 
-// valueLines is each exported const or var name.
-func valueLines(values []*doc.Value) []string {
+// valueLines is each exported const or var name, followed by the type go/doc
+// grouped it under (typeName) when it has one, so a typed constant such as
+// "value Succeeded Outcome" is visible to the golden.
+func valueLines(values []*doc.Value, typeName string) []string {
+	suffix := ""
+	if typeName != "" {
+		suffix = " " + typeName
+	}
 	var lines []string
 	for _, v := range values {
 		for _, name := range v.Names {
 			if ast.IsExported(name) {
-				lines = append(lines, "value "+name)
+				lines = append(lines, "value "+name+suffix)
 			}
 		}
 	}

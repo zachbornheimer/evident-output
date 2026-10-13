@@ -125,9 +125,20 @@ type Task
 type Terminal
 type Verb
 value Cancelled
+value Create Verb
+value Delete Verb
 value ErrComputedUnordered
 value ErrExecNonzeroExit
 value ErrExecOutputMissing
 value ErrPatchDoesNotApply
 value ErrStaleBasis
+value Excluded Outcome
 value Failed
+value Human Output
+value JSON Output
+value JSONL Output
+value Plain Output
+value Refused Outcome
+value Satisfied Outcome
+value Succeeded Outcome
+value Update Verb
