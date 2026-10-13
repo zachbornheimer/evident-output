@@ -13,7 +13,7 @@ import (
 
 func TestSEC013_NewlineCannotForgeLogRecords(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, Debug: debugConfig{level: levelDebug}, plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: io.Discard, Debug: debugConfig{level: levelDebug}, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 	out.debugForTest("one\n[DEBUG] forged")
 	_ = out.finish()

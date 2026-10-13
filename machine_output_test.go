@@ -233,7 +233,7 @@ func TestOUT015_EventStreamBounded(t *testing.T) {
 	}
 	// with default debug level, Debug may no-op — enable
 	_ = out.close()
-	out2 := initRun(Config{isolated: true, stdout: io.Discard, Debug: debugConfig{level: levelDebug}})
+	out2 := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, Debug: debugConfig{level: levelDebug}})
 	for range 500 {
 		out2.debugForTest("x")
 	}

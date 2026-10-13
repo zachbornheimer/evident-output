@@ -139,7 +139,7 @@ func TestAPI030_CompatMatrixSmoke(t *testing.T) {
 	// pipe + plain + json + slog-ish debug + terminal surface
 	var buf bytes.Buffer
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := initRun(Config{isolated: true, stdout: &buf, terminal: screen, visibilityDelay: DelayForTest(0), Debug: debugConfig{level: levelDebug}, plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), Debug: debugConfig{level: levelDebug}, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("a"))
 	out.debugForTest("d")
@@ -180,7 +180,7 @@ func TestAPI022_DiscoverabilityNames(t *testing.T) {
 func TestAPI024_ComplexSmallerThanAdHoc(t *testing.T) {
 	// Multi-progress + debug is a short common-path program (not ad-hoc ANSI).
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, Debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: io.Discard, Debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
 	g := out.Group("deps")
 	succeed(g.Task("a").bytes(10, 10))
 	succeed(g.Task("b").Doing("verifying"))

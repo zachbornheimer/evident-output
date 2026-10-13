@@ -2,6 +2,7 @@ package evo
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 )
@@ -12,7 +13,7 @@ import (
 // the preview package is outside the root module's reach.
 func TestMCP025_DebugInterleavesWithItem(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", Debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: io.Discard, title: "demo", Debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
 	succeed(out.Task("status"))
 	out.debugForTest("index ok")
 	_ = out.finish()
