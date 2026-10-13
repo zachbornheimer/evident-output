@@ -37,7 +37,7 @@ func Compute(task *Task, fn func(context.Context) (T, error))  *Computed[T]
 func Destructive()  ConfirmOption
 func Detail(text string)  ProblemOption
 func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error)  error
-func Exclude(reason string)  error
+func Exclude(reason string, opts ...ProblemOption)  error
 func Exec(ctx context.Context, spec ExecSpec)  ExecResult,  error
 func Execute(ctx context.Context, cfg Config, run RunFunc)  Result
 func Fail(summary string, opts ...ProblemOption)  error

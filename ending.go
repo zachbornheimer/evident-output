@@ -459,23 +459,26 @@ const (
 	Cancelled Outcome = "cancelled"
 )
 
+// endingError is the ending Fail, Refuse or Exclude returns: the Outcome it
+// settles, and the summary and ProblemOptions of the Problem it records.
 type endingError struct {
 	outcome Outcome
 	summary string
+	opts    []ProblemOption
 }
 
 func (e endingError) Error() string { return e.summary }
 
 func Fail(summary string, opts ...ProblemOption) error {
-	return endingError{outcome: Failed, summary: summary}
+	return endingError{outcome: Failed, summary: summary, opts: opts}
 }
 
 func Refuse(summary string, opts ...ProblemOption) error {
-	return endingError{outcome: Refused, summary: summary}
+	return endingError{outcome: Refused, summary: summary, opts: opts}
 }
 
-func Exclude(reason string) error {
-	return endingError{outcome: Excluded, summary: reason}
+func Exclude(reason string, opts ...ProblemOption) error {
+	return endingError{outcome: Excluded, summary: reason, opts: opts}
 }
 
 // endingOf is the State and Problem a returned error settles (CONTRACT §4):
@@ -486,7 +489,7 @@ func endingOf(err error) (entityState, problem) {
 	if !errors.As(err, &ending) {
 		return failed, record.ApplyProblemOptions(txt.Text(err.Error()), nil)
 	}
-	return entityState(ending.outcome), record.ApplyProblemOptions(txt.Text(ending.summary), nil)
+	return entityState(ending.outcome), record.ApplyProblemOptions(txt.Text(ending.summary), ending.opts)
 }
 
 // settleEnding settles the Task with the ending its callback returned.
