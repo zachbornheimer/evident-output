@@ -304,6 +304,7 @@ func (o *Run) announceRunningLocked(st *taskState) {
 		return
 	}
 	st.runningAnnounced = true
+	st.timing.Started = o.cfg.clock.Now()
 	if col := st.collection(); col != nil && col.node.Sequential {
 		col.runningSteps = slices.DeleteFunc(col.runningSteps, func(s *taskState) bool { return s.node.Rec.State() != running })
 		if len(col.runningSteps) > 0 {
@@ -1107,6 +1108,7 @@ func (o *Run) reactToSettlesLocked() {
 // version and the task.<state> event. The live census moved when the record
 // was pulled. Callers hold o.mu.
 func (o *Run) taskSettledLocked(st *taskState, to entityState) {
+	st.timing.Settled = o.cfg.clock.Now()
 	o.emitWireEventLocked(wire.EventTaskFinished, st.id, taskFinishedPayload(st))
 	if st.isGate() {
 		o.bumpLocked()
@@ -3029,6 +3031,8 @@ func (t *taskState) view() taskSnapshot {
 		Declaration:  t.node.Declaration,
 		DefineRan:    truth.DefineRan,
 		Evidence:     truth.VerifyEvidence,
+
+		Timing: t.timing,
 	}
 	return record.WithLiveTail(record.NewTaskSnapshot(base, t.liveFirstSeenAt, t.synthetic), t.tail.view())
 }

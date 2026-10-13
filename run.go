@@ -3293,6 +3293,7 @@ func (t *Task) runDefine(verifiers []freshness.Verifier, fn func(context.Context
 	o.mu.Lock()
 	o.emitWireEventLocked(wire.EventDefinitionStarted, t.id, nil)
 	o.mu.Unlock()
+	o.markDefineRan(t.id)
 	callbackErr := fn(graph.WithScope(o.context(), scope))
 	o.mu.Lock()
 	scope.Close()
@@ -3305,7 +3306,6 @@ func (t *Task) runDefine(verifiers []freshness.Verifier, fn func(context.Context
 	if err := t.checkAfterDefine(verifiers, scope); err != nil {
 		return err
 	}
-	o.markDefineRan(t.id)
 	if o.ranOnlyCurrentOperations(t.id) {
 		t.satisfyScheduled()
 	}
@@ -3493,8 +3493,8 @@ func evidencePhaseWireName(phase evidencePhaseName) string {
 	return "before_definition"
 }
 
-// markDefineRan records that a Task's Define callback ran and returned
-// successfully (§29/§30).
+// markDefineRan records that a Task's Define callback was entered, whatever
+// it then returned (§29/§30).
 func (o *Run) markDefineRan(taskID string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()

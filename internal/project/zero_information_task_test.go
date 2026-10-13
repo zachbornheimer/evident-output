@@ -49,8 +49,10 @@ var zeroInformationFields = map[string]taskFieldRole{
 	// proven no-op always carries; the row states nothing new with it.
 	"Evidence": roleIdentity,
 	// Tracked is wire-document detail the human rows never draw.
-	"Tracked":   roleIdentity,
-	"synthetic": roleOutcome,
+	"Tracked": roleIdentity,
+	// Timing is a wire-document fact the human rows never draw.
+	"Timing": roleIdentity,
+	"synthetic":         roleOutcome,
 	// liveTail is a live-frame window onto Writer lines whose newest entry
 	// Phase already carries; it adds no information of its own.
 	"liveTail": roleIdentity,

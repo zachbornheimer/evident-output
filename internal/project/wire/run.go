@@ -122,10 +122,9 @@ type EvidenceDoc struct {
 	After  *EvidencePhaseDoc `json:"after,omitempty"`
 }
 
-// TimingDoc is a task's duration breakdown (spec §36). Increment 4 has no
-// per-phase instrumentation yet (queued/running split); every field is 0
-// until that lands, the same "emit the final shape now, fill it later"
-// treatment as tracked_resources/basis/operations below.
+// TimingDoc is a task's duration breakdown (spec §36), measured from the
+// engine clock: queued until it started, running until it settled, total
+// from declaration. A phase that never happened is 0.
 type TimingDoc struct {
 	QueuedMs  int64 `json:"queued_ms"`
 	RunningMs int64 `json:"running_ms"`
@@ -304,7 +303,7 @@ func toTaskDoc(parentID string, t record.TaskSnapshot) TaskDoc {
 		Evidence:           toEvidenceDoc(t.Evidence),
 		Progress:           toProgressDoc(t.Progress),
 		Activity:           toActivityDoc(t.Phase),
-		Timing:             TimingDoc{},
+		Timing:             toTimingDoc(t.Timing),
 		Verification:       toVerificationDocs(t.Verification),
 		TrackedResources:   toTrackedResourceDocs(t.Tracked.Resources),
 		Basis:              toBasisDocs(t.Tracked.Basis),
@@ -391,4 +390,19 @@ func toTrackedResourceDocs(in []record.TaskResource) []TrackedResourceDoc {
 		out = append(out, TrackedResourceDoc{Kind: r.Kind, Path: r.Path, Fingerprint: r.Fingerprint})
 	}
 	return out
+}
+
+func toTimingDoc(t record.TaskTiming) TimingDoc {
+	if t.Settled.IsZero() {
+		return TimingDoc{}
+	}
+	total := durationMs(t.Declared, t.Settled)
+	if t.Started.IsZero() {
+		return TimingDoc{QueuedMs: total, TotalMs: total}
+	}
+	return TimingDoc{
+		QueuedMs:  durationMs(t.Declared, t.Started),
+		RunningMs: durationMs(t.Started, t.Settled),
+		TotalMs:   total,
+	}
 }

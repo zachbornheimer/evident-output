@@ -1,5 +1,15 @@
 package record
 
+import "time"
+
+// TaskTiming is when a Task was declared, began running and settled, read
+// from the engine's clock. A zero time means the moment never happened.
+type TaskTiming struct {
+	Declared time.Time
+	Started  time.Time
+	Settled  time.Time
+}
+
 // TaskOperation is one tracked File or Exec operation a Task performed or
 // carried forward from the manifest.
 type TaskOperation struct {

@@ -130,6 +130,8 @@ type TaskSnapshot struct {
 	// Tracked is what the Task's File and Exec operations observed and
 	// produced, filled when the engine concludes the run.
 	Tracked TaskOperations
+	// Timing is when the Task was declared, started and settled.
+	Timing TaskTiming
 	// synthetic marks a task the library invented to carry an output-level
 	// outcome (Output.Fail/Cancel) rather than one the caller declared —
 	// presentation-internal bookkeeping (coalescing), never part of the

@@ -799,6 +799,7 @@ func (o *Run) declareTaskLocked(name string, col *tasksState) *Task {
 		node:     node,
 		name:     node.Name,
 		followed: declaredState,
+		timing:   record.TaskTiming{Declared: o.cfg.clock.Now()},
 	}
 	h := &Task{out: o, id: st.id}
 	st.handle = h
@@ -1697,6 +1698,8 @@ type taskState struct {
 	// runningAnnounced is set once the render work becoming Running owes was
 	// done, so task.started fires once however the row reached Running.
 	runningAnnounced bool
+	// timing is when the Task was declared, began running and settled.
+	timing record.TaskTiming
 
 	// ownsWindow is set on a Confirm gate while its Suspend window is open
 	// (guarded by Output.mu): the window shows this Task's rows, so they are
