@@ -81,7 +81,7 @@ binary name and `Output` to Human on a TTY, Plain otherwise.
 | `Result`                 | type   | what `Run` returns                                                         |
 | `Result.Conclusion`      | field  | the verdict                                                                |
 | `Result.Err`             | field  | the error the application body returned                                    |
-| `Result.ExitCode`        | method | 0 OK · 1 Refused · 2 Failed · 130 Cancelled                                |
+| `Result.ExitCode`        | method | 0 Succeeded, Satisfied or Excluded · 1 Refused · 2 Failed · 130 Cancelled  |
 | `Conclusion`             | type   | one verdict for UI and exit                                                |
 | `Conclusion.Outcome`     | field  | the worst Task outcome                                                     |
 | `Conclusion.Changed`     | field  | any mutation committed                                                     |
@@ -228,7 +228,12 @@ return evo.Exclude("protected")                         // Excluded, folds into 
 t.Problem("protected ref", evo.On("origin/main"), evo.Code("protected"))  // non-fatal
 ```
 
-A Task ends exactly once, by returning. Problems never end a Task.
+A Task ends exactly once, by returning. Problems never end a Task. The value
+a Define callback or the run body returns settles its Outcome, wrapped or
+not: nil is Succeeded, `Refuse` Refused, `Exclude` Excluded, and `Fail` or
+any other error Failed. The exit code follows the Conclusion: 0 for
+Succeeded, Satisfied and Excluded, 1 for Refused, 2 for Failed, 130 for
+Cancelled.
 
 `Outcome` is the only verdict type. Its six values appear unchanged as each
 Task's outcome, as `Conclusion.Outcome`, and as `outcome` in `evo.run` and
@@ -249,9 +254,9 @@ word. No other verdict spelling exists.
 | `Action.Command` | field | argv a machine can run                                                                           |
 | `Action.Label`   | field | text only a human can act on                                                                     |
 | `Outcome`        | type  | closed set; the only verdict type                                                                |
-| `Succeeded`      | const | ran and succeeded                                                                                |
-| `Satisfied`      | const | requested state already true; nothing ran                                                        |
-| `Excluded`       | const | policy chose not to run it                                                                       |
+| `Succeeded`      | const | ran and succeeded; exit 0                                                                        |
+| `Satisfied`      | const | requested state already true; nothing ran; exit 0                                                |
+| `Excluded`       | const | policy chose not to run it; exit 0                                                               |
 | `Refused`        | const | a precondition stopped it; exit 1                                                                |
 | `Failed`         | const | ran and failed; exit 2                                                                           |
 | `Cancelled`      | const | interrupted; exit 130                                                                            |
