@@ -47,6 +47,7 @@ func Next(action Action)  ProblemOption
 func NonInteractive(argv ...string)  ConfirmOption
 func On(subject string)  ProblemOption
 func PartialEffect(committed int, err error)  error
+func Patch(ctx context.Context, diff []byte)  error
 func Refuse(summary string, opts ...ProblemOption)  error
 type Action
 type Action.Command

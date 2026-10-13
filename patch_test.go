@@ -38,7 +38,7 @@ func runPatchTask(t *testing.T, out *Run, diff string) (fileSet, error) {
 	var patchErr error
 	task := out.Task("derive patch")
 	task.Define(func(ctx context.Context) error {
-		set, patchErr = Patch(ctx, []byte(diff))
+		set, patchErr = derivePatch(ctx, []byte(diff))
 		return patchErr
 	})
 	_ = task.wait()
@@ -175,7 +175,24 @@ func TestPatchRejectsSymlinkSource(t *testing.T) {
 }
 
 func TestPatchRequiresTaskContext(t *testing.T) {
-	if _, err := Patch(context.Background(), []byte(twoFileDiff)); !errors.Is(err, errNoTaskContext) {
+	if err := Patch(context.Background(), []byte(twoFileDiff)); !errors.Is(err, errNoTaskContext) {
 		t.Fatalf("err = %v, want ErrNoTaskContext", err)
+	}
+}
+
+func TestPatchCommitsTheDerivedFilesAndReturnsOnlyAnError(t *testing.T) {
+	dir, out := patchWorkspace(t, map[string]string{"greeting.txt": "hello\nworld\n"})
+	var patchErr error
+	task := out.Task("apply patch")
+	task.Define(func(ctx context.Context) error {
+		patchErr = Patch(ctx, []byte(modifyGreetingDiff))
+		return patchErr
+	})
+	_ = task.wait()
+	if patchErr != nil {
+		t.Fatalf("Patch: %v", patchErr)
+	}
+	if got := readOrFatal(t, filepath.Join(dir, "greeting.txt")); got == "hello\nworld\n" {
+		t.Fatalf("greeting.txt unchanged after Patch: %q", got)
 	}
 }

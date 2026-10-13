@@ -26,7 +26,7 @@ func TestEveryOperationRefusesACancelledContextTheSameWay(t *testing.T) {
 			return err
 		},
 		"Patch": func(ctx context.Context) error {
-			_, err := Patch(ctx, nil)
+			err := Patch(ctx, nil)
 			return err
 		},
 	}

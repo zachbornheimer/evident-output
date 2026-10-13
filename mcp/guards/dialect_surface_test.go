@@ -315,12 +315,6 @@ func findSig(sigs []string, prefix string) string {
 	return strings.Join(match, ", ")
 }
 
-// walkerBlindFuncs are contract functions the go/doc walker cannot list yet:
-// Patch still returns the unexported fileSet alias, which go/doc hides. The
-// contract (CONTRACT.md section 3) returns only error; the root fix removes
-// this row.
-var walkerBlindFuncs = map[string]struct{}{"pkg Patch(ctx context.Context, diff []byte)": {}}
-
 func TestDialectSurface_SubsetOfGoDocSurface(t *testing.T) {
 	live, err := apisurface.Walk(".")
 	if err != nil {
@@ -329,9 +323,6 @@ func TestDialectSurface_SubsetOfGoDocSurface(t *testing.T) {
 	var missing []string
 	for recv, sigs := range dialectSurface {
 		for _, sig := range sigs {
-			if _, blind := walkerBlindFuncs[recv+" "+sig]; blind {
-				continue
-			}
 			prefix := dialectGoDocPrefix(recv, sig)
 			if !surfaceHasPrefix(live, prefix) {
 				missing = append(missing, recv+" "+sig)

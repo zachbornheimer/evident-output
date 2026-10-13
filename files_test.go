@@ -17,7 +17,7 @@ func runFilesTask(t *testing.T, out *Run, diff string, between func()) error {
 	var filesErr error
 	task := out.Task("apply patch")
 	task.Define(func(ctx context.Context) error {
-		set, err := Patch(ctx, []byte(diff))
+		set, err := derivePatch(ctx, []byte(diff))
 		if err != nil {
 			filesErr = fmt.Errorf("Patch: %w", err)
 			return filesErr
@@ -164,7 +164,7 @@ func TestFilesAlreadySatisfiedIsSuccessfulAndCompact(t *testing.T) {
 	var first, second error
 	task := out.Task("apply twice")
 	task.Define(func(ctx context.Context) error {
-		set, err := Patch(ctx, []byte(modifyGreetingDiff))
+		set, err := derivePatch(ctx, []byte(modifyGreetingDiff))
 		if err != nil {
 			return err
 		}

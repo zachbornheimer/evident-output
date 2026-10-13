@@ -20,25 +20,41 @@ new file mode 100644
 +second
 `
 
-// ExamplePatch derives desired file states from a unified diff inside a
-// Task and mutates nothing. Forms that cannot reduce to a desired file
-// state, such as deletion, fail explicitly.
+// ExamplePatch applies a unified diff inside a Task: it derives the desired
+// file states and commits each through File. Forms that cannot reduce to a
+// desired file state, such as deletion, fail explicitly.
 func ExamplePatch() {
-	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard})
-	task := out.Task("derive notes")
+	dir, err := os.MkdirTemp("", "evo-example-patch")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	restore, err := chdir(dir)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer restore()
+
+	out := initRun(Config{isolated: true, stateDir: dir, stdout: io.Discard, stderr: io.Discard})
+	task := out.Task("apply notes")
 	task.Define(func(ctx context.Context) error {
-		_, err := Patch(ctx, []byte(createNotesDiff))
+		err := Patch(ctx, []byte(createNotesDiff))
 		fmt.Println("create:", err)
 
-		_, err = Patch(ctx, []byte("diff --git a/go.mod b/go.mod\ndeleted file mode 100644\n"))
+		err = Patch(ctx, []byte("diff --git a/go.mod b/go.mod\ndeleted file mode 100644\n"))
 		fmt.Println("delete unsupported:", errors.Is(err, errPatchDeleteUnsupported))
 		return nil
 	})
 	_ = task.wait()
 	_ = out.finish()
+	written, _ := os.ReadFile(filepath.Join(dir, "example-patch-notes.txt"))
+	fmt.Printf("written: %q\n", written)
 	// Output:
 	// create: <nil>
 	// delete unsupported: true
+	// written: "first\nsecond\n"
 }
 
 // ExampleFileSet is what Patch returns: opaque desired file states, each
@@ -49,7 +65,7 @@ func ExampleFileSet() {
 	task := out.Task("derive notes")
 	task.Define(func(ctx context.Context) error {
 		var set fileSet
-		set, err := Patch(ctx, []byte(createNotesDiff))
+		set, err := derivePatch(ctx, []byte(createNotesDiff))
 		_ = set // opaque: no field or method unpacks it
 		fmt.Println("derived:", err == nil)
 		return err
@@ -85,7 +101,7 @@ func ExampleFiles() {
 	out := initRun(Config{isolated: true, stateDir: dir, stdout: io.Discard, stderr: io.Discard})
 	task := out.Task("finalize notes")
 	task.Define(func(ctx context.Context) error {
-		set, err := Patch(ctx, []byte(diff))
+		set, err := derivePatch(ctx, []byte(diff))
 		if err != nil {
 			return err
 		}
@@ -93,7 +109,7 @@ func ExampleFiles() {
 		fmt.Println("stale:", errors.Is(files(ctx, set), ErrStaleBasis))
 
 		_ = os.WriteFile("notes.txt", []byte("draft\n"), 0o644)
-		set, err = Patch(ctx, []byte(diff))
+		set, err = derivePatch(ctx, []byte(diff))
 		if err != nil {
 			return err
 		}

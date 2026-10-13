@@ -70,7 +70,7 @@ func TestPatch_FileVerification_SurvivesEncodeRun(t *testing.T) {
 	result := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		task := out.Task("finalize notes")
 		task.Define(func(ctx context.Context) error {
-			set, err := Patch(ctx, []byte(diff))
+			set, err := derivePatch(ctx, []byte(diff))
 			if err != nil {
 				return err
 			}

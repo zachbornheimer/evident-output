@@ -153,6 +153,7 @@ Output.Next	removed	Action
 Output.NextCommand	removed	Action
 Output.Warn	removed	Problem
 PartialEffect	helper	File
+Patch	canonical	File
 Plain	removed	Run
 ProblemOption	helper	Problem
 Process	helper	Facades
