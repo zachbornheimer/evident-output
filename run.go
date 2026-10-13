@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -153,7 +154,11 @@ func runInterruptible(ctx context.Context, out *Run, run RunFunc) Result {
 	// parameter.
 	runCtx := out.beginRunContext(ctx)
 
-	done := make(chan error, 1)
+	// The whole lifecycle (body, then the Finish drain) runs in one
+	// goroutine so the signal watcher below stays armed until the Result
+	// exists.
+	var interrupted atomic.Bool
+	done := make(chan Result, 1)
 	go func() {
 		// Delivered from a defer so a callback that ends its goroutine via
 		// runtime.Goexit (directly, or through a library such as
@@ -161,33 +166,56 @@ func runInterruptible(ctx context.Context, out *Run, run RunFunc) Result {
 		var (
 			err      error
 			returned bool
+			result   Result
+			finished bool
 		)
 		defer func() {
-			if !returned {
-				err = errRunExitedWithoutReturn
+			if !finished {
+				result = concludeRunAfterExit(out, &interrupted, returned, err)
 			}
-			done <- err
+			done <- result
 		}()
 		if run != nil {
 			err = run(runCtx, out)
 		}
 		returned = true
+		result = concludeInterruptible(out, &interrupted, err)
+		finished = true
 	}()
 
 	select {
-	case runErr := <-done:
-		return concludeRun(out, runErr)
+	case result := <-done:
+		return result
 	case <-sigCh:
+		interrupted.Store(true)
 		// out.interrupt cancels o.cancelRun, the same cancel beginRunContext
 		// installed above — no separate local cancel is needed.
 		out.interrupt("interrupted")
 		select {
-		case runErr := <-done:
-			return concludeCancelled(out, runErr)
+		case result := <-done:
+			return result
 		case <-sigCh:
 			return Result{Conclusion: Conclusion{state: stateCancelled, cancelled: true, exitCode: exitCancelled}}
 		}
 	}
+}
+
+// concludeInterruptible finalizes the run once its body returned: a run
+// that was signalled concludes Cancelled, any other as an ordinary run.
+func concludeInterruptible(out *Run, interrupted *atomic.Bool, runErr error) Result {
+	if interrupted.Load() {
+		return concludeCancelled(out, runErr)
+	}
+	return concludeRun(out, runErr)
+}
+
+// concludeRunAfterExit finalizes a run whose body ended its goroutine
+// without returning.
+func concludeRunAfterExit(out *Run, interrupted *atomic.Bool, returned bool, runErr error) Result {
+	if !returned {
+		runErr = errRunExitedWithoutReturn
+	}
+	return concludeInterruptible(out, interrupted, runErr)
 }
 
 // concludeRun reconciles an ordinary (non-interrupted) run outcome into the
