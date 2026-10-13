@@ -124,7 +124,7 @@ type State.Dir
 type Task
 type Terminal
 type Verb
-value Cancelled
+value Cancelled Outcome
 value Create Verb
 value Delete Verb
 value ErrComputedUnordered
@@ -133,7 +133,7 @@ value ErrExecOutputMissing
 value ErrPatchDoesNotApply
 value ErrStaleBasis
 value Excluded Outcome
-value Failed
+value Failed Outcome
 value Human Output
 value JSON Output
 value JSONL Output

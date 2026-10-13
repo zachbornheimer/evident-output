@@ -286,7 +286,7 @@ func TestSequence_CascadeNestedSequenceFailurePropagatesToRootHeader(t *testing.
 	if got := install.snapshot().State; got != notStarted {
 		t.Fatalf("nested install state = %v, want NotStarted", got)
 	}
-	if got := root.snapshot().State; got != Failed {
+	if got := root.snapshot().State; got != failed {
 		t.Fatalf("root sequence state = %v, want Failed (nested failure must surface)", got)
 	}
 }

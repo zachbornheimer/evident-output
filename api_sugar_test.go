@@ -113,7 +113,7 @@ func TestAPISugar_TaskFailIsStatementForm(t *testing.T) {
 
 	task := out.Task("validate")
 	task.fail("validate policy manifest") // errcheck-clean: no return value
-	if got := task.snapshot().State; got != Failed {
+	if got := task.snapshot().State; got != failed {
 		t.Fatalf("state = %q, want Failed", got)
 	}
 	if got := task.snapshot().Summary; got != "validate policy manifest" {

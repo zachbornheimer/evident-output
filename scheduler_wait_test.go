@@ -51,7 +51,7 @@ func TestWait_NotStartedDependencyIsAnError(t *testing.T) {
 	if !errors.Is(waitErr, errNotStarted) {
 		t.Fatalf("Wait = %v, want ErrNotStarted", waitErr)
 	}
-	if got := waiter.snapshot().State; got != Failed {
+	if got := waiter.snapshot().State; got != failed {
 		t.Fatalf("waiter state = %v, want Failed: it awaited work that never ran", got)
 	}
 	if rendered := buf.String(); !strings.Contains(rendered, "✗ waiter") {
@@ -134,7 +134,7 @@ func TestWait_OnSelfIsMisuse(t *testing.T) {
 	if !strings.Contains(waitErr.Error(), "mirror") {
 		t.Fatalf("Wait = %q, want it to name the awaited task", waitErr)
 	}
-	if got := task.snapshot().State; got != Failed {
+	if got := task.snapshot().State; got != failed {
 		t.Fatalf("task state = %v, want Failed", got)
 	}
 	if err := out.err(); !errors.Is(err, errWaitDeadlock) {
@@ -181,7 +181,7 @@ func TestWait_MutualCycleIsMisuse(t *testing.T) {
 		}
 	}
 	for name, task := range map[string]*Task{"first": first, "second": second} {
-		if got := task.snapshot().State; got != Failed {
+		if got := task.snapshot().State; got != failed {
 			t.Fatalf("%s state = %v, want Failed", name, got)
 		}
 	}

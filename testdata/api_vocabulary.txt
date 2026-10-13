@@ -11,7 +11,7 @@ Action	helper	Run
 Action.Command	helper	Run
 Action.Label	helper	Run
 AlsoWrite	removed	Run
-Cancelled	helper	Run
+Cancelled	helper	Ending
 Checksum	removed	Checksum
 CleanStop	helper	Task
 Clock	helper	Facades
@@ -105,7 +105,7 @@ Facades.Stdin	helper	Facades
 Facades.Stdout	helper	Facades
 Facades.Terminal	helper	Facades
 Fail	canonical	Ending
-Failed	helper	Run
+Failed	helper	Ending
 Failure.Next	removed	Action
 Failure.NextCommand	removed	Action
 File	canonical	File

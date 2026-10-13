@@ -55,7 +55,7 @@ func TestSnapshotFollowsASettleTheListenerHasNotHeardYet(t *testing.T) {
 	task := out.Task("settles")
 	before := out.snapshot().Version
 
-	deliver := settleOutsideTheLock(out, task.id, Failed)
+	deliver := settleOutsideTheLock(out, task.id, failed)
 	snapshot := out.snapshot()
 	deliver()
 

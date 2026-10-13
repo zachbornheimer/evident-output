@@ -22,7 +22,7 @@ func TestHumanProblemList_IsBounded(t *testing.T) {
 	snap := snapshot{
 		Subject: "tool",
 		Tasks: []taskSnapshot{
-			{Name: "placement", State: Failed, Problems: problems},
+			{Name: "placement", State: failed, Problems: problems},
 		},
 	}
 

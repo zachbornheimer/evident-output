@@ -130,7 +130,7 @@ func TestCON010_CancelVsDoneRace(t *testing.T) {
 	wg.Wait()
 	// first terminal wins
 	st := task.snapshot().State
-	if st != done && st != Cancelled {
+	if st != done && st != cancelled {
 		t.Fatal(st)
 	}
 }

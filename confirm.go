@@ -173,7 +173,7 @@ func (o *Run) Confirm(question string, opts ...ConfirmOption) bool {
 // reaches is the graph's.
 func (o *Run) settleGate(gate *Task, answer graph.Answer, cfg confirmConfig) bool {
 	switch answer.Outcome() {
-	case Cancelled:
+	case cancelled:
 		// cancelPendingConfirmLocked already resolved the gate as Cancelled.
 		return false
 	case done:

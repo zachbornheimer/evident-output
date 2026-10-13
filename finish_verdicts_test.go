@@ -32,8 +32,8 @@ func TestFinishResolvesRunningTaskAsCancelled(t *testing.T) {
 	}
 
 	runningState := running.snapshot().State
-	if runningState != Cancelled {
-		t.Fatalf("running task state = %q, want %q", runningState, Cancelled)
+	if runningState != cancelled {
+		t.Fatalf("running task state = %q, want %q", runningState, cancelled)
 	}
 
 	pendingState := pending.snapshot().State

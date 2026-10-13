@@ -1327,7 +1327,7 @@ func (o *Run) hasLiveActivityLocked() bool {
 			return true
 		}
 		if t.node.Rec.Progress().Kind == determinate || t.node.Rec.Progress().Kind == bytesKind {
-			if t.node.Rec.State() == running || t.node.Rec.State() == done || t.node.Rec.State() == Failed {
+			if t.node.Rec.State() == running || t.node.Rec.State() == done || t.node.Rec.State() == failed {
 				return true
 			}
 		}
@@ -1698,7 +1698,7 @@ func (c *liveCensus) count(state entityState, delta int) {
 		c.running += delta
 	case pending:
 		c.pending += delta
-	case Failed:
+	case failed:
 		c.failed += delta
 	}
 	if !record.IsTerminalTask(state) {
@@ -3047,7 +3047,7 @@ func cloneTaxonomy(in []taxonomyRecord) []taxonomyRecord {
 // three levels deep still surfaces at the root header.
 func (g *tasksState) derivedState() entityState {
 	if g.node.BuilderFailed() {
-		return Failed
+		return failed
 	}
 	tasks, children := g.taskCount(), g.childStates()
 	if tasks == 0 && len(children) == 0 {
@@ -3093,11 +3093,11 @@ func (v *verdictFold) add(s entityState) {
 	switch s {
 	case running:
 		v.running = true
-	case Failed:
+	case failed:
 		v.failed = true
 	case blocked:
 		v.blocked = true
-	case Cancelled:
+	case cancelled:
 		v.cancelled = true
 	case done, skipped, notStarted:
 	default:
@@ -3110,11 +3110,11 @@ func (v verdictFold) state() entityState {
 	case v.running:
 		return running
 	case v.failed:
-		return Failed
+		return failed
 	case v.blocked:
 		return blocked
 	case v.cancelled:
-		return Cancelled
+		return cancelled
 	case v.unresolved:
 		return incomplete
 	default:

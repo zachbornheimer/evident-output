@@ -29,7 +29,7 @@ func TestScheduler_P13_FailfInsideDefineDoesNotDoubleResolve(t *testing.T) {
 		t.Fatalf("Finish: %v", err)
 	}
 
-	if got := task.snapshot().State; got != Failed {
+	if got := task.snapshot().State; got != failed {
 		t.Fatalf("task state = %v, want Failed", got)
 	}
 	if err := out.err(); err != nil {

@@ -166,8 +166,8 @@ func TestH11_Tasks_StateIsDerivedFromChildren(t *testing.T) {
 	sharp.fail("checksum mismatch")
 
 	got := dependencies.snapshot()
-	if got.State != Failed {
-		t.Fatalf("state = %q, want %q", got.State, Failed)
+	if got.State != failed {
+		t.Fatalf("state = %q, want %q", got.State, failed)
 	}
 }
 

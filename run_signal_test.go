@@ -25,7 +25,7 @@ func TestMain_SIGINTCancelsActiveTaskAndExits130(t *testing.T) {
 	code := execute_1(context.Background(), func(ctx context.Context, r *Run) error {
 		close(started)
 		deadline := time.Now().Add(2 * time.Second)
-		for task.snapshot().State != Cancelled && time.Now().Before(deadline) {
+		for task.snapshot().State != cancelled && time.Now().Before(deadline) {
 			time.Sleep(time.Millisecond)
 		}
 		return nil
@@ -34,7 +34,7 @@ func TestMain_SIGINTCancelsActiveTaskAndExits130(t *testing.T) {
 	if code != exitCancelled {
 		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, exitCancelled, buf.String())
 	}
-	if got := task.snapshot().State; got != Cancelled {
+	if got := task.snapshot().State; got != cancelled {
 		t.Fatalf("active task state = %v, want Cancelled", got)
 	}
 }

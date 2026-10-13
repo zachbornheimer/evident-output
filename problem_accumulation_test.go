@@ -37,7 +37,7 @@ func TestProblem_TenPlusIndependentFindings(t *testing.T) {
 
 	snap := out.snapshot()
 	got := snap.Tasks[0]
-	if got.State != Failed {
+	if got.State != failed {
 		t.Fatalf("want Failed (accumulated blocking Problems override a nil Define return), got %v", got.State)
 	}
 	if len(got.Problems) != n {
@@ -97,7 +97,7 @@ func TestProblem_DoneWithAccumulatedProblemsPromotesToFailed(t *testing.T) {
 	}
 
 	snap := out.snapshot()
-	if snap.Tasks[0].State != Failed {
+	if snap.Tasks[0].State != failed {
 		t.Fatalf("accumulated Problem must override a nil-error Define, want Failed, got %v", snap.Tasks[0].State)
 	}
 }
@@ -119,7 +119,7 @@ func TestProblem_BareDoneWithAccumulatedProblemsPromotesToFailed(t *testing.T) {
 	}
 
 	snap := out.snapshot()
-	if snap.Tasks[0].State != Failed {
+	if snap.Tasks[0].State != failed {
 		t.Fatalf("want Failed, got %v", snap.Tasks[0].State)
 	}
 	if len(snap.Tasks[0].Problems) != 2 {
@@ -309,7 +309,7 @@ func finishProblemRun(t *testing.T, declare func(out *Run)) (taskSnapshot, strin
 
 func assertProblemFailsTask(t *testing.T, got taskSnapshot, human string) {
 	t.Helper()
-	if got.State != Failed {
+	if got.State != failed {
 		t.Fatalf("a Task holding a blocking Problem must settle Failed, got %v\n%s", got.State, human)
 	}
 	if len(got.Problems) != 1 || got.Problems[0].Summary != "blocking finding" {

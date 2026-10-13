@@ -21,7 +21,7 @@ func TestProblem_DefaultSeverityFailsTaskAndRun(t *testing.T) {
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if got := task.snapshot().State; got != Failed {
+	if got := task.snapshot().State; got != failed {
 		t.Fatalf("task state = %s, want Failed", got)
 	}
 	c := out.conclusion()
@@ -136,7 +136,7 @@ func TestProblemWarning_DoesNotResolveTask(t *testing.T) {
 
 	task := out.Task("cache")
 	task.Problem("stale entry ignored", severity(severityWarning))
-	if got := task.snapshot().State; got == done || got == Failed || got == blocked {
+	if got := task.snapshot().State; got == done || got == failed || got == blocked {
 		t.Fatalf("state = %v, want non-terminal (Warn must not resolve the task)", got)
 	}
 	succeed(task)

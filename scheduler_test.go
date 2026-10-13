@@ -103,7 +103,7 @@ func TestScheduler_GroupSiblingsReportTruthfulIndependentOutcomes(t *testing.T) 
 	if states["ok-a"] != done {
 		t.Fatalf("ok-a state = %s, want Done", states["ok-a"])
 	}
-	if states["broken"] != Failed {
+	if states["broken"] != failed {
 		t.Fatalf("broken state = %s, want Failed", states["broken"])
 	}
 	if states["ok-b"] != done {

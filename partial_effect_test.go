@@ -63,7 +63,7 @@ func TestPartialEffect_TwoOfThreeRecordsCommittedAndFailsTheTask(t *testing.T) {
 	if !errors.Is(r.effectErr, cause) {
 		t.Fatalf("Effect err = %v, want the supplied cause", r.effectErr)
 	}
-	if r.state != Failed {
+	if r.state != failed {
 		t.Fatalf("task state = %v, want Failed", r.state)
 	}
 	if qs := changedQuantities(r.out.snapshot()); len(qs) != 1 || qs[0] != 2 {
@@ -83,7 +83,7 @@ func TestPartialEffect_ZeroOfThreeRecordsNothingAndFails(t *testing.T) {
 	if !errors.Is(r.effectErr, cause) || errors.Is(r.effectErr, errInvalidPartialEffect) {
 		t.Fatalf("Effect err = %v, want the supplied cause and not ErrInvalidPartialEffect", r.effectErr)
 	}
-	if r.state != Failed {
+	if r.state != failed {
 		t.Fatalf("task state = %v, want Failed", r.state)
 	}
 	if snap := r.out.snapshot(); len(snap.Changes) != 0 {
@@ -127,7 +127,7 @@ func TestPartialEffect_InvalidDataIsRejectedAndRecordsNothing(t *testing.T) {
 			if tc.keepCause && !errors.Is(r.effectErr, cause) {
 				t.Fatalf("Effect err = %v, want the supplied cause still reachable", r.effectErr)
 			}
-			if r.state != Failed {
+			if r.state != failed {
 				t.Fatalf("task state = %v, want Failed", r.state)
 			}
 			if snap := r.out.snapshot(); len(snap.Changes) != 0 {

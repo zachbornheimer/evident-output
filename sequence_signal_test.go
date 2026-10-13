@@ -33,7 +33,7 @@ func TestMain_SIGINTCancelsGroupChildAndLaterSiblingsRenderNotStarted(t *testing
 	code := execute_1(context.Background(), func(ctx context.Context, r *Run) error {
 		close(started)
 		deadline := time.Now().Add(2 * time.Second)
-		for venv.snapshot().State != Cancelled && time.Now().Before(deadline) {
+		for venv.snapshot().State != cancelled && time.Now().Before(deadline) {
 			time.Sleep(time.Millisecond)
 		}
 		return nil

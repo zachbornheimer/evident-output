@@ -252,7 +252,7 @@ func (o *Run) anyFailed() bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	for _, t := range o.tasks {
-		if t.node.Rec.State() == Failed {
+		if t.node.Rec.State() == failed {
 			return true
 		}
 	}
@@ -1328,7 +1328,7 @@ func (o *Run) failDuplicateSiblingLocked(col *tasksState, kind graph.EntityKind,
 		Code:    problemCodeDuplicateSiblingName,
 		Summary: fmt.Sprintf("duplicate %s name", kind),
 	})
-	o.settleLocked(st, Failed)
+	o.settleLocked(st, failed)
 	o.recordMisuseFor(name, errDuplicateSiblingName)
 	return rejected
 }
@@ -1475,9 +1475,9 @@ const (
 	running    = record.Running
 	done       = record.Done
 	blocked    = record.Blocked
-	Failed     = record.Failed
+	failed     = record.Failed
 	skipped    = record.Skipped
-	Cancelled  = record.Cancelled
+	cancelled  = record.Cancelled
 	empty      = record.Empty
 	incomplete = record.Incomplete
 	notStarted = record.NotStarted
@@ -2846,7 +2846,7 @@ func (o *Run) cancelPendingConfirmLocked(reason string) bool {
 	}
 	if st := o.taskStates[id]; st != nil && !record.IsTerminalTask(st.node.Rec.State()) {
 		st.node.Rec.SetSummary(reason)
-		o.settleLocked(st, Cancelled)
+		o.settleLocked(st, cancelled)
 		o.commitResolvedTaskLocked(id)
 	}
 	return true
@@ -3465,7 +3465,7 @@ func (o *Run) setResolution(taskID string, r resolution) {
 // machine-matchable code rather than only a rendered summary.
 func (t *Task) failScheduledWithCode(code, summary string) {
 	p := record.SanitizeProblem(problem{Code: code, Summary: txt.Text(summary)})
-	t.resolveScheduled(Failed, txt.Text(summary), []problem{p})
+	t.resolveScheduled(failed, txt.Text(summary), []problem{p})
 }
 
 type State struct {
@@ -3570,11 +3570,11 @@ func asRecordResult(r Result) record.Result {
 func outcomeFromState(s conclusionState) Outcome {
 	switch s {
 	case stateFailed:
-		return Outcome(Failed)
+		return Failed
 	case stateBlocked:
 		return Refused
 	case stateCancelled:
-		return Outcome(Cancelled)
+		return Cancelled
 	case statePlanned, stateChanged, stateReady, stateWarning:
 		return Succeeded
 	default:

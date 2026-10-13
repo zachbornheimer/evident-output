@@ -322,7 +322,7 @@ func TestDOM010_WarnAndFailWithStructuredSummary(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 	w := out.Task("w")
 	w.Problem("soft", severity(severityWarning))
-	if got := w.snapshot().State; got == done || got == Failed || got == blocked {
+	if got := w.snapshot().State; got == done || got == failed || got == blocked {
 		t.Fatalf("state = %q, want non-terminal: Warn must not resolve the task", got)
 	}
 	if warnings := w.snapshot().Warnings; len(warnings) != 1 || warnings[0].Summary != "soft" {
@@ -334,7 +334,7 @@ func TestDOM010_WarnAndFailWithStructuredSummary(t *testing.T) {
 	}
 	f := out.Task("f")
 	f.fail("hard")
-	if f.snapshot().State != Failed {
+	if f.snapshot().State != failed {
 		t.Fatal(f.snapshot().State)
 	}
 }

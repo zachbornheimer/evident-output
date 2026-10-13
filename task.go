@@ -342,11 +342,11 @@ func (s *stateCounts) move(f *filing, delta int) {
 	switch f.state {
 	case running:
 		s.running += delta
-	case Failed:
+	case failed:
 		s.failed += delta
 	case blocked:
 		s.blocked += delta
-	case Cancelled:
+	case cancelled:
 		s.cancelled += delta
 	case notStarted:
 		s.notStarted += delta
@@ -1079,7 +1079,7 @@ func (t *Task) Doing(text string, args ...any) *Task {
 // one straggling update that follows. Blaming the caller for the interrupt's
 // own timing put a misuse warning at the top of every interrupted ledger.
 func resolvedByInterrupt(state entityState) bool {
-	return state == Cancelled || state == notStarted
+	return state == cancelled || state == notStarted
 }
 
 // annotate is the one guard every non-terminal annotation verb (Doing,
@@ -1352,7 +1352,7 @@ func (t *Task) succeed(summary string) {
 // errcheck-clean. A nil *Task is safe and resolves nothing. Inside
 // Define, return the error as well so Wait sees the callback's own result.
 func (t *Task) fail(summary string, options ...ProblemOption) {
-	t.resolveWithProblem(Failed, summary, options)
+	t.resolveWithProblem(failed, summary, options)
 }
 
 // resolveWithProblem is Fail and Block: resolve as state with one Problem
@@ -1374,7 +1374,7 @@ func (t *Task) block(summary string, options ...ProblemOption) {
 // Cancel resolves the task as cancelled. A nil *Task is safe and
 // resolves nothing.
 func (t *Task) cancel(reason string) {
-	t.finish(Cancelled, project.Text(reason), nil)
+	t.finish(cancelled, project.Text(reason), nil)
 }
 
 // skip resolves the task as skipped (the engine body behind Skipped).
@@ -1391,7 +1391,7 @@ func (t *Task) skip(reason string, args ...any) *Task {
 // without Fail's caller-side submitted-task guard.
 func (t *Task) failScheduled(summary string) {
 	p := record.ApplyProblemOptions(project.Text(summary), nil)
-	t.resolveScheduled(Failed, project.Text(summary), []problem{p})
+	t.resolveScheduled(failed, project.Text(summary), []problem{p})
 }
 
 // doneScheduled resolves the task Done on the scheduler's authority — the

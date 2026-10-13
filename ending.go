@@ -255,7 +255,7 @@ func hasRecordedTaxonomy(t *taskState) bool {
 func (o *Run) resolveUnstartedTaskLocked(t *taskState) {
 	if t.node.Rec.State() == running {
 		t.node.Rec.SetSummary(unresolvedTaskCancelledSummary)
-		o.settleLocked(t, Cancelled)
+		o.settleLocked(t, cancelled)
 		return
 	}
 	t.node.Rec.SetSummary(notStartedSummary)
@@ -271,7 +271,7 @@ func (o *Run) resolveUnstartedTaskLocked(t *taskState) {
 // finding 1).
 func (o *Run) abnormalFinishLocked() bool {
 	for _, t := range o.tasks {
-		if t.node.Rec.State() == Failed || t.node.Rec.State() == Cancelled {
+		if t.node.Rec.State() == failed || t.node.Rec.State() == cancelled {
 			return true
 		}
 	}
@@ -300,7 +300,7 @@ func (o *Run) autoResolveGroupsLocked() {
 		triggered := false
 		for _, t := range col.taskStates() {
 			if !triggered {
-				if t.node.Rec.State() == Failed || t.node.Rec.State() == Cancelled {
+				if t.node.Rec.State() == failed || t.node.Rec.State() == cancelled {
 					triggered = true
 				}
 				continue
@@ -388,7 +388,7 @@ func (o *Run) failWith(p problem) {
 	if name == "" {
 		name = identityFallbackName()
 	}
-	o.appendSyntheticTaskLocked(name, record.TaskInit{State: Failed, Problems: []problem{p}})
+	o.appendSyntheticTaskLocked(name, record.TaskInit{State: failed, Problems: []problem{p}})
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "output.failed"})
 }
@@ -405,7 +405,7 @@ func (o *Run) cancel(reason string) {
 	if name == "" {
 		name = identityFallbackName()
 	}
-	o.appendSyntheticTaskLocked(name, record.TaskInit{State: Cancelled, Summary: txt.Text(reason)})
+	o.appendSyntheticTaskLocked(name, record.TaskInit{State: cancelled, Summary: txt.Text(reason)})
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "output.cancelled"})
 }
@@ -449,6 +449,8 @@ const (
 	Satisfied Outcome = "satisfied"
 	Excluded  Outcome = "excluded"
 	Refused   Outcome = "refused"
+	Failed    Outcome = "failed"
+	Cancelled Outcome = "cancelled"
 )
 
 type endingError struct {
@@ -459,7 +461,7 @@ type endingError struct {
 func (e endingError) Error() string { return e.summary }
 
 func Fail(summary string, opts ...ProblemOption) error {
-	return endingError{outcome: Outcome(Failed), summary: summary}
+	return endingError{outcome: Failed, summary: summary}
 }
 
 func Refuse(summary string, opts ...ProblemOption) error {
