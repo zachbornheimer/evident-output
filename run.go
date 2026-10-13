@@ -121,11 +121,7 @@ func Execute(ctx context.Context, cfg Config, run RunFunc) Result {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	var err error
-	if run != nil {
-		err = run(ctx, out)
-	}
-	return concludeRun(out, err)
+	return runInterruptible(ctx, out, run)
 }
 
 func Main(run RunFunc, cfg ...Config) int {
@@ -152,7 +148,12 @@ func runInterruptible(ctx context.Context, out *Run, run RunFunc) Result {
 	// beginRunContext): every Define/Verify task scope started from here
 	// on descends from the caller's own ctx, not just from run's local
 	// parameter.
-	runCtx := out.beginRunContext(ctx)
+	//
+	// Cancellation is detached from the caller's ctx on purpose: the watcher
+	// below records the Cancel first (out.interrupt), then cancels the run,
+	// so a task that sees ctx.Done ends Cancelled rather than Failed with the
+	// caller's deadline error.
+	runCtx := out.beginRunContext(watchedContext{ctx})
 
 	// The whole lifecycle (body, then the Finish drain) runs in one
 	// goroutine so the signal watcher below stays armed until the Result
@@ -187,18 +188,33 @@ func runInterruptible(ctx context.Context, out *Run, run RunFunc) Result {
 	case result := <-done:
 		return result
 	case <-sigCh:
-		interrupted.Store(true)
-		// out.interrupt cancels o.cancelRun, the same cancel beginRunContext
-		// installed above — no separate local cancel is needed.
-		out.interrupt("interrupted")
-		select {
-		case result := <-done:
-			return result
-		case <-sigCh:
-			return Result{Conclusion: Conclusion{state: stateCancelled, cancelled: true, exitCode: exitCancelled}}
-		}
+	case <-ctx.Done():
+	}
+	interrupted.Store(true)
+	out.interrupt("interrupted")
+	return awaitInterrupted(sigCh, done)
+}
+
+// awaitInterrupted waits for the interrupted run's Result; a second signal
+// returns Cancelled at once instead of waiting for the run to unwind.
+func awaitInterrupted(sigCh <-chan process.Signal, done <-chan Result) Result {
+	select {
+	case result := <-done:
+		return result
+	case <-sigCh:
+		return Result{Conclusion: Conclusion{state: stateCancelled, cancelled: true, exitCode: exitCancelled}}
 	}
 }
+
+// watchedContext keeps the caller's deadline and values but not its
+// cancellation: the run's watcher is the only canceller, so it records the
+// Cancel before any task observes Done.
+type watchedContext struct{ parent context.Context }
+
+func (w watchedContext) Deadline() (time.Time, bool) { return w.parent.Deadline() }
+func (w watchedContext) Done() <-chan struct{}       { return nil }
+func (w watchedContext) Err() error                  { return nil }
+func (w watchedContext) Value(key any) any           { return w.parent.Value(key) }
 
 // concludeInterruptible finalizes the run once its body returned: a run
 // that was signalled concludes Cancelled, any other as an ordinary run.
