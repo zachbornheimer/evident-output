@@ -124,6 +124,9 @@ func Execute(ctx context.Context, cfg Config, run RunFunc) Result {
 	return runInterruptible(ctx, out, run)
 }
 
+// Main runs run under SIGINT and SIGTERM and returns the process exit code;
+// it never exits. cfg is optional: only the first Config is used, and any
+// further Config is ignored.
 func Main(run RunFunc, cfg ...Config) int {
 	c := Config{}
 	if len(cfg) > 0 {
