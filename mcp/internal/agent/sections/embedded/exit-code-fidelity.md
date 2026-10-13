@@ -17,12 +17,10 @@ own reason:
 ```go
 func main() {
     ctx := context.Background()
-    out := evo.Init(evo.Config{Title: "runner", Isolated: true})
-
     var childErr *exec.ExitError
-    code := out.Run(ctx, func(ctx context.Context) error {
-        cmd := out.Task("build")
-        err := run(cmd, exec.Command("make", "build")) // wires cmd.Stdout/Stderr into evo evidence
+    code := evo.Execute(ctx, evo.Config{Name: "runner"}, func(ctx context.Context, r *evo.Run) error {
+        task := r.Task("build")
+        err := run(task, exec.Command("make", "build")) // wires cmd.Stdout/Stderr into evo evidence
         errors.As(err, &childErr)
         return err
     }).ExitCode()

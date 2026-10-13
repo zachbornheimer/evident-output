@@ -16,7 +16,7 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/catalog"
 )
 
-//go:generate go run ../../../../tools/gensections
+//go:generate go run -C ../../../.. ./tools/gensections
 
 //go:embed embedded/*.md
 var embedded embed.FS
