@@ -326,7 +326,7 @@ out.Task("disk space").Define(checkDiskSpace)`,
 			GoodCode: `if err := validate(cfg); err != nil {
   return evo.Fail("validate policy manifest", evo.Detail(err.Error()))
 }`,
-			Remediation:     `Replace the Fail + return nil pair with a returned error: Fail with evo.Detail(err.Error()) (and any evo.Next/evo.NextCommand remedy), then return err, or with nothing to add just return err; Wait() reports the returned error. Block then return nil is a refusal that carries no error; with a real err, Block(summary, evo.Detail(...)); return err keeps the error's identity for Wait() (return nil there loses it)`,
+			Remediation:     `Replace the Fail + return nil pair with a returned ending: return evo.Fail("<context>", evo.Detail(err.Error())) (plus any evo.Next/evo.NextCommand remedy), or with nothing to add just return err; Wait() reports the returned error. Block then return nil is a refusal that carries no error; with a real err, Block(summary, evo.Detail(...)); return err keeps the error's identity for Wait() (return nil there loses it)`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-034"},
 			Since:           "0.2.17",

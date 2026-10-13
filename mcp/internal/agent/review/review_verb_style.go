@@ -70,12 +70,12 @@ func detectPlaceholderDoing(filename, src string) []Finding {
 // name, so it matches Fail/Block statements.
 var failBlockStmtPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(`)
 
-// returnTheErrorSuggestion is how a Fail site hands its error back. Inside a
-// Define or mutation callback the returned error is what Wait() reports, so
-// the callback returns it whether or not Fail first records Detail or a
-// remedy (API-040 flags only a Fail that adds nothing); never return nil.
-func returnTheErrorSuggestion(recv, errVar string) string {
-	return "return the error: " + recv + ".Fail(\"<context>\", evo.Detail(" + errVar + ".Error())); return " + errVar +
+// returnTheErrorSuggestion is how a Fail site hands its error back: the
+// callback's returned ending is `return evo.Fail(...)`, which concludes the
+// row Failed and makes Wait() report the error. A bare `return err` is the
+// answer when there is nothing to add; never return nil.
+func returnTheErrorSuggestion(errVar string) string {
+	return "return the error: return evo.Fail(\"<context>\", evo.Detail(" + errVar + ".Error()))" +
 		" (inside a Define/mutation callback with nothing to add, just `return " + errVar + "`)"
 }
 
@@ -99,10 +99,13 @@ func detectFailBlockThenReturnNil(filename, src string) []Finding {
 			continue
 		}
 		recv, verb := m[1], m[2]
+		if strings.HasPrefix(strings.TrimSpace(line), "return ") {
+			continue // `return evo.Fail(...)` is the callback's returned ending, not a statement-form Fail
+		}
 		if verb == "Block" {
 			continue // Block then return nil is a refusal with no error to carry; with a real err, Block(...); return err keeps its identity
 		}
-		suggestion := returnTheErrorSuggestion(recv, "err")
+		suggestion := returnTheErrorSuggestion("err")
 		if rest, ok := sameLineReturn(line); ok {
 			if rest == "return nil" {
 				findings = append(findings, failThenReturnNilFinding(filename, recv, verb, i+1, suggestion))

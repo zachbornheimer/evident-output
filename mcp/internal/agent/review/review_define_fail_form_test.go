@@ -233,3 +233,23 @@ func TestDOM018_BlockSuggestionReturnsTheError(t *testing.T) {
 	}
 	t.Fatal("no DOM-018 finding")
 }
+
+// The contract's own shape: a Define callback returns evo.Fail(...). That is
+// the callback's return, not a Fail followed by return nil.
+func TestAPI034_ReturnedEndingIsClean(t *testing.T) {
+	src := remedySource("", "func f(task *evo.TaskHandle) {\n\ttask.Define(func(ctx context.Context) error {\n\t\tif err := run(); err != nil {\n"+
+		"\t\t\treturn evo.Fail(\"lint failed\", evo.Detail(err.Error()))\n\t\t}\n\t\treturn nil\n\t})\n}\n")
+	res := review.GoSource("a.go", src)
+	if hasRule(res, "API-034") {
+		t.Fatalf("API-034 flagged a returned evo.Fail: %+v", res.Findings)
+	}
+}
+
+func TestAPI034_SuggestionTeachesTheReturnedEnding(t *testing.T) {
+	res := review.GoSource("a.go", remedySource("", defineCallback("\t\t\ttask.Fail(\"lint failed\")\n\t\t\treturn nil\n")))
+	for _, f := range res.Findings {
+		if f.RuleID == "API-034" && !strings.Contains(f.Suggestion, "return evo.Fail(") {
+			t.Fatalf("suggestion %q must teach `return evo.Fail(...)`", f.Suggestion)
+		}
+	}
+}

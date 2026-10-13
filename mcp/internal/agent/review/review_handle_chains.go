@@ -132,7 +132,7 @@ func (s handleScan) waitsOn(chain handleChain, target string) bool {
 		return true
 	}
 	seen := map[string]bool{}
-	queue := append([]string(nil), chain.afters...)
+	queue := append(append([]string(nil), chain.afters...), s.containerAfters(chain.root)...)
 	for len(queue) > 0 {
 		name := queue[0]
 		queue = queue[1:]
@@ -148,6 +148,24 @@ func (s handleScan) waitsOn(chain handleChain, target string) bool {
 		}
 	}
 	return false
+}
+
+// containerAfters are the After targets of the container named root and of
+// every container enclosing it: a Task inside a container declared
+// After(x) runs only once x has finished.
+func (s handleScan) containerAfters(root string) []string {
+	var afters []string
+	seen := map[string]bool{}
+	for !seen[root] {
+		seen[root] = true
+		h, ok := s.handles[root]
+		if !ok {
+			break
+		}
+		afters = append(afters, h.chain.afters...)
+		root = h.chain.root
+	}
+	return afters
 }
 
 // consumer is a callback that runs as the work or builder of one handle.

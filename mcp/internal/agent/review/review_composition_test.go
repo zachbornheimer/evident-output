@@ -86,3 +86,25 @@ func TestCompositionRules_OlderPinDropsTheirFindings(t *testing.T) {
 	res := review.GoSourceAt("bad.go", readFixture(t, "api_064_bad.go"), "1.1.0")
 	assertNoFinding(t, res, "API-064")
 }
+
+// A Get inside a Task whose container is declared After(computed) is
+// ordered by the container's edge; the runtime accepts it.
+func TestAPI064_HonoursContainerAfter(t *testing.T) {
+	src := `package p
+
+import (
+	"context"
+
+	evo "github.com/zachbornheimer/evident-output"
+)
+
+func run(out *evo.Output) {
+	n := evo.Compute(out.Task("count"), count)
+	steps := out.Sequence("steps").After(n)
+	steps.Task("report").Define(func(ctx context.Context) error {
+		return show(n.Get())
+	})
+}
+`
+	assertNoFinding(t, review.GoSource("container_after.go", src), "API-064")
+}
