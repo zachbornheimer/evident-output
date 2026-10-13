@@ -36,9 +36,9 @@ if [[ -n "$(git status --porcelain)" && "${CUT_RELEASE_ALLOW_DIRTY:-}" != "1" ]]
 	exit 1
 fi
 
-current="$(sed -n 's/^const PublishedRelease = "\(v[^"]*\)"/\1/p' format.go | head -1)"
+current="$(sed -n 's/^const publishedRelease = "\(v[^"]*\)"/\1/p' output.go | head -1)"
 if [[ -z "$current" ]]; then
-	echo "cut-release: could not parse PublishedRelease from format.go" >&2
+	echo "cut-release: could not parse publishedRelease from output.go" >&2
 	exit 1
 fi
 
@@ -96,10 +96,10 @@ if [[ -f "$changelog" && "${CUT_RELEASE_ALLOW_CHANGELOG_DRIFT:-}" != "1" ]]; the
 	fi
 fi
 
-# Bump PublishedRelease in format.go
+# Bump publishedRelease in output.go
 tmp="$(mktemp)"
-sed "s/^const PublishedRelease = \"v[^\"]*\"/const PublishedRelease = \"${next}\"/" format.go >"$tmp"
-mv "$tmp" format.go
+sed "s/^const publishedRelease = \"v[^\"]*\"/const publishedRelease = \"${next}\"/" output.go >"$tmp"
+mv "$tmp" output.go
 
 go run ./tools/scripts/sync-release-pins
 # The released API contract is the baseline TestChangelogCoversEveryAPIChange
@@ -110,13 +110,13 @@ go generate ./mcp/internal/agent/sections
 go test . -run 'PublishedRelease|VersionDrift' -count=1
 
 msg="${CUT_RELEASE_MESSAGE:-chore(${next}): cut release}"
-git add format.go README.md mcp/docs/mcp.md mcp/internal/agent/sections/embedded mcp/skills mcp/integrations CHANGELOG.md testdata/api_golden_released.txt 2>/dev/null || true
+git add output.go README.md mcp/docs/mcp.md mcp/internal/agent/sections/embedded mcp/skills mcp/integrations CHANGELOG.md testdata/api_golden_released.txt 2>/dev/null || true
 # Stage any pin surface the syncer touched (and CHANGELOG if promoted in-tree)
-git add -u README.md mcp/docs/mcp.md mcp/internal/agent/sections/embedded mcp/skills mcp/integrations format.go CHANGELOG.md 2>/dev/null || true
+git add -u README.md mcp/docs/mcp.md mcp/internal/agent/sections/embedded mcp/skills mcp/integrations output.go CHANGELOG.md 2>/dev/null || true
 if [[ -n "$(git status --porcelain)" ]]; then
 	git commit -m "$msg"
 else
-	echo "cut-release: no pin-file changes to commit (PublishedRelease already ${next}?)"
+	echo "cut-release: no pin-file changes to commit (publishedRelease already ${next}?)"
 fi
 
 git tag -a "$next" -m "$next"
