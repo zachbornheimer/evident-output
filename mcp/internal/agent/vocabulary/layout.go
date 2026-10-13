@@ -12,17 +12,12 @@ import (
 // identifier.
 const packageDocFile = "evo.go"
 
-// patchPlaceholderFile is the root file CONTRACT.md §3 gives Patch. Patch
-// is not in the golden surface yet (its result type is still unexported), so
-// the file is expected without owning a concept.
-const patchPlaceholderFile = "patch.go"
-
 // conceptFile is the root file that owns each vocabulary concept: one per
 // contract section, named for the file stem.
 var conceptFile = map[string]string{
 	"Run": "run.go", "Facades": "facades.go", "Task": "task.go",
 	"Compute": "compute.go", "File": "file.go", "Exec": "exec.go",
-	"Effect": "effect.go", "Report": "report.go",
+	"Effect": "effect.go", "Patch": "patch.go", "Report": "report.go",
 	"Problem": "problem.go", "Ending": "ending.go", "Confirm": "confirm.go",
 	"Output": "output.go", "Errors": "errors.go",
 }
@@ -47,7 +42,7 @@ func Home(entry Entry) string {
 // ExpectedRootFiles is the sorted set of non-test root files: one per
 // concept family, plus doc.go.
 func ExpectedRootFiles() []string {
-	set := map[string]bool{packageDocFile: true, patchPlaceholderFile: true}
+	set := map[string]bool{packageDocFile: true}
 	for _, file := range conceptFile {
 		set[file] = true
 	}
