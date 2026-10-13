@@ -92,7 +92,7 @@ surface and nothing else.
 Four packages are the four promises, in the order a run executes them.
 `record` is the only package with mutable run state: `graph`, `freshness`
 and `change` append to it; `project` reads it; nothing else touches it. The
-three facades are the only packages that import `os`, `os/exec`, `syscall`
+four facades are the only packages that import `os`, `os/exec`, `syscall`
 or a terminal library.
 
 | Package              | Decides | Owns                                                                                                             |
