@@ -750,11 +750,10 @@ func TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning(t *testing.T) 
 	if warningCount != 1 {
 		t.Fatalf("want 1 %s recEvent, got %d in %v", wire.EventWarningRecorded, warningCount, types)
 	}
-	// The task resolves Failed (accumulated Problems override the nil
-	// Define return) even though the warning alone would not have.
+	// The task resolves from the Define return alone: Problems never end it.
 	finished := events[indexOfType(events, wire.EventTaskFinished)]
-	if finished.Payload["state"] != "failed" {
-		t.Fatalf("want task.finished state=failed, got %v", finished.Payload["state"])
+	if finished.Payload["state"] != "done" {
+		t.Fatalf("want task.finished state=done, got %v", finished.Payload["state"])
 	}
 }
 

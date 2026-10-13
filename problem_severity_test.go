@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestProblem_DefaultSeverityFailsTaskAndRun(t *testing.T) {
+func TestProblem_DefaultSeverityNeverEndsTaskOrRun(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true, stateDir: t.TempDir()})
 	t.Cleanup(func() { _ = out.close() })
@@ -21,12 +21,11 @@ func TestProblem_DefaultSeverityFailsTaskAndRun(t *testing.T) {
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if got := task.snapshot().State; got != failed {
-		t.Fatalf("task state = %s, want Failed", got)
+	if got := task.snapshot().State; got != done {
+		t.Fatalf("task state = %s, want Done", got)
 	}
-	c := out.conclusion()
-	if c.state != stateFailed || c.exitCode != exitFailed {
-		t.Fatalf("conclusion = %s exit %d, want failed exit %d\n%s", c.state, c.exitCode, exitFailed, buf.String())
+	if c := out.conclusion(); c.exitCode != 0 {
+		t.Fatalf("conclusion = %s exit %d, want exit 0\n%s", c.state, c.exitCode, buf.String())
 	}
 }
 

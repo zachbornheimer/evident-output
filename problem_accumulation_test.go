@@ -37,8 +37,8 @@ func TestProblem_TenPlusIndependentFindings(t *testing.T) {
 
 	snap := out.snapshot()
 	got := snap.Tasks[0]
-	if got.State != failed {
-		t.Fatalf("want Failed (accumulated blocking Problems override a nil Define return), got %v", got.State)
+	if got.State != done {
+		t.Fatalf("want Done (Problems never end a Task), got %v", got.State)
 	}
 	if len(got.Problems) != n {
 		t.Fatalf("want %d retained Problems, got %d: %#v", n, len(got.Problems), got.Problems)
@@ -81,10 +81,10 @@ func TestProblem_ResolvesTaskOnceNotChildTasks(t *testing.T) {
 	}
 }
 
-// TestProblem_DoneWithAccumulatedProblemsPromotesToFailed is the Decisions
-// (2026-09-23) contract's central rule: "if a Define callback returns nil
-// but accumulated at least one blocking Problem, the Task resolves Failed."
-func TestProblem_DoneWithAccumulatedProblemsPromotesToFailed(t *testing.T) {
+// TestProblem_DoneWithAccumulatedProblemsStaysDone is CONTRACT.md section 4:
+// a Define callback that returns nil settles Done however many Problems it
+// recorded; only a returned Fail ends a Task Failed.
+func TestProblem_DoneWithAccumulatedProblemsStaysDone(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.close() })
@@ -97,15 +97,15 @@ func TestProblem_DoneWithAccumulatedProblemsPromotesToFailed(t *testing.T) {
 	}
 
 	snap := out.snapshot()
-	if snap.Tasks[0].State != failed {
-		t.Fatalf("accumulated Problem must override a nil-error Define, want Failed, got %v", snap.Tasks[0].State)
+	if snap.Tasks[0].State != done {
+		t.Fatalf("a Problem must not override a nil-error Define, want Done, got %v", snap.Tasks[0].State)
 	}
 }
 
-// TestProblem_BareDoneWithAccumulatedProblemsPromotesToFailed covers the
-// same promotion for a non-Define, hand-resolved task (a bare task.Done()
-// after accumulating Problems) — the rule is not special-cased to Define.
-func TestProblem_BareDoneWithAccumulatedProblemsPromotesToFailed(t *testing.T) {
+// TestProblem_BareDoneWithAccumulatedProblemsStaysDone covers the same rule
+// for a non-Define, hand-resolved task (a bare task.Done() after
+// accumulating Problems).
+func TestProblem_BareDoneWithAccumulatedProblemsStaysDone(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.close() })
@@ -119,8 +119,8 @@ func TestProblem_BareDoneWithAccumulatedProblemsPromotesToFailed(t *testing.T) {
 	}
 
 	snap := out.snapshot()
-	if snap.Tasks[0].State != failed {
-		t.Fatalf("want Failed, got %v", snap.Tasks[0].State)
+	if snap.Tasks[0].State != done {
+		t.Fatalf("want Done, got %v", snap.Tasks[0].State)
 	}
 	if len(snap.Tasks[0].Problems) != 2 {
 		t.Fatalf("want both accumulated Problems retained, got %d", len(snap.Tasks[0].Problems))
@@ -307,10 +307,10 @@ func finishProblemRun(t *testing.T, declare func(out *Run)) (taskSnapshot, strin
 	return snap.Tasks[0], buf.String()
 }
 
-func assertProblemFailsTask(t *testing.T, got taskSnapshot, human string) {
+func assertProblemKeptOnTask(t *testing.T, got taskSnapshot, want entityState, human string) {
 	t.Helper()
-	if got.State != failed {
-		t.Fatalf("a Task holding a blocking Problem must settle Failed, got %v\n%s", got.State, human)
+	if got.State != want {
+		t.Fatalf("a Problem must not change the Task's outcome: want %v, got %v\n%s", want, got.State, human)
 	}
 	if len(got.Problems) != 1 || got.Problems[0].Summary != "blocking finding" {
 		t.Fatalf("the Problem must survive to the Snapshot, got %#v", got.Problems)
@@ -320,9 +320,9 @@ func assertProblemFailsTask(t *testing.T, got taskSnapshot, human string) {
 	}
 }
 
-// TestProblem_SkippedCannotLaunderAProblem: Skipped is a success-class
-// outcome, so a Problem recorded before it still fails the Task.
-func TestProblem_SkippedCannotLaunderAProblem(t *testing.T) {
+// TestProblem_SkippedKeepsItsProblem: a Problem recorded before Skipped
+// stays attached and the Task still settles Skipped.
+func TestProblem_SkippedKeepsItsProblem(t *testing.T) {
 	got, human := finishProblemRun(t, func(out *Run) {
 		task := out.Task("scan")
 		task.Define(func(context.Context) error {
@@ -331,25 +331,25 @@ func TestProblem_SkippedCannotLaunderAProblem(t *testing.T) {
 			return nil
 		})
 	})
-	assertProblemFailsTask(t, got, human)
+	assertProblemKeptOnTask(t, got, skipped, human)
 }
 
 // TestProblem_UnresolvedWarnedTaskKeepsItsProblem: Finish's amnesty for a
-// warned-but-unresolved Task must not settle it Done over a Problem.
+// warned-but-unresolved Task settles it Done with its Problem attached.
 func TestProblem_UnresolvedWarnedTaskKeepsItsProblem(t *testing.T) {
 	got, human := finishProblemRun(t, func(out *Run) {
 		out.Task("scan").Problem("blocking finding").Problem("also a warning", severity(severityWarning))
 	})
-	assertProblemFailsTask(t, got, human)
+	assertProblemKeptOnTask(t, got, done, human)
 }
 
 // TestProblem_UnresolvedTaskKeepsItsProblem: a Task that recorded a
-// Problem and was never resolved still fails; the Problem is its story.
+// Problem and was never resolved settles Done; the Problem stays attached.
 func TestProblem_UnresolvedTaskKeepsItsProblem(t *testing.T) {
 	got, human := finishProblemRun(t, func(out *Run) {
 		out.Task("scan").Problem("blocking finding")
 	})
-	assertProblemFailsTask(t, got, human)
+	assertProblemKeptOnTask(t, got, done, human)
 }
 
 // TestProblem_VisibleInSnapshotWhileRunning: every Problem is kept in the

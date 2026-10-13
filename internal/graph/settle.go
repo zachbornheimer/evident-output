@@ -19,10 +19,6 @@ const NotStartedSummary = "not started"
 //   - its collections' tallies move, and every Task parked on it (or on a
 //     collection it just resolved) is placed again (see wakeLocked).
 //
-// It also owns the evidence rule (record.Task.HonestOutcome): a
-// success-class target over a Task holding a Problem settles Failed,
-// whichever path asked.
-//
 // Callers own only what differs between paths: the summary, the Problems,
 // and where the settled row is committed. What a projection owes a terminal
 // transition it learns from the record's listener.
@@ -33,7 +29,6 @@ func (g *Graph) Settle(t *Task, state record.EntityState) {
 }
 
 func (g *Graph) settleLocked(t *Task, state record.EntityState) {
-	state = t.Rec.HonestOutcome(state)
 	t.Rec.Settle(state)
 	if t.gateFor != nil {
 		g.concludeGateLocked(t)

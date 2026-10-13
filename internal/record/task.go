@@ -146,18 +146,6 @@ func (t *Task) swapState(to EntityState) (from EntityState) {
 	return from
 }
 
-// HonestOutcome is the one rule between a Task's blocking evidence and its
-// terminal state: a Task holding any Problem cannot settle success-class, so
-// a Done or Skipped claim over one settles Failed.
-func (t *Task) HonestOutcome(state EntityState) EntityState {
-	t.run.mu.Lock()
-	defer t.run.mu.Unlock()
-	if DeclaresSuccess(state) && len(t.problems) > 0 {
-		return Failed
-	}
-	return state
-}
-
 // Phase is the Task's current-step text.
 func (t *Task) Phase() string {
 	t.run.mu.Lock()

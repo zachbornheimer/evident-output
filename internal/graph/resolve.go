@@ -73,11 +73,10 @@ func (g *Graph) Admit(t *Task, r Resolution) Admission {
 		t.proposal = &Proposal{State: r.State, Summary: r.Summary, Problems: r.Problems}
 		return Admission{Verdict: Proposed}
 	}
-	state := t.Rec.HonestOutcome(r.State)
 	return Admission{
 		Verdict:        Settling,
-		State:          state,
-		stopsFollowers: t.sched.submitted() && StopsSequenceFollowers(state),
+		State:          r.State,
+		stopsFollowers: t.sched.submitted() && StopsSequenceFollowers(r.State),
 	}
 }
 

@@ -62,8 +62,7 @@ func (o *Run) finish() error {
 //
 // A task told an honest, complete story already — the caller just never
 // called a terminal verb — whenever it carries at least one of: a recorded
-// Problem (it settles Failed: settleLocked's evidence rule turns the Done
-// below into Failed), a recorded Effect/File ledger row, a
+// Problem (it settles Done: a Problem never ends a Task), a recorded Effect/File ledger row, a
 // sealed absolute progress (a completed Progress/Step loop reached its
 // total), recorded taxonomy (Skipped), or a recorded warning (P2: a
 // warning-severity Problem never itself resolves the task, so a warned-but-

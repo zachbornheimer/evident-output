@@ -1203,11 +1203,12 @@ func (t *Task) Summary(text string) *Task {
 	})
 }
 
-// Problem appends one structured diagnostic without resolving the Task.
-// Severity defaults to SeverityError: a Task holding an error Problem can
-// never settle success-class (see Task.HonestOutcome). SeverityWarning uses the
-// previous warning projection and never fails the Task. An invalid severity
-// is rejected with a context-bearing misuse error and is not recorded.
+// Problem attaches one structured diagnostic to the Task. It is an
+// annotation: it never ends the Task or changes its outcome, which settles
+// from the Define callback's return alone and carries the Problem in every
+// output mode. A fatal finding is returned through Fail. SeverityWarning
+// uses the warning projection. An invalid severity is rejected with a
+// context-bearing misuse error and is not recorded.
 func (t *Task) Problem(summary string, opts ...ProblemOption) *Task {
 	p := record.ApplyProblemOptions(project.Text(summary), opts)
 	sev, err := record.ClassifiedProblemSeverity(p)
