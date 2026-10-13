@@ -162,7 +162,7 @@ name still cancels the run.
 | `Task.After`        | method | `After(preds ...Predecessor) *Task`; a Task, Group, Sequence or Computed       |
 | `Task.Verify`       | method | `Verify(fn func(context.Context) (bool, error)) *Task`; read-only              |
 | `Task.Define`       | method | `Define(fn func(context.Context) error, opts ...DefineOption) *Task`           |
-| `Task.Doing`        | method | current item, live only                                                        |
+| `Task.Doing`        | method | `Doing(text string, args ...any) *Task`; current item, live only               |
 | `Task.Progress`     | method | `Progress(completed, total int) *Task`                                         |
 | `Task.Writer`       | method | `Writer() io.Writer`; its lines become the live tail and Capture               |
 | `Task.Fact`         | method | structured information learned                                                 |
