@@ -351,6 +351,7 @@ or the run ended first.
 
 - The live frame changes within 100ms of entering Running and at least every 100ms after, with a stable parent row and the current item beneath it.
 - One runtime truth drives Human, Plain, `evo.run` and `evo.event`; no projection invents state another lacks.
+- `evo.run` states only what happened: `definition_executed` is true for every Define callback that ran, including one that failed; `timing`, when present, is measured; `operations` and `basis` list what a Task's File and Exec calls did and read.
 - Facts are hidden at normal verbosity and always in machine output; routine rows collapse; passing verification is silent, failing verification is shown.
 - Per-item Excluded Tasks fold into one tally; per-item Effects with one Verb and Object fold into one counted row; JSON keeps every item.
 - Cancellation preserves committed truth and never implies rollback.
