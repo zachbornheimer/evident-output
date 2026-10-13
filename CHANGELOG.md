@@ -4,9 +4,53 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2.0.0 (unreleased)
+
+Evident Output 2.0 is a new contract: the public surface is exactly the
+tables in [`CONTRACT.md`](CONTRACT.md). See
+[`docs/migration/2.0.md`](docs/migration/2.0.md) for every removed 1.x symbol
+and its replacement.
+
+### Removed
+
+- `Init` and the package-level default output. Construction is
+  `os.Exit(evo.Main(run))` with `func run(ctx context.Context, r *evo.Run) error`,
+  or `evo.Execute` when the caller owns the context and the exit.
+- `Config.Title` (now `Config.Name`), the `Output` option constructors
+  (`To`, `Plain`, `AlsoWrite`, `KeepLastLines`, `Width`, `Clock`, `DryRun`;
+  now `Config` fields), and `Human` as an Options profile name.
+- `GroupHandle`, `SequenceHandle`, `TaskHandle` (now `Group`, `Sequence`,
+  `Task`), quantity-first mutation verbs on Task, package-level `Wait`, and
+  public `Snapshot` / `TasksSnapshot` (inspect `Result` and `Conclusion`).
+
+### Changed
+
+- **Four promises, one package each:** `internal/graph` decides when work
+  runs, `internal/freshness` whether it needs to, `internal/change` what it
+  changes, `internal/record` what happened, and `internal/project` how that
+  is shown. See [`LAYOUT.md`](LAYOUT.md).
+- **Two idioms:** specs are structs (`Config`, `FileSpec`, `ExecSpec`,
+  `EffectSpec`); messages are summary first, then options (`Problem`,
+  `Confirm`, `Fail`, `Refuse`). Work is always a function argument.
+- `evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn)` and `evo.File`
+  replace the 1.x mutation verbs. `Verb` is a closed set: `Create`, `Update`,
+  `Delete`.
+- Output is selected by `Config.Output` or `EVO_OUTPUT`
+  (`human|plain|json|jsonl`); machine output is never inferred from a pipe.
+
+### Added
+
+- **Outcomes:** `Succeeded`, `Satisfied`, `Excluded`, `Refused`, `Failed`,
+  `Cancelled`, with exit codes 0, 0, 0, 1, 2, 130.
+- **Endings:** `evo.Fail`, `evo.Refuse` and `evo.Exclude` as Task return
+  values; `Task.Verify` resolves a Task Satisfied without running it.
+- `Run.Confirm` with `Destructive` and `NonInteractive`; `Run.Suspend`.
+
 ## Unreleased
 
-See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
+Pre-2.0 entries below were written against 1.x and are superseded by
+2.0.0 above. See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the
+1.1 upgrade guide.
 
 ### Changed (1.2)
 
