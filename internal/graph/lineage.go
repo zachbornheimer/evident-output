@@ -168,3 +168,7 @@ func (l *lineage) learnLocked() {
 		l.started[creator] = append(l.started[creator], id)
 	}
 }
+
+// GoroutineDumps is how many stops of the world the process's lineage has
+// taken, for tests in other packages that count them instead of timing.
+func GoroutineDumps() int64 { return processLineage.dumps.Load() }

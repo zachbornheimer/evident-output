@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"io"
 	"testing"
-	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 // The documented lent-slot shape at MaxConcurrency 1: a running callback
@@ -27,18 +28,18 @@ func TestLentSlotWaitCostIsIndependentOfGoroutineCount(t *testing.T) {
 		tasks[i] = children.Task(fmt.Sprint("child", i))
 	}
 	running, defined := make(chan struct{}), make(chan struct{})
-	var elapsed time.Duration
+	var dumps int64
 	outer := out.Group("outer").Task("outer")
 	outer.Define(func(context.Context) error {
 		close(running)
 		<-defined
-		start := time.Now()
+		before := graph.GoroutineDumps()
 		for _, child := range tasks {
 			if err := child.wait(); err != nil {
 				return err
 			}
 		}
-		elapsed = time.Since(start)
+		dumps = graph.GoroutineDumps() - before
 		return nil
 	})
 	<-running
@@ -55,8 +56,7 @@ func TestLentSlotWaitCostIsIndependentOfGoroutineCount(t *testing.T) {
 	if err := outer.wait(); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("200 lent-slot Waits with 5000 idle goroutines: %v", elapsed)
-	if elapsed > 500*time.Millisecond {
-		t.Fatalf("200 lent-slot Waits took %v: each inline claim stops the world", elapsed)
+	if dumps > fewGetDumps {
+		t.Fatalf("200 lent-slot Waits took %d goroutine dumps, want at most %d: each inline claim stops the world", dumps, fewGetDumps)
 	}
 }

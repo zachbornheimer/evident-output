@@ -15,9 +15,6 @@ const (
 	// idleGoroutineCount is how many parked goroutines the loaded run keeps
 	// alive in the process.
 	idleGoroutineCount = 5000
-	// loadedChainBound is what the loaded run may take: several times the
-	// measured cost of an unloaded one, far under a per-Wait world stop.
-	loadedChainBound = 500 * time.Millisecond
 	// builderStillDeclaring is how long a builder keeps declaring after its
 	// child's callback started, so the callback's Wait overlaps the builder.
 	builderStillDeclaring = 200 * time.Millisecond
@@ -25,8 +22,8 @@ const (
 
 // chainedInCallbackWaits runs n Tasks whose callbacks each Wait, inside
 // themselves, on the previous Task while idle goroutines are alive in the
-// process, and returns the wall time of the whole run.
-func chainedInCallbackWaits(t *testing.T, n, idle int) time.Duration {
+// process, and returns the stops of the world the run took.
+func chainedInCallbackWaits(t *testing.T, n, idle int) int64 {
 	t.Helper()
 	stop := make(chan struct{})
 	defer close(stop)
@@ -34,39 +31,38 @@ func chainedInCallbackWaits(t *testing.T, n, idle int) time.Duration {
 		go func() { <-stop }()
 	}
 	g := New(record.NewRun(), WithMaxConcurrency(8))
-	start := time.Now()
 	var prev *Task
-	for i := range n {
-		task := declare(g, fmt.Sprint("t", i))
-		before := prev
-		submitWork(g, task, settlingWork(g, task, func() error {
-			if before != nil {
-				if err := g.Wait(before); err != nil {
-					return err
+	dumps := dumpsDuring(func() {
+		for i := range n {
+			task := declare(g, fmt.Sprint("t", i))
+			before := prev
+			submitWork(g, task, settlingWork(g, task, func() error {
+				if before != nil {
+					if err := g.Wait(before); err != nil {
+						return err
+					}
 				}
-			}
-			time.Sleep(200 * time.Microsecond)
-			return nil
-		}))
-		prev = task
-	}
-	g.Drain()
+				time.Sleep(200 * time.Microsecond)
+				return nil
+			}))
+			prev = task
+		}
+		g.Drain()
+	})
 	if got := prev.Rec.State(); got != record.Done {
 		t.Fatalf("last chained Task = %s, want done", got)
 	}
-	return time.Since(start)
+	return dumps
 }
 
 // An in-callback Wait reads its callback from its own stack, so it must not
 // pay for a stop-the-world dump of every goroutine in the process: its cost
 // is independent of how many goroutines are alive.
 func TestInCallbackWaitCostIsIndependentOfGoroutineCount(t *testing.T) {
-	baseline := chainedInCallbackWaits(t, chainedWaitCount, 0)
 	loaded := chainedInCallbackWaits(t, chainedWaitCount, idleGoroutineCount)
-	t.Logf("baseline=%v with %d idle goroutines=%v", baseline, idleGoroutineCount, loaded)
-	if loaded > loadedChainBound {
-		t.Fatalf("%d in-callback Waits with %d idle goroutines took %v (baseline %v): each Wait stops the world to dump every goroutine",
-			chainedWaitCount, idleGoroutineCount, loaded, baseline)
+	if loaded > fewDumps {
+		t.Fatalf("%d in-callback Waits with %d idle goroutines took %d goroutine dumps, want at most %d: each Wait stops the world",
+			chainedWaitCount, idleGoroutineCount, loaded, fewDumps)
 	}
 }
 

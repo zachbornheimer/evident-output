@@ -4,19 +4,22 @@ import (
 	"context"
 	"io"
 	"testing"
-	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 const (
 	getCostIdleGoroutines = 5000
 	getCostReads          = 200
-	getCostBudget         = 100 * time.Millisecond
+	// fewGetDumps is the stops of the world a stretch of reads may take
+	// together; a read that stops the world each time takes getCostReads.
+	fewGetDumps = 3
 )
 
 // withBusyCallbackAndSettledProducer runs body from the test goroutine while
 // one Task's callback is running, idle goroutines are alive in the process,
-// and producer is settled with 7. It returns how long body took.
-func withBusyCallbackAndSettledProducer(t *testing.T, body func(producer *Computed[int])) time.Duration {
+// and producer is settled with 7. It returns the stops of the world body took.
+func withBusyCallbackAndSettledProducer(t *testing.T, body func(producer *Computed[int])) int64 {
 	t.Helper()
 	stop := make(chan struct{})
 	defer close(stop)
@@ -33,14 +36,14 @@ func withBusyCallbackAndSettledProducer(t *testing.T, body func(producer *Comput
 	started, release := make(chan struct{}), make(chan struct{})
 	out.Task("busy").Define(func(context.Context) error { close(started); <-release; return nil })
 	<-started
-	start := time.Now()
+	before := graph.GoroutineDumps()
 	body(producer)
-	took := time.Since(start)
+	dumps := graph.GoroutineDumps() - before
 	close(release)
 	if err := out.finish(); err != nil {
 		t.Fatalf("Finish = %v", err)
 	}
-	return took
+	return dumps
 }
 
 // The application body reading a settled Computed while another Task's
@@ -49,7 +52,7 @@ func withBusyCallbackAndSettledProducer(t *testing.T, body func(producer *Comput
 // it holds the Output's lock, so a slow Get stalls every row's rendering.
 func TestPlainBodyGetIsCheapWhileACallbackRuns(t *testing.T) {
 	sum := 0
-	took := withBusyCallbackAndSettledProducer(t, func(producer *Computed[int]) {
+	dumps := withBusyCallbackAndSettledProducer(t, func(producer *Computed[int]) {
 		for range getCostReads {
 			sum += producer.Get()
 		}
@@ -57,9 +60,9 @@ func TestPlainBodyGetIsCheapWhileACallbackRuns(t *testing.T) {
 	if sum != 7*getCostReads {
 		t.Fatalf("sum = %d, want %d", sum, 7*getCostReads)
 	}
-	if took > getCostBudget {
-		t.Fatalf("%d Get() with %d idle goroutines took %v: each Get stops the world while holding the Output lock",
-			getCostReads, getCostIdleGoroutines, took)
+	if dumps > fewGetDumps {
+		t.Fatalf("%d Get() with %d idle goroutines took %d goroutine dumps, want at most %d: each Get stops the world while holding the Output lock",
+			getCostReads, getCostIdleGoroutines, dumps, fewGetDumps)
 	}
 }
 
@@ -69,7 +72,7 @@ func TestPlainBodyGetIsCheapWhileACallbackRuns(t *testing.T) {
 // must not stop the world to find out who started the goroutine asking.
 func TestFreshGoroutineGetIsCheapWhileACallbackRuns(t *testing.T) {
 	sum := 0
-	took := withBusyCallbackAndSettledProducer(t, func(producer *Computed[int]) {
+	dumps := withBusyCallbackAndSettledProducer(t, func(producer *Computed[int]) {
 		for range getCostReads {
 			got := make(chan int)
 			go func() { got <- producer.Get() }()
@@ -79,8 +82,8 @@ func TestFreshGoroutineGetIsCheapWhileACallbackRuns(t *testing.T) {
 	if sum != 7*getCostReads {
 		t.Fatalf("sum = %d, want %d", sum, 7*getCostReads)
 	}
-	if took > getCostBudget {
-		t.Fatalf("%d fresh-goroutine Get() with %d idle goroutines took %v: each one stops the world",
-			getCostReads, getCostIdleGoroutines, took)
+	if dumps > fewGetDumps {
+		t.Fatalf("%d fresh-goroutine Get() with %d idle goroutines took %d goroutine dumps, want at most %d: each one stops the world",
+			getCostReads, getCostIdleGoroutines, dumps, fewGetDumps)
 	}
 }
