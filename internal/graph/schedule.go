@@ -83,9 +83,9 @@ const (
 // stateOutcome classifies a Task state for the Tasks after it.
 func stateOutcome(s record.State) predOutcome {
 	switch s {
-	case record.Succeeded, record.Satisfied, record.Excluded:
+	case record.Succeeded, record.Satisfied:
 		return predSucceeded
-	case record.Failed, record.Refused, record.Cancelled, record.NotStarted:
+	case record.Failed, record.Refused, record.Excluded, record.Cancelled, record.NotStarted:
 		return predFailed
 	default:
 		return predPending

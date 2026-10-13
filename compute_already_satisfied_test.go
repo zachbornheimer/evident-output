@@ -9,9 +9,9 @@ import (
 
 const computedValueNeverProduced = 42
 
-// A Skip inside the producer's callback still delivers the value the callback
-// returned: the callback ran, so there is one.
-func TestCompute_GetAfterAProducerSkippedInsideItsCallbackIsTheValue(t *testing.T) {
+// A Skip inside the producer's callback ends it Excluded, and CONTRACT.md §2
+// leaves the Tasks after an Excluded Task NotStarted: nothing reads the value.
+func TestCompute_ProducerSkippedInsideItsCallbackLeavesReaderNotStarted(t *testing.T) {
 	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true})
 	defer func() { _ = out.close() }()
 	made := out.Task("make")
@@ -27,7 +27,7 @@ func TestCompute_GetAfterAProducerSkippedInsideItsCallbackIsTheValue(t *testing.
 
 	_ = out.finish()
 
-	if got.Load() != computedValueNeverProduced || out.err() != nil {
-		t.Fatalf("Get() = %d, Err() = %v; want %d, nil", got.Load(), out.err(), computedValueNeverProduced)
+	if got.Load() != 0 {
+		t.Fatalf("reader ran and read %d after an Excluded producer; want it NotStarted", got.Load())
 	}
 }
