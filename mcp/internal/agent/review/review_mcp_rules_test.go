@@ -370,8 +370,8 @@ func TestAPI044_ChannelWaitWrapper_Fires(t *testing.T) {
 	if f.Severity != "error" {
 		t.Fatalf("API-044 severity = %q, want error", f.Severity)
 	}
-	if !strings.Contains(f.Suggestion, "task.Wait()") {
-		t.Fatalf("API-044 suggestion does not name task.Wait(): %q", f.Suggestion)
+	if !strings.Contains(f.Suggestion, "task.Define(fn)") {
+		t.Fatalf("API-044 suggestion does not name task.Define(fn): %q", f.Suggestion)
 	}
 }
 
@@ -1294,8 +1294,8 @@ func TestAPI052_CallerWaitLoopSnapshotCount_Fires(t *testing.T) {
 	if f.Severity != "error" {
 		t.Fatalf("API-052 severity = %q, want error", f.Severity)
 	}
-	if !strings.Contains(f.Suggestion, "GroupHandle.Wait") && !strings.Contains(f.Suggestion, "jobs.Wait()") {
-		t.Fatalf("API-052 suggestion does not name the container Wait fix: %q", f.Suggestion)
+	if !strings.Contains(f.Suggestion, "evo.Compute") {
+		t.Fatalf("API-052 suggestion does not name the Compute/After fix: %q", f.Suggestion)
 	}
 }
 
@@ -1318,8 +1318,8 @@ func waitDefinedRunOperations(tasks []*evo.TaskHandle) error {
 func TestAPI052_CallerWaitLoopErrNotStartedFilter_Fires(t *testing.T) {
 	res := review.GoSource("run_execute.go", callerWaitLoopErrNotStartedSrc)
 	f := findingByID(t, res, "API-052")
-	if !strings.Contains(f.Suggestion, "SequenceHandle.Wait") && !strings.Contains(f.Suggestion, "GroupHandle.Wait") {
-		t.Fatalf("API-052 suggestion does not name the container Wait surface: %q", f.Suggestion)
+	if !strings.Contains(f.Suggestion, "After") {
+		t.Fatalf("API-052 suggestion does not name the After surface: %q", f.Suggestion)
 	}
 }
 

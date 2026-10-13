@@ -41,13 +41,12 @@ var snippetImports = []string{
 // evo values, at the types those names always denote.
 const snippetReceivers = `
 var (
-	out *evo.Output
-	task, t, it, configTask, cacheWarmTask, consumer, producer *evo.TaskHandle
-	group, prune, worktrees *evo.GroupHandle
+	r, out *evo.Run
+	task, t, it, configTask, cacheWarmTask, consumer, producer *evo.Task
+	group, prune, worktrees *evo.Group
 	ctx context.Context
 	err error
 	cmd *exec.Cmd
-	reason evo.TaxonomyReason
 	n int
 )
 `

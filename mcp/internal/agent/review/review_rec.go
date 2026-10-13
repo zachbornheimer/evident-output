@@ -205,7 +205,7 @@ func (d *recSurfaceDetector) inspectLeftover(n ast.Node) bool {
 			"replace "+old+" with "+field)
 		d.cover(call)
 	case name == "ID":
-		d.report(call, "evo.ID was removed in 1.1; Task identity is the human label (override with TaskHandle.Key)",
+		d.report(call, "evo.ID was removed in 1.1; Task identity is the human label (a duplicate sibling name is misuse)",
 			"replace "+old+" by dropping it; Task takes only the name")
 	case name == "StartPhase":
 		text := `""`

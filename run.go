@@ -408,7 +408,7 @@ type Config struct {
 	// Subject is an optional durable line rendered once, immediately, right
 	// under the title — a repo path, a target host, the thing every
 	// projection needs the reader to see up front. Set it once in Config
-	// instead of calling out.Println(root) (or whatever the identifying
+	// instead of calling fmt.Fprintln(r.Text(), root) (or whatever the identifying
 	// value is) at every projection/command that needs to show it.
 	//
 	// When the subject text isn't known until after Init (e.g. resolved

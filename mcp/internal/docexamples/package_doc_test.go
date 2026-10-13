@@ -38,7 +38,7 @@ func packageDocCode(src string) string {
 // TestPackageDocQuickstartRuns runs is doc.go's quickstart verbatim.
 func TestPackageDocQuickstartMatchesFixture(t *testing.T) {
 	root := repoRoot(t)
-	src, err := os.ReadFile(filepath.Join(root, "doc.go"))
+	src, err := os.ReadFile(filepath.Join(root, "evo.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestPackageDocQuickstartMatchesFixture(t *testing.T) {
 	}
 	doc := packageDocCode(string(src))
 	if docexamples.NormalizeIndent(region) != docexamples.NormalizeIndent(doc) {
-		t.Fatalf("doc.go quickstart drifted from %s:\n--- doc.go ---\n%s\n--- fixture ---\n%s", packageDocFixture, doc, region)
+		t.Fatalf("evo.go quickstart drifted from %s:\n--- evo.go ---\n%s\n--- fixture ---\n%s", packageDocFixture, doc, region)
 	}
 }
 
@@ -66,8 +66,8 @@ func TestPackageDocQuickstartRuns(t *testing.T) {
 		t.Skip("the quickstart runs git, which is not installed")
 	}
 	binary := filepath.Join(t.TempDir(), "quickstart")
-	build := exec.Command("go", "build", "-buildvcs=false", "-o", binary, "./mcp/internal/docexamples/"+packageDocFixture)
-	build.Dir = repoRoot(t)
+	build := exec.Command("go", "build", "-buildvcs=false", "-o", binary, "./internal/docexamples/"+packageDocFixture)
+	build.Dir = filepath.Join(repoRoot(t), "mcp") // the mcp module owns the fixture
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build quickstart: %v\n%s", err, out)
 	}

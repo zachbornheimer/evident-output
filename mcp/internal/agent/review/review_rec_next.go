@@ -31,7 +31,7 @@ const (
 	remedyOnOutput remedyKind = "Output"
 	// remedyOnUnproven is a receiver the file neither proves is an evo
 	// TaskHandle or Output nor proves is something else.
-	remedyOnUnproven remedyKind = "TaskHandle or Output"
+	remedyOnUnproven remedyKind = "Task or Run"
 )
 
 func isRemedyMethod(name string) bool { return name == "Next" || name == "NextCommand" }

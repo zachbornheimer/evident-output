@@ -16,11 +16,8 @@ func patchRules() []Rule {
   return cmd.Run()
 })`,
 			GoodCode: `task.Define(func(ctx context.Context) error {
-  files, err := evo.Patch(ctx, diff)
-  if err != nil {
-    return err
-  }
-  return evo.Files(ctx, files)
+  _, err := evo.Patch(ctx, diff) // Patch commits through File itself
+  return fmt.Errorf("apply patch: %w", err)
 })`,
 			Remediation:     "Replace the exec.Command(\"patch\"/\"git apply\"/\"git am\", ...) call with files, err := evo.Patch(ctx, diff) to derive the desired file states, then evo.Files(ctx, files) to commit them",
 			RelatedGuidance: []string{"evo-file-exec"},
@@ -47,11 +44,8 @@ func patchRules() []Rule {
   return evo.File(ctx, evo.FileSpec{Path: path, Contents: contents})
 }`,
 			GoodCode: `func applyPatch(ctx context.Context, diff []byte) error {
-  fileSet, err := evo.Patch(ctx, diff)
-  if err != nil {
-    return err
-  }
-  return evo.Files(ctx, fileSet)
+  _, err := evo.Patch(ctx, diff) // Patch commits through File itself
+  return fmt.Errorf("apply patch: %w", err)
 }`,
 			Remediation:     "Delete the evo.File call and the FileSpec it built from the Patch-derived FileSet; commit through evo.Files(ctx, fileSet) instead, using the exact FileSet evo.Patch returned so its Basis/stale-write guard survives to commit.",
 			RelatedGuidance: []string{"common-api"},

@@ -11,9 +11,15 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/rules"
 )
 
-// godocStaleAPIExempt holds the one package whose comments must name
-// retired API: the table of retired names itself.
-var godocStaleAPIExempt = []string{"mcp/internal/agent/rules/retired"}
+// godocStaleAPIExempt holds the code whose comments must name retired API:
+// the table of retired names itself, the review detectors that recognise
+// the removed 1.x shapes in a consumer's source, and the 1.0 migration
+// fixtures that pin removed text on purpose.
+var godocStaleAPIExempt = []string{
+	"mcp/internal/agent/rules/retired",
+	"mcp/internal/agent/review/",
+	"mcp/internal/docexamples/fixtures/migration_",
+}
 
 // TestGoCommentsCarryNoStaleAPI extends TestDocsCarryNoStaleAPI to Go
 // comments. Engine godoc is read by agents as surely as the docs are, so a

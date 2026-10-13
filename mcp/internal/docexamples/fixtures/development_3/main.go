@@ -1,5 +1,3 @@
-//go:build ignore
-
 // Package main compiles mcp/docs/development.md's "Interactive (testkit /
 // virtual terminal)" fence verbatim. See TestDocFencesMatchFixtures. Never
 // run.

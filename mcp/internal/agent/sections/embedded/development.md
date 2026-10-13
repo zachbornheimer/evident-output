@@ -94,8 +94,9 @@ go run ./mcp/cmd/evident-output version
 ## Machine output
 
 ```go
-snap := out.Snapshot()
-plain, _ := evo.RenderPlain(snap, evo.PlainOptions{Width: 80})
+var buf bytes.Buffer
+_ = evo.Execute(ctx, evo.Config{Name: "tool", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, run)
+plain := buf.String()
 ```
 
 Schemas: `../schema/output.v1.json`, `../schema/event.v1.json`.

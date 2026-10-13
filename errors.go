@@ -37,14 +37,14 @@ var (
 	// a non-interactive Finish has nowhere to write the residual/plain
 	// projection and would otherwise render nothing at exit 0.
 	errTerminalWithoutSink = misuse.ErrTerminalWithoutSink
-	// ErrNotStarted is what Task.Wait returns for a task whose work
+	// ErrNotStarted is what waiting on a task returns for a task whose work
 	// never ran — a failed or abandoned predecessor, a run that drained
 	// before the task became eligible, or a task nobody ever Defined. Wait once answered such a caller with
 	// the zero value of "the error the callback returned", so a waiter
 	// rendered a green row over the very next line admitting the work it
 	// awaited never started.
 	errNotStarted = graph.ErrNotStarted
-	// ErrWaitDeadlock is what Task.Wait returns, and records as
+	// ErrWaitDeadlock is what waiting on a task returns, and records as
 	// misuse, when nothing in the run can ever satisfy the wait: a task
 	// waiting on itself, two tasks waiting on each other, or any wait left
 	// standing once no callback is running and no task can start. The
@@ -66,7 +66,7 @@ var (
 	// handle; the real, visible outcome is a Failed task carrying
 	// ProblemCodeDuplicateSiblingName (see failDuplicateSiblingLocked).
 	errDuplicateSiblingName = misuse.ErrDuplicateSiblingName
-	// ErrKeyAfterDefine is recorded when Task.Key is called after
+	// ErrKeyAfterDefine is recorded when the task key override is called after
 	// Define: §7 freezes dependency/verification/execution configuration at
 	// Define, and identity (§3.1) is part of that configuration.
 	errKeyAfterDefine = misuse.ErrKeyAfterDefine

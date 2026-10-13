@@ -86,7 +86,7 @@ func Migrations() []MigrationRow {
 		},
 		{
 			From:    "task.Blockf(...)",
-			To:      "task.Block(summary, opts...)",
+			To:      "return evo.Refuse(summary, opts...) from Define",
 			RuleID:  "API-032",
 			Since:   "1.1.0",
 			Removed: true,

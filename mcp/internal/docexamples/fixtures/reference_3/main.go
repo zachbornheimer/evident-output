@@ -1,5 +1,3 @@
-//go:build ignore
-
 // Package main compiles mcp/docs/reference.md's "docker daemon" fence
 // (tool-backed condition, checked in its Define callback) verbatim. See
 // TestDocFencesMatchFixtures. Never run.
@@ -15,8 +13,7 @@ import (
 
 func pingDocker() error { return errors.New("daemon unreachable") }
 
-func doWork() {
-	out := evo.Init(evo.Config{Isolated: true})
+func doWork(out *evo.Run) {
 
 	// docexamples:snippet start
 	docker := out.Task("docker daemon")
@@ -29,4 +26,4 @@ func doWork() {
 	// docexamples:snippet end
 }
 
-func main() { doWork() }
+func main() { doWork(nil) }

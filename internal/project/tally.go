@@ -8,7 +8,7 @@ import (
 )
 
 // Tally is the counted partition of disposition records (record.Skipped
-// or TaskHandle.Skipped): how many, split by Reason in first-seen order,
+// or Task.Skipped): how many, split by Reason in first-seen order,
 // with the item names under each reason. It is the one owner of that
 // count, whether the records sit on a single Task or come from a Group's
 // per-item children, so the headline and its reason parts always sum.

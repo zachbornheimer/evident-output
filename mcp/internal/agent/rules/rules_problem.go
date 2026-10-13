@@ -42,12 +42,11 @@ for _, f := range findings {
   lines = append(lines, formatFinding(f))
 }
 return errors.New(strings.Join(lines, "\n"))`,
-			GoodCode: `task := out.Task("file integrity")
+			GoodCode: `task := r.Task("file integrity")
 for _, issue := range issues {
   task.Problem(issue.Summary,
-    evo.On(issue.Path),
+    evo.On(fmt.Sprintf("%s:%d", issue.Path, issue.Line)),
     evo.Code(issue.Code),
-    evo.Location(issue.Path, issue.Line, 0),
   )
 }
 task.Define(func(context.Context) error { return nil })`,
@@ -62,7 +61,7 @@ task.Define(func(context.Context) error { return nil })`,
 			MinDialect: "1.1.0",
 			Category:   "API",
 			Severity:   SeverityWarning,
-			Invariant:  "TaskHandle.Summary/GroupHandle.Summary carries the caller's own result metadata, not mutation, dry-run, or already-satisfied narration that belongs to File/Effect/AlreadySatisfied/Facts",
+			Invariant:  "Task.Summary/Group.Summary carries the caller's own result metadata, not mutation, dry-run, or already-satisfied narration that belongs to File/Effect/AlreadySatisfied/Facts",
 			Why:        "Summary is non-terminal result metadata (1.1/ZYS-971 Decisions, 2026-09-23): it never resolves the Task, and Define/the evo-native operation outcome remains the only normal success resolution path. A caller who reaches for it as a replacement stamp channel — narrating what a mutation did (\"wrote config.json\"), what a dry run would do (\"would add 3 refs\"), that nothing changed (\"nothing to write\"), or that a precondition already held (\"already up to date\") — recreates the exact success-stamp footgun Done(text) was removed in 1.1 for, one call away: that narration belongs to evo.File/evo.Effect's own Basis-tracked record, ResolutionAlreadySatisfied, or evo.Fact, each of which carries structured evidence Summary's bare string cannot.",
 			BadCode: `task.Define(func(ctx context.Context) error {
   if err := evo.File(ctx, spec); err != nil {
@@ -93,7 +92,7 @@ task.Define(func(context.Context) error { return nil })`,
 			Invariant:  "a call site never uses the record-only verbs Record/RecordLabel/RecordName; each has no record-only replacement",
 			Why:        "Record/RecordLabel/RecordName report a mutation, classification, or named object after the fact instead of performing it through a primitive with dry-run planning, desired-state comparison, and AlreadySatisfied (ZYS-974 Decisions, 2026-09-23b). There is no drop-in record-only replacement: the call is migrated by what it actually reports — a real mutation moves into evo.Effect's callback, information/classification with no state change moves to evo.Fact, and a file write moves to evo.File/evo.Patch.",
 			BadCode:    `task.Record("install", 1, "package")`,
-			GoodCode: `evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectInstall, Quantity: 1, Object: "package"}, func(ctx context.Context) error {
+			GoodCode: `evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, Quantity: 1, Object: "package"}, func(ctx context.Context) error {
   return installPackage(ctx)
 })`,
 			Remediation:     "Route the call by what it reports: a real mutation into evo.Effect's callback, information/classification into evo.Fact, a file write into evo.File/evo.Patch — Record/RecordLabel/RecordName have no record-only replacement",

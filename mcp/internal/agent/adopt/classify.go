@@ -113,7 +113,7 @@ func classifyLogCall(s callSite, method string) (Finding, bool) {
 		), true
 	case "Print", "Printf", "Println":
 		return s.finding(RungTaskDefine,
-			"replace with evo.Println/Print/Printf for a durable note, or task.Doing plus the Task's Define callback if this reports lifecycle state — see the common-api guide.",
+			"replace with fmt.Fprintln(r.Text(), ...) for a durable note, or task.Doing plus the Task's Define callback if this reports lifecycle state — see the common-api guide.",
 			CertaintyNeedsReview,
 		), true
 	default:
@@ -125,14 +125,14 @@ func classifyFmtCall(s callSite, method string) (Finding, bool) {
 	switch method {
 	case "Print", "Printf", "Println":
 		return s.finding(RungTaskDefine,
-			"replace with evo.Println/Print/Printf (durable notes) or a Task's Doing and Define — never fmt.Print* while a live region may be open.",
+			"replace with fmt.Fprintln(r.Text(), ...) (durable notes) or a Task's Doing and Define — never fmt.Print* while a live region may be open.",
 			CertaintyNeedsReview,
 		), true
 	case "Fprint", "Fprintf", "Fprintln":
 		if len(s.call.Args) > 0 && isOsStdout(s.call.Args[0]) {
 			s.pattern += "(os.Stdout, ...)"
 			return s.finding(RungTaskDefine,
-				"writing os.Stdout directly bypasses evo's live region — route through evo.Init(Config{Stdout: os.Stdout}) and evo.Println/Task instead.",
+				"writing os.Stdout directly bypasses evo's live region — route through fmt.Fprintln(r.Text(), ...) or a Task instead.",
 				CertaintyNeedsReview,
 			), true
 		}

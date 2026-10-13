@@ -68,10 +68,10 @@ var (
 	// ErrDuplicateSiblingName is recorded when a Task, Group, or Sequence is
 	// declared with a name already used by another child of the same parent.
 	ErrDuplicateSiblingName = errors.New("evo: duplicate sibling name")
-	// ErrKeyAfterDefine is recorded when TaskHandle.Key is called after
+	// ErrKeyAfterDefine is recorded when the task key override is called after
 	// Define.
 	ErrKeyAfterDefine = errors.New("evo: Key called after Define")
-	// ErrBasisAfterDefine is recorded when TaskHandle.Basis is called after
+	// ErrBasisAfterDefine is recorded when the task basis is called after
 	// Define; the call is ignored.
 	ErrBasisAfterDefine = errors.New("evo: Basis called after Define")
 )

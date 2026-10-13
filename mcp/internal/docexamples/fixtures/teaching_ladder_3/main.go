@@ -1,5 +1,3 @@
-//go:build ignore
-
 // Package main compiles mcp/docs/teaching-ladder.md's "Evidence" fence
 // verbatim. See TestDocFencesMatchFixtures. Never run.
 package main
@@ -11,7 +9,7 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-func doWork(task *evo.TaskHandle) {
+func doWork(task *evo.Task) {
 	// docexamples:snippet start
 	task.Define(func(ctx context.Context) error {
 		cmd := exec.CommandContext(ctx, "make", "test")
@@ -23,6 +21,5 @@ func doWork(task *evo.TaskHandle) {
 }
 
 func main() {
-	out := evo.Init(evo.Config{Isolated: true})
-	doWork(out.Task("build"))
+	doWork(nil)
 }

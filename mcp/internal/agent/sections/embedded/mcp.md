@@ -54,13 +54,13 @@ from this module / a path replace). Never `GOBIN=$HOME/.local/bin` — install l
 | mutation verbs removed in 1.1: 0.x `Delete(n, object)` and 1.0 object-first `Delete(object, fn)` + `evo.Affected(n)` (and Add/Create/Update/Remove/Push) | `Define` + `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)`; the removed `Write` is `evo.File` |
 | retired independent-collection constructor                                                                                                               | `evo.Group`                                                                                                 |
 | `.Skip(`                                                                                                                                                 | `.Skipped(`                                                                                                 |
-| `evo.ID` / `evo.StartPhase`                                                                                                                              | `task.Key("...")` before `Define`; `.Doing(...)` for the first phase                                        |
+| `evo.ID` / `evo.StartPhase`                                                                                                                              | the Task name is its identity; `.Doing(...)` for the first phase                                            |
 | `evo.MainWith` (removed in 1.0)                                                                                                                          | `evo.Main` / `Output.Run`                                                                                   |
 
 ## Install the binary (pinned)
 
 ```bash
-go install github.com/zachbornheimer/evident-output/mcp/cmd/evident-output-mcp@v1.0.0
+go install github.com/zachbornheimer/evident-output/mcp/cmd/evident-output-mcp@v2.0.0
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
 "$HOME/.local/bin/evident-output-mcp" --version

@@ -1,5 +1,3 @@
-//go:build ignore
-
 // Package main compiles mcp/docs/reference.md's "file integrity" fence (one
 // check Task, many Problems section) verbatim. See
 // TestDocFencesMatchFixtures. Never run.
@@ -7,6 +5,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -18,21 +17,19 @@ type fileIssue struct {
 	Line    int
 }
 
-func doWork() {
-	out := evo.Init(evo.Config{Isolated: true})
+func doWork(out *evo.Run) {
 	issues := []fileIssue{}
 
 	// docexamples:snippet start
 	task := out.Task("check file integrity")
 	for _, issue := range issues {
 		task.Problem(issue.Summary,
-			evo.On(issue.Path),
+			evo.On(fmt.Sprintf("%s:%d", issue.Path, issue.Line)),
 			evo.Code(issue.Code),
-			evo.Location(issue.Path, issue.Line, 0),
 		)
 	}
 	task.Define(func(context.Context) error { return nil })
 	// docexamples:snippet end
 }
 
-func main() { doWork() }
+func main() { doWork(nil) }

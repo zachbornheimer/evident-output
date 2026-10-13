@@ -1,5 +1,3 @@
-//go:build ignore
-
 // Package main compiles mcp/docs/reference.md's "brew packages" fence (child
 // processes / tool-backed gates section) verbatim. See
 // TestDocFencesMatchFixtures. Never run.
@@ -13,8 +11,7 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-func doWork() {
-	out := evo.Init(evo.Config{Isolated: true})
+func doWork(out *evo.Run) {
 
 	// docexamples:snippet start
 	upgrade := out.Task("brew packages")
@@ -30,4 +27,4 @@ func doWork() {
 	// docexamples:snippet end
 }
 
-func main() { doWork() }
+func main() { doWork(nil) }

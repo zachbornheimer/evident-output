@@ -61,17 +61,17 @@ var docFixtures = []docexamples.DocFixture{
 	// fixture file, never fed to `go build`/`go vet`. See DocFixture's
 	// TextOnly doc comment and each such fixture's own header comment.
 	{Doc: "docs/migration/1.0.md", FenceIndex: 0, Fixture: "fixtures/migration_1_0_before_run_no_ctx", TextOnly: true},
-	{Doc: "docs/migration/1.0.md", FenceIndex: 1, Fixture: "fixtures/migration_1_0_run_ctx"},
-	{Doc: "docs/migration/1.0.md", FenceIndex: 2, Fixture: "fixtures/migration_1_0_result_type"},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 1, Fixture: "fixtures/migration_1_0_run_ctx", TextOnly: true},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 2, Fixture: "fixtures/migration_1_0_result_type", TextOnly: true},
 	{Doc: "docs/migration/1.0.md", FenceIndex: 3, Fixture: "fixtures/migration_1_0_before_after_exitcode", TextOnly: true},
 	{Doc: "docs/migration/1.0.md", FenceIndex: 4, Fixture: "fixtures/migration_1_0_before_mainwith", TextOnly: true},
-	{Doc: "docs/migration/1.0.md", FenceIndex: 5, Fixture: "fixtures/migration_1_0_after_isolated_run"},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 5, Fixture: "fixtures/migration_1_0_after_isolated_run", TextOnly: true},
 	{Doc: "docs/migration/1.0.md", FenceIndex: 6, Fixture: "fixtures/migration_1_0_before_each", TextOnly: true},
-	{Doc: "docs/migration/1.0.md", FenceIndex: 7, Fixture: "fixtures/migration_1_0_after_group_define"},
-	{Doc: "docs/migration/1.0.md", FenceIndex: 8, Fixture: "fixtures/migration_1_0_verify"},
-	{Doc: "docs/migration/1.0.md", FenceIndex: 9, Fixture: "fixtures/migration_1_0_task_key"},
-	{Doc: "docs/migration/1.0.md", FenceIndex: 10, Fixture: "fixtures/migration_1_0_duplicate_sibling"},
-	{Doc: "docs/migration/1.0.md", FenceIndex: 11, Fixture: "fixtures/migration_1_0_file_spec"},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 7, Fixture: "fixtures/migration_1_0_after_group_define", TextOnly: true},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 8, Fixture: "fixtures/migration_1_0_verify", TextOnly: true},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 9, Fixture: "fixtures/migration_1_0_task_key", TextOnly: true},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 10, Fixture: "fixtures/migration_1_0_duplicate_sibling", TextOnly: true},
+	{Doc: "docs/migration/1.0.md", FenceIndex: 11, Fixture: "fixtures/migration_1_0_file_spec", TextOnly: true},
 	{Doc: "docs/migration/1.0.md", FenceIndex: 12, Fixture: "fixtures/migration_1_0_projection_consts", TextOnly: true},
 }
 
@@ -189,12 +189,12 @@ func repoRoot(t *testing.T) string {
 		t.Fatal(err)
 	}
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "CONTRACT.md")); err == nil {
 			return dir
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			t.Fatal("go.mod not found above test working directory")
+			t.Fatal("CONTRACT.md not found above test working directory")
 		}
 		dir = parent
 	}

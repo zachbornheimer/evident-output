@@ -40,15 +40,11 @@ func omittedBasisRule() Rule {
 	Outputs:    []string{"build/out.bin"},
 })`,
 		GoodCode: `_, err := evo.Exec(ctx, evo.ExecSpec{
-	Executable: "python3",
-	Args:       []string{"generate.py", "input.xlsx", "template.txt", "build/out.bin"},
-	Basis: []evo.Fingerprint{
-		evo.FSPath("input.xlsx"),
-		evo.FSPath("template.txt"),
-	},
+	Argv:    []string{"python3", "generate.py", "input.xlsx", "template.txt", "build/out.bin"},
+	Inputs:  []string{"input.xlsx", "template.txt"},
 	Outputs: []string{"build/out.bin"},
 })
-return err`,
+return fmt.Errorf("generate build/out.bin: %w", err)`,
 		Remediation:     "Add every file/value the generator actually reads to Basis; do not invent a Basis entry the source does not justify (§58) — trace the generator's real inputs instead",
 		RelatedGuidance: []string{"provenance", "evo-file-exec"},
 		VerificationIDs: []string{"EVO-PROVENANCE-001"},
@@ -73,7 +69,7 @@ func opaqueManifestSkipRule() Rule {
 })`,
 		GoodCode: `task.Verify(func(ctx context.Context) (bool, error) {
 	return evo.File(ctx, evo.FileSpec{
-		Path: path, Contents: contents, Mode: mode, Basis: basis,
+		Path: path, Contents: contents, Mode: mode, Inputs: inputs,
 	}) == nil, nil
 })`,
 		Remediation:     "Replace a manifest-only skip with a live pre-definition Verify (or a tracked evo.File/evo.Exec check) that proves the current state, not the recorded one",

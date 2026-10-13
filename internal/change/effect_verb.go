@@ -43,7 +43,7 @@ var effectVerbSpellings = []EffectVerbSpelling{
 // EffectVerbs returns every verb, in declaration order.
 func EffectVerbs() []EffectVerbSpelling { return slices.Clone(effectVerbSpellings) }
 
-// EffectVerbConstant is the evo constant spelling value ("EffectDelete"), or
+// EffectVerbConstant is the evo constant spelling value ("Create"), or
 // false when no verb is spelled value.
 func EffectVerbConstant(value string) (string, bool) {
 	i := slices.IndexFunc(effectVerbSpellings, func(v EffectVerbSpelling) bool { return v.Value == value })

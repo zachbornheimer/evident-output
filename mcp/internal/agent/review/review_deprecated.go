@@ -175,10 +175,10 @@ func newInMainFindings(filename, src string) []Finding {
 	}
 	return []Finding{{
 		RuleID:     "API-032",
-		Message:    "evo.New was removed with the item/task fold; evo.Init is the sole constructor",
+		Message:    "evo.New was removed with the item/task fold; evo.Main and evo.Execute are the only constructors",
 		File:       filename,
 		Line:       lineAt(src, offset+idx),
-		Suggestion: "replace evo.New(cfg) with evo.Init(cfg) (Isolated: true for a hosted instance; os.Exit(evo.Main(run)) in ordinary main, out.Run(ctx, run).ExitCode() when holding *Output)",
+		Suggestion: "replace evo.New(cfg) with os.Exit(evo.Main(run, cfg)) in ordinary main, or evo.Execute(ctx, cfg, run).ExitCode() when the caller owns the context and the exit",
 	}}
 }
 

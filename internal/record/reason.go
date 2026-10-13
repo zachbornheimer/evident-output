@@ -31,7 +31,7 @@ type reasonOptionFunc func(*TaxonomyReason)
 
 func (f reasonOptionFunc) apply(r *TaxonomyReason) { f(r) }
 
-// ForSkip restricts a reason to TaskHandle.Skipped — recording it via Kept is misuse.
+// ForSkip restricts a reason to Task.Skipped — recording it via Kept is misuse.
 func ForSkip() ReasonOption {
 	return reasonOptionFunc(func(r *TaxonomyReason) { r.forSkip = true })
 }

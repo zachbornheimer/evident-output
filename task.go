@@ -686,7 +686,7 @@ func (st *taskState) collection() *tasksState {
 // siblings: every descendant Task was already submitted to the scheduler by
 // its own Define call, so Wait only parks on outcomes the scheduler is
 // already free to produce concurrently — the same non-serializing guarantee
-// Task.Wait already gives a single Task.
+// waiting on a task already gives a single Task.
 //
 // A caller never snapshots/counts failed children to know whether the
 // container succeeded: Wait alone is the ordinary control-flow answer, and
@@ -708,7 +708,7 @@ func (g *Group) wait() error {
 	return outcome
 }
 
-// Wait is Sequence's counterpart to Group.Wait: the ordered container
+// Wait is Sequence's counterpart to waiting on a group: the ordered container
 // settles once every declared step (and any nested Group/Sequence) has
 // settled, honoring the same NotStarted-suppression and error-join rules.
 func (s *Sequence) wait() error {
@@ -733,7 +733,7 @@ func declarationRefusal(err error) error {
 }
 
 // Task declares a single root-level operation named name. Identity
-// overrides go through Task.Key. A repeated name is a duplicate
+// overrides go through the task key override. A repeated name is a duplicate
 // sibling declaration (§3.1), never a get-or-create: 1.0 removed that idiom
 // because letting two distinct declarations silently merge into one
 // identity would make a false "already satisfied" possible once identity
@@ -766,7 +766,7 @@ func (o *Run) addTaskLocked(name string, col *tasksState) *Task {
 //
 // The task's §3.1 stable identity is kind + the declaring parent's key
 // (parentKeyOf) + name, for every declaration, a refused duplicate's row
-// included; Task.Key replaces it later.
+// included; the task key override replaces it later.
 func (o *Run) declareTaskLocked(name string, col *tasksState) *Task {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
@@ -1363,7 +1363,7 @@ func (t *Task) resolveWithProblem(state entityState, summary string, options []P
 }
 
 // Block resolves the task as blocked. This is a statement, not a fluent
-// chain — Block returns nothing, so a bare `task.Block("summary")` is
+// chain — Block returns nothing, so a bare `task.Block("summary")` (removed in 2.0) is
 // errcheck-clean. A nil *Task is safe and resolves nothing. Inside
 // Define, Block then return nil: Wait still reports failure from the
 // Blocked row.

@@ -32,10 +32,10 @@ func detectInlineConstructAtEvoCall(filename string, file *ast.File, fset *token
 		}
 		findings = append(findings, Finding{
 			RuleID:     ruleInlineConstruct,
-			Message:    "inline " + builtin + "() inside evo.Init/Task/Group argument; extract a named local before the call",
+			Message:    "inline " + builtin + "() inside evo.Main/Task/Group argument; extract a named local before the call",
 			File:       filename,
 			Line:       fset.Position(pos).Line,
-			Suggestion: "extract " + builtin + "(...) to a named local, then pass that local into the evo.Init/Task/Group call",
+			Suggestion: "extract " + builtin + "(...) to a named local, then pass that local into the evo.Main/Task/Group call",
 		})
 		return true
 	})

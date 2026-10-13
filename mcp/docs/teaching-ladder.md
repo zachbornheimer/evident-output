@@ -85,7 +85,7 @@ task.Define(func(ctx context.Context) error {
 ## Confirm
 
 ```go
-ok := evo.Confirm("delete origin/production-hotfix?", evo.Destructive(), evo.AssumeYes(flagYes))
+ok := r.Confirm("delete origin/production-hotfix?", evo.Destructive(), evo.NonInteractive("--yes"))
 ```
 
 Owns the whole gate: spinner pause, the `?` prompt, stdin. "n" resolves `⊘ declined`; non-TTY without

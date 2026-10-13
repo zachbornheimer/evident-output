@@ -133,7 +133,7 @@ worktrees := evo.Group("worktrees")
 for _, path := range paths {
     path := path
     worktrees.Task(path).Define(func(ctx context.Context) error {
-        spec := evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktree", Quantity: 1}
+        spec := evo.EffectSpec{Verb: evo.Delete, Object: "worktree", Quantity: 1}
         return evo.Effect(ctx, spec, func(ctx context.Context) error { return remove(ctx, path) })
     })
 }
@@ -147,8 +147,8 @@ evo.Task("fetch").After(worktrees, branches).Define(fetchPrune)
 - **Define** submits work. It does not mean “run this callback synchronously
   now.” Inside it, **`evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn)`**
   performs an opaque mutation (git ref, worktree, API change) and
-  **`evo.File`** owns file state. The seven TaskHandle mutation verbs
-  (`Delete(object, fn)`, `Write`, …) and `evo.Affected` were removed in 1.1.
+  **`evo.File`** owns file state. The seven Task mutation verbs
+  (`Delete(object, fn)`, `Write`, …) and `evo.Affected` are gone.
 - **Done** and **Record/RecordLabel/RecordName** were removed in 1.1. Success
   is a `Define` callback returning `nil`; result text is `task.Summary(text)`
   (non-terminal). Information is `task.Fact`, never a ledger row.
@@ -157,11 +157,9 @@ evo.Task("fetch").After(worktrees, branches).Define(fetchPrune)
   make evo rows parallel either — predeclare one named child `Task` per item
   under a `Group` + `Define` and let evo’s scheduler run them. A domain graph
   engine (zq mise/gate) may still own _eligibility_; wrap the executor body in
-  `Define` and call `task.Wait()` (or `Group.Wait()` / `Sequence.Wait()` for a
-  container) only when you need the result on this stack.
-- Never call `Wait` while holding a resource claim (inside an `Effect` with a
-  `Resource`, a `File`, or a `Basis` observation): it returns
-  `ErrNestedResourceAcquisition` instead of risking a deadlock.
+  `Define`; a later Task reads the result with `evo.Compute` / `Computed.Get`.
+- Never hold two claims at once (`EffectSpec.Path` / `EffectSpec.Resource`): that is
+  misuse.
 
 ## zq canary (MCP must survive this)
 
@@ -202,13 +200,12 @@ Defines, resolves, or hands on (DOM-021).
 
 `defineAndWait` in zq is not an exception: it is the API-044 channel-wait
 shape (it hangs when the task is already terminal before Define runs) and
-review flags it. Use `task.Wait()`, or `Group.Wait()` / `Sequence.Wait()`
-for a container.
+review flags it. Return the result from `Define` instead.
 
 ## Release policy
 
 Evident Output 1.x ships breaking changes in minor releases when the owner's
-API-freeze decisions call for them, with no compatibility shims. 1.0 dropped extra constructors and per-item helpers. Removed in 1.1: the TaskHandle mutation verbs, `Done`,
+API-freeze decisions call for them, with no compatibility shims. 1.0 dropped extra constructors and per-item helpers. Removed in 1.1: the Task mutation verbs, `Done`,
 `Record*`, `Affected`/`MutationOption`, `Warn`, `Step`,
 `Kept`, and capture-meaning `Evidence*` (`Capture` is the retained sink);
 the printf Fail and Block verbs are in docs/migration/1.1.md. 1.1 also

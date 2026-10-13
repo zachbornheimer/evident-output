@@ -27,46 +27,43 @@ func All() []Guide {
 			ID:       "common-api",
 			Title:    "Common API path",
 			UseCases: []string{"items", "finish", "block", "ok", "main", "entity", "severity"},
-			Concepts: []string{"Output", "Task", "Conclusion", "Main", "TaskHandle", "Sequence", "Group"},
+			Concepts: []string{"Output", "Task", "Conclusion", "Main", "Run", "Sequence", "Group"},
 			Rules: []string{
 				"API-001", "API-006", "API-026", "API-028", "API-029", "DOM-006", "DOM-007", "DOM-011", "CON-002",
 				"API-034", "API-035", "API-036", "API-037", "API-038", "DOM-018", "DOM-019", "DOM-020", "TAX-002", "TXT-020", "TXT-021",
 				"API-057", "API-059", "API-060", "API-061",
 			},
 			Body: `Adoption ladder (guess-driven defaults — the naive spelling is the correct one):
-  1) evo.Init(evo.Config{Title, DryRun}) once in main, before any I/O; os.Exit(evo.Main(run)) —
+  1) os.Exit(evo.Main(run, evo.Config{Name, DryRun})) in main; run is func(ctx, r *evo.Run) error —
      dry-run wording, empty-case, and exit codes are all owned; run takes a context.Context
      (wired to SIGINT/SIGTERM) and returns only error; Main returns the derived exit code and
-     does not itself call os.Exit (evo.Run/Output.Run return the full Result instead, for a
+     does not itself call os.Exit (evo.Execute returns the full Result instead, for a
      caller that needs the Conclusion and application error, not just the code).
   2) task.Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb:
-     evo.EffectDelete, Object: "worktree", Quantity: n}, fn) }) for an opaque mutation (git ref,
+     evo.Delete, Object: "worktree", Quantity: n}, fn) }) for an opaque mutation (git ref,
      worktree, API change); evo.File(ctx, evo.FileSpec{...}) for file state. Config.DryRun picks
      [planned] vs [changed]; no call site ever flips its own tense or chooses Changed/Ready/Planned.
      A filesystem mutator (os.WriteFile, os.Create, write-mode os.OpenFile, os.Remove, os.Rename)
      inside an Effect callback is never correct (API-057): Effect is the opaque-mutation escape
      hatch, not a second file-write API — route file state through evo.File, even when the new
      content derives from an existing file's contents (read the file first, then pass the
-     derived result as FileSpec.Contents, or derive a FileSet with evo.Patch and commit it with
-     evo.Files, which guards each file's Basis against a stale write).
-  3) worktrees := evo.Group("worktrees"); for _, path := range paths { worktrees.Task(path).Define(...) }
+     derived result as FileSpec.Contents, or apply a unified diff with evo.Patch, which commits
+     through File and fails with ErrStaleBasis rather than overwriting a changed source).
+  3) worktrees := r.Group("worktrees"); for _, path := range paths { worktrees.Task(path).Define(...) }
      for independent collections; evo.Sequence for ordered ones (same one-Task-per-item shape;
      Group.Each/Sequence.Each were removed in 1.0); .Writer() as cmd.Stdout so a talkative
      child's last line becomes the live doing-text.
-  4) evo.Task(name).Skipped(reason) — taxonomy counted and summed, never a bare
+  4) return evo.Exclude(reason) from a Task's Define — taxonomy counted and summed, never a bare
      "skipped N". The item name is the Task name (a named Group/Sequence child).
   5) evo.Confirm(question, ...) — owns the whole gate (prompt, quiesce, ⊘/OK resolution, exit code).
 
-Types: TaskHandle (work with Doing/Progress/mutations/taxonomy, or a fact-check gate resolved directly with no
-Doing/Progress call), SequenceHandle (evo.Sequence — named children in dependency order, auto-lifecycle
-NotStarted on failure/cancel), GroupHandle (evo.Group — independent children; the scheduler may overlap
-eligible work; both offer nested .Sequence/.Group for recursive containers).
-evo.Task/Sequence are get-or-create facades on the package-level default instance (see evo.Init/evo.SetDefault);
-Success resolves through Define (the callback returning nil); TaskHandle.Done was removed in 1.1 (ZYS-812), and
-task.Summary(text) is the non-terminal result text Done(text) carried (ZYS-971). Record/RecordName/RecordLabel were
-removed in 1.1 with no record-only replacement (ZYS-974): a mutation goes through evo.Effect (closed EffectVerb
-set, incl. EffectInstall/EffectUninstall), information through task.Fact, a file write through evo.File/evo.Patch.
-Output.Changes/Output.Plan were removed (P1). Item/ItemHandle were removed v0.2.x shims over Task/TaskHandle.
+Types: Task (work with Doing/Progress/mutations, resolved by what Define returns), Sequence (r.Sequence — named
+children in dependency order, later siblings NotStarted on failure/cancel), Group (r.Group — independent
+children; the scheduler may overlap eligible work; both offer nested .Sequence/.Group for recursive containers).
+r.Task/r.Group/r.Sequence declare on the *evo.Run the application body receives.
+Success resolves through Define (the callback returning nil); task.Summary(text) is the settled row's headline.
+A mutation goes through evo.Effect (closed Verb set: Create, Update, Delete), information through task.Fact,
+a file write through evo.File/evo.Patch.
 Effect quantities tally and always render at Finish; a named row (evo.File "write <path>", evo.Exec "run <exe>")
 streams the instant its owning task resolves, bounded by the same viewport cap and "… +N more (not shown)"
 overflow the Finish ledger uses.
@@ -81,7 +78,7 @@ something wrong" from "something broke while checking". A usage or user mistake 
 protected-branch policy) resolves Block, never Fail — routing it through Fail reports a user error as a system
 failure.
 Do not Start (API-006); no caller RunAll/Map/Retry on evo receivers (API-026 — Group/Sequence/Define/After are the scheduler; Group.Each/Sequence.Each were removed in 1.0); Fail/Block are statements (the printf verbs were removed in 1.1); Doing/Reason are printf-variadic; Summary takes one literal string; Writer/Capture not DebugWriter (API-029).
-Never print a joined failure list yourself (CON-002): out.Println(strings.Join(failures, "\n")) duplicates the
+Never print a joined failure list yourself (CON-002): fmt.Fprintln(r.Text(), strings.Join(failures, "\n")) duplicates the
 one summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows. Resolve each
 failure on its own Task and use Next(evo.Label(...)) for follow-up guidance instead.`,
 			TokenEstimate: 410,
@@ -120,8 +117,8 @@ Go shape so agents do not write a Group named run plus a single child. Group's c
 are independent (the scheduler may overlap eligible work; concurrent Running children
 expected); Sequence's children are an ordered dependency that stops later, still-unresolved siblings as
 "-  not started" automatically once one fails or is cancelled (C13). Both offer nested .Sequence(name)/
-.Group(name) for recursive containers — a failure three levels deep still surfaces at the root header. TaskHandle
-itself has no .Task/.Group/.Sequence child constructors (ZYS-838 Decisions): only Output/GroupHandle/SequenceHandle
+.Group(name) for recursive containers — a failure three levels deep still surfaces at the root header. Task
+itself has no .Task/.Group/.Sequence child constructors (ZYS-838 Decisions): only Run/Group/Sequence
 declare children, so a Task cannot structurally grow containers of its own. The renderer, not the container's mere
 presence, decides whether a container's own header row is visible or collapses into its one child — that decision
 is independent of whether the children underneath are Tasks or further nested containers.
@@ -205,7 +202,7 @@ Never invent a Basis entry the source code does not actually read (EVO-PROVENANC
 			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "Config", "FormatData", "Main", "Writer"},
 			Rules:    []string{"STREAM-003", "STREAM-004", "OUT-001", "OUT-003", "OUT-004", "API-031", "EV-001", "SIG-001", "SIG-002"},
 			Body: `Human UI and logs must not contaminate structured stdout.
-Ordinary dual-stream: evo.Init(evo.Config{Stdout: os.Stdout, Stderr: os.Stderr}) — Config auto-applies Plain/NoColor off-TTY.
+Ordinary dual-stream: os.Exit(evo.Main(run)) — a zero Config picks Plain off-TTY and honours NO_COLOR.
 FormatData reserves stdout for domain payload via ResultWriter; human presentation moves to stderr; a failed
 data command emits no partial payload by default.
 
@@ -222,14 +219,14 @@ else (SIGHUP, SIGUSR1, ...) is unrelated application behavior and stays untouche
 Child processes: cmd.Stdout = task.Writer(); cmd.Stderr = task.Writer(); on error
 inside Define return fmt.Errorf("...: %w", err) (Fail/Block are statements; attach user-facing
 text with evo.Detail).
-Never implement your own io.Writer whose Write method calls TaskHandle.Doing (API-031): that
+Never implement your own io.Writer whose Write method calls Task.Doing (API-031): that
 reimplements the exact adapter Writer already owns.
 Capture is deduplicated for you: never embed capture text into a Fail/Block summary
 (task.Fail("install failed", evo.Detail(capture.Text())) — EV-001) — auto-attach already renders that same
 retained tail as its own evidence line underneath; embedding it in the summary too just repeats it.
 Capture is task-owned. Ring always retains proof; Config.Debug.Level gates journal display.
 Do not hand-thread DebugWriter for brew/git.
-WriteJSON or FormatJSON/FormatJSONL for machines. Avoid fmt.Print during live UI — use evo.Println (see interactive guide).`,
+WriteJSON or FormatJSON/FormatJSONL for machines. Avoid fmt.Print during live UI — write to r.Text() (see interactive guide).`,
 			TokenEstimate: 260,
 		},
 		{
@@ -321,7 +318,7 @@ pre-definition Verify (or a tracked evo.File/evo.Exec check) that proves the cur
 			Concepts: []string{"LiveSurface", "VisibilityDelay", "Terminal", "Confirm", "Println"},
 			Rules:    []string{"TERM-001", "TERM-006", "TERM-015", "CONFIRM-001", "CONFIRM-002", "LOG-001"},
 			Body: `A Task that resolves before the visibility threshold must not flash a spinner.
-Durable notes go through evo.Println/Print/Printf — never fmt.Print* — while a live region is open: evo clears
+Durable notes go through fmt.Fprintln(r.Text(), ...) — never fmt.Print* — while a live region is open: evo clears
 the region, writes the line, redraws, atomically. fmt bypassing that path is how frames tear.
 evo.Confirm(question, ...) quiesces the live region for the whole ask-decide-resolve window before it prompts:
 no spinner ever animates while waiting on a human, and the answer resolves to OK, ⊘ declined, or ⊘ blocked by
@@ -348,8 +345,8 @@ Do not inherit os.Stdout, and do not clear the spinner around a child.`,
 			Body: `The user is always waiting for input, watching work, or reading a verdict — a blank terminal for the first
 one to three seconds of a run is none of those, and reads as a hang.
 
-evo.Init(evo.Config{...}) arms first paint before any I/O: call it as the very first statement in main, before
-config parsing, git walks, or a network dial. Init + the first declared entity must produce something honest on
+evo.Main arms first paint before any I/O: declare the first Task as the first statement of run, before
+config parsing, git walks, or a network dial. Main + the first declared entity must produce something honest on
 screen within 100ms of process start (FP-001). Declaring a Task paints it running (a spinner) immediately —
 VisibilityDelay must not hide that first running frame, so a fast bind cannot popup-complete (FP-005).
 

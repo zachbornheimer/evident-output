@@ -189,7 +189,7 @@ func detectHandRolledWriter(filename, src string) []Finding {
 		if strings.Contains(body, ".Doing(") {
 			findings = append(findings, Finding{
 				RuleID:     "API-031",
-				Message:    "hand-rolled io.Writer.Write calls TaskHandle.Doing; use Task.Writer() instead",
+				Message:    "hand-rolled io.Writer.Write calls Task.Doing; use Task.Writer() instead",
 				File:       filename,
 				Line:       lineAt(src, start),
 				Suggestion: "delete this Write method and wire the subprocess's Stdout/Stderr to task.Writer()",

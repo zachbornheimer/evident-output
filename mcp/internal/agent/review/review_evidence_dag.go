@@ -359,7 +359,7 @@ func stringLit(e ast.Expr) (string, bool) {
 func rawMutationRoute(name string) string {
 	if strings.HasSuffix(name, ".Exec") || strings.HasSuffix(name, ".ExecContext") {
 		if !strings.HasPrefix(name, "exec.") {
-			return "wrap " + name + " in evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: \"row\", Quantity: n}, fn) so dry-run never invokes it"
+			return "wrap " + name + " in evo.Effect(ctx, evo.EffectSpec{Verb: evo.Update, Object: \"row\", Quantity: n}, fn) so dry-run never invokes it"
 		}
 	}
 	return "route the mutation through evo.File(ctx, evo.FileSpec{...}) or evo.Exec(ctx, evo.ExecSpec{...}) instead of calling " + name + " directly"

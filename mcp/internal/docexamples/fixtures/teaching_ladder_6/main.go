@@ -1,5 +1,3 @@
-//go:build ignore
-
 // Package main compiles mcp/docs/teaching-ladder.md's "Data commands"
 // fence verbatim. See TestDocFencesMatchFixtures. Never run.
 package main

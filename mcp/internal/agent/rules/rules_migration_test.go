@@ -77,7 +77,7 @@ func TestMigrations_CoversNamedEvidenceForCommonFileState(t *testing.T) {
 // The six 1.1 removals an upgrade assistant must rewrite mechanically.
 func TestMigrations_Covers1_1Removals(t *testing.T) {
 	want := []struct{ from, to string }{
-		{"Blockf", "Block"},
+		{"Blockf", "Refuse"},
 		{"Failf", "Fail"},
 		{"Warn", "Problem"},
 		{"Step", "Progress"},

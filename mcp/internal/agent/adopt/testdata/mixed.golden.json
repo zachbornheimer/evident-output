@@ -14,7 +14,7 @@
       "line": 21,
       "pattern": "fmt.Printf",
       "rung": "Task/Define",
-      "suggestion": "replace with evo.Println/Print/Printf (durable notes) or a Task's Doing and Define — never fmt.Print* while a live region may be open.",
+      "suggestion": "replace with fmt.Fprintln(r.Text(), ...) (durable notes) or a Task's Doing and Define — never fmt.Print* while a live region may be open.",
       "certainty": "needs-review"
     },
     {
@@ -22,7 +22,7 @@
       "line": 22,
       "pattern": "log.Println",
       "rung": "Task/Define",
-      "suggestion": "replace with evo.Println/Print/Printf for a durable note, or task.Doing plus the Task's Define callback if this reports lifecycle state — see the common-api guide.",
+      "suggestion": "replace with fmt.Fprintln(r.Text(), ...) for a durable note, or task.Doing plus the Task's Define callback if this reports lifecycle state — see the common-api guide.",
       "certainty": "needs-review"
     },
     {

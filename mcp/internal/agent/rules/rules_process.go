@@ -44,11 +44,10 @@ func processRules() []Rule {
 			Why:       "Evo's live renderer redraws the terminal in place; an unmanaged fmt.Print* call lands mid-redraw and tears the frame — the same class of corruption STREAM-003 already flags for any managed stream, called out here specifically for the active live-rendering case the spec's migration guidance targets.",
 			BadCode: `out := evo.Init(evo.Config{})
 fmt.Println("still going...") // tears the live frame`,
-			GoodCode: `out := evo.Init(evo.Config{})
-out.Println("still going...") // routed through the same writer the live region owns`,
+			GoodCode:        `fmt.Fprintln(r.Text(), "still going...") // routed through the same writer the live region owns`,
 			BadOutput:       "garbled/duplicated live-region frame with a stray printf line spliced in",
 			GoodOutput:      "clean live-region redraw with the line rendered in its place",
-			Remediation:     "Replace fmt.Print/Printf/Println with out.Print/Printf/Println (or Verbose) so the line is rendered through the live region, not spliced across it",
+			Remediation:     "Replace fmt.Print/Printf/Println with fmt.Fprint*(r.Text(), ...) (or Verbose) so the line is rendered through the live region, not spliced across it",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"EVO-LIVE-001", "STREAM-003"},
 			Since:           "1.0.0",

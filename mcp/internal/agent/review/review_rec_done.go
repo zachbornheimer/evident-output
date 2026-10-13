@@ -80,7 +80,7 @@ func (d *recSurfaceDetector) inspectRemovedDone(call *ast.CallExpr, sel *ast.Sel
 	recv := d.nodeSrc(sel.X)
 	summary := d.doneSummaryExpr(call.Args)
 	old := d.nodeSrc(call)
-	const msg = "TaskHandle.Done was removed in 1.1; success resolves through Define, and result text is Summary"
+	const msg = "Task.Done was removed in 1.1; success resolves through Define, and result text is Summary"
 	if d.doneScope.insideOwnDefine(exprDottedName(sel.X), d.offset(call)) {
 		if summary == "" {
 			d.report(call, msg, "delete "+old+"; the Define callback returning nil already resolves "+recv)

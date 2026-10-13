@@ -14,7 +14,7 @@ func effectRules() []Rule {
 			BadCode: `spec := evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: n}
 evo.Effect(ctx, spec, nil)
 evo.Effect(ctx, spec, func(context.Context) error { return installedPythonModuleCount(name, n) })`,
-			GoodCode: `spec := evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: n}
+			GoodCode: `spec := evo.EffectSpec{Verb: evo.Create, Object: "module", Quantity: n}
 evo.Effect(ctx, spec, func(ctx context.Context) error {
   return invokeUV(ctx, root, packages)
 })`,
@@ -31,7 +31,7 @@ evo.Effect(ctx, spec, func(ctx context.Context) error {
 			Invariant:       "an EffectSpec.Object literal names the singular; evo pluralizes it from Quantity",
 			Why:             "`EffectSpec{Verb: EffectDelete, Object: \"worktrees\", Quantity: 1}` renders \"deleted 1 worktrees\" (zq axis-14 P17) because Pluralize treats an already-plural literal as unchanged; Object must stay singular so pluralization has one job.",
 			BadCode:         `evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktrees", Quantity: 1}`,
-			GoodCode:        `evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktree", Quantity: 1}`,
+			GoodCode:        `evo.EffectSpec{Verb: evo.Delete, Object: "worktree", Quantity: 1}`,
 			Remediation:     "Pass the singular noun as EffectSpec.Object; let Quantity drive pluralization",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-043"},

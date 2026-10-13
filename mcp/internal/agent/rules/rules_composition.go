@@ -123,7 +123,7 @@ func taskDeclaresChildrenRule() Rule {
   }
   return nil
 })`,
-		GoodCode: `group.Define(func(g *evo.GroupHandle) {
+		GoodCode: `group.Build(func(g *evo.Group) {
   for _, pkg := range packages {
     g.Task("centralize " + pkg).Define(work)
   }
@@ -150,7 +150,7 @@ func impureTopologyBuilderRule() Rule {
 })`,
 		GoodCode: `entries := evo.Compute(packages.Task("list packages"), listPackages)
 group := packages.Group("centralize").After(entries)
-group.Define(func(g *evo.GroupHandle) {
+group.Build(func(g *evo.Group) {
   for _, e := range entries.Get() { g.Task(e).Define(work) }
 })`,
 		Remediation:     "Move the work into a predecessor Task exposed with evo.Compute; the builder only reads Get() and declares children",

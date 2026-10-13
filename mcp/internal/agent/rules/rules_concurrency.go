@@ -31,9 +31,10 @@ if partial {
 			Why:       "fmt/out.Print(strings.Join(failures, ...)) duplicates the exact summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows.",
 			BadCode:   `out.Println(strings.Join(failures, "\n")) // duplicates Conclusion`,
 			GoodCode: `for _, f := range failures {
-  out.Task(f.Name).Fail(f.Reason)
+  f := f
+  r.Task(f.Name).Define(func(context.Context) error { return evo.Fail(f.Reason) })
 }
-// Conclusion renders the one summary; add Next(evo.Label(...)) for guidance`,
+// Conclusion renders the one summary; add evo.Next(evo.Action{Label: ...}) for guidance`,
 			Remediation:     "Resolve each failure on its own Item/Task and let Conclusion summarize; use Next for follow-up guidance",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"CON-002"},
@@ -74,7 +75,7 @@ if partial {
 register.After(write)
 start := seq.Task("start")
 start.After(register)`,
-			GoodCode: `seq := evo.Sequence("launch agent")
+			GoodCode: `seq := r.Sequence("launch agent")
 write := seq.Task("write plist")
 register := seq.Task("register")
 start := seq.Task("start")`,

@@ -11,13 +11,11 @@ func outputRules() []Rule {
 			Why:       "fmt.Print during live UI corrupts managed streams and breaks machine consumers.",
 			BadCode: `out := evo.Init(evo.Config{})
 fmt.Printf("progress %d\n", n)`,
-			GoodCode: `out := evo.Init(evo.Config{})
-out.Printf("progress %d\n", n)
-// or out.At(evo.VisibilityVerbose).Println(...) (evo.Verbose() on the default instance) for optional domain detail
-// or slog via out.SlogHandler for implementation diagnostics`,
+			GoodCode: `fmt.Fprintf(r.Text(), "progress %d\n", n)
+// or slog via r.SlogHandler() for implementation diagnostics`,
 			BadOutput:       "interleaved ANSI + printf on stdout",
 			GoodOutput:      "managed Print / Verbose / slog only",
-			Remediation:     "Use out.Print/Printf/Println (or Verbose) for human text; slog for diagnostics; Task.Writer or Task.Capture for subprocesses",
+			Remediation:     "Use fmt.Fprint*(r.Text(), ...) (or Verbose) for human text; slog for diagnostics; Task.Writer or Task.Capture for subprocesses",
 			RelatedGuidance: []string{"streams", "common-api"},
 			VerificationIDs: []string{"STREAM-003", "MCP-013"},
 			Since:           "0.1.0",
@@ -42,8 +40,7 @@ if err := cmd.Run(); err != nil {
 			GoodCode: `cmd.Stdout = task.Writer()
 cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
-  task.Fail("build failed")
-    return err
+  return evo.Fail("build failed")
 }`,
 			Remediation:     "Set cmd.Stdout/cmd.Stderr to task.Writer() (Task.Run was removed in 1.0); do not hand-wire Capture from application code",
 			RelatedGuidance: []string{"streams"},
@@ -70,13 +67,14 @@ if err := cmd.Run(); err != nil {
 			Certainty:       CertaintyDeterministic,
 		},
 		{
-			ID:              "GLYPH-001",
-			Category:        "GLYPH",
-			Severity:        SeverityWarning,
-			Invariant:       "glyph selection uses a terminal capability profile, measured in cells, not rune counts",
-			Why:             "■ ○ → … are East Asian Ambiguous-width families; counting runes instead of measuring terminal cells misjudges layout on affected terminals.",
-			BadCode:         `if len([]rune(sym)) == 1 { return sym } // rune count guesses width`,
-			GoodCode:        `glyph := profile.Select(evo.StateCancelled) // capability profile measures terminal cells, chooses Neutral/Narrow-width symbols`,
+			ID:        "GLYPH-001",
+			Category:  "GLYPH",
+			Severity:  SeverityWarning,
+			Invariant: "glyph selection uses a terminal capability profile, measured in cells, not rune counts",
+			Why:       "■ ○ → … are East Asian Ambiguous-width families; counting runes instead of measuring terminal cells misjudges layout on affected terminals.",
+			BadCode:   `if len([]rune(sym)) == 1 { return sym } // rune count guesses width`,
+			GoodCode: `outcome := evo.Cancelled // the presentation measures terminal cells and picks one glyph per Outcome
+_ = outcome`,
 			Remediation:     "Select glyphs via the capability profile (glyphs=auto|unicode|ascii); never infer width from rune count",
 			RelatedGuidance: []string{"interactive"},
 			VerificationIDs: []string{"GLYPH-001"},
@@ -91,7 +89,7 @@ if err := cmd.Run(); err != nil {
 			Invariant:       "log level markers render as a stable uppercase bracketed tag ([DEBUG], [WARN], [ERROR])",
 			Why:             "A hand-formatted or lowercase level prefix breaks golden-stable log parsing and reads inconsistently against every other line evo emits.",
 			BadCode:         `fmt.Fprintf(w, "warn: %s\n", msg)`,
-			GoodCode:        `// route through evo's logging path (slog via SlogHandler, or out.Println) — it renders "[WARN] %s" itself`,
+			GoodCode:        `// route through evo's logging path (slog via SlogHandler, or fmt.Fprintln(r.Text(), ...)) — it renders "[WARN] %s" itself`,
 			Remediation:     "Let evo's logging renderer format the level tag; never hand-assemble a level prefix",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"LOG-001"},
@@ -106,7 +104,7 @@ if err := cmd.Run(); err != nil {
 			Invariant:       "the final human report writes through the configured human writer; transient live-region output never corrupts it",
 			Why:             "Printing the final report through a different writer than Config wires, or interleaving it with live-region redraws, can duplicate or garble the report the human reads at exit.",
 			BadCode:         `fmt.Println(finalReportText) // bypasses out's configured human writer`,
-			GoodCode:        `out.Println(finalReportText) // routed through the same managed writer as everything else`,
+			GoodCode:        `fmt.Fprintln(r.Text(), finalReportText) // routed through the same managed writer as everything else`,
 			Remediation:     "Route the final report through the same Output writer as everything else; never fmt.Print it separately",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"OUT-001"},
@@ -122,8 +120,7 @@ if err := cmd.Run(); err != nil {
 			Why:       "A data command's stdout is a machine payload contract; any progress byte on stdout corrupts a JSON/line consumer downstream.",
 			BadCode: `out := evo.Init(evo.Config{Format: evo.FormatData, Stdout: os.Stdout, Stderr: os.Stdout})
 // progress/UI share the payload's stream`,
-			GoodCode: `out := evo.Init(evo.Config{Format: evo.FormatData, Stdout: os.Stdout, Stderr: os.Stderr})
-// progress/UI route to Stderr; only the payload reaches Stdout`,
+			GoodCode:        `fmt.Fprintln(r.ResultWriter(), payload) // progress and UI route to stderr; only the payload reaches stdout`,
 			Remediation:     "Configure Stderr alongside Stdout when using FormatData/ResultWriter; never write progress bytes to stdout by hand",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"OUT-003"},
@@ -138,7 +135,7 @@ if err := cmd.Run(); err != nil {
 			Invariant:       "Plain mode emits no ANSI escape or cursor-control bytes",
 			Why:             "A hand-rolled escape sequence written outside evo's managed writer survives Plain mode and corrupts non-TTY/CI output that Plain exists to keep clean.",
 			BadCode:         `fmt.Fprint(os.Stdout, "\x1b[32mok\x1b[0m") // raw ANSI bypasses Plain mode`,
-			GoodCode:        `out.Println("ok") // evo suppresses ANSI automatically under Plain/NoColor or off-TTY`,
+			GoodCode:        `fmt.Fprintln(r.Text(), "ok") // evo suppresses ANSI automatically under Plain or NO_COLOR`,
 			Remediation:     "Never write raw ANSI/cursor sequences directly; let evo's managed writers decide based on Plain/NoColor/TTY detection",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"OUT-004"},
@@ -183,9 +180,9 @@ t.Doing("copying staging -> production release bucket")`,
 			Invariant: "a Fail/Warn/Block summary is short text; cause and remedy are Detail/Next, never hand-assembled into the summary",
 			Why:       "A summary hand-assembling \" — cause:\"/\" — action:\" fragments reimplements Detail/Next inside plain text, losing their structured rendering and truncation.",
 			BadCode:   `task.Fail("policy check failed — cause: manifest missing — action: run zq init")`,
-			GoodCode: `task.Fail("policy check failed",
+			GoodCode: `return evo.Fail("policy check failed",
 	evo.Detail("manifest missing"),
-	evo.Next(evo.Label("run zq init")))`,
+	evo.Next(evo.Action{Label: "run zq init"}))`,
 			Remediation:     "Split the crammed text: keep the summary short, move the cause to Detail(...) and the remedy to Next(evo.Label(...))",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"TXT-021"},

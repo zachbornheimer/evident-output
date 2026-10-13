@@ -59,10 +59,10 @@ func detectChannelWaitWrapperAroundDefine(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "API-044",
-			Message:    "a channel-wait wrapper around Define reimplements task.Wait() and hangs when the task is already terminal before Define runs",
+			Message:    "a channel-wait wrapper around Define reimplements what Evo already does and hangs when the task is already terminal before Define runs",
 			File:       filename,
 			Line:       lineAt(src, fn.offset+chanIdx),
-			Suggestion: "replace the make(chan error)/Define/<-done wrapper with task.Define(fn); err := task.Wait()",
+			Suggestion: "replace the make(chan error)/Define/<-done wrapper with task.Define(fn) and return from run; Evo owns the waiting",
 		})
 	}
 	return findings
@@ -111,7 +111,7 @@ func detectCallerWaitLoopOverContainerChildren(filename, src string) []Finding {
 			Message:    "a caller-owned loop waits on individually stored Task handles, filters ErrNotStarted, snapshots the container, and hand-counts failed children instead of using the container's own Wait",
 			File:       filename,
 			Line:       lineAt(src, fn.offset+loop.offset+waitIdx),
-			Suggestion: "replace the stored-handle Wait loop and hand-counted aggregate error with the owning container's own GroupHandle.Wait()/SequenceHandle.Wait() (e.g. return jobs.Wait())",
+			Suggestion: "replace the stored-handle Wait loop and hand-counted aggregate error with evo.Compute and Computed.Get, or a Group/Sequence the later work names in After",
 		})
 	}
 	return findings

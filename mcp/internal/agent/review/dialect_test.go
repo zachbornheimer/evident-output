@@ -28,7 +28,7 @@ func TestGoSource_NewIsAPI032AtCurrentDialectNotPre04(t *testing.T) {
 	}
 }
 
-func TestGoSource_ApplyInitSuggestionClearsAPI032(t *testing.T) {
+func TestGoSource_ApplyMainSuggestionClearsAPI032(t *testing.T) {
 	res := review.GoSource("main.go", newSrc)
 	var sug string
 	for _, f := range res.Findings {
@@ -40,16 +40,16 @@ func TestGoSource_ApplyInitSuggestionClearsAPI032(t *testing.T) {
 	if sug == "" {
 		t.Fatalf("missing New suggestion: %+v", res.Findings)
 	}
-	fixed := strings.Replace(newSrc, "evo.New(evo.Config{Title: \"t\"})", "evo.Init(evo.Config{Title: \"t\"})", 1)
-	if !strings.Contains(sug, "evo.Init") {
-		t.Fatalf("suggestion must name evo.Init, got %q", sug)
+	fixed := strings.Replace(newSrc, "evo.New(evo.Config{Title: \"t\"})", "evo.Execute(context.Background(), evo.Config{Name: \"t\"}, nil)", 1)
+	if !strings.Contains(sug, "evo.Main") {
+		t.Fatalf("suggestion must name evo.Main, got %q", sug)
 	}
 	again := review.GoSource("main.go", fixed)
 	if hasRule(again, "API-032") {
-		t.Fatalf("after applying Init, API-032 must be gone, got %+v", again.Findings)
+		t.Fatalf("after applying the Main/Execute rewrite, API-032 must be gone, got %+v", again.Findings)
 	}
 	if again.RecheckRequired {
-		t.Fatal("RecheckRequired must be false after the New→Init fix")
+		t.Fatal("RecheckRequired must be false after the New→Main fix")
 	}
 }
 

@@ -6,7 +6,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
-// A Task's own Facts (TaskHandle.Fact) are routine context, not results
+// A Task's own Facts (Task.Fact) are routine context, not results
 // (contract §13: "normal successful Task    hide ordinary Facts ...
 // verbose    show Task/run Facts"). They are not promoted when the Task
 // warns or fails either: "A generic Task-scoped or run-scoped Fact is not

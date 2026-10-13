@@ -167,8 +167,12 @@ var retiredSymbols = []RetiredSymbol{
 
 	// 2.0 (CONTRACT.md): the surface is exactly the contract tables. These
 	// 1.x names are gone.
-	{Contract: "Init", RemovedIn: RetiredRelease2_0, Replacement: "evo.Main(run) or evo.Execute(ctx, cfg, run)"},
-	{Contract: "TaskHandle", RemovedIn: RetiredRelease2_0, Replacement: "Task"},
+	{Contract: "Init", RemovedIn: RetiredRelease2_0, Replacement: "evo.Main(run) or evo.Execute(ctx, cfg, run)", Taught: regexp.MustCompile(`\bevo\.Init\b`)},
+	{Contract: "Println", RemovedIn: RetiredRelease2_0, Replacement: "fmt.Fprintln(r.Text(), ...)", Taught: regexp.MustCompile(`\b(?:evo|out|Output)\.Print(?:f|ln)?\b`)},
+	{Contract: "Block", RemovedIn: RetiredRelease2_0, Replacement: "return evo.Refuse(summary, opts...) from Define", Taught: regexp.MustCompile(`\b(?:[Tt]ask\w*|it|item)\.Block\(|\bTask\.Block\b`)},
+	{Contract: "Wait", RemovedIn: RetiredRelease2_0, Replacement: "return from run; Evo owns the waiting", Taught: regexp.MustCompile(`\b(?:[Tt]ask\w*|[Gg]roup|[Ss]equence|seq)\.Wait\b`)},
+	{Contract: "Key", RemovedIn: RetiredRelease2_0, Replacement: "the Task name is its identity", Taught: regexp.MustCompile(`\b(?:[Tt]ask\w*)\.Key\b`)},
+	{Contract: "TaskHandle", RemovedIn: RetiredRelease2_0, Replacement: "Task", Taught: regexp.MustCompile(`\b(?:Task|Group|Sequence)Handle\b`)},
 	{Contract: "Files", RemovedIn: RetiredRelease2_0, Replacement: "evo.File per file"},
 	{Contract: "Fingerprint", RemovedIn: RetiredRelease2_0, Replacement: "FileSpec/ExecSpec Inputs and Values"},
 	{Contract: "FSPath", RemovedIn: RetiredRelease2_0, Replacement: "EffectSpec.Path"},
@@ -179,13 +183,13 @@ var retiredSymbols = []RetiredSymbol{
 	{Contract: "SeverityWarning", RemovedIn: RetiredRelease2_0, Replacement: "Problem"},
 	{Contract: "ColorNever", RemovedIn: RetiredRelease2_0, Replacement: "NO_COLOR"},
 	{Contract: "FormatData", RemovedIn: RetiredRelease2_0, Replacement: "Run.ResultWriter"},
-	{Contract: "EffectAdd", RemovedIn: RetiredRelease2_0, Replacement: "evo.Create"},
-	{Contract: "EffectCreate", RemovedIn: RetiredRelease2_0, Replacement: "evo.Create"},
-	{Contract: "EffectDelete", RemovedIn: RetiredRelease2_0, Replacement: "evo.Delete"},
-	{Contract: "EffectPush", RemovedIn: RetiredRelease2_0, Replacement: "evo.Update"},
-	{Contract: "EffectRemove", RemovedIn: RetiredRelease2_0, Replacement: "evo.Delete"},
-	{Contract: "EffectUpdate", RemovedIn: RetiredRelease2_0, Replacement: "evo.Update"},
-	{Contract: "EffectInstall", RemovedIn: RetiredRelease2_0, Replacement: "evo.Create"},
+	{Contract: "EffectAdd", RemovedIn: RetiredRelease2_0, Replacement: "evo.Create", Taught: regexp.MustCompile(`\bEffectAdd\b`)},
+	{Contract: "EffectCreate", RemovedIn: RetiredRelease2_0, Replacement: "evo.Create", Taught: regexp.MustCompile(`\bEffectCreate\b`)},
+	{Contract: "EffectDelete", RemovedIn: RetiredRelease2_0, Replacement: "evo.Delete", Taught: regexp.MustCompile(`\bEffectDelete\b`)},
+	{Contract: "EffectPush", RemovedIn: RetiredRelease2_0, Replacement: "evo.Update", Taught: regexp.MustCompile(`\bEffectPush\b`)},
+	{Contract: "EffectRemove", RemovedIn: RetiredRelease2_0, Replacement: "evo.Delete", Taught: regexp.MustCompile(`\bEffectRemove\b`)},
+	{Contract: "EffectUpdate", RemovedIn: RetiredRelease2_0, Replacement: "evo.Update", Taught: regexp.MustCompile(`\bEffectUpdate\b`)},
+	{Contract: "EffectInstall", RemovedIn: RetiredRelease2_0, Replacement: "evo.Create", Taught: regexp.MustCompile(`\bEffectInstall\b`)},
 }
 
 // apiSpelling matches a retired method taught as current API: a known evo

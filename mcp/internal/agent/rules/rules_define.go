@@ -62,12 +62,11 @@ if err := cmd.Run(); err != nil {
   }
   return err
 }`,
-			GoodCode: `res, err := evo.Exec(ctx, evo.ExecSpec{Executable: "golangci-lint", Args: []string{"run"}})
+			GoodCode: `res, err := evo.Exec(ctx, evo.ExecSpec{Argv: []string{"golangci-lint", "run"}})
 if errors.Is(err, evo.ErrExecNonzeroExit) {
-  task.Fail("lint failed", evo.Detail(res.Stdout))
-  return nil
+  return evo.Fail("lint failed", evo.Detail(res.Stdout))
 }
-return err`,
+return fmt.Errorf("run golangci-lint: %w", err)`,
 			Remediation:     "Delete the raw exec.Cmd, its hand-rolled bytes.Buffer/io.MultiWriter capture, and any output-string cancellation match; call evo.Exec(ctx, evo.ExecSpec{Executable, Args}) and inspect the returned ExecResult (and errors.Is(err, evo.ErrExecNonzeroExit)) instead",
 			RelatedGuidance: []string{"evo-file-exec", "tasks"},
 			VerificationIDs: []string{"API-054"},

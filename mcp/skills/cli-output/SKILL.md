@@ -89,7 +89,7 @@ go get github.com/zachbornheimer/evident-output@v2.0.0
 ## Adoption ladder
 
 ```text
-evo.Init(Config) → Print/Printf/Println → Verbose()
+os.Exit(evo.Main(run)) → fmt.Fprintln(r.Text(), ...)
 → Task.Define / one Task per item under a Group or Sequence → task.Writer()
 → evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) / evo.File inside Define
 → slog via SlogHandler → os.Exit(evo.Main(run))
@@ -100,13 +100,11 @@ Prefer **contracts over sugar**: plain `Task` labels first. Task is name-only.
 ## Entrypoint
 
 ```go
-evo.Init(evo.Config{Title: "tool"})
-os.Exit(evo.Main(run)) // Main returns the exit code; it never exits itself
+os.Exit(evo.Main(run, evo.Config{Name: "tool"})) // Main returns the exit code; it never exits itself
 ```
 
-`evo.Init(Config{Isolated: true})` + `out.Run(ctx, run)` are the advanced, hosted-instance
-form of the same lifecycle — reach for them only when a tool needs an `*Output` it
-doesn't install as the package-level default.
+`evo.Execute(ctx, cfg, run)` is the hosted form of the same lifecycle: it returns the full
+`Result` and never exits — reach for it only when the caller owns the context and the exit.
 
 `Main` records a non-nil `run` error as Fail before Finish (no `[ready]` with exit 2).
 

@@ -81,10 +81,10 @@ func firstPaintGapsInBody(filename, src, body string, offset int) []Finding {
 	if ioIdx < w.start {
 		return []Finding{{
 			RuleID:     "FP-001",
-			Message:    "heavy I/O runs before evo.Init/New; nothing is armed to paint within 100ms of process start",
+			Message:    "heavy I/O runs before run declares its first Task; nothing is armed to paint within 100ms of process start",
 			File:       filename,
 			Line:       lineAt(src, offset+ioIdx),
-			Suggestion: "call evo.Init(...) before " + ioMarker + "...)",
+			Suggestion: "declare the first Task before " + ioMarker + "...)",
 		}}
 	}
 	if !w.contains(ioIdx) {
@@ -92,7 +92,7 @@ func firstPaintGapsInBody(filename, src, body string, offset int) []Finding {
 	}
 	return []Finding{{
 		RuleID:     "FP-002",
-		Message:    "heavy I/O runs between evo.Init/New and the first Task/Group/Sequence; declare the first entity before this I/O",
+		Message:    "heavy I/O runs between evo.Main and the first Task/Group/Sequence; declare the first entity before this I/O",
 		File:       filename,
 		Line:       lineAt(src, offset+ioIdx),
 		Suggestion: "declare the first Task/Group/Sequence before " + ioMarker + "...)",

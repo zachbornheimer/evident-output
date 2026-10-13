@@ -32,7 +32,7 @@ if err := os.Chmod(path, 0o644); err != nil {
 	Path:     path,
 	Contents: data,
 	Mode:     0o644,
-	Basis:    basis,
+	Inputs:   []string{"template.txt"},
 })`,
 		Remediation:     "Replace write/chmod/check boilerplate with one declarative evo.File(ctx, evo.FileSpec{...}) call",
 		RelatedGuidance: []string{"evo-file-exec", "provenance"},
@@ -58,12 +58,11 @@ func rawExecFreshnessRule() Rule {
 	}
 }`,
 		GoodCode: `_, err := evo.Exec(ctx, evo.ExecSpec{
-	Executable: "python3",
-	Args:       []string{"generate.py", inputPath, outPath},
-	Basis:      []evo.Fingerprint{evo.FSPath(inputPath)},
-	Outputs:    []string{outPath},
+	Argv:    []string{"python3", "generate.py", inputPath, outPath},
+	Inputs:  []string{inputPath},
+	Outputs: []string{outPath},
 })
-return err`,
+return fmt.Errorf("generate %s: %w", outPath, err)`,
 		Remediation:     "Replace the raw exec plus manual freshness check with one evo.Exec(ctx, evo.ExecSpec{...}) call that declares Basis and Outputs",
 		RelatedGuidance: []string{"evo-file-exec", "provenance"},
 		VerificationIDs: []string{"EVO-EXEC-001"},

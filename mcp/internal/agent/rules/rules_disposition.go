@@ -19,7 +19,7 @@ func dispositionRules() []Rule {
 }`,
 			GoodCode: `for _, d := range locals {
   if !d.Delete {
-    group.Task(d.Name).Skipped(keepReason(d.Reason))
+    group.Task(d.Name).Define(func(context.Context) error { return evo.Exclude(d.Reason) })
   }
 }`,
 			Remediation:     "Declare one Task per item under the category's Group and record its disposition there: group.Task(item).Skipped(reason); evo aggregates the tally",
@@ -44,7 +44,7 @@ func evidenceRules() []Rule {
 			Invariant:  "a Verify callback observes the Task's desired state; it never returns a constant",
 			Why:        "Verify is the Task's evidence (§9.1): true before Define resolves the Task already-satisfied without running it. A callback that returns a constant true is the retired Done stamp under another name (the row claims the state holds and nothing checked), and a constant false makes every run fail its postcondition. zq's setup convergence shipped one.",
 			BadCode:    `task.Verify(func(context.Context) (bool, error) { return true, nil })`,
-			GoodCode: `func check(task *evo.TaskHandle, path string) {
+			GoodCode: `func check(task *evo.Task, path string) {
 	task.Verify(func(context.Context) (bool, error) {
 		_, err := os.Stat(path)
 		return err == nil, nil

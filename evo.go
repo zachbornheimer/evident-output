@@ -1,95 +1,66 @@
 // Package evo is Evident Output: a presentation and execution-tracking
-// library for CLI state, progress, evidence, provenance, and conclusions.
+// library for CLI state, progress, capture, provenance, and conclusions.
 //
 // Application code owns declaring work. Evo owns scheduling that work,
-// tracking whether it is already satisfied, and presenting the result —
-// so the same call sites render correctly whether stdout is a real
-// terminal, a log file, or a machine consumer, and the exit code always
-// matches what the screen just said.
+// tracking whether it is already satisfied, and presenting the result, so
+// the same call sites render correctly whether stdout is a real terminal, a
+// log file, or a machine consumer, and the exit code always matches what the
+// screen just said. CONTRACT.md lists the whole exported surface.
 //
-// Runnable examples for every concept below live alongside this file in
-// example_1_0_test.go: ExampleInit, ExampleRun, ExampleMain, ExampleTask,
-// ExampleGroup, ExampleSequence, ExampleTaskHandle_Define,
-// ExampleTaskHandle_Verify, ExampleTaskHandle_Key, ExampleFile, and
-// ExampleFact — go doc / pkg.go.dev attach each to the symbol it names.
+//	func main() { os.Exit(evo.Main(run)) }
 //
-//	func main() {
-//	    (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{Name: "repo"}, func(ctx context.Context, r *evo.Run) error { return nil }) // first statement — arms first paint before any I/O
-//	    os.Exit(evo.Main(run))
-//	}
-//
-//	func run(ctx context.Context) error {
-//	    fmt.Println("Reading configuration")
-//	    evo.Task("working tree").Define(checkWorkingTree)
-//	    status := evo.Task("git status")
+//	func run(ctx context.Context, r *evo.Run) error {
+//	    fmt.Fprintln(r.Text(), "Reading configuration")
+//	    r.Task("working tree").Define(checkWorkingTree)
+//	    status := r.Task("git status")
 //	    status.Define(func(ctx context.Context) error {
 //	        cmd := exec.CommandContext(ctx, "git", "status", "--short")
-//	        cmd.Stdout = status.Writer() // the child's output is this row's evidence
+//	        cmd.Stdout = status.Writer() // the child's output is this row's capture
 //	        cmd.Stderr = status.Writer()
 //	        return cmd.Run()
 //	    })
 //	    return nil
 //	}
 //
-// # Migrating from 0.5
+// # Migrating from 1.x
 //
-// evo.MainWith and Task/Group/Sequence.Each were removed in 1.0.0. See
-// docs/migration/1.0.md for every breaking change with before/after code,
-// and mcp/docs/teaching-ladder.md for the current adoption order.
+// docs/migration/2.0.md maps every removed 1.x spelling to its 2.0
+// replacement, and mcp/docs/teaching-ladder.md gives the adoption order.
 //
-// # Adoption ladder (spec §44 — guess-driven defaults, the naive spelling is correct)
+// # Adoption ladder
 //
-//  1. evo.Task(name) + Task.Define(func(context.Context) error) for one atomic
-//     unit of work — the scheduling and execution boundary (§7). A Task resolved
-//     directly with no Define call (Block/Fail/Skipped) renders as a
-//     fact row instead of a spinner.
-//  2. evo.Group(name) / evo.Sequence(name) for collections: one named child
-//     Task per item (group.Task(name)), not a hand-maintained counter — Group's
-//     children may overlap, Sequence's run in declaration order and cascade a
-//     failure to NotStarted for later siblings. Group.Each and Sequence.Each
-//     were removed in 1.0.0; a repeated child name under the same parent is a
-//     duplicate sibling declaration, not a get-or-create (§3.1).
-//  3. evo.File(ctx, evo.FileSpec{...}) for declarative managed-state file
-//     content — Evo creates, rewrites on drift, and no-ops when the desired
-//     state already holds. ctx must come from a Task's Define callback.
-//  4. evo.Exec for external work with declared outputs and a Basis of
-//     Fingerprints that determine freshness.
-//  5. FileSpec.Basis / ExecSpec.Basis: string values (string,
-//     evo.Value, evo.App) when an operation's freshness depends on semantic
-//     external inputs beyond File/Exec's own tracked state.
-//  6. Task.After for exceptional scheduler edges that a Sequence would
-//     otherwise express more simply.
-//  7. Task.Fact / evo.Fact for discovered information, Task.Problem with
-//     SeverityWarning for a non-terminal annotation, Output Effects, and
-//     Config.DryRun for the would/did split.
-//  8. Task.Verify(func(context.Context) (bool, error)) only for domains Evo
-//     cannot track automatically — the one boolean, read-only escape hatch; a
-//     Verify that reports the desired state already holds skips Define and
-//     resolves ResolutionAlreadySatisfied.
-//  9. Top-level Config.Format / Config.Verbosity only when the host CLI needs
-//     machine output or verbose detail — never set per Task.
+//  1. r.Task(name) + Task.Define(func(context.Context) error) for one atomic
+//     unit of work: the scheduling and execution boundary.
+//  2. r.Group(name) / r.Sequence(name) for collections: one named child Task
+//     per item (group.Task(name)), not a hand-maintained counter. A Group's
+//     children may overlap; a Sequence's run in declaration order and a
+//     failure leaves later siblings NotStarted. A repeated child name under
+//     the same parent is a duplicate sibling declaration.
+//  3. evo.File(ctx, evo.FileSpec{...}) for the desired state of one file:
+//     Evo creates it, rewrites it on drift, and does nothing when it already
+//     holds. ctx comes from a Task's Define callback.
+//  4. evo.Exec for external work with declared Outputs; Inputs and Values
+//     decide freshness.
+//  5. Task.After for scheduler edges a Sequence would not express, and
+//     evo.Compute for a Task that produces a value later work reads.
+//  6. Task.Fact and Run.Fact for discovered information, Task.Problem for a
+//     non-fatal finding, evo.Effect for a mutation Evo cannot model, and
+//     Config.DryRun for the planned/changed split.
+//  7. Task.Verify(func(context.Context) (bool, error)) only for domains Evo
+//     cannot track itself: the one boolean, read-only escape hatch.
+//  8. Config.Output and the EVO_OUTPUT environment variable only when the
+//     host needs machine output; never per Task.
 //
-// Do not require named Evidence declarations (a legacy mutating callback
-// registered under that name) for common resources; evo.File/evo.Exec cover
-// the ordinary cases without one.
+// # Endings
 //
-// # Ordinary surface
+// A Task ends exactly once, by returning from its Define callback: nil
+// succeeds, evo.Fail ran and broke, evo.Refuse stopped before any mutation,
+// and evo.Exclude means policy chose not to run it. Run.Confirm gates
+// destructive work.
 //
-// evo.Init/evo.Main/evo.Run, Output.Run for a hosted/Isolated instance,
-// Print*, evo.Task/evo.Group/evo.Sequence, Task.Define / evo.Effect / evo.File /
-// Task.Writer, Task.Fail / Task.Block,
-// evo.Confirm, evo.Reason, slog via SlogHandler (level from Config.Debug.Level).
+// # Embedding
 //
-// # Advanced surface
-//
-// For testing and tooling call sites that need a hosted instance instead of
-// the package-level default: Config.Isolated returns an independent *Run
-// that never touches package state; Output.Run(ctx, run) Result seals it
-// (the hosted counterpart of Main, returning the full Result — Conclusion
-// plus the application error — instead of just the derived exit code, and
-// never exiting the process). Task.Key overrides a Task's stable identity
-// when its name changes across runs but tracked state must not (§3.1).
-// Task.Verify, evo.File, and Fingerprint (string/evo.Value/evo.App) are
-// the tracked-state primitives; Config.AppID/Config.StateDir override the
-// manifest's storage location and namespace.
+// evo.Main wires SIGINT and SIGTERM, runs, and returns the exit code.
+// evo.Execute does the same without signals and returns the full Result,
+// for tests and hosts that own the context and the exit.
 package evo

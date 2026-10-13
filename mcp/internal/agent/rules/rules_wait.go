@@ -32,7 +32,7 @@ if failed > 0 {
   jobs.Task(item.Name).Define(func(ctx context.Context) error { return run(item) })
 }
 return jobs.Wait()`,
-			Remediation:     "Delete the stored-handle slice, the Wait loop, the Snapshot, and the hand-counted aggregate error; call the owning GroupHandle/SequenceHandle's own Wait() after every child is declared",
+			Remediation:     "Delete the stored-handle slice, the Wait loop, the Snapshot, and the hand-counted aggregate error; read a result with evo.Compute and Computed.Get, or order later work with After, once every child is declared",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-052"},
 			Since:           "1.1.0",
@@ -50,9 +50,9 @@ return evo.Effect(ctx, spec, func(ctx context.Context) error {
   return evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}) // nested: ctx already holds "from"
 })`,
 			GoodCode: `if err := evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}); err != nil {
-  return err
+  return fmt.Errorf("write marker %s: %w", to, err)
 }
-spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
+spec := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Quantity: 1, Path: from}
 return evo.Effect(ctx, spec, func(ctx context.Context) error {
   return os.Rename(from, to)
 })`,
@@ -87,8 +87,8 @@ func (w *Writer) write(ctx context.Context, contents []byte) error {
 // A non-File operation over the same path claims it explicitly instead:
 func (w *Writer) archive(ctx context.Context) error {
   return evo.Effect(ctx, evo.EffectSpec{
-    Verb: evo.EffectUpdate, Object: "archive", Quantity: 1,
-    Resource: evo.FSResource(w.path),
+    Verb: evo.Update, Object: "archive", Quantity: 1,
+    Path: w.path,
   }, func(ctx context.Context) error { return archive(w.path) })
 }`,
 			Remediation:     "When the Lock()/Unlock() pair guards nothing but the evo.File call, drop the pair; File already claims its own path for writing. When the lock also guards other shared state, keep it and end the critical section before calling evo.File, because File can wait on its resource claim while the caller lock is held. Never delete a mutex field on this rule alone; other methods may depend on it. For an opaque (non-File) mutation over the same path, claim it with evo.Effect's EffectSpec.Resource: evo.FSResource(path) instead of a caller lock — never a bare Write(func...) callback for tracked file state.",

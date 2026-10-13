@@ -35,7 +35,7 @@ const (
 	EventVerificationObserved    = "verification.observed"
 	EventFactRecorded            = "fact.recorded"
 	EventWarningRecorded         = "warning.recorded"
-	// EventProblemRecorded is TaskHandle.Problem's accumulation event
+	// EventProblemRecorded is Task.Problem's accumulation event
 	// (1.1/ZYS-848) — distinct from EventWarningRecorded because a Problem
 	// is blocking evidence a Task owns before it resolves, not a warning
 	// annotation; a wire consumer must be able to tell the two apart.

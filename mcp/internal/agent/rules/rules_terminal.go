@@ -26,10 +26,7 @@ func terminalRules() []Rule {
 			BadCode: `c := make(chan os.Signal, 1)
 signal.Notify(c, syscall.SIGINT)
 go func() { <-c; os.Exit(1) }()`,
-			GoodCode: `c := make(chan os.Signal, 1)
-signal.Notify(c, syscall.SIGINT)
-go func() { <-c; task.Cancel("interrupted") }()
-// or prefer evo.Main (or Output.Run for a held *Output), which wires this automatically`,
+			GoodCode:        `os.Exit(evo.Main(run)) // wires SIGINT and SIGTERM to the context run and every Define callback receive`,
 			Remediation:     "Call Cancel on the active task/handle from the signal goroutine, or use evo.Main (or Output.Run for a held *Output)",
 			RelatedGuidance: []string{"streams", "interactive"},
 			VerificationIDs: []string{"SIG-001"},
@@ -57,7 +54,7 @@ go func() { <-c; task.Cancel("interrupted") }()
 			Invariant:       "transcripts contain only text evo itself wrote through managed streams",
 			Why:             "A NUL byte means something wrote raw/binary data into the terminal stream outside evo's sanitize path.",
 			BadCode:         `// transcript contains \x00 from an unmanaged binary write`,
-			GoodCode:        `// all writes go through out.Print*/task.Capture/Writer, which sanitize text before it reaches the terminal`,
+			GoodCode:        `// all writes go through r.Text()/task.Writer, which sanitize text before it reaches the terminal`,
 			Remediation:     "Route the binary-producing writer through Capture/Writer or a text-only channel; never write raw child bytes straight to the terminal",
 			RelatedGuidance: []string{"interactive", "streams"},
 			VerificationIDs: []string{"TERM-014"},
@@ -78,8 +75,7 @@ cmd.Run()`,
 cmd.Stdout = task.Writer()
 cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
-    task.Fail("build failed")
-    return err
+    return evo.Fail("build failed")
 }`,
 			Remediation:     "Use cmd.Stdout = task.Writer(); do not inherit os.Stdout and do not clear the live region",
 			RelatedGuidance: []string{"interactive"},
@@ -96,7 +92,9 @@ if err := cmd.Run(); err != nil {
 			BadCode: `reader := bufio.NewReader(os.Stdin)
 fmt.Print("delete origin/production-hotfix? [y/N] ")
 answer, _ := reader.ReadString('\n')`,
-			GoodCode:        `ok := evo.Confirm("delete origin/production-hotfix?", evo.AssumeYes(flagYes))`,
+			GoodCode: `if !r.Confirm("delete origin/production-hotfix?", evo.NonInteractive("--yes")) {
+  return evo.Refuse("declined")
+}`,
 			Remediation:     "Replace hand-rolled stdin prompts with evo.Confirm; it owns spinner pause, the prompt line, and OK/⊘ resolution",
 			RelatedGuidance: []string{"interactive", "common-api"},
 			VerificationIDs: []string{"CONFIRM-001"},
@@ -110,7 +108,7 @@ answer, _ := reader.ReadString('\n')`,
 			Invariant:       "a destructive confirm question is marked evo.Destructive()",
 			Why:             "A remote force-delete or trash confirm rendered like an ordinary yes/no question lets a user approve a severe action without the \"(destructive)\" cue evo-rec.md \"confirm gate\" requires.",
 			BadCode:         `evo.Confirm("delete origin/production-hotfix?")`,
-			GoodCode:        `evo.Confirm("delete origin/production-hotfix?", evo.Destructive())`,
+			GoodCode:        `r.Confirm("delete origin/production-hotfix?", evo.Destructive())`,
 			Remediation:     "Add evo.Destructive() to any Confirm question containing delete/remove/trash/retire/force",
 			RelatedGuidance: []string{"interactive", "common-api"},
 			VerificationIDs: []string{"CONFIRM-002"},
@@ -124,8 +122,8 @@ answer, _ := reader.ReadString('\n')`,
 			Invariant:       "a debug/log line written during live UI erases the region, appends the line, and redraws — never interleaves raw",
 			Why:             "A log line written straight to the terminal while a spinner/live region is open tears the frame and corrupts the display until the next redraw.",
 			BadCode:         `fmt.Fprintln(os.Stderr, "[DEBUG] cache miss") // interleaves under the live spinner`,
-			GoodCode:        `out.Println("[DEBUG] cache miss") // clears the region, writes, redraws atomically`,
-			Remediation:     "Route debug/log lines through evo.Println/Print/Printf (or slog via SlogHandler) instead of writing to the raw stream while a live region is open",
+			GoodCode:        `fmt.Fprintln(r.Text(), "[DEBUG] cache miss") // clears the region, writes, redraws atomically`,
+			Remediation:     "Route debug/log lines through fmt.Fprintln(r.Text(), ...) (or slog via SlogHandler) instead of writing to the raw stream while a live region is open",
 			RelatedGuidance: []string{"interactive"},
 			VerificationIDs: []string{"TERM-006"},
 			Since:           "0.2.0",

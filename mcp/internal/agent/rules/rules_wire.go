@@ -6,13 +6,14 @@ package rules
 func wireRules() []Rule {
 	return []Rule{
 		{
-			ID:              "EVO-WIRE-001",
-			Category:        "WIRE",
-			Severity:        SeverityError,
-			Invariant:       "the internal Snapshot is never marshaled directly; the sanctioned wire encoder is the only JSON surface",
-			Why:             "json.Marshal(out.Snapshot()) serializes internal field layout as if it were the public contract; a future internal-only field addition or rename then silently breaks every consumer, because nothing enforces schema_version or the documented JSONDocument shape.",
-			BadCode:         `b, err := json.Marshal(out.Snapshot())`,
-			GoodCode:        `b, err := wire.EncodeJSON(out.Snapshot()) // or the CLI's --json flag, which already routes through this`,
+			ID:        "EVO-WIRE-001",
+			Category:  "WIRE",
+			Severity:  SeverityError,
+			Invariant: "the internal Snapshot is never marshaled directly; the sanctioned wire encoder is the only JSON surface",
+			Why:       "json.Marshal(out.Snapshot()) serializes internal field layout as if it were the public contract; a future internal-only field addition or rename then silently breaks every consumer, because nothing enforces schema_version or the documented JSONDocument shape.",
+			BadCode:   `b, err := json.Marshal(out.Snapshot())`,
+			GoodCode: `res := evo.Execute(ctx, cfg, run) // EVO_OUTPUT=json writes the evo.run document; res.Conclusion is the verdict
+_ = res`,
 			BadOutput:       `{"State":"Done","Tasks":[...]} // undocumented internal field names, no schema_version`,
 			GoodOutput:      `{"schema_version":"0.4","output":{...},"conclusion":{...},"tasks":[...]}`,
 			Remediation:     "Replace json.Marshal(snapshot)/json.NewEncoder(...).Encode(snapshot) with the sanctioned JSON encoder (wire.EncodeJSON) that emits the versioned JSONDocument",
@@ -46,7 +47,7 @@ func wireRules() []Rule {
 			Why:       "A JSON document or JSONL events written to stdout alongside an ordinary human fmt.Print/Println on the same stream produces output no JSON/line parser can consume — the human line breaks json.Decoder mid-stream and corrupts every downstream jq/awk consumer.",
 			BadCode: `json.NewEncoder(os.Stdout).Encode(doc)
 fmt.Println("done")`,
-			GoodCode: `cfg.Format = evo.FormatData // JSON to Stdout, human presentation to Stderr
+			GoodCode: `cfg.Output = evo.JSON // evo.run document to stdout, human presentation to stderr
 json.NewEncoder(os.Stdout).Encode(doc)`,
 			BadOutput:       "{\"schema_version\":\"0.4\",...}\ndone",
 			GoodOutput:      "{\"schema_version\":\"0.4\",...} // human presentation went to Stderr",

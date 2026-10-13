@@ -2,7 +2,7 @@ package wire
 
 import "github.com/zachbornheimer/evident-output/internal/record"
 
-// Dispositions a Task records (TaskHandle.Skipped; Kept was removed in 1.1).
+// Dispositions a Task records (Task.Skipped; Kept was removed in 1.1).
 const (
 	DispositionKept    = "kept"
 	DispositionSkipped = "skipped"

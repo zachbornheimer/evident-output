@@ -24,7 +24,7 @@ func detectChildrenDeclaredInTaskDefine(filename string, file *ast.File, fset *t
 				Line:       pos.Line,
 				Column:     pos.Column,
 				Message:    "child " + childKind(child) + " declared inside a Task's Define callback: a Task is never a container, so its children appear after the run starts and no row shows the work up front",
-				Suggestion: "declare a Group (or Sequence) for the parent and let its Define builder declare the children: group.Define(func(g *evo.GroupHandle) { g.Task(name).Define(work) })",
+				Suggestion: "declare a Group (or Sequence) for the parent and let its Define builder declare the children: group.Build(func(g *evo.Group) { g.Task(name).Define(work) })",
 			})
 		}
 	}

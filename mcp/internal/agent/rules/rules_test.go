@@ -134,7 +134,7 @@ func TestAPI032_EffectIsGoodCode(t *testing.T) {
 	if !strings.Contains(r.BadCode, "Delete(n,") {
 		t.Fatalf("API-032 BadCode must show the removed quantity-first Delete, got %q", r.BadCode)
 	}
-	if !strings.Contains(r.GoodCode, "evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete") {
+	if !strings.Contains(r.GoodCode, "evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete") {
 		t.Fatalf("API-032 GoodCode must teach Define + evo.Effect, got %q", r.GoodCode)
 	}
 }

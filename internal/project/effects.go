@@ -10,7 +10,7 @@ import (
 
 // ledgerObject renders r.Object pluralized from r.Quantity when the record
 // carries a quantity (I4) — an Effect names a singular object
-// (evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale local branch",
+// (evo.EffectSpec{Verb: evo.Delete, Object: "stale local branch",
 // Quantity: 2}) and the ledger derives "branches" at render time via
 // Pluralize, instead of every call site hand-composing its own
 // singular/plural noun with evo.Pluralize. Pluralize itself stays

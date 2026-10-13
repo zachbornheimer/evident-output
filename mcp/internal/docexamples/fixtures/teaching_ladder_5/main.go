@@ -1,5 +1,3 @@
-//go:build ignore
-
 // Package main compiles mcp/docs/teaching-ladder.md's "Suspend (handing
 // the tty to a child)" fence verbatim. See TestDocFencesMatchFixtures.
 // Never run.
@@ -12,7 +10,7 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-func doWork(out *evo.Output) error {
+func doWork(out *evo.Run) error {
 	// docexamples:snippet start
 	cmd := exec.Command("zq", "setup")
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
@@ -22,6 +20,5 @@ func doWork(out *evo.Output) error {
 }
 
 func main() {
-	out := evo.Init(evo.Config{Isolated: true})
-	_ = doWork(out)
+	_ = doWork(nil)
 }

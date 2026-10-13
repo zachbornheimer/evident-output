@@ -4,7 +4,7 @@ import "github.com/zachbornheimer/evident-output/internal/record"
 
 // A Group's own Task is its child Task named for the Group itself: the
 // Group's own work — classify, summarize, and Effect — as opposed to one
-// of its items. It exists because a Group owns no work: GroupHandle has no
+// of its items. It exists because a Group owns no work: Group has no
 // Define, and an Effect's ledger subject is its Task's name, so a category
 // whose plan reads "[planned] branches  delete 87 local tips" does that
 // work in a Task named "branches" under the Group named "branches".

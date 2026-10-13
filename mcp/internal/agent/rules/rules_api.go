@@ -29,7 +29,7 @@ t.Doing("walking")`,
 			Why:       "Evo owns scheduling through Group, Sequence, Define, and After. Callers must not invent RunAll/Map/Retry/Parallel/Timeout on evo receivers. Substring detection false-positives on strings.Map; review uses AST on evo receivers only.",
 			BadCode: `out.Group("jobs").Map(func() {})
 out.Task("x").Retry(3)`,
-			GoodCode: `worktrees := evo.Group("worktrees")
+			GoodCode: `worktrees := r.Group("worktrees")
 for _, path := range paths {
   path := path
   worktrees.Task(path).Define(func(context.Context) error { return check(path) })
@@ -64,9 +64,8 @@ g.Task("b").Define(installB)`,
 			Invariant: "Fail/Block are statements; the printf verbs were removed in 1.1 (API-032 rewrites them)",
 			Why: "Fail(\"boom\") is the intent. C6 deleted Donef/Summaryf/Itemf/Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf; " +
 				"the remaining printf verbs were removed in 1.1. Fail/Block take (summary, opts...) and do not return *Failure.",
-			BadCode: `task.Failf("boom")`,
-			GoodCode: `task.Fail("boom")
-task.Fail("boom", evo.Detail(err.Error()))`,
+			BadCode:         `task.Failf("boom")`,
+			GoodCode:        `return evo.Fail("boom", evo.Detail(err.Error()))`,
 			Remediation:     "Use Fail/Block (removed in 1.1: the printf verbs are gone); Doing/Reason still take printf args directly",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-028"},
@@ -106,18 +105,18 @@ run.Run(ctx, "brew", args, dbg)`,
   }
   out.Task("inventory").Define(summarize)
 }`,
-			GoodCode: `func previewPurge() {
-  out := evo.Init(evo.Config{Isolated: true, DryRun: true, Facts: rootFacts})
-  inv := out.Task("inventory")
+			GoodCode: `func previewPurge(ctx context.Context, r *evo.Run) error {
+  inv := r.Task("inventory")
   inv.Doing("walking worktrees")
   inv.Define(func(context.Context) error {
     for _, root := range roots {
       if err := filepath.WalkDir(root, walk); err != nil {
-        return err
+        return fmt.Errorf("walk %s: %w", root, err)
       }
     }
     return nil
   })
+  return nil
 }`,
 			Remediation:     "Declare Task/Group/Sequence first; put the loop inside Task.Define, or declare one named Task per item under a Group, so every iteration is visible work",
 			RelatedGuidance: []string{"first-paint", "tasks"},
@@ -129,14 +128,13 @@ run.Run(ctx, "brew", args, dbg)`,
 			ID:        "CALL-001",
 			Category:  "CALL",
 			Severity:  SeverityWarning,
-			Invariant: "evo.Init/Task/Group arguments are named values, never inline make/new",
+			Invariant: "evo.Main/Task/Group arguments are named values, never inline make/new",
 			Why:       "Inline make() or new() inside an evo construct call hides the value the call site is passing. Extract a named local before the call so the argument list stays readable and reviewable.",
 			BadCode: `out := evo.Init(evo.Config{Facts: make([]evo.Fact, 0)})
 _ = out.Task("scan")`,
-			GoodCode: `facts := make([]evo.FactRecord, 0)
-out := evo.Init(evo.Config{Facts: facts})
-_ = out.Task("scan")`,
-			Remediation:     "Extract make/new to a named local before the evo.Init/Task/Group call",
+			GoodCode: `r.Fact("root", root)
+_ = r.Task("scan")`,
+			Remediation:     "Extract make/new to a named local before the evo.Main/Task/Group call",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"CALL-001"},
 			Since:           "0.5.1",
@@ -198,8 +196,9 @@ task.Progress(14, 40) // sealed once discovery completes; never re-sealed`,
 			Why:       "strings.Join of an unbounded slice dumped into Detail/Doing reproduces the 500-name terminal flood evo-rec.md \"bounded effect rows\" already fixed for Plan/Changes.",
 			BadCode: `task.Fail("cannot delete", evo.Detail(strings.Join(names, ", ")))
 task.Doing(strings.Join(reasons, "; "))`,
-			GoodCode: `task.Fail("cannot delete", evo.Detail(evo.TruncateNames(names, 8)))
-task.Doing(evo.TruncateNames(reasons, 8))`,
+			GoodCode: `shown := strings.Join(names[:min(len(names), 8)], ", ")
+task.Doing(shown)
+return evo.Fail("cannot delete", evo.Detail(shown))`,
 			Remediation:     "Wrap the joined slice in evo.TruncateNames before passing it to Detail/Doing",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"BOUND-001"},
@@ -250,7 +249,7 @@ func (w *livePhase) Write(p []byte) (int, error) {
 			ID:        "API-032",
 			Category:  "API",
 			Severity:  SeverityWarning,
-			Invariant: "superseded spellings are rewritten, not taught: evo.New, Item/.OK/.Because, Cause, capture-meaning Evidence (Capture is live), Config.Options / []evo.Option / Option funcs (To/Plain/NoColor/Stdin/DryRun/VisibilityDelay/Diagnostics), the TaskHandle mutation verbs (Add/Create/Delete/Push/Remove/Update/Write), evo.Affected, TaskHandle.Done, Failf/Blockf/Warn/Step/Kept (removed in 1.1), evo.ID, evo.StartPhase, and evo.EntityOption (removed in 1.1), the retired independent-collection constructor, Skip, evo.MainWith (removed in 1.0)",
+			Invariant: "superseded spellings are rewritten, not taught: evo.New, Item/.OK/.Because, Cause, capture-meaning Evidence (Capture is live), Config.Options / []evo.Option / Option funcs (To/Plain/NoColor/Stdin/DryRun/VisibilityDelay/Diagnostics), the Task mutation verbs (Add/Create/Delete/Push/Remove/Update/Write), evo.Affected, Task.Done, Failf/Blockf/Warn/Step/Kept (removed in 1.1), evo.ID, evo.StartPhase, and evo.EntityOption (removed in 1.1), the retired independent-collection constructor, Skip, evo.MainWith (removed in 1.0)",
 			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New and MainWith were removed in 1.0; Isolated *Output uses Output.Run); Config fields replaced Option funcs; the TaskHandle mutation verbs were removed in 1.1 — an opaque mutation is evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) inside Define and file state is evo.File, so neither the 0.x positional Delete(n, object) nor the 1.0 Delete(object, fn, Affected(n)) compiles; the independent collection constructor is Group; Item folded into Task; Cause was removed in 1.1 (Fail/Block are statements; attach error text with Detail, or return fmt.Errorf inside Define); capture-meaning Evidence* was removed in 1.1 (Capture is the retained sink); Skip is Skipped; ID/StartPhase were removed in 1.1 (Task takes only the name; TaskHandle.Key overrides identity; Doing sets the first phase).",
 			BadCode: `func main() {
 	out := evo.New(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain()}})
@@ -263,20 +262,17 @@ func run(out *evo.Output) error {
 	return out.Task("z").Fail("failed", evo.Cause(err))
 }`,
 			GoodCode: `func main() {
-	evo.Init(evo.Config{Title: "tool", Stdout: &buf, Plain: true})
-	os.Exit(evo.Main(run))
+	os.Exit(evo.Main(run, evo.Config{Name: "tool", DryRun: dry}))
 }
-func run(ctx context.Context) error {
-	task := evo.Task("branches")
+func run(ctx context.Context, r *evo.Run) error {
+	task := r.Task("branches")
 	task.Doing("classifying tips")
 	task.Define(func(ctx context.Context) error {
-		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: n}, remove)
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "local tip", Quantity: n}, remove)
 	})
-	evo.Task("tip").Skipped(reason)
-	evo.Task("z").Fail("failed", evo.Detail(err.Error()))
-            return err
+	return nil
 }`,
-			Remediation:     "Replace evo.New with evo.Init; evo.Main in ordinary main, Output.Run when holding Isolated *Output; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace every TaskHandle mutation verb (removed in 1.1, either shape) with Define + evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn), and Task.Write with evo.File; replace the retired collection constructor with Group; replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Define(func(ctx context.Context) error { ... }); fold Because(text) into Summary(text) or the resolving verb's own argument; replace evo.Cause(err) with evo.Detail(err.Error()) on Fail/Block, or return fmt.Errorf inside Define; replace capture-meaning Evidence() with Capture() (removed in 1.1); replace Failf/Blockf with Fail/Block, Warn with Problem(summary, Severity(SeverityWarning)), Step with Progress(...).Doing(...), Kept with Skipped (removed in 1.1); replace TaskHandle.Done() (removed in 1.1) with Define(func(ctx context.Context) error { ... }) and Done(text) with Summary(text) — inside the Task's own Define callback, Summary alone",
+			Remediation:     "Replace evo.New with evo.Main; evo.Main in ordinary main, Output.Run when holding Isolated *Output; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace every Task mutation verb (removed in 1.1, either shape) with Define + evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn), and Task.Write with evo.File; replace the retired collection constructor with Group; replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Define(func(ctx context.Context) error { ... }); fold Because(text) into Summary(text) or the resolving verb's own argument; replace evo.Cause(err) with evo.Detail(err.Error()) on Fail/Block, or return fmt.Errorf inside Define; replace capture-meaning Evidence() with Capture() (removed in 1.1); replace Failf/Blockf with Fail/Block, Warn with Problem(summary, Severity(SeverityWarning)), Step with Progress(...).Doing(...), Kept with Skipped (removed in 1.1); replace Task.Done() (removed in 1.1) with Define(func(ctx context.Context) error { ... }) and Done(text) with Summary(text) — inside the Task's own Define callback, Summary alone",
 			RelatedGuidance: []string{"common-api", "tasks", "streams"},
 			VerificationIDs: []string{"API-032"},
 			Since:           "0.3.0",
@@ -289,8 +285,9 @@ func run(ctx context.Context) error {
 			Invariant: "an entity's name is not also its own skip/verb evidence",
 			Why:       "out.Task(note).Skip(note) tells the reader nothing a bare \"skipped 1 (note)\" wouldn't already — the name and the reason/verb argument are the identical expression, so the second one carries zero new information.",
 			BadCode:   `out.Task(note).Skip(note)`,
-			GoodCode: `item := out.Task("branch check")
-item.Skipped(reason)`,
+			GoodCode: `r.Task("branch check").Define(func(context.Context) error {
+  return evo.Exclude("protected")
+})`,
 			Remediation:     "Give the entity a real label distinct from the reason/verb text it also carries",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-033"},
@@ -305,9 +302,11 @@ item.Skipped(reason)`,
 			Why:       "Requiring a populated Config struct for the common single-task check adds ceremony that discourages the minimal, correct spelling.",
 			BadCode: `out := evo.Init(evo.Config{Title: "tool"}) // fields filled in for no reason
 out.Task("disk space").Define(checkDiskSpace)`,
-			GoodCode: `out := evo.Init(evo.Config{})
-out.Task("disk space").Define(checkDiskSpace)`,
-			Remediation:     "Use evo.Init(evo.Config{}) with a zero Config for the minimal happy path; add fields only to override stream or behavior defaults",
+			GoodCode: `func run(ctx context.Context, r *evo.Run) error {
+  r.Task("disk space").Define(checkDiskSpace)
+  return nil
+}`,
+			Remediation:     "Use evo.Main(evo.Config{}) with a zero Config for the minimal happy path; add fields only to override stream or behavior defaults",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-001"},
 			Since:           "0.1.0",
@@ -325,8 +324,7 @@ out.Task("disk space").Define(checkDiskSpace)`,
   return nil
 }`,
 			GoodCode: `if err := validate(cfg); err != nil {
-  task.Fail("validate policy manifest", evo.Detail(err.Error()))
-              return err
+  return evo.Fail("validate policy manifest", evo.Detail(err.Error()))
 }`,
 			Remediation:     `Replace the Fail + return nil pair with a returned error: Fail with evo.Detail(err.Error()) (and any evo.Next/evo.NextCommand remedy), then return err, or with nothing to add just return err; Wait() reports the returned error. Block then return nil is a refusal that carries no error; with a real err, Block(summary, evo.Detail(...)); return err keeps the error's identity for Wait() (return nil there loses it)`,
 			RelatedGuidance: []string{"common-api"},
@@ -347,9 +345,8 @@ if err := cmd.Run(); err != nil {
 			GoodCode: `cmd.Stdout = task.Writer()
 cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
-  task.Block("policy check failed", evo.Detail(err.Error()),
-    evo.NextCommand("git", "status"))
-  return nil
+  return evo.Refuse("policy check failed", evo.Detail(err.Error()),
+    evo.Next(evo.Action{Label: "run git status"}))
 }`,
 			Remediation:     "Wire the checked command's output through task.Writer() instead of io.Discard, so Block/Fail can attach evidence",
 			RelatedGuidance: []string{"streams"},
@@ -358,13 +355,15 @@ if err := cmd.Run(); err != nil {
 			Certainty:       CertaintyHeuristic,
 		},
 		{
-			ID:              "API-036",
-			Category:        "API",
-			Severity:        SeverityWarning,
-			Invariant:       "Fail/Block take a summary string; Fail(fmt.Sprintf(...)) is already the 1.1 form (the printf verbs were removed in 1.1)",
-			Why:             "Fail/Block are statements and take (summary, opts...). Formatting the summary with fmt.Sprintf is the 1.1 spelling; the printf verbs were removed in 1.1. A bare Fail/Block statement is already right.",
-			BadCode:         "task.Fail(fmt.Sprintf(\"delete failed on %s\", branch))\nreturn nil",
-			GoodCode:        "func remove(task *evo.TaskHandle, branch string) error {\n\ttask.Fail(\"delete failed on \" + branch)\n\treturn fmt.Errorf(\"delete failed on %s\", branch)\n}",
+			ID:        "API-036",
+			Category:  "API",
+			Severity:  SeverityWarning,
+			Invariant: "Fail/Block take a summary string; Fail(fmt.Sprintf(...)) is already the 1.1 form (the printf verbs were removed in 1.1)",
+			Why:       "Fail/Block are statements and take (summary, opts...). Formatting the summary with fmt.Sprintf is the 1.1 spelling; the printf verbs were removed in 1.1. A bare Fail/Block statement is already right.",
+			BadCode:   "task.Fail(fmt.Sprintf(\"delete failed on %s\", branch))\nreturn nil",
+			GoodCode: `func remove(task *evo.Task, branch string) error {
+	return evo.Fail("delete failed on " + branch)
+}`,
 			Remediation:     "Keep Fail/Block as statements. Inside Define, return fmt.Errorf(...) for Fail and Block then return nil for a refusal",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-036"},
@@ -380,7 +379,7 @@ if err := cmd.Run(); err != nil {
 			BadCode: `func (r *runner) resolutionPhase(text string) {
   r.task.Doing(text)
 }`,
-			GoodCode:        `r.task.Doing(text) // called directly at each site`,
+			GoodCode:        `app.task.Doing(text) // called directly at each site`,
 			Remediation:     "Inline the wrapped verb call at each caller and delete the wrapper method",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-037"},
@@ -434,8 +433,8 @@ t.Doing("running install:fresh-start")`,
 })`,
 			GoodCode: `task.Define(func(ctx context.Context) error {
   if err := a.executeCommand(ctx, root, task, item); err != nil {
-    task.Fail("cannot resolve", evo.Detail(err.Error()), evo.NextCommand("git", "status"))
-    return err // the returned error stays the failure Wait() reports
+    return evo.Fail("cannot resolve", evo.Detail(err.Error()),
+      evo.Next(evo.Action{Label: "run git status"}))
   }
   return nil
 })`,
@@ -470,7 +469,7 @@ for _, name := range []string{"a"} {
 			ID:        "API-044",
 			Category:  "API",
 			Severity:  SeverityError,
-			Invariant: "a caller waiting for a Define result on this stack uses task.Wait(); a hand-rolled channel wrapper around Define hangs when the task is already terminal",
+			Invariant: "a caller waiting for a Define result on this stack uses returning from run; a hand-rolled channel wrapper around Define hangs when the task is already terminal",
 			Why:       "zq's defineAndWait (setup_python.go:190-210) — make(chan error, 1) + Define + <-done — hangs when the task is already terminal before Define runs (submitWork never calls fn) and deadlocks when nested under MaxConcurrency:1 (axis-3, axis-15, P15/P16 confirmed).",
 			BadCode: `done := make(chan error, 1)
 task.Define(func() error {
@@ -480,8 +479,8 @@ task.Define(func() error {
 })
 return <-done`,
 			GoodCode: `task.Define(fn)
-return task.Wait()`,
-			Remediation:     "Replace the make(chan error)/Define/<-done wrapper with task.Define(fn); task.Wait()",
+return nil // Evo owns the waiting; the run ends when run returns`,
+			Remediation:     "Replace the make(chan error)/Define/<-done wrapper with task.Define(fn); returning from run",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-044"},
 			Since:           "0.4.7",

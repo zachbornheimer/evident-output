@@ -126,9 +126,9 @@ func fmtPrintAlongsideEvo(c selectorCall) []Finding {
 	default:
 		return nil
 	}
-	suggestion := "replace fmt." + c.name + "(...) with out.Print/Printf/Println/Verbose"
+	suggestion := "replace fmt." + c.name + "(...) with fmt.Fprint*(r.Text(), ...)"
 	return []Finding{
-		c.finding("STREAM-003", "fmt."+c.name+" alongside evo may contaminate managed streams; use out.Print/Printf/Println (or Verbose) for human text", suggestion),
+		c.finding("STREAM-003", "fmt."+c.name+" alongside evo may contaminate managed streams; use fmt.Fprint*(r.Text(), ...) (or Verbose) for human text", suggestion),
 		c.finding("EVO-LIVE-001", "fmt."+c.name+" competes with Evo's live rendering and can tear the live-region frame", suggestion),
 	}
 }
@@ -147,8 +147,8 @@ func streamNamedWrite(c selectorCall) []Finding {
 		return nil
 	}
 	return []Finding{c.finding("STREAM-003",
-		recv+"."+c.name+" writes directly to a stream-named field/variable alongside evo; route through out.Print/Printf/Println or a Task writer instead",
-		"replace "+recv+"."+c.name+"(...) with out.Print/Printf/Println (or the owning Task's Capture/Writer)")}
+		recv+"."+c.name+" writes directly to a stream-named field/variable alongside evo; route through fmt.Fprint*(r.Text(), ...) or a Task writer instead",
+		"replace "+recv+"."+c.name+"(...) with fmt.Fprint*(r.Text(), ...) (or the owning Task's Capture/Writer)")}
 }
 
 // formatMethodWithoutDirective is API-028: an *f method whose literal

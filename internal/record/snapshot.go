@@ -72,7 +72,7 @@ type Snapshot struct {
 type TaskSnapshot struct {
 	ID string
 	// Key is the §3.1 stable machine identity: the default kind+parent-key+
-	// normalized-name derivation, or an explicit evo.ID/TaskHandle.Key
+	// normalized-name derivation, or an explicit the task key override
 	// override. Always populated once the task is declared.
 	Key   string
 	Name  string
@@ -100,7 +100,7 @@ type TaskSnapshot struct {
 	// row; multiple or long warnings render as nested lines. Warn was
 	// removed in 1.1.
 	Warnings []Problem
-	// Facts holds TaskHandle.Fact's accumulated annotations (P8): discovered
+	// Facts holds Task.Fact's accumulated annotations (P8): discovered
 	// information about the task, at info severity — never a lifecycle state,
 	// never work of its own. Renders as a dim "name  value" line, inline when
 	// it is the task's only annotation, nested otherwise (same DisplayUnit
@@ -115,7 +115,7 @@ type TaskSnapshot struct {
 	Verification []VerificationDetail
 	Actions      []Action
 	// Skipped/Kept are the disposition taxonomy accumulated by
-	// TaskHandle.Skipped/Kept — the source the "- skipped N (...)" / "! kept
+	// Task.Skipped/Kept — the source the "- skipped N (...)" / "! kept
 	// N (...)" render lines derive counts and reason partitions from.
 	Skipped     []TaxonomyRecord
 	Kept        []TaxonomyRecord
@@ -179,7 +179,7 @@ func (t TaskSnapshot) LiveFirstSeenAt() time.Time { return t.liveFirstSeenAt }
 func (t TaskSnapshot) Synthetic() bool { return t.synthetic }
 
 // TaxonomyRecord is one accumulated (reason, name) disposition entry —
-// recorded by TaskHandle.Skipped, never assembled by hand.
+// recorded by Task.Skipped, never assembled by hand.
 type TaxonomyRecord struct {
 	Reason string
 	Name   string
