@@ -164,7 +164,7 @@ func fanInTasks(tb testing.TB, n int) int {
 	tb.Helper()
 	out := initRun(Config{isolated: true, stateDir: tb.TempDir(), stdout: io.Discard, stderr: io.Discard, MaxConcurrency: 1})
 	defer func() { _ = out.close() }()
-	preds := make([]any, n)
+	preds := make([]Predecessor, n)
 	for i := range preds {
 		preds[i] = out.Task(fmt.Sprintf("item %d", i)).Define(func(context.Context) error { return nil })
 	}

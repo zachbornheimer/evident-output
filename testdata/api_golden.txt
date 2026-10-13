@@ -1,5 +1,5 @@
 func (Computed) Get()  T
-func (Group) After(preds ...any)  *Group
+func (Group) After(preds ...Predecessor)  *Group
 func (Group) Build(fn func(*Group))
 func (Group) Group(name string)  *Group
 func (Group) Sequence(name string)  *Sequence
@@ -16,13 +16,13 @@ func (Run) Summary(text string)
 func (Run) Suspend(fn func() error)  error
 func (Run) Task(name string)  *Task
 func (Run) Text()  io.Writer
-func (Sequence) After(preds ...any)  *Sequence
+func (Sequence) After(preds ...Predecessor)  *Sequence
 func (Sequence) Build(fn func(*Sequence))
 func (Sequence) Group(name string)  *Group
 func (Sequence) Sequence(name string)  *Sequence
 func (Sequence) Summary(text string)  *Sequence
 func (Sequence) Task(name string)  *Task
-func (Task) After(preds ...any)  *Task
+func (Task) After(preds ...Predecessor)  *Task
 func (Task) Define(fn func(context.Context) error, opts ...DefineOption)  *Task
 func (Task) Doing(text string, args ...any)  *Task
 func (Task) Fact(name, value string)  *Task
@@ -109,6 +109,7 @@ type FileSpec.Values
 type Group
 type Outcome
 type Output
+type Predecessor
 type ProblemOption
 type Process
 type Redactor

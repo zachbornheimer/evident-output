@@ -156,6 +156,7 @@ name still cancels the run.
 | Symbol              | Kind   | Meaning                                                                        |
 | ------------------- | ------ | ------------------------------------------------------------------------------ |
 | `Task`              | type   | one independently meaningful schedulable promise                               |
+| `Predecessor`       | type   | sealed interface After accepts: Task, Group, Sequence or Computed              |
 | `Task.After`        | method | `After(preds ...Predecessor) *Task`; a Task, Group, Sequence or Computed       |
 | `Task.Verify`       | method | `Verify(fn func(context.Context) (bool, error)) *Task`; read-only              |
 | `Task.Define`       | method | `Define(fn func(context.Context) error, opts ...DefineOption) *Task`           |

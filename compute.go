@@ -137,3 +137,5 @@ func (o *Run) refuseComputedReadLocked(subject string, err error, reader graph.R
 		panic(err)
 	}
 }
+
+func (*Computed[T]) predecessor() {}

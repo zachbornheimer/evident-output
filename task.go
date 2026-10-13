@@ -84,9 +84,19 @@ func (t *Task) basis(inputs ...fingerprint) *Task {
 
 // --- folded from after.go ---
 
+// Predecessor is a handle After accepts: a *Task, *Group, *Sequence or
+// *Computed[T]. It is sealed, so nothing else can be passed to After.
+type Predecessor interface {
+	predecessor()
+}
+
+func (*Task) predecessor()     {}
+func (*Group) predecessor()    {}
+func (*Sequence) predecessor() {}
+
 // After declares predecessors: this Task starts only once every one of
 // them succeeded, and never starts once one of them cannot.
-func (t *Task) After(preds ...any) *Task {
+func (t *Task) After(preds ...Predecessor) *Task {
 	if t == nil || t.out == nil {
 		return t
 	}
@@ -105,7 +115,7 @@ func (t *Task) After(preds ...any) *Task {
 
 // predecessorsOfLocked resolves After's arguments, leaving out the ones
 // After ignores.
-func (o *Run) predecessorsOfLocked(args []any) []graph.Predecessor {
+func (o *Run) predecessorsOfLocked(args []Predecessor) []graph.Predecessor {
 	preds := make([]graph.Predecessor, 0, len(args))
 	for _, arg := range args {
 		if pred, ok := o.predecessorOfLocked(arg); ok {
@@ -118,7 +128,7 @@ func (o *Run) predecessorsOfLocked(args []any) []graph.Predecessor {
 // predecessorOfLocked resolves one After argument. ok is false for a nil
 // handle, which After ignores. A handle this Output never declared yields
 // the empty predecessor, which never succeeds.
-func (o *Run) predecessorOfLocked(p any) (pred graph.Predecessor, ok bool) {
+func (o *Run) predecessorOfLocked(p Predecessor) (pred graph.Predecessor, ok bool) {
 	switch x := p.(type) {
 	case *Task:
 		if x == nil || x.id == "" {
@@ -174,7 +184,7 @@ func (o *Run) nodeOfContainer(id string) *graph.Container {
 // every one of them succeeded, and never does once one of them cannot. A
 // predecessor may be a Task, a Computed producer, or a Group or Sequence.
 // Call it before Define and before declaring any child; later is misuse.
-func (g *Group) After(preds ...any) *Group {
+func (g *Group) After(preds ...Predecessor) *Group {
 	if g == nil || g.out == nil {
 		return g
 	}
@@ -192,7 +202,7 @@ func (g *Group) After(preds ...any) *Group {
 }
 
 // After is Group.After for a Sequence.
-func (s *Sequence) After(preds ...any) *Sequence {
+func (s *Sequence) After(preds ...Predecessor) *Sequence {
 	if s == nil || s.tasks == nil {
 		return s
 	}
