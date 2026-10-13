@@ -233,7 +233,8 @@ a Define callback or the run body returns settles its Outcome, wrapped or
 not: nil is Succeeded, `Refuse` Refused, `Exclude` Excluded, and `Fail` or
 any other error Failed. The exit code follows the Conclusion: 0 for
 Succeeded, Satisfied and Excluded, 1 for Refused, 2 for Failed, 130 for
-Cancelled.
+Cancelled. `Fail`, `Refuse` and `Exclude` record every `ProblemOption` on the
+Problem their ending creates.
 
 `Outcome` is the only verdict type. Its six values appear unchanged as each
 Task's outcome, as `Conclusion.Outcome`, and as `outcome` in `evo.run` and
@@ -244,7 +245,7 @@ word. No other verdict spelling exists.
 | ---------------- | ----- | ------------------------------------------------------------------------------------------------ |
 | `Fail`           | func  | `Fail(summary string, opts ...ProblemOption) error`; ran and broke                               |
 | `Refuse`         | func  | `Refuse(summary string, opts ...ProblemOption) error`; a precondition stopped it before mutation |
-| `Exclude`        | func  | `Exclude(reason string) error`; policy chose not to run it                                       |
+| `Exclude`        | func  | `Exclude(reason string, opts ...ProblemOption) error`; policy chose not to run it                |
 | `ProblemOption`  | type  |                                                                                                  |
 | `Detail`         | func  | `Detail(text string) Detail`; longer explanation                                                 |
 | `Code`           | func  | stable machine code                                                                              |
