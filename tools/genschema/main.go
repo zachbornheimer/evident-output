@@ -23,7 +23,7 @@ func main() {
 	}
 	for rel, body := range files {
 		dest := filepath.Join(root, rel)
-		if err := os.WriteFile(dest, body, 0o644); err != nil {
+		if err := os.WriteFile(dest, body, 0o600); err != nil {
 			fail(fmt.Errorf("write %s: %w", rel, err))
 		}
 		fmt.Fprintf(os.Stderr, "genschema: wrote %s\n", rel)
