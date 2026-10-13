@@ -337,7 +337,8 @@ piped stdout.
 
 A JSONL run emits exactly one `task.finished` event for every Task it
 declared, including a Task that never started because a predecessor failed
-or the run ended first.
+or the run ended first. The `seq` of a JSONL run's lines is 1, 2, 3 ... with
+no gap, so a missing number means a lost line.
 
 ## 7. Errors
 

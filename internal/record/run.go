@@ -46,18 +46,6 @@ func (r *Run) AppendEvent(e Event, limit int) Event {
 	return stamped
 }
 
-// AllocateSequence returns the next journal sequence number without
-// recording an event. The evo.event JSONL stream shares this counter so
-// the run has one monotonic seq, not two.
-func (r *Run) AllocateSequence() uint64 {
-	if r == nil {
-		return 0
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.journal.allocate()
-}
-
 func (r *Run) stampEvent(e Event, limit int) Event {
 	r.mu.Lock()
 	defer r.mu.Unlock()

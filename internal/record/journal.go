@@ -14,21 +14,15 @@ import "slices"
 type journal struct {
 	events []Event
 	// seq is the last sequence number assigned: monotonic in append order,
-	// never reused after the event holding it is dropped. Wire JSONL
-	// events take numbers from the same counter (see AllocateSequence).
+	// never reused after the event holding it is dropped.
 	seq uint64
-}
-
-// allocate returns the next sequence number without recording an event.
-func (j *journal) allocate() uint64 {
-	j.seq++
-	return j.seq
 }
 
 // append stamps e with the next sequence number and records it. limit <= 0
 // means unbounded.
 func (j *journal) append(e Event, limit int) Event {
-	e.Sequence = j.allocate()
+	j.seq++
+	e.Sequence = j.seq
 	j.events = append(j.events, e)
 	if limit > 0 && len(j.events) > 2*limit {
 		j.compact(limit)

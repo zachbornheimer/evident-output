@@ -76,9 +76,12 @@ type Run struct {
 	rec *record.Run
 
 	// wireEventErr latches the first §38 "evo.event" JSONL write failure
-	// (structured_events.go's emitWireEventLocked). Sequence numbers come
-	// from rec.AllocateSequence, the same counter the journal uses.
+	// (structured_events.go's emitWireEventLocked).
 	wireEventErr error
+	// wireSeq is the last seq the evo.event stream numbered: the stream's own
+	// counter, so its lines run 1, 2, 3 ... with no gap a consumer could
+	// mistake for a lost line.
+	wireSeq uint64
 
 	// graph is the declared shape of the run: identity, keys and numbering.
 	graph *graph.Graph
@@ -3284,10 +3287,8 @@ func (g *tasksState) stampLiveFirstSeen(now time.Time) {
 // every call site below fires unconditionally regardless of Format; this
 // guard is the one place that decides whether the line is worth building.
 //
-// seq comes from rec.AllocateSequence, the same counter the journal uses.
-// The two streams describe distinct vocabularies (see project/wire's §38
-// family constants vs. the legacy Event.Type strings AppendEvent still
-// carries); sharing the counter keeps one monotonic seq for the run.
+// seq comes from the stream's own counter (wireSeq), not the journal's: the
+// journal numbers events no line announces, which would leave gaps.
 //
 // A write failure is recorded rather than surfaced here (first one wins):
 // this often runs deep inside the runtime's own lock, before any Task can
@@ -3298,9 +3299,10 @@ func (o *Run) emitWireEventLocked(eventType, entityID string, payload map[string
 	if o.cfg.wireFormat != formatJSONL {
 		return
 	}
+	o.wireSeq++
 	ev := recEvent{
 		Type:      eventType,
-		Sequence:  o.rec.AllocateSequence(),
+		Sequence:  o.wireSeq,
 		Timestamp: o.cfg.clock.Now(),
 		OutputID:  o.outputID,
 		EntityID:  entityID,
