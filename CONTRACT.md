@@ -127,7 +127,9 @@ seq.Group("centralize packages").After(inv).Build(func(g *evo.Group) {
 
 `After` takes `Predecessor`, a sealed interface that only `*Task`, `*Group`,
 `*Sequence` and `*Computed[T]` implement, so passing anything else does not
-compile. Sibling names are unique per parent. Evo owns goroutines, bounded
+compile. `After(group)` waits for the members declared before the `After` call;
+members declared after it never gate the edge. Naming a Group that has no
+members yet waits for every member it later gets. Sibling names are unique per parent. Evo owns goroutines, bounded
 concurrency, dependency readiness and cancellation. `Define` submits and never
 runs inline; a nil return succeeds. `Verify` true before `Define` resolves
 Satisfied and the callback never runs; false after a successful callback
