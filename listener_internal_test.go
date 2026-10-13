@@ -38,8 +38,6 @@ func (l lockTakingListener) TaskSettled(id record.TaskID, from, to record.State)
 	l.inner.TaskSettled(id, from, to)
 }
 
-func (l lockTakingListener) EventAppended(e record.Event) { l.inner.EventAppended(e) }
-
 func newListenerTestOutput(t *testing.T) *Run {
 	t.Helper()
 	o := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard})

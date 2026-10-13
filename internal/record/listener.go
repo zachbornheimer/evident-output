@@ -26,12 +26,23 @@ type Listener interface {
 	// guessing from the states, so it can never disagree with the writer
 	// about which states end a Task.
 	TaskSettled(id TaskID, from, to State)
+}
+
+// EventListener is a Listener that also hears each event the journal stamps.
+// A Listener that does not implement it costs the journal no notification per
+// event, which is the common case: most readers take the journal at the end.
+type EventListener interface {
+	Listener
 	// EventAppended reports an event the journal just stamped and kept.
 	EventAppended(e Event)
 }
 
-// listenerBox lets an interface value sit in an atomic pointer.
-type listenerBox struct{ Listener }
+// listenerBox lets an interface value sit in an atomic pointer and fixes,
+// once, whether it hears events.
+type listenerBox struct {
+	Listener
+	events EventListener
+}
 
 // notification is one change waiting to be told to the listener: a Task
 // change (event nil) or an appended event.
@@ -60,7 +71,8 @@ func (r *Run) SetListener(l Listener) {
 		r.listener.Store(nil)
 		return
 	}
-	r.listener.Store(&listenerBox{l})
+	events, _ := l.(EventListener)
+	r.listener.Store(&listenerBox{Listener: l, events: events})
 }
 
 // Hold defers every notification until the matching Release. Holds nest and
@@ -97,6 +109,9 @@ func (r *Run) notifyTaskChanged(id TaskID, from, to State) {
 }
 
 func (r *Run) notifyEventAppended(e Event) {
+	if box := r.listener.Load(); box == nil || box.events == nil {
+		return
+	}
 	r.post(notification{event: &e})
 }
 
@@ -155,7 +170,9 @@ func (r *Run) tell(batch []notification) {
 	}()
 	for _, n := range batch {
 		if n.event != nil {
-			to.EventAppended(*n.event)
+			if to.events != nil {
+				to.events.EventAppended(*n.event)
+			}
 			continue
 		}
 		if n.settled {

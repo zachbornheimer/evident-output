@@ -1053,9 +1053,6 @@ func (l outputListener) TaskSettled(record.TaskID, record.State, record.State) {
 	l.o.followRecordLocked()
 }
 
-// EventAppended has nothing to repaint: the journal is read at Finish.
-func (outputListener) EventAppended(record.Event) {}
-
 // settleReaction is a Task that settled and the state it settled into.
 type settleReaction struct {
 	st *taskState

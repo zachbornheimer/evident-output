@@ -93,6 +93,27 @@ func TestListenerHearsTheStampedEvent(t *testing.T) {
 	}
 }
 
+// taskOnlyListener implements Listener but not EventListener.
+type taskOnlyListener struct{ changes int }
+
+func (l *taskOnlyListener) TaskChanged(TaskID, State, State) { l.changes++ }
+func (l *taskOnlyListener) TaskSettled(TaskID, State, State) {}
+
+func TestListenerWithoutEventsStillHearsTasksAndLeavesNoEventQueued(t *testing.T) {
+	run := NewRun()
+	heard := &taskOnlyListener{}
+	run.SetListener(heard)
+
+	run.AppendEvent(Event{Type: "x"}, 0)
+
+	if len(run.notes.pending) != 0 {
+		t.Errorf("%d notifications queued for an event no listener hears", len(run.notes.pending))
+	}
+	if got := len(run.Events(0)); got != 1 {
+		t.Errorf("journal holds %d events, want 1", got)
+	}
+}
+
 func TestListenerRunsAfterTheRecordLockIsReleased(t *testing.T) {
 	run := NewRun()
 	task := run.NewTask(TaskInit{ID: "task_1"})
