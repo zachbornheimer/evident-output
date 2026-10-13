@@ -16,7 +16,7 @@ run = [
 description = "Verify packages compile; stamp evident-output-mcp's --version so a stale host can never read the literal string 'dev'"
 run = [
   "go build ./...",
-  "go build -ldflags \"-X main.Version=$(git describe --tags --always --dirty)\" -o /dev/null ./mcp/cmd/evident-output-mcp",
+  "cd mcp && go build -ldflags \"-X main.Version=$(git describe --tags --always --dirty)\" -o /dev/null ./cmd/evident-output-mcp",
 ]
 
 [tasks.lint]
@@ -124,11 +124,17 @@ run = "go run ./tools/scripts/spec-score --lint"
 description = "Lint the registry and fail if any ratcheted requirement is not passing"
 run = "go run ./tools/scripts/spec-score --lint --gate"
 
+[tasks.ci-mcp]
+description = "Build, vet, and test the mcp module so a green ci proves both modules"
+dir = "mcp"
+run = "go build ./... && go vet ./... && go test ./..."
+
 [tasks.ci]
 description = "Full gate: lint + test + scan + conformance + traceability + api-contract + spec-ratchet + v0.6/1.0 acceptance (increments 1-3)"
 depends = [
   "lint",
   "test",
+  "ci-mcp",
   "scan",
   "conformance",
   "traceability",
