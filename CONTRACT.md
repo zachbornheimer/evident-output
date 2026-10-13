@@ -34,8 +34,11 @@ func run(ctx context.Context, r *evo.Run) error { ... }
 `Main` wires SIGINT/SIGTERM to cancellation, runs, finishes and returns the
 exit code; it never exits. It honours both signals until the run has
 finished, including while declared work still runs after the body returned,
-and a signal ends the run Cancelled with exit 130. `Run` is the same for embedding: the caller owns
-the context and the exit. A zero `Config` is complete: `Name` defaults to the
+and a signal ends the run Cancelled with exit 130. `Execute` is the same for
+embedding: the caller owns the context and the exit. `Execute` binds that
+context for the whole run, including while declared work still runs after
+the body returned: once it is done, every running callback's context is
+done and the run ends Cancelled with exit 130. A zero `Config` is complete: `Name` defaults to the
 binary name and `Output` to Human on a TTY, Plain otherwise. `Config.Name`
 titles the run in Human and Plain and is `name` in `evo.run` and in the
 `run.started` event; `Config.Verbose` shows Facts in Human and Plain exactly
