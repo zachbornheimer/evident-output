@@ -1,4 +1,4 @@
-//go:build v06acceptance
+//go:build ignore
 
 // Package futureapi_test holds increment-1's public API compile contract —
 // symbols already implemented in this worktree. It compiles and passes

@@ -69,6 +69,13 @@ func TestLintWaiverSatisfiesBinding(t *testing.T) {
 	}
 }
 
+func TestLintWaiverAllowsHistoricalQuote(t *testing.T) {
+	entry := `[{"id":"C01-001","section":"1","quote":"not in the 2.0 contract","tier":"1.1","waiver":"2.0 CONTRACT.md replaced this 1.x sentence"}]`
+	if got := lintWith(t, entry, nil); len(got) != 0 {
+		t.Fatalf("want clean, got %v", got)
+	}
+}
+
 func TestLintDuplicateAcrossFiles(t *testing.T) {
 	got := lintWith(t, "["+validEntry+"]", map[string]string{"r/conformance/spec/req/s02.json": "[" + validEntry + "]"})
 	wantViolation(t, got, "duplicate id")

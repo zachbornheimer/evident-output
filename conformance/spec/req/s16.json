@@ -10,7 +10,8 @@
         "run": "TestC16_001_FormatJSONWritesExactlyOneRunDocumentToStdout"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C16-002",
@@ -23,7 +24,8 @@
         "run": "TestC16_002_FormatJSONLStreamsMonotonicEventsEndingWithRunFinished"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C16-003",
@@ -36,7 +38,8 @@
         "run": "TestC16_001_FormatJSONWritesExactlyOneRunDocumentToStdout"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C16-004",
@@ -49,7 +52,8 @@
         "run": "TestC16_003_ExplicitConfigWinsOverEnvironmentWhichWinsOverInference"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C16-005",
@@ -62,7 +66,8 @@
         "run": "TestC16_004_PipedStdoutNeverInfersMachineOutput"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C16-006",
@@ -79,7 +84,8 @@
         "run": "TestC16_002_FormatJSONLStreamsMonotonicEventsEndingWithRunFinished"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C16-007",
@@ -92,7 +98,8 @@
         "run": "TestSchemaCompat_PublishedSchemaStaysPermissiveForFutureAdditions"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C16-008",
@@ -105,7 +112,8 @@
         "run": "TestC16_005_TaskEntryCarriesEveryContractField"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C16-009",
@@ -118,7 +126,8 @@
         "run": "TestC16_010_CollectionsCarryProgress"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C16-010",
@@ -135,7 +144,8 @@
         "run": "TestC16_008_EffectsAreTaggedPlannedOrChanged"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C16-011",
@@ -148,7 +158,8 @@
         "run": "TestC16_009_PlainJSONAndJSONLAgreeOnTheRunOutcome"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C16-012",
@@ -161,7 +172,8 @@
         "run": "TestC16_007_RunDocumentPreservesIdentityTimingModeAndOutcome"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C16-013",
@@ -174,7 +186,8 @@
         "run": "TestC16_011_MisuseLinesCarryStableCodes"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C16-014",
@@ -191,7 +204,8 @@
         "run": "TestC16_009_PlainJSONAndJSONLAgreeOnTheRunOutcome"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C16-015",
@@ -204,6 +218,7 @@
         "run": "TestC16_003_ExplicitConfigWinsOverEnvironmentWhichWinsOverInference"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   }
 ]

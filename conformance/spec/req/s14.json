@@ -10,7 +10,8 @@
         "run": "TestLive_QuietRunningTaskKeepsChangingFrames"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C14-002",
@@ -23,7 +24,8 @@
         "run": "TestLiveHeartbeat_RunningNoPhaseZeroTotalAnimates"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C14-003",

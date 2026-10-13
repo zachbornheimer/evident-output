@@ -10,7 +10,8 @@
         "run": "TestC26_001_PublicVocabularyHasNoLockTerms"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C26-002",
@@ -27,7 +28,8 @@
         "run": "TestFileManifestBasisDriftForcesReconciliation"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C26-003",
@@ -48,7 +50,8 @@
         "run": "TestFileManifestDryRunNeverCommitsAndRecordsPlannedEffect"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C26-004",
@@ -69,7 +72,8 @@
         "run": "TestHoldUncontendedNeverReportsContention"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C26-005",
@@ -82,7 +86,8 @@
         "run": "TestC30_079_AWaitingTaskShowsWaitingForItsResource"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C26-006",
@@ -99,7 +104,8 @@
         "run": "TestHoldNestedAcquisitionFailsThroughHelpers"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C26-007",
@@ -124,7 +130,8 @@
         "run": "TestFileInsideResourceEffectIsNestedMisuse"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C26-008",
@@ -137,7 +144,8 @@
         "run": "TestFilesClaimsEachPathWithoutCallerLocks"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C26-009",
@@ -150,7 +158,8 @@
         "run": "TestC26_001_PublicVocabularyHasNoLockTerms"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C26-010",
@@ -167,6 +176,7 @@
         "run": "TestEffectRejectsInvalidResource"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   }
 ]

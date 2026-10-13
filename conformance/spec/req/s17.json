@@ -10,7 +10,8 @@
         "run": "TestC02_032_RunResultCarriesConclusionAndError"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C17-002",
@@ -23,7 +24,8 @@
         "run": "TestDiscardedMainCode"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C17-003",
@@ -36,7 +38,8 @@
         "run": "TestC02_031_MainReturnsTheExitCodeWithoutExiting"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C17-004",
@@ -49,7 +52,8 @@
         "run": "TestBlockedInsideContainer_ConcludesBlocked"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C17-005",
@@ -62,7 +66,8 @@
         "run": "TestC17_001_ConfirmDeclineConcludesBlocked"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C17-006",
@@ -75,7 +80,8 @@
         "run": "TestC17_002_FailedExitCodeOverridesExitTwo"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C17-007",
@@ -92,7 +98,8 @@
         "run": "TestC17_003_PartialModifiesTheHeadlineNeverTheExitCode"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C17-008",
@@ -105,7 +112,8 @@
         "run": "TestC02_008_SkippedIsAResolutionNotSatisfaction"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C17-009",
@@ -118,7 +126,8 @@
         "run": "TestC17_004_RunErrorIsRecordedOnlyWhenNothingFailed"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C17-010",
@@ -131,6 +140,7 @@
         "run": "TestC01_001_OneTruthDrivesEveryProjection"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   }
 ]

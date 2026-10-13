@@ -10,7 +10,8 @@
         "run": "TestC05_001_SuccessStaysCompactWithoutPerAttributeRows"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C05-002",
@@ -23,7 +24,8 @@
         "run": "TestC02_001_OutcomesAreRuntimeSemantics"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C05-003",
@@ -44,7 +46,8 @@
         "run": "TestAPI063_ResolvesTheBindingInScope"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C05-004",
@@ -57,7 +60,8 @@
         "run": "TestC05_002_BeforeChecksAreANDedAndAllTrueSkipsTheCallback"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C05-005",
@@ -70,7 +74,8 @@
         "run": "TestC05_002_BeforeChecksAreANDedAndAllTrueSkipsTheCallback"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C05-006",
@@ -87,7 +92,8 @@
         "run": "TestC05_004_CallbackThatEstablishesStateSatisfiesTheAfterCheck"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C05-007",
@@ -100,7 +106,8 @@
         "run": "TestC05_005_DryRunSkipsAfterCheckOnlyForPlannedWork"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C05-008",
@@ -113,7 +120,8 @@
         "run": "TestC05_006_SelfResolvingCallbackSkipsTheAfterCheck"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C05-009",
@@ -126,7 +134,8 @@
         "run": "TestC05_007_CommittedEffectBeforeSelfResolutionStillRunsAfterCheck"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C05-010",
@@ -139,7 +148,8 @@
         "run": "TestC05_008_SkippedThenErrorFailsWithThatErrorAndNoMisuseLine"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C05-011",

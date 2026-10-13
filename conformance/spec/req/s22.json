@@ -14,7 +14,8 @@
         "run": "TestGroup_ConcurrentIndependentChildrenAreNotMisuse"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-002",
@@ -31,7 +32,8 @@
         "run": "TestSequence_FailureAutoResolvesLaterSiblingsToNotStarted"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-003",
@@ -52,7 +54,8 @@
         "run": "TestAfterPredecessorFails_BeforeDependentIsSubmitted_SettlesImmediately"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-004",
@@ -69,7 +72,8 @@
         "run": "TestSpawnedPlainWaitersRespectTheCeiling"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-005",
@@ -94,7 +98,8 @@
         "run": "TestPartialEffect_InterruptAfterPartialCommitKeepsTheCommittedSubset"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-006",
@@ -107,7 +112,8 @@
         "run": "TestLive_DeterminateProgressBarAndIndeterminatePhase"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-007",
@@ -120,7 +126,8 @@
         "run": "TestLive_QuietRunningTaskKeepsChangingFrames"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-008",
@@ -137,7 +144,8 @@
         "run": "TestPruneContract_LiveCategoriesRenderContract18Frame"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-009",
@@ -154,7 +162,8 @@
         "run": "TestTaskFact_ShownUnderVerbose"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-010",
@@ -175,7 +184,8 @@
         "run": "TestPartialEffect_TwoOfThreeRecordsCommittedAndFailsTheTask"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-011",
@@ -192,7 +202,8 @@
         "run": "TestEffect_ApplyRecordsChangedOnlyAfterFnSucceeds"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-012",
@@ -205,7 +216,8 @@
         "run": "TestScenario_AlreadySatisfied"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-013",
@@ -230,7 +242,8 @@
         "run": "TestFileManifestPartialFailurePreservesEarlierCommits"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-014",
@@ -247,7 +260,8 @@
         "run": "TestFileManifestBasisDriftForcesReconciliation"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-015",
@@ -260,7 +274,8 @@
         "run": "TestC22_015_OnlyTheStageWhoseScriptOrInputChangedRespawns"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-016",
@@ -281,7 +296,8 @@
         "run": "TestAppFingerprintsExecutableBytesWhenReadable"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-017",
@@ -294,7 +310,8 @@
         "run": "TestC22_017_UnchangedUpstreamOutputStopsDownstreamInvalidation"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-018",
@@ -319,7 +336,8 @@
         "run": "TestFilesDryRunPlansWithoutMutation"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-019",
@@ -344,7 +362,8 @@
         "run": "TestCrossProcessSameManifestNeverRacesTrackedState"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-020",
@@ -357,7 +376,8 @@
         "run": "TestC22_020_TTYPlainJSONAndJSONLAgreeOnTheSameRun"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-021",
@@ -370,7 +390,8 @@
         "run": "TestC22_021_ProblemCodesStayStableAcrossRunsAndWording"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-022",
@@ -387,7 +408,8 @@
         "run": "TestWireSchema_RichProblemStaysWithinFrozenOutputV1"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-023",
@@ -404,7 +426,8 @@
         "run": "TestResult_ExitCodeMapping"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C22-024",
@@ -425,6 +448,7 @@
         "run": "TestExamplesPassReview"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   }
 ]

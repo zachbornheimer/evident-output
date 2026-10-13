@@ -18,7 +18,8 @@
         "run": "TestC28_001_NativeDiffFlowCommitsThroughFile"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C27-002",
@@ -35,7 +36,8 @@
         "run": "TestPatchMultiFileDerivesEachDesiredStateWithSourceBasis"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C27-003",
@@ -52,7 +54,8 @@
         "run": "TestFilesAppliesAndRecordsOnlyChangedFiles"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C27-004",
@@ -65,7 +68,8 @@
         "run": "TestFileSetCannotBeUnpacked"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C27-005",
@@ -86,7 +90,8 @@
         "run": "TestC30_071_PatchIsAllOrNothingAndNeverOverwritesAConcurrentEdit"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C27-006",
@@ -107,12 +112,13 @@
         "run": "TestFilesAppliesAndRecordsOnlyChangedFiles"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C27-007",
     "section": "27",
-    "quote": "`Patch → Files → File` expresses every rewrite. File is the only file-mutation engine.",
+    "quote": "`Patch \u2192 Files \u2192 File` expresses every rewrite. File is the only file-mutation engine.",
     "tier": "1.1",
     "tests": [
       {
@@ -124,7 +130,8 @@
         "run": "TestFilesAppliesAndRecordsOnlyChangedFiles"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C27-008",
@@ -141,7 +148,8 @@
         "run": "TestC26_001_PublicVocabularyHasNoLockTerms"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C27-009",
@@ -158,7 +166,8 @@
         "run": "TestFilesStaleCreationRefusesToOverwrite"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C27-010",
@@ -175,6 +184,7 @@
         "run": "TestPatchUnsupportedFormsFailExplicitly"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   }
 ]

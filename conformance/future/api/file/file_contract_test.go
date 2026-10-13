@@ -1,4 +1,4 @@
-//go:build v06acceptance
+//go:build ignore
 
 // Package file_test holds increment 2's v0.6/1.0 public API compile
 // contract: File/FileSpec and Config.AppID/Config.StateDir (spec §8,

@@ -10,7 +10,8 @@
         "run": "TestElapsedFormatIsOneShapeAcrossRanges"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C32-002",
@@ -23,7 +24,8 @@
         "run": "TestElapsedFormatIsOneShapeAcrossRanges"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C32-003",
@@ -36,6 +38,7 @@
         "run": "TestElapsedFormatIsOneShapeAcrossRanges"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   }
 ]

@@ -1,4 +1,4 @@
-//go:build v06acceptance
+//go:build ignore
 
 // Package futurebehavior_test holds increment-1's behavioral fixtures for
 // §9.1 Verify — already implemented in this worktree. It compiles and

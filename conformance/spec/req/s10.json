@@ -18,7 +18,8 @@
         "run": "TestStoreUnknownSchemaVersionIsSafeMiss"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C10-002",
@@ -31,7 +32,8 @@
         "run": "TestStoreCommitTaskIsAtomicAndReadableAfterReopen"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C10-003",
@@ -44,7 +46,8 @@
         "run": "TestStoreConcurrentOpensSerializeOnTheLock"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C10-004",
@@ -57,7 +60,8 @@
         "run": "TestC10_001_MissingAndCorruptManifestsReExecuteSafely"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C10-005",
@@ -74,7 +78,8 @@
         "run": "TestStoreCorruptManifestIsSafeMissNotEvidence"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C10-006",
@@ -87,7 +92,8 @@
         "run": "TestStoreUnknownSchemaVersionIsSafeMiss"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C10-007",
@@ -100,7 +106,8 @@
         "run": "TestC10_010_ManifestPersistsTheFingerprintAlgorithm"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C10-008",
@@ -113,7 +120,8 @@
         "run": "TestC10_011_MissingBasisResourceIsHandledNotFatal"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C10-009",

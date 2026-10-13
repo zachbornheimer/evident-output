@@ -18,7 +18,8 @@
         "run": "TestGoPackageAtHonorsPinnedDialect"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-002",
@@ -31,7 +32,8 @@
         "run": "TestC21_002_TeachingLadderFollowsTheContractOrder"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-003",
@@ -52,7 +54,8 @@
         "run": "TestDOM021_TaskNeverResolved_Fires"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-004",
@@ -65,7 +68,8 @@
         "run": "TestAPI047_CrossKindDuplicateSiblingName_Fires"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-005",
@@ -82,7 +86,8 @@
         "run": "TestAPI051_FakeTaskPerFinding_Fires"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-006",
@@ -95,7 +100,8 @@
         "run": "TestAPI032_RemovedDoneRewritesToDefineAndSummary"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-007",
@@ -112,7 +118,8 @@
         "run": "TestMigration1_1_DirtyFiresAndRewriteIsClean"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-008",
@@ -125,7 +132,8 @@
         "run": "TestEVOFILE001_ManualWriteAndChmod_EmitsSimplificationFinding"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-009",
@@ -142,7 +150,8 @@
         "run": "TestEVODAG001_GoroutineWrapsDefine_Fires"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-010",
@@ -155,7 +164,8 @@
         "run": "TestEVODAG002_AfterChainDuplicatesSequence_Fires"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-011",
@@ -172,7 +182,8 @@
         "run": "TestGoSource_EvoUI002_PassingVerificationPrinted"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-012",
@@ -185,7 +196,8 @@
         "run": "TestC21_012_MCPDetectsACallerChosenGlyphColorOrStatus"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-013",
@@ -198,7 +210,8 @@
         "run": "TestGoSource_EvoLive001_PrintCompetesWithLiveRendering"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-014",
@@ -211,7 +224,8 @@
         "run": "TestC21_014_MCPDetectsABreakingWireSchemaEdit"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-015",
@@ -228,7 +242,8 @@
         "run": "TestExitBypass_OneFixThatCompiles"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-016",
@@ -254,7 +269,8 @@
         "run": "TestAPI046_RecheckAfterRemediation_FindingDisappears"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-018",
@@ -271,7 +287,8 @@
         "run": "TestToolRegistryMatchesToolList"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-019",
@@ -284,7 +301,8 @@
         "run": "TestAPI048_RedeclaredTaskLiteralForAfter_Fires"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C21-020",
@@ -297,6 +315,7 @@
         "run": "TestAPI048_TrivialOneOffTask_StaysSilent"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   }
 ]

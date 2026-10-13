@@ -43,7 +43,7 @@ func main() {
 		if err := error(nil); err != nil {
 			return err
 		}
-		// Domain payload stays on ResultWriter (stdout); presentation is stderr.
+		// Domain payload on stdout; presentation is Facades.Stdout (stderr).
 		result := BuildResult{Artifact: "bin/app", Packages: 14, Duration: "3.2s"}
 		enc := json.NewEncoder(os.Stdout)
 		if *pretty {
@@ -53,5 +53,5 @@ func main() {
 			return err
 		}
 		return nil
-	}, evo.Config{Name: "build", Output: evo.JSON}))
+	}, evo.Config{Name: "build", Facades: evo.Facades{Stdout: os.Stderr}}))
 }

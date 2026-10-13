@@ -10,7 +10,8 @@
         "run": "TestC28_001_NativeDiffFlowCommitsThroughFile"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C28-002",
@@ -23,7 +24,8 @@
         "run": "TestC28_002_MultiPassConvergenceStaysOneTask"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C28-003",

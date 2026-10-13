@@ -14,7 +14,8 @@
         "run": "TestCancellation_NothingChangedOmitsThePartialChangesLine"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C15-002",
@@ -31,7 +32,8 @@
         "run": "TestCancellation_NothingChangedOmitsThePartialChangesLine"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C15-003",
@@ -53,7 +55,8 @@
         "run": "TestCancellation_ExitsWithCancelledCode"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C15-005",
@@ -66,7 +69,8 @@
         "run": "TestCancellation_RenderedBandMatchesContract"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C15-006",
@@ -79,7 +83,8 @@
         "run": "TestCancellation_RenderedBandMatchesContract"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C15-007",
@@ -92,6 +97,7 @@
         "run": "TestCancellation_RenderedBandMatchesContract"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   }
 ]

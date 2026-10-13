@@ -76,8 +76,8 @@ func TestEVOOutput_JSON_FinishWritesRunDocument(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
 		t.Fatalf("Finish must write one run document: %v\n%s", err, got)
 	}
-	if doc.Object != "run" || doc.SchemaVersion == "" {
-		t.Fatalf("EVO_OUTPUT=json wrote %q schema %q, want an run document", doc.Object, doc.SchemaVersion)
+	if doc.Object != "evo.run" || doc.SchemaVersion == "" {
+		t.Fatalf("EVO_OUTPUT=json wrote %q schema %q, want an evo.run document", doc.Object, doc.SchemaVersion)
 	}
 	if hasHumanGlyphs(got) {
 		t.Fatalf("json stdout must not carry human glyphs:\n%s", got)
@@ -104,8 +104,8 @@ func TestEVOOutput_JSONL_WritesEventLines(t *testing.T) {
 			Type    string         `json:"type"`
 			Payload map[string]any `json:"payload"`
 		}
-		if err := json.Unmarshal([]byte(line), &ev); err != nil || ev.Object != "event" {
-			t.Fatalf("jsonl line is not an event (%v):\n%s", err, line)
+		if err := json.Unmarshal([]byte(line), &ev); err != nil || ev.Object != "evo.event" {
+			t.Fatalf("jsonl line is not an evo.event (%v):\n%s", err, line)
 		}
 		if ev.Type == "task.finished" && ev.Payload["state"] == "done" {
 			sawTaskDone = true

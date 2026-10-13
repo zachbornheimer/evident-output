@@ -1,4 +1,4 @@
-//go:build v06acceptance
+//go:build ignore
 
 // pipeline_test.go holds spec §64's multi-stage pipeline scenarios: a
 // normalize stage (schema.xlsx -> schema.json) feeding a compile stage

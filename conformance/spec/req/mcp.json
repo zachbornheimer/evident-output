@@ -10,7 +10,8 @@
         "run": "TestCMCP_001_UnorderedGetIsFlaggedWithMissingAfterSuggestion"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C99-002",
@@ -23,7 +24,8 @@
         "run": "TestCMCP_002_RedundantAfterInsideSequenceIsFlaggedAndNeverAutoAdded"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C99-003",
@@ -36,7 +38,8 @@
         "run": "TestCMCP_005_ChildTasksDeclaredInsideTaskDefineAreFlagged"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C99-004",
@@ -49,7 +52,8 @@
         "run": "TestCMCP_007_PresentationOnlyTaskIsFlagged"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C99-005",
@@ -61,13 +65,17 @@
         "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI041_GoroutineResolvesPredeclaredTask_Fires"
       },
-      { "pkg": "./mcp/internal/agent/review", "run": "TestAPI052_CallerWaitLoopSnapshotCount_Fires" },
+      {
+        "pkg": "./mcp/internal/agent/review",
+        "run": "TestAPI052_CallerWaitLoopSnapshotCount_Fires"
+      },
       {
         "pkg": "./mcp/internal/agent/review",
         "run": "TestAPI052_CallerWaitLoopErrNotStartedFilter_Fires"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C99-006",
@@ -80,6 +88,7 @@
         "run": "TestCMCP_008_OneTaskLoopingOverItemsThatDeserveAnOutcomeIsFlagged"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   }
 ]

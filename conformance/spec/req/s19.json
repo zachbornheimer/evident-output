@@ -27,7 +27,8 @@
         "run": "TestC22_021_ProblemCodesStayStableAcrossRunsAndWording"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C19-003",
@@ -53,7 +54,8 @@
         "run": "TestFileManifestCommittedEffectRecordedOnMutation"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C19-005",
@@ -70,7 +72,8 @@
         "run": "TestFileManifestFreshnessSkipsUnchangedOperation"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C19-006",
@@ -87,7 +90,8 @@
         "run": "TestPatch_FileVerification_SurvivesEncodeRun"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C19-007",

@@ -29,21 +29,15 @@ var asciiRows = []ledgerRow{
 func renderLedger(t *testing.T, dryRun bool, rows []ledgerRow) string {
 	t.Helper()
 	var buf bytes.Buffer
-	out := (*evo.Run)(nil)
-	_ = evo.Execute(context.Background(), evo.Config{DryRun: dryRun, Name: "zq", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf, Stderr: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
-	t.Cleanup(func() { _ = error(nil) })
-	for _, row := range rows {
-		task := out.Task(row.subject)
-		task.Define(func(ctx context.Context) error {
-			return evo.Effect(ctx, row.spec, func(context.Context) error { return nil })
-		})
-		if err := error(nil); err != nil {
-			t.Fatal(err)
+	_ = evo.Execute(context.Background(), evo.Config{DryRun: dryRun, Name: "zq", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf, Stderr: &buf}}, func(ctx context.Context, r *evo.Run) error {
+		for _, row := range rows {
+			task := r.Task(row.subject)
+			task.Define(func(ctx context.Context) error {
+				return evo.Effect(ctx, row.spec, func(context.Context) error { return nil })
+			})
 		}
-	}
-	if err := error(nil); err != nil {
-		t.Fatal(err)
-	}
+		return nil
+	})
 	return buf.String()
 }
 

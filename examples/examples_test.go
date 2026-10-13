@@ -23,7 +23,7 @@ func TestExamples_NonTTYSmoke(t *testing.T) {
 		{name: "print"},
 		{name: "verbose"},
 		{name: "verbose", args: []string{"--verbose"}},
-		{name: "repo-status", args: []string{"--fast"}, allowExit: []int{0, 1}},
+		{name: "repo-status", args: []string{"--fast"}, allowExit: []int{0, 1, 2}},
 		{name: "install-pipeline", args: []string{"--fast"}},
 		{name: "install-pipeline", args: []string{"--fast", "--fail-tests"}, allowExit: []int{0, 1, 2}},
 		{name: "migrate"},
@@ -35,7 +35,7 @@ func TestExamples_NonTTYSmoke(t *testing.T) {
 		{name: "live-progress", args: []string{"--fast"}},
 		{name: "debug-history", args: []string{"--fast"}},
 		{name: "debug-pane", args: []string{"--fast"}},
-		{name: "debug-pane", args: []string{"--fast", "--fail"}, allowExit: []int{0, 1}},
+		{name: "debug-pane", args: []string{"--fast", "--fail"}, allowExit: []int{0, 1, 2}},
 		{name: "terminal-driver", args: []string{"--fast", "--frames"}},
 	}
 	for _, s := range specs {

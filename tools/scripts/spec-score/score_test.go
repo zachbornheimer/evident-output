@@ -156,3 +156,21 @@ func TestMissingRatchetIsEmpty(t *testing.T) {
 		t.Fatalf("got %v %v", got, err)
 	}
 }
+
+func TestGatePassesWhenRatchetedIDIsWaived(t *testing.T) {
+	files := map[string]string{
+		"r/" + contractPath: "the quote text",
+		"r/conformance/spec/req/s01.json": `[
+ {"id":"C01-001","section":"1","quote":"historical 1.x sentence","tier":"1.1","waiver":"2.0 CONTRACT.md replaced this 1.x sentence","tests":[{"pkg":"./a","run":"TestA"}]}]`,
+		"r/" + ratchetPath: `["C01-001"]`,
+	}
+	fsys := newFakeFS(files)
+	runner := &fakeRunner{streams: map[string]string{}}
+	code, err := execute(options{lint: true, gate: true, root: "r", scoreOut: defaultScoreOut, tags: defaultTags}, fsys, runner, &bytes.Buffer{})
+	if err != nil || code != 0 {
+		t.Fatalf("code %d err %v, want 0 nil", code, err)
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("waived entries must not run tests, calls %v", runner.calls)
+	}
+}

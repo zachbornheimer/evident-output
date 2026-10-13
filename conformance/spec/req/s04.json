@@ -10,7 +10,8 @@
         "run": "TestC01_003_FileEstablishesDesiredStateAndIsQuietWhenSatisfied"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C04-002",
@@ -23,7 +24,8 @@
         "run": "TestC04_001_UnmanagedContentsCannotCreateAMissingFile"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C04-003",
@@ -36,7 +38,8 @@
         "run": "TestC04_002_ModeZeroKeepsExistingPermissionsAndNewFilesUseUmask"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C04-004",
@@ -49,7 +52,8 @@
         "run": "TestC04_003_FileMutatesOnlyManagedAttributes"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C04-005",
@@ -62,7 +66,8 @@
         "run": "TestC04_004_FileRefusesSymlinkAndWrongType"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C04-006",
@@ -75,7 +80,8 @@
         "run": "TestC04_005_OperationsRequireTheDefineContext"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C04-007",
@@ -88,7 +94,8 @@
         "run": "TestC04_006_FileEmitsPlannedThenChangedRows"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C04-008",
@@ -101,7 +108,8 @@
         "run": "TestC01_003_FileEstablishesDesiredStateAndIsQuietWhenSatisfied"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C04-009",

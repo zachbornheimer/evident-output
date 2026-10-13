@@ -14,7 +14,8 @@
         "run": "TestPruneContract_JSONLStreamKeepsEveryTaskAndTheGroup"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C18-002",
@@ -27,7 +28,8 @@
         "run": "TestScheduler_GroupOverlapRespectsCeiling"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C18-003",
@@ -44,7 +46,8 @@
         "run": "TestPruneContract_GroupWithoutOwnInformationRendersNoHeaderRow"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C18-004",
@@ -57,7 +60,8 @@
         "run": "TestPruneContract_KeptUnderGroupedCategoriesRendersContract18"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C18-005",
@@ -74,7 +78,8 @@
         "run": "TestConclusionBand_NoTitleNeverStutters"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C18-006",
@@ -91,7 +96,8 @@
         "run": "TestPruneContract_KeptUnderGroupedCategoriesRendersContract18"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C18-007",
@@ -112,7 +118,8 @@
         "run": "TestPruneContract_KeptTallyVerboseListsRealItemNames"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C18-008",
@@ -129,12 +136,13 @@
         "run": "TestPruneContract_KeptUnderGroupedCategoriesRendersContract18"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C18-009",
     "section": "18",
-    "quote": "and those Tasks fold into the category's `- skipped N (...)` tally (§13).",
+    "quote": "and those Tasks fold into the category's `- skipped N (...)` tally (\u00a713).",
     "tier": "1.1",
     "tests": [
       {
@@ -150,7 +158,8 @@
         "run": "TestOwnTask_LoneKeptItemFoldsUnderItsGroupRow"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C18-010",
@@ -167,7 +176,8 @@
         "run": "TestScenario_NothingToClean"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C18-011",

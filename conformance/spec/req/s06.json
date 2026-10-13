@@ -2,7 +2,7 @@
   {
     "id": "C06-001",
     "section": "6",
-    "quote": "Never whole-Task skip opaque code based only on yesterday’s dynamically discovered manifest.",
+    "quote": "Never whole-Task skip opaque code based only on yesterday\u2019s dynamically discovered manifest.",
     "tier": "1.1",
     "tests": [
       {
@@ -10,7 +10,8 @@
         "run": "TestC06_001_OpaqueCodeIsNeverSkippedFromTheManifest"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C06-002",
@@ -23,7 +24,8 @@
         "run": "TestC01_003_FileEstablishesDesiredStateAndIsQuietWhenSatisfied"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C06-003",
@@ -40,6 +42,7 @@
         "run": "TestC06_001_OpaqueCodeIsNeverSkippedFromTheManifest"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   }
 ]

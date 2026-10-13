@@ -10,7 +10,8 @@
         "run": "TestC13_001_SkippedChildrenFoldIntoOnePerReasonTally"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C13-002",
@@ -23,7 +24,8 @@
         "run": "TestC13_002_LoneSkippedItemFoldsIntoItsGroupTally"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C13-003",
@@ -40,7 +42,8 @@
         "run": "TestC02_008_SkippedIsAResolutionNotSatisfaction"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C13-004",
@@ -53,12 +56,13 @@
         "run": "TestC13_003_GroupWithoutSummaryHasNoHeaderAndSequenceKeepsOne"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C13-005",
     "section": "13",
-    "quote": "A header-less child whose name another visible row also shows is named by its container path (`g › build`).",
+    "quote": "A header-less child whose name another visible row also shows is named by its container path (`g \u203a build`).",
     "tier": "1.1",
     "tests": [
       {
@@ -66,7 +70,8 @@
         "run": "TestC13_004_DuplicateNamedHeaderlessChildUsesContainerPath"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C13-006",
@@ -79,7 +84,8 @@
         "run": "TestC13_005_FinishedNoOpChildIsHiddenBesideVisibleContent"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C13-007",
@@ -92,7 +98,8 @@
         "run": "TestC13_006_HumanShowsFiveProblemsThenCountMachineKeepsAll"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C13-008",
@@ -105,12 +112,13 @@
         "run": "TestC13_007_JSONKeepsWhatHumanOutputHides"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C13-009",
     "section": "13",
-    "quote": "A warning renders its `On` subject on every row (`✓ check jobs  ! job  x`).",
+    "quote": "A warning renders its `On` subject on every row (`\u2713 check jobs  ! job  x`).",
     "tier": "1.1",
     "tests": [
       {
@@ -118,7 +126,8 @@
         "run": "TestC13_008_WarningRendersItsOnSubjectOnEveryRow"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C13-010",
@@ -131,7 +140,8 @@
         "run": "TestC13_007_JSONKeepsWhatHumanOutputHides"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C13-011",
@@ -144,12 +154,13 @@
         "run": "TestC13_011_SettledRowShowsSummaryElseFirstProblem"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C13-012",
     "section": "13",
-    "quote": "Verbose lists the items under each reason, bounded (`a, b, c … +N more`); items carrying Facts get their own row, at most three.",
+    "quote": "Verbose lists the items under each reason, bounded (`a, b, c \u2026 +N more`); items carrying Facts get their own row, at most three.",
     "tier": "1.1",
     "tests": [],
     "waiver": "UNCLASSIFIED: verbose per-reason item lists were not exercised; TruncateNames is unit-covered (C02 text helpers) but the verbose fold render has no bound test.",

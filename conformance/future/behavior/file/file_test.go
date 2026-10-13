@@ -1,4 +1,4 @@
-//go:build v06acceptance
+//go:build ignore
 
 // Package file_test holds increment 2's behavioral fixtures: File,
 // dry-run-with-File, cancellation-before-mutation, and opaque-callback

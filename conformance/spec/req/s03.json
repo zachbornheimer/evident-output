@@ -10,7 +10,8 @@
         "run": "TestC03_001_GroupSiblingsRunConcurrently"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C03-002",
@@ -23,7 +24,8 @@
         "run": "TestC03_002_SequenceRunsChildrenInOrderOneAtATime"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C03-003",
@@ -36,7 +38,8 @@
         "run": "TestC03_003_AfterDelaysATaskUntilItsPredecessorSettles"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C03-004",
@@ -49,7 +52,8 @@
         "run": "TestC03_004_SchedulerBoundsConcurrencyToConfig"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C03-005",
@@ -62,7 +66,8 @@
         "run": "TestC02_021_OnlyContainersDeclareChildren"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C03-006",

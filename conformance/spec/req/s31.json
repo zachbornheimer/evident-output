@@ -5,9 +5,13 @@
     "quote": "`Compute[T]` is the typed-value form of defining exactly one Task.",
     "tier": "1.2",
     "tests": [
-      { "pkg": "./conformance/contract/compose", "run": "TestC31_001_ComputeDefinesExactlyOneTask" }
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_001_ComputeDefinesExactlyOneTask"
+      }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-002",
@@ -20,7 +24,8 @@
         "run": "TestCMCP_004_IntoResultPlumbingIsFlaggedTowardCompute"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-003",
@@ -33,7 +38,8 @@
         "run": "TestCMCP_003_OuterMutableVariableHandoffIsFlaggedTowardCompute"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-004",
@@ -50,7 +56,8 @@
         "run": "TestC31_004_GetBeforeProducerSettlesPanicsUnderStrict"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-005",
@@ -63,7 +70,8 @@
         "run": "TestC31_005_AfterComputedOrdersConsumerAcrossContainers"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-006",
@@ -76,7 +84,8 @@
         "run": "TestC31_006_SequenceOrderSufficesForLaterStep"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-007",
@@ -93,7 +102,8 @@
         "run": "TestC31_007_BlockedGateLeavesLaterStepsNotStartedAndSiblingCompletes"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-008",
@@ -101,9 +111,13 @@
     "quote": "`TaskHandle` is never a container and never declares children.",
     "tier": "1.2",
     "tests": [
-      { "pkg": "./conformance/contract/compose", "run": "TestC31_008_TaskHandleDeclaresNoChildren" }
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_008_TaskHandleDeclaresNoChildren"
+      }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-009",
@@ -120,7 +134,8 @@
         "run": "TestC31_009_TaskHandleDoesNotSatisfyContainer"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-010",
@@ -133,7 +148,8 @@
         "run": "TestC31_010_TopologyBuilderMountsOntoAnyContainer"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-011",
@@ -146,7 +162,8 @@
         "run": "TestC31_011_BuilderCallbacksTakeOnlyTheirContainer"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-012",
@@ -158,13 +175,17 @@
         "pkg": "./conformance/contract/compose",
         "run": "TestC31_012_BuilderMayReadProvenComputedValues"
       },
-      { "pkg": "./conformance/contract/compose", "run": "TestC31_012_UnorderedGetIsMisuse" },
+      {
+        "pkg": "./conformance/contract/compose",
+        "run": "TestC31_012_UnorderedGetIsMisuse"
+      },
       {
         "pkg": "./conformance/contract/compose",
         "run": "TestC31_012_UnorderedGetPanicsUnderStrict"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-013",
@@ -177,7 +198,8 @@
         "run": "TestCMCP_006_IOAndGoroutinesInsideTopologyBuilderAreFlagged"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-014",
@@ -190,7 +212,8 @@
         "run": "TestC31_014_BuilderRunsOnceWhenContainerBecomesEligible"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-015",
@@ -203,7 +226,8 @@
         "run": "TestC31_015_FailedPredecessorLeavesBuilderContainerNotStarted"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-016",
@@ -216,7 +240,8 @@
         "run": "TestC31_016_DeclaringTopologyInsideTaskDefineIsMisuse"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-017",
@@ -233,7 +258,8 @@
         "run": "TestC31_017_PriorAfterDoesNotInvalidateDefine"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-018",
@@ -246,15 +272,22 @@
         "run": "TestC31_018_ZqPruneTopologyBuildsRunsAndYieldsExpectedTree"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-019",
     "section": "31",
     "quote": "Noun/category names belong naturally on Group/Sequence.",
     "tier": "1.2",
-    "tests": [{ "pkg": "./mcp/internal/agent/review", "run": "TestAPI045_ContainerTaskName_Fires" }],
-    "default": false
+    "tests": [
+      {
+        "pkg": "./mcp/internal/agent/review",
+        "run": "TestAPI045_ContainerTaskName_Fires"
+      }
+    ],
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-020",
@@ -267,7 +300,8 @@
         "run": "TestCMCP_009_InexpressibleShapeKeepsRecheckAndEmitsDedupedGapEvent"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-021",
@@ -284,7 +318,8 @@
         "run": "TestC31_021_FailedAfterCallbackVerifyIsVerificationUnproven"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-022",
@@ -297,7 +332,8 @@
         "run": "TestSymbolsCoverEveryExportedPackageFunction"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C31-023",
@@ -310,6 +346,7 @@
         "run": "TestC31_023_PlainOutputHidesGroupHeaderUnderSequence"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   }
 ]

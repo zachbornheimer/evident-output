@@ -61,7 +61,7 @@ func reportStateAssignments(t *testing.T, fset *token.FileSet, fn string, assign
 		if !ok || sel.Sel.Name != "state" {
 			continue
 		}
-		if rhs, ok := assign.Rhs[i].(*ast.Ident); ok && rhs.Name == "Running" {
+		if rhs, ok := assign.Rhs[i].(*ast.Ident); ok && (rhs.Name == "Running" || rhs.Name == "running") {
 			continue
 		}
 		t.Errorf("%s: %s assigns a Task's state directly; route the transition through the graph's Settle",
@@ -75,7 +75,7 @@ func reportTerminalTransition(t *testing.T, fset *token.FileSet, fn string, call
 	if !ok || sel.Sel.Name != "Transition" || len(call.Args) != 1 {
 		return
 	}
-	if arg, ok := call.Args[0].(*ast.Ident); ok && arg.Name == "Running" {
+	if arg, ok := call.Args[0].(*ast.Ident); ok && (arg.Name == "Running" || arg.Name == "running") {
 		return
 	}
 	t.Errorf("%s: %s transitions a Task's record to a state other than Running; settle it through the graph",

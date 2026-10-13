@@ -14,7 +14,8 @@
         "run": "TestEffectsOnOneLogicalResourceNeverOverlap"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C29-002",
@@ -31,7 +32,8 @@
         "run": "TestBasisObservationCannotRaceFileCommit"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C29-003",
@@ -48,6 +50,7 @@
         "run": "TestFilesDryRunPlansWithoutMutation"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   }
 ]

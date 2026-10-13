@@ -10,7 +10,8 @@
         "run": "TestC11_001_FactsAreHiddenInNormalOutputOnEveryOutcome"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C11-002",
@@ -23,7 +24,8 @@
         "run": "TestC11_002_VerboseOutputShowsFacts"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C11-003",
@@ -36,7 +38,8 @@
         "run": "TestC11_003_MachineOutputAlwaysCarriesFacts"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C11-004",
@@ -49,7 +52,8 @@
         "run": "TestC11_004_ConfigFactsRenderWithTheHeader"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C11-005",
@@ -62,7 +66,8 @@
         "run": "TestC11_005_FailingTaskDoesNotPromoteUnrelatedFacts"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C11-006",

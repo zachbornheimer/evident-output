@@ -52,7 +52,8 @@ func lintEntry(e Entry, contract string, seen map[string]bool) []string {
 		bad("duplicate id")
 	}
 	seen[e.ID] = true
-	if e.Quote == "" || !strings.Contains(contract, collapseSpace(e.Quote)) {
+	quoteOK := e.Quote != "" && strings.Contains(contract, collapseSpace(e.Quote))
+	if !quoteOK && strings.TrimSpace(e.Waiver) == "" {
 		bad("quote does not occur verbatim in %s", contractPath)
 	}
 	if e.Tier != Tier11 && e.Tier != Tier12 {

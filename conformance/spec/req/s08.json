@@ -10,7 +10,8 @@
         "run": "TestC08_001_PreciseProvenanceTracksScriptAndInput"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C08-002",
@@ -23,12 +24,13 @@
         "run": "TestC06_001_OpaqueCodeIsNeverSkippedFromTheManifest"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C08-003",
     "section": "8",
-    "quote": "An application fingerprint means “previously discovered semantics may need revalidation,” not “every downstream result definitely changed.”",
+    "quote": "An application fingerprint means \u201cpreviously discovered semantics may need revalidation,\u201d not \u201cevery downstream result definitely changed.\u201d",
     "tier": "1.1",
     "tests": [
       {
@@ -36,6 +38,7 @@
         "run": "TestC06_001_OpaqueCodeIsNeverSkippedFromTheManifest"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   }
 ]

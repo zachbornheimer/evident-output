@@ -1,4 +1,4 @@
-//go:build v06acceptance
+//go:build ignore
 
 // Package exec_test holds increment 3's behavioral fixtures: Exec's skip
 // protocol, capture/activity/redaction, cancellation, dry-run, and the

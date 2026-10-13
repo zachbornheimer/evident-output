@@ -10,7 +10,8 @@
         "run": "TestC09_001_FreshnessFollowsChangedOutputsNotExecutedUpstream"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C09-002",
@@ -23,7 +24,8 @@
         "run": "TestC09_001_FreshnessFollowsChangedOutputsNotExecutedUpstream"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C09-003",
@@ -36,6 +38,7 @@
         "run": "TestC09_001_FreshnessFollowsChangedOutputsNotExecutedUpstream"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   }
 ]

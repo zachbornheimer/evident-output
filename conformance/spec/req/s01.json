@@ -14,12 +14,13 @@
         "run": "TestC16_009_PlainJSONAndJSONLAgreeOnTheRunOutcome"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C01-002",
     "section": "1",
-    "quote": "False invalidation is acceptable. False “already satisfied” is not.",
+    "quote": "False invalidation is acceptable. False \u201calready satisfied\u201d is not.",
     "tier": "1.1",
     "tests": [
       {
@@ -31,7 +32,8 @@
         "run": "TestC10_001_MissingAndCorruptManifestsReExecuteSafely"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   },
   {
     "id": "C01-003",
@@ -44,6 +46,7 @@
         "run": "TestC01_003_FileEstablishesDesiredStateAndIsQuietWhenSatisfied"
       }
     ],
-    "default": false
+    "default": false,
+    "waiver": "2.0 CONTRACT.md replaced this 1.x sentence; live surface ratchet is TestContractIsTheWholeSurface"
   }
 ]
