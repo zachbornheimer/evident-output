@@ -1,11 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -15,7 +14,7 @@ import (
 // configured (or is configured to the same writer as primary) and
 // projectDebugRecordLocked's dual early-return in output.go never fires.
 //
-// Ordinary Config-based construction — evo.Init(evo.Config{...}) with the
+// Ordinary Config-based construction — initRun(Config{...}) with the
 // realistic default Stdout/Stderr split — always sets Diagnostics to a
 // different writer than primary (construct.go: To(c.Stdout), Diagnostics(
 // c.Stderr)). Under that dual-stream shape, projectDebugRecordLocked wrote
@@ -34,12 +33,12 @@ func TestInteractive_DualStreamDebugTailReachesLiveTerminal(t *testing.T) {
 	var primary, diagnostics bytes.Buffer
 
 	newest := true
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &primary, Stderr: &diagnostics, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug, View: evo.DebugPresentationPane, PaneHeight: 5, NewestFirst: &newest}, Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &primary, stderr: &diagnostics, terminal: screen, visibilityDelay: DelayForTest(0), Debug: debugConfig{level: levelDebug, view: debugPresentationPane, paneHeight: 5, newestFirst: &newest}, color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
-	out.DebugForTest("diagnostic detail line")
-	out.Task("build").Fail("compile error")
-	_ = out.Finish()
+	out.debugForTest("diagnostic detail line")
+	out.Task("build").fail("compile error")
+	_ = out.finish()
 
 	if !strings.Contains(diagnostics.String(), "diagnostic detail line") {
 		t.Fatalf("Diagnostics stream missing the debug record; got:\n%q", diagnostics.String())

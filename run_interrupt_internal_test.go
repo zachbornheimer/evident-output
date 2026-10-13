@@ -41,9 +41,9 @@ func sendOneSignal(t *testing.T) (interrupt func()) {
 // dispatching the rest of the run to completion.
 func TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue(t *testing.T) {
 	var buf strings.Builder
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever,
-		MaxConcurrency: 1, Stdout: &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever,
+		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
 	})
 	interrupt := sendOneSignal(t)
 
@@ -52,8 +52,8 @@ func TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue(t *testing.T) {
 	names := []string{"pkg1", "pkg2", "pkg3", "pkg4", "pkg5"}
 	code := make(chan int, 1)
 	go func() {
-		code <- out.Run(context.Background(), func(ctx context.Context) error {
-			var first *TaskHandle
+		code <- out.run(context.Background(), func(ctx context.Context) error {
+			var first *Task
 			for i, name := range names {
 				task := group.Task(name)
 				if i == 0 {
@@ -62,7 +62,7 @@ func TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue(t *testing.T) {
 				task.Define(func(ctx context.Context) error {
 					if task == first {
 						close(blocking)
-						<-task.Context().Done()
+						<-task.context().Done()
 					}
 					return nil
 				})
@@ -72,7 +72,7 @@ func TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue(t *testing.T) {
 			// it submitted; a plain Group child (§3.1: Each is retired)
 			// makes that wait explicit, keeping the run callback "in
 			// flight" so the interrupt select below is still parked on it.
-			_ = first.Wait()
+			_ = first.wait()
 			return nil
 		}).ExitCode()
 	}()
@@ -87,8 +87,8 @@ func TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue(t *testing.T) {
 		t.Fatalf("one interrupt did not stop the run; output so far:\n%s", buf.String())
 	}
 
-	if got != ExitCancelled {
-		t.Fatalf("exit %d, want %d (ExitCancelled); output:\n%s", got, ExitCancelled, buf.String())
+	if got != exitCancelled {
+		t.Fatalf("exit %d, want %d (ExitCancelled); output:\n%s", got, exitCancelled, buf.String())
 	}
 	rendered := buf.String()
 	// One child was running, so exactly one child row says cancelled. (The
@@ -107,7 +107,7 @@ func TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue(t *testing.T) {
 	if strings.Contains(rendered, "✓") {
 		t.Fatalf("nothing may complete after the cancel:\n%s", rendered)
 	}
-	if got := out.Conclusion().State; got != StateCancelled {
+	if got := out.conclusion().state; got != stateCancelled {
 		t.Fatalf("conclusion = %v, want StateCancelled", got)
 	}
 }
@@ -118,9 +118,9 @@ func TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue(t *testing.T) {
 // mutated: ..." line rather than being lost with the run.
 func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testing.T) {
 	var buf strings.Builder
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever,
-		MaxConcurrency: 1, Stdout: &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever,
+		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
 	})
 	interrupt := sendOneSignal(t)
 
@@ -132,17 +132,17 @@ func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testin
 	blocking := make(chan struct{})
 	code := make(chan int, 1)
 	go func() {
-		code <- out.Run(context.Background(), func(ctx context.Context) error {
+		code <- out.run(context.Background(), func(ctx context.Context) error {
 			scan.Define(func(ctx context.Context) error { return nil })
 			venv.Define(func(ctx context.Context) error {
-				return Effect(ctx, EffectSpec{Verb: EffectCreate, Object: ".venv directory", Quantity: 1}, func(context.Context) error {
+				return Effect(ctx, EffectSpec{Verb: Create, Object: ".venv directory", Quantity: 1}, func(context.Context) error {
 					close(blocking)
-					<-venv.Context().Done()
+					<-venv.context().Done()
 					return nil
 				})
 			})
 			install.Define(func(ctx context.Context) error { return nil })
-			return install.Wait()
+			return install.wait()
 		}).ExitCode()
 	}()
 
@@ -151,8 +151,8 @@ func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testin
 
 	select {
 	case got := <-code:
-		if got != ExitCancelled {
-			t.Fatalf("exit %d, want %d; output:\n%s", got, ExitCancelled, buf.String())
+		if got != exitCancelled {
+			t.Fatalf("exit %d, want %d; output:\n%s", got, exitCancelled, buf.String())
 		}
 	case <-time.After(interruptBudget):
 		t.Fatalf("one interrupt did not stop the run; output so far:\n%s", buf.String())
@@ -173,14 +173,14 @@ func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testin
 // hang TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue showed
 // when its run callback was still Defining when the signal landed.
 func TestInterrupt_WorkDefinedAfterTheSignalNeverStrandsTheDrain(t *testing.T) {
-	out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, Stdout: io.Discard, Stderr: io.Discard})
+	out := initRun(Config{isolated: true, plain: true, color: colorNever, stdout: io.Discard, stderr: io.Discard})
 	out.interrupt("interrupted")
 	late := out.Task("late")
 	late.Define(func(context.Context) error { return nil })
 
 	closed := make(chan struct{})
 	go func() {
-		_ = out.Close()
+		_ = out.close()
 		close(closed)
 	}()
 	select {
@@ -188,7 +188,7 @@ func TestInterrupt_WorkDefinedAfterTheSignalNeverStrandsTheDrain(t *testing.T) {
 	case <-time.After(interruptBudget):
 		t.Fatal("Close hung on a Task Defined after the interrupt")
 	}
-	if got := late.Snapshot().State; got != NotStarted {
-		t.Fatalf("late Task state = %s, want %s", got, NotStarted)
+	if got := late.snapshot().State; got != notStarted {
+		t.Fatalf("late Task state = %s, want %s", got, notStarted)
 	}
 }

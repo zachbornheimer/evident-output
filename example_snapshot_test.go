@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"context"
@@ -6,17 +6,15 @@ import (
 	"io"
 
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // ExampleSnapshot reads the immutable complete presentation state of a
 // finished run.
 func ExampleSnapshot() {
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
 	out.Task("apply patch").Define(func(context.Context) error { return nil })
-	_ = out.Finish()
-	snap := out.Snapshot()
+	_ = out.finish()
+	snap := out.snapshot()
 	fmt.Println(len(snap.Tasks))
 	// Output:
 	// 1
@@ -25,10 +23,10 @@ func ExampleSnapshot() {
 // ExampleChangesSnapshot reads an immutable changes section: the records a
 // mutation verb recorded, run without DryRun.
 func ExampleChangesSnapshot() {
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
-	out.Task("prune branches").Define(effectOf(evo.EffectDelete, "stale branch", 2))
-	_ = out.Finish()
-	changes := out.Snapshot().Changes[0]
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
+	out.Task("prune branches").Define(effectOf(Delete, "stale branch", 2))
+	_ = out.finish()
+	changes := out.snapshot().Changes[0]
 	fmt.Println(changes.Records[0].Verb, changes.Records[0].Quantity)
 	// Output:
 	// deleted 2
@@ -37,10 +35,10 @@ func ExampleChangesSnapshot() {
 // ExamplePlanSnapshot reads an immutable plan section: the records a
 // mutation verb recorded under DryRun.
 func ExamplePlanSnapshot() {
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true, DryRun: true})
-	out.Task("prune branches").Define(effectOf(evo.EffectDelete, "stale branch", 2))
-	_ = out.Finish()
-	plan := out.Snapshot().Plans[0]
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true, DryRun: true})
+	out.Task("prune branches").Define(effectOf(Delete, "stale branch", 2))
+	_ = out.finish()
+	plan := out.snapshot().Plans[0]
 	fmt.Println(plan.Records[0].Verb, plan.Records[0].Quantity)
 	// Output:
 	// delete 2
@@ -48,7 +46,7 @@ func ExamplePlanSnapshot() {
 
 // ExampleEffectRecord shows one semantic change or plan row.
 func ExampleEffectRecord() {
-	r := evo.EffectRecord{Verb: "delete", Quantity: 2, HasQty: true, Object: "stale branch"}
+	r := effectRecord{Verb: "delete", Quantity: 2, HasQty: true, Object: "stale branch"}
 	fmt.Println(r.Verb, r.Quantity, r.Object)
 	// Output:
 	// delete 2 stale branch
@@ -57,23 +55,23 @@ func ExampleEffectRecord() {
 // ExampleMessageSnapshot shows one logical user-facing message in the
 // canonical model, read from a finished Snapshot.
 func ExampleMessageSnapshot() {
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
-	evo.SetDefault(out)
-	evo.Println("reading configuration")
-	_ = out.Finish()
-	msg := out.Snapshot().Messages[0]
-	fmt.Println(msg.Text, msg.Visibility == evo.VisibilityNormal)
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
+	setDefault(out)
+	println("reading configuration")
+	_ = out.finish()
+	msg := out.snapshot().Messages[0]
+	fmt.Println(msg.Text, msg.Visibility == visibilityNormal)
 	// Output:
 	// reading configuration true
 }
 
-// ExampleOutput_Events reads the durable event journal for a JSONL
+// ExampleRun_Events reads the durable event journal for a JSONL
 // projection (mcp/docs/development.md's "Machine output" snippet).
-func ExampleOutput_Events() {
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
+func exampleRun_Events() {
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
 	out.Task("apply patch").Define(func(context.Context) error { return nil })
-	_ = out.Finish()
-	jsonl, err := wire.EncodeJSONL(out.Events())
+	_ = out.finish()
+	jsonl, err := wire.EncodeJSONL(out.events())
 	fmt.Println(len(jsonl) > 0, err)
 	// Output:
 	// true <nil>

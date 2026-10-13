@@ -1,18 +1,16 @@
-package evo_test
+package evo
 
 import (
 	"fmt"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // ExampleResource shows the two ways to name shared state. A Resource
 // prints as the caller wrote it; resolution to a canonical identity
 // happens when an operation claims it.
 func ExampleResource() {
-	for _, r := range []evo.Resource{
-		evo.FSResource("go.mod"),
-		evo.LogicalResource("homebrew"),
+	for _, r := range []resource{
+		fSResource("go.mod"),
+		logicalResource("homebrew"),
 	} {
 		fmt.Println(r)
 	}
@@ -25,7 +23,7 @@ func ExampleResource() {
 // overlaps every file beneath it, for an opaque operation that touches the
 // module as a unit.
 func ExampleFSResource() {
-	module := evo.FSResource("./internal/engine")
+	module := fSResource("./internal/engine")
 	fmt.Println(module)
 	// Output:
 	// fs:./internal/engine
@@ -34,7 +32,7 @@ func ExampleFSResource() {
 // ExampleLogicalResource names shared state that has no truthful
 // filesystem path.
 func ExampleLogicalResource() {
-	remote := evo.LogicalResource("git remote origin")
+	remote := logicalResource("git remote origin")
 	fmt.Println(remote)
 	// Output:
 	// logical:git remote origin

@@ -20,18 +20,18 @@ func TestSlice36_WaitInABuilderIsRefusedWhetherOrNotTheAwaitedTaskSettled(t *tes
 	for name, runtime := range cases {
 		t.Run(name, func(t *testing.T) {
 			out := quietOutput(Config{MaxConcurrency: 4})
-			t.Cleanup(func() { _ = out.Close() })
+			t.Cleanup(func() { _ = out.close() })
 			outside := out.Task("outside").Define(func(context.Context) error { time.Sleep(runtime); return nil })
 			if runtime == 0 {
-				_ = outside.Wait()
+				_ = outside.wait()
 			}
 			var waitErr error
-			out.Group("builder").Define(func(g *GroupHandle) {
-				waitErr = outside.Wait()
+			out.Group("builder").define(func(g *Group) {
+				waitErr = outside.wait()
 				g.Task("child").Define(noop)
 			})
 
-			_ = waitWithin(t, "Finish", out.Finish)
+			_ = waitWithin(t, "Finish", out.finish)
 
 			if !errors.Is(waitErr, graph.ErrWaitInBuilder) {
 				t.Errorf("Wait inside the builder = %v, want ErrWaitInBuilder", waitErr)
@@ -44,15 +44,15 @@ func TestSlice36_WaitInABuilderIsRefusedWhetherOrNotTheAwaitedTaskSettled(t *tes
 // Wait on it is no wait at all and is answered.
 func TestSlice36_WaitInABuilderOnATaskItIsOrderedAfterIsAnswered(t *testing.T) {
 	out := quietOutput(Config{MaxConcurrency: 4})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 	before := out.Task("before").Define(noop)
 	var waitErr error
-	out.Group("builder").After(before).Define(func(g *GroupHandle) {
-		waitErr = before.Wait()
+	out.Group("builder").After(before).define(func(g *Group) {
+		waitErr = before.wait()
 		g.Task("child").Define(noop)
 	})
 
-	_ = waitWithin(t, "Finish", out.Finish)
+	_ = waitWithin(t, "Finish", out.finish)
 
 	if waitErr != nil {
 		t.Errorf("Wait inside the builder on its own predecessor = %v, want nil", waitErr)

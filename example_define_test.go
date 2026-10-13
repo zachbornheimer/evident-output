@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -7,8 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // ExampleInit, ExampleRun, ExampleMain, ExampleTask, ExampleGroup, and
@@ -16,47 +14,47 @@ import (
 // example_group_test.go — the stdlib-audit's per-topic split of what this
 // file used to document inline.
 
-// ExampleTaskHandle_Define submits a Task's atomic work to the scheduler —
+// ExampleTask_Define submits a Task's atomic work to the scheduler —
 // Define is the scheduling and execution boundary (spec §7): the callback
 // runs on an eligible run unless a current pre-Define Verify already
 // proved the desired state satisfied.
-func ExampleTaskHandle_Define() {
+func ExampleTask_Define() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: io.Discard, plain: true})
 	task := out.Task("migrate")
 	task.Define(func(ctx context.Context) error { return nil })
-	_ = task.Wait()
-	_ = out.Finish()
+	_ = task.wait()
+	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ migrate
 }
 
-// ExampleTaskHandle_Verify registers a boolean, read-only pre-Define check.
+// ExampleTask_Verify registers a boolean, read-only pre-Define check.
 // A Verify that reports the desired state already holds skips Define
 // entirely and resolves ResolutionAlreadySatisfied — the one advanced
 // escape hatch for domains Evo cannot track automatically (spec §56).
-func ExampleTaskHandle_Verify() {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard})
+func ExampleTask_Verify() {
+	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard})
 	task := out.Task("already-configured")
 	task.Verify(func(ctx context.Context) (bool, error) { return true, nil })
 	task.Define(func(ctx context.Context) error {
 		panic("Define must not run once Verify reports already satisfied")
 	})
-	_ = task.Wait()
-	fmt.Println(task.Snapshot().Resolution)
+	_ = task.wait()
+	fmt.Println(task.snapshot().Resolution)
 	// Output:
 	// already_satisfied
 }
 
-// ExampleTaskHandle_Key sets an advanced, refactor/rename-stable override
+// ExampleTask_Key sets an advanced, refactor/rename-stable override
 // for a Task's stable identity (spec §3.1) — use it when a Task's name
 // changes across runs but its tracked identity must not.
-func ExampleTaskHandle_Key() {
+func exampleTask_Key() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true})
-	out.Task("migrate 003_add_users.sql").Key("migration:003").Define(func(context.Context) error { return nil })
-	_ = out.Finish()
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: io.Discard, plain: true})
+	out.Task("migrate 003_add_users.sql").key("migration:003").Define(func(context.Context) error { return nil })
+	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ migrate 003_add_users.sql
@@ -75,11 +73,11 @@ func ExampleFile() {
 	defer func() { _ = os.RemoveAll(dir) }()
 	path := filepath.Join(dir, "config.json")
 
-	out := evo.Init(evo.Config{Isolated: true, StateDir: dir, Stdout: io.Discard, Stderr: io.Discard})
-	result := out.Run(context.Background(), func(ctx context.Context) error {
+	out := initRun(Config{isolated: true, stateDir: dir, stdout: io.Discard, stderr: io.Discard})
+	result := out.run(context.Background(), func(ctx context.Context) error {
 		task := out.Task("config")
 		task.Define(func(ctx context.Context) error {
-			return evo.File(ctx, evo.FileSpec{Path: path, Contents: []byte(`{"ok":true}`)})
+			return File(ctx, FileSpec{Path: path, Contents: []byte(`{"ok":true}`)})
 		})
 		return nil
 	})
@@ -98,14 +96,14 @@ func ExampleFile() {
 // ExampleTask_Fact records discovered information — not work — as a durable
 // dim line attached to the Task that found it. Fact never resolves the
 // Task and never fakes a checkmark merely to display a value.
-func ExampleTaskHandle_Fact() {
+func ExampleTask_Fact() {
 	var buf bytes.Buffer
 	// A Task Fact is routine context: it renders only under verbose (contract §13).
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true, Verbosity: evo.VerbosityVerbose})
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: io.Discard, plain: true, verbosity: verbosityVerbose})
 	scan := out.Task("remote-tracking")
 	scan.Fact("stale", "1")
 	scan.Define(func(context.Context) error { return nil })
-	_ = out.Finish()
+	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ remote-tracking    stale  1

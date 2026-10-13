@@ -66,7 +66,7 @@ func (writerStub) Write(p []byte) (int, error) { return len(p), nil }
 func TestConfigToOptions_DiagnosticSharingTerminalIsDetected(t *testing.T) {
 	stdout, stderr := openCharDevice(t)
 
-	cfg := resolveConfig(Config{Stdout: stdout, Stderr: stderr})
+	cfg := resolveConfig(Config{stdout: stdout, stderr: stderr})
 	opts := configToOptions(cfg)
 
 	var built config

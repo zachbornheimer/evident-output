@@ -1,54 +1,52 @@
-package evo_test
+package evo
 
 import (
 	"context"
 	"fmt"
 	"io"
 	"time"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // ExampleFormat selects the overall stream-routing mode — zero is
 // FormatHuman, ordinary human (and optional interactive) presentation.
-func ExampleFormat() {
-	f := evo.FormatData
-	fmt.Println(f == evo.FormatData)
+func exampleFormat() {
+	f := formatData
+	fmt.Println(f == formatData)
 	// Output:
 	// true
 }
 
 // ExampleVerbosity selects which message visibilities project to the human
 // stream — zero is VerbosityNormal.
-func ExampleVerbosity() {
-	v := evo.VerbosityVerbose
-	fmt.Println(v == evo.VerbosityVerbose)
+func exampleVerbosity() {
+	v := verbosityVerbose
+	fmt.Println(v == verbosityVerbose)
 	// Output:
 	// true
 }
 
 // ExampleProjection selects presentation encoding independent of Format —
 // human, plain, json, jsonl, or stream-json.
-func ExampleProjection() {
-	p := evo.ProjectionPlain
-	fmt.Println(p == evo.ProjectionPlain)
+func exampleProjection() {
+	p := projectionPlain
+	fmt.Println(p == projectionPlain)
 	// Output:
 	// true
 }
 
 // ExampleColorMode selects the color policy — default ColorAuto uses TTY
 // detection and honors NO_COLOR.
-func ExampleColorMode() {
-	c := evo.ColorNever
-	fmt.Println(c == evo.ColorNever)
+func exampleColorMode() {
+	c := colorNever
+	fmt.Println(c == colorNever)
 	// Output:
 	// true
 }
 
 // ExampleTerminalDriver shows the minimal identity interface a custom
-// terminal integration implements — see evo.Terminal.
-func ExampleTerminalDriver() {
-	var driver evo.TerminalDriver = namedTerminal{"custom"}
+// terminal integration implements — see Terminal.
+func exampleTerminalDriver() {
+	var driver terminalDriver = namedTerminal{"custom"}
 	fmt.Println(driver.ID())
 	// Output:
 	// custom
@@ -56,25 +54,25 @@ func ExampleTerminalDriver() {
 
 // ExampleTimeSource shows the deterministic clock interface Clock injects
 // in place of the real wall clock.
-func ExampleTimeSource() {
-	var clock evo.TimeSource = evo.FixedClock{T: time.Unix(0, 0).UTC()}
+func exampleTimeSource() {
+	var clock timeSource = fixedClock_1{T: time.Unix(0, 0).UTC()}
 	fmt.Println(clock.Now())
 	// Output:
 	// 1970-01-01 00:00:00 +0000 UTC
 }
 
 // ExampleSystemClock uses the real wall clock — the default TimeSource.
-func ExampleSystemClock() {
-	var clock evo.SystemClock
+func exampleSystemClock() {
+	var clock systemClock_1
 	fmt.Println(clock.Now().IsZero())
 	// Output:
 	// false
 }
 
 // ExampleFixedClock always returns the same instant — the deterministic
-// clock every timestamp-sensitive test in this repo injects via evo.Clock.
-func ExampleFixedClock() {
-	clock := evo.FixedClock{T: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)}
+// clock every timestamp-sensitive test in this repo injects via Clock.
+func exampleFixedClock() {
+	clock := fixedClock_1{T: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)}
 	fmt.Println(clock.Now())
 	// Output:
 	// 2024-01-01 00:00:00 +0000 UTC
@@ -82,8 +80,8 @@ func ExampleFixedClock() {
 
 // ExampleLiveSurface shows the interactive terminal surface a live-region
 // renderer paints onto — a superset of TerminalDriver.
-func ExampleLiveSurface() {
-	var surface evo.LiveSurface = fakeLiveSurface{}
+func exampleLiveSurface() {
+	var surface liveSurface = fakeLiveSurface{}
 	fmt.Println(surface.ID(), surface.IsInteractive())
 	// Output:
 	// fake false
@@ -92,7 +90,7 @@ func ExampleLiveSurface() {
 // ExampleRedactor redacts sensitive values before journal, Capture
 // retention, and human rendering.
 func ExampleRedactor() {
-	var r evo.Redactor = evo.NoopRedactor{}
+	var r Redactor = noopRedactor_1{}
 	fmt.Println(r.RedactString("token=abc123"))
 	// Output:
 	// token=abc123
@@ -100,27 +98,27 @@ func ExampleRedactor() {
 
 // ExampleNoopRedactor leaves strings unchanged — the default Redactor.
 func ExampleNoopRedactor() {
-	var r evo.NoopRedactor
+	var r noopRedactor_1
 	fmt.Println(r.RedactString("token=abc123"))
 	// Output:
 	// token=abc123
 }
 
 // ExamplePlainOptions configures RenderPlain's durable-report rendering.
-func ExamplePlainOptions() {
-	opts := evo.PlainOptions{Width: 80, NoColor: true}
-	fmt.Println(opts.Width, opts.NoColor)
+func examplePlainOptions() {
+	opts := plainOptions{width: 80, noColor: true}
+	fmt.Println(opts.width, opts.noColor)
 	// Output:
 	// 80 true
 }
 
 // ExampleRenderPlain renders a Snapshot as the durable plain-text report —
 // the same renderer Config.Plain wires up automatically.
-func ExampleRenderPlain() {
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
+func exampleRenderPlain() {
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
 	out.Task("apply patch").Define(func(context.Context) error { return nil })
-	_ = out.Finish()
-	data, err := evo.RenderPlain(out.Snapshot(), evo.PlainOptions{NoColor: true})
+	_ = out.finish()
+	data, err := renderPlain_1(out.snapshot(), plainOptions{noColor: true})
 	fmt.Println(err)
 	fmt.Print(string(data))
 	// Output:
@@ -131,7 +129,7 @@ func ExampleRenderPlain() {
 // ExampleIsCharDevice reports whether w is an interactive character device
 // (a real terminal) — false for an ordinary buffer or file.
 func ExampleIsCharDevice() {
-	fmt.Println(evo.IsCharDevice(io.Discard))
+	fmt.Println(isCharDevice(io.Discard))
 	// Output:
 	// false
 }
@@ -139,8 +137,8 @@ func ExampleIsCharDevice() {
 // ExamplePluralize formats a quantity with its singular noun pluralized
 // when the quantity isn't exactly one.
 func ExamplePluralize() {
-	fmt.Println(evo.Pluralize(1, "branch"))
-	fmt.Println(evo.Pluralize(3, "branch"))
+	fmt.Println(pluralize(1, "branch"))
+	fmt.Println(pluralize(3, "branch"))
 	// Output:
 	// branch
 	// branches
@@ -149,7 +147,7 @@ func ExamplePluralize() {
 // ExampleTruncateNames bounds a name list to visible entries, summarizing
 // the rest.
 func ExampleTruncateNames() {
-	fmt.Println(evo.TruncateNames([]string{"main", "dev", "release", "hotfix"}, 2))
+	fmt.Println(truncateNames([]string{"main", "dev", "release", "hotfix"}, 2))
 	// Output:
 	// main, dev … +2 more
 }
@@ -157,7 +155,7 @@ func ExampleTruncateNames() {
 // namedTerminal is defined in example_option_test.go and reused here for
 // ExampleTerminalDriver.
 
-// fakeLiveSurface is a minimal evo.LiveSurface for ExampleLiveSurface — real
+// fakeLiveSurface is a minimal LiveSurface for ExampleLiveSurface — real
 // callers pass a concrete driver (e.g. from internal/terminal).
 type fakeLiveSurface struct{}
 

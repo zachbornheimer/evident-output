@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -7,8 +7,6 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestSkipped_DoesNotSetWarned pins the 1.1 contract: policy exclusions are
@@ -16,15 +14,15 @@ import (
 // in 1.1; aggregate "kept N" information is Fact/Summary, not warning state.
 func TestSkipped_DoesNotSetWarned(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	t.Cleanup(func() { _ = out.close() })
 
 	repos := out.Task("repositories")
 	repos.Define(func(context.Context) error {
-		repos.Skipped(evo.Reason("unpushed"))
+		repos.skipped(reason("unpushed"))
 		return nil
 	})
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	if bytes.Contains(buf.Bytes(), []byte("warned")) {
@@ -36,7 +34,7 @@ func TestSkipped_DoesNotSetWarned(t *testing.T) {
 			Warned bool   `json:"warned"`
 		} `json:"conclusion"`
 	}
-	raw, err := wire.EncodeJSON(out.Snapshot())
+	raw, err := wire.EncodeJSON(out.snapshot())
 	if err != nil {
 		t.Fatal(err)
 	}

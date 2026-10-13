@@ -18,7 +18,7 @@ func TestRun_ReturnsWhenRunCallbackExitsViaGoexit(t *testing.T) {
 
 	resultCh := make(chan Result, 1)
 	go func() {
-		resultCh <- out.Run(context.Background(), func(context.Context) error {
+		resultCh <- out.run(context.Background(), func(context.Context) error {
 			runtime.Goexit()
 			return nil
 		})
@@ -26,8 +26,8 @@ func TestRun_ReturnsWhenRunCallbackExitsViaGoexit(t *testing.T) {
 
 	select {
 	case result := <-resultCh:
-		if result.Conclusion.ExitCode != ExitFailed {
-			t.Errorf("ExitCode = %d, want ExitFailed (%d)", result.Conclusion.ExitCode, ExitFailed)
+		if result.Conclusion.exitCode != exitFailed {
+			t.Errorf("ExitCode = %d, want ExitFailed (%d)", result.Conclusion.exitCode, exitFailed)
 		}
 		if result.Err == nil {
 			t.Fatal("Result.Err = nil, want an error explaining the callback exited without returning")

@@ -16,13 +16,13 @@ import (
 )
 
 // centralizeEffect is one package's Effect in the zq shape.
-func centralizeEffect(verb EffectVerb, object string) func(context.Context) error {
-	return effectOf(verb, object, 1)
+func centralizeEffect(verb effectVerb, object string) func(context.Context) error {
+	return effectOf(Verb(verb), object, 1)
 }
 
 // declareCentralize declares the zq shape: Group "centralize packages" with
 // one Group per manager and npm/composer package Tasks under each.
-func declareCentralize(out *Output, perManager int, work func(manager string, i int) func(context.Context) error) {
+func declareCentralize(out *Run, perManager int, work func(manager string, i int) func(context.Context) error) {
 	category := out.Group("centralize packages")
 	for _, manager := range []string{"npm", "composer"} {
 		g := category.Group(manager)
@@ -32,19 +32,19 @@ func declareCentralize(out *Output, perManager int, work func(manager string, i 
 	}
 }
 
-func runPlain(t *testing.T, cfg Config, declare func(*Output)) (string, *Output) {
+func runPlain(t *testing.T, cfg Config, declare func(*Run)) (string, *Run) {
 	t.Helper()
 	var buf strings.Builder
-	cfg.Isolated, cfg.Plain, cfg.Color, cfg.Stdout, cfg.Stderr = true, true, ColorNever, &buf, io.Discard
-	out := Init(cfg)
+	cfg.isolated, cfg.plain, cfg.color, cfg.stdout, cfg.stderr = true, true, colorNever, &buf, io.Discard
+	out := initRun(cfg)
 	declare(out)
-	_ = out.Close()
+	_ = out.close()
 	return buf.String(), out
 }
 
 func TestLedgerFoldsZqShapeToOneCategoryRow(t *testing.T) {
-	rendered, out := runPlain(t, Config{}, func(o *Output) {
-		declareCentralize(o, 3, func(string, int) func(context.Context) error { return centralizeEffect(EffectUpdate, "package") })
+	rendered, out := runPlain(t, Config{}, func(o *Run) {
+		declareCentralize(o, 3, func(string, int) func(context.Context) error { return centralizeEffect(effectUpdate, "package") })
 	})
 	if want := "[changed] centralize packages  updated 6 packages\n"; !strings.Contains(rendered, want) {
 		t.Fatalf("missing %q in:\n%s", want, rendered)
@@ -52,14 +52,14 @@ func TestLedgerFoldsZqShapeToOneCategoryRow(t *testing.T) {
 	if n := strings.Count(rendered, "[changed] "); n != 1 {
 		t.Errorf("%d [changed] rows, want 1:\n%s", n, rendered)
 	}
-	if got := len(out.Snapshot().Changes); got != 6 {
+	if got := len(out.snapshot().Changes); got != 6 {
 		t.Errorf("model Changes = %d, want every per-item section (6)", got)
 	}
 }
 
 func TestLedgerFoldsDryRunToPlannedRow(t *testing.T) {
-	rendered, _ := runPlain(t, Config{DryRun: true}, func(o *Output) {
-		declareCentralize(o, 2, func(string, int) func(context.Context) error { return centralizeEffect(EffectUpdate, "package") })
+	rendered, _ := runPlain(t, Config{DryRun: true}, func(o *Run) {
+		declareCentralize(o, 2, func(string, int) func(context.Context) error { return centralizeEffect(effectUpdate, "package") })
 	})
 	if want := "[planned] centralize packages  update 4 packages\n"; !strings.Contains(rendered, want) {
 		t.Fatalf("missing %q in:\n%s", want, rendered)
@@ -67,12 +67,12 @@ func TestLedgerFoldsDryRunToPlannedRow(t *testing.T) {
 }
 
 func TestLedgerFoldKeepsMixedVerbsAsSeparateRows(t *testing.T) {
-	rendered, _ := runPlain(t, Config{}, func(o *Output) {
+	rendered, _ := runPlain(t, Config{}, func(o *Run) {
 		declareCentralize(o, 2, func(manager string, _ int) func(context.Context) error {
 			if manager == "npm" {
-				return centralizeEffect(EffectUpdate, "package")
+				return centralizeEffect(effectUpdate, "package")
 			}
-			return centralizeEffect(EffectDelete, "lockfile")
+			return centralizeEffect(effectDelete, "lockfile")
 		})
 	})
 	for _, want := range []string{"[changed] npm       updated 2 packages", "[changed] composer  deleted 2 lockfiles"} {
@@ -83,8 +83,8 @@ func TestLedgerFoldKeepsMixedVerbsAsSeparateRows(t *testing.T) {
 }
 
 func TestLedgerFoldLeavesASingleItemAsToday(t *testing.T) {
-	rendered, _ := runPlain(t, Config{}, func(o *Output) {
-		o.Group("solo").Task("only").Define(centralizeEffect(EffectUpdate, "package"))
+	rendered, _ := runPlain(t, Config{}, func(o *Run) {
+		o.Group("solo").Task("only").Define(centralizeEffect(effectUpdate, "package"))
 	})
 	if want := "[changed] only  updated 1 package"; !strings.Contains(rendered, want) {
 		t.Fatalf("missing %q in:\n%s", want, rendered)
@@ -93,12 +93,12 @@ func TestLedgerFoldLeavesASingleItemAsToday(t *testing.T) {
 
 func TestLedgerFoldCountsOnlyCommittedItemsAndKeepsFailuresVisible(t *testing.T) {
 	boom := errors.New("registry unreachable")
-	rendered, _ := runPlain(t, Config{}, func(o *Output) {
+	rendered, _ := runPlain(t, Config{}, func(o *Run) {
 		declareCentralize(o, 3, func(manager string, i int) func(context.Context) error {
 			if manager == "npm" && i == 1 {
 				return func(context.Context) error { return boom }
 			}
-			return centralizeEffect(EffectUpdate, "package")
+			return centralizeEffect(effectUpdate, "package")
 		})
 	})
 	if want := "[changed] centralize packages  updated 5 packages"; !strings.Contains(rendered, want) {
@@ -111,9 +111,9 @@ func TestLedgerFoldCountsOnlyCommittedItemsAndKeepsFailuresVisible(t *testing.T)
 
 func TestLedgerFoldLeavesJSONLEveryPerItemEffect(t *testing.T) {
 	var stdout strings.Builder
-	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout, Stderr: io.Discard})
-	declareCentralize(out, 3, func(string, int) func(context.Context) error { return centralizeEffect(EffectUpdate, "package") })
-	_ = out.Close()
+	out := initRun(Config{isolated: true, format: formatJSONL, stdout: &stdout, stderr: io.Discard})
+	declareCentralize(out, 3, func(string, int) func(context.Context) error { return centralizeEffect(effectUpdate, "package") })
+	_ = out.close()
 	if got := strings.Count(stdout.String(), `"effect.committed"`); got != 6 {
 		t.Errorf("JSONL carries %d effect.committed events, want 6", got)
 	}
@@ -123,12 +123,12 @@ func TestLedgerFoldLeavesJSONLEveryPerItemEffect(t *testing.T) {
 // projection (project.WriteLedger over a snapshot) folds and aligns the same
 // way: the fold row and an unfolded row share one subject column.
 func TestLedgerFoldTerminalRowAlignsToFoldedSubject(t *testing.T) {
-	_, out := runPlain(t, Config{}, func(o *Output) {
-		declareCentralize(o, 2, func(string, int) func(context.Context) error { return centralizeEffect(EffectUpdate, "package") })
-		o.Task("cleanup").Define(centralizeEffect(EffectDelete, "cache"))
+	_, out := runPlain(t, Config{}, func(o *Run) {
+		declareCentralize(o, 2, func(string, int) func(context.Context) error { return centralizeEffect(effectUpdate, "package") })
+		o.Task("cleanup").Define(centralizeEffect(effectDelete, "cache"))
 	})
 	var b strings.Builder
-	project.WriteLedger(&b, out.Snapshot(), 100, project.Style{})
+	project.WriteLedger(&b, out.snapshot(), 100, project.Style{})
 	want := "[changed] centralize packages  updated 4 packages\n[changed] cleanup              deleted 1 cache\n"
 	if b.String() != want {
 		t.Errorf("WriteLedger =\n%q\nwant\n%q", b.String(), want)

@@ -47,8 +47,8 @@ func TestProjectDebugRecord_DualStreamSameTerminalRoutesThroughLiveSequencing(t 
 
 	o := newOutput("gate7-finding1",
 		to(&primary), withDiagnostics(&diagnostics), withTerminal(drv),
-		withDiagnosticSharesTerminal(), debugLevel(LevelDebug))
-	t.Cleanup(func() { _ = o.Close() })
+		withDiagnosticSharesTerminal(), debugLevel(levelDebug))
+	t.Cleanup(func() { _ = o.close() })
 
 	o.debug("dual stream debug line")
 

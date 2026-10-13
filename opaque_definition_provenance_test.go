@@ -16,7 +16,7 @@ import (
 // runs Define — the same way TestFileModeOnlySpecConsultsManifestOnSecondRun
 // resolves a Task's manifest identity rather than assuming its display name
 // doubles as its manifest key.
-func taskManifestKey(t *testing.T, out *Output, name string) (*TaskHandle, string) {
+func taskManifestKey(t *testing.T, out *Run, name string) (*Task, string) {
 	t.Helper()
 	task := out.Task(name)
 	out.mu.Lock()
@@ -40,8 +40,8 @@ func TestOpaqueTaskDefinitionFallsBackToAppFingerprintWhenRunHasManifestActivity
 	state := t.TempDir()
 	path := filepath.Join(t.TempDir(), "managed.txt")
 
-	out := Init(Config{Isolated: true, StateDir: state})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stateDir: state})
+	t.Cleanup(func() { _ = out.close() })
 
 	if err := runFileTask(t, out, "file", FileSpec{Path: path, Contents: []byte("desired")}); err != nil {
 		t.Fatalf("file task: %v", err)
@@ -49,10 +49,10 @@ func TestOpaqueTaskDefinitionFallsBackToAppFingerprintWhenRunHasManifestActivity
 
 	opaque, opaqueKey := taskManifestKey(t, out, "opaque")
 	opaque.Define(func(ctx context.Context) error { return nil })
-	if err := opaque.Wait(); err != nil {
+	if err := opaque.wait(); err != nil {
 		t.Fatalf("opaque task: %v", err)
 	}
-	_ = out.Close()
+	_ = out.close()
 
 	store, err := freshness.OpenManifest(t.Context(), freshness.ManifestConfig{StateDir: state}, freshness.NewSystemManifestEnvironment())
 	if err != nil {
@@ -82,16 +82,16 @@ func TestPreciseFileTaskLeavesTaskLevelDefinitionFingerprintEmpty(t *testing.T) 
 	state := t.TempDir()
 	path := filepath.Join(t.TempDir(), "managed.txt")
 
-	out := Init(Config{Isolated: true, StateDir: state})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stateDir: state})
+	t.Cleanup(func() { _ = out.close() })
 	fileTask, fileKey := taskManifestKey(t, out, "file")
 	fileTask.Define(func(ctx context.Context) error {
 		return File(ctx, FileSpec{Path: path, Contents: []byte("desired")})
 	})
-	if err := fileTask.Wait(); err != nil {
+	if err := fileTask.wait(); err != nil {
 		t.Fatalf("file task: %v", err)
 	}
-	_ = out.Close()
+	_ = out.close()
 
 	store, err := freshness.OpenManifest(t.Context(), freshness.ManifestConfig{StateDir: state}, freshness.NewSystemManifestEnvironment())
 	if err != nil {
@@ -122,15 +122,15 @@ func TestPreciseFileTaskLeavesTaskLevelDefinitionFingerprintEmpty(t *testing.T) 
 // consumer sees zero new filesystem side effects from this fallback.
 func TestOpaqueOnlyRunNeverOpensManifest(t *testing.T) {
 	state := t.TempDir()
-	out := Init(Config{Isolated: true, StateDir: state})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stateDir: state})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("opaque-only")
 	task.Define(func(ctx context.Context) error { return nil })
-	if err := task.Wait(); err != nil {
+	if err := task.wait(); err != nil {
 		t.Fatalf("opaque task: %v", err)
 	}
-	_ = out.Close()
+	_ = out.close()
 
 	if _, err := os.Stat(filepath.Join(state, "manifest-v1.json")); !os.IsNotExist(err) {
 		t.Fatalf("a Run with no File/Exec/Patch anywhere must never create a manifest file, stat err = %v", err)
@@ -148,27 +148,27 @@ func TestOpaqueTaskDefinitionRunsEveryRun(t *testing.T) {
 	managed := filepath.Join(t.TempDir(), "managed.txt")
 
 	runOnce := func(run int) int {
-		out := Init(Config{Isolated: true, StateDir: stateDir})
-		defer func() { _ = out.Close() }()
+		out := initRun(Config{isolated: true, stateDir: stateDir})
+		defer func() { _ = out.close() }()
 		if err := runFileTask(t, out, "file", FileSpec{Path: managed, Contents: []byte("desired")}); err != nil {
 			t.Fatalf("run %d file task: %v", run, err)
 		}
 		pushes := 0
 		push := out.Task("push branch")
 		push.Define(func(ctx context.Context) error {
-			return Effect(ctx, EffectSpec{Verb: EffectPush, Object: "branch", Quantity: 1}, func(context.Context) error {
+			return Effect(ctx, EffectSpec{Verb: Verb(effectPush), Object: "branch", Quantity: 1}, func(context.Context) error {
 				pushes++
 				return nil
 			})
 		})
-		if err := push.Wait(); err != nil {
+		if err := push.wait(); err != nil {
 			t.Fatalf("run %d push task: %v", run, err)
 		}
 		out.mu.Lock()
 		got := out.taskStates[push.id].node.Rec.Resolution()
 		out.mu.Unlock()
-		if got != ResolutionExecuted {
-			t.Fatalf("run %d push resolution = %q, want %q", run, got, ResolutionExecuted)
+		if got != resolutionExecuted {
+			t.Fatalf("run %d push resolution = %q, want %q", run, got, resolutionExecuted)
 		}
 		return pushes
 	}
@@ -191,8 +191,8 @@ func TestOpaqueTasksDoNotRewriteTheManifestPerSettle(t *testing.T) {
 	const opaqueTasks = 50
 	state := t.TempDir()
 	path := filepath.Join(t.TempDir(), "managed.txt")
-	out := Init(Config{Isolated: true, StateDir: state})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stateDir: state})
+	t.Cleanup(func() { _ = out.close() })
 
 	if err := runFileTask(t, out, "file", FileSpec{Path: path, Contents: []byte("desired")}); err != nil {
 		t.Fatalf("file task: %v", err)
@@ -206,14 +206,14 @@ func TestOpaqueTasksDoNotRewriteTheManifestPerSettle(t *testing.T) {
 	for i := range opaqueTasks {
 		group.Task(fmt.Sprintf("opaque %d", i)).Define(func(context.Context) error { return nil })
 	}
-	if err := group.Wait(); err != nil {
+	if err := group.wait(); err != nil {
 		t.Fatalf("opaque tasks: %v", err)
 	}
 
 	if got := manifestTaskCount(t, state); got != 1 {
 		t.Fatalf("manifest on disk holds %d task records before Close, want 1 (the File Task): opaque settles must not rewrite it", got)
 	}
-	_ = out.Close()
+	_ = out.close()
 	if got := manifestTaskCount(t, state); got != 1+opaqueTasks {
 		t.Fatalf("manifest after Close holds %d task records, want %d: Close must write every staged opaque record", got, 1+opaqueTasks)
 	}

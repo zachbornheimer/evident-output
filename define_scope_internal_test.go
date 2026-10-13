@@ -19,8 +19,8 @@ func runOf(ctx context.Context) (*graph.Scope[*change.Run], error) {
 // inside a Define callback the context's scope resolves to the Task actually
 // running and to the Run's own changes.
 func TestDefineScope_InsideCallbackNamesTheRunningTaskAndItsRun(t *testing.T) {
-	out := Init(Config{Isolated: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("scoped")
 	var gotID string
@@ -34,7 +34,7 @@ func TestDefineScope_InsideCallbackNamesTheRunningTaskAndItsRun(t *testing.T) {
 		}
 		return nil
 	})
-	_ = task.Wait()
+	_ = task.wait()
 
 	if scopeErr != nil {
 		t.Fatalf("the scope inside the callback returned %v, want nil", scopeErr)
@@ -49,8 +49,8 @@ func TestDefineScope_InsideCallbackNamesTheRunningTaskAndItsRun(t *testing.T) {
 // reports ErrTaskClosed — the callback's own execution window is what "open"
 // means, not the Task's lifetime.
 func TestDefineScope_AfterCallbackReturnsErrTaskClosed(t *testing.T) {
-	out := Init(Config{Isolated: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("closes")
 	var captured context.Context
@@ -58,9 +58,9 @@ func TestDefineScope_AfterCallbackReturnsErrTaskClosed(t *testing.T) {
 		captured = ctx
 		return nil
 	})
-	_ = task.Wait()
+	_ = task.wait()
 
-	if _, err := runOf(captured); !errors.Is(err, ErrTaskClosed) {
+	if _, err := runOf(captured); !errors.Is(err, errTaskClosed) {
 		t.Fatalf("the scope after the callback returned = %v, want ErrTaskClosed", err)
 	}
 }
@@ -68,7 +68,7 @@ func TestDefineScope_AfterCallbackReturnsErrTaskClosed(t *testing.T) {
 // TestDefineScope_OutsideACallbackReturnsErrNoTaskContext proves §7.1: a
 // context that never came from a Define callback reports ErrNoTaskContext.
 func TestDefineScope_OutsideACallbackReturnsErrNoTaskContext(t *testing.T) {
-	if _, err := runOf(context.Background()); !errors.Is(err, ErrNoTaskContext) {
+	if _, err := runOf(context.Background()); !errors.Is(err, errNoTaskContext) {
 		t.Fatalf("the scope of context.Background() = %v, want ErrNoTaskContext", err)
 	}
 }

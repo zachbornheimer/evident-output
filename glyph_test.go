@@ -1,11 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
 	txt "github.com/zachbornheimer/evident-output/internal/project"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
@@ -14,11 +13,11 @@ import (
 // ASCII map (GLYPH-001) for the states a caller hits routinely.
 func TestGlyphsASCII_StateRowsUseTightenedVocabulary(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Glyphs: evo.GlyphsASCII, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", glyphs: glyphsASCII, color: colorNever, plain: true})
 	succeed(out.Task("done"))
-	out.Task("failed").Fail("boom")
-	out.Task("gate").Block("declined")
-	if err := out.Finish(); err != nil {
+	out.Task("failed").fail("boom")
+	out.Task("gate").block("declined")
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	s := buf.String()
@@ -38,14 +37,14 @@ func TestGlyphsASCII_StateRowsUseTightenedVocabulary(t *testing.T) {
 // remaining static rows requested in the work order.
 func TestGlyphsASCII_NotStartedAndPendingRows(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Glyphs: evo.GlyphsASCII, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", glyphs: glyphsASCII, color: colorNever, plain: true})
 	group := out.Sequence("pipeline")
 	first := group.Task("first")
 	second := group.Task("second")
 	_ = group.Task("third")
 	succeed(first)
-	second.Fail("boom")
-	if err := out.Finish(); err != nil {
+	second.fail("boom")
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	s := buf.String()
@@ -58,14 +57,14 @@ func TestGlyphsASCII_NotStartedAndPendingRows(t *testing.T) {
 // alphabet excludes every semantic glyph" rule: no frame collides with "-".
 func TestGlyphsASCII_SpinnerExcludesNotStartedGlyph(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive())
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &bytes.Buffer{}, Terminal: screen, Title: "demo", VisibilityDelay: evo.DelayForTest(0), Glyphs: evo.GlyphsASCII})
+	out := initRun(Config{isolated: true, stdout: &bytes.Buffer{}, terminal: screen, title: "demo", visibilityDelay: DelayForTest(0), glyphs: glyphsASCII})
 	task := out.Task("install")
 	task.Doing("working")
 	frame := screen.LatestLiveText()
 	if strings.Contains(frame, "-") {
 		t.Fatalf("ASCII spinner frame must never render '-' (reserved for Not-started): %q", frame)
 	}
-	_ = out.Finish()
+	_ = out.finish()
 }
 
 // TestGlyphsAuto_NonUTF8LocaleDowngradesOnlyWhenInteractive pins evo-rec.md
@@ -78,21 +77,21 @@ func TestGlyphsAuto_NonUTF8LocaleDowngradesOnlyWhenInteractive(t *testing.T) {
 
 	t.Run("interactive TTY downgrades to ASCII", func(t *testing.T) {
 		screen := testkit.NewScreen(testkit.Interactive())
-		out := evo.Init(evo.Config{Isolated: true, Stdout: &bytes.Buffer{}, Terminal: screen, Title: "demo", VisibilityDelay: evo.DelayForTest(0)})
+		out := initRun(Config{isolated: true, stdout: &bytes.Buffer{}, terminal: screen, title: "demo", visibilityDelay: DelayForTest(0)})
 		task := out.Task("install")
 		task.Doing("working")
 		frame := screen.LatestLiveText()
 		if strings.Contains(frame, "⠋") {
 			t.Fatalf("expected ASCII spinner on a non-UTF-8 interactive TTY, got %q", frame)
 		}
-		_ = out.Finish()
+		_ = out.finish()
 	})
 
 	t.Run("non-interactive keeps Unicode", func(t *testing.T) {
 		var buf bytes.Buffer
-		out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Color: evo.ColorNever, Plain: true})
+		out := initRun(Config{isolated: true, stdout: &buf, title: "demo", color: colorNever, plain: true})
 		succeed(out.Task("done"))
-		if err := out.Finish(); err != nil {
+		if err := out.finish(); err != nil {
 			t.Fatal(err)
 		}
 		if !strings.Contains(buf.String(), "✓") {
@@ -106,14 +105,14 @@ func TestGlyphsAuto_NonUTF8LocaleDowngradesOnlyWhenInteractive(t *testing.T) {
 func TestGlyphsAuto_UTF8LocaleKeepsUnicode(t *testing.T) {
 	t.Setenv("LC_ALL", "en_US.UTF-8")
 	screen := testkit.NewScreen(testkit.Interactive())
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &bytes.Buffer{}, Terminal: screen, Title: "demo", VisibilityDelay: evo.DelayForTest(0)})
+	out := initRun(Config{isolated: true, stdout: &bytes.Buffer{}, terminal: screen, title: "demo", visibilityDelay: DelayForTest(0)})
 	task := out.Task("install")
 	task.Doing("working")
 	frame := screen.LatestLiveText()
 	if !strings.ContainsAny(frame, "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏") {
 		t.Fatalf("expected a Unicode braille spinner frame on a UTF-8 TTY, got %q", frame)
 	}
-	_ = out.Finish()
+	_ = out.finish()
 }
 
 // TestGlyphUnicode_UnchangedByProfileAxis is a narrow regression pin: adding
@@ -121,11 +120,11 @@ func TestGlyphsAuto_UTF8LocaleKeepsUnicode(t *testing.T) {
 // "don't change the Unicode glyphs themselves").
 func TestGlyphUnicode_UnchangedByProfileAxis(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Glyphs: evo.GlyphsUnicode, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", glyphs: glyphsUnicode, color: colorNever, plain: true})
 	succeed(out.Task("done"))
-	out.Task("failed").Fail("boom")
-	out.Task("gate").Block("declined")
-	if err := out.Finish(); err != nil {
+	out.Task("failed").fail("boom")
+	out.Task("gate").block("declined")
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	s := buf.String()
@@ -157,11 +156,11 @@ func TestGlyphWidths_BlockedAndCancelledAreNarrow(t *testing.T) {
 // profile-aware glyph (→ Unicode, > ASCII) rather than a color-only cue.
 func TestWriteAction_NextActionGlyph(t *testing.T) {
 	var uniBuf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &uniBuf, Glyphs: evo.GlyphsUnicode, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &uniBuf, glyphs: glyphsUnicode, color: colorNever, plain: true})
 	done := out.Task("done")
-	done.Problem("repository not retired yet", evo.Severity(evo.SeverityWarning), evo.Next(evo.Label("repo-retire --retire demo")))
+	done.Problem("repository not retired yet", severity(severityWarning), Next(label("repo-retire --retire demo")))
 	succeed(done)
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(uniBuf.String(), "→  repo-retire --retire demo") {
@@ -169,11 +168,11 @@ func TestWriteAction_NextActionGlyph(t *testing.T) {
 	}
 
 	var asciiBuf strings.Builder
-	out2 := evo.Init(evo.Config{Isolated: true, Stdout: &asciiBuf, Glyphs: evo.GlyphsASCII, Color: evo.ColorNever, Plain: true})
+	out2 := initRun(Config{isolated: true, stdout: &asciiBuf, glyphs: glyphsASCII, color: colorNever, plain: true})
 	done2 := out2.Task("done")
-	done2.Problem("repository not retired yet", evo.Severity(evo.SeverityWarning), evo.Next(evo.Label("repo-retire --retire demo")))
+	done2.Problem("repository not retired yet", severity(severityWarning), Next(label("repo-retire --retire demo")))
 	succeed(done2)
-	if err := out2.Finish(); err != nil {
+	if err := out2.finish(); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(asciiBuf.String(), ">  repo-retire --retire demo") {
@@ -186,9 +185,9 @@ func TestWriteAction_NextActionGlyph(t *testing.T) {
 // would mojibake on a non-UTF-8 terminal.
 func TestWriteProblem_EvidenceGlyph_ASCII(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Glyphs: evo.GlyphsASCII, Color: evo.ColorNever, Plain: true})
-	out.Task("branches").Fail("cannot lock ref", evo.Detail("another git process seems to be running"))
-	if err := out.Finish(); err != nil {
+	out := initRun(Config{isolated: true, stdout: &buf, glyphs: glyphsASCII, color: colorNever, plain: true})
+	out.Task("branches").fail("cannot lock ref", Detail("another git process seems to be running"))
+	if err := out.finish(); err != nil {
 		t.Log(err)
 	}
 	got := buf.String()
@@ -205,13 +204,13 @@ func TestWriteProblem_EvidenceGlyph_ASCII(t *testing.T) {
 // that would stay Unicode-only regardless of the configured profile.
 func TestConfirm_ASCIIProfile_PromptGlyph(t *testing.T) {
 	var buf strings.Builder
-	restore := evo.MarkWriterAsCharDevice(&buf)
+	restore := markWriterAsCharDevice(&buf)
 	t.Cleanup(restore)
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: &buf, Stdin: strings.NewReader("y\n"), Glyphs: evo.GlyphsASCII, Color: evo.ColorNever})
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: &buf, stdin: strings.NewReader("y\n"), glyphs: glyphsASCII, color: colorNever})
 	if ok := out.Confirm("proceed?"); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
 	}
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 }

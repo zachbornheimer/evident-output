@@ -78,7 +78,7 @@ func TestLiveHeartbeat_PendingRowAnimatesPastElapsedThreshold(t *testing.T) {
 	drv := &fakeHeartbeatSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := newOutput("job", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor())
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	out.Sequence("steps").Task("goimports") // sequential child stays Pending until its turn
 
@@ -107,7 +107,7 @@ func TestLiveHeartbeat_RunningNoPhaseZeroTotalAnimates(t *testing.T) {
 	drv := &fakeHeartbeatSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := newOutput("job", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor())
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("resolve")
 	task.Progress(0, 0) // Determinate, Total==0, no Phase — promotes to Running
@@ -132,13 +132,13 @@ func TestLiveHeartbeat_RunningNoPhaseZeroTotalAnimates(t *testing.T) {
 // normal case) never animates the header, and it freezes on the derivedState
 // "-" (Incomplete) glyph instead.
 func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testing.T) {
-	spinnerFrame := func(now time.Time) string { return txt.SpinnerGlyph(now, GlyphsUnicode) }
+	spinnerFrame := func(now time.Time) string { return txt.SpinnerGlyph(now, glyphsUnicode) }
 
 	t.Run("mixed done and pending", func(t *testing.T) {
 		drv := &fakeHeartbeatSurface{}
 		clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-		out := newOutput("fix", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), Glyphs(GlyphsUnicode))
-		t.Cleanup(func() { _ = out.Close() })
+		out := newOutput("fix", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), glyphs(glyphsUnicode))
+		t.Cleanup(func() { _ = out.close() })
 
 		grp := out.Group("fix")
 		grp.Task("a").succeed("")
@@ -160,8 +160,8 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 	t.Run("all pending at start", func(t *testing.T) {
 		drv := &fakeHeartbeatSurface{}
 		clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-		out := newOutput("fix", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), Glyphs(GlyphsUnicode))
-		t.Cleanup(func() { _ = out.Close() })
+		out := newOutput("fix", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), glyphs(glyphsUnicode))
+		t.Cleanup(func() { _ = out.close() })
 
 		grp := out.Group("fix")
 		grp.Task("a")

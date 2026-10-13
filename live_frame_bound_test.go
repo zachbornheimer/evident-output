@@ -16,12 +16,12 @@ func liveFrameTasks(tb testing.TB, n, rows int) int {
 	screen := &countingLiveSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := newOutput("job", withTerminal(screen), visibilityDelay(0), withClock(clock), withNoColor(), maxConcurrency(1))
-	tb.Cleanup(func() { _ = out.Close() })
+	tb.Cleanup(func() { _ = out.close() })
 	g := out.Group("items")
 	for i := range n / 2 {
 		g.Task(fmt.Sprintf("done %d", i)).Define(func(context.Context) error { return nil })
 	}
-	if err := g.Wait(); err != nil {
+	if err := g.wait(); err != nil {
 		tb.Fatalf("Wait: %v", err)
 	}
 	for i := range n / 2 {
@@ -62,7 +62,7 @@ func liveFrameNestedTasks(tb testing.TB, n, rows int) int {
 	screen := &countingLiveSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := newOutput("job", withTerminal(screen), visibilityDelay(0), withClock(clock), withNoColor(), maxConcurrency(1))
-	tb.Cleanup(func() { _ = out.Close() })
+	tb.Cleanup(func() { _ = out.close() })
 	items := out.Group("items")
 	for i := range n {
 		item := items.Group(fmt.Sprintf("item %d", i))
@@ -74,7 +74,7 @@ func liveFrameNestedTasks(tb testing.TB, n, rows int) int {
 	return countSnapshotTasks(out.liveSnapshotLocked(rows, clock.t).Collections)
 }
 
-func countSnapshotTasks(cols []TasksSnapshot) int {
+func countSnapshotTasks(cols []tasksSnapshot) int {
 	n := 0
 	for _, col := range cols {
 		n += len(col.Tasks) + countSnapshotTasks(col.Collections)
@@ -106,12 +106,12 @@ func nestedFrameAllocs(tb testing.TB, n, rows int) float64 {
 	screen := &countingLiveSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := newOutput("job", withTerminal(screen), visibilityDelay(0), withClock(clock), withNoColor(), maxConcurrency(1))
-	tb.Cleanup(func() { _ = out.Close() })
+	tb.Cleanup(func() { _ = out.close() })
 	items := out.Group("items")
 	for i := range n / 2 {
 		items.Group(fmt.Sprintf("done %d", i)).Task("check").Define(func(context.Context) error { return nil })
 	}
-	if err := items.Wait(); err != nil {
+	if err := items.wait(); err != nil {
 		tb.Fatalf("Wait: %v", err)
 	}
 	for i := range n / 2 {

@@ -25,23 +25,23 @@ func TestWaitSealsTheSameAfterAnEarlierWait(t *testing.T) {
 		b := out.Task("b").After(g).Define(noop)
 		if warm {
 			d := out.Task("d").After(b).Define(noop)
-			go func() { _ = d.Wait() }()
+			go func() { _ = d.wait() }()
 			waitForParkedWait(t, out)
 		}
 		m2 := g.Task("m2") // never Defined
 		c := out.Task("c").After(b).Define(noop)
 		time.AfterFunc(20*time.Millisecond, releaseM1)
-		if err := waitWithin(t, "c.Wait", c.Wait); err != nil {
+		if err := waitWithin(t, "c.Wait", c.wait); err != nil {
 			t.Errorf("warm=%v: c.Wait = %v, want nil: m2 was declared after b's After(g)", warm, err)
 		}
-		if st := m2.Snapshot().State; st != Pending {
+		if st := m2.snapshot().State; st != pending {
 			t.Errorf("warm=%v: m2 = %s after c.Wait, want Pending: c does not wait for it", warm, st)
 		}
 	}
 }
 
 // waitForParkedWait returns once some goroutine is parked in Wait.
-func waitForParkedWait(t *testing.T, out *Output) {
+func waitForParkedWait(t *testing.T, out *Run) {
 	t.Helper()
 	deadline := time.Now().Add(waitReturnDeadline)
 	for time.Now().Before(deadline) {
@@ -58,11 +58,11 @@ func waitForParkedWait(t *testing.T, out *Output) {
 func TestWaitOnUndefinedTaskSettlesNotStarted(t *testing.T) {
 	out := isolatedOutput(t)
 	x := out.Task("x")
-	err := waitWithin(t, "x.Wait", x.Wait)
-	if !errors.Is(err, ErrNotStarted) || !strings.Contains(err.Error(), "x was never defined") {
+	err := waitWithin(t, "x.Wait", x.wait)
+	if !errors.Is(err, errNotStarted) || !strings.Contains(err.Error(), "x was never defined") {
 		t.Errorf("x.Wait = %v, want ErrNotStarted naming x", err)
 	}
-	if got := x.Snapshot().State; got != NotStarted {
+	if got := x.snapshot().State; got != notStarted {
 		t.Errorf("x = %v after Wait, want NotStarted", got)
 	}
 }

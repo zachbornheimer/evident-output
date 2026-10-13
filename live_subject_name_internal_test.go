@@ -20,7 +20,7 @@ func TestLive_OneExplicitChildKeepsSubjectName(t *testing.T) {
 	drv := &fakeHeartbeatSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := newOutput("zq", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor())
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	classify := out.Group("worktrees").Task("classify")
 	classify.Doing("../.worktrees/agent-a254279")
@@ -51,7 +51,7 @@ func TestLive_PendingRowHasNoTimer(t *testing.T) {
 	drv := &fakeHeartbeatSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := newOutput("job", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor())
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	out.Sequence("steps").Task("goimports") // sequential child stays Pending until its turn
 
@@ -84,7 +84,7 @@ func TestLivePendingClassifyPromotedOntoHeader(t *testing.T) {
 	drv := &fakeHeartbeatSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := newOutput("zq", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor())
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	out.Group("branches").Task("classify") // Pending; never Doing
 

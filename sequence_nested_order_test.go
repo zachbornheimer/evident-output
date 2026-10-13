@@ -41,7 +41,7 @@ func TestSequenceOrdersNestedCollectionSteps(t *testing.T) {
 	g.Task("x").Define(log.step("x", 50*time.Millisecond))
 	g.Task("y").Define(log.step("y", 50*time.Millisecond))
 	seq.Task("b").Define(log.step("b", 0))
-	if err := waitWithin(t, "seq.Wait", seq.Wait); err != nil {
+	if err := waitWithin(t, "seq.Wait", seq.wait); err != nil {
 		t.Fatalf("seq.Wait = %v", err)
 	}
 	ev := log.events
@@ -63,7 +63,7 @@ func TestSequenceStepAfterEmptyNestedGroupWaitsForEarlierStep(t *testing.T) {
 	seq.Task("a").Define(log.step("a", 50*time.Millisecond))
 	seq.Group("empty")
 	b := seq.Task("b").Define(log.step("b", 0))
-	if err := waitWithin(t, "b.Wait", b.Wait); err != nil {
+	if err := waitWithin(t, "b.Wait", b.wait); err != nil {
 		t.Fatalf("b.Wait = %v", err)
 	}
 	if ev := log.events; slices.Index(ev, "a end") > slices.Index(ev, "b start") {
@@ -81,12 +81,12 @@ func TestSequenceFailureStopsLaterNestedSteps(t *testing.T) {
 	g := seq.Group("g")
 	x := g.Task("x").Define(noop)
 	y := g.Task("y")
-	if err := waitWithin(t, "a.Wait", a.Wait); !errors.Is(err, boom) {
+	if err := waitWithin(t, "a.Wait", a.wait); !errors.Is(err, boom) {
 		t.Fatalf("a.Wait = %v, want boom", err)
 	}
-	for _, h := range []*TaskHandle{x, y} {
-		if got := h.Snapshot().State; got != NotStarted {
-			t.Errorf("%s = %v, want NotStarted", h.Snapshot().Name, got)
+	for _, h := range []*Task{x, y} {
+		if got := h.snapshot().State; got != notStarted {
+			t.Errorf("%s = %v, want NotStarted", h.snapshot().Name, got)
 		}
 	}
 }
@@ -102,7 +102,7 @@ func TestSequenceStepAfterEmptyNestedChainWaitsForEarlierStep(t *testing.T) {
 	seq.Sequence("empty 2")
 	seq.Group("empty 3")
 	b := seq.Task("b").Define(log.step("b", 0))
-	if err := waitWithin(t, "b.Wait", b.Wait); err != nil {
+	if err := waitWithin(t, "b.Wait", b.wait); err != nil {
 		t.Fatalf("b.Wait = %v", err)
 	}
 	if ev := log.events; slices.Index(ev, "a end") > slices.Index(ev, "b start") {
@@ -120,10 +120,10 @@ func TestSequenceFailureCrossesEmptyNestedSteps(t *testing.T) {
 	seq.Group("empty 1")
 	seq.Group("empty 2")
 	b := seq.Task("b").Define(noop)
-	if err := waitWithin(t, "b.Wait", b.Wait); err == nil {
+	if err := waitWithin(t, "b.Wait", b.wait); err == nil {
 		t.Fatal("b.Wait = nil, want an error: a failed before it")
 	}
-	if got := b.Snapshot().State; got != NotStarted {
+	if got := b.snapshot().State; got != notStarted {
 		t.Errorf("b = %v, want NotStarted", got)
 	}
 }

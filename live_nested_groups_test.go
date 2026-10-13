@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -22,15 +21,15 @@ import (
 func TestLive_PerItemGroupsKeepHeaderAndAttention(t *testing.T) {
 	const n, workers = 30, 4
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
-	out := evo.Init(evo.Config{
-		Isolated: true, Clock: testkit.NewClock(), Terminal: screen, Stdout: io.Discard, Stderr: io.Discard,
-		VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever, MaxFrameRate: 1_000_000, MaxConcurrency: workers,
+	out := initRun(Config{
+		isolated: true, clock: testkit.NewClock(), terminal: screen, stdout: io.Discard, stderr: io.Discard,
+		visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000, MaxConcurrency: workers,
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	items := out.Group("items")
 	release, started := make([]chan struct{}, n), make([]chan struct{}, n)
-	tasks := make([]*evo.TaskHandle, n)
+	tasks := make([]*Task, n)
 	for i := range n {
 		release[i], started[i] = make(chan struct{}), make(chan struct{})
 		tasks[i] = items.Group(fmt.Sprintf("item %d", i)).Task("a").Define(func(context.Context) error {
@@ -43,7 +42,7 @@ func TestLive_PerItemGroupsKeepHeaderAndAttention(t *testing.T) {
 	for i := range finished {
 		<-started[i]
 		close(release[i])
-		_ = tasks[i].Wait()
+		_ = tasks[i].wait()
 	}
 	for i := finished; i < finished+workers; i++ {
 		<-started[i]
@@ -67,9 +66,9 @@ func TestLive_PerItemGroupsKeepHeaderAndAttention(t *testing.T) {
 	for i := finished; i < n; i++ {
 		<-started[i]
 		close(release[i])
-		_ = tasks[i].Wait()
+		_ = tasks[i].wait()
 	}
-	_ = items.Wait()
+	_ = items.wait()
 	if got, want := screen.LatestLiveText(), fmt.Sprintf("✓ items\n   …  %d not shown", n); got != want {
 		t.Errorf("finished frame:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -91,15 +90,15 @@ func spinnerOf(frame, row string) string {
 // recurses correctly; this golden proves the rendered indentation does too.
 func TestNestedGroups_ThreeLevelPlainByteShape(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	t.Cleanup(func() { _ = out.close() })
 
 	root := out.Sequence("release")
 	python := root.Sequence("python")
 	venv := python.Sequence("venv")
 	succeed(venv.Task("install"))
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	want := "✓ release\n" +
@@ -116,8 +115,8 @@ func TestNestedGroups_ThreeLevelPlainByteShape(t *testing.T) {
 // indents its children 3 spaces deeper while Running.
 func TestNestedGroups_ThreeLevelLiveByteShape(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	root := out.Sequence("release")
 	python := root.Sequence("python")
@@ -127,7 +126,7 @@ func TestNestedGroups_ThreeLevelLiveByteShape(t *testing.T) {
 
 	frame := screen.LatestLiveText()
 	lines := strings.Split(frame, "\n")
-	var indentOf = func(line string) int {
+	indentOf := func(line string) int {
 		return len(line) - len(strings.TrimLeft(line, " "))
 	}
 	var releaseIndent, pythonIndent, venvIndent, installIndent int
@@ -157,5 +156,5 @@ func TestNestedGroups_ThreeLevelLiveByteShape(t *testing.T) {
 	}
 
 	succeed(install)
-	_ = out.Finish()
+	_ = out.finish()
 }

@@ -1,12 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"context"
 	"io"
 	"testing"
 	"time"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 const (
@@ -18,18 +16,18 @@ const (
 // withBusyCallbackAndSettledProducer runs body from the test goroutine while
 // one Task's callback is running, idle goroutines are alive in the process,
 // and producer is settled with 7. It returns how long body took.
-func withBusyCallbackAndSettledProducer(t *testing.T, body func(producer *evo.Computed[int])) time.Duration {
+func withBusyCallbackAndSettledProducer(t *testing.T, body func(producer *Computed[int])) time.Duration {
 	t.Helper()
 	stop := make(chan struct{})
 	defer close(stop)
 	for range getCostIdleGoroutines {
 		go func() { <-stop }()
 	}
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true})
-	defer func() { _ = out.Close() }()
+	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true})
+	defer func() { _ = out.close() }()
 	made := out.Task("make")
-	producer := evo.Compute(made, func(context.Context) (int, error) { return 7, nil })
-	if err := made.Wait(); err != nil {
+	producer := Compute(made, func(context.Context) (int, error) { return 7, nil })
+	if err := made.wait(); err != nil {
 		t.Fatal(err)
 	}
 	started, release := make(chan struct{}), make(chan struct{})
@@ -39,7 +37,7 @@ func withBusyCallbackAndSettledProducer(t *testing.T, body func(producer *evo.Co
 	body(producer)
 	took := time.Since(start)
 	close(release)
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish = %v", err)
 	}
 	return took
@@ -51,7 +49,7 @@ func withBusyCallbackAndSettledProducer(t *testing.T, body func(producer *evo.Co
 // it holds the Output's lock, so a slow Get stalls every row's rendering.
 func TestPlainBodyGetIsCheapWhileACallbackRuns(t *testing.T) {
 	sum := 0
-	took := withBusyCallbackAndSettledProducer(t, func(producer *evo.Computed[int]) {
+	took := withBusyCallbackAndSettledProducer(t, func(producer *Computed[int]) {
 		for range getCostReads {
 			sum += producer.Get()
 		}
@@ -71,7 +69,7 @@ func TestPlainBodyGetIsCheapWhileACallbackRuns(t *testing.T) {
 // must not stop the world to find out who started the goroutine asking.
 func TestFreshGoroutineGetIsCheapWhileACallbackRuns(t *testing.T) {
 	sum := 0
-	took := withBusyCallbackAndSettledProducer(t, func(producer *evo.Computed[int]) {
+	took := withBusyCallbackAndSettledProducer(t, func(producer *Computed[int]) {
 		for range getCostReads {
 			got := make(chan int)
 			go func() { got <- producer.Get() }()

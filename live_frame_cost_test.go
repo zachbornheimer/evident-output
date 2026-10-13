@@ -11,16 +11,16 @@ import (
 
 // liveFrameOutput is an interactive Output over n Tasks under one Group,
 // half finished and half queued: the state a spinner tick repaints.
-func liveFrameOutput(tb testing.TB, n int) (*Output, time.Time) {
+func liveFrameOutput(tb testing.TB, n int) (*Run, time.Time) {
 	tb.Helper()
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := newOutput("job", withTerminal(&countingLiveSurface{}), visibilityDelay(0), withClock(clock), withNoColor(), maxConcurrency(1))
-	tb.Cleanup(func() { _ = out.Close() })
+	tb.Cleanup(func() { _ = out.close() })
 	g := out.Group("items")
 	for i := range n / 2 {
 		g.Task(fmt.Sprintf("done %d", i)).Define(func(context.Context) error { return nil })
 	}
-	if err := g.Wait(); err != nil {
+	if err := g.wait(); err != nil {
 		tb.Fatalf("Wait: %v", err)
 	}
 	for i := range n / 2 {
@@ -31,13 +31,13 @@ func liveFrameOutput(tb testing.TB, n int) (*Output, time.Time) {
 
 // liveFrameFull is one spinner-tick frame: the snapshot under o.mu and the
 // text render after it, as the animator builds it.
-func liveFrameFull(out *Output, now time.Time) string {
+func liveFrameFull(out *Run, now time.Time) string {
 	return out.renderLiveRegionWithDebugLocked(80, 24, now)
 }
 
 // renderLiveRegionWithDebugLocked builds one frame the way the animator does.
 // o.mu is held.
-func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Time) string {
+func (o *Run) renderLiveRegionWithDebugLocked(width, height int, now time.Time) string {
 	return o.liveFrameAtLocked(width, height, now).render()
 }
 

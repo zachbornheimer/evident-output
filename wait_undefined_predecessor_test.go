@@ -28,10 +28,10 @@ func waitWithin(t *testing.T, what string, wait func() error) error {
 	}
 }
 
-func isolatedOutput(t *testing.T) *Output {
+func isolatedOutput(t *testing.T) *Run {
 	t.Helper()
-	out := Init(Config{Isolated: true, StateDir: t.TempDir(), Stdout: io.Discard, Stderr: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stateDir: t.TempDir(), stdout: io.Discard, stderr: io.Discard})
+	t.Cleanup(func() { _ = out.close() })
 	return out
 }
 
@@ -43,7 +43,7 @@ func TestWaitAfterUndefinedPredecessorReportsNotStarted(t *testing.T) {
 	out := isolatedOutput(t)
 	a := out.Task("a")
 	b := out.Task("b").After(a).Define(noop)
-	if err := waitWithin(t, "b.Wait", b.Wait); !errors.Is(err, ErrNotStarted) {
+	if err := waitWithin(t, "b.Wait", b.wait); !errors.Is(err, errNotStarted) {
 		t.Fatalf("b.Wait = %v, want ErrNotStarted", err)
 	}
 }
@@ -54,7 +54,7 @@ func TestGroupWaitAfterUndefinedSiblingReportsNotStarted(t *testing.T) {
 	g := out.Group("g")
 	x := g.Task("x")
 	g.Task("y").After(x).Define(noop)
-	if err := waitWithin(t, "g.Wait", g.Wait); !errors.Is(err, ErrNotStarted) {
+	if err := waitWithin(t, "g.Wait", g.wait); !errors.Is(err, errNotStarted) {
 		t.Fatalf("g.Wait = %v, want ErrNotStarted", err)
 	}
 }
@@ -65,7 +65,7 @@ func TestWaitAfterGroupWithUndefinedMemberReportsNotStarted(t *testing.T) {
 	g := out.Group("g")
 	g.Task("member")
 	b := out.Task("b").After(g).Define(noop)
-	if err := waitWithin(t, "b.Wait", b.Wait); !errors.Is(err, ErrNotStarted) {
+	if err := waitWithin(t, "b.Wait", b.wait); !errors.Is(err, errNotStarted) {
 		t.Fatalf("b.Wait = %v, want ErrNotStarted", err)
 	}
 }
@@ -76,8 +76,8 @@ func TestSelfWaitDeadlockReleasesDespiteUnrelatedUndefinedTask(t *testing.T) {
 	out := isolatedOutput(t)
 	out.Task("later row")
 	a := out.Task("a")
-	a.Define(func(context.Context) error { return a.Wait() })
-	if err := waitWithin(t, "a.Wait", a.Wait); !errors.Is(err, ErrWaitDeadlock) {
+	a.Define(func(context.Context) error { return a.wait() })
+	if err := waitWithin(t, "a.Wait", a.wait); !errors.Is(err, errWaitDeadlock) {
 		t.Fatalf("a.Wait = %v, want ErrWaitDeadlock", err)
 	}
 }
@@ -88,7 +88,7 @@ func TestWaitOnUndefinedAfterCycleReturns(t *testing.T) {
 	a, b := out.Task("a"), out.Task("b")
 	a.After(b)
 	b.After(a)
-	if err := waitWithin(t, "a.Wait", a.Wait); !errors.Is(err, ErrNotStarted) {
+	if err := waitWithin(t, "a.Wait", a.wait); !errors.Is(err, errNotStarted) {
 		t.Fatalf("a.Wait = %v, want ErrNotStarted", err)
 	}
 }
@@ -101,7 +101,7 @@ func TestWaitThroughUndefinedAfterCycleReturns(t *testing.T) {
 	a.After(b)
 	b.After(a)
 	c := out.Task("c").After(a).Define(noop)
-	if err := waitWithin(t, "c.Wait", c.Wait); !errors.Is(err, ErrNotStarted) {
+	if err := waitWithin(t, "c.Wait", c.wait); !errors.Is(err, errNotStarted) {
 		t.Fatalf("c.Wait = %v, want ErrNotStarted", err)
 	}
 }
@@ -112,15 +112,15 @@ func TestWaitThroughUndefinedDiamondIsBounded(t *testing.T) {
 	const levels = 30
 	out := isolatedOutput(t)
 	top := out.Task("top")
-	prev := []*TaskHandle{top}
+	prev := []*Task{top}
 	for i := range levels {
 		l, r := out.Task(fmt.Sprintf("l%d", i)), out.Task(fmt.Sprintf("r%d", i))
 		l.After(prev[0], prev[len(prev)-1])
 		r.After(prev[0], prev[len(prev)-1])
-		prev = []*TaskHandle{l, r}
+		prev = []*Task{l, r}
 	}
 	bottom := out.Task("bottom").After(prev[0], prev[1]).Define(noop)
-	if err := waitWithin(t, "bottom.Wait", bottom.Wait); !errors.Is(err, ErrNotStarted) {
+	if err := waitWithin(t, "bottom.Wait", bottom.wait); !errors.Is(err, errNotStarted) {
 		t.Fatalf("bottom.Wait = %v, want ErrNotStarted", err)
 	}
 }

@@ -15,9 +15,9 @@ import (
 // and the cancelled run still owes the reader those 2 changed refs.
 func TestPartialEffect_InterruptAfterPartialCommitKeepsTheCommittedSubset(t *testing.T) {
 	var buf strings.Builder
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever,
-		MaxConcurrency: 1, Stdout: &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever,
+		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
 	})
 	interrupt := sendOneSignal(t)
 
@@ -25,10 +25,10 @@ func TestPartialEffect_InterruptAfterPartialCommitKeepsTheCommittedSubset(t *tes
 	var effectErr error
 	code := make(chan int, 1)
 	go func() {
-		code <- out.Run(context.Background(), func(ctx context.Context) error {
+		code <- out.run(context.Background(), func(ctx context.Context) error {
 			task := out.Task("refs")
 			task.Define(func(ctx context.Context) error {
-				spec := EffectSpec{Verb: EffectDelete, Object: "remote ref", Quantity: 3}
+				spec := EffectSpec{Verb: Delete, Object: "remote ref", Quantity: 3}
 				effectErr = Effect(ctx, spec, func(ctx context.Context) error {
 					close(committedTwo) // refs 1 and 2 are gone
 					<-ctx.Done()
@@ -36,7 +36,7 @@ func TestPartialEffect_InterruptAfterPartialCommitKeepsTheCommittedSubset(t *tes
 				})
 				return effectErr
 			})
-			return task.Wait()
+			return task.wait()
 		}).ExitCode()
 	}()
 
@@ -49,13 +49,13 @@ func TestPartialEffect_InterruptAfterPartialCommitKeepsTheCommittedSubset(t *tes
 	case <-time.After(interruptBudget):
 		t.Fatalf("interrupt did not stop the run; output so far:\n%s", buf.String())
 	}
-	if got != ExitCancelled {
-		t.Fatalf("exit %d, want %d (ExitCancelled); output:\n%s", got, ExitCancelled, buf.String())
+	if got != exitCancelled {
+		t.Fatalf("exit %d, want %d (ExitCancelled); output:\n%s", got, exitCancelled, buf.String())
 	}
 	if !errors.Is(effectErr, context.Canceled) {
 		t.Fatalf("Effect err = %v, want context.Canceled kept reachable", effectErr)
 	}
-	changes := out.Snapshot().Changes
+	changes := out.snapshot().Changes
 	if len(changes) != 1 || len(changes[0].Records) != 1 || changes[0].Records[0].Quantity != 2 {
 		t.Fatalf("changes = %+v, want one changed record with quantity 2", changes)
 	}

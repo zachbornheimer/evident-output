@@ -17,24 +17,24 @@ func assertFrame(t *testing.T, got, want string) {
 }
 
 func TestLedgerFoldFrameZqShapeApply(t *testing.T) {
-	got, _ := runPlain(t, Config{}, func(o *Output) {
-		declareCentralize(o, 2, func(string, int) func(context.Context) error { return centralizeEffect(EffectUpdate, "package") })
+	got, _ := runPlain(t, Config{}, func(o *Run) {
+		declareCentralize(o, 2, func(string, int) func(context.Context) error { return centralizeEffect(effectUpdate, "package") })
 	})
 	assertFrame(t, got, "✓ npm pkg 0\n✓ npm pkg 1\n✓ composer pkg 0\n✓ composer pkg 1\n\n[changed] centralize packages  updated 4 packages\n\n[changed]\n")
 }
 
 func TestLedgerFoldFrameZqShapeDryRun(t *testing.T) {
-	got, _ := runPlain(t, Config{DryRun: true}, func(o *Output) {
-		declareCentralize(o, 2, func(string, int) func(context.Context) error { return centralizeEffect(EffectUpdate, "package") })
+	got, _ := runPlain(t, Config{DryRun: true}, func(o *Run) {
+		declareCentralize(o, 2, func(string, int) func(context.Context) error { return centralizeEffect(effectUpdate, "package") })
 	})
 	assertFrame(t, got, "[dry-run] no changes will be made\n\n✓ npm pkg 0\n✓ npm pkg 1\n✓ composer pkg 0\n✓ composer pkg 1\n\n[planned] centralize packages  update 4 packages\n\n[planned]\n")
 }
 
 func TestLedgerFoldFrameSequence(t *testing.T) {
-	got, _ := runPlain(t, Config{}, func(o *Output) {
+	got, _ := runPlain(t, Config{}, func(o *Run) {
 		s := o.Sequence("steps")
 		for _, name := range []string{"a", "b"} {
-			s.Task(name).Define(centralizeEffect(EffectDelete, "cache"))
+			s.Task(name).Define(centralizeEffect(effectDelete, "cache"))
 		}
 	})
 	assertFrame(t, got, "✓ steps\n   ✓ a\n   ✓ b\n\n[changed] steps  deleted 2 caches\n\n[changed]\n")
@@ -44,11 +44,11 @@ func TestLedgerFoldFrameSequence(t *testing.T) {
 // reports PartialEffect counts its committed part (1 of 2), while it still
 // shows as a Failed Task row.
 func TestLedgerFoldCountsCommittedPartOfPartialEffect(t *testing.T) {
-	got, _ := runPlain(t, Config{}, func(o *Output) {
+	got, _ := runPlain(t, Config{}, func(o *Run) {
 		g := o.Group("npm")
 		for i := range 3 {
 			g.Task(string(rune('a' + i))).Define(func(ctx context.Context) error {
-				return Effect(ctx, EffectSpec{Verb: EffectUpdate, Object: "package", Quantity: 2}, func(context.Context) error {
+				return Effect(ctx, EffectSpec{Verb: Update, Object: "package", Quantity: 2}, func(context.Context) error {
 					if i == 1 {
 						return PartialEffect(1, context.DeadlineExceeded)
 					}
@@ -62,12 +62,12 @@ func TestLedgerFoldCountsCommittedPartOfPartialEffect(t *testing.T) {
 
 // Probe A: one different sibling must not stop the rest folding.
 func TestLedgerFoldMixedContainerFoldsItsLikeChildren(t *testing.T) {
-	got, _ := runPlain(t, Config{}, func(o *Output) {
+	got, _ := runPlain(t, Config{}, func(o *Run) {
 		g := o.Group("npm")
 		for i := range 5 {
-			g.Task(fmt.Sprintf("pkg %d", i)).Define(effectOf(EffectUpdate, "package", 1))
+			g.Task(fmt.Sprintf("pkg %d", i)).Define(effectOf(Update, "package", 1))
 		}
-		g.Task("lock").Define(effectOf(EffectDelete, "lockfile", 1))
+		g.Task("lock").Define(effectOf(Delete, "lockfile", 1))
 	})
 	want := "[changed] npm   updated 5 packages\n[changed] lock  deleted 1 lockfile\n"
 	if !strings.Contains(got, want) {
@@ -77,12 +77,12 @@ func TestLedgerFoldMixedContainerFoldsItsLikeChildren(t *testing.T) {
 
 // Probe C: a wrapper whose categories all do the same thing is one row.
 func TestLedgerFoldLiftsToHighestUniformContainer(t *testing.T) {
-	got, _ := runPlain(t, Config{}, func(o *Output) {
+	got, _ := runPlain(t, Config{}, func(o *Run) {
 		w := o.Group("clean")
 		for _, category := range []string{"local branches", "remote branches"} {
 			g := w.Group(category)
 			for i := range 3 {
-				g.Task(fmt.Sprintf("%s %d", category, i)).Define(effectOf(EffectDelete, "branch", 1))
+				g.Task(fmt.Sprintf("%s %d", category, i)).Define(effectOf(Delete, "branch", 1))
 			}
 		}
 	})
@@ -93,13 +93,13 @@ func TestLedgerFoldLiftsToHighestUniformContainer(t *testing.T) {
 
 // Probe B: two folded rows sharing a container name are told apart.
 func TestLedgerFoldQualifiesDuplicateContainerSubjects(t *testing.T) {
-	got, _ := runPlain(t, Config{}, func(o *Output) {
+	got, _ := runPlain(t, Config{}, func(o *Run) {
 		for _, repo := range []string{"alpha", "beta"} {
 			r := o.Group(repo)
-			r.Task(repo).Define(effectOf(EffectDelete, "worktree", 1))
+			r.Task(repo).Define(effectOf(Delete, "worktree", 1))
 			b := r.Group("branches")
 			for i := range 3 {
-				b.Task(fmt.Sprintf("%s b%d", repo, i)).Define(effectOf(EffectDelete, "branch", 1))
+				b.Task(fmt.Sprintf("%s b%d", repo, i)).Define(effectOf(Delete, "branch", 1))
 			}
 		}
 	})
@@ -116,11 +116,11 @@ func TestLedgerFoldQualifiesDuplicateContainerSubjects(t *testing.T) {
 // (the Task named for its Group) and the folded row of its mixed items read
 // as one category: same subject, not "branches" beside "clean › branches".
 func TestLedgerFoldOwnTaskAndItemsShareOneSubject(t *testing.T) {
-	got, _ := runPlain(t, Config{}, func(o *Output) {
+	got, _ := runPlain(t, Config{}, func(o *Run) {
 		g := o.Group("clean").Group("branches")
-		g.Task("branches").Define(effectOf(EffectDelete, "worktree", 1))
+		g.Task("branches").Define(effectOf(Delete, "worktree", 1))
 		for i := range 3 {
-			g.Task(fmt.Sprintf("b%d", i)).Define(effectOf(EffectDelete, "branch", 1))
+			g.Task(fmt.Sprintf("b%d", i)).Define(effectOf(Delete, "branch", 1))
 		}
 	})
 	assertFrame(t, got, "✓ branches\n✓ b0\n✓ b1\n✓ b2\n\n"+

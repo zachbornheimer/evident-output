@@ -17,7 +17,7 @@ import (
 
 // Finish validates, computes conclusion, emits final projections.
 // Projection I/O runs outside the domain lock (§17.1).
-func (o *Output) Finish() error {
+func (o *Run) finish() error {
 	o.drainScheduler()
 	o.saveManifest()
 	o.mu.Lock()
@@ -40,11 +40,11 @@ func (o *Output) Finish() error {
 	snap := o.concludeLocked()
 	o.finished = true
 	o.finishing = false
-	misuse := o.runErrorLocked(*snap.Conclusion)
+	misuse := o.runErrorLocked(asEvoConclusion(*snap.Conclusion))
 
 	if o.cfg.projection.suppressesHuman() {
-		var events []Event
-		if o.cfg.projection == ProjectionJSONL {
+		var events []recEvent
+		if o.cfg.projection == projectionJSONL {
 			events = o.rec.Events(o.cfg.maxEvents)
 		}
 		writer, projection := o.cfg.primary, o.cfg.projection
@@ -73,14 +73,14 @@ func (o *Output) Finish() error {
 // a silent exit-code flip (beginner-1, I1; beginner-gate-2 findings 1/2/4).
 // Anything else still reads as misuse, but now names the task so Finish
 // can render it.
-func (o *Output) settleUnresolvedTasksLocked() {
+func (o *Run) settleUnresolvedTasksLocked() {
 	abnormal := o.abnormalFinishLocked()
 	for _, t := range o.tasks {
 		if record.IsTerminalTask(t.node.Rec.State()) {
 			continue
 		}
 		if t.node.Rec.ProblemCount() > 0 || o.hasRecordedEffectLocked(t.id) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || t.node.Rec.WarningCount() > 0 {
-			o.settleLocked(t, Done)
+			o.settleLocked(t, done)
 			continue
 		}
 		if !abnormal {
@@ -96,20 +96,20 @@ func (o *Output) settleUnresolvedTasksLocked() {
 			// into Conclusion.Partial), not bookkeeping the caller must fix.
 			// The hint still names the corrective action either way.
 			t.node.Rec.SetSummary(unresolvedTaskIncompleteSummary)
-			o.settleLocked(t, Incomplete)
+			o.settleLocked(t, incomplete)
 			attachUnresolvedTaskHintLocked(t)
 			continue
 		}
 		o.resolveUnstartedTaskLocked(t)
 		// A declared task that never started is work the failure or
 		// interrupt took away. That is the answer, not misuse.
-		if t.node.Rec.State() == NotStarted {
+		if t.node.Rec.State() == notStarted {
 			continue
 		}
-		o.recordMisuseFor(t.name, ErrUnresolvedTask)
+		o.recordMisuseFor(t.name, errUnresolvedTask)
 		attachUnresolvedTaskHintLocked(t)
 	}
-	if misuse := o.firstMisuse(); misuse != nil && !errors.Is(misuse, ErrUnresolvedTask) {
+	if misuse := o.firstMisuse(); misuse != nil && !errors.Is(misuse, errUnresolvedTask) {
 		o.appendMisuseLineLocked()
 	}
 }
@@ -117,7 +117,7 @@ func (o *Output) settleUnresolvedTasksLocked() {
 // concludeLocked infers the run's Conclusion from the settled snapshot,
 // records it, and journals and emits the run's end. It returns the
 // snapshot carrying that Conclusion.
-func (o *Output) concludeLocked() Snapshot {
+func (o *Run) concludeLocked() snapshot {
 	snap := o.snapshotLocked()
 	conc := record.InferConclusion(snap)
 	o.explainCancellationLocked(&conc)
@@ -128,7 +128,7 @@ func (o *Output) concludeLocked() Snapshot {
 	conc.FinishedAt = o.cfg.clock.Now()
 	o.rec.RecordConclusion(conc)
 	snap.Conclusion = &conc
-	o.appendEventLocked(Event{
+	o.appendEventLocked(recEvent{
 		Type:  "output.finished",
 		State: string(conc.State),
 	})
@@ -149,9 +149,9 @@ func (o *Output) concludeLocked() Snapshot {
 // "stderr: human live/plain presentation ... never mixed into stdout"). A
 // write failure there, or a mid-run "evo.event" JSONL write failure (spec
 // §32.2), is a real Run failure; earlier lines stay valid.
-func (o *Output) runErrorLocked(conc Conclusion) error {
+func (o *Run) runErrorLocked(conc Conclusion) error {
 	misuse := o.firstMisuse()
-	if o.cfg.wireFormat == FormatJSON {
+	if o.cfg.wireFormat == formatJSON {
 		misuse = joinErrors(misuse, writeWireRunLocked(o.cfg.wireStream, conc))
 	}
 	return joinErrors(misuse, o.wireEventErr)
@@ -162,7 +162,7 @@ func (o *Output) runErrorLocked(conc Conclusion) error {
 // also paints the final live frame, and reports that it did. Text held back
 // behind a Suspend window still open at Finish prints first: no window close
 // will ever flush it.
-func (o *Output) finishHumanLocked(snap Snapshot) (residual string, interactive bool) {
+func (o *Run) finishHumanLocked(snap snapshot) (residual string, interactive bool) {
 	o.flushHeldTextLocked()
 	// Captured before residualPlainLocked drains o.linesEmitted for its own
 	// copy, so residualInteractiveFinalLocked's copy (below) sees the same
@@ -199,7 +199,7 @@ func writeResidual(cfg config, residual string, interactive bool) error {
 	var writeErr error
 	for _, w := range writers {
 		if _, err := io.WriteString(w, residual); err != nil && writeErr == nil {
-			writeErr = fmt.Errorf("%w: %v", ErrRenderer, err)
+			writeErr = fmt.Errorf("%w: %v", errRenderer, err)
 		}
 		if f, ok := w.(flusher); ok {
 			_ = f.Flush()
@@ -227,7 +227,7 @@ func joinErrors(a, b error) error {
 // BytesKind): a task that never called Progress/Bytes/Step carries the zero
 // value (Total 0, Kind "") and must not read as sealed.
 func hasSealedProgress(t *taskState) bool {
-	if t.node.Rec.Progress().Kind == "" || t.node.Rec.Progress().Kind == Indeterminate {
+	if t.node.Rec.Progress().Kind == "" || t.node.Rec.Progress().Kind == indeterminate {
 		return false
 	}
 	return t.node.Rec.Progress().Total > 0 && t.node.Rec.Progress().Completed >= t.node.Rec.Progress().Total
@@ -252,24 +252,24 @@ func hasRecordedTaxonomy(t *taskState) bool {
 // at all (see Finish's own !abnormal branch, which resolves every
 // non-terminal task to Incomplete directly instead, regardless of whether it
 // ever reached Running — release-gate round 4 finding 3).
-func (o *Output) resolveUnstartedTaskLocked(t *taskState) {
-	if t.node.Rec.State() == Running {
+func (o *Run) resolveUnstartedTaskLocked(t *taskState) {
+	if t.node.Rec.State() == running {
 		t.node.Rec.SetSummary(unresolvedTaskCancelledSummary)
 		o.settleLocked(t, Cancelled)
 		return
 	}
 	t.node.Rec.SetSummary(notStartedSummary)
-	o.settleLocked(t, NotStarted)
+	o.settleLocked(t, notStarted)
 }
 
 // abnormalFinishLocked reports whether the run already carries a real Failed
 // or Cancelled task by the time Finish's unresolved-task sweep runs —
 // evidence that something genuinely interrupted the run (Output.Fail,
-// or a real SIGINT/SIGTERM cancellation via Output.Cancel/TaskHandle.Cancel),
+// or a real SIGINT/SIGTERM cancellation via Output.Cancel/Task.Cancel),
 // not merely a caller who forgot to resolve a task. It gates whether a
 // leftover Running task may still read as Cancelled/130 (release-gate
 // finding 1).
-func (o *Output) abnormalFinishLocked() bool {
+func (o *Run) abnormalFinishLocked() bool {
 	for _, t := range o.tasks {
 		if t.node.Rec.State() == Failed || t.node.Rec.State() == Cancelled {
 			return true
@@ -280,10 +280,10 @@ func (o *Output) abnormalFinishLocked() bool {
 
 // attachUnresolvedTaskHintLocked attaches unresolvedTaskHint to t directly.
 // A Problem cannot carry it: Finish's unresolved-task sweep runs after
-// o.finishing is set, when TaskHandle.Problem refuses new records, and the
+// o.finishing is set, when Task.Problem refuses new records, and the
 // task has no caller-authored diagnostic to own the hint.
 func attachUnresolvedTaskHintLocked(t *taskState) {
-	t.node.Rec.AppendAction(Label(unresolvedTaskHint))
+	t.node.Rec.AppendAction(asRecordAction(label(unresolvedTaskHint)))
 	t.markFiling()
 }
 
@@ -292,7 +292,7 @@ func attachUnresolvedTaskHintLocked(t *taskState) {
 // sibling that has not reached its own terminal state becomes NotStarted.
 // A sibling the caller already resolved (explicitly or by an earlier trigger)
 // is left untouched — explicit resolution always wins.
-func (o *Output) autoResolveGroupsLocked() {
+func (o *Run) autoResolveGroupsLocked() {
 	for _, col := range o.collections {
 		if !col.node.Sequential {
 			continue
@@ -309,7 +309,7 @@ func (o *Output) autoResolveGroupsLocked() {
 				continue
 			}
 			t.node.Rec.SetSummary(notStartedSummary)
-			o.settleLocked(t, NotStarted)
+			o.settleLocked(t, notStarted)
 		}
 	}
 }
@@ -353,30 +353,30 @@ const unresolvedTaskHint = "call Define, Fail, Block, or Skipped on this task"
 
 // rejectedTask is the handle a refused Task declaration returns. err is
 // the refusal and is never nil.
-func (o *Output) rejectedTask(err error) *TaskHandle {
-	return &TaskHandle{out: o, id: o.graph.NextID("task"), rejected: err}
+func (o *Run) rejectedTask(err error) *Task {
+	return &Task{out: o, id: o.graph.NextID("task"), rejected: err}
 }
 
 // rejectedGroup is rejectedTask's counterpart for a refused Group or
 // Sequence. Everything declared under it is refused for the same reason.
-func (o *Output) rejectedGroup(err error) *GroupHandle {
-	return &GroupHandle{out: o, id: o.graph.NextID("tasks"), rejected: err}
+func (o *Run) rejectedGroup(err error) *Group {
+	return &Group{out: o, id: o.graph.NextID("tasks"), rejected: err}
 }
 
 // rejectedWaitOutcome is what Wait returns on a refused declaration: the
 // work never started, and why.
 func rejectedWaitOutcome(rejected error) error {
-	return fmt.Errorf("%w: %w", ErrNotStarted, rejected)
+	return fmt.Errorf("%w: %w", errNotStarted, rejected)
 }
 
 // --- folded from run_outcome.go ---
 
 // Fail records an output-level failure.
-func (o *Output) Fail(summary string, options ...ProblemOption) {
+func (o *Run) fail(summary string, options ...ProblemOption) {
 	o.failWith(record.ApplyProblemOptions(txt.Text(summary), options))
 }
 
-func (o *Output) failWith(p Problem) {
+func (o *Run) failWith(p problem) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
@@ -388,13 +388,13 @@ func (o *Output) failWith(p Problem) {
 	if name == "" {
 		name = identityFallbackName()
 	}
-	o.appendSyntheticTaskLocked(name, record.TaskInit{State: Failed, Problems: []Problem{p}})
+	o.appendSyntheticTaskLocked(name, record.TaskInit{State: Failed, Problems: []problem{p}})
 	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "output.failed"})
+	o.appendEventLocked(recEvent{Type: "output.failed"})
 }
 
 // Cancel records output-level cancellation via a synthetic cancelled task.
-func (o *Output) Cancel(reason string) {
+func (o *Run) cancel(reason string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
@@ -407,12 +407,12 @@ func (o *Output) Cancel(reason string) {
 	}
 	o.appendSyntheticTaskLocked(name, record.TaskInit{State: Cancelled, Summary: txt.Text(reason)})
 	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "output.cancelled"})
+	o.appendEventLocked(recEvent{Type: "output.cancelled"})
 }
 
 // appendSyntheticTaskLocked adds the Task the library invents to carry an
 // output-level outcome: one the caller never declared, already settled.
-func (o *Output) appendSyntheticTaskLocked(name string, init record.TaskInit) {
+func (o *Run) appendSyntheticTaskLocked(name string, init record.TaskInit) {
 	node := o.graph.AddTerminalTask(name, init)
 	o.appendTaskLocked(&taskState{
 		id:        node.ID,
@@ -427,7 +427,7 @@ func (o *Output) appendSyntheticTaskLocked(name string, init record.TaskInit) {
 // settleLocked is the one way a Task reaches a terminal state: it hands the
 // Task to the graph (see graph.Graph.Settle), which owns the scheduling
 // bookkeeping a terminal transition owes. What the render state owes it (the
-// snapshot version, the task.<state> event, the live census and filing, the
+// snapshot version, the task.<state> recEvent, the live census and filing, the
 // plain heartbeat) is the engine listener's job: it hears the transition
 // once the lock is free (see outputListener).
 //
@@ -437,7 +437,35 @@ func (o *Output) appendSyntheticTaskLocked(name string, init record.TaskInit) {
 //
 // Callers own only what differs between paths: the summary, the Problems,
 // and where the settled row is committed. Callers must already hold o.mu.
-func (o *Output) settleLocked(st *taskState, state EntityState) {
+func (o *Run) settleLocked(st *taskState, state entityState) {
 	o.graph.Settle(st.node, state)
 	o.followRecordLocked()
+}
+
+type Outcome string
+
+const (
+	Succeeded Outcome = "succeeded"
+	Satisfied Outcome = "satisfied"
+	Excluded  Outcome = "excluded"
+	Refused   Outcome = "refused"
+)
+
+type endingError struct {
+	outcome Outcome
+	summary string
+}
+
+func (e endingError) Error() string { return e.summary }
+
+func Fail(summary string, opts ...ProblemOption) error {
+	return endingError{outcome: Outcome(Failed), summary: summary}
+}
+
+func Refuse(summary string, opts ...ProblemOption) error {
+	return endingError{outcome: Refused, summary: summary}
+}
+
+func Exclude(reason string) error {
+	return endingError{outcome: Excluded, summary: reason}
 }

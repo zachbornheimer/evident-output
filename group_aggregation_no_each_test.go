@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"fmt"
@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -29,18 +28,18 @@ func TestGroup_LargePlainGroupAggregatesWithoutEach(t *testing.T) {
 		testkit.Height(20),
 		testkit.NoColor(),
 	)
-	out := evo.Init(evo.Config{
-		Stdout: io.Discard, Stderr: io.Discard, Isolated: true,
-		Terminal: screen, VisibilityDelay: evo.DelayForTest(0),
+	out := initRun(Config{
+		stdout: io.Discard, stderr: io.Discard, isolated: true,
+		terminal: screen, visibilityDelay: DelayForTest(0),
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	packages := out.Group("packages")
 	for n := range 100 {
 		task := packages.Task(fmt.Sprintf("package-%03d", n))
 		switch n {
 		case 7:
-			task.Fail("checksum mismatch")
+			task.fail("checksum mismatch")
 		case 42:
 			task.Doing("downloading")
 		default:
@@ -77,11 +76,11 @@ func TestGroup_SmallGroupStillShowsEveryChild(t *testing.T) {
 		testkit.Height(20),
 		testkit.NoColor(),
 	)
-	out := evo.Init(evo.Config{
-		Stdout: io.Discard, Stderr: io.Discard, Isolated: true,
-		Terminal: screen, VisibilityDelay: evo.DelayForTest(0),
+	out := initRun(Config{
+		stdout: io.Discard, stderr: io.Discard, isolated: true,
+		terminal: screen, visibilityDelay: DelayForTest(0),
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	agent := out.Group("launch agent")
 	succeed(agent.Task("write plist"))

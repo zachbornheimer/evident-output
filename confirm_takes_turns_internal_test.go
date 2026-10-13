@@ -22,7 +22,7 @@ func TestSlice36_ASecondConfirmWaitsForTheFirstWindowToClose(t *testing.T) {
 	t.Cleanup(func() { _ = answers.Close(); _ = typed.Close() })
 	surface := &durableRecorder{}
 	out := newOutput("job", to(&bytes.Buffer{}), withTerminal(surface), visibilityDelay(0), withNoColor(), stdin(answers))
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	first, second := make(chan bool, 1), make(chan bool, 1)
 	go func() { first <- out.Confirm("first?") }()

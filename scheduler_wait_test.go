@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -9,8 +9,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestWait_NotStartedDependencyIsAnError pins the honesty of Wait's return
@@ -36,24 +34,24 @@ func TestWait_NotStartedDependencyIsAnError(t *testing.T) {
 	var waitErr error
 	waiter := out.Task("waiter")
 	waiter.Define(func(ctx context.Context) error {
-		waitErr = blocked.Wait()
+		waitErr = blocked.wait()
 		return waitErr
 	})
 
 	withinBudget(t, "Finish with a waiter on a task that never starts", func() {
-		_ = out.Finish()
+		_ = out.finish()
 	})
 
 	if blockedRan.Load() {
 		t.Fatal("the blocked task ran even though its predecessor failed")
 	}
-	if got := blocked.Snapshot().State; got != evo.NotStarted {
+	if got := blocked.snapshot().State; got != notStarted {
 		t.Fatalf("blocked state = %v, want NotStarted", got)
 	}
-	if !errors.Is(waitErr, evo.ErrNotStarted) {
+	if !errors.Is(waitErr, errNotStarted) {
 		t.Fatalf("Wait = %v, want ErrNotStarted", waitErr)
 	}
-	if got := waiter.Snapshot().State; got != evo.Failed {
+	if got := waiter.snapshot().State; got != Failed {
 		t.Fatalf("waiter state = %v, want Failed: it awaited work that never ran", got)
 	}
 	if rendered := buf.String(); !strings.Contains(rendered, "✗ waiter") {
@@ -81,7 +79,7 @@ func TestWait_ReleasesSlotWhileBlocked(t *testing.T) {
 	waiter.Define(func(ctx context.Context) error {
 		close(waiterHoldsTheSlot)
 		<-chainQueued
-		waitErr = locked.Wait()
+		waitErr = locked.wait()
 		return waitErr
 	})
 
@@ -91,7 +89,7 @@ func TestWait_ReleasesSlotWhileBlocked(t *testing.T) {
 	close(chainQueued)
 
 	withinBudget(t, "Finish at MaxConcurrency 1 with a blocked waiter", func() {
-		if err := out.Finish(); err != nil {
+		if err := out.finish(); err != nil {
 			t.Errorf("Finish: %v", err)
 		}
 	})
@@ -99,14 +97,14 @@ func TestWait_ReleasesSlotWhileBlocked(t *testing.T) {
 	if waitErr != nil {
 		t.Fatalf("Wait = %v, want nil", waitErr)
 	}
-	for name, task := range map[string]*evo.TaskHandle{
+	for name, task := range map[string]*Task{
 		"unlock": unlock, "locked": locked, "waiter": waiter,
 	} {
-		if got := task.Snapshot().State; got != evo.Done {
+		if got := task.snapshot().State; got != done {
 			t.Fatalf("%s state = %v, want Done", name, got)
 		}
 	}
-	if got := out.SchedulerMaxObserved(); got != 1 {
+	if got := out.schedulerMaxObserved(); got != 1 {
 		t.Fatalf("scheduler max observed = %d, want 1: a waiter must not raise the ceiling", got)
 	}
 }
@@ -124,22 +122,22 @@ func TestWait_OnSelfIsMisuse(t *testing.T) {
 	task := out.Task("mirror")
 	withinBudget(t, "a callback waiting on its own task", func() {
 		task.Define(func(ctx context.Context) error {
-			waitErr = task.Wait()
+			waitErr = task.wait()
 			return waitErr
 		})
-		_ = out.Finish()
+		_ = out.finish()
 	})
 
-	if !errors.Is(waitErr, evo.ErrWaitDeadlock) {
+	if !errors.Is(waitErr, errWaitDeadlock) {
 		t.Fatalf("Wait = %v, want ErrWaitDeadlock", waitErr)
 	}
 	if !strings.Contains(waitErr.Error(), "mirror") {
 		t.Fatalf("Wait = %q, want it to name the awaited task", waitErr)
 	}
-	if got := task.Snapshot().State; got != evo.Failed {
+	if got := task.snapshot().State; got != Failed {
 		t.Fatalf("task state = %v, want Failed", got)
 	}
-	if err := out.Err(); !errors.Is(err, evo.ErrWaitDeadlock) {
+	if err := out.err(); !errors.Is(err, errWaitDeadlock) {
 		t.Fatalf("misuse = %v, want ErrWaitDeadlock recorded", err)
 	}
 	if rendered := buf.String(); !strings.Contains(rendered, "✗ mirror") {
@@ -163,27 +161,27 @@ func TestWait_MutualCycleIsMisuse(t *testing.T) {
 	var firstErr, secondErr error
 	first.Define(func(ctx context.Context) error {
 		<-bothQueued
-		firstErr = second.Wait()
+		firstErr = second.wait()
 		return firstErr
 	})
 	second.Define(func(ctx context.Context) error {
 		<-bothQueued
-		secondErr = first.Wait()
+		secondErr = first.wait()
 		return secondErr
 	})
 	close(bothQueued)
 
 	withinBudget(t, "two callbacks waiting on each other", func() {
-		_ = out.Finish()
+		_ = out.finish()
 	})
 
 	for name, err := range map[string]error{"first": firstErr, "second": secondErr} {
-		if !errors.Is(err, evo.ErrWaitDeadlock) {
+		if !errors.Is(err, errWaitDeadlock) {
 			t.Fatalf("%s Wait = %v, want ErrWaitDeadlock", name, err)
 		}
 	}
-	for name, task := range map[string]*evo.TaskHandle{"first": first, "second": second} {
-		if got := task.Snapshot().State; got != evo.Failed {
+	for name, task := range map[string]*Task{"first": first, "second": second} {
+		if got := task.snapshot().State; got != Failed {
 			t.Fatalf("%s state = %v, want Failed", name, got)
 		}
 	}
@@ -210,7 +208,7 @@ func TestWait_FromOutsideAnyCallbackStillBlocks(t *testing.T) {
 
 	<-running
 	waited := make(chan error, 1)
-	go func() { waited <- task.Wait() }()
+	go func() { waited <- task.wait() }()
 
 	select {
 	case err := <-waited:
@@ -222,7 +220,7 @@ func TestWait_FromOutsideAnyCallbackStillBlocks(t *testing.T) {
 	var waitErr error
 	withinBudget(t, "Wait on a running task from outside any callback", func() {
 		waitErr = <-waited
-		if err := out.Finish(); err != nil {
+		if err := out.finish(); err != nil {
 			t.Errorf("Finish: %v", err)
 		}
 	})
@@ -233,7 +231,7 @@ func TestWait_FromOutsideAnyCallbackStillBlocks(t *testing.T) {
 	if !ran.Load() {
 		t.Fatal("the awaited callback never completed")
 	}
-	if got := task.Snapshot().State; got != evo.Done {
+	if got := task.snapshot().State; got != done {
 		t.Fatalf("task state = %v, want Done", got)
 	}
 }

@@ -15,11 +15,11 @@ import (
 
 // manifestOutput is an isolated plain Output whose manifest lives in
 // state and whose human stream is captured in the returned buffer.
-func manifestOutput(state string) (*Output, *bytes.Buffer) {
+func manifestOutput(state string) (*Run, *bytes.Buffer) {
 	var buf bytes.Buffer
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever, StateDir: state,
-		Stdout: &buf, Stderr: &buf,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever, stateDir: state,
+		stdout: &buf, stderr: &buf,
 	})
 	return out, &buf
 }
@@ -29,17 +29,17 @@ func manifestOutput(state string) (*Output, *bytes.Buffer) {
 func TestFinishPersistsManifestWithoutClose(t *testing.T) {
 	state := t.TempDir()
 	out, _ := manifestOutput(state)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	if err := runFileTask(t, out, "file", FileSpec{Path: filepath.Join(t.TempDir(), "f.txt"), Contents: []byte("x")}); err != nil {
 		t.Fatalf("file task: %v", err)
 	}
 	opaque, opaqueKey := taskManifestKey(t, out, "opaque")
 	opaque.Define(func(context.Context) error { return nil })
-	if err := opaque.Wait(); err != nil {
+	if err := opaque.wait(); err != nil {
 		t.Fatalf("opaque task: %v", err)
 	}
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -79,11 +79,11 @@ func TestManifestSaveFailureIsReported(t *testing.T) {
 		// the write that follows finds the state directory read-only.
 		return os.Chmod(state, 0o500)
 	})
-	if err := task.Wait(); err != nil {
+	if err := task.wait(); err != nil {
 		t.Fatalf("file task: %v", err)
 	}
-	_ = out.Finish()
-	closeErr := out.Close()
+	_ = out.finish()
+	closeErr := out.close()
 
 	if closeErr == nil || !strings.Contains(closeErr.Error(), "manifest") {
 		t.Fatalf("Close() = %v, want the manifest write error", closeErr)
@@ -99,9 +99,9 @@ func TestManifestSaveFailureIsReported(t *testing.T) {
 func TestBasisJudgedAfterCloseIsErrClosed(t *testing.T) {
 	out, _ := manifestOutput(t.TempDir())
 	task := out.Task("late")
-	task.Basis(freshness.Value("v", "x"))
-	_ = out.Close()
-	if _, err := task.basisIsCurrent(context.Background()); !errors.Is(err, ErrClosed) {
+	task.basis(freshness.Value("v", "x"))
+	_ = out.close()
+	if _, err := task.basisIsCurrent(context.Background()); !errors.Is(err, errClosed) {
 		t.Fatalf("basisIsCurrent after Close = %v, want errors.Is ErrClosed", err)
 	}
 }

@@ -1,13 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"io"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/testkit"
 )
 
 // TestWriteCollection_DoneChildrenSurviveWithSummaries is the red-first case
@@ -19,11 +16,11 @@ import (
 func TestWriteCollection_DoneChildrenSurviveWithSummaries(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Title: "pipeline", Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{stdout: &buf, title: "pipeline", color: colorNever, plain: true})
 	g := out.Group("pipeline")
 	succeed(g.Task("branches"), "14 deleted")
 	succeed(g.Task("worktrees"), "2 removed")
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -44,15 +41,15 @@ func TestWriteCollection_DoneChildrenSurviveWithSummaries(t *testing.T) {
 func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Title: "repo-retire", Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{stdout: &buf, title: "repo-retire", color: colorNever, plain: true})
 	succeed(out.Task("clean"))
 	out.Task("kept").Fact("kept", "1")
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	c := out.Conclusion()
-	if c.State == evo.StateWarning {
-		t.Fatalf("warning must not override an otherwise-OK outcome, got conclusion state %v", c.State)
+	c := out.conclusion()
+	if c.state == stateWarning {
+		t.Fatalf("warning must not override an otherwise-OK outcome, got conclusion state %v", c.state)
 	}
 	got := buf.String()
 	if strings.Contains(got, "[warning]") {
@@ -68,16 +65,16 @@ func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 // Conclusion.Warned still true so the warning stays visible.
 func TestConclusion_WarnOnlyAutoResolvesDoneAndStaysWarned(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Title: "t", Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Task("i").Problem("careful", evo.Severity(evo.SeverityWarning))
-	if err := out.Finish(); err != nil {
+	out := initRun(Config{title: "t", color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
+	out.Task("i").Problem("careful", severity(severityWarning))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if got := out.Conclusion().State; got != evo.StateReady {
+	if got := out.conclusion().state; got != stateReady {
 		t.Fatalf("conclusion state = %v, want StateReady (Warn auto-resolves Done, P2)", got)
 	}
-	if !out.Conclusion().Warned {
+	if !out.conclusion().warned {
 		t.Fatal("Conclusion.Warned = false, want true: the recorded warning must stay visible")
 	}
 }
@@ -86,24 +83,24 @@ func TestConclusion_WarnOnlyAutoResolvesDoneAndStaysWarned(t *testing.T) {
 // case for evo-rec.md's "Partial is a modifier, not a root verdict": an
 // unresolved task at Finish must not invent a new headline state of its own
 // — Partial stays evidence (Conclusion.Partial) layered over one of the four
-// Outcome states (evo.StateReady/.../StateCancelled), never a fifth state.
-// There is no evo.StatePartial to compare against: the round-4 release gate
+// Outcome states (StateReady/.../StateCancelled), never a fifth state.
+// There is no StatePartial to compare against: the round-4 release gate
 // killed that dead enum member (it was never assigned by inferConclusion)
 // rather than keep two competing models of the same fact.
 func TestConclusion_LoneIncompleteTaskIsNotPartialHeadline(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
+	out := initRun(Config{isolated: true, stdout: io.Discard})
 	out.Task("install") // declared, never resolved
 
-	_ = out.Finish()
-	conc := out.Conclusion()
+	_ = out.finish()
+	conc := out.conclusion()
 
-	switch conc.State {
-	case evo.StateReady, evo.StateChanged, evo.StateWarning,
-		evo.StateBlocked, evo.StateFailed, evo.StateCancelled, evo.StatePlanned:
+	switch conc.state {
+	case stateReady, stateChanged, stateWarning,
+		stateBlocked, stateFailed, stateCancelled, statePlanned:
 	default:
-		t.Fatalf("headline = %v, want one of the documented Outcome states", conc.State)
+		t.Fatalf("headline = %v, want one of the documented Outcome states", conc.state)
 	}
-	if !conc.Partial {
+	if !conc.partial {
 		t.Fatal("want Partial=true retained as evidence")
 	}
 }
@@ -114,26 +111,26 @@ func TestConclusion_LoneIncompleteTaskIsNotPartialHeadline(t *testing.T) {
 // suppressed rather than papering over the warning underneath it.
 func TestConclusion_WarnedGroupChildReachesConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	t.Cleanup(func() { _ = out.close() })
 
 	group := out.Group("dependencies")
 	child := group.Task("cache")
-	child.Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
+	child.Problem("stale entry ignored", severity(severityWarning))
 	succeed(child)
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
-	conc := out.Conclusion()
-	if conc.State != evo.StateReady {
-		t.Fatalf("state = %v, want StateReady", conc.State)
+	conc := out.conclusion()
+	if conc.state != stateReady {
+		t.Fatalf("state = %v, want StateReady", conc.state)
 	}
-	if !conc.Warned {
+	if !conc.warned {
 		t.Fatal("Conclusion.Warned = false, want true (group-child warning must reach the conclusion)")
 	}
-	if conc.ExitCode != evo.ExitOK {
-		t.Fatalf("exit code = %d, want %d", conc.ExitCode, evo.ExitOK)
+	if conc.exitCode != exitOK {
+		t.Fatalf("exit code = %d, want %d", conc.exitCode, exitOK)
 	}
 	if !strings.Contains(buf.String(), "[ready · warned]") {
 		t.Fatalf("want the \"[ready · warned]\" conclusion band, got:\n%s", buf.String())
@@ -141,10 +138,10 @@ func TestConclusion_WarnedGroupChildReachesConclusion(t *testing.T) {
 }
 
 func TestConclusion_PlanOnlyIsPlanned(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "acct", DryRun: true})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Task("delete").Define(effectOf(evo.EffectDelete, "thing", 1))
-	_ = out.Finish()
-	testkit.RequireConclusion(t, out, evo.StatePlanned)
-	testkit.RequireClean(t, out)
+	out := initRun(Config{isolated: true, stdout: io.Discard, title: "acct", DryRun: true})
+	t.Cleanup(func() { _ = out.close() })
+	out.Task("delete").Define(effectOf(Delete, "thing", 1))
+	_ = out.finish()
+	requireConclusion(t, out, statePlanned)
+	requireClean(t, out)
 }

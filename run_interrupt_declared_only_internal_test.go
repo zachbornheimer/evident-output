@@ -22,9 +22,9 @@ import (
 // queued task and a declared one: it never started.
 func TestRun_Interrupt_DeclaredButNeverDefinedTaskIsNotMisuse(t *testing.T) {
 	var buf strings.Builder
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever,
-		MaxConcurrency: 1, Stdout: &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever,
+		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
 	})
 	interrupt := sendOneSignal(t)
 
@@ -35,11 +35,11 @@ func TestRun_Interrupt_DeclaredButNeverDefinedTaskIsNotMisuse(t *testing.T) {
 	blocking := make(chan struct{})
 	code := make(chan int, 1)
 	go func() {
-		code <- out.Run(context.Background(), func(ctx context.Context) error {
+		code <- out.run(context.Background(), func(ctx context.Context) error {
 			running.Progress(24, 111)
 			close(blocking)
-			<-running.Context().Done()
-			return running.Context().Err()
+			<-running.context().Done()
+			return running.context().Err()
 		}).ExitCode()
 	}()
 
@@ -48,8 +48,8 @@ func TestRun_Interrupt_DeclaredButNeverDefinedTaskIsNotMisuse(t *testing.T) {
 
 	select {
 	case got := <-code:
-		if got != ExitCancelled {
-			t.Fatalf("exit %d, want %d; output:\n%s", got, ExitCancelled, buf.String())
+		if got != exitCancelled {
+			t.Fatalf("exit %d, want %d; output:\n%s", got, exitCancelled, buf.String())
 		}
 	case <-time.After(interruptBudget):
 		t.Fatalf("one interrupt did not stop the run; output so far:\n%s", buf.String())

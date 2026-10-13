@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestDeclareDryRun_BeforeAnyRow_SwitchesMode is I8: a caller who doesn't
@@ -14,11 +12,11 @@ import (
 // [planned] exactly as if Config.DryRun had been set at construction.
 func TestDeclareDryRun_BeforeAnyRow_SwitchesMode(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
 
-	out.DeclareDryRunForTest()
-	out.Task("cleanup").Define(effectOf(evo.EffectDelete, "stale local branch", 2))
-	_ = out.Finish()
+	out.declareDryRunForTest()
+	out.Task("cleanup").Define(effectOf(Delete, "stale local branch", 2))
+	_ = out.finish()
 
 	rendered := buf.String()
 	if !strings.Contains(rendered, "[dry-run]") {
@@ -34,12 +32,12 @@ func TestDeclareDryRun_BeforeAnyRow_SwitchesMode(t *testing.T) {
 // earlier row cannot retroactively reflect the switch.
 func TestDeclareDryRun_AfterADurableRow_IsMisuse(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
 
-	out.Println("Reading configuration")
-	out.DeclareDryRunForTest()
+	out.println("Reading configuration")
+	out.declareDryRunForTest()
 
-	if err := out.Finish(); err == nil {
+	if err := out.finish(); err == nil {
 		t.Fatal("Finish() = nil, want the recorded misuse")
 	}
 }

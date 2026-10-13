@@ -11,13 +11,13 @@ import (
 // as a root row's Problems sit under the root glyph. At the child's own
 // column it read as a sibling row.
 func TestChildProblemsSitUnderTheChildRow(t *testing.T) {
-	got := finishedPlain(t, func(o *Output) {
+	got := finishedPlain(t, func(o *Run) {
 		o.Task("root").Define(noop)
 		seq := o.Sequence("seq")
 		seq.Task("one").Define(noop)
 		two := seq.Task("two")
 		two.Define(func(context.Context) error {
-			two.Fail("bad thing", Detail("line1\nline2"))
+			two.fail("bad thing", Detail("line1\nline2"))
 			return nil
 		})
 		seq.Task("three").Define(noop)

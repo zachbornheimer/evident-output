@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -6,8 +6,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // syncBuffer is a bytes.Buffer safe to read while the Output writes to it.
@@ -35,15 +33,15 @@ func (b *syncBuffer) String() string {
 func TestDoing_PlainModeEmitsTheFirstBeatBeforeTheTaskResolves(t *testing.T) {
 	var out syncBuffer
 	var payload syncBuffer
-	o := evo.Init(evo.Config{
-		Title:           "zq",
-		Isolated:        true,
-		Format:          evo.FormatData,
-		Stdout:          &payload,
-		Stderr:          &out,
-		VisibilityDelay: evo.DelayForTest(0),
+	o := initRun(Config{
+		title:           "zq",
+		isolated:        true,
+		format:          formatData,
+		stdout:          &payload,
+		stderr:          &out,
+		visibilityDelay: DelayForTest(0),
 	})
-	t.Cleanup(func() { _ = o.Close() })
+	t.Cleanup(func() { _ = o.close() })
 
 	o.Task("zq ci resolve").Doing("resolving repository root")
 

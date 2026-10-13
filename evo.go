@@ -83,7 +83,7 @@
 // # Advanced surface
 //
 // For testing and tooling call sites that need a hosted instance instead of
-// the package-level default: Config.Isolated returns an independent *Output
+// the package-level default: Config.Isolated returns an independent *Run
 // that never touches package state; Output.Run(ctx, run) Result seals it
 // (the hosted counterpart of Main, returning the full Result — Conclusion
 // plus the application error — instead of just the derived exit code, and

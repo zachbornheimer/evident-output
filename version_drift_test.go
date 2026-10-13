@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"os"
@@ -6,8 +6,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // Portable surfaces: install guidance must stay on PublishedRelease.
@@ -43,14 +41,14 @@ var proseReleasePin = regexp.MustCompile(
 var configCommandLatest = regexp.MustCompile(`(?m)^command\s*=\s*.*@latest`)
 
 func TestPublishedRelease_IsSemverTag(t *testing.T) {
-	if !regexp.MustCompile(`^v\d+\.\d+\.\d+$`).MatchString(evo.PublishedRelease) {
-		t.Fatalf("PublishedRelease = %q, want vMAJOR.MINOR.PATCH", evo.PublishedRelease)
+	if !regexp.MustCompile(`^v\d+\.\d+\.\d+$`).MatchString(publishedRelease) {
+		t.Fatalf("PublishedRelease = %q, want vMAJOR.MINOR.PATCH", publishedRelease)
 	}
 }
 
 func TestVersionDrift_PortableSurface(t *testing.T) {
 	root := moduleRoot(t)
-	want := evo.PublishedRelease
+	want := publishedRelease
 	files := collectPortableMarkdown(t, root)
 	if len(files) < 5 {
 		t.Fatalf("expected several portable markdown files, found %d", len(files))
@@ -75,12 +73,12 @@ func TestVersionDrift_ConfigClientUsesPublishedRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(body)
-	if !strings.Contains(text, "evo.PublishedRelease") {
-		t.Fatal("config_client.go must fall back to evo.PublishedRelease")
+	if !strings.Contains(text, "PublishedRelease") {
+		t.Fatal("config_client.go must fall back to PublishedRelease")
 	}
 	// No string-literal release tags in the generator (class of hardcoded pins).
 	if re := regexp.MustCompile(`"(v\d+\.\d+\.\d+)"`); re.MatchString(text) {
-		t.Fatalf("config_client.go must not hardcode release tags; use evo.PublishedRelease:\n%s",
+		t.Fatalf("config_client.go must not hardcode release tags; use PublishedRelease:\n%s",
 			re.FindString(text))
 	}
 }
@@ -127,7 +125,7 @@ func TestVersionDrift_PublishedReleaseHasOneLiteral(t *testing.T) {
 		// Hardcoded install tags in non-test Go are the maintenance class.
 		if m := regexp.MustCompile(`"(v0\.\d+\.\d+)"`).FindStringSubmatch(string(body)); m != nil {
 			// Allow schema-ish versions without leading policy? We use "0.2" not "v0.2".
-			t.Errorf("%s: hardcoded release tag %s — use evo.PublishedRelease", rel, m[1])
+			t.Errorf("%s: hardcoded release tag %s — use PublishedRelease", rel, m[1])
 		}
 		return nil
 	})

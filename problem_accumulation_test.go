@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -9,37 +9,35 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestProblem_TenPlusIndependentFindings is the ZYS-848 acceptance item
 // "one Task can retain 10+ Problems with independent locations/codes" —
-// exercised through the real public API (TaskHandle.Problem), not a
+// exercised through the real public API (Task.Problem), not a
 // hand-built Snapshot. Mirrors zq's reportFileIntegrityIssues shape: one
 // owning Task, one Problem call per finding.
 func TestProblem_TenPlusIndependentFindings(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(nonTTYConfig("tool", &buf))
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("file integrity")
 	const n = 12
 	for i := range n {
 		task.Problem(fmt.Sprintf("checksum mismatch %d", i),
-			evo.On(fmt.Sprintf("file-%d.bin", i)),
-			evo.Code(fmt.Sprintf("FILE-%03d", i)),
-			evo.Location(fmt.Sprintf("file-%d.bin", i), i+1, 0),
+			On(fmt.Sprintf("file-%d.bin", i)),
+			Code(fmt.Sprintf("FILE-%03d", i)),
+			location(fmt.Sprintf("file-%d.bin", i), i+1, 0),
 		)
 	}
 	task.Define(func(context.Context) error { return nil })
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
-	snap := out.Snapshot()
+	snap := out.snapshot()
 	got := snap.Tasks[0]
-	if got.State != evo.Failed {
+	if got.State != Failed {
 		t.Fatalf("want Failed (accumulated blocking Problems override a nil Define return), got %v", got.State)
 	}
 	if len(got.Problems) != n {
@@ -62,19 +60,19 @@ func TestProblem_TenPlusIndependentFindings(t *testing.T) {
 // Problems were accumulated on it.
 func TestProblem_ResolvesTaskOnceNotChildTasks(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(nonTTYConfig("tool", &buf))
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("golangci findings")
 	for i := range 15 {
-		task.Problem(fmt.Sprintf("finding %d", i), evo.Code("LINT001"))
+		task.Problem(fmt.Sprintf("finding %d", i), Code("LINT001"))
 	}
 	task.Define(func(context.Context) error { return nil })
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
-	snap := out.Snapshot()
+	snap := out.snapshot()
 	if len(snap.Tasks) != 1 {
 		t.Fatalf("want exactly one Task entity regardless of Problem count, got %d: %#v", len(snap.Tasks), snap.Tasks)
 	}
@@ -88,18 +86,18 @@ func TestProblem_ResolvesTaskOnceNotChildTasks(t *testing.T) {
 // but accumulated at least one blocking Problem, the Task resolves Failed."
 func TestProblem_DoneWithAccumulatedProblemsPromotesToFailed(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(nonTTYConfig("tool", &buf))
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("policy check")
-	task.Problem("rule XYZ violated", evo.Code("XYZ"))
+	task.Problem("rule XYZ violated", Code("XYZ"))
 	task.Define(func(context.Context) error { return nil }) // claims success
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
-	snap := out.Snapshot()
-	if snap.Tasks[0].State != evo.Failed {
+	snap := out.snapshot()
+	if snap.Tasks[0].State != Failed {
 		t.Fatalf("accumulated Problem must override a nil-error Define, want Failed, got %v", snap.Tasks[0].State)
 	}
 }
@@ -109,19 +107,19 @@ func TestProblem_DoneWithAccumulatedProblemsPromotesToFailed(t *testing.T) {
 // after accumulating Problems) — the rule is not special-cased to Define.
 func TestProblem_BareDoneWithAccumulatedProblemsPromotesToFailed(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(nonTTYConfig("tool", &buf))
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("manual check")
-	task.Problem("finding one", evo.Code("A"))
-	task.Problem("finding two", evo.Code("B"))
+	task.Problem("finding one", Code("A"))
+	task.Problem("finding two", Code("B"))
 	succeed(task, "looks fine")
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
-	snap := out.Snapshot()
-	if snap.Tasks[0].State != evo.Failed {
+	snap := out.snapshot()
+	if snap.Tasks[0].State != Failed {
 		t.Fatalf("want Failed, got %v", snap.Tasks[0].State)
 	}
 	if len(snap.Tasks[0].Problems) != 2 {
@@ -134,16 +132,16 @@ func TestProblem_BareDoneWithAccumulatedProblemsPromotesToFailed(t *testing.T) {
 // resolves Done normally.
 func TestProblem_NoAccumulationLeavesDoneUntouched(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(nonTTYConfig("tool", &buf))
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("clean check").Define(func(context.Context) error { return nil })
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
-	snap := out.Snapshot()
-	if snap.Tasks[0].State != evo.Done {
+	snap := out.snapshot()
+	if snap.Tasks[0].State != done {
 		t.Fatalf("want Done, got %v", snap.Tasks[0].State)
 	}
 }
@@ -154,17 +152,17 @@ func TestProblem_NoAccumulationLeavesDoneUntouched(t *testing.T) {
 // call order.
 func TestProblem_MergesWithExplicitFail(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(nonTTYConfig("tool", &buf))
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("build")
-	task.Problem("warning-level finding", evo.Code("W1"))
-	task.Fail("build failed", evo.Code("BUILD-FAIL"))
-	if err := out.Finish(); err != nil {
+	task.Problem("warning-level finding", Code("W1"))
+	task.fail("build failed", Code("BUILD-FAIL"))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
-	snap := out.Snapshot()
+	snap := out.snapshot()
 	got := snap.Tasks[0].Problems
 	if len(got) != 2 {
 		t.Fatalf("want 2 Problems (1 accumulated + Fail's own), got %d: %#v", len(got), got)
@@ -179,13 +177,13 @@ func TestProblem_MergesWithExplicitFail(t *testing.T) {
 // accumulated Problem must still render on the plain human view.
 func TestProblem_RemediesSurviveProjection(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(nonTTYConfig("tool", &buf))
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("policy").
-		Problem("missing header", evo.Code("HDR"), evo.Next(evo.Label("add license header"))).
+		Problem("missing header", Code("HDR"), Next(label("add license header"))).
 		Define(func(context.Context) error { return nil })
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -200,20 +198,20 @@ func TestProblem_RemediesSurviveProjection(t *testing.T) {
 // bounded human plain output must not shrink the JSON encoding.
 func TestProblem_SurvivesInJSON(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(nonTTYConfig("tool", &buf))
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("audit")
 	const n = 9 // > maxVisibleProblems (5), so plain output bounds it
 	for i := range n {
-		task.Problem(fmt.Sprintf("finding %d", i), evo.Code(fmt.Sprintf("A%d", i)))
+		task.Problem(fmt.Sprintf("finding %d", i), Code(fmt.Sprintf("A%d", i)))
 	}
 	task.Define(func(context.Context) error { return nil })
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
-	snap := out.Snapshot()
+	snap := out.snapshot()
 	encoded, err := wire.EncodeJSON(snap)
 	if err != nil {
 		t.Fatalf("EncodeJSON: %v", err)
@@ -234,7 +232,7 @@ func TestProblem_SurvivesInJSON(t *testing.T) {
 
 	// Plain projection of the same Snapshot bounds display and still states
 	// the true count via the omission line (count remains authoritative).
-	plain, err := evo.RenderPlain(snap, evo.PlainOptions{NoColor: true})
+	plain, err := renderPlain_1(snap, plainOptions{noColor: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,21 +247,21 @@ func TestProblem_SurvivesInJSON(t *testing.T) {
 // Block do, and the metadata is retained on the Snapshot's Warnings.
 func TestWarn_AcceptsStructuredProblemOptions(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(nonTTYConfig("tool", &buf))
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("cache")
-	task.Problem("stale entry ignored", evo.Severity(evo.SeverityWarning),
-		evo.Detail("cache/entry-42.json is 9 days old"),
-		evo.Code("CACHE-001"),
-		evo.Location("cache/entry-42.json", 0, 0),
+	task.Problem("stale entry ignored", severity(severityWarning),
+		Detail("cache/entry-42.json is 9 days old"),
+		Code("CACHE-001"),
+		location("cache/entry-42.json", 0, 0),
 	)
 	succeed(task)
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
-	snap := out.Snapshot()
+	snap := out.snapshot()
 	warnings := snap.Tasks[0].Warnings
 	if len(warnings) != 1 {
 		t.Fatalf("want one warning, got %d", len(warnings))
@@ -277,15 +275,15 @@ func TestWarn_AcceptsStructuredProblemOptions(t *testing.T) {
 	}
 }
 
-// TestWarn_ReturnsHandleForChaining proves Warn's new *TaskHandle return
+// TestWarn_ReturnsHandleForChaining proves Warn's new *Task return
 // chains like Next/NextCommand already do.
 func TestWarn_ReturnsHandleForChaining(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(nonTTYConfig("tool", &buf))
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.close() })
 
-	succeed(out.Task("chain").Problem("heads up", evo.Severity(evo.SeverityWarning)), "finished anyway")
-	if err := out.Finish(); err != nil {
+	succeed(out.Task("chain").Problem("heads up", severity(severityWarning)), "finished anyway")
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "finished anyway") {
@@ -295,23 +293,23 @@ func TestWarn_ReturnsHandleForChaining(t *testing.T) {
 
 // finishProblemRun settles a run built by declare and returns the one
 // Task's snapshot plus the human transcript.
-func finishProblemRun(t *testing.T, declare func(out *evo.Output)) (evo.TaskSnapshot, string) {
+func finishProblemRun(t *testing.T, declare func(out *Run)) (taskSnapshot, string) {
 	t.Helper()
 	var buf bytes.Buffer
-	out := evo.Init(nonTTYConfig("tool", &buf))
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.close() })
 	declare(out)
-	_ = out.Finish()
-	snap := out.Snapshot()
+	_ = out.finish()
+	snap := out.snapshot()
 	if len(snap.Tasks) != 1 {
 		t.Fatalf("want one Task, got %d: %#v", len(snap.Tasks), snap.Tasks)
 	}
 	return snap.Tasks[0], buf.String()
 }
 
-func assertProblemFailsTask(t *testing.T, got evo.TaskSnapshot, human string) {
+func assertProblemFailsTask(t *testing.T, got taskSnapshot, human string) {
 	t.Helper()
-	if got.State != evo.Failed {
+	if got.State != Failed {
 		t.Fatalf("a Task holding a blocking Problem must settle Failed, got %v\n%s", got.State, human)
 	}
 	if len(got.Problems) != 1 || got.Problems[0].Summary != "blocking finding" {
@@ -325,11 +323,11 @@ func assertProblemFailsTask(t *testing.T, got evo.TaskSnapshot, human string) {
 // TestProblem_SkippedCannotLaunderAProblem: Skipped is a success-class
 // outcome, so a Problem recorded before it still fails the Task.
 func TestProblem_SkippedCannotLaunderAProblem(t *testing.T) {
-	got, human := finishProblemRun(t, func(out *evo.Output) {
+	got, human := finishProblemRun(t, func(out *Run) {
 		task := out.Task("scan")
 		task.Define(func(context.Context) error {
 			task.Problem("blocking finding")
-			task.Skipped(evo.Reason("nothing to do"))
+			task.skipped(reason("nothing to do"))
 			return nil
 		})
 	})
@@ -339,8 +337,8 @@ func TestProblem_SkippedCannotLaunderAProblem(t *testing.T) {
 // TestProblem_UnresolvedWarnedTaskKeepsItsProblem: Finish's amnesty for a
 // warned-but-unresolved Task must not settle it Done over a Problem.
 func TestProblem_UnresolvedWarnedTaskKeepsItsProblem(t *testing.T) {
-	got, human := finishProblemRun(t, func(out *evo.Output) {
-		out.Task("scan").Problem("blocking finding").Problem("also a warning", evo.Severity(evo.SeverityWarning))
+	got, human := finishProblemRun(t, func(out *Run) {
+		out.Task("scan").Problem("blocking finding").Problem("also a warning", severity(severityWarning))
 	})
 	assertProblemFailsTask(t, got, human)
 }
@@ -348,7 +346,7 @@ func TestProblem_UnresolvedWarnedTaskKeepsItsProblem(t *testing.T) {
 // TestProblem_UnresolvedTaskKeepsItsProblem: a Task that recorded a
 // Problem and was never resolved still fails; the Problem is its story.
 func TestProblem_UnresolvedTaskKeepsItsProblem(t *testing.T) {
-	got, human := finishProblemRun(t, func(out *evo.Output) {
+	got, human := finishProblemRun(t, func(out *Run) {
 		out.Task("scan").Problem("blocking finding")
 	})
 	assertProblemFailsTask(t, got, human)
@@ -358,16 +356,16 @@ func TestProblem_UnresolvedTaskKeepsItsProblem(t *testing.T) {
 // Snapshot from the moment it is recorded, not only after the Task settles.
 func TestProblem_VisibleInSnapshotWhileRunning(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(nonTTYConfig("tool", &buf))
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("scan")
-	var live evo.TaskSnapshot
+	var live taskSnapshot
 	task.Define(func(context.Context) error {
 		task.Problem("blocking finding")
-		live = task.Snapshot()
+		live = task.snapshot()
 		return nil
 	})
-	_ = out.Finish()
+	_ = out.finish()
 	if len(live.Problems) != 1 || live.Problems[0].Summary != "blocking finding" {
 		t.Fatalf("a running Task's Snapshot must carry its recorded Problem, got %#v", live.Problems)
 	}

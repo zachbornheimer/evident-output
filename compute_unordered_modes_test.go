@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"context"
@@ -6,8 +6,6 @@ import (
 	"io"
 	"sync/atomic"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // An unordered Get is a misuse whether or not the producer settled first:
@@ -16,14 +14,14 @@ import (
 // callback can carry on with, in every mode.
 func TestCompute_UnorderedGetBeforeTheProducerSettlesFailsInEveryMode(t *testing.T) {
 	const attempts = 20
-	modes := map[string]evo.Config{
+	modes := map[string]Config{
 		"default": {},
-		"strict":  {Strict: true},
+		"strict":  {strict: true},
 		"dry run": {DryRun: true},
 	}
 	for name, mode := range modes {
 		t.Run(name, func(t *testing.T) {
-			mode.Isolated, mode.Stdout, mode.Plain = true, io.Discard, true
+			mode.isolated, mode.stdout, mode.plain = true, io.Discard, true
 			for range attempts {
 				assertUnorderedGetBeforeSettleUnwinds(t, mode)
 			}
@@ -31,12 +29,12 @@ func TestCompute_UnorderedGetBeforeTheProducerSettlesFailsInEveryMode(t *testing
 	}
 }
 
-func assertUnorderedGetBeforeSettleUnwinds(t *testing.T, mode evo.Config) {
+func assertUnorderedGetBeforeSettleUnwinds(t *testing.T, mode Config) {
 	t.Helper()
-	out := evo.Init(mode)
-	defer func() { _ = out.Close() }()
+	out := initRun(mode)
+	defer func() { _ = out.close() }()
 	release := make(chan struct{})
-	producer := evo.Compute(out.Group("producers").Task("make"), func(context.Context) (int, error) {
+	producer := Compute(out.Group("producers").Task("make"), func(context.Context) (int, error) {
 		<-release
 		return 1, nil
 	})
@@ -48,11 +46,11 @@ func assertUnorderedGetBeforeSettleUnwinds(t *testing.T, mode evo.Config) {
 		continued.Store(true)
 		return nil
 	})
-	_ = out.Finish()
-	if continued.Load() || !errors.Is(out.Err(), evo.ErrComputedUnordered) {
-		t.Fatalf("continued=%v, Err() = %v; want the callback unwound with ErrComputedUnordered", continued.Load(), out.Err())
+	_ = out.finish()
+	if continued.Load() || !errors.Is(out.err(), ErrComputedUnordered) {
+		t.Fatalf("continued=%v, Err() = %v; want the callback unwound with ErrComputedUnordered", continued.Load(), out.err())
 	}
-	if err := read.Wait(); !errors.Is(err, evo.ErrComputedUnordered) {
+	if err := read.wait(); !errors.Is(err, ErrComputedUnordered) {
 		t.Fatalf("Wait() = %v; want errors.Is ErrComputedUnordered", err)
 	}
 }
@@ -61,18 +59,18 @@ func assertUnorderedGetBeforeSettleUnwinds(t *testing.T, mode evo.Config) {
 // callback proved settledness with Wait, not order, so Get still fails and
 // the reader's Wait still matches the sentinel.
 func TestCompute_UnorderedGetAfterTheProducerSettledStillFailsTheReaderWithTheSentinel(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true})
-	defer func() { _ = out.Close() }()
+	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true})
+	defer func() { _ = out.close() }()
 	made := out.Group("producers").Task("make")
-	producer := evo.Compute(made, func(context.Context) (int, error) { return 1, nil })
+	producer := Compute(made, func(context.Context) (int, error) { return 1, nil })
 	read := out.Group("consumers").Task("read")
 	read.Define(func(context.Context) error {
-		_ = made.Wait()
+		_ = made.wait()
 		_ = producer.Get()
 		return nil
 	})
-	_ = out.Finish()
-	if err := read.Wait(); !errors.Is(err, evo.ErrComputedUnordered) {
+	_ = out.finish()
+	if err := read.wait(); !errors.Is(err, ErrComputedUnordered) {
 		t.Fatalf("Wait() = %v; want errors.Is ErrComputedUnordered", err)
 	}
 }

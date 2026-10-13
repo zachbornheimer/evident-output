@@ -1,19 +1,18 @@
-package evo_test
+package evo
 
 import (
 	"io"
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
 func TestVisibilityDelay_WithholdsLiveUntilElapsed(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(150 * time.Millisecond), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, clock: clock, terminal: screen, visibilityDelay: DelayForTest(150 * time.Millisecond), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	armed := screen.LiveFrameCount()
 	if armed == 0 {
@@ -36,13 +35,13 @@ func TestVisibilityDelay_WithholdsLiveUntilElapsed(t *testing.T) {
 	}
 
 	succeed(task)
-	_ = out.Finish()
+	_ = out.finish()
 }
 
 func TestVisibilityDelay_ZeroIsImmediate(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("work")
 	task.Doing("running")
@@ -50,28 +49,28 @@ func TestVisibilityDelay_ZeroIsImmediate(t *testing.T) {
 		t.Fatal("VisibilityDelay(0) must paint immediately")
 	}
 	succeed(task)
-	_ = out.Finish()
+	_ = out.finish()
 }
 
 func TestTask_AlonePaintsLiveWithZeroDelay(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("work")
 	if got := screen.LiveFrameCount(); got == 0 {
 		t.Fatal("Task() with VisibilityDelay(0) must paint a live frame without Phase")
 	}
-	_ = out.Finish()
+	_ = out.finish()
 }
 
 func TestDefaultVisibilityDelay_WithinUserSLA(t *testing.T) {
-	cfg := evo.DefaultConfig()
-	if cfg.VisibilityDelay == nil {
+	cfg := defaultConfig()
+	if cfg.visibilityDelay == nil {
 		t.Fatal("DefaultConfig VisibilityDelay must be set")
 	}
 	const sla = 80 * time.Millisecond
-	if *cfg.VisibilityDelay > sla {
-		t.Fatalf("default VisibilityDelay = %v, want ≤ %v", *cfg.VisibilityDelay, sla)
+	if *cfg.visibilityDelay > sla {
+		t.Fatalf("default VisibilityDelay = %v, want ≤ %v", *cfg.visibilityDelay, sla)
 	}
 }

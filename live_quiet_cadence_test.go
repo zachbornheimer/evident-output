@@ -141,7 +141,7 @@ func observeQuietWindow(t *testing.T) (frames []quietCadenceFrame, activated, en
 	t.Helper()
 	surface := &quietCadenceSurface{}
 	out := newOutput("job", withTerminal(surface), visibilityDelay(0), withNoColor())
-	defer func() { _ = out.Close() }()
+	defer func() { _ = out.close() }()
 
 	task := out.Task("quiet")
 	task.Doing("working")
@@ -149,7 +149,7 @@ func observeQuietWindow(t *testing.T) (frames []quietCadenceFrame, activated, en
 	time.Sleep(quietCadenceWindow)
 	end = time.Now()
 
-	if state := task.Snapshot().State; state != Running {
+	if state := task.snapshot().State; state != running {
 		t.Fatalf("task state at end of quiet window = %v, want Running", state)
 	}
 	for _, f := range surface.snapshot() {

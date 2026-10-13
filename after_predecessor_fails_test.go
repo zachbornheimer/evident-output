@@ -9,30 +9,30 @@ import (
 	"time"
 )
 
-// waitOutcomeTimeout bounds how long a test waits for TaskHandle.Wait to
+// waitOutcomeTimeout bounds how long a test waits for Task.Wait to
 // return before concluding the scheduler left it hanging — generous enough
 // that a slow CI runner never produces a false red, but far below "the test
 // suite hung" territory.
 const waitOutcomeTimeout = 2 * time.Second
 
-func newAfterFailTestOutput(t *testing.T, maxConcurrency int) *Output {
+func newAfterFailTestOutput(t *testing.T, maxConcurrency int) *Run {
 	t.Helper()
-	out := Init(Config{
-		Isolated:       true,
-		Stdout:         io.Discard,
-		Stderr:         io.Discard,
+	out := initRun(Config{
+		isolated:       true,
+		stdout:         io.Discard,
+		stderr:         io.Discard,
 		MaxConcurrency: maxConcurrency,
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 	return out
 }
 
 // waitForParkedWaiter busy-polls (no sleep) until a goroutine has registered
-// itself with the graph — the same registration TaskHandle.Wait's
+// itself with the graph — the same registration Task.Wait's
 // waitSubmitted performs just before it parks — so a test can prove a
 // waiter is already asleep before triggering the event under test, instead
 // of guessing at timing.
-func waitForParkedWaiter(t *testing.T, o *Output, want int) {
+func waitForParkedWaiter(t *testing.T, o *Run, want int) {
 	t.Helper()
 	deadline := time.Now().Add(waitOutcomeTimeout)
 	for time.Now().Before(deadline) {
@@ -66,7 +66,7 @@ func TestAfterPredecessorFails_WhileDependentAlreadyParkedInWait_SettlesImmediat
 			pred := out.Task("classify")
 			pred.Define(func(ctx context.Context) error {
 				<-release
-				pred.Fail("boom")
+				pred.fail("boom")
 				<-holdReturn
 				return nil
 			})
@@ -75,14 +75,14 @@ func TestAfterPredecessorFails_WhileDependentAlreadyParkedInWait_SettlesImmediat
 			dependent.After(pred).Define(func(ctx context.Context) error { return nil })
 
 			waitOutcome := make(chan error, 1)
-			go func() { waitOutcome <- dependent.Wait() }()
+			go func() { waitOutcome <- dependent.wait() }()
 			waitForParkedWaiter(t, out, 1)
 
 			close(release)
 
 			select {
 			case err := <-waitOutcome:
-				if !errors.Is(err, ErrNotStarted) {
+				if !errors.Is(err, errNotStarted) {
 					t.Fatalf("Wait() = %v, want ErrNotStarted", err)
 				}
 			case <-time.After(waitOutcomeTimeout):
@@ -90,7 +90,7 @@ func TestAfterPredecessorFails_WhileDependentAlreadyParkedInWait_SettlesImmediat
 			}
 
 			close(holdReturn)
-			if err := out.Finish(); err != nil {
+			if err := out.finish(); err != nil {
 				t.Fatalf("Finish: %v", err)
 			}
 		})
@@ -122,17 +122,17 @@ func TestAfterPredecessorFails_BeforeDependentIsSubmitted_SettlesImmediately(t *
 			<-busyStarted // the unrelated task is genuinely executing before pred fails
 
 			pred := out.Task("classify")
-			pred.Fail("boom") // resolved before the dependent is ever submitted
+			pred.fail("boom") // resolved before the dependent is ever submitted
 
 			dependent := out.Task("worktree")
 			dependent.After(pred).Define(func(ctx context.Context) error { return nil })
 
 			waitOutcome := make(chan error, 1)
-			go func() { waitOutcome <- dependent.Wait() }()
+			go func() { waitOutcome <- dependent.wait() }()
 
 			select {
 			case err := <-waitOutcome:
-				if !errors.Is(err, ErrNotStarted) {
+				if !errors.Is(err, errNotStarted) {
 					t.Fatalf("Wait() = %v, want ErrNotStarted", err)
 				}
 			case <-time.After(waitOutcomeTimeout):
@@ -140,7 +140,7 @@ func TestAfterPredecessorFails_BeforeDependentIsSubmitted_SettlesImmediately(t *
 			}
 
 			close(busyRelease)
-			if err := out.Finish(); err != nil {
+			if err := out.finish(); err != nil {
 				t.Fatalf("Finish: %v", err)
 			}
 		})

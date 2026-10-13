@@ -88,10 +88,10 @@ func TestCrossProcessHelper(t *testing.T) {
 	out := newOutput("cross-process", to(io.Discard), plain(), withNoColor(), withStateDir(os.Getenv(crossProcessStateEnv)))
 	task := out.Task(crossProcessTask(role))
 	task.Define(func(ctx context.Context) error { return trackedSection(ctx, dir, role) })
-	if err := task.Wait(); err != nil {
+	if err := task.wait(); err != nil {
 		t.Fatalf("helper %s: %v", role, err)
 	}
-	if err := out.Close(); err != nil {
+	if err := out.close(); err != nil {
 		t.Fatalf("helper %s close: %v", role, err)
 	}
 }
@@ -160,7 +160,7 @@ func TestCrossProcessSameManifestNeverRacesTrackedState(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 	keys := newOutput("cross-process", to(io.Discard))
-	defer func() { _ = keys.Close() }()
+	defer func() { _ = keys.close() }()
 	for _, role := range roles {
 		task := keys.Task(crossProcessTask(role))
 		keys.mu.Lock()

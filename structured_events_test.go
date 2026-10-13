@@ -86,11 +86,11 @@ func assertTypesEqual(t *testing.T, got []string, want ...string) {
 // still contains.
 func TestWireEvents_SuccessOrdering(t *testing.T) {
 	var stdout nopFlushWriter
-	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	out := initRun(Config{isolated: true, format: formatJSONL, stdout: &stdout})
 	task := out.Task("build")
 	task.Define(func(context.Context) error { return nil })
-	_ = task.Wait()
-	if err := out.Finish(); err != nil {
+	_ = task.wait()
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -114,15 +114,15 @@ func TestWireEvents_SuccessOrdering(t *testing.T) {
 // task.finished carries resolution=already_satisfied.
 func TestWireEvents_AlreadySatisfiedSkipsDefinition(t *testing.T) {
 	var stdout nopFlushWriter
-	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	out := initRun(Config{isolated: true, format: formatJSONL, stdout: &stdout})
 	task := out.Task("build")
 	task.Verify(func(context.Context) (bool, error) { return true, nil })
 	task.Define(func(context.Context) error {
 		t.Fatal("Define callback must not run when Verify is already satisfied")
 		return nil
 	})
-	_ = task.Wait()
-	if err := out.Finish(); err != nil {
+	_ = task.wait()
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -140,8 +140,8 @@ func TestWireEvents_AlreadySatisfiedSkipsDefinition(t *testing.T) {
 		t.Fatalf("evidence.evaluated payload = %+v, want phase=before_definition satisfied=true", ev.Payload)
 	}
 	finIdx := indexOfType(events, wire.EventTaskFinished)
-	if finIdx == -1 || events[finIdx].Payload["resolution"] != string(ResolutionAlreadySatisfied) {
-		t.Fatalf("task.finished payload = %+v, want resolution=%s", events[finIdx].Payload, ResolutionAlreadySatisfied)
+	if finIdx == -1 || events[finIdx].Payload["resolution"] != string(resolutionAlreadySatisfied) {
+		t.Fatalf("task.finished payload = %+v, want resolution=%s", events[finIdx].Payload, resolutionAlreadySatisfied)
 	}
 	if evIdx >= finIdx {
 		t.Fatalf("evidence.evaluated (%d) must precede task.finished (%d): %v", evIdx, finIdx, types)
@@ -159,18 +159,18 @@ func TestWireEvents_FileOperationSkippedCurrent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "managed.txt")
 	spec := FileSpec{Path: path, Contents: []byte("desired")}
 
-	first := Init(Config{Isolated: true, StateDir: state})
+	first := initRun(Config{isolated: true, stateDir: state})
 	if err := runFileTask(t, first, "file", spec); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
-	_ = first.Close()
+	_ = first.close()
 
 	var stdout nopFlushWriter
-	second := Init(Config{Isolated: true, StateDir: state, Format: FormatJSONL, Stdout: &stdout})
+	second := initRun(Config{isolated: true, stateDir: state, format: formatJSONL, stdout: &stdout})
 	if err := runFileTask(t, second, "file", spec); err != nil {
 		t.Fatalf("second run: %v", err)
 	}
-	if err := second.Finish(); err != nil {
+	if err := second.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -201,13 +201,13 @@ func TestWireEvents_FileOperationSkippedCurrent(t *testing.T) {
 // changed=true.
 func TestWireEvents_FileOperationStartedAndFinished(t *testing.T) {
 	var stdout nopFlushWriter
-	out := Init(Config{Isolated: true, StateDir: t.TempDir(), Format: FormatJSONL, Stdout: &stdout})
+	out := initRun(Config{isolated: true, stateDir: t.TempDir(), format: formatJSONL, stdout: &stdout})
 	path := filepath.Join(t.TempDir(), "managed.txt")
 	spec := FileSpec{Path: path, Contents: []byte("desired")}
 	if err := runFileTask(t, out, "file", spec); err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -250,11 +250,11 @@ func TestWireEvents_ExecOperationStartedAndFinished(t *testing.T) {
 	runner := &scriptedRunner{exitCode: 0}
 
 	var stdout nopFlushWriter
-	out := Init(Config{
-		Isolated: true, StateDir: t.TempDir(), ProcessRunner: runner,
-		Format: FormatJSONL, Stdout: &stdout,
+	out := initRun(Config{
+		isolated: true, stateDir: t.TempDir(), processRunner: runner,
+		format: formatJSONL, stdout: &stdout,
 	})
-	spec := ExecSpec{Executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
+	spec := ExecSpec{executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
 	runner.onRun = func() {
 		if err := os.WriteFile(outPath, []byte("built"), 0o644); err != nil {
 			t.Fatal(err)
@@ -263,7 +263,7 @@ func TestWireEvents_ExecOperationStartedAndFinished(t *testing.T) {
 	if err := runExecTask(t, out, "build", spec); err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -297,26 +297,26 @@ func TestWireEvents_ExecOperationSkippedCurrent(t *testing.T) {
 	dir := t.TempDir()
 	tool := execFixture(t, dir, "tool", "v1")
 	outPath := filepath.Join(dir, "out.txt")
-	spec := ExecSpec{Executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
+	spec := ExecSpec{executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
 
-	first := Init(Config{Isolated: true, StateDir: state, ProcessRunner: &scriptedRunner{exitCode: 0}})
+	first := initRun(Config{isolated: true, stateDir: state, processRunner: &scriptedRunner{exitCode: 0}})
 	if err := os.WriteFile(outPath, []byte("built"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := runExecTask(t, first, "build", spec); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
-	_ = first.Close()
+	_ = first.close()
 
 	var stdout nopFlushWriter
-	second := Init(Config{
-		Isolated: true, StateDir: state, ProcessRunner: &scriptedRunner{exitCode: 0},
-		Format: FormatJSONL, Stdout: &stdout,
+	second := initRun(Config{
+		isolated: true, stateDir: state, processRunner: &scriptedRunner{exitCode: 0},
+		format: formatJSONL, stdout: &stdout,
 	})
 	if err := runExecTask(t, second, "build", spec); err != nil {
 		t.Fatalf("second run: %v", err)
 	}
-	if err := second.Finish(); err != nil {
+	if err := second.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -346,9 +346,9 @@ func TestWireEvents_ExecOperationSkippedCurrent(t *testing.T) {
 
 func TestWireEvents_RunFinishedOnFailure(t *testing.T) {
 	var stdout nopFlushWriter
-	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
-	out.Task("build").Fail("broken")
-	if err := out.Finish(); err != nil {
+	out := initRun(Config{isolated: true, format: formatJSONL, stdout: &stdout})
+	out.Task("build").fail("broken")
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 	events := decodeWireEvents(t, stdout.String())
@@ -360,17 +360,17 @@ func TestWireEvents_RunFinishedOnFailure(t *testing.T) {
 		t.Fatalf("run.finished outcome = %v, want %q", events[idx].Payload["outcome"], wire.OutcomeFailed)
 	}
 	if idx != len(events)-1 {
-		t.Fatalf("run.finished must be the last event, got index %d of %d", idx, len(events))
+		t.Fatalf("run.finished must be the last recEvent, got index %d of %d", idx, len(events))
 	}
 }
 
 func TestWireEvents_RunFinishedOnCancel(t *testing.T) {
 	var stdout nopFlushWriter
-	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	out := initRun(Config{isolated: true, format: formatJSONL, stdout: &stdout})
 	task := out.Task("build")
-	out.Cancel("interrupted")
+	out.cancel("interrupted")
 	_ = task
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 	events := decodeWireEvents(t, stdout.String())
@@ -389,7 +389,7 @@ func TestWireEvents_RunFinishedOnCancel(t *testing.T) {
 func TestWireEvents_SeqStrictlyMonotonic_UnderConcurrentTasks(t *testing.T) {
 	const taskCount = 40
 	var stdout nopFlushWriter
-	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout, MaxConcurrency: 8})
+	out := initRun(Config{isolated: true, format: formatJSONL, stdout: &stdout, MaxConcurrency: 8})
 
 	var wg sync.WaitGroup
 	for i := range taskCount {
@@ -401,7 +401,7 @@ func TestWireEvents_SeqStrictlyMonotonic_UnderConcurrentTasks(t *testing.T) {
 		})
 	}
 	wg.Wait()
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -429,11 +429,11 @@ func TestWireEvents_SeqStrictlyMonotonic_UnderConcurrentTasks(t *testing.T) {
 // Output's own outputID, set once at Init and never reassigned).
 func TestWireEvents_RunIDStableAcrossAllLines(t *testing.T) {
 	var stdout nopFlushWriter
-	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	out := initRun(Config{isolated: true, format: formatJSONL, stdout: &stdout})
 	task := out.Task("build")
 	task.Define(func(context.Context) error { return nil })
-	_ = task.Wait()
-	if err := out.Finish(); err != nil {
+	_ = task.wait()
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -491,12 +491,12 @@ func decodeWireEventsWithRunID(t *testing.T, body string) []wireEventLineWithRun
 // plain/TTY reader can see. A JSONL consumer must get the same evidence.
 func TestWireEvents_ProblemRecordedCarriesDetailAndEvidenceTail(t *testing.T) {
 	var stdout nopFlushWriter
-	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	out := initRun(Config{isolated: true, format: formatJSONL, stdout: &stdout})
 	task := out.Task("build")
 	task.Problem("finding one", Detail("full detail text"))
 	task.Define(func(context.Context) error { return nil })
-	_ = task.Wait()
-	if err := out.Finish(); err != nil {
+	_ = task.wait()
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -514,14 +514,14 @@ func TestWireEvents_ProblemRecordedCarriesDetailAndEvidenceTail(t *testing.T) {
 // the problem.recorded JSONL line, not just detail.
 func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
 	var stdout nopFlushWriter
-	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	out := initRun(Config{isolated: true, format: formatJSONL, stdout: &stdout})
 	task := out.Task("build")
-	tail := task.CaptureForTest()
+	tail := task.captureForTest()
 	_, _ = fmt.Fprintln(tail, "error: undefined symbol foo")
 	task.Problem("finding one", tail.DetailTail())
 	task.Define(func(context.Context) error { return nil })
-	_ = task.Wait()
-	if err := out.Finish(); err != nil {
+	_ = task.wait()
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -542,14 +542,14 @@ func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
 // untested).
 func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
 	var stdout nopFlushWriter
-	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	out := initRun(Config{isolated: true, format: formatJSONL, stdout: &stdout})
 	task := out.Task("build")
-	tail := task.CaptureForTest()
+	tail := task.captureForTest()
 	_, _ = fmt.Fprintln(tail, "warning: deprecated flag used")
-	task.Problem("non-blocking finding", Severity(SeverityWarning), tail.DetailTail())
+	task.Problem("non-blocking finding", severity(severityWarning), tail.DetailTail())
 	task.Define(func(context.Context) error { return nil })
-	_ = task.Wait()
-	if err := out.Finish(); err != nil {
+	_ = task.wait()
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -569,9 +569,9 @@ func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
 // a Task warning's does, not just its summary.
 func TestWireEvents_RunWarningCarriesItsProblemOptions(t *testing.T) {
 	var stdout nopFlushWriter
-	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
-	out.Task("disk").Problem("disk nearly full", Severity(SeverityWarning), Code("W_DISK"), Detail("92% used"), Location("/var", 0, 0))
-	if err := out.Finish(); err != nil {
+	out := initRun(Config{isolated: true, format: formatJSONL, stdout: &stdout})
+	out.Task("disk").Problem("disk nearly full", severity(severityWarning), Code("W_DISK"), Detail("92% used"), location("/var", 0, 0))
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -595,7 +595,7 @@ func TestWireEvents_RunWarningCarriesItsProblemOptions(t *testing.T) {
 // projections.
 func TestWireEvents_VerificationObservedCarriesFacts(t *testing.T) {
 	var stdout nopFlushWriter
-	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	out := initRun(Config{isolated: true, format: formatJSONL, stdout: &stdout})
 	task := out.Task("write launch agent")
 	task.Define(func(context.Context) error { return nil })
 
@@ -612,8 +612,8 @@ func TestWireEvents_VerificationObservedCarriesFacts(t *testing.T) {
 	})
 	out.mu.Unlock()
 
-	_ = task.Wait()
-	if err := out.Finish(); err != nil {
+	_ = task.wait()
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -653,7 +653,7 @@ func TestWireEvents_VerificationObservedCarriesFacts(t *testing.T) {
 func TestWireEvents_VerificationObservedUsesSanitizedFacts(t *testing.T) {
 	const rawErr = "permission denied\x1b[31m\x07 (control bytes)"
 	var stdout nopFlushWriter
-	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	out := initRun(Config{isolated: true, format: formatJSONL, stdout: &stdout})
 	task := out.Task("write file")
 	task.Define(func(context.Context) error { return nil })
 
@@ -667,8 +667,8 @@ func TestWireEvents_VerificationObservedUsesSanitizedFacts(t *testing.T) {
 	sanitized := out.taskStates[task.id].node.Rec.Verification()
 	out.mu.Unlock()
 
-	_ = task.Wait()
-	if err := out.Finish(); err != nil {
+	_ = task.wait()
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 	if len(sanitized) != 1 || len(sanitized[0].Facts) != 1 {
@@ -687,7 +687,7 @@ func TestWireEvents_VerificationObservedUsesSanitizedFacts(t *testing.T) {
 		}
 	}
 	if payload == nil {
-		t.Fatalf("no verification.observed event, got: %v", wireEventTypes(events))
+		t.Fatalf("no verification.observed recEvent, got: %v", wireEventTypes(events))
 	}
 	facts, ok := payload["facts"].([]any)
 	if !ok || len(facts) != 1 {
@@ -717,19 +717,19 @@ func (w *failAfterNWriter) Write(p []byte) (int, error) {
 
 // TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning is ZYS-848's
 // wire-side "all Problems remain available in ... JSONL" acceptance item:
-// each TaskHandle.Problem call streams its own problem.recorded line,
+// each Task.Problem call streams its own problem.recorded line,
 // distinct from warning.recorded, so a JSONL consumer never needs to guess
 // whether an accumulated finding was blocking or a warning.
 func TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning(t *testing.T) {
 	var stdout nopFlushWriter
-	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout})
+	out := initRun(Config{isolated: true, format: formatJSONL, stdout: &stdout})
 	task := out.Task("audit")
 	task.Problem("finding one", Code("A1"))
 	task.Problem("finding two", Code("A2"))
-	task.Problem("heads up", Severity(SeverityWarning), Code("W1"))
+	task.Problem("heads up", severity(severityWarning), Code("W1"))
 	task.Define(func(context.Context) error { return nil })
-	_ = task.Wait()
-	if err := out.Finish(); err != nil {
+	_ = task.wait()
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -748,7 +748,7 @@ func TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning(t *testing.T) 
 		t.Fatalf("want 2 %s events, got %d in %v", wire.EventProblemRecorded, problemCount, types)
 	}
 	if warningCount != 1 {
-		t.Fatalf("want 1 %s event, got %d in %v", wire.EventWarningRecorded, warningCount, types)
+		t.Fatalf("want 1 %s recEvent, got %d in %v", wire.EventWarningRecorded, warningCount, types)
 	}
 	// The task resolves Failed (accumulated Problems override the nil
 	// Define return) even though the warning alone would not have.
@@ -764,12 +764,12 @@ func TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning(t *testing.T) 
 // reports a non-nil error escalating the run's exit code.
 func TestWireEvents_WriteFailureMidStream_FailsRunButKeepsEarlierLines(t *testing.T) {
 	w := &failAfterNWriter{n: 2}
-	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: w})
+	out := initRun(Config{isolated: true, format: formatJSONL, stdout: w})
 	task := out.Task("build")
 	task.Define(func(context.Context) error { return nil })
-	_ = task.Wait()
+	_ = task.wait()
 
-	finishErr := out.Finish()
+	finishErr := out.finish()
 	if finishErr == nil {
 		t.Fatalf("Finish must report an error after a mid-stream wire-event write failure")
 	}

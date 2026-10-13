@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -7,25 +7,24 @@ import (
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
-func fixedDebugClock() evo.TestClock {
-	return evo.TestClock{T: time.Date(2026, 7, 27, 12, 4, 18, 219_000_000, time.UTC)}
+func fixedDebugClock() TestClock {
+	return TestClock{T: time.Date(2026, 7, 27, 12, 4, 18, 219_000_000, time.UTC)}
 }
 
 // History mode (default): durable append-above, compact grammar with timestamp (§21.3.1).
 func TestDebugHistory_AppendAboveLiveRegion(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Clock: fixedDebugClock(), Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, clock: fixedDebugClock(), stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), Debug: debugConfig{level: levelDebug}, color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("branches")
 	task.Doing("comparing")
-	out.DebugForTest("opened repository", evo.Field{Key: "path", Value: "/work/repo"})
+	out.debugForTest("opened repository", field{Key: "path", Value: "/work/repo"})
 	succeed(task)
-	_ = out.Finish()
+	_ = out.finish()
 
 	var durable strings.Builder
 	for _, op := range screen.Operations() {
@@ -48,16 +47,16 @@ func TestDebugPane_RollingViewportNewestFirst(t *testing.T) {
 	clock := testkit.NewClock()
 	// Advance so successive Debug calls get distinct times if clock ticks.
 	newest := true
-	out := evo.Init(evo.Config{Isolated: true, Clock: clock, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug, View: evo.DebugPresentationPane, PaneHeight: 2, NewestFirst: &newest}, Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, clock: clock, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), Debug: debugConfig{level: levelDebug, view: debugPresentationPane, paneHeight: 2, newestFirst: &newest}, color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("work")
 	task.Doing("running")
-	out.DebugForTest("first event")
+	out.debugForTest("first event")
 	clock.Advance(time.Millisecond)
-	out.DebugForTest("second event")
+	out.debugForTest("second event")
 	clock.Advance(time.Millisecond)
-	out.DebugForTest("third event") // pane height 2 → first event leaves viewport
+	out.debugForTest("third event") // pane height 2 → first event leaves viewport
 
 	live := screen.LatestLiveText()
 	if !strings.Contains(live, "── debug · newest first ──") {
@@ -90,7 +89,7 @@ func TestDebugPane_RollingViewportNewestFirst(t *testing.T) {
 	}
 
 	succeed(task)
-	_ = out.Finish()
+	_ = out.finish()
 	// Success: pane removed; no diagnostics tail.
 	final := screen.FinalText()
 	if strings.Contains(final, "── debug") || strings.Contains(final, "── diagnostics") {
@@ -106,15 +105,15 @@ func TestDebugPane_FailurePreservesDiagnosticTail(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	var primary bytes.Buffer
 	newest := true
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &primary, Clock: fixedDebugClock(), Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug, View: evo.DebugPresentationPane, PaneHeight: 5, NewestFirst: &newest}, Color: evo.ColorNever})
-	out.DropDiagnosticForTest()
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &primary, clock: fixedDebugClock(), terminal: screen, visibilityDelay: DelayForTest(0), Debug: debugConfig{level: levelDebug, view: debugPresentationPane, paneHeight: 5, newestFirst: &newest}, color: colorNever})
+	out.dropDiagnosticForTest()
+	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("scan").Doing("running")
-	out.DebugForTest("enumerated local branches", evo.Field{Key: "count", Value: 7})
-	out.DebugForTest("fetched remote metadata", evo.Field{Key: "remote", Value: "origin"})
-	out.Task("disk").Fail("full")
-	_ = out.Finish()
+	out.debugForTest("enumerated local branches", field{Key: "count", Value: 7})
+	out.debugForTest("fetched remote metadata", field{Key: "remote", Value: "origin"})
+	out.Task("disk").fail("full")
+	_ = out.finish()
 
 	got := primary.String()
 	if !strings.Contains(got, "[failed]") {
@@ -137,12 +136,12 @@ func TestDebugPane_FailurePreservesDiagnosticTail(t *testing.T) {
 // PreserveDebugTail forces a tail even on success (explicit opt-in).
 func TestDebugPane_PreserveDebugTailAlways(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: &buf, Clock: fixedDebugClock(), Debug: evo.DebugConfig{Level: evo.LevelDebug, View: evo.DebugPresentationPane, PreserveAlways: true}, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: &buf, clock: fixedDebugClock(), Debug: debugConfig{level: levelDebug, view: debugPresentationPane, preserveAlways: true}, color: colorNever, plain: true})
+	t.Cleanup(func() { _ = out.close() })
 
-	out.DebugForTest("cache warm", evo.Field{Key: "dir", Value: "/tmp/x"})
+	out.debugForTest("cache warm", field{Key: "dir", Value: "/tmp/x"})
 	succeed(out.Task("ok"))
-	_ = out.Finish()
+	_ = out.finish()
 	got := buf.String()
 	if !strings.Contains(got, "── diagnostics ──") {
 		t.Fatalf("PreserveDebugTail should emit diagnostics section:\n%s", got)
@@ -155,14 +154,14 @@ func TestDebugPane_PreserveDebugTailAlways(t *testing.T) {
 // Plain + history: still one stream, no double print (regression).
 func TestDebugHistory_PlainStreamsOnce(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Clock: fixedDebugClock(), Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever, Plain: true})
-	out.DropDiagnosticForTest()
-	t.Cleanup(func() { _ = out.Close() })
-	out.DebugForTest("cache warm", evo.Field{Key: "dir", Value: "/tmp/x"})
+	out := initRun(Config{isolated: true, stdout: &buf, clock: fixedDebugClock(), Debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	out.dropDiagnosticForTest()
+	t.Cleanup(func() { _ = out.close() })
+	out.debugForTest("cache warm", field{Key: "dir", Value: "/tmp/x"})
 	if n := strings.Count(buf.String(), "[DEBUG] cache warm"); n != 1 {
 		t.Fatalf("before Finish count=%d:\n%s", n, buf.String())
 	}
-	_ = out.Finish()
+	_ = out.finish()
 	if n := strings.Count(buf.String(), "[DEBUG] cache warm"); n != 1 {
 		t.Fatalf("after Finish count=%d:\n%s", n, buf.String())
 	}

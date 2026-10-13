@@ -12,19 +12,19 @@ import (
 
 func nopWork(context.Context) error { return nil }
 
-func newGraphTestOutput(t *testing.T) *Output {
+func newGraphTestOutput(t *testing.T) *Run {
 	t.Helper()
-	return Init(Config{Isolated: true, StateDir: t.TempDir(), Stdout: io.Discard, Stderr: io.Discard})
+	return initRun(Config{isolated: true, stateDir: t.TempDir(), stdout: io.Discard, stderr: io.Discard})
 }
 
 // closeWithin runs Finish and Close and fails the test, instead of hanging
 // it, when they do not return in time. It returns Finish's error.
-func closeWithin(t *testing.T, out *Output) error {
+func closeWithin(t *testing.T, out *Run) error {
 	t.Helper()
 	done := make(chan error, 1)
 	go func() {
-		err := out.Finish()
-		_ = out.Close()
+		err := out.finish()
+		_ = out.close()
 		done <- err
 	}()
 	select {
@@ -41,34 +41,34 @@ func closeWithin(t *testing.T, out *Output) error {
 // and Finish used to wait on them forever without printing a line.
 func TestAfterCycle_SettlesBlockedInsteadOfHanging(t *testing.T) {
 	cases := map[string]struct {
-		build func(o *Output) []*TaskHandle
+		build func(o *Run) []*Task
 		path  string
 	}{
 		"self": {
-			build: func(o *Output) []*TaskHandle {
+			build: func(o *Run) []*Task {
 				x := o.Task("x")
 				x.After(x).Define(nopWork)
-				return []*TaskHandle{x}
+				return []*Task{x}
 			},
 			path: "x → x",
 		},
 		"pair": {
-			build: func(o *Output) []*TaskHandle {
+			build: func(o *Run) []*Task {
 				a, b := o.Task("a"), o.Task("b")
 				a.After(b)
 				b.After(a)
 				a.Define(nopWork)
 				b.Define(nopWork)
-				return []*TaskHandle{a, b}
+				return []*Task{a, b}
 			},
 			path: "a → b → a",
 		},
 		"own group": {
-			build: func(o *Output) []*TaskHandle {
+			build: func(o *Run) []*Task {
 				g := o.Group("g")
 				x := g.Task("x")
 				x.After(g).Define(nopWork)
-				return []*TaskHandle{x}
+				return []*Task{x}
 			},
 			path: "x → g → x",
 		},
@@ -82,8 +82,8 @@ func TestAfterCycle_SettlesBlockedInsteadOfHanging(t *testing.T) {
 				t.Fatalf("Finish = %v, want errDependencyCycle", err)
 			}
 			for _, task := range tasks {
-				snap := task.Snapshot()
-				if snap.State != Blocked || !strings.Contains(snap.Summary, tc.path) {
+				snap := task.snapshot()
+				if snap.State != blocked || !strings.Contains(snap.Summary, tc.path) {
 					t.Errorf("%s = %s %q, want blocked naming %q", snap.Name, snap.State, snap.Summary, tc.path)
 				}
 			}
@@ -103,7 +103,7 @@ func TestAfterCycle_DependentsDoNotStart(t *testing.T) {
 	after := out.Task("after").After(a)
 	after.Define(nopWork)
 	_ = closeWithin(t, out)
-	if got := after.Snapshot().State; got != NotStarted {
+	if got := after.snapshot().State; got != notStarted {
 		t.Fatalf("dependent of a cycle = %s, want not_started", got)
 	}
 }
@@ -149,7 +149,7 @@ func TestAfterEmptyGroup_WaitRunsItNow(t *testing.T) {
 	out.Task("later") // declared, still the caller's to Define
 	fetch := out.Task("fetch").After(g).Define(nopWork)
 	done := make(chan error, 1)
-	go func() { done <- fetch.Wait() }()
+	go func() { done <- fetch.wait() }()
 	select {
 	case err := <-done:
 		if err != nil {
@@ -170,7 +170,7 @@ func TestAfterEmptyGroup_DrainRunsIt(t *testing.T) {
 	if err := closeWithin(t, out); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
-	if got := fetch.Snapshot().State; got != Done {
+	if got := fetch.snapshot().State; got != done {
 		t.Fatalf("fetch = %s, want done", got)
 	}
 }
@@ -184,7 +184,7 @@ func TestAfterGroupWithUndefinedChild_DrainSettlesNotStarted(t *testing.T) {
 	g.Task("never defined")
 	fetch := out.Task("fetch").After(g).Define(nopWork)
 	_ = closeWithin(t, out)
-	if got := fetch.Snapshot().State; got != NotStarted {
+	if got := fetch.snapshot().State; got != notStarted {
 		t.Fatalf("fetch = %s, want not_started", got)
 	}
 }
@@ -199,7 +199,7 @@ func TestAfterForeignHandle_NeverStarts(t *testing.T) {
 	dependent := out.Task("dependent").After(foreign).Define(nopWork)
 	_ = closeWithin(t, out)
 	_ = closeWithin(t, other)
-	if got := dependent.Snapshot().State; got != NotStarted {
+	if got := dependent.snapshot().State; got != notStarted {
 		t.Fatalf("dependent = %s, want not_started", got)
 	}
 }

@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 	"github.com/zachbornheimer/evident-output/testkit/wireschema"
 )
@@ -24,14 +23,14 @@ import (
 func TestWireSchema_RenderedDocumentValidates(t *testing.T) {
 	schema := strictOutputSchema(t)
 
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
+	out := initRun(Config{isolated: true, stdout: io.Discard})
 	succeed(out.Task("working tree"))
-	out.Task("branches").Problem("2 branches need attention", evo.Severity(evo.SeverityWarning))
+	out.Task("branches").Problem("2 branches need attention", severity(severityWarning))
 	seq := out.Sequence("cleanup")
 	succeed(seq.Task("remove tags"))
-	_ = out.Finish()
+	_ = out.finish()
 
-	doc, err := wire.EncodeJSON(out.Snapshot())
+	doc, err := wire.EncodeJSON(out.snapshot())
 	if err != nil {
 		t.Fatalf("EncodeJSON: %v", err)
 	}
@@ -45,7 +44,7 @@ func TestWireSchema_RenderedDocumentValidates(t *testing.T) {
 // EvidenceTail, beside a File verification failure with Facts, must still
 // validate against the Strict output.v1 schema. None of that data may leak
 // into output.v1 as an undeclared field; machine consumers read it from the
-// evo.run document (internal/wire), which carries all of it.
+// run document (internal/wire), which carries all of it.
 func TestWireSchema_RichProblemStaysWithinFrozenOutputV1(t *testing.T) {
 	schema := strictOutputSchema(t)
 
@@ -54,19 +53,19 @@ func TestWireSchema_RichProblemStaysWithinFrozenOutputV1(t *testing.T) {
 	fsys := testkit.NewFileFS()
 	fsys.FailChmod(path, errors.New("operation not permitted"))
 
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, FileFS: fsys, StateDir: dir})
+	out := initRun(Config{isolated: true, stdout: io.Discard, fileFS: fsys, stateDir: dir})
 	out.Task("write launch agent").Define(func(ctx context.Context) error {
-		return evo.File(ctx, evo.FileSpec{Path: path, Contents: []byte("x"), Mode: 0o644})
+		return File(ctx, FileSpec{Path: path, Contents: []byte("x"), Mode: 0o644})
 	})
 	lint := out.Task("lint")
-	capture := lint.Capture()
+	capture := lint.capture()
 	_, _ = io.WriteString(capture.Stderr(), "main.go:12:3: undefined: x\n")
 	_ = capture.Close()
-	lint.Fail("lint failed", capture.DetailTail(),
-		evo.Location("main.go", 12, 3), evo.NextCommand("go", "vet", "./..."))
-	_ = out.Finish()
+	lint.fail("lint failed", capture.DetailTail(),
+		location("main.go", 12, 3), nextCommand("go", "vet", "./..."))
+	_ = out.finish()
 
-	doc, err := wire.EncodeJSON(out.Snapshot())
+	doc, err := wire.EncodeJSON(out.snapshot())
 	if err != nil {
 		t.Fatalf("EncodeJSON: %v", err)
 	}

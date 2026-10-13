@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"fmt"

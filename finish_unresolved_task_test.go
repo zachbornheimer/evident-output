@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestFinish_UnresolvedTaskWithRecordedEffect_AutoResolvesDone is
@@ -14,19 +12,19 @@ import (
 // told an honest, complete story already — the easiest path (forgetting
 // Done) becomes correct instead of a surprising Cancelled/NotStarted plus a
 // silent exit-code flip to failure. This is exactly the README quickstart's
-// `evo.Task("cleanup").Define(effectOf(evo.EffectDelete, "stale local branch", 2))` shape with no
+// `Default().Task("cleanup").Define(effectOf(Delete, "stale local branch", 2))` shape with no
 // following Done.
 func TestFinish_UnresolvedTaskWithRecordedEffect_AutoResolvesDone(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
-	out.Task("cleanup").Define(effectOf(evo.EffectDelete, "stale local branch", 2))
+	out.Task("cleanup").Define(effectOf(Delete, "stale local branch", 2))
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (recorded effect should auto-resolve Done)", err)
 	}
-	if code := out.Conclusion().ExitCode; code != evo.ExitOK {
-		t.Fatalf("exit code = %d, want %d (ExitOK)", code, evo.ExitOK)
+	if code := out.conclusion().exitCode; code != exitOK {
+		t.Fatalf("exit code = %d, want %d (ExitOK)", code, exitOK)
 	}
 	rendered := buf.String()
 	if !strings.Contains(rendered, "✓") || !strings.Contains(rendered, "cleanup") {
@@ -47,13 +45,13 @@ func TestFinish_UnresolvedTaskWithRecordedEffect_AutoResolvesDone(t *testing.T) 
 // honest, sentinel-specific hint — this pins the new line instead.
 func TestFinish_RemainingMisuse_RendersTaskLine(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	task := out.Task("branches")
-	task.Block("local-only branch")
-	task.Define(effectOf(evo.EffectDelete, "stale local branch", 2)) // already resolved — misuse
+	task.block("local-only branch")
+	task.Define(effectOf(Delete, "stale local branch", 2)) // already resolved — misuse
 
-	if err := out.Finish(); err == nil {
+	if err := out.finish(); err == nil {
 		t.Fatal("Finish() = nil, want the recorded misuse")
 	}
 	rendered := buf.String()

@@ -9,7 +9,7 @@ import (
 // does: through the graph, with Output.mu free, while the record's
 // notification is still in flight (a Hold stands for the delivery that has
 // not reached the listener). It returns the release of that delivery.
-func settleOutsideTheLock(o *Output, id string, state EntityState) (deliver func()) {
+func settleOutsideTheLock(o *Run, id string, state entityState) (deliver func()) {
 	o.rec.Hold()
 	o.graph.Settle(o.graph.Task(id), state)
 	return o.rec.Release
@@ -23,11 +23,11 @@ func settleOutsideTheLock(o *Output, id string, state EntityState) (deliver func
 func TestLiveIndexFollowsASettleTheListenerHasNotHeardYet(t *testing.T) {
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := newOutput("job", withTerminal(&countingLiveSurface{}), visibilityDelay(0), withClock(clock), withNoColor())
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 	items := out.Group("items")
 	first, _ := items.Task("first"), items.Task("second")
 
-	deliver := settleOutsideTheLock(out, first.id, Done)
+	deliver := settleOutsideTheLock(out, first.id, done)
 
 	out.mu.Lock()
 	_ = out.liveSnapshotLocked(24, clock.t)
@@ -53,10 +53,10 @@ func TestLiveIndexFollowsASettleTheListenerHasNotHeardYet(t *testing.T) {
 func TestSnapshotFollowsASettleTheListenerHasNotHeardYet(t *testing.T) {
 	out := newListenerTestOutput(t)
 	task := out.Task("settles")
-	before := out.Snapshot().Version
+	before := out.snapshot().Version
 
 	deliver := settleOutsideTheLock(out, task.id, Failed)
-	snapshot := out.Snapshot()
+	snapshot := out.snapshot()
 	deliver()
 
 	if snapshot.Version == before {

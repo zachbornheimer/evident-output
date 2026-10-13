@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"context"
@@ -6,8 +6,6 @@ import (
 	"io"
 	"testing"
 	"time"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // twoLevelRead runs read on a goroutine started by a goroutine that stays
@@ -31,11 +29,11 @@ func twoLevelRead(read func()) {
 // itself made no lookup before its read.
 func unorderedGrandchildReadWhileAnotherCallbackFansOut(t *testing.T, others int) error {
 	t.Helper()
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true, MaxConcurrency: 2})
-	defer func() { _ = out.Close() }()
+	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true, MaxConcurrency: 2})
+	defer func() { _ = out.close() }()
 	made := out.Group("producers").Task("make")
-	producer := evo.Compute(made, func(context.Context) (int, error) { return 7, nil })
-	if err := made.Wait(); err != nil {
+	producer := Compute(made, func(context.Context) (int, error) { return 7, nil })
+	if err := made.wait(); err != nil {
 		t.Fatal(err)
 	}
 	readerRunning, othersDone := make(chan struct{}), make(chan struct{})
@@ -55,14 +53,14 @@ func unorderedGrandchildReadWhileAnotherCallbackFansOut(t *testing.T, others int
 		close(othersDone)
 		return nil
 	})
-	_ = out.Finish()
-	return reader.Wait()
+	_ = out.finish()
+	return reader.wait()
 }
 
 // The control: with no other callback fanning out, reader's grandchild read is
 // refused, as CONTRACT section 2 promises.
 func TestUnorderedGrandchildReadIsRefusedWhenNoOtherCallbackFansOut(t *testing.T) {
-	if err := unorderedGrandchildReadWhileAnotherCallbackFansOut(t, 0); !errors.Is(err, evo.ErrComputedUnordered) {
+	if err := unorderedGrandchildReadWhileAnotherCallbackFansOut(t, 0); !errors.Is(err, ErrComputedUnordered) {
 		t.Fatalf("reader.Wait() = %v, want ErrComputedUnordered", err)
 	}
 }
@@ -71,7 +69,7 @@ func TestUnorderedGrandchildReadIsRefusedWhenNoOtherCallbackFansOut(t *testing.T
 // another callback fans out past its own share: reader made no lookup, and the
 // fan-out's twelve cost less than the two callbacks earned together.
 func TestAnotherCallbacksFanOutDoesNotEndThisCallbacksGrandchildAttribution(t *testing.T) {
-	if err := unorderedGrandchildReadWhileAnotherCallbackFansOut(t, 12); !errors.Is(err, evo.ErrComputedUnordered) {
+	if err := unorderedGrandchildReadWhileAnotherCallbackFansOut(t, 12); !errors.Is(err, ErrComputedUnordered) {
 		t.Fatalf("reader.Wait() = %v, want ErrComputedUnordered: another callback's lookups ended this callback's attribution", err)
 	}
 }
@@ -80,16 +78,16 @@ func TestAnotherCallbacksFanOutDoesNotEndThisCallbacksGrandchildAttribution(t *t
 // while holder blocks on it, the API-041 deadlock shape, which must be
 // released with ErrWaitDeadlock after another callback's fan-out ran first.
 func TestGrandchildDeadlockIsReleasedAfterAnotherCallbackFansOut(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true, MaxConcurrency: 2})
+	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true, MaxConcurrency: 2})
 	hung := false
 	defer func() {
 		if !hung {
-			_ = out.Close()
+			_ = out.close()
 		}
 	}()
 	made := out.Group("producers").Task("make")
-	producer := evo.Compute(made, func(context.Context) (int, error) { return 7, nil })
-	if err := made.Wait(); err != nil {
+	producer := Compute(made, func(context.Context) (int, error) { return 7, nil })
+	if err := made.wait(); err != nil {
 		t.Fatal(err)
 	}
 	holderRunning, othersDone := make(chan struct{}), make(chan struct{})
@@ -99,7 +97,7 @@ func TestGrandchildDeadlockIsReleasedAfterAnotherCallbackFansOut(t *testing.T) {
 	holder.Define(func(context.Context) error {
 		close(holderRunning)
 		<-othersDone
-		twoLevelRead(func() { waitErr <- later.Wait() })
+		twoLevelRead(func() { waitErr <- later.wait() })
 		return nil
 	})
 	later.Define(func(context.Context) error { return nil })
@@ -114,12 +112,12 @@ func TestGrandchildDeadlockIsReleasedAfterAnotherCallbackFansOut(t *testing.T) {
 	})
 	select {
 	case err := <-waitErr:
-		if !errors.Is(err, evo.ErrWaitDeadlock) {
+		if !errors.Is(err, errWaitDeadlock) {
 			t.Fatalf("grandchild later.Wait() = %v, want ErrWaitDeadlock", err)
 		}
 	case <-time.After(5 * time.Second):
 		hung = true
 		t.Fatal("hang: the grandchild's Wait was never released (another callback ended this callback's attribution)")
 	}
-	_ = out.Finish()
+	_ = out.finish()
 }

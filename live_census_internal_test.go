@@ -15,7 +15,7 @@ import (
 func TestLiveCensusMatchesAWalk(t *testing.T) {
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := newOutput("job", withTerminal(&countingLiveSurface{}), visibilityDelay(0), withClock(clock), withNoColor(), maxConcurrency(2))
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	root := out.Group("root")
 	a, b := root.Group("a"), root.Group("b").Group("deep")
@@ -23,12 +23,12 @@ func TestLiveCensusMatchesAWalk(t *testing.T) {
 	a.Task("bad").Define(func(context.Context) error { return errors.New("boom") })
 	warned := b.Task("warned")
 	warned.Define(func(context.Context) error {
-		warned.Problem("careful", Severity(SeverityWarning))
+		warned.Problem("careful", severity(severityWarning))
 		return nil
 	})
 	skipped := b.Task("skipped")
-	skipped.Define(func(context.Context) error { skipped.Skipped(Reason("n/a")); return nil })
-	_ = root.Wait()
+	skipped.Define(func(context.Context) error { skipped.skipped(reason("n/a")); return nil })
+	_ = root.wait()
 	release := make(chan struct{})
 	running := make(chan struct{})
 	b.Task("running").Define(func(context.Context) error { close(running); <-release; return nil })

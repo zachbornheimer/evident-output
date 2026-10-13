@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"io"
@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -33,8 +32,8 @@ func hasSpinnerGlyph(s string) bool {
 func TestLive_DeclaredToolTaskSpinsBeforeCheck(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("go@1.25.11")
 	live := screen.LatestLiveText()
@@ -81,8 +80,8 @@ func TestLive_DeclaredToolTaskSpinsBeforeCheck(t *testing.T) {
 
 func TestLive_OneChildDisplayGroupIsSingleLine(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	g := out.Group("run")
 	child := g.Task("install:fresh-start")
@@ -102,8 +101,8 @@ func TestLive_OneChildDisplayGroupIsSingleLine(t *testing.T) {
 
 func TestLive_FastBindSpinnerVisibleOnWallClock(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, terminal: screen, color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("go@1.25.11")
 	task.Doing("resolving go@1.25.11")

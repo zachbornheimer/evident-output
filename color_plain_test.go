@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestPlain_ColorOnByDefault is updated for P2: Warn no longer resolves its
@@ -15,13 +13,13 @@ import (
 // attention color still lives (writeNestedTaskWarnings).
 func TestPlain_ColorOnByDefault(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Plain: true, Color: evo.ColorAlways})
+	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", plain: true, color: colorAlways})
 	succeed(out.Task("ok"))
-	out.Task("bad").Fail("x")
+	out.Task("bad").fail("x")
 	warn := out.Task("warn")
-	warn.Problem("y", evo.Severity(evo.SeverityWarning))
-	warn.Problem("z", evo.Severity(evo.SeverityWarning))
-	if err := out.Finish(); err != nil {
+	warn.Problem("y", severity(severityWarning))
+	warn.Problem("z", severity(severityWarning))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	s := buf.String()
@@ -42,10 +40,10 @@ func TestPlain_ColorOnByDefault(t *testing.T) {
 
 func TestPlain_NoColorSuppressesSGR(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", color: colorNever, plain: true})
 	succeed(out.Task("ok"))
-	out.Task("bad").Fail("x")
-	if err := out.Finish(); err != nil {
+	out.Task("bad").fail("x")
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	s := buf.String()

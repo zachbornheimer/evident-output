@@ -84,11 +84,11 @@ func TestAfterGroup_GroupWaitReleasesDependents(t *testing.T) {
 	g := out.Group("items")
 	fetch := out.Task("fetch").After(g).Define(nopWork)
 	g.Task("a").Define(nopWork)
-	if err := g.Wait(); err != nil {
+	if err := g.wait(); err != nil {
 		t.Fatalf("Group Wait: %v", err)
 	}
 	done := make(chan error, 1)
-	go func() { done <- fetch.Wait() }()
+	go func() { done <- fetch.wait() }()
 	select {
 	case err := <-done:
 		if err != nil {

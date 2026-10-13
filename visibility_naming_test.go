@@ -1,10 +1,8 @@
-package evo_test
+package evo
 
 import (
 	"io"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestVisibilityNormal_PrefixedConsistently is C11: Visibility's zero
@@ -12,10 +10,10 @@ import (
 // sibling VisibilityVerbose (the two previously disagreed on their own
 // naming convention within one enum).
 func TestVisibilityNormal_PrefixedConsistently(t *testing.T) {
-	if evo.VisibilityNormal != 0 {
-		t.Fatalf("VisibilityNormal = %v, want the zero value", evo.VisibilityNormal)
+	if visibilityNormal != 0 {
+		t.Fatalf("VisibilityNormal = %v, want the zero value", visibilityNormal)
 	}
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	out.AtForTest(evo.VisibilityNormal).Println("hello")
+	out := initRun(Config{isolated: true, stdout: io.Discard})
+	t.Cleanup(func() { _ = out.close() })
+	out.atForTest(visibilityNormal).println("hello")
 }

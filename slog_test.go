@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -9,21 +9,20 @@ import (
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
 func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug}})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), Debug: debugConfig{level: levelDebug}})
+	t.Cleanup(func() { _ = out.close() })
 
-	logger := slog.New(out.SlogHandlerForTest())
+	logger := slog.New(out.slogHandlerForTest())
 	task := out.Task("index")
 	task.Doing("reading documents")
 	logger.Debug("batch loaded", "documents", 200)
 	succeed(task, "indexed 200 documents")
-	_ = out.Finish()
+	_ = out.finish()
 
 	ops := screen.Operations()
 	var sawDurable bool
@@ -38,19 +37,19 @@ func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 }
 
 // TestSlogHandler_PackageFuncJournalsToDefaultInstance is release-gate round
-// 8 finding 6: evo.SlogHandlerForTest() is package-level sugar for the default
-// instance, matching evo.Task/evo.Verbose — a caller using the
+// 8 finding 6: SlogHandlerForTest() is package-level sugar for the default
+// instance, matching Task/Verbose — a caller using the
 // default-instance facade throughout a run should never have to reach for a
-// hosted *Output just for the slog bridge.
+// hosted *Run just for the slog bridge.
 func TestSlogHandler_PackageFuncJournalsToDefaultInstance(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Stderr: &buf, Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever, Plain: true}))
+	setDefault(initRun(Config{stdout: &buf, stderr: &buf, Debug: debugConfig{level: levelDebug}, color: colorNever, plain: true}))
 
-	logger := slog.New(evo.SlogHandlerForTest())
+	logger := slog.New(SlogHandlerForTest())
 	logger.Debug("batch loaded", "documents", 200)
-	succeed(evo.Task("index"))
+	succeed(defaultRun().Task("index"))
 
-	if err := evo.Default().Finish(); err != nil {
+	if err := defaultRun().finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
 	}
 	if got := buf.String(); !strings.Contains(got, "batch loaded") {
@@ -60,21 +59,21 @@ func TestSlogHandler_PackageFuncJournalsToDefaultInstance(t *testing.T) {
 
 func TestSlogHandler_PreservesTimeLevelAttrs(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Title:  "slog",
-		Stdout: &buf,
-		Stderr: &buf,
-		Debug:  evo.DebugConfig{Level: evo.LevelDebug},
+	out := initRun(Config{
+		title:  "slog",
+		stdout: &buf,
+		stderr: &buf,
+		Debug:  debugConfig{level: levelDebug},
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
-	logger := slog.New(out.SlogHandlerForTest())
+	logger := slog.New(out.slogHandlerForTest())
 	logger.LogAttrs(context.Background(), slog.LevelDebug, "package index loaded",
 		slog.Int("packages", 18),
 		slog.String("cache", "warm"),
 	)
 	logger.Debug("second", "k", "v")
-	_ = out.Finish()
+	_ = out.finish()
 
 	s := buf.String()
 	if !strings.Contains(s, "package index loaded") {
@@ -97,13 +96,13 @@ func TestSlogHandler_PreservesTimeLevelAttrs(t *testing.T) {
 
 func TestSlogInfoPreservesAttrsAndTime(t *testing.T) {
 	var buf bytes.Buffer
-	fixed := evo.TestClock{T: time.Date(2026, 7, 27, 22, 15, 0, 0, time.UTC)}
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: &buf, Clock: fixed, Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	fixed := TestClock{T: time.Date(2026, 7, 27, 22, 15, 0, 0, time.UTC)}
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: &buf, clock: fixed, Debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	t.Cleanup(func() { _ = out.close() })
 
-	logger := slog.New(out.SlogHandlerForTest())
+	logger := slog.New(out.slogHandlerForTest())
 	logger.Info("registry request complete", "registry", "ghcr.io", "packages", 3)
-	_ = out.Finish()
+	_ = out.finish()
 
 	s := buf.String()
 	// Must be structured journal, not bare Line("registry request complete").
@@ -129,15 +128,15 @@ func TestSlogInfoPreservesAttrsAndTime(t *testing.T) {
 func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	newest := true
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug, View: evo.DebugPresentationPane, PaneHeight: 5, NewestFirst: &newest}, Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), Debug: debugConfig{level: levelDebug, view: debugPresentationPane, paneHeight: 5, newestFirst: &newest}, color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
-	logger := slog.New(out.SlogHandlerForTest())
+	logger := slog.New(out.slogHandlerForTest())
 	task := out.Task("pull")
 	task.Doing("fetching")
 	logger.Warn("registry request slow", "duration", "4s", "registry", "ghcr.io")
 	succeed(task)
-	_ = out.Finish()
+	_ = out.finish()
 
 	live := screen.LatestLiveText()
 	// Prefer live pane while work was active; also accept final text.
@@ -164,16 +163,16 @@ func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 // SlogHandler().Handle (see LogRecord.PC) for any machine consumer.
 func TestSlogErrorPreservesLevelAndPC(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: &buf, Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: &buf, Debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	t.Cleanup(func() { _ = out.close() })
 
 	// Craft a Record with a non-zero PC (as AddSource would provide).
 	rec := slog.NewRecord(time.Date(2026, 7, 27, 22, 15, 0, 0, time.UTC), slog.LevelError, "pull failed", 42)
 	rec.AddAttrs(slog.String("ref", "main"), slog.Int("attempt", 2))
-	if err := out.SlogHandlerForTest().Handle(context.Background(), rec); err != nil {
+	if err := out.slogHandlerForTest().Handle(context.Background(), rec); err != nil {
 		t.Fatal(err)
 	}
-	_ = out.Finish()
+	_ = out.finish()
 
 	s := buf.String()
 	if !strings.Contains(s, "[ERROR]") {
@@ -199,16 +198,16 @@ func TestSlogErrorPreservesLevelAndPC(t *testing.T) {
 // default.
 func TestSlogAddSource_ResolvesSourceField(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Stdout: &buf,
-		Stderr: &buf,
-		Debug:  evo.DebugConfig{Level: evo.LevelDebug, AddSource: true},
+	out := initRun(Config{
+		stdout: &buf,
+		stderr: &buf,
+		Debug:  debugConfig{level: levelDebug, addSource: true},
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
-	logger := slog.New(out.SlogHandlerForTest())
+	logger := slog.New(out.slogHandlerForTest())
 	logger.Error("pull failed")
-	_ = out.Finish()
+	_ = out.finish()
 
 	s := buf.String()
 	if strings.Contains(s, "pc=") {

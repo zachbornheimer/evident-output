@@ -1,6 +1,6 @@
 //go:build unix
 
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -9,14 +9,12 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 func TestMain_SIGINTCancelsActiveTaskAndExits130(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
-	task := evo.Task("work")
+	setDefault(initRun(Config{stdout: &buf, color: colorNever, plain: true}))
+	task := defaultRun().Task("work")
 	started := make(chan struct{})
 
 	go func() {
@@ -24,27 +22,27 @@ func TestMain_SIGINTCancelsActiveTaskAndExits130(t *testing.T) {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Run(context.Background(), func(ctx context.Context) error {
+	code := execute_1(context.Background(), func(ctx context.Context) error {
 		close(started)
 		deadline := time.Now().Add(2 * time.Second)
-		for task.Snapshot().State != evo.Cancelled && time.Now().Before(deadline) {
+		for task.snapshot().State != Cancelled && time.Now().Before(deadline) {
 			time.Sleep(time.Millisecond)
 		}
 		return nil
 	}).ExitCode()
 
-	if code != evo.ExitCancelled {
-		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())
+	if code != exitCancelled {
+		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, exitCancelled, buf.String())
 	}
-	if got := task.Snapshot().State; got != evo.Cancelled {
+	if got := task.snapshot().State; got != Cancelled {
 		t.Fatalf("active task state = %v, want Cancelled", got)
 	}
 }
 
 func TestMain_SecondSIGINTExits130WithoutWaitingForRun(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
-	evo.Task("work")
+	setDefault(initRun(Config{stdout: &buf, color: colorNever, plain: true}))
+	defaultRun().Task("work")
 	started := make(chan struct{})
 
 	go func() {
@@ -56,7 +54,7 @@ func TestMain_SecondSIGINTExits130WithoutWaitingForRun(t *testing.T) {
 
 	done := make(chan int, 1)
 	go func() {
-		done <- evo.Run(context.Background(), func(ctx context.Context) error {
+		done <- execute_1(context.Background(), func(ctx context.Context) error {
 			close(started)
 			select {} // a run that never unwinds on its own; only the 2nd signal ends the call
 		}).ExitCode()
@@ -64,8 +62,8 @@ func TestMain_SecondSIGINTExits130WithoutWaitingForRun(t *testing.T) {
 
 	select {
 	case code := <-done:
-		if code != evo.ExitCancelled {
-			t.Fatalf("exit %d, want %d (ExitCancelled)", code, evo.ExitCancelled)
+		if code != exitCancelled {
+			t.Fatalf("exit %d, want %d (ExitCancelled)", code, exitCancelled)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("Main did not return after a second SIGINT")

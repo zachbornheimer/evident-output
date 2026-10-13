@@ -13,27 +13,29 @@ import (
 // yet; slice 8 deletes this file and repoints the root at record directly.
 
 type (
-	Failure         = record.Failure
-	LogRecord       = record.LogRecord
+	failure         = record.Failure
+	logRecord       = record.LogRecord
 	ProblemOption   = record.ProblemOption
-	ProblemSeverity = record.ProblemSeverity
-	ReasonOption    = record.ReasonOption
-	TaxonomyReason  = record.TaxonomyReason
+	problemSeverity = record.ProblemSeverity
+	reasonOption    = record.ReasonOption
+	taxonomyReason  = record.TaxonomyReason
 )
 
 const (
-	SeverityError   = record.SeverityError
-	SeverityWarning = record.SeverityWarning
+	severityError   = record.SeverityError
+	severityWarning = record.SeverityWarning
 )
 
 // Command builds an action with an executable and arguments.
-func Command(executable string, args ...string) Action { return record.Command(executable, args...) }
+func actionCommand(executable string, args ...string) Action {
+	return asEvoAction(record.Command(executable, args...))
+}
 
 // Label builds a plain-text recommended next step with no executable command.
-func Label(text string) Action { return record.Label(text) }
+func label(text string) Action { return asEvoAction(record.Label(text)) }
 
 // Severity sets a Problem's severity.
-func Severity(value ProblemSeverity) ProblemOption { return record.WithSeverity(value) }
+func severity(value problemSeverity) ProblemOption { return record.WithSeverity(value) }
 
 // Detail sets user-visible detail text.
 func Detail(text string) ProblemOption { return record.WithDetail(text) }
@@ -45,28 +47,28 @@ func Code(value string) ProblemOption { return record.WithCode(value) }
 func On(subject string) ProblemOption { return record.OnSubject(subject) }
 
 // Count sets a quantity and optional unit.
-func Count(value int64, unit ...string) ProblemOption { return record.WithCount(value, unit...) }
+func count(value int64, unit ...string) ProblemOption { return record.WithCount(value, unit...) }
 
 // Location sets a source location on a Problem.
-func Location(path string, line, column int) ProblemOption {
+func location(path string, line, column int) ProblemOption {
 	return record.AtLocation(path, line, column)
 }
 
 // Next attaches an action to a problem.
-func Next(action Action) ProblemOption { return record.WithAction(action) }
+func Next(action Action) ProblemOption { return record.WithAction(asRecordAction(action)) }
 
 // NextCommand attaches a recommended command action.
-func NextCommand(executable string, args ...string) ProblemOption {
+func nextCommand(executable string, args ...string) ProblemOption {
 	return record.WithCommand(executable, args...)
 }
 
-// ForSkip restricts a reason to TaskHandle.Skipped.
-func ForSkip() ReasonOption { return record.ForSkip() }
+// ForSkip restricts a reason to Task.Skipped.
+func forSkip() reasonOption { return record.ForSkip() }
 
 // OnTask restricts a reason to the named task.
-func OnTask(taskName string) ReasonOption { return record.OnTask(taskName) }
+func onTask(taskName string) reasonOption { return record.OnTask(taskName) }
 
 // reasonGetOrCreate is the Reason registered under name on this run.
-func (o *Output) reasonGetOrCreate(name string, opts ...ReasonOption) TaxonomyReason {
+func (o *Run) reasonGetOrCreate(name string, opts ...reasonOption) taxonomyReason {
 	return o.rec.Reason(name, opts...)
 }

@@ -12,7 +12,7 @@ import (
 
 // runFilesTask derives diff with Patch and commits it with Files from one
 // Task, running between between the two calls. It returns the Files error.
-func runFilesTask(t *testing.T, out *Output, diff string, between func()) error {
+func runFilesTask(t *testing.T, out *Run, diff string, between func()) error {
 	t.Helper()
 	var filesErr error
 	task := out.Task("apply patch")
@@ -25,10 +25,10 @@ func runFilesTask(t *testing.T, out *Output, diff string, between func()) error 
 		if between != nil {
 			between()
 		}
-		filesErr = Files(ctx, set)
+		filesErr = files(ctx, set)
 		return filesErr
 	})
-	_ = task.Wait()
+	_ = task.wait()
 	return filesErr
 }
 
@@ -42,8 +42,8 @@ func readOrFatal(t *testing.T, path string) string {
 }
 
 // effectObjects lists the Object of every planned and committed Effect.
-func effectObjects(out *Output) (planned, changed []string) {
-	snap := out.Snapshot()
+func effectObjects(out *Run) (planned, changed []string) {
+	snap := out.snapshot()
 	for _, p := range snap.Plans {
 		for _, r := range p.Records {
 			planned = append(planned, r.Object)
@@ -168,11 +168,11 @@ func TestFilesAlreadySatisfiedIsSuccessfulAndCompact(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		first = Files(ctx, set)
-		second = Files(ctx, set)
+		first = files(ctx, set)
+		second = files(ctx, set)
 		return errors.Join(first, second)
 	})
-	if err := task.Wait(); err != nil {
+	if err := task.wait(); err != nil {
 		t.Fatalf("task: %v (first %v, second %v)", err, first, second)
 	}
 	if got := readOrFatal(t, path); got != "hello\nthere\n" {
@@ -210,7 +210,7 @@ func TestFilesClaimsEachPathWithoutCallerLocks(t *testing.T) {
 	writer := out.Task("concurrent writer")
 	writer.Define(func(ctx context.Context) error {
 		<-derived
-		spec := EffectSpec{Verb: EffectUpdate, Object: "greeting", Quantity: 1, Resource: FSResource(path)}
+		spec := EffectSpec{Verb: Update, Object: "greeting", Quantity: 1, Resource: fSResource(path)}
 		return Effect(ctx, spec, func(context.Context) error {
 			close(holding)
 			time.Sleep(50 * time.Millisecond)
@@ -221,7 +221,7 @@ func TestFilesClaimsEachPathWithoutCallerLocks(t *testing.T) {
 		close(derived)
 		<-holding
 	})
-	_ = writer.Wait()
+	_ = writer.wait()
 	if !errors.Is(err, ErrStaleBasis) {
 		t.Fatalf("Files = %v, want ErrStaleBasis after waiting for the writer", err)
 	}
@@ -231,7 +231,7 @@ func TestFilesClaimsEachPathWithoutCallerLocks(t *testing.T) {
 }
 
 func TestFilesRequiresTaskContext(t *testing.T) {
-	if err := Files(context.Background(), FileSet{}); !errors.Is(err, ErrNoTaskContext) {
+	if err := files(context.Background(), fileSet{}); !errors.Is(err, errNoTaskContext) {
 		t.Fatalf("err = %v, want ErrNoTaskContext", err)
 	}
 }

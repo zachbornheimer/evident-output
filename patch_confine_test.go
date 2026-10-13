@@ -10,7 +10,7 @@ import (
 
 // linkedWorkspace is a patch workspace holding "link", a symlink to a
 // directory outside it.
-func linkedWorkspace(t *testing.T) (dir, outside string, out *Output) {
+func linkedWorkspace(t *testing.T) (dir, outside string, out *Run) {
 	t.Helper()
 	dir, out = patchWorkspace(t, nil)
 	outside = t.TempDir()
@@ -28,7 +28,7 @@ const createThroughLinkDiff = "--- /dev/null\n+++ b/link/evil.txt\n@@ -0,0 +1 @@
 func TestPatchRefusesPathBeyondSymlinkedDirectory(t *testing.T) {
 	_, outside, out := linkedWorkspace(t)
 	err := runFilesTask(t, out, createThroughLinkDiff, nil)
-	if !errors.Is(err, ErrPatchUnsupported) {
+	if !errors.Is(err, errPatchUnsupported) {
 		t.Fatalf("err = %v, want ErrPatchUnsupported", err)
 	}
 	if _, statErr := os.Lstat(filepath.Join(outside, "evil.txt")); !errors.Is(statErr, os.ErrNotExist) {
@@ -50,7 +50,7 @@ func TestFilesRevalidatesParentsAtCommit(t *testing.T) {
 			t.Fatal(linkErr)
 		}
 	})
-	if !errors.Is(err, ErrPatchUnsupported) {
+	if !errors.Is(err, errPatchUnsupported) {
 		t.Fatalf("err = %v, want ErrPatchUnsupported", err)
 	}
 	if _, statErr := os.Lstat(filepath.Join(outside, "evil.txt")); !errors.Is(statErr, os.ErrNotExist) {

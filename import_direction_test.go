@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"errors"
@@ -340,7 +340,7 @@ func TestOnlyMisuseRecordsMisuse(t *testing.T) {
 func TestMisuseRecordingScanRecognisesTheShapes(t *testing.T) {
 	const source = `package probe
 
-type Output struct {
+type Run struct {
 	misuseMu              int
 	misuseSubject         string
 	misuseRejectedSummary string
@@ -348,8 +348,8 @@ type Output struct {
 	recorder              *Recorder
 }
 
-func (o *Output) keepMisuse() {}
-func (o *Output) noteMisuse() {}
+func (o *Run) keepMisuse() {}
+func (o *Run) noteMisuse() {}
 func (discardMisuse) RecordMisuseFor(string, error) {}
 func (s sink) RecordMisuseFor(subject string, err error) { s.store(err) }
 `

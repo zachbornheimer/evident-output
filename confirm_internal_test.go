@@ -11,7 +11,7 @@ import (
 // graph here (it never takes o.mu) captures the true ordering, not a racy
 // approximation of it.
 type promptWriteSpy struct {
-	out        *Output
+	out        *Run
 	sawAbortAt []int
 }
 

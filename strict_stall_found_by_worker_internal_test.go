@@ -39,17 +39,17 @@ func runStrictStallFoundByFinishingWorker(t *testing.T) {
 	a := out.Task("a")
 	c := out.Task("c").After(a).Define(noop)
 	out.Task("d").Define(func(context.Context) error { time.Sleep(50 * time.Millisecond); return nil })
-	a.Define(func(context.Context) error { return c.Wait() })
+	a.Define(func(context.Context) error { return c.wait() })
 
-	waitErr, returned := within(5*time.Second, a.Wait)
+	waitErr, returned := within(5*time.Second, a.wait)
 
-	if !returned || !errors.Is(waitErr, ErrWaitDeadlock) {
+	if !returned || !errors.Is(waitErr, errWaitDeadlock) {
 		t.Fatalf("a.Wait returned=%v err=%v, want ErrWaitDeadlock", returned, waitErr)
 	}
 	if waits := out.graph.Waits(); waits != 0 {
 		t.Errorf("parked waits = %d, want 0", waits)
 	}
-	if !errors.Is(out.firstMisuse(), ErrWaitDeadlock) {
+	if !errors.Is(out.firstMisuse(), errWaitDeadlock) {
 		t.Errorf("misuse = %v, want ErrWaitDeadlock", out.firstMisuse())
 	}
 	t.Log(strictStallSurvived)

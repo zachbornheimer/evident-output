@@ -13,7 +13,7 @@ import (
 // hands the change to the engine's own listener, the way a handler that
 // repaints render state must.
 type lockTakingListener struct {
-	o     *Output
+	o     *Run
 	inner record.Listener
 	heard chan struct{}
 }
@@ -40,10 +40,10 @@ func (l lockTakingListener) TaskSettled(id record.TaskID, from, to record.Entity
 
 func (l lockTakingListener) EventAppended(e record.Event) { l.inner.EventAppended(e) }
 
-func newListenerTestOutput(t *testing.T) *Output {
+func newListenerTestOutput(t *testing.T) *Run {
 	t.Helper()
-	o := Init(Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard})
-	t.Cleanup(func() { _ = o.Close() })
+	o := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard})
+	t.Cleanup(func() { _ = o.close() })
 	return o
 }
 
@@ -60,10 +60,10 @@ func TestListenerTakingTheOutputLockDoesNotDeadlockInsideDefine(t *testing.T) {
 	go func() {
 		task := o.Task("settles inside define")
 		task.Define(func(context.Context) error {
-			task.Fail("by the callback")
+			task.fail("by the callback")
 			return nil
 		})
-		done <- task.Wait()
+		done <- task.wait()
 	}()
 
 	select {

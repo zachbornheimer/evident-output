@@ -1,20 +1,18 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"fmt"
 	"io"
 	"log/slog"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // ExamplePrint shows fmt.Sprint-style human text on the default instance.
 func ExamplePrint() {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true}))
-	evo.Print("repo ", "clean")
-	_ = evo.Default().Finish()
+	setDefault(initRun(Config{stdout: &buf, stderr: io.Discard, plain: true}))
+	print("repo ", "clean")
+	_ = defaultRun().finish()
 	fmt.Print(buf.String())
 	// Output:
 	// repo clean
@@ -23,9 +21,9 @@ func ExamplePrint() {
 // ExamplePrintf shows fmt.Sprintf-style human text on the default instance.
 func ExamplePrintf() {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true}))
-	evo.Printf("found %d issues", 3)
-	_ = evo.Default().Finish()
+	setDefault(initRun(Config{stdout: &buf, stderr: io.Discard, plain: true}))
+	printf("found %d issues", 3)
+	_ = defaultRun().finish()
 	fmt.Print(buf.String())
 	// Output:
 	// found 3 issues
@@ -34,9 +32,9 @@ func ExamplePrintf() {
 // ExamplePrintln shows a complete human line on the default instance.
 func ExamplePrintln() {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true}))
-	evo.Println("reading configuration")
-	_ = evo.Default().Finish()
+	setDefault(initRun(Config{stdout: &buf, stderr: io.Discard, plain: true}))
+	println("reading configuration")
+	_ = defaultRun().finish()
 	fmt.Print(buf.String())
 	// Output:
 	// reading configuration
@@ -46,28 +44,28 @@ func ExamplePrintln() {
 // projects when Config.Verbosity is VerbosityVerbose.
 func ExampleVerbose() {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{
-		Stdout: &buf, Stderr: io.Discard, Plain: true, Verbosity: evo.VerbosityVerbose,
+	setDefault(initRun(Config{
+		stdout: &buf, stderr: io.Discard, plain: true, verbosity: verbosityVerbose,
 	}))
-	evo.Verbose().Println("cache hit for module x")
-	_ = evo.Default().Finish()
+	verbose().println("cache hit for module x")
+	_ = defaultRun().finish()
 	fmt.Print(buf.String())
 	// Output:
 	// cache hit for module x
 }
 
 // ExamplePrinter shows the Printer handle's own Print/Printf/Println verbs —
-// evo.Verbose() is the only constructor that returns one.
-func ExamplePrinter() {
+// Verbose() is the only constructor that returns one.
+func examplePrinter() {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{
-		Stdout: &buf, Stderr: io.Discard, Plain: true, Verbosity: evo.VerbosityVerbose,
+	setDefault(initRun(Config{
+		stdout: &buf, stderr: io.Discard, plain: true, verbosity: verbosityVerbose,
 	}))
-	printer := evo.Verbose()
-	printer.Print("cache ")
-	printer.Printf("hit for %s", "module x")
-	printer.Println()
-	_ = evo.Default().Finish()
+	printer := verbose()
+	printer.print("cache ")
+	printer.printf("hit for %s", "module x")
+	printer.println()
+	_ = defaultRun().finish()
 	fmt.Print(buf.String())
 	// Output:
 	// cache hit for module x
@@ -75,15 +73,15 @@ func ExamplePrinter() {
 
 // ExampleSlogHandler shows journaling through the standard library's
 // slog.Logger into the default instance's debug journal.
-func ExampleSlogHandler() {
+func exampleSlogHandler() {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{
-		Stdout: io.Discard, Stderr: &buf, Plain: true,
-		Debug: evo.DebugConfig{Level: evo.LevelDebug},
+	setDefault(initRun(Config{
+		stdout: io.Discard, stderr: &buf, plain: true,
+		Debug: debugConfig{level: levelDebug},
 	}))
-	logger := slog.New(evo.SlogHandler())
+	logger := slog.New(slogHandler())
 	logger.Info("connected to registry")
-	_ = evo.Default().Finish()
+	_ = defaultRun().finish()
 	fmt.Println(bytes.Contains(buf.Bytes(), []byte("connected to registry")))
 	// Output:
 	// true
@@ -92,7 +90,7 @@ func ExampleSlogHandler() {
 // ExampleLogRecord shows the shape journaled to Debug/Capture mirrors and
 // the slog bridge: a time, level, message, and structured attrs.
 func ExampleLogRecord() {
-	rec := evo.LogRecord{Message: "starting up", Level: slog.LevelInfo}
+	rec := logRecord{Message: "starting up", Level: slog.LevelInfo}
 	fmt.Println(rec.Message, rec.Level)
 	// Output:
 	// starting up INFO
@@ -100,9 +98,9 @@ func ExampleLogRecord() {
 
 // ExampleLogLevel shows the Debug journal threshold — its own type, distinct
 // from slog.Level (SlogHandler translates between the two internally).
-func ExampleLogLevel() {
-	level := evo.LevelDebug
-	fmt.Println(level == evo.LevelDebug)
+func exampleLogLevel() {
+	level := levelDebug
+	fmt.Println(level == levelDebug)
 	// Output:
 	// true
 }

@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -22,7 +21,7 @@ func ExampleFileSpec() {
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
-	spec := evo.FileSpec{
+	spec := FileSpec{
 		Path:     filepath.Join(dir, "config.json"),
 		Contents: []byte(`{"ok":true}`),
 		Mode:     0o644,
@@ -32,7 +31,7 @@ func ExampleFileSpec() {
 	// true
 }
 
-// ExampleFileFS is the facade every evo.File call performs filesystem I/O
+// ExampleFileFS is the facade every File call performs filesystem I/O
 // through instead of the os package directly — testkit.FileFS satisfies it
 // deterministically for tests (including scripting a chmod failure);
 // production uses the real filesystem.
@@ -46,20 +45,20 @@ func ExampleFileFS() {
 	path := filepath.Join(dir, "config.json")
 
 	fsys := testkit.NewFileFS()
-	out := evo.Init(evo.Config{
-		Isolated: true, FileFS: fsys, Plain: true, Color: evo.ColorNever,
+	out := initRun(Config{
+		isolated: true, fileFS: fsys, plain: true, color: colorNever,
 		// StateDir isolates this example's manifest to its own temp
 		// directory (spec §11.3) — without it, File's default manifest
 		// path is derived from the real machine cache dir and can
-		// contend with any other concurrently running evo.File caller.
-		StateDir: dir,
-		Stdout:   io.Discard, Stderr: io.Discard,
+		// contend with any other concurrently running File caller.
+		stateDir: dir,
+		stdout:   io.Discard, stderr: io.Discard,
 	})
 	agent := out.Task("write config")
 	agent.Define(func(ctx context.Context) error {
-		return evo.File(ctx, evo.FileSpec{Path: path, Contents: []byte(`{"ok":true}`)})
+		return File(ctx, FileSpec{Path: path, Contents: []byte(`{"ok":true}`)})
 	})
-	_ = out.Finish()
+	_ = out.finish()
 
 	contents, err := os.ReadFile(path)
 	fmt.Println(err == nil, string(contents))

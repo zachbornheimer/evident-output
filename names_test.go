@@ -1,9 +1,7 @@
-package evo_test
+package evo
 
 import (
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestTruncateNames_UnicodeOverflow is red-first against evo-rec.md's
@@ -30,7 +28,7 @@ func TestTruncateNames_UnicodeOverflow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := evo.TruncateNames(tt.names, tt.visible)
+			got := truncateNames(tt.names, tt.visible)
 			if got != tt.want {
 				t.Fatalf("TruncateNames(%v, %d) = %q, want %q", tt.names, tt.visible, got, tt.want)
 			}
@@ -45,7 +43,7 @@ func TestTruncateNames_UnicodeOverflow(t *testing.T) {
 // must default to the Unicode overflow glyph.
 func TestTruncateNames_TwoArgCallDefaultsToUnicode(t *testing.T) {
 	t.Parallel()
-	got := evo.TruncateNames([]string{"a", "b", "c", "d"}, 0)
+	got := truncateNames([]string{"a", "b", "c", "d"}, 0)
 	want := "a, b, c … +1 more"
 	if got != want {
 		t.Fatalf("TruncateNames(2-arg) = %q, want %q", got, want)
@@ -57,7 +55,7 @@ func TestTruncateNames_TwoArgCallDefaultsToUnicode(t *testing.T) {
 // semantics, degraded glyph only (GLYPH-001).
 func TestTruncateNames_ASCIIOverflow(t *testing.T) {
 	t.Parallel()
-	got := evo.TruncateNames([]string{"a", "b", "c", "d"}, 3)
+	got := truncateNames([]string{"a", "b", "c", "d"}, 3)
 	want := "a, b, c … +1 more"
 	if got != want {
 		t.Fatalf("TruncateNames(ASCII) = %q, want %q", got, want)

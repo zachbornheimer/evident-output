@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestDryRun_TrueRendersPlannedImperative is the red-first case for the
@@ -14,10 +12,10 @@ import (
 func TestDryRun_TrueRendersPlannedImperative(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true, DryRun: true})
+	out := initRun(Config{isolated: true, stdout: &buf, title: "retire", color: colorNever, plain: true, DryRun: true})
 	branches := out.Task("branches")
-	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
-	if err := out.Finish(); err != nil {
+	branches.Define(effectOf(Delete, "local branch", 12))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -41,10 +39,10 @@ func TestDryRun_TrueRendersPlannedImperative(t *testing.T) {
 func TestDryRun_FalseRendersChangedPastTense(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, title: "retire", color: colorNever, plain: true})
 	branches := out.Task("branches")
-	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
-	if err := out.Finish(); err != nil {
+	branches.Define(effectOf(Delete, "local branch", 12))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -65,14 +63,14 @@ func TestDryRun_FalseRendersChangedPastTense(t *testing.T) {
 // therefore appears in the snapshot and FinalPlain.
 func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, title: "retire", color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 	branches := out.Task("branches")
-	branches.Define(effectOf(evo.EffectDelete, "local branch", 3))
-	if err := out.Finish(); err != nil {
+	branches.Define(effectOf(Delete, "local branch", 3))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	snap := out.Snapshot()
+	snap := out.snapshot()
 	if len(snap.Changes) != 1 {
 		t.Fatalf("changes sections = %d, want 1", len(snap.Changes))
 	}
@@ -84,7 +82,7 @@ func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 	}
 	// FinalPlain is unexported (C8); reconstruct the same text RenderPlain
 	// produces from the finished snapshot.
-	finalPlain, err := evo.RenderPlain(out.Snapshot(), evo.PlainOptions{Width: 80, NoColor: true})
+	finalPlain, err := renderPlain_1(out.snapshot(), plainOptions{width: 80, noColor: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,16 +96,16 @@ func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 // Define accumulate into one section instead of one per call.
 func TestTaskHandle_MultipleMutationsAccumulateOnOneSubject(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, title: "retire", color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 	commit(out.Task("branches"),
-		evo.EffectSpec{Verb: evo.EffectDelete, Object: "local branch", Quantity: 3},
-		evo.EffectSpec{Verb: evo.EffectUpdate, Object: "tip", Quantity: 1},
+		EffectSpec{Verb: Delete, Object: "local branch", Quantity: 3},
+		EffectSpec{Verb: Update, Object: "tip", Quantity: 1},
 	)
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	snap := out.Snapshot()
+	snap := out.snapshot()
 	if len(snap.Changes) != 1 {
 		t.Fatalf("changes sections = %d, want 1", len(snap.Changes))
 	}
@@ -118,29 +116,29 @@ func TestTaskHandle_MultipleMutationsAccumulateOnOneSubject(t *testing.T) {
 
 // TestConjugatePast_TableIncludingIrregulars pins the display-facing tense
 // conjugation of every EffectVerb: the default +d/+ed rule, the doubled
-// consonant, and install/uninstall. (write->wrote belongs to evo.File.)
+// consonant, and install/uninstall. (write->wrote belongs to File.)
 func TestConjugatePast_TableIncludingIrregulars(t *testing.T) {
 	t.Parallel()
-	cases := map[evo.EffectVerb]string{
-		evo.EffectAdd:       "added",
-		evo.EffectDelete:    "deleted",
-		evo.EffectCreate:    "created",
-		evo.EffectUpdate:    "updated",
-		evo.EffectRemove:    "removed",
-		evo.EffectPush:      "pushed",
-		evo.EffectInstall:   "installed",
-		evo.EffectUninstall: "uninstalled",
+	cases := map[effectVerb]string{
+		effectAdd:       "added",
+		effectDelete:    "deleted",
+		effectCreate:    "created",
+		effectUpdate:    "updated",
+		effectRemove:    "removed",
+		effectPush:      "pushed",
+		effectInstall:   "installed",
+		effectUninstall: "uninstalled",
 	}
 	for imperative, want := range cases {
 		t.Run(string(imperative), func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "t", Color: evo.ColorNever, Plain: true})
-			commit(out.Task("subject"), evo.EffectSpec{Verb: imperative, Object: "object", Quantity: 1})
-			if err := out.Finish(); err != nil {
+			out := initRun(Config{isolated: true, stdout: &buf, title: "t", color: colorNever, plain: true})
+			commit(out.Task("subject"), EffectSpec{Verb: Verb(imperative), Object: "object", Quantity: 1})
+			if err := out.finish(); err != nil {
 				t.Fatal(err)
 			}
-			snap := out.Snapshot()
+			snap := out.snapshot()
 			if len(snap.Changes) != 1 || snap.Changes[0].Records[0].Verb != want {
 				t.Fatalf("%s -> %v, want %s", imperative, snap.Changes, want)
 			}
@@ -152,17 +150,17 @@ func TestConjugatePast_TableIncludingIrregulars(t *testing.T) {
 // the "resolved tasks record misuse, never panic" contract.
 func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Isolated: true, Title: "t", Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, title: "t", color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("branches")
 	succeed(task)
 
-	task.Define(effectOf(evo.EffectDelete, "thing", 1))
+	task.Define(effectOf(Delete, "thing", 1))
 
-	if out.Err() == nil {
+	if out.err() == nil {
 		t.Fatal("want recorded misuse after mutating a resolved task")
 	}
-	snap := out.Snapshot()
+	snap := out.snapshot()
 	if len(snap.Changes) != 0 {
 		t.Fatalf("no mutation should have been recorded, got %+v", snap.Changes)
 	}
@@ -175,10 +173,10 @@ func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 func TestDryRun_MarkerAnnouncesRunAsFirstLine(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true, DryRun: true})
+	out := initRun(Config{stdout: &buf, title: "retire", color: colorNever, plain: true, DryRun: true})
 	branches := out.Task("branches")
-	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
-	if err := out.Finish(); err != nil {
+	branches.Define(effectOf(Delete, "local branch", 12))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -196,10 +194,10 @@ func TestDryRun_MarkerAnnouncesRunAsFirstLine(t *testing.T) {
 func TestDryRun_MarkerAbsentWhenNotDryRun(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Title: "retire", Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{stdout: &buf, title: "retire", color: colorNever, plain: true})
 	branches := out.Task("branches")
-	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
-	if err := out.Finish(); err != nil {
+	branches.Define(effectOf(Delete, "local branch", 12))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(buf.String(), "[dry-run]") {
@@ -213,19 +211,19 @@ func TestDryRun_MarkerAbsentWhenNotDryRun(t *testing.T) {
 // own (inferConclusion must not fall through to Ready/Changed for DryRun).
 func TestDryRun_ConclusionReadsPlannedNotDone(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Title: "retire", Color: evo.ColorNever, DryRun: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{title: "retire", color: colorNever, DryRun: true})
+	t.Cleanup(func() { _ = out.close() })
 	branches := out.Task("branches")
-	branches.Define(effectOf(evo.EffectDelete, "local branch", 12))
-	if err := out.Finish(); err != nil {
+	branches.Define(effectOf(Delete, "local branch", 12))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	c := out.Conclusion()
-	if c.State != evo.StatePlanned {
-		t.Fatalf("conclusion state = %v, want StatePlanned for a dry run", c.State)
+	c := out.conclusion()
+	if c.state != statePlanned {
+		t.Fatalf("conclusion state = %v, want StatePlanned for a dry run", c.state)
 	}
-	if c.ExitCode != evo.ExitOK {
-		t.Fatalf("exit code = %d, want unchanged ExitOK", c.ExitCode)
+	if c.exitCode != exitOK {
+		t.Fatalf("exit code = %d, want unchanged ExitOK", c.exitCode)
 	}
 }
 
@@ -236,13 +234,13 @@ func TestDryRun_ConclusionReadsPlannedNotDone(t *testing.T) {
 // headline planned-not-done.
 func TestDryRun_ConclusionReadsPlannedEvenWithoutAPlanSection(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Title: "retire", Color: evo.ColorNever, DryRun: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{title: "retire", color: colorNever, DryRun: true})
+	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("scan"))
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if c := out.Conclusion(); c.State != evo.StatePlanned {
-		t.Fatalf("conclusion state = %v, want StatePlanned even with no Plan section", c.State)
+	if c := out.conclusion(); c.state != statePlanned {
+		t.Fatalf("conclusion state = %v, want StatePlanned even with no Plan section", c.state)
 	}
 }

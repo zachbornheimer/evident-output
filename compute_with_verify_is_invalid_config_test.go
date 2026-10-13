@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"context"
@@ -6,8 +6,6 @@ import (
 	"io"
 	"sync/atomic"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 const computedNeverRead = -1
@@ -21,10 +19,10 @@ const computedNeverRead = -1
 func TestCompute_OnATaskWithAVerifyIsInvalidWhateverTheVerifyFinds(t *testing.T) {
 	for name, satisfied := range map[string]bool{"work pending": false, "work already satisfied": true} {
 		t.Run(name, func(t *testing.T) {
-			out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true})
-			defer func() { _ = out.Close() }()
+			out := initRun(Config{isolated: true, stdout: io.Discard, plain: true})
+			defer func() { _ = out.close() }()
 			made := out.Task("make").Verify(func(context.Context) (bool, error) { return satisfied, nil })
-			producer := evo.Compute(made, func(context.Context) (int, error) { return 1, nil })
+			producer := Compute(made, func(context.Context) (int, error) { return 1, nil })
 			var got atomic.Int64
 			got.Store(computedNeverRead)
 			read := out.Task("read").After(producer).Define(func(context.Context) error {
@@ -32,15 +30,15 @@ func TestCompute_OnATaskWithAVerifyIsInvalidWhateverTheVerifyFinds(t *testing.T)
 				return nil
 			})
 
-			_ = out.Finish()
+			_ = out.finish()
 
-			if !errors.Is(out.Err(), evo.ErrInvalidConfig) {
-				t.Errorf("Err() = %v, want ErrInvalidConfig", out.Err())
+			if !errors.Is(out.err(), errInvalidConfig) {
+				t.Errorf("Err() = %v, want ErrInvalidConfig", out.err())
 			}
 			if got.Load() != computedNeverRead {
 				t.Errorf("the reader ran and read %d; it must never run after a producer that was refused", got.Load())
 			}
-			if err := read.Wait(); err == nil {
+			if err := read.wait(); err == nil {
 				t.Errorf("read.Wait() = nil; a reader that never ran must not wait to success")
 			}
 		})

@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // ZYS-838 acceptance: "Renderer tests prove a container may be visible or
@@ -19,10 +17,10 @@ import (
 // no nested container, collapses into that Task's single row.
 func TestContainerVisibility_CollapsesLoneSameNameTask(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
 	g := out.Group("same")
 	succeed(g.Task("same"))
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	lines := nonEmptyLines(buf.String())
@@ -38,11 +36,11 @@ func TestContainerVisibility_CollapsesLoneSameNameTask(t *testing.T) {
 // (contract §3/§18) and the nested Group's content still shows.
 func TestContainerVisibility_HidesHeaderOfGroupWithoutOwnInformation(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
 	outer := out.Group("outer")
 	inner := outer.Group("inner")
 	succeed(inner.Task("inner"))
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	s := buf.String()

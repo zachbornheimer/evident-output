@@ -13,7 +13,7 @@ import (
 
 // patchWorkspace is a temp workspace and an Output whose relative paths
 // resolve inside it.
-func patchWorkspace(t *testing.T, files map[string]string) (string, *Output) {
+func patchWorkspace(t *testing.T, files map[string]string) (string, *Run) {
 	t.Helper()
 	dir := t.TempDir()
 	for name, contents := range files {
@@ -25,23 +25,23 @@ func patchWorkspace(t *testing.T, files map[string]string) (string, *Output) {
 			t.Fatal(err)
 		}
 	}
-	out := Init(Config{Isolated: true, StateDir: t.TempDir()})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stateDir: t.TempDir()})
+	t.Cleanup(func() { _ = out.close() })
 	out.changes.PinWorkspace(dir)
 	return dir, out
 }
 
 // runPatchTask calls Patch from one Task's Define callback.
-func runPatchTask(t *testing.T, out *Output, diff string) (FileSet, error) {
+func runPatchTask(t *testing.T, out *Run, diff string) (fileSet, error) {
 	t.Helper()
-	var set FileSet
+	var set fileSet
 	var patchErr error
 	task := out.Task("derive patch")
 	task.Define(func(ctx context.Context) error {
 		set, patchErr = Patch(ctx, []byte(diff))
 		return patchErr
 	})
-	_ = task.Wait()
+	_ = task.wait()
 	return set, patchErr
 }
 
@@ -130,18 +130,18 @@ func TestPatchUnsupportedFormsFailExplicitly(t *testing.T) {
 		diff string
 		want error
 	}{
-		"delete": {"diff --git a/greeting.txt b/greeting.txt\ndeleted file mode 100644\n", ErrPatchDeleteUnsupported},
-		"rename": {"diff --git a/greeting.txt b/g.txt\nrename from greeting.txt\nrename to g.txt\n", ErrPatchRenameUnsupported},
-		"binary": {"diff --git a/greeting.txt b/greeting.txt\nBinary files a/greeting.txt and b/greeting.txt differ\n", ErrPatchBinaryUnsupported},
+		"delete": {"diff --git a/greeting.txt b/greeting.txt\ndeleted file mode 100644\n", errPatchDeleteUnsupported},
+		"rename": {"diff --git a/greeting.txt b/g.txt\nrename from greeting.txt\nrename to g.txt\n", errPatchRenameUnsupported},
+		"binary": {"diff --git a/greeting.txt b/greeting.txt\nBinary files a/greeting.txt and b/greeting.txt differ\n", errPatchBinaryUnsupported},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			_, out := patchWorkspace(t, map[string]string{"greeting.txt": "hello\nworld\n"})
 			set, err := runPatchTask(t, out, tc.diff)
-			if !errors.Is(err, tc.want) || !errors.Is(err, ErrPatchUnsupported) {
+			if !errors.Is(err, tc.want) || !errors.Is(err, errPatchUnsupported) {
 				t.Fatalf("err = %v, want %v", err, tc.want)
 			}
-			if !reflect.DeepEqual(set, FileSet{}) {
+			if !reflect.DeepEqual(set, fileSet{}) {
 				t.Fatal("a failed Patch returned desired files")
 			}
 		})
@@ -169,13 +169,13 @@ func TestPatchRejectsSymlinkSource(t *testing.T) {
 	if err := os.Symlink(filepath.Join(dir, "real.txt"), filepath.Join(dir, "greeting.txt")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runPatchTask(t, out, modifyGreetingDiff); !errors.Is(err, ErrFilePathIsSymlink) {
+	if _, err := runPatchTask(t, out, modifyGreetingDiff); !errors.Is(err, errFilePathIsSymlink) {
 		t.Fatalf("err = %v, want ErrFilePathIsSymlink", err)
 	}
 }
 
 func TestPatchRequiresTaskContext(t *testing.T) {
-	if _, err := Patch(context.Background(), []byte(twoFileDiff)); !errors.Is(err, ErrNoTaskContext) {
+	if _, err := Patch(context.Background(), []byte(twoFileDiff)); !errors.Is(err, errNoTaskContext) {
 		t.Fatalf("err = %v, want ErrNoTaskContext", err)
 	}
 }

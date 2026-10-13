@@ -4,8 +4,6 @@ import (
 	"io/fs"
 	"os"
 	"sync"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // FileFS is a deterministic evo.FileFS fake: Lstat/ReadFile/WriteAtomic
@@ -63,5 +61,3 @@ func (f *FileFS) scriptedChmodFailure(path string) (error, bool) {
 	err, scripted := f.chmodFails[path]
 	return err, scripted
 }
-
-var _ evo.FileFS = (*FileFS)(nil)

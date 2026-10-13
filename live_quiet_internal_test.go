@@ -11,16 +11,16 @@ import (
 
 const quietFrameSuffix = "· quiet"
 
-func quietLiveOutput(t *testing.T) (*Output, *countingLiveSurface, *manualClock) {
+func quietLiveOutput(t *testing.T) (*Run, *countingLiveSurface, *manualClock) {
 	t.Helper()
 	screen := &countingLiveSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := newOutput("job", withTerminal(screen), visibilityDelay(0), withClock(clock), withNoColor())
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 	return out, screen, clock
 }
 
-func liveFrameAfter(out *Output, screen *countingLiveSurface, clock *manualClock, advance time.Duration) string {
+func liveFrameAfter(out *Run, screen *countingLiveSurface, clock *manualClock, advance time.Duration) string {
 	clock.Advance(advance)
 	out.mu.Lock()
 	out.renderLiveLocked(true)
@@ -63,7 +63,7 @@ func TestLiveQuiet_SnapshotStampsLastLineFromTheInjectedClock(t *testing.T) {
 	clock.Advance(3 * time.Minute)
 	writeNumberedLines(t, task, 1)
 
-	if got, want := record.LiveTailOf(task.Snapshot()).LastLineAt, clock.Now(); !got.Equal(want) {
+	if got, want := record.LiveTailOf(task.snapshot()).LastLineAt, clock.Now(); !got.Equal(want) {
 		t.Fatalf("LastLineAt = %v, want %v", got, want)
 	}
 }
@@ -75,9 +75,9 @@ func TestPlainQuiet_NeverEmitsQuietText(t *testing.T) {
 	task := out.Task("controller")
 	writeNumberedLines(t, task, 1)
 	clock.Advance(6 * time.Minute)
-	_ = out.Close()
+	_ = out.close()
 
-	if strings.Contains(buf.String(), "quiet") || strings.Contains(task.Capture().Text(), "quiet") {
+	if strings.Contains(buf.String(), "quiet") || strings.Contains(task.capture().Text(), "quiet") {
 		t.Fatalf("plain output mentions quiet:\n%s", buf.String())
 	}
 }

@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"io"
@@ -6,14 +6,13 @@ import (
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
 // A sibling task's Progress call forces a fresh live render at the current
 // domain-clock time without touching the task under test's own liveFirstSeen
 // anchor — the same technique TestLive_SpinnerGlyphAdvancesWithClock uses.
-func forceRender(ticker *evo.TaskHandle, n int) {
+func forceRender(ticker *Task, n int) {
 	ticker.Progress(n, 100)
 }
 
@@ -24,8 +23,8 @@ func forceRender(ticker *evo.TaskHandle, n int) {
 func TestHeartbeat_AppearsAfterElapsedThreshold(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	push := out.Task("push")
 	ticker := out.Task("ticker")
@@ -45,7 +44,7 @@ func TestHeartbeat_AppearsAfterElapsedThreshold(t *testing.T) {
 
 	succeed(push)
 	succeed(ticker)
-	_ = out.Finish()
+	_ = out.finish()
 }
 
 // TestHeartbeat_NeverResetsOnPhaseUpdate is the red-first case for P5's
@@ -55,8 +54,8 @@ func TestHeartbeat_AppearsAfterElapsedThreshold(t *testing.T) {
 func TestHeartbeat_NeverResetsOnPhaseUpdate(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	push := out.Task("push")
 	ticker := out.Task("ticker")
@@ -77,7 +76,7 @@ func TestHeartbeat_NeverResetsOnPhaseUpdate(t *testing.T) {
 
 	succeed(push)
 	succeed(ticker)
-	_ = out.Finish()
+	_ = out.finish()
 }
 
 // TestHeartbeat_AppearsRegardlessOfProgressActivity is the red-first case
@@ -87,8 +86,8 @@ func TestHeartbeat_NeverResetsOnPhaseUpdate(t *testing.T) {
 func TestHeartbeat_AppearsRegardlessOfProgressActivity(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	install := out.Task("install")
 	install.Progress(0, 3) // first live render: anchors install's elapsed clock
@@ -103,7 +102,7 @@ func TestHeartbeat_AppearsRegardlessOfProgressActivity(t *testing.T) {
 	}
 
 	succeed(install)
-	_ = out.Finish()
+	_ = out.finish()
 }
 
 // TestHeartbeat_AbsentInPlainProjection guards P5's *per-row elapsed
@@ -122,13 +121,13 @@ func TestHeartbeat_AppearsRegardlessOfProgressActivity(t *testing.T) {
 func TestHeartbeat_AbsentInPlainProjection(t *testing.T) {
 	var buf strings.Builder
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Clock: clock, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, clock: clock, plain: true})
 
 	push := out.Task("push")
 	push.Doing("pushing feat/a")
 	clock.Advance(90 * time.Second)
 	succeed(push)
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(buf.String(), "pushing feat/a — ") {
@@ -143,8 +142,8 @@ func TestHeartbeat_AbsentInPlainProjection(t *testing.T) {
 func TestHeartbeat_FiveSecondTimerContainerHeaderAgesPastThreshold(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	jobs := out.Group("dependencies")
 	install := jobs.Task("install")
@@ -169,5 +168,5 @@ func TestHeartbeat_FiveSecondTimerContainerHeaderAgesPastThreshold(t *testing.T)
 
 	succeed(install)
 	succeed(ticker)
-	_ = out.Finish()
+	_ = out.finish()
 }

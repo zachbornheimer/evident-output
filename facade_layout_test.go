@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"os"
@@ -10,7 +10,7 @@ import (
 
 var (
 	rootOutputAliasDecl  = regexp.MustCompile(`(?m)^type Output = `)
-	rootOutputStructDecl = regexp.MustCompile(`(?m)^type Output struct\b`)
+	rootOutputStructDecl = regexp.MustCompile(`(?m)^type Run struct\b`)
 )
 
 // TestFacade_RootOutputIsWrapperNotAlias locks the public surface: Output is

@@ -7,9 +7,9 @@ import "testing"
 // regardless of locale.
 func TestResolveGlyphProfileLocked_AutoOnNonInteractiveStaysUnicode(t *testing.T) {
 	t.Setenv("LC_ALL", "C")
-	cfg := config{plain: true, glyphs: GlyphsAuto}
+	cfg := config{plain: true, glyphs: glyphsAuto}
 	resolveGlyphProfileLocked(&cfg)
-	if cfg.glyphs != GlyphsUnicode {
+	if cfg.glyphs != glyphsUnicode {
 		t.Fatalf("resolved profile = %v, want GlyphsUnicode", cfg.glyphs)
 	}
 }
@@ -18,9 +18,9 @@ func TestResolveGlyphProfileLocked_AutoOnNonInteractiveStaysUnicode(t *testing.T
 // explicit glyphs() choice always wins over detection.
 func TestResolveGlyphProfileLocked_ExplicitProfileIsNeverOverridden(t *testing.T) {
 	t.Setenv("LC_ALL", "en_US.UTF-8")
-	cfg := config{plain: true, glyphs: GlyphsASCII}
+	cfg := config{plain: true, glyphs: glyphsASCII}
 	resolveGlyphProfileLocked(&cfg)
-	if cfg.glyphs != GlyphsASCII {
+	if cfg.glyphs != glyphsASCII {
 		t.Fatalf("resolved profile = %v, want explicit GlyphsASCII preserved", cfg.glyphs)
 	}
 }

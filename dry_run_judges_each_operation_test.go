@@ -1,12 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"context"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // runTaskOf runs one Task whose Define calls each operation in order, against
@@ -14,7 +12,7 @@ import (
 func runTaskOf(t *testing.T, state string, dry bool, operations ...func(context.Context) error) string {
 	t.Helper()
 	var stream syncBuffer
-	out := evo.Init(evo.Config{Isolated: true, StateDir: state, Format: evo.FormatJSONL, Stdout: &stream, Stderr: &stream, DryRun: dry})
+	out := initRun(Config{isolated: true, stateDir: state, format: formatJSONL, stdout: &stream, stderr: &stream, DryRun: dry})
 	task := out.Task("two-operations").Define(func(ctx context.Context) error {
 		for _, operation := range operations {
 			if err := operation(ctx); err != nil {
@@ -23,11 +21,11 @@ func runTaskOf(t *testing.T, state string, dry bool, operations ...func(context.
 		}
 		return nil
 	})
-	if err := task.Wait(); err != nil {
+	if err := task.wait(); err != nil {
 		t.Fatalf("Wait = %v", err)
 	}
-	_ = out.Finish()
-	if err := out.Close(); err != nil {
+	_ = out.finish()
+	if err := out.close(); err != nil {
 		t.Fatalf("Close = %v", err)
 	}
 	return stream.String()
@@ -35,14 +33,14 @@ func runTaskOf(t *testing.T, state string, dry bool, operations ...func(context.
 
 func writeFile(path, contents string) func(context.Context) error {
 	return func(ctx context.Context) error {
-		return evo.File(ctx, evo.FileSpec{Path: path, Contents: []byte(contents), Mode: 0o644})
+		return File(ctx, FileSpec{Path: path, Contents: []byte(contents), Mode: 0o644})
 	}
 }
 
 func execWriting(dir, output string) func(context.Context) error {
 	return func(ctx context.Context) error {
-		_, err := evo.Exec(ctx, evo.ExecSpec{
-			Executable: "/bin/sh", Args: []string{"-c", "printf x > " + output}, Dir: dir, Outputs: []string{output},
+		_, err := Exec(ctx, ExecSpec{
+			executable: "/bin/sh", args: []string{"-c", "printf x > " + output}, Dir: dir, Outputs: []string{output},
 		})
 		return err
 	}

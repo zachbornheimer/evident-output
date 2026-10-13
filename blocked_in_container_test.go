@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestBlockedInsideContainer_ConcludesBlocked pins E-098: a Task Blocked
@@ -13,23 +11,23 @@ import (
 // Conclusion read a container's Blocked state as nothing. A refusal is a
 // refusal at any depth.
 func TestBlockedInsideContainer_ConcludesBlocked(t *testing.T) {
-	for name, declare := range map[string]func(out *evo.Output){
-		"group":         func(out *evo.Output) { out.Group("g").Task("a").Block("refused") },
-		"sequence":      func(out *evo.Output) { out.Sequence("s").Task("a").Block("refused") },
-		"group summary": func(out *evo.Output) { out.Group("g").Summary("x").Task("a").Block("refused") },
-		"nested":        func(out *evo.Output) { out.Group("g").Sequence("s").Task("a").Block("refused") },
+	for name, declare := range map[string]func(out *Run){
+		"group":         func(out *Run) { out.Group("g").Task("a").block("refused") },
+		"sequence":      func(out *Run) { out.Sequence("s").Task("a").block("refused") },
+		"group summary": func(out *Run) { out.Group("g").Summary("x").Task("a").block("refused") },
+		"nested":        func(out *Run) { out.Group("g").Sequence("s").Task("a").block("refused") },
 	} {
 		var buf bytes.Buffer
-		out := evo.Init(evo.Config{Isolated: true, StateDir: t.TempDir(), Stdout: &buf, Title: "block", Color: evo.ColorNever, Plain: true})
+		out := initRun(Config{isolated: true, stateDir: t.TempDir(), stdout: &buf, title: "block", color: colorNever, plain: true})
 		declare(out)
-		_ = out.Finish()
-		c := out.Conclusion()
-		if c.State != evo.StateBlocked || c.ExitCode != evo.ExitBlocked {
-			t.Errorf("%s: conclusion = %s exit %d, want %s exit %d\n%s", name, c.State, c.ExitCode, evo.StateBlocked, evo.ExitBlocked, buf.String())
+		_ = out.finish()
+		c := out.conclusion()
+		if c.state != stateBlocked || c.exitCode != exitBlocked {
+			t.Errorf("%s: conclusion = %s exit %d, want %s exit %d\n%s", name, c.state, c.exitCode, stateBlocked, exitBlocked, buf.String())
 		}
 		if !strings.Contains(buf.String(), "[blocked]") {
 			t.Errorf("%s: output lacks the [blocked] band:\n%s", name, buf.String())
 		}
-		_ = out.Close()
+		_ = out.close()
 	}
 }

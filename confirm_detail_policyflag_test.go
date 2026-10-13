@@ -1,25 +1,23 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
-// TestConfirm_Detail_RendersContextLines is I5: evo.ConfirmDetail("...")
+// TestConfirm_Detail_RendersContextLines is I5: ConfirmDetail("...")
 // attaches context lines rendered under the "?  <question>  [y/N]" prompt.
 // Uses the interactive ask-and-wait path (not the non-interactive policy
 // block) since that's the only path that writes the prompt at all.
 func TestConfirm_Detail_RendersContextLines(t *testing.T) {
 	var buf bytes.Buffer
-	restore := evo.MarkWriterAsCharDevice(&buf)
+	restore := markWriterAsCharDevice(&buf)
 	t.Cleanup(restore)
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: &buf, Stdin: strings.NewReader("y\n"), Color: evo.ColorNever})
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: &buf, stdin: strings.NewReader("y\n"), color: colorNever})
 
 	out.Confirm("delete origin/production-hotfix?",
-		evo.ConfirmDetail("host: prod-db-1", "affects: 3 downstream services"))
+		confirmDetail("host: prod-db-1", "affects: 3 downstream services"))
 
 	rendered := buf.String()
 	if !strings.Contains(rendered, "host: prod-db-1") || !strings.Contains(rendered, "affects: 3 downstream services") {
@@ -27,17 +25,17 @@ func TestConfirm_Detail_RendersContextLines(t *testing.T) {
 	}
 }
 
-// TestConfirm_PolicyFlag_FillsExecutableFromTitle is I5: evo.PolicyFlag
+// TestConfirm_PolicyFlag_FillsExecutableFromTitle is I5: PolicyFlag
 // fills the Next hint's executable from the same identity source Init/I2
 // uses (Config.Title), instead of the caller hand-composing
 // PolicyHint(os.Args[0], flag).
 func TestConfirm_PolicyFlag_FillsExecutableFromTitle(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "clean-repo", Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, title: "clean-repo", color: colorNever, plain: true})
 
-	out.Confirm("delete 8 stale local branches?", evo.PolicyFlag("--apply"))
+	out.Confirm("delete 8 stale local branches?", policyFlag("--apply"))
 
-	item := out.Snapshot().Tasks[0]
+	item := out.snapshot().Tasks[0]
 	actions := policyBlockActions(t, item)
 	if len(actions) == 0 || actions[0].Command == nil {
 		t.Fatalf("actions = %+v, want a Command action", actions)

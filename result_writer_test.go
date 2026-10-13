@@ -1,10 +1,8 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // FormatData's whole contract is "domain payload on stdout, presentation on
@@ -15,21 +13,21 @@ import (
 // os.Stdout write and spliced its own task rows into its JSON.
 func TestResultWriter_FormatDataHandsTheCallerItsPayloadStream(t *testing.T) {
 	var payload, human bytes.Buffer
-	out := evo.Init(evo.Config{
-		Title:  "zq",
-		Format: evo.FormatData,
-		Stdout: &payload,
-		Stderr: &human,
+	out := initRun(Config{
+		title:  "zq",
+		format: formatData,
+		stdout: &payload,
+		stderr: &human,
 	})
 
 	succeed(out.Task("gitleaks"))
 	if _, err := out.ResultWriter().Write([]byte(`{"findings":[]}`)); err != nil {
 		t.Fatalf("write payload: %v", err)
 	}
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
-	if err := out.Close(); err != nil {
+	if err := out.close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
 

@@ -1,70 +1,68 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"context"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestFinish_ReadmeQuickstart_EachLoopAutoResolvesDone is beginner-gate-2
-// finding (i): the README quickstart's `evo.Task("install").Each(packages)`
+// finding (i): the README quickstart's `Default().Task("install").Each(packages)`
 // loop with no following Done. A completed Each loop sealed its absolute
 // progress at total/total and told an honest, complete story — exactly the
 // same easiest-path amnesty already given to a recorded mutation-verb
 // effect — so it must not read as misuse.
 func TestFinish_ReadmeQuickstart_EachLoopAutoResolvesDone(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	succeed(out.Task("working tree"))
-	out.Task("branches").Block(
+	out.Task("branches").block(
 		"local-only branch",
-		evo.Detail("commit or stash before continuing"),
+		Detail("commit or stash before continuing"),
 	)
-	out.Task("cleanup").Define(effectOf(evo.EffectDelete, "stale local branch", 2))
+	out.Task("cleanup").Define(effectOf(Delete, "stale local branch", 2))
 	install := out.Group("install")
 	for _, pkg := range []string{"a", "b", "c"} {
 		install.Task(pkg).Define(func(ctx context.Context) error { return nil })
 	}
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (a sealed Each loop should auto-resolve Done)", err)
 	}
 	rendered := buf.String()
 	if strings.Contains(rendered, "misuse") {
 		t.Fatalf("no misuse expected once the sealed loop auto-resolves:\n%s", rendered)
 	}
-	if code := out.Conclusion().ExitCode; code != evo.ExitBlocked {
+	if code := out.conclusion().exitCode; code != exitBlocked {
 		// "branches" is deliberately Blocked in this quickstart-verbatim
 		// scenario; the band must stay sane (Blocked → exit 1), not escalate.
-		t.Fatalf("exit code = %d, want %d (ExitBlocked, the quickstart's own Block)", code, evo.ExitBlocked)
+		t.Fatalf("exit code = %d, want %d (ExitBlocked, the quickstart's own Block)", code, exitBlocked)
 	}
 }
 
 // TestFinish_TeachingLadder_EachThenReturnNil_NeverCancels is beginner-gate-2
 // finding (ii): mcp/docs/teaching-ladder.md's standalone example is
-// `evo.Task("scan").Each(items); return nil` verbatim — an uninterrupted run
+// `Default().Task("scan").Each(items); return nil` verbatim — an uninterrupted run
 // must conclude OK, never [cancelled]/130, since nothing ever signaled the
 // process.
 func TestFinish_TeachingLadder_EachThenReturnNil_NeverCancels(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	scan := out.Group("scan")
 	for _, name := range []string{"one", "two"} {
 		scan.Task(name).Define(func(ctx context.Context) error { return nil })
 	}
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (a sealed Each loop should auto-resolve Done)", err)
 	}
-	if code := out.Conclusion().ExitCode; code != evo.ExitOK {
-		t.Fatalf("exit code = %d, want %d (ExitOK) — a sealed Each loop must never read as cancelled", code, evo.ExitOK)
+	if code := out.conclusion().exitCode; code != exitOK {
+		t.Fatalf("exit code = %d, want %d (ExitOK) — a sealed Each loop must never read as cancelled", code, exitOK)
 	}
-	if state := out.Conclusion().State; state == evo.StateCancelled {
+	if state := out.conclusion().state; state == stateCancelled {
 		t.Fatalf("state = %v, want anything but StateCancelled on an uninterrupted run", state)
 	}
 	rendered := buf.String()
@@ -84,28 +82,28 @@ func TestFinish_TeachingLadder_EachThenReturnNil_NeverCancels(t *testing.T) {
 // wins.
 func TestFinish_TaxonomyOnlyTaskWithDeclinedConfirm_BlockedNeverEscalates(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
-	reason := evo.Reason("protected")
-	out.Task("prune branches").Skipped(reason)
+	reason := reason("protected")
+	out.Task("prune branches").skipped(reason)
 
 	if confirmed := out.Confirm("delete origin/production-hotfix?"); confirmed {
 		t.Fatal("Confirm() = true, want false (plain mode without AssumeYes blocks by policy)")
 	}
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (taxonomy-only task should auto-resolve Done, no misuse)", err)
 	}
 	rendered := buf.String()
 	if strings.Contains(rendered, "misuse") {
 		t.Fatalf("no misuse expected — taxonomy-only task auto-resolves, and Confirm's Blocked is not misuse:\n%s", rendered)
 	}
-	conc := out.Conclusion()
-	if conc.State != evo.StateBlocked {
-		t.Fatalf("state = %v, want StateBlocked (the declined Confirm gate)", conc.State)
+	conc := out.conclusion()
+	if conc.state != stateBlocked {
+		t.Fatalf("state = %v, want StateBlocked (the declined Confirm gate)", conc.state)
 	}
-	if conc.ExitCode != evo.ExitBlocked {
-		t.Fatalf("exit code = %d, want %d (ExitBlocked) — a recorded misuse must never escalate Block to Failed", conc.ExitCode, evo.ExitBlocked)
+	if conc.exitCode != exitBlocked {
+		t.Fatalf("exit code = %d, want %d (ExitBlocked) — a recorded misuse must never escalate Block to Failed", conc.exitCode, exitBlocked)
 	}
 }
 
@@ -119,16 +117,16 @@ func TestFinish_TaxonomyOnlyTaskWithDeclinedConfirm_BlockedNeverEscalates(t *tes
 // the run actually printed.
 func TestRun_BlockedWithLeftoverMisuse_NeverEscalatesToFailed(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
-	code := out.Run(context.Background(), func(ctx context.Context) error {
+	code := out.run(context.Background(), func(ctx context.Context) error {
 		task := out.Task("branches")
-		task.Block("local-only branch")
+		task.block("local-only branch")
 		succeed(task) // already resolved — leftover bookkeeping misuse
 		return nil
 	}).ExitCode()
 
-	if code != evo.ExitBlocked {
-		t.Fatalf("exit code = %d, want %d (ExitBlocked) — leftover misuse must not escalate the printed Block band to Failed:\n%s", code, evo.ExitBlocked, buf.String())
+	if code != exitBlocked {
+		t.Fatalf("exit code = %d, want %d (ExitBlocked) — leftover misuse must not escalate the printed Block band to Failed:\n%s", code, exitBlocked, buf.String())
 	}
 }

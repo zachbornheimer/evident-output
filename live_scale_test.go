@@ -20,11 +20,11 @@ func liveGroupFrames(tb testing.TB, n int) int {
 	for i := range n {
 		g.Task(fmt.Sprintf("item %d", i)).Define(func(context.Context) error { return nil })
 	}
-	if err := g.Wait(); err != nil {
+	if err := g.wait(); err != nil {
 		tb.Fatalf("Wait: %v", err)
 	}
 	frames := screen.frameCount()
-	_ = out.Close()
+	_ = out.close()
 	return frames
 }
 
@@ -54,12 +54,12 @@ func liveWallClockRun(tb testing.TB, n int) (time.Duration, int) {
 	for i := range n {
 		g.Task(fmt.Sprintf("item %d", i)).Define(func(context.Context) error { return nil })
 	}
-	if err := g.Wait(); err != nil {
+	if err := g.wait(); err != nil {
 		tb.Fatalf("Wait: %v", err)
 	}
 	elapsed := time.Since(start)
 	frames := screen.frameCount()
-	_ = out.Close()
+	_ = out.close()
 	return elapsed, frames
 }
 
@@ -96,7 +96,7 @@ func BenchmarkLiveFrame(b *testing.B) {
 			for i := range n {
 				g.Task(fmt.Sprintf("item %d", i)).Define(func(context.Context) error { return nil })
 			}
-			if err := g.Wait(); err != nil {
+			if err := g.wait(); err != nil {
 				b.Fatalf("Wait: %v", err)
 			}
 			out.mu.Lock()
@@ -105,7 +105,7 @@ func BenchmarkLiveFrame(b *testing.B) {
 				_ = out.renderLiveRegionWithDebugLocked(80, 24, clock.t)
 			}
 			out.mu.Unlock()
-			_ = out.Close()
+			_ = out.close()
 		})
 	}
 }

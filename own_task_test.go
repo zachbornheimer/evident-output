@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"context"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // readyBand is the trailing band a run of Skipped policy exclusions closes on.
@@ -17,19 +15,19 @@ func renderCategory(t *testing.T, workName string) string {
 	t.Helper()
 	var buf bytes.Buffer
 	out := newPlainOutput(&buf, false)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 	items := out.Group("branches")
 	work := items.Task(workName)
-	items.Task("main").Skipped(evo.Reason("protected"))
-	items.Task("feat/a").Skipped(evo.Reason("unpushed"))
+	items.Task("main").skipped(reason("protected"))
+	items.Task("feat/a").skipped(reason("unpushed"))
 	work.Define(func(context.Context) error {
 		work.Summary("12 checked")
 		return nil
 	})
-	if err := work.Wait(); err != nil {
+	if err := work.wait(); err != nil {
 		t.Fatal(err)
 	}
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	return buf.String()
@@ -65,9 +63,9 @@ func renderSkippedFetch(t *testing.T, ownGroups bool, skipped ...string) string 
 	t.Helper()
 	var buf bytes.Buffer
 	out := newPlainOutput(&buf, false)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 	categories := out.Group("categories")
-	task := func(name string) *evo.TaskHandle {
+	task := func(name string) *Task {
 		if ownGroups {
 			return categories.Group(name).Task(name)
 		}
@@ -75,9 +73,9 @@ func renderSkippedFetch(t *testing.T, ownGroups bool, skipped ...string) string 
 	}
 	succeed(task("branches"), "3 checked")
 	for _, name := range skipped {
-		task(name).Skipped(evo.Reason("--skip-fetch"))
+		task(name).skipped(reason("--skip-fetch"))
 	}
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	return buf.String()
@@ -121,15 +119,15 @@ func TestOwnTask_SkippedPeersBesideWorkKeepTheirRows(t *testing.T) {
 func TestOwnTask_LoneKeptItemFoldsUnderItsGroupRow(t *testing.T) {
 	var buf bytes.Buffer
 	out := newPlainOutput(&buf, false)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 	items := out.Group("branches")
 	work := items.Task("branches")
-	items.Task("main").Skipped(evo.Reason("protected"))
+	items.Task("main").skipped(reason("protected"))
 	work.Define(func(context.Context) error {
 		work.Summary("2 checked")
 		return nil
 	})
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	want := "✓ branches  2 checked\n  - skipped 1 (protected)\n" + readyBand

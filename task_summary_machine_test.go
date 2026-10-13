@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bufio"
@@ -6,25 +6,23 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestSummary_ReachesRunDocumentAndEventStream pins E-115 (ZYS-971): a
 // Task's Summary is a structured `summary` field in machine output. The
-// evo.run task entry and the task.finished event carried none, so a JSON
+// run task entry and the task.finished event carried none, so a JSON
 // or JSONL consumer lost every Task Summary.
 func TestSummary_ReachesRunDocumentAndEventStream(t *testing.T) {
 	var events bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, StateDir: t.TempDir(), Stdout: &events, Title: "sum", Format: evo.FormatJSONL})
+	out := initRun(Config{isolated: true, stateDir: t.TempDir(), stdout: &events, title: "sum", format: formatJSONL})
 	task := out.Task("check branches")
 	task.Define(func(context.Context) error { task.Summary("459 checked"); return nil })
-	_ = out.Finish()
+	_ = out.finish()
 	var js bytes.Buffer
-	if err := evo.WriteJSON(&js, evo.Result{Conclusion: out.Conclusion()}); err != nil {
+	if err := writeJSON(&js, Result{Conclusion: out.conclusion()}); err != nil {
 		t.Fatalf("WriteJSON: %v", err)
 	}
-	_ = out.Close()
+	_ = out.close()
 
 	var doc struct {
 		Data struct {
@@ -38,7 +36,7 @@ func TestSummary_ReachesRunDocumentAndEventStream(t *testing.T) {
 		t.Fatalf("decode run document: %v\n%s", err, js.String())
 	}
 	if len(doc.Data.Tasks) != 1 || doc.Data.Tasks[0].Summary != "459 checked" {
-		t.Errorf("evo.run tasks = %+v, want one with summary %q\n%s", doc.Data.Tasks, "459 checked", js.String())
+		t.Errorf("run tasks = %+v, want one with summary %q\n%s", doc.Data.Tasks, "459 checked", js.String())
 	}
 
 	found := false

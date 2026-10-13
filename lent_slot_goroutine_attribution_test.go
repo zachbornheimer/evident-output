@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"context"
@@ -6,8 +6,6 @@ import (
 	"io"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // lentSlotOutcome is what each Task's Wait returned and the value the
@@ -26,10 +24,10 @@ type lentSlotOutcome struct {
 // (unordered).
 func lentSlotRead(t *testing.T, ceiling int) lentSlotOutcome {
 	t.Helper()
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true, MaxConcurrency: ceiling})
-	defer func() { _ = out.Close() }()
+	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true, MaxConcurrency: ceiling})
+	defer func() { _ = out.close() }()
 	made := out.Group("producers").Task("make")
-	producer := evo.Compute(made, func(context.Context) (int, error) { return 7, nil })
+	producer := Compute(made, func(context.Context) (int, error) { return 7, nil })
 	inner := out.Group("other").Task("inner")
 	outerRunning, innerDefined := make(chan struct{}), make(chan struct{})
 	innerRunning, readDone := make(chan struct{}), make(chan struct{})
@@ -43,7 +41,7 @@ func lentSlotRead(t *testing.T, ceiling int) lentSlotOutcome {
 			read = producer.Get()
 			close(readDone)
 		}()
-		return inner.Wait()
+		return inner.wait()
 	})
 	<-outerRunning
 	inner.Define(func(context.Context) error {
@@ -53,13 +51,13 @@ func lentSlotRead(t *testing.T, ceiling int) lentSlotOutcome {
 	})
 	close(innerDefined)
 
-	_ = out.Finish()
-	return lentSlotOutcome{inner: inner.Wait(), outer: outer.Wait(), read: read}
+	_ = out.finish()
+	return lentSlotOutcome{inner: inner.wait(), outer: outer.wait(), read: read}
 }
 
 func TestComputedGet_GoroutineStartedBeforeALentSlotRunIsTheLendersReader(t *testing.T) {
 	got := lentSlotRead(t, 1)
-	if errors.Is(got.inner, evo.ErrComputedUnordered) {
+	if errors.Is(got.inner, ErrComputedUnordered) {
 		t.Errorf("inner.Wait() = %v: the outer callback's goroutine's read was charged to the inner Task", got.inner)
 	}
 	if got.outer != nil || got.read != 7 {
@@ -71,7 +69,7 @@ func TestComputedGet_GoroutineStartedBeforeALentSlotRunIsTheLendersReader(t *tes
 // the outcome must not depend on the ceiling.
 func TestComputedGet_GoroutineStartedBeforeARunIsTheLendersReaderAtAnyCeiling(t *testing.T) {
 	got := lentSlotRead(t, 2)
-	if errors.Is(got.inner, evo.ErrComputedUnordered) || got.outer != nil || got.read != 7 {
+	if errors.Is(got.inner, ErrComputedUnordered) || got.outer != nil || got.read != 7 {
 		t.Errorf("inner.Wait() = %v, outer.Wait() = %v, read = %d; want no ErrComputedUnordered, nil, 7", got.inner, got.outer, got.read)
 	}
 }
@@ -81,10 +79,10 @@ func TestComputedGet_GoroutineStartedBeforeARunIsTheLendersReaderAtAnyCeiling(t 
 // the callback's goroutine). The goroutine's Wait on a settled Task is the
 // callback's, not the builder's, and must not be refused as inside it.
 func TestWait_GoroutineStartedBeforeALentBuilderRunIsNotInsideIt(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true, MaxConcurrency: 1})
-	defer func() { _ = out.Close() }()
+	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true, MaxConcurrency: 1})
+	defer func() { _ = out.close() }()
 	made := out.Group("producers").Task("make").Define(func(context.Context) error { return nil })
-	if err := made.Wait(); err != nil {
+	if err := made.wait(); err != nil {
 		t.Fatal(err)
 	}
 	built := out.Group("built")
@@ -96,12 +94,12 @@ func TestWait_GoroutineStartedBeforeALentBuilderRunIsNotInsideIt(t *testing.T) {
 		<-builtDefined
 		go func() {
 			<-builderRunning
-			waited <- made.Wait()
+			waited <- made.wait()
 		}()
-		return built.Wait()
+		return built.wait()
 	})
 	<-outerRunning
-	built.Define(func(g *evo.GroupHandle) {
+	built.define(func(g *Group) {
 		close(builderRunning)
 		err := <-waited
 		waited <- err
@@ -109,7 +107,7 @@ func TestWait_GoroutineStartedBeforeALentBuilderRunIsNotInsideIt(t *testing.T) {
 	})
 	close(builtDefined)
 
-	_ = out.Finish()
+	_ = out.finish()
 
 	if err := <-waited; err != nil && strings.Contains(err.Error(), "inside a container builder") {
 		t.Errorf("the outer callback's goroutine Wait(make) = %v: refused as inside a builder it did not start", err)

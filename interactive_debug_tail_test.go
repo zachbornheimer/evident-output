@@ -1,11 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"io"
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -21,12 +20,12 @@ import (
 func TestInteractive_DebugTailReachesLiveTerminal(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	newest := true
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug, View: evo.DebugPresentationPane, PaneHeight: 5, NewestFirst: &newest}, Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), Debug: debugConfig{level: levelDebug, view: debugPresentationPane, paneHeight: 5, newestFirst: &newest}, color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
-	out.DebugForTest("diagnostic detail line")
-	out.Task("build").Fail("compile error")
-	_ = out.Finish()
+	out.debugForTest("diagnostic detail line")
+	out.Task("build").fail("compile error")
+	_ = out.finish()
 
 	final := screen.FinalText()
 	if !strings.Contains(final, "diagnostic detail line") {

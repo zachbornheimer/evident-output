@@ -3,6 +3,7 @@ package evo
 import (
 	"context"
 	"fmt"
+	"io"
 	"sync/atomic"
 
 	"github.com/zachbornheimer/evident-output/internal/change"
@@ -20,9 +21,9 @@ import (
 // speaks internal/clock directly.
 type (
 	// TimeSource provides the current time for deterministic tests.
-	TimeSource = clock.Clock
+	timeSource = clock.Clock
 	// Scheduler is TimeSource's optional capability to run fn after a delay.
-	Scheduler = clock.Scheduler
+	scheduler = clock.Scheduler
 	// systemClock uses the real wall clock.
 	systemClock = clock.Wall
 	// fixedClock always returns the same instant.
@@ -40,13 +41,13 @@ var wall = clock.System()
 // table. A table keyed by handle kept every handle, and through it every
 // Output with all its state, alive for the life of the process; the slot
 // lives and dies with its handle.
-type FacadeSlot struct {
+type facadeSlot struct {
 	wrapper atomic.Pointer[any]
 }
 
 // Wrapper returns the wrapper stored in the slot, storing newWrapper()'s
 // result first when there is none. Concurrent first calls agree on one.
-func (s *FacadeSlot) Wrapper(newWrapper func() any) any {
+func (s *facadeSlot) loadWrapper(newWrapper func() any) any {
 	if w := s.wrapper.Load(); w != nil {
 		return *w
 	}
@@ -58,10 +59,10 @@ func (s *FacadeSlot) Wrapper(newWrapper func() any) any {
 }
 
 // Facade returns o's public-wrapper slot.
-func (o *Output) Facade() *FacadeSlot { return &o.facade }
+func (o *Run) facadeSlot() *facadeSlot { return &o.facade }
 
 // Facade returns t's public-wrapper slot.
-func (t *TaskHandle) Facade() *FacadeSlot {
+func (t *Task) facadeSlot() *facadeSlot {
 	if t == nil {
 		return nil
 	}
@@ -69,26 +70,26 @@ func (t *TaskHandle) Facade() *FacadeSlot {
 }
 
 // Facade returns g's public-wrapper slot.
-func (g *GroupHandle) Facade() *FacadeSlot { return &g.facade }
+func (g *Group) facadeSlot() *facadeSlot { return &g.facade }
 
 // Facade returns g's public-wrapper slot.
-func (g *SequenceHandle) Facade() *FacadeSlot { return &g.facade }
+func (g *Sequence) facadeSlot() *facadeSlot { return &g.facade }
 
 // Facade returns p's public-wrapper slot.
-func (p *Printer) Facade() *FacadeSlot { return &p.facade }
+func (p *printer) facadeSlot() *facadeSlot { return &p.facade }
 
 // --- folded from process.go ---
 
 // ProcessCommand is one resolved external command Exec is about to spawn.
-type ProcessCommand = process.Command
+type processCommand = process.Command
 
 // ProcessOutcome is one spawned command's terminal, already-observed result.
-type ProcessOutcome = process.Outcome
+type processOutcome = process.Outcome
 
 // ProcessRunner is the facade every evo.Exec spawn goes through instead of
 // exec.Cmd/os/exec directly (facade rule): the real runner in ordinary use,
 // a scripted testkit fake in tests.
-type ProcessRunner = process.Runner
+type processRunner = process.Runner
 
 // Spawn wires one Exec spawn's capture: stdout/stderr both feed the task's
 // Capture ring (sanitized, redacted, bounded), and each completed line
@@ -103,10 +104,10 @@ type ProcessRunner = process.Runner
 // ExecSpec.Executable, not the path Evo actually resolved and tried to run.
 func (h changeHost) Spawn(ctx context.Context, id record.TaskID, cmd change.SpawnCommand) (change.ExecResult, error) {
 	o := h.out
-	task := &TaskHandle{out: o, id: string(id)}
-	ev := task.Capture(activityFeed(func(line string) { task.Doing(line) }))
+	task := &Task{out: o, id: string(id)}
+	ev := task.capture(activityFeed(func(line string) { task.Doing(line) }))
 
-	outcome, runErr := o.cfg.processRunner.Run(ctx, ProcessCommand{
+	outcome, runErr := o.cfg.processRunner.Run(ctx, processCommand{
 		Path:   cmd.Path,
 		Args:   cmd.Args,
 		Dir:    cmd.Dir,
@@ -123,8 +124,26 @@ func (h changeHost) Spawn(ctx context.Context, id record.TaskID, cmd change.Spaw
 	return change.ExecResult{
 		Ran:       true,
 		ExitCode:  outcome.ExitCode,
-		Stdout:    ev.streamText(CaptureStreamStdout),
-		Stderr:    ev.streamText(CaptureStreamStderr),
+		Stdout:    ev.streamText(captureStreamStdout),
+		Stderr:    ev.streamText(captureStreamStderr),
 		Truncated: ev.wasTruncated(),
 	}, nil
+}
+
+type (
+	Clock    = timeSource
+	Process  = processRunner
+	FS       = fileFS
+	Terminal = terminalDriver
+)
+
+type Facades struct {
+	Stdin    io.Reader
+	Stdout   io.Writer
+	Stderr   io.Writer
+	Clock    Clock
+	Terminal Terminal
+	Redactor Redactor
+	Process  Process
+	FS       FS
 }

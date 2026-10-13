@@ -9,13 +9,13 @@ import (
 
 // finishedPlain runs declare on a plain Output and returns what Finish
 // printed.
-func finishedPlain(t *testing.T, declare func(o *Output)) string {
+func finishedPlain(t *testing.T, declare func(o *Run)) string {
 	t.Helper()
 	var buf bytes.Buffer
-	out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, Stdout: &buf, Stderr: &buf})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, plain: true, color: colorNever, stdout: &buf, stderr: &buf})
+	t.Cleanup(func() { _ = out.close() })
 	declare(out)
-	_ = out.Finish()
+	_ = out.finish()
 	return buf.String()
 }
 
@@ -23,7 +23,7 @@ func finishedPlain(t *testing.T, declare func(o *Output)) string {
 // duplicated name and says "duplicate task name" once; the misuse line
 // names the duplicate.
 func TestDuplicateSiblingRowStatesItOnce(t *testing.T) {
-	got := finishedPlain(t, func(o *Output) {
+	got := finishedPlain(t, func(o *Run) {
 		o.Task("t").Define(noop)
 		o.Task("t")
 	})
@@ -40,7 +40,7 @@ func TestDuplicateSiblingRowStatesItOnce(t *testing.T) {
 
 // TestDuplicateSiblingNestedRowStatesItOnce is the nested form.
 func TestDuplicateSiblingNestedRowStatesItOnce(t *testing.T) {
-	got := finishedPlain(t, func(o *Output) {
+	got := finishedPlain(t, func(o *Run) {
 		p := o.Group("p")
 		p.Sequence("x").Task("a").Define(noop)
 		p.Sequence("x")
@@ -57,8 +57,8 @@ func TestRootContainerNamesShareOneRegistry(t *testing.T) {
 	for _, level := range []string{"root", "nested"} {
 		t.Run(level, func(t *testing.T) {
 			out := quietOutput(Config{})
-			t.Cleanup(func() { _ = out.Close() })
-			var seq *SequenceHandle
+			t.Cleanup(func() { _ = out.close() })
+			var seq *Sequence
 			if level == "root" {
 				out.Group("x")
 				seq = out.Sequence("x")
@@ -67,7 +67,7 @@ func TestRootContainerNamesShareOneRegistry(t *testing.T) {
 				p.Group("x")
 				seq = p.Sequence("x")
 			}
-			if !errors.Is(seq.tasks.rejected, ErrDuplicateSiblingName) {
+			if !errors.Is(seq.tasks.rejected, errDuplicateSiblingName) {
 				t.Fatalf("Sequence(\"x\") after Group(\"x\") rejected = %v, want ErrDuplicateSiblingName", seq.tasks.rejected)
 			}
 		})
@@ -78,10 +78,10 @@ func TestRootContainerNamesShareOneRegistry(t *testing.T) {
 // derives its identity exactly as the original declaration did, at the
 // root and under a Group, so one rule decides both.
 func TestDuplicateSiblingRefusalRowSharesItsSiblingsIdentity(t *testing.T) {
-	out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, plain: true, color: colorNever, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}})
+	t.Cleanup(func() { _ = out.close() })
 	g := out.Group("g")
-	pairs := [][2]*TaskHandle{
+	pairs := [][2]*Task{
 		{out.Task("t"), out.Task("t")},
 		{g.Task("c"), g.Task("c")},
 	}

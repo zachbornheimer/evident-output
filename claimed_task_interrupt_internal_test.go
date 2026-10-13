@@ -22,7 +22,7 @@ func nopCallback() error { return nil }
 // scheduler claimed it with `executing` callbacks running, while its
 // Work.Started is held back: the window between a Task being claimed and its
 // row reaching Running. The returned func lets Started go.
-func claimWithStartedHeld(o *Output, b *TaskHandle, executing int, run func() error) (release func()) {
+func claimWithStartedHeld(o *Run, b *Task, executing int, run func() error) (release func()) {
 	gate := make(chan struct{})
 	o.mu.Lock()
 	st := o.taskStates[b.id]
@@ -55,9 +55,9 @@ func TestInterrupt_ATaskClaimedBeforeItsRowStartedDoesNotRunToDone(t *testing.T)
 		o.interrupt("x")
 		release()
 		close(releaseA)
-		_ = o.Finish()
+		_ = o.finish()
 
-		if b.Snapshot().State == Done {
+		if b.snapshot().State == done {
 			escaped++
 		}
 	}
@@ -73,12 +73,12 @@ func TestInterrupt_ACancelledClaimedTaskNeverAnnouncesItselfEligibleAfterFinishi
 	late := 0
 	for range claimedTaskTrials / 2 {
 		var buf, stream bytes.Buffer
-		o := newOutput("job", to(&buf), maxConcurrency(1), wireFormatOption(FormatJSONL), wireStreamOption(&stream))
+		o := newOutput("job", to(&buf), maxConcurrency(1), wireFormatOption(formatJSONL), wireStreamOption(&stream))
 		release := claimWithStartedHeld(o, o.Task("B"), 1, nopCallback)
 
 		o.interrupt("x")
 		release()
-		_ = o.Finish()
+		_ = o.finish()
 
 		wire := stream.String()
 		finished := strings.Index(wire, `"task.finished"`)
@@ -106,7 +106,7 @@ func TestInterrupt_ATaskCancelledBetweenClaimAndStartNeverRunsItsCallback(t *tes
 
 		o.interrupt("x")
 		release()
-		_ = o.Finish()
+		_ = o.finish()
 
 		if called.Load() {
 			ran++
@@ -137,10 +137,10 @@ func TestInterrupt_ACallbackNeverRunsWithoutATaskStartedEvent(t *testing.T) {
 	unannounced := 0
 	for range claimedTaskTrials {
 		var buf, stream bytes.Buffer
-		o := newOutput("job", to(&buf), maxConcurrency(4), wireFormatOption(FormatJSONL), wireStreamOption(&stream))
+		o := newOutput("job", to(&buf), maxConcurrency(4), wireFormatOption(formatJSONL), wireStreamOption(&stream))
 		var mu sync.Mutex
 		ran := map[string]bool{}
-		handles := make([]*TaskHandle, 0, tasksPerTrial)
+		handles := make([]*Task, 0, tasksPerTrial)
 		for i := range tasksPerTrial {
 			h := o.Task(fmt.Sprintf("t%d", i))
 			handles = append(handles, h)
@@ -148,7 +148,7 @@ func TestInterrupt_ACallbackNeverRunsWithoutATaskStartedEvent(t *testing.T) {
 		}
 
 		o.interrupt("x")
-		_ = o.Finish()
+		_ = o.finish()
 
 		for _, h := range handles {
 			mu.Lock()

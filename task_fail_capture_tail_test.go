@@ -1,11 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"io"
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/internal/process"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
@@ -31,19 +30,19 @@ import (
 // under a real pty (script(1)) capture too.
 func TestRun_ThenFail_RendersChildStderrInFinalReport(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("build")
 	cmd := process.NewCmd("/bin/sh", "-c", "echo 'undefined reference to main' 1>&2; exit 1")
-	if err := task.RunForTest(cmd); err != nil {
-		task.Fail("build failed")
+	if err := task.runForTest(cmd); err != nil {
+		task.fail("build failed")
 	}
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (a resolved Fail is not misuse)", err)
 	}
-	if state := out.Conclusion().State; state != evo.StateFailed {
+	if state := out.conclusion().state; state != stateFailed {
 		t.Fatalf("state = %v, want StateFailed", state)
 	}
 	// Fail commits the resolved row durably at resolution time

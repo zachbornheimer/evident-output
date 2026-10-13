@@ -21,7 +21,7 @@ func TestDefine_CallerContextCancellation_CancelsTaskScope(t *testing.T) {
 	runDone := make(chan struct{})
 
 	go func() {
-		out.Run(callerCtx, func(context.Context) error {
+		out.run(callerCtx, func(context.Context) error {
 			out.Task("wait-for-caller-cancel").Define(func(taskCtx context.Context) error {
 				close(started)
 				<-taskCtx.Done()
@@ -63,7 +63,7 @@ func TestVerify_CallerContextCancellation_CancelsTaskScope(t *testing.T) {
 	runDone := make(chan struct{})
 
 	go func() {
-		out.Run(callerCtx, func(context.Context) error {
+		out.run(callerCtx, func(context.Context) error {
 			task := out.Task("wait-for-caller-cancel-verify")
 			task.Verify(func(verifyCtx context.Context) (bool, error) {
 				close(started)
@@ -110,7 +110,7 @@ func TestDefine_CallerContextDeadline_IsObservable(t *testing.T) {
 	runDone := make(chan struct{})
 
 	go func() {
-		out.Run(callerCtx, func(context.Context) error {
+		out.run(callerCtx, func(context.Context) error {
 			out.Task("observe-deadline").Define(func(taskCtx context.Context) error {
 				d, ok := taskCtx.Deadline()
 				if !ok {
@@ -157,15 +157,15 @@ func TestBeginRunContext_SecondRunStartsFresh(t *testing.T) {
 	if err := secondCtx.Err(); err != nil {
 		t.Fatalf("second run context should start fresh/uncancelled, got %v", err)
 	}
-	if out.Context() != secondCtx {
+	if out.context() != secondCtx {
 		t.Fatal("o.Context() must report the most recently begun run's context")
 	}
 }
 
-func newTestOutput(t *testing.T) *Output {
+func newTestOutput(t *testing.T) *Run {
 	t.Helper()
-	out := Init(Config{Isolated: true, Stdout: discardWriter{}})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: discardWriter{}})
+	t.Cleanup(func() { _ = out.close() })
 	return out
 }
 

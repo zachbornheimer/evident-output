@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"context"
@@ -7,8 +7,6 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // In Strict mode a container builder that hands a Wait to a goroutine it
@@ -17,19 +15,19 @@ import (
 // goroutine and the process would end.
 func TestStrictSpawnedBuilderWaitDoesNotEndTheProcess(t *testing.T) {
 	if os.Getenv("EVO_STRICT_BUILDER_WAIT_CHILD") == "1" {
-		out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true, Strict: true})
+		out := initRun(Config{isolated: true, stdout: io.Discard, plain: true, strict: true})
 		other := out.Group("others").Task("other")
 		other.Define(func(context.Context) error { return nil })
 		built := out.Group("built")
-		built.Define(func(g *evo.GroupHandle) {
+		built.define(func(g *Group) {
 			done := make(chan error, 1)
-			go func() { done <- other.Wait() }()
+			go func() { done <- other.wait() }()
 			if err := <-done; err == nil || !strings.Contains(err.Error(), "inside a container builder") {
 				os.Exit(3)
 			}
 			g.Task("child").Define(func(context.Context) error { return nil })
 		})
-		_ = built.Wait()
+		_ = built.wait()
 		os.Exit(0)
 	}
 	cmd := exec.Command(os.Args[0], "-test.run=^TestStrictSpawnedBuilderWaitDoesNotEndTheProcess$")

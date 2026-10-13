@@ -15,7 +15,7 @@ const auditedCollectionLimit = 400
 // init makes every live frame a test builds prove the childIndex current:
 // the frame must equal the one a walk of every child builds.
 func init() {
-	liveIndexAudit = func(g *tasksState, rows int, now time.Time, got TasksSnapshot, rev uint64) {
+	liveIndexAudit = func(g *tasksState, rows int, now time.Time, got tasksSnapshot, rev uint64) {
 		if g.taskCount() > auditedCollectionLimit {
 			return
 		}

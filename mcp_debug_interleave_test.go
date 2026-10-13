@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestMCP025_DebugInterleavesWithItem is the output half of MCP-025: a debug
@@ -14,10 +12,10 @@ import (
 // the preview package is outside the root module's reach.
 func TestMCP025_DebugInterleavesWithItem(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", Debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
 	succeed(out.Task("status"))
-	out.DebugForTest("index ok")
-	_ = out.Finish()
+	out.debugForTest("index ok")
+	_ = out.finish()
 	// Plain buffer must keep debug coherent with item.
 	if !strings.Contains(buf.String(), "status") {
 		t.Fatal(buf.String())

@@ -17,14 +17,14 @@ func renderDefine(t *testing.T, body func(ctx context.Context) error) (string, e
 	out := newOutput("resources", to(&buf), withNoColor(), plain())
 	task := out.Task("sync config")
 	task.Define(body)
-	waitErr := task.Wait()
-	_ = out.Finish()
+	waitErr := task.wait()
+	_ = out.finish()
 	return buf.String(), waitErr
 }
 
 // holdIn holds res in mode for fn, through the Run whose Define callback
 // ctx belongs to.
-func holdIn(ctx context.Context, res Resource, mode change.ClaimMode, fn func(context.Context) error) error {
+func holdIn(ctx context.Context, res resource, mode change.ClaimMode, fn func(context.Context) error) error {
 	scope, err := runOf(ctx)
 	if err != nil {
 		return err
@@ -46,7 +46,7 @@ func TestHoldResource_UncontendedProducesNoOutput(t *testing.T) {
 	}
 	held := false
 	rendered, err := renderDefine(t, func(ctx context.Context) error {
-		return holdIn(ctx, FSResource(dir), change.ClaimWrite, func(context.Context) error {
+		return holdIn(ctx, fSResource(dir), change.ClaimWrite, func(context.Context) error {
 			held = true
 			return nil
 		})
@@ -65,24 +65,24 @@ func TestHoldResource_UncontendedProducesNoOutput(t *testing.T) {
 // writeAudit is the kind of helper a callback calls without knowing it
 // acquires a resource of its own.
 func writeAudit(ctx context.Context) error {
-	return holdIn(ctx, LogicalResource("audit-log"), change.ClaimWrite, func(context.Context) error { return nil })
+	return holdIn(ctx, logicalResource("audit-log"), change.ClaimWrite, func(context.Context) error { return nil })
 }
 
 func TestHoldResource_NestedThroughHelperIsMisuse(t *testing.T) {
 	dir := t.TempDir()
 	_, err := renderDefine(t, func(ctx context.Context) error {
-		return holdIn(ctx, FSResource(dir), change.ClaimRead, writeAudit)
+		return holdIn(ctx, fSResource(dir), change.ClaimRead, writeAudit)
 	})
-	if !errors.Is(err, ErrNestedResourceAcquisition) {
+	if !errors.Is(err, errNestedResourceAcquisition) {
 		t.Fatalf("task error = %v, want ErrNestedResourceAcquisition", err)
 	}
 }
 
 func TestHoldResource_InvalidResourceIsReported(t *testing.T) {
 	_, err := renderDefine(t, func(ctx context.Context) error {
-		return holdIn(ctx, LogicalResource(""), change.ClaimRead, func(context.Context) error { return nil })
+		return holdIn(ctx, logicalResource(""), change.ClaimRead, func(context.Context) error { return nil })
 	})
-	if !errors.Is(err, ErrInvalidResource) {
+	if !errors.Is(err, errInvalidResource) {
 		t.Fatalf("task error = %v, want ErrInvalidResource", err)
 	}
 }

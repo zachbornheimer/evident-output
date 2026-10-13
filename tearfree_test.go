@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"fmt"
@@ -6,7 +6,6 @@ import (
 	"sync"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -19,16 +18,16 @@ import (
 // stress test depends on.
 func TestDurableWrite_ClearedAndRedrawnAroundEveryPrintln(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive())
-	out := evo.Init(evo.Config{Isolated: true, Terminal: screen, Title: "demo", VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	out.DropDiagnosticForTest()
+	out := initRun(Config{isolated: true, terminal: screen, title: "demo", visibilityDelay: DelayForTest(0), color: colorNever})
+	out.dropDiagnosticForTest()
 	task := out.Task("install")
 	task.Doing("working")
-	out.ForceLiveVisibleForTest()
+	out.forceLiveVisibleForTest()
 	if screen.LiveFrameCount() == 0 {
 		t.Fatal("setup: expected an initial live frame before Println")
 	}
 
-	out.Println("using cached wheel index")
+	out.println("using cached wheel index")
 
 	ops := screen.Operations()
 	clearIdx, durableIdx, liveIdx := -1, -1, -1
@@ -58,7 +57,7 @@ func TestDurableWrite_ClearedAndRedrawnAroundEveryPrintln(t *testing.T) {
 	if liveIdx == -1 {
 		t.Fatalf("durable write at %d has no following live redraw: %+v", durableIdx, ops)
 	}
-	_ = out.Finish()
+	_ = out.finish()
 }
 
 // TestDurableWrite_TearFreeUnderConcurrentProgress is the stress test the
@@ -67,11 +66,11 @@ func TestDurableWrite_ClearedAndRedrawnAroundEveryPrintln(t *testing.T) {
 // land between a complete clear and a full redraw — never mid-frame.
 func TestDurableWrite_TearFreeUnderConcurrentProgress(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive())
-	out := evo.Init(evo.Config{Isolated: true, Terminal: screen, Title: "demo", VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	out.DropDiagnosticForTest()
+	out := initRun(Config{isolated: true, terminal: screen, title: "demo", visibilityDelay: DelayForTest(0), color: colorNever})
+	out.dropDiagnosticForTest()
 	task := out.Task("install")
 	task.Progress(0, 1000)
-	out.ForceLiveVisibleForTest()
+	out.forceLiveVisibleForTest()
 
 	const iterations = 500
 	var wg sync.WaitGroup
@@ -85,12 +84,12 @@ func TestDurableWrite_TearFreeUnderConcurrentProgress(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := range iterations / 10 {
-			out.Println(fmt.Sprintf("note %d", i))
+			out.println(fmt.Sprintf("note %d", i))
 		}
 	}()
 	wg.Wait()
 	succeed(task)
-	_ = out.Finish()
+	_ = out.finish()
 
 	ops := screen.Operations()
 	for i, op := range ops {

@@ -1,12 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"fmt"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestFail_AutoAttachesDetailTail_WhenEvidenceNonEmptyAndNoExplicitDetail is
@@ -16,14 +14,14 @@ import (
 // DetailTail is no longer an opt-in step a caller has to remember.
 func TestFail_AutoAttachesDetailTail_WhenEvidenceNonEmptyAndNoExplicitDetail(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
 
 	task := out.Task("build")
-	output := task.Capture()
+	output := task.capture()
 	_, _ = fmt.Fprintln(output, "error: undefined symbol foo")
-	task.Fail("compile failed")
+	task.fail("compile failed")
 
-	_ = out.Finish()
+	_ = out.finish()
 
 	rendered := buf.String()
 	if !strings.Contains(rendered, "undefined symbol foo") {
@@ -34,14 +32,14 @@ func TestFail_AutoAttachesDetailTail_WhenEvidenceNonEmptyAndNoExplicitDetail(t *
 // TestBlock_AutoAttachesDetailTail mirrors the Fail case for Block.
 func TestBlock_AutoAttachesDetailTail(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
 
 	task := out.Task("policy check")
-	output := task.Capture()
+	output := task.capture()
 	_, _ = fmt.Fprintln(output, "policy violation: missing signature")
-	task.Block("policy check failed")
+	task.block("policy check failed")
 
-	_ = out.Finish()
+	_ = out.finish()
 
 	rendered := buf.String()
 	if !strings.Contains(rendered, "missing signature") {
@@ -54,14 +52,14 @@ func TestBlock_AutoAttachesDetailTail(t *testing.T) {
 // clobbers a caller's own wording.
 func TestFail_ExplicitDetail_NotOverwrittenByEvidence(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
 
 	task := out.Task("build")
-	output := task.Capture()
+	output := task.capture()
 	_, _ = fmt.Fprintln(output, "raw evidence noise")
-	task.Fail("compile failed", evo.Detail("caller-chosen detail"))
+	task.fail("compile failed", Detail("caller-chosen detail"))
 
-	_ = out.Finish()
+	_ = out.finish()
 
 	rendered := buf.String()
 	if !strings.Contains(rendered, "caller-chosen detail") {

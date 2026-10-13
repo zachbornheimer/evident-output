@@ -25,7 +25,7 @@ func TestSlice36_CloseUnblocksAConfirmWaitingOnAPipe(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 
-	_ = out.Close()
+	_ = out.close()
 
 	select {
 	case yes := <-confirmed:

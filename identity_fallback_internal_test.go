@@ -17,8 +17,8 @@ func TestFailf_NoTitle_UsesExecutableBasename(t *testing.T) {
 
 	var buf bytes.Buffer
 	out := newOutput("", to(&buf), withNoColor(), plain())
-	out.Fail("boom")
-	_ = out.Finish()
+	out.fail("boom")
+	_ = out.finish()
 
 	if !strings.Contains(buf.String(), "clean-repo") {
 		t.Fatalf("expected the executable basename \"clean-repo\", got:\n%s", buf.String())

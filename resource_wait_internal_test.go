@@ -15,10 +15,10 @@ const waitUnderClaimDeadline = 5 * time.Second
 
 // runWithin runs fn in a Run on out and fails the test if it does not return
 // within waitUnderClaimDeadline: the failure mode these tests pin is a hang.
-func runWithin(t *testing.T, out *Output, fn RunFunc) Result {
+func runWithin(t *testing.T, out *Run, fn RunFunc) Result {
 	t.Helper()
 	done := make(chan Result, 1)
-	go func() { done <- out.Run(context.Background(), fn) }()
+	go func() { done <- out.run(context.Background(), fn) }()
 	select {
 	case res := <-done:
 		return res
@@ -34,7 +34,7 @@ func runWithin(t *testing.T, out *Output, fn RunFunc) Result {
 // needs), so the Wait fails as nested acquisition instead of blocking.
 func TestTaskHandle_Wait_UnderHeldClaimIsNestedAcquisition(t *testing.T) {
 	dir := t.TempDir()
-	out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, MaxConcurrency: 4, Stdout: io.Discard, Stderr: io.Discard})
+	out := initRun(Config{isolated: true, plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
 	var waitErr error
 	runWithin(t, out, func(ctx context.Context) error {
 		b := out.Task("write file")
@@ -43,16 +43,16 @@ func TestTaskHandle_Wait_UnderHeldClaimIsNestedAcquisition(t *testing.T) {
 		})
 		a := out.Task("effect")
 		a.Define(func(ctx context.Context) error {
-			spec := EffectSpec{Verb: EffectUpdate, Object: "repo", Quantity: 1, Resource: FSResource(dir)}
+			spec := EffectSpec{Verb: Update, Object: "repo", Quantity: 1, Resource: fSResource(dir)}
 			return Effect(ctx, spec, func(context.Context) error {
-				waitErr = b.Wait()
+				waitErr = b.wait()
 				return waitErr
 			})
 		})
-		_ = a.Wait()
+		_ = a.wait()
 		return nil
 	})
-	if !errors.Is(waitErr, ErrNestedResourceAcquisition) {
+	if !errors.Is(waitErr, errNestedResourceAcquisition) {
 		t.Fatalf("Wait under a held claim = %v, want ErrNestedResourceAcquisition", waitErr)
 	}
 }
@@ -62,7 +62,7 @@ func TestTaskHandle_Wait_UnderHeldClaimIsNestedAcquisition(t *testing.T) {
 // acquisition, rather than parking on children that need the claim.
 func TestGroupHandle_Wait_UnderHeldClaimIsNestedAcquisition(t *testing.T) {
 	dir := t.TempDir()
-	out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, MaxConcurrency: 4, Stdout: io.Discard, Stderr: io.Discard})
+	out := initRun(Config{isolated: true, plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
 	var waitErr error
 	runWithin(t, out, func(ctx context.Context) error {
 		files := out.Group("files")
@@ -71,16 +71,16 @@ func TestGroupHandle_Wait_UnderHeldClaimIsNestedAcquisition(t *testing.T) {
 		})
 		a := out.Task("effect")
 		a.Define(func(ctx context.Context) error {
-			spec := EffectSpec{Verb: EffectUpdate, Object: "repo", Quantity: 1, Resource: FSResource(dir)}
+			spec := EffectSpec{Verb: Update, Object: "repo", Quantity: 1, Resource: fSResource(dir)}
 			return Effect(ctx, spec, func(context.Context) error {
-				waitErr = files.Wait()
+				waitErr = files.wait()
 				return waitErr
 			})
 		})
-		_ = a.Wait()
+		_ = a.wait()
 		return nil
 	})
-	if !errors.Is(waitErr, ErrNestedResourceAcquisition) {
+	if !errors.Is(waitErr, errNestedResourceAcquisition) {
 		t.Fatalf("Group.Wait under a held claim = %v, want ErrNestedResourceAcquisition", waitErr)
 	}
 }
@@ -89,7 +89,7 @@ func TestGroupHandle_Wait_UnderHeldClaimIsNestedAcquisition(t *testing.T) {
 // too broad: the same shape with no Resource on the Effect completes.
 func TestTaskHandle_Wait_WithoutClaimStillSucceeds(t *testing.T) {
 	dir := t.TempDir()
-	out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, MaxConcurrency: 4, Stdout: io.Discard, Stderr: io.Discard})
+	out := initRun(Config{isolated: true, plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
 	res := runWithin(t, out, func(ctx context.Context) error {
 		b := out.Task("write file")
 		b.Define(func(ctx context.Context) error {
@@ -97,19 +97,19 @@ func TestTaskHandle_Wait_WithoutClaimStillSucceeds(t *testing.T) {
 		})
 		a := out.Task("effect")
 		a.Define(func(ctx context.Context) error {
-			spec := EffectSpec{Verb: EffectUpdate, Object: "repo", Quantity: 1}
-			return Effect(ctx, spec, func(context.Context) error { return b.Wait() })
+			spec := EffectSpec{Verb: Update, Object: "repo", Quantity: 1}
+			return Effect(ctx, spec, func(context.Context) error { return b.wait() })
 		})
-		return a.Wait()
+		return a.wait()
 	})
-	if res.ExitCode() != ExitOK {
+	if res.ExitCode() != exitOK {
 		t.Fatalf("exit %d, want ExitOK", res.ExitCode())
 	}
 }
 
 // gitClaim is an Effect that holds LogicalResource("git") while fn runs.
 func gitClaim(ctx context.Context, fn func(context.Context) error) error {
-	spec := EffectSpec{Verb: EffectUpdate, Object: "repo", Quantity: 1, Resource: LogicalResource("git")}
+	spec := EffectSpec{Verb: Update, Object: "repo", Quantity: 1, Resource: logicalResource("git")}
 	return Effect(ctx, spec, fn)
 }
 
@@ -127,7 +127,7 @@ func waitFromSpawnedGoroutine(wait func() error) error {
 // own stack holds nothing, but the goroutine that started it does, so the
 // Wait is refused as nested acquisition instead of hanging for good.
 func TestGroupHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition(t *testing.T) {
-	out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, MaxConcurrency: 4, Stdout: io.Discard, Stderr: io.Discard})
+	out := initRun(Config{isolated: true, plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
 	var waitErr error
 	runWithin(t, out, func(ctx context.Context) error {
 		jobs := out.Group("jobs")
@@ -137,14 +137,14 @@ func TestGroupHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition(t *t
 		a := out.Task("a")
 		a.Define(func(ctx context.Context) error {
 			return gitClaim(ctx, func(context.Context) error {
-				waitErr = waitFromSpawnedGoroutine(jobs.Wait)
+				waitErr = waitFromSpawnedGoroutine(jobs.wait)
 				return waitErr
 			})
 		})
-		_ = a.Wait()
+		_ = a.wait()
 		return nil
 	})
-	if !errors.Is(waitErr, ErrNestedResourceAcquisition) {
+	if !errors.Is(waitErr, errNestedResourceAcquisition) {
 		t.Fatalf("Group.Wait from a goroutine started under a claim = %v, want ErrNestedResourceAcquisition", waitErr)
 	}
 }
@@ -152,7 +152,7 @@ func TestGroupHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition(t *t
 // TestTaskHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition is
 // the single-Task counterpart.
 func TestTaskHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition(t *testing.T) {
-	out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, MaxConcurrency: 4, Stdout: io.Discard, Stderr: io.Discard})
+	out := initRun(Config{isolated: true, plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
 	var waitErr error
 	runWithin(t, out, func(ctx context.Context) error {
 		c := out.Task("c")
@@ -162,14 +162,14 @@ func TestTaskHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition(t *te
 		a := out.Task("a")
 		a.Define(func(ctx context.Context) error {
 			return gitClaim(ctx, func(context.Context) error {
-				waitErr = waitFromSpawnedGoroutine(c.Wait)
+				waitErr = waitFromSpawnedGoroutine(c.wait)
 				return waitErr
 			})
 		})
-		_ = a.Wait()
+		_ = a.wait()
 		return nil
 	})
-	if !errors.Is(waitErr, ErrNestedResourceAcquisition) {
+	if !errors.Is(waitErr, errNestedResourceAcquisition) {
 		t.Fatalf("Wait from a goroutine started under a claim = %v, want ErrNestedResourceAcquisition", waitErr)
 	}
 }

@@ -6,7 +6,7 @@
 // commit body — this file's own comments call out the cases where the
 // mockup and the normative spec text disagree with each other, and why the
 // spec wins.
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -19,7 +19,6 @@ import (
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -43,12 +42,12 @@ import (
 //     inline "! kept" lines are evidence, not a "· warned" outcome marker.
 func TestScenario_DryRunPlanOnly(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true, DryRun: true, Color: evo.ColorNever, Plain: true,
-		Subject: "zq prune  ~/Developer/Software-Automation-Holdings/.worktrees/eapp-system-style-contract-heading",
-		Stdout:  &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, DryRun: true, color: colorNever, plain: true,
+		subject: "zq prune  ~/Developer/Software-Automation-Holdings/.worktrees/eapp-system-style-contract-heading",
+		stdout:  &buf, stderr: io.Discard,
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	// All three declared up front, matching the real CLI's three
 	// concurrently-checked subjects: plain mode's shared name-column width
@@ -61,14 +60,14 @@ func TestScenario_DryRunPlanOnly(t *testing.T) {
 	remotes := out.Task("remote-tracking")
 
 	branches.Fact("kept", "419 (283 checked out, 135 unpushed, 1 protected)")
-	commit(branches.Summary("459 checked"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 40})
+	commit(branches.Summary("459 checked"), EffectSpec{Verb: Delete, Object: "local tip", Quantity: 40})
 
 	worktrees.Fact("kept", "292 (163 dirty, 89 unpushed, 40 ignored files)")
-	commit(worktrees.Summary("294 checked"), evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 1})
+	commit(worktrees.Summary("294 checked"), EffectSpec{Verb: Verb(effectRemove), Object: "worktree", Quantity: 1})
 
-	commit(remotes.Summary("4 stale refs"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 4})
+	commit(remotes.Summary("4 stale refs"), EffectSpec{Verb: Delete, Object: "stale origin/*", Quantity: 4})
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -99,12 +98,12 @@ func TestScenario_DryRunPlanOnly(t *testing.T) {
 // conclusion band, which the mockup's frame simply did not also transcribe.
 func TestScenario_NothingToClean(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true, Color: evo.ColorNever, Plain: true, Title: "prune",
-		Subject: "zq prune  ~/Developer/Personal/zq",
-		Stdout:  &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, color: colorNever, plain: true, title: "prune",
+		subject: "zq prune  ~/Developer/Personal/zq",
+		stdout:  &buf, stderr: io.Discard,
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	branches := out.Task("branches")
 	worktrees := out.Task("worktrees")
@@ -114,9 +113,9 @@ func TestScenario_NothingToClean(t *testing.T) {
 	succeed(branches, "1 checked")
 	succeed(worktrees, "nothing to clean")
 	succeed(remotes, "nothing to clean")
-	out.Println("prune  nothing to clean")
+	out.println("prune  nothing to clean")
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -135,26 +134,26 @@ func TestScenario_NothingToClean(t *testing.T) {
 // newFailedChmodFile returns a FileSpec/testkit.FileFS pair that reconciles
 // for real (a genuine temp-directory write) and then fails only the chmod
 // step with an EPERM-shaped error — the fixture both TestScenario_PartialFailure
-// and TestScenario_Stress script evo.File's chmod failure through, per spec
+// and TestScenario_Stress script File's chmod failure through, per spec
 // §8.2's worked example: contents write cleanly, permissions alone fails.
 // displayPath is deliberately the frame's own "~/Library/LaunchAgents/..."
 // text — a relative FileSpec.Path resolves against the workspace directory
 // (spec §8.1), so t.Chdir(dir) below makes that exact, unmodified string
 // the real resolved path too, with no separate "pretty vs. real path"
 // translation for the renderer to invent.
-func newFailedChmodFile(t *testing.T, dir, displayPath string) (evo.FileSpec, *testkit.FileFS) {
+func newFailedChmodFile(t *testing.T, dir, displayPath string) (FileSpec, *testkit.FileFS) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Join(dir, filepath.Dir(displayPath)), 0o755); err != nil {
 		t.Fatalf("mkdir fixture dir: %v", err)
 	}
 	fsys := testkit.NewFileFS()
 	fsys.FailChmod(filepath.Join(dir, displayPath), errors.New("operation not permitted"))
-	spec := evo.FileSpec{Path: displayPath, Contents: []byte("<plist/>"), Mode: 0o644}
+	spec := FileSpec{Path: displayPath, Contents: []byte("<plist/>"), Mode: 0o644}
 	return spec, fsys
 }
 
 // TestScenario_PartialFailure is the golden for the "Partial failure" tab: one
-// evo.File reconciliation whose contents write succeeds and whose chmod
+// File reconciliation whose contents write succeeds and whose chmod
 // then fails, rendering the spec §2/§8.2/§20-21/§41 per-attribute
 // verification-detail shape — a satisfied attribute beside a failed one,
 // the failed one's own error/path/mode Facts nested beneath it.
@@ -165,21 +164,21 @@ func TestScenario_PartialFailure(t *testing.T) {
 	spec, fsys := newFailedChmodFile(t, dir, displayPath)
 
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true, Color: evo.ColorNever, Plain: true, FileFS: fsys,
+	out := initRun(Config{
+		isolated: true, color: colorNever, plain: true, fileFS: fsys,
 		// StateDir isolates this test's manifest to its own temp
-		// directory (spec §11.3) — without it, evo.File's default
+		// directory (spec §11.3) — without it, File's default
 		// manifest path is derived from the real machine cache dir and
-		// can contend with any other concurrently running evo.File caller.
-		StateDir: t.TempDir(),
-		Stdout:   &buf, Stderr: io.Discard,
+		// can contend with any other concurrently running File caller.
+		stateDir: t.TempDir(),
+		stdout:   &buf, stderr: io.Discard,
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	agent := out.Task("write launch agent")
-	agent.Define(func(ctx context.Context) error { return evo.File(ctx, spec) })
+	agent.Define(func(ctx context.Context) error { return File(ctx, spec) })
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -198,7 +197,7 @@ func TestScenario_PartialFailure(t *testing.T) {
 // piece: TestScenario_PartialFailure's verification-detail block, this time
 // composed alongside pieces every other tab already proves on their own —
 // a resolved Group, a standalone Done task with a committed Changes ledger
-// entry, and the failed evo.File task. The frame's live bars/timers/
+// entry, and the failed File task. The frame's live bars/timers/
 // warning-under-Running-child shapes are exactly TestScenario_LiveParallelPrune's
 // and the appendix-H live tests' own proven territory, not re-asserted
 // here — recombining already-proven durable rows would test the same
@@ -211,24 +210,24 @@ func TestScenario_Stress(t *testing.T) {
 	spec, fsys := newFailedChmodFile(t, dir, displayPath)
 
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true, Color: evo.ColorNever, Plain: true, FileFS: fsys,
-		StateDir: t.TempDir(),
-		Stdout:   &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, color: colorNever, plain: true, fileFS: fsys,
+		stateDir: t.TempDir(),
+		stdout:   &buf, stderr: io.Discard,
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	deploy := out.Group("deploy production")
 	succeed(deploy.Task("discover"))
 	succeed(deploy.Task("services"), "already satisfied")
 
 	remotes := out.Task("remote-tracking")
-	commit(remotes.Summary("4 stale refs"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 4})
+	commit(remotes.Summary("4 stale refs"), EffectSpec{Verb: Delete, Object: "stale origin/*", Quantity: 4})
 
 	agent := out.Task("write launch agent")
-	agent.Define(func(ctx context.Context) error { return evo.File(ctx, spec) })
+	agent.Define(func(ctx context.Context) error { return File(ctx, spec) })
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -279,22 +278,22 @@ func TestScenario_Stress(t *testing.T) {
 // use the same glyph for two different states, which the spec resolves.
 func TestScenario_CancelledAfterMutation(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true, Color: evo.ColorNever, Plain: true, Title: "prune",
-		Subject: "zq prune --apply  ~/.../eapp-system-style-contract-heading",
-		Stdout:  &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, color: colorNever, plain: true, title: "prune",
+		subject: "zq prune --apply  ~/.../eapp-system-style-contract-heading",
+		stdout:  &buf, stderr: io.Discard,
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("branches") // never touched: still Pending when Cancel hits.
 	worktrees := out.Task("worktrees")
 	remotes := out.Task("remote-tracking")
 
-	commit(remotes.Summary("4/4"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 4})
+	commit(remotes.Summary("4/4"), EffectSpec{Verb: Delete, Object: "stale origin/*", Quantity: 4})
 
-	worktrees.Cancel("interrupted")
+	worktrees.cancel("interrupted")
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -337,11 +336,11 @@ func TestScenario_AlreadySatisfied(t *testing.T) {
 	// leaves the launch agent zero-information too. Under verbose it owns a
 	// visible Fact and keeps its row; cleanup always keeps its Summary.
 	cases := []struct {
-		verbosity evo.Verbosity
+		verbosity verbosity
 		want      string
 	}{
-		{evo.VerbosityNormal, "✓ cleanup  nothing to do\n"},
-		{evo.VerbosityVerbose, "✓ write launch agent  already satisfied\n" +
+		{verbosityNormal, "✓ cleanup  nothing to do\n"},
+		{verbosityVerbose, "✓ write launch agent  already satisfied\n" +
 			"  path  ~/Library/LaunchAgents/com.acme.prod.agent.plist\n" +
 			"✓ cleanup             nothing to do\n"},
 	}
@@ -352,17 +351,17 @@ func TestScenario_AlreadySatisfied(t *testing.T) {
 	}
 }
 
-func renderV8AlreadySatisfied(t *testing.T, verbosity evo.Verbosity) string {
+func renderV8AlreadySatisfied(t *testing.T, verbosity verbosity) string {
 	t.Helper()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever, Plain: true, Stdout: &buf, Stderr: io.Discard, Verbosity: verbosity})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, color: colorNever, plain: true, stdout: &buf, stderr: io.Discard, verbosity: verbosity})
+	t.Cleanup(func() { _ = out.close() })
 
 	// Spec §19's suffix is ResolutionAlreadySatisfied, produced only by a
 	// pre-Define Verify that already holds — never a caller-written
 	// Done("already satisfied") summary, which would also fire if File/Exec
 	// no-op'd after Define (the case §19 forbids applying the suffix to).
-	alreadySatisfied := func(task *evo.TaskHandle) {
+	alreadySatisfied := func(task *Task) {
 		t.Helper()
 		task.Verify(func(context.Context) (bool, error) { return true, nil })
 		task.Define(func(context.Context) error {
@@ -380,7 +379,7 @@ func renderV8AlreadySatisfied(t *testing.T, verbosity evo.Verbosity) string {
 	alreadySatisfied(launchAgent)
 	succeed(deploy.Task("cleanup"), "nothing to do")
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	return buf.String()
@@ -388,7 +387,7 @@ func renderV8AlreadySatisfied(t *testing.T, verbosity evo.Verbosity) string {
 
 // TestScenario_StressLive is the golden for the HTML "Stress case" Replay tab's
 // live shape: a still-running Group with mixed done/running/failed children,
-// a warning on a running child, and a real evo.File permissions failure.
+// a warning on a running child, and a real File permissions failure.
 // Spec wins vs the HTML where they disagree: elapsed only after 5s Running
 // (this golden advances 8s, past that threshold); empty bar cells are
 // spaces; the live region does not invent a [changed]/[planned] ledger
@@ -401,15 +400,15 @@ func TestScenario_StressLive(t *testing.T) {
 
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{
-		Isolated: true, Clock: clock, Terminal: screen, FileFS: fsys,
-		StateDir: t.TempDir(), Stdout: io.Discard, Stderr: io.Discard,
-		VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever, MaxFrameRate: 1_000_000,
+	out := initRun(Config{
+		isolated: true, clock: clock, terminal: screen, fileFS: fsys,
+		stateDir: t.TempDir(), stdout: io.Discard, stderr: io.Discard,
+		visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000,
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	deploy := out.Group("deploy production")
-	commit(deploy.Task("discover"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 5})
+	commit(deploy.Task("discover"), EffectSpec{Verb: Delete, Object: "local tip", Quantity: 5})
 
 	hosts := deploy.Task("prepare hosts")
 	hosts.Doing("host-031")
@@ -418,11 +417,11 @@ func TestScenario_StressLive(t *testing.T) {
 	services := deploy.Task("services")
 	services.Doing("payments-api")
 	services.Progress(14, 40)
-	services.Problem("audit-stream rollout slower than baseline", evo.Severity(evo.SeverityWarning))
+	services.Problem("audit-stream rollout slower than baseline", severity(severityWarning))
 
 	agent := deploy.Task("write launch agent")
-	agent.Define(func(ctx context.Context) error { return evo.File(ctx, spec) })
-	if err := agent.Wait(); err == nil {
+	agent.Define(func(ctx context.Context) error { return File(ctx, spec) })
+	if err := agent.wait(); err == nil {
 		t.Fatal("write launch agent: expected permissions failure")
 	}
 
@@ -435,7 +434,7 @@ func TestScenario_StressLive(t *testing.T) {
 		cleanup.Doing("feat/cleanup…")
 		cleanup.Progress(7, 18)
 		cleanup.Fact("kept", "5 (3 protected, 2 unpushed)")
-		err := evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/*", Quantity: 12},
+		err := Effect(ctx, EffectSpec{Verb: Delete, Object: "stale origin/*", Quantity: 12},
 			func(context.Context) error { return nil })
 		close(committed)
 		<-release
@@ -486,16 +485,16 @@ func TestScenario_StressLive(t *testing.T) {
 func TestScenario_DependencyInstall(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{
-		Isolated: true, Clock: clock, Terminal: screen, Stdout: io.Discard, Stderr: io.Discard,
-		VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever,
+	out := initRun(Config{
+		isolated: true, clock: clock, terminal: screen, stdout: io.Discard, stderr: io.Discard,
+		visibilityDelay: DelayForTest(0), color: colorNever,
 		// A high cap disables the interactive redraw frame-rate coalescing
 		// (default 20fps/50ms) that would otherwise drop the second of two
 		// back-to-back Doing/Progress calls made at the same fake-clock
 		// instant, and this golden asserts the frame that follows both.
-		MaxFrameRate: 1_000_000,
+		maxFrameRate: 1_000_000,
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	install := out.Task("install dependencies")
 	install.Doing("urllib3")
@@ -546,11 +545,11 @@ func firstRune(s string) string {
 func TestScenario_LiveParallelPrune(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{
-		Isolated: true, Clock: clock, Terminal: screen, Stdout: io.Discard, Stderr: io.Discard,
-		VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever, MaxFrameRate: 1_000_000,
+	out := initRun(Config{
+		isolated: true, clock: clock, terminal: screen, stdout: io.Discard, stderr: io.Discard,
+		visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000,
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	branches := out.Task("branches")
 	worktrees := out.Task("worktrees")
@@ -593,11 +592,11 @@ func TestScenario_LiveParallelPrune(t *testing.T) {
 func TestScenario_GenericSuccessPlusActiveWork(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{
-		Isolated: true, Clock: clock, Terminal: screen, Stdout: io.Discard, Stderr: io.Discard,
-		VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever, MaxFrameRate: 1_000_000,
+	out := initRun(Config{
+		isolated: true, clock: clock, terminal: screen, stdout: io.Discard, stderr: io.Discard,
+		visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000,
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	agent := out.Group("launch agent")
 	succeed(agent.Task("write plist"))

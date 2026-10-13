@@ -17,7 +17,7 @@ import (
 // must not run the queued B beside A.
 func TestPlainWaiterNeverRaisesTheCeiling(t *testing.T) {
 	out := quietOutput(Config{MaxConcurrency: 1})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	var running, peak atomic.Int32
 	enter := func() {
@@ -46,10 +46,10 @@ func TestPlainWaiterNeverRaisesTheCeiling(t *testing.T) {
 	})
 	x := out.Task("x").After(a).Define(func(context.Context) error { return nil })
 
-	if err := x.Wait(); err != nil {
+	if err := x.wait(); err != nil {
 		t.Fatalf("x.Wait() = %v", err)
 	}
-	_ = out.Finish()
+	_ = out.finish()
 	if got := peak.Load(); got != 1 {
 		t.Fatalf("peak running callbacks = %d at MaxConcurrency 1, want 1", got)
 	}
@@ -66,7 +66,7 @@ func TestSpawnedWaiterBlockingItsCallbackFailsNamed(t *testing.T) {
 	// as the Wait instead of hanging the suite.
 	t.Cleanup(func() {
 		closed := make(chan struct{})
-		go func() { _ = out.Close(); close(closed) }()
+		go func() { _ = out.close(); close(closed) }()
 		select {
 		case <-closed:
 		case <-time.After(5 * time.Second):
@@ -86,16 +86,16 @@ func TestSpawnedWaiterBlockingItsCallbackFailsNamed(t *testing.T) {
 					p.enter()
 					defer p.leave()
 					return nil
-				}).Wait()
+				}).wait()
 			}()
 			return <-errc
 		})
-		done <- a.Wait()
+		done <- a.wait()
 	}()
 
 	select {
 	case err := <-done:
-		if !errors.Is(err, ErrWaitDeadlock) || !strings.Contains(err.Error(), "API-041") {
+		if !errors.Is(err, errWaitDeadlock) || !strings.Contains(err.Error(), "API-041") {
 			t.Fatalf("a.Wait() = %v, want ErrWaitDeadlock naming API-041", err)
 		}
 	case <-time.After(5 * time.Second):
@@ -115,7 +115,7 @@ func TestGrandchildWaiterBlockingItsCallbackFailsNamed(t *testing.T) {
 	out := quietOutput(Config{MaxConcurrency: 1})
 	t.Cleanup(func() {
 		closed := make(chan struct{})
-		go func() { _ = out.Close(); close(closed) }()
+		go func() { _ = out.close(); close(closed) }()
 		select {
 		case <-closed:
 		case <-time.After(5 * time.Second):
@@ -130,18 +130,18 @@ func TestGrandchildWaiterBlockingItsCallbackFailsNamed(t *testing.T) {
 			go func() {
 				inner := make(chan error, 1)
 				go func() {
-					inner <- out.Task("b").Define(func(context.Context) error { return nil }).Wait()
+					inner <- out.Task("b").Define(func(context.Context) error { return nil }).wait()
 				}()
 				outer <- <-inner
 			}()
 			return <-outer
 		})
-		done <- a.Wait()
+		done <- a.wait()
 	}()
 
 	select {
 	case err := <-done:
-		if !errors.Is(err, ErrWaitDeadlock) || !strings.Contains(err.Error(), "API-041") {
+		if !errors.Is(err, errWaitDeadlock) || !strings.Contains(err.Error(), "API-041") {
 			t.Fatalf("a.Wait() = %v, want ErrWaitDeadlock naming API-041", err)
 		}
 	case <-time.After(5 * time.Second):
@@ -154,16 +154,16 @@ func TestGrandchildWaiterBlockingItsCallbackFailsNamed(t *testing.T) {
 // once the callback returns and frees the slot.
 func TestSpawnedWaiterRunsOnceItsCallbackFreesTheSlot(t *testing.T) {
 	out := quietOutput(Config{MaxConcurrency: 2})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	waited := make(chan error, 1)
 	a := out.Task("a").Define(func(context.Context) error {
 		go func() {
-			waited <- out.Task("b").Define(func(context.Context) error { return nil }).Wait()
+			waited <- out.Task("b").Define(func(context.Context) error { return nil }).wait()
 		}()
 		return nil
 	})
-	if err := a.Wait(); err != nil {
+	if err := a.wait(); err != nil {
 		t.Fatalf("a.Wait() = %v", err)
 	}
 	select {
@@ -192,7 +192,7 @@ func (p *peakCounter) leave() { p.running.Add(-1) }
 // wait for the slot, not run B beside A.
 func TestPlainWaitOnItsOwnTaskKeepsTheCeiling(t *testing.T) {
 	out := quietOutput(Config{MaxConcurrency: 1})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	var p peakCounter
 	aStarted := make(chan struct{})
@@ -209,7 +209,7 @@ func TestPlainWaitOnItsOwnTaskKeepsTheCeiling(t *testing.T) {
 		defer p.leave()
 		return nil
 	})
-	if err := b.Wait(); err != nil {
+	if err := b.wait(); err != nil {
 		t.Fatalf("b.Wait() = %v", err)
 	}
 	if got := p.peak.Load(); got != 1 {
@@ -223,7 +223,7 @@ func TestPlainWaitOnItsOwnTaskKeepsTheCeiling(t *testing.T) {
 func TestSpawnedPlainWaitersRespectTheCeiling(t *testing.T) {
 	const ceiling, waiters = 2, 8
 	out := quietOutput(Config{MaxConcurrency: ceiling})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	var p peakCounter
 	var wg sync.WaitGroup
@@ -234,7 +234,7 @@ func TestSpawnedPlainWaitersRespectTheCeiling(t *testing.T) {
 				defer p.leave()
 				time.Sleep(20 * time.Millisecond)
 				return nil
-			}).Wait()
+			}).wait()
 			if err != nil {
 				t.Errorf("t%d.Wait() = %v", i, err)
 			}

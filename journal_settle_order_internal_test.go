@@ -9,13 +9,13 @@ import (
 
 // finishSweepEventTypes is the event types a run that leaves one Task
 // forgotten writes to p, in order.
-func finishSweepEventTypes(t *testing.T, p Projection) []string {
+func finishSweepEventTypes(t *testing.T, p projection) []string {
 	t.Helper()
 	var buf bytes.Buffer
 	o := newOutput("job", to(&buf), withProjection(p))
 	o.Task("forgotten") // never Defined, never resolved: the Finish sweep settles it
 	o.Task("ran").Define(func(context.Context) error { return nil })
-	_ = o.Finish()
+	_ = o.finish()
 	var types []string
 	for line := range strings.SplitSeq(strings.TrimSpace(buf.String()), "\n") {
 		if _, after, ok := strings.Cut(line, `"type":"`); ok {
@@ -27,7 +27,7 @@ func finishSweepEventTypes(t *testing.T, p Projection) []string {
 }
 
 func TestFinishSweepJournalsSettlesBeforeOutputFinishedJSONL(t *testing.T) {
-	types := finishSweepEventTypes(t, ProjectionJSONL)
+	types := finishSweepEventTypes(t, projectionJSONL)
 	t.Logf("JSONL: %v", types)
 	if types[len(types)-1] != "output.finished" {
 		t.Errorf("JSONL: output.finished is not last: %v", types)
@@ -38,7 +38,7 @@ func TestFinishSweepJournalsSettlesBeforeOutputFinishedJSONL(t *testing.T) {
 }
 
 func TestFinishSweepJournalsSettlesBeforeOutputFinishedStream(t *testing.T) {
-	types := finishSweepEventTypes(t, ProjectionStreamJSON)
+	types := finishSweepEventTypes(t, projectionStreamJSON)
 	t.Logf("stream: %v", types)
 	if types[len(types)-1] != "output.finished" {
 		t.Errorf("stream: output.finished is not last: %v", types)
@@ -47,13 +47,13 @@ func TestFinishSweepJournalsSettlesBeforeOutputFinishedStream(t *testing.T) {
 
 // abnormalSweepEventTypes is the event types a failed run that leaves one
 // Task undeclared-to-finish writes to p, in order.
-func abnormalSweepEventTypes(t *testing.T, p Projection) []string {
+func abnormalSweepEventTypes(t *testing.T, p projection) []string {
 	t.Helper()
 	var buf bytes.Buffer
 	o := newOutput("job", to(&buf), withProjection(p))
-	o.Task("boom").Fail("broke")
+	o.Task("boom").fail("broke")
 	o.Task("never") // abnormal finish: the sweep settles it NotStarted
-	_ = o.Finish()
+	_ = o.finish()
 	var types []string
 	for line := range strings.SplitSeq(strings.TrimSpace(buf.String()), "\n") {
 		if _, after, ok := strings.Cut(line, `"type":"`); ok {
@@ -65,7 +65,7 @@ func abnormalSweepEventTypes(t *testing.T, p Projection) []string {
 }
 
 func TestAbnormalFinishSweepJournalsNotStartedBeforeOutputFinished(t *testing.T) {
-	for _, p := range []Projection{ProjectionJSONL, ProjectionStreamJSON} {
+	for _, p := range []projection{projectionJSONL, projectionStreamJSON} {
 		types := abnormalSweepEventTypes(t, p)
 		t.Logf("%v: %v", p, types)
 		if types[len(types)-1] != "output.finished" {

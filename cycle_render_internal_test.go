@@ -12,9 +12,9 @@ import (
 // belongs on the row once, plus the single run-level misuse line.
 func TestAfterCycle_PlainRowsStateTheCycleOnce(t *testing.T) {
 	var buf strings.Builder
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever, Title: "job",
-		Stdout: &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever, title: "job",
+		stdout: &buf, stderr: io.Discard,
 	})
 	s := out.Sequence("s")
 	a, b := s.Task("a"), s.Task("b")

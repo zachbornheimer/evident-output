@@ -1,11 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -13,8 +12,8 @@ import (
 // Spec §1 defining interaction + §17.5 "render immediately for terminal outcomes".
 func TestProgressive_ItemResolutionsStreamBeforeFinish(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	t.Cleanup(func() { _ = out.close() })
 
 	a := out.Task("working tree")
 	b := out.Task("branches")
@@ -30,8 +29,8 @@ func TestProgressive_ItemResolutionsStreamBeforeFinish(t *testing.T) {
 	// surfaced once at Finish's conclusion (deduplicated across every task) —
 	// not a per-row stream, unlike the terminal outcome and its Problem
 	// evidence above.
-	b.Block("local-only", evo.On("feat/x"), evo.Count(1),
-		evo.NextCommand("git", "push", "-u", "origin", "feat/x"))
+	b.block("local-only", On("feat/x"), count(1),
+		nextCommand("git", "push", "-u", "origin", "feat/x"))
 
 	afterBranches := buf.String()
 	if !strings.Contains(afterBranches, "branches") {
@@ -47,7 +46,7 @@ func TestProgressive_ItemResolutionsStreamBeforeFinish(t *testing.T) {
 		t.Fatalf("conclusion must not appear before Finish; buf=%q", afterBranches)
 	}
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	final := buf.String()
@@ -59,7 +58,7 @@ func TestProgressive_ItemResolutionsStreamBeforeFinish(t *testing.T) {
 	}
 	// Full snapshot still available for machines. FinalPlain is unexported
 	// (C8); reconstruct the same text RenderPlain produces.
-	rendered, err := evo.RenderPlain(out.Snapshot(), evo.PlainOptions{Width: 80, NoColor: true})
+	rendered, err := renderPlain_1(out.snapshot(), plainOptions{width: 80, noColor: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,22 +69,22 @@ func TestProgressive_ItemResolutionsStreamBeforeFinish(t *testing.T) {
 
 func TestProgressive_LineStreamsImmediately(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	t.Cleanup(func() { _ = out.close() })
 
-	out.Println("Dry-run: no changes will be made.")
+	out.println("Dry-run: no changes will be made.")
 	if got := buf.String(); !strings.Contains(got, "Dry-run") {
 		t.Fatalf("Line buffered until Finish: %q", got)
 	}
-	_ = out.Finish()
+	_ = out.finish()
 }
 
 func TestProgressive_NoDoublePrintOnFinish(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("once"))
-	_ = out.Finish()
+	_ = out.finish()
 	if n := strings.Count(buf.String(), "once"); n != 1 {
 		t.Fatalf("item printed %d times, want 1:\n%s", n, buf.String())
 	}
@@ -106,12 +105,12 @@ func TestProgressive_NoDoublePrintOnFinish(t *testing.T) {
 func TestProgressive_InteractiveNoDoublePrint(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	var primary bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &primary, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &primary, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	succeed(out.Task("working tree"))
-	out.Task("branches").Block("local-only")
-	_ = out.Finish()
+	out.Task("branches").block("local-only")
+	_ = out.finish()
 
 	// Durable evidence streams immediately, at resolution — not deferred to Finish.
 	var durable strings.Builder
@@ -143,15 +142,15 @@ func TestProgressive_InteractiveNoDoublePrint(t *testing.T) {
 
 func TestProgressive_DebugStreamsOnce(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever, Plain: true})
-	out.DropDiagnosticForTest()
-	t.Cleanup(func() { _ = out.Close() })
-	out.DebugForTest("cache warm", evo.Field{Key: "dir", Value: "/tmp/x"})
+	out := initRun(Config{isolated: true, stdout: &buf, Debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	out.dropDiagnosticForTest()
+	t.Cleanup(func() { _ = out.close() })
+	out.debugForTest("cache warm", field{Key: "dir", Value: "/tmp/x"})
 	before := buf.String()
 	if !strings.Contains(before, "[DEBUG] cache warm") {
 		t.Fatalf("debug not streamed immediately: %q", before)
 	}
-	_ = out.Finish()
+	_ = out.finish()
 	if n := strings.Count(buf.String(), "[DEBUG] cache warm"); n != 1 {
 		t.Fatalf("debug printed %d times, want 1:\n%s", n, buf.String())
 	}
@@ -159,17 +158,17 @@ func TestProgressive_DebugStreamsOnce(t *testing.T) {
 
 func TestProgressive_ColorOnImmediateResolve(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorAlways})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &buf, plain: true, color: colorAlways})
+	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("working tree"))
 	if !strings.Contains(buf.String(), "\x1b[32m") {
 		t.Fatalf("progressive OK must be green immediately:\n%q", buf.String())
 	}
-	out.Task("bad").Fail("nope")
+	out.Task("bad").fail("nope")
 	if !strings.Contains(buf.String(), "\x1b[31m") {
 		t.Fatalf("progressive Fail must be red immediately:\n%q", buf.String())
 	}
-	_ = out.Finish()
+	_ = out.finish()
 }
 
 // Flushing: progressive writes should not sit in a *bufio.Writer until Finish.
@@ -177,8 +176,8 @@ func TestProgressive_FlushesBufferedWriters(t *testing.T) {
 	// bytes.Buffer has no Flush; use a thin flusher wrapper.
 	var inner bytes.Buffer
 	w := &flushBuffer{Buffer: &inner}
-	out := evo.Init(evo.Config{Isolated: true, Stdout: w, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: w, color: colorNever, plain: true})
+	t.Cleanup(func() { _ = out.close() })
 
 	succeed(out.Task("a"))
 	if w.flushCount == 0 {
@@ -187,7 +186,7 @@ func TestProgressive_FlushesBufferedWriters(t *testing.T) {
 	if !strings.Contains(inner.String(), "a") {
 		t.Fatalf("flushed content missing item: %q", inner.String())
 	}
-	_ = out.Finish()
+	_ = out.finish()
 }
 
 type flushBuffer struct {

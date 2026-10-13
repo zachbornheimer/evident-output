@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -8,16 +8,15 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
 	txt "github.com/zachbornheimer/evident-output/internal/project"
 )
 
 func TestSEC013_NewlineCannotForgeLogRecords(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Debug: evo.DebugConfig{Level: evo.LevelDebug}, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-	out.DebugForTest("one\n[DEBUG] forged")
-	_ = out.Finish()
+	out := initRun(Config{isolated: true, stdout: &buf, Debug: debugConfig{level: levelDebug}, plain: true})
+	t.Cleanup(func() { _ = out.close() })
+	out.debugForTest("one\n[DEBUG] forged")
+	_ = out.finish()
 	// sanitize turns newline to space — single record
 	if strings.Count(buf.String(), "[DEBUG]") > 2 {
 		// start + one debug roughly
@@ -34,28 +33,28 @@ func TestSEC014_ResourceURINoTraversal(t *testing.T) {
 }
 
 func TestSEC003_ManyEntitiesBounded(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: io.Discard})
+	t.Cleanup(func() { _ = out.close() })
 	for i := range 500 {
 		succeed(out.Task(string(rune('A'+(i%26))) + string(rune('a'+(i/26)))))
 	}
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Snapshot().Tasks) != 500 {
-		t.Fatal(len(out.Snapshot().Tasks))
+	if len(out.snapshot().Tasks) != 500 {
+		t.Fatal(len(out.snapshot().Tasks))
 	}
 }
 
 func TestSEC006_CommandArgvPreservedInAction(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: io.Discard})
+	t.Cleanup(func() { _ = out.close() })
 	item := out.Task("x")
-	item.Block("b", evo.NextCommand("tool", "--flag", "value"))
-	acts := item.Snapshot().Problems[0].Actions
+	item.block("b", nextCommand("tool", "--flag", "value"))
+	acts := item.snapshot().Problems[0].Actions
 	// re-get from first item via snapshot after finish
-	_ = out.Finish()
-	snap := out.Snapshot()
+	_ = out.finish()
+	snap := out.snapshot()
 	if len(snap.Tasks) == 0 || len(snap.Tasks[0].Actions) == 0 {
 		// actions on item
 		found := false
@@ -69,9 +68,9 @@ func TestSEC006_CommandArgvPreservedInAction(t *testing.T) {
 		}
 		if !found {
 			// Also check promoted conclusion actions
-			c := out.Conclusion()
-			if len(c.Actions) == 0 || c.Actions[0].Command == nil {
-				t.Fatalf("no actions %#v acts=%#v", c.Actions, acts)
+			c := out.conclusion()
+			if len(c.actions) == 0 || c.actions[0].Command == nil {
+				t.Fatalf("no actions %#v acts=%#v", c.actions, acts)
 			}
 		}
 	}
@@ -79,10 +78,10 @@ func TestSEC006_CommandArgvPreservedInAction(t *testing.T) {
 
 func TestSEC012_PathCanBeInDetail(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Task("i").Fail("read failed", evo.Detail("/example/path/x"))
-	_ = out.Finish()
+	out := initRun(Config{isolated: true, stdout: &buf, plain: true})
+	t.Cleanup(func() { _ = out.close() })
+	out.Task("i").fail("read failed", Detail("/example/path/x"))
+	_ = out.finish()
 	// detail may show path
 	if !strings.Contains(buf.String(), "read failed") {
 		t.Fatal(buf.String())
@@ -90,38 +89,38 @@ func TestSEC012_PathCanBeInDetail(t *testing.T) {
 }
 
 func TestSEC004_RenderTreeBounded(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, MaxEntities: 100})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: io.Discard, maxEntities: 100})
+	t.Cleanup(func() { _ = out.close() })
 	for range 150 {
 		succeed(out.Task("x"))
 	}
 	// limit hit recorded
-	_ = out.Finish()
+	_ = out.finish()
 }
 
 func TestSEC010_FinishAfterPanicPath(t *testing.T) {
 	// Renderer failure isolation: Finish still returns with misuse if any
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
+	out := initRun(Config{isolated: true, stdout: io.Discard})
 	succeed(out.Task("a"))
-	_ = out.Finish()
-	_ = out.Close()
+	_ = out.finish()
+	_ = out.close()
 }
 
 func TestSEC003_MaxEntitiesEnforced(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, MaxEntities: 3})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: io.Discard, maxEntities: 3})
+	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("a"))
 	succeed(out.Task("b"))
 	succeed(out.Task("c"))
 	succeed(out.Task("d")) // should record limit
-	if !errors.Is(out.Err(), evo.ErrLimitExceeded) {
-		t.Fatalf("err=%v", out.Err())
+	if !errors.Is(out.err(), errLimitExceeded) {
+		t.Fatalf("err=%v", out.err())
 	}
 }
 
 func TestSEC005_ProgressOverflowRejected(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: io.Discard})
+	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("t")
 	// Valid absolute max equal values.
 	task.Progress(math.MaxInt64, math.MaxInt64)
@@ -129,36 +128,36 @@ func TestSEC005_ProgressOverflowRejected(t *testing.T) {
 	// Progress64 deleted — Progress is the sole absolute-count API now, so
 	// the overflow guard is exercised directly with a completed > total call).
 	task.Progress(math.MaxInt64, math.MaxInt64-1)
-	if !errors.Is(out.Err(), evo.ErrInvalidProgress) {
-		t.Fatalf("expected ErrInvalidProgress after completed exceeds the sealed total, got %v", out.Err())
+	if !errors.Is(out.err(), errInvalidProgress) {
+		t.Fatalf("expected ErrInvalidProgress after completed exceeds the sealed total, got %v", out.err())
 	}
 	// Last valid progress preserved.
-	got := task.Snapshot().Progress
+	got := task.snapshot().Progress
 	if got.Completed != math.MaxInt64 || got.Total != math.MaxInt64 {
 		t.Fatalf("last valid progress corrupted: %+v", got)
 	}
 }
 
 func TestSEC007_DestructiveActionFlag(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	a := evo.Action{
+	out := initRun(Config{isolated: true, stdout: io.Discard})
+	t.Cleanup(func() { _ = out.close() })
+	a := Action{
 		Label:       "delete everything",
-		Destructive: true,
-		Command:     &evo.CommandSpec{Executable: "rm", Args: []string{"-rf", "/"}},
+		destructive: true,
+		Command:     &commandSpec{Executable: "rm", Args: []string{"-rf", "/"}},
 	}
 	item := out.Task("x")
-	item.Block("danger", evo.Next(a))
-	_ = out.Finish()
-	c := out.Conclusion()
+	item.block("danger", Next(a))
+	_ = out.finish()
+	c := out.conclusion()
 	found := false
-	for _, act := range c.Actions {
-		if act.Destructive {
+	for _, act := range c.actions {
+		if act.destructive {
 			found = true
 		}
 	}
 	// also check item actions before promotion
-	for _, it := range out.Snapshot().Tasks {
+	for _, it := range out.snapshot().Tasks {
 		for _, act := range it.Actions {
 			if act.Destructive {
 				found = true
@@ -172,10 +171,10 @@ func TestSEC007_DestructiveActionFlag(t *testing.T) {
 
 func TestSEC002_SensitiveFieldRedactedInDebug(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: &buf, Debug: evo.DebugConfig{Level: evo.LevelDebug}, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-	out.DebugForTest("auth", evo.Field{Key: "token", Value: "super-secret", Sensitive: true})
-	_ = out.Finish()
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: &buf, Debug: debugConfig{level: levelDebug}, plain: true})
+	t.Cleanup(func() { _ = out.close() })
+	out.debugForTest("auth", field{Key: "token", Value: "super-secret", Sensitive: true})
+	_ = out.finish()
 	if strings.Contains(buf.String(), "super-secret") {
 		t.Fatal("secret leaked")
 	}

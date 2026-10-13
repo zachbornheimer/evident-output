@@ -26,12 +26,12 @@ import (
 )
 
 // Output is the aggregate root for one command's presentation lifecycle.
-type Output struct {
+type Run struct {
 	// mu guards the render state. Its sections hold the run's notifications,
 	// so the engine's listener hears a section's writes once the mutex is free.
 	mu record.Mutex
 	// facade holds this Output's public wrapper (see FacadeSlot).
-	facade FacadeSlot
+	facade facadeSlot
 
 	cfg config
 
@@ -111,7 +111,7 @@ type Output struct {
 
 	// Print/Printf/Println line buffer.
 	pendingPrint strings.Builder
-	pendingVis   Visibility // visibility of the current pending fragment
+	pendingVis   visibility // visibility of the current pending fragment
 
 	// manifest is this Run's lazily opened reconciliation manifest (spec
 	// §11.3): the first evo.File call opens it, and a Run that never uses one
@@ -122,17 +122,17 @@ type Output struct {
 	taskFreshness *freshness.TaskTable
 }
 
-func newOutput(subject string, options ...Option) *Output {
+func newOutput(subject string, options ...option) *Run {
 	cfg := config{
 		subject:         subject,
 		clock:           systemClock{},
 		visibilityDelay: defaultVisibilityDelay,
 		maxFrameRate:    defaultMaxFrameRate,
 		width:           defaultWidth,
-		debugLevel:      LevelInfo,
+		debugLevel:      levelInfo,
 		redactor:        process.NoopRedactor{},
 		maxEntities:     defaultMaxEntities,
-		verbosity:       VerbosityNormal,
+		verbosity:       verbosityNormal,
 		processRunner:   process.System(),
 		fileFS:          osFileFS{},
 	}
@@ -197,7 +197,7 @@ func newOutput(subject string, options ...Option) *Output {
 	}
 	resolveGlyphProfileLocked(&cfg)
 	run := record.NewRun()
-	o := &Output{
+	o := &Run{
 		cfg:             cfg,
 		rec:             run,
 		misuse:          misuse.New(cfg.strict),
@@ -207,17 +207,17 @@ func newOutput(subject string, options ...Option) *Output {
 	}
 	o.manifest = freshness.NewManifestSession(o.manifestConfig)
 	o.taskFreshness = freshness.NewTaskTable()
-	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(o.misuse), graph.WithWaitUnderClaimError(ErrNestedResourceAcquisition))
+	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(o.misuse), graph.WithWaitUnderClaimError(errNestedResourceAcquisition))
 	o.changes = change.NewRun(changeHost{out: o}, o.graph)
 	o.mu.Bind(run)
 	run.SetListener(outputListener{o: o})
 	// Stable-enough id for a process-local output instance.
 	o.outputID = o.graph.NextID("out")
 	o.startedAt = o.cfg.clock.Now()
-	o.appendEventLocked(Event{Type: "output.started", OutputID: o.outputID})
+	o.appendEventLocked(recEvent{Type: "output.started", OutputID: o.outputID})
 	o.emitWireEventLocked(wire.EventRunStarted, "", nil)
 	if terminalWithoutSink {
-		o.recordMisuse(ErrTerminalWithoutSink)
+		o.recordMisuse(errTerminalWithoutSink)
 	}
 	if cfg.dryRun {
 		// Announce before any task/item can reach the durable stream: no
@@ -236,7 +236,7 @@ func newOutput(subject string, options ...Option) *Output {
 // caller decides (e.g. from a flag parsed after Init) and calls this
 // explicitly, before any Task/Print/Confirm call. A no-op when the run is
 // already dry-run.
-func (o *Output) declareDryRun() {
+func (o *Run) declareDryRun() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
@@ -247,7 +247,7 @@ func (o *Output) declareDryRun() {
 		return
 	}
 	if o.durableRowsEmitted > 0 {
-		o.recordMisuse(ErrDryRunDeclaredLate)
+		o.recordMisuse(errDryRunDeclaredLate)
 		return
 	}
 	o.cfg.dryRun = true
@@ -257,7 +257,7 @@ func (o *Output) declareDryRun() {
 // emitPlannedHeaderLocked writes the planned run's opening announcement
 // immediately, once, through the same durable-write path
 // (writeDurableTextLocked) every other library-owned line uses.
-func (o *Output) emitPlannedHeaderLocked() {
+func (o *Run) emitPlannedHeaderLocked() {
 	var b strings.Builder
 	renderplain.WritePlannedHeader(&b, !o.cfg.noColor, o.cfg.preview, o.cfg.dryRunHeaderText)
 	o.writeDurableTextLocked(b.String())
@@ -269,7 +269,7 @@ func (o *Output) emitPlannedHeaderLocked() {
 // present by the time Fail's terminal verb reads the task's state
 // (the same "annotate before terminal" timing Fact and warning-severity Problem require). A no-op
 // once the task has already resolved or does not exist.
-func (o *Output) attachVerificationLocked(taskID string, details []record.VerificationDetail) {
+func (o *Run) attachVerificationLocked(taskID string, details []record.VerificationDetail) {
 	st := o.taskStates[taskID]
 	if st == nil || record.IsTerminalTask(st.node.Rec.State()) {
 		return
@@ -292,23 +292,23 @@ func (o *Output) attachVerificationLocked(taskID string, details []record.Verifi
 // escalates the violation to a panic. A plain Group collection
 // documents its children as independent (worker-pool fan-out is a
 // supported, concurrency-safe pattern there), so it is not policed.
-func (o *Output) promoteRunningLocked(st *taskState) {
-	st.node.Rec.Transition(Running)
+func (o *Run) promoteRunningLocked(st *taskState) {
+	st.node.Rec.Transition(running)
 	o.announceRunningLocked(st)
 }
 
 // announceRunningLocked is the render state a Task owes for becoming Running,
 // whoever moved its row: the Sequence check, the filing, the plain heartbeat
 // and the task.started event. It answers once per Task.
-func (o *Output) announceRunningLocked(st *taskState) {
+func (o *Run) announceRunningLocked(st *taskState) {
 	if st.runningAnnounced {
 		return
 	}
 	st.runningAnnounced = true
 	if col := st.collection(); col != nil && col.node.Sequential {
-		col.runningSteps = slices.DeleteFunc(col.runningSteps, func(s *taskState) bool { return s.node.Rec.State() != Running })
+		col.runningSteps = slices.DeleteFunc(col.runningSteps, func(s *taskState) bool { return s.node.Rec.State() != running })
 		if len(col.runningSteps) > 0 {
-			o.recordMisuse(ErrConcurrentRunning)
+			o.recordMisuse(errConcurrentRunning)
 		}
 		col.runningSteps = append(col.runningSteps, st)
 	}
@@ -317,20 +317,20 @@ func (o *Output) announceRunningLocked(st *taskState) {
 	o.emitWireEventLocked(wire.EventTaskStarted, st.id, nil)
 }
 
-func (o *Output) bumpLocked() {
+func (o *Run) bumpLocked() {
 	o.version++
 }
 
 // --- folded from debug.go ---
 
 // DebugPresentation selects how structured debug records project to a TTY (§4.6 / §21.3).
-type DebugPresentation int
+type debugPresentation int
 
 const (
 	// DebugPresentationHistory appends durable scrollback above the live region (default).
-	DebugPresentationHistory DebugPresentation = iota
+	debugPresentationHistory debugPresentation = iota
 	// DebugPresentationPane keeps a bounded rolling viewport inside the live region.
-	DebugPresentationPane
+	debugPresentationPane
 )
 
 const (
@@ -341,7 +341,7 @@ const (
 )
 
 // DebugPaneOption configures DebugPane presentation.
-type DebugPaneOption interface {
+type debugPaneOption interface {
 	applyPane(*debugPaneConfig)
 }
 
@@ -368,7 +368,7 @@ type paneOptionFunc func(*debugPaneConfig)
 func (f paneOptionFunc) applyPane(c *debugPaneConfig) { f(c) }
 
 // PaneHeight sets how many debug records are visible in the pane (not including heading).
-func paneHeight(lines int) DebugPaneOption {
+func paneHeight(lines int) debugPaneOption {
 	return paneOptionFunc(func(c *debugPaneConfig) {
 		if lines > 0 {
 			c.height = lines
@@ -377,32 +377,32 @@ func paneHeight(lines int) DebugPaneOption {
 }
 
 // NewestFirst orders the pane with the most recent record first (default).
-func newestFirst() DebugPaneOption {
+func newestFirst() debugPaneOption {
 	return paneOptionFunc(func(c *debugPaneConfig) { c.newestFirst = true })
 }
 
 // OldestFirst orders the pane chronologically (oldest visible first).
-func oldestFirst() DebugPaneOption {
+func oldestFirst() debugPaneOption {
 	return paneOptionFunc(func(c *debugPaneConfig) { c.newestFirst = false })
 }
 
 // PreserveDebugTail always emits a bounded diagnostic tail under the final report.
 // Without this, pane mode still preserves a tail on failed/blocked/cancelled conclusions.
-func preserveDebugTail() DebugPaneOption {
+func preserveDebugTail() debugPaneOption {
 	return paneOptionFunc(func(c *debugPaneConfig) { c.preserveAlways = true })
 }
 
 // DebugHistory selects durable append-above-and-redraw presentation (v0.4 default).
-func debugHistory() Option {
+func debugHistory() option {
 	return optionFunc(func(c *config) {
-		c.debugPresentation = DebugPresentationHistory
+		c.debugPresentation = debugPresentationHistory
 	})
 }
 
 // DebugPane selects a rolling TTY debug viewport at the bottom of the live region.
-func debugPane(opts ...DebugPaneOption) Option {
+func debugPane(opts ...debugPaneOption) option {
 	return optionFunc(func(c *config) {
-		c.debugPresentation = DebugPresentationPane
+		c.debugPresentation = debugPresentationPane
 		cfg := debugPaneConfig{
 			height:        defaultDebugPaneHeight,
 			newestFirst:   true,
@@ -460,7 +460,7 @@ func debugLevelColor(level string) string {
 	}
 }
 
-func formatHistoryAttrs(fields []Field) string {
+func formatHistoryAttrs(fields []field) string {
 	if len(fields) == 0 {
 		return ""
 	}
@@ -583,21 +583,21 @@ func writeDebugTail(b *strings.Builder, records []debugRecord, max int, color bo
 	}
 }
 
-func (o *Output) shouldPreserveDebugTailLocked(conc Conclusion) bool {
+func (o *Run) shouldPreserveDebugTailLocked(conc Conclusion) bool {
 	// Explicit opt-in always wins (including plain demos with PreserveDebugTail).
 	if o.cfg.debugPane.preserveAlways {
-		return o.cfg.debugPresentation == DebugPresentationPane && o.rec.DebugRecordCount() > 0
+		return o.cfg.debugPresentation == debugPresentationPane && o.rec.DebugRecordCount() > 0
 	}
 	// Default failure tail only when the rolling pane actually owned presentation.
 	// History fallback (plain/non-TTY) already streamed durable lines — no second dump.
-	if !o.debugPaneActive || o.cfg.debugPresentation != DebugPresentationPane {
+	if !o.debugPaneActive || o.cfg.debugPresentation != debugPresentationPane {
 		return false
 	}
 	if !o.cfg.debugPane.preserveOnBad {
 		return false
 	}
-	switch conc.State {
-	case StateFailed, StateBlocked, StateCancelled:
+	switch conc.state {
+	case stateFailed, stateBlocked, stateCancelled:
 		return true
 	default:
 		return false
@@ -615,18 +615,18 @@ func (o *Output) shouldPreserveDebugTailLocked(conc Conclusion) bool {
 // When Diagnostics is configured and is a different writer than the primary stream,
 // debug lines go to Diagnostics only (not the human Items/Tasks stream). Use
 // Capture for child-process evidence instead of DebugWriter when you need Fail Detail.
-func (o *Output) debug(message string, fields ...Field) {
+func (o *Run) debug(message string, fields ...field) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.emitDebugLocked(message, fields, false)
 }
 
-func (o *Output) emitDebugLocked(message string, fields []Field, force bool) {
+func (o *Run) emitDebugLocked(message string, fields []field, force bool) {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
 		return
 	}
-	if !force && o.cfg.debugLevel > LevelDebug {
+	if !force && o.cfg.debugLevel > levelDebug {
 		return
 	}
 	rec := o.newDebugRecordLocked("DEBUG", message, fields, time.Time{})
@@ -635,19 +635,19 @@ func (o *Output) emitDebugLocked(message string, fields []Field, force bool) {
 
 // emitDebugRecordLocked journals a fully-formed debug record (slog bridge).
 // force bypasses DebugLevel filtering after slog already applied its min level.
-func (o *Output) emitDebugRecordLocked(levelName, message string, fields []Field, at time.Time, force bool) {
+func (o *Run) emitDebugRecordLocked(levelName, message string, fields []field, at time.Time, force bool) {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
 		return
 	}
-	if !force && o.cfg.debugLevel > LevelDebug {
+	if !force && o.cfg.debugLevel > levelDebug {
 		return
 	}
 	rec := o.newDebugRecordLocked(levelName, message, fields, at)
 	o.projectDebugRecordLocked(rec)
 }
 
-func (o *Output) newDebugRecordLocked(levelName, message string, fields []Field, at time.Time) debugRecord {
+func (o *Run) newDebugRecordLocked(levelName, message string, fields []field, at time.Time) debugRecord {
 	if at.IsZero() {
 		at = o.cfg.clock.Now()
 	}
@@ -667,17 +667,17 @@ func (o *Output) newDebugRecordLocked(levelName, message string, fields []Field,
 	return rec
 }
 
-func (o *Output) projectDebugRecordLocked(rec debugRecord) {
+func (o *Run) projectDebugRecordLocked(rec debugRecord) {
 	o.rec.AppendDebugRecord(rec)
 	history := formatHistoryLine(rec, !o.cfg.noColor)
 	plainHistory := formatHistoryLine(rec, false)
 	o.rec.AppendLine(plainHistory)
 	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "log.emitted"})
+	o.appendEventLocked(recEvent{Type: "log.emitted"})
 
 	dual := o.cfg.diagnostic != nil && o.cfg.primary != nil && o.cfg.diagnostic != o.cfg.primary
 	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain
-	panePresentation := o.cfg.debugPresentation == DebugPresentationPane
+	panePresentation := o.cfg.debugPresentation == debugPresentationPane
 
 	// dualSameTerminal is true when Diagnostics is a distinct writer from
 	// primary but both resolve to the SAME physical terminal (the realistic
@@ -722,7 +722,7 @@ func (o *Output) projectDebugRecordLocked(rec debugRecord) {
 }
 
 // writeDiagnosticText emits text on the Diagnostics writer (thread-safe).
-func (o *Output) writeDiagnosticText(text string) {
+func (o *Run) writeDiagnosticText(text string) {
 	if o == nil || text == "" {
 		return
 	}
@@ -731,7 +731,7 @@ func (o *Output) writeDiagnosticText(text string) {
 	o.writeDiagnosticTextLocked(text)
 }
 
-func (o *Output) writeDiagnosticTextLocked(text string) {
+func (o *Run) writeDiagnosticTextLocked(text string) {
 	if o.cfg.diagnostic == nil || text == "" {
 		return
 	}
@@ -741,11 +741,11 @@ func (o *Output) writeDiagnosticTextLocked(text string) {
 	}
 }
 
-func cloneFields(in []Field) []Field {
+func cloneFields(in []field) []field {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make([]Field, len(in))
+	out := make([]field, len(in))
 	copy(out, in)
 	return out
 }
@@ -759,7 +759,7 @@ func cloneFields(in []Field) []Field {
 // DebugLevel (default LevelInfo drops all lines) and is the wrong dialect for
 // child-command evidence used in Fail Detail. Use DebugWriter only when you
 // intentionally want DEBUG-level journal lines (and set debugLevel(Debug)).
-func (o *Output) debugWriter() io.WriteCloser {
+func (o *Run) debugWriter() io.WriteCloser {
 	return record.NewLineWriter(func(line string) { o.debug(line) })
 }
 
@@ -768,7 +768,7 @@ func (o *Output) debugWriter() io.WriteCloser {
 func init() {
 	// Single source of truth: PublishedRelease, pinned once into the
 	// v2 wire encoder path (spec §32.1/§35's evo_version).
-	SetWireEvoVersion(PublishedRelease)
+	setWireEvoVersion(publishedRelease)
 }
 
 // WriteJSON serializes result as the stable v2 "evo.run" wire document plus
@@ -778,8 +778,8 @@ func init() {
 // already carries. HTTP status (or any other transport-level outcome) is
 // the embedding application's own concern; Evo's outcome/exit semantics
 // stay in the body (Conclusion.State/ExitCode).
-func WriteJSON(w io.Writer, result Result) error {
-	body, err := wire.EncodeRun(result, PublishedRelease)
+func writeJSON(w io.Writer, result Result) error {
+	body, err := wire.EncodeRun(asRecordResult(result), publishedRelease)
 	if err != nil {
 		return fmt.Errorf("evo: encode evo.run document: %w", err)
 	}
@@ -798,12 +798,12 @@ func WriteJSON(w io.Writer, result Result) error {
 //  4. Tag that commit; do not move prior tags.
 //
 // version_drift_test.go enforces the portable surface stays synchronized.
-const PublishedRelease = "v1.0.0"
+const publishedRelease = "v1.0.0"
 
 // --- folded from glyph_resolve.go ---
 
 // Glyphs selects the glyph capability profile (default GlyphsAuto).
-func Glyphs(p GlyphProfile) Option {
+func glyphs(p glyphProfile) option {
 	return optionFunc(func(c *config) { c.glyphs = p })
 }
 
@@ -811,14 +811,14 @@ func Glyphs(p GlyphProfile) Option {
 // one. Called once at construction (newOutput) so every render call reads a
 // decided value instead of re-detecting locale per frame.
 func resolveGlyphProfileLocked(cfg *config) {
-	if cfg.glyphs != GlyphsAuto {
+	if cfg.glyphs != glyphsAuto {
 		return
 	}
 	if !interactiveOutputLocked(cfg) || localeAdvertisesUTF8() {
-		cfg.glyphs = GlyphsUnicode
+		cfg.glyphs = glyphsUnicode
 		return
 	}
-	cfg.glyphs = GlyphsASCII
+	cfg.glyphs = glyphsASCII
 }
 
 // interactiveOutputLocked reports whether the configured terminal is a real
@@ -854,20 +854,20 @@ func localeAdvertisesUTF8() bool {
 // so the record is followed first: a settle a graph goroutine made on its own
 // is journaled before an event this section writes after it, however late the
 // record's listener hears it.
-func (o *Output) appendEventLocked(e Event) {
+func (o *Run) appendEventLocked(e recEvent) {
 	o.followRecordLocked()
 	e.Timestamp = o.cfg.clock.Now()
-	e.SchemaVersion = EventSchemaVersion
+	e.SchemaVersion = eventSchemaVersion
 	if e.OutputID == "" {
 		e.OutputID = o.outputID
 	}
 	e = o.rec.AppendEvent(e, o.cfg.maxEvents)
-	if o.cfg.projection == ProjectionStreamJSON {
+	if o.cfg.projection == projectionStreamJSON {
 		o.writeStreamJSONLocked(e)
 	}
 }
 
-func (o *Output) writeStreamJSONLocked(e Event) {
+func (o *Run) writeStreamJSONLocked(e recEvent) {
 	w := o.cfg.primary
 	if w == nil {
 		return
@@ -885,7 +885,7 @@ func (o *Output) writeStreamJSONLocked(e Event) {
 
 // copyEvents is a copy of the durable events (v0.1 journal), current with the
 // record: every settle the graph made is journaled before it is read.
-func (o *Output) copyEvents() []Event {
+func (o *Run) copyEvents() []recEvent {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.followRecordLocked()
@@ -906,20 +906,20 @@ type ledgerTarget struct {
 // Task records. err is non-nil (already recorded as misuse where the
 // cause is not simply "the task no longer exists") when the caller should
 // record nothing further.
-func (o *Output) resolveLedgerTarget(taskID string) (ledgerTarget, error) {
+func (o *Run) resolveLedgerTarget(taskID string) (ledgerTarget, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	st := o.taskStates[taskID]
 	if st == nil {
-		return ledgerTarget{}, ErrClosed
+		return ledgerTarget{}, errClosed
 	}
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
 		return ledgerTarget{}, err
 	}
 	if record.IsTerminalTask(st.node.Rec.State()) {
-		o.recordMisuseFor(st.name, ErrAlreadyResolved)
-		return ledgerTarget{}, ErrAlreadyResolved
+		o.recordMisuseFor(st.name, errAlreadyResolved)
+		return ledgerTarget{}, errAlreadyResolved
 	}
 	return ledgerTarget{owner: st, tense: record.TenseFor(o.cfg.dryRun)}, nil
 }
@@ -932,7 +932,7 @@ func (o *Output) resolveLedgerTarget(taskID string) (ledgerTarget, error) {
 // effect as spurious misuse. The imperative verb is kept as the section's
 // intended verb, so a section that ends up with zero rows renders "nothing
 // to <verb> <subject>" (evo-rec.md Problem 18).
-func (o *Output) recordResolvedEntry(taskID string, target ledgerTarget, e record.LedgerEntry) {
+func (o *Run) recordResolvedEntry(taskID string, target ledgerTarget, e record.LedgerEntry) {
 	verb, event := e.Verb(), wire.EventEffectPlanned
 	if target.tense == tenseChanged {
 		verb, event = txt.ConjugatePast(e.Verb()), wire.EventEffectCommitted
@@ -946,7 +946,7 @@ func (o *Output) recordResolvedEntry(taskID string, target ledgerTarget, e recor
 	sectionID := o.ledgerSectionIDLocked(target.owner, target.tense)
 	if o.rec.RecordEntry(target.owner.id, target.tense, verb, e) {
 		o.bumpLocked()
-		o.appendEventLocked(Event{Type: target.tense.RecordedEvent(), EntityID: sectionID})
+		o.appendEventLocked(recEvent{Type: target.tense.RecordedEvent(), EntityID: sectionID})
 	}
 	o.emitWireEventLocked(event, taskID, e.Payload(verb))
 }
@@ -955,7 +955,7 @@ func (o *Output) recordResolvedEntry(taskID string, target ledgerTarget, e recor
 
 // appendTaskLocked adds st to the run's Tasks in declaration order. Caller
 // must hold o.mu.
-func (o *Output) appendTaskLocked(st *taskState) {
+func (o *Run) appendTaskLocked(st *taskState) {
 	o.tasks = append(o.tasks, st)
 	if st.collection() == nil {
 		o.rootTasks = append(o.rootTasks, st)
@@ -968,8 +968,8 @@ func (o *Output) appendTaskLocked(st *taskState) {
 // of its own. Such a row is not committed when it resolves: Finish decides
 // whether the run has anything else to show, and prints the row only if not.
 // Caller must hold o.mu.
-func (o *Output) heldBackAsNoOpLocked(t TaskSnapshot) bool {
-	if !txt.IsProvenNoOpTask(txt.TaskAtVerbosity(t, o.cfg.verbosity >= VerbosityVerbose)) {
+func (o *Run) heldBackAsNoOpLocked(t taskSnapshot) bool {
+	if !txt.IsProvenNoOpTask(txt.TaskAtVerbosity(t, o.cfg.verbosity >= verbosityVerbose)) {
 		return false
 	}
 	return !o.rec.HasLedgerSection(t.ID)
@@ -994,26 +994,26 @@ func (st *taskState) ledgerOwner() record.LedgerOwner {
 
 // ledgerSectionIDLocked returns the id of owner's section in tense, opening
 // it on first use. Caller must hold o.mu.
-func (o *Output) ledgerSectionIDLocked(owner *taskState, tense ledgerTense) string {
+func (o *Run) ledgerSectionIDLocked(owner *taskState, tense ledgerTense) string {
 	if id, ok := o.rec.SectionID(owner.id, tense); ok {
 		return id
 	}
 	id := o.rec.OpenSection(owner.ledgerOwner(), tense, o.graph.NextID(tense.String()))
 	o.bumpLocked()
-	o.appendEventLocked(Event{Type: tense.DeclaredEvent(), EntityID: id})
+	o.appendEventLocked(recEvent{Type: tense.DeclaredEvent(), EntityID: id})
 	return id
 }
 
 // hasRecordedEffectLocked reports whether the Task taskID's sections carry
 // at least one row — see the unresolved-task amnesty in Finish (beginner-1,
 // I1). Caller must hold o.mu.
-func (o *Output) hasRecordedEffectLocked(taskID string) bool {
+func (o *Run) hasRecordedEffectLocked(taskID string) bool {
 	return o.rec.HasRecordedEffect(taskID)
 }
 
 // hasPlannedEffect reports whether the Task taskID recorded at least one
 // [planned] row: a mutation a dry run or preview skipped.
-func (o *Output) hasPlannedEffect(taskID string) bool {
+func (o *Run) hasPlannedEffect(taskID string) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return o.rec.HasPlannedEffect(taskID)
@@ -1023,7 +1023,7 @@ func (o *Output) hasPlannedEffect(taskID string) bool {
 
 // declaredState is the state a Task is declared in, and so the state the
 // render state first follows it from.
-const declaredState = Pending
+const declaredState = pending
 
 // The engine's render state follows the record by pulling, never by being
 // pushed. A write to the record logs its Task while the record's lock is
@@ -1035,7 +1035,7 @@ const declaredState = Pending
 // handler needs to run inside a writer's lock.
 
 // outputListener is how the engine hears a change made by any writer.
-type outputListener struct{ o *Output }
+type outputListener struct{ o *Run }
 
 // TaskChanged has nothing to do: a change waits in the log for the next
 // read of the index.
@@ -1056,13 +1056,13 @@ func (outputListener) EventAppended(record.Event) {}
 // settleReaction is a Task that settled and the state it settled into.
 type settleReaction struct {
 	st *taskState
-	to EntityState
+	to entityState
 }
 
 // followRecordLocked brings the render state up to date with the record:
 // the live index first, then what each terminal transition owes. A call made while
 // it is already running does nothing. Callers hold o.mu.
-func (o *Output) followRecordLocked() {
+func (o *Run) followRecordLocked() {
 	if o.following {
 		return
 	}
@@ -1077,7 +1077,7 @@ func (o *Output) followRecordLocked() {
 // reactToSettlesLocked can answer each once. It changes nothing else, so a
 // read of the index may pull in the middle of building a frame. Callers hold
 // o.mu.
-func (o *Output) pullRecordLocked() {
+func (o *Run) pullRecordLocked() {
 	o.pulled = o.rec.TakeChanged(o.pulled[:0])
 	for _, id := range o.pulled {
 		st := o.taskStates[string(id)]
@@ -1095,7 +1095,7 @@ func (o *Output) pullRecordLocked() {
 
 // reactToSettlesLocked answers each Task pullRecordLocked saw settle. Callers
 // hold o.mu.
-func (o *Output) reactToSettlesLocked() {
+func (o *Run) reactToSettlesLocked() {
 	for i := range o.settles {
 		o.taskSettledLocked(o.settles[i].st, o.settles[i].to)
 		o.settles[i] = settleReaction{}
@@ -1107,7 +1107,7 @@ func (o *Output) reactToSettlesLocked() {
 // code settled the Task: the live filing, the plain heartbeat, the snapshot
 // version and the task.<state> event. The live census moved when the record
 // was pulled. Callers hold o.mu.
-func (o *Output) taskSettledLocked(st *taskState, to EntityState) {
+func (o *Run) taskSettledLocked(st *taskState, to entityState) {
 	if st.isGate() {
 		o.bumpLocked()
 		return
@@ -1115,15 +1115,15 @@ func (o *Output) taskSettledLocked(st *taskState, to EntityState) {
 	st.markFiling()
 	o.stopPlainHeartbeatLocked(st)
 	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "task." + string(to), EntityID: st.id})
+	o.appendEventLocked(recEvent{Type: "task." + string(to), EntityID: st.id})
 }
 
 // --- folded from live.go ---
 
 // LiveSurface is an interactive terminal sink for live-region rendering.
 // testkit.Screen implements this; production drivers can as well.
-type LiveSurface interface {
-	TerminalDriver
+type liveSurface interface {
+	terminalDriver
 	Columns() int
 	Rows() int
 	IsInteractive() bool
@@ -1134,18 +1134,18 @@ type LiveSurface interface {
 }
 
 // asLive returns a LiveSurface when the configured terminal supports it.
-func asLive(d TerminalDriver) LiveSurface {
+func asLive(d terminalDriver) liveSurface {
 	if d == nil {
 		return nil
 	}
-	if ls, ok := d.(LiveSurface); ok {
+	if ls, ok := d.(liveSurface); ok {
 		return ls
 	}
 	return nil
 }
 
 type liveEngine struct {
-	surface LiveSurface
+	surface liveSurface
 	visible bool
 	// quiesced counts the open Suspend windows (guarded by o.mu): while any
 	// is open nothing is painted, and no signal makes the region visible.
@@ -1198,7 +1198,7 @@ type liveEngine struct {
 	forced renderBudget
 }
 
-func (o *Output) liveLocked() LiveSurface {
+func (o *Run) liveLocked() liveSurface {
 	if o.cfg.plain {
 		return nil
 	}
@@ -1209,7 +1209,7 @@ func (o *Output) liveLocked() LiveSurface {
 // force=true bypasses frame-rate coalescing only (not VisibilityDelay).
 // VisibilityDelay withholds the first live paint after activity starts, except
 // a newly declared Running task always paints (FP-005: spinner before check).
-func (o *Output) signalLiveLocked(force bool) {
+func (o *Run) signalLiveLocked(force bool) {
 	live := o.liveLocked()
 	if live == nil || !live.IsInteractive() {
 		return
@@ -1274,7 +1274,7 @@ func (o *Output) signalLiveLocked(force bool) {
 // withhold a paint: the region is visible and the delay since activity
 // began has elapsed. Past that point the activity scan decides nothing,
 // and skipping it keeps each signal from walking every Task.
-func (o *Output) visibilitySettledLocked(now time.Time) bool {
+func (o *Run) visibilitySettledLocked(now time.Time) bool {
 	return o.live.visible && !o.live.activitySince.IsZero() &&
 		(o.cfg.visibilityDelay <= 0 || now.Sub(o.live.activitySince) >= o.cfg.visibilityDelay)
 }
@@ -1284,7 +1284,7 @@ func (o *Output) visibilitySettledLocked(now time.Time) bool {
 // viewer would otherwise see a popup-complete check (FP-005). Skipped when
 // the clock is not the wall clock (tests inject Clock) or the surface is
 // not an interactive live terminal.
-func (o *Output) holdRunningPaint(id string) {
+func (o *Run) holdRunningPaint(id string) {
 	o.mu.Lock()
 	if _, ok := o.cfg.clock.(clock.Wall); !ok {
 		o.mu.Unlock()
@@ -1296,7 +1296,7 @@ func (o *Output) holdRunningPaint(id string) {
 		return
 	}
 	st := o.taskStates[id]
-	if st == nil || st.node.Rec.State() != Running {
+	if st == nil || st.node.Rec.State() != running {
 		o.mu.Unlock()
 		return
 	}
@@ -1311,26 +1311,26 @@ func (o *Output) holdRunningPaint(id string) {
 	}
 }
 
-func (o *Output) hasUnpaintedRunningLocked() bool {
+func (o *Run) hasUnpaintedRunningLocked() bool {
 	for _, t := range o.tasks {
-		if t.node.Rec.State() == Running && t.liveFirstSeenAt.IsZero() {
+		if t.node.Rec.State() == running && t.liveFirstSeenAt.IsZero() {
 			return true
 		}
 	}
 	return false
 }
 
-func (o *Output) hasLiveActivityLocked() bool {
+func (o *Run) hasLiveActivityLocked() bool {
 	for _, t := range o.tasks {
 		// Pending counts too: a declared task renders its named "○" row
 		// immediately (evo-rec.md "predeclare Tasks; ... others named
 		// idle") — VisibilityDelay withholds the *spinner flash* for
 		// near-instant work, not the fact that a task now exists.
-		if t.node.Rec.State() == Running || t.node.Rec.State() == Pending || t.node.Rec.Phase() != "" {
+		if t.node.Rec.State() == running || t.node.Rec.State() == pending || t.node.Rec.Phase() != "" {
 			return true
 		}
-		if t.node.Rec.Progress().Kind == Determinate || t.node.Rec.Progress().Kind == BytesKind {
-			if t.node.Rec.State() == Running || t.node.Rec.State() == Done || t.node.Rec.State() == Failed {
+		if t.node.Rec.Progress().Kind == determinate || t.node.Rec.Progress().Kind == bytesKind {
+			if t.node.Rec.State() == running || t.node.Rec.State() == done || t.node.Rec.State() == Failed {
 				return true
 			}
 		}
@@ -1343,14 +1343,14 @@ func (o *Output) hasLiveActivityLocked() bool {
 // armedTitleLiveLocked is the title-only live spinner painted by arm() before
 // any Task exists. hasLiveActivityLocked and needsSpinnerAnimLocked must agree
 // on this predicate — otherwise the header spinner is shown and then frozen.
-func (o *Output) armedTitleLiveLocked() bool {
+func (o *Run) armedTitleLiveLocked() bool {
 	return o.armed && len(o.tasks) == 0 && len(o.collections) == 0
 }
 
 // arm marks the live surface as ready to paint before any entity is declared,
 // so Init honors the ≤100ms first-paint contract even when the caller does
 // heavy work before the first Task. Idempotent.
-func (o *Output) arm() {
+func (o *Run) arm() {
 	if o == nil {
 		return
 	}
@@ -1363,7 +1363,7 @@ func (o *Output) arm() {
 	o.signalLiveLocked(false)
 }
 
-func (o *Output) renderLiveLocked(force bool) {
+func (o *Run) renderLiveLocked(force bool) {
 	live := o.liveLocked()
 	if live == nil || o.live == nil || !o.live.visible || o.live.quiesced > 0 {
 		return
@@ -1378,7 +1378,7 @@ func (o *Output) renderLiveLocked(force bool) {
 // Counting only Running here used to let an all-Pending frame freeze forever
 // (evo-rec.md Problem 9). Omitting the armed title froze "⠦  zq" during
 // Init-to-first-Task work (ensureReady, fingerprint, Inspect).
-func (o *Output) needsSpinnerAnimLocked() bool {
+func (o *Run) needsSpinnerAnimLocked() bool {
 	if o.armedTitleLiveLocked() {
 		return true
 	}
@@ -1388,7 +1388,7 @@ func (o *Output) needsSpinnerAnimLocked() bool {
 		}
 	}
 	for _, t := range o.rootTasks {
-		if (t.node.Rec.State() == Running || t.node.Rec.State() == Pending) && !t.coreEmitted {
+		if (t.node.Rec.State() == running || t.node.Rec.State() == pending) && !t.coreEmitted {
 			return true
 		}
 	}
@@ -1398,7 +1398,7 @@ func (o *Output) needsSpinnerAnimLocked() bool {
 // ensureSpinnerAnimatorLocked starts a background tick that re-renders the live
 // region so indeterminate spinners advance without waiting for Progress calls,
 // and that promotes visibility once VisibilityDelay elapses.
-func (o *Output) ensureSpinnerAnimatorLocked() {
+func (o *Run) ensureSpinnerAnimatorLocked() {
 	if o.live == nil || o.finished || o.closed {
 		return
 	}
@@ -1432,7 +1432,7 @@ func (o *Output) ensureSpinnerAnimatorLocked() {
 	go o.spinnerAnimateLoop(stop)
 }
 
-func (o *Output) stopSpinnerAnimatorLocked() {
+func (o *Run) stopSpinnerAnimatorLocked() {
 	if o.live == nil {
 		return
 	}
@@ -1452,7 +1452,7 @@ type resizeWatcher interface {
 }
 
 // startResizeWatchLocked arms SIGWINCH → RefreshSize + forced live redraw.
-func (o *Output) startResizeWatchLocked(live LiveSurface) {
+func (o *Run) startResizeWatchLocked(live liveSurface) {
 	w, ok := live.(resizeWatcher)
 	if !ok || o.live == nil || o.live.resizeArmed {
 		return
@@ -1468,7 +1468,7 @@ func (o *Output) startResizeWatchLocked(live LiveSurface) {
 	})
 }
 
-func (o *Output) stopResizeWatchLocked() {
+func (o *Run) stopResizeWatchLocked() {
 	if o.live == nil || !o.live.resizeArmed {
 		return
 	}
@@ -1478,7 +1478,7 @@ func (o *Output) stopResizeWatchLocked() {
 	o.live.resizeArmed = false
 }
 
-func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
+func (o *Run) spinnerAnimateLoop(stop <-chan struct{}) {
 	// Real wall timer: spinner cadence is independent of the domain clock and
 	// of Progress/Phase call rate. Domain clock still selects the glyph frame
 	// (fixedClock freezes animation for golden tests).
@@ -1516,7 +1516,7 @@ const (
 // animatorTickLocked decides one tick: it settles visibility and stops the
 // animator when nothing is left to animate, and skips a glyph-only repaint
 // while an overloaded surface was written too recently to need it.
-func (o *Output) animatorTickLocked() animatorStep {
+func (o *Run) animatorTickLocked() animatorStep {
 	if o.closed || o.finished || o.live == nil {
 		o.stopSpinnerAnimatorLocked()
 		return tickStop
@@ -1584,7 +1584,7 @@ func (t *taskState) stampLiveFirstSeen(now time.Time) {
 	}
 }
 
-func (o *Output) debugLiveLocked(line string) {
+func (o *Run) debugLiveLocked(line string) {
 	live := o.liveLocked()
 	if live == nil || !live.IsInteractive() {
 		return
@@ -1599,7 +1599,7 @@ func (o *Output) debugLiveLocked(line string) {
 	}
 }
 
-func (o *Output) finishLiveLocked(final string) {
+func (o *Run) finishLiveLocked(final string) {
 	live := o.liveLocked()
 	if live == nil || !live.IsInteractive() {
 		return
@@ -1619,8 +1619,8 @@ func (o *Output) finishLiveLocked(final string) {
 // Task already durably flushed by commitResolvedTaskLocked (a never-ran
 // "fact-check" resolution — see its doc comment) is left out: it would
 // otherwise reappear on the next unrelated redraw and double-print.
-func (o *Output) liveSnapshotLocked(rows int, now time.Time) Snapshot {
-	var s Snapshot
+func (o *Run) liveSnapshotLocked(rows int, now time.Time) snapshot {
+	var s snapshot
 	s.Changes = o.rec.ChangeSnapshots()
 	s.Plans = o.rec.PlanSnapshots()
 	cols := liveCollections(o.collections, rows, now)
@@ -1637,7 +1637,7 @@ func (o *Output) liveSnapshotLocked(rows int, now time.Time) Snapshot {
 			root.Keep(t.snapshot())
 		}
 	}
-	tasks := root.Collection(TasksSnapshot{})
+	tasks := root.Collection(tasksSnapshot{})
 	s.Tasks = tasks.Tasks
 	if tally, ok := txt.ChildTallyOf(tasks); ok {
 		s = txt.WithRootTally(s, tally)
@@ -1655,7 +1655,7 @@ func (o *Output) liveSnapshotLocked(rows int, now time.Time) Snapshot {
 // rev is the record's revision before the frame was built: an audit that
 // finds the record written since compares two different runs of it, and
 // skips.
-var liveIndexAudit func(g *tasksState, rows int, now time.Time, got TasksSnapshot, rev uint64)
+var liveIndexAudit func(g *tasksState, rows int, now time.Time, got tasksSnapshot, rev uint64)
 
 // --- folded from live_census.go ---
 
@@ -1693,13 +1693,13 @@ func (c *liveCensus) rank() int {
 }
 
 // count moves the per-state counts of one Task in state by delta.
-func (c *liveCensus) count(state EntityState, delta int) {
+func (c *liveCensus) count(state entityState, delta int) {
 	switch state {
-	case Done, Skipped:
+	case done, skipped:
 		c.done += delta
-	case Running:
+	case running:
 		c.running += delta
-	case Pending:
+	case pending:
 		c.pending += delta
 	case Failed:
 		c.failed += delta
@@ -1724,8 +1724,8 @@ func (t *taskState) censusesAbove(fn func(*liveCensus)) {
 }
 
 // unstamped reports whether t, in state, is a live row no frame painted.
-func (t *taskState) unstampedIn(state EntityState) bool {
-	return (state == Running || state == Pending) && t.liveFirstSeenAt.IsZero()
+func (t *taskState) unstampedIn(state entityState) bool {
+	return (state == running || state == pending) && t.liveFirstSeenAt.IsZero()
 }
 
 // currentCensus is g's census after following the record, so it counts
@@ -1884,9 +1884,9 @@ func (l *liveEngine) shouldSkipGlyph() bool {
 // by the frame. Its Snapshot is built from clones (see taskState.snapshot),
 // so rendering it after o.mu is released cannot race a mutating Task.
 type liveFrame struct {
-	surface       LiveSurface
+	surface       liveSurface
 	seq           uint64
-	snap          Snapshot
+	snap          snapshot
 	width, height int
 	now           time.Time
 	style         txt.Style
@@ -1897,7 +1897,7 @@ type liveFrame struct {
 
 // liveFrameLocked snapshots the live region for surface and stamps it with
 // the next paint sequence number.
-func (o *Output) liveFrameLocked(surface LiveSurface) liveFrame {
+func (o *Run) liveFrameLocked(surface liveSurface) liveFrame {
 	// Refresh geometry before layout when the driver supports it (ANSI + real TTY).
 	if r, ok := surface.(interface{ RefreshSize() }); ok {
 		r.RefreshSize()
@@ -1916,11 +1916,11 @@ func (o *Output) liveFrameLocked(surface LiveSurface) liveFrame {
 
 // liveFrameAtLocked is the under-lock half of a live frame: the snapshot
 // and the debug pane (§21.3.2), which is text already.
-func (o *Output) liveFrameAtLocked(width, height int, now time.Time) liveFrame {
+func (o *Run) liveFrameAtLocked(width, height int, now time.Time) liveFrame {
 	style := o.humanStyle()
 	bodyHeight := height
 	var pane strings.Builder
-	if recorded := o.rec.DebugRecordCount(); o.cfg.debugPresentation == DebugPresentationPane && recorded > 0 {
+	if recorded := o.rec.DebugRecordCount(); o.cfg.debugPresentation == debugPresentationPane && recorded > 0 {
 		// Reserve rows for pane heading + visible records before budgeting the body.
 		paneRows := min(debugPaneReservedRows(o.cfg.debugPane, recorded), height-1)
 		bodyHeight = max(height-max(paneRows, 0), 1)
@@ -1978,7 +1978,7 @@ func (l *liveEngine) paint(f liveFrame, text string) bool {
 // screen. The caller holds o.mu, so seq is stable: every frame snapshotted
 // before this call is dropped, and an unlocked paint still in flight can
 // never land after a ClearLive, WriteDurable or WriteFinal.
-func (l *liveEngine) clear(surface LiveSurface) bool {
+func (l *liveEngine) clear(surface liveSurface) bool {
 	l.paintMu.Lock()
 	defer l.paintMu.Unlock()
 	l.floorSeq = l.seq
@@ -1993,7 +1993,7 @@ func (l *liveEngine) clear(surface LiveSurface) bool {
 
 // paintFrameLocked snapshots, renders and writes one frame under o.mu: a
 // caller that needs the frame on screen when it returns.
-func (o *Output) paintFrameLocked(surface LiveSurface) {
+func (o *Run) paintFrameLocked(surface liveSurface) {
 	start := wall.Now()
 	f := o.liveFrameLocked(surface)
 	o.live.paint(f, f.render())
@@ -2003,7 +2003,7 @@ func (o *Output) paintFrameLocked(surface LiveSurface) {
 // paintFrameUnlocked snapshots under o.mu and renders and writes with it
 // released, so a slow frame never stalls the workers. Enter and leave with
 // o.mu held.
-func (o *Output) paintFrameUnlocked(surface LiveSurface) {
+func (o *Run) paintFrameUnlocked(surface liveSurface) {
 	engine := o.live
 	start := wall.Now()
 	f := o.liveFrameLocked(surface)
@@ -2023,18 +2023,18 @@ func (o *Output) paintFrameUnlocked(surface LiveSurface) {
 // same sanitize layer as Task.Doing, so hostile escape sequences never reach
 // the display. Off a TTY, these mirrored lines update the live status only —
 // they never force their own durable row the way an explicit
-// TaskHandle.Doing call does, since the Capture ring (and its failure-path
+// Task.Doing call does, since the Capture ring (and its failure-path
 // DetailTail) is already the child's one durable home (release-gate round 9
 // finding 4). Concurrent-safe. Named Writer, not PhaseWriter (P6/rename):
 // an io.Writer sink whose lines become the live-status text, following
 // logrus's Logger.Writer()/zapio.Writer precedent.
 //
 //	cmd.Stdout = evo.Task("push").Writer()
-func (t *TaskHandle) Writer() io.Writer {
+func (t *Task) Writer() io.Writer {
 	if t == nil || t.out == nil {
 		return io.Discard
 	}
-	return &phaseWriter{task: t, evidence: t.Capture()}
+	return &phaseWriter{task: t, evidence: t.capture()}
 }
 
 // phaseWriterMaxPendingBytes bounds the pending-line buffer: a child that
@@ -2047,12 +2047,12 @@ const phaseWriterMaxPendingBytes = 4 * 1024 // 4 KiB
 
 // phaseWriter splits child output into lines (both CR and LF delimit, so a
 // \r-driven progress bar updates Phase every frame) and forwards the trimmed
-// text to TaskHandle.Phase, while every raw byte still feeds capture. The
+// text to Task.Phase, while every raw byte still feeds capture. The
 // pending (not-yet-terminated) fragment is capped at
 // phaseWriterMaxPendingBytes so a line-less/oversized child stream cannot
 // grow it without bound.
 type phaseWriter struct {
-	task     *TaskHandle
+	task     *Task
 	evidence *evidence
 
 	mu  sync.Mutex
@@ -2119,7 +2119,7 @@ func (c *evidence) retainedLineCount() int {
 
 // appendLiveTail records one completed Writer line: it enters the live tail
 // and becomes the phase, exactly as a mirrored line always has.
-func (t *TaskHandle) appendLiveTail(line string, retained int) {
+func (t *Task) appendLiveTail(line string, retained int) {
 	t.annotate(func(st *taskState) {
 		line := txt.Text(line)
 		st.tail.push(line, retained, t.out.cfg.clock.Now())
@@ -2169,26 +2169,26 @@ var _ io.Writer = (*phaseWriter)(nil)
 // --- folded from plain.go ---
 
 // PlainOptions configures pure plain projection (§25.4).
-type PlainOptions struct {
-	Width   int
-	NoColor bool
+type plainOptions struct {
+	width   int
+	noColor bool
 	// Verbose additionally emits per-reason name lists under a task's skip/keep
 	// taxonomy line. Counts and the reason partition always render; Verbose
 	// only adds the bounded (TruncateNames) name detail.
-	Verbose bool
+	verbose bool
 	// Glyphs selects the state-glyph vocabulary. Plain projection has no live
 	// TTY to detect, so GlyphsAuto (the default) resolves to GlyphsUnicode —
 	// callers rendering off a known non-UTF-8 destination pass GlyphsASCII.
-	Glyphs GlyphProfile
+	glyphs glyphProfile
 }
 
 // RenderPlain projects a snapshot to plain text without terminal ownership.
-func renderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
-	glyphs := opts.Glyphs
-	if glyphs == GlyphsAuto {
-		glyphs = GlyphsUnicode
+func renderPlain(s snapshot, opts plainOptions) ([]byte, error) {
+	glyphs := opts.glyphs
+	if glyphs == glyphsAuto {
+		glyphs = glyphsUnicode
 	}
-	return []byte(renderplain.Plain(s, opts.Width, opts.NoColor, opts.Verbose, glyphs)), nil
+	return []byte(renderplain.Plain(s, opts.width, opts.noColor, opts.verbose, glyphs)), nil
 }
 
 // --- folded from plain_heartbeat.go ---
@@ -2206,8 +2206,8 @@ const plainHeartbeatInterval = 30 * time.Second
 // owns its own liveness contract — and only when the configured clock can
 // schedule future callbacks (Scheduler). A TimeSource that cannot silently
 // gets no heartbeat rather than a broken one.
-func (o *Output) wantsPlainHeartbeatLocked() (Scheduler, bool) {
-	sched, ok := o.cfg.clock.(Scheduler)
+func (o *Run) wantsPlainHeartbeatLocked() (scheduler, bool) {
+	sched, ok := o.cfg.clock.(scheduler)
 	if !ok {
 		return nil, false
 	}
@@ -2220,7 +2220,7 @@ func (o *Output) wantsPlainHeartbeatLocked() (Scheduler, bool) {
 
 // armPlainHeartbeatLocked schedules st's first heartbeat check, due
 // plainHeartbeatInterval after now. Called once, from promoteRunningLocked.
-func (o *Output) armPlainHeartbeatLocked(st *taskState, now time.Time) {
+func (o *Run) armPlainHeartbeatLocked(st *taskState, now time.Time) {
 	sched, ok := o.wantsPlainHeartbeatLocked()
 	if !ok {
 		return
@@ -2242,7 +2242,7 @@ func (o *Output) armPlainHeartbeatLocked(st *taskState, now time.Time) {
 // goes silent again earns its next heartbeat exactly plainHeartbeatInterval
 // after this real update, showing elapsed relative to that update rather
 // than the task's original Running start.
-func (o *Output) deferPlainHeartbeatLocked(st *taskState, now time.Time) {
+func (o *Run) deferPlainHeartbeatLocked(st *taskState, now time.Time) {
 	if st.heartbeat.runningAt.IsZero() {
 		return
 	}
@@ -2254,7 +2254,7 @@ func (o *Output) deferPlainHeartbeatLocked(st *taskState, now time.Time) {
 // due after wait. The callback re-enters checkPlainHeartbeat, which decides
 // whether to emit and always re-arms the next check (self-terminating once
 // the task settles — see checkPlainHeartbeat).
-func (o *Output) schedulePlainHeartbeatCallbackLocked(sched Scheduler, st *taskState, wait time.Duration) {
+func (o *Run) schedulePlainHeartbeatCallbackLocked(sched scheduler, st *taskState, wait time.Duration) {
 	if wait <= 0 {
 		wait = plainHeartbeatInterval
 	}
@@ -2264,7 +2264,7 @@ func (o *Output) schedulePlainHeartbeatCallbackLocked(sched Scheduler, st *taskS
 
 // stopPlainHeartbeatLocked cancels st's pending heartbeat check, if any.
 // Called when st settles: a settled task never earns another heartbeat.
-func (o *Output) stopPlainHeartbeatLocked(st *taskState) {
+func (o *Run) stopPlainHeartbeatLocked(st *taskState) {
 	if st.heartbeat.stop == nil {
 		return
 	}
@@ -2274,9 +2274,9 @@ func (o *Output) stopPlainHeartbeatLocked(st *taskState) {
 
 // stopPlainHeartbeatsLocked cancels every task's pending heartbeat timer.
 // Close owns this so a dropped Output is unreachable even when Finish/Wait
-// already settled (or never did): the AfterFunc closure otherwise keeps *Output
+// already settled (or never did): the AfterFunc closure otherwise keeps *Run
 // alive until the 30s timer fires.
-func (o *Output) stopPlainHeartbeatsLocked() {
+func (o *Run) stopPlainHeartbeatsLocked() {
 	for _, st := range o.tasks {
 		o.stopPlainHeartbeatLocked(st)
 	}
@@ -2295,7 +2295,7 @@ func (o *Output) stopPlainHeartbeatsLocked() {
 //     emitting anything;
 //   - otherwise: emits one durable heartbeat line and reschedules the next
 //     interval.
-func (o *Output) checkPlainHeartbeat(id string) {
+func (o *Run) checkPlainHeartbeat(id string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.closed || o.finished {
@@ -2327,11 +2327,11 @@ func (o *Output) checkPlainHeartbeat(id string) {
 // DisplayUnit line grammar every plain row shares, with a distinct bullet
 // glyph so a heartbeat row is never mistaken for a real Running/Phase
 // update. Elapsed uses the one contract §32 form (txt.FormatElapsed).
-func (o *Output) emitPlainHeartbeatLocked(st *taskState, now time.Time) {
+func (o *Run) emitPlainHeartbeatLocked(st *taskState, now time.Time) {
 	color := !o.cfg.noColor
 	elapsed := now.Sub(st.heartbeat.runningAt)
 	unit := txt.DisplayUnit{
-		Glyph:  txt.StyleGlyph(txt.GlyphHeartbeat.Render(o.cfg.glyphs), txt.StateColor(Running), color),
+		Glyph:  txt.StyleGlyph(txt.GlyphHeartbeat.Render(o.cfg.glyphs), txt.StateColor(running), color),
 		Name:   progressiveRowName(st),
 		Detail: txt.Dim("— "+txt.FormatElapsed(elapsed), color),
 	}
@@ -2367,7 +2367,7 @@ type flusher interface {
 }
 
 // emitLineProgressiveLocked streams a newly appended Line() to the human stream.
-func (o *Output) emitLineProgressiveLocked() {
+func (o *Run) emitLineProgressiveLocked() {
 	pending := o.rec.LinesFrom(o.linesEmitted)
 	if len(pending) == 0 {
 		return
@@ -2387,7 +2387,7 @@ func (o *Output) emitLineProgressiveLocked() {
 // inside a Confirm prompt.
 // Interactive: above the live region on the terminal driver.
 // Plain/non-interactive: primary (+ AlsoWrite) writers.
-func (o *Output) writeDurableTextLocked(text string) {
+func (o *Run) writeDurableTextLocked(text string) {
 	if !o.countHumanTextLocked(text) {
 		return
 	}
@@ -2401,7 +2401,7 @@ func (o *Output) writeDurableTextLocked(text string) {
 // writeWindowOwnerTextLocked emits durable human text the owner of an open
 // Suspend window writes inside it (Confirm's prompt and its answer row): the
 // window exists to show exactly this, so it is never held.
-func (o *Output) writeWindowOwnerTextLocked(text string) {
+func (o *Run) writeWindowOwnerTextLocked(text string) {
 	if o.countHumanTextLocked(text) {
 		o.emitDurableTextLocked(text)
 	}
@@ -2409,7 +2409,7 @@ func (o *Output) writeWindowOwnerTextLocked(text string) {
 
 // countHumanTextLocked counts text as a durable row and reports whether it
 // should reach the human stream at all.
-func (o *Output) countHumanTextLocked(text string) bool {
+func (o *Run) countHumanTextLocked(text string) bool {
 	if text == "" {
 		return false
 	}
@@ -2418,7 +2418,7 @@ func (o *Output) countHumanTextLocked(text string) bool {
 }
 
 // flushHeldTextLocked prints the text held while windows were open.
-func (o *Output) flushHeldTextLocked() {
+func (o *Run) flushHeldTextLocked() {
 	if o.live == nil {
 		return
 	}
@@ -2430,7 +2430,7 @@ func (o *Output) flushHeldTextLocked() {
 }
 
 // emitDurableTextLocked writes text to the human stream now.
-func (o *Output) emitDurableTextLocked(text string) {
+func (o *Run) emitDurableTextLocked(text string) {
 	live := o.liveLocked()
 	// A live region (including the armed, entity-less title line painted by
 	// arm()) may still be on screen even after the surface stops reporting
@@ -2531,7 +2531,7 @@ func (c rootColumn) nameWidth() int {
 // While a Suspend window is open a sibling's row is held until it closes; the
 // row of the Task that owns the window (a Confirm gate) is not, since the
 // window exists to show it.
-func (o *Output) commitResolvedTaskLocked(id string) {
+func (o *Run) commitResolvedTaskLocked(id string) {
 	st := o.taskStates[id]
 	if st == nil || st.coreEmitted || !record.IsTerminalTask(st.node.Rec.State()) {
 		return
@@ -2595,7 +2595,7 @@ func hasNamedEffectRecord(records []record.EffectRecord) bool {
 // accumulate; only the presentation instant moves earlier. Marking the
 // section namedRowsEmitted is what makes residualCompositionLocked's Finish
 // loop skip it — the raw item list must never render twice.
-func (o *Output) commitNamedEffectsLocked(owner string) {
+func (o *Run) commitNamedEffectsLocked(owner string) {
 	for _, tense := range []ledgerTense{tensePlanned, tenseChanged} {
 		s, ok := o.rec.Section(owner, tense)
 		if !ok || s.Streamed || !hasNamedEffectRecord(s.Records) {
@@ -2610,7 +2610,7 @@ func (o *Output) commitNamedEffectsLocked(owner string) {
 
 // effectSectionLocked is s laid out for txt.WriteEffects — the one
 // shape both the streamed and the Finish ledger txt.
-func (o *Output) effectSectionLocked(s record.SectionView, nameWidth int) txt.EffectSection {
+func (o *Run) effectSectionLocked(s record.SectionView, nameWidth int) txt.EffectSection {
 	return txt.EffectSection{
 		Kind: s.Tense.String(), Subject: s.Subject, Records: s.Records,
 		IntendedVerb: s.IntendedVerb, NameWidth: nameWidth, Width: o.ledgerWidthLocked(),
@@ -2618,7 +2618,7 @@ func (o *Output) effectSectionLocked(s record.SectionView, nameWidth int) txt.Ef
 }
 
 // ledgerWidthLocked is the terminal width the ledger lays out for.
-func (o *Output) ledgerWidthLocked() int {
+func (o *Run) ledgerWidthLocked() int {
 	if o.cfg.width <= 0 {
 		return defaultWidth
 	}
@@ -2626,8 +2626,8 @@ func (o *Output) ledgerWidthLocked() int {
 }
 
 // humanStyle is how this Output paints human rows.
-func (o *Output) humanStyle() txt.Style {
-	return txt.Style{Color: !o.cfg.noColor, Verbose: o.cfg.verbosity >= VerbosityVerbose, Profile: o.cfg.glyphs}
+func (o *Run) humanStyle() txt.Style {
+	return txt.Style{Color: !o.cfg.noColor, Verbose: o.cfg.verbosity >= verbosityVerbose, Profile: o.cfg.glyphs}
 }
 
 // taskProgressiveTrigger names which evidence call is streaming a Running
@@ -2695,8 +2695,8 @@ func progressiveRowName(st *taskState) string {
 // "never silent between the first line and Done" is not conditional on where
 // the Running task happens to sit in the tree, and a collection whose
 // children are explicitly named has no aggregate row streaming in its place.
-func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskProgressiveTrigger) {
-	if st == nil || st.node.Rec.State() != Running {
+func (o *Run) emitTaskRunningProgressiveLocked(st *taskState, trigger taskProgressiveTrigger) {
+	if st == nil || st.node.Rec.State() != running {
 		return
 	}
 	live := o.liveLocked()
@@ -2736,7 +2736,7 @@ func (o *Output) emitTaskRunningProgressiveLocked(st *taskState, trigger taskPro
 // progressively or is still pending render in this call — so
 // residualCompositionLocked's blank-line separator sees the run's whole
 // shape, not just the slice this one call is about to write.
-func residualHasTaskRows(o *Output, snap Snapshot) bool {
+func residualHasTaskRows(o *Run, snap snapshot) bool {
 	return len(o.tasks) > 0 || len(snap.Collections) > 0
 }
 
@@ -2746,7 +2746,7 @@ func residualHasTaskRows(o *Output, snap Snapshot) bool {
 // at its task's resolution (commitNamedEffectsLocked) does not count: it
 // renders nothing further here, so it must not reserve the blank-line
 // separator either.
-func residualHasEffectSections(o *Output) bool {
+func residualHasEffectSections(o *Run) bool {
 	return o.rec.HasUnstreamedSection()
 }
 
@@ -2772,7 +2772,7 @@ func residualHasEffectSections(o *Output) bool {
 // only when there is no live interactive terminal to own them instead —
 // dual-stream skips them here to avoid a second render of the same rows on
 // two destinations.
-func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, includeEntities bool) string {
+func (o *Run) residualCompositionLocked(snap snapshot, linesFrom int, includeEntities bool) string {
 	style := o.humanStyle()
 	var b strings.Builder
 	for i := linesFrom; i < len(snap.Lines); i++ {
@@ -2800,7 +2800,7 @@ func (o *Output) residualCompositionLocked(snap Snapshot, linesFrom int, include
 // writeResidualEntitiesLocked writes every root Task row not already
 // streamed, then every collection, as human output shows them
 // (txt.HumanProjection).
-func (o *Output) writeResidualEntitiesLocked(b *strings.Builder, snap Snapshot, style txt.Style) {
+func (o *Run) writeResidualEntitiesLocked(b *strings.Builder, snap snapshot, style txt.Style) {
 	nameWidth := o.rootColumn.nameWidth()
 	human := txt.HumanProjection(snap, style.Verbose)
 	shown := make(map[string]bool, len(human.Tasks))
@@ -2824,7 +2824,7 @@ func (o *Output) writeResidualEntitiesLocked(b *strings.Builder, snap Snapshot, 
 // writeResidualLedgerLocked writes every [changed] then [planned] section
 // that did not already stream at its Task's resolution, sibling same-effect
 // sections folded into one row (txt.FoldEffectSections).
-func (o *Output) writeResidualLedgerLocked(b *strings.Builder, style txt.Style) {
+func (o *Run) writeResidualLedgerLocked(b *strings.Builder, style txt.Style) {
 	for _, tense := range []ledgerTense{tenseChanged, tensePlanned} {
 		for _, sec := range o.foldedSectionsLocked(tense) {
 			txt.WriteEffects(b, sec, style)
@@ -2842,7 +2842,7 @@ func foldSource(s record.SectionView) txt.SectionSource {
 
 // foldedSectionsLocked is tense's not-yet-streamed ledger, laid out for
 // txt.WriteEffects.
-func (o *Output) foldedSectionsLocked(tense ledgerTense) []txt.EffectSection {
+func (o *Run) foldedSectionsLocked(tense ledgerTense) []txt.EffectSection {
 	sections := o.rec.Sections(tense)
 	sources := make([]txt.SectionSource, len(sections))
 	for i, s := range sections {
@@ -2854,8 +2854,8 @@ func (o *Output) foldedSectionsLocked(tense ledgerTense) []txt.EffectSection {
 // writeDebugTailLocked writes the pane-mode diagnostic tail under the final
 // result (§21.3.2). The default preserveOnBad path only fires when
 // debugPaneActive is true, which only happens for a live rolling pane.
-func (o *Output) writeDebugTailLocked(b *strings.Builder, snap Snapshot, color bool) {
-	if snap.Conclusion == nil || !o.shouldPreserveDebugTailLocked(*snap.Conclusion) {
+func (o *Run) writeDebugTailLocked(b *strings.Builder, snap snapshot, color bool) {
+	if snap.Conclusion == nil || !o.shouldPreserveDebugTailLocked(asEvoConclusion(*snap.Conclusion)) {
 		return
 	}
 	rows := o.cfg.debugPane.height
@@ -2881,7 +2881,7 @@ func (o *Output) writeDebugTailLocked(b *strings.Builder, snap Snapshot, color b
 // interleave by completion/call time. Residual only appends entities that
 // never streamed (still-pending-until-Finish, collections, effects,
 // conclusion).
-func (o *Output) residualPlainLocked(snap Snapshot) string {
+func (o *Run) residualPlainLocked(snap snapshot) string {
 	linesFrom := o.linesEmitted
 	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain
 	text := o.residualCompositionLocked(snap, linesFrom, !interactive)
@@ -2906,7 +2906,7 @@ func (o *Output) residualPlainLocked(snap Snapshot) string {
 // round 5 finding 1). The trailing-newline trim is this destination's own
 // write-target formatting (the terminal driver owns its own line discipline;
 // the plain/primary mirror does not trim).
-func (o *Output) residualInteractiveFinalLocked(snap Snapshot, linesFrom int) string {
+func (o *Run) residualInteractiveFinalLocked(snap snapshot, linesFrom int) string {
 	text := o.residualCompositionLocked(snap, linesFrom, true)
 	return strings.TrimRight(text, "\n")
 }
@@ -2931,32 +2931,32 @@ type plainStreamMark struct {
 // DataProjection selects data-command mode (UI/progress on diagnostic
 // stream) — a self-documenting marker at the call site; the routing itself
 // comes from pairing it with to(stderr)/withDiagnostics(stderr) (configToOptions).
-func dataProjection() Option {
+func dataProjection() option {
 	return optionFunc(func(*config) {})
 }
 
 // ExternalProjection selects snapshot-only host rendering.
-func externalProjection() Option {
+func externalProjection() option {
 	return optionFunc(func(c *config) { c.plain = true })
 }
 
 // --- folded from snapshot.go ---
 
 // Snapshot returns an immutable copy of current state.
-func (o *Output) Snapshot() Snapshot {
+func (o *Run) snapshot() snapshot {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return o.snapshotLocked()
 }
 
-func (o *Output) snapshotLocked() Snapshot {
+func (o *Run) snapshotLocked() snapshot {
 	o.followRecordLocked()
-	s := Snapshot{
+	s := snapshot{
 		Version:       o.version,
 		OutputID:      o.outputID,
 		Subject:       o.cfg.subject,
 		Lines:         o.rec.Lines(),
-		Actions:       record.CloneActions(o.collectActionsLocked()),
+		Actions:       record.CloneActions(asRecordActions(o.collectActionsLocked())),
 		Timestamp:     o.cfg.clock.Now(),
 		DryRun:        o.cfg.dryRun,
 		Preview:       o.cfg.preview,
@@ -2982,7 +2982,7 @@ func (o *Output) snapshotLocked() Snapshot {
 	return s
 }
 
-func (t *taskState) snapshot() TaskSnapshot {
+func (t *taskState) snapshot() taskSnapshot {
 	s := t.view()
 	s.Problems = record.CloneProblems(s.Problems)
 	s.Warnings = record.CloneProblems(s.Warnings)
@@ -3000,13 +3000,13 @@ func (t *taskState) snapshot() TaskSnapshot {
 // let it escape, since the next mutation of t can change what it shows.
 // It costs no allocation, so a live frame can classify every Task by its
 // view and snapshot only the ones it shows.
-func (t *taskState) view() TaskSnapshot {
+func (t *taskState) view() taskSnapshot {
 	colID := ""
 	if t.collection() != nil {
 		colID = t.collection().id
 	}
 	truth := t.node.Rec.Truth()
-	base := TaskSnapshot{
+	base := taskSnapshot{
 		ID:           t.id,
 		Key:          t.key(),
 		Name:         t.name,
@@ -3030,11 +3030,11 @@ func (t *taskState) view() TaskSnapshot {
 	return record.WithLiveTail(record.NewTaskSnapshot(base, t.liveFirstSeenAt, t.synthetic), t.tail.view())
 }
 
-func cloneTaxonomy(in []TaxonomyRecord) []TaxonomyRecord {
+func cloneTaxonomy(in []taxonomyRecord) []taxonomyRecord {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make([]TaxonomyRecord, len(in))
+	out := make([]taxonomyRecord, len(in))
 	copy(out, in)
 	for i := range out {
 		if len(out[i].Causes) > 0 {
@@ -3048,16 +3048,16 @@ func cloneTaxonomy(in []TaxonomyRecord) []TaxonomyRecord {
 // children (P3's recursive nesting) into one verdict: a nested Sequence or
 // Group contributes exactly like one more task would, so a failure
 // three levels deep still surfaces at the root header.
-func (g *tasksState) derivedState() EntityState {
+func (g *tasksState) derivedState() entityState {
 	if g.node.BuilderFailed() {
 		return Failed
 	}
 	tasks, children := g.taskCount(), g.childStates()
 	if tasks == 0 && len(children) == 0 {
 		if g.node.BuilderNotStarted() {
-			return NotStarted
+			return notStarted
 		}
-		return Empty
+		return empty
 	}
 	// A NotStarted child normally borrows its group's verdict from the
 	// sibling that failed first, so it contributes nothing of its own. When
@@ -3065,13 +3065,13 @@ func (g *tasksState) derivedState() EntityState {
 	// the run was another subject entirely — and folding to Done rendered a
 	// check over a subject that never ran.
 	if len(children) == 0 && g.allTasksNotStarted(tasks) {
-		return NotStarted
+		return notStarted
 	}
 	v := g.settled().states.fold()
 	for _, child := range children {
 		switch s := child.derivedState(); s {
-		case Empty:
-		case NotStarted:
+		case empty:
+		case notStarted:
 			v.unresolved = true
 		default:
 			v.add(s)
@@ -3092,43 +3092,43 @@ type verdictFold struct {
 	running, failed, blocked, cancelled, unresolved bool
 }
 
-func (v *verdictFold) add(s EntityState) {
+func (v *verdictFold) add(s entityState) {
 	switch s {
-	case Running:
+	case running:
 		v.running = true
 	case Failed:
 		v.failed = true
-	case Blocked:
+	case blocked:
 		v.blocked = true
 	case Cancelled:
 		v.cancelled = true
-	case Done, Skipped, NotStarted:
+	case done, skipped, notStarted:
 	default:
 		v.unresolved = true
 	}
 }
 
-func (v verdictFold) state() EntityState {
+func (v verdictFold) state() entityState {
 	switch {
 	case v.running:
-		return Running
+		return running
 	case v.failed:
 		return Failed
 	case v.blocked:
-		return Blocked
+		return blocked
 	case v.cancelled:
 		return Cancelled
 	case v.unresolved:
-		return Incomplete
+		return incomplete
 	default:
-		return Done
+		return done
 	}
 }
 
 // displaySummary is g's Summary as its row shows it, given its derived
 // state st: only when all children done/skipped successfully.
-func (g *tasksState) displaySummary(st EntityState) string {
-	if st == Done && g.node.Rec.Summary() != "" && !g.hasWarnedOrFailedDescendant() {
+func (g *tasksState) displaySummary(st entityState) string {
+	if st == done && g.node.Rec.Summary() != "" && !g.hasWarnedOrFailedDescendant() {
 		return g.node.Rec.Summary()
 	}
 	return ""
@@ -3152,12 +3152,12 @@ func (g *tasksState) hasWarnedOrFailedDescendant() bool {
 	return false
 }
 
-func (o *Output) collectActionsLocked() []Action {
+func (o *Run) collectActionsLocked() []Action {
 	seen := map[string]struct{}{}
 	var out []Action
 	add := func(list []Action) {
 		for _, a := range list {
-			k := record.ActionKey(a)
+			k := record.ActionKey(asRecordAction(a))
 			if _, ok := seen[k]; ok {
 				continue
 			}
@@ -3166,7 +3166,7 @@ func (o *Output) collectActionsLocked() []Action {
 		}
 	}
 	for _, t := range o.tasks {
-		add(t.node.Rec.Actions())
+		add(asEvoActions(t.node.Rec.Actions()))
 		// ZYS-848: a remedy attached via evo.Next(...) to an individual
 		// Problem/warning (task.Problem(msg, evo.Next(...)),
 		// task.Fail(msg, evo.Next(...))) must reach the run's own Next
@@ -3177,16 +3177,16 @@ func (o *Output) collectActionsLocked() []Action {
 		// it was silently dropped from the Conclusion's Next list too.
 		truth := t.node.Rec.Truth()
 		for _, p := range truth.Problems {
-			add(p.Actions)
+			add(asEvoActions(p.Actions))
 		}
 		for _, w := range truth.Warnings {
-			add(w.Actions)
+			add(asEvoActions(w.Actions))
 		}
 	}
 	return out
 }
 
-func (g *tasksState) snapshot() TasksSnapshot {
+func (g *tasksState) snapshot() tasksSnapshot {
 	ts := g.header()
 	for _, t := range g.taskStates() {
 		ts.Tasks = append(ts.Tasks, t.snapshot())
@@ -3198,9 +3198,9 @@ func (g *tasksState) snapshot() TasksSnapshot {
 }
 
 // header is g's snapshot without its children.
-func (g *tasksState) header() TasksSnapshot {
+func (g *tasksState) header() tasksSnapshot {
 	state := g.derivedState()
-	return TasksSnapshot{
+	return tasksSnapshot{
 		ID:          g.id,
 		Key:         g.key(),
 		Name:        g.name,
@@ -3214,7 +3214,7 @@ func (g *tasksState) header() TasksSnapshot {
 // liveSnapshot is g as a live frame of rows rows can show it: the
 // children it could select, snapshotted, and a tally of the rest (see
 // live.LiveChildren).
-func (g *tasksState) liveSnapshot(rows int, now time.Time) TasksSnapshot {
+func (g *tasksState) liveSnapshot(rows int, now time.Time) tasksSnapshot {
 	rev := g.out.rec.Revision()
 	g.stampDirectTasks(now)
 	ts := g.header()
@@ -3245,7 +3245,7 @@ func liveCollections(cols []*tasksState, rows int, now time.Time) *live.LiveColl
 
 // view is g's header and its Tasks' views, recursively, without the cost
 // of a snapshot.
-func (g *tasksState) view() TasksSnapshot {
+func (g *tasksState) view() tasksSnapshot {
 	ts := g.header()
 	for _, t := range g.taskStates() {
 		ts.Tasks = append(ts.Tasks, t.view())
@@ -3271,7 +3271,7 @@ func (g *tasksState) stampLiveFirstSeen(now time.Time) {
 // --- folded from structured_events.go ---
 
 // emitWireEventLocked appends one §38 "evo.event" JSONL line for eventType,
-// scoped to entityID (empty for a run-level event) with payload as its
+// scoped to entityID (empty for a run-level recEvent) with payload as its
 // domain fields. It is a no-op unless this Output is configured for
 // FormatJSONL (spec §32.1: the event stream exists only in that Format) —
 // every call site below fires unconditionally regardless of Format; this
@@ -3287,11 +3287,11 @@ func (g *tasksState) stampLiveFirstSeen(now time.Time) {
 // meaningfully react. Finish folds wireEventErr into the misuse error it
 // already returns, so "a later write fails; the Run then fails" without
 // discarding the lines already written (see Finish's use of wireEventErr).
-func (o *Output) emitWireEventLocked(eventType, entityID string, payload map[string]any) {
-	if o.cfg.wireFormat != FormatJSONL {
+func (o *Run) emitWireEventLocked(eventType, entityID string, payload map[string]any) {
+	if o.cfg.wireFormat != formatJSONL {
 		return
 	}
-	ev := Event{
+	ev := recEvent{
 		Type:      eventType,
 		Sequence:  o.rec.AllocateSequence(),
 		Timestamp: o.cfg.clock.Now(),
@@ -3307,7 +3307,7 @@ func (o *Output) emitWireEventLocked(eventType, entityID string, payload map[str
 // emitCollectionDeclaredLocked emits collection.declared (spec §38) for a
 // newly declared Group/Sequence container, at top level or nested — the one
 // call site Group, Sequence, and declareChildContainerLocked all share.
-func (o *Output) emitCollectionDeclaredLocked(st *tasksState, parentID string) {
+func (o *Run) emitCollectionDeclaredLocked(st *tasksState, parentID string) {
 	kind := wire.CollectionKindGroup
 	if st.node.Sequential {
 		kind = wire.CollectionKindSequence
@@ -3324,13 +3324,13 @@ func (o *Output) emitCollectionDeclaredLocked(st *tasksState, parentID string) {
 // same mapping wire.ToRunDocument uses for the final "evo.run" document,
 // duplicated locally rather than imported since internal/wire's version is
 // unexported (ToRunDocument's own outcomeFor).
-func wireRunOutcome(state ConclusionState) string {
+func wireRunOutcome(state conclusionState) string {
 	switch state {
-	case StateFailed:
+	case stateFailed:
 		return wire.OutcomeFailed
-	case StateBlocked:
+	case stateBlocked:
 		return wire.OutcomeBlocked
-	case StateCancelled:
+	case stateCancelled:
 		return wire.OutcomeCancelled
 	default:
 		return wire.OutcomeOK
@@ -3350,7 +3350,7 @@ var wireEvoVersion = "dev"
 // SetWireEvoVersion pins the evo_version literal FormatJSON/FormatJSONL
 // stamp onto the v2 wire documents they emit. Called once, by the root
 // package's init(), from evo.PublishedRelease.
-func SetWireEvoVersion(v string) { wireEvoVersion = v }
+func setWireEvoVersion(v string) { wireEvoVersion = v }
 
 // writeWireRunLocked encodes conc as the final "evo.run" document and
 // writes it plus a trailing newline to w (spec §53: "plus one trailing
@@ -3362,13 +3362,13 @@ func writeWireRunLocked(w io.Writer, conc Conclusion) error {
 	if w == nil {
 		return nil
 	}
-	body, err := wire.EncodeRun(record.Result{Conclusion: conc}, wireEvoVersion)
+	body, err := wire.EncodeRun(record.Result{Conclusion: asRecordConclusion(conc)}, wireEvoVersion)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrRenderer, err)
+		return fmt.Errorf("%w: %v", errRenderer, err)
 	}
 	body = append(body, '\n')
 	if _, err := w.Write(body); err != nil {
-		return fmt.Errorf("%w: %v", ErrRenderer, err)
+		return fmt.Errorf("%w: %v", errRenderer, err)
 	}
 	if f, ok := w.(flusher); ok {
 		_ = f.Flush()
@@ -3385,20 +3385,30 @@ func writeWireRunLocked(w io.Writer, conc Conclusion) error {
 // caller can latch it as this Run's first wire-write failure and fail the
 // Run at Finish (spec §32.2: "... the Run then fails"), instead of the
 // error silently vanishing.
-func writeWireEventLocked(w io.Writer, e Event) error {
+func writeWireEventLocked(w io.Writer, e recEvent) error {
 	if w == nil {
 		return nil
 	}
 	row, err := wire.EncodeEvent(e)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrRenderer, err)
+		return fmt.Errorf("%w: %v", errRenderer, err)
 	}
 	row = append(row, '\n')
 	if _, err := w.Write(row); err != nil {
-		return fmt.Errorf("%w: %v", ErrRenderer, err)
+		return fmt.Errorf("%w: %v", errRenderer, err)
 	}
 	if f, ok := w.(flusher); ok {
 		_ = f.Flush()
 	}
 	return nil
 }
+
+// Output selects the presentation encoding (CONTRACT §6).
+type Output int
+
+const (
+	Human Output = iota + 1
+	Plain
+	JSON
+	JSONL
+)

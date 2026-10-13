@@ -14,12 +14,12 @@ import (
 // by its container path because the bare name is ambiguous.
 func TestLedgerKeepsSameNamedTasksInDifferentContainersApart(t *testing.T) {
 	var buf strings.Builder
-	out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, Stdout: &buf, Stderr: io.Discard})
+	out := initRun(Config{isolated: true, plain: true, color: colorNever, stdout: &buf, stderr: io.Discard})
 	alpha := out.Sequence("alpha")
-	alpha.Task("prune").Define(effectOf(EffectDelete, "branch", 1))
+	alpha.Task("prune").Define(effectOf(Delete, "branch", 1))
 	beta := out.Sequence("beta")
-	beta.Task("prune").Define(effectOf(EffectDelete, "branch", 3))
-	_ = out.Close()
+	beta.Task("prune").Define(effectOf(Delete, "branch", 3))
+	_ = out.close()
 
 	rendered := buf.String()
 	for _, want := range []string{"[changed] alpha › prune  deleted 1 branch", "[changed] beta › prune   deleted 3 branches"} {
@@ -30,7 +30,7 @@ func TestLedgerKeepsSameNamedTasksInDifferentContainersApart(t *testing.T) {
 	if strings.Contains(rendered, "deleted 4 branches") {
 		t.Errorf("same-named Tasks merged into one ledger row:\n%s", rendered)
 	}
-	changes := out.Snapshot().Changes
+	changes := out.snapshot().Changes
 	if len(changes) != 2 {
 		t.Fatalf("Changes = %+v, want one section per Task", changes)
 	}
@@ -41,9 +41,9 @@ func TestLedgerKeepsSameNamedTasksInDifferentContainersApart(t *testing.T) {
 // bare name.
 func TestLedgerNamesAnUnambiguousNestedTaskBare(t *testing.T) {
 	var buf strings.Builder
-	out := Init(Config{Isolated: true, Plain: true, Color: ColorNever, Stdout: &buf, Stderr: io.Discard})
-	out.Sequence("alpha").Task("prune").Define(effectOf(EffectDelete, "branch", 2))
-	_ = out.Close()
+	out := initRun(Config{isolated: true, plain: true, color: colorNever, stdout: &buf, stderr: io.Discard})
+	out.Sequence("alpha").Task("prune").Define(effectOf(Delete, "branch", 2))
+	_ = out.close()
 	if want := "[changed] prune  deleted 2 branches"; !strings.Contains(buf.String(), want) {
 		t.Fatalf("missing %q in:\n%s", want, buf.String())
 	}

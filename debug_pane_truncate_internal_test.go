@@ -18,7 +18,7 @@ func TestFormatLivePaneLine_OverflowTruncatesInsteadOfDroppingFields(t *testing.
 	rec := debugRecord{
 		Level:   "DEBUG",
 		Message: "package index loaded",
-		Fields: []Field{
+		Fields: []field{
 			{Key: "packages", Value: 18},
 			{Key: "path", Value: "/very/long/repository/path/that/pushes/this/record/past/the/column/budget"},
 		},

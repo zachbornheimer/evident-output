@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -18,13 +17,13 @@ import (
 // misuse line names what got ignored.
 func TestMisuse_AlreadyResolvedCarriesRejectedSummary(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
 
 	task := out.Task("build")
 	succeed(task, "compiled")
-	task.Fail("second outcome carrying text") // already resolved — rejected
+	task.fail("second outcome carrying text") // already resolved — rejected
 
-	if err := out.Finish(); err == nil {
+	if err := out.finish(); err == nil {
 		t.Fatal("Finish() = nil, want the recorded misuse")
 	}
 
@@ -42,14 +41,14 @@ func TestMisuse_AlreadyResolvedCarriesRejectedSummary(t *testing.T) {
 // finding 1's fix, and finding 4 governs its content).
 func TestMisuse_AlreadyResolvedCarriesRejectedSummary_Interactive(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("build")
 	succeed(task, "compiled")
-	task.Fail("second outcome carrying text") // already resolved — rejected
+	task.fail("second outcome carrying text") // already resolved — rejected
 
-	if err := out.Finish(); err == nil {
+	if err := out.finish(); err == nil {
 		t.Fatal("Finish() = nil, want the recorded misuse")
 	}
 

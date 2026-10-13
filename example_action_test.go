@@ -1,15 +1,13 @@
-package evo_test
+package evo
 
 import (
 	"fmt"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // ExampleAction shows the recommended-next-step shape attached to a
 // Problem or a resolved Task via Next/NextCommand.
 func ExampleAction() {
-	action := evo.Action{Label: "retry with --force"}
+	action := Action{Label: "retry with --force"}
 	fmt.Println(action.Label)
 	// Output:
 	// retry with --force
@@ -18,7 +16,7 @@ func ExampleAction() {
 // ExampleCommandSpec shows an executable plus argv — never a shell string —
 // the shape Command builds and Action.Command carries.
 func ExampleCommandSpec() {
-	spec := evo.CommandSpec{Executable: "git", Args: []string{"push", "--force-with-lease"}}
+	spec := commandSpec{Executable: "git", Args: []string{"push", "--force-with-lease"}}
 	fmt.Println(spec.Executable, spec.Args)
 	// Output:
 	// git [push --force-with-lease]
@@ -27,7 +25,7 @@ func ExampleCommandSpec() {
 // ExampleCommand builds a recommended next step naming an executable
 // command to run.
 func ExampleCommand() {
-	action := evo.Command("git", "push", "--force-with-lease")
+	action := actionCommand("git", "push", "--force-with-lease")
 	fmt.Println(action.Command.Executable, action.Command.Args)
 	// Output:
 	// git [push --force-with-lease]
@@ -37,7 +35,7 @@ func ExampleCommand() {
 // executable command — a policy hint like "pass --yes to confirm
 // non-interactively".
 func ExampleLabel() {
-	action := evo.Label("pass --yes to confirm non-interactively")
+	action := label("pass --yes to confirm non-interactively")
 	fmt.Println(action.Label)
 	// Output:
 	// pass --yes to confirm non-interactively

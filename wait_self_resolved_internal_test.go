@@ -29,25 +29,25 @@ func TestTaskHandle_Wait_SelfResolvedBeforeReturn_IsNotSuccess(t *testing.T) {
 	syntax := errors.New("syntax")
 	for _, tc := range []struct {
 		name    string
-		resolve func(task *TaskHandle) error
+		resolve func(task *Task) error
 		wantErr func(error) bool
 	}{
-		{"Block", func(task *TaskHandle) error { task.Block("needs review", Detail("ambiguous")); return nil }, func(err error) bool { return errors.Is(err, graph.ErrWaitFailed) }},
-		{"Fail", func(task *TaskHandle) error { task.Fail("compile", Detail("syntax")); return syntax }, func(err error) bool { return errors.Is(err, syntax) }},
-		{"Block then error", func(task *TaskHandle) error { task.Block("needs review"); return syntax }, func(err error) bool { return errors.Is(err, syntax) }},
+		{"Block", func(task *Task) error { task.block("needs review", Detail("ambiguous")); return nil }, func(err error) bool { return errors.Is(err, graph.ErrWaitFailed) }},
+		{"Fail", func(task *Task) error { task.fail("compile", Detail("syntax")); return syntax }, func(err error) bool { return errors.Is(err, syntax) }},
+		{"Block then error", func(task *Task) error { task.block("needs review"); return syntax }, func(err error) bool { return errors.Is(err, syntax) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var buf strings.Builder
-			out := Init(Config{
-				Isolated: true, Plain: true, Color: ColorNever,
-				MaxConcurrency: 4, Stdout: &buf, Stderr: io.Discard,
+			out := initRun(Config{
+				isolated: true, plain: true, color: colorNever,
+				MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 			})
 			var waitErr error
 			var returned atomic.Bool
 			// returnedByWait is whether the callback had returned at the
 			// instant Wait answered; read after Run it could only be true.
 			var returnedByWait bool
-			out.Run(context.Background(), func(ctx context.Context) error {
+			out.run(context.Background(), func(ctx context.Context) error {
 				resolved := make(chan struct{})
 				task := out.Task("self-resolving")
 				task.Define(func(ctx context.Context) error {
@@ -58,7 +58,7 @@ func TestTaskHandle_Wait_SelfResolvedBeforeReturn_IsNotSuccess(t *testing.T) {
 					return err
 				})
 				<-resolved
-				waitErr = task.Wait()
+				waitErr = task.wait()
 				returnedByWait = returned.Load()
 				return nil
 			})
@@ -83,17 +83,17 @@ func TestTaskHandle_Wait_FailOrBlockThenErrorAlwaysReturnsTheError(t *testing.T)
 	boom := errors.New("boom")
 	wrong := 0
 	for range selfResolvedTrials {
-		for _, resolve := range []func(*TaskHandle){
-			func(task *TaskHandle) { task.Fail("f") },
-			func(task *TaskHandle) { task.Block("b") },
+		for _, resolve := range []func(*Task){
+			func(task *Task) { task.fail("f") },
+			func(task *Task) { task.block("b") },
 		} {
 			out := newOutput("job", to(io.Discard))
 			task := out.Task("t")
 			task.Define(func(context.Context) error { resolve(task); return boom })
-			if err := task.Wait(); !errors.Is(err, boom) {
+			if err := task.wait(); !errors.Is(err, boom) {
 				wrong++
 			}
-			_ = out.Finish()
+			_ = out.finish()
 		}
 	}
 	if wrong > 0 {

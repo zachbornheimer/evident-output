@@ -1,28 +1,26 @@
-package evo_test
+package evo
 
 import (
 	"context"
 	"os"
 	"path/filepath"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // runBasisTask runs one Task whose Basis is Value("v", value) against state
 // and reports whether its Define ran.
-func runBasisTask(t *testing.T, state, value string, dry bool) bool {
+func runBasisTask(t *testing.T, state, val string, dry bool) bool {
 	t.Helper()
-	out := evo.Init(evo.Config{Isolated: true, StateDir: state, DryRun: dry})
+	out := initRun(Config{isolated: true, stateDir: state, DryRun: dry})
 	ran := false
 	task := out.Task("basis-task")
-	task.Basis(evo.Value("v", value))
+	task.basis(value("v", val))
 	task.Define(func(context.Context) error { ran = true; return nil })
-	if err := task.Wait(); err != nil {
+	if err := task.wait(); err != nil {
 		t.Fatalf("wait: %v", err)
 	}
-	_ = out.Finish()
-	_ = out.Close()
+	_ = out.finish()
+	_ = out.close()
 	return ran
 }
 
@@ -45,22 +43,22 @@ func TestDryRunNeverRecordsABasisItDidNotApply(t *testing.T) {
 // child spawned.
 func runTrackedExec(t *testing.T, state, work string, dry bool) bool {
 	t.Helper()
-	out := evo.Init(evo.Config{Isolated: true, StateDir: state, DryRun: dry})
+	out := initRun(Config{isolated: true, stateDir: state, DryRun: dry})
 	spawned := false
 	task := out.Task("exec")
 	task.Define(func(ctx context.Context) error {
-		res, err := evo.Exec(ctx, evo.ExecSpec{
-			Executable: "/bin/sh", Args: []string{"-c", "printf out > output.txt"}, Dir: work,
-			Basis: []evo.Fingerprint{evo.FSPath(filepath.Join(work, "input.txt"))}, Outputs: []string{"output.txt"},
+		res, err := Exec(ctx, ExecSpec{
+			executable: "/bin/sh", args: []string{"-c", "printf out > output.txt"}, Dir: work,
+			basis: []fingerprint{fSPath(filepath.Join(work, "input.txt"))}, Outputs: []string{"output.txt"},
 		})
 		spawned = res.Ran
 		return err
 	})
-	if err := task.Wait(); err != nil {
+	if err := task.wait(); err != nil {
 		t.Fatalf("wait: %v", err)
 	}
-	_ = out.Finish()
-	_ = out.Close()
+	_ = out.finish()
+	_ = out.close()
 	return spawned
 }
 

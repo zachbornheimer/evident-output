@@ -16,8 +16,8 @@ import (
 func TestLive_ArmedTitleKeepsAnimatorAndAdvancesGlyph(t *testing.T) {
 	drv := &fakeHeartbeatSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := newOutput("zq", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), Glyphs(GlyphsUnicode))
-	t.Cleanup(func() { _ = out.Close() })
+	out := newOutput("zq", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), glyphs(glyphsUnicode))
+	t.Cleanup(func() { _ = out.close() })
 
 	out.arm()
 
@@ -57,8 +57,8 @@ func TestLive_ArmedTitleKeepsAnimatorAndAdvancesGlyph(t *testing.T) {
 func TestLive_ArmedTitlePaintsImmediatelyDespiteVisibilityDelay(t *testing.T) {
 	drv := &fakeHeartbeatSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := newOutput("zq", withTerminal(drv), visibilityDelay(80*time.Millisecond), withClock(clock), withNoColor(), Glyphs(GlyphsUnicode))
-	t.Cleanup(func() { _ = out.Close() })
+	out := newOutput("zq", withTerminal(drv), visibilityDelay(80*time.Millisecond), withClock(clock), withNoColor(), glyphs(glyphsUnicode))
+	t.Cleanup(func() { _ = out.close() })
 
 	out.arm()
 
@@ -70,7 +70,7 @@ func TestLive_ArmedTitlePaintsImmediatelyDespiteVisibilityDelay(t *testing.T) {
 		t.Fatalf("armed title missing subject:\n%s", frame)
 	}
 	spin := false
-	for _, g := range txt.SpinnerFrames(GlyphsUnicode) {
+	for _, g := range txt.SpinnerFrames(glyphsUnicode) {
 		if strings.Contains(frame, g) {
 			spin = true
 			break

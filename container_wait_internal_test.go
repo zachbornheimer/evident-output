@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/internal/record"
+
 	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
@@ -18,19 +20,19 @@ import (
 // children itself.
 func TestGroupHandle_Wait_AllSucceed(t *testing.T) {
 	var buf strings.Builder
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever,
-		MaxConcurrency: 4, Stdout: &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever,
+		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 	})
 
-	res := out.Run(context.Background(), func(ctx context.Context) error {
+	res := out.run(context.Background(), func(ctx context.Context) error {
 		jobs := out.Group("check")
 		for _, name := range []string{"a", "b", "c"} {
 			jobs.Task(name).Define(func(ctx context.Context) error { return nil })
 		}
-		return jobs.Wait()
+		return jobs.wait()
 	})
-	if res.ExitCode() != ExitOK {
+	if res.ExitCode() != exitOK {
 		t.Fatalf("exit %d, want ExitOK; output:\n%s", res.ExitCode(), buf.String())
 	}
 }
@@ -42,9 +44,9 @@ func TestGroupHandle_Wait_AllSucceed(t *testing.T) {
 // one child at a time before the next child's callback even starts.
 func TestGroupHandle_Wait_DoesNotSerializeSiblings(t *testing.T) {
 	var buf strings.Builder
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever,
-		MaxConcurrency: 3, Stdout: &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever,
+		MaxConcurrency: 3, stdout: &buf, stderr: io.Discard,
 	})
 
 	const n = 3
@@ -54,7 +56,7 @@ func TestGroupHandle_Wait_DoesNotSerializeSiblings(t *testing.T) {
 
 	results := make(chan Result, 1)
 	go func() {
-		results <- out.Run(runCtx, func(ctx context.Context) error {
+		results <- out.run(runCtx, func(ctx context.Context) error {
 			jobs := out.Group("parallel")
 			for _, name := range []string{"x", "y", "z"} {
 				jobs.Task(name).Define(func(ctx context.Context) error {
@@ -63,7 +65,7 @@ func TestGroupHandle_Wait_DoesNotSerializeSiblings(t *testing.T) {
 					return nil
 				})
 			}
-			return jobs.Wait()
+			return jobs.wait()
 		})
 	}()
 
@@ -83,7 +85,7 @@ func TestGroupHandle_Wait_DoesNotSerializeSiblings(t *testing.T) {
 	case <-budget:
 		t.Fatal("Group.Wait did not return after all siblings were released")
 	}
-	if res.ExitCode() != ExitOK {
+	if res.ExitCode() != exitOK {
 		t.Fatalf("exit %d, want ExitOK; output:\n%s", res.ExitCode(), buf.String())
 	}
 }
@@ -93,18 +95,18 @@ func TestGroupHandle_Wait_DoesNotSerializeSiblings(t *testing.T) {
 // the caller never had to Snapshot/count children to discover it.
 func TestGroupHandle_Wait_FailedChildIsDeterministic(t *testing.T) {
 	var buf strings.Builder
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever,
-		MaxConcurrency: 4, Stdout: &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever,
+		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 	})
 
 	boom := errors.New("boom")
-	res := out.Run(context.Background(), func(ctx context.Context) error {
+	res := out.run(context.Background(), func(ctx context.Context) error {
 		jobs := out.Group("check")
 		jobs.Task("a").Define(func(ctx context.Context) error { return nil })
 		jobs.Task("b").Define(func(ctx context.Context) error { return boom })
 		jobs.Task("c").Define(func(ctx context.Context) error { return nil })
-		err := jobs.Wait()
+		err := jobs.wait()
 		if err == nil {
 			t.Fatal("jobs.Wait() = nil, want a deterministic failure")
 		}
@@ -113,7 +115,7 @@ func TestGroupHandle_Wait_FailedChildIsDeterministic(t *testing.T) {
 		}
 		return err
 	})
-	if res.ExitCode() == ExitOK {
+	if res.ExitCode() == exitOK {
 		t.Fatalf("exit ExitOK, want a failing exit; output:\n%s", buf.String())
 	}
 }
@@ -124,25 +126,25 @@ func TestGroupHandle_Wait_FailedChildIsDeterministic(t *testing.T) {
 // joined error, but the predecessor's own failure is.
 func TestSequenceHandle_Wait_FailedStepOmitsNotStartedFollowers(t *testing.T) {
 	var buf strings.Builder
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever,
-		MaxConcurrency: 1, Stdout: &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever,
+		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
 	})
 
 	boom := errors.New("scan failed")
-	res := out.Run(context.Background(), func(ctx context.Context) error {
+	res := out.run(context.Background(), func(ctx context.Context) error {
 		seq := out.Sequence("python")
 		seq.Task("scan").Define(func(ctx context.Context) error { return boom })
 		seq.Task("venv").Define(func(ctx context.Context) error { return nil })
 		seq.Task("install").Define(func(ctx context.Context) error { return nil })
-		err := seq.Wait()
+		err := seq.wait()
 		if err == nil {
 			t.Fatal("seq.Wait() = nil, want the scan failure")
 		}
 		if !errors.Is(err, boom) {
 			t.Fatalf("seq.Wait() = %v, want errors.Is(err, boom)", err)
 		}
-		if errors.Is(err, ErrNotStarted) {
+		if errors.Is(err, errNotStarted) {
 			t.Fatalf("seq.Wait() = %v, must not surface ErrNotStarted for a predecessor-caused follower", err)
 		}
 		if got := strings.Count(err.Error(), "scan failed"); got != 1 {
@@ -150,7 +152,7 @@ func TestSequenceHandle_Wait_FailedStepOmitsNotStartedFollowers(t *testing.T) {
 		}
 		return err
 	})
-	if res.ExitCode() == ExitOK {
+	if res.ExitCode() == exitOK {
 		t.Fatalf("exit ExitOK, want a failing exit; output:\n%s", buf.String())
 	}
 }
@@ -161,42 +163,42 @@ func TestSequenceHandle_Wait_FailedStepOmitsNotStartedFollowers(t *testing.T) {
 // the container Wait fail deterministically, exactly like a Failed child.
 func TestGroupHandle_Wait_BlockedChildSurfacesFailure(t *testing.T) {
 	var buf strings.Builder
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever,
-		MaxConcurrency: 4, Stdout: &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever,
+		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 	})
 
-	res := out.Run(context.Background(), func(ctx context.Context) error {
+	res := out.run(context.Background(), func(ctx context.Context) error {
 		jobs := out.Group("check")
 		jobs.Task("a").Define(func(ctx context.Context) error { return nil })
 		blocked := jobs.Task("b")
 		blocked.Define(func(ctx context.Context) error {
-			blocked.Block("needs manual review", Detail("ambiguous"))
+			blocked.block("needs manual review", Detail("ambiguous"))
 			return nil
 		})
-		err := jobs.Wait()
+		err := jobs.wait()
 		if err == nil {
 			t.Fatal("jobs.Wait() = nil, want the Blocked child's failure")
 		}
-		if got := blocked.Snapshot().State; got != Blocked {
+		if got := blocked.snapshot().State; got != record.Blocked {
 			t.Fatalf("child state = %v, want Blocked", got)
 		}
 		// The header agrees with what Tasks After the Group see: it
 		// finished, and it did not succeed.
-		if got := jobs.Snapshot().State; got != Blocked {
+		if got := jobs.snapshot().State; got != record.Blocked {
 			t.Errorf("group state = %v, want Blocked", got)
 		}
 		nested := out.Group("outer")
 		inner := nested.Group("inner")
 		innerBlocked := inner.Task("c")
-		innerBlocked.Define(func(ctx context.Context) error { innerBlocked.Block("held"); return nil })
-		_ = nested.Wait()
-		if got := nested.Snapshot().State; got != Blocked {
+		innerBlocked.Define(func(ctx context.Context) error { innerBlocked.block("held"); return nil })
+		_ = nested.wait()
+		if got := nested.snapshot().State; got != record.Blocked {
 			t.Errorf("outer group state = %v, want Blocked from its nested Group", got)
 		}
 		return err
 	})
-	if res.ExitCode() == ExitOK {
+	if res.ExitCode() == exitOK {
 		t.Fatalf("exit ExitOK, want a failing exit; output:\n%s", buf.String())
 	}
 }
@@ -207,16 +209,16 @@ func TestGroupHandle_Wait_BlockedChildSurfacesFailure(t *testing.T) {
 // cancellation error, without the caller snapshotting/counting children.
 func TestGroupHandle_Wait_CancelledChildIsVisible(t *testing.T) {
 	var buf strings.Builder
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever,
-		MaxConcurrency: 4, Stdout: &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever,
+		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 	})
 
-	res := out.Run(context.Background(), func(ctx context.Context) error {
+	res := out.run(context.Background(), func(ctx context.Context) error {
 		jobs := out.Group("check")
 		jobs.Task("a").Define(func(ctx context.Context) error { return nil })
-		jobs.Task("b").Cancel("superseded")
-		err := jobs.Wait()
+		jobs.Task("b").cancel("superseded")
+		err := jobs.wait()
 		if err == nil {
 			t.Fatal("jobs.Wait() = nil, want the Cancelled child's outcome")
 		}
@@ -225,7 +227,7 @@ func TestGroupHandle_Wait_CancelledChildIsVisible(t *testing.T) {
 		}
 		return err
 	})
-	if res.ExitCode() == ExitOK {
+	if res.ExitCode() == exitOK {
 		t.Fatalf("exit ExitOK, want a failing exit; output:\n%s", buf.String())
 	}
 }
@@ -235,13 +237,13 @@ func TestGroupHandle_Wait_CancelledChildIsVisible(t *testing.T) {
 // completes), proven by an atomic step counter each callback checks.
 func TestSequenceHandle_Wait_PreservesOrdering(t *testing.T) {
 	var buf strings.Builder
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever,
-		MaxConcurrency: 4, Stdout: &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever,
+		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 	})
 
 	var step atomic.Int32
-	res := out.Run(context.Background(), func(ctx context.Context) error {
+	res := out.run(context.Background(), func(ctx context.Context) error {
 		seq := out.Sequence("ordered")
 		seq.Task("scan").Define(func(ctx context.Context) error {
 			if !step.CompareAndSwap(0, 1) {
@@ -261,30 +263,30 @@ func TestSequenceHandle_Wait_PreservesOrdering(t *testing.T) {
 			}
 			return nil
 		})
-		return seq.Wait()
+		return seq.wait()
 	})
-	if res.ExitCode() != ExitOK {
+	if res.ExitCode() != exitOK {
 		t.Fatalf("exit %d, want ExitOK; output:\n%s", res.ExitCode(), buf.String())
 	}
 }
 
 // TestTaskHandle_Define_ReturnsHandleForChaining pins the Decisions' Define
-// sugar: Define returns the same *TaskHandle so `task.Define(fn).Wait()`
+// sugar: Define returns the same *Task so `task.Define(fn).Wait()`
 // composes without a separate local variable, and this must not change
 // Define's asynchronous scheduler semantics (the callback still runs on the
 // scheduler, not inline).
 func TestTaskHandle_Define_ReturnsHandleForChaining(t *testing.T) {
 	var buf strings.Builder
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever,
-		MaxConcurrency: 4, Stdout: &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever,
+		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 	})
 
-	res := out.Run(context.Background(), func(ctx context.Context) error {
+	res := out.run(context.Background(), func(ctx context.Context) error {
 		task := out.Task("solo")
-		return task.Define(func(ctx context.Context) error { return nil }).Wait()
+		return task.Define(func(ctx context.Context) error { return nil }).wait()
 	})
-	if res.ExitCode() != ExitOK {
+	if res.ExitCode() != exitOK {
 		t.Fatalf("exit %d, want ExitOK; output:\n%s", res.ExitCode(), buf.String())
 	}
 }
@@ -295,13 +297,13 @@ func TestTaskHandle_Define_ReturnsHandleForChaining(t *testing.T) {
 // that cause is not in the container's own join, so the NotStarted outcome
 // must surface rather than be dropped as "already represented".
 func TestGroupHandle_Wait_ExternalPredecessorFailure(t *testing.T) {
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever,
-		MaxConcurrency: 2, Stdout: io.Discard, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever,
+		MaxConcurrency: 2, stdout: io.Discard, stderr: io.Discard,
 	})
 	var ran atomic.Bool
 	var waitErr error
-	out.Run(context.Background(), func(ctx context.Context) error {
+	out.run(context.Background(), func(ctx context.Context) error {
 		pre := out.Task("prepare")
 		pre.Define(func(ctx context.Context) error { return errors.New("boom") })
 		jobs := out.Group("jobs")
@@ -309,13 +311,13 @@ func TestGroupHandle_Wait_ExternalPredecessorFailure(t *testing.T) {
 			ran.Store(true)
 			return nil
 		})
-		waitErr = jobs.Wait()
+		waitErr = jobs.wait()
 		return nil
 	})
 	if ran.Load() {
 		t.Fatal("child ran despite its failed predecessor")
 	}
-	if !errors.Is(waitErr, ErrNotStarted) {
+	if !errors.Is(waitErr, errNotStarted) {
 		t.Fatalf("Group.Wait = %v, want ErrNotStarted when no child ran", waitErr)
 	}
 }
@@ -323,21 +325,21 @@ func TestGroupHandle_Wait_ExternalPredecessorFailure(t *testing.T) {
 // TestSequenceHandle_Wait_ExternalPredecessorFailure is the Sequence
 // counterpart of TestGroupHandle_Wait_ExternalPredecessorFailure.
 func TestSequenceHandle_Wait_ExternalPredecessorFailure(t *testing.T) {
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever,
-		MaxConcurrency: 2, Stdout: io.Discard, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever,
+		MaxConcurrency: 2, stdout: io.Discard, stderr: io.Discard,
 	})
 	var waitErr error
-	out.Run(context.Background(), func(ctx context.Context) error {
+	out.run(context.Background(), func(ctx context.Context) error {
 		pre := out.Task("prepare")
 		pre.Define(func(ctx context.Context) error { return errors.New("boom") })
 		seq := out.Sequence("steps")
 		seq.Task("first").After(pre).Define(func(ctx context.Context) error { return nil })
 		seq.Task("second").Define(func(ctx context.Context) error { return nil })
-		waitErr = seq.Wait()
+		waitErr = seq.wait()
 		return nil
 	})
-	if !errors.Is(waitErr, ErrNotStarted) {
+	if !errors.Is(waitErr, errNotStarted) {
 		t.Fatalf("Sequence.Wait = %v, want ErrNotStarted when no step ran", waitErr)
 	}
 }

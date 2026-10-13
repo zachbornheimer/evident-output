@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestFail_NoDetail_DropsRedundantProblemRow is beginner-3: a Fail/Block
@@ -14,10 +12,10 @@ import (
 // nothing they didn't already see.
 func TestFail_NoDetail_DropsRedundantProblemRow(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
 
-	out.Task("build").Fail("compile failed")
-	_ = out.Finish()
+	out.Task("build").fail("compile failed")
+	_ = out.finish()
 
 	rendered := buf.String()
 	if strings.Count(rendered, "compile failed") != 1 {
@@ -33,10 +31,10 @@ func TestFail_NoDetail_DropsRedundantProblemRow(t *testing.T) {
 // carries it), with the same de-echo dropping the redundant problem row.
 func TestWarn_MessagePlacement_MatchesFailBlock(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
 
-	out.Task("optional tool").Problem("shellcheck not found", evo.Severity(evo.SeverityWarning))
-	_ = out.Finish()
+	out.Task("optional tool").Problem("shellcheck not found", severity(severityWarning))
+	_ = out.finish()
 
 	rendered := buf.String()
 	lines := strings.Split(strings.TrimRight(rendered, "\n"), "\n")

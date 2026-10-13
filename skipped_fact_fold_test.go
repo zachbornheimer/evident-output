@@ -1,31 +1,29 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"fmt"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // keptWithFactsRun is zq prune's in-use shape: one Task per kept item,
 // each with a Fact saying why (row := group.Task(name); row.Fact("why",
 // d); row.Skipped(r)).
-func keptWithFactsRun(t *testing.T, v evo.Verbosity) string {
+func keptWithFactsRun(t *testing.T, v verbosity) string {
 	t.Helper()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, StateDir: t.TempDir(), Stdout: &buf, Title: "prune", Color: evo.ColorNever, Plain: true, Verbosity: v})
+	out := initRun(Config{isolated: true, stateDir: t.TempDir(), stdout: &buf, title: "prune", color: colorNever, plain: true, verbosity: v})
 	g := out.Group("worktrees")
 	for _, n := range []string{"feat1", "a-much-longer-worktree-name", "main"} {
 		row := g.Task(n)
 		if n != "main" {
 			row.Fact("why", "current checkout")
 		}
-		row.Skipped(evo.Reason("in use"))
+		row.skipped(reason("in use"))
 	}
-	_ = out.Finish()
-	_ = out.Close()
+	_ = out.finish()
+	_ = out.close()
 	return buf.String()
 }
 
@@ -34,7 +32,7 @@ func keptWithFactsRun(t *testing.T, v evo.Verbosity) string {
 // why …" row and "! kept 1 (…)". The fold holds; verbose lists each item
 // once with its Facts at one column, whatever the name width.
 func TestSkippedItemFacts_KeepTheFold(t *testing.T) {
-	for _, v := range []evo.Verbosity{evo.VerbosityNormal, evo.VerbosityVerbose} {
+	for _, v := range []verbosity{verbosityNormal, verbosityVerbose} {
 		got := keptWithFactsRun(t, v)
 		if strings.Count(got, "- skipped") != 1 || !strings.Contains(got, "- skipped 3 (in use)") {
 			t.Errorf("verbosity %d: want one \"- skipped 3 (in use)\" tally:\n%s", v, got)
@@ -43,7 +41,7 @@ func TestSkippedItemFacts_KeepTheFold(t *testing.T) {
 			t.Errorf("verbosity %d: a kept item got its own ✓ row:\n%s", v, got)
 		}
 	}
-	got := keptWithFactsRun(t, evo.VerbosityVerbose)
+	got := keptWithFactsRun(t, verbosityVerbose)
 	var cols []int
 	for line := range strings.SplitSeq(got, "\n") {
 		if i := strings.Index(line, "why  current checkout"); i >= 0 {
@@ -59,21 +57,21 @@ func TestSkippedItemFacts_KeepTheFold(t *testing.T) {
 }
 
 // manyKeptOneFactRun is n kept items where only the first carries a Fact,
-// named name (empty for the value-only spelling evo.Fact("", v)).
+// named name (empty for the value-only spelling Fact("", v)).
 func manyKeptOneFactRun(t *testing.T, n int, name string) string {
 	t.Helper()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, StateDir: t.TempDir(), Stdout: &buf, Title: "prune", Color: evo.ColorNever, Plain: true, Verbosity: evo.VerbosityVerbose})
+	out := initRun(Config{isolated: true, stateDir: t.TempDir(), stdout: &buf, title: "prune", color: colorNever, plain: true, verbosity: verbosityVerbose})
 	g := out.Group("worktrees")
 	for i := range n {
 		row := g.Task(fmt.Sprintf("wt%04d", i))
 		if i == 0 {
 			row.Fact(name, "8.0 KB")
 		}
-		row.Skipped(evo.Reason("in use"))
+		row.skipped(reason("in use"))
 	}
-	_ = out.Finish()
-	_ = out.Close()
+	_ = out.finish()
+	_ = out.close()
 	return buf.String()
 }
 

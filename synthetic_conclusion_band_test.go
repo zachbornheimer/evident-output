@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestFail_EmptyTitle_StillRendersFailedBand is I2: a top-level
@@ -18,10 +16,10 @@ import (
 // was ever stated.
 func TestFail_EmptyTitle_StillRendersFailedBand(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
 
-	out.Fail("boom", evo.Detail("underlying"))
-	_ = out.Finish()
+	out.fail("boom", Detail("underlying"))
+	_ = out.finish()
 
 	rendered := buf.String()
 	if !strings.Contains(rendered, "[failed]") {

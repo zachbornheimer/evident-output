@@ -1,12 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"strings"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // ExampleEffect records an opaque mutation Evo cannot model as file state —
@@ -16,17 +14,17 @@ import (
 func ExampleEffect() {
 	for _, dryRun := range []bool{true, false} {
 		var buf strings.Builder
-		out := evo.Init(evo.Config{Isolated: true, Title: "prune", Plain: true, Color: evo.ColorNever, DryRun: dryRun, Stdout: &buf})
+		out := initRun(Config{isolated: true, title: "prune", plain: true, color: colorNever, DryRun: dryRun, stdout: &buf})
 		removed := 0
 		out.Task("worktrees").Define(func(ctx context.Context) error {
-			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectRemove, Object: "stale worktree", Quantity: 2},
+			return Effect(ctx, EffectSpec{Verb: Verb(effectRemove), Object: "stale worktree", Quantity: 2},
 				func(ctx context.Context) error {
 					removed = 2 // e.g. `git worktree remove` for each stale path, honoring ctx
 					return nil
 				})
 		})
-		_ = out.Finish()
-		snap := out.Snapshot()
+		_ = out.finish()
+		snap := out.snapshot()
 		fmt.Printf("dryRun=%v removed=%d planned=%d changed=%d\n", dryRun, removed, len(snap.Plans), len(snap.Changes))
 	}
 	// Output:
@@ -38,7 +36,7 @@ func ExampleEffect() {
 // singular noun and Quantity the positive count the ledger pluralizes from.
 // Constructing it performs no I/O — passing it to Effect does.
 func ExampleEffectSpec() {
-	spec := evo.EffectSpec{Verb: evo.EffectDelete, Object: "remote ref", Quantity: 3}
+	spec := EffectSpec{Verb: Delete, Object: "remote ref", Quantity: 3}
 	fmt.Println(spec.Verb, spec.Quantity, spec.Object)
 	// Output:
 	// delete 3 remote ref
@@ -47,7 +45,7 @@ func ExampleEffectSpec() {
 // ExampleEffectVerb lists the closed verb set. There is no write verb:
 // file state goes through File, not an opaque Effect.
 func ExampleEffectVerb() {
-	for _, v := range []evo.EffectVerb{evo.EffectAdd, evo.EffectCreate, evo.EffectDelete, evo.EffectPush, evo.EffectRemove, evo.EffectUpdate} {
+	for _, v := range []effectVerb{effectAdd, effectCreate, effectDelete, effectPush, effectRemove, effectUpdate} {
 		fmt.Print(v, " ")
 	}
 	fmt.Println()
@@ -59,7 +57,7 @@ func ExampleEffectVerb() {
 // Resource makes no resource claim. Resource is sealed — callers cannot
 // implement it.
 func ExampleEffectSpec_noResource() {
-	spec := evo.EffectSpec{Verb: evo.EffectPush, Object: "branch", Quantity: 1}
+	spec := EffectSpec{Verb: Verb(effectPush), Object: "branch", Quantity: 1}
 	fmt.Println(spec.Resource == nil)
 	// Output:
 	// true
@@ -70,19 +68,19 @@ func ExampleEffectSpec_noResource() {
 // that really happened and the Task still fails with the cause.
 func ExamplePartialEffect() {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Title: "prune", Plain: true, Color: evo.ColorNever, Stdout: &buf})
+	out := initRun(Config{isolated: true, title: "prune", plain: true, color: colorNever, stdout: &buf})
 	rejected := errors.New("remote rejected refs/heads/old")
 	var effectErr error
 	out.Task("remote refs").Define(func(ctx context.Context) error {
-		effectErr = evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "remote ref", Quantity: 3},
+		effectErr = Effect(ctx, EffectSpec{Verb: Delete, Object: "remote ref", Quantity: 3},
 			func(ctx context.Context) error {
 				committed := 2 // e.g. `git push --delete` for each ref until one fails
-				return evo.PartialEffect(committed, rejected)
+				return PartialEffect(committed, rejected)
 			})
 		return effectErr
 	})
-	_ = out.Finish()
-	snap := out.Snapshot()
+	_ = out.finish()
+	snap := out.snapshot()
 	fmt.Println(errors.Is(effectErr, rejected), snap.Changes[0].Records[0].Quantity)
 	// Output:
 	// true 2

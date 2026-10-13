@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"fmt"
@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -21,16 +20,16 @@ const liveBudgetHeight = 8
 // omission line still accounts for what did not fit.
 func TestLiveGroup_AggregatedTalliesCountAgainstTheRowBudget(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(liveBudgetHeight), testkit.NoColor())
-	out := evo.Init(evo.Config{
-		Isolated: true, Terminal: screen, Stdout: io.Discard, Stderr: io.Discard,
-		VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever, MaxFrameRate: 1_000_000,
+	out := initRun(Config{
+		isolated: true, terminal: screen, stdout: io.Discard, stderr: io.Discard,
+		visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000,
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	packages := out.Group("packages")
 	for n := range 40 {
-		packages.Task(fmt.Sprintf("pinned-%02d", n)).Skipped(evo.Reason("pinned"))
-		packages.Task(fmt.Sprintf("vendored-%02d", n)).Skipped(evo.Reason("vendored"))
+		packages.Task(fmt.Sprintf("pinned-%02d", n)).skipped(reason("pinned"))
+		packages.Task(fmt.Sprintf("vendored-%02d", n)).skipped(reason("vendored"))
 	}
 	for n := range 40 {
 		packages.Task(fmt.Sprintf("package-%02d", n)).Doing("downloading")

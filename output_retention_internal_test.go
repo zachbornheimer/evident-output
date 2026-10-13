@@ -12,10 +12,10 @@ import (
 // state is garbage. A settled Task's plain heartbeat timer used to keep
 // the Output reachable until the timer fired, 30s later.
 func TestClosedOutputIsCollectable(t *testing.T) {
-	out := func() weak.Pointer[Output] {
-		o := Init(Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard})
-		_ = o.Task("a").Define(func(context.Context) error { return nil }).Wait()
-		_ = o.Close()
+	out := func() weak.Pointer[Run] {
+		o := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard})
+		_ = o.Task("a").Define(func(context.Context) error { return nil }).wait()
+		_ = o.close()
 		return weak.Make(o)
 	}()
 	for range 10 {

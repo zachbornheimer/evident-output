@@ -15,7 +15,7 @@ import (
 // declared After it (see Compute). The graph decides when it may be read
 // (graph.Computed); this records the misuse of a read it refused.
 type Computed[T any] struct {
-	task *TaskHandle
+	task *Task
 	// value is nil for a producer the Output holds no Task for (a rejected
 	// declaration), which can never settle.
 	value *graph.Computed[T]
@@ -23,7 +23,7 @@ type Computed[T any] struct {
 
 // newGraphComputed is the graph's Computed for the Task behind h, or nil
 // when the Output holds none.
-func newGraphComputed[T any](h *TaskHandle) *graph.Computed[T] {
+func newGraphComputed[T any](h *Task) *graph.Computed[T] {
 	o := h.out
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -35,7 +35,7 @@ func newGraphComputed[T any](h *TaskHandle) *graph.Computed[T] {
 }
 
 // verifyOn is the name of the Task h refers to when it carries a Verify.
-func (h *TaskHandle) verifyOn() (name string, verified bool) {
+func (h *Task) verifyOn() (name string, verified bool) {
 	o := h.out
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -53,16 +53,16 @@ func (h *TaskHandle) verifyOn() (name string, verified bool) {
 // already satisfied skips the callback, so whether a value exists would
 // depend on the state of the world instead of on the code. Compute on one is
 // ErrInvalidConfig at declaration, whatever the Verify would find.
-func Compute[T any](task *TaskHandle, fn func(context.Context) (T, error)) *Computed[T] {
+func Compute[T any](task *Task, fn func(context.Context) (T, error)) *Computed[T] {
 	c := &Computed[T]{task: task}
 	if task == nil || fn == nil {
 		if task != nil {
-			task.out.recordMisuse(ErrInvalidConfig)
+			task.out.recordMisuse(errInvalidConfig)
 		}
 		return c
 	}
 	if name, verified := task.verifyOn(); verified {
-		task.out.recordMisuseFor(name, fmt.Errorf("%w: Compute on %q, which has a Verify that can skip the callback and leave no value", ErrInvalidConfig, name))
+		task.out.recordMisuseFor(name, fmt.Errorf("%w: Compute on %q, which has a Verify that can skip the callback and leave no value", errInvalidConfig, name))
 		return c
 	}
 	c.value = newGraphComputed[T](task)
@@ -80,7 +80,7 @@ func Compute[T any](task *TaskHandle, fn func(context.Context) (T, error)) *Comp
 }
 
 // Producer is the Task that produces the value, for After.
-func (c *Computed[T]) Producer() *TaskHandle {
+func (c *Computed[T]) producer() *Task {
 	if c == nil {
 		return nil
 	}
@@ -108,7 +108,7 @@ func (c *Computed[T]) Get() T {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if c.value == nil {
-		o.refuseComputedReadLocked("", ErrComputedUnsettled, reader)
+		o.refuseComputedReadLocked("", errComputedUnsettled, reader)
 		return zero
 	}
 	v, err := c.value.ReadAs(o.graph, reader)
@@ -124,7 +124,7 @@ func (c *Computed[T]) Get() T {
 // it with err. One from a goroutine the callback started cannot: the graph
 // fails the callback's Task when it returns, and a strict panic on that
 // goroutine, which nothing recovers, would end the process instead.
-func (o *Output) refuseComputedReadLocked(subject string, err error, reader graph.Reader) {
+func (o *Run) refuseComputedReadLocked(subject string, err error, reader graph.Reader) {
 	if subject != "" {
 		err = fmt.Errorf("%w: read of %q", err, subject)
 	}

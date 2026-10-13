@@ -28,7 +28,7 @@ const contentionDeadline = 2 * time.Second
 const contentionPollInterval = time.Millisecond
 
 // taskPhase reads a task's current live activity text.
-func taskPhase(o *Output, taskID string) string {
+func taskPhase(o *Run, taskID string) string {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if st := o.taskStates[taskID]; st != nil {
@@ -39,7 +39,7 @@ func taskPhase(o *Output, taskID string) string {
 
 // awaitWaitingActivity reports whether taskID shows resource-waiting
 // activity before deadline elapses.
-func awaitWaitingActivity(o *Output, taskID string, deadline time.Duration) bool {
+func awaitWaitingActivity(o *Run, taskID string, deadline time.Duration) bool {
 	poll := time.NewTicker(contentionPollInterval)
 	defer poll.Stop()
 	timeout := time.NewTimer(deadline)
@@ -99,7 +99,7 @@ func TestBasisObservationCannotRaceFileCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var out *Output
+	var out *Run
 	var readerID string
 	fsys := &tornWriteFS{target: shared, midCommit: make(chan struct{})}
 	fsys.resume = func() {
@@ -108,7 +108,7 @@ func TestBasisObservationCannotRaceFileCommit(t *testing.T) {
 		awaitWaitingActivity(out, readerID, 300*time.Millisecond)
 	}
 	out = newOutput("race", to(io.Discard), plain(), withNoColor(), withStateDir(t.TempDir()), withFileFS(fsys), maxConcurrency(4))
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	writer := out.Task("write shared")
 	reader := out.Task("derive from shared")
@@ -118,12 +118,12 @@ func TestBasisObservationCannotRaceFileCommit(t *testing.T) {
 	})
 	reader.Define(func(ctx context.Context) error {
 		<-fsys.midCommit
-		return File(ctx, FileSpec{Path: derived, Contents: []byte("derived"), Basis: []freshness.Fingerprint{freshness.FSPath(shared)}})
+		return File(ctx, FileSpec{Path: derived, Contents: []byte("derived"), basis: []freshness.Fingerprint{freshness.FSPath(shared)}})
 	})
-	if err := writer.Wait(); err != nil {
+	if err := writer.wait(); err != nil {
 		t.Fatalf("writer: %v", err)
 	}
-	if err := reader.Wait(); err != nil {
+	if err := reader.wait(); err != nil {
 		t.Fatalf("reader: %v", err)
 	}
 
@@ -143,12 +143,12 @@ func TestFileWaitsForCoarseEffectClaim(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "go.mod")
 	out := newOutput("module", to(io.Discard), plain(), withNoColor(), withStateDir(t.TempDir()), maxConcurrency(4))
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	entered, release := make(chan struct{}), make(chan struct{})
 	tidy := out.Task("tidy module")
 	tidy.Define(func(ctx context.Context) error {
-		spec := EffectSpec{Verb: EffectUpdate, Object: "module", Quantity: 1, Resource: FSResource(dir)}
+		spec := EffectSpec{Verb: Update, Object: "module", Quantity: 1, Resource: fSResource(dir)}
 		return Effect(ctx, spec, func(context.Context) error {
 			close(entered)
 			<-release
@@ -165,10 +165,10 @@ func TestFileWaitsForCoarseEffectClaim(t *testing.T) {
 	waiting := awaitWaitingActivity(out, write.id, contentionDeadline)
 	_, statErr := os.Stat(target)
 	close(release)
-	if err := tidy.Wait(); err != nil {
+	if err := tidy.wait(); err != nil {
 		t.Fatalf("tidy: %v", err)
 	}
-	if err := write.Wait(); err != nil {
+	if err := write.wait(); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	if !errors.Is(statErr, fs.ErrNotExist) {
@@ -195,20 +195,20 @@ func holdBriefly() {
 func TestEffectsOnOneLogicalResourceNeverOverlap(t *testing.T) {
 	name := "package-db " + t.Name()
 	out := newOutput("install", to(io.Discard), plain(), withNoColor(), maxConcurrency(8))
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	var active, peak atomic.Int32
 	group := out.Group("packages")
-	tasks := make([]*TaskHandle, 0, 8)
+	tasks := make([]*Task, 0, 8)
 	for _, pkg := range []string{"a", "b", "c", "d", "e", "f", "g", "h"} {
 		task := group.Task("install " + pkg)
 		// Surrounding whitespace names the same logical resource.
-		resource := LogicalResource(name)
+		resource := logicalResource(name)
 		if pkg == "b" {
-			resource = LogicalResource("  " + name + "\t")
+			resource = logicalResource("  " + name + "\t")
 		}
 		task.Define(func(ctx context.Context) error {
-			spec := EffectSpec{Verb: EffectAdd, Object: "package", Quantity: 1, Resource: resource}
+			spec := EffectSpec{Verb: Verb(effectAdd), Object: "package", Quantity: 1, Resource: resource}
 			return Effect(ctx, spec, func(context.Context) error {
 				n := active.Add(1)
 				for p := peak.Load(); n > p && !peak.CompareAndSwap(p, n); p = peak.Load() {
@@ -221,7 +221,7 @@ func TestEffectsOnOneLogicalResourceNeverOverlap(t *testing.T) {
 		tasks = append(tasks, task)
 	}
 	for _, task := range tasks {
-		if err := task.Wait(); err != nil {
+		if err := task.wait(); err != nil {
 			t.Fatalf("%s: %v", task.id, err)
 		}
 	}
@@ -235,18 +235,18 @@ func TestEffectsOnOneLogicalResourceNeverOverlap(t *testing.T) {
 func TestFileInsideResourceEffectIsNestedMisuse(t *testing.T) {
 	dir := t.TempDir()
 	out := newOutput("nested", to(io.Discard), plain(), withNoColor(), withStateDir(t.TempDir()))
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("publish")
 	var fileErr error
 	task.Define(func(ctx context.Context) error {
-		spec := EffectSpec{Verb: EffectPush, Object: "tag", Quantity: 1, Resource: LogicalResource("remote " + t.Name())}
+		spec := EffectSpec{Verb: Verb(effectPush), Object: "tag", Quantity: 1, Resource: logicalResource("remote " + t.Name())}
 		return Effect(ctx, spec, func(held context.Context) error {
 			fileErr = File(held, FileSpec{Path: filepath.Join(dir, "stamp"), Contents: []byte("x")})
 			return fileErr
 		})
 	})
-	_ = task.Wait()
-	if !errors.Is(fileErr, ErrNestedResourceAcquisition) {
+	_ = task.wait()
+	if !errors.Is(fileErr, errNestedResourceAcquisition) {
 		t.Fatalf("File inside a resource-holding Effect = %v, want ErrNestedResourceAcquisition", fileErr)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "stamp")); !errors.Is(err, fs.ErrNotExist) {
@@ -258,7 +258,7 @@ func TestFileInsideResourceEffectIsNestedMisuse(t *testing.T) {
 // not, before its callback runs.
 func TestEffectRejectsInvalidResource(t *testing.T) {
 	for _, dry := range []bool{false, true} {
-		opts := []Option{to(io.Discard), plain(), withNoColor()}
+		opts := []option{to(io.Discard), plain(), withNoColor()}
 		if dry {
 			opts = append(opts, dryRun())
 		}
@@ -267,13 +267,13 @@ func TestEffectRejectsInvalidResource(t *testing.T) {
 		invoked := false
 		var effectErr error
 		task.Define(func(ctx context.Context) error {
-			spec := EffectSpec{Verb: EffectPush, Object: "tag", Quantity: 1, Resource: LogicalResource(" ")}
+			spec := EffectSpec{Verb: Verb(effectPush), Object: "tag", Quantity: 1, Resource: logicalResource(" ")}
 			effectErr = Effect(ctx, spec, func(context.Context) error { invoked = true; return nil })
 			return effectErr
 		})
-		_ = task.Wait()
-		_ = out.Close()
-		if !errors.Is(effectErr, ErrInvalidResource) {
+		_ = task.wait()
+		_ = out.close()
+		if !errors.Is(effectErr, errInvalidResource) {
 			t.Fatalf("dry=%v: Effect err = %v, want ErrInvalidResource", dry, effectErr)
 		}
 		if invoked {
@@ -285,22 +285,22 @@ func TestEffectRejectsInvalidResource(t *testing.T) {
 // An uncontended resource claim is invisible: an Effect that names a
 // resource renders byte-for-byte like one that does not.
 func TestUncontendedEffectResourceIsSilent(t *testing.T) {
-	render := func(resource Resource) string {
+	render := func(resource resource) string {
 		var buf bytes.Buffer
 		out := newOutput("prune", to(&buf), plain(), withNoColor())
 		task := out.Task("prune worktrees")
 		task.Define(func(ctx context.Context) error {
-			spec := EffectSpec{Verb: EffectDelete, Object: "worktree", Quantity: 2, Resource: resource}
+			spec := EffectSpec{Verb: Delete, Object: "worktree", Quantity: 2, Resource: resource}
 			return Effect(ctx, spec, func(context.Context) error { return nil })
 		})
-		if err := task.Wait(); err != nil {
+		if err := task.wait(); err != nil {
 			t.Fatalf("prune: %v", err)
 		}
-		_ = out.Finish()
+		_ = out.finish()
 		return buf.String()
 	}
 	bare := render(nil)
-	claimed := render(FSResource(t.TempDir()))
+	claimed := render(fSResource(t.TempDir()))
 	if bare != claimed {
 		t.Fatalf("uncontended claim changed the rendering:\n--- bare ---\n%s\n--- claimed ---\n%s", bare, claimed)
 	}

@@ -1,6 +1,6 @@
 //go:build unix
 
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -10,8 +10,6 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestMain_SIGINTCancelsGroupChildAndLaterSiblingsRenderNotStarted exercises
@@ -19,8 +17,8 @@ import (
 // (evo-rec.md #4 / #3's early-termination example).
 func TestMain_SIGINTCancelsGroupChildAndLaterSiblingsRenderNotStarted(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
-	setup := evo.Default().Sequence("python")
+	setDefault(initRun(Config{stdout: &buf, color: colorNever, plain: true}))
+	setup := defaultRun().Sequence("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	install := setup.Task("install")
@@ -32,19 +30,19 @@ func TestMain_SIGINTCancelsGroupChildAndLaterSiblingsRenderNotStarted(t *testing
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Run(context.Background(), func(ctx context.Context) error {
+	code := execute_1(context.Background(), func(ctx context.Context) error {
 		close(started)
 		deadline := time.Now().Add(2 * time.Second)
-		for venv.Snapshot().State != evo.Cancelled && time.Now().Before(deadline) {
+		for venv.snapshot().State != Cancelled && time.Now().Before(deadline) {
 			time.Sleep(time.Millisecond)
 		}
 		return nil
 	}).ExitCode()
 
-	if code != evo.ExitCancelled {
-		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())
+	if code != exitCancelled {
+		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, exitCancelled, buf.String())
 	}
-	if got := install.Snapshot().State; got != evo.NotStarted {
+	if got := install.snapshot().State; got != notStarted {
 		t.Fatalf("install state = %v, want NotStarted", got)
 	}
 	if !strings.Contains(buf.String(), "- install  not started") {

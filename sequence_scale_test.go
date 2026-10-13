@@ -20,10 +20,10 @@ type nestedStepCost struct {
 // Sequence.
 func scheduleNestedSteps(tb testing.TB, n int) nestedStepCost {
 	tb.Helper()
-	out := Init(Config{Isolated: true, StateDir: tb.TempDir(), Stdout: io.Discard, Stderr: io.Discard})
-	defer func() { _ = out.Close() }()
+	out := initRun(Config{isolated: true, stateDir: tb.TempDir(), stdout: io.Discard, stderr: io.Discard})
+	defer func() { _ = out.close() }()
 	seq := out.Sequence("phases")
-	tasks := make([]*TaskHandle, n)
+	tasks := make([]*Task, n)
 	for i := range n {
 		tasks[i] = seq.Group(fmt.Sprintf("phase %d", i)).Task("step")
 	}
@@ -36,7 +36,7 @@ func scheduleNestedSteps(tb testing.TB, n int) nestedStepCost {
 	for _, h := range tasks {
 		h.Define(func(context.Context) error { return nil })
 	}
-	if err := seq.Wait(); err != nil {
+	if err := seq.wait(); err != nil {
 		tb.Fatalf("Wait: %v", err)
 	}
 	cost.predChecks = out.graph.PredecessorChecks()
@@ -73,8 +73,8 @@ func BenchmarkScheduleNestedSteps(b *testing.B) {
 // cost was k·n.
 func TestRepeatedStepFailuresStopFollowersOnce(t *testing.T) {
 	const k, n = 50, 200
-	out := Init(Config{Isolated: true, StateDir: t.TempDir(), Stdout: io.Discard, Stderr: io.Discard, MaxConcurrency: k})
-	defer func() { _ = out.Close() }()
+	out := initRun(Config{isolated: true, stateDir: t.TempDir(), stdout: io.Discard, stderr: io.Discard, MaxConcurrency: k})
+	defer func() { _ = out.close() }()
 	seq := out.Sequence("phases")
 	g := seq.Group("checks")
 	boom := errors.New("boom")
@@ -86,7 +86,7 @@ func TestRepeatedStepFailuresStopFollowersOnce(t *testing.T) {
 		seq.Task(fmt.Sprintf("later %d", i))
 	}
 	close(start)
-	_ = g.Wait()
+	_ = g.wait()
 	checks := out.graph.FollowerChecks()
 	t.Logf("k=%d failures, n=%d later steps: follower checks=%d", k, n, checks)
 	if checks > n {

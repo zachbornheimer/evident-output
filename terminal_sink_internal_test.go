@@ -35,7 +35,7 @@ func TestConfigToOptions_CallerTerminalSharingPrimaryIsDetected(t *testing.T) {
 	var buf bytes.Buffer
 	term := &fakeSinkTerminal{w: &buf}
 
-	cfg := resolveConfig(Config{Stdout: &buf, Stderr: &bytes.Buffer{}, Terminal: term})
+	cfg := resolveConfig(Config{stdout: &buf, stderr: &bytes.Buffer{}, terminal: term})
 	opts := configToOptions(cfg)
 
 	var built config

@@ -22,7 +22,7 @@ type scriptedRunner struct {
 	stdout   []string
 	stderr   []string
 	gate     chan struct{}
-	calls    []ProcessCommand
+	calls    []processCommand
 	// onRun, when set, runs synchronously right after gate releases and
 	// before Run returns — simulating a child that produces its declared
 	// Output as its very last act (used to prove the freshness barrier
@@ -30,20 +30,20 @@ type scriptedRunner struct {
 	onRun func()
 }
 
-func (r *scriptedRunner) Run(ctx context.Context, cmd ProcessCommand) (ProcessOutcome, error) {
+func (r *scriptedRunner) Run(ctx context.Context, cmd processCommand) (processOutcome, error) {
 	r.calls = append(r.calls, cmd)
 	if r.gate != nil {
 		select {
 		case <-r.gate:
 		case <-ctx.Done():
-			return ProcessOutcome{}, ctx.Err()
+			return processOutcome{}, ctx.Err()
 		}
 	}
 	if ctx.Err() != nil {
-		return ProcessOutcome{}, ctx.Err()
+		return processOutcome{}, ctx.Err()
 	}
 	if r.spawnErr != nil {
-		return ProcessOutcome{}, r.spawnErr
+		return processOutcome{}, r.spawnErr
 	}
 	if r.onRun != nil {
 		r.onRun()
@@ -54,16 +54,16 @@ func (r *scriptedRunner) Run(ctx context.Context, cmd ProcessCommand) (ProcessOu
 	for _, l := range r.stderr {
 		_, _ = cmd.Stderr.Write([]byte(l + "\n"))
 	}
-	return ProcessOutcome{ExitCode: r.exitCode}, nil
+	return processOutcome{ExitCode: r.exitCode}, nil
 }
 
 // routedRunner dispatches to a different ProcessRunner per resolved
 // executable path — Config carries exactly one ProcessRunner per Output, so
 // a producer/consumer freshness test that needs independently controllable
 // spawns for two different Tasks routes through this.
-type routedRunner struct{ byPath map[string]ProcessRunner }
+type routedRunner struct{ byPath map[string]processRunner }
 
-func (r routedRunner) Run(ctx context.Context, cmd ProcessCommand) (ProcessOutcome, error) {
+func (r routedRunner) Run(ctx context.Context, cmd processCommand) (processOutcome, error) {
 	return r.byPath[cmd.Path].Run(ctx, cmd)
 }
 
@@ -82,7 +82,7 @@ func execFixture(t *testing.T, dir, name, contents string) string {
 
 // runExecTask runs one Task named name whose Define calls Exec(spec) once
 // against out, waiting for it to settle, and returns Exec's own error.
-func runExecTask(t *testing.T, out *Output, name string, spec ExecSpec) error {
+func runExecTask(t *testing.T, out *Run, name string, spec ExecSpec) error {
 	t.Helper()
 	_, err := runExecTaskResult(t, out, name, spec)
 	return err
@@ -91,7 +91,7 @@ func runExecTask(t *testing.T, out *Output, name string, spec ExecSpec) error {
 // runExecTaskResult is runExecTask but also returns the ExecResult Exec
 // itself produced, so callers can assert Ran/ExitCode/Stdout/Stderr/
 // Truncated instead of only the error.
-func runExecTaskResult(t *testing.T, out *Output, name string, spec ExecSpec) (ExecResult, error) {
+func runExecTaskResult(t *testing.T, out *Run, name string, spec ExecSpec) (ExecResult, error) {
 	t.Helper()
 	var execResult ExecResult
 	var execErr error
@@ -100,7 +100,7 @@ func runExecTaskResult(t *testing.T, out *Output, name string, spec ExecSpec) (E
 		execResult, execErr = Exec(ctx, spec)
 		return execErr
 	})
-	_ = task.Wait()
+	_ = task.wait()
 	return execResult, execErr
 }
 
@@ -108,13 +108,13 @@ func TestExecSpawnsWhenNoOutputsDeclared(t *testing.T) {
 	dir := t.TempDir()
 	tool := execFixture(t, dir, "tool", "v1")
 	runner := &scriptedRunner{exitCode: 0}
-	out := Init(Config{Isolated: true, StateDir: t.TempDir(), ProcessRunner: runner})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stateDir: t.TempDir(), processRunner: runner})
+	t.Cleanup(func() { _ = out.close() })
 
-	if err := runExecTask(t, out, "no-outputs", ExecSpec{Executable: tool}); err != nil {
+	if err := runExecTask(t, out, "no-outputs", ExecSpec{executable: tool}); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
-	if err := runExecTask(t, out, "no-outputs-2", ExecSpec{Executable: tool}); err != nil {
+	if err := runExecTask(t, out, "no-outputs-2", ExecSpec{executable: tool}); err != nil {
 		t.Fatalf("second run: %v", err)
 	}
 	if len(runner.calls) != 2 {
@@ -129,8 +129,8 @@ func TestExecSkipsSecondRunWhenOutputsUnchanged(t *testing.T) {
 	outPath := filepath.Join(dir, "out.txt")
 
 	firstRunner := &scriptedRunner{exitCode: 0, stdout: []string{"built"}}
-	first := Init(Config{Isolated: true, StateDir: state, ProcessRunner: firstRunner})
-	spec := ExecSpec{Executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
+	first := initRun(Config{isolated: true, stateDir: state, processRunner: firstRunner})
+	spec := ExecSpec{executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
 	// The fake runner does not itself write files; simulate the child's own
 	// effect (declared Outputs are its contract, not evo's).
 	if err := os.WriteFile(outPath, []byte("built"), 0o644); err != nil {
@@ -139,14 +139,14 @@ func TestExecSkipsSecondRunWhenOutputsUnchanged(t *testing.T) {
 	if err := runExecTask(t, first, "build", spec); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
-	_ = first.Close()
+	_ = first.close()
 	if len(firstRunner.calls) != 1 {
 		t.Fatalf("first run spawn count = %d, want 1", len(firstRunner.calls))
 	}
 
 	secondRunner := &scriptedRunner{exitCode: 0}
-	second := Init(Config{Isolated: true, StateDir: state, ProcessRunner: secondRunner})
-	t.Cleanup(func() { _ = second.Close() })
+	second := initRun(Config{isolated: true, stateDir: state, processRunner: secondRunner})
+	t.Cleanup(func() { _ = second.close() })
 	result, err := runExecTaskResult(t, second, "build", spec)
 	if err != nil {
 		t.Fatalf("second run: %v", err)
@@ -167,24 +167,24 @@ func TestExecRerunsWhenOutputDrifts(t *testing.T) {
 	dir := t.TempDir()
 	tool := execFixture(t, dir, "tool", "v1")
 	outPath := filepath.Join(dir, "out.txt")
-	spec := ExecSpec{Executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
+	spec := ExecSpec{executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
 
 	if err := os.WriteFile(outPath, []byte("built"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	first := Init(Config{Isolated: true, StateDir: state, ProcessRunner: &scriptedRunner{exitCode: 0}})
+	first := initRun(Config{isolated: true, stateDir: state, processRunner: &scriptedRunner{exitCode: 0}})
 	if err := runExecTask(t, first, "build", spec); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
-	_ = first.Close()
+	_ = first.close()
 
 	// External drift: someone edited the output outside Evo.
 	if err := os.WriteFile(outPath, []byte("tampered"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	runner := &scriptedRunner{exitCode: 0}
-	second := Init(Config{Isolated: true, StateDir: state, ProcessRunner: runner})
-	t.Cleanup(func() { _ = second.Close() })
+	second := initRun(Config{isolated: true, stateDir: state, processRunner: runner})
+	t.Cleanup(func() { _ = second.close() })
 	if err := runExecTask(t, second, "build", spec); err != nil {
 		t.Fatalf("second run: %v", err)
 	}
@@ -196,12 +196,12 @@ func TestExecRerunsWhenOutputDrifts(t *testing.T) {
 func TestExecMissingOutputAfterSuccessFails(t *testing.T) {
 	dir := t.TempDir()
 	tool := execFixture(t, dir, "tool", "v1")
-	spec := ExecSpec{Executable: tool, Outputs: []string{"never-written.txt"}, Dir: dir}
-	out := Init(Config{Isolated: true, StateDir: t.TempDir(), ProcessRunner: &scriptedRunner{exitCode: 0}})
-	t.Cleanup(func() { _ = out.Close() })
+	spec := ExecSpec{executable: tool, Outputs: []string{"never-written.txt"}, Dir: dir}
+	out := initRun(Config{isolated: true, stateDir: t.TempDir(), processRunner: &scriptedRunner{exitCode: 0}})
+	t.Cleanup(func() { _ = out.close() })
 
 	result, err := runExecTaskResult(t, out, "missing-output", spec)
-	if !errors.Is(err, ErrExecOutputMissingAfterSuccess) {
+	if !errors.Is(err, errExecOutputMissingAfterSuccess) {
 		t.Fatalf("err = %v, want ErrExecOutputMissingAfterSuccess", err)
 	}
 	if !result.Ran {
@@ -217,12 +217,12 @@ func TestExecNonzeroExitFailsAndCommitsNoRecord(t *testing.T) {
 	dir := t.TempDir()
 	tool := execFixture(t, dir, "tool", "v1")
 	outPath := filepath.Join(dir, "out.txt")
-	spec := ExecSpec{Executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
+	spec := ExecSpec{executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
 
 	runner := &scriptedRunner{exitCode: 1, stderr: []string{"boom"}}
-	out := Init(Config{Isolated: true, StateDir: state, ProcessRunner: runner})
+	out := initRun(Config{isolated: true, stateDir: state, processRunner: runner})
 	result, err := runExecTaskResult(t, out, "fails", spec)
-	_ = out.Close()
+	_ = out.close()
 	if !errors.Is(err, ErrExecNonzeroExit) {
 		t.Fatalf("err = %v, want ErrExecNonzeroExit", err)
 	}
@@ -245,8 +245,8 @@ func TestExecNonzeroExitFailsAndCommitsNoRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	nextRunner := &scriptedRunner{exitCode: 0}
-	next := Init(Config{Isolated: true, StateDir: state, ProcessRunner: nextRunner})
-	t.Cleanup(func() { _ = next.Close() })
+	next := initRun(Config{isolated: true, stateDir: state, processRunner: nextRunner})
+	t.Cleanup(func() { _ = next.close() })
 	if err := runExecTask(t, next, "fails", spec); err != nil {
 		t.Fatalf("recovery run: %v", err)
 	}
@@ -258,10 +258,10 @@ func TestExecNonzeroExitFailsAndCommitsNoRecord(t *testing.T) {
 func TestExecDryRunNeverSpawns(t *testing.T) {
 	dir := t.TempDir()
 	tool := execFixture(t, dir, "tool", "v1")
-	spec := ExecSpec{Executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
+	spec := ExecSpec{executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
 	runner := &scriptedRunner{exitCode: 0}
-	out := Init(Config{Isolated: true, DryRun: true, StateDir: t.TempDir(), ProcessRunner: runner})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, DryRun: true, stateDir: t.TempDir(), processRunner: runner})
+	t.Cleanup(func() { _ = out.close() })
 
 	result, err := runExecTaskResult(t, out, "dry", spec)
 	if err != nil {
@@ -281,10 +281,10 @@ func TestExecDryRunNeverSpawns(t *testing.T) {
 func TestExecCancellationKillsProcess(t *testing.T) {
 	dir := t.TempDir()
 	tool := execFixture(t, dir, "tool", "v1")
-	spec := ExecSpec{Executable: tool}
+	spec := ExecSpec{executable: tool}
 	gate := make(chan struct{}) // never closed: only ctx cancellation may release Run
 	runner := &scriptedRunner{exitCode: 0, gate: gate}
-	out := Init(Config{Isolated: true, StateDir: t.TempDir(), ProcessRunner: runner})
+	out := initRun(Config{isolated: true, stateDir: t.TempDir(), processRunner: runner})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -297,7 +297,7 @@ func TestExecCancellationKillsProcess(t *testing.T) {
 	// Give the scheduler a moment to enter Define and reach the gated Run.
 	time.Sleep(20 * time.Millisecond)
 	cancel()
-	_ = out.Run(ctx, func(context.Context) error { return nil })
+	_ = out.run(ctx, func(context.Context) error { return nil })
 
 	select {
 	case err := <-done:
@@ -319,20 +319,20 @@ func TestExecBasisDriftForcesRespawn(t *testing.T) {
 		t.Fatal(err)
 	}
 	spec1 := ExecSpec{
-		Executable: tool, Outputs: []string{"out.txt"}, Dir: dir,
-		Basis: []freshness.Fingerprint{freshness.Value("input", 1)},
+		executable: tool, Outputs: []string{"out.txt"}, Dir: dir,
+		basis: []freshness.Fingerprint{freshness.Value("input", 1)},
 	}
-	first := Init(Config{Isolated: true, StateDir: state, ProcessRunner: &scriptedRunner{exitCode: 0}})
+	first := initRun(Config{isolated: true, stateDir: state, processRunner: &scriptedRunner{exitCode: 0}})
 	if err := runExecTask(t, first, "build", spec1); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
-	_ = first.Close()
+	_ = first.close()
 
 	spec2 := spec1
-	spec2.Basis = []freshness.Fingerprint{freshness.Value("input", 2)}
+	spec2.basis = []freshness.Fingerprint{freshness.Value("input", 2)}
 	runner := &scriptedRunner{exitCode: 0}
-	second := Init(Config{Isolated: true, StateDir: state, ProcessRunner: runner})
-	t.Cleanup(func() { _ = second.Close() })
+	second := initRun(Config{isolated: true, stateDir: state, processRunner: runner})
+	t.Cleanup(func() { _ = second.close() })
 	if err := runExecTask(t, second, "build", spec2); err != nil {
 		t.Fatalf("second run: %v", err)
 	}
@@ -345,17 +345,17 @@ func TestExecCapturedLineBecomesActivity(t *testing.T) {
 	dir := t.TempDir()
 	tool := execFixture(t, dir, "tool", "v1")
 	runner := &scriptedRunner{exitCode: 0, stdout: []string{"step one", "step two"}}
-	out := Init(Config{Isolated: true, StateDir: t.TempDir(), ProcessRunner: runner})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stateDir: t.TempDir(), processRunner: runner})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("narrated")
 	var lastPhase string
 	task.Define(func(ctx context.Context) error {
-		_, err := Exec(ctx, ExecSpec{Executable: tool})
-		lastPhase = task.Snapshot().Phase
+		_, err := Exec(ctx, ExecSpec{executable: tool})
+		lastPhase = task.snapshot().Phase
 		return err
 	})
-	_ = task.Wait()
+	_ = task.wait()
 	if lastPhase != "step two" {
 		t.Fatalf("task phase = %q, want the last captured line", lastPhase)
 	}
@@ -365,22 +365,22 @@ func TestExecCapturedSecretIsRedactedBeforeRetention(t *testing.T) {
 	dir := t.TempDir()
 	tool := execFixture(t, dir, "tool", "v1")
 	runner := &scriptedRunner{exitCode: 1, stdout: []string{"token=super-secret-value"}}
-	out := Init(Config{
-		Isolated: true, StateDir: t.TempDir(), ProcessRunner: runner,
-		Redactor: secretRedactor{secret: "super-secret-value"},
+	out := initRun(Config{
+		isolated: true, stateDir: t.TempDir(), processRunner: runner,
+		redactor: secretRedactor{secret: "super-secret-value"},
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("secret")
 	var tail string
 	var result ExecResult
 	task.Define(func(ctx context.Context) error {
-		res, err := Exec(ctx, ExecSpec{Executable: tool})
+		res, err := Exec(ctx, ExecSpec{executable: tool})
 		result = res
-		tail = task.CaptureForTest().Text()
+		tail = task.captureForTest().Text()
 		return err
 	})
-	_ = task.Wait()
+	_ = task.wait()
 	if want := "super-secret-value"; strings.Contains(tail, want) {
 		t.Fatalf("evidence tail leaked the secret: %q", tail)
 	}
@@ -429,13 +429,13 @@ func TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput(t *testing.
 		}
 	}}
 	consumerRunner := &scriptedRunner{exitCode: 0}
-	router := routedRunner{byPath: map[string]ProcessRunner{
+	router := routedRunner{byPath: map[string]processRunner{
 		normalizeTool: producerRunner,
 		compileTool:   consumerRunner,
 	}}
 
-	out := Init(Config{Isolated: true, StateDir: t.TempDir(), ProcessRunner: router})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stateDir: t.TempDir(), processRunner: router})
+	t.Cleanup(func() { _ = out.close() })
 
 	consumerObservedSchema := make(chan string, 1)
 	producerDone := make(chan struct{})
@@ -443,7 +443,7 @@ func TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput(t *testing.
 	task.Define(func(taskCtx context.Context) error {
 		go func() {
 			defer close(producerDone)
-			_, _ = Exec(taskCtx, ExecSpec{Executable: normalizeTool, Dir: dir, Outputs: []string{"schema.json"}})
+			_, _ = Exec(taskCtx, ExecSpec{executable: normalizeTool, Dir: dir, Outputs: []string{"schema.json"}})
 		}()
 
 		// Wait for the producer's claim (spec: opened at claim time, before
@@ -463,8 +463,8 @@ func TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput(t *testing.
 		}()
 
 		_, err := Exec(taskCtx, ExecSpec{
-			Executable: compileTool, Dir: dir,
-			Basis:   []freshness.Fingerprint{freshness.FSPath(schemaPath)},
+			executable: compileTool, Dir: dir,
+			basis:   []freshness.Fingerprint{freshness.FSPath(schemaPath)},
 			Outputs: []string{"compiled.txt"},
 		})
 		got, readErr := os.ReadFile(schemaPath)
@@ -476,7 +476,7 @@ func TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput(t *testing.
 		<-producerDone
 		return err
 	})
-	_ = task.Wait()
+	_ = task.wait()
 
 	select {
 	case observed := <-consumerObservedSchema:
@@ -498,25 +498,25 @@ func TestExecProducerConflictFailsSecondClaim(t *testing.T) {
 	if err := os.WriteFile(sharedPath, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out := Init(Config{Isolated: true, StateDir: t.TempDir(), ProcessRunner: &scriptedRunner{exitCode: 0}})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stateDir: t.TempDir(), processRunner: &scriptedRunner{exitCode: 0}})
+	t.Cleanup(func() { _ = out.close() })
 
 	first := out.Task("first")
 	first.Define(func(ctx context.Context) error {
-		_, err := Exec(ctx, ExecSpec{Executable: tool, Dir: dir, Outputs: []string{"shared.txt"}})
+		_, err := Exec(ctx, ExecSpec{executable: tool, Dir: dir, Outputs: []string{"shared.txt"}})
 		return err
 	})
-	_ = first.Wait()
+	_ = first.wait()
 
 	var secondErr error
 	second := out.Task("second")
 	second.Define(func(ctx context.Context) error {
-		_, secondErr = Exec(ctx, ExecSpec{Executable: tool, Dir: dir, Outputs: []string{"shared.txt"}})
+		_, secondErr = Exec(ctx, ExecSpec{executable: tool, Dir: dir, Outputs: []string{"shared.txt"}})
 		return secondErr
 	})
-	_ = second.Wait()
+	_ = second.wait()
 
-	if !errors.Is(secondErr, ErrFileConflictingProducer) {
+	if !errors.Is(secondErr, errFileConflictingProducer) {
 		t.Fatalf("second claim err = %v, want ErrFileConflictingProducer", secondErr)
 	}
 }

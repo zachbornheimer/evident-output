@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit/scaletest"
 )
 
@@ -35,10 +34,10 @@ const (
 	hangGuard = 10 * time.Minute
 )
 
-func newScaleOutput(t *testing.T) *evo.Output {
+func newScaleOutput(t *testing.T) *Run {
 	t.Helper()
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true, MaxEntities: scaleMaxEntities})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true, maxEntities: scaleMaxEntities})
+	t.Cleanup(func() { _ = out.close() })
 	return out
 }
 
@@ -105,11 +104,11 @@ func runZqShape(t *testing.T, packagesPerManager int) {
 	t.Helper()
 	out := newScaleOutput(t)
 	packages := out.Sequence("consolidate packages")
-	inventory := evo.Compute(packages.Task("discover installed packages"), func(context.Context) ([]string, error) {
+	inventory := Compute(packages.Task("discover installed packages"), func(context.Context) ([]string, error) {
 		return []string{"npm", "composer"}, nil
 	})
 	centralize := packages.Group("centralize packages")
-	centralize.Define(func(g *evo.GroupHandle) {
+	centralize.define(func(g *Group) {
 		for _, manager := range inventory.Get() {
 			mg := g.Group(manager)
 			for i := range packagesPerManager {
@@ -125,13 +124,13 @@ func runZqShape(t *testing.T, packagesPerManager int) {
 		}
 		kept := g.Group("modified checkouts")
 		for i := range zqShapeModifiedTasks {
-			kept.Task(fmt.Sprintf("keep modified pkg (checkout-%d)", i)).Skipped(evo.Reason("modified"))
+			kept.Task(fmt.Sprintf("keep modified pkg (checkout-%d)", i)).skipped(reason("modified"))
 		}
 	})
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
-	if err := out.Err(); err != nil {
+	if err := out.err(); err != nil {
 		t.Fatalf("Err: %v", err)
 	}
 }
@@ -146,12 +145,12 @@ func TestContainerDefine_ZqShapedRunScalesLinearly(t *testing.T) {
 func runBulkBuilder(t *testing.T, tasks int) {
 	t.Helper()
 	out := newScaleOutput(t)
-	out.Group("bulk").Define(func(g *evo.GroupHandle) {
+	out.Group("bulk").define(func(g *Group) {
 		for i := range tasks {
 			g.Task(fmt.Sprintf("task %d", i)).Define(func(context.Context) error { return nil })
 		}
 	})
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 }

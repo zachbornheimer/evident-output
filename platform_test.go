@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -10,26 +10,24 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
-type secretRedactor struct{}
+type platformSecretRedactor struct{}
 
-func (secretRedactor) RedactString(s string) string {
+func (platformSecretRedactor) RedactString(s string) string {
 	return strings.ReplaceAll(s, "SECRET_TOKEN", "[REDACTED]")
 }
 
 func TestCapture_RedactsOnRetention(t *testing.T) {
 	var primary bytes.Buffer
-	out := evo.Init(evo.Config{
-		Title:    "sec",
-		Stdout:   &primary,
-		Stderr:   &primary,
-		Redactor: secretRedactor{},
+	out := initRun(Config{
+		title:    "sec",
+		stdout:   &primary,
+		stderr:   &primary,
+		redactor: platformSecretRedactor{},
 	})
 	task := out.Task("fetch")
-	cap := task.Capture()
+	cap := task.capture()
 	_, _ = fmt.Fprintln(cap, "Authorization: Bearer SECRET_TOKEN")
 	_ = cap.Close()
 
@@ -40,8 +38,8 @@ func TestCapture_RedactsOnRetention(t *testing.T) {
 		t.Fatalf("expected redaction marker: %q", cap.Text())
 	}
 
-	task.Fail("denied", cap.DetailTail())
-	_ = out.Finish()
+	task.fail("denied", cap.DetailTail())
+	_ = out.finish()
 	if strings.Contains(primary.String(), "SECRET_TOKEN") {
 		t.Fatalf("token leaked into presentation:\n%s", primary.String())
 	}
@@ -49,12 +47,12 @@ func TestCapture_RedactsOnRetention(t *testing.T) {
 
 func TestEntityID_StableKeyInSnapshotAndJSON(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "id", Stdout: &buf, Stderr: &buf})
-	succeed(out.Task("working tree").Key("gate.working-tree"))
-	succeed(out.Task("download base").Key("build.base.download"))
-	_ = out.Finish()
+	out := initRun(Config{title: "id", stdout: &buf, stderr: &buf})
+	succeed(out.Task("working tree").key("gate.working-tree"))
+	succeed(out.Task("download base").key("build.base.download"))
+	_ = out.finish()
 
-	snap := out.Snapshot()
+	snap := out.snapshot()
 	if len(snap.Tasks) != 2 || snap.Tasks[0].Key != "gate.working-tree" {
 		t.Fatalf("first task key: %+v", snap.Tasks)
 	}
@@ -83,28 +81,28 @@ func TestEntityID_StableKeyInSnapshotAndJSON(t *testing.T) {
 
 func TestEntityID_DuplicateIsMisuse(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "dup", Stdout: &buf, Stderr: &buf})
-	succeed(out.Task("a").Key("same"))
-	succeed(out.Task("b").Key("same"))
-	if !errors.Is(out.Err(), evo.ErrDuplicateKey) {
+	out := initRun(Config{title: "dup", stdout: &buf, stderr: &buf})
+	succeed(out.Task("a").key("same"))
+	succeed(out.Task("b").key("same"))
+	if !errors.Is(out.err(), errDuplicateKey) {
 		t.Fatal("expected ErrDuplicateKey misuse")
 	}
 }
 
 func TestResultWriter_FormatDataPurity(t *testing.T) {
 	var human, result bytes.Buffer
-	out := evo.Init(evo.Config{
-		Title:  "build",
-		Format: evo.FormatData,
-		Stdout: &result,
-		Stderr: &human,
+	out := initRun(Config{
+		title:  "build",
+		format: formatData,
+		stdout: &result,
+		stderr: &human,
 	})
 	succeed(out.Task("compile"))
 	succeed(out.Task("link"), "bin/app")
 	if _, err := io.WriteString(out.ResultWriter(), `{"artifact":"bin/app"}`+"\n"); err != nil {
 		t.Fatal(err)
 	}
-	_ = out.Finish()
+	_ = out.finish()
 
 	if strings.Contains(result.String(), "compile") || strings.Contains(result.String(), "link") {
 		t.Fatalf("presentation leaked into result stream:\n%s", result.String())
@@ -122,7 +120,7 @@ func TestResultWriter_FormatDataPurity(t *testing.T) {
 
 func TestResultWriter_UnsetIsDiscard(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "h", Stdout: &buf, Stderr: &buf})
+	out := initRun(Config{title: "h", stdout: &buf, stderr: &buf})
 	n, err := out.ResultWriter().Write([]byte("should-not-appear"))
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +128,7 @@ func TestResultWriter_UnsetIsDiscard(t *testing.T) {
 	if n != len("should-not-appear") {
 		t.Fatalf("write n=%d", n)
 	}
-	_ = out.Finish()
+	_ = out.finish()
 	if strings.Contains(buf.String(), "should-not-appear") {
 		t.Fatalf("discard failed: %q", buf.String())
 	}
@@ -138,12 +136,12 @@ func TestResultWriter_UnsetIsDiscard(t *testing.T) {
 
 func TestItem_CaptureBindsEvidence(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "gate", Stdout: &buf, Stderr: &buf})
+	out := initRun(Config{title: "gate", stdout: &buf, stderr: &buf})
 	docker := out.Task("docker daemon")
-	cap := docker.Capture()
+	cap := docker.capture()
 	_, _ = cap.Stderr().Write([]byte("Cannot connect to the Docker daemon"))
-	docker.Fail("could not inspect the daemon", cap.DetailTail())
-	_ = out.Finish()
+	docker.fail("could not inspect the daemon", cap.DetailTail())
+	_ = out.finish()
 	if !strings.Contains(buf.String(), "Cannot connect") {
 		t.Fatalf("item capture detail missing:\n%s", buf.String())
 	}

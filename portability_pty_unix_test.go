@@ -1,6 +1,6 @@
 //go:build unix
 
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
 
@@ -19,9 +18,9 @@ func TestPORT_RedirectedStdout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := evo.Init(evo.Config{Isolated: true, Stdout: w, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: w, color: colorNever, plain: true})
 	succeed(out.Task("pipe"))
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	_ = w.Close()
@@ -33,7 +32,7 @@ func TestPORT_RedirectedStdout(t *testing.T) {
 	if !strings.Contains(string(buf), "pipe") {
 		t.Fatalf("got %q", buf)
 	}
-	_ = out.Close()
+	_ = out.close()
 }
 
 // TestPORT001_ANSIOnPipe verifies the production ANSI driver does not panic
@@ -41,10 +40,10 @@ func TestPORT_RedirectedStdout(t *testing.T) {
 func TestPORT001_ANSIOnPipe(t *testing.T) {
 	var buf bytes.Buffer
 	drv := terminal.NewANSI(&buf, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Terminal: drv, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, terminal: drv, Debug: debugConfig{level: levelDebug}})
+	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("work").Doing("run"), "ok")
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "ok") {

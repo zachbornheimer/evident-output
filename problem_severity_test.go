@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -6,47 +6,45 @@ import (
 	"io"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 func TestProblem_DefaultSeverityFailsTaskAndRun(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, StateDir: t.TempDir()})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true, stateDir: t.TempDir()})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("check")
 	task.Define(func(context.Context) error {
 		task.Problem("x")
 		return nil
 	})
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if got := task.Snapshot().State; got != evo.Failed {
+	if got := task.snapshot().State; got != Failed {
 		t.Fatalf("task state = %s, want Failed", got)
 	}
-	c := out.Conclusion()
-	if c.State != evo.StateFailed || c.ExitCode != evo.ExitFailed {
-		t.Fatalf("conclusion = %s exit %d, want failed exit %d\n%s", c.State, c.ExitCode, evo.ExitFailed, buf.String())
+	c := out.conclusion()
+	if c.state != stateFailed || c.exitCode != exitFailed {
+		t.Fatalf("conclusion = %s exit %d, want failed exit %d\n%s", c.state, c.exitCode, exitFailed, buf.String())
 	}
 }
 
 func TestProblem_WarningSeveritySettlesDoneAndWarns(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, StateDir: t.TempDir()})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true, stateDir: t.TempDir()})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("check")
 	task.Define(func(context.Context) error {
-		task.Problem("x", evo.Severity(evo.SeverityWarning))
+		task.Problem("x", severity(severityWarning))
 		return nil
 	})
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	snap := task.Snapshot()
-	if snap.State != evo.Done {
+	snap := task.snapshot()
+	if snap.State != done {
 		t.Fatalf("task state = %s, want Done", snap.State)
 	}
 	if len(snap.Warnings) != 1 || snap.Warnings[0].Summary != "x" {
@@ -55,28 +53,28 @@ func TestProblem_WarningSeveritySettlesDoneAndWarns(t *testing.T) {
 	if len(snap.Problems) != 0 {
 		t.Fatalf("problems = %#v, want none on a warning Problem", snap.Problems)
 	}
-	c := out.Conclusion()
-	if !c.Warned || c.ExitCode != evo.ExitOK {
-		t.Fatalf("conclusion warned=%v exit %d, want warned exit 0\n%s", c.Warned, c.ExitCode, buf.String())
+	c := out.conclusion()
+	if !c.warned || c.exitCode != exitOK {
+		t.Fatalf("conclusion warned=%v exit %d, want warned exit 0\n%s", c.warned, c.exitCode, buf.String())
 	}
 }
 
 func TestProblem_InvalidSeverityIsRejected(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, StateDir: t.TempDir()})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true, stateDir: t.TempDir()})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("check")
 	task.Define(func(context.Context) error {
-		task.Problem("x", evo.Severity("nope"))
+		task.Problem("x", severity("nope"))
 		return nil
 	})
-	_ = out.Finish()
-	snap := task.Snapshot()
+	_ = out.finish()
+	snap := task.snapshot()
 	if len(snap.Problems) != 0 || len(snap.Warnings) != 0 {
 		t.Fatalf("invalid severity recorded a problem: problems=%#v warnings=%#v", snap.Problems, snap.Warnings)
 	}
-	err := out.Err()
+	err := out.err()
 	if err == nil || !strings.Contains(err.Error(), "nope") {
 		t.Fatalf("Err() = %v, want a context-bearing invalid severity error containing nope", err)
 	}
@@ -86,13 +84,13 @@ func TestProblem_InvalidSeverityIsRejected(t *testing.T) {
 // compact form: one short warning renders directly on the task's own ✓ row.
 func TestProblemWarning_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
 
 	branches := out.Task("branches")
-	branches.Problem("kept 11 (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
+	branches.Problem("kept 11 (7 protected, 4 unpushed)", severity(severityWarning))
 	succeed(branches)
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -112,14 +110,14 @@ func TestProblemWarning_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 // lines below it.
 func TestProblemWarning_MultipleWarningsNestUnderneath(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
 
 	branches := out.Task("branches")
-	branches.Problem("kept 11 (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
-	branches.Problem("2 remotes unreachable", evo.Severity(evo.SeverityWarning))
+	branches.Problem("kept 11 (7 protected, 4 unpushed)", severity(severityWarning))
+	branches.Problem("2 remotes unreachable", severity(severityWarning))
 	succeed(branches)
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -134,35 +132,35 @@ func TestProblemWarning_MultipleWarningsNestUnderneath(t *testing.T) {
 // TestProblemWarning_DoesNotResolveTask proves Warn is non-terminal: the task
 // stays Pending immediately after Warn, and a later Done still resolves it.
 func TestProblemWarning_DoesNotResolveTask(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
+	out := initRun(Config{isolated: true, stdout: io.Discard})
 
 	task := out.Task("cache")
-	task.Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
-	if got := task.Snapshot().State; got == evo.Done || got == evo.Failed || got == evo.Blocked {
+	task.Problem("stale entry ignored", severity(severityWarning))
+	if got := task.snapshot().State; got == done || got == Failed || got == blocked {
 		t.Fatalf("state = %v, want non-terminal (Warn must not resolve the task)", got)
 	}
 	succeed(task)
-	if got := task.Snapshot().State; got != evo.Done {
+	if got := task.snapshot().State; got != done {
 		t.Fatalf("state = %v, want Done", got)
 	}
-	_ = out.Finish()
+	_ = out.finish()
 }
 
 // TestProblemWarning_UnresolvedTaskAutoResolvesDoneAtFinish proves a task that
 // only ever calls Warn (no terminal verb) auto-resolves Done at Finish, the
 // same amnesty a recorded effect or sealed progress already gets.
 func TestProblemWarning_UnresolvedTaskAutoResolvesDoneAtFinish(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
+	out := initRun(Config{isolated: true, stdout: io.Discard})
 
-	out.Task("cache").Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
-	if err := out.Finish(); err != nil {
+	out.Task("cache").Problem("stale entry ignored", severity(severityWarning))
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (Warn-only task should auto-resolve Done)", err)
 	}
-	conc := out.Conclusion()
-	if conc.State != evo.StateReady {
-		t.Fatalf("state = %v, want StateReady", conc.State)
+	conc := out.conclusion()
+	if conc.state != stateReady {
+		t.Fatalf("state = %v, want StateReady", conc.state)
 	}
-	if !conc.Warned {
+	if !conc.warned {
 		t.Fatal("Conclusion.Warned = false, want true")
 	}
 }
@@ -173,14 +171,14 @@ func TestProblemWarning_UnresolvedTaskAutoResolvesDoneAtFinish(t *testing.T) {
 // no bang at all.
 func TestProblemWarning_InlineRendersBangPrefix(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	t.Cleanup(func() { _ = out.close() })
 
 	branches := out.Task("branches")
-	branches.Problem("kept 11 (7 protected, 4 unpushed)", evo.Severity(evo.SeverityWarning))
+	branches.Problem("kept 11 (7 protected, 4 unpushed)", severity(severityWarning))
 	succeed(branches)
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -195,17 +193,17 @@ func TestProblemWarning_InlineRendersBangPrefix(t *testing.T) {
 // forced onto a nested line just because its byte length is inflated.
 func TestProblemWarning_InlineThresholdMeasuresDisplayWidthNotBytes(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	t.Cleanup(func() { _ = out.close() })
 
 	// Each "é" is 2 bytes but 1 display cell — 30 of them is 60 bytes but
 	// only 30 cells, comfortably under the 40-cell inline threshold.
 	warning := strings.Repeat("é", 30)
 	branches := out.Task("branches")
-	branches.Problem(warning, evo.Severity(evo.SeverityWarning))
+	branches.Problem(warning, severity(severityWarning))
 	succeed(branches)
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()

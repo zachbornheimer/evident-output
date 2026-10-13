@@ -12,22 +12,22 @@ import (
 func TestParseFormat(t *testing.T) {
 	cases := []struct {
 		in      string
-		want    Format
+		want    format
 		wantErr bool
 	}{
-		{"human", FormatHuman, false},
-		{"  human  ", FormatHuman, false},
-		{"HUMAN", FormatHuman, false},
-		{"data", FormatData, false},
-		{"external", FormatExternal, false},
-		{"json", FormatJSON, false},
-		{"jsonl", FormatJSONL, false},
-		{"JSONL", FormatJSONL, false},
+		{"human", formatHuman, false},
+		{"  human  ", formatHuman, false},
+		{"HUMAN", formatHuman, false},
+		{"data", formatData, false},
+		{"external", formatExternal, false},
+		{"json", formatJSON, false},
+		{"jsonl", formatJSONL, false},
+		{"JSONL", formatJSONL, false},
 		{"yaml", 0, true},
 		{"", 0, true},
 	}
 	for _, tc := range cases {
-		got, err := ParseFormat(tc.in)
+		got, err := parseFormat(tc.in)
 		if tc.wantErr {
 			if err == nil {
 				t.Errorf("ParseFormat(%q): want error, got nil", tc.in)
@@ -60,12 +60,12 @@ func (erroringWriter) Write(p []byte) (int, error) {
 
 func TestFormatJSON_StdoutHasOneRunDocumentStderrHasHuman(t *testing.T) {
 	var stdout, stderr nopFlushWriter
-	out := Init(Config{
-		Isolated: true, Title: "demo", Format: FormatJSON,
-		Stdout: &stdout, Stderr: &stderr,
+	out := initRun(Config{
+		isolated: true, title: "demo", format: formatJSON,
+		stdout: &stdout, stderr: &stderr,
 	})
 	out.Task("build").succeed("")
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -95,27 +95,27 @@ func TestFormatJSON_StdoutHasOneRunDocumentStderrHasHuman(t *testing.T) {
 
 func TestFormatJSON_StdoutWriteFailureEscalatesToExitFailed(t *testing.T) {
 	var stderr nopFlushWriter
-	out := Init(Config{
-		Isolated: true, Title: "demo", Format: FormatJSON,
-		Stdout: erroringWriter{}, Stderr: &stderr,
+	out := initRun(Config{
+		isolated: true, title: "demo", format: formatJSON,
+		stdout: erroringWriter{}, stderr: &stderr,
 	})
-	result := out.Run(context.Background(), func(context.Context) error {
+	result := out.run(context.Background(), func(context.Context) error {
 		out.Task("build").succeed("")
 		return nil
 	})
-	if result.ExitCode() != ExitFailed {
-		t.Fatalf("Result.ExitCode() = %d, want ExitFailed (%d) after a stdout write failure", result.ExitCode(), ExitFailed)
+	if result.ExitCode() != exitFailed {
+		t.Fatalf("Result.ExitCode() = %d, want ExitFailed (%d) after a stdout write failure", result.ExitCode(), exitFailed)
 	}
 }
 
 func TestFormatJSONL_StdoutStreamsEventLinesStderrHasHuman(t *testing.T) {
 	var stdout, stderr nopFlushWriter
-	out := Init(Config{
-		Isolated: true, Title: "demo", Format: FormatJSONL,
-		Stdout: &stdout, Stderr: &stderr,
+	out := initRun(Config{
+		isolated: true, title: "demo", format: formatJSONL,
+		stdout: &stdout, stderr: &stderr,
 	})
 	out.Task("build").succeed("")
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -147,11 +147,11 @@ func TestFormatJSONL_StdoutStreamsEventLinesStderrHasHuman(t *testing.T) {
 	}
 }
 
-// hasLiveRegion reports whether s carries the ANSI live-region markers
+// hasLiveRegionExt reports whether s carries the ANSI live-region markers
 // terminal.ANSI.WriteLive emits (cursor-hide / erase-line) — the same test
 // used by the root package's env_output_test.go to detect an armed live
 // surface without depending on a real pty.
-func hasLiveRegion(s string) bool {
+func hasLiveRegionExt(s string) bool {
 	return strings.Contains(s, "\x1b[?25") || strings.Contains(s, "\x1b[2K")
 }
 
@@ -162,16 +162,16 @@ func hasLiveRegion(s string) bool {
 // durable/plain renderer.
 func TestFormatJSON_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 	var stdout, stderr nopFlushWriter
-	defer MarkWriterAsCharDevice(&stderr)()
-	out := Init(Config{
-		Isolated: true, Title: "demo", Format: FormatJSON,
-		Stdout: &stdout, Stderr: &stderr, VisibilityDelay: Delay(0),
+	defer markWriterAsCharDevice(&stderr)()
+	out := initRun(Config{
+		isolated: true, title: "demo", format: formatJSON,
+		stdout: &stdout, stderr: &stderr, visibilityDelay: delay(0),
 	})
 	out.Task("build").succeed("")
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
-	if !hasLiveRegion(stderr.String()) {
+	if !hasLiveRegionExt(stderr.String()) {
 		t.Fatalf("FormatJSON must open a live region on an interactive stderr:\n%q", stderr.String())
 	}
 	if !strings.Contains(stdout.String(), `"object": "evo.run"`) {
@@ -181,34 +181,34 @@ func TestFormatJSON_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 
 func TestFormatJSONL_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 	var stdout, stderr nopFlushWriter
-	defer MarkWriterAsCharDevice(&stderr)()
-	out := Init(Config{
-		Isolated: true, Title: "demo", Format: FormatJSONL,
-		Stdout: &stdout, Stderr: &stderr, VisibilityDelay: Delay(0),
+	defer markWriterAsCharDevice(&stderr)()
+	out := initRun(Config{
+		isolated: true, title: "demo", format: formatJSONL,
+		stdout: &stdout, stderr: &stderr, visibilityDelay: delay(0),
 	})
 	out.Task("build").succeed("")
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
-	if !hasLiveRegion(stderr.String()) {
+	if !hasLiveRegionExt(stderr.String()) {
 		t.Fatalf("FormatJSONL must open a live region on an interactive stderr:\n%q", stderr.String())
 	}
 }
 
 func TestFormatJSON_RunReturnsResultUsableByWireEncoder(t *testing.T) {
 	var stdout, stderr nopFlushWriter
-	out := Init(Config{
-		Isolated: true, Title: "demo", Format: FormatJSON,
-		Stdout: &stdout, Stderr: &stderr,
+	out := initRun(Config{
+		isolated: true, title: "demo", format: formatJSON,
+		stdout: &stdout, stderr: &stderr,
 	})
-	result := out.Run(context.Background(), func(context.Context) error { return nil })
-	if result.Conclusion.RunID == "" {
+	result := out.run(context.Background(), func(context.Context) error { return nil })
+	if result.Conclusion.runID == "" {
 		t.Fatalf("Result.Conclusion.RunID must be populated by Run/Finish")
 	}
-	if result.Conclusion.StartedAt.IsZero() || result.Conclusion.FinishedAt.IsZero() {
+	if result.Conclusion.startedAt.IsZero() || result.Conclusion.finishedAt.IsZero() {
 		t.Fatalf("Result.Conclusion.StartedAt/FinishedAt must be populated by Run/Finish")
 	}
-	if result.Conclusion.FinishedAt.Before(result.Conclusion.StartedAt) {
-		t.Fatalf("FinishedAt (%v) must not precede StartedAt (%v)", result.Conclusion.FinishedAt, result.Conclusion.StartedAt)
+	if result.Conclusion.finishedAt.Before(result.Conclusion.startedAt) {
+		t.Fatalf("FinishedAt (%v) must not precede StartedAt (%v)", result.Conclusion.finishedAt, result.Conclusion.startedAt)
 	}
 }

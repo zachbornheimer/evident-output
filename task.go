@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -20,37 +21,37 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
-// TaskHandle is a handle for one operation with phases or progress.
-type TaskHandle struct {
-	out *Output
+// Task is a handle for one operation with phases or progress.
+type Task struct {
+	out *Run
 	id  string
 	// rejected is why the declaration was refused (see rejectedTask); nil
 	// for a declared Task.
 	rejected error
 	// facade holds this handle's public wrapper (see FacadeSlot).
-	facade FacadeSlot
+	facade facadeSlot
 }
 
 // Context reports the cancellation signal this task's work runs under — the
 // run's own (see Output.Context), so a Define or Effect callback
 // doing I/O selects on it and stops when the run is interrupted.
-func (t *TaskHandle) Context() context.Context {
+func (t *Task) context() context.Context {
 	if t == nil {
 		return context.Background()
 	}
-	return t.out.Context()
+	return t.out.context()
 }
 
 // Snapshot returns the task snapshot.
-func (t *TaskHandle) Snapshot() TaskSnapshot {
+func (t *Task) snapshot() taskSnapshot {
 	if t == nil || t.out == nil {
-		return TaskSnapshot{State: Pending, Progress: Progress{Kind: Indeterminate}}
+		return taskSnapshot{State: pending, Progress: progress{Kind: indeterminate}}
 	}
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskStates[t.id]
 	if st == nil {
-		return TaskSnapshot{ID: t.id, State: Pending, Progress: Progress{Kind: Indeterminate}}
+		return taskSnapshot{ID: t.id, State: pending, Progress: progress{Kind: indeterminate}}
 	}
 	return st.snapshot()
 }
@@ -58,7 +59,7 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 // Basis declares freshness inputs for this Task. Calls accumulate. Basis is
 // Task configuration frozen at Define: a call after Define records
 // ErrBasisAfterDefine and is ignored.
-func (t *TaskHandle) Basis(inputs ...Fingerprint) *TaskHandle {
+func (t *Task) basis(inputs ...fingerprint) *Task {
 	if t == nil || t.out == nil {
 		return t
 	}
@@ -70,13 +71,13 @@ func (t *TaskHandle) Basis(inputs ...Fingerprint) *TaskHandle {
 		return t
 	}
 	if !st.neverDefined() {
-		o.recordMisuseFor(st.name, ErrBasisAfterDefine)
+		o.recordMisuseFor(st.name, errBasisAfterDefine)
 		return t
 	}
-	sources := make([]BasisSource, 0, len(inputs))
+	sources := make([]basisSource, 0, len(inputs))
 	for _, in := range inputs {
 		if in != nil {
-			sources = append(sources, FingerprintBasis(in))
+			sources = append(sources, fingerprintBasis(in))
 		}
 	}
 	o.taskFreshness.AddInputs(st.TaskID(), sources...)
@@ -87,7 +88,7 @@ func (t *TaskHandle) Basis(inputs ...Fingerprint) *TaskHandle {
 
 // After declares predecessors: this Task starts only once every one of
 // them succeeded, and never starts once one of them cannot.
-func (t *TaskHandle) After(preds ...any) *TaskHandle {
+func (t *Task) After(preds ...any) *Task {
 	if t == nil || t.out == nil {
 		return t
 	}
@@ -99,14 +100,14 @@ func (t *TaskHandle) After(preds ...any) *TaskHandle {
 		return t
 	}
 	if !o.graph.AddAfter(st.node, o.predecessorsOfLocked(preds)...) {
-		o.recordMisuse(ErrInvalidConfig)
+		o.recordMisuse(errInvalidConfig)
 	}
 	return t
 }
 
 // predecessorsOfLocked resolves After's arguments, leaving out the ones
 // After ignores.
-func (o *Output) predecessorsOfLocked(args []any) []graph.Predecessor {
+func (o *Run) predecessorsOfLocked(args []any) []graph.Predecessor {
 	preds := make([]graph.Predecessor, 0, len(args))
 	for _, arg := range args {
 		if pred, ok := o.predecessorOfLocked(arg); ok {
@@ -119,28 +120,28 @@ func (o *Output) predecessorsOfLocked(args []any) []graph.Predecessor {
 // predecessorOfLocked resolves one After argument. ok is false for a nil
 // handle, which After ignores. A handle this Output never declared yields
 // the empty predecessor, which never succeeds.
-func (o *Output) predecessorOfLocked(p any) (pred graph.Predecessor, ok bool) {
+func (o *Run) predecessorOfLocked(p any) (pred graph.Predecessor, ok bool) {
 	switch x := p.(type) {
-	case *TaskHandle:
+	case *Task:
 		if x == nil || x.id == "" {
 			return graph.Predecessor{}, false
 		}
 		if x.out == o {
 			return graph.AfterTask(o.nodeOfTask(x.id)), true
 		}
-	case *GroupHandle:
+	case *Group:
 		if x == nil || x.id == "" {
 			return graph.Predecessor{}, false
 		}
 		if x.out == o {
 			return graph.AfterContainer(o.nodeOfContainer(x.id)), true
 		}
-	case *SequenceHandle:
+	case *Sequence:
 		if x == nil || x.tasks == nil {
 			return graph.Predecessor{}, false
 		}
 		return o.predecessorOfLocked(x.tasks)
-	case interface{ Producer() *TaskHandle }:
+	case interface{ Producer() *Task }:
 		if x == nil {
 			return graph.Predecessor{}, false
 		}
@@ -153,7 +154,7 @@ func (o *Output) predecessorOfLocked(p any) (pred graph.Predecessor, ok bool) {
 
 // nodeOfTask is the graph's declaration of the Task named id, nil when this
 // Output declared none.
-func (o *Output) nodeOfTask(id string) *graph.Task {
+func (o *Run) nodeOfTask(id string) *graph.Task {
 	if st := o.taskStates[id]; st != nil {
 		return st.node
 	}
@@ -162,7 +163,7 @@ func (o *Output) nodeOfTask(id string) *graph.Task {
 
 // nodeOfContainer is the graph's declaration of the container named id, nil
 // when this Output declared none.
-func (o *Output) nodeOfContainer(id string) *graph.Container {
+func (o *Run) nodeOfContainer(id string) *graph.Container {
 	if st := o.containerStates[id]; st != nil {
 		return st.node
 	}
@@ -175,7 +176,7 @@ func (o *Output) nodeOfContainer(id string) *graph.Container {
 // every one of them succeeded, and never does once one of them cannot. A
 // predecessor may be a Task, a Computed producer, or a Group or Sequence.
 // Call it before Define and before declaring any child; later is misuse.
-func (g *GroupHandle) After(preds ...any) *GroupHandle {
+func (g *Group) After(preds ...any) *Group {
 	if g == nil || g.out == nil {
 		return g
 	}
@@ -187,13 +188,13 @@ func (g *GroupHandle) After(preds ...any) *GroupHandle {
 		return g
 	}
 	if !o.graph.AddContainerAfter(col.node, o.predecessorsOfLocked(preds)...) {
-		o.recordMisuse(ErrInvalidConfig)
+		o.recordMisuse(errInvalidConfig)
 	}
 	return g
 }
 
-// After is GroupHandle.After for a Sequence.
-func (s *SequenceHandle) After(preds ...any) *SequenceHandle {
+// After is Group.After for a Sequence.
+func (s *Sequence) After(preds ...any) *Sequence {
 	if s == nil || s.tasks == nil {
 		return s
 	}
@@ -207,7 +208,7 @@ func (s *SequenceHandle) After(preds ...any) *SequenceHandle {
 // and must not Wait. Children it declares run under the Group's normal
 // semantics. When a predecessor fails, build never runs and the Group
 // settles NotStarted.
-func (g *GroupHandle) Define(build func(*GroupHandle)) {
+func (g *Group) define(build func(*Group)) {
 	if build == nil {
 		g.recordInvalid()
 		return
@@ -215,8 +216,8 @@ func (g *GroupHandle) Define(build func(*GroupHandle)) {
 	g.defineBuilder(func() { build(g) })
 }
 
-// Define is GroupHandle.Define for a Sequence: build declares ordered steps.
-func (s *SequenceHandle) Define(build func(*SequenceHandle)) {
+// Define is Group.Define for a Sequence: build declares ordered steps.
+func (s *Sequence) define(build func(*Sequence)) {
 	if s == nil || s.tasks == nil {
 		return
 	}
@@ -227,13 +228,13 @@ func (s *SequenceHandle) Define(build func(*SequenceHandle)) {
 	s.tasks.defineBuilder(func() { build(s) })
 }
 
-func (g *GroupHandle) recordInvalid() {
+func (g *Group) recordInvalid() {
 	if g != nil && g.out != nil {
-		g.out.recordMisuse(ErrInvalidConfig)
+		g.out.recordMisuse(errInvalidConfig)
 	}
 }
 
-func (g *GroupHandle) defineBuilder(run func()) {
+func (g *Group) defineBuilder(run func()) {
 	if g == nil || g.out == nil {
 		return
 	}
@@ -246,18 +247,18 @@ func (g *GroupHandle) defineBuilder(run func()) {
 		o.mu.Unlock()
 		return
 	case o.ensureOpen() != nil:
-		o.recordMisuse(ErrClosed)
+		o.recordMisuse(errClosed)
 		o.mu.Unlock()
 		return
 	}
 	node := o.graph.AddGate(col.node, func() error { run(); return nil })
 	if node == nil {
-		o.recordMisuse(ErrInvalidConfig)
+		o.recordMisuse(errInvalidConfig)
 		o.mu.Unlock()
 		return
 	}
 	gate := &taskState{id: node.ID, node: node, name: node.Name, followed: declaredState}
-	gate.handle = &TaskHandle{out: o, id: gate.id}
+	gate.handle = &Task{out: o, id: gate.id}
 	o.taskStates[gate.id] = gate
 	o.graph.Submit(node, graph.Work{})
 	o.followRecordLocked()
@@ -305,11 +306,11 @@ func (c *childCounters) remove(f *filing) {
 func (c *childCounters) move(f *filing, delta int) {
 	c.total += delta
 	switch f.state {
-	case Done, Skipped:
+	case done, skipped:
 		c.done += delta
-	case Running:
+	case running:
 		c.running += delta
-	case Pending:
+	case pending:
 		c.pending += delta
 	}
 	if !record.IsTerminalTask(f.state) {
@@ -341,17 +342,17 @@ func (s *stateCounts) remove(f *filing) { s.move(f, -1) }
 
 func (s *stateCounts) move(f *filing, delta int) {
 	switch f.state {
-	case Running:
+	case running:
 		s.running += delta
 	case Failed:
 		s.failed += delta
-	case Blocked:
+	case blocked:
 		s.blocked += delta
 	case Cancelled:
 		s.cancelled += delta
-	case NotStarted:
+	case notStarted:
 		s.notStarted += delta
-	case Done, Skipped:
+	case done, skipped:
 	default:
 		s.unresolved += delta
 	}
@@ -446,7 +447,7 @@ type filing struct {
 	pos  int
 	kind live.ChildKind
 	// state, width, seen, and warned are the Task fields the counts read.
-	state  EntityState
+	state  entityState
 	width  int
 	seen   time.Time
 	warned bool
@@ -687,13 +688,13 @@ func (st *taskState) collection() *tasksState {
 // siblings: every descendant Task was already submitted to the scheduler by
 // its own Define call, so Wait only parks on outcomes the scheduler is
 // already free to produce concurrently — the same non-serializing guarantee
-// TaskHandle.Wait already gives a single Task.
+// Task.Wait already gives a single Task.
 //
 // A caller never snapshots/counts failed children to know whether the
 // container succeeded: Wait alone is the ordinary control-flow answer, and
 // it returns nil only when every descendant actually ran and succeeded.
 // Per-child detail remains available through Snapshot.
-func (g *GroupHandle) Wait() error {
+func (g *Group) wait() error {
 	if g == nil || g.out == nil {
 		return nil
 	}
@@ -709,14 +710,14 @@ func (g *GroupHandle) Wait() error {
 	return outcome
 }
 
-// Wait is Sequence's counterpart to GroupHandle.Wait: the ordered container
+// Wait is Sequence's counterpart to Group.Wait: the ordered container
 // settles once every declared step (and any nested Group/Sequence) has
 // settled, honoring the same NotStarted-suppression and error-join rules.
-func (s *SequenceHandle) Wait() error {
+func (s *Sequence) wait() error {
 	if s == nil || s.tasks == nil {
 		return nil
 	}
-	return s.tasks.Wait()
+	return s.tasks.wait()
 }
 
 // --- folded from declare.go ---
@@ -725,22 +726,22 @@ func (s *SequenceHandle) Wait() error {
 func declarationRefusal(err error) error {
 	switch {
 	case errors.Is(err, graph.ErrEntityLimit):
-		return ErrLimitExceeded
+		return errLimitExceeded
 	case errors.Is(err, graph.ErrClosed):
-		return ErrClosed
+		return errClosed
 	default:
 		return fmt.Errorf("declaring a Task: %w", err)
 	}
 }
 
 // Task declares a single root-level operation named name. Identity
-// overrides go through TaskHandle.Key. A repeated name is a duplicate
+// overrides go through Task.Key. A repeated name is a duplicate
 // sibling declaration (§3.1), never a get-or-create: 1.0 removed that idiom
 // because letting two distinct declarations silently merge into one
 // identity would make a false "already satisfied" possible once identity
 // drives manifest reconciliation. The repeat records a Failed task with
 // ProblemCodeDuplicateSiblingName (see failDuplicateSiblingLocked).
-func (o *Output) Task(name string) *TaskHandle {
+func (o *Run) Task(name string) *Task {
 	clean := graph.DeclaredName(name)
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -754,7 +755,7 @@ func (o *Output) Task(name string) *TaskHandle {
 	return h
 }
 
-func (o *Output) addTaskLocked(name string, col *tasksState) *TaskHandle {
+func (o *Run) addTaskLocked(name string, col *tasksState) *Task {
 	h := o.declareTaskLocked(name, col)
 	if _, ok := o.taskStates[h.id]; ok {
 		o.signalLiveLocked(true)
@@ -767,18 +768,18 @@ func (o *Output) addTaskLocked(name string, col *tasksState) *TaskHandle {
 //
 // The task's §3.1 stable identity is kind + the declaring parent's key
 // (parentKeyOf) + name, for every declaration, a refused duplicate's row
-// included; TaskHandle.Key replaces it later.
-func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
+// included; Task.Key replaces it later.
+func (o *Run) declareTaskLocked(name string, col *tasksState) *Task {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
 		return o.rejectedTask(err)
 	}
 	if o.graph.DeclaredInCallback() {
-		o.recordMisuse(ErrDeclaredInCallback)
-		return o.rejectedTask(ErrDeclaredInCallback)
+		o.recordMisuse(errDeclaredInCallback)
+		return o.rejectedTask(errDeclaredInCallback)
 	}
 	node, err := o.graph.AddTask(containerNode(col), name, record.TaskInit{
-		State: declaredState, Progress: Progress{Kind: Indeterminate}, Resolution: ResolutionNoWork,
+		State: declaredState, Progress: progress{Kind: indeterminate}, Resolution: resolutionNoWork,
 	})
 	if err != nil {
 		err = declarationRefusal(err)
@@ -791,7 +792,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 		name:     node.Name,
 		followed: declaredState,
 	}
-	h := &TaskHandle{out: o, id: st.id}
+	h := &Task{out: o, id: st.id}
 	st.handle = h
 	o.appendTaskLocked(st)
 	if col != nil {
@@ -802,7 +803,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 	}
 	o.taskStates[st.id] = st
 	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "task.declared", EntityID: st.id})
+	o.appendEventLocked(recEvent{Type: "task.declared", EntityID: st.id})
 	o.emitWireEventLocked(wire.EventTaskDeclared, st.id, map[string]any{"name": name})
 	return h
 }
@@ -810,7 +811,7 @@ func (o *Output) declareTaskLocked(name string, col *tasksState) *TaskHandle {
 // Group declares a collection of independent child tasks. Eligible children
 // may overlap through the scheduler. A repeated name is a duplicate sibling
 // declaration (§3.1), not a get-or-create — see failDuplicateSiblingLocked.
-func (o *Output) Group(name string) *GroupHandle {
+func (o *Run) Group(name string) *Group {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return o.declareContainerLocked(nil, name, false)
@@ -821,10 +822,10 @@ func (o *Output) Group(name string) *GroupHandle {
 // member has already failed or been cancelled. A repeated name is a
 // duplicate sibling declaration (§3.1), not a get-or-create — see
 // failDuplicateSiblingLocked.
-func (o *Output) Sequence(name string) *SequenceHandle {
+func (o *Run) Sequence(name string) *Sequence {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return &SequenceHandle{tasks: o.declareContainerLocked(nil, name, true)}
+	return &Sequence{tasks: o.declareContainerLocked(nil, name, true)}
 }
 
 // declareContainerLocked declares a Group (sequential false) or Sequence
@@ -833,7 +834,7 @@ func (o *Output) Sequence(name string) *SequenceHandle {
 // container's identity is its parent's key plus its name, and it starts
 // after the step before it when parent is a Sequence. A refusal comes back
 // as a rejected handle. Callers must already hold o.mu.
-func (o *Output) declareContainerLocked(parent *tasksState, name string, sequential bool) *GroupHandle {
+func (o *Run) declareContainerLocked(parent *tasksState, name string, sequential bool) *Group {
 	clean := graph.DeclaredName(name)
 	kind := graph.ContainerKind(sequential)
 	if o.graph.NameTaken(containerNode(parent), kind, clean) {
@@ -844,8 +845,8 @@ func (o *Output) declareContainerLocked(parent *tasksState, name string, sequent
 		return o.rejectedGroup(err)
 	}
 	if o.graph.DeclaredInCallback() {
-		o.recordMisuse(ErrDeclaredInCallback)
-		return o.rejectedGroup(ErrDeclaredInCallback)
+		o.recordMisuse(errDeclaredInCallback)
+		return o.rejectedGroup(errDeclaredInCallback)
 	}
 	node := o.graph.AddContainer(containerNode(parent), clean, sequential)
 	st := &tasksState{
@@ -862,10 +863,10 @@ func (o *Output) declareContainerLocked(parent *tasksState, name string, sequent
 	}
 	o.containerStates[st.id] = st
 	o.graph.ClaimName(containerNode(parent), kind, clean)
-	h := &GroupHandle{out: o, id: st.id}
+	h := &Group{out: o, id: st.id}
 	st.handle = h
 	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "tasks.declared", EntityID: st.id})
+	o.appendEventLocked(recEvent{Type: "tasks.declared", EntityID: st.id})
 	o.emitCollectionDeclaredLocked(st, parentID)
 	return h
 }
@@ -874,7 +875,7 @@ func (o *Output) declareContainerLocked(parent *tasksState, name string, sequent
 // identity behind Group.Task/Sequence.Task. A repeated name is a duplicate
 // sibling declaration (§3.1), not a get-or-create. A task declared under a
 // refused container is refused for the same reason.
-func (o *Output) declareGroupTask(g *GroupHandle, name string) *TaskHandle {
+func (o *Run) declareGroupTask(g *Group, name string) *Task {
 	clean := graph.DeclaredName(name)
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -901,28 +902,28 @@ func (o *Output) declareGroupTask(g *GroupHandle, name string) *TaskHandle {
 //
 //	func Build(parent evo.Container)
 type Container interface {
-	Task(name string) *TaskHandle
-	Group(name string) *GroupHandle
-	Sequence(name string) *SequenceHandle
+	Task(name string) *Task
+	Group(name string) *Group
+	Sequence(name string) *Sequence
 }
 
 var (
-	_ Container = (*Output)(nil)
-	_ Container = (*GroupHandle)(nil)
-	_ Container = (*SequenceHandle)(nil)
+	_ Container = (*Run)(nil)
+	_ Container = (*Group)(nil)
+	_ Container = (*Sequence)(nil)
 )
 
-// GroupHandle is the front door for independent child work. Eligible
+// Group is the front door for independent child work. Eligible
 // children may overlap through the scheduler. The type cannot be named
 // Group — that name is the constructor. Nest via Group/Sequence.
-type GroupHandle struct {
-	out *Output
+type Group struct {
+	out *Run
 	id  string
 	// rejected is why the declaration was refused (see rejectedGroup); nil
 	// for a declared Group or Sequence.
 	rejected error
 	// facade holds this handle's public wrapper (see FacadeSlot).
-	facade FacadeSlot
+	facade facadeSlot
 }
 
 // Task declares a child task. A repeated name is a duplicate sibling
@@ -931,27 +932,27 @@ type GroupHandle struct {
 // returning the earlier handle. Callers that reference a Task again later
 // (for example in After) must keep the first handle, typically in a typed
 // variable, instead of re-declaring by name.
-func (g *GroupHandle) Task(name string) *TaskHandle {
+func (g *Group) Task(name string) *Task {
 	if g == nil || g.out == nil {
-		return &TaskHandle{}
+		return &Task{}
 	}
 	return g.out.declareGroupTask(g, name)
 }
 
 // Sequence declares (or returns) an ordered child container nested here.
-func (g *GroupHandle) Sequence(name string) *SequenceHandle {
+func (g *Group) Sequence(name string) *Sequence {
 	child := g.declareChild(name, true)
-	return &SequenceHandle{tasks: child}
+	return &Sequence{tasks: child}
 }
 
 // Group declares (or returns) an independent child container nested here.
-func (g *GroupHandle) Group(name string) *GroupHandle {
+func (g *Group) Group(name string) *Group {
 	return g.declareChild(name, false)
 }
 
-func (g *GroupHandle) declareChild(name string, sequential bool) *GroupHandle {
+func (g *Group) declareChild(name string, sequential bool) *Group {
 	if g == nil || g.out == nil {
-		return &GroupHandle{}
+		return &Group{}
 	}
 	g.out.mu.Lock()
 	defer g.out.mu.Unlock()
@@ -963,7 +964,7 @@ func (g *GroupHandle) declareChild(name string, sequential bool) *GroupHandle {
 }
 
 // Summary sets a success-oriented collection summary.
-func (g *GroupHandle) Summary(text string) *GroupHandle {
+func (g *Group) Summary(text string) *Group {
 	if g == nil || g.out == nil {
 		return g
 	}
@@ -979,20 +980,20 @@ func (g *GroupHandle) Summary(text string) *GroupHandle {
 	}
 	col.node.Rec.SetSummary(text)
 	g.out.bumpLocked()
-	g.out.appendEventLocked(Event{Type: "tasks.summary_set", EntityID: g.id})
+	g.out.appendEventLocked(recEvent{Type: "tasks.summary_set", EntityID: g.id})
 	return g
 }
 
 // Snapshot returns the collection snapshot with derived state.
-func (g *GroupHandle) Snapshot() TasksSnapshot {
+func (g *Group) snapshot() tasksSnapshot {
 	if g == nil || g.out == nil {
-		return TasksSnapshot{State: Empty}
+		return tasksSnapshot{State: empty}
 	}
 	g.out.mu.Lock()
 	defer g.out.mu.Unlock()
 	col := g.out.containerStates[g.id]
 	if col == nil {
-		return TasksSnapshot{ID: g.id, State: Empty}
+		return tasksSnapshot{ID: g.id, State: empty}
 	}
 	return col.snapshot()
 }
@@ -1000,7 +1001,7 @@ func (g *GroupHandle) Snapshot() TasksSnapshot {
 // --- folded from names.go ---
 
 // DefaultVisibleNames is how many names TruncateNames keeps before summarizing.
-const DefaultVisibleNames = project.DefaultVisibleNames
+const defaultVisibleNames = project.DefaultVisibleNames
 
 // TruncateNames joins names for a skip/kept-style summary.
 // Empty names yields "". visible <= 0 uses DefaultVisibleNames.
@@ -1010,32 +1011,32 @@ const DefaultVisibleNames = project.DefaultVisibleNames
 // profile is variadic so the simplest call — TruncateNames(names, visible) —
 // stays correct: an omitted profile renders the Unicode overflow glyph; a
 // caller that has already resolved a GlyphProfile passes it explicitly.
-func TruncateNames(names []string, visible int) string {
+func truncateNames(names []string, visible int) string {
 	return project.TruncateNames(names, visible)
 }
 
 // --- folded from sequence.go ---
 
-// SequenceHandle is the front door for ordered child work: the same
+// Sequence is the front door for ordered child work: the same
 // scheduler as Group with implicit predecessor edges in declaration order.
 // A failed/blocked/cancelled child makes later siblings NotStarted.
-type SequenceHandle struct {
-	tasks *GroupHandle
+type Sequence struct {
+	tasks *Group
 	// facade holds this handle's public wrapper (see FacadeSlot).
-	facade FacadeSlot
+	facade facadeSlot
 }
 
 // Task declares (or, for a repeated name, returns) a child task in
 // declaration order.
-func (g *SequenceHandle) Task(name string) *TaskHandle {
+func (g *Sequence) Task(name string) *Task {
 	if g == nil || g.tasks == nil {
-		return &TaskHandle{}
+		return &Task{}
 	}
 	return g.tasks.out.declareGroupTask(g.tasks, name)
 }
 
 // Summary sets a success-oriented sequence summary.
-func (g *SequenceHandle) Summary(text string) *SequenceHandle {
+func (g *Sequence) Summary(text string) *Sequence {
 	if g == nil || g.tasks == nil {
 		return g
 	}
@@ -1044,25 +1045,25 @@ func (g *SequenceHandle) Summary(text string) *SequenceHandle {
 }
 
 // Snapshot returns the sequence snapshot with derived state.
-func (g *SequenceHandle) Snapshot() TasksSnapshot {
+func (g *Sequence) snapshot() tasksSnapshot {
 	if g == nil || g.tasks == nil {
-		return TasksSnapshot{State: Empty}
+		return tasksSnapshot{State: empty}
 	}
-	return g.tasks.Snapshot()
+	return g.tasks.snapshot()
 }
 
 // Sequence declares (or returns) an ordered child container nested here.
-func (g *SequenceHandle) Sequence(name string) *SequenceHandle {
+func (g *Sequence) Sequence(name string) *Sequence {
 	if g == nil || g.tasks == nil {
-		return &SequenceHandle{}
+		return &Sequence{}
 	}
 	return g.tasks.Sequence(name)
 }
 
 // Group declares (or returns) an independent child container nested here.
-func (g *SequenceHandle) Group(name string) *GroupHandle {
+func (g *Sequence) Group(name string) *Group {
 	if g == nil || g.tasks == nil {
-		return &GroupHandle{}
+		return &Group{}
 	}
 	return g.tasks.Group(name)
 }
@@ -1074,7 +1075,7 @@ func (g *SequenceHandle) Group(name string) *GroupHandle {
 // becomes a durable line per step off-TTY. text is a printf format when args
 // are present (fmt.Sprintf semantics). Chained right after Task, it sets
 // the first step at declaration.
-func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
+func (t *Task) Doing(text string, args ...any) *Task {
 	if len(args) > 0 {
 		text = fmt.Sprintf(text, args...)
 	}
@@ -1087,8 +1088,8 @@ func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
 // and a worker already inside its per-item step had no way to prevent the
 // one straggling update that follows. Blaming the caller for the interrupt's
 // own timing put a misuse warning at the top of every interrupted ledger.
-func resolvedByInterrupt(state EntityState) bool {
-	return state == Cancelled || state == NotStarted
+func resolvedByInterrupt(state entityState) bool {
+	return state == Cancelled || state == notStarted
 }
 
 // annotate is the one guard every non-terminal annotation verb (Doing,
@@ -1097,7 +1098,7 @@ func resolvedByInterrupt(state EntityState) bool {
 // closed Output it records that misuse; on a terminal row it records
 // ErrAlreadyResolved, unless the interrupt sweep resolved the row (see
 // resolvedByInterrupt). It returns t so each verb can chain.
-func (t *TaskHandle) annotate(apply func(st *taskState)) *TaskHandle {
+func (t *Task) annotate(apply func(st *taskState)) *Task {
 	return t.withTask(func(st *taskState) {
 		if err := t.out.ensureOpen(); err != nil {
 			t.out.recordMisuse(err)
@@ -1105,7 +1106,7 @@ func (t *TaskHandle) annotate(apply func(st *taskState)) *TaskHandle {
 		}
 		if record.IsTerminalTask(st.node.Rec.State()) {
 			if !resolvedByInterrupt(st.node.Rec.State()) {
-				t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+				t.out.recordMisuseFor(st.name, errAlreadyResolved)
 			}
 			return
 		}
@@ -1113,12 +1114,12 @@ func (t *TaskHandle) annotate(apply func(st *taskState)) *TaskHandle {
 	})
 }
 
-// withTask is the one lock-and-lookup every TaskHandle verb that
+// withTask is the one lock-and-lookup every Task verb that
 // edits its row goes through: under o.mu it hands apply the task's state,
-// and does nothing for a nil or zero TaskHandle or a task this Output does
-// not know. That is where "a nil *TaskHandle is safe" is kept, for every
+// and does nothing for a nil or zero Task or a task this Output does
+// not know. That is where "a nil *Task is safe" is kept, for every
 // verb at once. It returns t so each verb can chain.
-func (t *TaskHandle) withTask(apply func(st *taskState)) *TaskHandle {
+func (t *Task) withTask(apply func(st *taskState)) *Task {
 	if t == nil || t.out == nil {
 		return t
 	}
@@ -1134,27 +1135,27 @@ func (t *TaskHandle) withTask(apply func(st *taskState)) *TaskHandle {
 // setLiveOnlyPhase updates the task's phase text through setLiveOnlyPhaseLocked
 // — the shared entry point for every phase source that is NOT the caller's
 // own narrated beat: Writer's per-line mirror of a talkative child's raw
-// output. Off-TTY, an explicit TaskHandle.Doing call
+// output. Off-TTY, an explicit Task.Doing call
 // still forces its own durable row (the P10 contract: the one line the
 // caller asked to see); this path never does — a child's full output already
 // has one durable home, the evidence ring (and its failure-path DetailTail),
 // so a row per mirrored line would just repeat it (release-gate round 9
 // finding 4).
-func (t *TaskHandle) setLiveOnlyPhase(text string) {
+func (t *Task) setLiveOnlyPhase(text string) {
 	t.annotate(func(st *taskState) { t.out.setLiveOnlyPhaseLocked(st, text) })
 }
 
 // setPhaseLocked is Doing's locked body. Callers must already hold o.mu and
 // have checked ensureOpen/isTerminalTask.
-func (o *Output) setPhaseLocked(st *taskState, text string) {
+func (o *Run) setPhaseLocked(st *taskState, text string) {
 	st.node.Rec.SetPhase(text)
 	st.node.Rec.MarkActivity(o.cfg.clock.Now())
-	if st.node.Rec.State() == Pending {
+	if st.node.Rec.State() == pending {
 		o.promoteRunningLocked(st)
 		st.node.Rec.EnsureIndeterminateProgress()
 	}
 	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})
+	o.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
 	o.signalLiveLocked(true)
 	o.emitTaskRunningProgressiveLocked(st, triggerPhase)
 }
@@ -1166,31 +1167,31 @@ func (o *Output) setPhaseLocked(st *taskState, text string) {
 // mode. A talkative child's mirrored output line (Writer) already has one
 // durable home, the evidence ring, so it gets no plain-mode row per line
 // (release-gate round 9 finding 4).
-func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
+func (o *Run) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	// Identical live-only phase is a no-op: Writer leftover/repeated lines
 	// must not bump, emit task.phase_changed, or force a live paint.
 	if !st.node.Rec.SetPhaseIfChanged(text) {
 		return
 	}
 	st.node.Rec.MarkActivity(o.cfg.clock.Now())
-	if st.node.Rec.State() == Pending {
+	if st.node.Rec.State() == pending {
 		o.promoteRunningLocked(st)
 		st.node.Rec.EnsureIndeterminateProgress()
 	}
 	o.bumpLocked()
-	o.appendEventLocked(Event{Type: "task.phase_changed", EntityID: st.id})
+	o.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
 	o.signalLiveLocked(true)
 }
 
 // recordWarning is the warning-severity Problem path: st.warnings,
 // task.warned, EventWarningRecorded, censusWarned. Public Warn was removed in 1.1.
-func (t *TaskHandle) recordWarning(p Problem) *TaskHandle {
+func (t *Task) recordWarning(p problem) *Task {
 	return t.annotate(func(st *taskState) {
 		if st.node.Rec.AppendWarning(p) == 1 {
 			st.censusWarned()
 		}
 		t.out.bumpLocked()
-		t.out.appendEventLocked(Event{Type: "task.warned", EntityID: t.id})
+		t.out.appendEventLocked(recEvent{Type: "task.warned", EntityID: t.id})
 		t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, wire.ToProblemDoc(p).EventPayload())
 		t.out.signalLiveLocked(true)
 	})
@@ -1202,12 +1203,12 @@ func (t *TaskHandle) recordWarning(p Problem) *TaskHandle {
 // (Doing/Progress/Bytes own the Running row). It is the same field
 // TaskSnapshot.Summary and JSON/JSONL "summary" project. Calling it after
 // the task resolved is misuse unless the interrupt sweep resolved it (see
-// annotate). GroupHandle.Summary is the same shape one level up.
-func (t *TaskHandle) Summary(text string) *TaskHandle {
+// annotate). Group.Summary is the same shape one level up.
+func (t *Task) Summary(text string) *Task {
 	return t.annotate(func(st *taskState) {
 		st.node.Rec.SetSummary(text)
 		t.out.bumpLocked()
-		t.out.appendEventLocked(Event{Type: "task.summary_set", EntityID: t.id})
+		t.out.appendEventLocked(recEvent{Type: "task.summary_set", EntityID: t.id})
 		t.out.signalLiveLocked(true)
 	})
 }
@@ -1217,23 +1218,23 @@ func (t *TaskHandle) Summary(text string) *TaskHandle {
 // never settle success-class (see Task.HonestOutcome). SeverityWarning uses the
 // previous warning projection and never fails the Task. An invalid severity
 // is rejected with a context-bearing misuse error and is not recorded.
-func (t *TaskHandle) Problem(summary string, opts ...ProblemOption) *TaskHandle {
+func (t *Task) Problem(summary string, opts ...ProblemOption) *Task {
 	p := record.ApplyProblemOptions(project.Text(summary), opts)
 	sev, err := record.ClassifiedProblemSeverity(p)
 	if err != nil {
 		return t.annotate(func(st *taskState) { t.out.recordMisuse(err) })
 	}
-	if sev == SeverityWarning {
+	if sev == severityWarning {
 		return t.recordWarning(p)
 	}
 	return t.recordBlockingProblem(p)
 }
 
-func (t *TaskHandle) recordBlockingProblem(p Problem) *TaskHandle {
+func (t *Task) recordBlockingProblem(p problem) *Task {
 	return t.annotate(func(st *taskState) {
 		st.node.Rec.AppendProblems(p)
 		t.out.bumpLocked()
-		t.out.appendEventLocked(Event{Type: "task.problem_recorded", EntityID: t.id})
+		t.out.appendEventLocked(recEvent{Type: "task.problem_recorded", EntityID: t.id})
 		t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, wire.ToProblemDoc(p).EventPayload())
 		t.out.signalLiveLocked(true)
 	})
@@ -1245,8 +1246,8 @@ func (t *TaskHandle) recordBlockingProblem(p Problem) *TaskHandle {
 // line, inline when it is the task's only annotation, nested otherwise.
 // Like Problem, it returns the Task for chaining and never resolves it — call
 // it any number of times before the task's terminal verb.
-func (t *TaskHandle) Fact(name, value string) *TaskHandle {
-	f := record.SanitizeFact(FactRecord{Name: project.Text(name), Value: project.Text(value)})
+func (t *Task) Fact(name, value string) *Task {
+	f := record.SanitizeFact(factRecord{Name: project.Text(name), Value: project.Text(value)})
 	return t.annotate(func(st *taskState) {
 		st.node.Rec.AppendFact(f)
 		t.out.bumpLocked()
@@ -1263,7 +1264,7 @@ func (t *TaskHandle) Fact(name, value string) *TaskHandle {
 // needs no opt-in (beginner-2). The capture is read only when some Problem
 // lacks its own detail, which also avoids re-entering the redactor lock this
 // resolution already holds for a pending tail.
-func (st *taskState) resolveProblems(state EntityState, extra []Problem) {
+func (st *taskState) resolveProblems(state entityState, extra []problem) {
 	tail := ""
 	if st.node.Rec.NeedsEvidenceTail(state, extra) && st.evidence != nil && !st.evidence.Empty() {
 		tail = st.evidence.detailText()
@@ -1277,14 +1278,14 @@ func (st *taskState) resolveProblems(state EntityState, extra []Problem) {
 // so later Printf/Confirm output can never land above finished work. A
 // Done Task commits its manifest record; Failed, Blocked, and Cancelled
 // never do (spec §8.2/§11.3).
-func (o *Output) commitSettledLocked(st *taskState) {
+func (o *Run) commitSettledLocked(st *taskState) {
 	if st.collection() != nil {
 		o.signalLiveLocked(true)
 	} else {
 		o.commitResolvedTaskLocked(st.id)
 		o.commitNamedEffectsLocked(st.id)
 	}
-	if st.node.Rec.State() != Done {
+	if st.node.Rec.State() != done {
 		return
 	}
 	o.commitManifestTaskLocked(o.graph.Context(), st.id)
@@ -1298,8 +1299,8 @@ func (o *Output) commitSettledLocked(st *taskState) {
 // identity source as Confirm's PolicyFlag / I2's Fail fallback: Config.Title
 // when set, else the binary's own basename. Use NextCommand instead when the
 // remedy is a different (foreign) tool.
-func (o *Output) nextSelf(args ...string) ProblemOption {
-	return NextCommand(o.policySourceName(), args...)
+func (o *Run) nextSelf(args ...string) ProblemOption {
+	return nextCommand(o.policySourceName(), args...)
 }
 
 // --- folded from task_progress.go ---
@@ -1307,16 +1308,16 @@ func (o *Output) nextSelf(args ...string) ProblemOption {
 // Progress sets absolute completed/total count progress.
 // Counts use int (collection lengths, indices). For byte quantities use Bytes.
 // Prefer absolute Progress over Advance so retries cannot double-count.
-func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
-	return t.setProgress(int64(completed), int64(total), Determinate)
+func (t *Task) Progress(completed, total int) *Task {
+	return t.setProgress(int64(completed), int64(total), determinate)
 }
 
 // Bytes sets absolute byte progress (units and rate formatting).
-func (t *TaskHandle) Bytes(completed, total int64) *TaskHandle {
-	return t.setProgress(completed, total, BytesKind)
+func (t *Task) bytes(completed, total int64) *Task {
+	return t.setProgress(completed, total, bytesKind)
 }
 
-func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *TaskHandle {
+func (t *Task) setProgress(completed, total int64, kind progressKind) *Task {
 	return t.annotate(func(st *taskState) { t.applyProgressLocked(st, completed, total, kind) })
 }
 
@@ -1325,21 +1326,21 @@ func (t *TaskHandle) setProgress(completed, total int64, kind ProgressKind) *Tas
 // recorded misuse instead, so a paired live update is not applied for a progress change that never happened
 // (e.g. Phase) that would otherwise describe a progress change that never
 // happened.
-func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, kind ProgressKind) bool {
+func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind progressKind) bool {
 	switch st.node.Rec.ApplyProgress(completed, total, kind) {
 	case record.ProgressInvalid:
-		t.out.recordMisuse(ErrInvalidProgress)
+		t.out.recordMisuse(errInvalidProgress)
 		return false
 	case record.ProgressRegressed:
-		t.out.recordMisuse(ErrProgressRegression)
+		t.out.recordMisuse(errProgressRegression)
 		return false
 	}
 	st.node.Rec.MarkActivity(t.out.cfg.clock.Now())
-	if st.node.Rec.State() == Pending {
+	if st.node.Rec.State() == pending {
 		t.out.promoteRunningLocked(st)
 	}
 	t.out.bumpLocked()
-	t.out.appendEventLocked(Event{Type: "task.progress_changed", EntityID: t.id})
+	t.out.appendEventLocked(recEvent{Type: "task.progress_changed", EntityID: t.id})
 	// Progress is high-frequency: coalesce unless first frame.
 	t.out.signalLiveLocked(false)
 	t.out.emitTaskRunningProgressiveLocked(st, triggerProgress)
@@ -1350,63 +1351,63 @@ func (t *TaskHandle) applyProgressLocked(st *taskState, completed, total int64, 
 
 // succeed resolves the task Done with summary: the engine's synchronous
 // success verb for library-owned rows (Confirm's gate) and engine tests.
-// The public TaskHandle has no equivalent since 1.1: callers resolve
+// The public Task has no equivalent since 1.1: callers resolve
 // through Define, and Summary carries their result project.
-func (t *TaskHandle) succeed(summary string) {
-	t.finish(Done, project.Text(summary), nil)
+func (t *Task) succeed(summary string) {
+	t.finish(done, project.Text(summary), nil)
 }
 
 // Fail resolves the task as failed. This is a statement, not a fluent
 // chain — Fail returns nothing, so a bare `task.Fail("summary")` is
-// errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Inside
+// errcheck-clean. A nil *Task is safe and resolves nothing. Inside
 // Define, return the error as well so Wait sees the callback's own result.
-func (t *TaskHandle) Fail(summary string, options ...ProblemOption) {
+func (t *Task) fail(summary string, options ...ProblemOption) {
 	t.resolveWithProblem(Failed, summary, options)
 }
 
 // resolveWithProblem is Fail and Block: resolve as state with one Problem
 // built from summary and options.
-func (t *TaskHandle) resolveWithProblem(state EntityState, summary string, options []ProblemOption) {
+func (t *Task) resolveWithProblem(state entityState, summary string, options []ProblemOption) {
 	p := record.ApplyProblemOptions(project.Text(summary), options)
-	t.finish(state, project.Text(summary), []Problem{p})
+	t.finish(state, project.Text(summary), []problem{p})
 }
 
 // Block resolves the task as blocked. This is a statement, not a fluent
 // chain — Block returns nothing, so a bare `task.Block("summary")` is
-// errcheck-clean. A nil *TaskHandle is safe and resolves nothing. Inside
+// errcheck-clean. A nil *Task is safe and resolves nothing. Inside
 // Define, Block then return nil: Wait still reports failure from the
 // Blocked row.
-func (t *TaskHandle) Block(summary string, options ...ProblemOption) {
-	t.resolveWithProblem(Blocked, summary, options)
+func (t *Task) block(summary string, options ...ProblemOption) {
+	t.resolveWithProblem(blocked, summary, options)
 }
 
-// Cancel resolves the task as cancelled. A nil *TaskHandle is safe and
+// Cancel resolves the task as cancelled. A nil *Task is safe and
 // resolves nothing.
-func (t *TaskHandle) Cancel(reason string) {
+func (t *Task) cancel(reason string) {
 	t.finish(Cancelled, project.Text(reason), nil)
 }
 
 // skip resolves the task as skipped (the engine body behind Skipped).
 // reason is a printf format when args are present (fmt.Sprintf semantics).
-func (t *TaskHandle) skip(reason string, args ...any) *TaskHandle {
+func (t *Task) skip(reason string, args ...any) *Task {
 	if len(args) > 0 {
 		reason = fmt.Sprintf(reason, args...)
 	}
-	return t.finish(Skipped, project.Text(reason), nil)
+	return t.finish(skipped, project.Text(reason), nil)
 }
 
 // failScheduled resolves the task Failed on the scheduler's authority,
 // carrying the callback's error text as the row summary — Fail's shape,
 // without Fail's caller-side submitted-task guard.
-func (t *TaskHandle) failScheduled(summary string) {
+func (t *Task) failScheduled(summary string) {
 	p := record.ApplyProblemOptions(project.Text(summary), nil)
-	t.resolveScheduled(Failed, project.Text(summary), []Problem{p})
+	t.resolveScheduled(Failed, project.Text(summary), []problem{p})
 }
 
 // doneScheduled resolves the task Done on the scheduler's authority — the
 // one path that may declare a submitted task successful (see finish).
-func (t *TaskHandle) doneScheduled() {
-	t.resolveScheduled(Done, "", nil)
+func (t *Task) doneScheduled() {
+	t.resolveScheduled(done, "", nil)
 }
 
 // finish is the caller-facing resolution path — every terminal verb
@@ -1427,14 +1428,14 @@ func (t *TaskHandle) doneScheduled() {
 // immediately — that is how a callback reports its own failure (P13, where
 // the scheduler must then not resolve it a second time) and how an interrupt
 // cancels a running row.
-func (t *TaskHandle) finish(state EntityState, summary string, problems []Problem) *TaskHandle {
+func (t *Task) finish(state entityState, summary string, problems []problem) *Task {
 	return t.resolve(state, summary, problems, graph.ByCaller)
 }
 
 // resolveScheduled is the scheduler's own resolution path, called only from
 // executeWork once the callback has returned. It is the sole authority that
 // may declare a submitted task successful.
-func (t *TaskHandle) resolveScheduled(state EntityState, summary string, problems []Problem) {
+func (t *Task) resolveScheduled(state entityState, summary string, problems []problem) {
 	t.resolve(state, summary, problems, graph.ByScheduler)
 }
 
@@ -1451,8 +1452,8 @@ func (t *TaskHandle) resolveScheduled(state EntityState, summary string, problem
 // and both still owe the reader `! already mutated: …`. The separator is
 // the resolving goroutine's own stack: callbackDepth is non-zero only
 // inside a task callback, which is precisely "the row resolved itself".
-func (o *Output) deniesItsOwnEffect(st *taskState, state EntityState, authority graph.Authority) bool {
-	if !o.changes.EffectInFlight(record.TaskID(st.id)) || st.node.Phase() != graph.PhaseRunning || authority != graph.ByCaller || state == Done {
+func (o *Run) deniesItsOwnEffect(st *taskState, state entityState, authority graph.Authority) bool {
+	if !o.changes.EffectInFlight(record.TaskID(st.id)) || st.node.Phase() != graph.PhaseRunning || authority != graph.ByCaller || state == done {
 		return false
 	}
 	return graph.CallbackDepth() > 0
@@ -1462,7 +1463,7 @@ func (o *Output) deniesItsOwnEffect(st *taskState, state EntityState, authority 
 // the resolution does to the Task (see graph.Graph.Admit); this writes what
 // the reader sees of it: the Summary, the Problems and the committed row.
 
-func (t *TaskHandle) resolve(state EntityState, summary string, problems []Problem, authority graph.Authority) *TaskHandle {
+func (t *Task) resolve(state entityState, summary string, problems []problem, authority graph.Authority) *Task {
 	if t == nil || t.out == nil {
 		return t
 	}
@@ -1538,10 +1539,10 @@ func taskFinishedPayload(st *taskState) map[string]any {
 //	    return fmt.Errorf("build failed: %w", err)
 //	}
 //	return nil
-func (t *TaskHandle) run(cmd *process.Cmd) error {
+func (t *Task) run(cmd *process.Cmd) error {
 	if t != nil && t.out != nil {
 		t.ensurePhase(commandPhaseName(cmd))
-		pw := &phaseWriter{task: t, evidence: t.Capture()}
+		pw := &phaseWriter{task: t, evidence: t.capture()}
 		cmd.SetStdout(teeSubprocessWriter(cmd.Stdout(), pw))
 		cmd.SetStderr(teeSubprocessWriter(cmd.Stderr(), pw))
 	}
@@ -1625,8 +1626,8 @@ func isSingleSimpleCommand(script string) bool {
 
 // ensurePhase sets phase only when the task has none yet, so Run never
 // overwrites a phase the caller already declared before calling it.
-func (t *TaskHandle) ensurePhase(phase string) {
-	if phase == "" || t.Snapshot().Phase != "" {
+func (t *Task) ensurePhase(phase string) {
+	if phase == "" || t.snapshot().Phase != "" {
 		return
 	}
 	t.Doing(phase)
@@ -1672,7 +1673,7 @@ type taskState struct {
 	// the work Define submitted.
 	node   *graph.Task
 	name   string
-	handle *TaskHandle
+	handle *Task
 
 	// liveFirstSeenAt is the domain-clock time this task was first actually
 	// painted in the live region (see taskState.stampLiveFirstSeen in live.go) —
@@ -1685,7 +1686,7 @@ type taskState struct {
 	// record's state is what followRecordLocked reacts to. A Task starts
 	// followed as declaredState, so a Task settled before the engine ever
 	// saw it still gets its first reaction.
-	followed EntityState
+	followed entityState
 	// settleAnswered is set once the render work a settle owes was queued.
 	settleAnswered bool
 	// runningAnnounced is set once the render work becoming Running owes was
@@ -1732,12 +1733,12 @@ type tasksState struct {
 	id string
 	// out is the Output this container belongs to: a read of its live index
 	// first follows the record (see Output.followRecordLocked).
-	out *Output
+	out *Run
 	// node is the graph's declaration of this Group/Sequence and owns its
 	// §3.1 stable key.
 	node   *graph.Container
 	name   string
-	handle *GroupHandle
+	handle *Group
 
 	// kids is what a live frame and the verdict read of tasks.
 	kids childIndex
@@ -1780,7 +1781,7 @@ func (c *tasksState) containerPath() record.ContainerPath {
 // --- folded from task_taxonomy.go ---
 
 // dispositionVerb names which accumulation act a Reason's usage constraints
-// are checked against — TaskHandle.Skipped, or the keep records Kept used
+// are checked against — Task.Skipped, or the keep records Kept used
 // before it was removed in 1.1.
 type dispositionVerb string
 
@@ -1806,29 +1807,29 @@ func (v dispositionVerb) wireName() string {
 // the summary; the aggregation key is untouched by errs. Any errs render as
 // one bounded evidence line under the count row (first cause + "(+N more)"),
 // full list under Verbose.
-func (t *TaskHandle) Skipped(reason TaxonomyReason) {
+func (t *Task) skipped(reason taxonomyReason) {
 	t.recordTaxonomy(reason, "", dispositionSkip, nil)
-	t.finish(Skipped, "", nil)
+	t.finish(skipped, "", nil)
 }
 
-func (t *TaskHandle) recordTaxonomy(reason TaxonomyReason, name string, verb dispositionVerb, errs []error) {
+func (t *Task) recordTaxonomy(reason taxonomyReason, name string, verb dispositionVerb, errs []error) {
 	t.withTask(func(st *taskState) { t.recordTaxonomyLocked(st, reason, name, verb, errs) })
 }
 
-func (t *TaskHandle) recordTaxonomyLocked(st *taskState, reason TaxonomyReason, name string, verb dispositionVerb, errs []error) {
+func (t *Task) recordTaxonomyLocked(st *taskState, reason taxonomyReason, name string, verb dispositionVerb, errs []error) {
 	if err := t.out.ensureOpen(); err != nil {
 		t.out.recordMisuse(err)
 		return
 	}
 	if record.IsTerminalTask(st.node.Rec.State()) {
-		t.out.recordMisuseFor(st.name, ErrAlreadyResolved)
+		t.out.recordMisuseFor(st.name, errAlreadyResolved)
 		return
 	}
 	t.out.enforceReasonConstraintLocked(reason, st.name, verb)
 	if name == "" {
 		name = st.name
 	}
-	rec := TaxonomyRecord{Reason: reason.Name(), Name: project.Text(name), Causes: causesFromErrors(errs)}
+	rec := taxonomyRecord{Reason: reason.Name(), Name: project.Text(name), Causes: causesFromErrors(errs)}
 	switch verb {
 	case dispositionSkip:
 		st.node.Rec.AppendSkipped(rec)
@@ -1836,7 +1837,7 @@ func (t *TaskHandle) recordTaxonomyLocked(st *taskState, reason TaxonomyReason, 
 		st.node.Rec.AppendKept(rec)
 	}
 	t.out.bumpLocked()
-	t.out.appendEventLocked(Event{Type: "task." + string(verb) + "_recorded", EntityID: t.id})
+	t.out.appendEventLocked(recEvent{Type: "task." + string(verb) + "_recorded", EntityID: t.id})
 	t.out.emitWireEventLocked(wire.EventDispositionRecorded, t.id, wire.ToDispositionDoc(verb.wireName(), rec).EventPayload())
 }
 
@@ -1860,12 +1861,12 @@ func causesFromErrors(errs []error) []string {
 // constraints (ForSkip, OnTask) don't match how it is being used here.
 // Strict panics via recordMisuse; production still counts the record —
 // a constraint violation degrades to "counted anyway", never a dropped truth.
-func (o *Output) enforceReasonConstraintLocked(reason TaxonomyReason, taskName string, verb dispositionVerb) {
+func (o *Run) enforceReasonConstraintLocked(reason taxonomyReason, taskName string, verb dispositionVerb) {
 	if reason.SkipOnly() && verb != dispositionSkip {
-		o.recordMisuse(ErrReasonSkipOnly)
+		o.recordMisuse(errReasonSkipOnly)
 	}
 	if reason.OnlyOnTask() != "" && reason.OnlyOnTask() != taskName {
-		o.recordMisuse(ErrReasonWrongTask)
+		o.recordMisuse(errReasonWrongTask)
 	}
 }
 
@@ -1900,7 +1901,7 @@ func (o *Output) enforceReasonConstraintLocked(reason TaxonomyReason, taskName s
 // neither can move, and Wait returns ErrWaitDeadlock naming the shape
 // instead of hanging. Declare that work as Tasks under a Group, or Wait
 // inside the callback itself (API-041).
-func (t *TaskHandle) Wait() error {
+func (t *Task) wait() error {
 	if t == nil || t.out == nil {
 		return nil
 	}
@@ -1923,8 +1924,20 @@ func (t *TaskHandle) Wait() error {
 // that resolution (it holds o.mu from settle to commit) and follows the
 // record for a settle made outside one, so a caller that reads the frame
 // right after Wait sees the settled row.
-func (o *Output) followRecordAfterWait() {
+func (o *Run) followRecordAfterWait() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.followRecordLocked()
 }
+
+type DefineOption func(*defineConfig)
+
+type defineConfig struct{}
+
+func CleanStop(signals ...os.Signal) DefineOption {
+	return func(*defineConfig) {}
+}
+
+func (g *Group) Build(fn func(*Group)) { g.define(fn) }
+
+func (s *Sequence) Build(fn func(*Sequence)) { s.define(fn) }

@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -6,17 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // ExampleInit shows the sole Output constructor: build one, declare a task,
 // and Finish it.
 func ExampleInit() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true, Isolated: true})
+	out := initRun(Config{stdout: &buf, stderr: io.Discard, plain: true, isolated: true})
 	out.Task("read config").Define(func(context.Context) error { return nil })
-	_ = out.Finish()
+	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ read config
@@ -24,10 +22,10 @@ func ExampleInit() {
 
 // ExampleDefaultConfig shows building a mutable baseline Config and
 // overriding one field before passing it to Init.
-func ExampleDefaultConfig() {
-	cfg := evo.DefaultConfig()
-	cfg.Title = "repo-retire"
-	fmt.Println(cfg.Title)
+func exampleDefaultConfig() {
+	cfg := defaultConfig()
+	cfg.title = "repo-retire"
+	fmt.Println(cfg.title)
 	// Output:
 	// repo-retire
 }
@@ -36,10 +34,10 @@ func ExampleDefaultConfig() {
 // a Title and an explicit Stdout writer.
 func ExampleConfig() {
 	var buf bytes.Buffer
-	cfg := evo.Config{Title: "demo", Stdout: &buf, Stderr: io.Discard, Plain: true, Isolated: true}
-	out := evo.Init(cfg)
+	cfg := Config{title: "demo", stdout: &buf, stderr: io.Discard, plain: true, isolated: true}
+	out := initRun(cfg)
 	out.Task("scan").Define(func(context.Context) error { return nil })
-	_ = out.Finish()
+	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ scan
@@ -52,15 +50,15 @@ func ExampleConfig() {
 // GlyphsAuto are the other two values.
 func ExampleGlyphProfile() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Stdout:   &buf,
-		Stderr:   io.Discard,
-		Plain:    true,
-		Isolated: true,
-		Glyphs:   evo.GlyphsASCII,
+	out := initRun(Config{
+		stdout:   &buf,
+		stderr:   io.Discard,
+		plain:    true,
+		isolated: true,
+		glyphs:   glyphsASCII,
 	})
 	out.Task("scan").Define(func(context.Context) error { return nil })
-	_ = out.Finish()
+	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
 	// [ok] scan
@@ -69,21 +67,21 @@ func ExampleGlyphProfile() {
 // ExampleDefault shows the package-level default instance, lazily created
 // with a zero Config.
 func ExampleDefault() {
-	evo.SetDefault(nil)
-	out := evo.Default()
+	setDefault(nil)
+	out := defaultRun()
 	fmt.Println(out != nil)
 	// Output:
 	// true
 }
 
 // ExampleSetDefault installs an explicit Output as the package-level
-// default, so evo.Task and friends operate on it.
+// default, so Task and friends operate on it.
 func ExampleSetDefault() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true, Isolated: true})
-	evo.SetDefault(out)
-	evo.Task("wire default").Define(func(context.Context) error { return nil })
-	_ = out.Finish()
+	out := initRun(Config{stdout: &buf, stderr: io.Discard, plain: true, isolated: true})
+	setDefault(out)
+	defaultRun().Task("wire default").Define(func(context.Context) error { return nil })
+	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ wire default
@@ -94,9 +92,9 @@ func ExampleSetDefault() {
 // package-level default.
 func ExampleOutput() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true, Isolated: true})
+	out := initRun(Config{stdout: &buf, stderr: io.Discard, plain: true, isolated: true})
 	out.Task("build").Define(func(context.Context) error { return nil })
-	_ = out.Finish()
+	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ build
@@ -106,24 +104,24 @@ func ExampleOutput() {
 // and inspecting the returned Result instead of exiting the process.
 func ExampleRun() {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true}))
-	result := evo.Run(context.Background(), func(ctx context.Context) error {
-		evo.Task("apply migration").Define(func(context.Context) error { return nil })
+	setDefault(initRun(Config{stdout: &buf, stderr: io.Discard, plain: true}))
+	result := execute_1(context.Background(), func(ctx context.Context) error {
+		defaultRun().Task("apply migration").Define(func(context.Context) error { return nil })
 		return nil
 	})
 	fmt.Println(result.Err)
-	fmt.Println(result.Conclusion.State)
+	fmt.Println(result.Conclusion.state)
 	// Output:
 	// <nil>
 	// ready
 }
 
 // ExampleMain shows deriving a process exit code from a RunFunc without
-// evo.Main itself calling os.Exit — the caller writes os.Exit(evo.Main(run)).
+// Main itself calling os.Exit — the caller writes os.Exit(Main(run)).
 func ExampleMain() {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true}))
-	code := evo.Main(func(ctx context.Context) error {
+	setDefault(initRun(Config{stdout: &buf, stderr: io.Discard, plain: true}))
+	code := Main(func(ctx context.Context) error {
 		return errors.New("disk full")
 	})
 	fmt.Println(code)
@@ -134,7 +132,7 @@ func ExampleMain() {
 // ExampleResult shows the outcome of Run/Main/Output.Run: the finished
 // Conclusion plus the application error, if any.
 func ExampleResult() {
-	result := evo.Result{Conclusion: evo.Conclusion{State: evo.StateFailed, ExitCode: evo.ExitFailed}}
+	result := Result{Conclusion: Conclusion{state: stateFailed, exitCode: exitFailed}}
 	fmt.Println(result.ExitCode())
 	// Output:
 	// 2
@@ -143,7 +141,7 @@ func ExampleResult() {
 // ExampleRunFunc shows the RunFunc shape application code hands to
 // Run/Main/Output.Run: a context.Context in, an error out.
 func ExampleRunFunc() {
-	var run evo.RunFunc = func(ctx context.Context) error { return nil }
+	var run RunFunc = func(ctx context.Context) error { return nil }
 	fmt.Println(run(context.Background()))
 	// Output:
 	// <nil>

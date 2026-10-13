@@ -1,12 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"context"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestInit_OptionsPath_HonorsDryRun is I1: Config.DryRun was silently
@@ -14,10 +12,10 @@ import (
 // with explicit Options got [changed] rows instead of [planned].
 func TestInit_OptionsPath_HonorsDryRun(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, DryRun: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, DryRun: true, stdout: &buf, color: colorNever, plain: true})
 
-	out.Task("cleanup").Define(effectOf(evo.EffectDelete, "stale local branch", 2))
-	_ = out.Finish()
+	out.Task("cleanup").Define(effectOf(Delete, "stale local branch", 2))
+	_ = out.finish()
 
 	rendered := buf.String()
 	if !strings.Contains(rendered, "planned") {
@@ -32,7 +30,7 @@ func TestInit_OptionsPath_HonorsDryRun(t *testing.T) {
 // dropped on the Config.Options escape hatch.
 func TestInit_OptionsPath_HonorsSubject(t *testing.T) {
 	var buf bytes.Buffer
-	evo.Init(evo.Config{Isolated: true, Subject: "bpp-csharp", Stdout: &buf, Color: evo.ColorNever})
+	initRun(Config{isolated: true, subject: "bpp-csharp", stdout: &buf, color: colorNever})
 
 	if !strings.Contains(buf.String(), "bpp-csharp") {
 		t.Fatalf("Subject not printed on the Options path, got:\n%s", buf.String())
@@ -46,22 +44,22 @@ func TestInit_OptionsPath_HonorsSubject(t *testing.T) {
 func TestInit_OptionsPath_HonorsPreview(t *testing.T) {
 	called := false
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true,
-		Preview:  true,
-		Subject:  "repo  /tmp/flight",
-		Stdout:   &buf,
-		Plain:    true,
-		Color:    evo.ColorNever,
+	out := initRun(Config{
+		isolated: true,
+		preview:  true,
+		subject:  "repo  /tmp/flight",
+		stdout:   &buf,
+		plain:    true,
+		color:    colorNever,
 	})
 
 	out.Task("cleanup").Define(func(ctx context.Context) error {
-		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale local branch", Quantity: 2}, func(context.Context) error {
+		return Effect(ctx, EffectSpec{Verb: Delete, Object: "stale local branch", Quantity: 2}, func(context.Context) error {
 			called = true
 			return nil
 		})
 	})
-	_ = out.Finish()
+	_ = out.finish()
 
 	got := buf.String()
 	if called {

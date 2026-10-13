@@ -35,10 +35,10 @@ func answersWithinLimit(t *testing.T, what string, wait func() error) (answer er
 // row, as it did before it learned to wait for a returning callback.
 func TestWait_OnTheRowItsOwnCallbackFailedAnswersFromTheRow(t *testing.T) {
 	out := newOutput("job", to(io.Discard))
-	var task *TaskHandle
+	var task *Task
 	got := make(chan error, 1)
 	task = out.Task("self")
-	task.Define(func(context.Context) error { task.Fail("x"); got <- task.Wait(); return nil })
+	task.Define(func(context.Context) error { task.fail("x"); got <- task.wait(); return nil })
 
 	select {
 	case err := <-got:
@@ -58,10 +58,10 @@ func TestWait_TwoCallbacksWaitingOnEachOtherAfterOneFailedItselfBothReturn(t *te
 		t.Run(fmt.Sprintf("ceiling %d", ceiling), func(t *testing.T) {
 			out := newOutput("job", to(io.Discard), maxConcurrency(ceiling))
 			a, b := out.Task("a"), out.Task("b")
-			a.Define(func(context.Context) error { a.Fail("x"); return b.Wait() })
-			b.Define(func(context.Context) error { return a.Wait() })
+			a.Define(func(context.Context) error { a.fail("x"); return b.wait() })
+			b.Define(func(context.Context) error { return a.wait() })
 
-			if _, ok := answersWithinLimit(t, "Wait on a", a.Wait); !ok {
+			if _, ok := answersWithinLimit(t, "Wait on a", a.wait); !ok {
 				return
 			}
 		})
@@ -72,11 +72,11 @@ func TestWait_AnObserverOfTwoCallbacksWaitingOnEachOtherAfterOneFailedItselfRetu
 	out := newOutput("job", to(io.Discard), maxConcurrency(4))
 	a, b := out.Task("a"), out.Task("b")
 	bStarted := make(chan struct{})
-	a.Define(func(context.Context) error { <-bStarted; a.Fail("x"); return b.Wait() })
-	b.Define(func(context.Context) error { close(bStarted); time.Sleep(10 * time.Millisecond); return a.Wait() })
-	observer := out.Task("observer").Define(func(context.Context) error { return a.Wait() })
+	a.Define(func(context.Context) error { <-bStarted; a.fail("x"); return b.wait() })
+	b.Define(func(context.Context) error { close(bStarted); time.Sleep(10 * time.Millisecond); return a.wait() })
+	observer := out.Task("observer").Define(func(context.Context) error { return a.wait() })
 
-	_, _ = answersWithinLimit(t, "Wait on the observer", observer.Wait)
+	_, _ = answersWithinLimit(t, "Wait on the observer", observer.wait)
 }
 
 // An interrupt cancels the row at once, and a callback that ignores its
@@ -91,7 +91,7 @@ func TestWait_OnACancelledRowWhoseCallbackIgnoresItsContextAnswersCancelled(t *t
 	}
 	out.interrupt("x")
 
-	err, ok := answersWithinLimit(t, "Wait on the interrupted task", stuck.Wait)
+	err, ok := answersWithinLimit(t, "Wait on the interrupted task", stuck.wait)
 
 	if ok && !errors.Is(err, graph.ErrWaitCancelled) {
 		t.Errorf("Wait = %v, want ErrWaitCancelled", err)
@@ -112,7 +112,7 @@ func TestWait_OnACancelledRowWhoseCallbackReturnedItsContextErrorAnswersCancelle
 	}
 	out.interrupt("x")
 
-	err, ok := answersWithinLimit(t, "Wait on the interrupted task", task.Wait)
+	err, ok := answersWithinLimit(t, "Wait on the interrupted task", task.wait)
 
 	if ok && !errors.Is(err, graph.ErrWaitCancelled) {
 		t.Errorf("Wait = %v, want it to wrap ErrWaitCancelled", err)

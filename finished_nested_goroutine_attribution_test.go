@@ -1,12 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"context"
 	"errors"
 	"io"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 type nestedOutcome struct {
@@ -22,10 +20,10 @@ type nestedOutcome struct {
 // nor anyone else did anything unordered. n2 never reads anything.
 func runFinishedNested(t *testing.T, ceiling int) nestedOutcome {
 	t.Helper()
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true, MaxConcurrency: ceiling})
-	defer func() { _ = out.Close() }()
+	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true, MaxConcurrency: ceiling})
+	defer func() { _ = out.close() }()
 	made := out.Group("producers").Task("make")
-	producer := evo.Compute(made, func(context.Context) (int, error) { return 7, nil })
+	producer := Compute(made, func(context.Context) (int, error) { return 7, nil })
 	n1 := out.Group("nested").Task("n1").After(made)
 	n2 := out.Group("other").Task("n2")
 	n2Running, readDone := make(chan struct{}), make(chan struct{})
@@ -40,7 +38,7 @@ func runFinishedNested(t *testing.T, ceiling int) nestedOutcome {
 			}()
 			return nil
 		})
-		if err := n1.Wait(); err != nil {
+		if err := n1.wait(); err != nil {
 			return err
 		}
 		n2.Define(func(context.Context) error {
@@ -48,15 +46,15 @@ func runFinishedNested(t *testing.T, ceiling int) nestedOutcome {
 			<-readDone
 			return nil
 		})
-		return n2.Wait()
+		return n2.wait()
 	})
-	_ = out.Finish()
-	return nestedOutcome{outer: outer.Wait(), n1: n1.Wait(), n2: n2.Wait(), read: read}
+	_ = out.finish()
+	return nestedOutcome{outer: outer.wait(), n1: n1.wait(), n2: n2.wait(), read: read}
 }
 
 func TestGoroutineOfAFinishedNestedTaskIsNotTheNextNestedTasks(t *testing.T) {
 	got := runFinishedNested(t, 1)
-	if errors.Is(got.n2, evo.ErrComputedUnordered) {
+	if errors.Is(got.n2, ErrComputedUnordered) {
 		t.Errorf("n2.Wait() = %v: a goroutine n1 started was charged to n2, which never read", got.n2)
 	}
 	if got.outer != nil || got.n1 != nil || got.read != 7 {

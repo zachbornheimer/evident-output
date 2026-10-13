@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -10,31 +10,30 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
-// TestTask_PackageFuncRepeatedNameIsDuplicateSibling proves evo.Task(name)
+// TestTask_PackageFuncRepeatedNameIsDuplicateSibling proves defaultRun().Task(name)
 // called twice with the same name is a duplicate sibling declaration
 // (§3.1), not a get-or-create — handles are values, so a caller that wants
-// to keep using one declaration keeps the *TaskHandle it got instead of
+// to keep using one declaration keeps the *Task it got instead of
 // re-declaring by name.
 func TestTask_PackageFuncRepeatedNameIsDuplicateSibling(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	evo.SetDefault(out)
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	setDefault(out)
 
-	a := evo.Task("branches")
-	b := evo.Task("branches")
+	a := defaultRun().Task("branches")
+	b := defaultRun().Task("branches")
 
 	if a == b {
-		t.Fatal("evo.Task(name) called twice must return distinct handles")
+		t.Fatal("defaultRun().Task(name) called twice must return distinct handles")
 	}
-	if !errors.Is(out.Err(), evo.ErrDuplicateSiblingName) {
-		t.Fatalf("Err() = %v, want ErrDuplicateSiblingName", out.Err())
+	if !errors.Is(out.err(), errDuplicateSiblingName) {
+		t.Fatalf("Err() = %v, want ErrDuplicateSiblingName", out.err())
 	}
 
-	other := evo.Task("worktrees")
+	other := defaultRun().Task("worktrees")
 	if other == a {
 		t.Fatal("a different name must not reuse the same handle")
 	}
@@ -42,12 +41,12 @@ func TestTask_PackageFuncRepeatedNameIsDuplicateSibling(t *testing.T) {
 
 func TestPackageFuncs_DelegateToDefaultInstance(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
+	setDefault(initRun(Config{stdout: &buf, color: colorNever, plain: true}))
 
-	succeed(evo.Task("working tree"))
-	evo.Println("hello from package func")
+	succeed(defaultRun().Task("working tree"))
+	println("hello from package func")
 
-	if err := evo.Default().Finish(); err != nil {
+	if err := defaultRun().finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -61,14 +60,14 @@ func TestPackageFuncs_DelegateToDefaultInstance(t *testing.T) {
 
 func TestVerbose_PackageFuncScopesVisibility(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{
-		Stdout:    &buf,
-		Stderr:    &buf,
-		Verbosity: evo.VerbosityVerbose,
+	setDefault(initRun(Config{
+		stdout:    &buf,
+		stderr:    &buf,
+		verbosity: verbosityVerbose,
 	}))
 
-	evo.Verbose().Println("verbose only line")
-	if err := evo.Default().Finish(); err != nil {
+	verbose().println("verbose only line")
+	if err := defaultRun().finish(); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "verbose only line") {
@@ -78,61 +77,62 @@ func TestVerbose_PackageFuncScopesVisibility(t *testing.T) {
 
 func TestMain_OKExitZero(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
+	setDefault(initRun(Config{stdout: &buf, color: colorNever, plain: true}))
 
-	code := evo.Run(context.Background(), func(ctx context.Context) error {
-		succeed(evo.Task("working tree"))
+	code := execute_1(context.Background(), func(ctx context.Context) error {
+		succeed(defaultRun().Task("working tree"))
 		return nil
 	}).ExitCode()
-	if code != evo.ExitOK {
-		t.Fatalf("exit %d, want %d; out:\n%s", code, evo.ExitOK, buf.String())
+	if code != exitOK {
+		t.Fatalf("exit %d, want %d; out:\n%s", code, exitOK, buf.String())
 	}
 }
 
 func TestMain_BlockedExitOne(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
+	setDefault(initRun(Config{stdout: &buf, color: colorNever, plain: true}))
 
-	code := evo.Run(context.Background(), func(ctx context.Context) error {
-		evo.Task("working tree").Block("dirty")
+	code := execute_1(context.Background(), func(ctx context.Context) error {
+		defaultRun().Task("working tree").block("dirty")
 		return nil
 	}).ExitCode()
-	if code != evo.ExitBlocked {
-		t.Fatalf("exit %d, want %d", code, evo.ExitBlocked)
+	if code != exitBlocked {
+		t.Fatalf("exit %d, want %d", code, exitBlocked)
 	}
 }
 
 func TestMain_FailedExitTwo(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
+	setDefault(initRun(Config{stdout: &buf, color: colorNever, plain: true}))
 
-	code := evo.Run(context.Background(), func(ctx context.Context) error {
+	code := execute_1(context.Background(), func(ctx context.Context) error {
 		return errors.New("app boom")
 	}).ExitCode()
-	if code != evo.ExitFailed {
-		t.Fatalf("exit %d, want %d", code, evo.ExitFailed)
+	if code != exitFailed {
+		t.Fatalf("exit %d, want %d", code, exitFailed)
 	}
 }
 
 func TestMain_NilRunNeverPanics(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
+	setDefault(initRun(Config{stdout: &buf, color: colorNever, plain: true}))
 
-	code := evo.Run(context.Background(), nil).ExitCode()
-	if code != evo.ExitOK {
-		t.Fatalf("exit %d, want %d", code, evo.ExitOK)
+	code := execute_1(context.Background(), nil).ExitCode()
+	if code != exitOK {
+		t.Fatalf("exit %d, want %d", code, exitOK)
 	}
 }
 
 func TestInit_ArmsFirstPaintBeforeAnyEntity(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard,
-		Title:           "demo",
-		Terminal:        screen,
-		Color:           evo.ColorNever,
-		VisibilityDelay: evo.DelayForTest(0),
+	out := initRun(Config{
+		stdout: io.Discard, stderr: io.Discard,
+		title:           "demo",
+		terminal:        screen,
+		color:           colorNever,
+		visibilityDelay: DelayForTest(0),
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	if got := screen.LiveFrameCount(); got == 0 {
 		t.Fatal("Init must paint a live frame before any entity is declared")
@@ -147,19 +147,19 @@ func TestInit_ArmsFirstPaintBeforeAnyEntity(t *testing.T) {
 // freeze while Inventory ran — Isolated must still arm.
 func TestInit_IsolatedDryRunArmsAndEmitsConstructionFacts(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{
-		Title:           "zq",
-		Subject:         "zq purge",
-		Isolated:        true,
+	out := initRun(Config{
+		title:           "zq",
+		subject:         "zq purge",
+		isolated:        true,
 		DryRun:          true,
-		Facts:           []evo.FactRecord{{Name: "scan roots", Value: "~/Developer"}},
-		Stdout:          io.Discard,
-		Stderr:          io.Discard,
-		Terminal:        screen,
-		Color:           evo.ColorNever,
-		VisibilityDelay: evo.DelayForTest(0),
+		facts:           []factRecord{{Name: "scan roots", Value: "~/Developer"}},
+		stdout:          io.Discard,
+		stderr:          io.Discard,
+		terminal:        screen,
+		color:           colorNever,
+		visibilityDelay: DelayForTest(0),
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	if got := screen.LiveFrameCount(); got == 0 {
 		t.Fatal("Isolated Init must paint a live frame before any Task; Isolated is not a first-paint exemption")
@@ -167,7 +167,7 @@ func TestInit_IsolatedDryRunArmsAndEmitsConstructionFacts(t *testing.T) {
 	if live := screen.LatestLiveText(); !strings.Contains(live, "zq") {
 		t.Fatalf("armed title missing subject, live=%q", live)
 	}
-	snap := out.Snapshot()
+	snap := out.snapshot()
 	if !snap.DryRun {
 		t.Fatal("DryRun must be on the snapshot")
 	}
@@ -187,11 +187,11 @@ func TestInit_IsolatedDryRunArmsAndEmitsConstructionFacts(t *testing.T) {
 // unset at the top of the run — package funcs before Init must still work.
 func TestDefault_LazyInitNeverPanics(t *testing.T) {
 	if os.Getenv("EVO_LAZY_DEFAULT_SUBPROCESS") == "1" {
-		evo.Println("hello without Init")
-		task := evo.Task("background")
+		println("hello without Init")
+		task := defaultRun().Task("background")
 		succeed(task)
-		first := evo.Default()
-		second := evo.Default()
+		first := defaultRun()
+		second := defaultRun()
 		if first != second {
 			os.Exit(1)
 		}
@@ -202,6 +202,6 @@ func TestDefault_LazyInitNeverPanics(t *testing.T) {
 	cmd.Env = append(os.Environ(), "EVO_LAZY_DEFAULT_SUBPROCESS=1")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("subprocess with no Init(Config{}) panicked or failed: %v\n%s", err, out)
+		t.Fatalf("subprocess with no initRun(Config{}) panicked or failed: %v\n%s", err, out)
 	}
 }

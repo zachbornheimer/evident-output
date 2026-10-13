@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -7,16 +7,14 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/testkit"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 func TestOUT021_DataProjectionOption(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &primary, Stderr: &diag, Color: evo.ColorNever, Plain: true, Format: evo.FormatData})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &primary, stderr: &diag, color: colorNever, plain: true, format: formatData})
+	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("scan").Doing("walk"), "ok")
-	_ = out.Finish()
+	_ = out.finish()
 	// Data projection still renders human to primary in v0.3 path unless diagnostic set for UI;
 	// ensure option is accepted and Finish works.
 	if primary.Len() == 0 && diag.Len() == 0 {
@@ -29,15 +27,15 @@ func TestOUT021_DataProjectionOption(t *testing.T) {
 // surviving accessor); FormatExternal's "snapshots only" promise still
 // holds via that path.
 func TestAPI016_ExternalProjectionSnapshots(t *testing.T) {
-	out := evo.Init(evo.Config{
-		Format: evo.FormatExternal,
-		Stdout: io.Discard,
-		Stderr: io.Discard,
+	out := initRun(Config{
+		format: formatExternal,
+		stdout: io.Discard,
+		stderr: io.Discard,
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("x"))
-	_ = out.Finish()
-	snap := out.Snapshot()
+	_ = out.finish()
+	snap := out.snapshot()
 	if len(snap.Tasks) != 1 || snap.Tasks[0].Name != "x" {
 		t.Fatalf("expected the task in the snapshot, got %+v", snap.Tasks)
 	}
@@ -51,8 +49,8 @@ func TestAPI016_ExternalProjectionSnapshots(t *testing.T) {
 func TestProjection_StandaloneTaskPlainLiveParity(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	build := out.Task("build")
 	build.Progress(3, 10)
@@ -67,5 +65,5 @@ func TestProjection_StandaloneTaskPlainLiveParity(t *testing.T) {
 	}
 
 	succeed(build)
-	_ = out.Finish()
+	_ = out.finish()
 }

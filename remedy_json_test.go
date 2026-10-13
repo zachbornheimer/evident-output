@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -6,11 +6,9 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
-// remedyRunDocument is the slice of the evo.run document a remedy must reach.
+// remedyRunDocument is the slice of the run document a remedy must reach.
 type remedyRunDocument struct {
 	Data struct {
 		Tasks []struct {
@@ -63,23 +61,23 @@ func taskProblemRuns(doc remedyRunDocument, executable string, args ...string) b
 }
 
 // ZYS-1182: a remedy attached with the Next/NextCommand ProblemOptions on
-// Block or Fail reaches the evo.run JSON, on the run's actions and on the
+// Block or Fail reaches the run JSON, on the run's actions and on the
 // Problem it explains.
 func TestRemedy_BlockAndFailReachRunJSONActions(t *testing.T) {
-	cases := map[string]func(task *evo.TaskHandle){
-		"Block": func(task *evo.TaskHandle) { task.Block("policy refused", evo.NextCommand("tool", "--yes")) },
-		"Fail":  func(task *evo.TaskHandle) { task.Fail("policy refused", evo.NextCommand("tool", "--yes")) },
+	cases := map[string]func(task *Task){
+		"Block": func(task *Task) { task.block("policy refused", nextCommand("tool", "--yes")) },
+		"Fail":  func(task *Task) { task.fail("policy refused", nextCommand("tool", "--yes")) },
 	}
 	for name, resolve := range cases {
 		t.Run(name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			out := evo.Init(evo.Config{Isolated: true, Title: "tool", Stdout: &stdout, Stderr: &stderr, Plain: true, Color: evo.ColorNever, Format: evo.FormatJSON})
+			out := initRun(Config{isolated: true, title: "tool", stdout: &stdout, stderr: &stderr, plain: true, color: colorNever, format: formatJSON})
 			resolve(out.Task("gate"))
-			_ = out.Finish()
+			_ = out.finish()
 
 			var doc remedyRunDocument
 			if err := json.Unmarshal(stdout.Bytes(), &doc); err != nil {
-				t.Fatalf("stdout is not an evo.run document: %v\n%s", err, stdout.String())
+				t.Fatalf("stdout is not an run document: %v\n%s", err, stdout.String())
 			}
 			if !anyRuns(doc.Data.Actions, "tool", "--yes") {
 				t.Fatalf("data.actions = %+v, want the remedy command tool --yes", doc.Data.Actions)
@@ -95,13 +93,13 @@ func TestRemedy_BlockAndFailReachRunJSONActions(t *testing.T) {
 // task-level attachment).
 func TestRemedy_ConfirmPolicyHintReachesRunJSONActions(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "tool", Stdout: &stdout, Stderr: &stderr, Plain: true, Color: evo.ColorNever, Format: evo.FormatJSON})
+	out := initRun(Config{isolated: true, title: "tool", stdout: &stdout, stderr: &stderr, plain: true, color: colorNever, format: formatJSON})
 	out.Confirm("delete?")
-	_ = out.Finish()
+	_ = out.finish()
 
 	var doc remedyRunDocument
 	if err := json.Unmarshal(stdout.Bytes(), &doc); err != nil {
-		t.Fatalf("stdout is not an evo.run document: %v\n%s", err, stdout.String())
+		t.Fatalf("stdout is not an run document: %v\n%s", err, stdout.String())
 	}
 	if len(doc.Data.Tasks) != 1 || len(doc.Data.Tasks[0].Problems) != 1 {
 		t.Fatalf("data.tasks = %+v, want one task with one policy-block Problem", doc.Data.Tasks)
@@ -118,16 +116,16 @@ func TestRemedy_ConfirmPolicyHintReachesRunJSONActions(t *testing.T) {
 // exits 2.
 func TestRemedy_FailInsideDefineCarriesDetailAndRemedyToRunJSON(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "zq", Stdout: &stdout, Stderr: &stderr, Plain: true, Color: evo.ColorNever, Format: evo.FormatJSON})
+	out := initRun(Config{isolated: true, title: "zq", stdout: &stdout, stderr: &stderr, plain: true, color: colorNever, format: formatJSON})
 	lint := out.Task("lint")
 	lint.Define(func(context.Context) error {
-		lint.Fail("lint failed", evo.Detail("exit status 1"), evo.NextCommand("zq", "fix"))
+		lint.fail("lint failed", Detail("exit status 1"), nextCommand("zq", "fix"))
 		return nil
 	})
-	if err := lint.Wait(); err == nil {
+	if err := lint.wait(); err == nil {
 		t.Fatal("Wait() = nil, want an error for a failed Task")
 	}
-	_ = out.Finish()
+	_ = out.finish()
 
 	var doc struct {
 		ExitCode int `json:"exit_code"`
@@ -144,7 +142,7 @@ func TestRemedy_FailInsideDefineCarriesDetailAndRemedyToRunJSON(t *testing.T) {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &doc); err != nil {
-		t.Fatalf("stdout is not an evo.run document: %v\n%s", err, stdout.String())
+		t.Fatalf("stdout is not an run document: %v\n%s", err, stdout.String())
 	}
 	if doc.ExitCode != 2 {
 		t.Fatalf("exit_code = %d, want 2", doc.ExitCode)

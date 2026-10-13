@@ -1,20 +1,18 @@
-package evo_test
+package evo
 
 import (
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestProblemLocation_SetsSourceLocation is C5: the At(path, line, column)
 // ProblemOption is renamed Location(...) — it no longer shares a name with
 // Output.At(visibility), which confused autocomplete and readers alike.
 func TestProblemLocation_SetsSourceLocation(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: nil})
+	out := initRun(Config{isolated: true, stdout: nil})
 	task := out.Task("lint")
-	task.Fail("syntax error", evo.Location("main.go", 12, 4))
+	task.fail("syntax error", location("main.go", 12, 4))
 
-	problems := out.Snapshot().Tasks[0].Problems
+	problems := out.snapshot().Tasks[0].Problems
 	if len(problems) == 0 || problems[0].Location == nil {
 		t.Fatalf("problems = %+v, want a Location", problems)
 	}

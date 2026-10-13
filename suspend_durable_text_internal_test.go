@@ -67,14 +67,14 @@ func TestSiblingRowSettledInsideAConfirmWindowPrintsAfterTheGateRows(t *testing.
 			time.Sleep(time.Millisecond)
 		}
 		close(release)
-		_ = sibling.Wait()
+		_ = sibling.wait()
 		_, _ = typed.WriteString("y\n")
 	}()
 
 	if !out.Confirm("go?") {
 		t.Fatal("Confirm = false, want the typed yes")
 	}
-	_ = out.Finish()
+	_ = out.finish()
 
 	writes := surface.durableText()
 	prompt := indexOfDurable(writes, "go?", "[y/N]")

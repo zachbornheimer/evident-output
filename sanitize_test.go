@@ -1,19 +1,17 @@
-package evo_test
+package evo
 
 import (
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 func TestSEC001_ItemNameNeutralizesESC(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	t.Cleanup(func() { _ = out.close() })
 
 	succeed(out.Task("evil\x1b[31mred"))
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(buf.String(), "\x1b") {
@@ -23,14 +21,14 @@ func TestSEC001_ItemNameNeutralizesESC(t *testing.T) {
 
 func TestSEC001_DonefAndCommandSanitize(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("t")
 	succeed(task, "ok\x1b[31m")
 	item := out.Task("i")
-	item.Block("b", evo.NextCommand("cmd\x1b[31m", "a\x1b"))
-	_ = out.Finish()
+	item.block("b", nextCommand("cmd\x1b[31m", "a\x1b"))
+	_ = out.finish()
 	if strings.Contains(buf.String(), "\x1b") {
 		t.Fatalf("ESC leaked:\n%s", buf.String())
 	}

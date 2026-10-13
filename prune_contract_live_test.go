@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -30,16 +29,16 @@ type liveCategory struct {
 func TestPruneContract_LiveCategoriesRenderContract18Frame(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{
-		Isolated: true, Clock: clock, Terminal: screen, Stdout: io.Discard, Stderr: io.Discard,
-		VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever, MaxFrameRate: 1_000_000,
+	out := initRun(Config{
+		isolated: true, clock: clock, terminal: screen, stdout: io.Discard, stderr: io.Discard,
+		visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000,
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
-	checkedOut, protected := evo.Reason("checked out"), evo.Reason("protected")
-	dirty, tracked := evo.Reason("dirty"), evo.Reason("tracked")
+	checkedOut, protected := reason("checked out"), reason("protected")
+	dirty, tracked := reason("dirty"), reason("tracked")
 	categories := out.Group("categories")
 	var repaint []func()
 	for _, c := range []liveCategory{
@@ -51,7 +50,7 @@ func TestPruneContract_LiveCategoriesRenderContract18Frame(t *testing.T) {
 		work := items.Task(c.name)
 		classifying := make(chan struct{})
 		for _, kept := range c.kept {
-			items.Task(kept.name).Skipped(kept.reason)
+			items.Task(kept.name).skipped(kept.reason)
 		}
 		work.Define(func(context.Context) error {
 			work.Doing(c.item)

@@ -1,23 +1,21 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestLedger_PluralizesSingularObjectFromQuantity is I4: mutation verbs
 // take a singular object; the ledger derives the correct plural at render
 // time from the quantity — a call site never hand-composes its own
-// singular/plural noun or calls evo.Pluralize itself.
+// singular/plural noun or calls Pluralize itself.
 func TestLedger_PluralizesSingularObjectFromQuantity(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
 
-	out.Task("cleanup").Define(effectOf(evo.EffectDelete, "stale local branch", 8))
-	_ = out.Finish()
+	out.Task("cleanup").Define(effectOf(Delete, "stale local branch", 8))
+	_ = out.finish()
 
 	rendered := buf.String()
 	if !strings.Contains(rendered, "8 stale local branches") {
@@ -32,10 +30,10 @@ func TestLedger_PluralizesSingularObjectFromQuantity(t *testing.T) {
 // singular form unchanged.
 func TestLedger_QuantityOne_StaysSingular(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
 
-	out.Task("cleanup").Define(effectOf(evo.EffectDelete, "stale local branch", 1))
-	_ = out.Finish()
+	out.Task("cleanup").Define(effectOf(Delete, "stale local branch", 1))
+	_ = out.finish()
 
 	rendered := buf.String()
 	if !strings.Contains(rendered, "1 stale local branch\n") {

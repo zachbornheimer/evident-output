@@ -28,15 +28,15 @@ func TestGraphSettle_AWaiterThatSawTheSettleFindsItsEventInTheJournal(t *testing
 		o := newOutput("job", to(&buf), maxConcurrency(1))
 		release := make(chan struct{})
 		o.Task("blocker").Define(func(context.Context) error { <-release; return nil })
-		var queued []*TaskHandle
+		var queued []*Task
 		for i := range queuedTaskCount {
 			queued = append(queued, o.Task(fmt.Sprintf("q%d", i)).Define(func(context.Context) error { return nil }))
 		}
 		target := queued[0]
 		found := make(chan bool)
 		go func() {
-			_ = target.Wait()
-			found <- slices.ContainsFunc(o.Events(), func(e Event) bool {
+			_ = target.wait()
+			found <- slices.ContainsFunc(o.events(), func(e recEvent) bool {
 				return e.EntityID == target.id && e.Type == "task.not_started"
 			})
 		}()
@@ -48,7 +48,7 @@ func TestGraphSettle_AWaiterThatSawTheSettleFindsItsEventInTheJournal(t *testing
 			missing++
 		}
 		close(release)
-		_ = o.Finish()
+		_ = o.finish()
 	}
 	if missing > 0 {
 		t.Errorf("task.not_started was missing from Events() after Wait returned in %d/%d trials", missing, settleJournalTrials)
@@ -59,7 +59,7 @@ func TestGraphSettle_AWaiterThatSawTheSettleFindsItsEventInTheJournal(t *testing
 // blocker. The graph abandons the queued Task on its own (NotStarted) while an
 // open record Hold, another goroutine inside a graph section, delays the
 // listener. The caller releases the Hold and the blocker.
-func abandonedWhileListenerDelayed() (o *Output, queued *TaskHandle, releaseBlocker func()) {
+func abandonedWhileListenerDelayed() (o *Run, queued *Task, releaseBlocker func()) {
 	var buf bytes.Buffer
 	o = newOutput("job", to(&buf), maxConcurrency(1))
 	release := make(chan struct{})
@@ -78,7 +78,7 @@ func TestGraphSettle_EventsShowASettleTheListenerHasNotDelivered(t *testing.T) {
 	defer releaseBlocker()
 	defer o.rec.Release()
 
-	seen := slices.ContainsFunc(o.Events(), func(e Event) bool {
+	seen := slices.ContainsFunc(o.events(), func(e recEvent) bool {
 		return e.EntityID == queued.id && e.Type == "task.not_started"
 	})
 
@@ -93,13 +93,13 @@ func TestGraphSettle_EventsShowASettleTheListenerHasNotDelivered(t *testing.T) {
 func TestGraphSettle_AnOutputWrittenAfterAnInternalSettleIsJournaledAfterIt(t *testing.T) {
 	o, queued, releaseBlocker := abandonedWhileListenerDelayed()
 
-	o.Println("after settle")
+	o.println("after settle")
 	o.rec.Release()
 	releaseBlocker()
-	_ = o.Finish()
+	_ = o.finish()
 
 	var order []string
-	for _, e := range o.Events() {
+	for _, e := range o.events() {
 		if e.Type == "message.emitted" || (e.EntityID == queued.id && e.Type == "task.not_started") {
 			order = append(order, e.Type)
 		}

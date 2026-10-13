@@ -22,22 +22,22 @@ func TestStallReleaseAnswersWaitOnSettledTaskFromItsRow(t *testing.T) {
 	for _, ceiling := range stallCeilings {
 		t.Run(fmt.Sprintf("ceiling=%d", ceiling), func(t *testing.T) {
 			out := quietOutput(Config{MaxConcurrency: ceiling})
-			t.Cleanup(func() { _ = out.Close() })
+			t.Cleanup(func() { _ = out.close() })
 			a, b := out.Task("a"), out.Task("b")
 			bSawA := make(chan error, 1)
 			a.Define(func(context.Context) error {
-				a.Block("blocked")
+				a.block("blocked")
 				time.Sleep(20 * time.Millisecond)
-				return b.Wait()
+				return b.wait()
 			})
 			b.Define(func(context.Context) error {
-				err := a.Wait()
+				err := a.wait()
 				bSawA <- err
 				return err
 			})
-			_ = waitWithin(t, "Finish", out.Finish)
+			_ = waitWithin(t, "Finish", out.finish)
 			err := <-bSawA
-			if errors.Is(err, ErrWaitDeadlock) {
+			if errors.Is(err, errWaitDeadlock) {
 				t.Fatalf("b.Wait(a) = %v, want the Blocked row's answer, not a deadlock", err)
 			}
 			if !errors.Is(err, graph.ErrWaitFailed) {
@@ -53,22 +53,22 @@ func TestStallReleaseOuterWaitReturnsWhenCallbacksWaitOnSettledTask(t *testing.T
 	for _, ceiling := range stallCeilings {
 		t.Run(fmt.Sprintf("ceiling=%d", ceiling), func(t *testing.T) {
 			out := quietOutput(Config{MaxConcurrency: ceiling})
-			t.Cleanup(func() { _ = out.Close() })
+			t.Cleanup(func() { _ = out.close() })
 			a, b := out.Task("a"), out.Task("b")
-			a.Define(func(context.Context) error { a.Fail("x"); return b.Wait() })
+			a.Define(func(context.Context) error { a.fail("x"); return b.wait() })
 			b.Define(func(context.Context) error {
 				time.Sleep(10 * time.Millisecond)
-				return a.Wait()
+				return a.wait()
 			})
 			main := out.Task("main").Define(func(context.Context) error {
 				time.Sleep(5 * time.Millisecond)
-				return a.Wait()
+				return a.wait()
 			})
-			err := waitWithin(t, "main.Wait", main.Wait)
+			err := waitWithin(t, "main.Wait", main.wait)
 			if err == nil {
 				t.Fatalf("main.Wait() = nil, want the failure of a")
 			}
-			_ = waitWithin(t, "Finish", out.Finish)
+			_ = waitWithin(t, "Finish", out.finish)
 		})
 	}
 }

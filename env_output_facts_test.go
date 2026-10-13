@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit/wireschema"
 )
 
@@ -18,13 +17,13 @@ func factsAndKeptRun(t *testing.T, mode string) string {
 	t.Helper()
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": mode})
 	var buf bytes.Buffer
-	out := isolatedInit(t, evo.Config{Stdout: &buf, Stderr: io.Discard})
+	out := isolatedInit(t, Config{stdout: &buf, stderr: io.Discard})
 	out.Fact("language", "go")
 	out.Task("measure").Fact("on disk", "8.0 KB").Define(func(context.Context) error { return nil })
 	g := out.Group("branches")
-	g.Task("main").Skipped(evo.Reason("protected"))
-	g.Task("merged1").Skipped(evo.Reason("merged"))
-	if err := out.Finish(); err != nil {
+	g.Task("main").skipped(reason("protected"))
+	g.Task("merged1").skipped(reason("merged"))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	return buf.String()
@@ -34,7 +33,7 @@ func factsAndKeptRun(t *testing.T, mode string) string {
 // EVO_OUTPUT=json document dropped Task and run Facts and every Kept /
 // Skipped record, so a machine consumer lost what human verbosity hides.
 // Contract §13: JSON/JSONL retain structured Facts regardless of human
-// verbosity. EVO_OUTPUT=json now selects the evo.run document.
+// verbosity. EVO_OUTPUT=json now selects the run document.
 func TestEVOOutput_JSONCarriesFactsAndDispositions(t *testing.T) {
 	got := factsAndKeptRun(t, "json")
 	schema, err := os.ReadFile("schema/run.v2.json")

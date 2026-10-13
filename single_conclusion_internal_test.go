@@ -26,7 +26,7 @@ func TestConfigToOptions_DefaultTTYMarksSharedPrimaryTerminal(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = tty.Close() })
 
-	cfg := resolveConfig(Config{Stdout: tty, Stderr: &bytes.Buffer{}})
+	cfg := resolveConfig(Config{stdout: tty, stderr: &bytes.Buffer{}})
 	opts := configToOptions(cfg)
 
 	var built config
@@ -61,10 +61,10 @@ func TestFinish_SharedPrimaryTerminalRendersConclusionOnce(t *testing.T) {
 		visibilityDelay(0),
 		withNoColor(),
 	)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("work").succeed("")
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -89,10 +89,10 @@ func TestFinish_DistinctPrimaryAndTerminalKeepBothConclusions(t *testing.T) {
 		visibilityDelay(0),
 		withNoColor(),
 	)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("work").succeed("")
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 

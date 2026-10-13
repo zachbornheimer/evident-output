@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -9,28 +9,27 @@ import (
 	"sync"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
 const schedulerTestCeiling = 3
 
-func isolatedScheduler(t *testing.T, maxConcurrency int, stdout io.Writer, dryRun bool) *evo.Output {
+func isolatedScheduler(t *testing.T, maxConcurrency int, stdout io.Writer, dryRun bool) *Run {
 	t.Helper()
 	if stdout == nil {
 		stdout = io.Discard
 	}
-	out := evo.Init(evo.Config{
-		Isolated:       true,
-		Plain:          true,
-		Color:          evo.ColorNever,
-		Clock:          testkit.NewClock(),
+	out := initRun(Config{
+		isolated:       true,
+		plain:          true,
+		color:          colorNever,
+		clock:          testkit.NewClock(),
 		MaxConcurrency: maxConcurrency,
-		Stdout:         stdout,
-		Stderr:         io.Discard,
+		stdout:         stdout,
+		stderr:         io.Discard,
 		DryRun:         dryRun,
 	})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 	return out
 }
 
@@ -65,7 +64,7 @@ func TestScheduler_GroupOverlapRespectsCeiling(t *testing.T) {
 	<-started
 	<-started
 	close(release)
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -75,7 +74,7 @@ func TestScheduler_GroupOverlapRespectsCeiling(t *testing.T) {
 	if maxObserved > schedulerTestCeiling {
 		t.Fatalf("Group max observed concurrency = %d, want <= %d", maxObserved, schedulerTestCeiling)
 	}
-	if got := out.SchedulerMaxObserved(); got > schedulerTestCeiling {
+	if got := out.schedulerMaxObserved(); got > schedulerTestCeiling {
 		t.Fatalf("scheduler max observed = %d, want <= %d", got, schedulerTestCeiling)
 	}
 }
@@ -92,22 +91,22 @@ func TestScheduler_GroupSiblingsReportTruthfulIndependentOutcomes(t *testing.T) 
 	g.Task("ok-a").Define(func(ctx context.Context) error { return nil })
 	g.Task("broken").Define(func(ctx context.Context) error { return errors.New("boom") })
 	g.Task("ok-b").Define(func(ctx context.Context) error { return nil })
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
-	snap := g.Snapshot()
-	states := make(map[string]evo.EntityState, len(snap.Tasks))
+	snap := g.snapshot()
+	states := make(map[string]entityState, len(snap.Tasks))
 	for _, child := range snap.Tasks {
 		states[child.Name] = child.State
 	}
-	if states["ok-a"] != evo.Done {
+	if states["ok-a"] != done {
 		t.Fatalf("ok-a state = %s, want Done", states["ok-a"])
 	}
-	if states["broken"] != evo.Failed {
+	if states["broken"] != Failed {
 		t.Fatalf("broken state = %s, want Failed", states["broken"])
 	}
-	if states["ok-b"] != evo.Done {
+	if states["ok-b"] != done {
 		t.Fatalf("ok-b state = %s, want Done — a Group sibling's failure must not cascade to NotStarted (that is Sequence's contract, not Group's)", states["ok-b"])
 	}
 }
@@ -187,7 +186,7 @@ func TestScheduler_SequenceDeclarationOrderMaxOne(t *testing.T) {
 	}
 	close(bRelease)
 	<-cStarted
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -228,7 +227,7 @@ func TestScheduler_AfterWaitsForPredecessors(t *testing.T) {
 	}
 	close(aRelease)
 	<-bStarted
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 }
@@ -249,16 +248,16 @@ func TestScheduler_GroupChildrenSettleSubmittedWork(t *testing.T) {
 	for _, path := range paths {
 		g.Task(path).Define(func(ctx context.Context) error { return nil })
 	}
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
-	snap := g.Snapshot()
+	snap := g.snapshot()
 	if len(snap.Tasks) != len(paths) {
 		t.Fatalf("children = %d, want %d", len(snap.Tasks), len(paths))
 	}
 	for _, child := range snap.Tasks {
-		if child.State != evo.Done {
+		if child.State != done {
 			t.Fatalf("child %q state = %s, want Done", child.Name, child.State)
 		}
 	}
@@ -277,12 +276,12 @@ func TestScheduler_UndefinedGroupChildDoesNotBlockItsSibling(t *testing.T) {
 	defined := g.Task("defined")
 	defined.Define(func(ctx context.Context) error { return nil })
 	g.Task("undefined")
-	if err := defined.Wait(); err != nil {
+	if err := defined.wait(); err != nil {
 		t.Fatalf("Wait: %v", err)
 	}
 
-	snap := g.Snapshot()
-	var definedSnap, undefinedSnap evo.TaskSnapshot
+	snap := g.snapshot()
+	var definedSnap, undefinedSnap taskSnapshot
 	for _, child := range snap.Tasks {
 		switch child.Name {
 		case "defined":
@@ -291,10 +290,10 @@ func TestScheduler_UndefinedGroupChildDoesNotBlockItsSibling(t *testing.T) {
 			undefinedSnap = child
 		}
 	}
-	if definedSnap.State != evo.Done {
+	if definedSnap.State != done {
 		t.Fatalf("defined child state = %s, want Done", definedSnap.State)
 	}
-	if undefinedSnap.State != evo.Pending {
+	if undefinedSnap.State != pending {
 		t.Fatalf("undefined child state = %s, want Pending (its sibling's Define must not resolve it)", undefinedSnap.State)
 	}
 }
@@ -305,12 +304,12 @@ func TestScheduler_DryRunMutationNeverCallsCallback(t *testing.T) {
 	out := isolatedScheduler(t, schedulerTestCeiling, &buf, true)
 	called := false
 	out.Task("delete branch").Define(func(ctx context.Context) error {
-		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 1}, func(context.Context) error {
+		return Effect(ctx, EffectSpec{Verb: Delete, Object: "local tip", Quantity: 1}, func(context.Context) error {
 			called = true
 			return nil
 		})
 	})
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 	if called {

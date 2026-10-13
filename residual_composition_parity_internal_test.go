@@ -21,18 +21,18 @@ import (
 // reaching only one destination.
 func TestResidualComposition_PlainAndInteractiveSectionParity(t *testing.T) {
 	for _, colorOn := range []bool{false, true} {
-		opts := []Option{plain(), visibilityDelay(0), dryRun()}
+		opts := []option{plain(), visibilityDelay(0), dryRun()}
 		if !colorOn {
 			opts = append(opts, withNoColor())
 		}
 		out := newOutput("parity", opts...)
-		t.Cleanup(func() { _ = out.Close() })
+		t.Cleanup(func() { _ = out.close() })
 
 		task := out.Task("branches")
-		task.Fail("could not delete", Detail("permission denied"))
+		task.fail("could not delete", Detail("permission denied"))
 		cleanup := out.Task("cleanup")
-		cleanup.Define(effectOf(EffectDelete, "stale local branch", 3))
-		if err := cleanup.Wait(); err != nil {
+		cleanup.Define(effectOf(Delete, "stale local branch", 3))
+		if err := cleanup.wait(); err != nil {
 			t.Fatalf("cleanup wait released: %v", err)
 		}
 

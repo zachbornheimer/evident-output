@@ -1,12 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"context"
 	"io"
 	"sync/atomic"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 const computedValueNeverProduced = 42
@@ -14,11 +12,11 @@ const computedValueNeverProduced = 42
 // A Skip inside the producer's callback still delivers the value the callback
 // returned: the callback ran, so there is one.
 func TestCompute_GetAfterAProducerSkippedInsideItsCallbackIsTheValue(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true})
-	defer func() { _ = out.Close() }()
+	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true})
+	defer func() { _ = out.close() }()
 	made := out.Task("make")
-	producer := evo.Compute(made, func(context.Context) (int, error) {
-		made.Skipped(evo.Reason("n/a"))
+	producer := Compute(made, func(context.Context) (int, error) {
+		made.skipped(reason("n/a"))
 		return computedValueNeverProduced, nil
 	})
 	var got atomic.Int64
@@ -27,9 +25,9 @@ func TestCompute_GetAfterAProducerSkippedInsideItsCallbackIsTheValue(t *testing.
 		return nil
 	})
 
-	_ = out.Finish()
+	_ = out.finish()
 
-	if got.Load() != computedValueNeverProduced || out.Err() != nil {
-		t.Fatalf("Get() = %d, Err() = %v; want %d, nil", got.Load(), out.Err(), computedValueNeverProduced)
+	if got.Load() != computedValueNeverProduced || out.err() != nil {
+		t.Fatalf("Get() = %d, Err() = %v; want %d, nil", got.Load(), out.err(), computedValueNeverProduced)
 	}
 }

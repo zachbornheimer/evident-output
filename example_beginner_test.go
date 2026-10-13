@@ -1,12 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"context"
 	"fmt"
 	"io"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // Example_beginnerAPI proves the beginner shape compiles and renders real
@@ -17,14 +15,14 @@ import (
 // collapses an all-success aggregate into a single summary line.
 func Example_beginnerAPI() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true})
+	out := initRun(Config{stdout: &buf, stderr: io.Discard, plain: true})
 	check := func(string) error { return nil }
 	worktrees := out.Sequence("worktrees")
 	for _, path := range []string{"repo-a", "repo-b"} {
 		task := worktrees.Task(path)
 		task.Define(func(ctx context.Context) error { return check(path) })
 	}
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		fmt.Println(err)
 	}
 	fmt.Print(buf.String())

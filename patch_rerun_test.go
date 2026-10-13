@@ -14,8 +14,8 @@ func TestPatchRerunOfAppliedDiffIsSatisfied(t *testing.T) {
 	if err := runFilesTask(t, first, twoFileEditDiff, nil); err != nil {
 		t.Fatalf("run 1: %v", err)
 	}
-	second := Init(Config{Isolated: true, StateDir: t.TempDir()})
-	t.Cleanup(func() { _ = second.Close() })
+	second := initRun(Config{isolated: true, stateDir: t.TempDir()})
+	t.Cleanup(func() { _ = second.close() })
 	second.changes.PinWorkspace(dir)
 	if err := runFilesTask(t, second, twoFileEditDiff, nil); err != nil {
 		t.Fatalf("run 2 = %v, want already satisfied", err)
@@ -62,11 +62,11 @@ func TestPatchAmbiguousFirstRunAppliesForward(t *testing.T) {
 	if _, changed := effectObjects(first); len(changed) != 1 {
 		t.Fatalf("run 1 changes = %v, want one", changed)
 	}
-	if err := first.Close(); err != nil {
+	if err := first.close(); err != nil {
 		t.Fatalf("close run 1: %v", err)
 	}
-	second := Init(Config{Isolated: true, StateDir: state})
-	t.Cleanup(func() { _ = second.Close() })
+	second := initRun(Config{isolated: true, stateDir: state})
+	t.Cleanup(func() { _ = second.close() })
 	second.changes.PinWorkspace(dir)
 	if err := runFilesTask(t, second, duplicateInsertionDiff, nil); err != nil {
 		t.Fatalf("run 2: %v", err)
@@ -95,11 +95,11 @@ func TestPatchAmbiguousSourceTrustsOnlyTheSameDiffsResult(t *testing.T) {
 	if err := runFilesTask(t, first, swapToADiff, nil); err != nil {
 		t.Fatalf("run 1: %v", err)
 	}
-	if err := first.Close(); err != nil {
+	if err := first.close(); err != nil {
 		t.Fatalf("close run 1: %v", err)
 	}
-	second := Init(Config{Isolated: true, StateDir: state})
-	t.Cleanup(func() { _ = second.Close() })
+	second := initRun(Config{isolated: true, stateDir: state})
+	t.Cleanup(func() { _ = second.close() })
 	second.changes.PinWorkspace(dir)
 	if err := runFilesTask(t, second, duplicateInsertionDiff, nil); err != nil {
 		t.Fatalf("run 2: %v", err)

@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"context"
@@ -8,8 +8,6 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // Strict mode, an unordered callback whose own child goroutine reads a
@@ -18,10 +16,10 @@ import (
 // of the whole process ending.
 func TestStrictSpawnedUnorderedReadFailsTheTaskInsteadOfEndingTheProcess(t *testing.T) {
 	if os.Getenv("EVO_STRICT_SPAWNED_CHILD") == "1" {
-		out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true, Strict: true})
+		out := initRun(Config{isolated: true, stdout: io.Discard, plain: true, strict: true})
 		made := out.Group("producers").Task("make")
-		producer := evo.Compute(made, func(context.Context) (int, error) { return 1, nil })
-		_ = made.Wait()
+		producer := Compute(made, func(context.Context) (int, error) { return 1, nil })
+		_ = made.wait()
 		read := out.Group("consumers").Task("read")
 		read.Define(func(context.Context) error {
 			done := make(chan struct{})
@@ -29,8 +27,8 @@ func TestStrictSpawnedUnorderedReadFailsTheTaskInsteadOfEndingTheProcess(t *test
 			<-done
 			return nil
 		})
-		err := read.Wait()
-		if errors.Is(err, evo.ErrComputedUnordered) {
+		err := read.wait()
+		if errors.Is(err, ErrComputedUnordered) {
 			os.Exit(0)
 		}
 		os.Exit(3)

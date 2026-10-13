@@ -1,49 +1,47 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"context"
 	"fmt"
 	"io"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // ExampleGroup declares an independent, concurrent collection of child
 // Tasks on the default instance.
 func ExampleGroup() {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true}))
-	install := evo.Group("install")
+	setDefault(initRun(Config{stdout: &buf, stderr: io.Discard, plain: true}))
+	install := defaultRun().Group("install")
 	install.Task("curl").Define(func(context.Context) error { return nil })
-	_ = evo.Default().Finish()
+	_ = defaultRun().finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ curl
 }
 
-// ExampleGroupHandle shows the collection handle Group returns: it declares
+// ExampleGroup_name shows the collection handle Group returns: it declares
 // its own children and reports a collection-level Snapshot.
-func ExampleGroupHandle() {
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
+func ExampleGroup_name() {
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
 	group := out.Group("packages")
 	group.Task("curl").Define(func(context.Context) error { return nil })
-	_ = out.Finish()
-	fmt.Println(group.Snapshot().Name)
+	_ = out.finish()
+	fmt.Println(group.snapshot().Name)
 	// Output:
 	// packages
 }
 
 // ExampleContainer mounts the same topology builder on a run, a Group, and a Sequence.
 func ExampleContainer() {
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
-	mount := func(c evo.Container) {
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
+	mount := func(c Container) {
 		c.Task("check").Define(func(context.Context) error { return nil })
 	}
 	mount(out)
 	mount(out.Group("g"))
 	mount(out.Sequence("s"))
-	_ = out.Finish()
+	_ = out.finish()
 	fmt.Println("ok")
 	// Output:
 	// ok
@@ -53,13 +51,13 @@ func ExampleContainer() {
 // Running child at a time, in declaration order.
 func ExampleSequence() {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Stderr: io.Discard, Plain: true}))
-	worktrees := evo.Sequence("worktrees")
+	setDefault(initRun(Config{stdout: &buf, stderr: io.Discard, plain: true}))
+	worktrees := defaultRun().Sequence("worktrees")
 	for _, path := range []string{"repo-a", "repo-b"} {
 		task := worktrees.Task(path)
 		task.Define(func(ctx context.Context) error { return nil })
 	}
-	_ = evo.Default().Finish()
+	_ = defaultRun().finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ worktrees
@@ -67,49 +65,49 @@ func ExampleSequence() {
 	//    ✓ repo-b
 }
 
-// ExampleSequenceHandle shows the ordered collection handle Sequence
+// ExampleSequence_name shows the ordered collection handle Sequence
 // returns.
-func ExampleSequenceHandle() {
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
+func ExampleSequence_name() {
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
 	seq := out.Sequence("stages")
 	task := seq.Task("build")
 	task.Define(func(ctx context.Context) error { return nil })
-	_ = out.Finish()
-	fmt.Println(seq.Snapshot().Name)
+	_ = out.finish()
+	fmt.Println(seq.snapshot().Name)
 	// Output:
 	// stages
 }
 
-// ExampleGroupHandle_Wait shows the declare-all-then-wait pattern (ZYS-849):
+// ExampleGroup_Wait shows the declare-all-then-wait pattern (ZYS-849):
 // after every child Task is declared, the Group itself is the one thing a
 // caller waits on and asks for the aggregate outcome — no caller-owned task
 // slice, no hand-counted failures, no Snapshot walk.
-func ExampleGroupHandle_Wait() {
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
+func exampleGroup_Wait() {
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
 	jobs := out.Group("check")
 	for _, name := range []string{"lint", "vet", "test"} {
 		task := jobs.Task(name)
 		task.Define(func(ctx context.Context) error { return nil })
 	}
-	err := jobs.Wait()
-	_ = out.Finish()
+	err := jobs.wait()
+	_ = out.finish()
 	fmt.Println(err)
 	// Output:
 	// <nil>
 }
 
-// ExampleSequenceHandle_Wait is Sequence's counterpart to
-// ExampleGroupHandle_Wait: the ordered container is awaited directly once
+// ExampleSequence_Wait is Sequence's counterpart to
+// ExampleGroup_Wait: the ordered container is awaited directly once
 // every step is declared, and ordering is still preserved underneath.
-func ExampleSequenceHandle_Wait() {
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
+func exampleSequence_Wait() {
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
 	python := out.Sequence("python")
 	for _, name := range []string{"scan", "venv", "install"} {
 		task := python.Task(name)
 		task.Define(func(ctx context.Context) error { return nil })
 	}
-	err := python.Wait()
-	_ = out.Finish()
+	err := python.wait()
+	_ = out.finish()
 	fmt.Println(err)
 	// Output:
 	// <nil>
@@ -118,11 +116,11 @@ func ExampleSequenceHandle_Wait() {
 // ExampleTasksSnapshot reads a collection's immutable view: its own state
 // plus every child Task it declared.
 func ExampleTasksSnapshot() {
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Plain: true, Isolated: true})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
 	group := out.Group("packages")
 	group.Task("curl").Define(func(context.Context) error { return nil })
-	_ = out.Finish()
-	snap := group.Snapshot()
+	_ = out.finish()
+	snap := group.snapshot()
 	fmt.Println(snap.Name, len(snap.Tasks))
 	// Output:
 	// packages 1

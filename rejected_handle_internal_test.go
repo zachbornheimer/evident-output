@@ -9,14 +9,14 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/misuse"
 )
 
-func quietOutput(cfg Config) *Output {
-	cfg.Isolated, cfg.Plain, cfg.Color = true, true, ColorNever
-	cfg.Stdout, cfg.Stderr = io.Discard, io.Discard
-	return Init(cfg)
+func quietOutput(cfg Config) *Run {
+	cfg.isolated, cfg.plain, cfg.color = true, true, colorNever
+	cfg.stdout, cfg.stderr = io.Discard, io.Discard
+	return initRun(cfg)
 }
 
 // waiter is anything whose Wait answers "did the declared work succeed".
-type waiter interface{ Wait() error }
+type waiter interface{ wait() error }
 
 // TestRejectedDeclaration_WaitNeverReportsSuccess pins that every rejected
 // declaration hands back a handle whose Wait says the work never ran:
@@ -24,56 +24,56 @@ type waiter interface{ Wait() error }
 func TestRejectedDeclaration_WaitNeverReportsSuccess(t *testing.T) {
 	cases := map[string]struct {
 		cfg      Config
-		declare  func(o *Output) waiter
+		declare  func(o *Run) waiter
 		rejected error
 	}{
-		"duplicate root task": {declare: func(o *Output) waiter {
+		"duplicate root task": {declare: func(o *Run) waiter {
 			o.Task("x")
 			return definedNoop(o.Task("x"))
-		}, rejected: ErrDuplicateSiblingName},
-		"limit exceeded": {cfg: Config{MaxEntities: 1}, declare: func(o *Output) waiter {
+		}, rejected: errDuplicateSiblingName},
+		"limit exceeded": {cfg: Config{maxEntities: 1}, declare: func(o *Run) waiter {
 			o.Task("a")
 			return definedNoop(o.Task("b"))
-		}, rejected: ErrLimitExceeded},
-		"closed": {declare: func(o *Output) waiter {
-			_ = o.Close()
+		}, rejected: errLimitExceeded},
+		"closed": {declare: func(o *Run) waiter {
+			_ = o.close()
 			return definedNoop(o.Task("late"))
-		}, rejected: ErrClosed},
-		"duplicate group task": {declare: func(o *Output) waiter {
+		}, rejected: errClosed},
+		"duplicate group task": {declare: func(o *Run) waiter {
 			g := o.Group("g")
 			g.Task("x")
 			return definedNoop(g.Task("x"))
-		}, rejected: ErrDuplicateSiblingName},
-		"duplicate root group": {declare: func(o *Output) waiter {
+		}, rejected: errDuplicateSiblingName},
+		"duplicate root group": {declare: func(o *Run) waiter {
 			o.Group("g")
 			g2 := o.Group("g")
 			definedNoop(g2.Task("child"))
 			return g2
-		}, rejected: ErrDuplicateSiblingName},
-		"duplicate root sequence": {declare: func(o *Output) waiter {
+		}, rejected: errDuplicateSiblingName},
+		"duplicate root sequence": {declare: func(o *Run) waiter {
 			o.Sequence("s")
 			s2 := o.Sequence("s")
 			definedNoop(s2.Task("child"))
 			return s2
-		}, rejected: ErrDuplicateSiblingName},
-		"duplicate nested group": {declare: func(o *Output) waiter {
+		}, rejected: errDuplicateSiblingName},
+		"duplicate nested group": {declare: func(o *Run) waiter {
 			g := o.Group("g")
 			g.Group("n")
 			n2 := g.Group("n")
 			definedNoop(n2.Task("child"))
 			return n2
-		}, rejected: ErrDuplicateSiblingName},
-		"task under a rejected group": {declare: func(o *Output) waiter {
+		}, rejected: errDuplicateSiblingName},
+		"task under a rejected group": {declare: func(o *Run) waiter {
 			o.Group("g")
 			return definedNoop(o.Group("g").Task("child"))
-		}, rejected: ErrDuplicateSiblingName},
+		}, rejected: errDuplicateSiblingName},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			out := quietOutput(tc.cfg)
-			t.Cleanup(func() { _ = out.Close() })
-			err := tc.declare(out).Wait()
-			if !errors.Is(err, ErrNotStarted) || !errors.Is(err, tc.rejected) {
+			t.Cleanup(func() { _ = out.close() })
+			err := tc.declare(out).wait()
+			if !errors.Is(err, errNotStarted) || !errors.Is(err, tc.rejected) {
 				t.Fatalf("Wait on a rejected declaration = %v, want ErrNotStarted wrapping %v", err, tc.rejected)
 			}
 		})
@@ -84,7 +84,7 @@ func TestRejectedDeclaration_WaitNeverReportsSuccess(t *testing.T) {
 // never runs fn and is misuse, not a silent drop.
 func TestRejectedDeclaration_DefineRecordsMisuse(t *testing.T) {
 	out := quietOutput(Config{})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 	out.Task("x")
 	ran := false
 	dup := out.Task("x")
@@ -92,15 +92,15 @@ func TestRejectedDeclaration_DefineRecordsMisuse(t *testing.T) {
 	out.misuse = misuse.New(false)
 	out.mu.Unlock()
 	dup.Define(func(context.Context) error { ran = true; return nil })
-	_ = out.Finish()
+	_ = out.finish()
 	if ran {
 		t.Fatal("Define on a rejected handle ran its callback")
 	}
-	if err := misuseOf(out); !errors.Is(err, ErrDuplicateSiblingName) {
+	if err := misuseOf(out); !errors.Is(err, errDuplicateSiblingName) {
 		t.Fatalf("Define on a rejected handle must record misuse, got %v", err)
 	}
 }
 
-func definedNoop(h *TaskHandle) *TaskHandle {
+func definedNoop(h *Task) *Task {
 	return h.Define(func(context.Context) error { return nil })
 }

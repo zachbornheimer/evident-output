@@ -1,6 +1,6 @@
 //go:build unix
 
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -10,8 +10,6 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestConfirm_SIGINT_CancelsGateNotDeclined exercises the real SIGINT path
@@ -31,9 +29,9 @@ func TestConfirm_SIGINT_CancelsGateNotDeclined(t *testing.T) {
 	// No Plain()/NonInteractive(): Confirm must reach the prompt-and-wait path,
 	// not the policy-block path, so the pipe read is actually pending when
 	// SIGINT arrives.
-	restore := evo.MarkWriterAsCharDevice(&buf)
+	restore := markWriterAsCharDevice(&buf)
 	t.Cleanup(restore)
-	evo.SetDefault(evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: &buf, Stdin: r, Color: evo.ColorNever}))
+	setDefault(initRun(Config{isolated: true, stdout: &buf, stderr: &buf, stdin: r, color: colorNever}))
 
 	started := make(chan struct{})
 	go func() {
@@ -43,14 +41,14 @@ func TestConfirm_SIGINT_CancelsGateNotDeclined(t *testing.T) {
 	}()
 
 	var confirmResult bool
-	code := evo.Run(context.Background(), func(ctx context.Context) error {
+	code := execute_1(context.Background(), func(ctx context.Context) error {
 		close(started)
-		confirmResult = evo.Confirm("delete origin/production-hotfix?")
+		confirmResult = confirm("delete origin/production-hotfix?")
 		return nil
 	}).ExitCode()
 
-	if code != evo.ExitCancelled {
-		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())
+	if code != exitCancelled {
+		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, exitCancelled, buf.String())
 	}
 	if confirmResult {
 		t.Fatal("Confirm returned true after cancellation")

@@ -41,15 +41,15 @@ func TestSlice36_FinishFlushesTextHeldBehindOpenConfirm(t *testing.T) {
 	for indexOfDurable(surface.durableText(), "go?", "[y/N]") < 0 {
 		time.Sleep(time.Millisecond)
 	}
-	_ = sibling.Wait()
+	_ = sibling.wait()
 	time.Sleep(20 * time.Millisecond)
-	if _, finished := within(3*time.Second, out.Finish); !finished {
+	if _, finished := within(3*time.Second, out.finish); !finished {
 		t.Fatal("Finish did not return")
 	}
 	if indexOfDurable(surface.durableText(), "sibling") < 0 {
 		t.Errorf("sibling's failed row was not printed by the time Finish returned: durable=%q", surface.durableText())
 	}
-	_ = out.Close()
+	_ = out.close()
 	select {
 	case <-confirmed:
 	case <-time.After(3 * time.Second):

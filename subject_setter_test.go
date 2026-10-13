@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestOutput_Subject_PostInitSetter is I3: a caller who doesn't know the
@@ -13,9 +11,9 @@ import (
 // Config.Subject — same one-shot durable-line semantics.
 func TestOutput_Subject_PostInitSetter(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever})
 
-	out.SubjectForTest("/repos/bpp-csharp")
+	out.subjectForTest("/repos/bpp-csharp")
 
 	if !strings.Contains(buf.String(), "/repos/bpp-csharp") {
 		t.Fatalf("expected the subject line, got:\n%s", buf.String())

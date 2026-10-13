@@ -13,9 +13,9 @@ import (
 func runInterruptedPrune(t *testing.T, committed bool) (string, int) {
 	t.Helper()
 	var buf strings.Builder
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever, Title: "prune",
-		MaxConcurrency: 1, Stdout: &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever, title: "prune",
+		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
 	})
 	interrupt := sendOneSignal(t)
 
@@ -27,21 +27,21 @@ func runInterruptedPrune(t *testing.T, committed bool) (string, int) {
 	blocking := make(chan struct{})
 	code := make(chan int, 1)
 	go func() {
-		code <- out.Run(context.Background(), func(ctx context.Context) error {
+		code <- out.run(context.Background(), func(ctx context.Context) error {
 			remote.Define(func(ctx context.Context) error {
 				if !committed {
 					return nil
 				}
-				return Effect(ctx, EffectSpec{Verb: EffectDelete, Object: "stale origin/*", Quantity: 4}, func(context.Context) error { return nil })
+				return Effect(ctx, EffectSpec{Verb: Delete, Object: "stale origin/*", Quantity: 4}, func(context.Context) error { return nil })
 			})
-			_ = remote.Wait()
+			_ = remote.wait()
 			worktrees.Define(func(ctx context.Context) error {
 				close(blocking)
-				<-worktrees.Context().Done()
+				<-worktrees.context().Done()
 				return nil
 			})
 			branches.Define(func(ctx context.Context) error { return nil })
-			return worktrees.Wait()
+			return worktrees.wait()
 		}).ExitCode()
 	}()
 
@@ -53,16 +53,16 @@ func runInterruptedPrune(t *testing.T, committed bool) (string, int) {
 
 func TestCancellation_ExitsWithCancelledCode(t *testing.T) {
 	_, exit := runInterruptedPrune(t, true)
-	if exit != ExitCancelled {
-		t.Fatalf("exit %d, want %d", exit, ExitCancelled)
+	if exit != exitCancelled {
+		t.Fatalf("exit %d, want %d", exit, exitCancelled)
 	}
 }
 
 func TestCancellation_RenderedBandMatchesContract(t *testing.T) {
 	var buf strings.Builder
-	out := Init(Config{
-		Isolated: true, Plain: true, Color: ColorNever, Title: "prune",
-		MaxConcurrency: 1, Stdout: &buf, Stderr: io.Discard,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever, title: "prune",
+		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
 	})
 	interrupt := sendOneSignal(t)
 	group := out.Group("categories")
@@ -72,25 +72,25 @@ func TestCancellation_RenderedBandMatchesContract(t *testing.T) {
 	blocking := make(chan struct{})
 	code := make(chan int, 1)
 	go func() {
-		code <- out.Run(context.Background(), func(ctx context.Context) error {
+		code <- out.run(context.Background(), func(ctx context.Context) error {
 			remote.Define(func(ctx context.Context) error {
-				return Effect(ctx, EffectSpec{Verb: EffectDelete, Object: "stale origin/*", Quantity: 4}, func(context.Context) error { return nil })
+				return Effect(ctx, EffectSpec{Verb: Delete, Object: "stale origin/*", Quantity: 4}, func(context.Context) error { return nil })
 			})
-			_ = remote.Wait()
+			_ = remote.wait()
 			worktrees.Define(func(ctx context.Context) error {
 				close(blocking)
-				<-worktrees.Context().Done()
+				<-worktrees.context().Done()
 				return nil
 			})
 			branches.Define(func(ctx context.Context) error { return nil })
-			return worktrees.Wait()
+			return worktrees.wait()
 		}).ExitCode()
 	}()
 	<-blocking
 	interrupt()
 	<-code
 
-	if got := out.Conclusion().Explanation; got != cancelCauseUser {
+	if got := out.conclusion().Explanation; got != cancelCauseUser {
 		t.Fatalf("machine conclusion explanation = %q, want %q", got, cancelCauseUser)
 	}
 

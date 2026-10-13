@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"context"
@@ -6,8 +6,6 @@ import (
 	"io"
 	"testing"
 	"time"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // The documented lent-slot shape at MaxConcurrency 1: a running callback
@@ -21,10 +19,10 @@ func TestLentSlotWaitCostIsIndependentOfGoroutineCount(t *testing.T) {
 	for range 5000 {
 		go func() { <-stop }()
 	}
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true, MaxConcurrency: 1})
-	defer func() { _ = out.Close() }()
+	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true, MaxConcurrency: 1})
+	defer func() { _ = out.close() }()
 	children := out.Group("children")
-	tasks := make([]*evo.TaskHandle, 200)
+	tasks := make([]*Task, 200)
 	for i := range tasks {
 		tasks[i] = children.Task(fmt.Sprint("child", i))
 	}
@@ -36,7 +34,7 @@ func TestLentSlotWaitCostIsIndependentOfGoroutineCount(t *testing.T) {
 		<-defined
 		start := time.Now()
 		for _, child := range tasks {
-			if err := child.Wait(); err != nil {
+			if err := child.wait(); err != nil {
 				return err
 			}
 		}
@@ -53,8 +51,8 @@ func TestLentSlotWaitCostIsIndependentOfGoroutineCount(t *testing.T) {
 		})
 	}
 	close(defined)
-	_ = out.Finish()
-	if err := outer.Wait(); err != nil {
+	_ = out.finish()
+	if err := outer.wait(); err != nil {
 		t.Fatal(err)
 	}
 	t.Logf("200 lent-slot Waits with 5000 idle goroutines: %v", elapsed)

@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"fmt"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestHumanProblemList_IsBounded pins the plain-projection omission rule
@@ -14,21 +12,21 @@ import (
 // Snapshot is constructed via the public Snapshot/TaskSnapshot fields
 // (§25 model) rather than a deprecated bulk-attach verb.
 func TestHumanProblemList_IsBounded(t *testing.T) {
-	problems := make([]evo.Problem, 0, 8)
+	problems := make([]problem, 0, 8)
 	for i := range 8 {
-		problems = append(problems, evo.Problem{
+		problems = append(problems, problem{
 			Subject: fmt.Sprintf("path-%d", i),
 			Summary: "failed",
 		})
 	}
-	snap := evo.Snapshot{
+	snap := snapshot{
 		Subject: "tool",
-		Tasks: []evo.TaskSnapshot{
-			{Name: "placement", State: evo.Failed, Problems: problems},
+		Tasks: []taskSnapshot{
+			{Name: "placement", State: Failed, Problems: problems},
 		},
 	}
 
-	out, err := evo.RenderPlain(snap, evo.PlainOptions{NoColor: true})
+	out, err := renderPlain_1(snap, plainOptions{noColor: true})
 	if err != nil {
 		t.Fatal(err)
 	}

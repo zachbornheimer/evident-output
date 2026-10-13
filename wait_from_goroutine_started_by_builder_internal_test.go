@@ -18,16 +18,16 @@ func TestSlice36_WaitFromAGoroutineABuilderStartedIsRefused(t *testing.T) {
 	for _, ceiling := range []int{1, 4} {
 		t.Run(fmt.Sprint(ceiling), func(t *testing.T) {
 			out := quietOutput(Config{MaxConcurrency: ceiling})
-			t.Cleanup(func() { _ = out.Close() })
+			t.Cleanup(func() { _ = out.close() })
 			var waitErr error
-			out.Group("builder").Define(func(g *GroupHandle) {
+			out.Group("builder").define(func(g *Group) {
 				child := g.Task("child").Define(noop)
 				var started sync.WaitGroup
-				started.Go(func() { waitErr = child.Wait() })
+				started.Go(func() { waitErr = child.wait() })
 				started.Wait()
 			})
 
-			if _, finished := within(5*time.Second, out.Finish); !finished {
+			if _, finished := within(5*time.Second, out.finish); !finished {
 				t.Fatalf("Finish hung: the Wait is neither refused nor released (waits=%d executing=%d)", out.graph.Waits(), out.graph.Executing())
 			}
 			if !errors.Is(waitErr, graph.ErrWaitInBuilder) {
@@ -41,20 +41,20 @@ func TestSlice36_WaitFromAGoroutineABuilderStartedIsRefused(t *testing.T) {
 // goroutine the builder started is the builder's Wait all the same.
 func TestWaitFromAGrandchildGoroutineOfABuilderIsRefused(t *testing.T) {
 	out := quietOutput(Config{MaxConcurrency: 4})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 	var waitErr error
-	out.Group("builder").Define(func(g *GroupHandle) {
+	out.Group("builder").define(func(g *Group) {
 		child := g.Task("child").Define(noop)
 		var outer sync.WaitGroup
 		outer.Go(func() {
 			var inner sync.WaitGroup
-			inner.Go(func() { waitErr = child.Wait() })
+			inner.Go(func() { waitErr = child.wait() })
 			inner.Wait()
 		})
 		outer.Wait()
 	})
 
-	if _, finished := within(5*time.Second, out.Finish); !finished {
+	if _, finished := within(5*time.Second, out.finish); !finished {
 		t.Fatalf("Finish hung: the Wait is neither refused nor released (waits=%d executing=%d)", out.graph.Waits(), out.graph.Executing())
 	}
 	if !errors.Is(waitErr, graph.ErrWaitInBuilder) {

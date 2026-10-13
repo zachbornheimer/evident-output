@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestConfig_Plain_DisablesLiveFrames is C2/C3: Config.ForcePlain and
@@ -15,10 +13,10 @@ import (
 // unified field) is most of the proof; it also checks the behavior holds.
 func TestConfig_Plain_DisablesLiveFrames(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf, Plain: true})
+	out := initRun(Config{stdout: &buf, stderr: &buf, plain: true})
 
 	succeed(out.Task("build"))
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "build") {

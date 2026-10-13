@@ -54,21 +54,21 @@ type confirmConfig struct {
 // resolvedPolicyHint returns the caller's PolicyHint action, PolicyFlag
 // resolved against o's own identity, or the default "pass --yes" label when
 // the caller set neither.
-func (c confirmConfig) resolvedPolicyHint(o *Output) Action {
+func (c confirmConfig) resolvedPolicyHint(o *Run) Action {
 	if c.policyHint != (Action{}) {
 		return c.policyHint
 	}
 	if c.policyFlag != "" {
-		return Command(o.policySourceName(), c.policyFlag)
+		return actionCommand(o.policySourceName(), c.policyFlag)
 	}
-	return Label(confirmPolicyHint)
+	return label(confirmPolicyHint)
 }
 
 // policySourceName names the executable a PolicyFlag hint points at: the
 // caller's own Config.Title when set, else the binary's own basename (I2's
 // identityFallbackName) — the same identity a caller would otherwise have
 // to hand-compose via PolicyHint(os.Args[0], flag).
-func (o *Output) policySourceName() string {
+func (o *Run) policySourceName() string {
 	if o.cfg.subject != "" {
 		return o.cfg.subject
 	}
@@ -78,7 +78,7 @@ func (o *Output) policySourceName() string {
 // AssumeYes skips the interactive prompt when v is true (the caller's --yes
 // flag). The gate resolves immediately as Done "assumed --yes", and Confirm
 // returns true without touching stdin or the live region.
-func AssumeYes(v bool) ConfirmOption {
+func assumeYes(v bool) ConfirmOption {
 	return func(c *confirmConfig) { c.assumeYes = v }
 }
 
@@ -92,8 +92,8 @@ func Destructive() ConfirmOption {
 // confirm non-interactively" — wrong for a caller whose confirm flag isn't
 // --yes (e.g. zq clean-repo's --apply). Pass the caller's own executable and
 // args so the hint names the flag that actually unblocks it.
-func PolicyHint(command string, args ...string) ConfirmOption {
-	return func(c *confirmConfig) { c.policyHint = Command(command, args...) }
+func policyHint(command string, args ...string) ConfirmOption {
+	return func(c *confirmConfig) { c.policyHint = actionCommand(command, args...) }
 }
 
 // PolicyFlag sets the non-interactive policy hint to a flag on the caller's
@@ -103,20 +103,20 @@ func PolicyHint(command string, args ...string) ConfirmOption {
 // executable name is resolved from the same identity Config.Title/I2's
 // executable-basename fallback uses. Reach for PolicyHint instead when the
 // hint should point at a different tool.
-func PolicyFlag(flag string) ConfirmOption {
+func policyFlag(flag string) ConfirmOption {
 	return func(c *confirmConfig) { c.policyFlag = flag }
 }
 
 // ConfirmDetail attaches one or more context lines rendered under the
 // "?  <question>  [y/N]" prompt line — e.g. what will actually happen,
 // which host is affected. Repeated calls append.
-func ConfirmDetail(lines ...string) ConfirmOption {
+func confirmDetail(lines ...string) ConfirmOption {
 	return func(c *confirmConfig) { c.detail = append(c.detail, lines...) }
 }
 
 // Confirm asks a yes/no question on the default instance. See Output.Confirm.
-func Confirm(question string, opts ...ConfirmOption) bool {
-	return Default().Confirm(question, opts...)
+func confirm(question string, opts ...ConfirmOption) bool {
+	return defaultRun().Confirm(question, opts...)
 }
 
 // Confirm quiesces the live region, renders a durable "?  <question>  [y/N]"
@@ -144,7 +144,7 @@ func Confirm(question string, opts ...ConfirmOption) bool {
 //   - SIGINT/SIGTERM while waiting: the existing signal path (runInterruptible)
 //     cancels the gate — it renders Cancelled, not declined — and Confirm
 //     returns false.
-func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
+func (o *Run) Confirm(question string, opts ...ConfirmOption) bool {
 	if o == nil {
 		return false
 	}
@@ -171,17 +171,17 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 // graph.Answer.Outcome) and reports whether the answer was yes. The words
 // that say why a gate was refused are the presentation's; which state it
 // reaches is the graph's.
-func (o *Output) settleGate(gate *TaskHandle, answer graph.Answer, cfg confirmConfig) bool {
+func (o *Run) settleGate(gate *Task, answer graph.Answer, cfg confirmConfig) bool {
 	switch answer.Outcome() {
 	case Cancelled:
 		// cancelPendingConfirmLocked already resolved the gate as Cancelled.
 		return false
-	case Done:
+	case done:
 		gate.succeed(confirmSummaryOf(answer))
 		o.flushGateNow(gate.id)
 		return true
 	default:
-		gate.Block(confirmSummaryOf(answer), o.confirmBlockOptions(answer, cfg)...)
+		gate.block(confirmSummaryOf(answer), o.confirmBlockOptions(answer, cfg)...)
 		o.flushGateNow(gate.id)
 		return false
 	}
@@ -205,7 +205,7 @@ func confirmSummaryOf(answer graph.Answer) string {
 
 // confirmBlockOptions is the Next hint an answer that nobody gave on purpose
 // (a policy block, a closed stdin) points at: how to confirm non-interactively.
-func (o *Output) confirmBlockOptions(answer graph.Answer, cfg confirmConfig) []ProblemOption {
+func (o *Run) confirmBlockOptions(answer graph.Answer, cfg confirmConfig) []ProblemOption {
 	if answer == graph.AnswerPolicy || answer == graph.AnswerClosed {
 		return []ProblemOption{Next(cfg.resolvedPolicyHint(o))}
 	}
@@ -214,7 +214,7 @@ func (o *Output) confirmBlockOptions(answer graph.Answer, cfg confirmConfig) []P
 
 // flushGateNow locks and forces the immediate durable presentation of a
 // resolved Confirm gate — see commitResolvedTaskLocked.
-func (o *Output) flushGateNow(id string) {
+func (o *Run) flushGateNow(id string) {
 	o.mu.Lock()
 	o.commitResolvedTaskLocked(id)
 	o.mu.Unlock()
@@ -234,7 +234,7 @@ func (o *Output) flushGateNow(id string) {
 // the gate Cancelled without ever unblocking the stdin read that was about
 // to start — a swallowed ^C that hung waiting for an answer nothing could
 // interrupt (X2).
-func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmConfig) bool {
+func (o *Run) promptConfirm(gate *Task, question string, cfg confirmConfig) bool {
 	abort, release := o.graph.RegisterAbort(gate.id)
 	defer release()
 
@@ -260,7 +260,7 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 // prompt window is open and only one reader waits on stdin. abort ends the
 // wait: ok is false and the gate was already cancelled. endTurn hands the
 // terminal to the next Confirm.
-func (o *Output) awaitConfirmTurn(abort <-chan struct{}) (endTurn func(), ok bool) {
+func (o *Run) awaitConfirmTurn(abort <-chan struct{}) (endTurn func(), ok bool) {
 	o.mu.Lock()
 	if o.confirmTurn == nil {
 		o.confirmTurn = make(chan struct{}, 1)
@@ -277,7 +277,7 @@ func (o *Output) awaitConfirmTurn(abort <-chan struct{}) (endTurn func(), ok boo
 
 // setOwnsWindow marks the Confirm gate id as the Task its Suspend window
 // shows, or clears the mark (see taskState.ownsWindow).
-func (o *Output) setOwnsWindow(id string, owns bool) {
+func (o *Run) setOwnsWindow(id string, owns bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if st := o.taskStates[id]; st != nil {
@@ -288,7 +288,7 @@ func (o *Output) setOwnsWindow(id string, owns bool) {
 // writeConfirmPrompt emits the durable "?  <question>  [y/N]" line,
 // plus any ConfirmDetail context lines beneath it, above the (now-quiesced)
 // live region.
-func (o *Output) writeConfirmPrompt(question string, destructive bool, detail []string) {
+func (o *Run) writeConfirmPrompt(question string, destructive bool, detail []string) {
 	o.mu.Lock()
 	color := !o.cfg.noColor
 	text := question
@@ -318,7 +318,7 @@ func (o *Output) writeConfirmPrompt(question string, destructive bool, detail []
 // zero-byte EOF (no data read at all before the stream closed) is
 // graph.AnswerClosed, distinct from an explicit non-yes answer (evo-rec.md
 // "Confirm EOF = policy block, not decline").
-func (o *Output) readConfirmAnswer(abort <-chan struct{}) graph.Answer {
+func (o *Run) readConfirmAnswer(abort <-chan struct{}) graph.Answer {
 	type readResult struct {
 		text string
 		err  error
@@ -355,7 +355,7 @@ func (o *Output) readConfirmAnswer(abort <-chan struct{}) graph.Answer {
 
 // confirmReader returns the Stdin facade, defaulting to os.Stdin — the sole
 // place Confirm's logic may name a concrete stream (facade rule).
-func (o *Output) confirmReader() io.Reader {
+func (o *Run) confirmReader() io.Reader {
 	if o.cfg.stdin != nil {
 		return o.cfg.stdin
 	}
@@ -382,7 +382,7 @@ func isAffirmative(line string) bool {
 // keep running (contract §3) and their rows paint once the window closes. It
 // is unexported by contract: a stopped spinner is not a product state. Child
 // processes write to task.Writer() so the live row keeps moving.
-func (o *Output) Suspend(fn func() error) error {
+func (o *Run) Suspend(fn func() error) error {
 	if fn == nil {
 		return nil
 	}
@@ -404,7 +404,7 @@ type liveWindow struct {
 
 // openLiveWindow quiesces the live region: no paint reaches the surface
 // until every open window closes.
-func (o *Output) openLiveWindow() liveWindow {
+func (o *Run) openLiveWindow() liveWindow {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	live := o.liveLocked()
@@ -421,7 +421,7 @@ func (o *Output) openLiveWindow() liveWindow {
 // closeLiveWindow ends w. Once the last window closes, the region repaints:
 // the frame w cleared, or the rows siblings started inside it. The durable
 // text siblings settled inside the windows prints first, above the region.
-func (o *Output) closeLiveWindow(w liveWindow) {
+func (o *Run) closeLiveWindow(w liveWindow) {
 	if !w.opened {
 		return
 	}
@@ -442,4 +442,11 @@ func (o *Output) closeLiveWindow(w liveWindow) {
 	case o.hasLiveActivityLocked():
 		o.signalLiveLocked(true)
 	}
+}
+
+func NonInteractive(argv ...string) ConfirmOption {
+	if len(argv) == 0 {
+		return policyFlag("--yes")
+	}
+	return policyFlag(argv[0])
 }

@@ -1,17 +1,15 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"fmt"
 	"io"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // ExampleProblem shows the structured evidence shape explaining a negative
 // task outcome — the payload Fail/Block/Problem build from ProblemOptions.
 func ExampleProblem() {
-	p := evo.Problem{Summary: "schema mismatch", Code: "E_SCHEMA"}
+	p := problem{Summary: "schema mismatch", Code: "E_SCHEMA"}
 	fmt.Println(p.Summary, p.Code)
 	// Output:
 	// schema mismatch E_SCHEMA
@@ -20,7 +18,7 @@ func ExampleProblem() {
 // ExampleSourceLocation shows a path-based source position attached to a
 // Problem via Location.
 func ExampleSourceLocation() {
-	loc := evo.SourceLocation{Path: "config.yaml", Line: 12, Column: 3}
+	loc := sourceLocation{Path: "config.yaml", Line: 12, Column: 3}
 	fmt.Println(loc.Path, loc.Line, loc.Column)
 	// Output:
 	// config.yaml 12 3
@@ -29,7 +27,7 @@ func ExampleSourceLocation() {
 // ExampleAttachment shows an additional label/value fact attached to a
 // Problem — a different concept from the Evidence retention sink.
 func ExampleAttachment() {
-	a := evo.Attachment{Label: "stderr", Value: "permission denied"}
+	a := attachment{Label: "stderr", Value: "permission denied"}
 	fmt.Println(a.Label, a.Value)
 	// Output:
 	// stderr permission denied
@@ -37,7 +35,7 @@ func ExampleAttachment() {
 
 // ExampleField shows a structured diagnostic or log field.
 func ExampleField() {
-	f := evo.Field{Key: "retries", Value: 3}
+	f := field{Key: "retries", Value: 3}
 	fmt.Println(f.Key, f.Value)
 	// Output:
 	// retries 3
@@ -47,7 +45,7 @@ func ExampleField() {
 // constructor (Detail, Code, On, Count, Location, Next, NextCommand)
 // implements.
 func ExampleProblemOption() {
-	opt := evo.Detail("the file was not found")
+	opt := Detail("the file was not found")
 	fmt.Println(opt != nil)
 	// Output:
 	// true
@@ -55,17 +53,17 @@ func ExampleProblemOption() {
 
 // ExampleProblemSeverity shows the closed set of Problem severities.
 func ExampleProblemSeverity() {
-	fmt.Println(evo.SeverityError, evo.SeverityWarning)
+	fmt.Println(severityError, severityWarning)
 	// Output:
 	// error warning
 }
 
 // ExampleSeverity sets a Problem's severity. Default is SeverityError.
-func ExampleSeverity() {
+func exampleSeverity() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard})
-	out.Task("cache").Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
-	_ = out.Finish()
+	out := initRun(Config{isolated: true, plain: true, stdout: &buf, stderr: io.Discard})
+	out.Task("cache").Problem("stale entry ignored", severity(severityWarning))
+	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ cache  ! stale entry ignored
@@ -74,12 +72,12 @@ func ExampleSeverity() {
 }
 
 // ExampleDetail sets user-visible detail text on a Problem raised via
-// TaskHandle.Fail.
+// Task.Fail.
 func ExampleDetail() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard})
-	out.Task("read config").Fail("parse error", evo.Detail("unexpected token at line 4"))
-	_ = out.Finish()
+	out := initRun(Config{isolated: true, plain: true, stdout: &buf, stderr: io.Discard})
+	out.Task("read config").fail("parse error", Detail("unexpected token at line 4"))
+	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✗ read config  parse error
@@ -90,9 +88,9 @@ func ExampleDetail() {
 // match on instead of parsing Summary text.
 func ExampleCode() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard})
-	out.Task("apply migration").Fail("schema mismatch", evo.Code("E_SCHEMA"))
-	_ = out.Finish()
+	out := initRun(Config{isolated: true, plain: true, stdout: &buf, stderr: io.Discard})
+	out.Task("apply migration").fail("schema mismatch", Code("E_SCHEMA"))
+	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✗ apply migration  schema mismatch
@@ -101,9 +99,9 @@ func ExampleCode() {
 // ExampleOn sets the problem subject.
 func ExampleOn() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard})
-	out.Task("clean workspace").Fail("permission denied", evo.On("/var/cache"))
-	_ = out.Finish()
+	out := initRun(Config{isolated: true, plain: true, stdout: &buf, stderr: io.Discard})
+	out.Task("clean workspace").fail("permission denied", On("/var/cache"))
+	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✗ clean workspace  permission denied
@@ -113,9 +111,9 @@ func ExampleOn() {
 // ExampleCount sets a quantity and optional unit on a Problem.
 func ExampleCount() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard})
-	out.Task("upload artifacts").Fail("upload failed", evo.Count(3, "files"))
-	_ = out.Finish()
+	out := initRun(Config{isolated: true, plain: true, stdout: &buf, stderr: io.Discard})
+	out.Task("upload artifacts").fail("upload failed", count(3, "files"))
+	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✗ upload artifacts  upload failed
@@ -124,9 +122,9 @@ func ExampleCount() {
 // ExampleLocation sets a source location on a Problem.
 func ExampleLocation() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard})
-	out.Task("validate manifest").Fail("unknown field", evo.Location("manifest.yaml", 4, 1))
-	_ = out.Finish()
+	out := initRun(Config{isolated: true, plain: true, stdout: &buf, stderr: io.Discard})
+	out.Task("validate manifest").fail("unknown field", location("manifest.yaml", 4, 1))
+	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✗ validate manifest  unknown field
@@ -135,12 +133,12 @@ func ExampleLocation() {
 // ExampleNext attaches a recommended next step to a Problem. The remedy
 // reaches the run's own Next-steps line (ZYS-848: a Problem's Next/
 // NextCommand option must survive projection, the same as a task-level
-// TaskHandle.Next call already did) — not just decoration on the row.
+// Task.Next call already did) — not just decoration on the row.
 func ExampleNext() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard})
-	out.Task("push branch").Fail("rejected: non-fast-forward", evo.Next(evo.Label("pull --rebase first")))
-	_ = out.Finish()
+	out := initRun(Config{isolated: true, plain: true, stdout: &buf, stderr: io.Discard})
+	out.Task("push branch").fail("rejected: non-fast-forward", Next(label("pull --rebase first")))
+	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✗ push branch  rejected: non-fast-forward
@@ -151,11 +149,11 @@ func ExampleNext() {
 
 // ExampleNextCommand attaches a recommended command action to a Problem —
 // same projection contract as ExampleNext.
-func ExampleNextCommand() {
+func exampleNextCommand() {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Plain: true, Stdout: &buf, Stderr: io.Discard})
-	out.Task("push branch").Fail("rejected: non-fast-forward", evo.NextCommand("git", "pull", "--rebase"))
-	_ = out.Finish()
+	out := initRun(Config{isolated: true, plain: true, stdout: &buf, stderr: io.Discard})
+	out.Task("push branch").fail("rejected: non-fast-forward", nextCommand("git", "pull", "--rebase"))
+	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
 	// ✗ push branch  rejected: non-fast-forward
@@ -167,11 +165,11 @@ func ExampleNextCommand() {
 // ExampleFailure shows Failure's error text. Failf/Blockf were removed in
 // 1.1; Fail is a statement, and a wrapped error is returned separately.
 func ExampleFailure() {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Plain: true})
+	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, plain: true})
 	task := out.Task("clone repository")
-	task.Fail("clone failed", evo.Detail("connection refused"))
+	task.fail("clone failed", Detail("connection refused"))
 	err := fmt.Errorf("clone failed: %w", fmt.Errorf("connection refused"))
-	_ = out.Finish()
+	_ = out.finish()
 	fmt.Println(err.Error())
 	// Output:
 	// clone failed: connection refused

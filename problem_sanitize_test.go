@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // Item and Task must share the same CSI neutralization boundary for Problem fields.
@@ -13,13 +11,13 @@ func TestProblemSanitize_ItemAndTaskDetailIdentical(t *testing.T) {
 	const payload = "\x1b[31mFAKE OK\x1b[0m secret"
 	var itemBuf, taskBuf bytes.Buffer
 
-	itemOut := evo.Init(evo.Config{Title: "i", Stdout: &itemBuf, Stderr: &itemBuf})
-	itemOut.Task("gate").Fail("failed", evo.Detail(payload), evo.On("subj"))
-	_ = itemOut.Finish()
+	itemOut := initRun(Config{title: "i", stdout: &itemBuf, stderr: &itemBuf})
+	itemOut.Task("gate").fail("failed", Detail(payload), On("subj"))
+	_ = itemOut.finish()
 
-	taskOut := evo.Init(evo.Config{Title: "t", Stdout: &taskBuf, Stderr: &taskBuf})
-	taskOut.Task("work").Fail("failed", evo.Detail(payload), evo.On("subj"))
-	_ = taskOut.Finish()
+	taskOut := initRun(Config{title: "t", stdout: &taskBuf, stderr: &taskBuf})
+	taskOut.Task("work").fail("failed", Detail(payload), On("subj"))
+	_ = taskOut.finish()
 
 	for name, s := range map[string]string{"item": itemBuf.String(), "task": taskBuf.String()} {
 		// Raw ESC must never appear; sanitizer rewrites ESC as ^[.

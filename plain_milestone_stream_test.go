@@ -1,12 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"fmt"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestPlain_CollectionChildStreamsMilestones is the red-first proof for the
@@ -24,8 +22,8 @@ import (
 func TestPlain_CollectionChildStreamsMilestones(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true, Plain: true, Color: evo.ColorNever, Title: "zq", Stdout: &buf,
+	out := initRun(Config{
+		isolated: true, plain: true, color: colorNever, title: "zq", stdout: &buf,
 	})
 
 	classify := out.Group("worktrees").Task("classify")
@@ -35,7 +33,7 @@ func TestPlain_CollectionChildStreamsMilestones(t *testing.T) {
 	}
 	midRun := buf.String()
 	succeed(classify, "111 worktrees")
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 

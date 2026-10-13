@@ -1,11 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"io"
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -20,12 +19,12 @@ import (
 // immediately, before any later Println's own durable write.
 func TestInteractive_ResolvedTaskCommitsBeforeLaterPrintln(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	succeed(out.Task("working tree"))
-	out.Println("Dry-run: no changes will be made.")
-	_ = out.Finish()
+	out.println("Dry-run: no changes will be made.")
+	_ = out.finish()
 
 	var durable strings.Builder
 	for _, op := range screen.Operations() {

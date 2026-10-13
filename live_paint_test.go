@@ -58,7 +58,7 @@ func (s *paintRecorder) clearCount() int {
 	return s.clears
 }
 
-func frameAt(s LiveSurface, seq uint64) liveFrame { return liveFrame{surface: s, seq: seq} }
+func frameAt(s liveSurface, seq uint64) liveFrame { return liveFrame{surface: s, seq: seq} }
 
 func TestPaintDropsAFrameOlderThanOnePainted(t *testing.T) {
 	s, l := &paintRecorder{}, &liveEngine{}
@@ -124,7 +124,7 @@ func TestClearReportsWhetherAnythingWasOnScreen(t *testing.T) {
 func TestFrameSnapshottedBeforeAClearIsNeverPainted(t *testing.T) {
 	s := &paintRecorder{}
 	out := newOutput("job", withTerminal(s), visibilityDelay(0), withNoColor())
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 	out.Task("work").Doing("busy")
 
 	out.mu.Lock()
@@ -152,7 +152,7 @@ func TestFrameBuiltBeforeCloseIsNotPaintedAfterIt(t *testing.T) {
 	f := out.liveFrameLocked(s)
 	engine := out.live
 	out.mu.Unlock()
-	_ = out.Close()
+	_ = out.close()
 
 	if engine.paint(f, f.render()) {
 		t.Fatal("a frame built before Close was painted after it")
@@ -188,7 +188,7 @@ func slowSurfaceRun(t *testing.T) (activated time.Time, starts []time.Time, end 
 	)
 	s := &paintRecorder{delay: writeCost}
 	out := newOutput("job", withTerminal(s), visibilityDelay(0), withNoColor(), maxFrameRate(slowSurfaceFrameRate))
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("slow")
 	activated = time.Now()
 	task.Doing("working")
@@ -237,7 +237,7 @@ func framesBuiltBySignal(t *testing.T, tasks int) uint64 {
 	t.Helper()
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := newOutput("job", withTerminal(&paintRecorder{}), visibilityDelay(0), withClock(clock), withNoColor())
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 	g := out.Group("items")
 	for i := range tasks {
 		g.Task(fmt.Sprintf("item %d", i))
@@ -268,7 +268,7 @@ func TestSignalLeavesPaintingToTheAnimatorPastTheForcedRenderBudget(t *testing.T
 func TestLiveFrameSnapshotIsOwnedByTheFrame(t *testing.T) {
 	const tasks, slowTasks, frames = 16000, 200, 40
 	out := newOutput("job", withTerminal(&paintRecorder{}), visibilityDelay(0), withNoColor(), maxConcurrency(4))
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 	g := out.Group("items")
 	for i := range tasks {
 		h := g.Task(fmt.Sprintf("item %d", i))

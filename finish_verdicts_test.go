@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -6,8 +6,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestFinishResolvesRunningTaskAsCancelled pins the honest-verdict contract for
@@ -19,28 +17,28 @@ import (
 // rules).
 func TestFinishResolvesRunningTaskAsCancelled(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
 
 	running := out.Task("download")
 	running.Doing("fetching")
 	pending := out.Sequence("steps").Task("verify")
 
-	code := out.Run(context.Background(), func(ctx context.Context) error {
+	code := out.run(context.Background(), func(ctx context.Context) error {
 		return errors.New("boom")
 	}).ExitCode()
 
-	if code != evo.ExitFailed {
-		t.Fatalf("exit code = %d, want ExitFailed (%d)", code, evo.ExitFailed)
+	if code != exitFailed {
+		t.Fatalf("exit code = %d, want ExitFailed (%d)", code, exitFailed)
 	}
 
-	runningState := running.Snapshot().State
-	if runningState != evo.Cancelled {
-		t.Fatalf("running task state = %q, want %q", runningState, evo.Cancelled)
+	runningState := running.snapshot().State
+	if runningState != Cancelled {
+		t.Fatalf("running task state = %q, want %q", runningState, Cancelled)
 	}
 
-	pendingState := pending.Snapshot().State
-	if pendingState != evo.NotStarted {
-		t.Fatalf("pending task state = %q, want %q", pendingState, evo.NotStarted)
+	pendingState := pending.snapshot().State
+	if pendingState != notStarted {
+		t.Fatalf("pending task state = %q, want %q", pendingState, notStarted)
 	}
 
 	rendered := buf.String()

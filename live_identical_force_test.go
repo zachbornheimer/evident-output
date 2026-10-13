@@ -49,7 +49,7 @@ func TestLive_ForcedIdenticalFrameSkipsWriteLive(t *testing.T) {
 	screen := &countingLiveSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := newOutput("job", withTerminal(screen), visibilityDelay(0), withClock(clock), withNoColor())
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("verify")
 	task.Doing("checking")
