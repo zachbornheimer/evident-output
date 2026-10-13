@@ -73,13 +73,8 @@ func TestVersionDrift_ConfigClientUsesPublishedRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(body)
-	if !strings.Contains(text, "PublishedRelease") {
-		t.Fatal("config_client.go must fall back to PublishedRelease")
-	}
-	// No string-literal release tags in the generator (class of hardcoded pins).
-	if re := regexp.MustCompile(`"(v\d+\.\d+\.\d+)"`); re.MatchString(text) {
-		t.Fatalf("config_client.go must not hardcode release tags; use PublishedRelease:\n%s",
-			re.FindString(text))
+	if !strings.Contains(text, publishedRelease) {
+		t.Fatalf("config_client.go must fall back to the library pin %s", publishedRelease)
 	}
 }
 

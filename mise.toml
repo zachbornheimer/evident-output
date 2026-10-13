@@ -114,7 +114,7 @@ run = "bash tools/scripts/run-examples.sh"
 
 [tasks.api-contract]
 description = "Public API surface matches testdata/api_golden.txt plus required/retired floors"
-run = "go run ./mcp/cmd/evident-output contract"
+run = "go run -C mcp ./cmd/evident-output contract --dir .."
 
 [tasks.spec-score]
 description = "Lint the spec requirement registry against conformance/spec/contract-1.x.md"

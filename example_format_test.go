@@ -47,23 +47,3 @@ func ExampleTruncateNames() {
 	// Output:
 	// main, dev … +2 more
 }
-
-// namedTerminal is defined in example_option_test.go and reused here for
-// ExampleTerminalDriver.
-
-// fakeLiveSurface is a minimal LiveSurface for ExampleLiveSurface — real
-// callers pass a concrete driver (e.g. from internal/terminal).
-type fakeLiveSurface struct{}
-
-func (fakeLiveSurface) ID() string          { return "fake" }
-func (fakeLiveSurface) Columns() int        { return 80 }
-func (fakeLiveSurface) Rows() int           { return 24 }
-func (fakeLiveSurface) IsInteractive() bool { return false }
-func (fakeLiveSurface) WriteLive(string)    {}
-func (fakeLiveSurface) ClearLive()          {}
-func (fakeLiveSurface) WriteDurable(string) {}
-func (fakeLiveSurface) WriteFinal(string)   {}
-
-type namedTerminal struct{ id string }
-
-func (t namedTerminal) ID() string { return t.id }

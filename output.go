@@ -790,7 +790,7 @@ func writeJSON(w io.Writer, result Result) error {
 //
 // When cutting a release:
 //  1. Promote CHANGELOG ## Unreleased → ## [X.Y.Z] (Keep a Changelog).
-//  2. Set PublishedRelease to the new tag (e.g. "v0.2.11").
+//  2. Set publishedRelease to the new tag (e.g. "v1.0.1").
 //  3. Prefer: mise run test && mise run cut-release
 //  4. Tag that commit; do not move prior tags.
 //
