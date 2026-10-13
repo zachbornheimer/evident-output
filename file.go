@@ -2,6 +2,8 @@ package evo
 
 import (
 	"context"
+	"maps"
+	"slices"
 
 	iofs "io/fs"
 
@@ -134,5 +136,19 @@ type FileSpec struct {
 }
 
 func (s FileSpec) toChange() change.FileSpec {
-	return change.FileSpec{Path: s.Path, Contents: s.Contents, Mode: s.Mode, Basis: s.basis}
+	return change.FileSpec{Path: s.Path, Contents: s.Contents, Mode: s.Mode, Basis: specBasis(s.Inputs, s.Values, s.basis)}
+}
+
+// specBasis is the Basis a spec declares: its explicit fingerprints, then one
+// content fingerprint per Input path and one per Value (in key order), so a
+// changed input byte or Value makes the next run re-execute.
+func specBasis(inputs []string, values map[string]string, explicit []freshness.Fingerprint) []freshness.Fingerprint {
+	basis := slices.Clone(explicit)
+	for _, path := range inputs {
+		basis = append(basis, freshness.FSPath(path))
+	}
+	for _, name := range slices.Sorted(maps.Keys(values)) {
+		basis = append(basis, freshness.Value(name, values[name]))
+	}
+	return basis
 }

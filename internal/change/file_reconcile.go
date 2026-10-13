@@ -36,6 +36,9 @@ type fileOperation struct {
 	path        string
 	basis       []freshness.BasisRecord
 	derivedFrom *derivation
+	// recommit forces a contents write even when the bytes on disk already
+	// match: the Basis moved, so the operation runs again (CONTRACT.md §3).
+	recommit bool
 }
 
 func (op fileOperation) contentsManaged() bool { return op.spec.Contents != nil }
@@ -95,6 +98,7 @@ func (r *Run) commitFile(ctx context.Context, op fileOperation) error {
 			return nil
 		}
 		started.Reason = reason
+		op.recommit = op.contentsManaged() && reason == freshness.ReasonBasisDrift
 	}
 	r.host.Observe(started)
 	return r.applyFile(ctx, op)
@@ -120,6 +124,7 @@ func (r *Run) applyFile(ctx context.Context, op fileOperation) error {
 	if inspectErr != nil {
 		return inspectErr
 	}
+	delta.writeNeeded = delta.writeNeeded || op.recommit
 	if r.host.DryRun() {
 		// Planning only: every check above already ran read-only; no
 		// mutation happens and no manifest state commits (spec §8.2/§11.3).

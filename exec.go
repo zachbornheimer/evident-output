@@ -18,7 +18,7 @@ type ExecSpec struct {
 }
 
 func (s ExecSpec) toChange() change.ExecSpec {
-	cs := change.ExecSpec{Dir: s.Dir, Env: s.Env, Outputs: s.Outputs, Basis: s.basis}
+	cs := change.ExecSpec{Dir: s.Dir, Env: s.Env, Outputs: s.Outputs, Basis: specBasis(s.Inputs, s.Values, s.basis)}
 	if len(s.Argv) > 0 {
 		cs.Executable = s.Argv[0]
 		cs.Args = s.Argv[1:]
