@@ -36,6 +36,12 @@ exit code; it never exits. `Run` is the same for embedding: the caller owns
 the context and the exit. A zero `Config` is complete: `Name` defaults to the
 binary name and `Output` to Human on a TTY, Plain otherwise.
 
+When the run is Refused, Failed or Cancelled, `Conclusion.Explanation` is the
+deciding ending: the summary or error of the Task (or run body) whose Outcome
+became the Conclusion's, or what interrupted the run. `evo.run` and
+`run.finished` carry the same text as `explanation`. It is empty for
+Succeeded, Satisfied and Excluded.
+
 | Symbol                   | Kind   | Meaning                                                                    |
 | ------------------------ | ------ | -------------------------------------------------------------------------- |
 | `Main`                   | func   | `Main(run RunFunc, cfg ...Config) int` — run with signals, return exit     |
@@ -86,7 +92,7 @@ binary name and `Output` to Human on a TTY, Plain otherwise.
 | `Conclusion.Outcome`     | field  | the worst Task outcome                                                     |
 | `Conclusion.Changed`     | field  | any mutation committed                                                     |
 | `Conclusion.DryRun`      | field  | planned tense                                                              |
-| `Conclusion.Explanation` | field  | why, when Refused, Failed or Cancelled                                     |
+| `Conclusion.Explanation` | field  | the deciding ending when Refused, Failed or Cancelled; empty otherwise     |
 
 ## 2. Work
 
