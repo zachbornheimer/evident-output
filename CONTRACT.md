@@ -116,7 +116,9 @@ seq.Group("centralize packages").After(inv).Build(func(g *evo.Group) {
 })
 ```
 
-Sibling names are unique per parent. Evo owns goroutines, bounded
+`After` takes `Predecessor`, a sealed interface that only `*Task`, `*Group`,
+`*Sequence` and `*Computed[T]` implement, so passing anything else does not
+compile. Sibling names are unique per parent. Evo owns goroutines, bounded
 concurrency, dependency readiness and cancellation. `Define` submits and never
 runs inline; a nil return succeeds. `Verify` true before `Define` resolves
 Satisfied and the callback never runs; false after a successful callback
@@ -142,7 +144,7 @@ callback is misuse.
 | Symbol              | Kind   | Meaning                                                                        |
 | ------------------- | ------ | ------------------------------------------------------------------------------ |
 | `Task`              | type   | one independently meaningful schedulable promise                               |
-| `Task.After`        | method | `After(preds ...any) *Task`; a Task, Group, Sequence or Computed               |
+| `Task.After`        | method | `After(preds ...Predecessor) *Task`; a Task, Group, Sequence or Computed       |
 | `Task.Verify`       | method | `Verify(fn func(context.Context) (bool, error)) *Task`; read-only              |
 | `Task.Define`       | method | `Define(fn func(context.Context) error, opts ...DefineOption) *Task`           |
 | `Task.Doing`        | method | current item, live only                                                        |
@@ -155,14 +157,14 @@ callback is misuse.
 | `Group.Task`        | method | declare a child Task                                                           |
 | `Group.Group`       | method | declare a child Group                                                          |
 | `Group.Sequence`    | method | declare a child Sequence                                                       |
-| `Group.After`       | method | `After(preds ...any) *Group`                                                   |
+| `Group.After`       | method | `After(preds ...Predecessor) *Group`                                           |
 | `Group.Build`       | method | `Build(fn func(*Group))`; topology once eligible                               |
 | `Group.Summary`     | method | the container row's headline                                                   |
 | `Sequence`          | type   | ordered children; one Running child                                            |
 | `Sequence.Task`     | method | declare a child Task                                                           |
 | `Sequence.Group`    | method | declare a child Group                                                          |
 | `Sequence.Sequence` | method | declare a child Sequence                                                       |
-| `Sequence.After`    | method | `After(preds ...any) *Sequence`                                                |
+| `Sequence.After`    | method | `After(preds ...Predecessor) *Sequence`                                        |
 | `Sequence.Build`    | method | `Build(fn func(*Sequence))`                                                    |
 | `Sequence.Summary`  | method | the container row's headline                                                   |
 | `Container`         | type   | interface `{Task; Group; Sequence}` satisfied by Run, Group, Sequence          |
