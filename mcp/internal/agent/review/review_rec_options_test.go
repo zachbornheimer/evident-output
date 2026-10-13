@@ -1,19 +1,11 @@
 package review_test
 
 import (
-	"encoding/json"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
 )
-
-// optionsFixtureDir is a doc fixture whose main.go the rewrite test
-// overlays, so the rewritten source builds against the real module.
-const optionsFixtureDir = "../../docexamples/fixtures/development_3"
 
 // supersededOptionsSource is development_3 as mcp/docs/development.md taught
 // it before E-088: Config.Options with four Options, every one of which
@@ -108,35 +100,6 @@ func f(drv evo.TerminalDriver, extra interface{}) {
 	}
 	if sug := found[0].Suggestion; strings.HasPrefix(sug, "replace ") || strings.Contains(sug, "Plain: true") {
 		t.Fatalf("suggestion rewrites an Option with no Config field: %q", sug)
-	}
-}
-
-// buildOverlay builds optionsFixtureDir with its main.go replaced by src.
-func buildOverlay(t *testing.T, src string) {
-	t.Helper()
-	dir, err := filepath.Abs(optionsFixtureDir)
-	if err != nil {
-		t.Fatalf("resolve fixture: %v", err)
-	}
-	tmp := t.TempDir()
-	mainGo := filepath.Join(tmp, "main.go")
-	if err := os.WriteFile(mainGo, []byte(src), 0o600); err != nil {
-		t.Fatalf("write rewritten source: %v", err)
-	}
-	overlay, err := json.Marshal(map[string]map[string]string{
-		"Replace": {filepath.Join(dir, "main.go"): mainGo},
-	})
-	if err != nil {
-		t.Fatalf("encode overlay: %v", err)
-	}
-	overlayPath := filepath.Join(tmp, "overlay.json")
-	if err := os.WriteFile(overlayPath, overlay, 0o600); err != nil {
-		t.Fatalf("write overlay: %v", err)
-	}
-	cmd := exec.Command("go", "build", "-buildvcs=false", "-overlay", overlayPath, "-o", os.DevNull, ".")
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("rewritten source does not build: %v\n%s\n%s", err, out, src)
 	}
 }
 
