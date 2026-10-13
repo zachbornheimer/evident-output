@@ -1105,6 +1105,7 @@ func (o *Run) reactToSettlesLocked() {
 // version and the task.<state> event. The live census moved when the record
 // was pulled. Callers hold o.mu.
 func (o *Run) taskSettledLocked(st *taskState, to entityState) {
+	o.emitWireEventLocked(wire.EventTaskFinished, st.id, taskFinishedPayload(st))
 	if st.isGate() {
 		o.bumpLocked()
 		return

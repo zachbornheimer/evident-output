@@ -1496,7 +1496,6 @@ func (t *Task) resolve(state entityState, summary string, problems []problem, au
 	st.resolveProblems(admission.State, problems)
 	t.out.graph.Conclude(st.node, admission)
 	t.out.followRecordLocked()
-	t.out.emitWireEventLocked(wire.EventTaskFinished, t.id, taskFinishedPayload(st))
 	t.out.commitSettledLocked(st)
 	return t
 }
