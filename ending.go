@@ -376,7 +376,7 @@ func rejectedWaitOutcome(rejected error) error {
 
 // Fail records an output-level failure.
 func (o *Run) fail(summary string, options ...ProblemOption) {
-	o.endWith(failed, record.ApplyProblemOptions(txt.Text(summary), options))
+	o.endWith(failed, applyProblemOptions(txt.Text(summary), options))
 }
 
 // end records the ending the run body returned (see endingOf).
@@ -497,7 +497,7 @@ func endingOf(err error) (entityState, problem) {
 		}
 		return failed, record.ApplyProblemOptions(txt.Text(err.Error()), nil)
 	}
-	return entityState(ending.outcome), record.ApplyProblemOptions(txt.Text(ending.summary), ending.opts)
+	return entityState(ending.outcome), applyProblemOptions(txt.Text(ending.summary), ending.opts)
 }
 
 // settleEnding settles the Task with the ending its callback returned.

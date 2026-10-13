@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	iofs "io/fs"
+	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/clock"
@@ -35,12 +37,6 @@ var wall = clock.System()
 
 // --- folded from process.go ---
 
-// ProcessCommand is one resolved external command Exec is about to spawn.
-type processCommand = process.Command
-
-// ProcessOutcome is one spawned command's terminal, already-observed result.
-type processOutcome = process.Outcome
-
 // ProcessRunner is the facade every evo.Exec spawn goes through instead of
 // exec.Cmd/os/exec directly (facade rule): the real runner in ordinary use,
 // a scripted testkit fake in tests.
@@ -62,14 +58,8 @@ func (h changeHost) Spawn(ctx context.Context, id record.TaskID, cmd change.Spaw
 	task := &Task{out: o, id: string(id)}
 	ev := task.capture(activityFeed(func(line string) { task.Doing(line) }))
 
-	outcome, runErr := o.cfg.processRunner.Run(ctx, processCommand{
-		Path:   cmd.Path,
-		Args:   cmd.Args,
-		Dir:    cmd.Dir,
-		Env:    cmd.Env,
-		Stdout: ev.Stdout(),
-		Stderr: ev.Stderr(),
-	})
+	argv := append([]string{cmd.Path}, cmd.Args...)
+	exitCode, runErr := o.cfg.processRunner.Run(ctx, argv, cmd.Dir, cmd.Env, ev.Stdout(), ev.Stderr())
 	if closeErr := ev.Close(); closeErr != nil && runErr == nil {
 		runErr = fmt.Errorf("flush capture: %w", closeErr)
 	}
@@ -78,20 +68,55 @@ func (h changeHost) Spawn(ctx context.Context, id record.TaskID, cmd change.Spaw
 	}
 	return change.ExecResult{
 		Ran:       true,
-		ExitCode:  outcome.ExitCode,
+		ExitCode:  exitCode,
 		Stdout:    ev.streamText(captureStreamStdout),
 		Stderr:    ev.streamText(captureStreamStderr),
 		Truncated: ev.wasTruncated(),
 	}, nil
 }
 
-type (
-	Clock    = timeSource
-	Process  = processRunner
-	FS       = fileFS
-	Terminal = terminalDriver
-)
+// Clock is the time source a Run reads: Now is the current time.
+type Clock interface {
+	Now() time.Time
+}
 
+// Terminal is the terminal driver that owns a Run's control sequences. ID
+// names the driver.
+type Terminal interface {
+	ID() string
+}
+
+// Redactor redacts secrets from captured text before the journal, Capture
+// retention and human rendering see it.
+type Redactor interface {
+	RedactString(s string) string
+}
+
+// Process spawns the child processes Exec runs. Run starts argv[0] (an
+// absolute path) with argv[1:] in dir with exactly env, writes the child's
+// output to stdout and stderr, and returns its exit status. A nonzero
+// exitCode is not an error; a non-nil error means the child produced no
+// exit status: it never started, or ctx ended it. Run kills the child when
+// ctx ends.
+type Process interface {
+	Run(ctx context.Context, argv []string, dir string, env []string, stdout, stderr io.Writer) (exitCode int, err error)
+}
+
+// FS is the filesystem File inspects and writes through.
+type FS interface {
+	// Lstat inspects path without following a final symlink.
+	Lstat(path string) (iofs.FileInfo, error)
+	// ReadFile reads path's contents.
+	ReadFile(path string) ([]byte, error)
+	// WriteAtomic replaces path's contents with contents at mode, so no
+	// reader ever sees a partial write.
+	WriteAtomic(path string, contents []byte, mode iofs.FileMode) error
+	// Chmod sets path's permission bits.
+	Chmod(path string, mode iofs.FileMode) error
+}
+
+// Facades is every system boundary Evo touches. A zero field selects the
+// real one.
 type Facades struct {
 	Stdin    io.Reader
 	Stdout   io.Writer

@@ -283,6 +283,24 @@ func logLevelToSlog(l logLevel) slog.Level {
 	}
 }
 
+// logLevelOf is the journal level that keeps l and everything above it:
+// the inverse of logLevelToSlog, rounding a level between two named ones
+// down so the journal never drops a record Config.Debug asked to keep.
+func logLevelOf(l slog.Level) logLevel {
+	switch {
+	case l < slog.LevelDebug:
+		return levelTrace
+	case l < slog.LevelInfo:
+		return levelDebug
+	case l < slog.LevelWarn:
+		return levelInfo
+	case l < slog.LevelError:
+		return levelWarn
+	default:
+		return levelError
+	}
+}
+
 // emitLogRecord journals every accepted slog record as structured diagnostics.
 // Info/Warn/Error keep time, level, and attrs on the rendered fields — the raw
 // PC always lives on the LogRecord itself (see SlogHandler callers that want

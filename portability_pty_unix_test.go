@@ -40,7 +40,7 @@ func TestPORT_RedirectedStdout(t *testing.T) {
 func TestPORT001_ANSIOnPipe(t *testing.T) {
 	var buf bytes.Buffer
 	drv := terminal.NewANSI(&buf, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, terminal: drv, Debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, terminal: drv, debug: debugConfig{level: levelDebug}})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("work").Doing("run"), "ok")
 	if err := out.finish(); err != nil {

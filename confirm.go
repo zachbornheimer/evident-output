@@ -34,19 +34,27 @@ const (
 	confirmInputLineGlyph = "›"
 )
 
-// ConfirmOption configures a Confirm gate.
-type ConfirmOption func(*confirmConfig)
+// ConfirmOption shapes a Confirm gate. It is sealed: only this package's
+// constructors make one, and Detail is one too.
+type ConfirmOption interface {
+	applyConfirm(*confirmConfig)
+}
+
+// confirmOption is every ConfirmOption but Detail.
+type confirmOption func(*confirmConfig)
+
+func (f confirmOption) applyConfirm(c *confirmConfig) { f(c) }
 
 type confirmConfig struct {
 	assumeYes   bool
 	destructive bool
-	policyHint  Action
+	policyHint  *Action
 	// policyFlag is PolicyFlag's flag spelling, resolved into a Command
 	// against the Output's own identity at read time (resolvedPolicyHint) —
 	// not at option-build time, since only the Output knows its Title/
 	// executable identity.
 	policyFlag string
-	// detail holds ConfirmDetail's context lines, rendered under the
+	// detail holds each Detail's context line, rendered under the
 	// "?  <question>  [y/N]" prompt line.
 	detail []string
 }
@@ -55,8 +63,8 @@ type confirmConfig struct {
 // resolved against o's own identity, or the default "pass --yes" label when
 // the caller set neither.
 func (c confirmConfig) resolvedPolicyHint(o *Run) Action {
-	if c.policyHint != (Action{}) {
-		return c.policyHint
+	if c.policyHint != nil {
+		return *c.policyHint
 	}
 	if c.policyFlag != "" {
 		return actionCommand(o.policySourceName(), c.policyFlag)
@@ -79,12 +87,12 @@ func (o *Run) policySourceName() string {
 // flag). The gate resolves immediately as Done "assumed --yes", and Confirm
 // returns true without touching stdin or the live region.
 func assumeYes(v bool) ConfirmOption {
-	return func(c *confirmConfig) { c.assumeYes = v }
+	return confirmOption(func(c *confirmConfig) { c.assumeYes = v })
 }
 
 // Destructive annotates the rendered prompt line as "(destructive)".
 func Destructive() ConfirmOption {
-	return func(c *confirmConfig) { c.destructive = true }
+	return confirmOption(func(c *confirmConfig) { c.destructive = true })
 }
 
 // PolicyHint overrides the Next action rendered by Confirm's non-interactive
@@ -93,7 +101,8 @@ func Destructive() ConfirmOption {
 // --yes (e.g. zq clean-repo's --apply). Pass the caller's own executable and
 // args so the hint names the flag that actually unblocks it.
 func policyHint(command string, args ...string) ConfirmOption {
-	return func(c *confirmConfig) { c.policyHint = actionCommand(command, args...) }
+	hint := actionCommand(command, args...)
+	return confirmOption(func(c *confirmConfig) { c.policyHint = &hint })
 }
 
 // PolicyFlag sets the non-interactive policy hint to a flag on the caller's
@@ -104,14 +113,7 @@ func policyHint(command string, args ...string) ConfirmOption {
 // executable-basename fallback uses. Reach for PolicyHint instead when the
 // hint should point at a different tool.
 func policyFlag(flag string) ConfirmOption {
-	return func(c *confirmConfig) { c.policyFlag = flag }
-}
-
-// ConfirmDetail attaches one or more context lines rendered under the
-// "?  <question>  [y/N]" prompt line — e.g. what will actually happen,
-// which host is affected. Repeated calls append.
-func confirmDetail(lines ...string) ConfirmOption {
-	return func(c *confirmConfig) { c.detail = append(c.detail, lines...) }
+	return confirmOption(func(c *confirmConfig) { c.policyFlag = flag })
 }
 
 // Confirm asks a yes/no question on the default instance. See Output.Confirm.
@@ -151,7 +153,7 @@ func (o *Run) Confirm(question string, opts ...ConfirmOption) bool {
 	cfg := confirmConfig{}
 	for _, opt := range opts {
 		if opt != nil {
-			opt(&cfg)
+			opt.applyConfirm(&cfg)
 		}
 	}
 
@@ -286,7 +288,7 @@ func (o *Run) setOwnsWindow(id string, owns bool) {
 }
 
 // writeConfirmPrompt emits the durable "?  <question>  [y/N]" line,
-// plus any ConfirmDetail context lines beneath it, above the (now-quiesced)
+// plus any Detail context lines beneath it, above the (now-quiesced)
 // live region.
 func (o *Run) writeConfirmPrompt(question string, destructive bool, detail []string) {
 	o.mu.Lock()

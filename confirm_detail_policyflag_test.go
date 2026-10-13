@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// TestConfirm_Detail_RendersContextLines is I5: ConfirmDetail("...")
+// TestConfirm_Detail_RendersContextLines is I5: Detail("...")
 // attaches context lines rendered under the "?  <question>  [y/N]" prompt.
 // Uses the interactive ask-and-wait path (not the non-interactive policy
 // block) since that's the only path that writes the prompt at all.
@@ -17,11 +17,11 @@ func TestConfirm_Detail_RendersContextLines(t *testing.T) {
 	out := initRun(Config{isolated: true, stdout: &buf, stderr: &buf, stdin: strings.NewReader("y\n"), color: colorNever})
 
 	out.Confirm("delete origin/production-hotfix?",
-		confirmDetail("host: prod-db-1", "affects: 3 downstream services"))
+		Detail("host: prod-db-1"), Detail("affects: 3 downstream services"))
 
 	rendered := buf.String()
 	if !strings.Contains(rendered, "host: prod-db-1") || !strings.Contains(rendered, "affects: 3 downstream services") {
-		t.Fatalf("expected ConfirmDetail context lines, got:\n%s", rendered)
+		t.Fatalf("expected Detail context lines, got:\n%s", rendered)
 	}
 }
 

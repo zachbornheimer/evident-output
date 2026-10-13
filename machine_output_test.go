@@ -156,7 +156,7 @@ func TestOUT011_EventTimestampsPresent(t *testing.T) {
 
 func TestOUT023_LineWhileLive(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor(), testkit.Width(80))
-	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), Debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("t").Doing("p")
 	out.println("durable hello")
@@ -233,7 +233,7 @@ func TestOUT015_EventStreamBounded(t *testing.T) {
 	}
 	// with default debug level, Debug may no-op — enable
 	_ = out.close()
-	out2 := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, Debug: debugConfig{level: levelDebug}})
+	out2 := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, debug: debugConfig{level: levelDebug}})
 	for range 500 {
 		out2.debugForTest("x")
 	}

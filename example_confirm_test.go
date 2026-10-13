@@ -15,7 +15,7 @@ func ExampleDestructive() {
 }
 
 // ExampleConfirmOption shows the interface every Confirm modifier
-// (AssumeYes, ConfirmDetail, Destructive, PolicyFlag, PolicyHint)
+// (AssumeYes, Detail, Destructive, PolicyFlag, PolicyHint)
 // implements.
 func ExampleConfirmOption() {
 	opt := assumeYes(true)

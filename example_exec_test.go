@@ -136,8 +136,8 @@ func ExampleProcessRunner() {
 	runner := testkit.NewProcessRunner()
 	runner.Script("/usr/bin/tool", testkit.ScriptedProcess{ExitCode: 0})
 
-	outcome, err := runner.Run(context.Background(), processCommand{Path: "/usr/bin/tool"})
-	fmt.Println(err == nil, outcome.ExitCode)
+	exitCode, err := runner.Run(context.Background(), []string{"/usr/bin/tool"}, "", nil, io.Discard, io.Discard)
+	fmt.Println(err == nil, exitCode)
 	// Output:
 	// true 0
 }

@@ -78,7 +78,7 @@ func TestConfig_DebugLevelTraceSelectable(t *testing.T) {
 		title:  "trace",
 		stdout: &buf,
 		stderr: &buf,
-		Debug:  debugConfig{level: levelTrace},
+		debug:  debugConfig{level: levelTrace},
 	})
 	out.debugForTest("trace-visible")
 	_ = out.finish()

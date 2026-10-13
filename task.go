@@ -1223,7 +1223,7 @@ func (t *Task) Summary(text string) *Task {
 // uses the warning projection. An invalid severity is rejected with a
 // context-bearing misuse error and is not recorded.
 func (t *Task) Problem(summary string, opts ...ProblemOption) *Task {
-	p := record.ApplyProblemOptions(project.Text(summary), opts)
+	p := applyProblemOptions(project.Text(summary), opts)
 	sev, err := record.ClassifiedProblemSeverity(p)
 	if err != nil {
 		return t.annotate(func(st *taskState) { t.out.recordMisuse(err) })
@@ -1372,7 +1372,7 @@ func (t *Task) fail(summary string, options ...ProblemOption) {
 // resolveWithProblem is Fail and Block: resolve as state with one Problem
 // built from summary and options.
 func (t *Task) resolveWithProblem(state entityState, summary string, options []ProblemOption) {
-	p := record.ApplyProblemOptions(project.Text(summary), options)
+	p := applyProblemOptions(project.Text(summary), options)
 	t.finish(state, project.Text(summary), []problem{p})
 }
 

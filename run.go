@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"math/bits"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -500,8 +501,12 @@ type Config struct {
 	// otherwise human TTY/plain inference. Independent of Format.
 	projection projection
 
-	// Debug configures the debug journal.
-	Debug debugConfig
+	// Debug is the lowest slog.Level the debug journal keeps. Zero is
+	// slog.LevelInfo, which EVO_DEBUG may lower or raise.
+	Debug slog.Level
+	// debug configures the debug journal presentation; its level, when
+	// unset, comes from Debug.
+	debug debugConfig
 
 	// Advanced (optional) — zero values inherit safe defaults.
 	clock    timeSource
@@ -601,7 +606,7 @@ func defaultConfig() Config {
 	return Config{
 		// Stdout/Stderr filled at resolve time so tests can still pass buffers
 		// without forcing os.Stdout into DefaultConfig equality checks.
-		Debug: debugConfig{
+		debug: debugConfig{
 			level: levelInfo,
 			view:  debugPresentationHistory,
 		},
@@ -676,8 +681,8 @@ func resolveConfig(c Config) Config {
 		c.plain = true
 	}
 	// LevelUnset (zero) → LevelInfo. LevelTrace is non-zero and selectable via Config.
-	if c.Debug.level == levelUnset {
-		c.Debug.level = levelInfo
+	if c.debug.level == levelUnset {
+		c.debug.level = logLevelOf(c.Debug)
 	}
 	if c.width <= 0 {
 		c.width = base.width
@@ -736,7 +741,7 @@ func configToOptions(c Config) []option {
 	opts = append(opts, colorOptions(c)...)
 	opts = append(opts, terminalOptions(c)...)
 	opts = append(opts, runtimeOptions(c)...)
-	opts = append(opts, debugOptions(c.Debug)...)
+	opts = append(opts, debugOptions(c.debug)...)
 	opts = append(opts, modeOptions(c)...)
 	return opts
 }
@@ -1234,9 +1239,9 @@ func applyEnv(c Config) Config {
 	if c.verbosity == verbosityNormal && lookupEnv(envKeyVerbose) == envVerboseOn {
 		c.verbosity = verbosityVerbose
 	}
-	if c.Debug.level == levelUnset {
+	if c.debug.level == levelUnset && c.Debug == 0 {
 		if lvl, ok := parseDebugEnv(lookupEnv(envKeyDebug)); ok {
-			c.Debug.level = lvl
+			c.debug.level = lvl
 		}
 	}
 	return c
@@ -2479,7 +2484,7 @@ func (c *evidence) Empty() bool {
 }
 
 func (c *evidence) DetailTail() ProblemOption {
-	return record.WithEvidenceTail(c.detailText)
+	return problemOption{record.WithEvidenceTail(c.detailText)}
 }
 
 func (c *evidence) detailText() string {
@@ -3073,9 +3078,6 @@ func (s *positionSet) each(fn func(int)) {
 
 // --- folded from redact.go ---
 
-// Redactor redacts sensitive values before journal, Capture retention, and human rendering.
-type Redactor = process.Redactor
-
 // noopRedactor leaves strings unchanged.
 type noopRedactor = process.NoopRedactor
 
@@ -3569,7 +3571,7 @@ type Conclusion struct {
 
 func asEvoAction(a record.Action) Action {
 	return Action{
-		Command: a.Command, Label: a.Label, uRL: a.URL, file: a.File,
+		Command: argvOf(a.Command), Label: a.Label, uRL: a.URL, file: a.File,
 		explanation: a.Explanation, requiresConfirmation: a.RequiresConfirmation,
 		destructive: a.Destructive,
 	}
@@ -3577,7 +3579,7 @@ func asEvoAction(a record.Action) Action {
 
 func asRecordAction(a Action) record.Action {
 	return record.Action{
-		Command: a.Command, Label: a.Label, URL: a.uRL, File: a.file,
+		Command: commandOf(a.Command), Label: a.Label, URL: a.uRL, File: a.file,
 		Explanation: a.explanation, RequiresConfirmation: a.requiresConfirmation,
 		Destructive: a.destructive,
 	}
@@ -3632,12 +3634,30 @@ func asRecordResult(r Result) record.Result {
 	return record.Result{Conclusion: asRecordConclusion(r.Conclusion), Err: r.Err}
 }
 
+// Action is a recommended next step: argv a machine can run, or text only a
+// human can act on.
 type Action struct {
-	Command              *commandSpec
+	Command              []string
 	Label                string
 	uRL                  string
 	file                 string
 	explanation          string
 	requiresConfirmation bool
 	destructive          bool
+}
+
+// argvOf is cmd as argv: the executable, then its arguments.
+func argvOf(cmd *commandSpec) []string {
+	if cmd == nil {
+		return nil
+	}
+	return append([]string{cmd.Executable}, cmd.Args...)
+}
+
+// commandOf is argv as the record's command, or nil for an empty argv.
+func commandOf(argv []string) *commandSpec {
+	if len(argv) == 0 {
+		return nil
+	}
+	return &commandSpec{Executable: argv[0], Args: slices.Clone(argv[1:])}
 }

@@ -26,7 +26,7 @@ func ExampleCommandSpec() {
 // command to run.
 func ExampleCommand() {
 	action := actionCommand("git", "push", "--force-with-lease")
-	fmt.Println(action.Command.Executable, action.Command.Args)
+	fmt.Println(action.Command[0], action.Command[1:])
 	// Output:
 	// git [push --force-with-lease]
 }

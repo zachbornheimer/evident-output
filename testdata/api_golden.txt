@@ -35,7 +35,7 @@ func CleanStop(signals ...os.Signal)  DefineOption
 func Code(value string)  ProblemOption
 func Compute(task *Task, fn func(context.Context) (T, error))  *Computed[T]
 func Destructive()  ConfirmOption
-func Detail(text string)  ProblemOption
+func Detail(text string)  interface{ProblemOption; ConfirmOption}
 func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error)  error
 func Exclude(reason string, opts ...ProblemOption)  error
 func Exec(ctx context.Context, spec ExecSpec)  ExecResult,  error

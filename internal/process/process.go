@@ -10,32 +10,16 @@ import (
 	"time"
 )
 
-// Command is one resolved external command Exec is about to spawn: the
-// OS-facing argv/dir/env after ExecSpec's path/workspace resolution
-// (spec §8.4), immutable once built. Stdout/Stderr are the evidence writers
-// Exec wires so a Runner never owns capture/redaction policy itself.
-type Command struct {
-	Path   string
-	Args   []string
-	Dir    string
-	Env    []string
-	Stdout io.Writer
-	Stderr io.Writer
-}
-
-// Outcome is one spawned command's terminal, already-observed result — a
-// nonzero ExitCode is not itself an error (Exec decides what a nonzero exit
-// means); a Runner.Run error means the process never produced a terminal
-// exit status at all (spawn failure or ctx cancellation).
-type Outcome struct {
-	ExitCode int
-}
-
 // Runner is the facade every evo.Exec spawn goes through: System() in
-// ordinary use, a scripted testkit fake in tests. Run must honor ctx
-// cancellation by killing the child rather than leaking it.
+// ordinary use, a scripted testkit fake in tests. Run starts argv[0] (an
+// absolute path) with argv[1:] in dir with exactly env, writes the child's
+// output to stdout and stderr, and returns its exit status. A nonzero
+// exitCode is not itself an error (Exec decides what a nonzero exit means);
+// a non-nil error means the child produced no exit status at all: it never
+// started, or ctx ended it. Run must honor ctx cancellation by killing the
+// child rather than leaking it.
 type Runner interface {
-	Run(ctx context.Context, cmd Command) (Outcome, error)
+	Run(ctx context.Context, argv []string, dir string, env []string, stdout, stderr io.Writer) (exitCode int, err error)
 }
 
 // System returns the Runner that spawns real child processes.
@@ -46,21 +30,27 @@ func System() Runner { return systemRunner{} }
 // Process.Kill since Go 1.20).
 type systemRunner struct{}
 
-func (systemRunner) Run(ctx context.Context, cmd Command) (Outcome, error) {
-	c := exec.CommandContext(ctx, cmd.Path, cmd.Args...)
-	c.Dir = cmd.Dir
-	c.Env = cmd.Env
-	c.Stdout = cmd.Stdout
-	c.Stderr = cmd.Stderr
+// ErrNoArgv is Run's error for an empty argv: there is nothing to spawn.
+var ErrNoArgv = errors.New("process: empty argv")
+
+func (systemRunner) Run(ctx context.Context, argv []string, dir string, env []string, stdout, stderr io.Writer) (int, error) {
+	if len(argv) == 0 {
+		return 0, ErrNoArgv
+	}
+	c := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	c.Dir = dir
+	c.Env = env
+	c.Stdout = stdout
+	c.Stderr = stderr
 	isolateProcessGroup(c)
 	c.WaitDelay = waitDelay
 	err := c.Run()
 	// A grandchild still holding the pipes after the direct child exited
 	// makes Run report ErrWaitDelay; the child's own status is what counts.
 	if c.ProcessState != nil && (err == nil || errors.Is(err, exec.ErrWaitDelay) || isExitError(err)) {
-		return Outcome{ExitCode: c.ProcessState.ExitCode()}, nil
+		return c.ProcessState.ExitCode(), nil
 	}
-	return Outcome{}, err
+	return 0, err
 }
 
 // waitDelay bounds how long Run waits for output pipes to drain after the

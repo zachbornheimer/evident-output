@@ -3,9 +3,9 @@ package testkit
 import (
 	"context"
 	"fmt"
+	"io"
+	"slices"
 	"sync"
-
-	"github.com/zachbornheimer/evident-output/internal/process"
 )
 
 // ScriptedProcess is one canned Exec response: predetermined output
@@ -19,55 +19,69 @@ type ScriptedProcess struct {
 	Gate     chan struct{}
 }
 
-// ProcessRunner is a deterministic process.Runner fake.
+// ProcessCall is one command ProcessRunner was asked to spawn.
+type ProcessCall struct {
+	Argv []string
+	Dir  string
+	Env  []string
+}
+
+// ProcessRunner is a deterministic evo.Process fake, scripted per argv[0].
 type ProcessRunner struct {
 	mu      sync.Mutex
 	scripts map[string]ScriptedProcess
-	calls   []process.Command
+	calls   []ProcessCall
 }
 
 func NewProcessRunner() *ProcessRunner {
 	return &ProcessRunner{scripts: map[string]ScriptedProcess{}}
 }
 
+// Script sets the response to a spawn whose argv[0] is executable.
 func (r *ProcessRunner) Script(executable string, resp ScriptedProcess) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.scripts[executable] = resp
 }
 
-func (r *ProcessRunner) Calls() []process.Command {
+// Calls is every spawn Run was asked for, in order.
+func (r *ProcessRunner) Calls() []ProcessCall {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return append([]process.Command(nil), r.calls...)
+	return slices.Clone(r.calls)
 }
 
-func (r *ProcessRunner) Run(ctx context.Context, cmd process.Command) (process.Outcome, error) {
+// Run plays the script for argv[0].
+func (r *ProcessRunner) Run(ctx context.Context, argv []string, dir string, env []string, stdout, stderr io.Writer) (int, error) {
+	executable := ""
+	if len(argv) > 0 {
+		executable = argv[0]
+	}
 	r.mu.Lock()
-	resp, ok := r.scripts[cmd.Path]
-	r.calls = append(r.calls, cmd)
+	resp, ok := r.scripts[executable]
+	r.calls = append(r.calls, ProcessCall{Argv: slices.Clone(argv), Dir: dir, Env: slices.Clone(env)})
 	r.mu.Unlock()
 	if !ok {
-		return process.Outcome{}, fmt.Errorf("testkit: no scripted process for %q", cmd.Path)
+		return 0, fmt.Errorf("testkit: no scripted process for %q", executable)
 	}
 	if resp.Gate != nil {
 		select {
 		case <-resp.Gate:
 		case <-ctx.Done():
-			return process.Outcome{}, ctx.Err()
+			return 0, ctx.Err()
 		}
 	}
 	if ctx.Err() != nil {
-		return process.Outcome{}, ctx.Err()
+		return 0, ctx.Err()
 	}
 	if resp.SpawnErr != nil {
-		return process.Outcome{}, resp.SpawnErr
+		return 0, resp.SpawnErr
 	}
 	for _, line := range resp.Stdout {
-		_, _ = fmt.Fprintln(cmd.Stdout, line)
+		_, _ = fmt.Fprintln(stdout, line)
 	}
 	for _, line := range resp.Stderr {
-		_, _ = fmt.Fprintln(cmd.Stderr, line)
+		_, _ = fmt.Fprintln(stderr, line)
 	}
-	return process.Outcome{ExitCode: resp.ExitCode}, nil
+	return resp.ExitCode, nil
 }

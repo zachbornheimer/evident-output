@@ -8,6 +8,7 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
+	"go/types"
 	"os"
 	"path/filepath"
 	"sort"
@@ -156,11 +157,17 @@ func renderFieldList(fset *token.FileSet, fl *ast.FieldList) string {
 	for _, f := range fl.List {
 		var typeBuf bytes.Buffer
 		_ = printer.Fprint(&typeBuf, fset, f.Type)
+		typ := typeBuf.String()
+		if strings.Contains(typ, "\n") {
+			// One golden line per declaration: a multi-line type literal
+			// (interface{ A; B }) renders on one line.
+			typ = types.ExprString(f.Type)
+		}
 		names := make([]string, len(f.Names))
 		for i, n := range f.Names {
 			names[i] = n.Name
 		}
-		parts = append(parts, strings.Join(names, ", ")+" "+typeBuf.String())
+		parts = append(parts, strings.Join(names, ", ")+" "+typ)
 	}
 	return strings.Join(parts, ", ")
 }

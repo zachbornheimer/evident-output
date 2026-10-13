@@ -15,7 +15,11 @@ type EffectSpec struct {
 	Object   string
 	Quantity int
 	Path     string
-	Resource resource
+	// Resource is a logical resource name: two Effects whose Resources are
+	// equal after trimming surrounding whitespace never overlap.
+	Resource string
+	// claim is a resource tests name directly.
+	claim resource
 }
 
 func (s EffectSpec) toChange() change.EffectSpec {
@@ -28,5 +32,9 @@ func (s EffectSpec) toChange() change.EffectSpec {
 	case Delete:
 		v = change.EffectDelete
 	}
-	return change.EffectSpec{Verb: v, Object: s.Object, Quantity: s.Quantity, Resource: s.Resource}
+	claim := s.claim
+	if s.Resource != "" {
+		claim = change.LogicalResource(s.Resource)
+	}
+	return change.EffectSpec{Verb: v, Object: s.Object, Quantity: s.Quantity, Resource: claim}
 }

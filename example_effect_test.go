@@ -54,11 +54,10 @@ func ExampleEffectVerb() {
 }
 
 // ExampleEffectSpec_noResource shows the default: an EffectSpec with no
-// Resource makes no resource claim. Resource is sealed — callers cannot
-// implement it.
+// Path or Resource makes no claim.
 func ExampleEffectSpec_noResource() {
 	spec := EffectSpec{Verb: Verb(effectPush), Object: "branch", Quantity: 1}
-	fmt.Println(spec.Resource == nil)
+	fmt.Println(spec.Path == "" && spec.Resource == "")
 	// Output:
 	// true
 }

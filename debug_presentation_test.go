@@ -17,7 +17,7 @@ func fixedDebugClock() TestClock {
 // History mode (default): durable append-above, compact grammar with timestamp (§21.3.1).
 func TestDebugHistory_AppendAboveLiveRegion(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{isolated: true, clock: fixedDebugClock(), stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), Debug: debugConfig{level: levelDebug}, color: colorNever})
+	out := initRun(Config{isolated: true, clock: fixedDebugClock(), stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}, color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("branches")
@@ -47,7 +47,7 @@ func TestDebugPane_RollingViewportNewestFirst(t *testing.T) {
 	clock := testkit.NewClock()
 	// Advance so successive Debug calls get distinct times if clock ticks.
 	newest := true
-	out := initRun(Config{isolated: true, clock: clock, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), Debug: debugConfig{level: levelDebug, view: debugPresentationPane, paneHeight: 2, newestFirst: &newest}, color: colorNever})
+	out := initRun(Config{isolated: true, clock: clock, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug, view: debugPresentationPane, paneHeight: 2, newestFirst: &newest}, color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("work")
@@ -105,7 +105,7 @@ func TestDebugPane_FailurePreservesDiagnosticTail(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	var primary bytes.Buffer
 	newest := true
-	out := initRun(Config{isolated: true, stdout: &primary, stderr: io.Discard, clock: fixedDebugClock(), terminal: screen, visibilityDelay: DelayForTest(0), Debug: debugConfig{level: levelDebug, view: debugPresentationPane, paneHeight: 5, newestFirst: &newest}, color: colorNever})
+	out := initRun(Config{isolated: true, stdout: &primary, stderr: io.Discard, clock: fixedDebugClock(), terminal: screen, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug, view: debugPresentationPane, paneHeight: 5, newestFirst: &newest}, color: colorNever})
 	out.dropDiagnosticForTest()
 	t.Cleanup(func() { _ = out.close() })
 
@@ -136,7 +136,7 @@ func TestDebugPane_FailurePreservesDiagnosticTail(t *testing.T) {
 // PreserveDebugTail forces a tail even on success (explicit opt-in).
 func TestDebugPane_PreserveDebugTailAlways(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, stderr: &buf, clock: fixedDebugClock(), Debug: debugConfig{level: levelDebug, view: debugPresentationPane, preserveAlways: true}, color: colorNever, plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: &buf, clock: fixedDebugClock(), debug: debugConfig{level: levelDebug, view: debugPresentationPane, preserveAlways: true}, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.debugForTest("cache warm", field{Key: "dir", Value: "/tmp/x"})
@@ -154,7 +154,7 @@ func TestDebugPane_PreserveDebugTailAlways(t *testing.T) {
 // Plain + history: still one stream, no double print (regression).
 func TestDebugHistory_PlainStreamsOnce(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, stderr: io.Discard, clock: fixedDebugClock(), Debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: io.Discard, clock: fixedDebugClock(), debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
 	out.dropDiagnosticForTest()
 	t.Cleanup(func() { _ = out.close() })
 	out.debugForTest("cache warm", field{Key: "dir", Value: "/tmp/x"})

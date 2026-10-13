@@ -60,7 +60,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	// FixedClock freezes spinner glyphs for stable operation expectations.
 	fixed := TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	discard := io.Discard
-	out := initRun(Config{isolated: true, clock: fixed, terminal: screen, stdout: discard, stderr: discard, visibilityDelay: DelayForTest(0), Debug: debugConfig{level: levelDebug}, color: colorNever})
+	out := initRun(Config{isolated: true, clock: fixed, terminal: screen, stdout: discard, stderr: discard, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}, color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("dependencies")

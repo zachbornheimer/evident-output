@@ -14,7 +14,6 @@ import (
 
 type (
 	logRecord       = record.LogRecord
-	ProblemOption   = record.ProblemOption
 	problemSeverity = record.ProblemSeverity
 	reasonOption    = record.ReasonOption
 	taxonomyReason  = record.TaxonomyReason
@@ -25,6 +24,38 @@ const (
 	severityWarning = record.SeverityWarning
 )
 
+// ProblemOption shapes the Problem that Fail, Refuse, Exclude or
+// Task.Problem records. It is sealed: only this package's constructors
+// make one.
+type ProblemOption interface {
+	recordOption() record.ProblemOption
+}
+
+// problemOption is every ProblemOption but Detail: one record option.
+type problemOption struct{ opt record.ProblemOption }
+
+func (o problemOption) recordOption() record.ProblemOption { return o.opt }
+
+// detail is Detail's option: the longer explanation of a Problem, or a
+// context line under a Confirm question.
+type detail string
+
+func (d detail) recordOption() record.ProblemOption { return record.WithDetail(string(d)) }
+
+func (d detail) applyConfirm(c *confirmConfig) { c.detail = append(c.detail, string(d)) }
+
+// applyProblemOptions is the Problem summary and opts describe; see
+// record.ApplyProblemOptions. A nil option is skipped.
+func applyProblemOptions(summary string, opts []ProblemOption) record.Problem {
+	recordOpts := make([]record.ProblemOption, 0, len(opts))
+	for _, opt := range opts {
+		if opt != nil {
+			recordOpts = append(recordOpts, opt.recordOption())
+		}
+	}
+	return record.ApplyProblemOptions(summary, recordOpts)
+}
+
 // Command builds an action with an executable and arguments.
 func actionCommand(executable string, args ...string) Action {
 	return asEvoAction(record.Command(executable, args...))
@@ -34,31 +65,43 @@ func actionCommand(executable string, args ...string) Action {
 func label(text string) Action { return asEvoAction(record.Label(text)) }
 
 // Severity sets a Problem's severity.
-func severity(value problemSeverity) ProblemOption { return record.WithSeverity(value) }
+func severity(value problemSeverity) ProblemOption {
+	return problemOption{record.WithSeverity(value)}
+}
 
-// Detail sets user-visible detail text.
-func Detail(text string) ProblemOption { return record.WithDetail(text) }
+// Detail is the longer explanation of a Problem, or a context line under a
+// Confirm question.
+func Detail(text string) interface {
+	ProblemOption
+	ConfirmOption
+} {
+	return detail(text)
+}
 
 // Code sets a stable problem code.
-func Code(value string) ProblemOption { return record.WithCode(value) }
+func Code(value string) ProblemOption { return problemOption{record.WithCode(value)} }
 
 // On sets the problem subject.
-func On(subject string) ProblemOption { return record.OnSubject(subject) }
+func On(subject string) ProblemOption { return problemOption{record.OnSubject(subject)} }
 
 // Count sets a quantity and optional unit.
-func count(value int64, unit ...string) ProblemOption { return record.WithCount(value, unit...) }
+func count(value int64, unit ...string) ProblemOption {
+	return problemOption{record.WithCount(value, unit...)}
+}
 
 // Location sets a source location on a Problem.
 func location(path string, line, column int) ProblemOption {
-	return record.AtLocation(path, line, column)
+	return problemOption{record.AtLocation(path, line, column)}
 }
 
 // Next attaches an action to a problem.
-func Next(action Action) ProblemOption { return record.WithAction(asRecordAction(action)) }
+func Next(action Action) ProblemOption {
+	return problemOption{record.WithAction(asRecordAction(action))}
+}
 
 // NextCommand attaches a recommended command action.
 func nextCommand(executable string, args ...string) ProblemOption {
-	return record.WithCommand(executable, args...)
+	return problemOption{record.WithCommand(executable, args...)}
 }
 
 // ForSkip restricts a reason to Task.Skipped.

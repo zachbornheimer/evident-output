@@ -166,7 +166,7 @@ ProblemOption	helper	Problem
 Process	helper	Facades
 ReasonOption	removed	Skipped
 Redact	removed	Run
-Redactor	helper	Run
+Redactor	helper	Facades
 Refuse	canonical	Ending
 Refused	helper	Ending
 Result	canonical	Run

@@ -157,7 +157,7 @@ func TestConfig_PipeAndDiagnosticsWired(t *testing.T) {
 	defer func() { _ = w.Close() }()
 
 	var diag bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: w, stderr: &diag, title: "tool", Debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	out := initRun(Config{isolated: true, stdout: w, stderr: &diag, title: "tool", debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
 	out.debugForTest("diag-line")
 	out.Task("gate").block("dirty")
 	if err := out.finish(); err != nil {
@@ -173,7 +173,7 @@ func TestConfig_PipeAndDiagnosticsWired(t *testing.T) {
 
 func TestDiagnostics_DualStream_DebugNotOnPrimary(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &primary, stderr: &diag, Debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	out := initRun(Config{isolated: true, stdout: &primary, stderr: &diag, debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
 	out.debugForTest("internal only")
 	succeed(out.Task("ok"))
 	if err := out.finish(); err != nil {

@@ -3,6 +3,7 @@ package evo
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,7 +23,7 @@ type scriptedRunner struct {
 	stdout   []string
 	stderr   []string
 	gate     chan struct{}
-	calls    []processCommand
+	calls    [][]string
 	// onRun, when set, runs synchronously right after gate releases and
 	// before Run returns — simulating a child that produces its declared
 	// Output as its very last act (used to prove the freshness barrier
@@ -30,31 +31,31 @@ type scriptedRunner struct {
 	onRun func()
 }
 
-func (r *scriptedRunner) Run(ctx context.Context, cmd processCommand) (processOutcome, error) {
-	r.calls = append(r.calls, cmd)
+func (r *scriptedRunner) Run(ctx context.Context, argv []string, _ string, _ []string, stdout, stderr io.Writer) (int, error) {
+	r.calls = append(r.calls, argv)
 	if r.gate != nil {
 		select {
 		case <-r.gate:
 		case <-ctx.Done():
-			return processOutcome{}, ctx.Err()
+			return 0, ctx.Err()
 		}
 	}
 	if ctx.Err() != nil {
-		return processOutcome{}, ctx.Err()
+		return 0, ctx.Err()
 	}
 	if r.spawnErr != nil {
-		return processOutcome{}, r.spawnErr
+		return 0, r.spawnErr
 	}
 	if r.onRun != nil {
 		r.onRun()
 	}
 	for _, l := range r.stdout {
-		_, _ = cmd.Stdout.Write([]byte(l + "\n"))
+		_, _ = stdout.Write([]byte(l + "\n"))
 	}
 	for _, l := range r.stderr {
-		_, _ = cmd.Stderr.Write([]byte(l + "\n"))
+		_, _ = stderr.Write([]byte(l + "\n"))
 	}
-	return processOutcome{ExitCode: r.exitCode}, nil
+	return r.exitCode, nil
 }
 
 // routedRunner dispatches to a different ProcessRunner per resolved
@@ -63,8 +64,8 @@ func (r *scriptedRunner) Run(ctx context.Context, cmd processCommand) (processOu
 // spawns for two different Tasks routes through this.
 type routedRunner struct{ byPath map[string]processRunner }
 
-func (r routedRunner) Run(ctx context.Context, cmd processCommand) (processOutcome, error) {
-	return r.byPath[cmd.Path].Run(ctx, cmd)
+func (r routedRunner) Run(ctx context.Context, argv []string, dir string, env []string, stdout, stderr io.Writer) (int, error) {
+	return r.byPath[argv[0]].Run(ctx, argv, dir, env, stdout, stderr)
 }
 
 // execFixture builds a real (non-executed) stub file at dir/name and

@@ -14,7 +14,7 @@ import (
 
 func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), Debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}})
 	t.Cleanup(func() { _ = out.close() })
 
 	logger := slog.New(out.slogHandlerForTest())
@@ -43,7 +43,7 @@ func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 // hosted *Run just for the slog bridge.
 func TestSlogHandler_PackageFuncJournalsToDefaultInstance(t *testing.T) {
 	var buf bytes.Buffer
-	setDefault(initRun(Config{stdout: &buf, stderr: &buf, Debug: debugConfig{level: levelDebug}, color: colorNever, plain: true}))
+	setDefault(initRun(Config{stdout: &buf, stderr: &buf, debug: debugConfig{level: levelDebug}, color: colorNever, plain: true}))
 
 	logger := slog.New(SlogHandlerForTest())
 	logger.Debug("batch loaded", "documents", 200)
@@ -63,7 +63,7 @@ func TestSlogHandler_PreservesTimeLevelAttrs(t *testing.T) {
 		title:  "slog",
 		stdout: &buf,
 		stderr: &buf,
-		Debug:  debugConfig{level: levelDebug},
+		debug:  debugConfig{level: levelDebug},
 	})
 	t.Cleanup(func() { _ = out.close() })
 
@@ -97,7 +97,7 @@ func TestSlogHandler_PreservesTimeLevelAttrs(t *testing.T) {
 func TestSlogInfoPreservesAttrsAndTime(t *testing.T) {
 	var buf bytes.Buffer
 	fixed := TestClock{T: time.Date(2026, 7, 27, 22, 15, 0, 0, time.UTC)}
-	out := initRun(Config{isolated: true, stdout: &buf, stderr: &buf, clock: fixed, Debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: &buf, clock: fixed, debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	logger := slog.New(out.slogHandlerForTest())
@@ -128,7 +128,7 @@ func TestSlogInfoPreservesAttrsAndTime(t *testing.T) {
 func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	newest := true
-	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), Debug: debugConfig{level: levelDebug, view: debugPresentationPane, paneHeight: 5, newestFirst: &newest}, color: colorNever})
+	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug, view: debugPresentationPane, paneHeight: 5, newestFirst: &newest}, color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	logger := slog.New(out.slogHandlerForTest())
@@ -163,7 +163,7 @@ func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 // SlogHandler().Handle (see LogRecord.PC) for any machine consumer.
 func TestSlogErrorPreservesLevelAndPC(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, stderr: &buf, Debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	out := initRun(Config{isolated: true, stdout: &buf, stderr: &buf, debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	// Craft a Record with a non-zero PC (as AddSource would provide).
@@ -201,7 +201,7 @@ func TestSlogAddSource_ResolvesSourceField(t *testing.T) {
 	out := initRun(Config{
 		stdout: &buf,
 		stderr: &buf,
-		Debug:  debugConfig{level: levelDebug, addSource: true},
+		debug:  debugConfig{level: levelDebug, addSource: true},
 	})
 	t.Cleanup(func() { _ = out.close() })
 

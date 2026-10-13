@@ -148,7 +148,7 @@ func TestFileWaitsForCoarseEffectClaim(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	tidy := out.Task("tidy module")
 	tidy.Define(func(ctx context.Context) error {
-		spec := EffectSpec{Verb: Update, Object: "module", Quantity: 1, Resource: fSResource(dir)}
+		spec := EffectSpec{Verb: Update, Object: "module", Quantity: 1, claim: fSResource(dir)}
 		return Effect(ctx, spec, func(context.Context) error {
 			close(entered)
 			<-release
@@ -208,7 +208,7 @@ func TestEffectsOnOneLogicalResourceNeverOverlap(t *testing.T) {
 			resource = logicalResource("  " + name + "\t")
 		}
 		task.Define(func(ctx context.Context) error {
-			spec := EffectSpec{Verb: Verb(effectAdd), Object: "package", Quantity: 1, Resource: resource}
+			spec := EffectSpec{Verb: Verb(effectAdd), Object: "package", Quantity: 1, claim: resource}
 			return Effect(ctx, spec, func(context.Context) error {
 				n := active.Add(1)
 				for p := peak.Load(); n > p && !peak.CompareAndSwap(p, n); p = peak.Load() {
@@ -239,7 +239,7 @@ func TestFileInsideResourceEffectIsNestedMisuse(t *testing.T) {
 	task := out.Task("publish")
 	var fileErr error
 	task.Define(func(ctx context.Context) error {
-		spec := EffectSpec{Verb: Verb(effectPush), Object: "tag", Quantity: 1, Resource: logicalResource("remote " + t.Name())}
+		spec := EffectSpec{Verb: Verb(effectPush), Object: "tag", Quantity: 1, claim: logicalResource("remote " + t.Name())}
 		return Effect(ctx, spec, func(held context.Context) error {
 			fileErr = File(held, FileSpec{Path: filepath.Join(dir, "stamp"), Contents: []byte("x")})
 			return fileErr
@@ -267,7 +267,7 @@ func TestEffectRejectsInvalidResource(t *testing.T) {
 		invoked := false
 		var effectErr error
 		task.Define(func(ctx context.Context) error {
-			spec := EffectSpec{Verb: Verb(effectPush), Object: "tag", Quantity: 1, Resource: logicalResource(" ")}
+			spec := EffectSpec{Verb: Verb(effectPush), Object: "tag", Quantity: 1, claim: logicalResource(" ")}
 			effectErr = Effect(ctx, spec, func(context.Context) error { invoked = true; return nil })
 			return effectErr
 		})
@@ -290,7 +290,7 @@ func TestUncontendedEffectResourceIsSilent(t *testing.T) {
 		out := newOutput("prune", to(&buf), plain(), withNoColor())
 		task := out.Task("prune worktrees")
 		task.Define(func(ctx context.Context) error {
-			spec := EffectSpec{Verb: Delete, Object: "worktree", Quantity: 2, Resource: resource}
+			spec := EffectSpec{Verb: Delete, Object: "worktree", Quantity: 2, claim: resource}
 			return Effect(ctx, spec, func(context.Context) error { return nil })
 		})
 		if err := task.wait(); err != nil {
