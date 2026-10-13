@@ -6,8 +6,6 @@ import (
 	"io"
 	"strings"
 	"testing"
-
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
 func withLookupEnv(t *testing.T, env map[string]string) {
@@ -119,73 +117,6 @@ func TestEVOOutput_JSONL_WritesEventLines(t *testing.T) {
 	}
 }
 
-func TestEVOOutput_StreamJSON_TaskDoneEmitsEventJSONBeforeFinish(t *testing.T) {
-	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "stream-json"})
-	var buf bytes.Buffer
-	out := isolatedInit(t, Config{stdout: &buf, stderr: io.Discard})
-	succeed(out.Task("scan"), "ok")
-	got := strings.TrimSpace(buf.String())
-	if got == "" {
-		t.Fatal("stream-json wrote nothing at Task.Done")
-	}
-	var sawTaskDone bool
-	for line := range strings.SplitSeq(got, "\n") {
-		var ev wire.EventJSON
-		if err := json.Unmarshal([]byte(line), &ev); err != nil {
-			t.Fatalf("stream-json line before Finish is not EventJSON: %v\n%s", err, line)
-		}
-		if ev.Type == "task.done" {
-			sawTaskDone = true
-		}
-	}
-	if !sawTaskDone {
-		t.Fatalf("Task.Done must emit a task.done EventJSON line before Finish:\n%s", got)
-	}
-	_ = out.finish()
-}
-
-func TestEVOOutput_StreamJSON_FormatDataKeepsPayloadOnStdout(t *testing.T) {
-	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "stream-json"})
-	var stdout, stderr bytes.Buffer
-	out := isolatedInit(t, Config{
-		format: formatData,
-		stdout: &stdout,
-		stderr: &stderr,
-	})
-	succeed(out.Task("scan"), "ok")
-	const payload = `{"ready":true}`
-	if _, err := io.WriteString(out.ResultWriter(), payload); err != nil {
-		t.Fatal(err)
-	}
-	beforeFinish := stderr.String()
-	if strings.TrimSpace(beforeFinish) == "" {
-		t.Fatal("FormatData+stream-json must write EventJSON to stderr at Task.Done")
-	}
-	var sawTaskDone bool
-	for line := range strings.SplitSeq(strings.TrimSpace(beforeFinish), "\n") {
-		var ev wire.EventJSON
-		if err := json.Unmarshal([]byte(line), &ev); err != nil {
-			t.Fatalf("stderr JSONL is not EventJSON: %v\n%s", err, line)
-		}
-		if ev.Type == "task.done" {
-			sawTaskDone = true
-		}
-	}
-	if !sawTaskDone {
-		t.Fatalf("stderr missing task.done EventJSON:\n%s", beforeFinish)
-	}
-	if strings.Contains(stdout.String(), `"type"`) {
-		t.Fatalf("presentation JSONL leaked onto stdout:\n%s", stdout.String())
-	}
-	if stdout.String() != payload {
-		t.Fatalf("domain payload on stdout = %q, want %q", stdout.String(), payload)
-	}
-	_ = out.finish()
-	if strings.Contains(stdout.String(), "scan") && !strings.Contains(stdout.String(), payload) {
-		t.Fatalf("human presentation leaked onto FormatData stdout:\n%s", stdout.String())
-	}
-}
-
 func TestEVOOutput_HumanDoesNotOverrideExplicitPlain(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "human"})
 	var buf bytes.Buffer
@@ -218,23 +149,6 @@ func TestEVOOutput_NoColorStillDisablesColor(t *testing.T) {
 	if strings.Contains(buf.String(), "\x1b[") {
 		t.Fatalf("NO_COLOR must still disable color on a TTY-shaped writer:\n%q", buf.String())
 	}
-}
-
-func TestEVOOutput_StreamJSONAliasUnderscore(t *testing.T) {
-	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "stream_json"})
-	var buf bytes.Buffer
-	out := isolatedInit(t, Config{stdout: &buf, stderr: io.Discard})
-	succeed(out.Task("scan"))
-	got := strings.TrimSpace(buf.String())
-	if got == "" {
-		t.Fatal("EVO_OUTPUT=stream_json alias wrote nothing at Task.Done")
-	}
-	var ev wire.EventJSON
-	first, _, _ := strings.Cut(got, "\n")
-	if err := json.Unmarshal([]byte(first), &ev); err != nil {
-		t.Fatalf("stream_json alias must emit EventJSON: %v\n%s", err, first)
-	}
-	_ = out.finish()
 }
 
 func TestEVOVerbose_OneProjectsVerboseMessages(t *testing.T) {

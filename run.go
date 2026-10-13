@@ -470,8 +470,7 @@ type Config struct {
 	// Format projection mode (default FormatHuman). Stream routing only —
 	// FormatData does not mean JSON. Presentation encoding is Projection.
 	format format
-	// Projection selects presentation encoding (human, plain, json, jsonl,
-	// stream-json). Zero is unspecified: Init applies EVO_OUTPUT when set,
+	// Projection selects presentation encoding (human, plain, json, jsonl). Zero is unspecified: Init applies EVO_OUTPUT when set,
 	// otherwise human TTY/plain inference. Independent of Format.
 	projection projection
 
@@ -989,8 +988,8 @@ var (
 // instance that is not installed as the package default. First paint still
 // arms — Isolated is not a blank-terminal exemption.
 //
-// Init fills still-zero Config fields from EVO_OUTPUT, EVO_COLOR,
-// EVO_VERBOSE, EVO_DEBUG, and NO_COLOR before TTY inference.
+// Init fills still-zero Config fields from EVO_OUTPUT, EVO_VERBOSE,
+// EVO_DEBUG, NO_COLOR, and FORCE_COLOR before TTY inference.
 // Explicit Config values win over env; env wins over TTY.
 func initRun(configs ...Config) *Run {
 	cfg := resolveInitConfig(configs)
@@ -1102,30 +1101,27 @@ func slogHandler() slog.Handler {
 
 // Environment keys honored at Init when the matching Config field is unset.
 const (
-	envKeyOutput  = "EVO_OUTPUT"
-	envKeyColor   = "EVO_COLOR"
-	envKeyVerbose = "EVO_VERBOSE"
-	envKeyDebug   = "EVO_DEBUG"
-	envKeyNoColor = "NO_COLOR"
+	envKeyOutput     = "EVO_OUTPUT"
+	envKeyVerbose    = "EVO_VERBOSE"
+	envKeyDebug      = "EVO_DEBUG"
+	envKeyNoColor    = "NO_COLOR"
+	envKeyForceColor = "FORCE_COLOR"
 )
 
 const (
-	envOutputHuman         = "human"
-	envOutputPlain         = "plain"
-	envOutputJSON          = "json"
-	envOutputJSONL         = "jsonl"
-	envOutputStreamJSON    = "stream-json"
-	envOutputStreamJSONAlt = "stream_json"
+	envOutputHuman = "human"
+	envOutputPlain = "plain"
+	envOutputJSON  = "json"
+	envOutputJSONL = "jsonl"
 
-	envColorAuto   = "auto"
-	envColorAlways = "always"
-	envColorNever  = "never"
+	envForceColorOff = "0"
 
 	envVerboseOn = "1"
 
 	envDebugInfo  = "info"
 	envDebugDebug = "debug"
-	envDebugTrace = "trace"
+	envDebugWarn  = "warn"
+	envDebugError = "error"
 )
 
 // Projection selects presentation encoding. Independent of Format, which
@@ -1198,7 +1194,7 @@ func lookupEnv(key string) string {
 // applyEnv fills zero Config fields from the process environment. Explicit
 // Config values already set are left alone. Options-path Init skips this.
 func applyEnv(c Config) Config {
-	if c.projection == 0 {
+	if c.projection == 0 && c.Output == 0 {
 		if p, ok := parseOutputEnv(lookupEnv(envKeyOutput)); ok {
 			c = selectOutputEnv(c, p)
 		}
@@ -1206,10 +1202,8 @@ func applyEnv(c Config) Config {
 	if c.projection.forcesPlain() {
 		c.plain = true
 	}
-	if c.color == colorAuto {
-		if mode, ok := parseColorEnv(lookupEnv(envKeyColor)); ok {
-			c.color = mode
-		}
+	if c.color == colorAuto && forceColorRequested() {
+		c.color = colorAlways
 	}
 	if c.verbosity == verbosityNormal && lookupEnv(envKeyVerbose) == envVerboseOn {
 		c.verbosity = verbosityVerbose
@@ -1250,24 +1244,19 @@ func parseOutputEnv(v string) (projection, bool) {
 		return projectionJSON, true
 	case envOutputJSONL:
 		return projectionJSONL, true
-	case envOutputStreamJSON, envOutputStreamJSONAlt:
-		return projectionStreamJSON, true
 	default:
 		return 0, false
 	}
 }
 
-func parseColorEnv(v string) (colorMode, bool) {
-	switch strings.TrimSpace(v) {
-	case envColorAuto:
-		return colorAuto, true
-	case envColorAlways:
-		return colorAlways, true
-	case envColorNever:
-		return colorNever, true
-	default:
-		return 0, false
+// forceColorRequested reports whether FORCE_COLOR asks for color. NO_COLOR
+// wins over FORCE_COLOR, so it is checked first.
+func forceColorRequested() bool {
+	if lookupEnv(envKeyNoColor) != "" {
+		return false
 	}
+	force := strings.TrimSpace(lookupEnv(envKeyForceColor))
+	return force != "" && force != envForceColorOff
 }
 
 func parseDebugEnv(v string) (logLevel, bool) {
@@ -1276,8 +1265,10 @@ func parseDebugEnv(v string) (logLevel, bool) {
 		return levelInfo, true
 	case envDebugDebug:
 		return levelDebug, true
-	case envDebugTrace:
-		return levelTrace, true
+	case envDebugWarn:
+		return levelWarn, true
+	case envDebugError:
+		return levelError, true
 	default:
 		return 0, false
 	}

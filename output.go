@@ -3375,7 +3375,7 @@ func writeWireRunLocked(w io.Writer, conc Conclusion) error {
 
 // writeWireEventLocked encodes e as one "evo.event" JSONL line and writes
 // it to w — the FormatJSONL counterpart of writeStreamJSONLocked's legacy
-// "0.3" stream-json line, called from emitWireEventLocked
+// "0.3" streamed-JSON line, called from emitWireEventLocked
 // (structured_events.go). A write failure here does not stop the stream —
 // earlier lines already written stay valid (spec §32.2: "Earlier valid
 // lines remain valid if a later write fails") — but it is returned so the
