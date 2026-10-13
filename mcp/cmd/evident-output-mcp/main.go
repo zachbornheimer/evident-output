@@ -18,6 +18,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/catalog"
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/mcp/internal/buildversion"
 )
 
 // serverInstructions is the MCP `instructions` hint returned on initialize —
@@ -32,7 +33,7 @@ const serverInstructions = "This is the official Evident Output MCP server. It M
 // Version is injected at build time via -ldflags "-X main.Version=...".
 // installedVersionUnset stays "dev" only when neither the build-time stamp
 // nor the Go toolchain's own VCS stamp is available — see resolvedVersion.
-const installedVersionUnset = "dev"
+const installedVersionUnset = buildversion.Unset
 
 var Version = installedVersionUnset
 
@@ -48,37 +49,7 @@ var Version = installedVersionUnset
 // "Dialect the MCP enforces" / evo-dialect-axes-report.md axis 4/12: a
 // fresh --version printing "dev" cannot tell stale from fresh).
 func resolvedVersion() string {
-	if Version != installedVersionUnset {
-		return Version
-	}
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return Version
-	}
-	if v := info.Main.Version; v != "" && v != "(devel)" {
-		return v
-	}
-	var revision string
-	var modified bool
-	for _, s := range info.Settings {
-		switch s.Key {
-		case "vcs.revision":
-			revision = s.Value
-		case "vcs.modified":
-			modified = s.Value == "true"
-		}
-	}
-	if revision == "" {
-		return Version
-	}
-	if len(revision) > 12 {
-		revision = revision[:12]
-	}
-	stamp := "devel+" + revision
-	if modified {
-		stamp += "-dirty"
-	}
-	return stamp
+	return buildversion.Resolve(Version, debug.ReadBuildInfo)
 }
 
 // faultHook is an optional test-only injector for MCP-034 panic containment.

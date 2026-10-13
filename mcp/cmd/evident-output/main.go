@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 
@@ -19,14 +20,19 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/preview"
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/mcp/internal/buildversion"
 )
 
-// Version is injected at build time.
-var Version = "dev"
+// Version is injected at build time via -ldflags "-X main.Version=...".
+var Version = buildversion.Unset
+
+func resolvedVersion() string {
+	return buildversion.Resolve(Version, debug.ReadBuildInfo)
+}
 
 func main() {
 	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "-version") {
-		fmt.Printf("evident-output %s\n", Version)
+		fmt.Printf("evident-output %s\n", resolvedVersion())
 		return
 	}
 	if len(os.Args) < 2 {
@@ -36,7 +42,7 @@ func main() {
 	var err error
 	switch os.Args[1] {
 	case "version":
-		fmt.Printf("evident-output %s\n", Version)
+		fmt.Printf("evident-output %s\n", resolvedVersion())
 	case "adopt":
 		err = cmdAdopt(os.Args[2:])
 	case "review":
