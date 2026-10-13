@@ -27,12 +27,10 @@ import (
 // docexamples:snippet start
 func main() {
 	ctx := context.Background()
-	out := evo.Init(evo.Config{Title: "runner", Isolated: true})
-
 	var childErr *exec.ExitError
-	code := out.Run(ctx, func(ctx context.Context) error {
-		cmd := out.Task("build")
-		err := run(cmd, exec.Command("make", "build")) // wires cmd.Stdout/Stderr into evo evidence
+	code := evo.Execute(ctx, evo.Config{Name: "runner"}, func(ctx context.Context, r *evo.Run) error {
+		task := r.Task("build")
+		err := run(task, exec.Command("make", "build")) // wires cmd.Stdout/Stderr into evo evidence
 		errors.As(err, &childErr)
 		return err
 	}).ExitCode()
@@ -51,7 +49,7 @@ func main() {
 // errors.As above can still unwrap it. The fixture supplies a trivial
 // stand-in purely so the doc snippet above type-checks; it is never
 // invoked outside this never-run fixture binary.
-func run(task *evo.TaskHandle, cmd *exec.Cmd) error {
+func run(task *evo.Task, cmd *exec.Cmd) error {
 	cmd.Stdout = task.Writer()
 	cmd.Stderr = task.Writer()
 	if err := cmd.Run(); err != nil {

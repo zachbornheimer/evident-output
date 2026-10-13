@@ -32,12 +32,11 @@ that touches more than one item.
 
 ```go
 func main() {
-    evo.Init(evo.Config{Title: "tool"}) // first statement — arms first paint before any I/O
-    os.Exit(evo.Main(run))               // Main returns the exit code; os.Exit uses it
+    os.Exit(evo.Main(run))
 }
 
-func run(ctx context.Context) error {
-    worktrees := evo.Group("worktrees")
+func run(ctx context.Context, r *evo.Run) error {
+    worktrees := r.Group("worktrees")
     for _, path := range items {
         worktrees.Task(path).Define(func(ctx context.Context) error { return check(path) })
     }
@@ -47,14 +46,12 @@ func run(ctx context.Context) error {
 
 ## Hosted (framework owns exit)
 
-`out.Run(ctx, run)` returns a `Result`; `Result.ExitCode()` is the process exit code.
-The host inspects it and exits. `os.Exit(evo.Main(run))` is the process-exit path (row 1) for an
-ordinary `main()`; `Output.Run` is the hosted counterpart for a `Config.Isolated`
-instance, and never exits the process itself.
+`evo.Execute(ctx, cfg, run)` returns a `Result`; `Result.ExitCode()` is the process exit code.
+The host inspects it and exits. `os.Exit(evo.Main(run))` is the process-exit path for an
+ordinary `main()`; `Execute` is the hosted counterpart, and never exits the process itself.
 
 ```go
-out := evo.Init(evo.Config{Title: "tool", Isolated: true})
-os.Exit(out.Run(ctx, run).ExitCode()) // reconciles a non-nil run error into Fail, then Finish
+os.Exit(evo.Execute(ctx, evo.Config{Name: "tool"}, run).ExitCode())
 ```
 
 ## House rules (short)
@@ -114,6 +111,7 @@ Only needed when a child paints its own UI on the shared terminal (tty passthrou
 ## Data commands
 
 ```go
-out := evo.Init(evo.Config{Title: "tool", Format: evo.FormatData, Isolated: true})
-_ = json.NewEncoder(out.ResultWriter()).Encode(payload)
+_ = evo.Execute(ctx, evo.Config{Name: "tool", Output: evo.JSON}, func(ctx context.Context, r *evo.Run) error {
+    return json.NewEncoder(r.ResultWriter()).Encode(payload)
+})
 ```

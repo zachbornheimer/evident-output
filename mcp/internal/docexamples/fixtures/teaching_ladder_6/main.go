@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -14,11 +15,12 @@ type payloadT struct{ OK bool }
 
 var payload = payloadT{OK: true}
 
-func doWork() {
+func doWork(ctx context.Context) {
 	// docexamples:snippet start
-	out := evo.Init(evo.Config{Title: "tool", Format: evo.FormatData, Isolated: true})
-	_ = json.NewEncoder(out.ResultWriter()).Encode(payload)
+	_ = evo.Execute(ctx, evo.Config{Name: "tool", Output: evo.JSON}, func(ctx context.Context, r *evo.Run) error {
+		return json.NewEncoder(r.ResultWriter()).Encode(payload)
+	})
 	// docexamples:snippet end
 }
 
-func main() { doWork() }
+func main() { doWork(context.Background()) }

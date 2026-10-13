@@ -18,12 +18,11 @@ import (
 
 // docexamples:snippet start
 func main() {
-	evo.Init(evo.Config{Title: "tool"}) // first statement — arms first paint before any I/O
-	os.Exit(evo.Main(run))              // Main returns the exit code; os.Exit uses it
+	os.Exit(evo.Main(run))
 }
 
-func run(ctx context.Context) error {
-	worktrees := evo.Group("worktrees")
+func run(ctx context.Context, r *evo.Run) error {
+	worktrees := r.Group("worktrees")
 	for _, path := range items {
 		worktrees.Task(path).Define(func(ctx context.Context) error { return check(path) })
 	}

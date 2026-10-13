@@ -11,12 +11,11 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-func run(ctx context.Context) error { return nil }
+func run(ctx context.Context, r *evo.Run) error { return nil }
 
 func doWork(ctx context.Context) {
 	// docexamples:snippet start
-	out := evo.Init(evo.Config{Title: "tool", Isolated: true})
-	os.Exit(out.Run(ctx, run).ExitCode()) // reconciles a non-nil run error into Fail, then Finish
+	os.Exit(evo.Execute(ctx, evo.Config{Name: "tool"}, run).ExitCode())
 	// docexamples:snippet end
 }
 

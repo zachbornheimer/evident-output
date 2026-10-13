@@ -6,28 +6,23 @@
 package main
 
 import (
-	"time"
+	"context"
 
 	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
-func doWork() {
+func doWork(ctx context.Context) {
 	// docexamples:snippet start
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{
-		Terminal:        screen,
-		Clock:           clock,
-		VisibilityDelay: evo.Delay(150 * time.Millisecond),
-		MaxFrameRate:    20,
-	})
+	_ = evo.Execute(ctx, evo.Config{
+		Facades: evo.Facades{Terminal: screen, Clock: clock},
+	}, run)
 	// Phase/Progress draw a live region; a Task that resolves before the threshold does not flash.
-	// DebugHistory (default): out.Debug → durable above live (timestamp + [DEBUG]).
-	// DebugPane(...): rolling slog viewport in the live region; optional failure tail.
 	// docexamples:snippet end
-
-	_ = out
 }
 
-func main() { doWork() }
+func run(context.Context, *evo.Run) error { return nil }
+
+func main() { doWork(context.Background()) }
