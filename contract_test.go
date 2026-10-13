@@ -162,3 +162,29 @@ func difference(a, b map[string]bool) []string {
 	sort.Strings(out)
 	return out
 }
+
+// TestContractSignaturesTypeCheck fails when a CONTRACT.md row's Go does not
+// match package evo, or when the package's exported surface names a type a
+// consumer cannot name or a facade a consumer cannot implement. It compares
+// types, not names: a row's leading code span is a signature, field type or
+// type definition, checked with go/types.
+func TestContractSignaturesTypeCheck(t *testing.T) {
+	pkg := contractTypes(t)
+	rows := contractRows(t, "CONTRACT.md")
+
+	errs := probeErrors(t, pkg, rows)
+	for _, row := range rows {
+		for _, msg := range errs[row.Symbol] {
+			t.Errorf("CONTRACT.md row `%s` (%s) does not type-check: %s", row.Symbol, row.Meaning, msg)
+		}
+	}
+	for _, msg := range errs[""] {
+		t.Errorf("contract probe: %s", msg)
+	}
+	for _, leak := range consumerTypeLeaks(pkg) {
+		t.Errorf("exported surface names a type a consumer cannot name: %s", leak)
+	}
+	for _, gap := range facadeInterfaceGaps(t, pkg) {
+		t.Errorf("facade a consumer cannot implement: %s", gap)
+	}
+}
