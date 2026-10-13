@@ -7,12 +7,12 @@ func (Group) Summary(text string)  *Group
 func (Group) Task(name string)  *Task
 func (Result) ExitCode()  int
 func (Run) Confirm(question string, opts ...ConfirmOption)  bool
-func (Run) Fact(name, value string)
+func (Run) Fact(name, value string)  *Run
 func (Run) Group(name string)  *Group
 func (Run) ResultWriter()  io.Writer
 func (Run) Sequence(name string)  *Sequence
 func (Run) SlogHandler()  slog.Handler
-func (Run) Summary(text string)
+func (Run) Summary(text string)  *Run
 func (Run) Suspend(fn func() error)  error
 func (Run) Task(name string)  *Task
 func (Run) Text()  io.Writer

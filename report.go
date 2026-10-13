@@ -335,4 +335,7 @@ func (o *Run) Text() io.Writer { return o.writer() }
 
 func (o *Run) SlogHandler() slog.Handler { return o.slogHandler() }
 
-func (o *Run) Summary(text string) { o.subject(text) }
+func (r *Run) Summary(text string) *Run {
+	r.subject(text)
+	return r
+}

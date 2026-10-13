@@ -3102,21 +3102,22 @@ func fact(name, value string) {
 // (the same "act now" contract Println has) and stores the annotation for
 // the structured Snapshot/JSON views. A nil Output is safe and records
 // nothing.
-func (o *Run) Fact(name, value string) {
-	if o == nil {
-		return
+func (r *Run) Fact(name, value string) *Run {
+	if r == nil {
+		return r
 	}
 	f := record.SanitizeFact(factRecord{Name: txt.Text(name), Value: txt.Text(value)})
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		return
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.ensureOpen(); err != nil {
+		r.recordMisuse(err)
+		return r
 	}
-	o.rec.RecordRunFact(f)
-	o.bumpLocked()
-	o.emitWireEventLocked(wire.EventFactRecorded, "", wire.ToFactDoc(f).EventPayload())
-	o.writeDurableTextLocked(txt.Dim(f.Name+"  "+f.Value, !o.cfg.noColor) + "\n")
+	r.rec.RecordRunFact(f)
+	r.bumpLocked()
+	r.emitWireEventLocked(wire.EventFactRecorded, "", wire.ToFactDoc(f).EventPayload())
+	r.writeDurableTextLocked(txt.Dim(f.Name+"  "+f.Value, !r.cfg.noColor) + "\n")
+	return r
 }
 
 // warnLocked records p as a run-scoped warning and renders it. Callers
