@@ -26,7 +26,7 @@ func snippet() {
 	code := evo.Run(run)
 
 	// After
-	result := evo.Run(ctx, run)
+	result := evo.Execute(ctx, cfg, run)
 	code := result.ExitCode()
 	// docexamples:snippet end
 }
