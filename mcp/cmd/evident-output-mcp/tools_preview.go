@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/internal/record"
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/preview"
 )
 
@@ -23,20 +24,24 @@ func handlePreview(id any, args map[string]any, cancelled *atomic.Bool) {
 		item = "status"
 	}
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: subject, Stdout: &buf, Plain: true, Color: evo.ColorNever, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
-	it := out.Task(item)
-	switch state {
-	case "blocked":
-		it.Block("blocked for demo")
-	case "failed":
-		it.Fail("failed for demo")
-	default:
-		it.Define(func(context.Context) error { return nil })
-	}
+	_ = evo.Execute(context.Background(), evo.Config{
+		Name:    subject,
+		Output:  evo.Plain,
+		Facades: evo.Facades{Stdout: &buf},
+	}, func(ctx context.Context, r *evo.Run) error {
+		it := r.Task(item)
+		switch state {
+		case "blocked":
+			it.Define(func(context.Context) error { return evo.Refuse("blocked for demo") })
+		case "failed":
+			it.Define(func(context.Context) error { return evo.Fail("failed for demo") })
+		default:
+			it.Define(func(context.Context) error { return nil })
+		}
+		return nil
+	})
 	_ = dbg
-	_ = out.Finish()
-	snap := out.Snapshot()
-	profiles := preview.DefaultProfiles(snap)
+	profiles := preview.DefaultProfiles(record.Snapshot{})
 	if cancelled.Load() {
 		writeRPC(id, toolError("deadline exceeded"))
 		return

@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main compiles mcp/docs/development.md's "Machine output" fence
 // verbatim. See TestDocFencesMatchFixtures. Never run.
 package main

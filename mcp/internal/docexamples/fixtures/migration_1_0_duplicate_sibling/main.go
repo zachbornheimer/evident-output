@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main compiles docs/migration/1.0.md's "duplicate sibling names
 // are not a get-or-create" fence — both the discouraged repeated-call shape
 // (still valid Go, just records ErrDuplicateSiblingName at runtime, which

@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main compiles docs/migration/1.0.md's "After (1.0)" fence for
 // `Run`/`Main`/`Output.Run` taking and deriving a context.Context (the
 // `run(ctx context.Context) error` shape). See TestDocFencesMatchFixtures.

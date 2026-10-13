@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/internal/record"
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/adopt"
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/catalog"
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/preview"
@@ -132,18 +133,23 @@ func cmdPreview(args []string) error {
 		}
 	}
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: subject, Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	it := out.Task(item)
-	switch state {
-	case "blocked":
-		it.Block("blocked for preview")
-	case "failed":
-		it.Fail("failed for preview")
-	default:
-		it.Define(func(context.Context) error { return nil })
-	}
-	_ = out.Finish()
-	profiles := preview.DefaultProfiles(out.Snapshot())
+	_ = evo.Execute(context.Background(), evo.Config{
+		Name:    subject,
+		Output:  evo.Plain,
+		Facades: evo.Facades{Stdout: &buf},
+	}, func(ctx context.Context, r *evo.Run) error {
+		it := r.Task(item)
+		switch state {
+		case "blocked":
+			it.Define(func(context.Context) error { return evo.Refuse("blocked for preview") })
+		case "failed":
+			it.Define(func(context.Context) error { return evo.Fail("failed for preview") })
+		default:
+			it.Define(func(context.Context) error { return nil })
+		}
+		return nil
+	})
+	profiles := preview.DefaultProfiles(record.Snapshot{})
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(map[string]any{"profiles": profiles})

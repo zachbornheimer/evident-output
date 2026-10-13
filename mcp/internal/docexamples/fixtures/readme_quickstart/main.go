@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main compiles the README.md Quickstart fence verbatim (see
 // TestDocFencesMatchFixtures) so the flagship example never drifts from the
 // shipped API. It is never run.

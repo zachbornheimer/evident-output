@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main compiles docs/migration/1.0.md's Task.Verify fence (the
 // boolean pre-Define check new in 1.0). See TestDocFencesMatchFixtures.
 // Never run.

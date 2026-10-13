@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/mcp/internal/modpin"
 )
 
@@ -34,7 +33,7 @@ func runningVersion() string {
 	if v := usableVersion(Version); v != "" {
 		return v
 	}
-	return usableVersion(evo.PublishedRelease)
+	return usableVersion("v1.0.0")
 }
 
 func usableVersion(v string) string {

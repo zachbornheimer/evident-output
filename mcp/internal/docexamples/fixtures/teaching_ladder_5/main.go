@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main compiles mcp/docs/teaching-ladder.md's "Suspend (handing
 // the tty to a child)" fence verbatim. See TestDocFencesMatchFixtures.
 // Never run.

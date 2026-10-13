@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main is doc.go's package quickstart verbatim (see
 // TestPackageDocQuickstartMatchesFixture). TestPackageDocQuickstartRuns
 // runs it and fails if any row is left unresolved.

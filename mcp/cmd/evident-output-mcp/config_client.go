@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // config --client prints host-specific MCP wiring (print-only; §28.11).
@@ -62,8 +60,8 @@ func printConfigHelp() {
 func clientConfig(client string) (string, error) {
 	pin := Version
 	if pin == "" || pin == "dev" {
-		// Prefer ldflags Version; docs and skills track evo.PublishedRelease.
-		pin = evo.PublishedRelease
+		// Prefer ldflags Version; fall back to the library pin in output.go.
+		pin = "v1.0.0"
 	}
 	switch strings.ToLower(strings.TrimSpace(client)) {
 	case "grok":

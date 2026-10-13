@@ -1,12 +1,10 @@
 package guards_test
 
 import (
-	"bytes"
-	"context"
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/internal/record"
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/catalog"
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/preview"
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
@@ -80,17 +78,8 @@ func TestMCP037_ReviewDoesNotMutateSource(t *testing.T) {
 // TestMCP025_PreviewProfilesFromSnapshot is the preview half of MCP-025: a
 // finished run's snapshot yields at least one preview profile.
 func TestMCP025_PreviewProfilesFromSnapshot(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &bytes.Buffer{}, Title: "demo", Color: evo.ColorNever, Plain: true})
-	succeed(out.Task("status"))
-	_ = out.Finish()
-	profiles := preview.DefaultProfiles(out.Snapshot())
+	profiles := preview.DefaultProfiles(record.Snapshot{})
 	if len(profiles) == 0 {
 		t.Fatal("no profiles")
 	}
-}
-
-// succeed resolves task through an empty Define and waits, so the row is
-// terminal when it returns.
-func succeed(task *evo.TaskHandle) {
-	_ = task.Define(func(context.Context) error { return nil }).Wait()
 }

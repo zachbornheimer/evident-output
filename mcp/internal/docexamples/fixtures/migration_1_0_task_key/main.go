@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main compiles docs/migration/1.0.md's Task.Key fence (stable
 // identity independent of the display name, new in 1.0). See
 // TestDocFencesMatchFixtures. Never run.

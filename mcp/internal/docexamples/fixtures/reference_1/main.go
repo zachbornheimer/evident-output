@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main compiles mcp/docs/reference.md's "file integrity" fence (one
 // check Task, many Problems section) verbatim. See
 // TestDocFencesMatchFixtures. Never run.

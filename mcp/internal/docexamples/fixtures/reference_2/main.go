@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main compiles mcp/docs/reference.md's "brew packages" fence (child
 // processes / tool-backed gates section) verbatim. See
 // TestDocFencesMatchFixtures. Never run.

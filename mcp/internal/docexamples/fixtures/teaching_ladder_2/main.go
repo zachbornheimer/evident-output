@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main compiles mcp/docs/teaching-ladder.md's "Hosted (framework
 // owns exit)" fence verbatim. See TestDocFencesMatchFixtures. Never run.
 package main

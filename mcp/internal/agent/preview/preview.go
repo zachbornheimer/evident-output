@@ -1,9 +1,9 @@
-// Package preview generates multi-profile plain previews from snapshots.
 package preview
 
 import (
-	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/internal/project"
 	"github.com/zachbornheimer/evident-output/internal/project/plain"
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 // Profile is one terminal profile rendering.
@@ -13,7 +13,7 @@ type Profile struct {
 }
 
 // DefaultProfiles returns plain previews for common capability profiles.
-func DefaultProfiles(snap evo.Snapshot) []Profile {
+func DefaultProfiles(snap record.Snapshot) []Profile {
 	specs := []struct {
 		name  string
 		width int
@@ -24,7 +24,7 @@ func DefaultProfiles(snap evo.Snapshot) []Profile {
 	}
 	var out []Profile
 	for _, s := range specs {
-		text := plain.Plain(snap, s.width, true, false, evo.GlyphsUnicode)
+		text := plain.Plain(snap, s.width, true, false, project.GlyphsUnicode)
 		out = append(out, Profile{Name: s.name, Text: text})
 	}
 	return out

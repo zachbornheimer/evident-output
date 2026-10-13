@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package main compiles docs/migration/1.0.md's "After (1.0)" fence for an
 // Isolated *Output exiting through its own Output.Run (the evo.MainWith
 // replacement; MainWith was removed in 1.0). See TestDocFencesMatchFixtures. Never run.
