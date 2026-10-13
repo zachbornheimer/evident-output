@@ -9,7 +9,7 @@ import (
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/scaletest"
+	"github.com/zachbornheimer/evident-output/testkit/scaletest"
 )
 
 const (

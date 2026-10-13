@@ -38,12 +38,12 @@ func TestImportingRootPackagePerformsNoIOOrGoroutines(t *testing.T) {
 	}
 }
 
-// buildProbe compiles internal/architecture/importprobe/<name> into binDir
+// buildProbe compiles conformance/architecture/importprobe/<name> into binDir
 // and returns the built binary's path.
 func buildProbe(t *testing.T, root, binDir, name string) string {
 	t.Helper()
 	binPath := filepath.Join(binDir, name)
-	pkgPath := "./internal/architecture/importprobe/" + name
+	pkgPath := "./conformance/architecture/importprobe/" + name
 	cmd := exec.Command("go", "build", "-buildvcs=false", "-o", binPath, pkgPath)
 	cmd.Dir = root
 	if out, err := cmd.CombinedOutput(); err != nil {

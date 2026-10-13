@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/internal/clock"
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/project/live"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
@@ -177,7 +178,7 @@ func (o *Output) visibilitySettledLocked(now time.Time) bool {
 // not an interactive live terminal.
 func (o *Output) holdRunningPaint(id string) {
 	o.mu.Lock()
-	if _, ok := o.cfg.clock.(systemClock); !ok {
+	if _, ok := o.cfg.clock.(clock.Wall); !ok {
 		o.mu.Unlock()
 		return
 	}

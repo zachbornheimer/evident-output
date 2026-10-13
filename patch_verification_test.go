@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/wireschema"
+	"github.com/zachbornheimer/evident-output/testkit/wireschema"
 )
 
 // repoRoot is the read-only fs.FS this file reads schema/run.v2.json

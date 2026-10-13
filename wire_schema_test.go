@@ -11,8 +11,8 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/wireschema"
 	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/testkit/wireschema"
 )
 
 // TestWireSchema_RenderedDocumentValidates is the gate schema/output.v1.json

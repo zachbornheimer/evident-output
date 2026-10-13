@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/record"
-	"github.com/zachbornheimer/evident-output/internal/wireschema"
+	"github.com/zachbornheimer/evident-output/testkit/wireschema"
 )
 
 const testEvoVersion = "1.0.0"

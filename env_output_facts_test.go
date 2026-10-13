@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/wireschema"
+	"github.com/zachbornheimer/evident-output/testkit/wireschema"
 )
 
 // factsAndKeptRun is a run whose human output hides a Task Fact, a run

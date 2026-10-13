@@ -12,7 +12,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/core"
 	"github.com/zachbornheimer/evident-output/internal/project"
-	"github.com/zachbornheimer/evident-output/internal/scaletest"
+	"github.com/zachbornheimer/evident-output/testkit/scaletest"
 )
 
 // centralizeEffect is one package's Effect in the zq shape.

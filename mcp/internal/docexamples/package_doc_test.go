@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/gitenv"
 	"github.com/zachbornheimer/evident-output/mcp/internal/docexamples"
+	"github.com/zachbornheimer/evident-output/tools/gitenv"
 )
 
 const packageDocFixture = "fixtures/package_doc_quickstart"
