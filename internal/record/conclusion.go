@@ -81,6 +81,7 @@ func FoldLeftoverMisuse(c *Conclusion, misuse error) {
 	}
 	c.Outcome = OutcomeFailed
 	c.ExitCode = ExitFailed
+	c.Explanation = misuse.Error()
 }
 
 // anyTaskWarned reports whether any task in tasks carries at least one
@@ -134,6 +135,9 @@ func InferConclusion(s Snapshot) Conclusion {
 		c.Cancelled = c.Cancelled || state == Cancelled
 	}
 	c.Outcome = RunOutcome(outcomes...)
+	if c.Outcome.ExitCode() != ExitOK {
+		c.Explanation = decidingEnding(c.Outcome, s.Tasks, s.Collections)
+	}
 	c.Warned = anyTaskWarned(s.Tasks) || anyCollectionWarned(s.Collections) || len(s.Warnings) > 0
 	c.ExitCode = c.Outcome.ExitCode()
 	return c
@@ -164,4 +168,25 @@ func settledStates(into []State, tasks []TaskSnapshot, collections []TasksSnapsh
 		into = settledStates(into, col.Tasks, col.Collections)
 	}
 	return into
+}
+
+// decidingEnding is the ending of the first Task, at any depth, that settled
+// with outcome: why its Outcome became the run's. It is the first Problem's
+// summary when the Task recorded one, else the Task's Summary.
+func decidingEnding(outcome Outcome, tasks []TaskSnapshot, collections []TasksSnapshot) string {
+	for _, t := range tasks {
+		if t.State.Outcome() != outcome {
+			continue
+		}
+		if len(t.Problems) > 0 {
+			return t.Problems[0].Summary
+		}
+		return t.Summary
+	}
+	for _, col := range collections {
+		if why := decidingEnding(outcome, col.Tasks, col.Collections); why != "" {
+			return why
+		}
+	}
+	return ""
 }

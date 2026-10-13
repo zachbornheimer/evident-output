@@ -47,6 +47,9 @@
     "exit_code": {
       "type": "integer"
     },
+    "explanation": {
+      "type": "string"
+    },
     "data": {
       "type": "object",
       "required": ["collections", "tasks", "facts", "problems", "effects", "actions"],

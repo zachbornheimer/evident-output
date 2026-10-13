@@ -73,9 +73,8 @@ func WriteConclusion(b *strings.Builder, c record.Conclusion, s project.Style) {
 	} else {
 		fmt.Fprintf(b, "\n%s\n", tag)
 	}
-	if c.Explanation != "" {
-		fmt.Fprintf(b, "  %s\n", c.Explanation)
-	}
+	// The Explanation is not repeated here: it is the deciding Task's ending,
+	// which that Task's own row already states.
 	if c.Outcome == record.OutcomeFailed {
 		project.WriteAlreadyMutated(b, c.Changes, s)
 	}

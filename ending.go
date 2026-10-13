@@ -134,10 +134,14 @@ func (o *Run) concludeLocked() snapshot {
 	// run.finished (spec §38) fires on every path through Finish, including
 	// failure and cancel — conc.Outcome already reflects whichever outcome
 	// this run reached, the same single choke point output.finished uses.
-	o.emitWireEventLocked(wire.EventRunFinished, "", map[string]any{
+	payload := map[string]any{
 		"outcome":   string(conc.Outcome),
 		"exit_code": conc.ExitCode,
-	})
+	}
+	if conc.Explanation != "" {
+		payload["explanation"] = conc.Explanation
+	}
+	o.emitWireEventLocked(wire.EventRunFinished, "", payload)
 	return snap
 }
 

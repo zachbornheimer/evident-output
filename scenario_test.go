@@ -305,7 +305,7 @@ func TestScenario_CancelledAfterMutation(t *testing.T) {
 		"\n" +
 		"[changed] remote-tracking  deleted 4 stale origin/*\n" +
 		"\n" +
-		"[cancelled] prune\n" +
+		"[cancelled] prune  interrupted\n" +
 		"  ! partial changes were applied before cancellation\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)

@@ -507,6 +507,9 @@
     "exit_code": {
       "type": "integer"
     },
+    "explanation": {
+      "type": "string"
+    },
     "finished_at": {
       "type": "string"
     },

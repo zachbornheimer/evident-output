@@ -1505,11 +1505,15 @@ const cancelCauseUser = "by user"
 // cancelCauseClose is the cause a Close records on a Confirm still waiting.
 const cancelCauseClose = "run closed"
 
-// explainCancellationLocked names the cancellation cause on a cancelled
-// conclusion. Any other outcome keeps its own Explanation untouched.
+// explainCancellationLocked names what interrupted a cancelled run as its
+// Explanation, ahead of the cancelled Task's own ending. Any other outcome
+// keeps its own Explanation untouched.
 func (o *Run) explainCancellationLocked(c *record.Conclusion) {
-	if c.Outcome == record.OutcomeCancelled && c.Explanation == "" {
-		c.Explanation = o.graph.CancelCause()
+	if c.Outcome != record.OutcomeCancelled {
+		return
+	}
+	if cause := o.graph.CancelCause(); cause != "" {
+		c.Explanation = cause
 	}
 }
 

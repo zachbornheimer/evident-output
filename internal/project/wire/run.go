@@ -50,6 +50,7 @@ type RunDocument struct {
 	Mode          string    `json:"mode"`
 	Outcome       string    `json:"outcome"`
 	ExitCode      int       `json:"exit_code"`
+	Explanation   string    `json:"explanation,omitempty"`
 	Data          RunData   `json:"data"`
 }
 
@@ -211,6 +212,7 @@ func ToRunDocument(result record.Result, evoVersion string) RunDocument {
 		Mode:          modeFor(c.DryRun),
 		Outcome:       string(c.Outcome),
 		ExitCode:      c.ExitCode,
+		Explanation:   c.Explanation,
 		Data: RunData{
 			Collections: make([]CollectionDoc, 0, len(c.Collections)),
 			Tasks:       make([]TaskDoc, 0, len(c.Tasks)),
