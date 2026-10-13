@@ -105,6 +105,23 @@ func (t *TaskTable) OperationCount(id record.TaskID) int {
 	return 0
 }
 
+// AllCurrent reports whether id had at least one operation and the manifest
+// proved every one current, so the run executed and planned none of them.
+func (t *TaskTable) AllCurrent(id record.TaskID) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	entry := t.tasks[id]
+	if entry == nil || entry.planned > 0 || len(entry.operations) == 0 {
+		return false
+	}
+	for _, op := range entry.operations {
+		if !op.Carried {
+			return false
+		}
+	}
+	return true
+}
+
 // Operations is a copy of id's pending operation records.
 func (t *TaskTable) Operations(id record.TaskID) []OperationRecord {
 	t.mu.Lock()

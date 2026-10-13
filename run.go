@@ -3306,7 +3306,20 @@ func (t *Task) runDefine(verifiers []freshness.Verifier, fn func(context.Context
 		return err
 	}
 	o.markDefineRan(t.id)
+	if o.ranOnlyCurrentOperations(t.id) {
+		t.satisfyScheduled()
+	}
 	return nil
+}
+
+// ranOnlyCurrentOperations reports whether taskID's Define found every File
+// and Exec it called already current and committed no Effect: the Task
+// settles Satisfied, though its callback ran (CONTRACT §3).
+func (o *Run) ranOnlyCurrentOperations(taskID string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	st := o.taskStates[taskID]
+	return st != nil && o.taskFreshness.AllCurrent(st.TaskID()) && !o.hasRecordedEffectLocked(taskID)
 }
 
 // checkAfterDefine is runDefine's post-callback evidence step: every

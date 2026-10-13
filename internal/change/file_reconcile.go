@@ -113,6 +113,7 @@ func (r *Run) commitFile(ctx context.Context, op fileOperation) error {
 // Task skipped by a pre-definition Verify (evidence.evaluated).
 func (r *Run) carryForwardCurrentFile(op fileOperation, prior freshness.OperationRecord, reason string) {
 	r.host.Observe(Observation{Task: op.taskID, Kind: OperationSkippedCurrent, Subject: op.subject(), Reason: reason})
+	prior.Carried = true
 	r.host.AppendOperation(op.taskID, prior)
 }
 
