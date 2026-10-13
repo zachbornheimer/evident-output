@@ -309,8 +309,11 @@ if !r.Confirm("delete 40 branches?", evo.Destructive(), evo.NonInteractive("--ye
 | `JSONL`  | const | `evo.event` lines on stdout as they occur                          |
 
 Environment, applied only where `Config` is zero: `EVO_OUTPUT=human|plain|json|jsonl`,
-`EVO_VERBOSE=1`, `EVO_DEBUG=debug|info|warn|error`, `NO_COLOR`, `FORCE_COLOR`.
-Machine output is never inferred from a piped stdout.
+`EVO_VERBOSE=1`, `EVO_DEBUG=debug|info|warn|error` (the lowest `slog.Level`
+the journal keeps), `NO_COLOR`, and `FORCE_COLOR` (color in Human even when
+stdout is not a terminal). These are the only variables Evo reads, and a
+value outside its list is ignored. Machine output is never inferred from a
+piped stdout.
 
 ## 7. Errors
 
