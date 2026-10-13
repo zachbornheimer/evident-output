@@ -44,8 +44,6 @@ type messageSnapshot = record.MessageSnapshot
 type printer struct {
 	out        *Run
 	visibility visibility
-	// facade holds this Printer's public wrapper (see FacadeSlot).
-	facade facadeSlot
 }
 
 // At returns a printer for the given visibility.
@@ -119,7 +117,7 @@ func (o *Run) writer() io.Writer {
 // so machine JSON stays pure while Tasks render on stderr.
 // When no result stream is configured, returns io.Discard.
 //
-//	out := evo.Init(evo.Config{Title: "build", Format: evo.FormatData})
+//	out := (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{Name: "build", Output: evo.JSON}, func(ctx context.Context, r *evo.Run) error { return nil })
 //	// after work succeeds:
 //	_ = json.NewEncoder(out.ResultWriter()).Encode(payload)
 func (o *Run) ResultWriter() io.Writer {
@@ -253,9 +251,7 @@ func (o *Run) flushPendingPrintLocked() {
 //
 // Level policy is Config.Debug.Level (one conductor):
 //
-//	out := evo.Init(evo.Config{
-//	    Debug: evo.DebugConfig{Level: evo.LevelDebug},
-//	})
+//	out := (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{}, func(ctx context.Context, r *evo.Run) error { return nil })
 //	logger := slog.New(out.SlogHandlerForTest())
 //
 // Application human prose uses Print/Printf/Println or Task outcomes — not slog.

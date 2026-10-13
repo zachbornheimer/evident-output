@@ -14,7 +14,7 @@ import (
 // anymore, so there is no longer a facade to swap for a fake here.
 func TestMain_ReturnsCodeWithoutExiting(t *testing.T) {
 	setDefault(initRun(Config{isolated: true}))
-	code := Main(func(context.Context) error {
+	code := Main(func(ctx context.Context, r *Run) error {
 		defaultTask("x").succeed("")
 		return nil
 	})

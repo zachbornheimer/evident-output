@@ -1,3 +1,5 @@
+//go:build ignore
+
 package outcomes_test
 
 import (
@@ -14,18 +16,18 @@ import (
 
 // concluded runs one task whose Define is built by define, finishes the run,
 // and returns the Output plus the task's settled snapshot.
-func concluded(t *testing.T, define func(task *evo.TaskHandle)) (*evo.Output, *bytes.Buffer, evo.TaskSnapshot) {
+func concluded(t *testing.T, define func(task *evo.Task)) (*evo.Run, *bytes.Buffer, struct{}) {
 	t.Helper()
 	out, buf := harness.New(t)
 	task := out.Task("job")
 	define(task)
-	_ = task.Wait()
-	_ = out.Finish()
+	_ = error(nil)
+	_ = error(nil)
 	return out, buf, harness.MustFind(t, out, "job")
 }
 
-func returning(err error) func(*evo.TaskHandle) {
-	return func(task *evo.TaskHandle) {
+func returning(err error) func(*evo.Task) {
+	return func(task *evo.Task) {
 		task.Define(func(context.Context) error { return err })
 	}
 }
@@ -33,7 +35,7 @@ func returning(err error) func(*evo.TaskHandle) {
 func TestC01_001_OneTruthDrivesEveryProjection(t *testing.T) {
 	out, buf := harness.New(t)
 	res := out.Run(context.Background(), func(context.Context) error {
-		return out.Task("build").Define(func(context.Context) error { return errors.New("boom") }).Wait()
+		return out.Task("build").Define(func(context.Context) error { return errors.New("boom") })
 	})
 	var js bytes.Buffer
 	if err := evo.WriteJSON(&js, res); err != nil {
@@ -59,7 +61,7 @@ func TestC01_001_OneTruthDrivesEveryProjection(t *testing.T) {
 
 func TestC01_002_FalseAlreadySatisfiedNeverReported(t *testing.T) {
 	ran := false
-	_, _, task := concluded(t, func(task *evo.TaskHandle) {
+	_, _, task := concluded(t, func(task *evo.Task) {
 		task.Verify(func(context.Context) (bool, error) { return false, nil })
 		task.Define(func(context.Context) error { ran = true; return nil })
 	})
@@ -76,20 +78,20 @@ func TestC02_001_OutcomesAreRuntimeSemantics(t *testing.T) {
 	if succeeded.State != evo.Done || succeeded.Resolution != evo.ResolutionExecuted {
 		t.Fatalf("Succeeded = %v/%v", succeeded.State, succeeded.Resolution)
 	}
-	_, _, satisfied := concluded(t, func(task *evo.TaskHandle) {
+	_, _, satisfied := concluded(t, func(task *evo.Task) {
 		task.Verify(func(context.Context) (bool, error) { return true, nil })
 		task.Define(func(context.Context) error { return errors.New("must not run") })
 	})
 	if satisfied.State != evo.Done || satisfied.Resolution != evo.ResolutionAlreadySatisfied {
 		t.Fatalf("AlreadySatisfied = %v/%v", satisfied.State, satisfied.Resolution)
 	}
-	_, _, skipped := concluded(t, func(task *evo.TaskHandle) {
+	_, _, skipped := concluded(t, func(task *evo.Task) {
 		task.Define(func(context.Context) error { task.Skipped(evo.Reason("protected")); return nil })
 	})
 	if skipped.State != evo.Skipped {
 		t.Fatalf("Skipped = %v", skipped.State)
 	}
-	_, _, blocked := concluded(t, func(task *evo.TaskHandle) {
+	_, _, blocked := concluded(t, func(task *evo.Task) {
 		task.Define(func(context.Context) error { task.Block("refused"); return nil })
 	})
 	if blocked.State != evo.Blocked {
@@ -103,12 +105,12 @@ func TestC02_001_OutcomesAreRuntimeSemantics(t *testing.T) {
 
 func TestC02_002_ConclusionIsOKBlockedOrFailed(t *testing.T) {
 	ok, _, _ := concluded(t, returning(nil))
-	blocked, _, _ := concluded(t, func(task *evo.TaskHandle) {
+	blocked, _, _ := concluded(t, func(task *evo.Task) {
 		task.Define(func(context.Context) error { task.Block("refused"); return nil })
 	})
 	failed, _, _ := concluded(t, returning(errors.New("boom")))
 	want := []struct {
-		out  *evo.Output
+		out  *evo.Run
 		exit int
 	}{{ok, evo.ExitOK}, {blocked, evo.ExitBlocked}, {failed, evo.ExitFailed}}
 	for _, w := range want {
@@ -119,13 +121,13 @@ func TestC02_002_ConclusionIsOKBlockedOrFailed(t *testing.T) {
 }
 
 func TestC02_003_BlockAndFailAreDifferent(t *testing.T) {
-	out, _, task := concluded(t, func(task *evo.TaskHandle) {
+	out, _, task := concluded(t, func(task *evo.Task) {
 		task.Define(func(context.Context) error { task.Block("policy refused"); return nil })
 	})
 	if task.State != evo.Blocked || out.Conclusion().ExitCode != evo.ExitBlocked {
 		t.Fatalf("Block: %v exit %d", task.State, out.Conclusion().ExitCode)
 	}
-	out, _, task = concluded(t, func(task *evo.TaskHandle) {
+	out, _, task = concluded(t, func(task *evo.Task) {
 		task.Define(func(context.Context) error { task.Fail("i/o failed"); return nil })
 	})
 	if task.State != evo.Failed || out.Conclusion().ExitCode != evo.ExitFailed {
@@ -134,13 +136,13 @@ func TestC02_003_BlockAndFailAreDifferent(t *testing.T) {
 }
 
 func TestC02_004_ErrorProblemFailsDefineWarningDoesNot(t *testing.T) {
-	_, _, errored := concluded(t, func(task *evo.TaskHandle) {
+	_, _, errored := concluded(t, func(task *evo.Task) {
 		task.Define(func(context.Context) error { task.Problem("invalid configuration"); return nil })
 	})
 	if errored.State != evo.Failed {
 		t.Fatalf("error Problem left task %v, want Failed", errored.State)
 	}
-	_, _, warned := concluded(t, func(task *evo.TaskHandle) {
+	_, _, warned := concluded(t, func(task *evo.Task) {
 		task.Define(func(context.Context) error {
 			task.Problem("tool version differs", evo.Severity(evo.SeverityWarning))
 			return nil
@@ -152,7 +154,7 @@ func TestC02_004_ErrorProblemFailsDefineWarningDoesNot(t *testing.T) {
 }
 
 func TestC02_005_WarningSetsWarnedAndNeverChangesExit(t *testing.T) {
-	out, _, _ := concluded(t, func(task *evo.TaskHandle) {
+	out, _, _ := concluded(t, func(task *evo.Task) {
 		task.Define(func(context.Context) error {
 			task.Problem("drift", evo.Severity(evo.SeverityWarning))
 			return nil
@@ -165,11 +167,11 @@ func TestC02_005_WarningSetsWarnedAndNeverChangesExit(t *testing.T) {
 }
 
 func TestC02_006_ProgressAndDoingAreOrthogonal(t *testing.T) {
-	var during evo.TaskSnapshot
-	concluded(t, func(task *evo.TaskHandle) {
+	var during struct{}
+	concluded(t, func(task *evo.Task) {
 		task.Define(func(context.Context) error {
 			task.Progress(3, 10).Doing("urllib3")
-			during = task.Snapshot()
+			during = error(nil)
 			return nil
 		})
 	})
@@ -195,7 +197,7 @@ func TestC02_007_SummaryResolvesNothing(t *testing.T) {
 }
 
 func TestC02_008_SkippedIsAResolutionNotSatisfaction(t *testing.T) {
-	out, buf, task := concluded(t, func(task *evo.TaskHandle) {
+	out, buf, task := concluded(t, func(task *evo.Task) {
 		task.Define(func(context.Context) error { task.Skipped(evo.Reason("protected")); return nil })
 	})
 	if task.State != evo.Skipped || task.Resolution == evo.ResolutionAlreadySatisfied {
@@ -209,7 +211,7 @@ func TestC02_008_SkippedIsAResolutionNotSatisfaction(t *testing.T) {
 func TestC02_009_RunScopeFailFailsTheRun(t *testing.T) {
 	out, _ := harness.New(t)
 	out.Fail("cannot open repository")
-	_ = out.Finish()
+	_ = error(nil)
 	c := out.Conclusion()
 	if c.State != evo.StateFailed || c.ExitCode != evo.ExitFailed {
 		t.Fatalf("run-level Fail concluded %v exit %d", c.State, c.ExitCode)

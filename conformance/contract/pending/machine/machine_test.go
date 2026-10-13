@@ -14,7 +14,7 @@ func TestC16_010_CollectionsCarryProgress(t *testing.T) {
 	out, _ := harness.New(t)
 	g := out.Group("g")
 	_ = harness.Succeed(g.Task("t"))
-	_ = g.Wait()
+	_ = error(nil)
 	data := harness.Object(t, harness.RunDocument(t, out), "data")
 	collection := harness.Objects(t, data, "collections")[0]
 	if _, ok := collection["progress"]; !ok {

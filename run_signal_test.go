@@ -22,7 +22,7 @@ func TestMain_SIGINTCancelsActiveTaskAndExits130(t *testing.T) {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := execute_1(context.Background(), func(ctx context.Context) error {
+	code := execute_1(context.Background(), func(ctx context.Context, r *Run) error {
 		close(started)
 		deadline := time.Now().Add(2 * time.Second)
 		for task.snapshot().State != Cancelled && time.Now().Before(deadline) {
@@ -54,7 +54,7 @@ func TestMain_SecondSIGINTExits130WithoutWaitingForRun(t *testing.T) {
 
 	done := make(chan int, 1)
 	go func() {
-		done <- execute_1(context.Background(), func(ctx context.Context) error {
+		done <- execute_1(context.Background(), func(ctx context.Context, r *Run) error {
 			close(started)
 			select {} // a run that never unwinds on its own; only the 2nd signal ends the call
 		}).ExitCode()

@@ -28,9 +28,8 @@ func main() {
 		step = 20 * time.Millisecond
 	}
 
-	evo.Init(evo.Config{Title: "install"})
-	os.Exit(evo.Main(func(ctx context.Context) error {
-		pipeline := evo.Sequence("pipeline")
+	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+		pipeline := r.Sequence("pipeline")
 
 		modules := pipeline.Task("go mod download")
 		modules.Define(func(ctx context.Context) error {
@@ -46,7 +45,7 @@ func main() {
 		generate.Define(func(ctx context.Context) error {
 			generate.Doing("running generators")
 			time.Sleep(step)
-			generate.Bytes(256*1024, 256*1024)
+			generate.Progress(int(256*1024), int(256*1024))
 			return nil
 		})
 
@@ -61,5 +60,5 @@ func main() {
 			return nil
 		})
 		return nil
-	}))
+	}, evo.Config{Name: "install"}))
 }

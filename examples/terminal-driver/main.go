@@ -48,7 +48,7 @@ func main() {
 		stepDur = 20 * time.Millisecond
 	}
 
-	var term evo.TerminalDriver
+	var term evo.Terminal
 	if *frames {
 		term = newFrameLog(os.Stderr, os.Stdin, *step)
 	} else {
@@ -58,21 +58,8 @@ func main() {
 		)
 	}
 
-	// Same Init(Config) dialect as ordinary examples; advanced = Terminal field.
-	out := evo.Init(evo.Config{
-		Title:    "install-deps-advanced",
-		Stdout:   os.Stderr,
-		Stderr:   os.Stderr,
-		Terminal: term,
-		Debug:    evo.DebugConfig{Level: evo.LevelDebug},
-		// Demo tuning: show spinners immediately.
-		VisibilityDelay: func() *time.Duration { d := time.Duration(0); return &d }(),
-		MaxFrameRate:    60,
-		Isolated:        true,
-	})
-
-	result := out.Run(context.Background(), func(ctx context.Context) error {
-		jobs := out.Group("dependencies")
+	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+		jobs := r.Group("dependencies")
 		discover := jobs.Task("discover")
 		discover.Define(func(context.Context) error {
 			for _, phase := range []string{"reading lockfile", "resolving graph"} {
@@ -87,16 +74,15 @@ func main() {
 		download.Define(func(context.Context) error {
 			const total int64 = 4_000_000
 			for i := 1; i <= 12; i++ {
-				download.Bytes(total*int64(i)/12, total)
+				download.Progress(int(total*int64(i)/12), int(total))
 				time.Sleep(stepDur)
 			}
 			download.Summary("4.0 MB")
 			return nil
 		})
-		out.Task("registry").Define(func(context.Context) error { return nil })
+		r.Task("registry").Define(func(context.Context) error { return nil })
 		return nil
-	})
-	os.Exit(result.ExitCode())
+	}, evo.Config{Name: "install-deps-advanced", Facades: evo.Facades{Stdout: os.Stderr, Stderr: os.Stderr, Terminal: term}}))
 }
 
 // frameLog prints each redraw as a numbered scrubable frame (no in-place ANSI).

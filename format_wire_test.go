@@ -99,7 +99,7 @@ func TestFormatJSON_StdoutWriteFailureEscalatesToExitFailed(t *testing.T) {
 		isolated: true, title: "demo", format: formatJSON,
 		stdout: erroringWriter{}, stderr: &stderr,
 	})
-	result := out.run(context.Background(), func(context.Context) error {
+	result := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		out.Task("build").succeed("")
 		return nil
 	})
@@ -201,7 +201,7 @@ func TestFormatJSON_RunReturnsResultUsableByWireEncoder(t *testing.T) {
 		isolated: true, title: "demo", format: formatJSON,
 		stdout: &stdout, stderr: &stderr,
 	})
-	result := out.run(context.Background(), func(context.Context) error { return nil })
+	result := out.run(context.Background(), func(ctx context.Context, r *Run) error { return nil })
 	if result.Conclusion.runID == "" {
 		t.Fatalf("Result.Conclusion.RunID must be populated by Run/Finish")
 	}

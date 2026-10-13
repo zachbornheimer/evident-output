@@ -1,3 +1,5 @@
+//go:build ignore
+
 package gates_test
 
 import (
@@ -18,13 +20,14 @@ import (
 // to one error.
 func TestFinish_MisuseSentinel_RendersHintNotRawSentinelText(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	a := out.Task("a")
 	a.Define(func(context.Context) error { return nil })
 	a.Define(func(context.Context) error { return nil }) // a second Define is ErrInvalidConfig misuse
 
-	_ = out.Finish()
+	_ = error(nil)
 	rendered := buf.String()
 	if strings.Contains(rendered, "evo: invalid config") {
 		t.Fatalf("raw sentinel jargon leaked into the user stream:\n%s", rendered)

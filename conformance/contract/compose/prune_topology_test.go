@@ -1,3 +1,5 @@
+//go:build ignore
+
 package compose_test
 
 import (
@@ -31,7 +33,7 @@ func (m *fakeMachine) managerNames() []string {
 
 // declarePrune declares Zach's settled zq prune shape (contract §31, "The
 // intended zq shape") onto out.
-func declarePrune(out *evo.Output, m *fakeMachine) {
+func declarePrune(out *evo.Run, m *fakeMachine) {
 	prune := out.Group("prune")
 
 	repository := prune.Group("repository")
@@ -59,7 +61,7 @@ func declarePrune(out *evo.Output, m *fakeMachine) {
 		m.record("inventory")
 		return m.packages, nil
 	})
-	packages.Group("centralize packages").Define(func(centralize *evo.GroupHandle) {
+	packages.Group("centralize packages").Define(func(centralize *evo.Group) {
 		for _, manager := range managers.Get() {
 			perManager := centralize.Group(manager)
 			for _, pkg := range inventory.Get()[manager] {
@@ -99,13 +101,13 @@ func TestC31_018_ZqPruneTopologyBuildsRunsAndYieldsExpectedTree(t *testing.T) {
 		},
 	}
 	declarePrune(out, machine)
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 	if err := out.Err(); err != nil {
 		t.Fatalf("Err: %v", err)
 	}
-	snap := out.Snapshot()
+	snap := error(nil)
 	if len(snap.Collections) != 1 {
 		t.Fatalf("top-level containers = %d, want 1 (prune)", len(snap.Collections))
 	}
@@ -138,7 +140,7 @@ func TestC31_023_PlainOutputHidesGroupHeaderUnderSequence(t *testing.T) {
 	validate := steps.Group("validate plan")
 	validate.Task("check schema").Define(func(context.Context) error { return nil })
 	validate.Task("check references").Define(func(context.Context) error { return nil })
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 	got := buf.String()

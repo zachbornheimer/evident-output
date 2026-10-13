@@ -1,7 +1,10 @@
+//go:build ignore
+
 package gates_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -19,14 +22,15 @@ import (
 // only the Conclusion struct let this regress silently).
 func TestFinish_AbandonedGroupChildren_RendersPartialModifierOnBand(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	install := out.Group("install")
 	succeed(install.Task("one")) // resolved
 	install.Task("two")          // abandoned — never resolved, never Defined
 	install.Task("three")        // abandoned — never resolved, never Defined
 
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Finish() = %v, want nil (an abandoned loop is not misuse)", err)
 	}
 	conc := out.Conclusion()

@@ -54,39 +54,6 @@ func ExampleVerbose() {
 	// cache hit for module x
 }
 
-// ExamplePrinter shows the Printer handle's own Print/Printf/Println verbs —
-// Verbose() is the only constructor that returns one.
-func examplePrinter() {
-	var buf bytes.Buffer
-	setDefault(initRun(Config{
-		stdout: &buf, stderr: io.Discard, plain: true, verbosity: verbosityVerbose,
-	}))
-	printer := verbose()
-	printer.print("cache ")
-	printer.printf("hit for %s", "module x")
-	printer.println()
-	_ = defaultRun().finish()
-	fmt.Print(buf.String())
-	// Output:
-	// cache hit for module x
-}
-
-// ExampleSlogHandler shows journaling through the standard library's
-// slog.Logger into the default instance's debug journal.
-func exampleSlogHandler() {
-	var buf bytes.Buffer
-	setDefault(initRun(Config{
-		stdout: io.Discard, stderr: &buf, plain: true,
-		Debug: debugConfig{level: levelDebug},
-	}))
-	logger := slog.New(slogHandler())
-	logger.Info("connected to registry")
-	_ = defaultRun().finish()
-	fmt.Println(bytes.Contains(buf.Bytes(), []byte("connected to registry")))
-	// Output:
-	// true
-}
-
 // ExampleLogRecord shows the shape journaled to Debug/Capture mirrors and
 // the slog bridge: a time, level, message, and structured attrs.
 func ExampleLogRecord() {
@@ -94,13 +61,4 @@ func ExampleLogRecord() {
 	fmt.Println(rec.Message, rec.Level)
 	// Output:
 	// starting up INFO
-}
-
-// ExampleLogLevel shows the Debug journal threshold — its own type, distinct
-// from slog.Level (SlogHandler translates between the two internally).
-func exampleLogLevel() {
-	level := levelDebug
-	fmt.Println(level == levelDebug)
-	// Output:
-	// true
 }

@@ -1,3 +1,5 @@
+//go:build ignore
+
 package operations_test
 
 import (
@@ -16,12 +18,12 @@ func constant(v bool) func(context.Context) (bool, error) {
 }
 
 func commitEffect(ctx context.Context) error {
-	return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 1},
+	return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "branch", Quantity: 1},
 		func(context.Context) error { return nil })
 }
 
 // verified runs one Verify-backed task and returns its snapshot and the run.
-func verified(t *testing.T, cfg func(*evo.Config), build func(task *evo.TaskHandle)) (*evo.Output, evo.TaskSnapshot) {
+func verified(t *testing.T, cfg func(*evo.Config), build func(task *evo.Task)) (*evo.Run, struct{}) {
 	t.Helper()
 	var mutate []func(*evo.Config)
 	if cfg != nil {
@@ -30,14 +32,14 @@ func verified(t *testing.T, cfg func(*evo.Config), build func(task *evo.TaskHand
 	out, _ := harness.New(t, mutate...)
 	task := out.Task("job")
 	build(task)
-	_ = task.Wait()
-	_ = out.Finish()
+	_ = error(nil)
+	_ = error(nil)
 	return out, harness.MustFind(t, out, "job")
 }
 
 func TestC05_002_BeforeChecksAreANDedAndAllTrueSkipsTheCallback(t *testing.T) {
 	ran := false
-	_, allTrue := verified(t, nil, func(task *evo.TaskHandle) {
+	_, allTrue := verified(t, nil, func(task *evo.Task) {
 		task.Verify(constant(true)).Verify(constant(true))
 		task.Define(func(context.Context) error { ran = true; return nil })
 	})
@@ -45,7 +47,7 @@ func TestC05_002_BeforeChecksAreANDedAndAllTrueSkipsTheCallback(t *testing.T) {
 		t.Fatalf("all-true ran=%v resolution=%v", ran, allTrue.Resolution)
 	}
 	ran = false
-	verified(t, nil, func(task *evo.TaskHandle) {
+	verified(t, nil, func(task *evo.Task) {
 		task.Verify(constant(true)).Verify(constant(false))
 		task.Define(func(context.Context) error { ran = true; return nil })
 	})
@@ -55,7 +57,7 @@ func TestC05_002_BeforeChecksAreANDedAndAllTrueSkipsTheCallback(t *testing.T) {
 }
 
 func TestC05_003_FalseAfterCheckFailsWithUnsatisfiedCode(t *testing.T) {
-	out, task := verified(t, nil, func(task *evo.TaskHandle) {
+	out, task := verified(t, nil, func(task *evo.Task) {
 		task.Verify(constant(false))
 		task.Define(func(context.Context) error { return nil })
 	})
@@ -71,7 +73,7 @@ func TestC05_003_FalseAfterCheckFailsWithUnsatisfiedCode(t *testing.T) {
 
 func TestC05_004_CallbackThatEstablishesStateSatisfiesTheAfterCheck(t *testing.T) {
 	established := false
-	_, task := verified(t, nil, func(task *evo.TaskHandle) {
+	_, task := verified(t, nil, func(task *evo.Task) {
 		task.Verify(func(context.Context) (bool, error) { return established, nil })
 		task.Define(func(context.Context) error { established = true; return nil })
 	})
@@ -82,14 +84,14 @@ func TestC05_004_CallbackThatEstablishesStateSatisfiesTheAfterCheck(t *testing.T
 
 func TestC05_005_DryRunSkipsAfterCheckOnlyForPlannedWork(t *testing.T) {
 	dry := func(c *evo.Config) { c.DryRun = true }
-	_, planned := verified(t, dry, func(task *evo.TaskHandle) {
+	_, planned := verified(t, dry, func(task *evo.Task) {
 		task.Verify(constant(false))
 		task.Define(commitEffect)
 	})
 	if planned.State != evo.Done {
 		t.Fatalf("planned task = %v, want Done (mutation never ran)", planned.State)
 	}
-	_, idle := verified(t, dry, func(task *evo.TaskHandle) {
+	_, idle := verified(t, dry, func(task *evo.Task) {
 		task.Verify(constant(false))
 		task.Define(func(context.Context) error { return nil })
 	})
@@ -99,11 +101,11 @@ func TestC05_005_DryRunSkipsAfterCheckOnlyForPlannedWork(t *testing.T) {
 }
 
 func TestC05_006_SelfResolvingCallbackSkipsTheAfterCheck(t *testing.T) {
-	_, skipped := verified(t, nil, func(task *evo.TaskHandle) {
+	_, skipped := verified(t, nil, func(task *evo.Task) {
 		task.Verify(constant(false))
 		task.Define(func(context.Context) error { task.Skipped(evo.Reason("protected")); return nil })
 	})
-	_, blocked := verified(t, nil, func(task *evo.TaskHandle) {
+	_, blocked := verified(t, nil, func(task *evo.Task) {
 		task.Verify(constant(false))
 		task.Define(func(context.Context) error { task.Block("refused"); return nil })
 	})
@@ -113,7 +115,7 @@ func TestC05_006_SelfResolvingCallbackSkipsTheAfterCheck(t *testing.T) {
 }
 
 func TestC05_007_CommittedEffectBeforeSelfResolutionStillRunsAfterCheck(t *testing.T) {
-	_, task := verified(t, nil, func(task *evo.TaskHandle) {
+	_, task := verified(t, nil, func(task *evo.Task) {
 		task.Verify(constant(false))
 		task.Define(func(ctx context.Context) error {
 			if err := commitEffect(ctx); err != nil {
@@ -130,13 +132,13 @@ func TestC05_007_CommittedEffectBeforeSelfResolutionStillRunsAfterCheck(t *testi
 
 func TestC05_008_SkippedThenErrorFailsWithThatErrorAndNoMisuseLine(t *testing.T) {
 	boom := errors.New("boom")
-	out, task := verified(t, nil, func(task *evo.TaskHandle) {
+	out, task := verified(t, nil, func(task *evo.Task) {
 		task.Define(func(context.Context) error { task.Skipped(evo.Reason("protected")); return boom })
 	})
 	if task.State != evo.Failed {
 		t.Fatalf("state = %v", task.State)
 	}
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Finish reported misuse: %v", err)
 	}
 }

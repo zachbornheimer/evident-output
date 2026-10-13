@@ -35,7 +35,7 @@ func TestRun_Interrupt_DeclaredButNeverDefinedTaskIsNotMisuse(t *testing.T) {
 	blocking := make(chan struct{})
 	code := make(chan int, 1)
 	go func() {
-		code <- out.run(context.Background(), func(ctx context.Context) error {
+		code <- out.run(context.Background(), func(ctx context.Context, r *Run) error {
 			running.Progress(24, 111)
 			close(blocking)
 			<-running.context().Done()

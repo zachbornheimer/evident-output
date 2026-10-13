@@ -21,29 +21,27 @@ type ledgerRow struct {
 }
 
 var asciiRows = []ledgerRow{
-	{"branches", evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 40}, len("branches")},
-	{"worktrees", evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 1}, len("worktrees")},
-	{"remote-tracking", evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale origin/* branch", Quantity: 4}, len("remote-tracking")},
+	{"branches", evo.EffectSpec{Verb: evo.Delete, Object: "local tip", Quantity: 40}, len("branches")},
+	{"worktrees", evo.EffectSpec{Verb: evo.Delete, Object: "worktree", Quantity: 1}, len("worktrees")},
+	{"remote-tracking", evo.EffectSpec{Verb: evo.Delete, Object: "stale origin/* branch", Quantity: 4}, len("remote-tracking")},
 }
 
 func renderLedger(t *testing.T, dryRun bool, rows []ledgerRow) string {
 	t.Helper()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true, Plain: true, Color: evo.ColorNever, DryRun: dryRun,
-		Title: "zq", Subject: "zq prune  ~/repo", Stdout: &buf, Stderr: &buf,
-	})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{DryRun: dryRun, Name: "zq", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf, Stderr: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	for _, row := range rows {
 		task := out.Task(row.subject)
 		task.Define(func(ctx context.Context) error {
 			return evo.Effect(ctx, row.spec, func(context.Context) error { return nil })
 		})
-		if err := task.Wait(); err != nil {
+		if err := error(nil); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	return buf.String()

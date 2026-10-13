@@ -297,7 +297,7 @@ func TestExecCancellationKillsProcess(t *testing.T) {
 	// Give the scheduler a moment to enter Define and reach the gated Run.
 	time.Sleep(20 * time.Millisecond)
 	cancel()
-	_ = out.run(ctx, func(context.Context) error { return nil })
+	_ = out.run(ctx, func(ctx context.Context, r *Run) error { return nil })
 
 	select {
 	case err := <-done:

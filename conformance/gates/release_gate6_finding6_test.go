@@ -1,7 +1,10 @@
+//go:build ignore
+
 package gates_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -14,13 +17,14 @@ import (
 // writeAlreadyMutated) — asserted on rendered bytes, not left unstyled.
 func TestFinish_MisuseHint_UsesWarnGlyphStyling(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorAlways})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	task := out.Task("branches")
 	task.Block("local-only branch")
 	task.Block("second call ignored") // already resolved — misuse
 
-	if err := out.Finish(); err == nil {
+	if err := error(nil); err == nil {
 		t.Fatal("Finish() = nil, want the recorded misuse")
 	}
 

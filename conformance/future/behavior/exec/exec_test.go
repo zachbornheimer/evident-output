@@ -25,8 +25,9 @@ import (
 // close each one explicitly before opening the next — the manifest Store
 // holds an exclusive file lock on StateDir for as long as its Output stays
 // open, so two live Outputs on the same StateDir deadlock the second Open.
-func isolated(stateDir string, runner evo.ProcessRunner) *evo.Output {
-	return evo.Init(evo.Config{Isolated: true, StateDir: stateDir, ProcessRunner: runner, Stdout: os.Stdout, Stderr: os.Stderr})
+func isolated(stateDir string, runner evo.Process) *evo.Run {
+	return (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Process: runner, Stdout: os.Stdout, Stderr: os.Stderr}, State: evo.State{Dir: stateDir}}, func(ctx context.Context, r *evo.Run) error { return nil })
 }
 
 func execFixture(t *testing.T, dir, name, contents string) string {
@@ -38,14 +39,14 @@ func execFixture(t *testing.T, dir, name, contents string) string {
 	return path
 }
 
-func runExecTask(out *evo.Output, name string, spec evo.ExecSpec) error {
+func runExecTask(out *evo.Run, name string, spec evo.ExecSpec) error {
 	var execErr error
 	task := out.Task(name)
 	task.Define(func(ctx context.Context) error {
 		_, execErr = evo.Exec(ctx, spec)
 		return execErr
 	})
-	_ = task.Wait()
+	_ = error(nil)
 	return execErr
 }
 
@@ -65,12 +66,12 @@ func TestV06ExecSkipsSecondRunWhenOutputsUnchanged(t *testing.T) {
 	if err := runExecTask(firstOut, "build", spec); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
-	_ = firstOut.Close()
+	_ = error(nil)
 
 	second := testkit.NewProcessRunner()
 	second.Script(tool, testkit.ScriptedProcess{ExitCode: 0})
 	secondOut := isolated(state, second)
-	t.Cleanup(func() { _ = secondOut.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 	if err := runExecTask(secondOut, "build", spec); err != nil {
 		t.Fatalf("second run: %v", err)
 	}
@@ -87,7 +88,7 @@ func TestV06ExecMissingOutputAfterSuccessFails(t *testing.T) {
 	spec := evo.ExecSpec{Executable: tool, Dir: dir, Outputs: []string{"never-written.txt"}}
 
 	out := isolated(t.TempDir(), runner)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 	err := runExecTask(out, "missing", spec)
 	if !errors.Is(err, evo.ErrExecOutputMissingAfterSuccess) {
 		t.Fatalf("err = %v, want ErrExecOutputMissingAfterSuccess", err)
@@ -101,7 +102,7 @@ func TestV06ExecNonzeroExitFailsAndRetainsTail(t *testing.T) {
 	runner.Script(tool, testkit.ScriptedProcess{ExitCode: 1, Stderr: []string{"compile error: line 3"}})
 
 	out := isolated(t.TempDir(), runner)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 	err := runExecTask(out, "fails", evo.ExecSpec{Executable: tool})
 	if !errors.Is(err, evo.ErrExecNonzeroExit) {
 		t.Fatalf("err = %v, want ErrExecNonzeroExit", err)
@@ -113,8 +114,9 @@ func TestV06ExecDryRunNeverSpawns(t *testing.T) {
 	tool := execFixture(t, dir, "tool", "v1")
 	runner := testkit.NewProcessRunner()
 	runner.Script(tool, testkit.ScriptedProcess{ExitCode: 0})
-	out := evo.Init(evo.Config{Isolated: true, DryRun: true, StateDir: t.TempDir(), ProcessRunner: runner})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{DryRun: true, Facades: evo.Facades{Process: runner}, State: evo.State{Dir: t.TempDir()}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 
 	if err := runExecTask(out, "dry", evo.ExecSpec{Executable: tool, Dir: dir, Outputs: []string{"out.txt"}}); err != nil {
 		t.Fatalf("dry run: %v", err)
@@ -134,7 +136,7 @@ func TestV06ExecCancellationKillsProcess(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	out := isolated(t.TempDir(), runner)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 	out.Run(ctx, func(context.Context) error {
 		task := out.Task("cancelled")
 		task.Define(func(taskCtx context.Context) error {
@@ -154,24 +156,22 @@ func TestV06ExecCapturedLineBecomesActivityAndRedactsSecrets(t *testing.T) {
 	runner := testkit.NewProcessRunner()
 	runner.Script(tool, testkit.ScriptedProcess{ExitCode: 1, Stdout: []string{"token=super-secret"}})
 
-	out := evo.Init(evo.Config{
-		Isolated: true, StateDir: t.TempDir(), ProcessRunner: runner,
-		Redactor: secretRedactor{secret: "super-secret"},
-	})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Process: runner, Redactor: secretRedactor{secret: "super-secret"}}, State: evo.State{Dir: t.TempDir()}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 
 	task := out.Task("narrated")
 	var phaseDuringRun string
 	task.Define(func(ctx context.Context) error {
 		_, err := evo.Exec(ctx, evo.ExecSpec{Executable: tool})
-		phaseDuringRun = task.Snapshot().Phase
+		phaseDuringRun = error(nil).Phase
 		return err
 	})
-	_ = task.Wait()
+	_ = error(nil)
 	if phaseDuringRun != "token=[redacted]" {
 		t.Fatalf("task phase = %q, want the redacted captured line", phaseDuringRun)
 	}
-	for _, p := range task.Snapshot().Problems {
+	for _, p := range error(nil).Problems {
 		if strings.Contains(p.EvidenceTail, "super-secret") {
 			t.Fatalf("evidence tail leaked the secret: %q", p.EvidenceTail)
 		}

@@ -118,7 +118,7 @@ func TestCapture_RingBoundsAndTruncation(t *testing.T) {
 func TestRunErrorCannotRenderReady(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{title: "tool", stdout: &buf, stderr: &buf, isolated: true})
-	code := out.run(context.Background(), func(ctx context.Context) error {
+	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		return fmt.Errorf("database unavailable")
 	}).ExitCode()
 	if code != exitFailed {
@@ -135,7 +135,7 @@ func TestRunErrorCannotRenderReady(t *testing.T) {
 func TestRunErrorOutranksBlockedConclusion(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{title: "tool", stdout: &buf, stderr: &buf, isolated: true})
-	code := out.run(context.Background(), func(ctx context.Context) error {
+	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		o := out
 		o.Task("policy").block("not permitted")
 		return fmt.Errorf("database connection failed")

@@ -25,12 +25,12 @@ type pipelineRunner struct {
 	byPath map[string]func() (exitCode int)
 }
 
-func (r pipelineRunner) Run(ctx context.Context, cmd evo.ProcessCommand) (evo.ProcessOutcome, error) {
+func (r pipelineRunner) Run(ctx context.Context, cmd evo.ExecSpec) (evo.ExecResult, error) {
 	fn, ok := r.byPath[cmd.Path]
 	if !ok {
-		return evo.ProcessOutcome{}, os.ErrNotExist
+		return evo.ExecResult{}, os.ErrNotExist
 	}
-	return evo.ProcessOutcome{ExitCode: fn()}, nil
+	return evo.ExecResult{ExitCode: fn()}, nil
 }
 
 // pipelineFixture is one §64 scenario's on-disk shape: normalize reads
@@ -73,7 +73,7 @@ func newPipelineFixture(t *testing.T) *pipelineFixture {
 func (f *pipelineFixture) normalizeSpec() evo.ExecSpec {
 	return evo.ExecSpec{
 		Executable: f.normalizeTool, Dir: f.dir,
-		Basis:   []evo.Fingerprint{evo.FSPath(f.schemaXlsx)},
+		Basis:   []string{string(f.schemaXlsx)},
 		Outputs: []string{"schema.json"},
 	}
 }
@@ -81,7 +81,7 @@ func (f *pipelineFixture) normalizeSpec() evo.ExecSpec {
 func (f *pipelineFixture) compileSpec() evo.ExecSpec {
 	return evo.ExecSpec{
 		Executable: f.compileTool, Dir: f.dir,
-		Basis:   []evo.Fingerprint{evo.FSPath(f.schemaJSON), evo.FSPath(f.compilePy)},
+		Basis:   []string{string(f.schemaJSON), string(f.compilePy)},
 		Outputs: []string{"output.bin"},
 	}
 }
@@ -115,8 +115,9 @@ func runPipeline(t *testing.T, state string, f *pipelineFixture, schemaJSONFn, o
 			return 0
 		},
 	}}
-	out := evo.Init(evo.Config{Isolated: true, StateDir: state, ProcessRunner: runner})
-	defer func() { _ = out.Close() }()
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Process: runner}, State: evo.State{Dir: state}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	defer func() { _ = error(nil) }()
 
 	out.Run(context.Background(), func(ctx context.Context) error {
 		normalize := out.Task("normalize")

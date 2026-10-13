@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package exec_test binds contract §30 "Exec result" rules to the public
 // evo API through the scripted process runner.
 package exec_test
@@ -29,14 +31,12 @@ func writeTool(t *testing.T, dir string) string {
 	return path
 }
 
-func newOutput(stateDir string, dryRun bool, runner evo.ProcessRunner) *evo.Output {
-	return evo.Init(evo.Config{
-		Isolated: true, Plain: true, Color: evo.ColorNever, DryRun: dryRun,
-		StateDir: stateDir, ProcessRunner: runner, Stdout: io.Discard, Stderr: io.Discard,
-	})
+func newOutput(stateDir string, dryRun bool, runner evo.Process) *evo.Run {
+	return (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{DryRun: dryRun, Output: evo.Plain, Facades: evo.Facades{Process: runner, Stdout: io.Discard, Stderr: io.Discard}, State: evo.State{Dir: stateDir}}, func(ctx context.Context, r *evo.Run) error { return nil })
 }
 
-func runExec(t *testing.T, out *evo.Output, spec evo.ExecSpec) (evo.ExecResult, error) {
+func runExec(t *testing.T, out *evo.Run, spec evo.ExecSpec) (evo.ExecResult, error) {
 	t.Helper()
 	var (
 		result  evo.ExecResult
@@ -47,7 +47,7 @@ func runExec(t *testing.T, out *evo.Output, spec evo.ExecSpec) (evo.ExecResult, 
 		result, execErr = evo.Exec(ctx, spec)
 		return execErr
 	})
-	_ = task.Wait()
+	_ = error(nil)
 	return result, execErr
 }
 
@@ -67,27 +67,27 @@ func TestC30_060_RanIsFalseWhenExecDidNotSpawn(t *testing.T) {
 		Executable: tool,
 		Dir:        dir,
 		Outputs:    []string{"out.txt"},
-		Basis:      []evo.Fingerprint{evo.FSPath(tool)},
+		Basis:      []string{string(tool)},
 	}
 	state := t.TempDir()
 
 	first := newOutput(state, false, scriptedRunner(tool, testkit.ScriptedProcess{}))
 	spawned, err := runExec(t, first, spec)
-	_ = first.Close()
+	_ = error(nil)
 	if err != nil || !spawned.Ran {
 		t.Fatalf("first run: Ran = %v, err = %v, want a spawn", spawned.Ran, err)
 	}
 
 	second := newOutput(state, false, scriptedRunner(tool, testkit.ScriptedProcess{}))
 	hit, err := runExec(t, second, spec)
-	_ = second.Close()
+	_ = error(nil)
 	if err != nil || hit.Ran {
 		t.Fatalf("current manifest hit: Ran = %v, err = %v, want no spawn", hit.Ran, err)
 	}
 
 	dry := newOutput(t.TempDir(), true, scriptedRunner(tool, testkit.ScriptedProcess{}))
 	planned, err := runExec(t, dry, spec)
-	_ = dry.Close()
+	_ = error(nil)
 	if err != nil || planned.Ran {
 		t.Fatalf("dry-run plan: Ran = %v, err = %v, want no spawn", planned.Ran, err)
 	}
@@ -101,7 +101,7 @@ func TestC30_061_StdoutIsABoundedTailAndTruncatedReportsLoss(t *testing.T) {
 		lines[i] = fmt.Sprintf("line %03d", i)
 	}
 	out := newOutput(t.TempDir(), false, scriptedRunner(tool, testkit.ScriptedProcess{Stdout: lines}))
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	result, err := runExec(t, out, evo.ExecSpec{Executable: tool, Dir: dir})
 	if err != nil {

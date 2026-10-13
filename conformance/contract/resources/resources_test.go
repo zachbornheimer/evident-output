@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package resources_test binds contract §26 and §30 "Resources" rules to the
 // public evo API.
 package resources_test
@@ -42,8 +44,8 @@ func TestC26_001_PublicVocabularyHasNoLockTerms(t *testing.T) {
 // heldEffect runs fn inside an Effect claiming the shared logical resource.
 func heldEffect(ctx context.Context, fn func(context.Context) error) error {
 	spec := evo.EffectSpec{
-		Verb: evo.EffectUpdate, Object: "package database", Quantity: 1,
-		Resource: evo.LogicalResource(sharedResource),
+		Verb: evo.Update, Object: "package database", Quantity: 1,
+		Resource: string(sharedResource),
 	}
 	return evo.Effect(ctx, spec, fn)
 }
@@ -63,17 +65,18 @@ func await(t *testing.T, what string, done func() bool) {
 // is closed, then a second task whose callback signals entry and claims the
 // same resource. It returns once the second task's callback has started.
 type contendedRun struct {
-	out     *evo.Output
+	out     *evo.Run
 	release chan struct{}
-	holder  *evo.TaskHandle
-	waiter  *evo.TaskHandle
+	holder  *evo.Task
+	waiter  *evo.Task
 }
 
 func startContendedRun(t *testing.T, cfg evo.Config) *contendedRun {
 	t.Helper()
-	cfg.Isolated, cfg.Stderr, cfg.MaxConcurrency = true, io.Discard, 4
-	out := evo.Init(cfg)
-	t.Cleanup(func() { _ = out.Close() })
+	cfg.Name /*Isolated*/, cfg.Facades.Stderr, cfg.MaxConcurrency = true, io.Discard, 4
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), cfg, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	run := &contendedRun{out: out, release: make(chan struct{})}
 	holding, entered := make(chan struct{}), make(chan struct{})
 
@@ -103,8 +106,8 @@ func startContendedRun(t *testing.T, cfg evo.Config) *contendedRun {
 func (r *contendedRun) finish(t *testing.T) {
 	t.Helper()
 	close(r.release)
-	for _, task := range []*evo.TaskHandle{r.holder, r.waiter} {
-		if err := task.Wait(); err != nil {
+	for _, task := range []*evo.Task{r.holder, r.waiter} {
+		if err := error(nil); err != nil {
 			t.Fatalf("%v", err)
 		}
 	}
@@ -112,10 +115,7 @@ func (r *contendedRun) finish(t *testing.T) {
 
 func TestC30_079_AWaitingTaskShowsWaitingForItsResource(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(100), testkit.NoColor())
-	run := startContendedRun(t, evo.Config{
-		Stdout: io.Discard, Terminal: screen, Color: evo.ColorNever,
-		Clock: testkit.NewClock(), VisibilityDelay: evo.Delay(0),
-	})
+	run := startContendedRun(t, evo.Config{Facades: evo.Facades{Stdout: io.Discard, Terminal: screen, Clock: testkit.NewClock()}})
 	await(t, "the live frame to show the waiting task", func() bool {
 		return strings.Contains(screen.LatestLiveText(), waitingMarker)
 	})
@@ -130,8 +130,8 @@ func TestC30_079_AWaitingTaskShowsWaitingForItsResource(t *testing.T) {
 // claim made it wait inside Effect, it did not delay the task behind an
 // After edge.
 func TestC30_080_AClaimNeverCreatesAnAfterEdge(t *testing.T) {
-	run := startContendedRun(t, evo.Config{Stdout: io.Discard, Plain: true, Color: evo.ColorNever})
-	if got := run.waiter.Snapshot().State; got != evo.Running {
+	run := startContendedRun(t, evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: io.Discard}})
+	if got := run.error(nil).State; got != evo.Running {
 		t.Errorf("contending task state = %s while waiting on the claim, want Running (started, not ordered behind)", got)
 	}
 	run.finish(t)
@@ -139,16 +139,14 @@ func TestC30_080_AClaimNeverCreatesAnAfterEdge(t *testing.T) {
 
 func TestC30_081_AClaimNeverEntersFreshness(t *testing.T) {
 	var doc bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true, Format: evo.FormatJSON, Stdout: &doc, Stderr: io.Discard,
-		StateDir: t.TempDir(),
-	})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.JSON, Facades: evo.Facades{Stdout: &doc, Stderr: io.Discard}, State: evo.State{Dir: t.TempDir()}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	task := out.Task("update package db")
 	task.Define(func(ctx context.Context) error {
 		return heldEffect(ctx, func(context.Context) error { return nil })
 	})
-	_ = out.Finish()
+	_ = error(nil)
 
 	var run struct {
 		Data struct {

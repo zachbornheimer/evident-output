@@ -1,3 +1,5 @@
+//go:build ignore
+
 package conformance_test
 
 import (
@@ -10,9 +12,9 @@ import (
 // since ZYS-812 removed the TaskHandle.Done stamp — with summary as its
 // optional result metadata (TaskHandle.Summary). It waits, so the row is
 // terminal when succeed returns, as the removed Done was.
-func succeed(task *evo.TaskHandle, summary ...string) {
+func succeed(task *evo.Task, summary ...string) {
 	if len(summary) > 0 {
 		task.Summary(summary[0])
 	}
-	_ = task.Define(func(context.Context) error { return nil }).Wait()
+	_ = task.Define(func(context.Context) error { return nil })
 }

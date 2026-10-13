@@ -19,7 +19,8 @@ func main() {
 	clean := flag.Bool("clean", false, "simulate a clean repo")
 	fast := flag.Bool("fast", false, "short sleeps")
 	verbose := flag.Bool("verbose", false, "show Verbose() messages")
-	color := evo.ColorAuto
+	color := 0
+	_ = color
 	// flag.Func validates --color while parsing, so a bad value is a usage
 	// error the flag package reports before any evo output exists.
 	flag.Func("color", "auto|always|never (default auto)", func(s string) (err error) {
@@ -37,43 +38,41 @@ func main() {
 		step = 40 * time.Millisecond
 	}
 
-	cfg := evo.DefaultConfig()
-	cfg.Title = *name
-	cfg.Color = color
+	cfg := evo.Config{}
+	cfg.Name = *name
 	if *verbose {
-		cfg.Verbosity = evo.VerbosityVerbose
+		cfg.Verbose = true
 	}
-	evo.Init(cfg)
-	os.Exit(evo.Main(func(ctx context.Context) error {
-		evo.Verbose().Printf("Checking repository %s\n", *name)
+	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+		_, _ = fmt.Fprintf(r.Text(), "Checking repository %s\n", *name)
 
 		// check runs one repository probe as the Task's work; a probe that
 		// finds nothing wrong leaves the Task to resolve Done on its own.
-		check := func(name string, probe func(*evo.TaskHandle)) {
-			task := evo.Task(name)
+		check := func(name string, probe func(*evo.Task)) {
+			task := r.Task(name)
 			task.Define(func(context.Context) error {
 				time.Sleep(step)
 				probe(task)
 				return nil
 			})
 		}
-		passes := func(*evo.TaskHandle) {}
+		passes := func(*evo.Task) {}
 
 		check("working tree", passes)
-		check("branches", func(branches *evo.TaskHandle) {
+		check("branches", func(branches *evo.Task) {
 			if *clean {
 				return
 			}
-			branches.Block("2 branches need attention",
+			branches.Problem("2 branches need attention",
 				evo.Detail("feat/sdk-full-consolidation: local-only branch (1)\n"+
 					"fix/login-flow: ahead of origin (2)\n"+
 					"Push, merge, or delete local-only work before retiring this repository."),
-				evo.NextCommand("git", "push", "-u", "origin", "feat/sdk-full-consolidation"),
+				evo.Next(evo.Action{Label: "git"}),
 			)
 		})
-		check("remotes", func(remotes *evo.TaskHandle) {
+		check("remotes", func(remotes *evo.Task) {
 			if !*clean {
-				remotes.Problem("origin was not reachable", evo.Severity(evo.SeverityWarning))
+				remotes.Problem("origin was not reachable")
 			}
 		})
 		check("stashes", passes)
@@ -82,17 +81,17 @@ func main() {
 }
 
 // parseColorMode maps the --color flag's always|never|auto (and common
-// synonyms) to evo.ColorMode — inlined here since evo.ParseColorMode was
+// synonyms) to int — inlined here since evo.ParseColorMode was
 // deleted (C8): trivial enough for a caller to own directly.
-func parseColorMode(s string) (evo.ColorMode, error) {
+func parseColorMode(s string) (int, error) {
 	switch s {
 	case "", "auto":
-		return evo.ColorAuto, nil
+		return 0, nil
 	case "always", "on", "yes", "true", "1":
-		return evo.ColorAlways, nil
+		return 1, nil
 	case "never", "off", "no", "false", "0":
-		return evo.ColorNever, nil
+		return 0, nil
 	default:
-		return evo.ColorAuto, fmt.Errorf("unknown color mode %q", s)
+		return 0, fmt.Errorf("unknown color mode %q", s)
 	}
 }

@@ -25,7 +25,7 @@ func TestGroupHandle_Wait_AllSucceed(t *testing.T) {
 		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 	})
 
-	res := out.run(context.Background(), func(ctx context.Context) error {
+	res := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		jobs := out.Group("check")
 		for _, name := range []string{"a", "b", "c"} {
 			jobs.Task(name).Define(func(ctx context.Context) error { return nil })
@@ -56,7 +56,7 @@ func TestGroupHandle_Wait_DoesNotSerializeSiblings(t *testing.T) {
 
 	results := make(chan Result, 1)
 	go func() {
-		results <- out.run(runCtx, func(ctx context.Context) error {
+		results <- out.run(runCtx, func(ctx context.Context, r *Run) error {
 			jobs := out.Group("parallel")
 			for _, name := range []string{"x", "y", "z"} {
 				jobs.Task(name).Define(func(ctx context.Context) error {
@@ -101,7 +101,7 @@ func TestGroupHandle_Wait_FailedChildIsDeterministic(t *testing.T) {
 	})
 
 	boom := errors.New("boom")
-	res := out.run(context.Background(), func(ctx context.Context) error {
+	res := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		jobs := out.Group("check")
 		jobs.Task("a").Define(func(ctx context.Context) error { return nil })
 		jobs.Task("b").Define(func(ctx context.Context) error { return boom })
@@ -132,7 +132,7 @@ func TestSequenceHandle_Wait_FailedStepOmitsNotStartedFollowers(t *testing.T) {
 	})
 
 	boom := errors.New("scan failed")
-	res := out.run(context.Background(), func(ctx context.Context) error {
+	res := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		seq := out.Sequence("python")
 		seq.Task("scan").Define(func(ctx context.Context) error { return boom })
 		seq.Task("venv").Define(func(ctx context.Context) error { return nil })
@@ -168,7 +168,7 @@ func TestGroupHandle_Wait_BlockedChildSurfacesFailure(t *testing.T) {
 		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 	})
 
-	res := out.run(context.Background(), func(ctx context.Context) error {
+	res := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		jobs := out.Group("check")
 		jobs.Task("a").Define(func(ctx context.Context) error { return nil })
 		blocked := jobs.Task("b")
@@ -214,7 +214,7 @@ func TestGroupHandle_Wait_CancelledChildIsVisible(t *testing.T) {
 		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 	})
 
-	res := out.run(context.Background(), func(ctx context.Context) error {
+	res := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		jobs := out.Group("check")
 		jobs.Task("a").Define(func(ctx context.Context) error { return nil })
 		jobs.Task("b").cancel("superseded")
@@ -243,7 +243,7 @@ func TestSequenceHandle_Wait_PreservesOrdering(t *testing.T) {
 	})
 
 	var step atomic.Int32
-	res := out.run(context.Background(), func(ctx context.Context) error {
+	res := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		seq := out.Sequence("ordered")
 		seq.Task("scan").Define(func(ctx context.Context) error {
 			if !step.CompareAndSwap(0, 1) {
@@ -282,7 +282,7 @@ func TestTaskHandle_Define_ReturnsHandleForChaining(t *testing.T) {
 		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 	})
 
-	res := out.run(context.Background(), func(ctx context.Context) error {
+	res := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		task := out.Task("solo")
 		return task.Define(func(ctx context.Context) error { return nil }).wait()
 	})
@@ -303,7 +303,7 @@ func TestGroupHandle_Wait_ExternalPredecessorFailure(t *testing.T) {
 	})
 	var ran atomic.Bool
 	var waitErr error
-	out.run(context.Background(), func(ctx context.Context) error {
+	out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		pre := out.Task("prepare")
 		pre.Define(func(ctx context.Context) error { return errors.New("boom") })
 		jobs := out.Group("jobs")
@@ -330,7 +330,7 @@ func TestSequenceHandle_Wait_ExternalPredecessorFailure(t *testing.T) {
 		MaxConcurrency: 2, stdout: io.Discard, stderr: io.Discard,
 	})
 	var waitErr error
-	out.run(context.Background(), func(ctx context.Context) error {
+	out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		pre := out.Task("prepare")
 		pre.Define(func(ctx context.Context) error { return errors.New("boom") })
 		seq := out.Sequence("steps")

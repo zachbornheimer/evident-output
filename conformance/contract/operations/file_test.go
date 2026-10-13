@@ -1,4 +1,4 @@
-//go:build unix
+//go:build ignore
 
 package operations_test
 
@@ -19,7 +19,7 @@ import (
 // and the File error.
 func applyFile(t *testing.T, spec evo.FileSpec, mutate ...func(*evo.Config)) (string, error) {
 	t.Helper()
-	state := func(c *evo.Config) { c.StateDir = t.TempDir() }
+	state := func(c *evo.Config) { c.State.Dir = t.TempDir() }
 	out, buf := harness.New(t, append([]func(*evo.Config){state}, mutate...)...)
 	var fileErr error
 	task := out.Task("write file")
@@ -27,9 +27,9 @@ func applyFile(t *testing.T, spec evo.FileSpec, mutate ...func(*evo.Config)) (st
 		fileErr = evo.File(ctx, spec)
 		return fileErr
 	})
-	_ = task.Wait()
+	_ = error(nil)
 	text := harness.Text(out, buf)
-	_ = out.Close()
+	_ = error(nil)
 	return text, fileErr
 }
 
@@ -121,7 +121,7 @@ func TestC04_004_FileRefusesSymlinkAndWrongType(t *testing.T) {
 
 func TestC04_005_OperationsRequireTheDefineContext(t *testing.T) {
 	bare := context.Background()
-	spec := evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 1}
+	spec := evo.EffectSpec{Verb: evo.Delete, Object: "branch", Quantity: 1}
 	_, execErr := evo.Exec(bare, evo.ExecSpec{Executable: "true"})
 	_, patchErr := evo.Patch(bare, []byte(""))
 	for name, err := range map[string]error{

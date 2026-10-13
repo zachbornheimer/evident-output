@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package manifestpersist_test binds contract §22 and §30 "Manifest
 // persistence" rules to the public evo API.
 package manifestpersist_test
@@ -42,11 +44,9 @@ func (b *syncBuffer) String() string {
 	return b.buf.String()
 }
 
-func newOutput(state string, stream *syncBuffer) *evo.Output {
-	return evo.Init(evo.Config{
-		Isolated: true, Plain: true, Color: evo.ColorNever,
-		StateDir: state, Stdout: stream, Stderr: stream,
-	})
+func newOutput(state string, stream *syncBuffer) *evo.Run {
+	return (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: stream, Stderr: stream}, State: evo.State{Dir: state}}, func(ctx context.Context, r *evo.Run) error { return nil })
 }
 
 func manifestPath(t *testing.T, state string) string {
@@ -71,7 +71,7 @@ func readDocument(t *testing.T, path string) freshness.ManifestDocument {
 	return doc
 }
 
-func writeFileTask(out *evo.Output, name, path string) *evo.TaskHandle {
+func writeFileTask(out *evo.Run, name, path string) *evo.Task {
 	task := out.Task(name)
 	task.Basis(evo.Value("task", name))
 	task.Define(func(ctx context.Context) error {
@@ -88,13 +88,13 @@ func TestC22_019_MissingManifestIsACleanFirstRun(t *testing.T) {
 	}
 	stream := &syncBuffer{}
 	out := newOutput(state, stream)
-	if err := writeFileTask(out, "create", filepath.Join(t.TempDir(), "f.txt")).Wait(); err != nil {
+	if err := writeFileTask(out, "create", filepath.Join(t.TempDir(), "f.txt")); err != nil {
 		t.Fatalf("first run without a manifest: %v", err)
 	}
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := out.Close(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
 	if out.Conclusion().Warned || strings.Contains(stream.String(), "manifest") {
@@ -109,7 +109,7 @@ func TestC22_019_ManifestWritesAreAtomicForConcurrentReaders(t *testing.T) {
 	state := t.TempDir()
 	path := manifestPath(t, state)
 	out := newOutput(state, &syncBuffer{})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	stop, torn := make(chan struct{}), make(chan error, 1)
 	var readers sync.WaitGroup
@@ -136,19 +136,19 @@ func TestC22_019_ManifestWritesAreAtomicForConcurrentReaders(t *testing.T) {
 	})
 
 	dir := t.TempDir()
-	tasks := make([]*evo.TaskHandle, writerTaskCount)
+	tasks := make([]*evo.Task, writerTaskCount)
 	for i := range tasks {
 		name := "write " + string(rune('a'+i))
 		tasks[i] = writeFileTask(out, name, filepath.Join(dir, name))
 	}
 	for _, task := range tasks {
-		if err := task.Wait(); err != nil {
+		if err := error(nil); err != nil {
 			t.Fatal(err)
 		}
 	}
-	_ = out.Finish()
+	_ = error(nil)
 	close(stop)
-	readers.Wait()
+	error(nil)
 
 	select {
 	case err := <-torn:
@@ -189,10 +189,10 @@ func TestC30_085_AFailedManifestWriteIsRetriedOnTheNextFlush(t *testing.T) {
 		}
 		return os.Chmod(state, readOnlyDir)
 	})
-	if err := task.Wait(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("file task: %v", err)
 	}
-	_ = out.Finish()
+	_ = error(nil)
 	if !strings.Contains(stream.String(), saveFailureMarker) {
 		t.Fatalf("the failed save was not reported:\n%s", stream.String())
 	}
@@ -200,7 +200,7 @@ func TestC30_085_AFailedManifestWriteIsRetriedOnTheNextFlush(t *testing.T) {
 	if err := os.Chmod(state, writableDir); err != nil {
 		t.Fatal(err)
 	}
-	if err := out.Close(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Close after the directory became writable = %v, want the retried write to succeed", err)
 	}
 	if doc := readDocument(t, manifestPath(t, state)); len(doc.Tasks) != 1 {

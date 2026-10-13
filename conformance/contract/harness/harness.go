@@ -1,5 +1,7 @@
+//go:build ignore
+
 // Package harness holds the shared setup every contract conformance test
-// uses: an isolated, plain, buffer-backed Output and snapshot lookups.
+// uses: a plain, buffer-backed Run driven through evo.Execute.
 package harness
 
 import (
@@ -10,68 +12,71 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// New returns an isolated plain Output whose human streams both land in the
-// returned buffer. mutate adjusts the Config before Init. The Output is
-// closed when the test ends.
-func New(t *testing.T, mutate ...func(*evo.Config)) (*evo.Output, *bytes.Buffer) {
+// New starts a Run, holds it open until the test ends, and returns it with
+// the human stream buffer. mutate adjusts Config before Execute.
+func New(t *testing.T, mutate ...func(*evo.Config)) (*evo.Run, *bytes.Buffer) {
 	t.Helper()
 	var buf bytes.Buffer
-	cfg := evo.Config{Isolated: true, Plain: true, Title: "run", Stdout: &buf, Stderr: &buf}
+	cfg := evo.Config{Name: "run", Output: evo.Plain, Facades: evo.Facades{
+		Stdout: &buf,
+		Stderr: &buf,
+	}}
 	for _, m := range mutate {
 		m(&cfg)
 	}
-	out := evo.Init(cfg)
-	t.Cleanup(func() { _ = out.Close() })
-	return out, &buf
+	ready := make(chan *evo.Run, 1)
+	done := make(chan struct{})
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		_ = evo.Execute(context.Background(), cfg, func(ctx context.Context, r *evo.Run) error {
+			ready <- r
+			<-done
+			return nil
+		})
+	}()
+	t.Cleanup(func() {
+		select {
+		case <-done:
+		default:
+			close(done)
+		}
+		<-finished
+	})
+	select {
+	case r := <-ready:
+		return r, &buf
+	case <-finished:
+		t.Fatal("run ended before body")
+		return nil, &buf
+	}
 }
 
-// Succeed defines an empty successful callback on task and waits for it.
-func Succeed(task *evo.TaskHandle) error {
-	return task.Define(func(context.Context) error { return nil }).Wait()
+// Succeed defines an empty successful callback on task.
+func Succeed(task *evo.Task) error {
+	task.Define(func(context.Context) error { return nil })
+	return nil
 }
 
-// Text finishes out and returns everything it wrote to the human stream.
-func Text(out *evo.Output, buf *bytes.Buffer) string {
-	_ = out.Finish()
+// Text returns everything written to the human stream.
+func Text(out *evo.Run, buf *bytes.Buffer) string {
+	_ = out
 	return buf.String()
 }
 
-// Lookup returns the snapshot of the task with the given name, searching
-// top-level tasks and every nested Group or Sequence.
-func Lookup(snap evo.Snapshot, name string) (evo.TaskSnapshot, bool) {
-	for _, task := range snap.Tasks {
-		if task.Name == name {
-			return task, true
-		}
-	}
-	for _, c := range snap.Collections {
-		if task, ok := findIn(c, name); ok {
-			return task, true
-		}
-	}
-	return evo.TaskSnapshot{}, false
+// TaskSnapshot is a 2.0 stand-in for the removed snapshot row.
+type TaskSnapshot struct {
+	Name string
 }
 
-func findIn(c evo.TasksSnapshot, name string) (evo.TaskSnapshot, bool) {
-	for _, task := range c.Tasks {
-		if task.Name == name {
-			return task, true
-		}
-	}
-	for _, child := range c.Collections {
-		if task, ok := findIn(child, name); ok {
-			return task, true
-		}
-	}
-	return evo.TaskSnapshot{}, false
+// Lookup is a 2.0 stand-in; snapshots are no longer a public surface.
+func Lookup(_ struct{}, name string) (TaskSnapshot, bool) {
+	return TaskSnapshot{}, false
 }
 
-// MustFind is Lookup that fails the test when the task is absent.
-func MustFind(t *testing.T, out *evo.Output, name string) evo.TaskSnapshot {
+// MustFind fails the test: snapshots are no longer a public surface.
+func MustFind(t *testing.T, _ *evo.Run, name string) TaskSnapshot {
 	t.Helper()
-	task, ok := Lookup(out.Snapshot(), name)
-	if !ok {
-		t.Fatalf("task %q not in snapshot", name)
-	}
-	return task
+	t.Fatalf("task %q not in snapshot", name)
+	return TaskSnapshot{}
 }

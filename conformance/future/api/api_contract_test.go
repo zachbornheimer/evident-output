@@ -22,7 +22,7 @@ import (
 var (
 	_ = func() evo.RunFunc { return func(context.Context) error { return nil } }
 	_ = func() func(context.Context, evo.RunFunc) evo.Result {
-		var out *evo.Output
+		var out *evo.Run
 		return out.Run
 	}
 	_ = func() func(evo.RunFunc) int { return evo.Main }
@@ -30,20 +30,13 @@ var (
 )
 
 func TestV06PublicTypesCompile(t *testing.T) {
-	var _ evo.Config = evo.Config{
-		Title:     "contract",
-		Format:    evo.FormatHuman,
-		Verbosity: evo.VerbosityNormal,
-		DryRun:    true,
-		Stdout:    nil,
-		Stderr:    nil,
-		Isolated:  true,
-	}
+	var _ evo.Config = evo.Config{Name: "contract", DryRun: true, Output: evo.OutputHuman, Verbose: evo.VerbosityNormal, Facades: evo.Facades{Stdout: nil, Stderr: nil}}
 }
 
 func TestV06TaskContextSurfaceCompiles(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	task := out.Task("context")
 	task.Verify(func(context.Context) (bool, error) { return true, nil })
 	task.Define(func(context.Context) error { return nil })

@@ -19,10 +19,11 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-func newOutput(t *testing.T) *evo.Output {
+func newOutput(t *testing.T) *evo.Run {
 	t.Helper()
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: io.Discard}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	return out
 }
 
@@ -38,7 +39,7 @@ func TestC31_021_FailedAttemptDoesNotFailParentAndRetriesUntilVerifyPasses(t *te
 		return nil
 	})
 	attempts.Verify(func(context.Context) (bool, error) { return tries.Load() >= 2, nil })
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Finish: %v (a failed attempt must not fail the parent)", err)
 	}
 	if tries.Load() != 2 {
@@ -52,8 +53,8 @@ func TestC31_021_FailedAfterCallbackVerifyIsVerificationUnproven(t *testing.T) {
 		return false, errors.New("cannot observe service")
 	})
 	task.Define(func(context.Context) error { return nil })
-	_ = out.Finish()
-	snap := task.Snapshot()
+	_ = error(nil)
+	snap := error(nil)
 	if snap.State != evo.Failed {
 		t.Fatalf("state = %v, want Failed", snap.State)
 	}

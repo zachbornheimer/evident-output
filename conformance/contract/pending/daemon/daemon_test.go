@@ -25,19 +25,20 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-func runDaemon(t *testing.T, format evo.Format, body func(task *evo.TaskHandle)) string {
+func runDaemon(t *testing.T, format evo.Output, body func(task *evo.Task)) string {
 	t.Helper()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever, Format: format, Title: "serve"})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "serve", Output: format, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	task := out.Task("serve api")
 	task.Define(func(context.Context) error { body(task); return nil })
-	_ = out.Finish()
+	_ = error(nil)
 	return buf.String()
 }
 
 func TestDaemonReadyAndRestartedRenderTheirDetail(t *testing.T) {
-	got := runDaemon(t, evo.FormatHuman, func(task *evo.TaskHandle) {
+	got := runDaemon(t, evo.OutputHuman, func(task *evo.Task) {
 		task.Ready("listening on :8080")
 		task.Restarted("exit 1", 2, 5*time.Second)
 	})
@@ -49,7 +50,7 @@ func TestDaemonReadyAndRestartedRenderTheirDetail(t *testing.T) {
 }
 
 func TestDaemonStoppedBySignalConcludesStoppedBand(t *testing.T) {
-	got := runDaemon(t, evo.FormatHuman, func(task *evo.TaskHandle) {
+	got := runDaemon(t, evo.OutputHuman, func(task *evo.Task) {
 		task.StoppedBy(os.Interrupt, syscall.SIGTERM)
 	})
 	if !strings.Contains(got, "[stopped]") {
@@ -58,7 +59,7 @@ func TestDaemonStoppedBySignalConcludesStoppedBand(t *testing.T) {
 }
 
 func TestDaemonLogLevelsSurviveInTheTail(t *testing.T) {
-	got := runDaemon(t, evo.FormatHuman, func(task *evo.TaskHandle) {
+	got := runDaemon(t, evo.OutputHuman, func(task *evo.Task) {
 		_, _ = fmt.Fprintln(task.Writer(), "INFO server started")
 		_, _ = fmt.Fprintln(task.Writer(), "WARN slow request")
 	})
@@ -71,8 +72,9 @@ func TestDaemonLogLevelsSurviveInTheTail(t *testing.T) {
 
 func TestDaemonPlainNonTTYStreamsLinesAsTheyArrive(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	seen := make(chan string, 1)
 	task := out.Task("serve api")
 	task.Define(func(context.Context) error {
@@ -89,14 +91,14 @@ func TestDaemonPlainNonTTYStreamsLinesAsTheyArrive(t *testing.T) {
 		seen <- "streamed"
 		return nil
 	})
-	_ = out.Finish()
+	_ = error(nil)
 	if got := <-seen; got != "streamed" {
 		t.Fatalf("plain output %s", got)
 	}
 }
 
 func TestDaemonJSONLCarriesLifecycleLineEvents(t *testing.T) {
-	got := runDaemon(t, evo.FormatJSONL, func(task *evo.TaskHandle) {
+	got := runDaemon(t, evo.JSONL, func(task *evo.Task) {
 		task.Ready("listening on :8080")
 		_, _ = fmt.Fprintln(task.Writer(), "WARN slow request")
 	})

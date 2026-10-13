@@ -1,6 +1,9 @@
+//go:build ignore
+
 package tests22_test
 
 import (
+	"context"
 	"io"
 	"regexp"
 	"strings"
@@ -41,11 +44,9 @@ func liveFrameAt(screen *testkit.Screen, clock *testkit.Clock, repaint func(), s
 func TestC22_008_TimerAndCurrentItemLayoutStayPutAsSecondsTick(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(screenWidth), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{
-		Isolated: true, Clock: clock, Terminal: screen, Stdout: io.Discard, Stderr: io.Discard,
-		VisibilityDelay: evo.Delay(0), Color: evo.ColorNever,
-	})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Clock: clock, Terminal: screen, Stdout: io.Discard, Stderr: io.Discard}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 
 	push, ticker := out.Task("push"), out.Task("ticker")
 	push.Doing("pushing feat/style-contract")

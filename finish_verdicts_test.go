@@ -23,7 +23,7 @@ func TestFinishResolvesRunningTaskAsCancelled(t *testing.T) {
 	running.Doing("fetching")
 	pending := out.Sequence("steps").Task("verify")
 
-	code := out.run(context.Background(), func(ctx context.Context) error {
+	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		return errors.New("boom")
 	}).ExitCode()
 

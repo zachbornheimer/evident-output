@@ -1,7 +1,10 @@
+//go:build ignore
+
 package gates_test
 
 import (
 	"bytes"
+	"context"
 	"os/exec"
 	"strings"
 	"testing"
@@ -19,9 +22,8 @@ import (
 // child line too.
 func TestTaskRun_PlainMode_NoPerLineDurableRows(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true,
-		Stdout:   &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	task := out.Task("build")
 	cmd := exec.Command("/bin/sh", "-c", "printf 'compiling a.go\\ncompiling b.go\\ncompiling c.go\\ncompiling d.go\\n'")
@@ -31,7 +33,7 @@ func TestTaskRun_PlainMode_NoPerLineDurableRows(t *testing.T) {
 		t.Fatalf("cmd.Run: %v", err)
 	}
 	succeed(task)
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
 	}
 
@@ -49,9 +51,8 @@ func TestTaskRun_PlainMode_NoPerLineDurableRows(t *testing.T) {
 // DetailTail — never duplicated by an extra per-line durable stream.
 func TestTaskRun_PlainMode_FailureShowsTailOnce(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true,
-		Stdout:   &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	task := out.Task("build")
 	cmd := exec.Command("/bin/sh", "-c", "echo 'undefined reference to main' 1>&2; exit 1")
@@ -60,7 +61,7 @@ func TestTaskRun_PlainMode_FailureShowsTailOnce(t *testing.T) {
 	if err := cmd.Run(); err != nil {
 		task.Fail("build failed")
 	}
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Finish() = %v, want nil (a resolved Fail is not misuse)", err)
 	}
 

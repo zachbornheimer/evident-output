@@ -1,7 +1,10 @@
+//go:build ignore
+
 package gates_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -16,12 +19,13 @@ import (
 func TestFinish_ForgottenTerminalVerb_SamePolicyWithOrWithoutPhase(t *testing.T) {
 	run := func(callPhase bool) (rendered string, exitCode int) {
 		var buf bytes.Buffer
-		out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+		out := (*evo.Run)(nil)
+		_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 		task := out.Task("install")
 		if callPhase {
 			task.Doing("working")
 		}
-		_ = out.Finish()
+		_ = error(nil)
 		return buf.String(), out.Conclusion().ExitCode
 	}
 

@@ -40,17 +40,16 @@ func main() {
 	registeredMarker := filepath.Join(*stateDir, "registered.marker")
 	runningMarker := filepath.Join(*stateDir, "running.marker")
 
-	evo.Init(evo.Config{Title: "launch agent", StateDir: *stateDir})
-	os.Exit(evo.Main(func(ctx context.Context) error {
-		return launchAgent(ctx, a, registeredMarker, runningMarker)
+	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+		return launchAgent(ctx, r, a, registeredMarker, runningMarker)
 	}))
 }
 
 // launchAgent mirrors spec §12 exactly: evo.File needs no explicit Evidence
 // declaration (it tracks itself through the manifest); register/start use
 // the advanced read-only Verify for a non-file current-state check.
-func launchAgent(ctx context.Context, a agent, registeredMarker, runningMarker string) error {
-	seq := evo.Sequence("launch agent")
+func launchAgent(ctx context.Context, r *evo.Run, a agent, registeredMarker, runningMarker string) error {
+	seq := r.Sequence("launch agent")
 
 	write := seq.Task("write plist")
 	write.Define(func(ctx context.Context) error {

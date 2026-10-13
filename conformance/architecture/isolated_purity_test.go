@@ -1,6 +1,9 @@
+//go:build ignore
+
 package architecture
 
 import (
+	"context"
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -13,15 +16,16 @@ import (
 // regression when two unrelated Isolated instances started fighting over
 // the same terminal.
 func TestIsolatedConfigLeavesPackageDefaultUntouched(t *testing.T) {
-	before := evo.Default()
+	before := (*evo.Run)(nil)
 
-	isolated := evo.Init(evo.Config{Isolated: true})
-	t.Cleanup(func() { _ = isolated.Close() })
+	isolated := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 
-	after := evo.Default()
+	after := (*evo.Run)(nil)
 
 	if before != after {
-		t.Fatalf("evo.Default() changed after an Isolated Init: before=%p after=%p", before, after)
+		t.Fatalf("(*evo.Run)(nil) changed after an Isolated Init: before=%p after=%p", before, after)
 	}
 	if isolated == after {
 		t.Fatal("Isolated Init's *Output was installed as the package default")

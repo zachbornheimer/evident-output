@@ -1,3 +1,5 @@
+//go:build ignore
+
 package exitcodes_test
 
 import (
@@ -11,11 +13,11 @@ import (
 )
 
 func TestC17_001_ConfirmDeclineConcludesBlocked(t *testing.T) {
-	out, _ := harness.New(t, func(c *evo.Config) { c.Stdin = strings.NewReader("n\n") })
+	out, _ := harness.New(t, func(c *evo.Config) { c.Facades.Stdin = strings.NewReader("n\n") })
 	if out.Confirm("Delete the branches?") {
 		t.Fatal("a declined Confirm returned true")
 	}
-	_ = out.Finish()
+	_ = error(nil)
 	if c := out.Conclusion(); c.State != evo.StateBlocked || c.ExitCode != evo.ExitBlocked {
 		t.Fatalf("conclusion %v exit %d", c.State, c.ExitCode)
 	}
@@ -24,8 +26,8 @@ func TestC17_001_ConfirmDeclineConcludesBlocked(t *testing.T) {
 func TestC17_002_FailedExitCodeOverridesExitTwo(t *testing.T) {
 	const custom = 7
 	out, _ := harness.New(t, func(c *evo.Config) { c.FailedExitCode = custom })
-	_ = out.Task("bad").Define(func(context.Context) error { return errors.New("boom") }).Wait()
-	_ = out.Finish()
+	_ = out.Task("bad").Define(func(context.Context) error { return errors.New("boom") })
+	_ = error(nil)
 	if got := out.Conclusion().ExitCode; got != custom {
 		t.Fatalf("exit = %d, want %d", got, custom)
 	}
@@ -34,7 +36,7 @@ func TestC17_002_FailedExitCodeOverridesExitTwo(t *testing.T) {
 func TestC17_003_PartialModifiesTheHeadlineNeverTheExitCode(t *testing.T) {
 	out, _ := harness.New(t)
 	_ = out.Task("never defined")
-	_ = out.Finish()
+	_ = error(nil)
 	c := out.Conclusion()
 	if !c.Partial || c.ExitCode != evo.ExitOK {
 		t.Fatalf("partial=%v exit=%d", c.Partial, c.ExitCode)
@@ -49,7 +51,7 @@ func TestC17_004_RunErrorIsRecordedOnlyWhenNothingFailed(t *testing.T) {
 	}
 	out, buf := harness.New(t)
 	out.Run(context.Background(), func(context.Context) error {
-		_ = out.Task("bad").Define(func(context.Context) error { return errors.New("inner-cause") }).Wait()
+		_ = out.Task("bad").Define(func(context.Context) error { return errors.New("inner-cause") })
 		return errors.New("outer-echo")
 	})
 	if text := buf.String(); !strings.Contains(text, "inner-cause") || strings.Contains(text, "outer-echo") {

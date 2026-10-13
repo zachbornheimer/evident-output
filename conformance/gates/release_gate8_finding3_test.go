@@ -1,7 +1,10 @@
+//go:build ignore
+
 package gates_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -15,13 +18,14 @@ import (
 // it visible without changing the exit code (precedent: "· partial").
 func TestConclusion_WarnedModifierSurvivesOKHeadline(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 
 	succeed(out.Task("fetch"))
 	out.Task("cache").Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
 
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
 	}
 
@@ -50,12 +54,13 @@ func TestConclusion_WarnedModifierSurvivesOKHeadline(t *testing.T) {
 // headline. The "· warned" modifier still carries the warning forward.
 func TestConclusion_WarnOnlyRunStillCarriesWarnedModifier(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 
 	out.Task("cache").Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
 
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
 	}
 

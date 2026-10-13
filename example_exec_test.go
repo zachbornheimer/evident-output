@@ -127,31 +127,6 @@ func ExampleExecResult() {
 	//       file.go:22: missing return
 }
 
-// ExampleProcessCommand is the resolved shape Exec passes to a
-// ProcessRunner — Path already resolved on PATH, Args exactly as declared,
-// Stdout/Stderr wired to the Task's own capture.
-func exampleProcessCommand() {
-	cmd := processCommand{
-		Path:   "/usr/bin/python3",
-		Args:   []string{"generate.py"},
-		Stdout: io.Discard,
-		Stderr: io.Discard,
-	}
-	fmt.Println(cmd.Path, len(cmd.Args))
-	// Output:
-	// /usr/bin/python3 1
-}
-
-// ExampleProcessOutcome is one spawned command's terminal, already-observed
-// result — a nonzero ExitCode is not itself an error; Exec decides
-// what a nonzero exit means.
-func exampleProcessOutcome() {
-	outcome := processOutcome{ExitCode: 0}
-	fmt.Println(outcome.ExitCode == 0)
-	// Output:
-	// true
-}
-
 // ExampleProcessRunner is the facade every Exec spawn goes through
 // instead of exec.Cmd/os/exec directly — testkit.ProcessRunner satisfies
 // it deterministically for tests; production uses the real spawner.

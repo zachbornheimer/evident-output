@@ -19,18 +19,11 @@ import (
 var _ = func() func(context.Context, evo.FileSpec) error { return evo.File }
 
 func TestV06FileAPITypesCompile(t *testing.T) {
-	var _ evo.Config = evo.Config{
-		Title:    "contract",
-		AppID:    "example",
-		StateDir: t.TempDir(),
-		Stdout:   os.Stdout,
-		Stderr:   os.Stderr,
-		Isolated: true,
-	}
+	var _ evo.Config = evo.Config{Name: "contract", Facades: evo.Facades{Stdout: os.Stdout, Stderr: os.Stderr}, State: evo.State{AppID: "example", Dir: t.TempDir()}}
 	var _ evo.FileSpec = evo.FileSpec{
 		Path:     "out",
 		Contents: []byte{},
 		Mode:     fs.FileMode(0o644),
-		Basis:    []evo.Fingerprint{evo.FSPath("in")},
+		Basis:    []string{string("in")},
 	}
 }

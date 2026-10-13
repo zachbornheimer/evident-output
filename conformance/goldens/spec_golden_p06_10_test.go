@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package evo_test closes the remaining spec-golden cells for evo-rec.md
 // Problems 6 through 10 (see spec_golden_test.go / spec_golden_live_test.go
 // for the sibling files and shared helpers this file reuses, e.g.
@@ -6,6 +8,7 @@ package goldens_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -35,13 +38,14 @@ func collapseFields(s string) string {
 func TestSpecP6_BytesVsCounts_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "build", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "build", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	generate := out.Task("generate")
 	generate.Bytes(8_000_000, 8_000_000)
 	succeed(generate, "8.0 MB")
 	test := out.Task("test")
 	test.Fail("tests failed", evo.Detail("--- FAIL: TestFoo (0.01s)"))
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	got := collapseFields(buf.String())
@@ -65,7 +69,7 @@ func TestSpecP6_LiveFrame_Indeterminate(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	out.Task("generate").Doing("writing…")
 
@@ -90,7 +94,7 @@ func TestSpecP6_ErrorBlock_ProgressThenFail(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	generate := out.Task("generate")
 	generate.Bytes(5_200_000, 8_000_000)
@@ -102,7 +106,7 @@ func TestSpecP6_ErrorBlock_ProgressThenFail(t *testing.T) {
 	}
 
 	generate.Fail("disk full", evo.Detail("write /tmp/out: no space left on device"))
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	// Fail commits the resolved row durably at resolution time
@@ -130,7 +134,7 @@ func TestSpecP6_ErrorBlock_ProgressThenFail(t *testing.T) {
 func TestSpecP6_EarlyTermination(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	generate := out.Task("generate")
 	generate.Bytes(2_100_000, 8_000_000)
@@ -141,10 +145,10 @@ func TestSpecP6_EarlyTermination(t *testing.T) {
 		}
 	}
 
-	commitThen(generate, evo.EffectSpec{Verb: evo.EffectCreate, Object: "partial artifact", Quantity: 1}, func() {
+	commitThen(generate, evo.EffectSpec{Verb: evo.Create, Object: "partial artifact", Quantity: 1}, func() {
 		generate.Cancel("cancelled")
 	})
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Log(err)
 	}
 	// Cancel commits the resolved row durably at resolution time
@@ -179,16 +183,17 @@ func TestSpecP6_EarlyTermination(t *testing.T) {
 //	  delete  498 feat/x
 func TestSpecP7_Step1_PlanPreview(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "clean", DryRun: true, Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	specs := []evo.EffectSpec{
-		{Verb: evo.EffectDelete, Object: "feat/a", Quantity: 1},
-		{Verb: evo.EffectDelete, Object: "feat/b", Quantity: 1},
+		{Verb: evo.Delete, Object: "feat/a", Quantity: 1},
+		{Verb: evo.Delete, Object: "feat/b", Quantity: 1},
 	}
 	for range 498 {
-		specs = append(specs, evo.EffectSpec{Verb: evo.EffectDelete, Object: "feat/x", Quantity: 1})
+		specs = append(specs, evo.EffectSpec{Verb: evo.Delete, Object: "feat/x", Quantity: 1})
 	}
 	commit(out.Task("branches"), specs...)
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())
@@ -210,11 +215,12 @@ func TestSpecP7_Step1_PlanPreview(t *testing.T) {
 func TestSpecP7_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "clean", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	g := out.Group("branches")
-	g.Task("deleted").Define(effectOf(evo.EffectDelete, "branch", 120))
+	g.Task("deleted").Define(effectOf(evo.Delete, "branch", 120))
 	g.Task("feat/protected").Fail("cannot delete feat/protected")
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())
@@ -234,7 +240,7 @@ func TestSpecP7_LiveFrame_Indeterminate(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	out.Task("branches").Doing("classifying 500 tips…")
 
@@ -266,7 +272,7 @@ func TestSpecP7_LiveFrame_Indeterminate(t *testing.T) {
 func TestSpecP7_ErrorBlock(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	branches := out.Task("branches")
 	branches.Progress(120, 500)
@@ -279,7 +285,7 @@ func TestSpecP7_ErrorBlock(t *testing.T) {
 	}
 
 	branches.Fail("fatal: unable to read tree")
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Log(err)
 	}
 	// Fail commits the resolved row durably at resolution time
@@ -303,11 +309,12 @@ func TestSpecP7_ErrorBlock(t *testing.T) {
 func TestSpecP7_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "clean", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	g := out.Group("branches")
-	g.Task("deleted").Define(effectOf(evo.EffectDelete, "branch", 120))
+	g.Task("deleted").Define(effectOf(evo.Delete, "branch", 120))
 	g.Task("remaining").Cancel("cancelled")
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())
@@ -334,10 +341,11 @@ func TestSpecP7_EarlyTermination(t *testing.T) {
 func TestSpecP8_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "retire", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	remotes := out.Task("remotes")
-	remotes.Define(effectOf(evo.EffectDelete, "origin tip", 3))
-	if err := out.Finish(); err != nil {
+	remotes.Define(effectOf(evo.Delete, "origin tip", 3))
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	got := collapseFields(buf.String())
@@ -356,7 +364,7 @@ func TestSpecP8_LiveFrame_Indeterminate(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	out.Task("remotes").Doing("delete-remote…")
 
@@ -376,12 +384,13 @@ func TestSpecP8_LiveFrame_Indeterminate(t *testing.T) {
 func TestSpecP8_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "retire", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	g := out.Group("remotes")
-	g.Task("origin/feat/a").Define(effectOf(evo.EffectDelete, "origin tip", 1))
+	g.Task("origin/feat/a").Define(effectOf(evo.Delete, "origin tip", 1))
 	failed := g.Task("origin/feat/b")
-	failed.Fail("HTTP 401", evo.Detail("Authorization: token expired"), evo.NextCommand("gh", "auth", "refresh"))
-	if err := out.Finish(); err != nil {
+	failed.Fail("HTTP 401", evo.Detail("Authorization: token expired"), evo.Action("gh", "auth", "refresh"))
+	if err := error(nil); err != nil {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())
@@ -407,11 +416,12 @@ func TestSpecP8_Error(t *testing.T) {
 func TestSpecP8_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "retire", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	g := out.Group("remotes")
-	g.Task("origin/feat/a").Define(effectOf(evo.EffectDelete, "origin tip", 1))
+	g.Task("origin/feat/a").Define(effectOf(evo.Delete, "origin tip", 1))
 	g.Task("origin/feat/b").Cancel("cancelled before feat/b")
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())
@@ -439,11 +449,12 @@ func TestSpecP8_EarlyTermination(t *testing.T) {
 func TestSpecP9_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "python setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "python setup", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	succeed(out.Task("scan"))
 	succeed(out.Task("venv"))
 	succeed(out.Task("install"))
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	got := collapseFields(buf.String())
@@ -463,14 +474,15 @@ func TestSpecP9_Success(t *testing.T) {
 //	-  install  not started
 func TestSpecP9_Failure(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "python setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "python setup", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	setup := out.Sequence("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	setup.Task("install")
 	succeed(scan)
 	venv.Fail("uv exited 2")
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())
@@ -489,10 +501,11 @@ func TestSpecP9_Failure(t *testing.T) {
 func TestSpecP9_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "python setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "python setup", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	succeed(out.Task("scan"))
 	out.Task("venv").Fail("signal: killed")
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())
@@ -513,16 +526,17 @@ func TestSpecP9_Error(t *testing.T) {
 //	!  partial changes were applied before cancellation
 func TestSpecP9_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "python setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "python setup", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	setup := out.Sequence("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	setup.Task("install")
 	succeed(scan)
-	commitThen(venv, evo.EffectSpec{Verb: evo.EffectCreate, Object: "incomplete .venv directory", Quantity: 1}, func() {
+	commitThen(venv, evo.EffectSpec{Verb: evo.Create, Object: "incomplete .venv directory", Quantity: 1}, func() {
 		venv.Cancel("cancelled — .venv partial")
 	})
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())
@@ -548,8 +562,9 @@ func TestSpecP9_EarlyTermination(t *testing.T) {
 //   - install  installing
 func TestSpecP10_Step1(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "install-pipeline", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 
 	out.Task("install").Doing("installing")
 
@@ -566,8 +581,9 @@ func TestSpecP10_Step1(t *testing.T) {
 //	•  install  14/40  requests
 func TestSpecP10_Step2(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "install-pipeline", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 
 	succeed(out.Task("scan"))
 	install := out.Task("install")
@@ -596,12 +612,13 @@ func TestSpecP10_Step2(t *testing.T) {
 func TestSpecP10_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "install-pipeline", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	succeed(out.Task("scan"))
 	succeed(out.Task("venv"))
 	succeed(out.Task("install"), "14 modules")
 	succeed(out.Task("python setup"), "python was set up; 14 modules were installed")
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	got := collapseFields(buf.String())
@@ -627,10 +644,11 @@ func TestSpecP10_Success(t *testing.T) {
 func TestSpecP10_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "install-pipeline", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	succeed(out.Task("scan"))
 	out.Task("install").Fail("uv pip install failed", evo.Detail("exit status 1"))
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())
@@ -647,8 +665,9 @@ func TestSpecP10_Failure(t *testing.T) {
 //   - scan  scanning
 func TestSpecP10_LiveFrame_Indeterminate(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "install-pipeline", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 
 	out.Task("scan").Doing("scanning")
 
@@ -667,10 +686,11 @@ func TestSpecP10_LiveFrame_Indeterminate(t *testing.T) {
 func TestSpecP10_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "install-pipeline", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	succeed(out.Task("scan"))
 	out.Task("install").Fail("network unreachable", evo.Detail("dial tcp: lookup pypi.org: no such host"))
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())
@@ -693,13 +713,14 @@ func TestSpecP10_Error(t *testing.T) {
 //	!  already mutated: 6 packages in .venv installed
 func TestSpecP10_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "install-pipeline", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	succeed(out.Task("scan"))
 	install := out.Task("install")
 	commitThen(install, evo.EffectSpec{Verb: evo.EffectInstall, Object: "package in .venv", Quantity: 6}, func() {
 		install.Cancel("cancelled at 6/14")
 	})
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())

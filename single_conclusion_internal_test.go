@@ -12,12 +12,12 @@ import (
 // TestConfigToOptions_DefaultTTYMarksSharedPrimaryTerminal pins the
 // construction-time plumbing: when Config's ordinary default-wiring builds
 // a live Terminal around the same writer as primary (the real-TTY,
-// no-explicit-to()/alsoWrite() path in evo.Init(evo.Config{Title: ...})),
+// no-explicit-to()/alsoWrite() path in (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{Name: ...}, func(ctx context.Context, r *evo.Run) error { return nil })),
 // configToOptions must record that identity so Finish can skip the
 // dual-stream write, instead of an fd comparison happening later at Finish.
 func TestConfigToOptions_DefaultTTYMarksSharedPrimaryTerminal(t *testing.T) {
 	// /dev/null is a real *os.File backed by a character device, so
-	// isCharDevice(c.Stdout) is true and configToOptions takes the same
+	// isCharDevice(c.Facades.Stdout) is true and configToOptions takes the same
 	// "wantLive" auto-terminal branch a real interactive TTY would —
 	// without requiring a pty in this test environment.
 	tty, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)

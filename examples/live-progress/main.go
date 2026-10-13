@@ -24,11 +24,9 @@ func main() {
 		step = 15 * time.Millisecond
 	}
 
-	out := evo.Init(evo.Config{Title: "install dependencies"})
-
-	os.Exit(evo.Main(func(ctx context.Context) error {
-		return runLive(out, step)
-	}))
+	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+		return runLive(r, step)
+	}, evo.Config{Name: "install dependencies"}))
 }
 
 // runLive uses evo.Sequence: dependencies is a sequence of steps that must stop
@@ -37,11 +35,11 @@ func main() {
 // idle until their turn (the "python" example). Each step below predeclares
 // its handle, then fully resolves before the next step's Phase/Progress/Bytes
 // call promotes it to Running.
-func runLive(out *evo.Output, step time.Duration) error {
+func runLive(r *evo.Run, step time.Duration) error {
 	const packageCount = 24
 	const totalBytes int64 = 18_000_000
 
-	jobs := out.Sequence("dependencies")
+	jobs := r.Sequence("dependencies")
 	discover := jobs.Task("discover")
 	scan := jobs.Task("scan")
 	download := jobs.Task("download")
@@ -66,7 +64,7 @@ func runLive(out *evo.Output, step time.Duration) error {
 	download.Define(func(ctx context.Context) error {
 		for completed := 1; completed <= packageCount; completed++ {
 			done := totalBytes * int64(completed) / int64(packageCount)
-			download.Bytes(done, totalBytes)
+			download.Progress(int(done), int(totalBytes))
 			time.Sleep(step)
 		}
 		return nil
@@ -80,7 +78,7 @@ func runLive(out *evo.Output, step time.Duration) error {
 		return nil
 	})
 
-	evo.Task("lockfile").Define(func(context.Context) error { return nil })
-	evo.Task("registry").Define(func(context.Context) error { return nil })
+	r.Task("lockfile").Define(func(context.Context) error { return nil })
+	r.Task("registry").Define(func(context.Context) error { return nil })
 	return nil
 }

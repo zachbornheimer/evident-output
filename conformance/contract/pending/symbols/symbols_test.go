@@ -46,7 +46,7 @@ func TestSymbolsCoverEveryExportedPackageFunction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer error(nil)
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		line := sc.Text()

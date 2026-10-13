@@ -52,7 +52,7 @@ func TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue(t *testing.T) {
 	names := []string{"pkg1", "pkg2", "pkg3", "pkg4", "pkg5"}
 	code := make(chan int, 1)
 	go func() {
-		code <- out.run(context.Background(), func(ctx context.Context) error {
+		code <- out.run(context.Background(), func(ctx context.Context, r *Run) error {
 			var first *Task
 			for i, name := range names {
 				task := group.Task(name)
@@ -132,7 +132,7 @@ func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testin
 	blocking := make(chan struct{})
 	code := make(chan int, 1)
 	go func() {
-		code <- out.run(context.Background(), func(ctx context.Context) error {
+		code <- out.run(context.Background(), func(ctx context.Context, r *Run) error {
 			scan.Define(func(ctx context.Context) error { return nil })
 			venv.Define(func(ctx context.Context) error {
 				return Effect(ctx, EffectSpec{Verb: Create, Object: ".venv directory", Quantity: 1}, func(context.Context) error {

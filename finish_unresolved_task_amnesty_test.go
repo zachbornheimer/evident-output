@@ -119,7 +119,7 @@ func TestRun_BlockedWithLeftoverMisuse_NeverEscalatesToFailed(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
-	code := out.run(context.Background(), func(ctx context.Context) error {
+	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		task := out.Task("branches")
 		task.block("local-only branch")
 		succeed(task) // already resolved — leftover bookkeeping misuse

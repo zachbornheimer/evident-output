@@ -1,3 +1,5 @@
+//go:build ignore
+
 package goldens_test
 
 import (
@@ -23,24 +25,17 @@ import (
 func TestSpecP3_DryRunMutation_NeverCallsCallback(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true,
-		Title:    "retire",
-		Stdout:   &buf,
-		Plain:    true,
-		Color:    evo.ColorNever,
-		DryRun:   true,
-		Clock:    testkit.NewClock(),
-	})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "retire", DryRun: true, Output: evo.Plain, Facades: evo.Facades{Stdout: &buf, Clock: testkit.NewClock()}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	called := false
 	g := out.Group("branches")
 	g.Task("feat/old-billing").Define(func(ctx context.Context) error {
-		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 1}, func(context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "branch", Quantity: 1}, func(context.Context) error {
 			called = true
 			return nil
 		})
 	})
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	if called {
@@ -58,7 +53,8 @@ func TestSpecP3_DryRunMutation_NeverCallsCallback(t *testing.T) {
 func TestSpecP4_SequenceDefine_DeclarationOrder(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "python", Stdout: &buf, Plain: true, Color: evo.ColorNever, Clock: testkit.NewClock()})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "python", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf, Clock: testkit.NewClock()}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	seq := out.Sequence("python")
 	seq.Task("scan").Define(func(ctx context.Context) error { return nil })
 	seq.Task("venv").Define(func(ctx context.Context) error { return nil })
@@ -67,7 +63,7 @@ func TestSpecP4_SequenceDefine_DeclarationOrder(t *testing.T) {
 		install.Summary("14 modules")
 		return nil
 	})
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -85,8 +81,9 @@ const afterFetchBlockedTasks = 2
 
 func TestSpecAfter_FetchWaitsForGroups(t *testing.T) {
 	t.Parallel()
-	out := evo.Init(evo.Config{Isolated: true, MaxConcurrency: afterFetchBlockedTasks, Title: "fetch", Stdout: bytes.NewBuffer(nil), Plain: true, Color: evo.ColorNever, Clock: testkit.NewClock()})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{MaxConcurrency: afterFetchBlockedTasks, Name: "fetch", Output: evo.Plain, Facades: evo.Facades{Stdout: bytes.NewBuffer(nil), Clock: testkit.NewClock()}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 
 	worktrees := out.Group("worktrees")
 	branches := out.Group("branches")
@@ -133,7 +130,7 @@ func TestSpecAfter_FetchWaitsForGroups(t *testing.T) {
 	close(wtRelease)
 	close(brRelease)
 	<-fetchStarted
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 }

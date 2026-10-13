@@ -27,7 +27,7 @@ func runInterruptedPrune(t *testing.T, committed bool) (string, int) {
 	blocking := make(chan struct{})
 	code := make(chan int, 1)
 	go func() {
-		code <- out.run(context.Background(), func(ctx context.Context) error {
+		code <- out.run(context.Background(), func(ctx context.Context, r *Run) error {
 			remote.Define(func(ctx context.Context) error {
 				if !committed {
 					return nil
@@ -72,7 +72,7 @@ func TestCancellation_RenderedBandMatchesContract(t *testing.T) {
 	blocking := make(chan struct{})
 	code := make(chan int, 1)
 	go func() {
-		code <- out.run(context.Background(), func(ctx context.Context) error {
+		code <- out.run(context.Background(), func(ctx context.Context, r *Run) error {
 			remote.Define(func(ctx context.Context) error {
 				return Effect(ctx, EffectSpec{Verb: Delete, Object: "stale origin/*", Quantity: 4}, func(context.Context) error { return nil })
 			})

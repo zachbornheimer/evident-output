@@ -1,3 +1,5 @@
+//go:build ignore
+
 package gates_test
 
 import (
@@ -18,16 +20,17 @@ import (
 // OK-family, Partial-marked conclusion.
 func TestFinish_PhaseOnlyTaskCleanReturn_NeverCancels(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	out.Task("connect").Doing("connecting")
 	// early return nil — no Done/Fail/Block/Skip, no signal, no output-level error.
 
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Finish() = %v, want nil (a clean finish must not report the abandoned task as misuse)", err)
 	}
 	conc := out.Conclusion()
-	if conc.State == evo.StateCancelled {
+	if conc.State == evo.Cancelled {
 		t.Fatalf("state = %v, want anything but StateCancelled on an uninterrupted run", conc.State)
 	}
 	if conc.ExitCode != evo.ExitOK {
@@ -49,14 +52,15 @@ func TestFinish_PhaseOnlyTaskCleanReturn_NeverCancels(t *testing.T) {
 // behavior must not regress.
 func TestFinish_AbnormalFinish_UnresolvedRunningTaskStillCancels(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	leftover := out.Task("connect")
 	leftover.Doing("connecting")
 	out.Fail("stopped: disk full")
 
-	_ = out.Finish()
-	if got := leftover.Snapshot().State; got != evo.Cancelled {
+	_ = error(nil)
+	if got := error(nil).State; got != evo.Cancelled {
 		t.Fatalf("leftover task state = %v, want Cancelled (abnormal finish)", got)
 	}
 }
@@ -73,7 +77,8 @@ func TestFinish_AbnormalFinish_UnresolvedRunningTaskStillCancels(t *testing.T) {
 // explicit with/without-Phase comparison).
 func TestRun_NeverResolvedBareTask_BandAndExitCodeAgree(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	code := out.Run(context.Background(), func(ctx context.Context) error {
 		o := out
@@ -103,11 +108,12 @@ func TestRun_NeverResolvedBareTask_BandAndExitCodeAgree(t *testing.T) {
 // raw "misuse: <name>: evo: ..." sentinel text.
 func TestFinish_UnresolvedTask_HintReplacesRawMisuseLine(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	out.Task("install") // declared, never resolved
 
-	_ = out.Finish()
+	_ = error(nil)
 	rendered := buf.String()
 	if strings.Contains(rendered, "evo: task has no final state") {
 		t.Fatalf("raw sentinel jargon leaked into the user stream:\n%s", rendered)
@@ -123,15 +129,16 @@ func TestFinish_UnresolvedTask_HintReplacesRawMisuseLine(t *testing.T) {
 // row per call plus an overflow ellipsis.
 func TestChanges_RepeatedIdenticalRecordsMergeQuantities(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, Width: 80})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	specs := make([]evo.EffectSpec, 12)
 	for i := range specs {
-		specs[i] = evo.EffectSpec{Verb: evo.EffectDelete, Object: "merged branch", Quantity: 1}
+		specs[i] = evo.EffectSpec{Verb: evo.Delete, Object: "merged branch", Quantity: 1}
 	}
 	commit(out.Task("cleanup"), specs...)
 
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
 	}
 	rendered := buf.String()

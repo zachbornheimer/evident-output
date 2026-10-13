@@ -41,7 +41,7 @@ func TestConfirm_SIGINT_CancelsGateNotDeclined(t *testing.T) {
 	}()
 
 	var confirmResult bool
-	code := execute_1(context.Background(), func(ctx context.Context) error {
+	code := execute_1(context.Background(), func(ctx context.Context, r *Run) error {
 		close(started)
 		confirmResult = confirm("delete origin/production-hotfix?")
 		return nil

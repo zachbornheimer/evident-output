@@ -13,7 +13,6 @@ import (
 // yet; slice 8 deletes this file and repoints the root at record directly.
 
 type (
-	failure         = record.Failure
 	logRecord       = record.LogRecord
 	ProblemOption   = record.ProblemOption
 	problemSeverity = record.ProblemSeverity

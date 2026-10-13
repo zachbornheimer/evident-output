@@ -47,7 +47,7 @@ func TestTaskHandle_Wait_SelfResolvedBeforeReturn_IsNotSuccess(t *testing.T) {
 			// returnedByWait is whether the callback had returned at the
 			// instant Wait answered; read after Run it could only be true.
 			var returnedByWait bool
-			out.run(context.Background(), func(ctx context.Context) error {
+			out.run(context.Background(), func(ctx context.Context, r *Run) error {
 				resolved := make(chan struct{})
 				task := out.Task("self-resolving")
 				task.Define(func(ctx context.Context) error {

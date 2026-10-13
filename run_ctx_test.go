@@ -21,7 +21,7 @@ func TestDefine_CallerContextCancellation_CancelsTaskScope(t *testing.T) {
 	runDone := make(chan struct{})
 
 	go func() {
-		out.run(callerCtx, func(context.Context) error {
+		out.run(callerCtx, func(ctx context.Context, r *Run) error {
 			out.Task("wait-for-caller-cancel").Define(func(taskCtx context.Context) error {
 				close(started)
 				<-taskCtx.Done()
@@ -63,7 +63,7 @@ func TestVerify_CallerContextCancellation_CancelsTaskScope(t *testing.T) {
 	runDone := make(chan struct{})
 
 	go func() {
-		out.run(callerCtx, func(context.Context) error {
+		out.run(callerCtx, func(ctx context.Context, r *Run) error {
 			task := out.Task("wait-for-caller-cancel-verify")
 			task.Verify(func(verifyCtx context.Context) (bool, error) {
 				close(started)
@@ -110,7 +110,7 @@ func TestDefine_CallerContextDeadline_IsObservable(t *testing.T) {
 	runDone := make(chan struct{})
 
 	go func() {
-		out.run(callerCtx, func(context.Context) error {
+		out.run(callerCtx, func(ctx context.Context, r *Run) error {
 			out.Task("observe-deadline").Define(func(taskCtx context.Context) error {
 				d, ok := taskCtx.Deadline()
 				if !ok {

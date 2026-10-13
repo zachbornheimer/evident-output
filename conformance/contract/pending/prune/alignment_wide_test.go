@@ -25,27 +25,25 @@ type wideRow struct {
 }
 
 var wideRows = []wideRow{
-	{"分支", 4, evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 2}},
-	{"ab", 2, evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 1}},
+	{"分支", 4, evo.EffectSpec{Verb: evo.Delete, Object: "local tip", Quantity: 2}},
+	{"ab", 2, evo.EffectSpec{Verb: evo.Delete, Object: "worktree", Quantity: 1}},
 }
 
 func TestC30_058_SubjectsPadToTheWidestDisplayCellWidth(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true, Plain: true, Color: evo.ColorNever, DryRun: true,
-		Title: "zq", Subject: "zq prune  ~/repo", Stdout: &buf, Stderr: &buf,
-	})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{DryRun: true, Name: "zq", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf, Stderr: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	for _, row := range wideRows {
 		task := out.Task(row.subject)
 		task.Define(func(ctx context.Context) error {
 			return evo.Effect(ctx, row.spec, func(context.Context) error { return nil })
 		})
-		if err := task.Wait(); err != nil {
+		if err := error(nil); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 

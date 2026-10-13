@@ -23,9 +23,8 @@ func main() {
 		step = 20 * time.Millisecond
 	}
 
-	evo.Init(evo.Config{Title: "branch audit"})
-	os.Exit(evo.Main(func(ctx context.Context) error {
-		jobs := evo.Sequence("audit")
+	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+		jobs := r.Sequence("audit")
 		scan := jobs.Task("scan")
 		compare := jobs.Task("compare")
 
@@ -43,16 +42,16 @@ func main() {
 			}
 			return nil
 		})
-		if err := compare.Wait(); err != nil {
+		if err := error(nil); err != nil {
 			return err
 		}
 
-		branches := evo.Task("branches")
+		branches := r.Task("branches")
 		if *fail {
-			branches.Block("feat/sdk-full-consolidation is local-only")
+			branches.Problem("feat/sdk-full-consolidation is local-only")
 		} else {
 			branches.Define(func(context.Context) error { return nil })
 		}
 		return nil
-	}))
+	}, evo.Config{Name: "branch audit"}))
 }

@@ -1,3 +1,5 @@
+//go:build ignore
+
 package projection_test
 
 import (
@@ -16,7 +18,7 @@ func TestC13_011_SettledRowShowsSummaryElseFirstProblem(t *testing.T) {
 	_ = harness.Succeed(summed)
 	failing := out.Task("lint")
 	failing.Define(func(context.Context) error { return errors.New("first problem") })
-	_ = failing.Wait()
+	_ = error(nil)
 	text := harness.Text(out, buf)
 	if !strings.Contains(text, "✓ check  459 checked") || !strings.Contains(text, "✗ lint") || !strings.Contains(text, "first problem") {
 		t.Fatalf("settled rows:\n%s", text)

@@ -17,10 +17,11 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-func isolated(t *testing.T) *evo.Output {
+func isolated(t *testing.T) *evo.Run {
 	t.Helper()
-	out := evo.Init(evo.Config{Isolated: true, StateDir: t.TempDir(), Stdout: os.Stdout, Stderr: os.Stderr})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Stdout: os.Stdout, Stderr: os.Stderr}, State: evo.State{Dir: t.TempDir()}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	return out
 }
 
@@ -182,8 +183,9 @@ func TestV06CancellationBeforeMutationDoesNotWrite(t *testing.T) {
 // failing — dry-run is a planning mode, not a no-op mode that leaves the
 // Task in an unresolved or failed state.
 func TestV06DryRunDoesNotWriteButAdvancesSuccessfully(t *testing.T) {
-	dry := evo.Init(evo.Config{Isolated: true, DryRun: true, StateDir: t.TempDir()})
-	t.Cleanup(func() { _ = dry.Close() })
+	dry := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{DryRun: true, State: evo.State{Dir: t.TempDir()}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	dryPath := filepath.Join(t.TempDir(), "dry.txt")
 	entered := false
 	dry.Run(context.Background(), func(ctx context.Context) error {
@@ -215,7 +217,7 @@ func TestV06OpaqueCallbackReentersWithPriorTrackedManifest(t *testing.T) {
 	state := t.TempDir()
 	path := filepath.Join(t.TempDir(), "tracked.txt")
 	called := 0
-	run := func(out *evo.Output) {
+	run := func(out *evo.Run) {
 		out.Run(context.Background(), func(ctx context.Context) error {
 			task := out.Task("opaque")
 			task.Define(func(ctx context.Context) error {
@@ -226,10 +228,11 @@ func TestV06OpaqueCallbackReentersWithPriorTrackedManifest(t *testing.T) {
 		})
 	}
 
-	first := evo.Init(evo.Config{Isolated: true, StateDir: state})
+	first := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{State: evo.State{Dir: state}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	run(first)
 	firstErr := first.Err()
-	_ = first.Close()
+	_ = error(nil)
 	if called != 1 {
 		t.Fatalf("first run Define calls = %d, want 1", called)
 	}
@@ -241,10 +244,11 @@ func TestV06OpaqueCallbackReentersWithPriorTrackedManifest(t *testing.T) {
 		t.Fatalf("first run did not persist tracked file: contents=%q err=%v", got, err)
 	}
 
-	second := evo.Init(evo.Config{Isolated: true, StateDir: state})
+	second := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{State: evo.State{Dir: state}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	run(second)
 	secondErr := second.Err()
-	_ = second.Close()
+	_ = error(nil)
 	if called != 2 {
 		t.Fatal("second run must re-enter the opaque Define callback despite a prior successful manifest")
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sync/atomic"
 
 	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/clock"
@@ -33,50 +32,6 @@ type (
 // wall is the real clock for waits that must stay real whatever Clock the
 // application injected: spinner cadence, paint cost, throttled-write age.
 var wall = clock.System()
-
-// --- folded from facade_slot.go ---
-
-// FacadeSlot holds the one public wrapper of an engine handle, so the root
-// package hands out a stable wrapper per handle without a process-global
-// table. A table keyed by handle kept every handle, and through it every
-// Output with all its state, alive for the life of the process; the slot
-// lives and dies with its handle.
-type facadeSlot struct {
-	wrapper atomic.Pointer[any]
-}
-
-// Wrapper returns the wrapper stored in the slot, storing newWrapper()'s
-// result first when there is none. Concurrent first calls agree on one.
-func (s *facadeSlot) loadWrapper(newWrapper func() any) any {
-	if w := s.wrapper.Load(); w != nil {
-		return *w
-	}
-	w := newWrapper()
-	if s.wrapper.CompareAndSwap(nil, &w) {
-		return w
-	}
-	return *s.wrapper.Load()
-}
-
-// Facade returns o's public-wrapper slot.
-func (o *Run) facadeSlot() *facadeSlot { return &o.facade }
-
-// Facade returns t's public-wrapper slot.
-func (t *Task) facadeSlot() *facadeSlot {
-	if t == nil {
-		return nil
-	}
-	return &t.facade
-}
-
-// Facade returns g's public-wrapper slot.
-func (g *Group) facadeSlot() *facadeSlot { return &g.facade }
-
-// Facade returns g's public-wrapper slot.
-func (g *Sequence) facadeSlot() *facadeSlot { return &g.facade }
-
-// Facade returns p's public-wrapper slot.
-func (p *printer) facadeSlot() *facadeSlot { return &p.facade }
 
 // --- folded from process.go ---
 

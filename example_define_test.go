@@ -47,19 +47,6 @@ func ExampleTask_Verify() {
 	// already_satisfied
 }
 
-// ExampleTask_Key sets an advanced, refactor/rename-stable override
-// for a Task's stable identity (spec §3.1) — use it when a Task's name
-// changes across runs but its tracked identity must not.
-func exampleTask_Key() {
-	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, stderr: io.Discard, plain: true})
-	out.Task("migrate 003_add_users.sql").key("migration:003").Define(func(context.Context) error { return nil })
-	_ = out.finish()
-	fmt.Print(buf.String())
-	// Output:
-	// ✓ migrate 003_add_users.sql
-}
-
 // ExampleFile declares/reconciles one managed-state file resource: Evo
 // creates it, rewrites it when Contents differ, and no-ops when the
 // desired state already holds — common file work never needs a hand-
@@ -74,7 +61,7 @@ func ExampleFile() {
 	path := filepath.Join(dir, "config.json")
 
 	out := initRun(Config{isolated: true, stateDir: dir, stdout: io.Discard, stderr: io.Discard})
-	result := out.run(context.Background(), func(ctx context.Context) error {
+	result := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		task := out.Task("config")
 		task.Define(func(ctx context.Context) error {
 			return File(ctx, FileSpec{Path: path, Contents: []byte(`{"ok":true}`)})

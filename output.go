@@ -29,10 +29,7 @@ import (
 type Run struct {
 	// mu guards the render state. Its sections hold the run's notifications,
 	// so the engine's listener hears a section's writes once the mutex is free.
-	mu record.Mutex
-	// facade holds this Output's public wrapper (see FacadeSlot).
-	facade facadeSlot
-
+	mu  record.Mutex
 	cfg config
 
 	outputID string
@@ -151,7 +148,7 @@ func newOutput(subject string, options ...option) *Run {
 	//
 	// Whenever the driver's sink IS the primary writer — whether that's this
 	// same defaulting, or an explicit to()/withDiagnostics() (Options path) or
-	// Config's own to(c.Stdout)/to(c.Stderr) wiring (Config.Terminal path,
+	// Config's own to(c.Facades.Stdout)/to(c.Facades.Stderr) wiring (Config.Terminal path,
 	// via configToOptions) that happens to coincide — the driver already
 	// rendered the conclusion there once; Finish's dual-write branch must
 	// not render it there again (release-gate round 9 finding 1).

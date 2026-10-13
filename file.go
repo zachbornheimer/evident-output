@@ -62,9 +62,6 @@ func files(ctx context.Context, files fileSet) error { return change.Files(ctx, 
 // change.Patch.
 func Patch(ctx context.Context, diff []byte) (fileSet, error) { return change.Patch(ctx, diff) }
 
-// ApplyPatch applies a unified diff directly; see change.ApplyPatch.
-func applyPatch(ctx context.Context, diff []byte) error { return change.ApplyPatch(ctx, diff) }
-
 // Exec declares/reconciles one managed-state subprocess invocation; see
 // change.Exec.
 func Exec(ctx context.Context, spec ExecSpec) (ExecResult, error) {
@@ -98,26 +95,17 @@ func logicalResource(name string) resource { return change.LogicalResource(name)
 
 // File, Exec, Patch, Effect and resource sentinels.
 var (
-	errFileSpecMissingPath           = change.ErrFileSpecMissingPath
-	errFileUnmanagedContentsMissing  = change.ErrFileUnmanagedContentsMissing
 	errFilePathIsSymlink             = change.ErrFilePathIsSymlink
-	errFilePathTypeMismatch          = change.ErrFilePathTypeMismatch
-	errFilePermissionsFailed         = change.ErrFilePermissionsFailed
 	errFileConflictingProducer       = change.ErrFileConflictingProducer
-	errExecSpecMissingExecutable     = change.ErrExecSpecMissingExecutable
-	errExecExecutableNotFound        = change.ErrExecExecutableNotFound
 	ErrExecNonzeroExit               = change.ErrExecNonzeroExit
 	errExecOutputMissingAfterSuccess = change.ErrExecOutputMissingAfterSuccess
 	ErrExecOutputMissing             = change.ErrExecOutputMissingAfterSuccess
 	ErrStaleBasis                    = change.ErrStaleBasis
-	errPatchMalformed                = change.ErrPatchMalformed
 	ErrPatchDoesNotApply             = change.ErrPatchDoesNotApply
 	errPatchUnsupported              = change.ErrPatchUnsupported
 	errPatchDeleteUnsupported        = change.ErrPatchDeleteUnsupported
 	errPatchRenameUnsupported        = change.ErrPatchRenameUnsupported
 	errPatchBinaryUnsupported        = change.ErrPatchBinaryUnsupported
-	errPatchUnsafePath               = change.ErrPatchUnsafePath
-	errPatchStale                    = change.ErrPatchStale
 	errEffectVerbInvalid             = change.ErrEffectVerbInvalid
 	errEffectObjectMissing           = change.ErrEffectObjectMissing
 	errEffectQuantityNotPositive     = change.ErrEffectQuantityNotPositive

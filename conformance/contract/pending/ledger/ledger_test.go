@@ -16,9 +16,9 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-func deleteBranch(out *evo.Output, group *evo.GroupHandle, name string, fail bool) {
+func deleteBranch(out *evo.Run, group *evo.Group, name string, fail bool) {
 	group.Task("delete " + name).Define(func(ctx context.Context) error {
-		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 1}, func(context.Context) error {
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "branch", Quantity: 1}, func(context.Context) error {
 			if fail {
 				return errors.New("ref is protected")
 			}
@@ -27,16 +27,17 @@ func deleteBranch(out *evo.Output, group *evo.GroupHandle, name string, fail boo
 	})
 }
 
-func runFoldFixture(t *testing.T, failLast bool) (*evo.Output, string) {
+func runFoldFixture(t *testing.T, failLast bool) (*evo.Run, string) {
 	t.Helper()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever, Title: "prune"})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "prune", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	group := out.Group("branches")
 	deleteBranch(out, group, "a", false)
 	deleteBranch(out, group, "b", false)
 	deleteBranch(out, group, "c", failLast)
-	_ = out.Finish()
+	_ = error(nil)
 	return out, buf.String()
 }
 
@@ -53,7 +54,7 @@ func TestPerItemEffectsUnderOneGroupFoldIntoOneHumanRow(t *testing.T) {
 func TestFoldKeepsEveryEffectInTheSnapshot(t *testing.T) {
 	out, _ := runFoldFixture(t, false)
 	var records int
-	for _, section := range out.Snapshot().Changes {
+	for _, section := range error(nil).Changes {
 		records += len(section.Records)
 	}
 	if records != 3 {

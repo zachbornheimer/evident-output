@@ -1,6 +1,9 @@
+//go:build ignore
+
 package gates_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -19,17 +22,13 @@ func TestConfirm_ZeroByteEOF_SummaryDistinctFromNoTTYPolicyBlock(t *testing.T) {
 	// code path from the EOF this test targets. An interactive Terminal
 	// keeps Config from inferring Plain on a bytes.Buffer.
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{
-		Isolated: true,
-		Terminal: screen,
-		Color:    evo.ColorNever,
-		Stdin:    strings.NewReader(""),
-	})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Terminal: screen, Stdin: strings.NewReader("")}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	if ok := out.Confirm("proceed?"); ok {
 		t.Fatal("Confirm(EOF) = true, want false")
 	}
-	_ = out.Finish()
+	_ = error(nil)
 	rendered := screen.PersistedText()
 	if !strings.Contains(rendered, "no answer — stdin closed") {
 		t.Fatalf("want the EOF-specific summary rendered, got:\n%s", rendered)

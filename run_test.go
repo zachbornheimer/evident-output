@@ -12,7 +12,7 @@ import (
 func TestMainWith_SuccessExitZero(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", color: colorNever, plain: true})
-	code := out.run(context.Background(), func(ctx context.Context) error {
+	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		succeed(out.Task("working tree"))
 		return nil
 	}).ExitCode()
@@ -27,7 +27,7 @@ func TestMainWith_SuccessExitZero(t *testing.T) {
 func TestMainWith_BlockedExitOne(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", color: colorNever, plain: true})
-	code := out.run(context.Background(), func(ctx context.Context) error {
+	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		out.Task("working tree").block("dirty")
 		return nil
 	}).ExitCode()
@@ -39,7 +39,7 @@ func TestMainWith_BlockedExitOne(t *testing.T) {
 func TestMainWith_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", color: colorNever, plain: true})
-	code := out.run(context.Background(), func(ctx context.Context) error {
+	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		succeed(out.Task("x"))
 		return errors.New("app boom")
 	}).ExitCode()
@@ -58,7 +58,7 @@ func TestMainWith_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 func TestMainWith_RunErrorDoesNotDuplicateWhenAlreadyFailed(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{title: "demo", stdout: &buf, stderr: &buf})
-	code := out.run(context.Background(), func(ctx context.Context) error {
+	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		out.Task("fetch").fail("network down", Detail("connection refused"))
 		return errors.New("network down")
 	}).ExitCode()
@@ -122,7 +122,7 @@ func TestRun_FailedExitCodeConfigurable(t *testing.T) {
 		color:          colorNever,
 		failedExitCode: 1,
 	})
-	code := out.run(context.Background(), func(ctx context.Context) error {
+	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		o := out
 		o.Task("gofmt check").fail("gofmt check exited 1")
 		return nil
@@ -139,7 +139,7 @@ func TestRun_FailedExitCodeConfigurable(t *testing.T) {
 		plain:  true,
 		color:  colorNever,
 	})
-	code2 := out2.run(context.Background(), func(ctx context.Context) error {
+	code2 := out2.run(context.Background(), func(ctx context.Context, r *Run) error {
 		o := out2
 		o.Task("x").fail("boom")
 		return nil

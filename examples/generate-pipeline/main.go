@@ -25,10 +25,9 @@ func main() {
 	workDir := flag.String("work-dir", filepath.Join(os.TempDir(), "evo-generate-pipeline-example-work"), "pipeline working directory (inputs/outputs/stub tools)")
 	flag.Parse()
 
-	evo.Init(evo.Config{Title: "generate pipeline", StateDir: *stateDir})
-	os.Exit(evo.Main(func(ctx context.Context) error {
-		return runPipeline(ctx, *workDir)
-	}))
+	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+		return runPipeline(ctx, r, *workDir)
+	}, evo.Config{State: evo.State{Dir: *stateDir}}))
 }
 
 // workDirSeeds are the pipeline's inputs and its two stub "tool" scripts.
@@ -82,8 +81,8 @@ cat schema.json compile.py > output.bin
 // compile's Basis input, and compile is declared after normalize in the same Sequence so the
 // pipeline's real execution order matches the data dependency the freshness
 // graph alone does not infer.
-func runPipeline(ctx context.Context, dir string) error {
-	seq := evo.Sequence("pipeline")
+func runPipeline(ctx context.Context, r *evo.Run, dir string) error {
+	seq := r.Sequence("pipeline")
 
 	seq.Task("seed work dir").Define(func(ctx context.Context) error {
 		return seedWorkDir(ctx, dir)
@@ -92,10 +91,9 @@ func runPipeline(ctx context.Context, dir string) error {
 	normalize := seq.Task("normalize")
 	normalize.Define(func(ctx context.Context) error {
 		_, err := evo.Exec(ctx, evo.ExecSpec{
-			Executable: filepath.Join(dir, "normalize"),
-			Dir:        dir,
-			Basis:      []evo.Fingerprint{evo.FSPath(filepath.Join(dir, "schema.xlsx"))},
-			Outputs:    []string{"schema.json"},
+			Argv:    []string{filepath.Join(dir, "normalize")},
+			Dir:     dir,
+			Outputs: []string{"schema.json"},
 		})
 		return err
 	})
@@ -103,12 +101,8 @@ func runPipeline(ctx context.Context, dir string) error {
 	compile := seq.Task("compile")
 	compile.Define(func(ctx context.Context) error {
 		_, err := evo.Exec(ctx, evo.ExecSpec{
-			Executable: filepath.Join(dir, "compile"),
-			Dir:        dir,
-			Basis: []evo.Fingerprint{
-				evo.FSPath(filepath.Join(dir, "schema.json")),
-				evo.FSPath(filepath.Join(dir, "compile.py")),
-			},
+			Argv:    []string{filepath.Join(dir, "compile")},
+			Dir:     dir,
 			Outputs: []string{"output.bin"},
 		})
 		return err

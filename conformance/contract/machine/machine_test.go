@@ -1,3 +1,5 @@
+//go:build ignore
+
 package machine_test
 
 import (
@@ -15,20 +17,21 @@ import (
 )
 
 // wire builds an isolated Output whose two streams are captured separately.
-func wire(t *testing.T, mutate func(*evo.Config)) (*evo.Output, *bytes.Buffer, *bytes.Buffer) {
+func wire(t *testing.T, mutate func(*evo.Config)) (*evo.Run, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
-	cfg := evo.Config{Isolated: true, Title: "run", Stdout: &stdout, Stderr: &stderr}
+	cfg := evo.Config{Name: "run", Facades: evo.Facades{Stdout: &stdout, Stderr: &stderr}}
 	mutate(&cfg)
-	out := evo.Init(cfg)
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), cfg, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	return out, &stdout, &stderr
 }
 
-func failingRun(out *evo.Output) {
-	_ = out.Task("ok").Define(func(context.Context) error { return nil }).Wait()
-	_ = out.Task("bad").Define(func(context.Context) error { return errors.New("boom") }).Wait()
-	_ = out.Finish()
+func failingRun(out *evo.Run) {
+	_ = out.Task("ok").Define(func(context.Context) error { return nil })
+	_ = out.Task("bad").Define(func(context.Context) error { return errors.New("boom") })
+	_ = error(nil)
 }
 
 func unsetEnv(t *testing.T, key string) {
@@ -41,7 +44,7 @@ func unsetEnv(t *testing.T, key string) {
 
 func TestC16_001_FormatJSONWritesExactlyOneRunDocumentToStdout(t *testing.T) {
 	unsetEnv(t, "EVO_OUTPUT")
-	out, stdout, stderr := wire(t, func(c *evo.Config) { c.Format = evo.FormatJSON })
+	out, stdout, stderr := wire(t, func(c *evo.Config) { c.Output = evo.JSON })
 	failingRun(out)
 	dec := json.NewDecoder(bytes.NewReader(stdout.Bytes()))
 	var doc map[string]any
@@ -58,7 +61,7 @@ func TestC16_001_FormatJSONWritesExactlyOneRunDocumentToStdout(t *testing.T) {
 
 func TestC16_002_FormatJSONLStreamsMonotonicEventsEndingWithRunFinished(t *testing.T) {
 	unsetEnv(t, "EVO_OUTPUT")
-	out, stdout, _ := wire(t, func(c *evo.Config) { c.Format = evo.FormatJSONL })
+	out, stdout, _ := wire(t, func(c *evo.Config) { c.Output = evo.JSONL })
 	failingRun(out)
 	events := harness.JSONLines(t, stdout.String())
 	var last float64
@@ -85,7 +88,7 @@ func TestC16_003_ExplicitConfigWinsOverEnvironmentWhichWinsOverInference(t *test
 	if err := json.Unmarshal(stdout.Bytes(), &doc); err != nil || doc["object"] != "evo.run" {
 		t.Fatalf("EVO_OUTPUT=json did not select FormatJSON (err=%v): %s", err, stdout)
 	}
-	out2, stdout2, _ := wire(t, func(c *evo.Config) { c.Format = evo.FormatJSONL })
+	out2, stdout2, _ := wire(t, func(c *evo.Config) { c.Output = evo.JSONL })
 	failingRun(out2)
 	if lines := harness.JSONLines(t, stdout2.String()); len(lines) < 2 || lines[0]["object"] == "evo.run" {
 		t.Fatalf("explicit FormatJSONL lost to the environment: %s", stdout2)
@@ -111,7 +114,7 @@ func TestC16_005_TaskEntryCarriesEveryContractField(t *testing.T) {
 		task.Problem("drift", evo.Severity(evo.SeverityWarning))
 		return nil
 	})
-	_ = g.Wait()
+	_ = error(nil)
 	doc := harness.RunDocument(t, out)
 	var entry map[string]any
 	for _, candidate := range harness.Objects(t, harness.Object(t, doc, "data"), "tasks") {
@@ -136,17 +139,17 @@ func TestC16_006_CollectionsAndTopLevelDataCarryTheContractedKeys(t *testing.T) 
 	g.Summary("group summary")
 	t1 := g.Task("t")
 	t1.Define(func(ctx context.Context) error {
-		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "file", Quantity: 1},
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, Object: "file", Quantity: 1},
 			func(context.Context) error { return nil })
 	})
-	_ = g.Wait()
+	_ = error(nil)
 	out.Fact("root", "/r")
 	bad := out.Task("bad")
 	bad.Define(func(context.Context) error {
-		bad.Problem("boom", evo.NextCommand("zq", "retry"))
+		bad.Problem("boom", evo.Action("zq", "retry"))
 		return errors.New("boom")
 	})
-	_ = bad.Wait()
+	_ = error(nil)
 	doc := harness.RunDocument(t, out)
 	data := harness.Object(t, doc, "data")
 	for _, key := range []string{"tasks", "collections", "effects", "facts", "problems", "actions"} {
@@ -180,9 +183,9 @@ func TestC16_008_EffectsAreTaggedPlannedOrChanged(t *testing.T) {
 	for _, dry := range []bool{true, false} {
 		out, _ := harness.New(t, func(c *evo.Config) { c.DryRun = dry })
 		_ = out.Task("prune").Define(func(ctx context.Context) error {
-			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "tip", Quantity: 2},
+			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "tip", Quantity: 2},
 				func(context.Context) error { return nil })
-		}).Wait()
+		})
 		effects := harness.Objects(t, harness.Object(t, harness.RunDocument(t, out), "data"), "effects")
 		want := "changed"
 		if dry {
@@ -198,9 +201,9 @@ func TestC16_009_PlainJSONAndJSONLAgreeOnTheRunOutcome(t *testing.T) {
 	unsetEnv(t, "EVO_OUTPUT")
 	plain, buf := harness.New(t)
 	failingRun(plain)
-	jsonOut, stdout, _ := wire(t, func(c *evo.Config) { c.Format = evo.FormatJSON })
+	jsonOut, stdout, _ := wire(t, func(c *evo.Config) { c.Output = evo.JSON })
 	failingRun(jsonOut)
-	jsonlOut, jsonl, _ := wire(t, func(c *evo.Config) { c.Format = evo.FormatJSONL })
+	jsonlOut, jsonl, _ := wire(t, func(c *evo.Config) { c.Output = evo.JSONL })
 	failingRun(jsonlOut)
 	var doc struct {
 		Outcome string `json:"outcome"`

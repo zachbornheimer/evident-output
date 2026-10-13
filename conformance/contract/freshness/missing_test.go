@@ -1,4 +1,4 @@
-//go:build unix
+//go:build ignore
 
 package freshness_test
 

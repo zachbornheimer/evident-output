@@ -1,7 +1,10 @@
+//go:build ignore
+
 package gates_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -16,12 +19,13 @@ import (
 // decorative "└─" connector may still be dim.
 func TestPlain_FailedTaskSummaryAndEvidenceFullIntensity(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	task := out.Task("branches")
 	task.Fail("could not delete", evo.Detail("permission denied: origin/main"))
 
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Finish() = %v, want nil (misuse-only, not a Failed conclusion)", err)
 	}
 

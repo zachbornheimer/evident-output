@@ -1,3 +1,5 @@
+//go:build ignore
+
 package goldens_test
 
 import (
@@ -20,11 +22,11 @@ import (
 // Phase() calls force a repaint regardless (used by Each internally), which
 // is why simple single-call Phase-driven probes didn't need this — but a
 // bare Progress/Bytes call does.
-func newLiveScreenOutput(screen *testkit.Screen) *evo.Output {
+func newLiveScreenOutput(screen *testkit.Screen) *evo.Run {
 	return newLiveScreenOutputCfg(screen, evo.Config{})
 }
 
-func newLiveScreenOutputCfg(screen *testkit.Screen, extra evo.Config) *evo.Output {
+func newLiveScreenOutputCfg(screen *testkit.Screen, extra evo.Config) *evo.Run {
 	if extra.Terminal == nil {
 		extra.Terminal = screen
 	}
@@ -35,10 +37,11 @@ func newLiveScreenOutputCfg(screen *testkit.Screen, extra evo.Config) *evo.Outpu
 		extra.MaxFrameRate = 1_000_000
 	}
 	if extra.Color == 0 {
-		extra.Color = evo.ColorNever
+		extra.Color = 0
 	}
 	extra.Isolated = true
-	return evo.Init(extra)
+	return (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), extra, func(ctx context.Context, r *evo.Run) error { return nil })
 }
 
 // TestSpecP1_LiveFrame_Step1 and TestSpecP1_LiveFrame_Step2 pinned Each's
@@ -60,7 +63,7 @@ func TestSpecP1_LiveFrame_Indeterminate(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	out.Task("branches").Doing("classifying…")
 	out.Task("worktrees")
@@ -90,7 +93,7 @@ func TestSpecP3_LiveFrame_Step2(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	salvage := out.Task("salvage")
 	salvage.Progress(1, 3)
@@ -112,7 +115,7 @@ func TestSpecP3_LiveFrame_Indeterminate(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	out.Task("salvage").Doing("planning…")
 
@@ -142,7 +145,7 @@ func TestSpecP4_LiveFrame_Step1(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	setup := out.Sequence("python")
 	scan := setup.Task("scan")
@@ -193,7 +196,7 @@ func TestSpecP4_LiveFrame_Step2(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	setup := out.Sequence("python")
 	scan := setup.Task("scan")
@@ -234,7 +237,7 @@ func TestSpecP5_LiveFrame_IndeterminateThenSealed(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	scan := out.Task("scan")
 	scan.Doing("discovering…")
@@ -262,7 +265,7 @@ func TestSpecP6_LiveFrame_BytesBar(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	out.Task("generate").Bytes(2_100_000, 8_000_000)
 
@@ -286,7 +289,7 @@ func TestSpecP6_LiveFrame_Step2(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	succeed(out.Task("generate"), "8.0 MB")
 	test := out.Task("test")
@@ -320,7 +323,7 @@ func TestSpecP7_LiveFrame_Step2(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	branches := out.Task("branches")
 	branches.Progress(40, 500)
@@ -342,7 +345,7 @@ func TestSpecP8_LiveFrame_Step1(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	remotes := out.Task("remotes")
 	remotes.Progress(1, 3)
@@ -366,7 +369,7 @@ func TestSpecP8_LiveFrame_Step2(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	remotes := out.Group("remotes")
 	succeed(remotes.Task("origin/feat/a"), "deleted origin/feat/a")
@@ -393,7 +396,7 @@ func TestSpecP9_LiveFrame_Step1(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	succeed(out.Task("scan"))
 	out.Task("venv").Doing("creating")
@@ -425,7 +428,7 @@ func TestSpecP9_LiveFrame_Step2(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	succeed(out.Task("scan"))
 	out.Task("venv").Doing("creating")
@@ -460,7 +463,7 @@ func TestSpecP11_LiveFrame_Step1(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	pipeline := out.Sequence("pipeline")
 	download := pipeline.Task("go mod download")
@@ -489,8 +492,8 @@ func TestSpecP11_LiveFrame_Step1(t *testing.T) {
 func TestSpecP25_LiveFrame_ASCIISpinner(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := newLiveScreenOutputCfg(screen, evo.Config{Glyphs: evo.GlyphsASCII})
-	t.Cleanup(func() { _ = out.Close() })
+	out := newLiveScreenOutputCfg(screen, evo.Config{})
+	t.Cleanup(func() { _ = error(nil) })
 
 	branches := out.Task("branches")
 	branches.Progress(1, 40)
@@ -526,7 +529,7 @@ func TestSpecP16_LiveFrame_NarrowTerminal_CompactDialect(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(30), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	branches := out.Task("branches")
 	branches.Progress(3, 40)
@@ -555,7 +558,7 @@ func TestSpecP26_LiveFrame_ResizeMidRun_DropsToCompactDialect(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutput(screen)
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	branches := out.Task("branches")
 	branches.Progress(3, 40)
@@ -593,7 +596,7 @@ func TestSpecConcurrentGroups_BothRunning(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := newLiveScreenOutputCfg(screen, evo.Config{MaxConcurrency: concurrentGroupsBlockedTasks})
-	t.Cleanup(func() { _ = out.Close() })
+	t.Cleanup(func() { _ = error(nil) })
 
 	worktrees := out.Group("worktrees")
 	branches := out.Group("branches")

@@ -122,16 +122,16 @@ func TestResult_ExitCodeMapping(t *testing.T) {
 		want int
 	}{
 		{"ok", func(out *Run) RunFunc {
-			return func(ctx context.Context) error { return nil }
+			return func(ctx context.Context, r *Run) error { return nil }
 		}, exitOK},
 		{"blocked", func(out *Run) RunFunc {
-			return func(ctx context.Context) error {
+			return func(ctx context.Context, r *Run) error {
 				out.Task("gate").block("no")
 				return nil
 			}
 		}, exitBlocked},
 		{"failed", func(out *Run) RunFunc {
-			return func(ctx context.Context) error { return errors.New("boom") }
+			return func(ctx context.Context, r *Run) error { return errors.New("boom") }
 		}, exitFailed},
 	}
 	for _, c := range cases {

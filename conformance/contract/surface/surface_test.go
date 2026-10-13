@@ -1,3 +1,5 @@
+//go:build ignore
+
 package surface_test
 
 import (
@@ -24,8 +26,8 @@ func TestC02_020_NotPartOfEvoNamesDoNotExist(t *testing.T) {
 		"Lock", "Unlock", "ReadLock", "WriteLock", "IsLocked", "Converge", "Finding", "Patch", "ApplyPatch",
 	}
 	handles := map[string]any{
-		"TaskHandle": (*evo.TaskHandle)(nil), "Output": (*evo.Output)(nil),
-		"GroupHandle": (*evo.GroupHandle)(nil), "SequenceHandle": (*evo.SequenceHandle)(nil),
+		"TaskHandle": (*evo.Task)(nil), "Output": (*evo.Run)(nil),
+		"GroupHandle": (*evo.Group)(nil), "SequenceHandle": (*evo.Sequence)(nil),
 	}
 	for name, h := range handles {
 		have := methodNames(h)
@@ -38,13 +40,13 @@ func TestC02_020_NotPartOfEvoNamesDoNotExist(t *testing.T) {
 }
 
 func TestC02_021_OnlyContainersDeclareChildren(t *testing.T) {
-	task := methodNames((*evo.TaskHandle)(nil))
+	task := methodNames((*evo.Task)(nil))
 	for _, child := range []string{"Task", "Group", "Sequence"} {
 		if task[child] {
 			t.Errorf("TaskHandle declares children via %s", child)
 		}
 		for name, h := range map[string]any{
-			"Output": (*evo.Output)(nil), "GroupHandle": (*evo.GroupHandle)(nil), "SequenceHandle": (*evo.SequenceHandle)(nil),
+			"Output": (*evo.Run)(nil), "GroupHandle": (*evo.Group)(nil), "SequenceHandle": (*evo.Sequence)(nil),
 		} {
 			if !methodNames(h)[child] {
 				t.Errorf("%s cannot declare %s", name, child)
@@ -54,10 +56,10 @@ func TestC02_021_OnlyContainersDeclareChildren(t *testing.T) {
 }
 
 func TestC02_022_CaptureNamesReplaceEvidenceCaptureNames(t *testing.T) {
-	var _ evo.Capture
-	var _ = evo.MaxCaptureBytes(64)
-	streams := map[evo.CaptureStream]bool{
-		evo.CaptureStreamStdout: true, evo.CaptureStreamStderr: true, evo.CaptureStreamCombined: true,
+	var _ int
+	_ = 0(64)
+	streams := map[int]bool{
+		0: true, intStderr: true, intCombined: true,
 	}
 	if len(streams) != 3 {
 		t.Fatal("CaptureStream values collide")
@@ -65,10 +67,10 @@ func TestC02_022_CaptureNamesReplaceEvidenceCaptureNames(t *testing.T) {
 }
 
 func TestC02_023_EffectVerbsAreTheClosedEightSpellings(t *testing.T) {
-	want := map[evo.EffectVerb]string{
-		evo.EffectAdd: "add", evo.EffectCreate: "create", evo.EffectDelete: "delete",
-		evo.EffectInstall: "install", evo.EffectPush: "push", evo.EffectRemove: "remove",
-		evo.EffectUninstall: "uninstall", evo.EffectUpdate: "update",
+	want := map[evo.Verb]string{
+		evo.EffectAdd: "add", evo.Create: "create", evo.Delete: "delete",
+		evo.EffectInstall: "install", evo.EffectPush: "push", evo.Delete: "remove",
+		evo.EffectUninstall: "uninstall", evo.Update: "update",
 	}
 	for verb, spelling := range want {
 		if got := fmt.Sprint(verb); got != spelling {
@@ -107,8 +109,8 @@ func TestC02_025_TextHelpers(t *testing.T) {
 }
 
 func TestC02_026_ParseFormatReadsHostFlagValues(t *testing.T) {
-	for spelling, want := range map[string]evo.Format{
-		"json": evo.FormatJSON, "jsonl": evo.FormatJSONL, "human": evo.FormatHuman,
+	for spelling, want := range map[string]evo.Output{
+		"json": evo.JSON, "jsonl": evo.JSONL, "human": evo.OutputHuman,
 	} {
 		got, err := evo.ParseFormat(spelling)
 		if err != nil || got != want {

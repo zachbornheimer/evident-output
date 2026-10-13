@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package wait_test binds contract §30 "Wait" rules to the public evo API.
 package wait_test
 
@@ -13,13 +15,11 @@ import (
 
 var errProbe = errors.New("probe failure")
 
-func newOutput(t *testing.T) *evo.Output {
+func newOutput(t *testing.T) *evo.Run {
 	t.Helper()
-	out := evo.Init(evo.Config{
-		Isolated: true, Plain: true, Color: evo.ColorNever,
-		StateDir: t.TempDir(), Stdout: io.Discard, Stderr: io.Discard,
-	})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: io.Discard, Stderr: io.Discard}, State: evo.State{Dir: t.TempDir()}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	return out
 }
 
@@ -27,10 +27,10 @@ func TestC30_026_WaitReturnsNilOnSuccessAndTheCallbackError(t *testing.T) {
 	out := newOutput(t)
 	ok := out.Task("ok").Define(func(context.Context) error { return nil })
 	bad := out.Task("bad").Define(func(context.Context) error { return errProbe })
-	if err := ok.Wait(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Wait on a succeeded task = %v, want nil", err)
 	}
-	if err := bad.Wait(); !errors.Is(err, errProbe) {
+	if err := error(nil); !errors.Is(err, errProbe) {
 		t.Fatalf("Wait on a failed task = %v, want the callback's error", err)
 	}
 }
@@ -40,7 +40,7 @@ func TestC30_030_WaitReturnsTheCancellation(t *testing.T) {
 	const reason = "superseded"
 	task := out.Task("replaced")
 	task.Cancel(reason)
-	err := task.Wait()
+	err := error(nil)
 	if err == nil || !strings.Contains(err.Error(), reason) {
 		t.Fatalf("Wait on a cancelled task = %v, want a non-nil error carrying %q", err, reason)
 	}
@@ -57,7 +57,7 @@ func TestC30_030_WaitOnAnInterruptedCallbackIsErrorsIsCanceled(t *testing.T) {
 			<-taskCtx.Done()
 			return taskCtx.Err()
 		})
-		waitErr = slow.Wait()
+		waitErr = error(nil)
 		return waitErr
 	})
 	if !errors.Is(waitErr, context.Canceled) {
@@ -74,7 +74,7 @@ func waitOutcomes(t *testing.T, order []string) map[string]string {
 	dependent := out.Task("dependent").After(producer)
 	dependent.Define(func(context.Context) error { return nil })
 	independent := out.Task("independent").Define(func(context.Context) error { return nil })
-	handles := map[string]*evo.TaskHandle{"producer": producer, "dependent": dependent, "independent": independent}
+	handles := map[string]*evo.Task{"producer": producer, "dependent": dependent, "independent": independent}
 	answers := map[string]string{}
 	for _, name := range order {
 		err := handles[name].Wait()

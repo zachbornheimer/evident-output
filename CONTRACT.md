@@ -39,7 +39,7 @@ binary name and `Output` to Human on a TTY, Plain otherwise.
 | Symbol                   | Kind   | Meaning                                                                    |
 | ------------------------ | ------ | -------------------------------------------------------------------------- |
 | `Main`                   | func   | `Main(run RunFunc, cfg ...Config) int` — run with signals, return exit     |
-| `Run`                    | func   | `Run(ctx, cfg Config, run RunFunc) Result` — run without signals           |
+| `Execute`                | func   | `Execute(ctx, cfg Config, run RunFunc) Result` — run without signals       |
 | `RunFunc`                | type   | `func(ctx context.Context, r *Run) error`, the application body            |
 | `Config`                 | type   | the run's settings; zero value is valid                                    |
 | `Config.Name`            | field  | what ran and on what, e.g. `zq prune ~/repo`                               |

@@ -79,7 +79,7 @@ func TestMain_OKExitZero(t *testing.T) {
 	var buf bytes.Buffer
 	setDefault(initRun(Config{stdout: &buf, color: colorNever, plain: true}))
 
-	code := execute_1(context.Background(), func(ctx context.Context) error {
+	code := execute_1(context.Background(), func(ctx context.Context, r *Run) error {
 		succeed(defaultRun().Task("working tree"))
 		return nil
 	}).ExitCode()
@@ -92,7 +92,7 @@ func TestMain_BlockedExitOne(t *testing.T) {
 	var buf bytes.Buffer
 	setDefault(initRun(Config{stdout: &buf, color: colorNever, plain: true}))
 
-	code := execute_1(context.Background(), func(ctx context.Context) error {
+	code := execute_1(context.Background(), func(ctx context.Context, r *Run) error {
 		defaultRun().Task("working tree").block("dirty")
 		return nil
 	}).ExitCode()
@@ -105,7 +105,7 @@ func TestMain_FailedExitTwo(t *testing.T) {
 	var buf bytes.Buffer
 	setDefault(initRun(Config{stdout: &buf, color: colorNever, plain: true}))
 
-	code := execute_1(context.Background(), func(ctx context.Context) error {
+	code := execute_1(context.Background(), func(ctx context.Context, r *Run) error {
 		return errors.New("app boom")
 	}).ExitCode()
 	if code != exitFailed {

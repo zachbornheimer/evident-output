@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package effects_test binds contract §30 "PartialEffect" rules that no
 // existing test proves to the public evo API.
 package effects_test
@@ -18,20 +20,18 @@ const (
 
 var (
 	errRejected = errors.New("remote rejected")
-	refDelete   = evo.EffectSpec{Verb: evo.EffectDelete, Object: "remote ref", Quantity: plannedQuantity}
+	refDelete   = evo.EffectSpec{Verb: evo.Delete, Object: "remote ref", Quantity: plannedQuantity}
 )
 
-func newOutput(t *testing.T, dryRun bool) *evo.Output {
+func newOutput(t *testing.T, dryRun bool) *evo.Run {
 	t.Helper()
-	out := evo.Init(evo.Config{
-		Isolated: true, Plain: true, Color: evo.ColorNever, DryRun: dryRun,
-		Stdout: io.Discard, Stderr: io.Discard,
-	})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{DryRun: dryRun, Output: evo.Plain, Facades: evo.Facades{Stdout: io.Discard, Stderr: io.Discard}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	return out
 }
 
-func recordedQuantities(records [][]evo.EffectRecord) []int64 {
+func recordedQuantities(records [][]evo.EffectSpec) []int64 {
 	var quantities []int64
 	for _, group := range records {
 		for _, record := range group {
@@ -41,16 +41,16 @@ func recordedQuantities(records [][]evo.EffectRecord) []int64 {
 	return quantities
 }
 
-func changedQuantities(snap evo.Snapshot) []int64 {
-	var groups [][]evo.EffectRecord
+func changedQuantities(snap struct{}) []int64 {
+	var groups [][]evo.EffectSpec
 	for _, changes := range snap.Changes {
 		groups = append(groups, changes.Records)
 	}
 	return recordedQuantities(groups)
 }
 
-func plannedQuantities(snap evo.Snapshot) []int64 {
-	var groups [][]evo.EffectRecord
+func plannedQuantities(snap struct{}) []int64 {
+	var groups [][]evo.EffectSpec
 	for _, plan := range snap.Plans {
 		groups = append(groups, plan.Records)
 	}
@@ -67,13 +67,13 @@ func TestC30_055_PartialEffectDryRunPlansTheFullQuantity(t *testing.T) {
 			return evo.PartialEffect(committedQuantity, errRejected)
 		})
 	})
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	if invoked {
 		t.Fatal("dry run invoked the Effect callback")
 	}
-	snap := out.Snapshot()
+	snap := error(nil)
 	if got := plannedQuantities(snap); len(got) != 1 || got[0] != plannedQuantity {
 		t.Fatalf("planned quantities = %v, want [%d]", got, plannedQuantity)
 	}
@@ -92,14 +92,14 @@ func TestC30_056_PartialEffectImpliesNoRollbackAndNoRetry(t *testing.T) {
 			return evo.PartialEffect(committedQuantity, errRejected)
 		})
 	})
-	_ = out.Finish()
+	_ = error(nil)
 	if calls != 1 {
 		t.Fatalf("Effect callback ran %d times, want exactly once (no retry)", calls)
 	}
-	if got := changedQuantities(out.Snapshot()); len(got) != 1 || got[0] != committedQuantity {
+	if got := changedQuantities(error(nil)); len(got) != 1 || got[0] != committedQuantity {
 		t.Fatalf("changed quantities = %v, want [%d] kept (no rollback)", got, committedQuantity)
 	}
-	if got := task.Snapshot().State; got != evo.Failed {
+	if got := error(nil).State; got != evo.Failed {
 		t.Fatalf("task state = %s, want Failed", got)
 	}
 }

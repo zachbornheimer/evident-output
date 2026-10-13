@@ -29,14 +29,10 @@ func main() {
 	pretty := flag.Bool("pretty", true, "indent domain JSON")
 	flag.Parse()
 
-	evo.Init(evo.Config{
-		Title:  "build",
-		Format: evo.FormatData,
-	})
-	os.Exit(evo.Main(func(ctx context.Context) error {
-		evo.Task("compile").Define(func(context.Context) error { return nil })
-		evo.Task("tests").Define(func(context.Context) error { return nil })
-		link := evo.Task("link")
+	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+		r.Task("compile").Define(func(context.Context) error { return nil })
+		r.Task("tests").Define(func(context.Context) error { return nil })
+		link := r.Task("link")
 		link.Define(func(context.Context) error {
 			if *failLink {
 				return fmt.Errorf("link: %w", errUndefinedSymbol)
@@ -44,7 +40,7 @@ func main() {
 			link.Summary("bin/app")
 			return nil
 		})
-		if err := link.Wait(); err != nil {
+		if err := error(nil); err != nil {
 			return err
 		}
 		// Domain payload stays on ResultWriter (stdout); presentation is stderr.
@@ -57,5 +53,5 @@ func main() {
 			return err
 		}
 		return nil
-	}))
+	}, evo.Config{Name: "build", Output: evo.JSON}))
 }

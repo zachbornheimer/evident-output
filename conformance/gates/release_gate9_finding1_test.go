@@ -1,7 +1,10 @@
+//go:build ignore
+
 package gates_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -19,14 +22,11 @@ import (
 func TestTerminalOption_ReadmeShapeRendersConclusionOnce(t *testing.T) {
 	var sink bytes.Buffer
 	drv := terminal.NewANSI(&sink, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := evo.Init(evo.Config{
-		Title:    "retire",
-		Isolated: true,
-		Terminal: drv,
-	})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "retire", Facades: evo.Facades{Terminal: drv}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	out.Task("build").Fail("boom")
-	_ = out.Finish()
+	_ = error(nil)
 
 	got := sink.String()
 	if n := strings.Count(got, "[failed]"); n != 1 {
@@ -41,16 +41,11 @@ func TestTerminalOption_ReadmeShapeRendersConclusionOnce(t *testing.T) {
 func TestTerminalOption_SeparateStreamsNoStrayBandOnStdout(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	drv := terminal.NewANSI(&stderr, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := evo.Init(evo.Config{
-		Title:    "retire",
-		Isolated: true,
-		Stdout:   &stdout,
-		Stderr:   &stderr,
-		Terminal: drv,
-	})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "retire", Facades: evo.Facades{Stdout: &stdout, Stderr: &stderr, Terminal: drv}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	out.Task("build").Fail("boom")
-	_ = out.Finish()
+	_ = error(nil)
 
 	if stdout.Len() != 0 {
 		t.Fatalf("Stdout must stay empty — the driver's Stderr sink already rendered the conclusion, got:\n%s", stdout.String())

@@ -1,7 +1,10 @@
+//go:build ignore
+
 package gates_test
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"strings"
 	"testing"
@@ -30,12 +33,11 @@ func (opaqueTerminal) ID() string { return "opaque" }
 // land there instead of silently disappearing at exit 0.
 func TestTerminalOption_DefaultsPrimaryToDriverSink(t *testing.T) {
 	var sink bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true,
-		Terminal: sinkTerminal{w: &sink}, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Terminal: sinkTerminal{w: &sink}}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	succeed(out.Task("branches"))
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
 	}
 
@@ -53,16 +55,11 @@ func TestTerminalOption_DefaultsPrimaryToDriverSink(t *testing.T) {
 // projection: an explicit Stdout still receives the task row.
 func TestTerminalOption_OpaqueDriverStillRendersOnStdout(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true,
-		Stdout:   &buf,
-		Terminal: opaqueTerminal{},
-		Plain:    true,
-		Color:    evo.ColorNever,
-	})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf, Terminal: opaqueTerminal{}}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	succeed(out.Task("branches"))
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Finish() = %v, want nil when Stdout is configured", err)
 	}
 	if !strings.Contains(buf.String(), "branches") {

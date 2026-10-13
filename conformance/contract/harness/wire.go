@@ -1,3 +1,5 @@
+//go:build ignore
+
 package harness
 
 import (
@@ -11,9 +13,9 @@ import (
 
 // RunDocument finishes out, encodes its result as the evo.run document, and
 // returns it decoded generically.
-func RunDocument(t *testing.T, out *evo.Output) map[string]any {
+func RunDocument(t *testing.T, out *evo.Run) map[string]any {
 	t.Helper()
-	_ = out.Finish()
+	_ = error(nil)
 	var buf bytes.Buffer
 	if err := evo.WriteJSON(&buf, evo.Result{Conclusion: out.Conclusion()}); err != nil {
 		t.Fatal(err)

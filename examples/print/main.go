@@ -5,22 +5,22 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
 
 func main() {
-	evo.Init(evo.Config{Title: "packages"})
-	os.Exit(evo.Main(func(ctx context.Context) error {
+	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
 		// Managed, line-oriented replacement for human-facing fmt.Print*
 		// (not a byte-for-byte fmt drop-in).
-		evo.Println("Reading configuration")
-		evo.Printf("Found %d packages\n", 18)
-		evo.Print("Resolving")
-		evo.Print("…")
-		evo.Print("\n")
-		evo.Println("Ready")
+		_, _ = fmt.Fprintln(r.Text(), "Reading configuration")
+		_, _ = fmt.Fprintf(r.Text(), "Found %d packages\n", 18)
+		_, _ = fmt.Fprint(r.Text(), "Resolving")
+		_, _ = fmt.Fprint(r.Text(), "…")
+		_, _ = fmt.Fprint(r.Text(), "\n")
+		_, _ = fmt.Fprintln(r.Text(), "Ready")
 		return nil
-	}))
+	}, evo.Config{Name: "packages"}))
 }

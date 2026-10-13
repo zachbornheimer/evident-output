@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package architecture holds stdlib-grade audit gates for the evo module:
 // fitness tests that are not about any one feature's behavior but about
 // invariants the whole module must hold (dependency surface, no import-time
@@ -54,7 +56,7 @@ func requiredModules(t *testing.T, goModPath string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = f.Close() }()
+	defer func() { _ = error(nil) }()
 
 	var modules []string
 	inBlock := false

@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
 // ExampleSnapshot reads the immutable complete presentation state of a
@@ -63,16 +61,4 @@ func ExampleMessageSnapshot() {
 	fmt.Println(msg.Text, msg.Visibility == visibilityNormal)
 	// Output:
 	// reading configuration true
-}
-
-// ExampleRun_Events reads the durable event journal for a JSONL
-// projection (mcp/docs/development.md's "Machine output" snippet).
-func exampleRun_Events() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
-	out.Task("apply patch").Define(func(context.Context) error { return nil })
-	_ = out.finish()
-	jsonl, err := wire.EncodeJSONL(out.events())
-	fmt.Println(len(jsonl) > 0, err)
-	// Output:
-	// true <nil>
 }

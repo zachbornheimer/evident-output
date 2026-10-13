@@ -23,36 +23,35 @@ func main() {
 	fail := flag.Bool("fail", false, "with --apply, simulate backup failure")
 	flag.Parse()
 
-	evo.Init(evo.Config{Title: "schema migration", DryRun: !*apply})
-	os.Exit(evo.Main(func(ctx context.Context) error {
+	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
 		backups := &backupStore{}
-		backup := evo.Task("backup")
+		backup := r.Task("backup")
 		backup.Define(func(ctx context.Context) error {
 			backup.Doing("snapshotting production")
 			if *apply && *fail {
-				backup.Fail(
+				backup.Problem(
 					"backup failed",
 					evo.Detail("check the backup destination and credentials"),
 				)
 				return nil
 			}
-			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "snapshot", Quantity: 1}, func(ctx context.Context) error {
+			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, Object: "snapshot", Quantity: 1}, func(ctx context.Context) error {
 				return backups.Snapshot(ctx, "production")
 			})
 		})
-		if err := backup.Wait(); err != nil {
+		if err := error(nil); err != nil {
 			return nil
 		}
 
-		schema := evo.Sequence("schema")
+		schema := r.Sequence("schema")
 		db := &database{}
 		schema.Task("email column").Define(func(ctx context.Context) error {
-			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "column", Quantity: 1}, func(ctx context.Context) error {
+			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, Object: "column", Quantity: 1}, func(ctx context.Context) error {
 				return db.ExecContext(ctx, addColumnDDL)
 			})
 		})
 		schema.Task("email index").Define(func(ctx context.Context) error {
-			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "index", Quantity: 1}, func(ctx context.Context) error {
+			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, Object: "index", Quantity: 1}, func(ctx context.Context) error {
 				return db.ExecContext(ctx, createIndexDDL)
 			})
 		})

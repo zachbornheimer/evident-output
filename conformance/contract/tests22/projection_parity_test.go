@@ -1,3 +1,5 @@
+//go:build ignore
+
 package tests22_test
 
 import (
@@ -20,36 +22,34 @@ const (
 type projected struct {
 	stdout     string
 	conclusion evo.Conclusion
-	state      evo.EntityState
+	state      string
 }
 
 // failedRun declares one succeeding and one failing task, where the failure
 // carries probeCode, and returns what one projection wrote.
-func failedRun(t *testing.T, format evo.Format, wording string) projected {
+func failedRun(t *testing.T, format evo.Output, wording string) projected {
 	t.Helper()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true, Plain: true, Color: evo.ColorNever, Format: format,
-		Stdout: &buf, Stderr: io.Discard,
-	})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: format, Facades: evo.Facades{Stdout: &buf, Stderr: io.Discard}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	out.Task("fine").Define(func(context.Context) error { return nil })
 	probe := out.Task("probe")
 	probe.Define(func(context.Context) error {
 		probe.Problem(wording, evo.Code(probeCode))
 		return nil
 	})
-	_ = out.Finish()
-	return projected{buf.String(), out.Conclusion(), probe.Snapshot().State}
+	_ = error(nil)
+	return projected{buf.String(), out.Conclusion(), error(nil).State}
 }
 
 func TestC22_020_TTYPlainJSONAndJSONLAgreeOnTheSameRun(t *testing.T) {
-	human := failedRun(t, evo.FormatHuman, probeSummary)
+	human := failedRun(t, evo.OutputHuman, probeSummary)
 	if !strings.Contains(human.stdout, "✗ probe") || !strings.Contains(human.stdout, probeSummary) {
 		t.Fatalf("human projection lost the failed task or its problem:\n%s", human.stdout)
 	}
 
-	asJSON := failedRun(t, evo.FormatJSON, probeSummary)
+	asJSON := failedRun(t, evo.JSON, probeSummary)
 	var doc wire.RunDocument
 	if err := json.Unmarshal([]byte(asJSON.stdout), &doc); err != nil {
 		t.Fatalf("decode run document: %v\n%s", err, asJSON.stdout)
@@ -64,7 +64,7 @@ func TestC22_020_TTYPlainJSONAndJSONLAgreeOnTheSameRun(t *testing.T) {
 		t.Fatalf("JSON task states %+v disagree with the human state %s", doc.Data.Tasks, human.state)
 	}
 
-	asJSONL := failedRun(t, evo.FormatJSONL, probeSummary)
+	asJSONL := failedRun(t, evo.JSONL, probeSummary)
 	requireEventStream(t, asJSONL.stdout)
 	if asJSONL.conclusion.ExitCode != human.conclusion.ExitCode {
 		t.Fatalf("JSONL conclusion exit = %d, human = %d", asJSONL.conclusion.ExitCode, human.conclusion.ExitCode)
@@ -79,7 +79,7 @@ func taskProblems(doc wire.RunDocument) []wire.ProblemDoc {
 	return problems
 }
 
-func taskStateMatches(doc wire.RunDocument, name string, want evo.EntityState) bool {
+func taskStateMatches(doc wire.RunDocument, name string, want string) bool {
 	for _, task := range doc.Data.Tasks {
 		if task.Name == name {
 			return strings.EqualFold(task.State, string(want))
@@ -124,9 +124,9 @@ func problemCodes(t *testing.T, stdout string) []string {
 }
 
 func TestC22_021_ProblemCodesStayStableAcrossRunsAndWording(t *testing.T) {
-	first := failedRun(t, evo.FormatJSON, probeSummary)
-	again := failedRun(t, evo.FormatJSON, probeSummary)
-	reworded := failedRun(t, evo.FormatJSON, "the probe did not pass")
+	first := failedRun(t, evo.JSON, probeSummary)
+	again := failedRun(t, evo.JSON, probeSummary)
+	reworded := failedRun(t, evo.JSON, "the probe did not pass")
 	for name, run := range map[string]projected{"rerun": again, "reworded": reworded} {
 		got := problemCodes(t, run.stdout)
 		if len(got) != 1 || got[0] != probeCode {

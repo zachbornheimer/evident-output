@@ -39,15 +39,6 @@ func ExampleEvent() {
 	// task.done apply patch
 }
 
-// ExampleFactRecord shows a discovered name/value annotation — information,
-// not work.
-func exampleFactRecord() {
-	f := factRecord{Name: "language", Value: "go"}
-	fmt.Println(f.Name, f.Value)
-	// Output:
-	// language go
-}
-
 // ExampleFact records a discovered name/value annotation about the run
 // itself.
 func ExampleFact() {
@@ -70,13 +61,4 @@ func ExampleWarn() {
 	fmt.Println(out.conclusion().warned)
 	// Output:
 	// true
-}
-
-// ExampleDelay returns a non-nil *time.Duration for Config fields where
-// zero is meaningful, like VisibilityDelay.
-func exampleDelay() {
-	d := delay(0)
-	fmt.Println(*d)
-	// Output:
-	// 0s
 }

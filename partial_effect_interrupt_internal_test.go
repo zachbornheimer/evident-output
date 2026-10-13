@@ -25,7 +25,7 @@ func TestPartialEffect_InterruptAfterPartialCommitKeepsTheCommittedSubset(t *tes
 	var effectErr error
 	code := make(chan int, 1)
 	go func() {
-		code <- out.run(context.Background(), func(ctx context.Context) error {
+		code <- out.run(context.Background(), func(ctx context.Context, r *Run) error {
 			task := out.Task("refs")
 			task.Define(func(ctx context.Context) error {
 				spec := EffectSpec{Verb: Delete, Object: "remote ref", Quantity: 3}

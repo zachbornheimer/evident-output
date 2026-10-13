@@ -36,7 +36,7 @@ func TestTaskHandle_Wait_UnderHeldClaimIsNestedAcquisition(t *testing.T) {
 	dir := t.TempDir()
 	out := initRun(Config{isolated: true, plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
 	var waitErr error
-	runWithin(t, out, func(ctx context.Context) error {
+	runWithin(t, out, func(ctx context.Context, r *Run) error {
 		b := out.Task("write file")
 		b.Define(func(ctx context.Context) error {
 			return File(ctx, FileSpec{Path: filepath.Join(dir, "x"), Contents: []byte("hi")})
@@ -64,7 +64,7 @@ func TestGroupHandle_Wait_UnderHeldClaimIsNestedAcquisition(t *testing.T) {
 	dir := t.TempDir()
 	out := initRun(Config{isolated: true, plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
 	var waitErr error
-	runWithin(t, out, func(ctx context.Context) error {
+	runWithin(t, out, func(ctx context.Context, r *Run) error {
 		files := out.Group("files")
 		files.Task("x").Define(func(ctx context.Context) error {
 			return File(ctx, FileSpec{Path: filepath.Join(dir, "x"), Contents: []byte("hi")})
@@ -90,7 +90,7 @@ func TestGroupHandle_Wait_UnderHeldClaimIsNestedAcquisition(t *testing.T) {
 func TestTaskHandle_Wait_WithoutClaimStillSucceeds(t *testing.T) {
 	dir := t.TempDir()
 	out := initRun(Config{isolated: true, plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
-	res := runWithin(t, out, func(ctx context.Context) error {
+	res := runWithin(t, out, func(ctx context.Context, r *Run) error {
 		b := out.Task("write file")
 		b.Define(func(ctx context.Context) error {
 			return File(ctx, FileSpec{Path: filepath.Join(dir, "x"), Contents: []byte("hi")})
@@ -129,7 +129,7 @@ func waitFromSpawnedGoroutine(wait func() error) error {
 func TestGroupHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition(t *testing.T) {
 	out := initRun(Config{isolated: true, plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
 	var waitErr error
-	runWithin(t, out, func(ctx context.Context) error {
+	runWithin(t, out, func(ctx context.Context, r *Run) error {
 		jobs := out.Group("jobs")
 		jobs.Task("c").Define(func(ctx context.Context) error {
 			return gitClaim(ctx, func(context.Context) error { return nil })
@@ -154,7 +154,7 @@ func TestGroupHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition(t *t
 func TestTaskHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition(t *testing.T) {
 	out := initRun(Config{isolated: true, plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
 	var waitErr error
-	runWithin(t, out, func(ctx context.Context) error {
+	runWithin(t, out, func(ctx context.Context, r *Run) error {
 		c := out.Task("c")
 		c.Define(func(ctx context.Context) error {
 			return gitClaim(ctx, func(context.Context) error { return nil })

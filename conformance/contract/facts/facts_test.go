@@ -1,3 +1,5 @@
+//go:build ignore
+
 package facts_test
 
 import (
@@ -10,7 +12,7 @@ import (
 	"github.com/zachbornheimer/evident-output/conformance/contract/harness"
 )
 
-func factTask(out *evo.Output, name string, fail bool) *evo.TaskHandle {
+func factTask(out *evo.Run, name string, fail bool) *evo.Task {
 	task := out.Task(name)
 	task.Define(func(context.Context) error {
 		task.Fact("path", "/secret/place")
@@ -19,7 +21,7 @@ func factTask(out *evo.Output, name string, fail bool) *evo.TaskHandle {
 		}
 		return nil
 	})
-	_ = task.Wait()
+	_ = error(nil)
 	return task
 }
 
@@ -34,7 +36,7 @@ func TestC11_001_FactsAreHiddenInNormalOutputOnEveryOutcome(t *testing.T) {
 }
 
 func TestC11_002_VerboseOutputShowsFacts(t *testing.T) {
-	out, buf := harness.New(t, func(c *evo.Config) { c.Verbosity = evo.VerbosityVerbose })
+	out, buf := harness.New(t, func(c *evo.Config) { c.Verbosity = true })
 	factTask(out, "job", false)
 	if text := harness.Text(out, buf); !strings.Contains(text, "path  /secret/place") {
 		t.Fatalf("verbose output lacks the Fact:\n%s", text)

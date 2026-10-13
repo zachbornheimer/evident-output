@@ -17,10 +17,11 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-func isolated(t *testing.T) *evo.Output {
+func isolated(t *testing.T) *evo.Run {
 	t.Helper()
-	out := evo.Init(evo.Config{Isolated: true, Stdout: os.Stdout, Stderr: os.Stderr})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Stdout: os.Stdout, Stderr: os.Stderr}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	return out
 }
 

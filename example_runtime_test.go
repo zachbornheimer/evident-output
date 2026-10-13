@@ -20,16 +20,6 @@ func ExampleInit() {
 	// ✓ read config
 }
 
-// ExampleDefaultConfig shows building a mutable baseline Config and
-// overriding one field before passing it to Init.
-func exampleDefaultConfig() {
-	cfg := defaultConfig()
-	cfg.title = "repo-retire"
-	fmt.Println(cfg.title)
-	// Output:
-	// repo-retire
-}
-
 // ExampleConfig shows the ordinary application-facing construction surface:
 // a Title and an explicit Stdout writer.
 func ExampleConfig() {
@@ -105,7 +95,7 @@ func ExampleOutput() {
 func ExampleRun() {
 	var buf bytes.Buffer
 	setDefault(initRun(Config{stdout: &buf, stderr: io.Discard, plain: true}))
-	result := execute_1(context.Background(), func(ctx context.Context) error {
+	result := execute_1(context.Background(), func(ctx context.Context, r *Run) error {
 		defaultRun().Task("apply migration").Define(func(context.Context) error { return nil })
 		return nil
 	})
@@ -120,10 +110,9 @@ func ExampleRun() {
 // Main itself calling os.Exit — the caller writes os.Exit(Main(run)).
 func ExampleMain() {
 	var buf bytes.Buffer
-	setDefault(initRun(Config{stdout: &buf, stderr: io.Discard, plain: true}))
-	code := Main(func(ctx context.Context) error {
+	code := Main(func(ctx context.Context, r *Run) error {
 		return errors.New("disk full")
-	})
+	}, Config{Output: Plain, Facades: Facades{Stdout: &buf, Stderr: io.Discard}})
 	fmt.Println(code)
 	// Output:
 	// 2
@@ -141,8 +130,8 @@ func ExampleResult() {
 // ExampleRunFunc shows the RunFunc shape application code hands to
 // Run/Main/Output.Run: a context.Context in, an error out.
 func ExampleRunFunc() {
-	var run RunFunc = func(ctx context.Context) error { return nil }
-	fmt.Println(run(context.Background()))
+	var run RunFunc = func(ctx context.Context, r *Run) error { return nil }
+	fmt.Println(run(context.Background(), nil))
 	// Output:
 	// <nil>
 }

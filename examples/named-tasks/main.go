@@ -11,16 +11,15 @@ import (
 )
 
 func main() {
-	evo.Init(evo.Config{Title: "compose"})
-	os.Exit(evo.Main(func(ctx context.Context) error {
-		evo.Task("config").Define(func(context.Context) error { return nil })
-		evo.Task("credentials").Define(func(context.Context) error { return nil })
-		pull := evo.Task("pull base image")
+	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+		r.Task("config").Define(func(context.Context) error { return nil })
+		r.Task("credentials").Define(func(context.Context) error { return nil })
+		pull := r.Task("pull base image")
 		pull.Define(func(context.Context) error {
 			pull.Doing("fetching")
 			pull.Summary("sha256:abc")
 			return nil
 		})
 		return nil
-	}))
+	}, evo.Config{Name: "compose"}))
 }

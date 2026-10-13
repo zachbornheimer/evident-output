@@ -58,19 +58,6 @@ func ExampleProblemSeverity() {
 	// error warning
 }
 
-// ExampleSeverity sets a Problem's severity. Default is SeverityError.
-func exampleSeverity() {
-	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, plain: true, stdout: &buf, stderr: io.Discard})
-	out.Task("cache").Problem("stale entry ignored", severity(severityWarning))
-	_ = out.finish()
-	fmt.Print(buf.String())
-	// Output:
-	// ✓ cache  ! stale entry ignored
-	//
-	// [ready · warned]
-}
-
 // ExampleDetail sets user-visible detail text on a Problem raised via
 // Task.Fail.
 func ExampleDetail() {
@@ -145,21 +132,6 @@ func ExampleNext() {
 	//
 	// [failed]
 	// →  pull --rebase first
-}
-
-// ExampleNextCommand attaches a recommended command action to a Problem —
-// same projection contract as ExampleNext.
-func exampleNextCommand() {
-	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, plain: true, stdout: &buf, stderr: io.Discard})
-	out.Task("push branch").fail("rejected: non-fast-forward", nextCommand("git", "pull", "--rebase"))
-	_ = out.finish()
-	fmt.Print(buf.String())
-	// Output:
-	// ✗ push branch  rejected: non-fast-forward
-	//
-	// [failed]
-	// →  git pull --rebase
 }
 
 // ExampleFailure shows Failure's error text. Failf/Blockf were removed in

@@ -25,9 +25,8 @@ func main() {
 	quiet := flag.Duration("quiet", 900*time.Millisecond, "how long the task stays Running without output")
 	flag.Parse()
 
-	evo.Init(evo.Config{Title: "quiet-writer"})
-	os.Exit(evo.Main(func(ctx context.Context) error {
-		build := evo.Task("build")
+	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+		build := r.Task("build")
 		build.Define(func(ctx context.Context) error {
 			return buildQuietly(ctx, build, *quiet)
 		})
@@ -37,7 +36,7 @@ func main() {
 
 // buildQuietly writes the evidence lines, then waits without output. The
 // wait is the real shape under test: a child process that has gone silent.
-func buildQuietly(ctx context.Context, build *evo.TaskHandle, quiet time.Duration) error {
+func buildQuietly(ctx context.Context, build *evo.Task, quiet time.Duration) error {
 	log := build.Writer()
 	for line := 1; line <= evidenceLines; line++ {
 		if _, err := io.WriteString(log, "compile unit "+strconv.Itoa(line)+" of "+strconv.Itoa(evidenceLines)+"\n"); err != nil {

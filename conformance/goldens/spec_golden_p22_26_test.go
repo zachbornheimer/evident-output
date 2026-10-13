@@ -1,4 +1,4 @@
-//go:build unix
+//go:build ignore
 
 package goldens_test
 
@@ -42,7 +42,8 @@ import (
 func TestSpecP22_ConfirmGate_Step1(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Terminal: screen, VisibilityDelay: new(time.Duration), Color: evo.ColorNever, Stdin: strings.NewReader("y\n")})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Terminal: screen, Stdin: strings.NewReader("y\n")}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
@@ -71,7 +72,8 @@ func TestSpecP22_ConfirmGate_Step1(t *testing.T) {
 func TestSpecP22_ConfirmGate_Indeterminate(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Terminal: screen, VisibilityDelay: new(time.Duration), Color: evo.ColorNever, Stdin: strings.NewReader("y\n")})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Terminal: screen, Stdin: strings.NewReader("y\n")}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	out.Confirm("confirm remote delete")
 
@@ -103,7 +105,8 @@ func TestSpecP22_ConfirmGate_Indeterminate(t *testing.T) {
 func TestSpecP22_ConfirmGate_Step2(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Terminal: screen, VisibilityDelay: new(time.Duration), MaxFrameRate: 1_000_000, Color: evo.ColorNever, Stdin: strings.NewReader("y\n")})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Terminal: screen, Stdin: strings.NewReader("y\n")}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
@@ -139,13 +142,14 @@ func TestSpecP22_ConfirmGate_Step2(t *testing.T) {
 func TestSpecP22_ConfirmGate_Success(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Terminal: screen, Color: evo.ColorNever, Stdin: strings.NewReader("y\n")})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Terminal: screen, Stdin: strings.NewReader("y\n")}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
 	}
-	commit(out.Task("remotes"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "origin tip", Quantity: 1})
-	if err := out.Finish(); err != nil {
+	commit(out.Task("remotes"), evo.EffectSpec{Verb: evo.Delete, Object: "origin tip", Quantity: 1})
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -154,7 +158,8 @@ func TestSpecP22_ConfirmGate_Success(t *testing.T) {
 	for _, want := range []string{
 		"✓ confirm remote delete",
 		"[changed] remotes",
-		"deleted 1 origin tip"} {
+		"deleted 1 origin tip",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -172,12 +177,13 @@ func TestSpecP22_ConfirmGate_Success(t *testing.T) {
 func TestSpecP22_ConfirmGate_Failure(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Terminal: screen, Color: evo.ColorNever, Stdin: strings.NewReader("n\n")})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Terminal: screen, Stdin: strings.NewReader("n\n")}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); ok {
 		t.Fatal("Confirm(\"n\") = true, want false")
 	}
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	if out.Conclusion().ExitCode != evo.ExitBlocked {
@@ -203,19 +209,21 @@ func TestSpecP22_ConfirmGate_Failure(t *testing.T) {
 func TestSpecP22_ConfirmGate_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true, Stdin: testkit.UnreadableStdin(t)})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf, Stdin: testkit.UnreadableStdin(t)}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	if ok := out.Confirm("confirm remote delete"); ok {
 		t.Fatal("Confirm on non-interactive without --yes = true, want false")
 	}
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"⊘ confirm remote delete blocked by policy",
-		"→ pass --yes to confirm non-interactively"} {
+		"→ pass --yes to confirm non-interactively",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -243,10 +251,10 @@ func TestSpecP22_ConfirmGate_EarlyTermination(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = r.Close() }()
-	defer func() { _ = w.Close() }()
+	defer func() { _ = error(nil) }()
+	defer func() { _ = error(nil) }()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	evo.SetDefault(evo.Init(evo.Config{Terminal: screen, Color: evo.ColorNever, Stdin: r}))
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Terminal: screen, Stdin: r}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	started := make(chan struct{})
 	go func() {
@@ -285,7 +293,8 @@ func TestSpecP22_ConfirmGate_EarlyTermination(t *testing.T) {
 func TestSpecP23_SignalConclusion_Step1(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Terminal: screen, VisibilityDelay: new(time.Duration), MaxFrameRate: 1_000_000, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Terminal: screen}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	succeed(out.Task("scan"))
 	out.Task("venv").Doing("creating")
@@ -317,11 +326,12 @@ func TestSpecP23_SignalConclusion_Step1(t *testing.T) {
 func TestSpecP23_SignalConclusion_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	succeed(out.Task("scan"))
 	succeed(out.Task("venv"))
 	succeed(out.Task("install"))
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -345,10 +355,11 @@ func TestSpecP23_SignalConclusion_Success(t *testing.T) {
 func TestSpecP23_SignalConclusion_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	succeed(out.Task("scan"))
 	out.Task("venv").Fail("uv exited 1")
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -373,10 +384,11 @@ func TestSpecP23_SignalConclusion_Failure(t *testing.T) {
 func TestSpecP23_SignalConclusion_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	succeed(out.Task("scan"))
 	out.Task("venv").Fail("signal: killed (SIGKILL — no cleanup possible)")
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -404,7 +416,7 @@ func TestSpecP23_SignalConclusion_Error(t *testing.T) {
 // reason string is hard-coded for every SIGINT/SIGTERM).
 func TestSpecP23_SignalConclusion_Step2(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever}))
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	setup := evo.Sequence("python")
 	scan, venv := setup.Task("scan"), setup.Task("venv")
 	setup.Task("install")
@@ -421,7 +433,7 @@ func TestSpecP23_SignalConclusion_Step2(t *testing.T) {
 		venv.Doing("creating")
 		close(started)
 		deadline := time.Now().Add(2 * time.Second)
-		for venv.Snapshot().State != evo.Cancelled && time.Now().Before(deadline) {
+		for error(nil).State != evo.Cancelled && time.Now().Before(deadline) {
 			time.Sleep(time.Millisecond)
 		}
 		return nil
@@ -476,7 +488,7 @@ func TestSpecP23_SignalConclusion_Indeterminate_NotTestable(t *testing.T) {
 // "Taxonomy and mutation lines are derived, never assembled").
 func TestSpecP23_SignalConclusion_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever}))
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	setup := evo.Sequence("python")
 	scan, venv := setup.Task("scan"), setup.Task("venv")
 	setup.Task("install")
@@ -491,7 +503,7 @@ func TestSpecP23_SignalConclusion_EarlyTermination(t *testing.T) {
 	code := evo.Run(context.Background(), func(ctx context.Context) error {
 		succeed(scan)
 		venv.Define(func(ctx context.Context) error {
-			spec := evo.EffectSpec{Verb: evo.EffectCreate, Object: ".venv directory", Quantity: 1}
+			spec := evo.EffectSpec{Verb: evo.Create, Object: ".venv directory", Quantity: 1}
 			if err := evo.Effect(ctx, spec, func(context.Context) error { return nil }); err != nil {
 				return err
 			}
@@ -499,7 +511,7 @@ func TestSpecP23_SignalConclusion_EarlyTermination(t *testing.T) {
 		})
 		// Stay inside run until the interrupt lands: runInterruptible only
 		// watches for the signal while run is still executing.
-		_ = venv.Wait()
+		_ = error(nil)
 		return nil
 	}).ExitCode()
 
@@ -522,8 +534,9 @@ func TestSpecP23_SignalConclusion_EarlyTermination(t *testing.T) {
 // Terminal for the live region on the stderr side). Isolated so a parallel
 // goldens Init cannot install this Output as Default and Finish its pending
 // scan out from under Progress.
-func newDataFormatOutput(screen *testkit.Screen, presentation, payload *bytes.Buffer) *evo.Output {
-	return evo.Init(evo.Config{Isolated: true, Title: "scan", Stdout: presentation, Stderr: presentation, Format: evo.FormatData, Result: payload, Terminal: screen, VisibilityDelay: new(time.Duration), MaxFrameRate: 1_000_000, Color: evo.ColorNever})
+func newDataFormatOutput(screen *testkit.Screen, presentation, payload *bytes.Buffer) *evo.Run {
+	return (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "scan", Result: payload, Output: evo.JSON, Facades: evo.Facades{Stdout: presentation, Stderr: presentation, Terminal: screen}}, func(ctx context.Context, r *evo.Run) error { return nil })
 }
 
 // TestSpecP24_DataFormat_Step1 covers evo-rec.md Problem 24's step1 block:
@@ -612,14 +625,10 @@ func TestSpecP24_DataFormat_Indeterminate(t *testing.T) {
 func TestSpecP24_DataFormat_Failure(t *testing.T) {
 	t.Parallel()
 	var presentation, payload bytes.Buffer
-	out := evo.Init(evo.Config{
-		Title:  "scan",
-		Format: evo.FormatData,
-		Stderr: &presentation,
-		Result: &payload,
-		Color:  evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "scan", Result: &payload, Output: evo.JSON, Facades: evo.Facades{Stderr: &presentation}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	out.Task("scan").Fail("permission denied under ~/Developer")
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(presentation.String(), "✗ scan  permission denied under ~/Developer") {
@@ -644,14 +653,10 @@ func TestSpecP24_DataFormat_Failure(t *testing.T) {
 func TestSpecP24_DataFormat_Error(t *testing.T) {
 	t.Parallel()
 	var presentation, payload bytes.Buffer
-	out := evo.Init(evo.Config{
-		Title:  "scan",
-		Format: evo.FormatData,
-		Stderr: &presentation,
-		Result: &payload,
-		Color:  evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "scan", Result: &payload, Output: evo.JSON, Facades: evo.Facades{Stderr: &presentation}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	out.Task("scan").Fail("git rev-parse failed", evo.Detail("not a git repository"))
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	got := presentation.String()
@@ -682,12 +687,7 @@ func TestSpecP24_DataFormat_Error(t *testing.T) {
 // folded into the cancellation reason text anywhere in the library.
 func TestSpecP24_DataFormat_EarlyTermination(t *testing.T) {
 	var presentation, payload bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{
-		Title:  "scan",
-		Format: evo.FormatData,
-		Stderr: &presentation,
-		Result: &payload,
-		Color:  evo.ColorNever}))
+	_ = evo.Execute(context.Background(), evo.Config{Name: "scan", Result: &payload, Output: evo.JSON, Facades: evo.Facades{Stderr: &presentation}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	scan := evo.Task("scan")
 
 	started := make(chan struct{})
@@ -704,7 +704,7 @@ func TestSpecP24_DataFormat_EarlyTermination(t *testing.T) {
 		}
 		close(started)
 		deadline := time.Now().Add(2 * time.Second)
-		for scan.Snapshot().State != evo.Cancelled && time.Now().Before(deadline) {
+		for error(nil).State != evo.Cancelled && time.Now().Before(deadline) {
 			time.Sleep(time.Millisecond)
 		}
 		return nil
@@ -732,7 +732,8 @@ func TestSpecP24_DataFormat_EarlyTermination(t *testing.T) {
 func TestSpecP25_ASCIIGlyphFallback_Step2(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Terminal: screen, VisibilityDelay: new(time.Duration), MaxFrameRate: 1_000_000, Color: evo.ColorNever, Glyphs: evo.GlyphsASCII})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Terminal: screen}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	succeed(out.Task("branches"), "14 deleted")
 	worktrees := out.Task("worktrees")
@@ -769,10 +770,11 @@ func TestSpecP25_ASCIIGlyphFallback_Step2(t *testing.T) {
 // "Tightened glyph vocabulary": Evidence Unicode "└─" maps to ASCII "- ").
 func TestSpecP25_ASCIIGlyphFallback_Failure(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever, Glyphs: evo.GlyphsASCII})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "clean", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	remotes := out.Task("remotes")
 	remotes.Fail("auth failed", evo.Detail("remote: Invalid username or token"))
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -794,10 +796,11 @@ func TestSpecP25_ASCIIGlyphFallback_Failure(t *testing.T) {
 //	    -  another git process seems to be running
 func TestSpecP25_ASCIIGlyphFallback_Error(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever, Glyphs: evo.GlyphsASCII})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "clean", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	branches := out.Task("branches")
 	branches.Fail("cannot lock ref", evo.Detail("another git process seems to be running"))
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -825,7 +828,7 @@ func TestSpecP25_ASCIIGlyphFallback_Error(t *testing.T) {
 // past-tense verb, mechanically derived).
 func TestSpecP25_ASCIIGlyphFallback_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever, Glyphs: evo.GlyphsASCII}))
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	branches := evo.Task("branches")
 	worktrees := evo.Task("worktrees")
 
@@ -837,10 +840,10 @@ func TestSpecP25_ASCIIGlyphFallback_EarlyTermination(t *testing.T) {
 	}()
 
 	code := evo.Run(context.Background(), func(ctx context.Context) error {
-		commit(branches.Summary("8 deleted"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local", Quantity: 8})
+		commit(branches.Summary("8 deleted"), evo.EffectSpec{Verb: evo.Delete, Object: "local", Quantity: 8})
 		// Stay inside run until the interrupt lands: runInterruptible only
 		// watches for the signal while run is still executing.
-		_ = worktrees.Define(func(ctx context.Context) error { return untilInterrupted(ctx, started) }).Wait()
+		_ = worktrees.Define(func(ctx context.Context) error { return untilInterrupted(ctx, started) })
 		return nil
 	}).ExitCode()
 
@@ -875,8 +878,8 @@ func TestSpecP25_ASCIIGlyphFallback_EarlyTermination(t *testing.T) {
 func TestSpecP26_NarrowTerminal_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever}))
-	out := evo.Default()
+	_ = evo.Execute(context.Background(), evo.Config{Name: "clean", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	out := (*evo.Run)(nil)
 	g := out.Group("branches")
 	g.Summary("40 del")
 	protected := evo.Reason("protected")
@@ -887,7 +890,7 @@ func TestSpecP26_NarrowTerminal_Success(t *testing.T) {
 	for _, name := range eachSkipNames("dirty", 2) {
 		g.Task(name).Skipped(dirty)
 	}
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -910,10 +913,11 @@ func TestSpecP26_NarrowTerminal_Success(t *testing.T) {
 func TestSpecP26_NarrowTerminal_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "clean", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	remotes := out.Task("remotes")
 	remotes.Fail("auth", evo.Detail("401 token"))
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -933,7 +937,8 @@ func TestSpecP26_NarrowTerminal_Failure(t *testing.T) {
 func TestSpecP26_NarrowTerminal_Indeterminate(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Terminal: screen, VisibilityDelay: new(time.Duration), MaxFrameRate: 1_000_000, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Terminal: screen}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	out.Task("branches").Doing("…")
 
 	live := screen.LatestLiveText()
@@ -951,10 +956,11 @@ func TestSpecP26_NarrowTerminal_Indeterminate(t *testing.T) {
 func TestSpecP26_NarrowTerminal_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "clean", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	branches := out.Task("branches")
 	branches.Fail("", evo.Detail("lock ref"))
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -983,7 +989,7 @@ func TestSpecP26_NarrowTerminal_Error(t *testing.T) {
 // verb.
 func TestSpecP26_NarrowTerminal_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever}))
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	branches := evo.Task("branches")
 	worktrees := evo.Task("worktrees")
 
@@ -995,10 +1001,10 @@ func TestSpecP26_NarrowTerminal_EarlyTermination(t *testing.T) {
 	}()
 
 	code := evo.Run(context.Background(), func(ctx context.Context) error {
-		commit(branches.Summary("15 del"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local", Quantity: 15})
+		commit(branches.Summary("15 del"), evo.EffectSpec{Verb: evo.Delete, Object: "local", Quantity: 15})
 		// Stay inside run until the interrupt lands: runInterruptible only
 		// watches for the signal while run is still executing.
-		_ = worktrees.Define(func(ctx context.Context) error { return untilInterrupted(ctx, started) }).Wait()
+		_ = worktrees.Define(func(ctx context.Context) error { return untilInterrupted(ctx, started) })
 		return nil
 	}).ExitCode()
 

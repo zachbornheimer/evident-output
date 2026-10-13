@@ -67,7 +67,7 @@ func TestPatch_FileVerification_SurvivesEncodeRun(t *testing.T) {
 	const diff = "--- a/notes.txt\n+++ b/notes.txt\n@@ -1 +1 @@\n-draft\n+final\n"
 
 	out := initRun(Config{isolated: true, stateDir: dir, stdout: io.Discard, stderr: io.Discard})
-	result := out.run(context.Background(), func(context.Context) error {
+	result := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		task := out.Task("finalize notes")
 		task.Define(func(ctx context.Context) error {
 			set, err := Patch(ctx, []byte(diff))

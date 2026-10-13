@@ -30,7 +30,7 @@ func TestMain_SIGINTCancelsGroupChildAndLaterSiblingsRenderNotStarted(t *testing
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := execute_1(context.Background(), func(ctx context.Context) error {
+	code := execute_1(context.Background(), func(ctx context.Context, r *Run) error {
 		close(started)
 		deadline := time.Now().Add(2 * time.Second)
 		for venv.snapshot().State != Cancelled && time.Now().Before(deadline) {

@@ -28,8 +28,6 @@ type Task struct {
 	// rejected is why the declaration was refused (see rejectedTask); nil
 	// for a declared Task.
 	rejected error
-	// facade holds this handle's public wrapper (see FacadeSlot).
-	facade facadeSlot
 }
 
 // Context reports the cancellation signal this task's work runs under — the
@@ -141,11 +139,11 @@ func (o *Run) predecessorOfLocked(p any) (pred graph.Predecessor, ok bool) {
 			return graph.Predecessor{}, false
 		}
 		return o.predecessorOfLocked(x.tasks)
-	case interface{ Producer() *Task }:
+	case interface{ producer() *Task }:
 		if x == nil {
 			return graph.Predecessor{}, false
 		}
-		return o.predecessorOfLocked(x.Producer())
+		return o.predecessorOfLocked(x.producer())
 	default:
 		return graph.Predecessor{}, false
 	}
@@ -922,8 +920,6 @@ type Group struct {
 	// rejected is why the declaration was refused (see rejectedGroup); nil
 	// for a declared Group or Sequence.
 	rejected error
-	// facade holds this handle's public wrapper (see FacadeSlot).
-	facade facadeSlot
 }
 
 // Task declares a child task. A repeated name is a duplicate sibling
@@ -1004,14 +1000,10 @@ func (g *Group) snapshot() tasksSnapshot {
 const defaultVisibleNames = project.DefaultVisibleNames
 
 // TruncateNames joins names for a skip/kept-style summary.
-// Empty names yields "". visible <= 0 uses DefaultVisibleNames.
-// When more names remain than visible, appends the overflow glyph for
-// profile (evo-rec.md's tightened vocabulary: "… +N more", ASCII "... +N
-// more") instead of a bare ", +N" that carries no glyph at all.
-// profile is variadic so the simplest call — TruncateNames(names, visible) —
-// stays correct: an omitted profile renders the Unicode overflow glyph; a
-// caller that has already resolved a GlyphProfile passes it explicitly.
 func truncateNames(names []string, visible int) string {
+	if visible <= 0 {
+		visible = defaultVisibleNames
+	}
 	return project.TruncateNames(names, visible)
 }
 
@@ -1022,8 +1014,6 @@ func truncateNames(names []string, visible int) string {
 // A failed/blocked/cancelled child makes later siblings NotStarted.
 type Sequence struct {
 	tasks *Group
-	// facade holds this handle's public wrapper (see FacadeSlot).
-	facade facadeSlot
 }
 
 // Task declares (or, for a repeated name, returns) a child task in

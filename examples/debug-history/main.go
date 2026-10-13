@@ -20,16 +20,15 @@ func main() {
 		step = 25 * time.Millisecond
 	}
 
-	evo.Init(evo.Config{Title: "repo-probe"})
-	os.Exit(evo.Main(func(ctx context.Context) error {
-		evo.Task("working tree").Define(func(context.Context) error {
+	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+		r.Task("working tree").Define(func(context.Context) error {
 			time.Sleep(step)
 			return nil
 		})
-		evo.Task("branches").Define(func(context.Context) error {
+		r.Task("branches").Define(func(context.Context) error {
 			time.Sleep(step)
 			return nil
 		})
 		return nil
-	}))
+	}, evo.Config{Name: "repo-probe"}))
 }

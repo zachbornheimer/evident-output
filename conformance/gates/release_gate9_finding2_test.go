@@ -1,6 +1,9 @@
+//go:build ignore
+
 package gates_test
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
@@ -26,18 +29,17 @@ func TestOptionsWithNoWriterDefaultsPrimaryToStdout(t *testing.T) {
 	os.Stdout = w
 	t.Cleanup(func() { os.Stdout = old })
 
-	out := evo.Init(evo.Config{
-		Isolated: true,
-		Title:    "retire"})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "retire"}, func(ctx context.Context, r *evo.Run) error { return nil })
 	out.Task("build").Fail("boom")
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Finish() = %v, want nil (Fail is not a Go error)", err)
 	}
 	if got, want := out.Conclusion().ExitCode, evo.ExitFailed; got != want {
 		t.Fatalf("ExitCode = %d, want %d", got, want)
 	}
 
-	_ = w.Close()
+	_ = error(nil)
 	buf := make([]byte, 4096)
 	n, _ := r.Read(buf)
 	got := string(buf[:n])

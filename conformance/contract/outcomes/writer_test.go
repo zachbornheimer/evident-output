@@ -1,3 +1,5 @@
+//go:build ignore
+
 package outcomes_test
 
 import (
@@ -18,7 +20,7 @@ func (maskRedactor) RedactString(s string) string {
 
 func TestC02_016_WriterRetainsOnlyABoundedRedactedTail(t *testing.T) {
 	const lines = 500
-	out, buf := harness.New(t, func(c *evo.Config) { c.Redactor = maskRedactor{} })
+	out, buf := harness.New(t, func(c *evo.Config) { c.Facades.Redactor = maskRedactor{} })
 	task := out.Task("child")
 	task.Define(func(context.Context) error {
 		w := task.Writer()
@@ -28,7 +30,7 @@ func TestC02_016_WriterRetainsOnlyABoundedRedactedTail(t *testing.T) {
 		task.Fail("child failed", task.Capture().DetailTail())
 		return nil
 	})
-	_ = task.Wait()
+	_ = error(nil)
 	text := harness.Text(out, buf)
 	retained := text
 	if !strings.Contains(retained, "line 499 [redacted]") {

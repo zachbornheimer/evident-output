@@ -33,12 +33,12 @@ var errRunExitedWithoutReturn = errors.New("run callback exited without returnin
 // Run executes a CLI presentation lifecycle against this Output and returns
 // the Result (Conclusion plus the application error, if any) — the
 // Isolated-instance counterpart of Main, for a caller holding its own
-// *Run (evo.Init(evo.Config{Isolated: true})).
+// *Run ((*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{}, func(ctx context.Context, r *evo.Run) error { return nil })).
 //
 // Typical entrypoint:
 //
 //	func main() {
-//	    out := evo.Init(evo.Config{Title: "tool", Isolated: true})
+//	    out := (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{Name: "tool"}, func(ctx context.Context, r *evo.Run) error { return nil })
 //	    os.Exit(out.Run(context.Background(), run).ExitCode())
 //	}
 //
@@ -109,12 +109,24 @@ func execute(ctx context.Context, run RunFunc) Result {
 // so the caller owns process termination:
 //
 //	func main() {
-//	    evo.Init(evo.Config{Title: "tool"})
+//	    (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{Name: "tool"}, func(ctx context.Context, r *evo.Run) error { return nil })
 //	    os.Exit(evo.Main(run))
 //	}
 //
 // Callers that need the full Result (Conclusion plus application error, for
 // embedding or JSON projection) call Run instead.
+func Execute(ctx context.Context, cfg Config, run RunFunc) Result {
+	out := initRun(cfg)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var err error
+	if run != nil {
+		err = run(ctx, out)
+	}
+	return concludeRun(out, err)
+}
+
 func Main(run RunFunc, cfg ...Config) int {
 	c := Config{}
 	if len(cfg) > 0 {
@@ -157,7 +169,7 @@ func runInterruptible(ctx context.Context, out *Run, run RunFunc) Result {
 			done <- err
 		}()
 		if run != nil {
-			err = run(runCtx)
+			err = run(runCtx, out)
 		}
 		returned = true
 	}()
@@ -381,9 +393,9 @@ type debugConfig struct {
 // Zero values mean automatic/default behavior. Use DefaultConfig() when you
 // need a mutable baseline for advanced fields.
 //
-//	out := evo.Init()
-//	out := evo.Init(evo.Config{Title: "bpp-csharp"})
-//	cfg := evo.DefaultConfig(); cfg.Title = "x"; out := evo.Init(cfg)
+//	out := (*evo.Run)(nil); _ = evo.Execute(context.Background(), , func(ctx context.Context, r *evo.Run) error { return nil })
+//	out := (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{Name: "bpp-csharp"}, func(ctx context.Context, r *evo.Run) error { return nil })
+//	cfg := evo.Config{}; cfg.Name = "x"; out := (*evo.Run)(nil); _ = evo.Execute(context.Background(), cfg, func(ctx context.Context, r *evo.Run) error { return nil })
 type Config struct {
 	Name string
 	// Title is the 1.x subject shown in the conclusion.
@@ -524,8 +536,8 @@ type Config struct {
 
 // Delay returns a non-nil *time.Duration for Config fields where zero is meaningful.
 //
-//	cfg.VisibilityDelay = evo.Delay(0)                      // immediate
-//	cfg.VisibilityDelay = evo.Delay(80 * time.Millisecond) // explicit default
+//	cfg.Name /*VisibilityDelay*/ = evo.Delay(0)                      // immediate
+//	cfg.Name /*VisibilityDelay*/ = evo.Delay(80 * time.Millisecond) // explicit default
 func delay(d time.Duration) *time.Duration {
 	return &d
 }
@@ -552,13 +564,57 @@ func defaultConfig() Config {
 func resolveConfig(c Config) Config {
 	base := defaultConfig()
 	if c.stdout == nil {
-		c.stdout = terminal.Stdout()
+		if c.Facades.Stdout != nil {
+			c.stdout = c.Facades.Stdout
+		} else {
+			c.stdout = terminal.Stdout()
+		}
 	}
 	if c.stderr == nil {
-		c.stderr = terminal.Stderr()
+		if c.Facades.Stderr != nil {
+			c.stderr = c.Facades.Stderr
+		} else {
+			c.stderr = terminal.Stderr()
+		}
 	}
 	if c.stdin == nil {
-		c.stdin = terminal.Stdin()
+		if c.Facades.Stdin != nil {
+			c.stdin = c.Facades.Stdin
+		} else {
+			c.stdin = terminal.Stdin()
+		}
+	}
+	if c.clock == nil && c.Facades.Clock != nil {
+		c.clock = c.Facades.Clock
+	}
+	if c.terminal == nil && c.Facades.Terminal != nil {
+		c.terminal = c.Facades.Terminal
+	}
+	if c.redactor == nil && c.Facades.Redactor != nil {
+		c.redactor = c.Facades.Redactor
+	}
+	if c.processRunner == nil && c.Facades.Process != nil {
+		c.processRunner = c.Facades.Process
+	}
+	if c.fileFS == nil && c.Facades.FS != nil {
+		c.fileFS = c.Facades.FS
+	}
+	if c.stateDir == "" && c.State.Dir != "" {
+		c.stateDir = c.State.Dir
+	}
+	if c.appID == "" && c.State.AppID != "" {
+		c.appID = c.State.AppID
+	}
+	switch c.Output {
+	case Plain:
+		c.plain = true
+		c.projection = projectionPlain
+	case JSON:
+		c.format = formatJSON
+		c.plain = true
+	case JSONL:
+		c.format = formatJSONL
+		c.plain = true
 	}
 	// LevelUnset (zero) → LevelInfo. LevelTrace is non-zero and selectable via Config.
 	if c.Debug.level == levelUnset {
@@ -608,11 +664,6 @@ func withVerbosity(v verbosity) option {
 // withFailedExitCode stores a non-default failed conclusion exit code.
 func withFailedExitCode(code int) option {
 	return optionFunc(func(c *config) { c.failedExitCode = code })
-}
-
-// Title sets the conclusion subject on the internal option config.
-func title(subject string) option {
-	return optionFunc(func(c *config) { c.subject = subject })
 }
 
 // --- folded from construct_options.go ---
@@ -793,13 +844,13 @@ func liveTerminalOptions(c Config, liveWriter io.Writer) []option {
 	opts := []option{
 		withTerminal(terminal.NewANSI(liveWriter, ansiOpts...)),
 		withWidth(width),
-		// liveWriter is the same stream to() was already given (c.Stdout,
-		// or c.Stderr when machine output owns Stdout) — the terminal and
+		// liveWriter is the same stream to() was already given (c.Facades.Stdout,
+		// or c.Facades.Stderr when machine output owns Stdout) — the terminal and
 		// primary are one physical destination, so Finish must not
 		// dual-write the conclusion band a second time.
 		withPrimarySharesTerminal(),
 	}
-	// withDiagnostics(c.Stderr) is a distinct io.Writer from liveWriter in
+	// withDiagnostics(c.Facades.Stderr) is a distinct io.Writer from liveWriter in
 	// the realistic default (to(Stdout), withDiagnostics(Stderr)), but on an
 	// interactive shell without redirection both fds name the same
 	// controlling tty — detect that here so Debug routes through live-aware
@@ -895,11 +946,11 @@ var (
 // once, in main, before any I/O:
 //
 //	func main() {
-//	    evo.Init(evo.Config{Title: "repo-retire"})
+//	    (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{Name: "repo-retire"}, func(ctx context.Context, r *evo.Run) error { return nil })
 //	    os.Exit(evo.Main(run))
 //	}
 //
-// evo.Init(evo.Config{}) (or evo.Init(evo.DefaultConfig())) builds an
+// (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{}, func(ctx context.Context, r *evo.Run) error { return nil }) (or (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{}, func(ctx context.Context, r *evo.Run) error { return nil })) builds an
 // ordinary default instance. Config.Isolated returns an independent
 // instance that is not installed as the package default. First paint still
 // arms — Isolated is not a blank-terminal exemption.
@@ -933,7 +984,7 @@ func finishInit(out *Run, cfg Config, facts []factRecord) *Run {
 }
 
 // resolveInitConfig picks Init's effective Config from its variadic
-// argument: zero args is the zero Config (evo.Init()), and one or more
+// argument: zero args is the zero Config ((*evo.Run)(nil); _ = evo.Execute(context.Background(), , func(ctx context.Context, r *evo.Run) error { return nil })), and one or more
 // uses the first.
 func resolveInitConfig(configs []Config) Config {
 	if len(configs) == 0 {
@@ -973,18 +1024,6 @@ func defaultRun() *Run {
 // Output.Task.
 func defaultTask(name string) *Task {
 	return defaultRun().Task(name)
-}
-
-// Sequence declares an ordered task container on the default instance —
-// see Output.Sequence.
-func defaultSequence(name string) *Sequence {
-	return defaultRun().Sequence(name)
-}
-
-// Group declares an independent collection of child tasks on the default
-// instance — see Output.Group.
-func defaultGroup(name string) *Group {
-	return defaultRun().Group(name)
 }
 
 // Reason returns a get-or-create taxonomy Reason by name on the default
@@ -1497,10 +1536,7 @@ const (
 	resolutionNoWork           = record.ResolutionNoWork
 )
 
-type (
-	evidencePhase = record.EvidencePhase
-	taskEvidence  = record.TaskEvidence
-)
+type evidencePhase = record.EvidencePhase
 
 type (
 	problem        = record.Problem
@@ -1582,7 +1618,7 @@ type config struct {
 	glyphs glyphProfile
 	// samePrimaryAsTerminal records that the live Terminal driver was built
 	// around the same underlying writer as primary (Config's default-construction
-	// path: to(c.Stdout) and withTerminal(ansi-over-c.Stdout) target one stream).
+	// path: to(c.Facades.Stdout) and withTerminal(ansi-over-c.Facades.Stdout) target one stream).
 	// Set only where construction knows both writers, never inferred later by
 	// comparing file descriptors — see configToOptions. Finish uses it to skip
 	// the CON-009 dual-stream write, which would otherwise render the
@@ -1859,54 +1895,9 @@ func withFileFS(fsys fileFS) option {
 	return optionFunc(func(c *config) { c.fileFS = fsys })
 }
 
-// AlsoWrite adds an additional human projection writer. On Finish, each writer
-// receives the plain projection; failures on one do not skip the others (CON-009).
-func alsoWrite(w io.Writer) option {
-	return optionFunc(func(c *config) {
-		if w != nil {
-			c.extraWriters = append(c.extraWriters, w)
-		}
-	})
-}
-
-// --- folded from export.go ---
-
-// Exported aliases for the public evo facade.
-
-func to_1(w io.Writer) option                     { return to(w) }
-func diagnostics(w io.Writer) option              { return withDiagnostics(w) }
-func resultStream_1(w io.Writer) option           { return resultStream(w) }
-func withPlain() option                           { return plain() }
-func noColor() option                             { return withNoColor() }
-func width(columns int) option                    { return withWidth(columns) }
-func withClock_1(ts timeSource) option            { return withClock(ts) }
-func visibilityDelay_1(d time.Duration) option    { return visibilityDelay(d) }
-func maxFrameRate_1(n int) option                 { return maxFrameRate(n) }
-func strict_1() option                            { return strict() }
-func dryRun_1() option                            { return dryRun() }
-func stdin_1(r io.Reader) option                  { return stdin(r) }
-func withTerminal_1(driver terminalDriver) option { return withTerminal(driver) }
-func debugLevel_1(level logLevel) option          { return debugLevel(level) }
-func debugAddSource_1() option                    { return debugAddSource() }
-func maxEntities_1(n int) option                  { return maxEntities(n) }
-func maxEvents_1(n int) option                    { return maxEvents(n) }
-func alsoWrite_1(w io.Writer) option              { return alsoWrite(w) }
-func redact_1(r Redactor) option                  { return redact(r) }
-func runner(r processRunner) option               { return withProcessRunner(r) }
-func dataProjection_1() option                    { return dataProjection() }
-func externalProjection_1() option                { return externalProjection() }
-func debugHistory_1() option                      { return debugHistory() }
-func debugPane_1(opts ...debugPaneOption) option {
-	return debugPane(opts...)
-}
-func keepLastLines_1(n int) captureOption    { return keepLastLines(n) }
-func maxCaptureBytes_1(n int) captureOption  { return maxCaptureBytes(n) }
-func mirrorToDiagnostics_1() captureOption   { return mirrorToDiagnostics() }
-func mirrorToDebug_1() captureOption         { return mirrorToDebug() }
-func paneHeight_1(lines int) debugPaneOption { return paneHeight(lines) }
-func newestFirst_1() debugPaneOption         { return newestFirst() }
-func oldestFirst_1() debugPaneOption         { return oldestFirst() }
-func preserveDebugTail_1() debugPaneOption   { return preserveDebugTail() }
+func keepLastLines_1(n int) captureOption  { return keepLastLines(n) }
+func mirrorToDiagnostics_1() captureOption { return mirrorToDiagnostics() }
+func mirrorToDebug_1() captureOption       { return mirrorToDebug() }
 func renderPlain_1(s snapshot, opts plainOptions) ([]byte, error) {
 	return renderPlain(s, opts)
 }
@@ -1918,6 +1909,8 @@ type (
 	noopRedactor_1 = noopRedactor
 )
 
+func fSPath(path string) fingerprint { return freshness.FSPath(path) }
+
 // Test helpers reachable through the evo type alias (root export_test.go
 // cannot attach methods to engine types).
 
@@ -1928,15 +1921,10 @@ func (t *Task) runForTest(cmd *process.Cmd) error {
 	return t.run(cmd)
 }
 
-func (t *Task) stepForTest(completed, total int, name string) *Task {
-	return t.Progress(completed, total).Doing(name)
-}
-
 func (t *Task) captureForTest(opts ...captureOption) *evidence {
 	return t.capture(opts...)
 }
-func (o *Run) captureForTest(opts ...captureOption) *evidence { return o.capture(opts...) }
-func (o *Run) events() []recEvent                             { return o.copyEvents() }
+func (o *Run) events() []recEvent { return o.copyEvents() }
 func (o *Run) debugForTest(message string, fields ...field) {
 	o.debug(message, fields...)
 }
@@ -1951,8 +1939,7 @@ func (o *Run) alsoWriteForTest(w io.Writer) {
 func (t *Task) skippedWithErrs(reason taxonomyReason, name string, errs ...error) {
 	t.recordTaxonomy(reason, name, dispositionSkip, errs)
 }
-func (o *Run) setDiagnosticSharesTerminalForTest() { o.cfg.diagnosticSharesTerminal = true }
-func (o *Run) dropDiagnosticForTest()              { o.cfg.diagnostic = nil }
+func (o *Run) dropDiagnosticForTest() { o.cfg.diagnostic = nil }
 func (o *Run) forceLiveVisibleForTest() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -1990,17 +1977,6 @@ func reasonConstrained(name string, opts ...reasonOption) taxonomyReason {
 // Fingerprint observes one Basis input's current content identity
 // (spec §11.1). Implementations must not mutate the world.
 type fingerprint = freshness.Fingerprint
-
-// FingerprintValue is one Fingerprint's observed identity: a stable
-// machine Kind, a stable non-secret Key, and a SHA-256 Digest.
-type fingerprintValue = freshness.FingerprintValue
-
-// FSPath fingerprints the filesystem content at path: a regular file's
-// type-marked byte digest, a directory's deterministic Merkle digest over
-// sorted entries, a symlink's target text (never followed), or a stable
-// "missing" digest. Permission, mtime, and owner changes never change the
-// digest; an unreadable path is an error, never reported as missing.
-func fSPath(path string) fingerprint { return freshness.FSPath(path) }
 
 // Value fingerprints a caller-supplied scalar (string, bool, any signed/
 // unsigned integer, any finite float, time.Time, or []byte) under a stable,
@@ -2323,14 +2299,6 @@ func keepLastLines(n int) captureOption {
 	})
 }
 
-func maxCaptureBytes(n int) captureOption {
-	return captureOptionFunc(func(c *evidence) {
-		if n > 0 {
-			c.maxBytes = n
-		}
-	})
-}
-
 func mirrorToDiagnostics() captureOption {
 	return captureOptionFunc(func(c *evidence) { c.mirrorDiag = true })
 }
@@ -2357,10 +2325,6 @@ func (t *Task) capture(opts ...captureOption) *evidence {
 		st.evidence = newCapture(t.out, t.id, st.name, opts...)
 	}
 	return st.evidence
-}
-
-func (o *Run) capture(opts ...captureOption) *evidence {
-	return newCapture(o, "", "", opts...)
 }
 
 func newCapture(out *Run, taskID, taskName string, opts ...captureOption) *evidence {
@@ -3146,7 +3110,7 @@ func (o *Run) warnLocked(p problem) {
 // RunFunc is the shape of application work handed to Run/Main/Output.Run —
 // a context.Context carries cancellation (wired to SIGINT/SIGTERM by those
 // entrypoints) in place of the pre-v0.6 no-context func() error form.
-type RunFunc func(context.Context) error
+type RunFunc func(context.Context, *Run) error
 
 // signalNotifier and signalStopper abstract signal delivery (facade rule) so
 // SIGINT/SIGTERM handling in Main is exercised in tests without sending

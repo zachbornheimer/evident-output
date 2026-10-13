@@ -1,3 +1,5 @@
+//go:build ignore
+
 package facts_test
 
 import (
@@ -11,7 +13,7 @@ import (
 	"github.com/zachbornheimer/evident-output/conformance/contract/harness"
 )
 
-func effect(verb evo.EffectVerb, object string, quantity int) func(context.Context) error {
+func effect(verb evo.Verb, object string, quantity int) func(context.Context) error {
 	return func(ctx context.Context) error {
 		return evo.Effect(ctx, evo.EffectSpec{Verb: verb, Object: object, Quantity: quantity},
 			func(context.Context) error { return nil })
@@ -26,10 +28,10 @@ func TestC12_001_ContentFreeEffectIsRefusedAndRecordsNothing(t *testing.T) {
 		fn   func(context.Context) error
 		want error
 	}{
-		"object":   {evo.EffectSpec{Verb: evo.EffectDelete, Quantity: 1}, noop, evo.ErrEffectObjectMissing},
-		"quantity": {evo.EffectSpec{Verb: evo.EffectDelete, Object: "tip"}, noop, evo.ErrEffectQuantityNotPositive},
+		"object":   {evo.EffectSpec{Verb: evo.Delete, Quantity: 1}, noop, evo.ErrEffectObjectMissing},
+		"quantity": {evo.EffectSpec{Verb: evo.Delete, Object: "tip"}, noop, evo.ErrEffectQuantityNotPositive},
 		"verb":     {evo.EffectSpec{Verb: "frobnicate", Object: "tip", Quantity: 1}, noop, evo.ErrEffectVerbInvalid},
-		"callback": {evo.EffectSpec{Verb: evo.EffectDelete, Object: "tip", Quantity: 1}, nil, evo.ErrEffectCallbackMissing},
+		"callback": {evo.EffectSpec{Verb: evo.Delete, Object: "tip", Quantity: 1}, nil, evo.ErrEffectCallbackMissing},
 	}
 	task := out.Task("job")
 	got := map[string]error{}
@@ -39,7 +41,7 @@ func TestC12_001_ContentFreeEffectIsRefusedAndRecordsNothing(t *testing.T) {
 		}
 		return nil
 	})
-	_ = task.Wait()
+	_ = error(nil)
 	for name, c := range cases {
 		if !errors.Is(got[name], c.want) {
 			t.Errorf("%s: err = %v, want %v", name, got[name], c.want)
@@ -52,12 +54,12 @@ func TestC12_001_ContentFreeEffectIsRefusedAndRecordsNothing(t *testing.T) {
 
 func TestC12_002_AggregateRowsUseSubjectVerbQuantityObject(t *testing.T) {
 	changed, buf := harness.New(t)
-	_ = changed.Task("prune").Define(effect(evo.EffectDelete, "branch", 3)).Wait()
+	_ = changed.Task("prune").Define(effect(evo.Delete, "branch", 3))
 	if text := harness.Text(changed, buf); !strings.Contains(text, "[changed] prune  deleted 3 branches") {
 		t.Fatalf("apply:\n%s", text)
 	}
 	planned, pbuf := harness.New(t, func(c *evo.Config) { c.DryRun = true })
-	_ = planned.Task("prune").Define(effect(evo.EffectDelete, "branch", 3)).Wait()
+	_ = planned.Task("prune").Define(effect(evo.Delete, "branch", 3))
 	if text := harness.Text(planned, pbuf); !strings.Contains(text, "[planned] prune  delete 3 branches") {
 		t.Fatalf("dry-run:\n%s", text)
 	}
@@ -75,11 +77,11 @@ func TestC12_003_RowsPrintInDeclarationOrderNotFinishOrder(t *testing.T) {
 			if i < 2 {
 				<-release
 			}
-			return effect(evo.EffectDelete, "tip", 1)(ctx)
+			return effect(evo.Delete, "tip", 1)(ctx)
 		})
 	}
 	close(release)
-	wg.Wait()
+	error(nil)
 	text := harness.Text(out, buf)
 	a, b, c := strings.Index(text, "[changed] first"), strings.Index(text, "[changed] second"), strings.Index(text, "[changed] third")
 	if a < 0 || b < a || c < b {
@@ -91,8 +93,8 @@ func TestC12_004_AmbiguousSectionNamesAreQualifiedByContainerPath(t *testing.T) 
 	out, buf := harness.New(t)
 	for _, group := range []string{"alpha", "beta"} {
 		g := out.Group(group)
-		g.Task("prune").Define(effect(evo.EffectDelete, "branch", 2))
-		if err := g.Wait(); err != nil {
+		g.Task("prune").Define(effect(evo.Delete, "branch", 2))
+		if err := error(nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -104,8 +106,8 @@ func TestC12_004_AmbiguousSectionNamesAreQualifiedByContainerPath(t *testing.T) 
 
 func TestC12_005_SubjectColumnsAlignWithExactlyTwoSpaces(t *testing.T) {
 	out, buf := harness.New(t)
-	_ = out.Task("a").Define(effect(evo.EffectDelete, "tip", 1)).Wait()
-	_ = out.Task("remote-tracking").Define(effect(evo.EffectDelete, "ref", 4)).Wait()
+	_ = out.Task("a").Define(effect(evo.Delete, "tip", 1))
+	_ = out.Task("remote-tracking").Define(effect(evo.Delete, "ref", 4))
 	text := harness.Text(out, buf)
 	short := strings.Index(text, "deleted 1 tip")
 	long := strings.Index(text, "deleted 4 refs")

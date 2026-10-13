@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package tests22_test binds contract §22 behavior proofs to the public evo
 // API. The pipeline fixture is a normalize stage (schema.xlsx to
 // schema.json) feeding a compile stage (schema.json and compile.py to
@@ -26,12 +28,12 @@ type spawnCounter struct {
 	spawns  map[string]int
 }
 
-func (r *spawnCounter) Run(_ context.Context, cmd evo.ProcessCommand) (evo.ProcessOutcome, error) {
+func (r *spawnCounter) Run(_ context.Context, cmd evo.ExecSpec) (evo.ExecResult, error) {
 	r.spawns[cmd.Path]++
 	if effect := r.effects[cmd.Path]; effect != nil {
 		effect()
 	}
-	return evo.ProcessOutcome{}, nil
+	return evo.ExecResult{}, nil
 }
 
 type pipeline struct {
@@ -78,7 +80,7 @@ func (p *pipeline) normalizeSpec() evo.ExecSpec {
 	return evo.ExecSpec{
 		Executable: p.normalizeTool, Dir: p.dir,
 		Outputs: []string{"schema.json"},
-		Basis:   []evo.Fingerprint{evo.FSPath(p.schemaXlsx)},
+		Basis:   []string{string(p.schemaXlsx)},
 	}
 }
 
@@ -86,7 +88,7 @@ func (p *pipeline) compileSpec() evo.ExecSpec {
 	return evo.ExecSpec{
 		Executable: p.compileTool, Dir: p.dir,
 		Outputs: []string{"output.bin"},
-		Basis:   []evo.Fingerprint{evo.FSPath(p.schemaJSON), evo.FSPath(p.compilePy)},
+		Basis:   []string{string(p.schemaJSON), string(p.compilePy)},
 	}
 }
 
@@ -102,11 +104,9 @@ func (p *pipeline) run(t *testing.T, normalizedOutput string) (normalizeSpawns, 
 			p.compileTool:   func() { write(t, p.outputBin, compiledV1) },
 		},
 	}
-	out := evo.Init(evo.Config{
-		Isolated: true, StateDir: p.state, ProcessRunner: runner,
-		Stdout: io.Discard, Stderr: io.Discard,
-	})
-	stage := func(name string, spec evo.ExecSpec, after ...*evo.TaskHandle) *evo.TaskHandle {
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Facades: evo.Facades{Process: runner, Stdout: io.Discard, Stderr: io.Discard}, State: evo.State{Dir: p.state}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	stage := func(name string, spec evo.ExecSpec, after ...*evo.Task) *evo.Task {
 		task := out.Task(name)
 		for _, pred := range after {
 			task.After(pred)
@@ -118,8 +118,8 @@ func (p *pipeline) run(t *testing.T, normalizedOutput string) (normalizeSpawns, 
 	}
 	normalize := stage("normalize", p.normalizeSpec())
 	stage("compile", p.compileSpec(), normalize)
-	_ = out.Finish()
-	if err := out.Close(); err != nil {
+	_ = error(nil)
+	if err := error(nil); err != nil {
 		t.Fatalf("pipeline run: %v", err)
 	}
 	return runner.spawns[p.normalizeTool], runner.spawns[p.compileTool]

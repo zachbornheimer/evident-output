@@ -14,12 +14,12 @@
 // ExampleFact — go doc / pkg.go.dev attach each to the symbol it names.
 //
 //	func main() {
-//	    evo.Init(evo.Config{Title: "repo"}) // first statement — arms first paint before any I/O
+//	    (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{Name: "repo"}, func(ctx context.Context, r *evo.Run) error { return nil }) // first statement — arms first paint before any I/O
 //	    os.Exit(evo.Main(run))
 //	}
 //
 //	func run(ctx context.Context) error {
-//	    evo.Println("Reading configuration")
+//	    fmt.Println("Reading configuration")
 //	    evo.Task("working tree").Define(checkWorkingTree)
 //	    status := evo.Task("git status")
 //	    status.Define(func(ctx context.Context) error {
@@ -54,7 +54,7 @@
 //     state already holds. ctx must come from a Task's Define callback.
 //  4. evo.Exec for external work with declared outputs and a Basis of
 //     Fingerprints that determine freshness.
-//  5. FileSpec.Basis / ExecSpec.Basis: evo.Fingerprint values (evo.FSPath,
+//  5. FileSpec.Basis / ExecSpec.Basis: string values (string,
 //     evo.Value, evo.App) when an operation's freshness depends on semantic
 //     external inputs beyond File/Exec's own tracked state.
 //  6. Task.After for exceptional scheduler edges that a Sequence would
@@ -89,7 +89,7 @@
 // plus the application error — instead of just the derived exit code, and
 // never exiting the process). Task.Key overrides a Task's stable identity
 // when its name changes across runs but tracked state must not (§3.1).
-// Task.Verify, evo.File, and Fingerprint (evo.FSPath/evo.Value/evo.App) are
+// Task.Verify, evo.File, and Fingerprint (string/evo.Value/evo.App) are
 // the tracked-state primitives; Config.AppID/Config.StateDir override the
 // manifest's storage location and namespace.
 package evo

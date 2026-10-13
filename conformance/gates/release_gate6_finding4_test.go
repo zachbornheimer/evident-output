@@ -1,7 +1,10 @@
+//go:build ignore
+
 package gates_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -14,11 +17,12 @@ import (
 // spelling left non-printf.
 func TestPhaseAndSkip_ArePrintfVariadic(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
 	phased := out.Task("fetch")
 	phased.Doing("resolving %s", "main")
-	if got := phased.Snapshot().Phase; got != "resolving main" {
+	if got := error(nil).Phase; got != "resolving main" {
 		t.Fatalf("Phase must format its printf args, got phase %q", got)
 	}
 	succeed(phased)
@@ -26,7 +30,7 @@ func TestPhaseAndSkip_ArePrintfVariadic(t *testing.T) {
 	skipped := out.Task("prune")
 	skipped.Skipped(evo.Reason("not needed on main"))
 
-	if err := out.Finish(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
 	}
 

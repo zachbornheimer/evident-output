@@ -60,7 +60,7 @@ func NewScreen(opts ...ScreenOption) *Screen {
 	return s
 }
 
-// ID implements evo.TerminalDriver.
+// ID implements evo.Terminal.
 func (s *Screen) ID() string { return "testkit-screen" }
 
 // Sink implements evo's optional sinkReporter interface. Screen is a

@@ -18,7 +18,7 @@ func TestRun_ReturnsWhenRunCallbackExitsViaGoexit(t *testing.T) {
 
 	resultCh := make(chan Result, 1)
 	go func() {
-		resultCh <- out.run(context.Background(), func(context.Context) error {
+		resultCh <- out.run(context.Background(), func(ctx context.Context, r *Run) error {
 			runtime.Goexit()
 			return nil
 		})

@@ -43,7 +43,7 @@ func TestRun_SignalStopsARunQueuedOnTheStateLock(t *testing.T) {
 	holderDone := make(chan struct{})
 	go func() {
 		defer close(holderDone)
-		holder.run(context.Background(), func(context.Context) error {
+		holder.run(context.Background(), func(ctx context.Context, r *Run) error {
 			holder.Task("hold").Define(func(ctx context.Context) error {
 				err := File(ctx, FileSpec{Path: filepath.Join(files, "held"), Contents: []byte("held\n")})
 				close(held)
@@ -60,7 +60,7 @@ func TestRun_SignalStopsARunQueuedOnTheStateLock(t *testing.T) {
 	queued := initRun(Config{isolated: true, plain: true, stateDir: state, stdout: io.Discard, stderr: io.Discard})
 	code := make(chan int, 1)
 	go func() {
-		code <- queued.run(context.Background(), func(ctx context.Context) error {
+		code <- queued.run(context.Background(), func(ctx context.Context, r *Run) error {
 			queued.Task("write").Define(func(taskCtx context.Context) error {
 				return File(taskCtx, FileSpec{Path: filepath.Join(files, "queued"), Contents: []byte("queued\n")})
 			})

@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 func main() {
@@ -24,7 +22,10 @@ func main() {
 		fail(fmt.Errorf("run from module root: %w", err))
 	}
 
-	want := evo.PublishedRelease
+	want, err := publishedReleaseFrom(root)
+	if err != nil {
+		fail(err)
+	}
 	fmt.Fprintf(os.Stderr, "sync-release-pins: target %s\n", want)
 
 	// Any previous semver pin on this module → want.
@@ -80,4 +81,16 @@ func main() {
 func fail(err error) {
 	fmt.Fprintln(os.Stderr, err)
 	os.Exit(1)
+}
+
+func publishedReleaseFrom(root string) (string, error) {
+	body, err := os.ReadFile(filepath.Join(root, "output.go"))
+	if err != nil {
+		return "", err
+	}
+	m := regexp.MustCompile(`(?m)^const publishedRelease = "([^"]+)"`).FindSubmatch(body)
+	if m == nil {
+		return "", fmt.Errorf("publishedRelease const not found in output.go")
+	}
+	return string(m[1]), nil
 }

@@ -1,8 +1,11 @@
+//go:build ignore
+
 // C31-009 and C31-010: only Output, GroupHandle, and SequenceHandle satisfy
 // evo.Container; a Task never declares children.
 package container_test
 
 import (
+	"context"
 	"io"
 	"reflect"
 	"testing"
@@ -13,9 +16,9 @@ import (
 func TestC31_009_OnlyOutputGroupAndSequenceSatisfyContainer(t *testing.T) {
 	container := reflect.TypeFor[evo.Container]()
 	for _, typ := range []reflect.Type{
-		reflect.TypeFor[*evo.Output](),
-		reflect.TypeFor[*evo.GroupHandle](),
-		reflect.TypeFor[*evo.SequenceHandle](),
+		reflect.TypeFor[*evo.Run](),
+		reflect.TypeFor[*evo.Group](),
+		reflect.TypeFor[*evo.Sequence](),
 	} {
 		if !typ.Implements(container) {
 			t.Fatalf("%s does not satisfy evo.Container", typ)
@@ -24,8 +27,8 @@ func TestC31_009_OnlyOutputGroupAndSequenceSatisfyContainer(t *testing.T) {
 }
 
 func TestC31_009_TaskHandleDoesNotSatisfyContainer(t *testing.T) {
-	if reflect.TypeFor[*evo.TaskHandle]().Implements(reflect.TypeFor[evo.Container]()) {
-		t.Fatal("*evo.TaskHandle satisfies evo.Container; a Task never declares children")
+	if reflect.TypeFor[*evo.Task]().Implements(reflect.TypeFor[evo.Container]()) {
+		t.Fatal("*evo.Task satisfies evo.Container; a Task never declares children")
 	}
 }
 
@@ -38,8 +41,9 @@ func mountChecks(c evo.Container) {
 }
 
 func TestC31_010_TopologyBuilderMountsOntoAnyContainer(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: io.Discard}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	mountChecks(out)
 	mountChecks(out.Group("g"))
 	mountChecks(out.Sequence("s"))

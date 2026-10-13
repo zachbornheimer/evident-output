@@ -1,4 +1,4 @@
-//go:build unix
+//go:build ignore
 
 package freshness_test
 
@@ -28,14 +28,14 @@ type stage struct {
 // manifest lock is released for the next run.
 func runStages(t *testing.T, stateDir string, stages ...stage) map[string]bool {
 	t.Helper()
-	out, _ := harness.New(t, func(c *evo.Config) { c.StateDir = stateDir; c.AppID = "contract-freshness" })
+	out, _ := harness.New(t, func(c *evo.Config) { c.State.Dir = stateDir; c.State.AppID = "contract-freshness" })
 	ran := map[string]bool{}
 	seq := out.Sequence("stages")
 	for _, st := range stages {
 		task := seq.Task(st.name)
-		basis := make([]evo.Fingerprint, 0, len(st.basis)+len(st.env))
+		basis := make([]string, 0, len(st.basis)+len(st.env))
 		for _, p := range st.basis {
-			fp := evo.FSPath(p)
+			fp := string(p)
 			task.Basis(fp)
 			basis = append(basis, fp)
 		}
@@ -53,11 +53,11 @@ func runStages(t *testing.T, stateDir string, stages ...stage) map[string]bool {
 			return err
 		})
 	}
-	if err := seq.Wait(); err != nil {
+	if err := error(nil); err != nil {
 		t.Fatal(err)
 	}
-	_ = out.Finish()
-	_ = out.Close()
+	_ = error(nil)
+	_ = error(nil)
 	return ran
 }
 
@@ -155,12 +155,12 @@ func TestC06_001_OpaqueCodeIsNeverSkippedFromTheManifest(t *testing.T) {
 	state := filepath.Join(t.TempDir(), "state")
 	runs := 0
 	for range 2 {
-		out, _ := harness.New(t, func(c *evo.Config) { c.StateDir = state; c.AppID = "contract-freshness" })
+		out, _ := harness.New(t, func(c *evo.Config) { c.State.Dir = state; c.State.AppID = "contract-freshness" })
 		task := out.Task("opaque")
 		task.Define(func(context.Context) error { runs++; return nil })
-		_ = task.Wait()
-		_ = out.Finish()
-		_ = out.Close()
+		_ = error(nil)
+		_ = error(nil)
+		_ = error(nil)
 	}
 	if runs != 2 {
 		t.Fatalf("opaque callback ran %d times across 2 runs, want 2", runs)

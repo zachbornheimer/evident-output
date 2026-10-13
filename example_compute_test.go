@@ -6,14 +6,15 @@ import (
 	"io"
 )
 
-// ExampleCompute defines a Task that produces a value. The Task that runs
-// After it reads the value with Get.
+// ExampleCompute defines a Task that produces a value. A later Sequence
+// step reads the value with Get once the earlier step has settled.
 func ExampleCompute() {
 	out := initRun(Config{isolated: true, plain: true, stdout: io.Discard})
-	branches := Compute(out.Task("prune landed branches"), func(context.Context) ([]string, error) {
+	steps := out.Sequence("prune")
+	branches := Compute(steps.Task("prune landed branches"), func(context.Context) ([]string, error) {
 		return []string{"feat/a", "feat/b"}, nil
 	})
-	out.Task("prune deleted remote branches").After(branches).Define(func(context.Context) error {
+	steps.Task("prune deleted remote branches").Define(func(context.Context) error {
 		fmt.Println("pruned", len(branches.Get()), "branches")
 		return nil
 	})

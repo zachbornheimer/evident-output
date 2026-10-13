@@ -17,17 +17,6 @@ func ExampleTaxonomyReason() {
 	// true
 }
 
-// ExampleReason shows the get-or-create taxonomy lookup an inline
-// Reason("...") call always legally reuses.
-func exampleReason() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
-	setDefault(out)
-	reason := reason("protected")
-	fmt.Println(reason.Name())
-	// Output:
-	// protected
-}
-
 // ExampleTaxonomyRecord reads the accumulated (reason, name) disposition
 // Task.Skipped records — never assembled by hand.
 func ExampleTaxonomyRecord() {

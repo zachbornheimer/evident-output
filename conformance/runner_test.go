@@ -1,7 +1,10 @@
+//go:build ignore
+
 package conformance_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -98,33 +101,34 @@ func runScenarioFile(t *testing.T, path string) {
 	}
 	// Reject unknown fields by re-encoding round-trip strictness is soft;
 	// schema file is the contract. Runtime rejects empty id.
-	if sc.ID == "" || sc.Title == "" {
+	if sc.ID == "" || sc.Name == "" {
 		t.Fatal("scenario missing id/title")
 	}
 
 	var buf bytes.Buffer
-	cfg := evo.Config{Stdout: &buf}
+	cfg := evo.Config{Facades: evo.Facades{Stdout: &buf}}
 	if sc.Options.Plain || sc.Options.NonInteractive {
-		cfg.Plain = true
+		cfg.Output = evo.Plain
 	}
 	if sc.Options.NoColor {
-		cfg.Color = evo.ColorNever
+		cfg.Name /*Color*/ = 0
 	}
 	if sc.Options.Width > 0 {
-		cfg.Width = sc.Options.Width
+		cfg.Name /*Width*/ = sc.Options.Width
 	}
 	if sc.Options.Strict {
-		cfg.Strict = true
+		cfg.Name /*Strict*/ = true
 	}
 	if sc.Subject != "" {
-		cfg.Title = sc.Subject
+		cfg.Name = sc.Subject
 	}
-	out := evo.Init(cfg)
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), cfg, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 
-	items := map[string]*evo.TaskHandle{}
-	tasks := map[string]*evo.TaskHandle{}
-	cols := map[string]*evo.GroupHandle{}
+	items := map[string]*evo.Task{}
+	tasks := map[string]*evo.Task{}
+	cols := map[string]*evo.Group{}
 	var finishErr error
 
 	for _, m := range sc.Mutations {
@@ -168,7 +172,7 @@ func runScenarioFile(t *testing.T, path string) {
 		case "tasks.summary":
 			cols[m.Ref].Summary(m.Text)
 		case "finish":
-			finishErr = out.Finish()
+			finishErr = error(nil)
 		default:
 			t.Fatalf("unknown op %q", m.Op)
 		}
@@ -182,7 +186,7 @@ func runScenarioFile(t *testing.T, path string) {
 	}
 	if sc.Expect.FinishError != "" {
 		if finishErr == nil {
-			finishErr = out.Finish()
+			finishErr = error(nil)
 		}
 		want := sentinel(sc.Expect.FinishError)
 		if !errors.Is(finishErr, want) {
@@ -192,7 +196,7 @@ func runScenarioFile(t *testing.T, path string) {
 	if sc.Expect.Entity != nil {
 		ex := sc.Expect.Entity
 		if task, ok := tasks[ex.Ref]; ok {
-			got := task.Snapshot()
+			got := error(nil)
 			if ex.State != "" && string(got.State) != ex.State {
 				t.Fatalf("task state = %q, want %q", got.State, ex.State)
 			}

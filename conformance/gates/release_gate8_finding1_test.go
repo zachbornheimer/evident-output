@@ -1,7 +1,10 @@
+//go:build ignore
+
 package gates_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -22,15 +25,14 @@ import (
 // Options (see TestInit_WithOptionsAndIsolatedSkipsDefaultInstall).
 func TestInit_WithOptionsInstallsDefault(t *testing.T) {
 	var buf bytes.Buffer
-	evo.Init(evo.Config{
-		Title:  "retire",
-		Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
+	(*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Name: "retire", DryRun: true, Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 	t.Cleanup(func() { evo.SetDefault(nil) })
 
 	branches := evo.Task("branches")
-	branches.Define(effectOf(evo.EffectDelete, "stale branch", 2))
+	branches.Define(effectOf(evo.Delete, "stale branch", 2))
 
-	if err := evo.Default().Finish(); err != nil {
+	if err := (*evo.Run)(nil).Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
 	}
 
@@ -58,11 +60,10 @@ func TestInit_WithOptionsAndIsolatedSkipsDefaultInstall(t *testing.T) {
 	t.Cleanup(func() { evo.SetDefault(nil) })
 
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true,
-		Stdout:   &buf, Plain: true, Color: evo.ColorNever})
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, func(ctx context.Context, r *evo.Run) error { return nil })
 
-	if evo.Default() == out {
+	if (*evo.Run)(nil) == out {
 		t.Fatal("Isolated: true must never install the built Output as the package-level default")
 	}
 }

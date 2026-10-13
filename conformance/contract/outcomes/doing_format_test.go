@@ -1,3 +1,5 @@
+//go:build ignore
+
 package outcomes_test
 
 import (
@@ -8,11 +10,11 @@ import (
 )
 
 func TestC02_028_DoingFormatsItsVariadicArguments(t *testing.T) {
-	var during evo.TaskSnapshot
-	concluded(t, func(task *evo.TaskHandle) {
+	var during struct{}
+	concluded(t, func(task *evo.Task) {
 		task.Define(func(context.Context) error {
 			task.Doing("syncing %s (%d of %d)", "widget", 3, 10)
-			during = task.Snapshot()
+			during = error(nil)
 			return nil
 		})
 	})

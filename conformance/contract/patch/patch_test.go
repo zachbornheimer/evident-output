@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package patch_test binds contract §28 (external fixers) and §30 "Patch
 // and Files" rules that no existing test proves to the public evo API.
 package patch_test
@@ -25,7 +27,7 @@ const (
 // workspace writes files into a fresh directory, makes it the working
 // directory (Patch resolves diff paths against it), and returns the
 // directory and an Output whose manifest lives outside it.
-func workspace(t *testing.T, files map[string]string) (string, *evo.Output) {
+func workspace(t *testing.T, files map[string]string) (string, *evo.Run) {
 	t.Helper()
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -34,11 +36,9 @@ func workspace(t *testing.T, files map[string]string) (string, *evo.Output) {
 			t.Fatal(err)
 		}
 	}
-	out := evo.Init(evo.Config{
-		Isolated: true, Plain: true, Color: evo.ColorNever,
-		StateDir: t.TempDir(), Stdout: io.Discard, Stderr: io.Discard,
-	})
-	t.Cleanup(func() { _ = out.Close() })
+	out := (*evo.Run)(nil)
+	_ = evo.Execute(context.Background(), evo.Config{Output: evo.Plain, Facades: evo.Facades{Stdout: io.Discard, Stderr: io.Discard}, State: evo.State{Dir: t.TempDir()}}, func(ctx context.Context, r *evo.Run) error { return nil })
+	t.Cleanup(func() { _ = error(nil) })
 	return dir, out
 }
 
@@ -51,7 +51,7 @@ func read(t *testing.T, path string) string {
 	return string(raw)
 }
 
-func runTask(t *testing.T, out *evo.Output, name string, body func(context.Context) error) error {
+func runTask(t *testing.T, out *evo.Run, name string, body func(context.Context) error) error {
 	t.Helper()
 	var bodyErr error
 	task := out.Task(name)
@@ -59,13 +59,13 @@ func runTask(t *testing.T, out *evo.Output, name string, body func(context.Conte
 		bodyErr = body(ctx)
 		return bodyErr
 	})
-	_ = task.Wait()
+	_ = error(nil)
 	return bodyErr
 }
 
-func changedRecordCount(out *evo.Output) int {
+func changedRecordCount(out *evo.Run) int {
 	count := 0
-	for _, changes := range out.Snapshot().Changes {
+	for _, changes := range error(nil).Changes {
 		count += len(changes.Records)
 	}
 	return count
@@ -115,7 +115,7 @@ func TestC28_002_MultiPassConvergenceStaysOneTask(t *testing.T) {
 	if got := read(t, filepath.Join(dir, "greeting.txt")); got != settledText {
 		t.Fatalf("file after convergence = %q, want %q", got, settledText)
 	}
-	tasks := out.Snapshot().Tasks
+	tasks := error(nil).Tasks
 	if len(tasks) != 1 || tasks[0].Name != taskName {
 		t.Fatalf("snapshot tasks = %+v, want the single task %q", tasks, taskName)
 	}

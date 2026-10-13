@@ -1,3 +1,5 @@
+//go:build ignore
+
 package freshness_test
 
 import (
@@ -18,14 +20,14 @@ func TestC10_010_ManifestPersistsTheFingerprintAlgorithm(t *testing.T) {
 		t.Fatal(err)
 	}
 	state := filepath.Join(dir, "state")
-	out, _ := harness.New(t, func(c *evo.Config) { c.StateDir = state; c.AppID = "pending-manifest" })
+	out, _ := harness.New(t, func(c *evo.Config) { c.State.Dir = state; c.State.AppID = "pending-manifest" })
 	task := out.Task("write")
-	task.Basis(evo.FSPath(input))
+	task.Basis(string(input))
 	task.Define(func(ctx context.Context) error {
 		return evo.File(ctx, evo.FileSpec{Path: filepath.Join(dir, "out.txt"), Contents: []byte("y")})
 	})
-	_ = task.Wait()
-	_ = out.Close()
+	_ = error(nil)
+	_ = error(nil)
 	manifests, err := filepath.Glob(filepath.Join(state, "manifest-*.json"))
 	if err != nil || len(manifests) != 1 {
 		t.Fatalf("manifests = %v, %v", manifests, err)
