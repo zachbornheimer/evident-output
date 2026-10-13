@@ -513,6 +513,9 @@
     "mode": {
       "type": "string"
     },
+    "name": {
+      "type": "string"
+    },
     "object": {
       "const": "evo.run"
     },

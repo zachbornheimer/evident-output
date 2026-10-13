@@ -633,6 +633,12 @@ func resolveConfig(c Config) Config {
 	if c.appID == "" && c.State.AppID != "" {
 		c.appID = c.State.AppID
 	}
+	if c.title == "" {
+		c.title = c.Name
+	}
+	if c.Verbose {
+		c.verbosity = verbosityVerbose
+	}
 	switch c.Output {
 	case Plain:
 		c.plain = true

@@ -58,6 +58,7 @@ type RunDocument struct {
 	SchemaVersion string    `json:"schema_version"`
 	EvoVersion    string    `json:"evo_version"`
 	RunID         string    `json:"run_id"`
+	Name          string    `json:"name,omitempty"`
 	StartedAt     time.Time `json:"started_at"`
 	FinishedAt    time.Time `json:"finished_at"`
 	DurationMs    int64     `json:"duration_ms"`
@@ -219,6 +220,7 @@ func ToRunDocument(result record.Result, evoVersion string) RunDocument {
 		SchemaVersion: RunSchemaVersion,
 		EvoVersion:    evoVersion,
 		RunID:         c.RunID,
+		Name:          c.Subject,
 		StartedAt:     c.StartedAt,
 		FinishedAt:    c.FinishedAt,
 		DurationMs:    durationMs(c.StartedAt, c.FinishedAt),

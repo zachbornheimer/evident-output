@@ -212,7 +212,7 @@ func newOutput(subject string, options ...option) *Run {
 	o.outputID = o.graph.NextID("out")
 	o.startedAt = o.cfg.clock.Now()
 	o.appendEventLocked(recEvent{Type: "output.started", OutputID: o.outputID})
-	o.emitWireEventLocked(wire.EventRunStarted, "", nil)
+	o.emitWireEventLocked(wire.EventRunStarted, "", runStartedPayload(o.cfg.subject))
 	if terminalWithoutSink {
 		o.recordMisuse(errTerminalWithoutSink)
 	}
@@ -3409,3 +3409,12 @@ const (
 	JSON
 	JSONL
 )
+
+// runStartedPayload carries the run's title on run.started; an untitled run
+// has no payload.
+func runStartedPayload(title string) map[string]any {
+	if title == "" {
+		return nil
+	}
+	return map[string]any{"name": title}
+}
