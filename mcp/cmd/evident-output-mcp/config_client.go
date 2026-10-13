@@ -61,7 +61,7 @@ func clientConfig(client string) (string, error) {
 	pin := Version
 	if pin == "" || pin == "dev" {
 		// Prefer ldflags Version; fall back to the library pin in output.go.
-		pin = "v1.0.0"
+		pin = "v2.0.0"
 	}
 	switch strings.ToLower(strings.TrimSpace(client)) {
 	case "grok":

@@ -795,7 +795,7 @@ func writeJSON(w io.Writer, result Result) error {
 //  4. Tag that commit; do not move prior tags.
 //
 // version_drift_test.go enforces the portable surface stays synchronized.
-const publishedRelease = "v1.0.0"
+const publishedRelease = "v2.0.0"
 
 // --- folded from glyph_resolve.go ---
 
