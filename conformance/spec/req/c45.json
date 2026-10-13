@@ -32,7 +32,7 @@
   {
     "id": "C45-003",
     "section": "2.0 \u00a75 Confirm",
-    "quote": "`NonInteractive(argv ...string)`; how to pass unattended",
+    "quote": "`NonInteractive(argv ...string) ConfirmOption`; how to pass unattended",
     "tier": "1.1",
     "tests": [
       {

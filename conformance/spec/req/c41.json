@@ -23,7 +23,7 @@
   {
     "id": "C41-002",
     "section": "2.0 \u00a71 Run",
-    "quote": "`Run` is the same for embedding: the caller owns the context and the exit.",
+    "quote": "`Execute` is the same for embedding: the caller owns the context and the exit.",
     "tier": "1.1",
     "tests": [
       {
@@ -137,7 +137,7 @@
   {
     "id": "C41-008",
     "section": "2.0 \u00a71 Run",
-    "quote": "`io.Writer` for the stdout data payload",
+    "quote": "the stdout data payload",
     "tier": "1.1",
     "tests": [
       {
@@ -154,7 +154,7 @@
   {
     "id": "C41-009",
     "section": "2.0 \u00a71 Run",
-    "quote": "`slog.Handler` that writes into the debug journal",
+    "quote": "writes into the debug journal",
     "tier": "1.1",
     "tests": [
       {

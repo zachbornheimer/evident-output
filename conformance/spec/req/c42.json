@@ -222,7 +222,7 @@
   {
     "id": "C42-013",
     "section": "2.0 \u00a72 Work",
-    "quote": "`io.Writer` whose lines become the live tail and Capture",
+    "quote": "its lines become the live tail and Capture",
     "tier": "1.1",
     "tests": [
       {

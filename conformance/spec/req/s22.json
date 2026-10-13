@@ -414,7 +414,7 @@
   {
     "id": "C22-023",
     "section": "22",
-    "quote": "0 OK \u00b7 1 Refused \u00b7 2 Failed \u00b7 130 Cancelled",
+    "quote": "0 Succeeded, Satisfied or Excluded \u00b7 1 Refused \u00b7 2 Failed \u00b7 130 Cancelled",
     "tier": "1.1",
     "tests": [
       {

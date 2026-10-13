@@ -73,7 +73,7 @@
   {
     "id": "C43-004",
     "section": "2.0 \u00a73 Change",
-    "quote": "Overlapping Paths wait for each other",
+    "quote": "Effects whose Paths are equal or one contains the other wait for each other",
     "tier": "1.1",
     "tests": [
       {
@@ -208,7 +208,7 @@
   {
     "id": "C43-011",
     "section": "2.0 \u00a73 Change",
-    "quote": "`Patch(ctx, diff []byte) error`; derive from a unified diff and commit through File",
+    "quote": "`Patch(ctx context.Context, diff []byte) error`; derive from a unified diff and commit through File",
     "tier": "1.1",
     "tests": [
       {
