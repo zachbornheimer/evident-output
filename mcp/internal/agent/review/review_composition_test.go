@@ -108,8 +108,20 @@ func TestAPI064_SuggestionNamesTheMissingEdge(t *testing.T) {
 func TestAPI065_NeverSuggestsAddingAnAfterInsideASequence(t *testing.T) {
 	res := review.GoSource("bad.go", readDialectFixture(t, "detectRedundantAfterInSequence", "bad.go"))
 	f := assertFinding(t, res, "API-065")
-	if !strings.Contains(f.Suggestion, "delete After(managers)") {
-		t.Fatalf("suggestion must remove the edge, got %q", f.Suggestion)
+	if !strings.HasPrefix(f.Suggestion, "delete .After(managers); ") {
+		t.Fatalf("suggestion must remove the whole selector call including its dot, got %q", f.Suggestion)
+	}
+}
+
+// An After that also names an unrelated Task keeps that edge: the rewrite
+// replaces the call, it does not delete it.
+func TestAPI065_KeepsTheEdgesTheSequenceDoesNotOrder(t *testing.T) {
+	src := strings.Replace(readDialectFixture(t, "detectRedundantAfterInSequence", "bad.go"),
+		".After(managers)", ".After(managers, other)", 1)
+	src = strings.Replace(src, "func detect(", "var other *evo.Task\n\nfunc detect(", 1)
+	f := assertFinding(t, review.GoSource("bad.go", src), "API-065")
+	if want := "replace .After(managers, other) with .After(other)"; f.Suggestion != want {
+		t.Fatalf("suggestion = %q, want %q", f.Suggestion, want)
 	}
 }
 

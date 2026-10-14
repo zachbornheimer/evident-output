@@ -23,7 +23,6 @@ const (
 	reasonNamedInWords     = "the fix names the code to change in words, not as the exact span"
 	reasonAlternatives     = "the fix offers alternatives; which one applies depends on what the author intends"
 	reasonInsertion        = "the fix inserts an argument or option into a call instead of replacing a span"
-	reasonChainedDelete    = "the fix deletes a chained call but names it without its selector dot, so applying it verbatim leaves invalid syntax"
 	reasonOutsideSpan      = "the fix is outside the reviewed span (a file name, a package folder)"
 )
 
@@ -88,7 +87,6 @@ var guidanceOnly = map[string]string{
 	"detectProgressInDoingString":             reasonPlaceholderShape,
 	"detectRawExecWithManualFreshness":        reasonRestructures,
 	"detectRedeclaredTaskLiteral":             reasonRestructures,
-	"detectRedundantAfterInSequence":          reasonChainedDelete,
 	"detectRestatedExclusionReason":           reasonNeedsAuthorText,
 	"detectSelectorCallRules":                 reasonPlaceholderShape,
 	"detectShadowedHandle":                    reasonAlternatives,
