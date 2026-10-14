@@ -3,6 +3,7 @@ package evo
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -60,7 +61,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	// FixedClock freezes spinner glyphs for stable operation expectations.
 	fixed := TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	discard := io.Discard
-	out := initRun(Config{Facades: Facades{Stdout: discard, Stderr: discard, Clock: fixed, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}, color: colorNever})
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: discard, Stderr: discard, Clock: fixed, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("dependencies")

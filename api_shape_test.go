@@ -3,6 +3,7 @@ package evo
 import (
 	"bytes"
 	"io"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -136,7 +137,7 @@ func TestAPI030_CompatMatrixSmoke(t *testing.T) {
 	// pipe + plain + json + slog-ish debug + terminal surface
 	var buf bytes.Buffer
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Debug: slog.LevelDebug, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("a"))
 	out.debugForTest("d")
@@ -177,7 +178,7 @@ func TestAPI022_DiscoverabilityNames(t *testing.T) {
 func TestAPI024_ComplexSmallerThanAdHoc(t *testing.T) {
 	// Multi-progress + debug is a short common-path program (not ad-hoc ANSI).
 	var buf bytes.Buffer
-	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{debug: debugConfig{level: levelDebug}, color: colorNever})
+	out := initRun(Config{Debug: slog.LevelDebug, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	g := out.Group("deps")
 	succeed(g.Task("a").bytes(10, 10))
 	succeed(g.Task("b").Doing("verifying"))

@@ -11,33 +11,10 @@ import (
 // WritePlannedHeader emits a planned run's unmissable opening line. It
 // renders once, first — a caller cannot opt out or bury it, because every
 // planned projection (RenderPlain and Finish's residual) calls this before
-// any other row.
-//
-// subject is Config.Subject's text (fixture-repo-retire-dryrun.md's "repo
-// <path>"), merged onto this one line instead of streaming as a second
-// durable line — a blank line separates the header from whatever follows,
-// matching the fixture's "ONE header line ... blank line after". Empty
-// subject falls back to the plain announcement text, unchanged from before
-// Config.Subject existed.
-//
-// preview drops the tag entirely: a preview before a confirm gate announces
-// the subject it is about to ask about ("repo <path>"), because telling the
-// user nothing will happen and then asking them to authorize it is the
-// contradiction the dialect's screenshot regression names. A preview with no
-// subject has nothing to announce and writes nothing.
-func WritePlannedHeader(b *strings.Builder, color, preview bool, subject string) {
-	if preview {
-		if subject != "" {
-			fmt.Fprintf(b, "%s\n\n", subject)
-		}
-		return
-	}
+// any other row. A blank line separates it from whatever follows.
+func WritePlannedHeader(b *strings.Builder, color bool) {
 	tag := project.ApplySGR("[dry-run]", project.EffectColor("planned"), color)
-	body := dryRunMarkerText
-	if subject != "" {
-		body = subject
-	}
-	fmt.Fprintf(b, "%s %s\n\n", tag, body)
+	fmt.Fprintf(b, "%s %s\n\n", tag, dryRunMarkerText)
 }
 
 // conclusionBandTag renders the trailing outcome band's bracketed tag,

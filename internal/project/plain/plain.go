@@ -19,7 +19,7 @@ func Plain(s record.Snapshot, width int, noColor, verbose bool, profile project.
 	s = project.HumanProjection(s, verbose)
 
 	if s.DryRun {
-		WritePlannedHeader(&b, st.Color, s.Preview, s.DryRunSubject)
+		WritePlannedHeader(&b, st.Color)
 	}
 
 	for _, line := range s.Lines {
@@ -43,7 +43,7 @@ func Plain(s record.Snapshot, width int, noColor, verbose bool, profile project.
 	project.WriteLedger(&b, s, width, st)
 
 	if s.Conclusion != nil && !project.ShouldSuppressStandaloneConclusion(s) {
-		WriteConclusion(&b, project.StandaloneConclusion(s), st)
+		WriteConclusion(&b, *s.Conclusion, st)
 	}
 
 	return b.String()

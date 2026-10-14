@@ -2,9 +2,7 @@ package record
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
-	"runtime"
 	"time"
 )
 
@@ -79,17 +77,6 @@ func (h *slogBridge) WithGroup(name string) slog.Handler {
 		cp.group = h.group + "." + name
 	}
 	return &cp
-}
-
-// CallerLocation resolves a slog record's program counter to "file.go:line",
-// matching slog.HandlerOptions.AddSource's own frame lookup.
-func CallerLocation(pc uintptr) string {
-	frames := runtime.CallersFrames([]uintptr{pc})
-	frame, _ := frames.Next()
-	if frame.File == "" {
-		return ""
-	}
-	return fmt.Sprintf("%s:%d", frame.File, frame.Line)
 }
 
 // SlogLevelName is the history-line level token for level.

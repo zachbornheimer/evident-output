@@ -153,10 +153,6 @@ func (o *Run) forceLiveVisibleForTest() {
 
 func (o *Run) debugWriterForTest() io.WriteCloser { return o.debugWriter() }
 
-func (o *Run) declareDryRunForTest() { o.declareDryRun() }
-
-func (o *Run) aboutForTest(text string) { o.about(text) }
-
 func (o *Run) subjectForTest(text string) { o.subject(text) }
 
 func (o *Run) slogHandlerForTest() slog.Handler { return o.slogHandler() }
@@ -338,31 +334,6 @@ type (
 	fingerprint = freshness.Fingerprint
 )
 
-// DeclareDryRun switches this run into dry-run mode after construction — a
-// bounded late setter (I8): calling it once any durable row has already
-// streamed is misuse (ErrDryRunDeclaredLate), since those earlier rows
-// would not reflect the switch. There is no argv-sniffing helper; the
-// caller decides (e.g. from a flag parsed after Init) and calls this
-// explicitly, before any Task/Print/Confirm call. A no-op when the run is
-// already dry-run.
-func (o *Run) declareDryRun() {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		return
-	}
-	if o.cfg.dryRun {
-		return
-	}
-	if o.show.Stream.Written() > 0 {
-		o.recordMisuse(misuse.ErrDryRunDeclaredLate)
-		return
-	}
-	o.cfg.dryRun = true
-	o.show.PlannedHeader(o.cfg.preview, o.cfg.dryRunHeaderText)
-}
-
 // DebugWriter returns a line-oriented writer that emits Debug lines on newline.
 // Partial UTF-8 sequences are buffered; control bytes are sanitized.
 //
@@ -439,19 +410,6 @@ func (o *Run) print(args ...any) {
 // Printf formats like fmt.Sprintf and enqueues human-facing text (line-buffered).
 func (o *Run) printf(format string, args ...any) {
 	o.at(visibilityNormal).printf(format, args...)
-}
-
-// About names what this run is acting on without emitting a row. Call it
-// before DeclareDryRun so the header reads "[dry-run] repo  /path" instead
-// of the generic marker. Hosts that Init without a path (zq) used to drop
-// the name; the library that knows the path should call About.
-func (o *Run) about(text string) {
-	if o == nil || text == "" {
-		return
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.cfg.dryRunHeaderText = text
 }
 
 // Print implements Printer.
@@ -532,8 +490,7 @@ func (t *Task) context() context.Context {
 }
 
 // Basis declares freshness inputs for this Task. Calls accumulate. Basis is
-// Task configuration frozen at Define: a call after Define records
-// ErrBasisAfterDefine and is ignored.
+// Task configuration frozen at Define: a call after Define is ignored.
 func (t *Task) basis(inputs ...fingerprint) *Task {
 	if t == nil || t.out == nil {
 		return t
@@ -546,7 +503,6 @@ func (t *Task) basis(inputs ...fingerprint) *Task {
 		return t
 	}
 	if !st.neverDefined() {
-		o.recordMisuseFor(st.name, misuse.ErrBasisAfterDefine)
 		return t
 	}
 	sources := make([]basisSource, 0, len(inputs))
@@ -640,37 +596,6 @@ type basisSource = freshness.BasisSource
 
 // FingerprintBasis observes a Fingerprint (FSPath, Value, App).
 func fingerprintBasis(f fingerprint) basisSource { return freshness.FingerprintBasis(f) }
-
-// Key sets an advanced, refactor/rename-stable override for this Task's
-// §3.1 identity, replacing the default kind+parent-key+name derivation
-// within the application/workspace manifest namespace. Must be called
-// before Define — dependency/verification/execution configuration freezes
-// at Define, and identity is part of that configuration — a call after
-// Define, or after a terminal verb settled the Task, records
-// ErrKeyAfterDefine and leaves the task's key untouched. Repeating the key
-// the Task already has is a no-op. A key already claimed by another Task is
-// ErrDuplicateKey, the same identity-conflict error every other
-// explicit-key path already reports.
-func (t *Task) key(key string) *Task {
-	if t == nil || t.out == nil {
-		return t
-	}
-	o := t.out
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	st := o.taskStates[t.id]
-	if st == nil {
-		return t
-	}
-	if !st.neverDefined() {
-		o.recordMisuseFor(st.name, misuse.ErrKeyAfterDefine)
-		return t
-	}
-	if o.graph.Rekey(st.node, project.Text(key)) == graph.KeyTaken {
-		o.recordMisuse(misuse.ErrDuplicateKey)
-	}
-	return t
-}
 
 type problemSeverity = record.ProblemSeverity
 

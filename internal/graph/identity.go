@@ -92,7 +92,7 @@ type Task struct {
 	overturn refusal
 }
 
-// Key is the Task's §3.1 stable key; see Graph.Rekey.
+// Key is the Task's §3.1 stable key.
 func (t *Task) Key() string {
 	t.graph.mu.Lock()
 	defer t.graph.mu.Unlock()

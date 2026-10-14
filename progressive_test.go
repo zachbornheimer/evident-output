@@ -3,6 +3,7 @@ package evo
 import (
 	"bytes"
 	"io"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -143,7 +144,7 @@ func TestProgressive_InteractiveNoDoublePrint(t *testing.T) {
 
 func TestProgressive_DebugStreamsOnce(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{debug: debugConfig{level: levelDebug}, color: colorNever})
+	out := initRun(Config{Debug: slog.LevelDebug, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	out.dropDiagnosticForTest()
 	t.Cleanup(func() { _ = out.close() })
 	out.debugForTest("cache warm", field{Key: "dir", Value: "/tmp/x"})

@@ -8,21 +8,6 @@ import (
 	"io"
 )
 
-// ExampleGlyphProfile selects the state-glyph vocabulary Init applies via
-// Config.Glyphs. GlyphsASCII is the forced-ASCII profile; GlyphsUnicode and
-// GlyphsAuto are the other two values.
-func ExampleGlyphProfile() {
-	var buf bytes.Buffer
-	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{glyphs: glyphsASCII})
-	out.Task("scan").Define(func(context.Context) error { return nil })
-	_ = out.finish()
-	fmt.Print(buf.String())
-	// Output:
-	// [ok] scan
-	//
-	// [succeeded]  tool
-}
-
 // ExampleOutput shows the hosted-instance shape: build an isolated Output,
 // declare a Task on it directly, and Finish it — never touching the
 // package-level default.

@@ -5,6 +5,7 @@ package evo
 import (
 	"bytes"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
@@ -40,7 +41,7 @@ func TestPORT_RedirectedStdout(t *testing.T) {
 func TestPORT001_ANSIOnPipe(t *testing.T) {
 	var buf bytes.Buffer
 	drv := terminal.NewANSI(&buf, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: drv}}, tuning{debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: drv}}, tuning{})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("work").Doing("run"), "ok")
 	if err := out.finish(); err != nil {

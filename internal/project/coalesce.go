@@ -6,21 +6,6 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
-// StandaloneConclusion is the trailing band as a human reader sees it. A
-// DryRun whose Config.Subject header rendered ("[dry-run] zq prune  <path>")
-// has already named the run, so a band that must still appear (warned,
-// partial, ...) carries its tag alone — contract §18's zq prune fixture
-// closes with a bare "[planned · warned]" under a run titled "zq". The
-// same header already suppresses a pure "[planned]" band outright
-// (ShouldSuppressStandaloneConclusion). Machine output keeps Subject.
-func StandaloneConclusion(s record.Snapshot) record.Conclusion {
-	c := *s.Conclusion
-	if s.DryRun && s.DryRunSubject != "" {
-		c.Subject = ""
-	}
-	return c
-}
-
 // ShouldSuppressStandaloneConclusion implements DEC-COAL-* for human projection.
 //
 // Model and structured JSON always retain independent record.Conclusion + Plan/Changes.
@@ -45,18 +30,6 @@ func ShouldSuppressStandaloneConclusion(s record.Snapshot) bool {
 	// finding 3 fixed for the non-suppressed case).
 	if c.Explanation != "" || len(c.Actions) > 0 || c.Partial || c.Cancelled || c.Warned {
 		return false
-	}
-
-	// DryRun's own subject header already told the complete story
-	// (fixture-repo-retire-dryrun.md: "NO ledger row for tasks/binaries with
-	// no effects"): once WriteDryRunMarker rendered s.DryRunSubject and the
-	// derived verdict settled on a pure StatePlanned (failed/blocked/warned/
-	// partial/cancelled are all already excluded above), a trailing
-	// "[planned]" band repeats information the header plus the per-section
-	// [planned] ledger rows already gave — regardless of how many effect
-	// sections exist, unlike the single-section rule below.
-	if s.DryRun && s.DryRunSubject != "" && ConclusionHeadline(c) == HeadlinePlanned {
-		return true
 	}
 
 	if shouldSuppressRepeatedCondition(s, c) {

@@ -106,7 +106,6 @@ func (o *Run) concludeLocked() snapshot {
 	conc := record.InferConclusion(snap)
 	o.explainCancellationLocked(&conc)
 	record.FoldLeftoverMisuse(&conc, o.firstMisuse())
-	record.ApplyFailedExitCode(&conc, o.cfg.failedExitCode)
 	conc.RunID = o.outputID
 	conc.StartedAt = o.startedAt
 	conc.FinishedAt = o.cfg.clock.Now()

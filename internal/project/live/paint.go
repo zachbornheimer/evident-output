@@ -1,7 +1,6 @@
 package live
 
 import (
-	"strings"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/project"
@@ -20,7 +19,6 @@ type frame struct {
 	style         project.Style
 	subject       string
 	armedTitle    bool
-	pane          string
 }
 
 // snapshot captures the region for the surface and stamps it with the next
@@ -41,23 +39,16 @@ func (e *Engine) snapshot() frame {
 	return f
 }
 
-// frameAt is the under-lock half of a frame: the board's rows and the
-// debug pane (§21.3.2), which is text already.
+// frameAt is the under-lock half of a frame: the board's rows.
 func (e *Engine) frameAt(width, height int, now time.Time) frame {
-	body := height
-	pane, reserved := e.cfg.Scene.Pane(width, height)
-	if pane != "" {
-		body = max(height-max(reserved, 0), 1)
-	}
 	return frame{
-		snap:       e.cfg.Board.Frame(body, now),
+		snap:       e.cfg.Board.Frame(height, now),
 		width:      width,
-		height:     body,
+		height:     height,
 		now:        now,
 		style:      e.cfg.Style,
 		subject:    e.cfg.Subject,
 		armedTitle: e.cfg.Board.ArmedTitle(),
-		pane:       pane,
 	}
 }
 
@@ -67,10 +58,7 @@ func (f frame) render() string {
 	if body == "" && f.armedTitle {
 		body = ArmedTitleLine(f.subject, f.now, f.style)
 	}
-	if f.pane == "" {
-		return FitLiveRegion(body, f.width)
-	}
-	return FitLiveRegion(strings.TrimRight(body+f.pane, "\n"), f.width)
+	return FitLiveRegion(body, f.width)
 }
 
 // paint writes f unless a newer frame or a clear has superseded it, and

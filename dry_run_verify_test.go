@@ -8,15 +8,15 @@ import (
 )
 
 // TestDryRun_UnsatisfiedVerifyPlansInsteadOfFailing pins E-097: under a
-// dry run or preview, a Task whose Verify is false and whose Define plans
+// dry run, a Task whose Verify is false and whose Define plans
 // an Effect failed "postcondition not satisfied" with exit 2, because the
 // post-Define re-check observed state the skipped Effect never changed.
 // A planned run concludes planned, exit 0.
 func TestDryRun_UnsatisfiedVerifyPlansInsteadOfFailing(t *testing.T) {
-	for name, preview := range map[string]bool{"dry run": false, "preview": true} {
+	for _, name := range []string{"dry run"} {
 		var buf bytes.Buffer
-		cfg := Config{Name: "dry", DryRun: !preview, Output: Plain, State: State{Dir: t.TempDir()}, Facades: Facades{Stderr: &buf}}
-		out := initRun(cfg, tuning{color: colorNever, preview: preview})
+		cfg := Config{Name: "dry", DryRun: true, Output: Plain, State: State{Dir: t.TempDir()}, Facades: Facades{Stderr: &buf}}
+		out := initRun(cfg, tuning{color: colorNever})
 		out.Task("converge").
 			Verify(func(context.Context) (bool, error) { return false, nil }).
 			Define(func(ctx context.Context) error {
@@ -41,14 +41,10 @@ func TestDryRun_UnsatisfiedVerifyPlansInsteadOfFailing(t *testing.T) {
 // a dry run that concludes planned exit 0 here predicts success for a run
 // certain to fail.
 func TestDryRun_UnsatisfiedVerifyWithNothingPlannedFails(t *testing.T) {
-	for name, mode := range map[string]struct{ dryRun, preview bool }{
-		"real":    {},
-		"dry run": {dryRun: true},
-		"preview": {preview: true},
-	} {
+	for name, dryRun := range map[string]bool{"real": false, "dry run": true} {
 		var buf bytes.Buffer
-		cfg := Config{Name: "dry", DryRun: mode.dryRun, Output: Plain, State: State{Dir: t.TempDir()}, Facades: Facades{Stderr: &buf}}
-		out := initRun(cfg, tuning{color: colorNever, preview: mode.preview})
+		cfg := Config{Name: "dry", DryRun: dryRun, Output: Plain, State: State{Dir: t.TempDir()}, Facades: Facades{Stderr: &buf}}
+		out := initRun(cfg, tuning{color: colorNever})
 		out.Task("converge").
 			Verify(func(context.Context) (bool, error) { return false, nil }).
 			Define(func(context.Context) error { return nil })

@@ -10,15 +10,15 @@ import (
 	"testing"
 )
 
-func newQuietOutput(t *testing.T, strict bool) *Run {
+func newQuietOutput(t *testing.T) *Run {
 	t.Helper()
-	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard}}, tuning{strict: strict})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard}}, tuning{})
 	t.Cleanup(func() { _ = out.close() })
 	return out
 }
 
 func TestCompute_ValueFlowsToAfterConsumer(t *testing.T) {
-	out := newQuietOutput(t, false)
+	out := newQuietOutput(t)
 	repo := out.Group("repository")
 	branches := Compute(repo.Task("prune landed branches"), func(context.Context) ([]string, error) {
 		return []string{"a", "b"}, nil
@@ -40,7 +40,7 @@ func TestCompute_ValueFlowsToAfterConsumer(t *testing.T) {
 }
 
 func TestCompute_GetBeforeSettleIsMisuse(t *testing.T) {
-	out := newQuietOutput(t, false)
+	out := newQuietOutput(t)
 	release := make(chan struct{})
 	c := Compute(out.Task("slow"), func(context.Context) (int, error) {
 		<-release
@@ -56,25 +56,8 @@ func TestCompute_GetBeforeSettleIsMisuse(t *testing.T) {
 	}
 }
 
-func TestCompute_GetBeforeSettlePanicsUnderStrict(t *testing.T) {
-	out := newQuietOutput(t, true)
-	release := make(chan struct{})
-	c := Compute(out.Task("slow"), func(context.Context) (int, error) {
-		<-release
-		return 7, nil
-	})
-	defer func() {
-		close(release)
-		_ = out.finish()
-		if recover() == nil {
-			t.Fatal("Get before settle did not panic under Config.Strict")
-		}
-	}()
-	c.Get()
-}
-
 func TestCompute_FailedProducerNeverStartsConsumerOrBuilder(t *testing.T) {
-	out := newQuietOutput(t, false)
+	out := newQuietOutput(t)
 	g := out.Group("g")
 	bad := Compute(g.Task("produce"), func(context.Context) (int, error) { return 0, errors.New("boom") })
 	var ran atomic.Bool
@@ -95,7 +78,7 @@ func TestCompute_FailedProducerNeverStartsConsumerOrBuilder(t *testing.T) {
 }
 
 func TestCompute_CrossContainerGroupProducerSequenceConsumer(t *testing.T) {
-	out := newQuietOutput(t, false)
+	out := newQuietOutput(t)
 	repo := out.Group("repository")
 	worktrees := Compute(repo.Task("prune worktrees"), func(context.Context) (string, error) { return "kept", nil })
 	seq := out.Sequence("packages")
@@ -110,7 +93,7 @@ func TestCompute_CrossContainerGroupProducerSequenceConsumer(t *testing.T) {
 }
 
 func TestContainerDefine_BuilderRunsOnceAfterPredecessor(t *testing.T) {
-	out := newQuietOutput(t, false)
+	out := newQuietOutput(t)
 	pre := Compute(out.Task("pre"), func(context.Context) (int, error) { return 3, nil })
 	var builds atomic.Int32
 	var preSettledAtBuild atomic.Bool
@@ -134,7 +117,7 @@ func TestContainerDefine_BuilderRunsOnceAfterPredecessor(t *testing.T) {
 }
 
 func TestContainerDefine_GroupChildrenRunConcurrently(t *testing.T) {
-	out := newQuietOutput(t, false)
+	out := newQuietOutput(t)
 	const n = 4
 	var ready sync.WaitGroup
 	ready.Add(n)
@@ -154,7 +137,7 @@ func TestContainerDefine_GroupChildrenRunConcurrently(t *testing.T) {
 }
 
 func TestContainerDefine_SequenceChildrenRunInOrder(t *testing.T) {
-	out := newQuietOutput(t, false)
+	out := newQuietOutput(t)
 	var mu sync.Mutex
 	var order []int
 	s := out.Sequence("s")
@@ -182,7 +165,7 @@ func TestContainerDefine_SequenceChildrenRunInOrder(t *testing.T) {
 }
 
 func TestContainerDefine_DeclaringFromTaskCallbackIsMisuse(t *testing.T) {
-	out := newQuietOutput(t, false)
+	out := newQuietOutput(t)
 	g := out.Group("g")
 	g.Task("outer").Define(func(context.Context) error {
 		g.Task("inner").Define(func(context.Context) error { return nil })
@@ -195,7 +178,7 @@ func TestContainerDefine_DeclaringFromTaskCallbackIsMisuse(t *testing.T) {
 }
 
 func TestCompute_SameSequenceLaterSiblingGetsWithoutAfter(t *testing.T) {
-	out := newQuietOutput(t, true)
+	out := newQuietOutput(t)
 	seq := out.Sequence("steps")
 	first := Compute(seq.Task("first"), func(context.Context) (int, error) { return 41, nil })
 	var got int
@@ -209,7 +192,7 @@ func TestCompute_SameSequenceLaterSiblingGetsWithoutAfter(t *testing.T) {
 }
 
 func TestCompute_CrossContainerGetWithoutAfterIsMisuse(t *testing.T) {
-	out := newQuietOutput(t, false)
+	out := newQuietOutput(t)
 	makeTask := out.Group("producers").Task("make")
 	producer := Compute(makeTask, func(context.Context) (int, error) { return 1, nil })
 	seq := out.Sequence("consumers")
@@ -229,7 +212,7 @@ func TestCompute_CrossContainerGetWithoutAfterIsMisuse(t *testing.T) {
 }
 
 func TestCompute_AfterOnBuilderContainerBeforeEligibilityIsValid(t *testing.T) {
-	out := newQuietOutput(t, true)
+	out := newQuietOutput(t)
 	inv := Compute(out.Group("inventory").Task("scan"), func(context.Context) ([]string, error) {
 		return []string{"a", "b"}, nil
 	})
@@ -250,7 +233,7 @@ func TestCompute_AfterOnBuilderContainerBeforeEligibilityIsValid(t *testing.T) {
 }
 
 func TestCompute_AfterOnBuilderContainerAfterDefineIsInvalidConfig(t *testing.T) {
-	out := newQuietOutput(t, false)
+	out := newQuietOutput(t)
 	pre := out.Group("pre").Task("p")
 	pre.Define(func(context.Context) error { return nil })
 	g := out.Group("later")

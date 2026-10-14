@@ -137,7 +137,7 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 	t.Run("mixed done and pending", func(t *testing.T) {
 		drv := &fakeHeartbeatSurface{}
 		clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-		out := newOutput("fix", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), glyphs(glyphsUnicode))
+		out := newOutput("fix", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor())
 		t.Cleanup(func() { _ = out.close() })
 
 		grp := out.Group("fix")
@@ -160,7 +160,7 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 	t.Run("all pending at start", func(t *testing.T) {
 		drv := &fakeHeartbeatSurface{}
 		clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-		out := newOutput("fix", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), glyphs(glyphsUnicode))
+		out := newOutput("fix", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor())
 		t.Cleanup(func() { _ = out.close() })
 
 		grp := out.Group("fix")

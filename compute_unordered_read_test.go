@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"os"
-	"os/exec"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -27,7 +25,7 @@ func failedWithUnorderedRead(t *testing.T, task *Task) {
 // An unordered Get fails the run with ErrComputedUnordered, and the callback
 // that made it does not carry on with a zero value.
 func TestCompute_UnorderedGetFailsRunInDefaultMode(t *testing.T) {
-	out := newQuietOutput(t, false)
+	out := newQuietOutput(t)
 	makeTask := out.Group("producers").Task("make")
 	producer := Compute(makeTask, func(context.Context) (int, error) { return 1, nil })
 	var continued atomic.Bool
@@ -57,7 +55,6 @@ func TestUnorderedGetIsRefusedInEveryMode(t *testing.T) {
 	const attempts = 20
 	modes := map[string]runMode{
 		"default": {},
-		"strict":  {tune: tuning{strict: true}},
 		"dry run": {cfg: Config{DryRun: true}},
 	}
 	reads := map[string]func(*testing.T, runMode){
@@ -135,7 +132,7 @@ func assertReadUnwound(t *testing.T, out *Run, read *Task, continued *atomic.Boo
 // An unordered Get inside a Group builder unwinds the builder: the run fails
 // with the sentinel and the container's children never run.
 func TestComputedGet_UnorderedBuilderFailsTheContainerWithTheSentinel(t *testing.T) {
-	out := newQuietOutput(t, false)
+	out := newQuietOutput(t)
 	producer := Compute(out.Task("make"), func(context.Context) (int, error) { return 1, nil })
 	var declared atomic.Bool
 	builder := out.Group("builder")
@@ -162,7 +159,7 @@ func TestComputedGet_UnorderedBuilderFailsTheContainerWithTheSentinel(t *testing
 // settle first, and the Task fails with the sentinel when the callback
 // returns.
 func TestComputedGet_UnorderedCallbackReadingThroughASpawnedGoroutineIsRefused(t *testing.T) {
-	out := newQuietOutput(t, false)
+	out := newQuietOutput(t)
 	made := out.Group("producers").Task("make")
 	producer := Compute(made, func(context.Context) (int, error) { return 1, nil })
 	read := out.Group("consumers").Task("read")
@@ -188,7 +185,7 @@ func TestComputedGet_UnorderedCallbackReadingThroughASpawnedGoroutineIsRefused(t
 // a goroutine started by a goroutine the callback started is refused the
 // same.
 func TestComputedGet_UnorderedCallbackReadingThroughAGrandchildGoroutineIsRefused(t *testing.T) {
-	out := newQuietOutput(t, false)
+	out := newQuietOutput(t)
 	made := out.Group("producers").Task("make")
 	producer := Compute(made, func(context.Context) (int, error) { return 1, nil })
 	read := out.Group("consumers").Task("read")
@@ -206,36 +203,4 @@ func TestComputedGet_UnorderedCallbackReadingThroughAGrandchildGoroutineIsRefuse
 	})
 	_ = out.finish()
 	failedWithUnorderedRead(t, read)
-}
-
-// Strict mode, an unordered callback whose own child goroutine reads a
-// Computed. The read is refused, and the goroutine that made it has no
-// recover to take a strict panic, so the Task fails with
-// ErrComputedUnordered instead of the whole process ending.
-func TestStrictSpawnedUnorderedReadFailsTheTaskInsteadOfEndingTheProcess(t *testing.T) {
-	if os.Getenv("EVO_STRICT_SPAWNED_CHILD") == "1" {
-		out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard}}, tuning{strict: true})
-		made := out.Group("producers").Task("make")
-		producer := Compute(made, func(context.Context) (int, error) { return 1, nil })
-		_ = made.wait()
-		read := out.Group("consumers").Task("read")
-		read.Define(func(context.Context) error {
-			done := make(chan struct{})
-			go func() { defer close(done); _ = producer.Get() }()
-			<-done
-			return nil
-		})
-		_ = read.wait()
-		if snap := read.snapshot(); snap.State == failed && strings.Contains(snap.Summary, ErrComputedUnordered.Error()) {
-			os.Exit(0)
-		}
-		os.Exit(3)
-	}
-	cmd := exec.Command(os.Args[0], "-test.run=^TestStrictSpawnedUnorderedReadFailsTheTaskInsteadOfEndingTheProcess$")
-	cmd.Env = append(os.Environ(), "EVO_STRICT_SPAWNED_CHILD=1")
-	b, err := cmd.CombinedOutput()
-	if err != nil {
-		first, _, _ := strings.Cut(string(b), "\n")
-		t.Fatalf("child process: %v; first line: %s", err, first)
-	}
 }

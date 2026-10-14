@@ -2,6 +2,7 @@ package evo
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 
@@ -9,18 +10,30 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
+// asciiRun is a Run on an interactive terminal in a non-UTF-8 locale, the one place the ASCII
+// glyph profile is reachable; text returns everything the run left in scrollback.
+func asciiRun(t *testing.T) (out *Run, text func() string) {
+	t.Helper()
+	t.Setenv("LC_ALL", "C")
+	t.Setenv("LC_CTYPE", "")
+	t.Setenv("LANG", "")
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out = initRun(Config{Name: "demo", Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
+	return out, screen.PersistedText
+}
+
 // TestGlyphsASCII_StateRowsUseTightenedVocabulary pins evo-rec.md's 1:1
 // ASCII map (GLYPH-001) for the states a caller hits routinely.
 func TestGlyphsASCII_StateRowsUseTightenedVocabulary(t *testing.T) {
-	var buf bytes.Buffer
-	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{glyphs: glyphsASCII, color: colorNever})
+	out, text := asciiRun(t)
 	succeed(out.Task("done"))
 	out.Task("failed").fail("boom")
 	out.Task("gate").block("declined")
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	s := buf.String()
+	s := text()
 	for _, want := range []string{"[ok]", "[x]", "[refused]"} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("expected %q in ASCII-profile output:\n%s", want, s)
@@ -36,8 +49,7 @@ func TestGlyphsASCII_StateRowsUseTightenedVocabulary(t *testing.T) {
 // TestGlyphsASCII_NotStartedAndPendingRows pins [-] and [.] for the two
 // remaining static rows requested in the work order.
 func TestGlyphsASCII_NotStartedAndPendingRows(t *testing.T) {
-	var buf bytes.Buffer
-	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{glyphs: glyphsASCII, color: colorNever})
+	out, text := asciiRun(t)
 	group := out.Sequence("pipeline")
 	first := group.Task("first")
 	second := group.Task("second")
@@ -47,7 +59,7 @@ func TestGlyphsASCII_NotStartedAndPendingRows(t *testing.T) {
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	s := buf.String()
+	s := text()
 	if !strings.Contains(s, "[-]") {
 		t.Fatalf("expected [-] not-started row for the un-run sibling:\n%s", s)
 	}
@@ -56,8 +68,11 @@ func TestGlyphsASCII_NotStartedAndPendingRows(t *testing.T) {
 // TestGlyphsASCII_SpinnerExcludesNotStartedGlyph pins the "ASCII spinner
 // alphabet excludes every semantic glyph" rule: no frame collides with "-".
 func TestGlyphsASCII_SpinnerExcludesNotStartedGlyph(t *testing.T) {
+	t.Setenv("LC_ALL", "C")
+	t.Setenv("LC_CTYPE", "")
+	t.Setenv("LANG", "")
 	screen := testkit.NewScreen(testkit.Interactive())
-	out := initRun(Config{Name: "demo", Facades: Facades{Stderr: &bytes.Buffer{}, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), glyphs: glyphsASCII})
+	out := initRun(Config{Name: "demo", Facades: Facades{Stderr: &bytes.Buffer{}, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0)})
 	task := out.Task("install")
 	task.Doing("working")
 	frame := screen.LatestLiveText()
@@ -120,7 +135,7 @@ func TestGlyphsAuto_UTF8LocaleKeepsUnicode(t *testing.T) {
 // "don't change the Unicode glyphs themselves").
 func TestGlyphUnicode_UnchangedByProfileAxis(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{glyphs: glyphsUnicode, color: colorNever})
+	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	succeed(out.Task("done"))
 	out.Task("failed").fail("boom")
 	out.Task("gate").block("declined")
@@ -156,7 +171,7 @@ func TestGlyphWidths_BlockedAndCancelledAreNarrow(t *testing.T) {
 // profile-aware glyph (→ Unicode, > ASCII) rather than a color-only cue.
 func TestWriteAction_NextActionGlyph(t *testing.T) {
 	var uniBuf strings.Builder
-	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &uniBuf}}, tuning{glyphs: glyphsUnicode, color: colorNever})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &uniBuf}}, tuning{color: colorNever})
 	done := out.Task("done")
 	done.Problem("repository not retired yet", severity(severityWarning), Next(label("repo-retire --retire demo")))
 	succeed(done)
@@ -167,16 +182,15 @@ func TestWriteAction_NextActionGlyph(t *testing.T) {
 		t.Fatalf("want unicode next-action glyph, got:\n%s", uniBuf.String())
 	}
 
-	var asciiBuf strings.Builder
-	out2 := initRun(Config{Output: Plain, Facades: Facades{Stderr: &asciiBuf}}, tuning{glyphs: glyphsASCII, color: colorNever})
+	out2, asciiText := asciiRun(t)
 	done2 := out2.Task("done")
 	done2.Problem("repository not retired yet", severity(severityWarning), Next(label("repo-retire --retire demo")))
 	succeed(done2)
 	if err := out2.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(asciiBuf.String(), ">  repo-retire --retire demo") {
-		t.Fatalf("want ASCII next-action glyph, got:\n%s", asciiBuf.String())
+	if !strings.Contains(asciiText(), ">  repo-retire --retire demo") {
+		t.Fatalf("want ASCII next-action glyph, got:\n%s", asciiText())
 	}
 }
 
@@ -184,33 +198,16 @@ func TestWriteAction_NextActionGlyph(t *testing.T) {
 // through the ASCII glyph profile ("-") instead of a hardcoded "└─" that
 // would mojibake on a non-UTF-8 terminal.
 func TestWriteProblem_EvidenceGlyph_ASCII(t *testing.T) {
-	var buf strings.Builder
-	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{glyphs: glyphsASCII, color: colorNever})
+	out, text := asciiRun(t)
 	out.Task("branches").fail("cannot lock ref", Detail("another git process seems to be running"))
 	if err := out.finish(); err != nil {
 		t.Log(err)
 	}
-	got := buf.String()
+	got := text()
 	if strings.Contains(got, "└─") {
 		t.Fatalf("ASCII profile must not render Unicode evidence connector:\n%s", got)
 	}
 	if !strings.Contains(got, "- another git process seems to be running") {
 		t.Fatalf("want ASCII evidence connector, got:\n%s", got)
-	}
-}
-
-// TestConfirm_ASCIIProfile_PromptGlyph proves the confirm gate's "?" prompt
-// routes through the ASCII glyph profile ("[?]") rather than a hardcoded "?"
-// that would stay Unicode-only regardless of the configured profile.
-func TestConfirm_ASCIIProfile_PromptGlyph(t *testing.T) {
-	var buf strings.Builder
-	restore := markWriterAsCharDevice(&buf)
-	t.Cleanup(restore)
-	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf, Stdin: strings.NewReader("y\n")}}, tuning{glyphs: glyphsASCII, color: colorNever})
-	if ok := out.Confirm("proceed?"); !ok {
-		t.Fatal("Confirm(\"y\") = false, want true")
-	}
-	if err := out.finish(); err != nil {
-		t.Fatal(err)
 	}
 }

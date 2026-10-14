@@ -32,10 +32,6 @@ type Stream struct {
 	linesEmitted int
 	written      int
 
-	// paneActive is set once a debug record was presented by the live pane
-	// rather than as history: it decides the failure tail (§21.3.2).
-	paneActive bool
-
 	// streamed are the ledger sections, by id, whose named rows already
 	// streamed at their Task's resolution.
 	streamed map[string]bool
@@ -59,9 +55,6 @@ type Config struct {
 	// clock.Scheduler.
 	Clock clock.Clock
 	Style project.Style
-	// Pane is the debug pane when debug records present in the live
-	// region, nil when they stream as history.
-	Pane *project.DebugPane
 }
 
 // Region is the live region human text clears and redraws around. A run

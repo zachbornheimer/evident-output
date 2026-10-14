@@ -61,15 +61,6 @@ func (c Conclusion) AnyRefused() bool {
 	return false
 }
 
-// ApplyFailedExitCode overrides ExitFailed when Config.FailedExitCode is set.
-// code == 0 means keep the library default (ExitFailed = 2).
-func ApplyFailedExitCode(c *Conclusion, code int) {
-	if c == nil || code == 0 || c.Outcome != OutcomeFailed {
-		return
-	}
-	c.ExitCode = code
-}
-
 // FoldLeftoverMisuse fails an otherwise exit-0 conclusion when Finish also
 // recorded misuse (a never-resolved Task, a double resolve, ...), before the
 // conclusion is rendered, so the band that prints and the exit code are the

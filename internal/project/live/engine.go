@@ -99,9 +99,6 @@ type Scene interface {
 	// Ended reports the run closed or finished: no frame paints and no
 	// tick runs again.
 	Ended() bool
-	// Pane is the debug pane a frame width columns wide and height rows
-	// tall draws under its rows, and the rows it reserves; "" for none.
-	Pane(width, height int) (text string, rows int)
 	// Resized tells the run the surface is now width columns wide.
 	Resized(width int)
 }

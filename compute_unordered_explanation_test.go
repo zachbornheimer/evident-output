@@ -10,7 +10,7 @@ import (
 // declared order does not prove ends the run with an Explanation that names the refused read, never a
 // "panic" the caller did not write.
 func TestUnorderedGetExplanationNeverSaysPanic(t *testing.T) {
-	out := newQuietOutput(t, false)
+	out := newQuietOutput(t)
 	makeTask := out.Group("producers").Task("make")
 	producer := Compute(makeTask, func(context.Context) (int, error) { return 1, nil })
 	out.Sequence("consumers").Task("read").Define(func(context.Context) error {

@@ -64,7 +64,6 @@ type Config struct {
 	Style           project.Style
 	Subject         string
 	Sinks           plain.Sinks
-	Pane            *project.DebugPane
 }
 
 // Host is what a Presenter reads of the run around it.
@@ -96,7 +95,6 @@ func New(cfg Config) *Presenter {
 	p.Stream = plain.NewStream(plain.Config{
 		Run: cfg.Run, Region: p.Live, Source: p.Rows, Sinks: cfg.Sinks, Scene: scene{p},
 		Lock: cfg.Lock, Clock: cfg.Clock, Style: cfg.Style,
-		Pane: cfg.Pane,
 	})
 	p.Events = wire.NewEvents(cfg.Events, cfg.RunID, cfg.Clock)
 	p.follow = project.NewFollower(cfg.Run, cfg.Lock, reactions{p})
@@ -213,9 +211,9 @@ func (p *Presenter) Snapshot(meta record.Snapshot) record.Snapshot {
 
 // PlannedHeader writes a planned run's opening announcement, once, first:
 // no path finishes a dry run without it (evo-rec.md Problem 1).
-func (p *Presenter) PlannedHeader(preview bool, subject string) {
+func (p *Presenter) PlannedHeader() {
 	var b strings.Builder
-	plain.WritePlannedHeader(&b, p.cfg.Style.Color, preview, subject)
+	plain.WritePlannedHeader(&b, p.cfg.Style.Color)
 	p.Stream.Write(b.String())
 }
 

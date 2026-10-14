@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
@@ -160,7 +161,7 @@ func TestConfig_PipeAndDiagnosticsWired(t *testing.T) {
 	defer func() { _ = w.Close() }()
 
 	var stdout bytes.Buffer
-	out := initRun(Config{Name: "tool", Output: Plain, Facades: Facades{Stdout: &stdout, Stderr: w}}, tuning{debug: debugConfig{level: levelDebug}, color: colorNever})
+	out := initRun(Config{Debug: slog.LevelDebug, Name: "tool", Output: Plain, Facades: Facades{Stdout: &stdout, Stderr: w}}, tuning{color: colorNever})
 	out.debugForTest("diag-line")
 	out.Task("gate").block("dirty")
 	if err := out.finish(); err != nil {
@@ -179,7 +180,7 @@ func TestConfig_PipeAndDiagnosticsWired(t *testing.T) {
 
 func TestDebug_ReachesStderrOnceAndNeverStdout(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: &stdout, Stderr: &stderr}}, tuning{debug: debugConfig{level: levelDebug}, color: colorNever})
+	out := initRun(Config{Debug: slog.LevelDebug, Output: Plain, Facades: Facades{Stdout: &stdout, Stderr: &stderr}}, tuning{color: colorNever})
 	out.debugForTest("internal only")
 	succeed(out.Task("ok"))
 	if err := out.finish(); err != nil {

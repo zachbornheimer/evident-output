@@ -2,13 +2,10 @@ package evo
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"testing"
-
-	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
 )
 
 type platformSecretRedactor struct{}
@@ -39,37 +36,27 @@ func TestCapture_RedactsOnRetention(t *testing.T) {
 	}
 }
 
-func TestEntityID_StableKeyInSnapshotAndJSON(t *testing.T) {
+func TestEntityID_DerivedKeyInSnapshotAndJSON(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{Name: "id", Facades: Facades{Stdout: &buf, Stderr: &buf}})
-	succeed(out.Task("working tree").key("gate.working-tree"))
-	succeed(out.Task("download base").key("build.base.download"))
+	succeed(out.Task("working tree"))
+	succeed(out.Task("download base"))
 	_ = out.finish()
 
 	snap := out.snapshot()
-	if len(snap.Tasks) != 2 || snap.Tasks[0].Key != "gate.working-tree" {
+	if len(snap.Tasks) != 2 || snap.Tasks[0].Key != "task:/working tree" {
 		t.Fatalf("first task key: %+v", snap.Tasks)
 	}
-	if snap.Tasks[1].Key != "build.base.download" {
+	if snap.Tasks[1].Key != "task:/download base" {
 		t.Fatalf("second task key: %+v", snap.Tasks)
 	}
 
 	tasks := out.decodedRunDocument(t).Data.Tasks
-	if len(tasks) != 2 || tasks[0].Key != "gate.working-tree" {
+	if len(tasks) != 2 || tasks[0].Key != "task:/working tree" {
 		t.Fatalf("json first task key: %+v", tasks)
 	}
-	if tasks[1].Key != "build.base.download" {
+	if tasks[1].Key != "task:/download base" {
 		t.Fatalf("json second task key: %+v", tasks)
-	}
-}
-
-func TestEntityID_DuplicateIsMisuse(t *testing.T) {
-	var buf bytes.Buffer
-	out := initRun(Config{Name: "dup", Facades: Facades{Stdout: &buf, Stderr: &buf}})
-	succeed(out.Task("a").key("same"))
-	succeed(out.Task("b").key("same"))
-	if !errors.Is(out.err(), misuse.ErrDuplicateKey) {
-		t.Fatal("expected ErrDuplicateKey misuse")
 	}
 }
 

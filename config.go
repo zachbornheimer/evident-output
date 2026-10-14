@@ -9,7 +9,6 @@ import (
 
 	"github.com/zachbornheimer/evident-output/v2/internal/fs"
 	"github.com/zachbornheimer/evident-output/v2/internal/process"
-	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
 	"github.com/zachbornheimer/evident-output/v2/internal/project/live"
 	"github.com/zachbornheimer/evident-output/v2/internal/terminal"
 )
@@ -41,27 +40,23 @@ type State struct {
 	AppID string
 }
 
-// tuning is what a Run is built with beyond Config: presentation settings no
-// caller reaches. Execute and Main pass the zero tuning.
+// tuning is what a Run is built with beyond Config. Production passes the zero
+// tuning, so every field is a test seam the contract's Facades cannot express;
+// TestTuningSeamsAreNamed pins the set.
 type tuning struct {
-	// subtitle is a durable line printed once under the title (a repo path, a target host).
-	subtitle string
-	// facts are run-scoped name/value lines painted with the header, before any Task.
-	facts  []factRecord
-	color  colorMode
-	strict bool
-	width  int
+	// color pins colour on or off, so a test is independent of NO_COLOR and FORCE_COLOR.
+	color colorMode
+	// width is the layout width of a non-terminal run; a narrow-layout test sets it, since a buffer has no size.
+	width int
 	// visibilityDelay is the wait before the first live paint; nil means 80ms, non-nil is exact.
+	// A live-region test sets it to zero so its first frame paints at once.
 	visibilityDelay *time.Duration
-	maxFrameRate    int
-	maxEntities     int
-	maxEvents       int
-	glyphs          glyphProfile
-	// failedExitCode is the exit code of a Failed run; zero means 2.
-	failedExitCode int
-	// preview is DryRun's planned tense before a confirm gate, announced by subtitle alone.
-	preview bool
-	debug   debugConfig
+	// maxFrameRate bounds live repaints per second; a scenario test lifts it so every frame paints.
+	maxFrameRate int
+	// maxEntities is the declaration cap; a limit test lowers it instead of declaring 100,000 Tasks.
+	maxEntities int
+	// maxEvents is the journal cap; a limit test lowers it instead of emitting 50,000 events.
+	maxEvents int
 }
 
 type colorMode int
@@ -71,18 +66,6 @@ const (
 	colorAlways
 	colorNever
 )
-
-type debugConfig struct {
-	// level is the minimum debug journal level; unset resolves from Config.Debug and EVO_DEBUG.
-	level      logLevel
-	view       debugPresentation
-	paneHeight int
-	// newestFirst orders the pane (default true).
-	newestFirst    *bool
-	preserveAlways bool
-	// addSource resolves each record's call site to source=file.go:line.
-	addSource bool
-}
 
 // logLevel is a diagnostic severity. Zero is levelUnset; named levels start at levelTrace; levelOff keeps
 // the journal closed to every record.
@@ -96,13 +79,6 @@ const (
 	levelWarn
 	levelError
 	levelOff
-)
-
-type debugPresentation int
-
-const (
-	debugPresentationHistory debugPresentation = iota
-	debugPresentationPane
 )
 
 type terminalDriver = terminal.Driver
@@ -126,39 +102,32 @@ const (
 type config struct {
 	subject string
 	// primary carries rows and free text; result carries the Human and Plain payload.
-	primary           io.Writer
-	diagnostic        io.Writer
-	result            io.Writer
-	extraWriters      []io.Writer
-	plain             bool
-	noColor           bool
-	width             int
-	clock             timeSource
-	visibilityDelay   time.Duration
-	maxFrameRate      int
-	strict            bool
-	terminal          terminalDriver
-	debugLevel        logLevel
-	debugAddSource    bool
-	debugPresentation debugPresentation
-	debugPane         txt.DebugPane
-	redactor          Redactor
-	maxEntities       int
-	maxEvents         int
-	maxConcurrency    int
+	primary         io.Writer
+	diagnostic      io.Writer
+	result          io.Writer
+	extraWriters    []io.Writer
+	plain           bool
+	noColor         bool
+	width           int
+	clock           timeSource
+	visibilityDelay time.Duration
+	maxFrameRate    int
+	terminal        terminalDriver
+	debugLevel      logLevel
+	redactor        Redactor
+	maxEntities     int
+	maxEvents       int
+	maxConcurrency  int
 	// verbose shows Facts and expands each Skipped/Kept row into one line per reason.
-	verbose        bool
-	stateDir       string
-	appID          string
-	processRunner  processRunner
-	fileFS         fs.FS
-	stdin          io.Reader
-	failedExitCode int
+	verbose       bool
+	stateDir      string
+	appID         string
+	processRunner processRunner
+	fileFS        fs.FS
+	stdin         io.Reader
 	// dryRun selects ledger tense: [planned]/imperative when true, [changed]/past when false.
 	dryRun bool
-	// preview marks the planned tense as a pre-confirm preview: the header is the subtitle alone.
-	preview bool
-	glyphs  glyphProfile
+	glyphs glyphProfile
 	// samePrimaryAsTerminal: the terminal driver wraps the primary writer, so Finish does not write
 	// the conclusion there a second time.
 	samePrimaryAsTerminal bool
@@ -168,8 +137,6 @@ type config struct {
 	// resultSharesTerminal: the payload stream is the live driver's terminal, so payload text goes through
 	// the live region instead of landing inside it.
 	resultSharesTerminal bool
-	// dryRunHeaderText is the subtitle a dry run's announcement merges onto one "[dry-run] <subtitle>" line.
-	dryRunHeaderText string
 	// wireFormat is JSON or JSONL for a machine Output, zero otherwise; wireStream is stdout.
 	wireFormat Output
 	wireStream io.Writer
@@ -193,7 +160,6 @@ func resolveConfig(c Config, t tuning) config {
 		clock:           cmp.Or(timeSource(f.Clock), timeSource(systemClock{})),
 		visibilityDelay: defaultVisibilityDelay,
 		maxFrameRate:    cmp.Or(max(t.maxFrameRate, 0), defaultMaxFrameRate),
-		strict:          t.strict,
 		redactor:        cmp.Or(f.Redactor, Redactor(process.NoopRedactor{})),
 		maxEntities:     cmp.Or(max(t.maxEntities, 0), defaultMaxEntities),
 		maxEvents:       cmp.Or(max(t.maxEvents, 0), defaultMaxEvents),
@@ -203,10 +169,7 @@ func resolveConfig(c Config, t tuning) config {
 		processRunner:   cmp.Or(processRunner(f.Process), process.System()),
 		fileFS:          cmp.Or(fs.FS(f.FS), fs.FS(fs.Disk{})),
 		stdin:           cmp.Or(f.Stdin, terminal.Stdin()),
-		failedExitCode:  t.failedExitCode,
-		dryRun:          c.DryRun || t.preview,
-		preview:         t.preview,
-		glyphs:          t.glyphs,
+		dryRun:          c.DryRun,
 	}
 	if output == JSON || output == JSONL {
 		cfg.wireFormat, cfg.wireStream = output, stdout
@@ -219,12 +182,9 @@ func resolveConfig(c Config, t tuning) config {
 	if c.Verbose || lookupEnv(envKeyVerbose) == envVerboseOn {
 		cfg.verbose = true
 	}
-	if cfg.dryRun {
-		cfg.dryRunHeaderText = t.subtitle
-	}
 	cfg.colorOf(t.color, stderr)
 	cfg.terminalOf(f.Terminal, stdout, stderr)
-	cfg.debugOf(t.debug, c.Debug)
+	cfg.debugOf(c.Debug)
 	return cfg
 }
 
@@ -290,40 +250,16 @@ func (cfg *config) liveTerminal(w io.Writer) {
 	cfg.resultSharesTerminal = sameTerminalDevice(w, cfg.result)
 }
 
-// debugOf configures the debug journal: its level, then durable history above the live region or a
-// rolling pane in it.
-func (cfg *config) debugOf(d debugConfig, level slog.Leveler) {
-	cfg.debugLevel = d.level
-	if cfg.debugLevel == levelUnset && level != nil {
+// debugOf sets the journal's level: Config.Debug, else EVO_DEBUG, else off.
+func (cfg *config) debugOf(level slog.Leveler) {
+	if level != nil {
 		cfg.debugLevel = logLevelOf(level.Level())
+		return
 	}
-	if cfg.debugLevel == levelUnset {
-		cfg.debugLevel, _ = parseDebugEnv(lookupEnv(envKeyDebug))
-	}
+	cfg.debugLevel, _ = parseDebugEnv(lookupEnv(envKeyDebug))
 	if cfg.debugLevel == levelUnset {
 		cfg.debugLevel = levelOff
 	}
-	cfg.debugAddSource = d.addSource
-	if d.view != debugPresentationPane {
-		cfg.debugPresentation = debugPresentationHistory
-		return
-	}
-	cfg.debugPresentation = debugPresentationPane
-	cfg.debugPane = txt.DebugPane{Height: txt.DefaultDebugPaneHeight, NewestFirst: true, PreserveOnBad: true}
-	if d.paneHeight > 0 {
-		cfg.debugPane.Height = d.paneHeight
-	}
-	if d.newestFirst != nil {
-		cfg.debugPane.NewestFirst = *d.newestFirst
-	}
-	cfg.debugPane.PreserveAlways = d.preserveAlways
-}
-
-func (c *config) debugPanePresentation() *txt.DebugPane {
-	if c.debugPresentation != debugPresentationPane {
-		return nil
-	}
-	return &c.debugPane
 }
 
 // eventStream is where the evo.event stream writes: stdout in JSONL, nowhere otherwise.
@@ -334,11 +270,8 @@ func (c *config) eventStream() io.Writer {
 	return c.wireStream
 }
 
-// resolveGlyphProfileLocked turns an auto profile into a concrete one once, at construction.
+// resolveGlyphProfileLocked picks the glyph profile once, at construction.
 func resolveGlyphProfileLocked(cfg *config) {
-	if cfg.glyphs != glyphsAuto {
-		return
-	}
 	if !interactiveOutputLocked(cfg) || localeAdvertisesUTF8() {
 		cfg.glyphs = glyphsUnicode
 		return

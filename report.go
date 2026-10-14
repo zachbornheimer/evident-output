@@ -224,8 +224,7 @@ func logLevelOf(l slog.Level) logLevel {
 }
 
 // emitLogRecord journals every accepted slog record as structured diagnostics.
-// The raw PC stays on the LogRecord; a bare pc=<uintptr> never reaches
-// rendering. A source=file.go:line field is added only when Config.Debug.AddSource opts in.
+// The raw PC stays on the LogRecord; a bare pc=<uintptr> never reaches rendering.
 func (o *Run) emitLogRecord(rec logRecord) {
 	if o == nil {
 		return
@@ -237,17 +236,9 @@ func (o *Run) emitLogRecord(rec logRecord) {
 	// Force: Handler.Enabled already applied Config.Debug.Level via min.
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if o.cfg.debugAddSource && rec.PC != 0 {
-		if source := record.CallerLocation(rec.PC); source != "" {
-			fields = append(fields, field{Key: "source", Value: source})
-		}
-	}
 	o.emitDebugRecordLocked(record.SlogLevelName(rec.Level), rec.Message, fields, rec.Time, true)
 }
 
-// Debug records a structured diagnostic (§4.6 / §21.3). History mode (default) is durable scrollback; pane mode
-// shows it in the rolling live pane, durable only if a diagnostic tail is preserved at Finish. With a distinct
-// Diagnostics writer, debug lines go there only. Use Capture, not DebugWriter, for Fail Detail.
 // debugRecord is one structured diagnostic journal entry (§21.3).
 type debugRecord = record.DebugRecord
 

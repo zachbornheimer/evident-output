@@ -91,7 +91,7 @@
       },
       {
         "pkg": ".",
-        "run": "TestStrictSpawnedUnorderedReadFailsTheTaskInsteadOfEndingTheProcess"
+        "run": "TestUnorderedGetIsRefusedInEveryMode"
       }
     ],
     "default": false

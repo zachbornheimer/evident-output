@@ -52,12 +52,6 @@ func openRun(cfg Config, t tuning) *Run {
 	out := newRun(resolveConfig(cfg, t))
 	out.changes.Workspace() // captured at Run start: relative paths never follow a later chdir
 	out.arm()
-	if t.subtitle != "" && !out.cfg.dryRun {
-		out.println(t.subtitle)
-	}
-	for _, fact := range t.facts {
-		out.Fact(fact.Name, fact.Value)
-	}
 	return out
 }
 
@@ -278,7 +272,6 @@ func (o *Run) conclusion() Conclusion {
 	snap := o.snapshotLocked()
 	c := record.InferConclusion(snap)
 	o.explainCancellationLocked(&c)
-	record.ApplyFailedExitCode(&c, o.cfg.failedExitCode)
 	return asEvoConclusion(c)
 }
 

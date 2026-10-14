@@ -2,6 +2,7 @@ package evo
 
 import (
 	"io"
+	"log/slog"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/fs"
@@ -72,8 +73,8 @@ func withTerminal(driver terminalDriver) option {
 }
 
 // debugLevel sets the minimum debug journal level.
-func debugLevel(level logLevel) option {
-	return func(_ *Config, t *tuning) { t.debug.level = level }
+func debugLevel(level slog.Level) option {
+	return func(c *Config, _ *tuning) { c.Debug = level }
 }
 
 func maxConcurrency(n int) option {
@@ -87,8 +88,4 @@ func withStateDir(dir string) option {
 // withFileFS installs the filesystem evo.File works through, so a fake can prove an outcome a real disk cannot.
 func withFileFS(fsys fs.FS) option {
 	return func(c *Config, _ *tuning) { c.Facades.FS = fsys }
-}
-
-func glyphs(p glyphProfile) option {
-	return func(_ *Config, t *tuning) { t.glyphs = p }
 }

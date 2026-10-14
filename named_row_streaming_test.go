@@ -40,12 +40,7 @@ func planFiles(task *Task, dir string, names ...string) {
 func TestNamedRow_StreamsAtTaskResolution_PlainProfile(t *testing.T) {
 	var buf bytes.Buffer
 	dir := t.TempDir()
-	// Config.Subject (like TestCoalesce_DryRunPlannedWithHeader_
-	// SuppressesTrailingConclusion) is what lets a pure-planned multi-section
-	// dry run suppress its trailing conclusion band, so the only "[planned]"
-	// occurrences left to count are the two per-task ledger rows this test is
-	// actually about.
-	out := initRun(Config{DryRun: true, Output: Plain, State: State{Dir: dir}, Facades: Facades{Stderr: &buf, FS: testkit.NewFileFS()}}, tuning{subtitle: "repo  /demo", color: colorNever})
+	out := initRun(Config{DryRun: true, Output: Plain, State: State{Dir: dir}, Facades: Facades{Stderr: &buf, FS: testkit.NewFileFS()}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	planFiles(out.Task("go-task"), dir, "build.out")
@@ -69,9 +64,8 @@ func TestNamedRow_StreamsAtTaskResolution_PlainProfile(t *testing.T) {
 	if idx1, idx2 := strings.Index(got, "build.out"), strings.Index(got, "vet.out"); idx1 < 0 || idx2 < 0 || idx1 > idx2 {
 		t.Fatalf("want go-task's row before go-vet's row (resolution order), got:\n%s", got)
 	}
-	if strings.Count(got, "[planned]") != 2 {
-		t.Fatalf("want exactly one [planned] band per task (no Finish re-render), got %d in:\n%s",
-			strings.Count(got, "[planned]"), got)
+	if n := strings.Count(got, "[planned] go-"); n != 2 {
+		t.Fatalf("want exactly one [planned] band per task (no Finish re-render), got %d in:\n%s", n, got)
 	}
 }
 

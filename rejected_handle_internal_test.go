@@ -24,7 +24,7 @@ func TestRejectedDeclaration_DefineRecordsMisuse(t *testing.T) {
 	ran := false
 	dup := out.Task("x")
 	out.mu.Lock()
-	out.misuse = misuse.New(false)
+	out.misuse = misuse.New()
 	out.mu.Unlock()
 	dup.Define(func(context.Context) error { ran = true; return nil })
 	_ = out.finish()

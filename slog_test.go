@@ -14,7 +14,7 @@ import (
 
 func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 
 	logger := slog.New(out.slogHandlerForTest())
@@ -38,7 +38,7 @@ func TestSlogHandler_EmitsDebugAboveLiveRegion(t *testing.T) {
 
 func TestSlogHandler_PreservesTimeLevelAttrs(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{Name: "slog", Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Debug: slog.LevelDebug, Name: "slog", Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{})
 	t.Cleanup(func() { _ = out.close() })
 
 	logger := slog.New(out.slogHandlerForTest())
@@ -71,7 +71,7 @@ func TestSlogHandler_PreservesTimeLevelAttrs(t *testing.T) {
 func TestSlogInfoPreservesAttrsAndTime(t *testing.T) {
 	var buf bytes.Buffer
 	fixed := TestClock{T: time.Date(2026, 7, 27, 22, 15, 0, 0, time.UTC)}
-	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf, Clock: fixed}}, tuning{debug: debugConfig{level: levelDebug}, color: colorNever})
+	out := initRun(Config{Debug: slog.LevelDebug, Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf, Clock: fixed}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	logger := slog.New(out.slogHandlerForTest())
@@ -99,10 +99,9 @@ func TestSlogInfoPreservesAttrsAndTime(t *testing.T) {
 	}
 }
 
-func TestSlogWarnAppearsInDebugPane(t *testing.T) {
+func TestSlogWarnAppearsInDebugHistory(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	newest := true
-	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug, view: debugPresentationPane, paneHeight: 5, newestFirst: &newest}, color: colorNever})
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	logger := slog.New(out.slogHandlerForTest())
@@ -112,9 +111,7 @@ func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 	succeed(task)
 	_ = out.finish()
 
-	live := screen.LatestLiveText()
-	// Prefer live pane while work was active; also accept final text.
-	combined := live + "\n" + screen.FinalText()
+	combined := screen.PersistedText()
 	if !strings.Contains(combined, "level=WARN") && !strings.Contains(combined, "[WARN]") {
 		t.Fatalf("WARN must journal as structured level, not bare line:\n%s", combined)
 	}
@@ -124,11 +121,6 @@ func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 	if !strings.Contains(combined, "registry=ghcr.io") {
 		t.Fatalf("attrs must survive:\n%s", combined)
 	}
-	// One clock, one grammar (release-gate round 6 finding 3): the pane uses
-	// the same bracketed grammar as durable history, [WARN] not level=WARN.
-	if strings.Contains(live, "── debug") && !strings.Contains(live, "[WARN]") {
-		t.Fatalf("pane should show bracket history grammar for WARN:\n%s", live)
-	}
 }
 
 // TestSlogErrorPreservesLevelAndPC covers release-gate round 6 finding 2: a
@@ -137,7 +129,7 @@ func TestSlogWarnAppearsInDebugPane(t *testing.T) {
 // SlogHandler().Handle (see LogRecord.PC) for any machine consumer.
 func TestSlogErrorPreservesLevelAndPC(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{debug: debugConfig{level: levelDebug}, color: colorNever})
+	out := initRun(Config{Debug: slog.LevelDebug, Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	// Craft a Record with a non-zero PC (as AddSource would provide).
@@ -163,27 +155,5 @@ func TestSlogErrorPreservesLevelAndPC(t *testing.T) {
 	}
 	if !strings.Contains(s, "22:15:00") {
 		t.Fatalf("record time missing:\n%s", s)
-	}
-}
-
-// TestSlogAddSource_ResolvesSourceField covers release-gate round 6 finding
-// 2's other half: Config.Debug.AddSource resolves the call site to a
-// source=file.go:line field instead of the bare pc it never renders by
-// default.
-func TestSlogAddSource_ResolvesSourceField(t *testing.T) {
-	var buf bytes.Buffer
-	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{debug: debugConfig{level: levelDebug, addSource: true}})
-	t.Cleanup(func() { _ = out.close() })
-
-	logger := slog.New(out.slogHandlerForTest())
-	logger.Error("pull failed")
-	_ = out.finish()
-
-	s := buf.String()
-	if strings.Contains(s, "pc=") {
-		t.Fatalf("AddSource must render source=, never a bare pc=<uintptr>:\n%s", s)
-	}
-	if !strings.Contains(s, "source=") || !strings.Contains(s, "slog_test.go:") {
-		t.Fatalf("AddSource must resolve the call site to source=file.go:line:\n%s", s)
 	}
 }

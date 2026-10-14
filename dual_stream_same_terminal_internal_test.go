@@ -2,6 +2,7 @@ package evo
 
 import (
 	"bytes"
+	"log/slog"
 	"strings"
 	"testing"
 )
@@ -35,7 +36,7 @@ func TestProjectDebugRecord_SameTerminalRoutesThroughLiveSequencing(t *testing.T
 	drv := &recordingLiveDriver{interactive: true}
 	var stderr bytes.Buffer
 
-	o := newOutput("gate7-finding1", to(&stderr), withTerminal(drv), debugLevel(levelDebug))
+	o := newOutput("gate7-finding1", to(&stderr), withTerminal(drv), debugLevel(slog.LevelDebug))
 	t.Cleanup(func() { _ = o.close() })
 
 	o.debug("same terminal debug line")

@@ -63,7 +63,6 @@ type Graph struct {
 	taskList   []*Task
 	gates      []*Task
 	containers map[string]*Container
-	keys       map[string]struct{}
 	roots      siblings
 	sched      scheduler
 	exec       executor
@@ -104,7 +103,6 @@ func New(run *record.Run, options ...Option) *Graph {
 		misuse:     discardMisuse{},
 		tasks:      make(map[string]*Task),
 		containers: make(map[string]*Container),
-		keys:       make(map[string]struct{}),
 	}
 	g.scope.Store(newCancellationScope(processRoot()))
 	g.mu.Bind(run)
@@ -272,32 +270,4 @@ func (g *Graph) AddContainer(parent *Container, name string, sequential bool) *C
 		g.joinParentLocked(c, parent)
 	}
 	return c
-}
-
-// Rekeyed is what Rekey did with a requested key.
-type Rekeyed int
-
-const (
-	// KeyReplaced means the Task now has the requested key.
-	KeyReplaced Rekeyed = iota
-	// KeyUnchanged means the Task already had the requested key.
-	KeyUnchanged
-	// KeyTaken means another Task holds the requested key; nothing changed.
-	KeyTaken
-)
-
-// Rekey replaces t's stable key with key, unless another Task holds it.
-func (g *Graph) Rekey(t *Task, key string) Rekeyed {
-	g.lock()
-	defer g.unlock()
-	if key == t.key {
-		return KeyUnchanged
-	}
-	if _, taken := g.keys[key]; taken {
-		return KeyTaken
-	}
-	delete(g.keys, t.key)
-	g.keys[key] = struct{}{}
-	t.key = key
-	return KeyReplaced
 }

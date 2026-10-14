@@ -2,21 +2,18 @@ package misuse
 
 import "sync"
 
-// Recorder is the first-misuse store for one run. Graph workers call it
-// without the engine's mutex; a strict recorder panics after recording,
-// so those calls must never run under graph.mu.
+// Recorder is the first-misuse store for one run. Any goroutine may record,
+// including graph workers that hold no engine lock.
 type Recorder struct {
 	mu              sync.Mutex
 	first           error
 	subject         string
 	rejectedSummary string
-	strict          bool
 }
 
-// New is an empty Recorder. strict panics after the first record, once
-// the store has been written, so Finish still sees the misuse.
-func New(strict bool) *Recorder {
-	return &Recorder{strict: strict}
+// New is an empty Recorder.
+func New() *Recorder {
+	return &Recorder{}
 }
 
 // RecordMisuseFor reports err, naming the entity it happened on. It is the
@@ -31,22 +28,8 @@ func (r *Recorder) Record(err error) {
 }
 
 // Note records err as the run's misuse when it is the first, with the
-// entity and rejected summary that name it, and panics with it in strict
-// mode. Any goroutine may call it.
+// entity and rejected summary that name it.
 func (r *Recorder) Note(err error, subject, rejectedSummary string) {
-	if err == nil {
-		return
-	}
-	r.Keep(err, subject, rejectedSummary)
-	if r.strict {
-		panic(err)
-	}
-}
-
-// Keep records err as the run's misuse when it is the first, with the
-// entity and rejected summary that name it, in every mode and without a
-// strict panic: for a goroutine no caller's code is beneath to take one.
-func (r *Recorder) Keep(err error, subject, rejectedSummary string) {
 	if err == nil {
 		return
 	}

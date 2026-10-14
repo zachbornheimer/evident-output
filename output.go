@@ -81,7 +81,7 @@ func newRun(cfg config) *Run {
 	o := &Run{
 		cfg:             cfg,
 		rec:             run,
-		misuse:          misuse.New(cfg.strict),
+		misuse:          misuse.New(),
 		confirmTurn:     terminal.NewTurn(),
 		taskStates:      make(map[string]*taskState),
 		containerStates: make(map[string]*tasksState),
@@ -97,7 +97,7 @@ func newRun(cfg config) *Run {
 		RunID: o.outputID, Events: cfg.eventStream(),
 		Surface: liveSurfaceOf(cfg), VisibilityDelay: cfg.visibilityDelay, MaxFrameRate: cfg.maxFrameRate,
 		Style: o.humanStyle(), Subject: cfg.subject,
-		Sinks: humanSinks{o}, Pane: cfg.debugPanePresentation(),
+		Sinks: humanSinks{o},
 	})
 	o.printLines = txt.NewPrintLines(o.emitMessageLocked)
 	o.mu.Bind(run)
@@ -105,7 +105,7 @@ func newRun(cfg config) *Run {
 	o.emitWireEventLocked(wire.EventRunStarted, "", runStartedPayload(o.cfg.subject))
 	if cfg.dryRun {
 		// Announce before any task can reach the durable stream; unlocked is safe, o has not been returned yet.
-		o.show.PlannedHeader(o.cfg.preview, o.cfg.dryRunHeaderText)
+		o.show.PlannedHeader()
 	}
 	return o
 }
@@ -228,15 +228,13 @@ func (h presentHost) Tracked(id record.TaskID) record.TaskOperations {
 // snapshotLocked is the run as every projection shows it now. Callers hold o.mu.
 func (o *Run) snapshotLocked() snapshot {
 	return o.show.Snapshot(snapshot{
-		OutputID:      o.outputID,
-		Subject:       o.cfg.subject,
-		Lines:         o.rec.Lines(),
-		Timestamp:     o.cfg.clock.Now(),
-		DryRun:        o.cfg.dryRun,
-		Preview:       o.cfg.preview,
-		DryRunSubject: o.cfg.dryRunHeaderText,
-		Warnings:      o.rec.RunWarnings(),
-		Facts:         o.rec.RunFacts(),
+		OutputID:  o.outputID,
+		Subject:   o.cfg.subject,
+		Lines:     o.rec.Lines(),
+		Timestamp: o.cfg.clock.Now(),
+		DryRun:    o.cfg.dryRun,
+		Warnings:  o.rec.RunWarnings(),
+		Facts:     o.rec.RunFacts(),
 	})
 }
 

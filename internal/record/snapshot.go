@@ -34,23 +34,10 @@ type Snapshot struct {
 	Conclusion *Conclusion
 	Timestamp  time.Time
 	// DryRun is the run's planned tense — mutation verbs are Plan-only,
-	// never Changes — set by Config.DryRun and Config.Preview alike. The
-	// plain/final projection uses this to open with an unmissable header
-	// line; no caller decides whether to announce it.
+	// never Changes — set by Config.DryRun. The plain/final projection uses
+	// this to open with an unmissable header line; no caller decides whether
+	// to announce it.
 	DryRun bool
-	// Preview mirrors Config.Preview: the planned tense above is a preview
-	// before a confirm gate, so the header is the subject alone rather than
-	// "[dry-run] <subject>". A preview that announced itself as a dry run
-	// would promise nothing will happen and then ask permission to apply.
-	Preview bool
-	// DryRunSubject is Config.Subject's text, carried separately from the
-	// Title-derived Subject field above, so the dry-run marker can merge it
-	// onto its own single line ("[dry-run] <subject>",
-	// fixture-repo-retire-dryrun.md) instead of printing subject as its own
-	// durable line the way a non-dry-run run does. Empty when the caller set
-	// no Config.Subject, in which case the marker falls back to its plain
-	// announcement text.
-	DryRunSubject string
 	// Warnings holds run-scoped warning-severity Problems (P8) — a warning
 	// about the run itself, not about any one task. Feeds
 	// Conclusion.Warned/"· warned" exactly like a task warning, never a

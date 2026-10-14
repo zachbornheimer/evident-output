@@ -7,7 +7,7 @@ import (
 )
 
 func TestFirstRecordedMisuseWins(t *testing.T) {
-	r := New(false)
+	r := New()
 	r.Record(ErrClosed)
 	r.RecordMisuseFor("task", ErrAlreadyResolved)
 	if !errors.Is(r.First(), ErrClosed) {
@@ -15,31 +15,8 @@ func TestFirstRecordedMisuseWins(t *testing.T) {
 	}
 }
 
-func TestStrictNotePanicsAfterRecording(t *testing.T) {
-	r := New(true)
-	defer func() {
-		got := recover()
-		if !errors.Is(errorOf(got), ErrClosed) {
-			t.Errorf("panic = %v, want ErrClosed", got)
-		}
-		if !errors.Is(r.First(), ErrClosed) {
-			t.Errorf("First() after panic = %v, want ErrClosed", r.First())
-		}
-	}()
-	r.Record(ErrClosed)
-	t.Fatal("strict Record did not panic")
-}
-
-func TestKeepDoesNotPanicWhenStrict(t *testing.T) {
-	r := New(true)
-	r.Keep(ErrDependencyCycle, "waiter", "")
-	if !errors.Is(r.First(), ErrDependencyCycle) {
-		t.Errorf("First() = %v, want ErrDependencyCycle", r.First())
-	}
-}
-
 func TestHintNamesARemedy(t *testing.T) {
-	r := New(false)
+	r := New()
 	r.Note(ErrAlreadyResolved, "build", "failed")
 	hint := r.Hint()
 	for _, want := range []string{"resolve each task once", "build", "failed"} {
@@ -47,9 +24,4 @@ func TestHintNamesARemedy(t *testing.T) {
 			t.Errorf("Hint() = %q, want it to contain %q", hint, want)
 		}
 	}
-}
-
-func errorOf(v any) error {
-	err, _ := v.(error)
-	return err
 }

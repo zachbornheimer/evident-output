@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/change"
-	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
 )
 
 func TestDOM014_DetailOnBlock(t *testing.T) {
@@ -242,16 +241,6 @@ func TestDOM048_BlockedWithNilErrorReturn(t *testing.T) {
 	_ = out.finish()
 	if out.conclusion().headline() != headlineRefused {
 		t.Fatal(out.conclusion().headline())
-	}
-}
-
-func TestDOM005_DuplicateKeyRejected(t *testing.T) {
-	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
-	t.Cleanup(func() { _ = out.close() })
-	out.Task("one").key("k")
-	out.Task("two").key("k")
-	if !errors.Is(out.err(), misuse.ErrDuplicateKey) {
-		t.Fatalf("err=%v", out.err())
 	}
 }
 

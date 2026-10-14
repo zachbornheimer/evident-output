@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -28,7 +29,7 @@ func TestLOG012_DebugDisabledOmitsHuman(t *testing.T) {
 }
 
 func TestLOG010_SlogErrorValues(t *testing.T) {
-	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}}, tuning{debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}}, tuning{})
 	t.Cleanup(func() { _ = out.close() })
 	// use Debug with error field
 	out.debugForTest("fail", field{Key: "err", Value: errors.New("boom")})
@@ -37,7 +38,7 @@ func TestLOG010_SlogErrorValues(t *testing.T) {
 
 func TestLOG002_DebugUsesClock(t *testing.T) {
 	clock := testkit.NewClock()
-	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock}}, tuning{debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock}}, tuning{})
 	t.Cleanup(func() { _ = out.close() })
 	out.debugForTest("x")
 	ev := out.events()
@@ -65,7 +66,7 @@ func TestLOG014_WarnMessageDistinctFromItemWarn(t *testing.T) {
 }
 
 func TestLOG008_ConcurrentDebugWriters(t *testing.T) {
-	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}}, tuning{debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}}, tuning{})
 	t.Cleanup(func() { _ = out.close() })
 	var wg sync.WaitGroup
 	for i := range 8 {
@@ -83,7 +84,7 @@ func TestLOG008_ConcurrentDebugWriters(t *testing.T) {
 
 func TestLOG003_FieldOrderStable(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Debug: slog.LevelDebug, Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{})
 	t.Cleanup(func() { _ = out.close() })
 	out.debugForTest("m", field{Key: "a", Value: 1}, field{Key: "b", Value: 2})
 	_ = out.finish()
@@ -95,7 +96,7 @@ func TestLOG003_FieldOrderStable(t *testing.T) {
 }
 
 func TestLOG015_LogBurstPreservesOrder(t *testing.T) {
-	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}}, tuning{debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}}, tuning{})
 	t.Cleanup(func() { _ = out.close() })
 	for range 100 {
 		out.debugForTest("x")
@@ -105,7 +106,7 @@ func TestLOG015_LogBurstPreservesOrder(t *testing.T) {
 }
 
 func TestLOG011_RecursiveValuesBounded(t *testing.T) {
-	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}}, tuning{debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}}, tuning{})
 	t.Cleanup(func() { _ = out.close() })
 	// don't create real cycle in Field — use deep map
 	m := map[string]any{"a": 1}
@@ -115,7 +116,7 @@ func TestLOG011_RecursiveValuesBounded(t *testing.T) {
 
 func TestLOG013_DebugWithJSONStdout(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Debug: slog.LevelDebug, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{})
 	out.debugForTest("d")
 	succeed(out.Task("a"))
 	_ = out.finish()

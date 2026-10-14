@@ -13,14 +13,3 @@ func TestResolveGlyphProfileLocked_AutoOnNonInteractiveStaysUnicode(t *testing.T
 		t.Fatalf("resolved profile = %v, want GlyphsUnicode", cfg.glyphs)
 	}
 }
-
-// TestResolveGlyphProfileLocked_ExplicitProfileIsNeverOverridden pins that an
-// explicit glyphs() choice always wins over detection.
-func TestResolveGlyphProfileLocked_ExplicitProfileIsNeverOverridden(t *testing.T) {
-	t.Setenv("LC_ALL", "en_US.UTF-8")
-	cfg := config{plain: true, glyphs: glyphsASCII}
-	resolveGlyphProfileLocked(&cfg)
-	if cfg.glyphs != glyphsASCII {
-		t.Fatalf("resolved profile = %v, want explicit GlyphsASCII preserved", cfg.glyphs)
-	}
-}

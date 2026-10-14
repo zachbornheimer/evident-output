@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -148,7 +149,7 @@ func TestOUT011_EventTimestampsPresent(t *testing.T) {
 
 func TestOUT023_LineWhileLive(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor(), testkit.Width(80))
-	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("t").Doing("p")
 	out.println("durable hello")
@@ -225,7 +226,7 @@ func TestOUT015_EventStreamBounded(t *testing.T) {
 	}
 	// with default debug level, Debug may no-op — enable
 	_ = out.close()
-	out2 := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}}, tuning{debug: debugConfig{level: levelDebug}})
+	out2 := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}}, tuning{})
 	for range 500 {
 		out2.debugForTest("x")
 	}

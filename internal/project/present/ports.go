@@ -1,7 +1,6 @@
 package present
 
 import (
-	"strings"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/project"
@@ -25,18 +24,6 @@ type scene struct{ p *Presenter }
 func (s scene) Ended() bool       { return s.p.cfg.Host.Ended() }
 func (s scene) Width() int        { return s.p.cfg.Host.Width() }
 func (s scene) Resized(width int) { s.p.cfg.Host.Resize(width) }
-
-// Pane is the debug pane (§21.3.2) a frame draws under its rows.
-func (s scene) Pane(width, height int) (string, int) {
-	pane, run := s.p.cfg.Pane, s.p.cfg.Run
-	recorded := run.DebugRecordCount()
-	if pane == nil || recorded == 0 {
-		return "", 0
-	}
-	var b strings.Builder
-	project.WriteDebugPane(&b, run.DebugRecordTail(pane.Rows()), *pane, width, s.p.cfg.Style.Color)
-	return b.String(), min(pane.ReservedRows(recorded), height-1)
-}
 
 // lens is what the row model reads of the live board and of freshness.
 type lens struct{ p *Presenter }

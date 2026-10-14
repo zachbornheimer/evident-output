@@ -24,9 +24,9 @@ func TestInit_ArmsFirstPaintBeforeAnyEntity(t *testing.T) {
 // Isolated means "not the package default", not "skip first paint". Nested
 // Isolated inits (zq purge/prune preview) used to emit [dry-run] and then
 // freeze while Inventory ran — Isolated must still arm.
-func TestInit_IsolatedDryRunArmsAndEmitsConstructionFacts(t *testing.T) {
+func TestInit_IsolatedDryRunArmsAndEmitsHeader(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{Name: "zq", DryRun: true, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{subtitle: "zq purge", facts: []factRecord{{Name: "scan roots", Value: "~/Developer"}}, color: colorNever, visibilityDelay: DelayForTest(0)})
+	out := initRun(Config{Name: "zq", DryRun: true, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{color: colorNever, visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 
 	if got := screen.LiveFrameCount(); got == 0 {
@@ -39,14 +39,8 @@ func TestInit_IsolatedDryRunArmsAndEmitsConstructionFacts(t *testing.T) {
 	if !snap.DryRun {
 		t.Fatal("DryRun must be on the snapshot")
 	}
-	if len(snap.Facts) != 1 || snap.Facts[0].Name != "scan roots" || snap.Facts[0].Value != "~/Developer" {
-		t.Fatalf("construction Facts missing from snapshot: %+v", snap.Facts)
-	}
 	persisted := screen.PersistedText()
 	if !strings.Contains(persisted, "[dry-run]") {
 		t.Fatalf("dry-run header missing from persisted text:\n%s", persisted)
-	}
-	if !strings.Contains(persisted, "scan roots") || !strings.Contains(persisted, "~/Developer") {
-		t.Fatalf("construction Facts must persist with the header:\n%s", persisted)
 	}
 }

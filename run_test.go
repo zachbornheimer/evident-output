@@ -110,20 +110,8 @@ func TestConfig_PipeWriterIsNoColor(t *testing.T) {
 	}
 }
 
-// TestMain_FailedExitCodeConfigurable is the P5 contract: Config.FailedExitCode
-// overrides the default ExitFailed (2) when the conclusion is failed.
-func TestRun_FailedExitCodeConfigurable(t *testing.T) {
-	var buf bytes.Buffer
-	out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{color: colorNever, failedExitCode: 1})
-	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
-		o := out
-		o.Task("gofmt check").fail("gofmt check exited 1")
-		return nil
-	}).ExitCode()
-	if code != 1 {
-		t.Fatalf("P5: Main exit = %d, want FailedExitCode 1; out:\n%s", code, buf.String())
-	}
-	// Default remains 2 when FailedExitCode is unset.
+// TestRun_FailedExitCodeIsTwo pins the failed run's exit code at ExitFailed (2).
+func TestRun_FailedExitCodeIsTwo(t *testing.T) {
 	var buf2 bytes.Buffer
 	out2 := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stdout: &buf2, Stderr: &buf2}}, tuning{color: colorNever})
 	code2 := out2.run(context.Background(), func(ctx context.Context, r *Run) error {

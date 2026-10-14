@@ -4,8 +4,6 @@ import (
 	"errors"
 	"io"
 	"testing"
-
-	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
 )
 
 // TestOutputTask_SameNameIsDuplicateSibling pins §3.1: Output.Task (the
@@ -32,21 +30,5 @@ func TestOutputTask_SameNameIsDuplicateSibling(t *testing.T) {
 	snap := out.snapshot()
 	if len(snap.Tasks) != 2 {
 		t.Fatalf("expected the original task plus one Failed duplicate-sibling row, got %d", len(snap.Tasks))
-	}
-}
-
-// TestOutputTask_DifferentNameSameKey_StillDuplicateKey preserves the
-// invariant: reusing one explicit Key under two different names is a real
-// identity conflict, distinct from §3.1's duplicate sibling name —
-// ErrDuplicateKey must still fire, not ErrDuplicateSiblingName.
-func TestOutputTask_DifferentNameSameKey_StillDuplicateKey(t *testing.T) {
-	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
-	t.Cleanup(func() { _ = out.close() })
-
-	out.Task("a").key("same")
-	out.Task("b").key("same")
-
-	if !errors.Is(out.err(), misuse.ErrDuplicateKey) {
-		t.Fatalf("expected ErrDuplicateKey, got %v", out.err())
 	}
 }

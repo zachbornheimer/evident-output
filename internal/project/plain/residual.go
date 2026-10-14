@@ -30,8 +30,7 @@ func (s *Stream) Residual(snap record.Snapshot) (plain, final string) {
 
 // compose is the one ordered sequence every human destination renders at
 // Finish: the lines not yet streamed, the root rows and collections (when
-// entities), the ledger sections that did not stream, the conclusion band,
-// then the debug pane's failure tail.
+// entities), the ledger sections that did not stream, then the conclusion band.
 func (s *Stream) compose(snap record.Snapshot, linesFrom int, entities bool) string {
 	style := s.cfg.Style
 	var b strings.Builder
@@ -53,11 +52,7 @@ func (s *Stream) compose(snap record.Snapshot, linesFrom int, entities bool) str
 		}
 	}
 	if snap.Conclusion != nil && !project.ShouldSuppressStandaloneConclusion(snap) {
-		WriteConclusion(&b, project.StandaloneConclusion(snap), style)
-	}
-	if snap.Conclusion != nil && s.preserveTail(snap.Conclusion.Outcome) {
-		rows := s.cfg.Pane.Rows()
-		project.WriteDebugTail(&b, s.cfg.Run.DebugRecordTail(rows), rows, style.Color)
+		WriteConclusion(&b, *snap.Conclusion, style)
 	}
 	return b.String()
 }
@@ -110,27 +105,4 @@ func (s *Stream) foldedSections(tense record.LedgerTense) []project.EffectSectio
 		}
 	}
 	return project.FoldEffectSections(tense.String(), s.width(), sources)
-}
-
-// preserveTail reports whether Finish appends the debug pane's
-// diagnostic tail: always when asked for, else only on a run that did not
-// succeed and whose records the live pane, not history, presented
-// (§21.3.2). History already streamed every line; it needs no second dump.
-func (s *Stream) preserveTail(outcome record.Outcome) bool {
-	pane := s.cfg.Pane
-	if pane == nil {
-		return false
-	}
-	if pane.PreserveAlways {
-		return s.cfg.Run.DebugRecordCount() > 0
-	}
-	if !s.paneActive || !pane.PreserveOnBad {
-		return false
-	}
-	switch outcome {
-	case record.OutcomeFailed, record.OutcomeRefused, record.OutcomeCancelled:
-		return true
-	default:
-		return false
-	}
 }

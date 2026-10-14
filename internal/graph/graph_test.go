@@ -98,26 +98,6 @@ func TestAddTaskDoesNotClaimItsName(t *testing.T) {
 	}
 }
 
-func TestRekeyReplacesReportsUnchangedAndRefusesATakenKey(t *testing.T) {
-	g := newGraph()
-	a := must(g.AddTask(nil, "a", record.TaskInit{}))
-	b := must(g.AddTask(nil, "b", record.TaskInit{}))
-
-	if got := g.Rekey(a, "platform-a"); got != KeyReplaced || a.Key() != "platform-a" {
-		t.Errorf("Rekey(a) = %v key %q, want replaced platform-a", got, a.Key())
-	}
-	if got := g.Rekey(a, "platform-a"); got != KeyUnchanged {
-		t.Errorf("repeating the key = %v, want unchanged", got)
-	}
-	if got := g.Rekey(b, "platform-a"); got != KeyTaken || b.Key() != "task:/b" {
-		t.Errorf("Rekey(b) onto a taken key = %v key %q, want taken and untouched", got, b.Key())
-	}
-	g.Rekey(a, "platform-a2")
-	if got := g.Rekey(b, "platform-a"); got != KeyReplaced {
-		t.Errorf("a released key = %v, want it free again", got)
-	}
-}
-
 func TestGraphIsSafeForConcurrentDeclaration(t *testing.T) {
 	g := newGraph()
 	var wg sync.WaitGroup
@@ -125,7 +105,6 @@ func TestGraphIsSafeForConcurrentDeclaration(t *testing.T) {
 		wg.Go(func() {
 			for range 50 {
 				task := must(g.AddTask(nil, "t", record.TaskInit{}))
-				g.Rekey(task, task.ID)
 				_ = task.Key()
 				g.ClaimName(nil, KindTask, task.ID)
 			}

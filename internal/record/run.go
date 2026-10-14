@@ -13,9 +13,6 @@ type Run struct {
 	mu      sync.Mutex
 	journal journal
 	ledger  ledger
-	// reasons backs get-or-create identity for evo.Reason: repeated calls with
-	// the same name merge into one bucket.
-	reasons map[string]TaxonomyReason
 	// lines is the history-format text of everything printed, for the final
 	// plain projection and residual emission.
 	lines    []string

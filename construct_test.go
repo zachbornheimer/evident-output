@@ -3,6 +3,7 @@ package evo
 import (
 	"bytes"
 	"io"
+	"log/slog"
 	"strings"
 	"testing"
 )
@@ -34,22 +35,6 @@ func TestNew_PartialConfig_InheritsDefaults(t *testing.T) {
 	}
 }
 
-// TestConfig_SubjectRenderedOnceUnderTitle pins L5: Config.Subject renders
-// as a durable line immediately at Init, so a caller stops hand-calling
-// out.Println(root) at every projection that needs to show it.
-func TestConfig_SubjectRenderedOnceUnderTitle(t *testing.T) {
-	var buf bytes.Buffer
-	out := initRun(Config{Name: "repo-retire", Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{subtitle: "/Users/z/dev/stale-repo"})
-	t.Cleanup(func() { _ = out.close() })
-	succeed(out.Task("scan"))
-	if err := out.finish(); err != nil {
-		t.Fatal(err)
-	}
-	if got := strings.Count(buf.String(), "/Users/z/dev/stale-repo"); got != 1 {
-		t.Fatalf("Subject line count = %d, want exactly 1 in:\n%s", got, buf.String())
-	}
-}
-
 // TestConfig_SubjectEmptyEmitsNothing proves the zero value is silent —
 // Config.Subject is opt-in, never a placeholder line.
 func TestConfig_SubjectEmptyEmitsNothing(t *testing.T) {
@@ -66,7 +51,7 @@ func TestConfig_SubjectEmptyEmitsNothing(t *testing.T) {
 
 func TestConfig_DebugLevelTraceSelectable(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{Name: "trace", Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{debug: debugConfig{level: levelTrace}})
+	out := initRun(Config{Debug: slog.LevelDebug - 4, Name: "trace", Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{})
 	out.debugForTest("trace-visible")
 	_ = out.finish()
 	// LevelTrace is below LevelDebug filter (threshold allows Debug lines).

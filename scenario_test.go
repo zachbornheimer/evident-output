@@ -43,7 +43,7 @@ import (
 //     inline "! kept" lines are evidence, not a "· warned" outcome marker.
 func TestScenario_DryRunPlanOnly(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{DryRun: true, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever, subtitle: "zq prune  ~/Developer/Software-Automation-Holdings/.worktrees/eapp-system-style-contract-heading"})
+	out := initRun(Config{DryRun: true, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	// All three declared up front, matching the real CLI's three
@@ -68,7 +68,7 @@ func TestScenario_DryRunPlanOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := "[dry-run] zq prune  ~/Developer/Software-Automation-Holdings/.worktrees/eapp-system-style-contract-heading\n" +
+	want := "[dry-run] no changes will be made\n" +
 		"\n" +
 		"✓ branches         459 checked\n" +
 		"✓ worktrees        294 checked\n" +
@@ -76,7 +76,9 @@ func TestScenario_DryRunPlanOnly(t *testing.T) {
 		"\n" +
 		"[planned] branches         delete 40 local tips\n" +
 		"[planned] worktrees        remove 1 worktree\n" +
-		"[planned] remote-tracking  delete 4 stale origin/*\n"
+		"[planned] remote-tracking  delete 4 stale origin/*\n" +
+		"\n" +
+		"[planned]  tool\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -95,7 +97,7 @@ func TestScenario_DryRunPlanOnly(t *testing.T) {
 // conclusion band, which the mockup's frame simply did not also transcribe.
 func TestScenario_NothingToClean(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{Name: "prune", Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever, subtitle: "zq prune  ~/Developer/Personal/zq"})
+	out := initRun(Config{Name: "prune", Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	branches := out.Task("branches")
@@ -112,8 +114,7 @@ func TestScenario_NothingToClean(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := "zq prune  ~/Developer/Personal/zq\n" +
-		"✓ branches         1 checked\n" +
+	want := "✓ branches         1 checked\n" +
 		"✓ worktrees        nothing to clean\n" +
 		"✓ remote-tracking  nothing to clean\n" +
 		"prune  nothing to clean\n" +
@@ -272,7 +273,7 @@ func TestScenario_Stress(t *testing.T) {
 // use the same glyph for two different states, which the spec resolves.
 func TestScenario_CancelledAfterMutation(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{Name: "prune", Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever, subtitle: "zq prune --apply  ~/.../eapp-system-style-contract-heading"})
+	out := initRun(Config{Name: "prune", Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("branches") // never touched: still Pending when Cancel hits.
@@ -287,8 +288,7 @@ func TestScenario_CancelledAfterMutation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := "zq prune --apply  ~/.../eapp-system-style-contract-heading\n" +
-		"✓ remote-tracking  4/4\n" +
+	want := "✓ remote-tracking  4/4\n" +
 		"■ worktrees        interrupted\n" +
 		"- branches         not started\n" +
 		"\n" +

@@ -131,16 +131,3 @@ func TestRunDocument_ContainsTasks(t *testing.T) {
 		t.Fatalf("json: %s", b)
 	}
 }
-
-func TestAbout_DeclareDryRun_MergesRepoPath(t *testing.T) {
-	t.Parallel()
-	var buf bytes.Buffer
-	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
-	t.Cleanup(func() { _ = out.close() })
-	out.aboutForTest("repo  /Users/zbornheimer/Developer/Zysys/flight")
-	out.declareDryRunForTest()
-	got := buf.String()
-	if !strings.Contains(got, "repo  /Users/zbornheimer/Developer/Zysys/flight") {
-		t.Fatalf("dry-run header missing repo path: %q", got)
-	}
-}

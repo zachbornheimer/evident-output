@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"log/slog"
 	"math"
 	"strings"
 	"testing"
@@ -13,7 +14,7 @@ import (
 
 func TestSEC013_NewlineCannotForgeLogRecords(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Debug: slog.LevelDebug, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{})
 	t.Cleanup(func() { _ = out.close() })
 	out.debugForTest("one\n[DEBUG] forged")
 	_ = out.finish()
@@ -171,7 +172,7 @@ func TestSEC007_DestructiveActionFlag(t *testing.T) {
 
 func TestSEC002_SensitiveFieldRedactedInDebug(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Debug: slog.LevelDebug, Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{})
 	t.Cleanup(func() { _ = out.close() })
 	out.debugForTest("auth", field{Key: "token", Value: "super-secret", Sensitive: true})
 	_ = out.finish()

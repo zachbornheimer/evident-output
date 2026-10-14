@@ -23,8 +23,6 @@ var (
 	// ErrProgressRegression is recorded when a progress update moves
 	// completed backward.
 	ErrProgressRegression = errors.New("evo: progress moved backward")
-	// ErrDuplicateKey is recorded when two Tasks share a Key.
-	ErrDuplicateKey = errors.New("evo: duplicate entity key")
 	// ErrInvalidConfig is the one sentinel for a declaration or spec Evo
 	// refuses (CONTRACT section 7): After/Verify landing after Define, a Task
 	// Defined twice, a nil callback, a duplicate sibling, a declaration from
@@ -39,12 +37,6 @@ var (
 	// ErrLimitExceeded is recorded when the run declares more entities than
 	// Config.MaxEntities allows.
 	ErrLimitExceeded = errors.New("evo: resource limit exceeded")
-	// ErrReasonSkipOnly is recorded when a Reason built with ForSkip is
-	// attached via Kept.
-	ErrReasonSkipOnly = errors.New("evo: reason restricted to Skipped was recorded via Kept")
-	// ErrReasonWrongTask is recorded when a Reason built with OnTask is
-	// attached to a different Task.
-	ErrReasonWrongTask = errors.New("evo: reason restricted to another task")
 	// ErrConcurrentRunning is recorded when two siblings of a Sequence are
 	// Running at once.
 	ErrConcurrentRunning = errors.New("evo: two siblings in the same collection are Running simultaneously")
@@ -58,22 +50,10 @@ var (
 	// ErrDeclaredInCallback is why a declaration was refused: a Task, Group,
 	// or Sequence was declared from inside a Task's Define callback.
 	ErrDeclaredInCallback = fmt.Errorf("%w: declared from inside a Task callback", ErrInvalidConfig)
-	// ErrDryRunDeclaredLate is recorded when DeclareDryRun is called after a
-	// durable row has already streamed.
-	ErrDryRunDeclaredLate = errors.New("evo: DeclareDryRun called after a durable row was already emitted")
-	// ErrTerminalWithoutSink is recorded when Config.Terminal is set but
-	// Config.Stdout is nil, and the driver cannot report its own destination.
-	ErrTerminalWithoutSink = errors.New("evo: Terminal driver configured without a primary writer")
 	// ErrDependencyCycle is what the MisuseSink hears when After edges close
 	// a cycle: those Tasks can never start, and each row says so.
 	ErrDependencyCycle = errors.New("evo: After dependency cycle")
 	// ErrDuplicateSiblingName is recorded when a Task, Group, or Sequence is
 	// declared with a name already used by another child of the same parent.
 	ErrDuplicateSiblingName = fmt.Errorf("%w: duplicate sibling name", ErrInvalidConfig)
-	// ErrKeyAfterDefine is recorded when the task key override is called after
-	// Define.
-	ErrKeyAfterDefine = errors.New("evo: Key called after Define")
-	// ErrBasisAfterDefine is recorded when the task basis is called after
-	// Define; the call is ignored.
-	ErrBasisAfterDefine = errors.New("evo: Basis called after Define")
 )
