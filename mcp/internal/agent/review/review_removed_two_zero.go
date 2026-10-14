@@ -54,6 +54,7 @@ func detectRemovedTwoZero(in fileInput) []Finding {
 		defineBodies: collectDefineBodies(in.file, in.fset),
 	}
 	d.scanEntryPoints()
+	d.scanExecResults()
 	d.reportLegacyImport(in.file)
 	ast.Inspect(in.file, d.inspect)
 	ast.Inspect(in.file, d.inspectRemovedExport)
@@ -84,13 +85,15 @@ func (d *removedTwoZeroDetector) inspect(n ast.Node) bool {
 		d.inspectCall(n)
 	case *ast.CompositeLit:
 		d.inspectComposite(n)
+	case *ast.SelectorExpr:
+		d.inspectResultExitCode(n)
 	}
 	return true
 }
 
 func (d *removedTwoZeroDetector) inspectCall(call *ast.CallExpr) {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok || d.isCovered(call) || d.reportExitFinish(call) {
+	if !ok || d.isCovered(call) || d.reportExitFinish(call) || d.reportVerbosePrint(call, sel) {
 		return
 	}
 	if isEvoIdent(sel.X, d.pkg) {
@@ -123,6 +126,12 @@ func (d *removedTwoZeroDetector) inspectPackageCall(call *ast.CallExpr, name str
 	case name == "NextCommand":
 		d.report(call, "evo.NextCommand was removed in 2.0; a next step is evo.Next(evo.Action{Command: ...})",
 			"replace "+d.nodeSrc(call)+" with "+d.nextAction(call))
+	case name == "Run" && len(call.Args) == 2:
+		d.reportExecuteCall(call)
+	case runMethods[name]:
+		d.reportRunMethod(call, name)
+	case name == "PolicyFlag" && len(call.Args) == 1:
+		d.reportNonInteractive(call)
 	case supersededOptionFuncs[name]:
 		d.inspectOptionCall(call, name)
 	}

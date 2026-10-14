@@ -28,6 +28,10 @@ func (d *removedTwoZeroDetector) inspectTaskCall(call *ast.CallExpr, sel *ast.Se
 		d.reportDone(call, sel)
 	case "Evidence":
 		d.reportEvidence(call, sel)
+	case "Key":
+		d.reportKey(call, sel)
+	case "Bytes":
+		d.reportBytes(call, sel)
 	case "Next", "NextCommand":
 		d.reportRemedyMethod(call, taskReceiver, name)
 	default:

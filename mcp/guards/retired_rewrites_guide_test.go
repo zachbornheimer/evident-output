@@ -14,9 +14,10 @@ import (
 // guideBacktick matches one backticked token in a migration-guide cell.
 var guideBacktick = regexp.MustCompile("`([^`]+)`")
 
-// rewriteSymbol matches a 2.0 spelling a rewrite names: evo.Exclude,
-// Task.Verify, task.Writer(). The capture is the final identifier.
-var rewriteSymbol = regexp.MustCompile(`\b(?:evo|Task|task)\.([A-Z]\w*)`)
+// rewriteSymbol matches a 2.0 spelling a rewrite names as Type.Name or
+// pkg.Name: evo.Exclude, Task.Verify, task.Writer(), ExecSpec.Inputs. The
+// capture is the final identifier.
+var rewriteSymbol = regexp.MustCompile(`\b[A-Za-z]\w*\.([A-Z]\w*)`)
 
 // guideRow is the 2.0 cell of one row of docs/migration/2.0.md.
 type guideRow struct {

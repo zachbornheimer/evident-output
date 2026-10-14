@@ -112,6 +112,7 @@ func (d *removedTwoZeroDetector) inspectComposite(cl *ast.CompositeLit) {
 		d.inspectConfigOptions(cl)
 		return
 	}
+	d.inspectBasis(cl)
 	if d.inspectExecSpec(cl) {
 		return
 	}

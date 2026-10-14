@@ -32,6 +32,9 @@ type entryScan struct {
 	newStmts   map[ast.Expr]ast.Stmt
 	runDecls   map[string]*ast.FuncDecl
 	needs      map[string]bool
+	// executes is true when the file starts its run with the package-level
+	// evo.Run(ctx, run), whose 2.0 spelling is evo.Execute(ctx, cfg, run).
+	executes bool
 }
 
 func (d *removedTwoZeroDetector) scanEntryPoints() {
@@ -56,6 +59,10 @@ func (d *removedTwoZeroDetector) scanEntryPoints() {
 			}
 			if call, ok := d.isEvoCall(n, "Main"); ok && len(call.Args) == 1 {
 				d.noteRunDecl(call.Args[0])
+			}
+			if call, ok := d.isEvoCall(n, "Run"); ok && len(call.Args) == 2 {
+				d.entry.executes = true
+				d.noteRunDecl(call.Args[1])
 			}
 		}
 		return true
@@ -180,7 +187,7 @@ func (d *removedTwoZeroDetector) recvSrc(x ast.Expr) string {
 func (d *removedTwoZeroDetector) inspectEntryCall(call *ast.CallExpr, name string) {
 	switch {
 	case name == "Init":
-		d.reportHostConstruction(call, "evo.Init", d.nodeSrc(call), d.stmtOf(call), "its Config moves into evo.Main(cfg, run)", false)
+		d.reportHostConstruction(call, "evo.Init", d.nodeSrc(call), d.stmtOf(call), "its Config moves into "+d.entryCall(), false)
 		d.cover(call)
 	case name == "New":
 		stmt, _ := d.entry.newStmts[call]
@@ -196,6 +203,15 @@ func (d *removedTwoZeroDetector) inspectEntryCall(call *ast.CallExpr, name strin
 	case printFuncs[name] != "":
 		d.reportPrint(call, "evo."+name, d.runVarAt(call), name)
 	}
+}
+
+// entryCall is the 2.0 call the program's Config moves into: Execute when it
+// ran through the package-level Run, else Main.
+func (d *removedTwoZeroDetector) entryCall() string {
+	if d.entry.executes {
+		return d.pkg + ".Execute(ctx, cfg, run)"
+	}
+	return d.pkg + ".Main(cfg, run)"
 }
 
 // reportHostConstruction words Init and New (both removed in 2.0) alike: the
