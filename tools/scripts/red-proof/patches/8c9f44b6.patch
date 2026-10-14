@@ -1,0 +1,42 @@
+Hand-written revert of 8c9f44b6 against the current tree: a Group or Sequence member that
+settled Excluded counts as failed for the Tasks After its container again (tally.go stops
+folding it into the container's success), and a Task a failed predecessor keeps from running
+settles with the bare "not started" summary instead of naming the stopper. Later edits to
+internal/project/present/ports.go keep the commit's own hunks from reversing, so this removes
+the two graph behaviours both guarding tests depend on.
+
+diff --git a/internal/graph/eligibility.go b/internal/graph/eligibility.go
+index 2a742320..239e9706 100644
+--- a/internal/graph/eligibility.go
++++ b/internal/graph/eligibility.go
+@@ -306,7 +306,7 @@ func (g *Graph) placeLocked(t *Task, scan predScan) {
+ 			blocker.col.tally.park(t, cursor, open)
+ 		}
+ 	case predFailed:
+-		g.markStoppedLocked(t, g.stopperLocked(blocker))
++		g.markNotStartedLocked(t)
+ 	}
+ }
+
+diff --git a/internal/graph/tally.go b/internal/graph/tally.go
+index b938fb7e..3895875b 100644
+--- a/internal/graph/tally.go
++++ b/internal/graph/tally.go
+@@ -67,7 +67,7 @@ func (t *tally) declare(m *Task) {
+ // settle records that member m may have settled and returns the Tasks whose
+ // edges it resolved.
+ func (t *tally) settle(m *Task) (woken []*Task) {
+-	switch memberOutcome(m.Rec.State()) {
++	switch stateOutcome(m.Rec.State()) {
+ 	case predFailed:
+ 		if t.firstFailed != 0 && t.firstFailed <= m.Declaration {
+ 			return nil
+@@ -86,7 +86,7 @@ func (t *tally) settle(m *Task) (woken []*Task) {
+ 		t.parked = t.parked[:i]
+ 		return woken
+ 	case predSucceeded:
+-		for t.succeededPrefix < len(t.members) && memberOutcome(t.members[t.succeededPrefix].Rec.State()) == predSucceeded {
++		for t.succeededPrefix < len(t.members) && stateOutcome(t.members[t.succeededPrefix].Rec.State()) == predSucceeded {
+ 			t.succeededPrefix++
+ 		}
+ 		n := 0

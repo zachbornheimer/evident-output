@@ -3,10 +3,12 @@ payload text through the live region when stdout shares its terminal, so the pay
 written straight to stdout again, where the next repaint paints over it. Later commits
 rewrote ResultWriter, so the commit's own hunks no longer reverse-apply.
 
+diff --git a/report.go b/report.go
+index 2c84ba18..ef7e4759 100644
 --- a/report.go
 +++ b/report.go
-@@ -106,7 +106,6 @@
- 		o.emitWireEventLocked(wire.EventResultWritten, "", wire.ResultWrittenPayload(b))
+@@ -106,7 +106,6 @@ func (o *Run) routeResult(b []byte) (io.Writer, error) {
+ 		o.emitWireEventLocked(wire.EventResultWritten, "", wire.NewResultWrittenPayload(b).EventPayload())
  	case o.cfg.wireFormat == JSON:
  		o.resultText.Write(b)
 -	case o.cfg.resultSharesTerminal && o.show.Stream.WritePayload(string(b)):

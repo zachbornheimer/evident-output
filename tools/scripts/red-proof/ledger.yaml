@@ -25,6 +25,7 @@ entries:
         name: TestDryRunPlansDownstreamOfPlannedOutputs
   - commit: 8c9f44b6
     note: excluded members fold into the container outcome; NotStarted names its stopper
+    revert: patches/8c9f44b6.patch
     tests:
       - pkg: .
         name: TestAfterGroupProceedsWhenAMemberIsExcluded
