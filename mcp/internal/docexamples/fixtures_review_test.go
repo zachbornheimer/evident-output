@@ -14,6 +14,15 @@ import (
 var discouragedShapeFixtures = map[string]bool{
 	"migration_1_0_duplicate_sibling": true, // the repeated-call shape beside its fix
 	"migration_1_0_file_spec":         true, // frozen 1.0 FileSpec/FSPath fence, retired in 1.2 (docs/zys-1382/KNOWN_BROKEN.md)
+
+	// The "After (1.0)" fences of docs/migration/1.0.md are frozen at the 1.0
+	// dialect (evo.Init, package-level evo.Task and evo.Group, the one-argument
+	// evo.Main); 2.0 removed all of them, and review now migrates each.
+	"migration_1_0_after_group_define": true,
+	"migration_1_0_after_isolated_run": true,
+	"migration_1_0_run_ctx":            true,
+	"migration_1_0_task_key":           true,
+	"migration_1_0_verify":             true,
 }
 
 func showsDiscouragedShape(name string) bool {

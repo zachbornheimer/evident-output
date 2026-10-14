@@ -168,6 +168,16 @@ var retiredSymbols = []RetiredSymbol{
 	// 2.0 (CONTRACT.md): the surface is exactly the contract tables. These
 	// 1.x names are gone.
 	{Contract: "Init", RemovedIn: RetiredRelease2_0, Replacement: "evo.Main(cfg, run) or evo.Execute(ctx, cfg, run)", Taught: regexp.MustCompile(`\bInit\b`)},
+	{Contract: "New", RemovedIn: RetiredRelease2_0, Replacement: "evo.Main(evo.Config{...}, run) with the Options as Config fields"},
+	{Contract: "evo.Task(", RemovedIn: RetiredRelease2_0, Replacement: "r.Task(name) on the *evo.Run that run receives"},
+	{Contract: "evo.Group(", RemovedIn: RetiredRelease2_0, Replacement: "r.Group(name) on the *evo.Run that run receives"},
+	{Contract: "evo.Sequence(", RemovedIn: RetiredRelease2_0, Replacement: "r.Sequence(name) on the *evo.Run that run receives"},
+	{Contract: "evo.Main(run)", RemovedIn: RetiredRelease2_0, Replacement: "evo.Main(evo.Config{Name: ...}, run) over func run(ctx context.Context, r *evo.Run) error"},
+	{Contract: "Config.Title", RemovedIn: RetiredRelease2_0, Replacement: "Config.Name"},
+	{Contract: "Output.Task(", RemovedIn: RetiredRelease2_0, Replacement: "r.Task(name) on the *evo.Run that run receives"},
+	{Contract: "Output.Group(", RemovedIn: RetiredRelease2_0, Replacement: "r.Group(name) on the *evo.Run that run receives"},
+	{Contract: "Output.Sequence(", RemovedIn: RetiredRelease2_0, Replacement: "r.Sequence(name) on the *evo.Run that run receives"},
+	{Contract: "Printf", RemovedIn: RetiredRelease2_0, Replacement: "fmt.Fprintf(r.Text(), ...)"},
 	{Contract: "Output.Run", RemovedIn: RetiredRelease2_0, Replacement: "evo.Execute(ctx, cfg, run)", Taught: regexp.MustCompile(`\b(?:out|output|Output)\.Run\b`)},
 	{Contract: "Isolated", RemovedIn: RetiredRelease2_0, Replacement: "evo.Execute(ctx, cfg, run) with its own Config", Taught: regexp.MustCompile(`\bIsolated\b`)},
 	{Contract: "Output.Finish", RemovedIn: RetiredRelease2_0, Replacement: "return from run; Main and Execute finish the run", Taught: regexp.MustCompile(`\b(?:out|output|Output)\.Finish\b|\bFinish \+ Close\b|` + "`Finish`")},

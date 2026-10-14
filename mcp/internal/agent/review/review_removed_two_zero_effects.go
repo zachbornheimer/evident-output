@@ -87,8 +87,9 @@ func (d *removedTwoZeroDetector) reportMutation(call *ast.CallExpr, sel *ast.Sel
 		body = d.pkg + ".File(ctx, " + d.pkg + ".FileSpec{Path: " + d.nodeSrc(m.object) + ", Contents: data})"
 		instead = "file state is evo.File inside Define"
 	}
+	d.need("context")
 	d.report(call, removedPhrase(taskReceiver, m.verb)+"; "+instead,
-		"replace "+d.nodeSrc(call)+" with "+d.nodeSrc(sel.X)+".Define(func(ctx context.Context) error { return "+body+" })")
+		"replace "+d.nodeSrc(call)+" with "+d.recvSrc(sel.X)+".Define(func(ctx context.Context) error { return "+body+" })")
 	d.cover(call)
 }
 
@@ -116,7 +117,7 @@ const recordRouting = "route a real mutation through evo.Effect, information thr
 
 func (d *removedTwoZeroDetector) reportRecord(call *ast.CallExpr, sel *ast.SelectorExpr, name string) {
 	suggestion := recordRouting
-	if rewrite := d.recordRewrite(d.nodeSrc(sel.X), name, call.Args); rewrite != "" {
+	if rewrite := d.recordRewrite(d.recvSrc(sel.X), name, call.Args); rewrite != "" {
 		suggestion = rewrite + "; " + recordRouting
 	}
 	d.report(call, removedPhrase(taskReceiver, name)+" with no record-only replacement", suggestion)

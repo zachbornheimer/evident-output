@@ -15,7 +15,7 @@ func TestMCP016_PartialOnlyWhenAnalysisIncomplete(t *testing.T) {
 	// Partial remains for GoPackage typecheck failure / empty input.
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f() { evo.Init(evo.Config{Isolated: true}) }
+func f() { _ = evo.Config{Name: "p"} }
 `
 	res := review.GoSource("p.go", src)
 	if res.Partial {

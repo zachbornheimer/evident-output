@@ -39,6 +39,18 @@ func (d *removedTwoZeroDetector) inspectTaskCall(call *ast.CallExpr, sel *ast.Se
 // run-level ending in 2.0, so each is guidance naming the Task that owns it.
 func (d *removedTwoZeroDetector) inspectOutputCall(call *ast.CallExpr, sel *ast.SelectorExpr) {
 	name := sel.Sel.Name
+	switch {
+	case packageHandles[name]:
+		d.report(call, "Output."+name+" was removed in 2.0; a "+name+" is declared on the *"+d.pkg+".Run that run receives",
+			"replace "+d.nodeSrc(call)+" with "+d.runVarAt(call)+"."+name+"("+d.callArgsSrc(call.Args)+")")
+		return
+	case printFuncs[name] != "":
+		d.reportPrint(call, "Output."+name, d.runVarAt(call), name)
+		return
+	case name == "Finish" || name == "Close":
+		d.guide(call, outputReceiver, name, "Main and Execute finish the run", "delete this call and return from run")
+		return
+	}
 	switch name {
 	case "Warn":
 		summary := `"<why>"`
@@ -85,8 +97,16 @@ func (d *removedTwoZeroDetector) guide(call *ast.CallExpr, recv removedReceiver,
 // reportReturnedEnding leaves the call uncovered: a removed evo.NextCommand
 // inside its arguments is its own finding.
 func (d *removedTwoZeroDetector) reportReturnedEnding(call *ast.CallExpr, name, constructor, instead, args string) {
-	d.report(call, removedPhrase(taskReceiver, name)+"; "+instead,
-		"replace "+d.nodeSrc(call)+" with `return "+d.pkg+"."+constructor+"("+args+")` in this Task's Define callback")
+	sel := call.Fun.(*ast.SelectorExpr)
+	ending := "return " + d.pkg + "." + constructor + "(" + args + ")"
+	message := removedPhrase(taskReceiver, name) + "; " + instead
+	if d.insideOwnDefine(exprDottedName(sel.X), d.offset(call)) {
+		d.report(call, message, "replace "+d.nodeSrc(call)+" with `"+ending+"` in this Task's Define callback")
+		return
+	}
+	d.need("context")
+	d.report(call, message, "replace "+d.nodeSrc(call)+" with "+d.recvSrc(sel.X)+".Define(func(ctx context.Context) error { "+ending+" })")
+	d.cover(sel.X)
 }
 
 // endingArgs renders a removed Fail/Block call's arguments as evo.Fail and
@@ -146,7 +166,7 @@ func (d *removedTwoZeroDetector) problemOption(e ast.Expr) (string, bool) {
 // Task declares before Define, which the call's position cannot supply.
 func (d *removedTwoZeroDetector) reportKept(call *ast.CallExpr, sel *ast.SelectorExpr) {
 	d.guide(call, taskReceiver, "Kept", "work already in place is Task.Verify, which resolves the Task Satisfied without running Define",
-		"delete this call and declare "+d.nodeSrc(sel.X)+".Verify(func(ctx context.Context) (bool, error) { return <already in place>, nil }) before Define")
+		"delete this call and declare "+d.recvSrc(sel.X)+".Verify(func(ctx context.Context) (bool, error) { return <already in place>, nil }) before Define")
 }
 
 // excludeArgs is the arguments of a Skipped call as evo.Exclude takes them:
@@ -167,7 +187,7 @@ func (d *removedTwoZeroDetector) reportWarn(call *ast.CallExpr, sel *ast.Selecto
 		args = d.endingArgs(call.Args, !d.allEvoCalls(call.Args[1:]))
 	}
 	d.report(call, removedPhrase(taskReceiver, "Warn")+"; a warning is Task.Problem, which never ends the Task",
-		"replace "+d.nodeSrc(call)+" with "+d.nodeSrc(sel.X)+".Problem("+args+")")
+		"replace "+d.nodeSrc(call)+" with "+d.recvSrc(sel.X)+".Problem("+args+")")
 	d.cover(call)
 }
 
@@ -176,7 +196,7 @@ func (d *removedTwoZeroDetector) reportStep(call *ast.CallExpr, sel *ast.Selecto
 	if len(call.Args) == 0 {
 		progress = "Progress(0, 0)"
 	}
-	next := d.nodeSrc(sel.X) + "." + progress
+	next := d.recvSrc(sel.X) + "." + progress
 	if len(call.Args) > 2 {
 		next += ".Doing(" + d.nodeSrc(call.Args[2]) + ")"
 	}
@@ -188,7 +208,7 @@ func (d *removedTwoZeroDetector) reportStep(call *ast.CallExpr, sel *ast.Selecto
 // reportDone maps Done onto returning from Define; the text Done carried is
 // Summary.
 func (d *removedTwoZeroDetector) reportDone(call *ast.CallExpr, sel *ast.SelectorExpr) {
-	recv, old := d.nodeSrc(sel.X), d.nodeSrc(call)
+	recv, old := d.recvSrc(sel.X), d.nodeSrc(call)
 	summary := ""
 	switch len(call.Args) {
 	case 0:
@@ -208,7 +228,8 @@ func (d *removedTwoZeroDetector) reportDone(call *ast.CallExpr, sel *ast.Selecto
 		if summary != "" {
 			next += ".Summary(" + summary + ")"
 		}
-		d.report(call, message, "replace "+old+" with "+next+".Define(func(ctx context.Context) error { ... })")
+		d.need("context")
+		d.report(call, message, "replace "+old+" with "+next+".Define(func(ctx context.Context) error { return nil })")
 	}
 	d.cover(call)
 }
@@ -220,6 +241,6 @@ func (d *removedTwoZeroDetector) reportEvidence(call *ast.CallExpr, sel *ast.Sel
 		return
 	}
 	d.report(call, removedPhrase(taskReceiver, "Evidence")+"; the retained tail is Task.Writer(), passed as cmd.Stdout and cmd.Stderr",
-		"replace "+d.nodeSrc(call)+" with "+d.nodeSrc(sel.X)+".Writer()")
+		"replace "+d.nodeSrc(call)+" with "+d.recvSrc(sel.X)+".Writer()")
 	d.cover(call)
 }

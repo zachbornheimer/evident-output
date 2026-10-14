@@ -1,0 +1,342 @@
+// Code generated from the evident-output package declarations; DO NOT EDIT.
+
+package evo
+
+import (
+	"context"
+	"io"
+	iofs "io/fs"
+	"os"
+	"log/slog"
+	"time"
+)
+
+type Computed[T any] struct{}
+
+func Compute[T any](task *Task, fn func(context.Context) (T, error)) *Computed[T]
+func (c *Computed[T]) producer()
+func (c *Computed[T]) Get() T
+func (*Computed[T]) predecessor()
+
+type Config struct {
+	Name		string
+	DryRun		bool
+	Verbose		bool
+	Output		Output
+	Debug		slog.Leveler
+	MaxConcurrency	int
+	State		State
+	Facades		Facades
+}
+type State struct {
+	Dir	string
+	AppID	string
+}
+type ConfirmOption interface{ applyConfirm() }
+
+func Destructive() ConfirmOption
+func NonInteractive(flag string) ConfirmOption
+func (o *Run) Confirm(question string, opts ...ConfirmOption) bool
+func (o *Run) confirmGate()
+func (o *Run) settleGate()
+func (o *Run) promptConfirm()
+func (o *Run) ownWindow()
+func (o *Run) personCanAnswer()
+func (o *Run) confirmReader()
+func (o *Run) Suspend(fn func() error) error
+func (g *Group) After(preds ...Predecessor) *Group
+func (s *Sequence) After(preds ...Predecessor) *Sequence
+func (g *Group) define()
+func (s *Sequence) define()
+func (g *Group) recordInvalid()
+func (g *Group) defineBuilder()
+func (o *Run) Task(name string) *Task
+func (o *Run) Group(name string) *Group
+func (o *Run) Sequence(name string) *Sequence
+func (o *Run) taskHandle()
+func (o *Run) groupHandle()
+
+type Container interface {
+	Task(name string) *Task
+	Group(name string) *Group
+	Sequence(name string) *Sequence
+}
+type Group struct{}
+
+func (g *Group) Task(name string) *Task
+func (o *Run) declareChildTask()
+func (g *Group) Sequence(name string) *Sequence
+func (g *Group) Group(name string) *Group
+func (g *Group) declareChild()
+func (g *Group) Summary(text string) *Group
+
+type Sequence struct{}
+
+func (g *Sequence) Task(name string) *Task
+func (g *Sequence) Summary(text string) *Sequence
+func (g *Sequence) Sequence(name string) *Sequence
+func (g *Sequence) Group(name string) *Group
+func (g *Group) Build(fn func(*Group))
+func (s *Sequence) Build(fn func(*Sequence))
+
+type Verb uint8
+
+const (
+	Create	Verb	= iota + 1
+	Update
+	Delete
+)
+
+func (v Verb) engine()
+
+type EffectSpec struct {
+	Verb		Verb
+	Object		string
+	Quantity	int
+	Path		string
+	Resource	string
+}
+
+func (s EffectSpec) toChange()
+func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error) error
+func PartialEffect(committed int, err error) error
+func (o *Run) finish()
+func (o *Run) saveManifest()
+func (o *Run) warnManifestUnsavedLocked()
+func (o *Run) settleUnresolvedTasksLocked()
+func (o *Run) concludeLocked()
+func (o *Run) runErrorLocked()
+func (o *Run) finishHumanLocked()
+func (o *Run) resolveUnstartedTaskLocked()
+func (o *Run) abnormalFinishLocked()
+func (o *Run) attachUnresolvedTaskHintLocked()
+func (o *Run) autoResolveGroupsLocked()
+func (o *Run) rejectedTask()
+func (o *Run) rejectedGroup()
+func (o *Run) end()
+func (o *Run) endWith()
+func (o *Run) endingName()
+
+type Outcome string
+
+const (
+	Succeeded	Outcome	= "succeeded"
+	Satisfied	Outcome	= "satisfied"
+	Excluded	Outcome	= "excluded"
+	Refused		Outcome	= "refused"
+	Failed		Outcome	= "failed"
+	Cancelled	Outcome	= "cancelled"
+)
+
+func Fail(summary string, opts ...ProblemOption) error
+func Refuse(summary string, opts ...ProblemOption) error
+func Exclude(reason string, opts ...ProblemOption) error
+
+var (
+	ErrExecNonzeroExit	error
+	ErrExecOutputMissing	error
+	ErrStaleBasis		error
+	ErrPatchDoesNotApply	error
+	ErrInvalidConfig	error
+	ErrComputedUnordered	error
+)
+
+type ExecSpec struct {
+	Argv	[]string
+	Dir	string
+	Env	map[string]string
+	Inputs	[]string
+	Values	map[string]string
+	Outputs	[]string
+}
+
+func (s ExecSpec) toChange()
+
+type ExecResult struct {
+	Ran		bool
+	ExitCode	int
+	Stdout		string
+	Stderr		string
+	Truncated	bool
+}
+
+func Exec(ctx context.Context, spec ExecSpec) (ExecResult, error)
+func (t *Task) capture()
+
+type Clock interface{ Now() time.Time }
+type Terminal interface{ ID() string }
+type Redactor interface{ RedactString(s string) string }
+type Process interface {
+	Run(ctx context.Context, argv []string, dir string, env []string, stdout, stderr io.Writer) (exitCode int, err error)
+}
+type FS interface {
+	Lstat(path string) (iofs.FileInfo, error)
+	ReadFile(path string) ([]byte, error)
+	WriteAtomic(path string, contents []byte, mode iofs.FileMode) error
+	Chmod(path string, mode iofs.FileMode) error
+}
+type Facades struct {
+	Stdin		io.Reader
+	Stdout		io.Writer
+	Stderr		io.Writer
+	Clock		Clock
+	Terminal	Terminal
+	Redactor	Redactor
+	Process		Process
+	FS		FS
+}
+
+func File(ctx context.Context, spec FileSpec) error
+
+type FileSpec struct {
+	Path		string
+	Contents	[]byte
+	Mode		iofs.FileMode
+	Inputs		[]string
+	Values		map[string]string
+}
+
+func (s FileSpec) toChange()
+func (o *Run) newChangeHost()
+func (o *Run) taskNameLocked()
+func (o *Run) stateOf()
+func (o *Run) fileSettledLocked()
+func (o *Run) commitManifestLocked()
+
+type Run struct{}
+
+func (o *Run) manifestConfig()
+func (o *Run) promoteRunningLocked()
+func (o *Run) announceRunningLocked()
+func (o *Run) bumpLocked()
+func (o *Run) appendEventLocked()
+func (o *Run) followRecordLocked()
+func (o *Run) appendTaskLocked()
+func (o *Run) arm()
+func (o *Run) snapshotLocked()
+func (o *Run) emitWireEventLocked()
+
+type Output int
+
+const (
+	Human	Output	= iota + 1
+	Plain
+	JSON
+	JSONL
+)
+
+func Patch(ctx context.Context, diff []byte) error
+
+type ProblemOption interface{ recordOption() }
+
+func Detail(text string) interface {
+	ProblemOption
+	ConfirmOption
+}
+func Code(value string) ProblemOption
+func On(subject string) ProblemOption
+func Next(action Action) ProblemOption
+
+type Action struct {
+	Command	[]string
+	Label	string
+}
+
+func (o *Run) at()
+func (o *Run) println()
+func (o *Run) subject()
+func (o *Run) writer()
+func (o *Run) ResultWriter() io.Writer
+func (o *Run) routeResult()
+func (o *Run) emitMessageLocked()
+func (o *Run) projectsVisibilityLocked()
+func (o *Run) slogHandler()
+func (o *Run) emitLogRecord()
+func (o *Run) emitDebugRecordLocked()
+func (o *Run) newDebugRecordLocked()
+func (o *Run) projectDebugRecordLocked()
+func (o *Run) Text() io.Writer
+func (o *Run) SlogHandler() slog.Handler
+func (r *Run) Summary(text string) *Run
+func (t *Task) Progress(completed, total int) *Task
+func (t *Task) setProgress()
+func (t *Task) applyProgressLocked()
+func (t *Task) Writer() io.Writer
+
+type Result struct {
+	Conclusion	Conclusion
+	Err		error
+}
+
+func (r Result) ExitCode() int
+
+type Conclusion struct {
+	Outcome		Outcome
+	Changed		bool
+	DryRun		bool
+	Explanation	string
+}
+
+func Execute(ctx context.Context, cfg Config, run RunFunc) Result
+func Main(cfg Config, run RunFunc) int
+func (o *Run) resultErr()
+func (o *Run) anyFailed()
+func (o *Run) selfName()
+func (o *Run) ensureOpen()
+func (o *Run) close()
+func (o *Run) beginRunContext()
+func (o *Run) conclusion()
+func (o *Run) explainCancellationLocked()
+func (o *Run) humanStyle()
+func (o *Run) recordMisuse()
+func (o *Run) recordMisuseFor()
+func (o *Run) firstMisuse()
+func (o *Run) allMisuse()
+func (o *Run) appendMisuseLineLocked()
+func (o *Run) recordAlreadyResolvedLocked()
+func (o *Run) redactString()
+func (r *Run) Fact(name, value string) *Run
+func (o *Run) warnLocked()
+func (o *Run) interrupt()
+
+type RunFunc func(context.Context, *Run) error
+type Task struct{}
+
+func (t *Task) declared()
+func (t *Task) succeed()
+func (t *Task) resolveWithProblem()
+func (t *Task) block()
+func (t *Task) finish()
+
+type Predecessor interface{ predecessor() }
+
+func (*Task) predecessor()
+func (*Group) predecessor()
+func (*Sequence) predecessor()
+func (t *Task) After(preds ...Predecessor) *Task
+func (o *Run) predecessorsOfLocked()
+func (o *Run) predecessorOfLocked()
+func (o *Run) nodeOfTask()
+func (o *Run) nodeOfContainer()
+func (t *Task) Doing(text string, args ...any) *Task
+func (t *Task) annotate()
+func (t *Task) withTask()
+func (t *Task) setLiveOnlyPhase()
+func (o *Run) setPhaseLocked()
+func (o *Run) setLiveOnlyPhaseLocked()
+func (t *Task) recordWarning()
+func (t *Task) Summary(text string) *Task
+func (t *Task) Problem(summary string, opts ...ProblemOption) *Task
+func (t *Task) recordBlockingProblem()
+func (t *Task) Fact(name, value string) *Task
+func (t *Task) appendLiveTail()
+
+type DefineOption func(*defineConfig)
+type defineConfig struct{}
+
+func CleanStop(signals ...os.Signal) DefineOption
+func (t *Task) Verify(fn func(context.Context) (bool, error)) *Task
+func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Task
+func (o *Run) refuseNilDefine()
+func (o *Run) definition()
+

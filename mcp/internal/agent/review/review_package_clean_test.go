@@ -18,8 +18,7 @@ import (
 )
 
 func main() {
-	evo.Init(evo.Config{Title: "tool"})
-	os.Exit(evo.Main(run))
+	os.Exit(evo.Main(evo.Config{Name: "tool"}, run))
 }
 `,
 	"run.go": `package main
@@ -30,8 +29,8 @@ import (
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
-func run(ctx context.Context) error {
-	evo.Task("check config").Define(func() error { return ctx.Err() })
+func run(ctx context.Context, r *evo.Run) error {
+	r.Task("check config").Define(func(ctx context.Context) error { return ctx.Err() })
 	return nil
 }
 `,
@@ -98,8 +97,7 @@ import (
 )
 
 func main() {
-	evo.Init(evo.Config{Title: "tool"})
-	os.Exit(evo.Main(run))
+	os.Exit(evo.Main(evo.Config{Name: "tool"}, run))
 }
 `,
 			"run.go": `package main

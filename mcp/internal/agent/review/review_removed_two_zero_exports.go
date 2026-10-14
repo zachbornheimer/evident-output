@@ -2,6 +2,7 @@ package review
 
 import (
 	"go/ast"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -41,4 +42,22 @@ func (d *removedTwoZeroDetector) inspectRemovedExport(n ast.Node) bool {
 		"instead: "+removed.Replacement)
 	d.cover(sel)
 	return true
+}
+
+// evoQualifiedName is the identifier a type error names after the package
+// qualifier, such as the name in "undefined: evo.Name".
+var evoQualifiedName = regexp.MustCompile(`\b\w+\.([A-Z]\w*)`)
+
+// removedNamedIn is the retired-table row for the first removed 1.x name a
+// type error mentions, so the finding carries the migration guide's
+// replacement.
+func removedNamedIn(msg string) (rules.RetiredSymbol, bool) {
+	for _, m := range evoQualifiedName.FindAllStringSubmatch(msg, -1) {
+		for _, s := range rules.RetiredSymbols() {
+			if s.Contract == m[1] {
+				return s, true
+			}
+		}
+	}
+	return rules.RetiredSymbol{}, false
 }

@@ -162,8 +162,8 @@ func TestReview_PackageKindHonorsDesiredVersion(t *testing.T) {
 // imports are never loaded, and that alone must not force a recheck.
 func TestReview_PackageKindCleanPackageIsClean(t *testing.T) {
 	bin := buildMCP(t)
-	mainSrc, _ := json.Marshal("package main\n\nimport (\n\t\"os\"\n\n\tevo \"github.com/zachbornheimer/evident-output/v2\"\n)\n\nfunc main() {\n\tevo.Init(evo.Config{Title: \"tool\"})\n\tos.Exit(evo.Main(run))\n}\n")
-	runSrc, _ := json.Marshal("package main\n\nimport (\n\t\"context\"\n\n\tevo \"github.com/zachbornheimer/evident-output/v2\"\n)\n\nfunc run(ctx context.Context) error {\n\tevo.Task(\"check config\").Define(func() error { return ctx.Err() })\n\treturn nil\n}\n")
+	mainSrc, _ := json.Marshal("package main\n\nimport (\n\t\"os\"\n\n\tevo \"github.com/zachbornheimer/evident-output/v2\"\n)\n\nfunc main() {\n\tos.Exit(evo.Main(evo.Config{Name: \"tool\"}, run))\n}\n")
+	runSrc, _ := json.Marshal("package main\n\nimport (\n\t\"context\"\n\n\tevo \"github.com/zachbornheimer/evident-output/v2\"\n)\n\nfunc run(ctx context.Context, r *evo.Run) error {\n\tr.Task(\"check config\").Define(func(ctx context.Context) error { return ctx.Err() })\n\treturn nil\n}\n")
 	in := strings.Join([]string{
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
 		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output_review","arguments":{"kind":"package","files":{"main.go":` + string(mainSrc) + `,"run.go":` + string(runSrc) + `}}}}`,

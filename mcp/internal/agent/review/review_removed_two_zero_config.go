@@ -134,6 +134,11 @@ func (d *removedTwoZeroDetector) inspectConfigOptions(cl *ast.CompositeLit) {
 	}
 	for _, elt := range cl.Elts {
 		kv, ok := elt.(*ast.KeyValueExpr)
+		if ok && identName(kv.Key) == "Title" {
+			d.report(kv, "Config.Title was removed in 2.0; the name is Config.Name", "replace "+d.nodeSrc(kv)+" with Name: "+d.nodeSrc(kv.Value))
+			d.cover(kv)
+			continue
+		}
 		if !ok || identName(kv.Key) != "Options" {
 			continue
 		}

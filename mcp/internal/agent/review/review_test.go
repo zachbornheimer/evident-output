@@ -1,6 +1,7 @@
 package review_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
@@ -242,10 +243,9 @@ func findAPI032(res review.Result) []review.Finding {
 	return found
 }
 
-func TestAPI032_NoFalsePositiveOnHostedInstanceOutsideMain(t *testing.T) {
-	// New outside main() is the documented advanced pattern (a
-	// hosted-instance test harness or framework entrypoint wrapper) — must
-	// not be flagged.
+// evo.New does not exist in 2.0 (a hosted instance is evo.Execute), so it
+// is flagged wherever it appears, not only in main.
+func TestAPI032_FlagsHostedInstanceConstructionOutsideMain(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
 func run() int {
@@ -253,8 +253,8 @@ func run() int {
   return out.Run(nil)
 }
 `
-	res := review.GoSource("hosted.go", src)
-	if found := findAPI032(res); len(found) != 0 {
-		t.Fatalf("New outside main must not be flagged: %+v", found)
+	found := findAPI032(review.GoSource("hosted.go", src))
+	if len(found) == 0 || !strings.Contains(found[0].Message, "evo.New was removed in 2.0") {
+		t.Fatalf("evo.New outside main must be flagged: %+v", found)
 	}
 }

@@ -4,7 +4,7 @@ import "go/ast"
 
 // outputBindings is which names in one file certainly hold an *evo.Output:
 // fields and variables typed *evo.Output, and variables assigned from
-// evo.Init / evo.Default. The review package loads no imports, so receiver
+// evo.Init / evo.Default / evo.New. The review package loads no imports, so receiver
 // types are proven from these bindings rather than from go/types.
 type outputBindings struct {
 	names map[string]bool
@@ -85,5 +85,5 @@ func isOutputConstructor(e ast.Expr, evoPkg string) bool {
 		return false
 	}
 	sel, ok := call.Fun.(*ast.SelectorExpr)
-	return ok && isEvoIdent(sel.X, evoPkg) && (sel.Sel.Name == "Init" || sel.Sel.Name == "Default")
+	return ok && isEvoIdent(sel.X, evoPkg) && (sel.Sel.Name == "Init" || sel.Sel.Name == "Default" || sel.Sel.Name == "New")
 }

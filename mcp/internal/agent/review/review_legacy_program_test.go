@@ -122,6 +122,9 @@ func removedNameSuggested(suggestion string) string {
 			suggestion = after
 		}
 	}
+	if rest, ok := strings.CutPrefix(suggestion, "delete "); ok {
+		_, suggestion, _ = strings.Cut(rest, "; ")
+	}
 	return removedInTwoZero.FindString(suggestion)
 }
 

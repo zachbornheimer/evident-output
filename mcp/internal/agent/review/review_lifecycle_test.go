@@ -91,12 +91,11 @@ func TestBeginnerGroupTaskDefine_NoDialectFindings(t *testing.T) {
 	src := `package main
 import evo "github.com/zachbornheimer/evident-output/v2"
 func main() {
-  evo.Init(evo.Config{Title: "tool"})
-  os.Exit(evo.Main(run))
+  os.Exit(evo.Main(evo.Config{Name: "tool"}, run))
 }
-func run() error {
+func run(ctx context.Context, r *evo.Run) error {
   paths := []string{"a", "b"}
-  worktrees := evo.Group("worktrees")
+  worktrees := r.Group("worktrees")
   for _, path := range paths {
     path := path
     worktrees.Task(path).Define(func(ctx context.Context) error { return check(path) })

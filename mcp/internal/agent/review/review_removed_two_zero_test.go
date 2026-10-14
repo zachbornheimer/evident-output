@@ -50,7 +50,7 @@ var removedArms = []removedArm{
 	},
 	{
 		"Done with text", `func f(task *evo.TaskHandle) { task.Done("3 checked") }`,
-		`task.Summary("3 checked").Define(func(ctx context.Context) error { ... })`,
+		`task.Summary("3 checked").Define(func(ctx context.Context) error { return nil })`,
 	},
 	{
 		"Done with format", `func f(task *evo.TaskHandle, n int) { task.Done("%d stale", n) }`,
@@ -162,7 +162,7 @@ func TestAPI032_RemovedRemedyMethodsAreGuidance(t *testing.T) {
 		"failure": `func f(fail *evo.Failure) { fail.NextCommand("git", "status") }`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			found := findAPI032(review.GoSource("p.go", evoBody(body+"\n")))
+			found := guidanceFindings(findAPI032(review.GoSource("p.go", evoBody(body+"\n"))))
 			if len(found) != 1 || strings.HasPrefix(found[0].Suggestion, "replace ") || !strings.Contains(found[0].Suggestion, "evo.Next(") {
 				t.Fatalf("want one guidance finding naming evo.Next, got %+v", found)
 			}
@@ -196,4 +196,17 @@ func TestAPI032_RemovedCallsAreSilentBelowTwoZero(t *testing.T) {
 	for _, f := range findAPI032(review.GoSourceAt("p.go", src, "v1.1.0")) {
 		t.Fatalf("a 1.1 pin got a 2.0 finding: %+v", f)
 	}
+}
+
+// guidanceFindings drops the findings that only say a 1.x type in the
+// fragment (TaskHandle, Failure) does not exist in 2.0, which these tests
+// do not exercise.
+func guidanceFindings(fs []review.Finding) []review.Finding {
+	var out []review.Finding
+	for _, f := range fs {
+		if !strings.Contains(f.Message, "does not compile against") {
+			out = append(out, f)
+		}
+	}
+	return out
 }
