@@ -10,7 +10,7 @@ run's presentation reports OK/Failed.
 ## The pattern
 
 Use `evo.Execute` (the non-exiting reconciler — see
-[reference.md](../reference.md#construction-config-lifecycle)) to get evo's
+[reference.md](reference.md#construction-config-lifecycle)) to get evo's
 own code, then override it only when a child process exited non-zero for its
 own reason:
 

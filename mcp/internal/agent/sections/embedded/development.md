@@ -26,8 +26,7 @@ Trunk is configured **daemonless** (`--monitor=false`). Prefer `mise` over raw t
 - `goldens/` — spec-golden byte-for-byte render tests
 - `gates/` — release-gate regression rounds
 
-Architecture source (current design candidate): [`architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md`](architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md).
-Prior implemented baseline: [`architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.3.md`](architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.3.md).
+Contract: [`CONTRACT.md`](../../CONTRACT.md), the 2.0 surface every conformance test checks.
 
 ## Examples (adoption ladder)
 

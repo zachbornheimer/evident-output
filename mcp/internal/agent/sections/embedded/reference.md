@@ -25,10 +25,10 @@ wrong or this doc is; file it either way.
 
 Two entry points, both of which finish the run for you:
 
-| Shape                         | Who exits the process                              | Use when                                                                                                                                                  |
-| ----------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `evo.Main(evo.Config{}, run)` | `main`, via `os.Exit(evo.Main(evo.Config{}, run))` | An ordinary CLI entrypoint — the common case. SIGINT and SIGTERM cancel the run.                                                                          |
-| `evo.Execute(ctx, cfg, run)`  | The caller, after inspecting `Result.ExitCode()`   | A CLI composing its own exit path (see [exit-code-fidelity](guides/exit-code-fidelity.md)), a test, or an embedded use that owns its context and process. |
+| Shape                         | Who exits the process                              | Use when                                                                                                                                           |
+| ----------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `evo.Main(evo.Config{}, run)` | `main`, via `os.Exit(evo.Main(evo.Config{}, run))` | An ordinary CLI entrypoint — the common case. SIGINT and SIGTERM cancel the run.                                                                   |
+| `evo.Execute(ctx, cfg, run)`  | The caller, after inspecting `Result.ExitCode()`   | A CLI composing its own exit path (see [exit-code-fidelity](exit-code-fidelity.md)), a test, or an embedded use that owns its context and process. |
 
 `Execute` installs no signal handlers and never exits: the caller owns the
 context. Its returned `Result` carries the Conclusion (`Result.Conclusion`),
@@ -117,7 +117,7 @@ plain human view bounds how many render inline (5 by default) behind an
 `and N more failures` line — the count is always authoritative, and a
 remedy (`evo.Next(...)`) attached to any Problem
 still reaches the run's own Next-steps output. See
-[docs/migration/1.1.md](migration/1.1.md) for the exact 1.0→1.1 signatures.
+[docs/migration/1.1.md](../../docs/migration/1.1.md) for the exact 1.0→1.1 signatures.
 
 ## Child processes / tool-backed gates
 
@@ -196,7 +196,7 @@ Evo owns scheduling through Group, Sequence, Define, and After (`Group.Each`/`Se
 
 ## Status
 
-**Architecture spec:** [v0.5](architecture/EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md) (design candidate).
+**Contract:** [`CONTRACT.md`](../../CONTRACT.md), the 2.0 surface.
 **Implemented surface:** ordinary ladder through Effect/File/Writer/slog/ResultWriter; interactive VT; hardened MCP; polish-phase docs under `docs/`. External/manual items remain waived (Windows ConPTY / tmux / SSH RC, a11y contrast / screen-reader, host RC matrices and a11y manual reviews).
 
 | Ready now                                                                                                                   | External / manual only                |
@@ -212,5 +212,4 @@ Evo owns scheduling through Group, Sequence, Define, and After (`Group.Each`/`Se
 | MCP: lifecycle, protocol negotiate, unknown-field reject, panic contain, token budget, remote-path reject, catalog checksum | —                                     |
 | Framework adapter examples (urfave/Kong shapes, no core deps)                                                               | —                                     |
 
-Completeness vs §31 (v0.3 matrix): [`architecture/COMPLETENESS_MATRIX.md`](architecture/COMPLETENESS_MATRIX.md).
-Conformance detail (traceability, scenarios): [`../conformance/TRACEABILITY.md`](../conformance/TRACEABILITY.md).
+Conformance detail (traceability, scenarios): [`../conformance/TRACEABILITY.md`](../../conformance/TRACEABILITY.md).
