@@ -2,28 +2,12 @@ package graph
 
 import (
 	"fmt"
-	"runtime"
-	"slices"
 
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 // terminal reports whether t reached a terminal state.
 func terminal(t *Task) bool { return record.IsTerminalTask(t.Rec.State()) }
-
-// builderGateOf is the innermost container builder gate goroutine id is
-// running for, or nil.
-func (g *Graph) builderGateOf(id GoroutineID) *Task {
-	g.lockRead()
-	defer g.unlockRead()
-	stack := g.exec.consumers[id]
-	for _, f := range slices.Backward(stack) {
-		if f.task.IsGate() {
-			return f.task
-		}
-	}
-	return nil
-}
 
 // runCallback is the single frame every task callback runs beneath, so a
 // goroutine parked in a wait can count how many callbacks it is holding
@@ -42,12 +26,10 @@ func (g *Graph) runGate(c *claim) {
 	g.lock()
 	defer g.unlock()
 	if panicked != nil {
-		c.task.workErr = fmt.Errorf("declaring %s: %w", c.task.Name, panicked)
 		g.settleLocked(c.task, record.Failed)
 		return
 	}
 	if refusal := c.task.readRefusal; refusal != nil {
-		c.task.workErr = fmt.Errorf("declaring %s: %w", c.task.Name, refusal)
 		g.settleLocked(c.task, record.Failed)
 		return
 	}
@@ -78,60 +60,25 @@ func panicError(recovered any) error {
 	return fmt.Errorf("panic: %v", recovered)
 }
 
-// consumerFrame is one Task or builder gate a goroutine is running, with the
-// goroutines that goroutine had started when the work began: the work did not
-// start those (see goroutineOwnership), whatever it runs beneath.
+// consumerFrame is one Task or builder gate a goroutine is running.
 type consumerFrame struct {
-	task      *Task
-	predating map[GoroutineID]struct{}
-	// known is what the goroutine is known to have started, as of when the
-	// work began or when the Task it lent its slot to last ended: a claim
-	// that begins while no goroutine has started since needs no new dump to
-	// learn what the goroutine had started (see startedBeforeClaim). It is
-	// stamped current only when the nested work left no goroutine running
-	// (see startedGoroutines.afterNested).
-	known startedGoroutines
-}
-
-// started reports whether the work in f started goroutine child, which the
-// goroutine running f started or whose creator chain passes through one it
-// started.
-func (f consumerFrame) started(child GoroutineID) bool {
-	_, predates := f.predating[child]
-	return !predates
-}
-
-// knownStartedBy is what the work innermost on goroutine id knows the
-// goroutine to have started, and false when the goroutine runs no work.
-func (g *Graph) knownStartedBy(id GoroutineID) (startedGoroutines, bool) {
-	g.lockRead()
-	defer g.unlockRead()
-	stack := g.exec.consumers[id]
-	if len(stack) == 0 {
-		return startedGoroutines{}, false
-	}
-	return stack[len(stack)-1].known, true
+	task *Task
 }
 
 // enterConsumer names the Task (or container builder gate) whose callback the
 // calling goroutine is running, so a Computed read can ask whether that
 // consumer is ordered after the producer. Go has no goroutine-local storage
 // and a read takes no context, so the scheduler records it per goroutine.
-// predating is the goroutines the calling goroutine had started before the
-// work began (see startedBeforeClaim). The returned func ends the entry, and
-// tells the work beneath it, if any, what the goroutine had started when the
-// entry began.
-func (g *Graph) enterConsumer(t *Task, predating startedGoroutines) (leave func()) {
+// The returned func ends the entry.
+func (g *Graph) enterConsumer(t *Task) (leave func()) {
 	id := CurrentGoroutine()
-	liveAtEntry := runtime.NumGoroutine()
 	g.lock()
 	if g.exec.consumers == nil {
 		g.exec.consumers = make(map[GoroutineID][]consumerFrame)
 	}
-	g.exec.consumers[id] = append(g.exec.consumers[id], consumerFrame{task: t, predating: predating.ids, known: predating})
+	g.exec.consumers[id] = append(g.exec.consumers[id], consumerFrame{task: t})
 	g.unlock()
 	return func() {
-		ended := predating.afterNested(liveAtEntry)
 		g.lock()
 		defer g.unlock()
 		stack := g.exec.consumers[id]
@@ -139,7 +86,6 @@ func (g *Graph) enterConsumer(t *Task, predating startedGoroutines) (leave func(
 			delete(g.exec.consumers, id)
 			return
 		}
-		stack[len(stack)-2].known = ended
 		g.exec.consumers[id] = stack[:len(stack)-1]
 	}
 }
@@ -169,7 +115,7 @@ func (g *Graph) CurrentReader() Reader {
 		return Reader{Task: own}
 	}
 	_, creator := CurrentGoroutineLineage()
-	return Reader{Task: g.startingGoroutine(id, creator).task, Spawned: true}
+	return Reader{Task: g.startingGoroutine(creator).task, Spawned: true}
 }
 
 // refuseSpawnedRead keeps err against the Task a refused read from one of its
@@ -204,19 +150,12 @@ func (g *Graph) consumerOnLocked(id GoroutineID) *Task {
 	return nil
 }
 
-// frameStartedLocked is the innermost Task or builder gate running on
-// goroutine id whose work started goroutine child, or nil: a goroutine a
-// plain caller runs a callback on inline owns none of the goroutines it had
-// started before, and a callback that lends its slot to nested work keeps the
-// goroutines it started before the nested work began (see goroutineOwnership).
-func (g *Graph) frameStartedLocked(id, child GoroutineID) *Task {
+// frameStartedLocked is the Task or builder gate running on goroutine id, or
+// nil: a pooled worker ran no work before its callback began, so every
+// goroutine it starts is that callback's.
+func (g *Graph) frameStartedLocked(id GoroutineID) *Task {
 	if !g.exec.runningGoroutines[id].runsAny() {
 		return nil
 	}
-	for _, f := range slices.Backward(g.exec.consumers[id]) {
-		if f.started(child) {
-			return f.task
-		}
-	}
-	return nil
+	return g.consumerOnLocked(id)
 }

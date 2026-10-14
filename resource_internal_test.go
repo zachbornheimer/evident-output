@@ -3,7 +3,6 @@ package evo
 import (
 	"bytes"
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/change"
@@ -59,30 +58,5 @@ func TestHoldResource_UncontendedProducesNoOutput(t *testing.T) {
 	}
 	if rendered != bare {
 		t.Fatalf("uncontended acquisition changed the rendering:\n--- bare ---\n%s\n--- held ---\n%s", bare, rendered)
-	}
-}
-
-// writeAudit is the kind of helper a callback calls without knowing it
-// acquires a resource of its own.
-func writeAudit(ctx context.Context) error {
-	return holdIn(ctx, change.LogicalResource("audit-log"), change.ClaimWrite, func(context.Context) error { return nil })
-}
-
-func TestHoldResource_NestedThroughHelperIsMisuse(t *testing.T) {
-	dir := t.TempDir()
-	_, err := renderDefine(t, func(ctx context.Context) error {
-		return holdIn(ctx, change.FSResource(dir), change.ClaimRead, writeAudit)
-	})
-	if !errors.Is(err, errNestedResourceAcquisition) {
-		t.Fatalf("task error = %v, want ErrNestedResourceAcquisition", err)
-	}
-}
-
-func TestHoldResource_InvalidResourceIsReported(t *testing.T) {
-	_, err := renderDefine(t, func(ctx context.Context) error {
-		return holdIn(ctx, change.LogicalResource(""), change.ClaimRead, func(context.Context) error { return nil })
-	})
-	if !errors.Is(err, change.ErrInvalidResource) {
-		t.Fatalf("task error = %v, want ErrInvalidResource", err)
 	}
 }

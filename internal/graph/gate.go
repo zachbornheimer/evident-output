@@ -48,7 +48,6 @@ func (g *Graph) AddGate(c *Container, work func() error) *Task {
 		Declaration: g.nextDeclarationLocked(),
 		Rec:         g.run.NewTask(record.TaskInit{ID: record.TaskID(id), State: record.Pending}),
 		gateFor:     c,
-		done:        make(chan struct{}),
 	}
 	gate.sched.preds = slices.Clone(c.entry)
 	gate.sched.work = Work{Run: work}
@@ -100,7 +99,6 @@ func (g *Graph) concludeGateLocked(gate *Task) {
 	default:
 		c.builder.phase = builderFailed
 	}
-	gate.closeDoneLocked()
 	if gate.sched.awaitingStart() {
 		g.abandonLocked(gate)
 	}

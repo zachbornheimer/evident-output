@@ -209,7 +209,7 @@ func newOutput(subject string, options ...option) *Run {
 	}
 	o.manifest = freshness.NewManifestSession(o.manifestConfig)
 	o.taskFreshness = freshness.NewTaskTable()
-	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(o.misuse), graph.WithWaitUnderClaimError(errNestedResourceAcquisition))
+	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(o.misuse))
 	o.changes = change.NewRun(changeHost{out: o}, o.graph)
 	o.mu.Bind(run)
 	run.SetListener(outputListener{o: o})

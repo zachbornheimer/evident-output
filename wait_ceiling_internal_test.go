@@ -2,15 +2,11 @@ package evo
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/zachbornheimer/evident-output/internal/misuse"
 )
 
 // TestPlainWaiterNeverRaisesTheCeiling: a caller outside any callback
@@ -54,100 +50,6 @@ func TestPlainWaiterNeverRaisesTheCeiling(t *testing.T) {
 	_ = out.finish()
 	if got := peak.Load(); got != 1 {
 		t.Fatalf("peak running callbacks = %d at MaxConcurrency 1, want 1", got)
-	}
-}
-
-// TestSpawnedWaiterBlockingItsCallbackFailsNamed: a callback that starts a
-// goroutine which Waits, and then blocks on that goroutine (the errgroup
-// shape API-041 rejects), holds the only slot at MaxConcurrency 1. The
-// ceiling holds, so neither can move; Wait must end that with a named
-// ErrWaitDeadlock instead of hanging the run or running over the ceiling.
-func TestSpawnedWaiterBlockingItsCallbackFailsNamed(t *testing.T) {
-	out := quietOutput(Config{MaxConcurrency: 1})
-	// Close drains the run; on the bug it hangs, so it gets the same bound
-	// as the Wait instead of hanging the suite.
-	t.Cleanup(func() {
-		closed := make(chan struct{})
-		go func() { _ = out.close(); close(closed) }()
-		select {
-		case <-closed:
-		case <-time.After(5 * time.Second):
-			t.Error("Close hung")
-		}
-	})
-
-	var p peakCounter
-	done := make(chan error, 1)
-	go func() {
-		a := out.Task("a").Define(func(context.Context) error {
-			p.enter()
-			defer p.leave()
-			errc := make(chan error, 1)
-			go func() {
-				errc <- out.Task("b").Define(func(context.Context) error {
-					p.enter()
-					defer p.leave()
-					return nil
-				}).wait()
-			}()
-			return <-errc
-		})
-		done <- a.wait()
-	}()
-
-	select {
-	case err := <-done:
-		if !errors.Is(err, misuse.ErrWaitDeadlock) || !strings.Contains(err.Error(), "API-041") {
-			t.Fatalf("a.Wait() = %v, want ErrWaitDeadlock naming API-041", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("a.Wait() hung: the spawned waiter was never released")
-	}
-	if got := p.peak.Load(); got != 1 {
-		t.Fatalf("peak running callbacks = %d at MaxConcurrency 1, want 1", got)
-	}
-}
-
-// TestGrandchildWaiterBlockingItsCallbackFailsNamed: the spawned-waiter
-// deadlock holds however many goroutines sit between the callback and the
-// Wait. Here the callback blocks on a goroutine that blocks on the goroutine
-// that Waits, so the stall must be found through the whole chain, not only
-// through the Wait goroutine's direct creator.
-func TestGrandchildWaiterBlockingItsCallbackFailsNamed(t *testing.T) {
-	out := quietOutput(Config{MaxConcurrency: 1})
-	t.Cleanup(func() {
-		closed := make(chan struct{})
-		go func() { _ = out.close(); close(closed) }()
-		select {
-		case <-closed:
-		case <-time.After(5 * time.Second):
-			t.Error("Close hung")
-		}
-	})
-
-	done := make(chan error, 1)
-	go func() {
-		a := out.Task("a").Define(func(context.Context) error {
-			outer := make(chan error, 1)
-			go func() {
-				inner := make(chan error, 1)
-				go func() {
-					inner <- out.Task("b").Define(func(context.Context) error { return nil }).wait()
-				}()
-				outer <- <-inner
-			}()
-			return <-outer
-		})
-		done <- a.wait()
-	}()
-
-	select {
-	case err := <-done:
-		if !errors.Is(err, misuse.ErrWaitDeadlock) || !strings.Contains(err.Error(), "API-041") {
-			t.Fatalf("a.Wait() = %v, want ErrWaitDeadlock naming API-041", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("a.Wait() hung: the grandchild waiter was never released")
 	}
 }
 

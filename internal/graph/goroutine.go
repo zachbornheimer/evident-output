@@ -63,14 +63,6 @@ func goroutinesCreated() (uint64, bool) {
 	return sample[0].Value.Uint64(), true
 }
 
-// goroutinesStartedBy is every goroutine alive now that root started,
-// directly or through others. It is read from the last dump of every
-// goroutine while the process has started none since, and from a fresh one
-// otherwise.
-func goroutinesStartedBy(root GoroutineID) startedGoroutines {
-	return processLineage.descendantsOf(root)
-}
-
 // goroutineCreators maps every goroutine in a dump of all tracebacks to the
 // goroutine that started it (zero for one the runtime started).
 func goroutineCreators(dump []byte) map[GoroutineID]GoroutineID {

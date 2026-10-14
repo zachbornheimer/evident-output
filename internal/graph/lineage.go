@@ -121,26 +121,6 @@ func (l *lineage) chain(from GoroutineID, budget *refreshBudget) []GoroutineID {
 	return chain
 }
 
-// descendantsOf lists the goroutines that root started, directly or through
-// others, among those alive now and the exited ones a live goroutine still
-// names, as of now: from the last dump while the process has started no
-// goroutine since, from a fresh one otherwise. The list is never nil.
-func (l *lineage) descendantsOf(root GoroutineID) startedGoroutines {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if !l.completeLocked() {
-		l.learnLocked()
-	}
-	descendants := make(map[GoroutineID]struct{})
-	for pending := slices.Clone(l.started[root]); len(pending) > 0; {
-		id := pending[len(pending)-1]
-		pending = pending[:len(pending)-1]
-		descendants[id] = struct{}{}
-		pending = append(pending, l.started[id]...)
-	}
-	return startedGoroutines{ids: descendants, created: l.created, counted: l.counted}
-}
-
 // learnLocked replaces what is remembered with one dump of every goroutine
 // alive now, keeping the exited goroutines a live one still names as its
 // ancestor, so a chain through an exited creator survives while it is useful

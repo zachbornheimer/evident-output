@@ -116,26 +116,6 @@ func TestLineageAnswersAKnownGoroutineFromMemory(t *testing.T) {
 	}
 }
 
-// The goroutines a goroutine started, directly or through others, are its
-// descendants; the goroutine itself and the ones it did not start are not.
-func TestLineageDescendantsAreWhatARootStartedThroughOthers(t *testing.T) {
-	var l lineage
-	tr := startLineageTree(&l)
-	defer close(tr.exitChild)
-	defer close(tr.exitParent)
-
-	underParent := l.descendantsOf(tr.parent).ids
-	if _, ok := underParent[tr.child]; !ok {
-		t.Fatalf("descendantsOf(parent) = %v, want the child %d", underParent, tr.child)
-	}
-	if _, ok := underParent[tr.parent]; ok {
-		t.Fatalf("descendantsOf(parent) = %v lists the parent itself", underParent)
-	}
-	if underChild := l.descendantsOf(tr.child).ids; len(underChild) != 0 {
-		t.Fatalf("descendantsOf(child) = %v, want none: the child started no goroutine", underChild)
-	}
-}
-
 // Every goroutine a known creator started is answered from memory: the
 // creator was seen once, and how many fresh goroutines ask about it does not
 // matter.
@@ -175,37 +155,5 @@ func TestLineageAnswersAnExitedUnseenCreatorFromMemory(t *testing.T) {
 
 	if l.chain(gone, nil); !l.remembers(GoroutineID(1 << 62)) {
 		t.Fatal("an exited creator asked again: it dumped again")
-	}
-}
-
-// A goroutine started since the last dump is a descendant the next question
-// must see: the last dump no longer tells the whole truth.
-func TestLineageDescendantsSeeAGoroutineStartedSinceTheLastDump(t *testing.T) {
-	var l lineage
-	self := CurrentGoroutine()
-	l.descendantsOf(self)
-	stop, started := make(chan struct{}), make(chan GoroutineID)
-	defer close(stop)
-	go func() { started <- CurrentGoroutine(); <-stop }()
-	child := <-started
-
-	if _, ok := l.descendantsOf(self).ids[child]; !ok {
-		t.Fatalf("descendantsOf(self) misses goroutine %d, started after the last dump", child)
-	}
-}
-
-// While no goroutine starts, the last dump answers every question about who
-// started whom.
-func TestLineageDescendantsTakeNoDumpWhileNoGoroutineStarts(t *testing.T) {
-	if _, counted := goroutinesCreated(); !counted {
-		t.Skip("this toolchain does not count the goroutines the process started")
-	}
-	var l lineage
-	self := CurrentGoroutine()
-	for range 50 {
-		l.descendantsOf(self)
-	}
-	if dumps := l.dumps.Load(); dumps > fewDumps {
-		t.Fatalf("50 questions took %d dumps, over %d", dumps, fewDumps)
 	}
 }

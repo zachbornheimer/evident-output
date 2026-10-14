@@ -65,18 +65,6 @@ var (
 	ErrExecOutputMissing = change.ErrExecOutputMissingAfterSuccess
 	ErrStaleBasis        = change.ErrStaleBasis
 	ErrPatchDoesNotApply = change.ErrPatchDoesNotApply
-	// ErrNestedResourceAcquisition is returned, without waiting, when code
-	// already holding a resource (directly, or through any helper it passed
-	// its context to) asks for a second one, or calls Wait on a Task, Group,
-	// or Sequence. Holding at most one resource at a time, and never waiting
-	// while holding one, is what makes deadlock impossible, so this is
-	// misuse even when the second resource is free.
-	//
-	// Wait takes no context, so it reads the claim from its own goroutine's
-	// stack: a goroutine the claim holder starts and then Waits from is not
-	// caught, and can deadlock. Pass the held context instead, and never
-	// Wait from a goroutine spawned while holding a resource.
-	errNestedResourceAcquisition = change.ErrNestedResourceAcquisition
 )
 
 type FileSpec struct {

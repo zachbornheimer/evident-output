@@ -54,8 +54,6 @@ type Graph struct {
 	idSeq  atomic.Uint64
 	limit  int
 	misuse MisuseSink
-	// waitUnderClaim is the sentinel a wait refused for a held claim wraps.
-	waitUnderClaim error
 
 	mu         record.Mutex
 	closed     bool
@@ -98,13 +96,12 @@ type scheduler struct {
 // New is an empty Graph whose Tasks record into run.
 func New(run *record.Run, options ...Option) *Graph {
 	g := &Graph{
-		run:            run,
-		misuse:         discardMisuse{},
-		waitUnderClaim: ErrWaitUnderClaim,
-		tasks:          make(map[string]*Task),
-		containers:     make(map[string]*Container),
-		keys:           make(map[string]struct{}),
-		scope:          newCancellationScope(processRoot()),
+		run:        run,
+		misuse:     discardMisuse{},
+		tasks:      make(map[string]*Task),
+		containers: make(map[string]*Container),
+		keys:       make(map[string]struct{}),
+		scope:      newCancellationScope(processRoot()),
 	}
 	g.mu.Bind(run)
 	for _, apply := range options {
@@ -240,7 +237,6 @@ func (g *Graph) newTaskLocked(parent *Container, name string, init record.TaskIn
 		graph: g, ID: id, Name: name, Parent: parent,
 		Rec:         g.run.NewTask(init),
 		key:         StableKey(KindTask, KeyOf(parent), name),
-		done:        make(chan struct{}),
 		Declaration: g.nextDeclarationLocked(),
 	}
 	g.tasks[id] = t

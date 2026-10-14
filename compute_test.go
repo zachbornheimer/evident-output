@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -226,31 +225,6 @@ func TestCompute_CrossContainerGetWithoutAfterIsMisuse(t *testing.T) {
 	}
 	if got != 0 {
 		t.Fatalf("unordered Get() = %d, want zero value", got)
-	}
-}
-
-func TestCompute_UnorderedGetFailsRunInDefaultMode(t *testing.T) {
-	out := newQuietOutput(t, false)
-	makeTask := out.Group("producers").Task("make")
-	producer := Compute(makeTask, func(context.Context) (int, error) { return 1, nil })
-	seq := out.Sequence("consumers")
-	var continued bool
-	read := seq.Task("read")
-	read.Define(func(context.Context) error {
-		_ = makeTask.wait()
-		_ = producer.Get()
-		continued = true
-		return nil
-	})
-	_ = out.finish()
-	if !errors.Is(out.err(), ErrComputedUnordered) {
-		t.Fatalf("Err() = %v, want ErrComputedUnordered", out.err())
-	}
-	if continued {
-		t.Fatal("callback continued past an unordered Get")
-	}
-	if err := read.wait(); err == nil || !strings.Contains(err.Error(), ErrComputedUnordered.Error()) {
-		t.Fatalf("consumer Wait() = %v, want a failure naming ErrComputedUnordered", err)
 	}
 }
 

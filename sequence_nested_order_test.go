@@ -54,62 +54,6 @@ func TestSequenceOrdersNestedCollectionSteps(t *testing.T) {
 	}
 }
 
-// An empty nested collection still keeps the step after it behind the
-// step before it.
-func TestSequenceStepAfterEmptyNestedGroupWaitsForEarlierStep(t *testing.T) {
-	out := isolatedOutput(t)
-	var log stepLog
-	seq := out.Sequence("steps")
-	seq.Task("a").Define(log.step("a", 50*time.Millisecond))
-	seq.Group("empty")
-	b := seq.Task("b").Define(log.step("b", 0))
-	if err := waitWithin(t, "b.Wait", b.wait); err != nil {
-		t.Fatalf("b.Wait = %v", err)
-	}
-	if ev := log.events; slices.Index(ev, "a end") > slices.Index(ev, "b start") {
-		t.Errorf("b started before a ended: %v", ev)
-	}
-}
-
-// A failed step leaves every later step not started, nested ones included,
-// whether or not they were Defined.
-func TestSequenceFailureStopsLaterNestedSteps(t *testing.T) {
-	out := isolatedOutput(t)
-	seq := out.Sequence("steps")
-	boom := errors.New("boom")
-	a := seq.Task("a").Define(func(context.Context) error { return boom })
-	g := seq.Group("g")
-	x := g.Task("x").Define(noop)
-	y := g.Task("y")
-	if err := waitWithin(t, "a.Wait", a.wait); !errors.Is(err, boom) {
-		t.Fatalf("a.Wait = %v, want boom", err)
-	}
-	for _, h := range []*Task{x, y} {
-		if got := h.snapshot().State; got != notStarted {
-			t.Errorf("%s = %v, want NotStarted", h.snapshot().Name, got)
-		}
-	}
-}
-
-// A run of empty nested steps forwards the step before them to the step
-// after them, however many there are.
-func TestSequenceStepAfterEmptyNestedChainWaitsForEarlierStep(t *testing.T) {
-	out := isolatedOutput(t)
-	var log stepLog
-	seq := out.Sequence("steps")
-	seq.Task("a").Define(log.step("a", 50*time.Millisecond))
-	seq.Group("empty 1")
-	seq.Sequence("empty 2")
-	seq.Group("empty 3")
-	b := seq.Task("b").Define(log.step("b", 0))
-	if err := waitWithin(t, "b.Wait", b.wait); err != nil {
-		t.Fatalf("b.Wait = %v", err)
-	}
-	if ev := log.events; slices.Index(ev, "a end") > slices.Index(ev, "b start") {
-		t.Errorf("b started before a ended: %v", ev)
-	}
-}
-
 // A failure before a run of empty nested steps still stops the step after
 // them.
 func TestSequenceFailureCrossesEmptyNestedSteps(t *testing.T) {

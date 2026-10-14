@@ -2,6 +2,7 @@ package evo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -541,44 +542,6 @@ func (t *Task) basis(inputs ...fingerprint) *Task {
 	return t
 }
 
-// Wait blocks until every task this Group's children (and their nested
-// children, recursively) declared has settled, and returns their aggregate
-// outcome. It does not itself serialize eligible
-// siblings: every descendant Task was already submitted to the scheduler by
-// its own Define call, so Wait only parks on outcomes the scheduler is
-// already free to produce concurrently — the same non-serializing guarantee
-// waiting on a task already gives a single Task.
-//
-// A caller never snapshots/counts failed children to know whether the
-// container succeeded: Wait alone is the ordinary control-flow answer, and
-// it returns nil only when every descendant actually ran and succeeded.
-// Per-child detail remains available through Snapshot.
-func (g *Group) wait() error {
-	if g == nil || g.out == nil {
-		return nil
-	}
-	if g.rejected != nil {
-		return rejectedWaitOutcome(g.rejected)
-	}
-	node := g.out.graph.Container(g.id)
-	if node == nil {
-		return nil
-	}
-	outcome := g.out.graph.WaitContainer(node)
-	g.out.followRecordAfterWait()
-	return outcome
-}
-
-// Wait is Sequence's counterpart to waiting on a group: the ordered container
-// settles once every declared step (and any nested Group/Sequence) has
-// settled, honoring the same NotStarted-suppression and error-join rules.
-func (s *Sequence) wait() error {
-	if s == nil || s.tasks == nil {
-		return nil
-	}
-	return s.tasks.wait()
-}
-
 // nextSelf is a ProblemOption that attaches a command action re-running the
 // caller's own binary with args — a self-referencing remedy ("rerun with
 // --apply") that doesn't restate which binary to run (I6). Uses the same
@@ -614,51 +577,6 @@ func (t *Task) skip(reason string, args ...any) *Task {
 // neverDefined reports whether st is still waiting on its caller: declared,
 // never Defined, and not resolved by a verb either.
 func (st *taskState) neverDefined() bool { return st.node.NeverDefined() }
-
-// Wait blocks until the task is terminal and returns the error its callback
-// returned (nil on Done, Skipped, or a dry run that never invoked it).
-//
-// A task that was already resolved before it was defined never runs its
-// callback (the misuse is recorded at the Define call), and Wait returns nil
-// immediately rather than blocking on work that will never happen (P15).
-//
-// A task that never ran — an abandoned queue, a predecessor that failed —
-// returns ErrNotStarted rather than nil, and a cancelled one returns its
-// cancellation: Wait never reports success for work that did not happen.
-//
-// Wait called while the calling goroutine holds a resource claim (inside an
-// Effect, File, or Basis hold) returns ErrNestedResourceAcquisition without
-// waiting: the awaited work could need that claim, and neither could move.
-//
-// A waiter has stopped doing work, so the concurrency ceiling must not be
-// the reason the task it waits on cannot start (P16). Wait therefore runs
-// that task, and whatever is holding it back, on its own goroutine when the
-// scheduler has not picked them up (see graph.Graph.RunWaited): nested
-// Define+Wait completes even at MaxConcurrency 1, because the waiting
-// callback's slot carries the work it is waiting for instead of idling.
-//
-// MaxConcurrency bounds every executing callback. A plain caller (one
-// outside any callback) holds no slot, so it runs work only in a free slot
-// and otherwise waits for the pool. A goroutine a callback started holds
-// none either: if that callback blocks on it while every slot is held,
-// neither can move, and Wait returns ErrWaitDeadlock naming the shape
-// instead of hanging. Declare that work as Tasks under a Group, or Wait
-// inside the callback itself (API-041).
-func (t *Task) wait() error {
-	if t == nil || t.out == nil {
-		return nil
-	}
-	if t.rejected != nil {
-		return rejectedWaitOutcome(t.rejected)
-	}
-	node := t.out.graph.Task(t.id)
-	if node == nil {
-		return nil
-	}
-	outcome := t.out.graph.Wait(node)
-	t.out.followRecordAfterWait()
-	return outcome
-}
 
 // followRecordAfterWait is what a Wait owes its caller once the graph let it
 // go: the render state has answered every settle the Wait saw. A Task's done
@@ -705,12 +623,6 @@ type basisSource = freshness.BasisSource
 
 // FingerprintBasis observes a Fingerprint (FSPath, Value, App).
 func fingerprintBasis(f fingerprint) basisSource { return freshness.FingerprintBasis(f) }
-
-// rejectedWaitOutcome is what Wait returns on a refused declaration: the
-// work never started, and why.
-func rejectedWaitOutcome(rejected error) error {
-	return fmt.Errorf("%w: %w", graph.ErrNotStarted, rejected)
-}
 
 // Key sets an advanced, refactor/rename-stable override for this Task's
 // §3.1 identity, replacing the default kind+parent-key+name derivation
@@ -768,4 +680,93 @@ func nextCommand(executable string, args ...string) ProblemOption {
 // fail records an output-level failure.
 func (o *Run) fail(summary string, options ...ProblemOption) {
 	o.endWith(failed, applyProblemOptions(project.Text(summary), options))
+}
+
+// settleTimeout bounds how long a test waits for submitted work to settle.
+const settleTimeout = 5 * time.Second
+
+// settlePoll is how often a test re-reads a row while it waits.
+const settlePoll = time.Millisecond
+
+// errNotSettled is what wait returns when the work did not settle in time:
+// nothing the run would do on its own was going to settle it.
+var errNotSettled = errors.New("evo test: work did not settle")
+
+// errNotSucceeded is what wait returns for work that settled without
+// succeeding.
+var errNotSucceeded = errors.New("evo test: work did not succeed")
+
+// wait blocks until t's row settles and the record follows it. The run never
+// waits on one Task; a test observes the settle by reading the row.
+func (t *Task) wait() error {
+	if t == nil || t.out == nil {
+		return nil
+	}
+	if t.rejected != nil {
+		return t.rejected
+	}
+	node := t.out.graph.Task(t.id)
+	if node == nil {
+		return nil
+	}
+	return t.out.awaitSettled([]*graph.Task{node})
+}
+
+// wait blocks until every Task declared under g, and every builder that
+// declares them, has settled.
+func (g *Group) wait() error {
+	if g == nil || g.out == nil {
+		return nil
+	}
+	if g.rejected != nil {
+		return g.rejected
+	}
+	node := g.out.graph.Container(g.id)
+	if node == nil {
+		return nil
+	}
+	return g.out.awaitSettled(containedTasks(node))
+}
+
+// wait is Sequence's counterpart to waiting on a Group.
+func (s *Sequence) wait() error {
+	if s == nil || s.tasks == nil {
+		return nil
+	}
+	return s.tasks.wait()
+}
+
+// containedTasks is c's builder gate and every Task declared under c,
+// directly or through nested containers.
+func containedTasks(c *graph.Container) []*graph.Task {
+	var tasks []*graph.Task
+	if gate := c.BuilderGate(); gate != nil {
+		tasks = append(tasks, gate)
+	}
+	tasks = append(tasks, c.Tasks()...)
+	for _, child := range c.Children() {
+		tasks = append(tasks, containedTasks(child)...)
+	}
+	return tasks
+}
+
+// awaitSettled polls until every Task in tasks is terminal, then follows the
+// record so the frame shows each settled row, and joins why any did not
+// succeed.
+func (o *Run) awaitSettled(tasks []*graph.Task) error {
+	deadline := time.Now().Add(settleTimeout)
+	var failures []error
+	for _, t := range tasks {
+		for !record.IsTerminalTask(t.Rec.State()) {
+			if time.Now().After(deadline) {
+				return fmt.Errorf("%w: %s", errNotSettled, t.Name)
+			}
+			time.Sleep(settlePoll)
+		}
+		if state := t.Rec.State(); !state.Succeeded() && state != record.Excluded {
+			failures = append(failures, fmt.Errorf("%w: %s %s", errNotSucceeded, t.Name, state))
+		}
+	}
+	o.followRecordAfterWait()
+	return errors.Join(failures...)
 }

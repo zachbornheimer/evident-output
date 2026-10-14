@@ -13,8 +13,7 @@ type Work struct {
 	// its claim and this step, so it never started: Run and Observed are
 	// skipped, and no callback runs for a Task that announced no start.
 	Started func() bool
-	// Run is the Task's callback. Its return value is recorded as the Task's
-	// WorkErr before Observed hears it.
+	// Run is the Task's callback.
 	Run func() error
 	// Observed settles the Task from what Run returned. It runs only when
 	// Run left the Task unsettled.
@@ -58,13 +57,4 @@ func (g *Graph) Submit(t *Task, work Work) SubmitVerdict {
 	}
 	g.placeLocked(t, scanAll)
 	return Submitted
-}
-
-// WorkErr is the error the Task's callback returned, nil before it returned
-// and when it returned none. It is recorded before the Task settles from it,
-// so whoever wakes on the settle reads the same value.
-func (t *Task) WorkErr() error {
-	t.graph.lock()
-	defer t.graph.unlock()
-	return t.workErr
 }

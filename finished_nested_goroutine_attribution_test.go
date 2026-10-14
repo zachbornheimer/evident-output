@@ -2,7 +2,6 @@ package evo
 
 import (
 	"context"
-	"errors"
 	"io"
 	"testing"
 )
@@ -50,16 +49,6 @@ func runFinishedNested(t *testing.T, ceiling int) nestedOutcome {
 	})
 	_ = out.finish()
 	return nestedOutcome{outer: outer.wait(), n1: n1.wait(), n2: n2.wait(), read: read}
-}
-
-func TestGoroutineOfAFinishedNestedTaskIsNotTheNextNestedTasks(t *testing.T) {
-	got := runFinishedNested(t, 1)
-	if errors.Is(got.n2, ErrComputedUnordered) {
-		t.Errorf("n2.Wait() = %v: a goroutine n1 started was charged to n2, which never read", got.n2)
-	}
-	if got.outer != nil || got.n1 != nil || got.read != 7 {
-		t.Errorf("outer=%v n1=%v n2=%v read=%d; want nil nil nil 7", got.outer, got.n1, got.n2, got.read)
-	}
 }
 
 func TestGoroutineOfAFinishedNestedTaskIsNotTheNextNestedTasksAtCeiling2(t *testing.T) {

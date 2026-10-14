@@ -55,16 +55,6 @@ func lentSlotRead(t *testing.T, ceiling int) lentSlotOutcome {
 	return lentSlotOutcome{inner: inner.wait(), outer: outer.wait(), read: read}
 }
 
-func TestComputedGet_GoroutineStartedBeforeALentSlotRunIsTheLendersReader(t *testing.T) {
-	got := lentSlotRead(t, 1)
-	if errors.Is(got.inner, ErrComputedUnordered) {
-		t.Errorf("inner.Wait() = %v: the outer callback's goroutine's read was charged to the inner Task", got.inner)
-	}
-	if got.outer != nil || got.read != 7 {
-		t.Errorf("outer.Wait() = %v, read = %d; want nil, 7", got.outer, got.read)
-	}
-}
-
 // The same program at a ceiling of two runs the inner Task on its own slot:
 // the outcome must not depend on the ceiling.
 func TestComputedGet_GoroutineStartedBeforeARunIsTheLendersReaderAtAnyCeiling(t *testing.T) {

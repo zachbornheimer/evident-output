@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"errors"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -71,29 +70,6 @@ func TestKickRunsEverySubmittedTaskWithinTheConcurrencyCeiling(t *testing.T) {
 	}
 	if peak.Load() > 2 || g.MaxObserved() > 2 {
 		t.Errorf("ran %d at once (graph saw %d), want at most the ceiling of 2", peak.Load(), g.MaxObserved())
-	}
-}
-
-func TestObservedHearsWhatRunReturnedAfterItWasRecordedAsWorkErr(t *testing.T) {
-	g := New(record.NewRun())
-	task := declare(g, "fails")
-	boom := errors.New("boom")
-	var recorded error
-	work := settlingWork(g, task, func() error { return boom })
-	observe := work.Observed
-	work.Observed = func(err error) {
-		recorded = task.WorkErr()
-		observe(err)
-	}
-	submitWork(g, task, work)
-
-	g.Drain()
-
-	if !errors.Is(recorded, boom) || !errors.Is(task.WorkErr(), boom) {
-		t.Errorf("WorkErr was %v when Observed ran and %v after, want %v both times", recorded, task.WorkErr(), boom)
-	}
-	if got := task.Rec.State(); got != record.Failed {
-		t.Errorf("state = %s, want failed", got)
 	}
 }
 
@@ -215,48 +191,6 @@ func TestWorkSubmittedAfterAnInterruptSettlesNotStarted(t *testing.T) {
 	}
 }
 
-func TestAWaitOnATaskInADependencyCycleIsAnsweredNotParkedForever(t *testing.T) {
-	sink := &misuseLog{}
-	g := New(record.NewRun(), WithMisuseSink(sink))
-	first, second := declare(g, "first"), declare(g, "second")
-	g.AddAfter(first, AfterTask(second))
-	g.AddAfter(second, AfterTask(first))
-	submitWork(g, first, Work{Run: func() error { return nil }})
-	submitWork(g, second, Work{Run: func() error { return nil }})
-
-	ticket := g.BeginWait(first, UnmarkedStack())
-	defer g.EndWait(ticket)
-	g.Kick()
-
-	select {
-	case <-first.Done():
-	case <-time.After(executorTimeout):
-		t.Fatal("the stalled wait was never answered")
-	}
-	if got := first.Rec.State(); got != record.Refused {
-		t.Errorf("first = %s, want blocked by the cycle", got)
-	}
-	if len(sink.errs) != 1 || !errors.Is(sink.errs[0], ErrDependencyCycle) {
-		t.Errorf("misuse heard = %v, want one dependency cycle", sink.errs)
-	}
-}
-
-func TestBuilderGatePanicFailsTheGateAndRecordsWhy(t *testing.T) {
-	g := New(record.NewRun())
-	group := g.AddContainer(nil, "group", false)
-	gate := g.AddGate(group, func() error { panic("bad builder") })
-	g.Submit(gate, Work{})
-
-	g.Drain()
-
-	if got := gate.Rec.State(); got != record.Failed {
-		t.Errorf("gate = %s, want failed", got)
-	}
-	if err := gate.WorkErr(); err == nil || !strings.Contains(err.Error(), "bad builder") {
-		t.Errorf("gate WorkErr = %v, want the panic text", err)
-	}
-}
-
 func TestAbortPendingClosesOneRegisteredChannelOnce(t *testing.T) {
 	g := New(record.NewRun())
 	abort, release := g.RegisterAbort("gate_1")
@@ -274,5 +208,18 @@ func TestAbortPendingClosesOneRegisteredChannelOnce(t *testing.T) {
 	}
 	if _, again := g.AbortPending(); again {
 		t.Error("AbortPending found a gate after the only one was aborted")
+	}
+}
+
+func TestBuilderGatePanicFailsTheGateAndSettlesItFailed(t *testing.T) {
+	g := New(record.NewRun())
+	group := g.AddContainer(nil, "group", false)
+	gate := g.AddGate(group, func() error { panic("bad builder") })
+	g.Submit(gate, Work{})
+
+	g.Drain()
+
+	if got := gate.Rec.State(); got != record.Failed {
+		t.Errorf("gate = %s, want failed", got)
 	}
 }

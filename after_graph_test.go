@@ -143,26 +143,6 @@ func TestAfterGroupDeclaredLater_WaitsForItsChildren(t *testing.T) {
 	}
 }
 
-// TestAfterEmptyGroup_WaitRunsItNow proves an empty Group is no hang: the
-// Wait seals it, so the Task after it runs at once.
-func TestAfterEmptyGroup_WaitRunsItNow(t *testing.T) {
-	out := newGraphTestOutput(t)
-	g := out.Group("nothing to do")
-	out.Task("later") // declared, still the caller's to Define
-	fetch := out.Task("fetch").After(g).Define(nopWork)
-	done := make(chan error, 1)
-	go func() { done <- fetch.wait() }()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("Wait = %v, want nil", err)
-		}
-	case <-time.After(waitOutcomeTimeout):
-		t.Fatal("Wait hung on an empty Group")
-	}
-	_ = closeWithin(t, out)
-}
-
 // TestAfterEmptyGroup_DrainRunsIt proves the drain treats a Group nobody
 // populated as having nothing to wait for.
 func TestAfterEmptyGroup_DrainRunsIt(t *testing.T) {

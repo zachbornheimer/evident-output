@@ -231,30 +231,6 @@ func TestEffectsOnOneLogicalResourceNeverOverlap(t *testing.T) {
 	}
 }
 
-// An Effect's callback runs holding the Effect's resource, so tracked work
-// inside it that would need a second resource is misuse, not a deadlock.
-func TestFileInsideResourceEffectIsNestedMisuse(t *testing.T) {
-	dir := t.TempDir()
-	out := newOutput("nested", to(io.Discard), plain(), withNoColor(), withStateDir(t.TempDir()))
-	t.Cleanup(func() { _ = out.close() })
-	task := out.Task("publish")
-	var fileErr error
-	task.Define(func(ctx context.Context) error {
-		spec := EffectSpec{Verb: Verb(change.EffectPush), Object: "tag", Quantity: 1, Resource: "remote " + t.Name()}
-		return Effect(ctx, spec, func(held context.Context) error {
-			fileErr = File(held, FileSpec{Path: filepath.Join(dir, "stamp"), Contents: []byte("x")})
-			return fileErr
-		})
-	})
-	_ = task.wait()
-	if !errors.Is(fileErr, errNestedResourceAcquisition) {
-		t.Fatalf("File inside a resource-holding Effect = %v, want ErrNestedResourceAcquisition", fileErr)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "stamp")); !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("nested File still wrote its path (stat err %v)", err)
-	}
-}
-
 // An Effect naming an invalid resource is refused on every run, dry or
 // not, before its callback runs.
 func TestEffectRejectsInvalidResource(t *testing.T) {
@@ -304,5 +280,29 @@ func TestUncontendedEffectResourceIsSilent(t *testing.T) {
 	claimed := render(t.TempDir())
 	if bare != claimed {
 		t.Fatalf("uncontended claim changed the rendering:\n--- bare ---\n%s\n--- claimed ---\n%s", bare, claimed)
+	}
+}
+
+// An Effect's callback runs holding the Effect's resource, so tracked work
+// inside it that would need a second resource is misuse, not a deadlock.
+func TestFileInsideResourceEffectIsNestedMisuse(t *testing.T) {
+	dir := t.TempDir()
+	out := newOutput("nested", to(io.Discard), plain(), withNoColor(), withStateDir(t.TempDir()))
+	t.Cleanup(func() { _ = out.close() })
+	task := out.Task("publish")
+	var fileErr error
+	task.Define(func(ctx context.Context) error {
+		spec := EffectSpec{Verb: Verb(change.EffectPush), Object: "tag", Quantity: 1, Resource: "remote " + t.Name()}
+		return Effect(ctx, spec, func(held context.Context) error {
+			fileErr = File(held, FileSpec{Path: filepath.Join(dir, "stamp"), Contents: []byte("x")})
+			return fileErr
+		})
+	})
+	_ = task.wait()
+	if !errors.Is(fileErr, change.ErrNestedResourceAcquisition) {
+		t.Fatalf("File inside a resource-holding Effect = %v, want ErrNestedResourceAcquisition", fileErr)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "stamp")); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("nested File still wrote its path (stat err %v)", err)
 	}
 }

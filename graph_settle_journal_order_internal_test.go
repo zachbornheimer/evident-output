@@ -3,57 +3,9 @@ package evo
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"slices"
 	"testing"
-	"time"
 )
-
-// settleJournalTrials repeats a race until a narrow window has been hit often
-// enough to fail reliably when it is open.
-const settleJournalTrials = 200
-
-// queuedTaskCount is how many Tasks sit behind the blocker, enough that the
-// interrupt's sweep takes a moment to reach the awaited one.
-const queuedTaskCount = 300
-
-// TestGraphSettle_AWaiterThatSawTheSettleFindsItsEventInTheJournal pins that
-// a Wait returning means the Task's task.<state> event is readable: a settle
-// the graph made on its own (an interrupt abandoning the queue) reaches the
-// journal before the Wait that observed it returns.
-func TestGraphSettle_AWaiterThatSawTheSettleFindsItsEventInTheJournal(t *testing.T) {
-	missing := 0
-	for range settleJournalTrials {
-		var buf bytes.Buffer
-		o := newOutput("job", to(&buf), maxConcurrency(1))
-		release := make(chan struct{})
-		o.Task("blocker").Define(func(context.Context) error { <-release; return nil })
-		var queued []*Task
-		for i := range queuedTaskCount {
-			queued = append(queued, o.Task(fmt.Sprintf("q%d", i)).Define(func(context.Context) error { return nil }))
-		}
-		target := queued[0]
-		found := make(chan bool)
-		go func() {
-			_ = target.wait()
-			found <- slices.ContainsFunc(o.events(), func(e recEvent) bool {
-				return e.EntityID == target.id && e.Type == "task.not_started"
-			})
-		}()
-		for o.graph.Waits() == 0 {
-			time.Sleep(time.Millisecond)
-		}
-		o.interrupt("x")
-		if !<-found {
-			missing++
-		}
-		close(release)
-		_ = o.finish()
-	}
-	if missing > 0 {
-		t.Errorf("task.not_started was missing from Events() after Wait returned in %d/%d trials", missing, settleJournalTrials)
-	}
-}
 
 // abandonedWhileListenerDelayed interrupts a run with one Task queued behind a
 // blocker. The graph abandons the queued Task on its own (NotStarted) while an

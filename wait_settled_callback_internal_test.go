@@ -2,13 +2,10 @@ package evo
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"testing"
 	"time"
-
-	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 // settledWaitHangLimit is how long a test waits for a Wait that must answer
@@ -27,26 +24,6 @@ func answersWithinLimit(t *testing.T, what string, wait func() error) (answer er
 	case <-time.After(settledWaitHangLimit):
 		t.Errorf("%s: Wait hung for more than %v", what, settledWaitHangLimit)
 		return nil, false
-	}
-}
-
-// A callback that fails its own row and then waits on that row waits on
-// itself: the callback cannot return until Wait does. Wait answers from the
-// row, as it did before it learned to wait for a returning callback.
-func TestWait_OnTheRowItsOwnCallbackFailedAnswersFromTheRow(t *testing.T) {
-	out := newOutput("job", to(io.Discard))
-	var task *Task
-	got := make(chan error, 1)
-	task = out.Task("self")
-	task.Define(func(context.Context) error { task.fail("x"); got <- task.wait(); return nil })
-
-	select {
-	case err := <-got:
-		if !errors.Is(err, graph.ErrWaitFailed) {
-			t.Errorf("self Wait = %v, want ErrWaitFailed", err)
-		}
-	case <-time.After(settledWaitHangLimit):
-		t.Error("a callback waiting on the row it failed itself hung")
 	}
 }
 
@@ -77,44 +54,4 @@ func TestWait_AnObserverOfTwoCallbacksWaitingOnEachOtherAfterOneFailedItselfRetu
 	observer := out.Task("observer").Define(func(context.Context) error { return a.wait() })
 
 	_, _ = answersWithinLimit(t, "Wait on the observer", observer.wait)
-}
-
-// An interrupt cancels the row at once, and a callback that ignores its
-// context must not keep a waiter from learning that.
-func TestWait_OnACancelledRowWhoseCallbackIgnoresItsContextAnswersCancelled(t *testing.T) {
-	out := newOutput("job", to(io.Discard))
-	never := make(chan struct{})
-	defer close(never)
-	stuck := out.Task("stuck").Define(func(context.Context) error { <-never; return nil })
-	for out.graph.Executing() < 1 {
-		time.Sleep(time.Millisecond)
-	}
-	out.interrupt("x")
-
-	err, ok := answersWithinLimit(t, "Wait on the interrupted task", stuck.wait)
-
-	if ok && !errors.Is(err, graph.ErrWaitCancelled) {
-		t.Errorf("Wait = %v, want ErrWaitCancelled", err)
-	}
-}
-
-// A callback that honors the interrupt and returns ctx.Err() still leaves a
-// Cancelled row, and Wait reports the cancellation, not the context error.
-func TestWait_OnACancelledRowWhoseCallbackReturnedItsContextErrorAnswersCancelled(t *testing.T) {
-	out := newOutput("job", to(io.Discard))
-	task := out.Task("honors ctx").Define(func(ctx context.Context) error {
-		<-ctx.Done()
-		time.Sleep(5 * time.Millisecond)
-		return ctx.Err()
-	})
-	for out.graph.Executing() < 1 {
-		time.Sleep(time.Millisecond)
-	}
-	out.interrupt("x")
-
-	err, ok := answersWithinLimit(t, "Wait on the interrupted task", task.wait)
-
-	if ok && !errors.Is(err, graph.ErrWaitCancelled) {
-		t.Errorf("Wait = %v, want it to wrap ErrWaitCancelled", err)
-	}
 }

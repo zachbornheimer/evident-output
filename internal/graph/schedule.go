@@ -156,9 +156,6 @@ func (t *Task) IsGate() bool { return t.gateFor != nil }
 // any other Task.
 func (t *Task) GateFor() *Container { return t.gateFor }
 
-// Done is closed when the Task reaches a terminal state.
-func (t *Task) Done() <-chan struct{} { return t.done }
-
 // HasProposal reports whether a caller's success claim is being held.
 func (t *Task) HasProposal() bool {
 	t.graph.lock()
@@ -181,8 +178,4 @@ func (t *Task) awaitingStartLocked() bool {
 
 func (t *Task) neverDefinedLocked() bool {
 	return t.sched.phase == PhaseDeclared && !record.IsTerminalTask(t.Rec.State())
-}
-
-func (t *Task) closeDoneLocked() {
-	t.doneOnce.Do(func() { close(t.done) })
 }

@@ -64,33 +64,6 @@ func TestAddTaskRefusesAfterClose(t *testing.T) {
 	}
 }
 
-func TestFailedPredecessorSettlesItsDependentNotStarted(t *testing.T) {
-	g := newGraph()
-	first := submit(g, "first")
-	second := submit(g, "second", AfterTask(first))
-	if second.Phase() != PhaseParked || g.Parked() != 1 {
-		t.Fatalf("second phase = %v with %d parked, want parked behind first", second.Phase(), g.Parked())
-	}
-
-	g.Claim(first)
-	g.Settle(first, record.Failed)
-
-	if got := second.Rec.State(); got != record.NotStarted {
-		t.Errorf("second state = %q, want not_started", got)
-	}
-	if got := second.Rec.Summary(); got != NotStartedSummary {
-		t.Errorf("second summary = %q, want %q", got, NotStartedSummary)
-	}
-	select {
-	case <-second.Done():
-	default:
-		t.Error("second.Done() is still open after it settled")
-	}
-	if g.Parked() != 0 {
-		t.Errorf("%d Tasks still parked after the cascade", g.Parked())
-	}
-}
-
 func TestSucceededPredecessorQueuesItsDependent(t *testing.T) {
 	g := newGraph()
 	first := submit(g, "first")
@@ -195,5 +168,27 @@ func TestListenerMayCallTheGraphWhileASettleCascades(t *testing.T) {
 
 	if heard.heard < 2 {
 		t.Errorf("listener heard %d changes, want at least the failure and the cascade", heard.heard)
+	}
+}
+
+func TestFailedPredecessorSettlesItsDependentNotStarted(t *testing.T) {
+	g := newGraph()
+	first := submit(g, "first")
+	second := submit(g, "second", AfterTask(first))
+	if second.Phase() != PhaseParked || g.Parked() != 1 {
+		t.Fatalf("second phase = %v with %d parked, want parked behind first", second.Phase(), g.Parked())
+	}
+
+	g.Claim(first)
+	g.Settle(first, record.Failed)
+
+	if got := second.Rec.State(); got != record.NotStarted {
+		t.Errorf("second state = %q, want not_started", got)
+	}
+	if got := second.Rec.Summary(); got != NotStartedSummary {
+		t.Errorf("second summary = %q, want %q", got, NotStartedSummary)
+	}
+	if g.Parked() != 0 {
+		t.Errorf("%d Tasks still parked after the cascade", g.Parked())
 	}
 }

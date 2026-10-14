@@ -19,14 +19,9 @@ type executor struct {
 	// maxObserved is its high-water mark.
 	inflight    int
 	maxObserved int
-	// executing counts task callbacks currently running, pooled and donated
-	// alike: inflight counts only the pooled slots, so it cannot answer
-	// "is any callback still moving?".
+	// executing counts task callbacks currently running: inflight counts the
+	// pooled slots taken, so it cannot answer "is any callback still moving?".
 	executing int
-	// waits holds one ticket per goroutine parked in a wait. Together with
-	// executing it decides whether the run can still progress (see
-	// resolveStall).
-	waits map[*WaitTicket]struct{}
 	// runningGoroutines counts, per goroutine, the task callbacks and
 	// container builders it is running right now. A parked goroutine that one
 	// of them started may be what that callback is blocked on (see
@@ -140,7 +135,6 @@ func (g *Graph) claimLocked(t *Task, pooled bool) *claim {
 		t.Rec.Transition(record.Running)
 	}
 	g.exec.executing++
-	t.callbackRunning = make(chan struct{})
 	return &claim{task: t, work: t.sched.work, pooled: pooled}
 }
 
@@ -154,22 +148,7 @@ func (g *Graph) ceilingLocked() int {
 // runPooled runs a Task claimed by Kick on a pooled worker.
 func (g *Graph) runPooled(c *claim) {
 	defer g.finishClaimed(c)
-	g.execute(c, ownsStarted)
-}
-
-// runClaimed runs a waiter's claim on the waiting goroutine, and reports
-// whether there was one. A plain caller holds the slot it took (pooled) and
-// has started goroutines before the claim began; none of them is the
-// callback's. A callback lends the slot it already holds, and what it started
-// before the claim began is still its own, not the claim's.
-func (g *Graph) runClaimed(c *claim) bool {
-	if c == nil {
-		return false
-	}
-	c.start()
-	defer g.finishClaimed(c)
-	g.execute(c, mayPredateClaim)
-	return true
+	g.execute(c)
 }
 
 // finishClaimed is the deferred tail of every claimed callback: a panic
@@ -185,37 +164,28 @@ func (g *Graph) finishClaimed(c *claim) {
 		g.exec.inflight--
 	}
 	g.exec.executing--
-	endCallbackLocked(c.task)
 	g.unlock()
 	g.WorkDone()
 	g.kick(g.tellMisuseWithoutCaller)
 }
 
 // recordPanic states a panic that escaped c's callback. The row fails with the
-// panic text. A panic with an error (a Computed read the declared order
-// refused unwinds with its sentinel) is what the callback "returned": a waiter
-// matches it with errors.Is instead of parsing the text.
+// panic text.
 func (g *Graph) recordPanic(c *claim, recovered any) {
-	if _, ok := recovered.(error); ok {
-		g.lock()
-		c.task.workErr = panicError(recovered)
-		g.unlock()
-	}
 	if c.work.Panicked != nil {
 		c.work.Panicked(fmt.Sprintf("panic: %v", recovered))
 	}
 }
 
-// execute runs one Task's callback and settles the Task from what it
-// returned: the scheduler's sole settlement point for submitted work. Shared
-// by the pooled worker and by a waiter that donates its own goroutine to work
-// it would otherwise block on. own is whose the goroutines the running
-// goroutine started are (see goroutineOwnership).
-func (g *Graph) execute(c *claim, own goroutineOwnership) {
+// execute runs one Task's callback on a pooled worker and settles the Task
+// from what it returned: the scheduler's sole settlement point for submitted
+// work. A pooled worker ran no work before, so every goroutine it starts is
+// the callback's.
+func (g *Graph) execute(c *claim) {
 	if !c.began {
 		return
 	}
-	defer g.enterConsumer(c.task, g.startedBeforeClaim(own))()
+	defer g.enterConsumer(c.task)()
 	if c.task.IsGate() {
 		g.runGate(c)
 		return
@@ -224,7 +194,6 @@ func (g *Graph) execute(c *claim, own goroutineOwnership) {
 	if c.work.Run != nil {
 		err = g.failedByRefusedRead(c.task, g.runTrackedCallback(c.work.Run))
 	}
-	g.recordCallbackReturn(c.task, err)
 	// A callback that settled its own Task (a verb inside Run, or an
 	// interrupt that cancelled the row) already stated one outcome. The
 	// scheduler neither restates it nor calls it misuse: returning the same
@@ -235,24 +204,6 @@ func (g *Graph) execute(c *claim, own goroutineOwnership) {
 	}
 	if err != nil {
 		g.FailSequenceFollowers(c.task)
-	}
-}
-
-// recordCallbackReturn commits what t's callback returned, then lets the
-// waiters that were holding for it answer.
-func (g *Graph) recordCallbackReturn(t *Task, err error) {
-	g.lock()
-	defer g.unlock()
-	t.workErr = err
-	endCallbackLocked(t)
-}
-
-// endCallbackLocked releases whoever waits for t's callback to return. It is
-// safe to call more than once: a panic or a skipped claim ends it too.
-func endCallbackLocked(t *Task) {
-	if t.callbackRunning != nil {
-		close(t.callbackRunning)
-		t.callbackRunning = nil
 	}
 }
 

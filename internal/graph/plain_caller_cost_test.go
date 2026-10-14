@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/record"
@@ -63,28 +62,6 @@ func TestPlainCallerReadCostIsIndependentOfGoroutineCount(t *testing.T) {
 	})
 	if dumps > fewDumps {
 		t.Fatalf("%d plain-caller reads with %d idle goroutines took %d dumps, over %d: each read stops the world",
-			plainCalls, idleGoroutines, dumps, fewDumps)
-	}
-}
-
-// A plain caller's parked Wait while a callback runs must not stop the world
-// each time either.
-func TestPlainCallerWaitCostIsIndependentOfGoroutineCount(t *testing.T) {
-	var dumps int64
-	withBusyCallback(t, idleGoroutines, func(g *Graph) {
-		dumps = dumpsDuring(func() {
-			for i := range plainCalls {
-				task := declare(g, fmt.Sprint("w", i))
-				submitWork(g, task, settlingWork(g, task, func() error { return nil }))
-				g.Kick()
-				if err := g.Wait(task); err != nil {
-					t.Fatal(err)
-				}
-			}
-		})
-	})
-	if dumps > fewDumps {
-		t.Fatalf("%d plain-caller Waits with %d idle goroutines took %d dumps, over %d: each Wait stops the world",
 			plainCalls, idleGoroutines, dumps, fewDumps)
 	}
 }

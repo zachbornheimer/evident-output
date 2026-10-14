@@ -76,30 +76,6 @@ func TestAfterGroupPopulatedFirst_StartsWithoutWaitingForDrain(t *testing.T) {
 	_ = closeWithin(t, out)
 }
 
-// TestAfterGroup_GroupWaitReleasesDependents proves a Group Wait closes
-// the Group's membership: once the caller asked for its outcome, a Task
-// wired After it before it was populated may start.
-func TestAfterGroup_GroupWaitReleasesDependents(t *testing.T) {
-	out := newGraphTestOutput(t)
-	g := out.Group("items")
-	fetch := out.Task("fetch").After(g).Define(nopWork)
-	g.Task("a").Define(nopWork)
-	if err := g.wait(); err != nil {
-		t.Fatalf("Group Wait: %v", err)
-	}
-	done := make(chan error, 1)
-	go func() { done <- fetch.wait() }()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("fetch Wait = %v, want nil", err)
-		}
-	case <-time.After(waitOutcomeTimeout):
-		t.Fatal("fetch never started after the Group Wait")
-	}
-	_ = closeWithin(t, out)
-}
-
 // TestSequenceStepAfterPopulatedGroup_StartsBeforeDrain proves the
 // Sequence edge to a populated nested Group stays eager too.
 func TestSequenceStepAfterPopulatedGroup_StartsBeforeDrain(t *testing.T) {

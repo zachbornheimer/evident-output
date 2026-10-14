@@ -1,9 +1,7 @@
 package graph
 
 import (
-	"cmp"
 	"math"
-	"slices"
 
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
@@ -115,15 +113,6 @@ func (t *tally) seal(cursor int) (woken []*Task) {
 // hasMemberThrough reports whether any member was declared through cursor.
 func (t *tally) hasMemberThrough(cursor int) bool {
 	return len(t.members) > 0 && t.members[0].Declaration <= cursor
-}
-
-// membersThrough is the members declared after cursor from, through cursor
-// to, in declaration order.
-func (t *tally) membersThrough(from, to int) []*Task {
-	byDecl := func(m *Task, cursor int) int { return cmp.Compare(m.Declaration, cursor) }
-	lo, _ := slices.BinarySearchFunc(t.members, from+1, byDecl)
-	hi, _ := slices.BinarySearchFunc(t.members, to+1, byDecl)
-	return t.members[lo:hi]
 }
 
 // failedThrough reports whether a member declared through cursor can never

@@ -35,7 +35,6 @@ func (g *Graph) settleLocked(t *Task, state record.State) {
 		return
 	}
 	t.Rec.ClearPhase()
-	t.closeDoneLocked()
 	if t.sched.awaitingStart() {
 		g.abandonLocked(t)
 	}
