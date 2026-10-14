@@ -22,8 +22,7 @@ Trunk is configured **daemonless** (`--monitor=false`). Prefer `mise` over raw t
 `conformance/` is the executable specification (Raku/`roast` model):
 
 - `TRACEABILITY.md` — every §31 ID dispositioned (pass / waived with reason + owner for external/manual only; 0 untested)
-- `schema/scenario.v1.json` — declarative scenario dialect
-- `scenarios/*.json` + Go Appendix H tests (`reference_scenarios_test.go`)
+- Go Appendix H tests (`reference_scenarios_test.go`) at the module root
 - `goldens/` — spec-golden byte-for-byte render tests
 - `gates/` — release-gate regression rounds
 
