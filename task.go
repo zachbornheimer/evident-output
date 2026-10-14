@@ -333,13 +333,13 @@ func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Tas
 		return t
 	}
 	o := t.out
-	if fn == nil {
-		o.recordMisuse(ErrInvalidConfig)
-		return t
-	}
 	st := t.declared()
 	if st == nil {
 		o.recordMisuse(t.rejected)
+		return t
+	}
+	if fn == nil {
+		o.refuseNilDefine(st)
 		return t
 	}
 	var cfg defineConfig
@@ -348,6 +348,15 @@ func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Tas
 	}
 	graph.Define(o.graph, st.node, o.definition(st, o.cleanStops.Wrap(cfg.cleanStopSignals, fn)))
 	return t
+}
+
+// refuseNilDefine records the refusal of Define(nil) on st and settles its row NotStarted: a Task with no
+// callback can never run, so it is work the refusal took away, not a forgotten terminal verb.
+func (o *Run) refuseNilDefine(st *taskState) {
+	o.mu.Lock()
+	st.refused = true
+	o.mu.Unlock()
+	o.recordMisuseFor(st.name, fmt.Errorf("%w: nil Define callback for task %q", ErrInvalidConfig, st.name))
 }
 
 // definition is st's Define with fn as its callback; freshness checks it.

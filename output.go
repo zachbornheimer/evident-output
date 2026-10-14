@@ -155,7 +155,7 @@ type taskState struct {
 	node   *graph.Task
 	name   string
 	handle *Task
-	// refused marks a Task whose declaration was refused as misuse (Compute on a Task with a Verify). It never
+	// refused marks a Task whose declaration was refused as misuse (Compute on a Task with a Verify, Define(nil)). It never
 	// runs, and the misuse line already says why, so Finish settles it without a "forgot to resolve" row.
 	refused bool
 }

@@ -56,6 +56,10 @@ func TestEveryRefusedDeclarationWrapsErrInvalidConfig(t *testing.T) {
 			})
 			return nil
 		}, "ExecSpec.Argv must name an executable"},
+		"Define(nil)": {func(_ context.Context, r *evo.Run) error {
+			r.Task("nil").Define(nil)
+			return nil
+		}, `nil Define callback for task "nil"`},
 		"Compute on a Task with a Verify": {func(_ context.Context, r *evo.Run) error {
 			made := r.Task("make").Verify(func(context.Context) (bool, error) { return false, nil })
 			evo.Compute(made, func(context.Context) (int, error) { return 1, nil })
@@ -72,5 +76,21 @@ func TestEveryRefusedDeclarationWrapsErrInvalidConfig(t *testing.T) {
 				t.Errorf("Conclusion.Explanation = %q, want it to state the refusal %q", run.Result.Conclusion.Explanation, tc.refused)
 			}
 		})
+	}
+}
+
+// TestDefineNilSettlesItsRowNotStartedWithTheRefusal pins that a Task refused for Define(nil) reads as work the
+// refusal took away, not as a forgotten terminal verb: the row is not started and names the refusal.
+func TestDefineNilSettlesItsRowNotStartedWithTheRefusal(t *testing.T) {
+	run := executeContract(context.Background(), t, evo.Config{Name: "refused", Output: evo.Plain}, func(_ context.Context, r *evo.Run) error {
+		r.Task("nil").Define(nil)
+		return nil
+	})
+	text := run.Text()
+	if strings.Contains(text, "incomplete") {
+		t.Errorf("a Define(nil) row reads as incomplete, want not started:\n%s", text)
+	}
+	if !strings.Contains(text, `nil Define callback for task "nil"`) {
+		t.Errorf("the output does not state the Define(nil) refusal:\n%s", text)
 	}
 }
