@@ -46,11 +46,14 @@ type taskEntry struct {
 type TaskTable struct {
 	mu    sync.Mutex
 	tasks map[record.TaskID]*taskEntry
+	// planned is what the operations a planned Run left unapplied would
+	// change.
+	planned plannedPaths
 }
 
 // NewTaskTable returns an empty table.
 func NewTaskTable() *TaskTable {
-	return &TaskTable{tasks: make(map[record.TaskID]*taskEntry)}
+	return &TaskTable{tasks: make(map[record.TaskID]*taskEntry), planned: make(plannedPaths)}
 }
 
 // entryLocked is id's entry, created on first use. Callers hold t.mu.
@@ -86,12 +89,26 @@ func (t *TaskTable) AppendOperation(id record.TaskID, rec OperationRecord) {
 }
 
 // PlanOperation notes that id had an operation a planned Run found stale and
-// did not apply. It leaves no record, but the operation after it must be
-// judged against its own record, as it would after an applied one.
-func (t *TaskTable) PlanOperation(id record.TaskID) {
+// did not apply, which would change changes. It leaves no record, but the
+// operation after it must be judged against its own record, as it would
+// after an applied one, and work reading changes is uncertain (see Plan).
+func (t *TaskTable) PlanOperation(id record.TaskID, changes ...string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.entryLocked(id).planned++
+	for _, path := range changes {
+		t.planned.add(path)
+	}
+}
+
+// Plan is the Plan of a Run that only plans its work, judged against what
+// this table's planned operations would change.
+func (t *TaskTable) Plan() Plan { return Plan{table: t} }
+
+func (t *TaskTable) plansChange(basis []BasisRecord) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.planned.changesAny(basis)
 }
 
 // OperationCount is how many operations id has had: the ordinal its next

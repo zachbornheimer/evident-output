@@ -158,7 +158,7 @@ func (r *Run) execEvaluate(ctx context.Context, id record.TaskID, spec ExecSpec,
 	case freshness.ExecIsPlanned:
 		r.host.Observe(Observation{Task: id, Kind: OperationStarted, Subject: subject, Reason: eval.Reason})
 		r.recordEntry(id, record.NamedEntry("run", spec.Executable))
-		r.host.PlanOperation(id)
+		r.host.PlanOperation(id, target.Outputs...)
 		r.host.Observe(Observation{Task: id, Kind: OperationFinished, Subject: subject, Changed: true})
 	default:
 		r.host.Observe(Observation{Task: id, Kind: OperationStarted, Subject: subject, Reason: eval.Reason})

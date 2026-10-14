@@ -68,7 +68,7 @@ func (r *Run) consultExec(ctx context.Context, id record.TaskID, spec ExecSpec, 
 		Basis:          basis,
 		Outputs:        target.Outputs,
 	}
-	evaluation, evaluateErr := call.Evaluate(ctx, store, key, ordinal, r.host.DryRun())
+	evaluation, evaluateErr := call.Evaluate(ctx, store, key, ordinal, r.host.Plan())
 	if evaluateErr != nil {
 		return freshness.ExecEvaluation{}, fmt.Errorf("evo: Exec %q: %w", spec.Executable, evaluateErr)
 	}

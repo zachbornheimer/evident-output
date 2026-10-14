@@ -11,8 +11,11 @@ import (
 // describes. Step B reads x.yaml and writes o.yaml (only x's first three
 // bytes, so some edits to x leave o's bytes unchanged) and z.yaml (all of
 // x, which nothing reads). Step A, ordered after B, reads o.yaml and writes
-// y.yaml.
-type pipeline struct{ world freshnessWorld }
+// y.yaml. A dryRun pipeline only plans its steps.
+type pipeline struct {
+	world  freshnessWorld
+	dryRun bool
+}
 
 // pipelineRan is which steps ran their command during one Run.
 type pipelineRan struct{ B, A bool }
@@ -22,7 +25,7 @@ func (p pipeline) run(t *testing.T) (pipelineRan, map[string]any) {
 	w := p.world
 	var ran pipelineRan
 	run := executeContract(context.Background(), t,
-		evo.Config{Name: "cascade", Output: evo.JSON, State: evo.State{Dir: w.state, AppID: "contract"}},
+		evo.Config{Name: "cascade", Output: evo.JSON, DryRun: p.dryRun, State: evo.State{Dir: w.state, AppID: "contract"}},
 		func(_ context.Context, r *evo.Run) error {
 			b := r.Task("B").Define(func(ctx context.Context) error {
 				res, err := evo.Exec(ctx, evo.ExecSpec{
@@ -103,4 +106,37 @@ func assertStepOutcome(t *testing.T, at string, doc map[string]any, name string,
 		}
 	}
 	t.Errorf("%s: no task %s in evo.run", at, name)
+}
+
+// TestDryRunPlansDownstreamOfPlannedOutputs pins CONTRACT.md §3 for a dry
+// run: once x changed, B is planned, and A reads o.yaml, an Output of B's
+// planned operation, so A is uncertain and planned too, never Satisfied.
+// The real run that follows executes both, as the plan said.
+func TestDryRunPlansDownstreamOfPlannedOutputs(t *testing.T) {
+	applied := pipeline{world: newFreshnessWorld(t)}
+	planned := pipeline{world: applied.world, dryRun: true}
+	w := applied.world
+	w.write(t, "x.yaml", "abc-1\n")
+	applied.run(t)
+
+	w.write(t, "x.yaml", "xyz-1\n")
+	ran, doc := planned.run(t)
+	if ran != (pipelineRan{}) {
+		t.Errorf("dry run ran B=%v A=%v, want neither", ran.B, ran.A)
+	}
+	assertStepOutcome(t, "dry run", doc, "B", true)
+	assertStepOutcome(t, "dry run", doc, "A", true)
+	if got := w.read(t, "o.yaml"); got != "abc\n" {
+		t.Errorf("dry run changed o.yaml to %q", got)
+	}
+
+	if ran, _ := applied.run(t); ran != (pipelineRan{B: true, A: true}) {
+		t.Errorf("real run after the dry run ran B=%v A=%v, want both", ran.B, ran.A)
+	}
+	if ran, doc := planned.run(t); ran != (pipelineRan{}) {
+		t.Errorf("dry run over current state ran B=%v A=%v", ran.B, ran.A)
+	} else {
+		assertStepOutcome(t, "dry run over current state", doc, "B", false)
+		assertStepOutcome(t, "dry run over current state", doc, "A", false)
+	}
 }

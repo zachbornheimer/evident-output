@@ -115,10 +115,17 @@ func (h *fakeHost) AppendOperation(_ record.TaskID, rec freshness.OperationRecor
 	h.appended = append(h.appended, rec)
 }
 
-func (h *fakeHost) PlanOperation(record.TaskID) {
+func (h *fakeHost) PlanOperation(record.TaskID, ...string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.planned++
+}
+
+func (h *fakeHost) Plan() freshness.Plan {
+	if h.applies {
+		return freshness.Plan{}
+	}
+	return freshness.NewTaskTable().Plan()
 }
 
 func (h *fakeHost) ShowWaiting(_ record.TaskID, label string) func() {

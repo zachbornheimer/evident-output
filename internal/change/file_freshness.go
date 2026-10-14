@@ -155,7 +155,7 @@ func (r *Run) consultFile(ctx context.Context, op fileOperation) (current bool, 
 	if !ok {
 		return false, freshness.OperationRecord{}, "", graph.ErrNoTaskContext
 	}
-	verdict, consultErr := fileCallFor(op.path, op.spec, op.basis).Consult(ctx, store, key, ordinal)
+	verdict, consultErr := fileCallFor(op.path, op.spec, op.basis).Consult(ctx, store, key, ordinal, r.host.Plan())
 	if consultErr != nil {
 		return false, freshness.OperationRecord{}, "", fmt.Errorf("evo: File %q: %w", op.path, consultErr)
 	}

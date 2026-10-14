@@ -59,7 +59,7 @@ func TestFileConsultReportsEachWayAnOperationGoesStale(t *testing.T) {
 		{"definition drift", other(func(c *FileCall) { c.Contents = []byte("changed") }), "task", 0, false, ReasonDefinitionDrift},
 	}
 	for _, c := range cases {
-		verdict, err := c.call.Consult(t.Context(), store, c.key, c.ordinal)
+		verdict, err := c.call.Consult(t.Context(), store, c.key, c.ordinal, Plan{})
 		if err != nil {
 			t.Fatalf("%s: %v", c.name, err)
 		}
@@ -69,7 +69,7 @@ func TestFileConsultReportsEachWayAnOperationGoesStale(t *testing.T) {
 	}
 
 	writeFile(t, path, "edited outside Evo")
-	verdict, err := call.Consult(t.Context(), store, "task", 0)
+	verdict, err := call.Consult(t.Context(), store, "task", 0, Plan{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestExecEvaluateDecidesRunSkipOrPlan(t *testing.T) {
 
 	empty := commitOperations(t, "task")
 	noOutputs := ExecCall{ExecutablePath: executable, Dir: dir}
-	eval, err := noOutputs.Evaluate(t.Context(), empty, "task", 0, false)
+	eval, err := noOutputs.Evaluate(t.Context(), empty, "task", 0, Plan{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,14 +99,14 @@ func TestExecEvaluateDecidesRunSkipOrPlan(t *testing.T) {
 		t.Fatalf("no declared outputs: spawns=%v reason=%q, want always-run", eval.Spawns(), eval.Reason)
 	}
 
-	stale, err := call.Evaluate(t.Context(), empty, "task", 0, false)
+	stale, err := call.Evaluate(t.Context(), empty, "task", 0, Plan{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !stale.Spawns() || stale.Reason != ReasonNoPriorRecord || stale.DefinitionFingerprint == "" {
 		t.Fatalf("no prior record: %+v, want a spawn carrying the fresh definition", stale)
 	}
-	planned, err := call.Evaluate(t.Context(), empty, "task", 0, true)
+	planned, err := call.Evaluate(t.Context(), empty, "task", 0, NewTaskTable().Plan())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestExecEvaluateDecidesRunSkipOrPlan(t *testing.T) {
 		Outputs:               []OutputRecord{{Kind: OutputKindExec, Path: output, Digest: digest}},
 	}
 	store := commitOperations(t, "task", prior)
-	current, err := call.Evaluate(t.Context(), store, "task", 0, true)
+	current, err := call.Evaluate(t.Context(), store, "task", 0, NewTaskTable().Plan())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestExecEvaluateDecidesRunSkipOrPlan(t *testing.T) {
 	}
 
 	writeFile(t, output, "tampered")
-	drifted, err := call.Evaluate(t.Context(), store, "task", 0, false)
+	drifted, err := call.Evaluate(t.Context(), store, "task", 0, Plan{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -60,7 +60,8 @@ func (t *TaskTable) DeclaresBasis(id record.TaskID) bool {
 // Task with no Basis is never current. Without a prior record the Task runs.
 // A current Task adopts its prior operations as its own pending ones, so a
 // later commit rewrites identical state. A planned Run judges the same way but
-// remembers nothing, so its observed Basis is never committed.
+// remembers nothing, so its observed Basis is never committed, and a Basis
+// path an operation it planned would change is never current.
 func (t *TaskTable) JudgeBasis(ctx context.Context, openStore StoreOpener, task TaskView, mode RunMode) (BasisJudgement, error) {
 	id := task.TaskID()
 	t.mu.Lock()
@@ -83,6 +84,9 @@ func (t *TaskTable) JudgeBasis(ctx context.Context, openStore StoreOpener, task 
 	prior, ok := store.Task(task.ManifestKey())
 	operations, priorBasis := splitBasisOperation(prior.Operations)
 	current := ok && priorBasis != nil && BasisRecordsEqual(priorBasis, observed)
+	if mode == RunPlans && current {
+		current = !t.plansChange(observed)
+	}
 	if current {
 		if current, err = RecordedOutputsHold(ctx, operations); err != nil {
 			return BasisJudgement{}, err

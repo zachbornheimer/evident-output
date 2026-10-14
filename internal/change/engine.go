@@ -197,4 +197,9 @@ func (h *engineHost) AppendOperation(id record.TaskID, rec freshness.OperationRe
 }
 
 // PlanOperation holds id's next operation's place without a record.
-func (h *engineHost) PlanOperation(id record.TaskID) { h.freshness.PlanOperation(id) }
+func (h *engineHost) PlanOperation(id record.TaskID, changes ...string) {
+	h.freshness.PlanOperation(id, changes...)
+}
+
+// Plan is how the Run judges an operation's freshness.
+func (h *engineHost) Plan() freshness.Plan { return h.freshness.Plan() }

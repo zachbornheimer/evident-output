@@ -104,11 +104,21 @@ func (r *Run) AppendOperation(id record.TaskID, rec OperationRecord) {
 }
 
 // PlanOperation holds id's next operation's place without a record: it was
-// found stale and, in a planned Run, left unapplied.
-func (r *Run) PlanOperation(id record.TaskID) {
+// found stale and, in a planned Run, left unapplied. changes are the paths
+// it would have changed.
+func (r *Run) PlanOperation(id record.TaskID, changes ...string) {
 	if r.task(id) != nil {
-		r.tasks.PlanOperation(id)
+		r.tasks.PlanOperation(id, changes...)
 	}
+}
+
+// Plan is how this Run judges an operation's freshness: the zero Plan when
+// it applies its work.
+func (r *Run) Plan() Plan {
+	if r.dryRun() {
+		return r.tasks.Plan()
+	}
+	return Plan{}
 }
 
 // Commit persists t's accumulated operations once it settled Done; see

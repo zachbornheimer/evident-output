@@ -49,6 +49,15 @@ func (op fileOperation) contentsManaged() bool { return op.spec.Contents != nil 
 // re-inspection on a later Run exactly like a contents-managed one does.
 func (op fileOperation) manifestManaged() bool { return op.contentsManaged() || op.spec.Mode != 0 }
 
+// plannedChanges is the path a planned op would change: its own, when the
+// delta mutates it.
+func (op fileOperation) plannedChanges(delta fileDelta) []string {
+	if delta.mutates() {
+		return []string{op.path}
+	}
+	return nil
+}
+
 func (op fileOperation) subject() Subject { return Subject{Kind: SubjectFile, Name: op.path} }
 
 // establishFile claims op's path and reconciles it. op.derivedFrom, when
@@ -103,7 +112,7 @@ func (r *Run) commitFile(ctx context.Context, op fileOperation) error {
 			return nil
 		}
 		started.Reason = reason
-		op.recommit = op.contentsManaged() && reason == freshness.ReasonBasisDrift
+		op.recommit = op.contentsManaged() && (reason == freshness.ReasonBasisDrift || reason == freshness.ReasonPlannedInput)
 	}
 	r.host.Observe(started)
 	return r.applyFile(ctx, op)
@@ -135,7 +144,7 @@ func (r *Run) applyFile(ctx context.Context, op fileOperation) error {
 		// Planning only: every check above already ran read-only; no
 		// mutation happens and no manifest state commits (spec §8.2/§11.3).
 		if op.manifestManaged() {
-			r.host.PlanOperation(op.taskID)
+			r.host.PlanOperation(op.taskID, op.plannedChanges(delta)...)
 		}
 		r.recordFileEffectIf(op, delta.mutates())
 		r.finishFile(op, delta.mutates())

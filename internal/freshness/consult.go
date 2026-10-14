@@ -19,6 +19,10 @@ const (
 	// at all, since Exec has nothing observable to prove a prior run's effect
 	// still holds.
 	ReasonNoOutputsDeclared = "no_outputs_declared"
+	// ReasonPlannedInput is a planned Run's "not current": the prior record
+	// still matches, but an operation planned earlier in the Run would
+	// change a Basis path, so the work is uncertain (CONTRACT.md §3).
+	ReasonPlannedInput = "planned_input"
 )
 
 // Consultation is what the manifest says about one operation: whether it is
@@ -35,13 +39,15 @@ type Consultation struct {
 // call: every Basis digest, the operation definition itself, and the tracked
 // output's current on-disk digest (spec §8.2/§11.4/§11.5). A prior record's
 // absence, a Basis/definition mismatch, or output drift (edited outside Evo)
-// are all "not current", never an error on their own; Reason names which.
+// are all "not current", never an error on their own; Reason names which. In
+// a planned Run, a Basis path an operation planned earlier would change is
+// not current either (see Plan).
 //
 // Basis is checked ahead of the combined definition fingerprint (which
 // itself already hashes Basis in) so a Basis-only change reports
 // ReasonBasisDrift rather than being folded into the more generic
 // definition mismatch.
-func (c FileCall) Consult(ctx context.Context, store *ManifestStore, key string, ordinal int) (Consultation, error) {
+func (c FileCall) Consult(ctx context.Context, store *ManifestStore, key string, ordinal int, plan Plan) (Consultation, error) {
 	definition := c.DefinitionFingerprint()
 	prior, hasPrior := store.Operation(key, ordinal)
 	verdict := Consultation{Prior: prior, DefinitionFingerprint: definition}
@@ -63,6 +69,10 @@ func (c FileCall) Consult(ctx context.Context, store *ManifestStore, key string,
 	}
 	if moved {
 		verdict.Reason = ReasonTrackedOutputDrift
+		return verdict, nil
+	}
+	if plan.Changes(c.Basis) {
+		verdict.Reason = ReasonPlannedInput
 		return verdict, nil
 	}
 	verdict.Current, verdict.Reason = true, ReasonCurrent
@@ -116,9 +126,10 @@ func (e ExecEvaluation) Spawns() bool { return e.Disposition == ExecRuns }
 
 // Evaluate judges the Exec call against the manifest (spec
 // §11.4/§11.5/§8.4): current when the definition, Basis and every declared
-// output's on-disk identity still match the prior record, otherwise stale.
-// A stale call is only planned in a dry run.
-func (c ExecCall) Evaluate(ctx context.Context, store *ManifestStore, key string, ordinal int, dryRun bool) (ExecEvaluation, error) {
+// output's on-disk identity still match the prior record and plan changes
+// none of its Basis, otherwise stale. A stale call is only planned when plan
+// plans.
+func (c ExecCall) Evaluate(ctx context.Context, store *ManifestStore, key string, ordinal int, plan Plan) (ExecEvaluation, error) {
 	executableIdentity, err := PathOutputDigest(ctx, c.ExecutablePath)
 	if err != nil {
 		return ExecEvaluation{}, err
@@ -129,11 +140,14 @@ func (c ExecCall) Evaluate(ctx context.Context, store *ManifestStore, key string
 	if err != nil {
 		return ExecEvaluation{}, err
 	}
+	if reason == ReasonCurrent && plan.Changes(c.Basis) {
+		reason = ReasonPlannedInput
+	}
 	evaluation := ExecEvaluation{Reason: reason, Prior: prior, DefinitionFingerprint: definition, Basis: c.Basis}
 	switch {
 	case reason == ReasonCurrent:
 		evaluation.Disposition = ExecIsCurrent
-	case dryRun:
+	case plan.Plans():
 		evaluation.Disposition = ExecIsPlanned
 	}
 	return evaluation, nil

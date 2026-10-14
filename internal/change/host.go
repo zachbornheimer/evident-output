@@ -83,8 +83,12 @@ type Manifest interface {
 	// the Task itself settles Done.
 	AppendOperation(id record.TaskID, rec freshness.OperationRecord)
 	// PlanOperation holds id's next operation's place without a record: it
-	// was found stale and, in a planned Run, left unapplied.
-	PlanOperation(id record.TaskID)
+	// was found stale and, in a planned Run, left unapplied. changes are the
+	// paths it would have changed.
+	PlanOperation(id record.TaskID, changes ...string)
+	// Plan is how the Run judges an operation's freshness: the zero Plan
+	// when it applies its work.
+	Plan() freshness.Plan
 }
 
 // Activity is what a Task shows beside its row while a change waits.
