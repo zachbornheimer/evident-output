@@ -17,7 +17,6 @@ import (
 const failedFileWithProblemRow = "✗ install hook  hook not installed\n" +
 	"   ├─ hooks/  hooks are optional\n" +
 	"   ├─ hook.sh\n" +
-	"   │ failed: permissions\n" +
 	"   ├─ contents  verified\n" +
 	"   └─ ✗ permissions\n" +
 	"        error  operation not permitted\n" +
@@ -27,7 +26,7 @@ const failedFileWithProblemRow = "✗ install hook  hook not installed\n" +
 func declareFailedFileWithProblem(out *Run, spec FileSpec) {
 	out.Task("install hook").Define(func(ctx context.Context) error {
 		if err := File(ctx, spec); err != nil {
-			return Fail("hook not installed", On("hook.sh"), Detail("failed: permissions"))
+			return Fail("hook not installed", On("hook.sh"), Detail(err.Error()))
 		}
 		return nil
 	}).Problem("hooks are optional", On("hooks/"))
@@ -79,4 +78,30 @@ func TestFailedFileWithProblemDrawsOneEvidenceTree(t *testing.T) {
 			t.Fatalf("human terminal mismatch:\n--- want (contains) ---\n%s\n--- got ---\n%s", failedFileWithProblemRow, got)
 		}
 	})
+}
+
+// TestFailedFileWithProblemStatesFailureOnce pins that a failed attribute is
+// stated by its own branch of the evidence tree and nowhere else in it: a
+// Problem whose Detail is the File's error, the common
+// `Fail(..., Detail(err.Error()))`, does not repeat "failed: permissions"
+// above the "✗ permissions" branch that carries it. The machine projections
+// keep the Detail; only the tree drops the restatement.
+func TestFailedFileWithProblemStatesFailureOnce(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	spec, fsys := newFailedChmodFile(t, dir, "hook.sh")
+	spec.Mode = 0o644
+	var buf bytes.Buffer
+	out := initRun(Config{Output: Plain, State: State{Dir: t.TempDir()}, Facades: Facades{Stdout: io.Discard, Stderr: &buf, FS: fsys}}, tuning{color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
+	declareFailedFileWithProblem(out, spec)
+	_ = out.finish()
+
+	tree, _, _ := strings.Cut(buf.String(), "\n\n")
+	if got := strings.Count(tree, "permissions"); got != 1 {
+		t.Errorf("the failure is stated %d times in one tree, want once (the attribute branch):\n%s", got, tree)
+	}
+	if !strings.Contains(tree, "└─ ✗ permissions\n") {
+		t.Errorf("the attribute branch must carry the failure:\n%s", tree)
+	}
 }

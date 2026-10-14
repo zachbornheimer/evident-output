@@ -33,6 +33,13 @@ type VerificationDetail struct {
 	Facts  []Fact
 }
 
+// FailedAttributeText is the words that say the attribute name failed to
+// verify: "failed: permissions". The attribute's own branch of a row's
+// evidence tree states that failure, so a Problem line that says it again,
+// as an error returned from File and recorded as a Detail does, is left out
+// of the tree.
+func FailedAttributeText(name string) string { return "failed: " + name }
+
 // SanitizeVerificationDetail neutralizes CSI/control sequences in d's
 // human-visible fields, the same boundary SanitizeProblem/SanitizeFact
 // enforce for their own types.

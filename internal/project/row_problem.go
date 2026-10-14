@@ -2,6 +2,7 @@ package project
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
@@ -95,6 +96,34 @@ func dedupeEvidenceTailAgainstRow(p record.Problem, rowSummary string) record.Pr
 		p.EvidenceTail = ""
 	}
 	return p
+}
+
+// withoutRestatedAttributes is p without the Detail and EvidenceTail lines
+// that say a failed attribute in details failed: its own branch of the row's
+// evidence tree already does, so the tree states each failure once.
+func withoutRestatedAttributes(p record.Problem, details []record.VerificationDetail) record.Problem {
+	var restated []string
+	for _, d := range details {
+		if d.Status != record.VerificationSatisfied {
+			restated = append(restated, record.FailedAttributeText(d.Name))
+		}
+	}
+	if len(restated) == 0 {
+		return p
+	}
+	p.Detail = withoutLines(p.Detail, restated)
+	p.EvidenceTail = withoutLines(p.EvidenceTail, restated)
+	return p
+}
+
+// withoutLines is text without the lines equal to any of drop.
+func withoutLines(text string, drop []string) string {
+	lines := splitPresentationLines(text)
+	kept := slices.DeleteFunc(slices.Clone(lines), func(line string) bool { return slices.Contains(drop, line) })
+	if len(kept) == len(lines) {
+		return text
+	}
+	return strings.Join(kept, "\n")
 }
 
 // effectiveDetailAndTail resolves a record.Problem's Detail and EvidenceTail into

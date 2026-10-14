@@ -55,8 +55,12 @@ var (
 	// underlying syscall error are the failing VerificationDetail's own
 	// Facts, attached to the task before this error is returned, not
 	// repeated in the headline.
-	ErrFilePermissionsFailed = errors.New("failed: permissions")
+	ErrFilePermissionsFailed = errors.New(record.FailedAttributeText(attributePermissions))
 )
+
+// attributePermissions names the mode attribute in a File's per-attribute
+// verification evidence.
+const attributePermissions = "permissions"
 
 // File declares/reconciles one managed-state file resource against spec
 // (spec §8.2's reconciliation algorithm): inspect the existing path safely,
@@ -88,7 +92,7 @@ func fileVerificationDetails(contentsManaged, modeManaged bool, chmodErr error, 
 		// Mode unmanaged: no "permissions" attribute to report on at all.
 	case chmodErr != nil:
 		details = append(details, record.VerificationDetail{
-			Name:   "permissions",
+			Name:   attributePermissions,
 			Status: record.VerificationError,
 			Facts: []record.Fact{
 				{Name: "error", Value: chmodErr.Error()},
@@ -97,7 +101,7 @@ func fileVerificationDetails(contentsManaged, modeManaged bool, chmodErr error, 
 			},
 		})
 	default:
-		details = append(details, record.VerificationDetail{Name: "permissions", Status: record.VerificationSatisfied})
+		details = append(details, record.VerificationDetail{Name: attributePermissions, Status: record.VerificationSatisfied})
 	}
 	return details
 }

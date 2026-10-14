@@ -140,8 +140,8 @@ func (r TaskRow) writeLine(b *strings.Builder, head rowHead, s Style) {
 // at most maxVisibleProblems of them plus an "and N more failures" line,
 // then its verification attributes. Only the tree's last branch closes it.
 func (r TaskRow) writeEvidenceTree(b *strings.Builder, rowHeadline string, s Style) {
-	problems := r.visibleProblems(rowHeadline)
 	details := VisibleVerificationDetails(r.t.Verification, r.t.State == record.Failed, s)
+	problems := r.visibleProblems(rowHeadline, details)
 	emphasize := r.t.State == record.Failed || r.t.State == record.Refused
 	for i, p := range problems {
 		writeProblem(b, p, r.prefix, emphasize, len(details) == 0 && i == len(problems)-1, s)
@@ -151,14 +151,19 @@ func (r TaskRow) writeEvidenceTree(b *strings.Builder, rowHeadline string, s Sty
 
 // visibleProblems is the Problems the row shows. A Problem that only
 // repeats the row's headline is dropped, and one whose Detail or Subject
-// carries the evidence loses its repeated summary.
-func (r TaskRow) visibleProblems(rowHeadline string) []record.Problem {
+// carries the evidence loses its repeated summary. A line that restates a
+// failed attribute in details is dropped too: that attribute's branch states it.
+func (r TaskRow) visibleProblems(rowHeadline string, details []record.VerificationDetail) []record.Problem {
 	problems := r.t.Problems
 	omitted := max(len(problems)-maxVisibleProblems, 0)
 	problems = problems[:len(problems)-omitted]
 	var shown []record.Problem
 	for _, p := range problems {
 		p = dedupeEvidenceTailAgainstRow(p, rowHeadline)
+		p = withoutRestatedAttributes(p, details)
+		if p.Summary == "" && p.Subject == "" && p.Detail == "" && p.EvidenceTail == "" {
+			continue
+		}
 		repeatsRow := p.Summary != "" && p.Summary == rowHeadline
 		if repeatsRow && p.Detail == "" && p.EvidenceTail == "" && (p.Subject == "" || r.t.State == record.Excluded) {
 			continue
