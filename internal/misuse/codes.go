@@ -55,13 +55,6 @@ var (
 	// ErrTerminalWithoutSink is recorded when Config.Terminal is set but
 	// Config.Stdout is nil, and the driver cannot report its own destination.
 	ErrTerminalWithoutSink = errors.New("evo: Terminal driver configured without a primary writer")
-	// ErrWaitDeadlock is why a wait was released instead of satisfied:
-	// nothing left in the run can ever reach the Task it awaits.
-	ErrWaitDeadlock = errors.New("evo: awaited task can never be reached")
-	// ErrWaitInBuilder is why a wait was refused: the caller is a container
-	// builder, which declares the topology the awaited work is part of and
-	// settles only when it returns, so waiting inside it can never end.
-	ErrWaitInBuilder = errors.New("evo: wait inside a container builder")
 	// ErrDependencyCycle is what the MisuseSink hears when After edges close
 	// a cycle: those Tasks can never start, and each row says so.
 	ErrDependencyCycle = errors.New("evo: After dependency cycle")

@@ -47,14 +47,10 @@ func hintFor(err error, subject, rejectedSummary string) string {
 		return fmt.Sprintf("%s has not settled; read Get only from a Task declared After it, or from a container builder whose After includes it", subject)
 	case errors.Is(err, ErrComputedUnordered):
 		return fmt.Sprintf("nothing orders this reader after %s; declare it .After(the Computed), or put it later in the same Sequence", subject)
-	case errors.Is(err, ErrWaitInBuilder):
-		return fmt.Sprintf("a Build callback cannot wait on %s; Build only declares topology, so declare the work in it and order it with After", subject)
 	case errors.Is(err, ErrDeclaredInCallback):
 		return "declare Tasks and containers in the run body or inside Group.Build or Sequence.Build; a Task's Define callback only does work"
 	case errors.Is(err, ErrDryRunDeclaredLate):
 		return "set Config.DryRun when starting the run, before any Task, Fact or Confirm row streams"
-	case errors.Is(err, ErrWaitDeadlock):
-		return fmt.Sprintf("nothing left in the run can settle %s; a Task cannot depend on itself or on a Task that depends on it", subject)
 	case errors.Is(err, ErrDependencyCycle):
 		return fmt.Sprintf("After forms a cycle (%s); a task cannot run after itself, directly or through a Group it belongs to", subject)
 	case errors.Is(err, ErrTerminalWithoutSink):

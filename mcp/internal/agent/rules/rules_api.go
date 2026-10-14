@@ -298,7 +298,7 @@ func run(ctx context.Context, r *evo.Run) error {
 			ID:        "API-001",
 			Category:  "API",
 			Severity:  SeverityWarning,
-			Invariant: "the minimal Task happy path (Init/Task/Define/Block/Finish) compiles with a zero Config",
+			Invariant: "the minimal Task happy path (Main/Task/Define) compiles with a zero Config",
 			Why:       "Requiring a populated Config struct for the common single-task check adds ceremony that discourages the minimal, correct spelling.",
 			BadCode: `out := evo.Init(evo.Config{Title: "tool"}) // fields filled in for no reason
 out.Task("disk space").Define(checkDiskSpace)`,
@@ -459,7 +459,7 @@ go func() {
 for _, name := range []string{"a"} {
   work.Task(name).Define(func(ctx context.Context) error { return doWork(ctx, name) })
 }`,
-			Remediation:     "Predeclare with Group.Task(...) (one named Task per item), then call task.Define(func(ctx context.Context) error { ... }) instead of a bare goroutine. A goroutine a callback starts holds no scheduler slot: if the callback blocks on it while it Waits and every slot is held, Wait returns ErrWaitDeadlock",
+			Remediation:     "Predeclare with Group.Task(...) (one named Task per item), then call task.Define(func(ctx context.Context) error { ... }) instead of a bare goroutine. A goroutine a callback starts holds no scheduler slot: if the callback blocks on it while every slot is held, the run stalls. Give each unit of work its own Task and let Evo schedule it",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"API-041"},
 			Since:           "0.4.7",

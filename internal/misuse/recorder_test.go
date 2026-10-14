@@ -32,9 +32,9 @@ func TestStrictNotePanicsAfterRecording(t *testing.T) {
 
 func TestKeepDoesNotPanicWhenStrict(t *testing.T) {
 	r := New(true)
-	r.Keep(ErrWaitDeadlock, "waiter", "")
-	if !errors.Is(r.First(), ErrWaitDeadlock) {
-		t.Errorf("First() = %v, want ErrWaitDeadlock", r.First())
+	r.Keep(ErrDependencyCycle, "waiter", "")
+	if !errors.Is(r.First(), ErrDependencyCycle) {
+		t.Errorf("First() = %v, want ErrDependencyCycle", r.First())
 	}
 }
 

@@ -8,33 +8,6 @@ import (
 	"io"
 )
 
-// ExampleInit shows the sole Output constructor: build one, declare a task,
-// and Finish it.
-func ExampleInit() {
-	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, stderr: io.Discard, plain: true})
-	out.Task("read config").Define(func(context.Context) error { return nil })
-	_ = out.finish()
-	fmt.Print(buf.String())
-	// Output:
-	// ✓ read config
-}
-
-// ExampleConfig shows the ordinary application-facing construction surface:
-// a Title and an explicit Stdout writer.
-func ExampleConfig() {
-	var buf bytes.Buffer
-	cfg := Config{title: "demo", stdout: &buf, stderr: io.Discard, plain: true}
-	out := initRun(cfg)
-	out.Task("scan").Define(func(context.Context) error { return nil })
-	_ = out.finish()
-	fmt.Print(buf.String())
-	// Output:
-	// ✓ scan
-	//
-	// [succeeded]  demo
-}
-
 // ExampleGlyphProfile selects the state-glyph vocabulary Init applies via
 // Config.Glyphs. GlyphsASCII is the forced-ASCII profile; GlyphsUnicode and
 // GlyphsAuto are the other two values.

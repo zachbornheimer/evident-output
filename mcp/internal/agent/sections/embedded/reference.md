@@ -11,7 +11,7 @@ wrong or this doc is; file it either way.
 **Presentation env:** where `Config` is zero, `EVO_OUTPUT=human|plain|json|jsonl` selects the encoding (`json` puts the `evo.run` document and `jsonl` the `evo.event` lines on stdout, presentation on stderr), `EVO_VERBOSE=1` selects verbose, `EVO_DEBUG=debug|info|warn|error` selects the debug journal level, and `NO_COLOR` / `FORCE_COLOR` select color. Explicit `Config` wins over env; env wins over TTY inference. Machine output is never inferred from a piped stdout.
 **Machine wire formats:** `Config.Output: JSON` writes exactly one final `"evo.run"` document to stdout at Finish; `JSONL` streams `"evo.event"` lines to stdout as they occur, `seq` strictly monotonic and the sole ordering authority, plus the same final `run.finished` line on every terminal path including failure and cancel. Either way, presentation goes to stderr, so stdout stays machine-only.
 **Config honesty:** `VisibilityDelay: evo.Delay(0)` is immediate (nil = default 80ms). `Debug: evo.DebugConfig{Level: evo.LevelDebug}` selects the journal threshold — `evo.LogLevel`, a distinct type from stdlib `slog.Level` (`LevelUnset` → Info).
-**Lifecycle:** `evo.Main(run)` (default instance, `run func(context.Context) error`, wired to SIGINT/SIGTERM) runs Finish + Close and returns the derived `int` exit code, which the caller passes to `os.Exit` (`os.Exit(evo.Main(run))`; Main never exits the process itself, so a bare `evo.Main(run)` exits 0 after a failed run); `evo.Execute(ctx, cfg, run)` / `out.Run(ctx, run)` take the caller's own `context.Context` and return the full `Result` (`Conclusion` plus the application error `run` returned) instead of exiting — `Result.ExitCode()` for callers composing their own exit path (`Config.Isolated: true` for a hosted `*Output`). `evo.MainWith` was removed in 1.0; an `Isolated *Output` now calls its own `Output.Run` instead. A non-nil `run` error is recorded as Fail only when nothing already failed. See "Lifecycles" below for the three supported shapes, including `Execute` with no `Main` at all.
+**Lifecycle:** `evo.Main(run)` (default instance, `run func(context.Context) error`, wired to SIGINT/SIGTERM) runs Finish + Close and returns the derived `int` exit code, which the caller passes to `os.Exit` (`os.Exit(evo.Main(run))`; Main never exits the process itself, so a bare `evo.Main(run)` exits 0 after a failed run); `evo.Execute(ctx, cfg, run)` / `out.Run(ctx, run)` take the caller's own `context.Context` and return the full `Result` (`Conclusion` plus the application error `run` returned) instead of exiting — `Result.ExitCode()` for callers composing their own exit path (`Config.Isolated: true` for a hosted `*Output`). `evo.MainWith` was removed in 1.0; an `Isolated *Output` now calls its own `Output.Run` instead. A non-nil `run` error is recorded as Fail only when nothing already failed. See "Lifecycles" below for the two supported shapes.
 **Messages:** one human instrument — `Print` / `Printf` / `Println` + `Verbose()`. Infrastructure logs: `slog.New(out.SlogHandler())` (level from `Config.Debug.Level` only), written to `Config.Stderr` (default `os.Stderr`) — a piped run like `prog > log.txt` won't capture them; redirect with `2>` (or `2>&1`) instead. Semantic state: `Task`.
 **Mutations:** `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)` (an opaque mutation Evo cannot model: a git ref, a worktree, an API change), `evo.File` (file state), and `evo.Exec` pick `[planned]` vs `[changed]` from `Config.DryRun` or `Config.Preview` — one spelling, never a call-site tense flip. **Planned tense, two announcements:** `DryRun: true` is `--dry-run` — it opens `[dry-run] <Subject>` and really does stop. `Preview: true` is the plan a confirm gate is about to act on — same skipped Effect callbacks and same `[planned]` ledger, but the header is your `Subject` alone (`repo <path>`) and no `[dry-run]` tag, because telling the user nothing will happen and then asking them to authorize it is a contradiction. Both suppress the trailing band on a pure planned verdict when a `Subject` header rendered. Quantity records (`evo.Effect` with `EffectSpec.Quantity`) tally and always render at `Finish`. A named row (`evo.File`'s `write <path>`, `evo.Exec`'s `run <executable>`) streams the instant its owning task resolves, under that task's own block, bounded by the same viewport cap and `… +N more (not shown)` overflow the Finish ledger uses. `Record`/`RecordLabel`/`RecordName` were removed in 1.1: a classification is a `Fact`, never a ledger row.
 
@@ -23,28 +23,20 @@ wrong or this doc is; file it either way.
 
 ## Lifecycles
 
-Three supported shapes, all built on the same `Finish` (validate + compute
-Conclusion) → `Close` (idempotent cleanup) sequence:
+Two entry points, both of which finish the run for you:
 
-| Shape                      | Who calls Finish/Close                                                                                                         | Who exits the process                            | Use when                                                                                                                                                                       |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Init` + `Main`            | Main, automatically                                                                                                            | `main`, via `os.Exit(evo.Main(run))`             | An ordinary CLI entrypoint — the common case                                                                                                                                   |
-| `Init` + `Run`/`out.Run`   | Run/out.Run, automatically                                                                                                     | The caller, after inspecting `Result.ExitCode()` | A CLI composing its own exit path (see [exit-code-fidelity](guides/exit-code-fidelity.md)), or a test that needs the code without exiting the test binary                      |
-| `Init` alone (no Main/Run) | The caller, explicitly (`out.Finish()` then `out.Close()`, or just `defer out.Close()` — Close runs Finish itself when needed) | The caller — evo never exits the process         | A hosted/embedded use (a library, a long-running service, an MCP tool handler) that owns its own process lifetime and only wants evo's presentation, not its exit-code opinion |
+| Shape                        | Who exits the process                            | Use when                                                                                                                                                  |
+| ---------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `evo.Main(run)`              | `main`, via `os.Exit(evo.Main(run))`             | An ordinary CLI entrypoint — the common case. SIGINT and SIGTERM cancel the run.                                                                          |
+| `evo.Execute(ctx, cfg, run)` | The caller, after inspecting `Result.ExitCode()` | A CLI composing its own exit path (see [exit-code-fidelity](guides/exit-code-fidelity.md)), a test, or an embedded use that owns its context and process. |
 
-`Run` (`evo.Run` / `out.Run`) is the non-exiting reconciler every other
-lifecycle is built from — it is never itself a "fire and forget" call:
-its returned `Result` carries the Conclusion's exit code (`Result.ExitCode()`)
-plus the application error `run` returned, and something must do something
-with it (`os.Exit(result.ExitCode())`, assert on it in a test, or fold it
-into a larger program's own decision).
-
-For `Init` alone: nothing renders the final Conclusion band, and evidence
-capture / redaction never flush, until `Finish` runs — an embedding caller
-that forgets to call it (or `Close`, which calls it for you) gets an Output
-that never reports its own outcome. `Close` is safe to call unconditionally
-and more than once (idempotent); prefer `defer out.Close()` right after
-`Init` so every return path — including a panic — still finalizes.
+`Execute` installs no signal handlers and never exits: the caller owns the
+context. Its returned `Result` carries the Conclusion (`Result.Conclusion`),
+the exit code (`Result.ExitCode()`) and the application error `run` returned,
+and something must do something with it (`os.Exit(result.ExitCode())`, assert
+on it in a test, or fold it into a larger program's own decision). Cancelling
+the context ends the run Cancelled with exit 130, including while declared
+work still runs after `run` returned.
 
 ## Pick the entity
 

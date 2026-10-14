@@ -5,7 +5,7 @@ type Rung string
 
 // The adoption ladder, in migration order (mcp/docs/teaching-ladder.md).
 const (
-	RungInitMain      Rung = "Init/Main"
+	RungMain          Rung = "Main"
 	RungTaskDefine    Rung = "Task/Define"
 	RungEffects       Rung = "effects"
 	RungFactsWarnings Rung = "facts/warnings"
@@ -14,7 +14,7 @@ const (
 
 // ladderOrder is the rung sequence a paged inventory walks. There is no
 // containers rung — containers were never a classifier output.
-var ladderOrder = []Rung{RungInitMain, RungTaskDefine, RungEffects, RungFactsWarnings, RungConfirm}
+var ladderOrder = []Rung{RungMain, RungTaskDefine, RungEffects, RungFactsWarnings, RungConfirm}
 
 const (
 	// DefaultPageSize is the findings cap per adopt_plan page.

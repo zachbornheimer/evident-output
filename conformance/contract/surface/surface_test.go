@@ -84,7 +84,7 @@ func TestC02_024_MisuseErrorSentinelsAreDistinct(t *testing.T) {
 		evo.ErrAlreadyResolved, evo.ErrTaskClosed, evo.ErrClosed, evo.ErrUnresolvedTask, evo.ErrInvalidConfig,
 		evo.ErrKeyAfterDefine, evo.ErrDryRunDeclaredLate, evo.ErrNoTaskContext, evo.ErrConcurrentRunning,
 		evo.ErrInvalidProgress, evo.ErrProgressRegression, evo.ErrLimitExceeded, evo.ErrRenderer,
-		evo.ErrTerminalWithoutSink, evo.ErrNotStarted, evo.ErrWaitDeadlock,
+		evo.ErrTerminalWithoutSink, evo.ErrNotStarted,
 	}
 	seen := map[string]bool{}
 	for _, e := range sentinels {
