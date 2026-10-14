@@ -8,11 +8,12 @@ import (
 	"strings"
 )
 
-// ===== API-047: a Group and a Sequence declared under the same parent with
-// the same literal name. Tasks have a name space of their own, so a Task and
-// a Group may share a name; Group and Sequence share one. The second
-// declaration is refused (ErrInvalidConfig, CONTRACT.md section 7): its
-// handle is dead, its members never run, and the run Fails.
+// ===== API-047: two containers (Group or Sequence, of either kind) declared
+// under the same parent with the same literal name. Tasks have a name space
+// of their own, so a Task and a Group may share a name; Group and Sequence
+// share one. The second declaration is refused (ErrInvalidConfig,
+// CONTRACT.md section 7): its handle is dead, its members never run, and
+// the run Fails.
 
 // siblingEntityKind names the two container kinds that share a name space.
 type siblingEntityKind string
@@ -36,7 +37,7 @@ func siblingDeclKind(method string) (kind siblingEntityKind, ok bool) {
 	}
 }
 
-// siblingKindDecl is the first declaration scanBlockForCrossKindSiblings saw
+// siblingKindDecl is the first declaration scanBlockForDuplicateContainerSiblings saw
 // for one (parent, name) pair: its entity kind and source position, so a
 // later declaration under the same parent and name can be compared and
 // reported against it.
@@ -45,32 +46,33 @@ type siblingKindDecl struct {
 	pos  token.Position
 }
 
-// detectCrossKindDuplicateSiblingName scans every block independently
-// (never across an if/else branch split, where two kinds sharing a name are
-// legitimately mutually exclusive) for a Group and a Sequence that reuse one
-// literal name under the same parent handle.
-func detectCrossKindDuplicateSiblingName(filename string, file *ast.File, fset *token.FileSet) []Finding {
+// detectDuplicateContainerSiblingName scans every block independently
+// (never across an if/else branch split, where two declarations sharing a
+// name are legitimately mutually exclusive) for two Groups, two Sequences or
+// a Group and a Sequence that reuse one literal name under the same parent
+// handle.
+func detectDuplicateContainerSiblingName(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	ast.Inspect(file, func(n ast.Node) bool {
 		block, ok := n.(*ast.BlockStmt)
 		if !ok {
 			return true
 		}
-		findings = append(findings, scanBlockForCrossKindSiblings(filename, block, fset)...)
+		findings = append(findings, scanBlockForDuplicateContainerSiblings(filename, block, fset)...)
 		return true
 	})
 	return findings
 }
 
-// scanBlockForCrossKindSiblings walks block's direct statements without
+// scanBlockForDuplicateContainerSiblings walks block's direct statements without
 // descending into a nested BlockStmt — the outer ast.Inspect in
-// detectCrossKindDuplicateSiblingName visits and scans a nested block on its
+// detectDuplicateContainerSiblingName visits and scans a nested block on its
 // own, so an if-branch and its else-branch are never compared against each
 // other. A chained declaration (r.Group("build").Task("lint")) and an
 // assigned one (work := r.Group("work")) are both reached because the
 // per-statement walk only stops descent at a BlockStmt boundary, never at
 // the statement's own expression shape.
-func scanBlockForCrossKindSiblings(filename string, block *ast.BlockStmt, fset *token.FileSet) []Finding {
+func scanBlockForDuplicateContainerSiblings(filename string, block *ast.BlockStmt, fset *token.FileSet) []Finding {
 	var findings []Finding
 	seen := map[string]map[string]siblingKindDecl{}
 	for _, stmt := range block.List {
@@ -110,20 +112,18 @@ func scanBlockForCrossKindSiblings(filename string, block *ast.BlockStmt, fset *
 				seen[recv][name] = siblingKindDecl{kind: kind, pos: fset.Position(call.Pos())}
 				return true
 			}
-			if prior.kind != kind {
-				pos := fset.Position(call.Pos())
-				findings = append(findings, crossKindDuplicateSiblingFinding(filename, pos, recv, name, prior, kind))
-			}
+			pos := fset.Position(call.Pos())
+			findings = append(findings, duplicateContainerSiblingFinding(filename, pos, recv, name, prior, kind))
 			return true
 		})
 	}
 	return findings
 }
 
-// crossKindDuplicateSiblingFinding builds API-047's Finding: recv/name/kind
+// duplicateContainerSiblingFinding builds API-047's Finding: recv/name/kind
 // describe the second (flagged) declaration, prior the first one it collides
 // with.
-func crossKindDuplicateSiblingFinding(filename string, pos token.Position, recv, name string, prior siblingKindDecl, kind siblingEntityKind) Finding {
+func duplicateContainerSiblingFinding(filename string, pos token.Position, recv, name string, prior siblingKindDecl, kind siblingEntityKind) Finding {
 	method := siblingDeclMethod(kind)
 	priorMethod := siblingDeclMethod(prior.kind)
 	renamed := strconv.Quote(name + " " + strings.ToLower(method))

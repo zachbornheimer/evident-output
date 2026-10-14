@@ -183,7 +183,7 @@ var fileDetectors = []detector{
 	{name: "detectPhaseTaskOwningChildWork", needsEvo: true, run: astRule(detectPhaseTaskOwningChildWork)},
 	// API-047: a Group and a Sequence under one parent share a literal name;
 	// the second declaration is refused.
-	{name: "detectCrossKindDuplicateSiblingName", needsEvo: true, run: astRule(detectCrossKindDuplicateSiblingName)},
+	{name: "detectDuplicateContainerSiblingName", needsEvo: true, run: astRule(detectDuplicateContainerSiblingName)},
 	// API-049: Define callback discards its scheduler-provided context.
 	{name: "detectDefineDiscardsSchedulerContext", needsEvo: true, run: astRule(detectDefineDiscardsSchedulerContext)},
 	{name: "detectPerFindingFakeTask", needsEvo: true, run: astRule(detectPerFindingFakeTask)},
