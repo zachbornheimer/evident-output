@@ -1,7 +1,7 @@
 [
   {
     "id": "C48-001",
-    "section": "2.0 \u00a78 What Evo promises",
+    "section": "2.0 §8 What Evo promises",
     "quote": "The live frame changes within 100ms of entering Running and at least every 100ms after, with a stable parent row and the current item beneath it.",
     "tier": "1.1",
     "tests": [
@@ -18,7 +18,7 @@
   },
   {
     "id": "C48-002",
-    "section": "2.0 \u00a78 What Evo promises",
+    "section": "2.0 §8 What Evo promises",
     "quote": "Run Facts print under the Summary at normal verbosity; Task Facts hide until Verbose. Machine output always keeps both; collapse folds routine detail away but never a container's own row: a Group or Sequence whose members all succeed keeps its row with the members indented beneath it, in Human and Plain as `evo.run` nests them, and a container's own Task (the Task named for its Group) folds into that row rather than printing the name twice; passing verification is silent, failing verification is shown.",
     "tier": "1.1",
     "tests": [
@@ -47,8 +47,8 @@
   },
   {
     "id": "C48-003",
-    "section": "2.0 \u00a78 What Evo promises",
-    "quote": "Per-item Excluded Tasks fold into one tally; per-item Effects with one Verb and Object fold into one counted row; JSON keeps every item.",
+    "section": "2.0 §8 What Evo promises",
+    "quote": "Per-item Excluded Tasks fold into one tally; per-item Effects with one Verb and Object fold into one counted row, named for the highest container every one of whose members contributed to it, so a sibling that did nothing this run never moves the row to a container above it; JSON keeps every item.",
     "tier": "1.1",
     "tests": [
       {
@@ -68,7 +68,7 @@
   },
   {
     "id": "C48-004",
-    "section": "2.0 \u00a78 What Evo promises",
+    "section": "2.0 §8 What Evo promises",
     "quote": "Cancellation preserves committed truth and never implies rollback.",
     "tier": "1.1",
     "tests": [
@@ -85,7 +85,7 @@
   },
   {
     "id": "C48-005",
-    "section": "2.0 \u00a78 What Evo promises",
+    "section": "2.0 §8 What Evo promises",
     "quote": "Misuse is recorded with a remedy, appears in `Result` as `Result.Err` and `Conclusion.Explanation`, and never crashes the program.",
     "tier": "1.1",
     "tests": [
