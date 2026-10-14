@@ -168,6 +168,10 @@ var retiredSymbols = []RetiredSymbol{
 	// 2.0 (CONTRACT.md): the surface is exactly the contract tables. These
 	// 1.x names are gone.
 	{Contract: "Init", RemovedIn: RetiredRelease2_0, Replacement: "evo.Main(run) or evo.Execute(ctx, cfg, run)", Taught: regexp.MustCompile(`\bInit\b`)},
+	{Contract: "Output.Run", RemovedIn: RetiredRelease2_0, Replacement: "evo.Execute(ctx, cfg, run)", Taught: regexp.MustCompile(`\b(?:out|output|Output)\.Run\b`)},
+	{Contract: "Isolated", RemovedIn: RetiredRelease2_0, Replacement: "evo.Execute(ctx, cfg, run) with its own Config", Taught: regexp.MustCompile(`\bIsolated\b`)},
+	{Contract: "Output.Finish", RemovedIn: RetiredRelease2_0, Replacement: "return from run; Main and Execute finish the run", Taught: regexp.MustCompile(`\b(?:out|output|Output)\.Finish\b|\bFinish \+ Close\b|` + "`Finish`")},
+	{Contract: "Output.Close", RemovedIn: RetiredRelease2_0, Replacement: "return from run; Main and Execute close the run", Taught: regexp.MustCompile(`\b(?:out|output|Output)\.Close\b|\bFinish \+ Close\b|` + "`Close`")},
 	{Contract: "Println", RemovedIn: RetiredRelease2_0, Replacement: "fmt.Fprintln(r.Text(), ...)", Taught: regexp.MustCompile(`\b(?:evo|out|Output)\.Print(?:f|ln)?\b|(?:^|[^.\w|])Print(?:f|ln)?\(`)},
 	{Contract: "Block", RemovedIn: RetiredRelease2_0, Replacement: "return evo.Refuse(summary, opts...) from Define", Taught: regexp.MustCompile(`(?:^|[^.\w|])Block\(|\.Block\(|\bTask\.Block\b|\bBlock,\s+or\s+Skipped\b`)},
 	{Contract: "Wait", RemovedIn: RetiredRelease2_0, Replacement: "return from run; Evo owns the waiting", Taught: regexp.MustCompile(`\b(?:[Tt]ask\w*|[Gg]roup|[Ss]equence|seq)\.Wait\b|\)\.Wait\(\)`)},

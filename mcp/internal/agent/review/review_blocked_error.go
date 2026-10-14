@@ -119,10 +119,10 @@ func blockedAsErrorFinding(filename string, line int, kind blockedReturnKind) Fi
 	f := Finding{RuleID: "DOM-011", File: filename, Line: line}
 	if kind == returnsErr {
 		f.Message = "return err after Block treats expected blocked item as application error; Finish then use ExitCode (MCP-014)"
-		f.Suggestion = "replace `return err` with `return out.Finish()` and read the process status from Conclusion().ExitCode"
+		f.Suggestion = "replace `return err` with `return evo.Refuse(summary)`; the process status follows the Conclusion (Result.ExitCode())"
 		return f
 	}
 	f.Message = "expected blocked item returned as application error; Block/BlockedBy is a presentation outcome — return nil after Finish, use conclusion ExitCode for process status (MCP-014)"
-	f.Suggestion = "replace this return with `return out.Finish()` and read the process status from Conclusion().ExitCode"
+	f.Suggestion = "replace this return with `return evo.Refuse(summary)`; the process status follows the Conclusion (Result.ExitCode())"
 	return f
 }

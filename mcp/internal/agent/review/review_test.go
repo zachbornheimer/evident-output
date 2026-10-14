@@ -1659,8 +1659,8 @@ func main() {
 		}
 		if strings.Contains(f.Message, "MainWith") || strings.Contains(f.Suggestion, "MainWith") { // removed in 1.0
 			sawMainWith = true // MainWith: removed in 1.0
-			if !strings.Contains(f.Suggestion, "out.Run(run)") {
-				t.Errorf("MainWith (removed in 1.0) suggestion must name out.Run(run), got %q", f.Suggestion)
+			if !strings.Contains(f.Suggestion, "evo.Execute(") {
+				t.Errorf("MainWith (removed in 1.0) suggestion must name evo.Execute, got %q", f.Suggestion)
 			}
 		}
 	}

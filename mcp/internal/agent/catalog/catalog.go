@@ -206,7 +206,7 @@ Ordinary dual-stream: os.Exit(evo.Main(run)) — a zero Config picks Plain off-T
 Run.ResultWriter carries the stdout domain payload; human presentation stays on stderr; a failed
 data command emits no partial payload by default.
 
-Exit codes come only from evo.Main's returned code (os.Exit(evo.Main(run))), or evo.Run/Output.Run's returned Result.ExitCode() for a caller that needs the Conclusion and application error, not just the code (evo.MainWith was removed in 1.0 — an Isolated *Output now calls its own Output.Run instead): run(ctx) returns error, nothing else picks the code. Never hand-map an int
+Exit codes come only from evo.Main's returned code (os.Exit(evo.Main(run))), or evo.Execute's returned Result.ExitCode() for a caller that needs the Conclusion and application error, not just the code (evo.MainWith was removed in 1.0): run(ctx) returns error, nothing else picks the code. Never hand-map an int
 to os.Exit — that is exactly how a Blocked run (1) gets silently read as success, or a real
 failure reads as blocked. SIGINT/SIGTERM already route through Main into Cancel on the active task, so the
 ledger's ■ and the process exit code (130) can never disagree; a caller-written signal.Notify handler that

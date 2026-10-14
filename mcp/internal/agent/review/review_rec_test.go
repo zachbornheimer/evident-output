@@ -67,7 +67,7 @@ func run(out *evo.Output) error {
 		`task.Skipped(evo.Reason("skipped")`,
 		`.Doing("scanning worktrees")`,
 		`with out.Task("scan")`,
-		"out.Run(run)",
+		"evo.Execute(ctx, cfg, run)",
 		`evo.Task(fmt.Sprintf("scanning %s", name))`,
 	}
 	for _, want := range cases {

@@ -168,15 +168,12 @@ func (d *recSurfaceDetector) inspectCall(call *ast.CallExpr) {
 		}
 	case isEvoIdent(sel.X, d.pkg) && name == "MainWith": // MainWith was removed in 1.0; still detected so old call sites are still caught
 		old := d.nodeSrc(call)
-		outArg, runArg := "out", "run"
-		if len(call.Args) >= 1 {
-			outArg = d.nodeSrc(call.Args[0])
-		}
+		runArg := "run"
 		if len(call.Args) >= 2 {
 			runArg = d.nodeSrc(call.Args[1])
 		}
-		d.report(call, "evo.MainWith was removed in 1.0; Isolated instances use Output.Run, ordinary main uses evo.Main",
-			"replace "+old+" with "+outArg+".Run("+runArg+")")
+		d.report(call, "evo.MainWith was removed in 1.0; use evo.Execute when the caller owns the context and exit, evo.Main in an ordinary main",
+			"replace "+old+" with evo.Execute(ctx, cfg, "+runArg+")")
 		d.cover(call)
 	}
 }

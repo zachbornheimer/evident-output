@@ -290,12 +290,13 @@ func isLikelyEvoReceiver(x ast.Expr) bool {
 
 // isPresentationExitArg is true for os.Exit(evo.Main(...)) (v0.6: the
 // canonical entrypoint — Main derives the code but does not exit itself),
-// os.Exit(evo.Run(...)), os.Exit(out.Run(...)), os.Exit(...ExitCode), and
+// os.Exit(evo.Run(...)) and os.Exit(out.Run(...)) (both removed in 2.0, still
+// recognized in older code), os.Exit(...ExitCode), and
 // os.Exit(xe) where xe is a runCodeVars identifier — the latter three also
 // cover the exit-code-fidelity pattern (mcp/docs/exit-code-fidelity.md)
 // that captures evo.Run's code, branches to override it with a child
 // process's own exit code, and only then calls os.Exit. All of these return
-// a code rather than exit themselves. Pre-1.0, evo.MainWith alone exited via its own facade (P6) and was never wrapped in os.Exit; MainWith was removed in 1.0, so an Isolated instance now reaches this same os.Exit(...ExitCode) shape through Output.Run instead.
+// a code rather than exit themselves. Pre-1.0, evo.MainWith alone exited via its own facade (P6) and was never wrapped in os.Exit; MainWith was removed in 1.0.
 func isPresentationExitArg(call *ast.CallExpr, runCodeVars map[string]bool) bool {
 	if len(call.Args) != 1 {
 		return false
@@ -315,7 +316,7 @@ func isPresentationExitArg(call *ast.CallExpr, runCodeVars map[string]bool) bool
 }
 
 // runExitCodeVars collects every identifier ever assigned the result of an
-// evo.Run(...)/out.Run(...)/....ExitCode call — the variable the exit-code-
+// evo.Run(...)/out.Run(...) (removed in 2.0)/....ExitCode call — the variable the exit-code-
 // fidelity pattern captures before optionally overriding it with a child
 // process's own exit code. Tracking is file-wide, not scope-precise,
 // matching localSafeWriterVars's existing tradeoff: a false pass here is a
@@ -340,7 +341,7 @@ func runExitCodeVars(f *ast.File) map[string]bool {
 	return vars
 }
 
-// isRunExitCodeCall is true for evo.Run(...), out.Run(...), evo.Main(...)
+// isRunExitCodeCall is true for evo.Run(...), out.Run(...) (removed in 2.0), evo.Main(...)
 // (v0.6: Main itself returns the derived code — os.Exit(evo.Main(run)) is
 // the canonical entrypoint, not a wrapper flagged as double-exiting), and
 // any ....ExitCode() call — the call shapes runExitCodeVars looks for on an

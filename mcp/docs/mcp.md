@@ -55,7 +55,7 @@ from this module / a path replace). Never `GOBIN=$HOME/.local/bin` — install l
 | retired independent-collection constructor                                                                                                               | `evo.Group`                                                                                                 |
 | `.Skip(`                                                                                                                                                 | `.Skipped(`                                                                                                 |
 | `evo.ID` / `evo.StartPhase`                                                                                                                              | the Task name is its identity; `.Doing(...)` for the first phase                                            |
-| `evo.MainWith` (removed in 1.0)                                                                                                                          | `evo.Main` / `Output.Run`                                                                                   |
+| `evo.MainWith` (removed in 1.0)                                                                                                                          | `evo.Main` / `evo.Execute`                                                                                  |
 
 ## Install the binary (pinned)
 

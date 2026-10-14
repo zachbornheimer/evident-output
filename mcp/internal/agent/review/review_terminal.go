@@ -9,10 +9,10 @@ import (
 )
 
 // detectSignalNotifyWithoutCancel flags signal.Notify in an evo-using file
-// that never calls Cancel — evo.Main/Output.Run already wires SIGINT/SIGTERM
+// that never calls Cancel — evo.Main/evo.Execute already wire SIGINT/SIGTERM
 // into Cancel on the active task so the ■ glyph and the process exit code
 // (130) can never disagree; a hand-rolled signal.Notify that skips Cancel
-// reopens that gap (evo-rec.md "Interrupts"). (evo.MainWith, which wired the same thing for an Isolated *Output, was removed in 1.0 in favor of Output.Run.)
+// reopens that gap (evo-rec.md "Interrupts"). (evo.MainWith was removed in 1.0.)
 func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 	if !strings.Contains(src, "signal.Notify(") {
 		return nil
@@ -26,10 +26,10 @@ func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 	}
 	return []Finding{{
 		RuleID:     "SIG-001",
-		Message:    "signal.Notify without a Cancel call in this file; prefer evo.Main/Output.Run, which already wire SIGINT/SIGTERM into Cancel so the ledger and exit code agree",
+		Message:    "signal.Notify without a Cancel call in this file; prefer evo.Main/evo.Execute, which already wire SIGINT/SIGTERM into Cancel so the ledger and exit code agree",
 		File:       filename,
 		Line:       line,
-		Suggestion: "replace the signal-handling goroutine with os.Exit(evo.Main(run)) or out.Run(ctx, run), or call task.Cancel(reason) from it",
+		Suggestion: "replace the signal-handling goroutine with os.Exit(evo.Main(run)) or evo.Execute(ctx, cfg, run), or call task.Cancel(reason) from it",
 	}}
 }
 

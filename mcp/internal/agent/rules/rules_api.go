@@ -158,14 +158,14 @@ _ = r.Task("scan")`,
 			ID:        "API-018",
 			Category:  "API",
 			Severity:  SeverityWarning,
-			Invariant: "process exit codes come only from os.Exit(evo.Main(run)), or evo.Run/Output.Run's returned Result.ExitCode() (evo.MainWith, which restated the same os.Exit facade for an Isolated *Output, was removed in 1.0 — see Output.Run)",
+			Invariant: "process exit codes come only from os.Exit(evo.Main(run)), or evo.Execute's returned Result.ExitCode() (evo.MainWith was removed in 1.0)",
 			Why:       "A hand-mapped os.Exit int bypasses the Outcome→exit-code contract; a Blocked run (1) can silently read as success, or a real failure can read as blocked.",
 			BadCode: `if err != nil {
   fmt.Println(err)
   os.Exit(1) // hand-mapped, not fed by evo
 }`,
 			GoodCode:        `os.Exit(evo.Main(run)) // run(ctx) returns error; Conclusion decides 0/1/2/130; Main derives the code, caller exits`,
-			Remediation:     "Route exit through os.Exit(evo.Main(run)), or evo.Run/Output.Run's returned Result.ExitCode() for a caller that needs the code without exiting (evo.MainWith was removed in 1.0)",
+			Remediation:     "Route exit through os.Exit(evo.Main(run)), or evo.Execute's returned Result.ExitCode() for a caller that needs the code without exiting (evo.MainWith was removed in 1.0)",
 			RelatedGuidance: []string{"streams", "common-api"},
 			VerificationIDs: []string{"API-018"},
 			Since:           "0.2.0",
@@ -250,7 +250,7 @@ func (w *livePhase) Write(p []byte) (int, error) {
 			Category:  "API",
 			Severity:  SeverityWarning,
 			Invariant: "superseded spellings are rewritten, not taught: evo.New, Item/.OK/.Because, Cause, capture-meaning Evidence (Capture is live), Config.Options / []evo.Option / Option funcs (To/Plain/NoColor/Stdin/DryRun/VisibilityDelay/Diagnostics), the Task mutation verbs (Add/Create/Delete/Push/Remove/Update/Write), evo.Affected, Task.Done, Failf/Blockf/Warn/Step/Kept (removed in 1.1), evo.ID, evo.StartPhase, and evo.EntityOption (removed in 1.1), the retired independent-collection constructor, Skip, evo.MainWith (removed in 1.0)",
-			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New and MainWith were removed in 1.0; Isolated *Output uses Output.Run); Config fields replaced Option funcs; the TaskHandle mutation verbs were removed in 1.1 — an opaque mutation is evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) inside Define and file state is evo.File, so neither the 0.x positional Delete(n, object) nor the 1.0 Delete(object, fn, Affected(n)) compiles; the independent collection constructor is Group; Item folded into Task; Cause was removed in 1.1 (Fail/Block are statements; attach error text with Detail, or return fmt.Errorf inside Define); capture-meaning Evidence* was removed in 1.1 (Capture is the retained sink); Skip is Skipped; ID/StartPhase were removed in 1.1 (Task takes only the name; TaskHandle.Key overrides identity; Doing sets the first phase).",
+			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New and MainWith were removed in 1.0); Config fields replaced Option funcs; the TaskHandle mutation verbs were removed in 1.1 — an opaque mutation is evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) inside Define and file state is evo.File, so neither the 0.x positional Delete(n, object) nor the 1.0 Delete(object, fn, Affected(n)) compiles; the independent collection constructor is Group; Item folded into Task; Cause was removed in 1.1 (Fail/Block are statements; attach error text with Detail, or return fmt.Errorf inside Define); capture-meaning Evidence* was removed in 1.1 (Capture is the retained sink); Skip is Skipped; ID/StartPhase were removed in 1.1 (Task takes only the name; TaskHandle.Key overrides identity; Doing sets the first phase).",
 			BadCode: `func main() {
 	out := evo.New(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain()}})
 	os.Exit(evo.MainWith(out, run)) // MainWith: removed in 1.0
@@ -272,7 +272,7 @@ func run(ctx context.Context, r *evo.Run) error {
 	})
 	return nil
 }`,
-			Remediation:     "Replace evo.New with evo.Main; evo.Main in ordinary main, Output.Run when holding Isolated *Output; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace every Task mutation verb (removed in 1.1, either shape) with Define + evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn), and Task.Write with evo.File; replace the retired collection constructor with Group; replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Define(func(ctx context.Context) error { ... }); fold Because(text) into Summary(text) or the resolving verb's own argument; replace evo.Cause(err) with evo.Detail(err.Error()) on Fail/Block, or return fmt.Errorf inside Define; replace capture-meaning Evidence() with Capture() (removed in 1.1); replace Failf/Blockf with Fail/Block, Warn with Problem(summary, Severity(SeverityWarning)), Step with Progress(...).Doing(...), Kept with Skipped (removed in 1.1); replace Task.Done() (removed in 1.1) with Define(func(ctx context.Context) error { ... }) and Done(text) with Summary(text) — inside the Task's own Define callback, Summary alone",
+			Remediation:     "Replace evo.New with evo.Main; evo.Main in ordinary main, evo.Execute when the caller owns the context and exit; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace every Task mutation verb (removed in 1.1, either shape) with Define + evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn), and Task.Write with evo.File; replace the retired collection constructor with Group; replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Define(func(ctx context.Context) error { ... }); fold Because(text) into Summary(text) or the resolving verb's own argument; replace evo.Cause(err) with evo.Detail(err.Error()) on Fail/Block, or return fmt.Errorf inside Define; replace capture-meaning Evidence() with Capture() (removed in 1.1); replace Failf/Blockf with Fail/Block, Warn with Problem(summary, Severity(SeverityWarning)), Step with Progress(...).Doing(...), Kept with Skipped (removed in 1.1); replace Task.Done() (removed in 1.1) with Define(func(ctx context.Context) error { ... }) and Done(text) with Summary(text) — inside the Task's own Define callback, Summary alone",
 			RelatedGuidance: []string{"common-api", "tasks", "streams"},
 			VerificationIDs: []string{"API-032"},
 			Since:           "0.3.0",

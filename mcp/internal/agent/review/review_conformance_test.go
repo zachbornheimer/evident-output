@@ -92,12 +92,10 @@ func run(out *evo.Output) error {
 	if found == nil {
 		t.Fatalf("expected a finding whose migration guidance names MainWith, got: %+v", report.Findings)
 	}
-	// The matched call site is an Isolated Output, so the concrete per-call-site
-	// replacement is out.Run(run) (docs/migration/1.0.md's Isolated-Output
-	// case) — the generic os.Exit(evo.Main(...)) row only applies to an
-	// ordinary main() with no Isolated Output, a different call shape.
-	if !strings.Contains(found.Migration, "out.Run") {
-		t.Fatalf("migration guidance = %q, want the specific out.Run(run) replacement, not a generic notice", found.Migration)
+	// The concrete per-call-site replacement is evo.Execute(ctx, cfg, run), not
+	// the generic os.Exit(evo.Main(...)) row, which only fits an ordinary main().
+	if !strings.Contains(found.Migration, "evo.Execute") {
+		t.Fatalf("migration guidance = %q, want the specific evo.Execute replacement, not a generic notice", found.Migration)
 	}
 }
 

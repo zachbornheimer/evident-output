@@ -215,7 +215,7 @@ func detectHandBuiltProgressText(filename string, f *ast.File, fset *token.FileS
 // MarshalIndent), where x is an evo Task/Output/Group/Sequence handle —
 // this bypasses the sanctioned, versioned JSON encoder and leaks
 // undocumented internal field names/shape to consumers. evo has no
-// .Result() accessor (Run/Output.Run return a Result value directly), so
+// .Result() accessor (Execute returns a Result value directly), so
 // only .Snapshot() is a real evo misuse shape; the receiver check keeps
 // this from firing on an unrelated type's own Snapshot() method.
 func detectMarshalOfInternalSnapshot(filename string, f *ast.File, fset *token.FileSet) []Finding {

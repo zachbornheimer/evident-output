@@ -22,12 +22,12 @@ func terminalRules() []Rule {
 			Category:  "SIG",
 			Severity:  SeverityWarning,
 			Invariant: "signal handling reconciles through Cancel, not a bespoke exit path",
-			Why:       "evo.Main (or Output.Run for a held *Output) already wires SIGINT/SIGTERM into Cancel so the ledger's ■ glyph and the 130 exit code agree; a hand-rolled signal.Notify without Cancel reopens that gap.",
+			Why:       "evo.Main (or evo.Execute with a cancellable context) already wires SIGINT/SIGTERM into Cancel so the ledger's ■ glyph and the 130 exit code agree; a hand-rolled signal.Notify without Cancel reopens that gap.",
 			BadCode: `c := make(chan os.Signal, 1)
 signal.Notify(c, syscall.SIGINT)
 go func() { <-c; os.Exit(1) }()`,
 			GoodCode:        `os.Exit(evo.Main(run)) // wires SIGINT and SIGTERM to the context run and every Define callback receive`,
-			Remediation:     "Call Cancel on the active task/handle from the signal goroutine, or use evo.Main (or Output.Run for a held *Output)",
+			Remediation:     "Call Cancel on the active task/handle from the signal goroutine, or use evo.Main (or evo.Execute with a cancellable context)",
 			RelatedGuidance: []string{"streams", "interactive"},
 			VerificationIDs: []string{"SIG-001"},
 			Since:           "0.4.0",
