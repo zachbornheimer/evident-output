@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
@@ -21,7 +22,10 @@ var timingSuffix = regexp.MustCompile(`\s+—?\s*\d+(\.\d+)?(ms|s|m)$`)
 // and later a closing verdict row (`✓ name`); the Human final screen shows
 // that container once, at the position of its first row, so a name repeated
 // at the same depth after its first appearance is folded into the first.
-func orderedRows(text string) []string {
+// The members of a streamed container (see streamedContainers) are sorted:
+// Plain lists them as they settled and the Human final screen as declared,
+// the agreed form CONTRACT §8 states.
+func orderedRows(text string, streamed map[string]bool) []string {
 	var rows []string
 	for line := range strings.SplitSeq(text, "\n") {
 		if strings.HasPrefix(line, "[") || strings.TrimSpace(line) == "" {
@@ -42,7 +46,39 @@ func orderedRows(text string) []string {
 		}
 		rows = append(rows, row)
 	}
-	return rows
+	return sortStreamedMembers(rows, streamed)
+}
+
+// streamedContainers are the names of the root containers Plain wrote as a
+// block: the ones whose first row is a `◐` header.
+func streamedContainers(plain string) map[string]bool {
+	streamed := map[string]bool{}
+	for line := range strings.SplitSeq(plain, "\n") {
+		if name, ok := strings.CutPrefix(line, "◐ "); ok {
+			name, _, _ = strings.Cut(name, "  ")
+			streamed[strings.TrimSpace(timingSuffix.ReplaceAllString(name, ""))] = true
+		}
+	}
+	return streamed
+}
+
+// sortStreamedMembers sorts each run of member rows (depth 1 and deeper)
+// under a root row named in streamed.
+func sortStreamedMembers(rows []string, streamed map[string]bool) []string {
+	out := slices.Clone(rows)
+	for i := 0; i < len(out); {
+		if !strings.HasPrefix(out[i], "0") || !streamed[out[i][1:]] {
+			i++
+			continue
+		}
+		end := i + 1
+		for end < len(out) && !strings.HasPrefix(out[end], "0") {
+			end++
+		}
+		slices.Sort(out[i+1 : end])
+		i = end
+	}
+	return out
 }
 
 // declareDependents is one program for both renderers: two containers, the second
@@ -68,6 +104,47 @@ func declareUnrelated(out *Run) {
 	second.Task("s1").Define(func(context.Context) error { close(secondDone); return nil })
 }
 
+// pause is a Define callback that holds its Task Running for d on the real
+// clock, so a block outlasts Plain's grace and members settle out of
+// declaration order.
+func pause(d time.Duration) func(context.Context) error {
+	return func(context.Context) error { time.Sleep(d); return nil }
+}
+
+// declareStreamedBlock is one program for both renderers on the real clock:
+// a Group that outlasts Plain's grace, whose members settle in the reverse of
+// declaration order, then a Task After it.
+func declareStreamedBlock(out *Run) {
+	g := out.Group("pkg")
+	g.Task("slowest").Define(pause(700 * time.Millisecond))
+	g.Task("middle").Define(pause(100 * time.Millisecond))
+	g.Task("fastest").Define(pause(10 * time.Millisecond))
+	out.Task("tail").After(g).Define(pause(0))
+}
+
+// declareNotStartedDependent is one program for both renderers: a Task After
+// an Excluded member of a Group never starts, and must still print below the
+// Group that explains why.
+func declareNotStartedDependent(out *Run) {
+	g := out.Group("eg")
+	skipped := g.Task("skipped").Define(func(context.Context) error { return Exclude("not here") })
+	g.Task("works").Define(pause(0))
+	out.Task("depSkipped").After(skipped).Define(pause(0))
+	out.Task("depGroup").After(g).Define(pause(0))
+}
+
+// declareChainAfterBlock is one program for both renderers: a chain of
+// Tasks After a Group, declared last-link first, so release order differs
+// from declaration order.
+func declareChainAfterBlock(out *Run) {
+	g := out.Group("g")
+	g.Task("g1").Define(pause(0))
+	g.Task("g2").Define(pause(20 * time.Millisecond))
+	second := out.Task("second")
+	first := out.Task("first").After(g).Define(pause(0))
+	second.After(first).Define(pause(0))
+}
+
 // TestHumanFinalScreenOrderMatchesPlain pins that the Human final screen
 // lists rows in the order Plain writes them: a container before the Task that
 // ran After it, and unrelated containers in the order they settled. It
@@ -79,20 +156,29 @@ func TestHumanFinalScreenOrderMatchesPlain(t *testing.T) {
 		name          string
 		declare       func(*Run)
 		before, after string
+		realClock     bool // the program sleeps, so the block streams in Plain
 	}{
-		{"dependents", declareDependents, "0g", "0afterBoth"},
-		{"unrelated", declareUnrelated, "0second", "0first"},
+		{"dependents", declareDependents, "0g", "0afterBoth", false},
+		{"unrelated", declareUnrelated, "0second", "0first", false},
+		{"streamed block", declareStreamedBlock, "0pkg", "0tail", true},
+		{"not-started dependent", declareNotStartedDependent, "0eg", "0depSkipped", true},
+		{"chain released in order", declareChainAfterBlock, "0first", "0second", true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			plain, _ := runPlain(t, Config{}, c.declare)
 
 			screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
-			out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: testkit.NewClock(), Terminal: screen}},
+			facades := Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}
+			if !c.realClock {
+				facades.Clock = testkit.NewClock()
+			}
+			out := initRun(Config{Facades: facades},
 				tuning{visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000})
 			c.declare(out)
 			_ = out.close()
 
-			want, got := orderedRows(plain), orderedRows(screen.PersistedText())
+			streamed := streamedContainers(plain)
+			want, got := orderedRows(plain, streamed), orderedRows(screen.PersistedText(), streamed)
 			if !slices.Equal(got, want) {
 				t.Fatalf("Human final screen rows are ordered %q, Plain writes %q\n--- human ---\n%s\n--- plain ---\n%s",
 					got, want, screen.PersistedText(), plain)

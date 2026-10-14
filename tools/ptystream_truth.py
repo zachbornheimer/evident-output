@@ -4,17 +4,29 @@ final screen equals the Plain rows of an identical run.
 Rows are read the way a person reads them: a glyph, a name (up to the first
 run of two spaces), then an optional reason. Spinners and ``○`` waiting rows
 are in-progress; the glyphs in SETTLED never go back.
+
+Order is one rule for both renderers (CONTRACT section 8, "Finish order"): a row
+never prints above the block that explains it, so a row that ran After a block
+prints below it, and rows held for a block print in the order they were released.
+The one place Plain and the Human final screen differ is a block Plain streamed
+(``◐ name``, members as they settle, closing verdict): they agree on its settled
+form, the verdict row first, with the members compared as a set because Plain
+lists them in settlement order and the screen in declaration order. Every other
+row compares in order.
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Sequence
+from typing import NamedTuple
 
 import ptystream_frames as stream
 
 SETTLED = frozenset("✓✗-!■")
 FINAL = SETTLED | {"○"}
+PROGRESS = "◐"
+INDENT = 3
 SUMMARY_PREFIX = "["
 COMPLETE_RE = re.compile(r"(\d+)/(\d+) complete")
 DURATION_RE = re.compile(r"\s+\d+(?:\.\d+)?(?:ms|µs|us|s|m|h)$")
@@ -73,19 +85,129 @@ def _check_count(completed: dict[str, int], name: str, row: str, number: int) ->
     completed[name] = done
 
 
-def normalize_rows(rows: Iterable[str]) -> list[str]:
+class Row(NamedTuple):
+    """One final row: its depth, normalized text, name, and whether Plain streamed it as a block."""
+
+    depth: int
+    text: str
+    name: str
+    streamed: bool = False
+
+
+def _rows(raw: Iterable[str]) -> list[Row]:
+    """The final rows, run summaries and ``◐`` rows of raw, with depth and name."""
+    rows = []
+    for row in raw:
+        text = " ".join(row.split())
+        glyph_row = text[1:2] == " " and (text[:1] in FINAL or text[:1] == PROGRESS)
+        if not glyph_row and not text.startswith(SUMMARY_PREFIX):
+            continue
+        depth = (len(row) - len(row.lstrip(" "))) // INDENT
+        parts = split_row(row)
+        rows.append(Row(depth, DURATION_RE.sub("", text), parts[1] if parts else text))
+    return rows
+
+
+def _closing_index(rows: Sequence[Row], header: int) -> int | None:
+    """Index of the row that closes the ``◐`` block opened at ``header``, if one does.
+
+    A block's closing row has the header's depth and name and a final glyph, and
+    every row between them is a member (deeper). A ``◐`` row with no such row is a
+    heartbeat for a long Task, not a block.
+    """
+    depth, name = rows[header].depth, rows[header].name
+    for index in range(header + 1, len(rows)):
+        row = rows[index]
+        if row.depth < depth or (row.depth == depth and row.name != name):
+            return None
+        if row.depth == depth and row.text[:1] in FINAL:
+            return index
+    return None
+
+
+def _settle_blocks(rows: Sequence[Row]) -> list[Row]:
+    """Rows with each streamed block in its settled form: the closing verdict, then the members.
+
+    Plain streams a block that outlasts its grace as ``◐ name``, its members as
+    they settle, then the verdict. The Human final screen shows the verdict first.
+    Heartbeat ``◐`` rows are dropped.
+    """
+    settled: list[Row] = []
+    index = 0
+    while index < len(rows):
+        row = rows[index]
+        if row.text[:1] != PROGRESS:
+            settled.append(row)
+            index += 1
+            continue
+        close = _closing_index(rows, index)
+        if close is None:
+            index += 1
+            continue
+        settled.append(rows[close]._replace(streamed=True))
+        settled.extend(_settle_blocks(rows[index + 1 : close]))
+        index = close + 1
+    return settled
+
+
+class _Node:
+    def __init__(self, row: Row, path: tuple[str, ...]) -> None:
+        self.row, self.path = row, path
+        self.children: list[_Node] = []
+
+
+def _tree(rows: Sequence[Row]) -> list[_Node]:
+    """Rows nested by depth; each node knows its path of names from the root."""
+    roots: list[_Node] = []
+    stack: list[_Node] = []
+    for row in rows:
+        del stack[row.depth :]
+        parent = stack[-1] if stack else None
+        node = _Node(row, (parent.path if parent else ()) + (row.name,))
+        (parent.children if parent else roots).append(node)
+        stack.append(node)
+    return roots
+
+
+def _paths(nodes: Iterable[_Node]) -> set[tuple[str, ...]]:
+    found: set[tuple[str, ...]] = set()
+    for node in nodes:
+        if node.row.streamed:
+            found.add(node.path)
+        found |= _paths(node.children)
+    return found
+
+
+def _flatten(nodes: Iterable[_Node], streamed: set[tuple[str, ...]]) -> list[str]:
+    """Rows in order, indented by depth; a streamed block's members sort by their text."""
+    flat: list[str] = []
+    for node in nodes:
+        flat.append(INDENT * " " * node.row.depth + node.row.text)
+        members = node.children
+        if node.path in streamed:
+            members = sorted(members, key=lambda child: child.row.text)
+        flat.extend(_flatten(members, streamed))
+    return flat
+
+
+def streamed_blocks(plain_rows: Iterable[str]) -> set[tuple[str, ...]]:
+    """The paths of the containers Plain wrote as a streamed block."""
+    return _paths(_tree(_settle_blocks(_rows(plain_rows))))
+
+
+def normalize_rows(
+    rows: Iterable[str], streamed: set[tuple[str, ...]] | None = None
+) -> list[str]:
     """Final rows (glyph, name, reason) and run summaries in screen order, durations dropped.
 
-    A streamed ``◐`` progress row is not a final row, so it is dropped. A streamed
-    block therefore contributes only its closing ``✓`` container row, at the position
-    where that row closes, which is where the settled form shows it.
+    The agreed form of a streamed block (CONTRACT section 8) is its settled form:
+    the closing verdict row first, then its members. Plain lists the members as they
+    settled and the Human final screen in declaration order, so the members of a
+    block named in ``streamed`` compare sorted. Rows keep their depth as indentation.
+    Everything else compares in order, so a row printed above its cause still fails.
     """
-    kept = []
-    for row in rows:
-        text = " ".join(row.split())
-        if text[:1] in FINAL and text[1:2] == " " or text.startswith(SUMMARY_PREFIX):
-            kept.append(DURATION_RE.sub("", text))
-    return kept
+    nodes = _tree(_settle_blocks(_rows(rows)))
+    return _flatten(nodes, streamed if streamed is not None else _paths(nodes))
 
 
 def check_final_matches_plain(
@@ -98,7 +220,12 @@ def check_final_matches_plain(
     """
     if screen_exit != plain_exit:
         raise TruthError(f"pty run exit {screen_exit}, Plain run exit {plain_exit}")
-    screen, plain = normalize_rows(final.rows), normalize_rows(plain_rows)
+    plain_rows = list(plain_rows)
+    streamed = streamed_blocks(plain_rows)
+    screen, plain = (
+        normalize_rows(final.rows, streamed),
+        normalize_rows(plain_rows, streamed),
+    )
     if sorted(screen) != sorted(plain):
         missing = [row for row in plain if row not in screen]
         extra = [row for row in screen if row not in plain]

@@ -59,16 +59,29 @@ func (s *Stream) compose(snap record.Snapshot, linesFrom int, entities bool) str
 	return b.String()
 }
 
-// writeEntities writes every root row not already streamed, then every
-// collection, then the root rows held for a collection, as human output
-// shows them (project.HumanProjection).
+// writeEntities writes the rows Finish still owes in the one order every
+// human destination shows: the root rows that wait on no collection, every
+// collection as it settled, the rows held for a collection in the order they
+// were released, then the rows that ran After a collection without ever
+// being held (a NotStarted dependent). A row never lands above the
+// collection that explains it (project.HumanProjection decides what shows).
 func (s *Stream) writeEntities(b *strings.Builder, snap record.Snapshot) {
 	human := project.HumanProjection(snap, s.cfg.Style.Verbose)
 	shown := make(map[string]bool, len(human.Tasks))
 	for _, t := range human.Tasks {
 		shown[t.ID] = true
 	}
-	s.writeRoots(b, shown, false)
+	var free, dependent []*row
+	for _, r := range s.roots {
+		switch {
+		case r.emitted || r.held:
+		case s.awaitsCollection(r):
+			dependent = append(dependent, r)
+		default:
+			free = append(free, r)
+		}
+	}
+	s.writeRoots(b, shown, free)
 	for _, col := range slices.SortedStableFunc(slices.Values(human.Collections), s.bySettlement) {
 		switch blk := s.blocks[col.ID]; {
 		case blk != nil && blk.mode == modeStream:
@@ -77,15 +90,38 @@ func (s *Stream) writeEntities(b *strings.Builder, snap record.Snapshot) {
 			WriteCollection(b, col, s.cfg.Style)
 		}
 	}
-	s.writeRoots(b, shown, true)
+	s.writeRoots(b, shown, s.held)
+	s.writeRoots(b, shown, dependent)
 }
 
-// writeRoots writes the root rows not yet streamed, as human output shows
-// them, whose wait on a collection is over (held) or not. The rows that ran
-// After a collection go below it, as they do where Plain streams.
-func (s *Stream) writeRoots(b *strings.Builder, shown map[string]bool, held bool) {
-	for _, r := range s.roots {
-		if r.emitted || r.held != held {
+// awaitsCollection reports that root row r ran After a collection, or a Task
+// inside one, or a row that did: its place is below that collection. A cycle
+// among the edges (a misuse the run records) ends the walk at the row it
+// returns to.
+func (s *Stream) awaitsCollection(r *row) bool {
+	return s.awaitsCollectionFrom(r, map[record.TaskID]bool{})
+}
+
+func (s *Stream) awaitsCollectionFrom(r *row, seen map[record.TaskID]bool) bool {
+	if r.Awaits == nil || seen[r.ID] {
+		return false
+	}
+	seen[r.ID] = true
+	tasks, groups := r.Awaits()
+	if slices.ContainsFunc(groups, func(id string) bool { return s.blocks[id] != nil }) {
+		return true
+	}
+	return slices.ContainsFunc(tasks, func(id record.TaskID) bool {
+		p := s.rows[id]
+		return p != nil && (p.block != nil || s.awaitsCollectionFrom(p, seen))
+	})
+}
+
+// writeRoots writes rows, in the order given, that are not yet in scrollback,
+// as human output shows them.
+func (s *Stream) writeRoots(b *strings.Builder, shown map[string]bool, rows []*row) {
+	for _, r := range rows {
+		if r.emitted {
 			continue
 		}
 		if shown[string(r.ID)] {

@@ -70,6 +70,65 @@ class FinalMatchesPlainTest(unittest.TestCase):
         with self.assertRaisesRegex(truth.TruthError, "row 0"):
             truth.check_final_matches_plain(settled, 0, streamed, 0)
 
+    def test_streamed_block_members_compare_as_a_set(self) -> None:
+        plain = (
+            "◐ units  unit 2  holding",
+            "   ✓ unit 3",
+            "   ✓ unit 1",
+            "   ✓ unit 2",
+            "✓ units",
+            "✓ after",
+        )
+        screen = frame(
+            "✓ units", "   ✓ unit 1", "   ✓ unit 2", "   ✓ unit 3", "✓ after"
+        )
+        truth.check_final_matches_plain(screen, 0, plain, 0)
+
+    def test_nested_streamed_blocks_settle_to_their_declared_form(self) -> None:
+        plain = (
+            "◐ g1",
+            "   ◐ g2",
+            "      ✓ g3",
+            "         ✓ d1",
+            "      ✓ mid",
+            "   ✓ g2",
+            "   ✓ top",
+            "✓ g1",
+            "✓ after",
+        )
+        screen = frame(
+            "✓ g1",
+            "   ✓ top",
+            "   ✓ g2",
+            "      ✓ mid",
+            "      ✓ g3",
+            "         ✓ d1",
+            "✓ after",
+        )
+        truth.check_final_matches_plain(screen, 0, plain, 0)
+
+    def test_an_unstreamed_container_keeps_its_member_order(self) -> None:
+        plain = ("✓ seq", "   ✓ one", "   ✓ two")
+        screen = frame("✓ seq", "   ✓ two", "   ✓ one")
+        with self.assertRaisesRegex(truth.TruthError, "row 1"):
+            truth.check_final_matches_plain(screen, 0, plain, 0)
+
+    def test_rejects_a_dependent_printed_above_its_block(self) -> None:
+        plain = ("◐ eg", "   ✓ fast", "✓ eg", "- depEx  not started")
+        screen = frame("- depEx  not started", "✓ eg", "   ✓ fast")
+        with self.assertRaisesRegex(truth.TruthError, "row 0"):
+            truth.check_final_matches_plain(screen, 0, plain, 0)
+
+    def test_rejects_held_rows_in_declaration_not_release_order(self) -> None:
+        plain = ("✓ g", "✓ chain", "✓ depdep")
+        screen = frame("✓ g", "✓ depdep", "✓ chain")
+        with self.assertRaisesRegex(truth.TruthError, r"row 1.*depdep.*chain"):
+            truth.check_final_matches_plain(screen, 0, plain, 0)
+
+    def test_a_heartbeat_is_not_a_block(self) -> None:
+        plain = ("◐ build  compiling", "✓ build")
+        truth.check_final_matches_plain(frame("✓ build"), 0, plain, 0)
+
     def test_ignores_timing_suffixes(self) -> None:
         timed = frame("✓ unit 1   12ms", "✓ unit 2", "✓ unit 3")
         truth.check_final_matches_plain(timed, 0, self.PLAIN, 0)
