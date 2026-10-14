@@ -216,12 +216,19 @@ type spawnLedger struct {
 	created func() (uint64, bool)
 }
 
-// start runs f on a new goroutine.
+// start runs f on a new goroutine. f begins only once the spawn is counted,
+// so a census f takes sees its own goroutine as the ledger's and consistent,
+// not as a spawn still under way.
 func (l *spawnLedger) start(f func()) {
+	counted := make(chan struct{})
 	l.active.Add(1)
-	go f()
+	go func() {
+		<-counted
+		f()
+	}()
 	l.done.Add(1)
 	l.active.Add(-1)
+	close(counted)
 }
 
 // census is how many goroutines the process had started and how many of them
