@@ -20,8 +20,9 @@ EXAMPLES=(
 	terminal-driver
 )
 
-# Exit code evo.Main returns for a blocked run (README "Outcome and exit code").
-EXIT_BLOCKED=2
+# Exit code evo.Main returns when a Task Failed (README "Outcome and exit code").
+# A Problem never ends a Task, so only an example that returns a failure uses it.
+EXIT_FAILED=2
 
 # Flags each example accepts; passing one it does not define exits 2.
 example_args() {
@@ -32,15 +33,6 @@ example_args() {
 		;;
 	terminal-driver) echo "--fast --frames" ;;
 	*) echo "" ;; # print, verbose, migrate, data-command: default pass takes no flags
-	esac
-}
-
-# Examples that demonstrate a blocked run on purpose exit EXIT_BLOCKED;
-# every other pass must exit 0.
-example_expected_exit() {
-	case "$1" in
-	repo-status | doctor) echo "${EXIT_BLOCKED}" ;;
-	*) echo 0 ;;
 	esac
 }
 
@@ -79,18 +71,21 @@ run_one() {
 		exit 1
 	fi
 	if [[ "${code}" -ne 0 ]]; then
-		printf '\n(exit %s, expected: this example demonstrates a blocked run)\n' "${code}"
+		printf '\n(exit %s, expected: this example demonstrates a failed run)\n' "${code}"
 	fi
 }
 
 for name in "${EXAMPLES[@]}"; do
 	args="$(example_args "${name}")"
-	run_one "${name}" "${args}" "$(example_expected_exit "${name}")"
+	run_one "${name}" "${args}" 0
+	if [[ "${name}" == "install-pipeline" ]]; then
+		run_one "install-pipeline" "--fast --fail-tests" "${EXIT_FAILED}"
+	fi
 	if [[ "${name}" == "verbose" ]]; then
 		run_one "verbose" "--verbose" 0
 	fi
 	if [[ "${name}" == "debug-pane" ]]; then
-		run_one "debug-pane" "--fast --fail" "${EXIT_BLOCKED}"
+		run_one "debug-pane" "--fast --fail" 0
 	fi
 done
 
