@@ -245,6 +245,15 @@ var processArgv0 = func() string {
 // suppressed as redundant with that header — see
 // txt.ShouldSuppressStandaloneConclusion and evo-rec.md's dry-run
 // section.
+// selfName names the caller's own executable: its Config.Title, else the
+// binary's basename — what a hint to rerun this program runs.
+func (o *Run) selfName() string {
+	if o.cfg.subject != "" {
+		return o.cfg.subject
+	}
+	return identityFallbackName()
+}
+
 func identityFallbackName() string {
 	if base := filepath.Base(processArgv0()); base != "." && base != string(filepath.Separator) {
 		return base

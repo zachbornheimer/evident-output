@@ -1,6 +1,9 @@
 package graph
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import (
+	"github.com/zachbornheimer/evident-output/internal/record"
+	input "github.com/zachbornheimer/evident-output/internal/terminal"
+)
 
 // Answer is what a Confirm gate received. The answer alone decides which
 // state the gate Task reaches.
@@ -35,5 +38,42 @@ func (a Answer) Outcome() record.State {
 		return record.Cancelled
 	default:
 		return record.Refused
+	}
+}
+
+// Summary is the gate Task's row text for the answer: one spelling per
+// refusal, so no caller composes wording a script might parse. Yes typed at
+// the prompt and an interrupt need none.
+func (a Answer) Summary() string {
+	switch a {
+	case AnswerAssumedYes:
+		return "assumed --yes"
+	case AnswerNo:
+		return "declined"
+	case AnswerPolicy:
+		return "blocked by policy"
+	case AnswerClosed:
+		return "no answer — stdin closed"
+	default:
+		return ""
+	}
+}
+
+// Unasked reports a refusal nobody made on purpose — a policy that would
+// not ask, or input that closed — whose row points at how to confirm
+// non-interactively.
+func (a Answer) Unasked() bool { return a == AnswerPolicy || a == AnswerClosed }
+
+// ReplyAnswer is the Answer a reply read at the prompt gives.
+func ReplyAnswer(r input.Reply) Answer {
+	switch r {
+	case input.ReplyYes:
+		return AnswerYes
+	case input.ReplyClosed:
+		return AnswerClosed
+	case input.ReplyInterrupted:
+		return AnswerInterrupted
+	default:
+		return AnswerNo
 	}
 }

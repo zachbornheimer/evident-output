@@ -580,7 +580,7 @@ func (t *Task) basis(inputs ...fingerprint) *Task {
 // when set, else the binary's own basename. Use NextCommand instead when the
 // remedy is a different (foreign) tool.
 func (o *Run) nextSelf(args ...string) ProblemOption {
-	return nextCommand(o.policySourceName(), args...)
+	return nextCommand(o.selfName(), args...)
 }
 
 // Bytes sets absolute byte progress (units and rate formatting).

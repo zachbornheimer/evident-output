@@ -38,9 +38,8 @@ type Run struct {
 	// when that teardown ends, so a concurrent Close waits instead of
 	// tearing down twice.
 	closing chan struct{}
-	// confirmTurn holds one token while a Confirm owns the terminal (see
-	// awaitConfirmTurn); nil until the first Confirm asks.
-	confirmTurn chan struct{}
+	// confirmTurn lets one Confirm at a time own the terminal.
+	confirmTurn *terminal.Turn
 	finishing   bool
 	finished    bool
 	// misuse records the first API misuse of this run. Graph workers call it
@@ -173,6 +172,7 @@ func newOutput(subject string, options ...option) *Run {
 		rec:             run,
 		misuse:          misuse.New(cfg.strict),
 		outputID:        "out_1",
+		confirmTurn:     terminal.NewTurn(),
 		taskStates:      make(map[string]*taskState),
 		containerStates: make(map[string]*tasksState),
 	}

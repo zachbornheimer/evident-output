@@ -33,7 +33,7 @@ func TestConfirm_PolicyFlag_FillsExecutableFromTitle(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{stdout: &buf, title: "clean-repo", color: colorNever, plain: true})
 
-	out.Confirm("delete 8 stale local branches?", policyFlag("--apply"))
+	out.Confirm("delete 8 stale local branches?", NonInteractive("--apply"))
 
 	item := out.snapshot().Tasks[0]
 	actions := policyBlockActions(t, item)

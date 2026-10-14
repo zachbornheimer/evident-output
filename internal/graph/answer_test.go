@@ -21,3 +21,26 @@ func TestAnswerOutcomeDecidesTheGateState(t *testing.T) {
 		}
 	}
 }
+
+func TestAnswerSummaryAndHint(t *testing.T) {
+	cases := []struct {
+		answer  Answer
+		summary string
+		unasked bool
+	}{
+		{AnswerYes, "", false},
+		{AnswerAssumedYes, "assumed --yes", false},
+		{AnswerNo, "declined", false},
+		{AnswerPolicy, "blocked by policy", true},
+		{AnswerClosed, "no answer — stdin closed", true},
+		{AnswerInterrupted, "", false},
+	}
+	for _, c := range cases {
+		if got := c.answer.Summary(); got != c.summary {
+			t.Errorf("Answer(%d).Summary() = %q, want %q", c.answer, got, c.summary)
+		}
+		if got := c.answer.Unasked(); got != c.unasked {
+			t.Errorf("Answer(%d).Unasked() = %v, want %v", c.answer, got, c.unasked)
+		}
+	}
+}
