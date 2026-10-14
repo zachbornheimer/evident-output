@@ -18,6 +18,11 @@ interval, from the last Writer evidence line to the settle:
 - at least MIN_QUIET_CHANGES changed frames arrive;
 - the owner row stays named, all evidence lines stay on screen, no fake progress.
 
+With --compare-plain, the frames must also settle forward only (a settled row
+never reverts, a completion count never falls), and the last frame plus the exit
+code must equal the Plain rows and exit code of an identical run with
+EVO_OUTPUT=plain (ptystream_truth).
+
 A reader that was itself descheduled for the bound or more cannot prove the
 bound, so that attempt is retried (up to ATTEMPTS) and never passes.
 """
@@ -43,6 +48,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import ptystream_frames as stream
+import ptystream_truth as truth
 
 ROOT = Path(__file__).resolve().parent.parent
 QUIET_EXAMPLE = "./examples/quiet-writer"
@@ -64,6 +70,7 @@ READ_POLL_S = 0.002
 READ_SIZE = 65536
 PTY_ROWS, PTY_COLS = 24, 100
 TERM_VALUE = "xterm-256color"
+PLAIN_OUTPUT = "plain"
 FAKE_PROGRESS_RE = re.compile(r"\d+\s*%|[█░▓▒■□]")
 
 
@@ -131,6 +138,33 @@ def run_under_pty(
         os.close(master)
     _, status = os.waitpid(pid, 0)
     return chunks, os.waitstatus_to_exitcode(status), worst_loop_ns / stream.NS_PER_MS
+
+
+def run_plain(
+    binary: Path, args: tuple[str, ...], timeout_s: int
+) -> tuple[list[str], int]:
+    """Return the stderr rows and exit status of the same run with output forced to plain."""
+    done = subprocess.run(
+        [str(binary), *args],
+        env=os.environ | {"EVO_OUTPUT": PLAIN_OUTPUT},
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=timeout_s,
+    )
+    return done.stderr.splitlines(), done.returncode
+
+
+def verify_truth(
+    frames: list[stream.Frame], exit_code: int, binary: Path, scenario: Scenario
+) -> None:
+    """Frames settle forward, and the final screen is the Plain run's rows."""
+    plain_rows, plain_exit = run_plain(binary, scenario.args, scenario.timeout_s)
+    try:
+        truth.check_monotonic(frames)
+        truth.check_final_matches_plain(frames[-1], exit_code, plain_rows, plain_exit)
+    except truth.TruthError as err:
+        raise VerifyError(str(err)) from err
 
 
 def ms(later_ns: int, earlier_ns: int) -> float:
@@ -247,7 +281,9 @@ def scenario_for(tasks: int | None) -> Scenario:
     )
 
 
-def attempt(binary: Path, scenario: Scenario, max_gap_ms: float) -> dict[str, float]:
+def attempt(
+    binary: Path, scenario: Scenario, max_gap_ms: float, compare_plain: bool
+) -> dict[str, float]:
     chunks, exit_code, reader_max_loop_ms = run_under_pty(
         binary, scenario.args, scenario.timeout_s
     )
@@ -255,7 +291,11 @@ def attempt(binary: Path, scenario: Scenario, max_gap_ms: float) -> dict[str, fl
         raise Unprovable(f"reader stalled {reader_max_loop_ms:.0f}ms")
     if exit_code != 0:
         raise VerifyError(f"{Path(scenario.example).name} exit {exit_code}, want 0")
-    result = scenario.verify(stream.split_frames(chunks), max_gap_ms)
+    frames = stream.split_frames(chunks)
+    result = scenario.verify(frames, max_gap_ms)
+    if compare_plain:
+        verify_truth(frames, exit_code, binary, scenario)
+        result = result | {"final_equals_plain": True}
     return result | {"reader_max_loop_ms": round(reader_max_loop_ms, 1)}
 
 
@@ -273,6 +313,11 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_MAX_GAP_MS,
         help="fail when two changed frames arrive this far apart or more",
     )
+    parser.add_argument(
+        "--compare-plain",
+        action="store_true",
+        help="also require monotonic frames and a final screen equal to the Plain run",
+    )
     return parser.parse_args()
 
 
@@ -288,7 +333,7 @@ def main() -> int:
             return 1
         for number in range(1, ATTEMPTS + 1):
             try:
-                result = attempt(binary, scenario, args.max_gap_ms)
+                result = attempt(binary, scenario, args.max_gap_ms, args.compare_plain)
             except Unprovable as err:
                 last_unprovable = str(err)
                 print(
