@@ -2,6 +2,7 @@ package evo
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"strings"
 	"testing"
@@ -123,9 +124,18 @@ func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 	out := initRun(Config{Name: "tool", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
+	// The Task stays unresolved until the Problem is recorded: a Problem on
+	// a settled Task is misuse, so the callback waits on a gate this test
+	// opens after Problem instead of racing the scheduler.
+	problemRecorded := make(chan struct{})
+	effect := engineEffectOf(change.EffectAdd, "x", 1)
 	tool := out.Task("tool")
-	tool.Define(engineEffectOf(change.EffectAdd, "x", 1))
+	tool.Define(func(ctx context.Context) error {
+		<-problemRecorded
+		return effect(ctx)
+	})
 	tool.Problem("working tree state not checked", severity(severityWarning), nextCommand("git", "status"))
+	close(problemRecorded)
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
