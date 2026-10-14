@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"runtime"
 	"testing"
 	"time"
@@ -21,17 +22,21 @@ const (
 
 	// scaleSmallDivisor sets the small run at 1/10 of the full task count.
 	scaleSmallDivisor = 10
-	// maxScaleRatio bounds elapsed(full)/elapsed(small). Linear growth for
-	// scaleSmallDivisor times the Tasks gives 10; 2x headroom absorbs noise
-	// and still fails any quadratic behavior (which gives about 100).
+	// maxScaleRatio bounds cpu(full)/cpu(small), where cpu is the process
+	// CPU time a run consumed. Linear growth for scaleSmallDivisor times
+	// the Tasks gives 10; 2x headroom absorbs cache and GC effects of the
+	// larger heap and still fails any quadratic behavior (which gives
+	// about 100).
 	maxScaleRatio = 20.0
 	// maxBytesPerTask bounds cumulative allocation per Task (declaring,
 	// scheduling, and running it), so a per-Task memory regression fails
 	// regardless of host load.
 	maxBytesPerTask = 128 << 10
-	// hangGuard is not a performance budget. It only turns a hung run into
-	// a failure with a message; host load cannot plausibly reach it.
-	hangGuard = 10 * time.Minute
+	// maxBytesRatio bounds bytesPerTask(full)/bytesPerTask(small). Linear
+	// growth keeps it near 1 (map and slice growth account for the rest);
+	// 2x still fails a builder whose per-Task allocation grows with the
+	// Task count.
+	maxBytesRatio = 2.0
 )
 
 func newScaleOutput(t *testing.T) *Run {
@@ -43,57 +48,68 @@ func newScaleOutput(t *testing.T) *Run {
 
 // scaleSample is what one run of n Tasks cost.
 type scaleSample struct {
-	elapsed      time.Duration
+	cpu          time.Duration
 	bytesPerTask float64
 }
 
-// sampleRun times run and measures the bytes it allocated per Task.
-func sampleRun(t *testing.T, tasks int, run func()) scaleSample {
-	t.Helper()
+// sampleRun measures the CPU time run consumed and the bytes it allocated
+// per Task. CPU time does not count the time the OS spent running another
+// process, and allocated bytes do not depend on scheduling at all; a hung
+// run is stopped by go test's own timeout.
+func sampleRun(tasks int, run func()) scaleSample {
 	runtime.GC()
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	start := time.Now()
-	run()
-	elapsed := time.Since(start)
+	cpu := scaletest.CPUElapsed(run)
 	runtime.ReadMemStats(&after)
-	if elapsed > hangGuard {
-		t.Fatalf("run of %d Tasks took %s: hung", tasks, elapsed)
-	}
-	return scaleSample{elapsed: elapsed, bytesPerTask: float64(after.TotalAlloc-before.TotalAlloc) / float64(tasks)}
+	return scaleSample{cpu: cpu, bytesPerTask: float64(after.TotalAlloc-before.TotalAlloc) / float64(tasks)}
 }
 
-// bestSample takes scaletest.Samples runs of tasks and returns the fastest
-// elapsed time with the largest bytes per Task seen, so load cannot inflate
-// the time and no run's allocation escapes the memory bound.
-func bestSample(t *testing.T, tasks int, run func()) scaleSample {
-	t.Helper()
-	var worstBytes float64
-	elapsed := scaletest.Fastest(scaletest.Samples, func() time.Duration {
-		sample := sampleRun(t, tasks, run)
-		worstBytes = max(worstBytes, sample.bytesPerTask)
-		return sample.elapsed
-	})
-	return scaleSample{elapsed: elapsed, bytesPerTask: worstBytes}
-}
+// scalePair is one back-to-back small and full run. Pairing them puts both
+// under the same host load, so a pair's ratios reflect the code more than
+// the moment.
+type scalePair struct{ small, full scaleSample }
 
-// assertScalesLinearly runs the shape at 1/10 and at full size under the
-// same load and checks cost grows near-linearly in time and memory. Both
-// checks compare the process with itself, and each size is its fastest of
-// scaletest.Samples runs, so host load cancels out.
+func (p scalePair) cpuRatio() float64 { return float64(p.full.cpu) / float64(p.small.cpu) }
+
+func (p scalePair) bytesRatio() float64 { return p.full.bytesPerTask / p.small.bytesPerTask }
+
+// assertScalesLinearly runs the shape at 1/10 and at full size in pairs and
+// checks cost grows near-linearly in CPU time and memory. Load and cache
+// contention only ever inflate a pair's CPU ratio, while a superlinear
+// builder inflates every pair to about the square (100x), so one pair within
+// the bound proves linear growth; it stops there, and fails only when none of
+// scaletest.Samples pairs fits. Allocated bytes are load-independent, so the
+// per-Task memory bounds hold for every pair.
 func assertScalesLinearly(t *testing.T, name string, fullTasks int, run func(tasks int)) {
 	t.Helper()
 	smallTasks := fullTasks / scaleSmallDivisor
 	run(smallTasks) // warm-up: first-run costs are not scaling
-	small := bestSample(t, smallTasks, func() { run(smallTasks) })
-	full := bestSample(t, fullTasks, func() { run(fullTasks) })
-	ratio := float64(full.elapsed) / float64(small.elapsed)
-	t.Logf("%s: small %s, full %s (ratio %.1f, limit %.0f); %.0f bytes/Task", name, small.elapsed, full.elapsed, ratio, maxScaleRatio, full.bytesPerTask)
-	if ratio > maxScaleRatio {
-		t.Fatalf("%s: %dx the Tasks cost %.1fx the time, want <= %.0fx", name, scaleSmallDivisor, ratio, maxScaleRatio)
+	best := scalePair{}
+	bestBytesRatio := math.Inf(1)
+	for pairs := range scaletest.Samples {
+		pair := scalePair{
+			small: sampleRun(smallTasks, func() { run(smallTasks) }),
+			full:  sampleRun(fullTasks, func() { run(fullTasks) }),
+		}
+		if pair.full.bytesPerTask > maxBytesPerTask {
+			t.Fatalf("%s: %.0f bytes allocated per Task, want <= %d", name, pair.full.bytesPerTask, maxBytesPerTask)
+		}
+		bestBytesRatio = min(bestBytesRatio, pair.bytesRatio())
+		if pairs == 0 || pair.cpuRatio() < best.cpuRatio() {
+			best = pair
+		}
+		if best.cpuRatio() <= maxScaleRatio {
+			break
+		}
 	}
-	if full.bytesPerTask > maxBytesPerTask {
-		t.Fatalf("%s: %.0f bytes allocated per Task, want <= %d", name, full.bytesPerTask, maxBytesPerTask)
+	t.Logf("%s: small %s CPU, full %s CPU (ratio %.1f, limit %.0f); %.0f bytes/Task (ratio %.2f, limit %.0f)",
+		name, best.small.cpu, best.full.cpu, best.cpuRatio(), maxScaleRatio, best.full.bytesPerTask, bestBytesRatio, maxBytesRatio)
+	if best.cpuRatio() > maxScaleRatio {
+		t.Fatalf("%s: %dx the Tasks cost %.1fx the CPU time in every pair, want <= %.0fx", name, scaleSmallDivisor, best.cpuRatio(), maxScaleRatio)
+	}
+	if bestBytesRatio > maxBytesRatio {
+		t.Fatalf("%s: bytes per Task grew %.2fx for %dx the Tasks, want <= %.0fx", name, bestBytesRatio, scaleSmallDivisor, maxBytesRatio)
 	}
 }
 
