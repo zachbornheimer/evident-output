@@ -71,19 +71,20 @@ func (r reactions) Changed(id record.TaskID) (record.State, bool) {
 	return to, true
 }
 
-// Settled is the work a settle owes, whichever code settled the Task: its
-// timing and task.finished, then, for a Task with a row, its live filing,
-// its heartbeat and the task.<state> journal event.
+// Settled is the work a settle owes, whichever code settled the Task: for a
+// builder's gate only a new version, since a gate is no declared Task and
+// never reaches evo.event; for a Task, its timing, task.finished, its live
+// filing, its heartbeat and the task.<state> journal event.
 func (r reactions) Settled(id record.TaskID, to record.State) {
 	p, t := r.p, r.p.tasks[id]
-	if row := p.Rows.Task(id); row != nil {
-		row.Timing.Settled = p.cfg.Clock.Now()
-	}
-	p.Narrate(wire.EventTaskFinished, string(id), func() map[string]any { return finishedPayload(t.rec) })
 	p.version++
 	if t.gate {
 		return
 	}
+	if row := p.Rows.Task(id); row != nil {
+		row.Timing.Settled = p.cfg.Clock.Now()
+	}
+	p.Narrate(wire.EventTaskFinished, string(id), func() map[string]any { return finishedPayload(t.rec) })
 	p.Board.Changed(id)
 	p.Stream.Settled(id)
 	p.journal("task."+string(to), string(id))

@@ -180,7 +180,7 @@ func (p *Presenter) DeclareGroup(g project.DeclaredGroup, parent string) {
 // reports whether this call answered it.
 func (p *Presenter) Started(id record.TaskID) bool {
 	t := p.tasks[id]
-	if t == nil || t.started {
+	if t == nil || t.gate || t.started {
 		return false
 	}
 	t.started = true

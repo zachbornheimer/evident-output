@@ -43,3 +43,32 @@ func TestJSONLEmitsTerminalEventForEveryTask(t *testing.T) {
 		})
 	}
 }
+
+// TestJSONLNeverEmitsBuilderGates pins CONTRACT.md §7: a container builder is
+// the library's own scheduling, not a declared Task, so evo.event names only
+// the Tasks and collections the program declared, and every task.finished
+// answers a task.declared.
+func TestJSONLNeverEmitsBuilderGates(t *testing.T) {
+	run := executeContract(context.Background(), t, evo.Config{Name: "builder gates", Output: evo.JSONL},
+		func(_ context.Context, r *evo.Run) error {
+			prepare := r.Task("prepare").Define(func(context.Context) error { return nil })
+			r.Group("items").After(prepare).Build(func(g *evo.Group) {
+				for _, name := range []string{"a", "b"} {
+					g.Task(name).Define(func(context.Context) error { return nil })
+				}
+			})
+			return nil
+		})
+	events := runEvents(t, run.Stdout)
+	declared := map[any]bool{}
+	for _, typ := range []string{"task.declared", "collection.declared"} {
+		for _, event := range eventsOfType(events, typ) {
+			declared[event["entity_id"]] = true
+		}
+	}
+	for _, event := range events {
+		if id, named := event["entity_id"]; named && id != "" && !declared[id] {
+			t.Errorf("seq %v %v names %v, which the program never declared", event["seq"], event["type"], id)
+		}
+	}
+}
