@@ -148,13 +148,20 @@ func (s *Stream) hasUnstreamedSection() bool {
 // foldedSections is tense's ledger laid out for project.WriteEffects, with
 // sibling same-effect sections folded into one row.
 func (s *Stream) foldedSections(tense record.LedgerTense, members project.ContainerMembers) []project.EffectSection {
+	return project.FoldEffectSections(tense.String(), s.width(), s.ledgerSources(tense, ""), members)
+}
+
+// ledgerSources is tense's ledger as the fold reads it. A section already
+// streamed, and the one named by streaming, never fold: both are written as
+// rows of their own.
+func (s *Stream) ledgerSources(tense record.LedgerTense, streaming string) []project.SectionSource {
 	sections := s.cfg.Run.Sections(tense)
 	sources := make([]project.SectionSource, len(sections))
 	for i, sec := range sections {
 		sources[i] = project.SectionSource{
 			Subject: sec.Subject, Records: sec.Records, IntendedVerb: sec.IntendedVerb,
-			Containers: sec.Containers, Streamed: s.streamed[sec.ID],
+			Containers: sec.Containers, Streamed: s.streamed[sec.ID] || sec.ID == streaming,
 		}
 	}
-	return project.FoldEffectSections(tense.String(), s.width(), sources, members)
+	return sources
 }

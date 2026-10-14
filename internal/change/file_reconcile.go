@@ -146,7 +146,7 @@ func (r *Run) applyFile(ctx context.Context, op fileOperation) error {
 		if op.manifestManaged() {
 			r.host.PlanOperation(op.taskID, op.plannedChanges(delta)...)
 		}
-		r.recordFileEffectIf(op, delta.mutates())
+		r.recordFileEffectIf(op, delta)
 		r.finishFile(op, delta.mutates())
 		return nil
 	}
@@ -154,7 +154,7 @@ func (r *Run) applyFile(ctx context.Context, op fileOperation) error {
 		r.host.FailOperation(op.taskID, freshness.OperationKindFile)
 		return mutateErr
 	}
-	r.recordFileEffectIf(op, delta.mutates())
+	r.recordFileEffectIf(op, delta)
 	if op.manifestManaged() {
 		if recordErr := r.recordFileOperation(ctx, op); recordErr != nil {
 			return recordErr
@@ -201,10 +201,20 @@ func (r *Run) finishFile(op fileOperation, changed bool) {
 }
 
 // recordFileEffectIf records op's Effect when reconciling it mutates.
-func (r *Run) recordFileEffectIf(op fileOperation, mutates bool) {
-	if mutates {
-		r.recordEntry(op.taskID, record.NamedEntry("write", op.spec.Path))
+func (r *Run) recordFileEffectIf(op fileOperation, delta fileDelta) {
+	if delta.mutates() {
+		r.recordEntry(op.taskID, op.ledgerEntry(delta))
 	}
+}
+
+// ledgerEntry names the attribute delta changes: "write <path>" when the
+// contents change (a write leaves the mode right too), "set mode of <path>"
+// when only the mode differs.
+func (op fileOperation) ledgerEntry(delta fileDelta) record.LedgerEntry {
+	if delta.writeNeeded {
+		return record.NamedEntry("write", op.spec.Path)
+	}
+	return record.NamedEntry("set", "mode of "+op.spec.Path)
 }
 
 // recordEntry resolves id's ledger and records e there — the entry point for

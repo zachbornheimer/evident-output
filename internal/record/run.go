@@ -148,14 +148,6 @@ func (r *Run) HasPlannedEffect(ownerID string) bool {
 	return r.ledger.hasPlannedEffect(ownerID)
 }
 
-// MaxSubjectWidth is the widest subject among tense's sections, 0 for fewer
-// than two (a lone section needs no alignment).
-func (r *Run) MaxSubjectWidth(tense LedgerTense) int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.ledger.maxSubjectWidth(tense)
-}
-
 // ChangeSnapshots is the [changed] sections as snapshots, in ledger order.
 func (r *Run) ChangeSnapshots() []ChangesSnapshot {
 	r.mu.Lock()

@@ -106,6 +106,22 @@ type foldSurvey struct {
 // many items it counts. members is what the run's containers hold (see
 // ContainerMembers); nil asks nothing of any container.
 func FoldEffectSections(kind string, width int, sources []SectionSource, members ContainerMembers) []EffectSection {
+	out, shown := foldSections(kind, width, sources, members)
+	alignSubjects(out, shown)
+	return out
+}
+
+// FoldedSubjectWidth is the subject column FoldEffectSections would align
+// sources to once folded, 0 when the ledger shows fewer than two rows. It is
+// how a row written before Finish lines up with the sections Finish writes.
+func FoldedSubjectWidth(kind string, sources []SectionSource, members ContainerMembers) int {
+	_, shown := foldSections(kind, 0, sources, members)
+	return subjectColumnWidth(shown)
+}
+
+// foldSections is the fold itself: the sections to write, and every subject
+// the ledger shows, including those already streamed.
+func foldSections(kind string, width int, sources []SectionSource, members ContainerMembers) ([]EffectSection, []shownSubject) {
 	survey := surveyFold(sources, members)
 	var (
 		out      []EffectSection
@@ -134,8 +150,7 @@ func FoldEffectSections(kind string, width int, sources []SectionSource, members
 		})
 	}
 	qualifyDuplicates(out, shown)
-	alignSubjects(out, shown)
-	return out
+	return out, shown
 }
 
 // quantityOf is the total quantity a foldable section records.
@@ -289,14 +304,21 @@ func (v foldSurvey) highestUniform(src SectionSource) (record.ContainerPath, boo
 // alignSubjects sets the shared subject column to the widest subject the
 // ledger shows; a lone row needs no alignment.
 func alignSubjects(out []EffectSection, shown []shownSubject) {
+	widest := subjectColumnWidth(shown)
+	for i := range out {
+		out[i].NameWidth = widest
+	}
+}
+
+// subjectColumnWidth is the widest subject shown, 0 for fewer than two (a
+// lone row needs no alignment).
+func subjectColumnWidth(shown []shownSubject) int {
 	if len(shown) < 2 {
-		return
+		return 0
 	}
 	widest := 0
 	for _, s := range shown {
 		widest = max(widest, Cells(s.text))
 	}
-	for i := range out {
-		out[i].NameWidth = widest
-	}
+	return widest
 }

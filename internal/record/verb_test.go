@@ -34,6 +34,7 @@ func TestPastTense_SingleWordVerbsUnaffected(t *testing.T) {
 		{"delete", "deleted"},
 		{"push", "pushed"},
 		{"write", "wrote"},
+		{"set", "set"},
 	}
 	for _, tc := range cases {
 		if got := PastTense(tc.verb); got != tc.want {

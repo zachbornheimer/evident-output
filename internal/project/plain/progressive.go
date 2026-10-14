@@ -231,11 +231,19 @@ func (s *Stream) takeEffects(owner string) string {
 		}
 		project.WriteEffects(&b, project.EffectSection{
 			Kind: sec.Tense.String(), Subject: sec.Subject, Records: sec.Records,
-			IntendedVerb: sec.IntendedVerb, NameWidth: s.cfg.Run.MaxSubjectWidth(tense), Width: s.width(),
+			IntendedVerb: sec.IntendedVerb, NameWidth: s.foldedSubjectWidth(tense, sec.ID), Width: s.width(),
 		}, s.cfg.Style)
 		s.streamed[sec.ID] = true
 	}
 	return b.String()
+}
+
+// foldedSubjectWidth is the subject column the ledger will have once folded,
+// counting the section being streamed as the row it is about to be. Finish
+// aligns the sections it writes to the same column. The fold asks nothing of
+// a container's membership here: the run is still declaring them.
+func (s *Stream) foldedSubjectWidth(tense record.LedgerTense, streaming string) int {
+	return project.FoldedSubjectWidth(tense.String(), s.ledgerSources(tense, streaming), nil)
 }
 
 // hasNamedRecord reports whether records holds a row without a quantity

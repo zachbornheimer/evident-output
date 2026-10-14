@@ -65,8 +65,8 @@ func CountedEntry(verb, object string, quantity int) LedgerEntry {
 	return LedgerEntry{verb: verb, object: object, quantity: quantity, counted: true}
 }
 
-// NamedEntry is an uncounted row naming one object: File's "write <path>",
-// Exec's "run <executable>".
+// NamedEntry is an uncounted row naming one object: File's "write <path>"
+// or "set mode of <path>", Exec's "run <executable>".
 func NamedEntry(verb, object string) LedgerEntry {
 	return LedgerEntry{verb: verb, object: object}
 }
@@ -252,20 +252,6 @@ func (l *ledger) hasRecordedEffect(ownerID string) bool {
 func (l *ledger) hasPlannedEffect(ownerID string) bool {
 	s, ok := l.find(ownerID, TensePlanned)
 	return ok && len(s.records) > 0
-}
-
-// maxSubjectWidth is the widest subject among tense's sections, so their
-// rows align; a lone section needs no alignment.
-func (l *ledger) maxSubjectWidth(tense LedgerTense) int {
-	sections := l.sections(tense)
-	if len(sections) < 2 {
-		return 0
-	}
-	width := 0
-	for _, s := range sections {
-		width = max(width, len([]rune(s.subject)))
-	}
-	return width
 }
 
 // cloneRecords copies rows; an empty list stays nil, as a section that never

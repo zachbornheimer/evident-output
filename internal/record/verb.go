@@ -12,6 +12,7 @@ import "strings"
 var irregularPastTense = map[string]string{
 	"write": "wrote",
 	"run":   "ran",
+	"set":   "set",
 }
 
 // compoundPastTense holds hyphenated imperative verbs whose past tense does
