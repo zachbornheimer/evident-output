@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-const testContract = "# Contract\n\nThe   quick brown\nfox jumps.\n"
+const testContract = "# Contract\n\n## 1. Run\n\nThe   quick brown\nfox jumps.\n"
 
 func lintWith(t *testing.T, registry string, extra map[string]string) []string {
 	t.Helper()
@@ -70,7 +70,46 @@ func TestLintWaiverSatisfiesBinding(t *testing.T) {
 }
 
 func TestLintWaiverAllowsHistoricalQuote(t *testing.T) {
-	entry := `[{"id":"C01-001","section":"1","quote":"not in the 2.0 contract","tier":"1.1","waiver":"2.0 CONTRACT.md replaced this 1.x sentence"}]`
+	entry := `[{"id":"C01-001","section":"1","quote":"not in the 2.0 contract","tier":"1.1","waiver":"CONTRACT §1 replaced this 1.x sentence"}]`
+	if got := lintWith(t, entry, nil); len(got) != 0 {
+		t.Fatalf("want clean, got %v", got)
+	}
+}
+
+func TestLintWaiverNeedsAReason(t *testing.T) {
+	for name, waiver := range map[string]string{"empty": `""`, "blank": `"  \n"`} {
+		t.Run(name, func(t *testing.T) {
+			entry := `[{"id":"C01-001","section":"1","quote":"quick","tier":"1.2","tests":[{"pkg":"./x","run":"T"}],"waiver":` + waiver + `}]`
+			wantViolation(t, lintWith(t, entry, nil), "waiver has no reason")
+		})
+	}
+}
+
+func TestLintTier11WaiverCitesASection(t *testing.T) {
+	cases := map[string]struct{ waiver, want string }{
+		"no citation":       {"superseded: the contract does not carry this", "must cite the superseding CONTRACT §N"},
+		"missing section":   {"CONTRACT §9 replaced this", "CONTRACT §9, which does not exist"},
+		"bare section sign": {"see §1", "must cite the superseding CONTRACT §N"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			entry := `[{"id":"C01-001","section":"1","quote":"gone","tier":"1.1","waiver":"` + tc.waiver + `"}]`
+			wantViolation(t, lintWith(t, entry, nil), tc.want)
+		})
+	}
+}
+
+func TestLintTier11WaiverCitingASectionIsClean(t *testing.T) {
+	for _, waiver := range []string{"CONTRACT §1 replaced this 1.x sentence", "removed in 2.0: Skipped (now Exclude, CONTRACT.md §1)"} {
+		entry := `[{"id":"C01-001","section":"1","quote":"gone","tier":"1.1","waiver":"` + waiver + `"}]`
+		if got := lintWith(t, entry, nil); len(got) != 0 {
+			t.Fatalf("waiver %q: want clean, got %v", waiver, got)
+		}
+	}
+}
+
+func TestLintTier12WaiverNeedsNoCitation(t *testing.T) {
+	entry := `[{"id":"C01-001","section":"1","quote":"gone","tier":"1.2","waiver":"manual review only"}]`
 	if got := lintWith(t, entry, nil); len(got) != 0 {
 		t.Fatalf("want clean, got %v", got)
 	}

@@ -1,23 +1,5 @@
 [
   {
-    "id": "C10-001",
-    "section": "10",
-    "quote": "Uncertainty or corruption causes safe revalidation/re-execution, never false satisfaction.",
-    "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./internal/freshness",
-        "run": "TestStoreCorruptManifestIsSafeMissNotEvidence"
-      },
-      {
-        "pkg": "./internal/freshness",
-        "run": "TestStoreUnknownSchemaVersionIsSafeMiss"
-      }
-    ],
-    "default": false,
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
-  },
-  {
     "id": "C10-002",
     "section": "10",
     "quote": "Recorded status commits atomically; uncertainty re-executes and never reports Satisfied.",
@@ -28,93 +10,6 @@
         "run": "TestStoreCommitTaskIsAtomicAndReadableAfterReopen"
       }
     ],
-    "default": false
-  },
-  {
-    "id": "C10-003",
-    "section": "10",
-    "quote": "concurrent writers;",
-    "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./internal/freshness",
-        "run": "TestStoreConcurrentOpensSerializeOnTheLock"
-      }
-    ],
-    "default": false,
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
-  },
-  {
-    "id": "C10-004",
-    "section": "10",
-    "quote": "missing manifest;",
-    "tier": "1.1",
-    "tests": [],
-    "default": false,
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
-  },
-  {
-    "id": "C10-005",
-    "section": "10",
-    "quote": "corrupt manifest;",
-    "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./internal/freshness",
-        "run": "TestStoreCorruptManifestIsSafeMissNotEvidence"
-      }
-    ],
-    "default": false,
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
-  },
-  {
-    "id": "C10-006",
-    "section": "10",
-    "quote": "schema upgrades;",
-    "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./internal/freshness",
-        "run": "TestStoreUnknownSchemaVersionIsSafeMiss"
-      }
-    ],
-    "default": false,
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
-  },
-  {
-    "id": "C10-007",
-    "section": "10",
-    "quote": "fingerprint algorithm changes.",
-    "tier": "1.1",
-    "tests": [],
-    "default": false,
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
-  },
-  {
-    "id": "C10-008",
-    "section": "10",
-    "quote": "missing resources;",
-    "tier": "1.1",
-    "tests": [],
-    "default": false,
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
-  },
-  {
-    "id": "C10-009",
-    "section": "10",
-    "quote": "Use stable Task/resource identities, not human display labels alone.",
-    "tier": "1.1",
-    "tests": [],
-    "waiver": "UNCLASSIFIED: no public test proves manifest identity survives a display-name change; needs a renamed-Task-same-Key scenario (WP2).",
-    "default": false
-  },
-  {
-    "id": "C10-010",
-    "section": "10",
-    "quote": "application/definition changes;",
-    "tier": "1.1",
-    "tests": [],
-    "waiver": "UNCLASSIFIED: a changed application/definition fingerprint cannot be produced from a Go test without rebuilding the binary; needs an AppID/definition seam.",
     "default": false
   }
 ]

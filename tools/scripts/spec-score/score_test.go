@@ -14,6 +14,9 @@ func entry(id, section string, tier Tier, tests ...TestRef) Entry {
 
 func ref(pkg, run string) TestRef { return TestRef{Pkg: pkg, Run: run} }
 
+// waiver is a registry waiver whose reason is reason.
+func waiver(reason string) *string { return &reason }
+
 func TestScoreStatuses(t *testing.T) {
 	runner := &fakeRunner{
 		streams: map[string]string{
@@ -22,7 +25,7 @@ func TestScoreStatuses(t *testing.T) {
 		errs: map[string]error{"./broken": errors.New("build failed")},
 	}
 	waived := entry("C01-006", "1", Tier12)
-	waived.Waiver = "manual"
+	waived.Waiver = waiver("manual")
 	entries := []Entry{
 		entry("C01-001", "1", Tier11, ref("./a", "TestPass")),
 		entry("C01-002", "1", Tier11, ref("./a", "TestFail")),
@@ -58,7 +61,7 @@ func TestScoreRunsEachPackageOnce(t *testing.T) {
 func TestScoreTierAndSectionTotals(t *testing.T) {
 	runner := &fakeRunner{streams: map[string]string{"./a": event("pass", "TestA")}}
 	waived := entry("C02-003", "2", Tier12)
-	waived.Waiver = "manual"
+	waived.Waiver = waiver("manual")
 	entries := []Entry{
 		entry("C01-001", "1", Tier11, ref("./a", "TestA")),
 		entry("C01-002", "1", Tier11, ref("./a", "TestNope")),
@@ -159,9 +162,9 @@ func TestMissingRatchetIsEmpty(t *testing.T) {
 
 func TestGatePassesWhenRatchetedIDIsWaived(t *testing.T) {
 	files := map[string]string{
-		"r/" + contractPath: "the quote text",
+		"r/" + contractPath: "## 1. Run\nthe quote text",
 		"r/conformance/spec/req/s01.json": `[
- {"id":"C01-001","section":"1","quote":"historical 1.x sentence","tier":"1.1","waiver":"2.0 CONTRACT.md replaced this 1.x sentence","tests":[{"pkg":"./a","run":"TestA"}]}]`,
+ {"id":"C01-001","section":"1","quote":"historical 1.x sentence","tier":"1.1","waiver":"CONTRACT §1 replaced this 1.x sentence","tests":[{"pkg":"./a","run":"TestA"}]}]`,
 		"r/" + ratchetPath: `["C01-001"]`,
 	}
 	fsys := newFakeFS(files)

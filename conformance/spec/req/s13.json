@@ -6,16 +6,7 @@
     "tier": "1.1",
     "tests": [],
     "default": false,
-    "waiver": "removed in 2.0: Skipped (now Exclude); see docs/migration/2.0.md"
-  },
-  {
-    "id": "C13-002",
-    "section": "13",
-    "quote": "A lone skipped item folds into its Group's tally like any other count",
-    "tier": "1.1",
-    "tests": [],
-    "default": false,
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
+    "waiver": "removed in 2.0: Skipped (now Exclude); superseded by CONTRACT \u00a74; see docs/migration/2.0.md"
   },
   {
     "id": "C13-003",
@@ -24,25 +15,7 @@
     "tier": "1.1",
     "tests": [],
     "default": false,
-    "waiver": "removed in 2.0: Skipped (now Exclude); see docs/migration/2.0.md"
-  },
-  {
-    "id": "C13-004",
-    "section": "13",
-    "quote": "A Group without a Summary has no header row; its children render as siblings.",
-    "tier": "1.1",
-    "tests": [],
-    "default": false,
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
-  },
-  {
-    "id": "C13-005",
-    "section": "13",
-    "quote": "A header-less child whose name another visible row also shows is named by its container path (`g \u203a build`).",
-    "tier": "1.1",
-    "tests": [],
-    "default": false,
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
+    "waiver": "removed in 2.0: Skipped (now Exclude); superseded by CONTRACT \u00a74; see docs/migration/2.0.md"
   },
   {
     "id": "C13-006",
@@ -51,78 +24,6 @@
     "tier": "1.1",
     "tests": [],
     "default": false,
-    "waiver": "removed in 2.0: Done (a nil return from Define); see docs/migration/2.0.md"
-  },
-  {
-    "id": "C13-007",
-    "section": "13",
-    "quote": "Problems nest under their own row. Human output shows at most 5 inline, then `and N more failures`; machine output keeps every one.",
-    "tier": "1.1",
-    "tests": [],
-    "default": false,
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
-  },
-  {
-    "id": "C13-008",
-    "section": "13",
-    "quote": "JSON and JSONL keep every Group, Task, Fact, and Problem regardless of these rules.",
-    "tier": "1.1",
-    "tests": [],
-    "default": false,
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
-  },
-  {
-    "id": "C13-009",
-    "section": "13",
-    "quote": "A warning renders its `On` subject on every row (`\u2713 check jobs  ! job  x`).",
-    "tier": "1.1",
-    "tests": [],
-    "default": false,
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
-  },
-  {
-    "id": "C13-010",
-    "section": "13",
-    "quote": "JSON/JSONL keep every child, with `dispositions` (`{disposition, reason, name, causes}`) on each `evo.run` task and `disposition.recorded` events.",
-    "tier": "1.1",
-    "tests": [],
-    "default": false,
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
-  },
-  {
-    "id": "C13-011",
-    "section": "13",
-    "quote": "A Task's settled row shows one headline: its Summary (with the count it reached if it failed mid-loop), else its first Problem.",
-    "tier": "1.1",
-    "tests": [],
-    "default": false,
-    "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
-  },
-  {
-    "id": "C13-012",
-    "section": "13",
-    "quote": "Verbose lists the items under each reason, bounded (`a, b, c \u2026 +N more`); items carrying Facts get their own row, at most three.",
-    "tier": "1.1",
-    "tests": [],
-    "waiver": "UNCLASSIFIED: verbose per-reason item lists were not exercised; TruncateNames is unit-covered (C02 text helpers) but the verbose fold render has no bound test.",
-    "default": false
-  },
-  {
-    "id": "C13-013",
-    "section": "13",
-    "quote": "Implementation phases such as `classify` should collapse automatically unless independently meaningful.",
-    "tier": "1.1",
-    "tests": [],
-    "waiver": "UNCLASSIFIED: phase collapse is covered by existing internal phase-name tests that were not opened; WP2 must bind them.",
-    "default": false
-  },
-  {
-    "id": "C13-014",
-    "section": "13",
-    "quote": "Default projection hierarchy:",
-    "tier": "1.1",
-    "tests": [],
-    "waiver": "UNCLASSIFIED: the 12-row projection table is not mapped row by row to goldens (muted timer/labels, determinate bar need color/live render); WP2 must bind per-row goldens.",
-    "default": false
+    "waiver": "removed in 2.0: Done (a nil return from Define); superseded by CONTRACT \u00a72; see docs/migration/2.0.md"
   }
 ]

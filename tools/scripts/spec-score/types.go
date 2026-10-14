@@ -1,5 +1,7 @@
 package main
 
+import "strings"
+
 // Tier is the release line a requirement belongs to.
 type Tier string
 
@@ -30,9 +32,22 @@ type Entry struct {
 	Quote   string    `json:"quote"`
 	Tier    Tier      `json:"tier"`
 	Tests   []TestRef `json:"tests"`
-	Waiver  string    `json:"waiver,omitempty"`
+	Waiver  *string   `json:"waiver,omitempty"`
 	Default bool      `json:"default"`
 }
+
+// WaiverReason is the reason the entry's waiver gives, trimmed; empty when
+// the entry has no waiver or its waiver gives no reason.
+func (e Entry) WaiverReason() string {
+	if e.Waiver == nil {
+		return ""
+	}
+	return strings.TrimSpace(*e.Waiver)
+}
+
+// Waived reports whether the entry carries a waiver with a reason, so no test
+// is run for it and it scores as waived.
+func (e Entry) Waived() bool { return e.WaiverReason() != "" }
 
 // TierTotals counts scoring outcomes for one tier.
 type TierTotals struct {
