@@ -16,21 +16,23 @@ func TestExamples_NonTTYSmoke(t *testing.T) {
 	type spec struct {
 		name string
 		args []string
-		// wantExit is the exact exit code the example's scenario produces.
-		// The examples are deterministic simulations, so the code never
-		// depends on the host. A Problem never ends a Task, so only a
-		// scenario that returns a failure exits non-zero.
+		// wantExit is the exact exit code the example's scenario produces:
+		// 1 when it returns evo.Refuse, 2 when it returns a failure. The
+		// examples are deterministic simulations, so the code never depends
+		// on the host. A Problem never ends a Task. TestExamplesPinDocumentedFlagBehaviour
+		// pins the code of every documented flag; this test only proves each
+		// example builds and runs without a terminal.
 		wantExit int
 	}
 	specs := []spec{
 		{name: "print"},
 		{name: "verbose"},
 		{name: "verbose", args: []string{"--verbose"}},
-		{name: "repo-status", args: []string{"--fast"}},
+		{name: "repo-status", args: []string{"--fast"}, wantExit: 1},
 		{name: "install-pipeline", args: []string{"--fast"}},
 		{name: "install-pipeline", args: []string{"--fast", "--fail-tests"}, wantExit: 2},
 		{name: "migrate"},
-		{name: "migrate", args: []string{"--apply", "--fail"}},
+		{name: "migrate", args: []string{"--apply", "--fail"}, wantExit: 2},
 		{name: "doctor", args: []string{"--fast"}},
 		{name: "doctor", args: []string{"--fast", "--verbose"}},
 		{name: "data-command"},
@@ -39,7 +41,7 @@ func TestExamples_NonTTYSmoke(t *testing.T) {
 		{name: "live-progress", args: []string{"--fast"}},
 		{name: "debug-history", args: []string{"--fast"}},
 		{name: "debug-pane", args: []string{"--fast"}},
-		{name: "debug-pane", args: []string{"--fast", "--fail"}},
+		{name: "debug-pane", args: []string{"--fast", "--fail"}, wantExit: 1},
 		{name: "terminal-driver", args: []string{"--fast", "--frames"}},
 	}
 	for _, s := range specs {

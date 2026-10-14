@@ -20,9 +20,21 @@ EXAMPLES=(
 	terminal-driver
 )
 
-# Exit code evo.Main returns when a Task Failed (README "Outcome and exit code").
-# A Problem never ends a Task, so only an example that returns a failure uses it.
+# Exit codes evo.Main returns (README "Outcome and exit code"): 1 when a Task
+# returned evo.Refuse, 2 when one failed. A Problem never ends a Task, so only
+# an example that returns a refusal or a failure uses them. Every documented
+# flag's exit code is pinned in examples/flag_behaviour_test.go.
+EXIT_REFUSED=1
 EXIT_FAILED=2
+
+# Exit code of an example's default run: repo-status refuses while the
+# repository has blockers.
+default_exit() {
+	case "$1" in
+	repo-status) echo "${EXIT_REFUSED}" ;;
+	*) echo 0 ;;
+	esac
+}
 
 # Flags each example accepts; passing one it does not define exits 2.
 example_args() {
@@ -71,22 +83,26 @@ run_one() {
 		exit 1
 	fi
 	if [[ "${code}" -ne 0 ]]; then
-		printf '\n(exit %s, expected: this example demonstrates a failed run)\n' "${code}"
+		printf '\n(exit %s, expected: this example demonstrates a refused or failed run)\n' "${code}"
 	fi
 }
 
 for name in "${EXAMPLES[@]}"; do
 	args="$(example_args "${name}")"
-	run_one "${name}" "${args}" 0
-	if [[ "${name}" == "install-pipeline" ]]; then
-		run_one "install-pipeline" "--fast --fail-tests" "${EXIT_FAILED}"
-	fi
-	if [[ "${name}" == "verbose" ]]; then
-		run_one "verbose" "--verbose" 0
-	fi
-	if [[ "${name}" == "debug-pane" ]]; then
-		run_one "debug-pane" "--fast --fail" 0
-	fi
+	run_one "${name}" "${args}" "$(default_exit "${name}")"
+	case "${name}" in
+	verbose) run_one verbose "--verbose" 0 ;;
+	repo-status) run_one repo-status "--clean --fast" 0 ;;
+	install-pipeline) run_one install-pipeline "--fast --fail-tests" "${EXIT_FAILED}" ;;
+	migrate)
+		run_one migrate "--apply" 0
+		run_one migrate "--apply --fail" "${EXIT_FAILED}"
+		;;
+	doctor) run_one doctor "--fast --strict" "${EXIT_REFUSED}" ;;
+	data-command) run_one data-command "--fail-link" "${EXIT_FAILED}" ;;
+	debug-pane) run_one debug-pane "--fast --fail" "${EXIT_REFUSED}" ;;
+	*) ;;
+	esac
 done
 
 printf '\n'

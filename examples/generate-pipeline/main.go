@@ -1,8 +1,10 @@
 // Command generate-pipeline demos a canonical Exec pipeline shape:
 // a normalize stage (schema.xlsx -> schema.json) feeding a compile stage
-// (schema.json + compile.py -> output.bin), sequenced with Sequence (declaration order, never concurrent) the way
-// a real pipeline must be (a Basis relationship alone never implies
-// scheduling order).
+// (schema.json + compile.py -> output.bin). Each stage declares the paths
+// that decide its freshness as ExecSpec.Inputs, and compile lists normalize's
+// Output among them, so compile runs again only when schema.json's bytes
+// change. The stages sit in a Sequence because an Input shared with another
+// stage's Output never orders them.
 // Run it twice against the same --state-dir to see the second run spawn
 // neither stage:
 //
@@ -78,9 +80,9 @@ cat schema.json compile.py > output.bin
 `
 
 // runPipeline mirrors the pipeline above: normalize's Output (schema.json) is
-// compile's Basis input, and compile is declared after normalize in the same Sequence so the
-// pipeline's real execution order matches the data dependency the freshness
-// graph alone does not infer.
+// one of compile's Inputs, and compile is declared after normalize in the same
+// Sequence so the real execution order matches the data dependency that the
+// Inputs only describe for freshness.
 func runPipeline(ctx context.Context, r *evo.Run, dir string) error {
 	seq := r.Sequence("pipeline")
 
@@ -93,6 +95,7 @@ func runPipeline(ctx context.Context, r *evo.Run, dir string) error {
 		_, err := evo.Exec(ctx, evo.ExecSpec{
 			Argv:    []string{filepath.Join(dir, "normalize")},
 			Dir:     dir,
+			Inputs:  inDir(dir, "schema.xlsx", "normalize"),
 			Outputs: []string{"schema.json"},
 		})
 		return err
@@ -103,10 +106,21 @@ func runPipeline(ctx context.Context, r *evo.Run, dir string) error {
 		_, err := evo.Exec(ctx, evo.ExecSpec{
 			Argv:    []string{filepath.Join(dir, "compile")},
 			Dir:     dir,
+			Inputs:  inDir(dir, "schema.json", "compile.py", "compile"),
 			Outputs: []string{"output.bin"},
 		})
 		return err
 	})
 
 	return nil
+}
+
+// inDir returns each name as a path under dir. Inputs resolve against the
+// workspace, not ExecSpec.Dir, so they are written as full paths.
+func inDir(dir string, names ...string) []string {
+	paths := make([]string, len(names))
+	for i, name := range names {
+		paths[i] = filepath.Join(dir, name)
+	}
+	return paths
 }

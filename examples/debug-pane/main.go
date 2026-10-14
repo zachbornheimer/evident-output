@@ -1,4 +1,6 @@
-// Command debug-pane demos a sequential audit with an optional blocker.
+// Command debug-pane demos a sequential audit with an optional blocker. With
+// --fail the compare step returns evo.Refuse: the run exits 1 and the Task
+// declared After the audit never starts.
 //
 //	go run ./examples/debug-pane/
 //	go run ./examples/debug-pane/ --fail
@@ -38,20 +40,13 @@ func main() {
 			compare.Doing("diffing")
 			time.Sleep(step)
 			if *fail {
-				compare.Summary("1 blocker found")
+				return evo.Refuse("feat/sdk-full-consolidation is local-only",
+					evo.Detail("push, merge, or delete local-only work before retiring this repository"))
 			}
 			return nil
 		})
-		if err := error(nil); err != nil {
-			return err
-		}
 
-		branches := r.Task("branches")
-		if *fail {
-			branches.Problem("feat/sdk-full-consolidation is local-only")
-		} else {
-			branches.Define(func(context.Context) error { return nil })
-		}
+		r.Task("branches").After(jobs).Define(func(context.Context) error { return nil })
 		return nil
 	}))
 }

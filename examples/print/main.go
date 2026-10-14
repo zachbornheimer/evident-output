@@ -1,4 +1,5 @@
-// Command print is the first adoption rung: Print/Printf/Println like fmt.
+// Command print is the first adoption rung: free human text through
+// Run.Text, an io.Writer, so fmt.Fprint, Fprintf and Fprintln work unchanged.
 //
 //	go run ./examples/print/
 package main
@@ -13,8 +14,8 @@ import (
 
 func main() {
 	os.Exit(evo.Main(evo.Config{Name: "packages"}, func(ctx context.Context, r *evo.Run) error {
-		// Managed, line-oriented replacement for human-facing fmt.Print*
-		// (not a byte-for-byte fmt drop-in).
+		// Run.Text is routed with the presentation: stderr in Human and Plain,
+		// and never stdout, which belongs to Run.ResultWriter.
 		_, _ = fmt.Fprintln(r.Text(), "Reading configuration")
 		_, _ = fmt.Fprintf(r.Text(), "Found %d packages\n", 18)
 		_, _ = fmt.Fprint(r.Text(), "Resolving")

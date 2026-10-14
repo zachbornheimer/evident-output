@@ -3,7 +3,7 @@
 //	go run ./examples/live-progress/
 //	go run ./examples/live-progress/ --fast
 //
-// Advanced frame logging / custom TerminalDriver: see examples/terminal-driver.
+// Advanced frame logging / custom Facades.Terminal: see examples/terminal-driver.
 package main
 
 import (

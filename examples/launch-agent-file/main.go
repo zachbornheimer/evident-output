@@ -41,6 +41,11 @@ func main() {
 	runningMarker := filepath.Join(*stateDir, "running.marker")
 
 	os.Exit(evo.Main(evo.Config{}, func(ctx context.Context, r *evo.Run) error {
+		// File establishes one file, not the directory it lives in, so the
+		// body makes the directory a first run would not have yet.
+		if err := os.MkdirAll(*stateDir, 0o750); err != nil {
+			return evo.Refuse("cannot create the state directory", evo.On(*stateDir), evo.Detail(err.Error()))
+		}
 		return launchAgent(ctx, r, a, registeredMarker, runningMarker)
 	}))
 }

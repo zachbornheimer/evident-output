@@ -1,5 +1,6 @@
-// Command terminal-driver is an advanced teaching surface: custom TerminalDriver,
-// frame-by-frame logging, and explicit renderer knobs.
+// Command terminal-driver is an advanced teaching surface: a custom
+// Facades.Terminal that logs every redraw as a numbered frame. Without
+// --frames the run uses evo's own terminal on a TTY.
 //
 // Ordinary multi-progress API: see examples/live-progress.
 //
@@ -19,7 +20,6 @@ import (
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output/v2"
-	"github.com/zachbornheimer/evident-output/v2/internal/terminal"
 )
 
 func main() {
@@ -28,7 +28,7 @@ func main() {
 	step := flag.Bool("step", false, "frame dump + wait for Enter between frames")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: terminal-driver [flags]\n\n")
-		fmt.Fprintf(os.Stderr, "Advanced: custom TerminalDriver / frame log.\n")
+		fmt.Fprintf(os.Stderr, "Advanced: custom Facades.Terminal / frame log.\n")
 		fmt.Fprintf(os.Stderr, "For normal multi-progress, use examples/live-progress.\n\n")
 		flag.PrintDefaults()
 	}
@@ -48,17 +48,13 @@ func main() {
 		stepDur = 20 * time.Millisecond
 	}
 
-	var term evo.Terminal
+	// A nil Facades.Terminal is evo's own terminal; --frames swaps in the log.
+	cfg := evo.Config{Name: "install-deps-advanced"}
 	if *frames {
-		term = newFrameLog(os.Stderr, os.Stdin, *step)
-	} else {
-		term = terminal.NewANSI(os.Stderr,
-			terminal.WithInteractive(true),
-			terminal.WithSize(80, 24),
-		)
+		cfg.Facades.Terminal = newFrameLog(os.Stderr, os.Stdin, *step)
 	}
 
-	os.Exit(evo.Main(evo.Config{Name: "install-deps-advanced", Facades: evo.Facades{Stdout: os.Stderr, Stderr: os.Stderr, Terminal: term}}, func(ctx context.Context, r *evo.Run) error {
+	os.Exit(evo.Main(cfg, func(ctx context.Context, r *evo.Run) error {
 		jobs := r.Group("dependencies")
 		discover := jobs.Task("discover")
 		discover.Define(func(context.Context) error {
