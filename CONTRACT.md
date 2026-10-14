@@ -68,7 +68,7 @@ Succeeded, Satisfied and Excluded.
 | `Config.DryRun`          | field  | `bool`; plan every change, run no mutation                                                  |
 | `Config.Verbose`         | field  | `bool`; show hidden Facts and per-reason items                                              |
 | `Config.Output`          | field  | `Output` selector                                                                           |
-| `Config.Debug`           | field  | `slog.Level`; the lowest level the debug journal keeps                                      |
+| `Config.Debug`           | field  | `slog.Leveler`; the lowest level the debug journal keeps; nil keeps it off                  |
 | `Config.MaxConcurrency`  | field  | `int`; bound on executing callbacks; zero means GOMAXPROCS                                  |
 | `Config.State`           | field  | `State`; where recorded status lives                                                        |
 | `Config.Facades`         | field  | `Facades`; system boundaries, replaceable in tests                                          |
@@ -375,7 +375,7 @@ Environment, applied only where `Config` is zero:
 | ----------- | --------------------------------- | ----------------------------------------------------------------------------------------------- |
 | EVO_OUTPUT  | `human`, `plain`, `json`, `jsonl` | selects `Output`                                                                                |
 | EVO_VERBOSE | `1`                               | same as `Config.Verbose`                                                                        |
-| EVO_DEBUG   | `debug`, `info`, `warn`, `error`  | the lowest `slog.Level` the journal keeps                                                       |
+| EVO_DEBUG   | `debug`, `info`, `warn`, `error`  | the lowest `slog.Level` the journal keeps when `Config.Debug` is nil; a named level beats it    |
 | NO_COLOR    | any non-empty value               | no color; wins over `FORCE_COLOR`                                                               |
 | FORCE_COLOR | any value except empty and `0`    | color in Human even when stdout is not a terminal                                               |
 | LC_ALL      | a locale name                     | glyph selection on a live terminal; the first non-empty of `LC_ALL`, `LC_CTYPE`, `LANG` decides |

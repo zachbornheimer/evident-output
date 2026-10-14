@@ -76,14 +76,14 @@ func TestConfig_DebugLevelTraceSelectable(t *testing.T) {
 	}
 }
 
-func TestConfig_DebugLevelUnsetDefaultsToInfo(t *testing.T) {
+func TestConfig_DebugLevelUnsetKeepsTheJournalOff(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{Name: "info", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	out.debugForTest("should-drop")
 	succeed(out.Task("ok"))
 	_ = out.finish()
 	if strings.Contains(buf.String(), "should-drop") {
-		t.Fatalf("default LevelInfo must suppress Debug:\n%s", buf.String())
+		t.Fatalf("an unset Debug level must keep the journal off:\n%s", buf.String())
 	}
 }
 

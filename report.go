@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -176,7 +177,7 @@ func (o *Run) projectsVisibilityLocked(v visibility) bool {
 // slogHandler returns a slog.Handler that journals every accepted record as structured diagnostics. Level
 // policy is Config.Debug.Level. Application prose goes through Print/Task outcomes, not slog.
 func (o *Run) slogHandler() slog.Handler {
-	level := slog.LevelInfo
+	level := slogLevelOff
 	if o != nil {
 		o.mu.Lock()
 		level = logLevelToSlog(o.cfg.debugLevel)
@@ -184,6 +185,9 @@ func (o *Run) slogHandler() slog.Handler {
 	}
 	return record.NewSlogHandler(level, o.emitLogRecord)
 }
+
+// slogLevelOff is above every level a record can carry, so a handler at it enables none.
+const slogLevelOff = slog.Level(math.MaxInt)
 
 func logLevelToSlog(l logLevel) slog.Level {
 	switch l {
@@ -198,7 +202,7 @@ func logLevelToSlog(l logLevel) slog.Level {
 	case levelError:
 		return slog.LevelError
 	default:
-		return slog.LevelInfo
+		return slogLevelOff
 	}
 }
 

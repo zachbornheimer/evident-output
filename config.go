@@ -18,7 +18,8 @@ import (
 // complete: Name defaults to the binary name, and Output to Human on a terminal
 // and Plain otherwise. Name titles the run and is the name in the evo.run
 // document; Verbose shows hidden Facts, as EVO_VERBOSE=1 does; DryRun plans every
-// change and runs no mutation; Debug is the lowest level the debug journal keeps;
+// change and runs no mutation; Debug is the lowest level the debug journal keeps, and nil keeps it off unless
+// EVO_DEBUG names a level;
 // MaxConcurrency bounds executing callbacks (zero means GOMAXPROCS); State says
 // where recorded status lives; Facades replaces the system boundaries, which is
 // how a test runs Evo without a terminal.
@@ -27,7 +28,7 @@ type Config struct {
 	DryRun         bool
 	Verbose        bool
 	Output         Output
-	Debug          slog.Level
+	Debug          slog.Leveler
 	MaxConcurrency int
 	State          State
 	Facades        Facades
@@ -83,7 +84,8 @@ type debugConfig struct {
 	addSource bool
 }
 
-// logLevel is a diagnostic severity. Zero is levelUnset; named levels start at levelTrace.
+// logLevel is a diagnostic severity. Zero is levelUnset; named levels start at levelTrace; levelOff keeps
+// the journal closed to every record.
 type logLevel int
 
 const (
@@ -93,6 +95,7 @@ const (
 	levelInfo
 	levelWarn
 	levelError
+	levelOff
 )
 
 type debugPresentation int
@@ -289,13 +292,16 @@ func (cfg *config) liveTerminal(w io.Writer) {
 
 // debugOf configures the debug journal: its level, then durable history above the live region or a
 // rolling pane in it.
-func (cfg *config) debugOf(d debugConfig, level slog.Level) {
+func (cfg *config) debugOf(d debugConfig, level slog.Leveler) {
 	cfg.debugLevel = d.level
-	if cfg.debugLevel == levelUnset && level == 0 {
+	if cfg.debugLevel == levelUnset && level != nil {
+		cfg.debugLevel = logLevelOf(level.Level())
+	}
+	if cfg.debugLevel == levelUnset {
 		cfg.debugLevel, _ = parseDebugEnv(lookupEnv(envKeyDebug))
 	}
 	if cfg.debugLevel == levelUnset {
-		cfg.debugLevel = logLevelOf(level)
+		cfg.debugLevel = levelOff
 	}
 	cfg.debugAddSource = d.addSource
 	if d.view != debugPresentationPane {

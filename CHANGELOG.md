@@ -138,9 +138,11 @@ and its replacement, and
 - Output is selected by `Config.Output` or `EVO_OUTPUT`
   (`human|plain|json|jsonl`); machine output is never inferred from a pipe.
 - Every exported field and parameter names only `evo` or standard types:
-  `Config.Debug` is a `slog.Level`, `Action.Command` is argv,
-  `EffectSpec.Resource` is a logical resource name, and `Clock`, `Terminal`,
-  `Redactor`, `Process` and `FS` are interfaces a test can implement.
+  `Config.Debug` is a `slog.Leveler` (nil, the zero value, keeps the debug
+  journal off; `EVO_DEBUG` fills it in and a level you name wins),
+  `Action.Command` is argv, `EffectSpec.Resource` is a logical resource name,
+  and `Clock`, `Terminal`, `Redactor`, `Process` and `FS` are interfaces a test
+  can implement.
   `Detail` is both a `ProblemOption` and a `ConfirmOption`.
 - `After` takes a `Predecessor`: only a Task, Group, Sequence or Computed.
   `Exclude` takes `ProblemOption`s like `Fail` and `Refuse`; `ProblemOption`
