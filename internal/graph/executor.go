@@ -184,6 +184,8 @@ func (g *Graph) finishClaimed(c *claim, w *worker) {
 	recovered := recover()
 	if recovered != nil {
 		g.recordPanic(c, recovered)
+	} else if !c.returned {
+		g.recordGoexit(c)
 	}
 	defer g.WorkDone()
 	g.frames.leave(c.frame)
@@ -205,6 +207,18 @@ func (g *Graph) releaseLocked(c *claim) {
 func (g *Graph) recordPanic(c *claim, recovered any) {
 	if c.work.Panicked != nil {
 		c.work.Panicked(panicError(recovered).Error())
+	}
+}
+
+// goexitSummary is the ending of a callback that left through
+// runtime.Goexit (a direct call, or a library such as testing.T.FailNow).
+const goexitSummary = "callback exited without returning (runtime.Goexit)"
+
+// recordGoexit states the ending of a callback that left through
+// runtime.Goexit. A Task the callback already settled keeps its outcome.
+func (g *Graph) recordGoexit(c *claim) {
+	if c.work.Exited != nil && !terminal(c.task) {
+		c.work.Exited(goexitSummary)
 	}
 }
 

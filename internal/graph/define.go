@@ -54,6 +54,7 @@ func WorkOf[O any](g *Graph, t *Task, d Definition[O]) Work {
 		Run:      func() error { return runDefinition(g, t, d) },
 		Observed: func(err error) { g.observed(t, err) },
 		Panicked: func(summary string) { g.fail(t, summary, "") },
+		Exited:   func(summary string) { g.fail(t, summary, "") },
 	}
 }
 

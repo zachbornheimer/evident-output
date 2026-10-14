@@ -21,6 +21,10 @@ type Work struct {
 	// Panicked settles the Task from the text of a panic that escaped Run
 	// or Observed.
 	Panicked func(summary string)
+	// Exited settles the Task from the text of the ending of a callback
+	// that left through runtime.Goexit: it neither returned nor panicked,
+	// so no outcome of its own was stated.
+	Exited func(summary string)
 }
 
 // SubmitVerdict is how a Submit was received.
