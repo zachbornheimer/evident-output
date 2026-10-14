@@ -20,6 +20,7 @@ SUPPORT.md
 AGENTS.md
 go.mod
 go.sum
+go.work
 mise.toml
 .gitignore
 .golangci.yml
