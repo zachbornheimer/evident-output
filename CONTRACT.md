@@ -41,7 +41,7 @@ the body returned: once it is done, every running callback's context is
 done and the run ends Cancelled with exit 130. A zero `Config` is complete: `Name` defaults to the
 binary name and `Output` to Human on a TTY, Plain otherwise. `Config.Name`
 titles the run in Human and Plain and is `name` in `evo.run` and in the
-`run.started` event; `Config.Verbose` shows Facts in Human and Plain exactly
+`run.started` event; `Config.Verbose` also shows Task Facts in Human and Plain exactly
 as `EVO_VERBOSE=1` does.
 
 Every row's leading Go is the declaration, checked by
@@ -93,7 +93,7 @@ Succeeded, Satisfied and Excluded.
 | `Run.Task`               | method | `Task(name string) *Task`; declare a root Task                                              |
 | `Run.Group`              | method | `Group(name string) *Group`; declare a root Group                                           |
 | `Run.Sequence`           | method | `Sequence(name string) *Sequence`; declare a root Sequence                                  |
-| `Run.Fact`               | method | `Fact(name, value string) *Run`; run-scoped structured information                          |
+| `Run.Fact`               | method | `Fact(name, value string) *Run`; run-scoped; prints under the Summary                       |
 | `Run.Summary`            | method | `Summary(text string) *Run`; the application's one line, printed before every row           |
 | `Run.Confirm`            | method | `Confirm(question string, opts ...ConfirmOption) bool`; decline is Refused                  |
 | `Run.Suspend`            | method | `Suspend(fn func() error) error`; pause the live region around `fn`                         |
@@ -171,7 +171,7 @@ name still cancels the run.
 | `Task.Doing`        | method | `Doing(text string, args ...any) *Task`; current item, live only               |
 | `Task.Progress`     | method | `Progress(completed, total int) *Task`                                         |
 | `Task.Writer`       | method | `Writer() io.Writer`; its lines become the live tail and Capture               |
-| `Task.Fact`         | method | `Fact(name, value string) *Task`; structured information learned               |
+| `Task.Fact`         | method | `Fact(name, value string) *Task`; hidden until Verbose                         |
 | `Task.Summary`      | method | `Summary(text string) *Task`; the settled row's headline                       |
 | `Task.Problem`      | method | `Problem(summary string, opts ...ProblemOption) *Task`; non-fatal              |
 | `Group`             | type   | independent children; eligible siblings may run concurrently                   |
@@ -419,7 +419,8 @@ and an `ExecSpec` with no `Argv`. The refused call's callback never runs. Other 
 - The live frame changes within 100ms of entering Running and at least every 100ms after, with a stable parent row and the current item beneath it.
 - One runtime truth drives Human, Plain, `evo.run` and `evo.event`; no projection invents state another lacks.
 - `evo.run` states only what happened: `definition_executed` is true for every Define callback that ran, including one that failed; `timing`, when present, is measured; `operations` and `basis` list what a Task's File and Exec calls did and read.
-- Facts are hidden at normal verbosity and always in machine output; collapse folds routine detail away but never a container's own row: a Group or Sequence whose members all succeed keeps its row with the members indented beneath it, in Human and Plain as `evo.run` nests them, and a container's own Task (the Task named for its Group) folds into that row rather than printing the name twice; passing verification is silent, failing verification is shown.
+- Run Facts print under the Summary at normal verbosity; Task Facts hide until Verbose. Machine output always keeps both; collapse folds routine detail away but never a container's own row: a Group or Sequence whose members all succeed keeps its row with the members indented beneath it, in Human and Plain as `evo.run` nests them, and a container's own Task (the Task named for its Group) folds into that row rather than printing the name twice; passing verification is silent, failing verification is shown.
+- Plain streams a Group or Sequence that is still open 500 ms after its first member settled as a block: its header row, then each member as it settles (a nested Group or Sequence under a header of its own, indented), then the container's own verdict when it settles; a block that settles sooner writes whole, header first with its members beneath. A root row that ran After a Task or Group whose block is not yet written or closed, nested at any depth, waits for it, so a dependent never prints above or inside the block that explains it; a row with no such predecessor never waits. A collection whose final rows differ from the rows it settles (items folded into tallies, a row that may be hidden, a Group that renders as its own Task) writes whole when it settles.
 - Plain streams a Group or Sequence that is still open 500 ms after its first member settled as a block: its header row, then each member as it settles (a nested Group or Sequence under a header of its own, indented), then the container's own verdict when it settles; a block that settles sooner writes whole, header first with its members beneath. A root row that ran After a Task or Group waits until the block holding it has closed, however deeply that block is nested, so a dependent never prints above the block that explains it; an enclosing block that is still open does not hold it, so a kill -9 loses no verdict that already existed; a row with no such predecessor never waits. A collection whose final rows differ from the rows it settles (items folded into tallies, a row that may be hidden, a Group that renders as its own Task) writes whole when it settles.
 - Root Groups and Sequences with no edge between them are listed in the order they settled, in the Human final screen as in Plain, whatever order they were declared in; one still unsettled at the end is listed after those that settled, in declaration order.
 - Per-item Excluded Tasks fold into one tally; per-item Effects with one Verb and Object fold into one counted row; JSON keeps every item.

@@ -2,6 +2,7 @@ package evo
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 )
@@ -46,5 +47,47 @@ func TestTaskFact_NotPromotedByFailure(t *testing.T) {
 	got, _ := renderFactTask(t, false, func(task *Task) { task.fail("remove failed") })
 	if strings.Contains(got, "on disk") || !strings.Contains(got, "remove failed") {
 		t.Fatalf("a task-scoped Fact is not promoted merely because its Task failed:\n%s", got)
+	}
+}
+
+// runFactRule is the sentence CONTRACT §8 states for who sees which Fact.
+const runFactRule = "Run Facts print under the Summary at normal verbosity; Task Facts hide until Verbose"
+
+// TestRunFactsPrintAndTaskFactsHide pins both halves of the §8 rule: a
+// Run's own Facts print under its Summary at normal verbosity (they are
+// facts about the invocation, not routine Task detail), a Task's Facts hide
+// until Verbose, and CONTRACT.md states the rule where a reader looks for it.
+func TestRunFactsPrintAndTaskFactsHide(t *testing.T) {
+	render := func(verbose bool) string {
+		var buf bytes.Buffer
+		out := initRun(Config{Output: Plain, Verbose: verbose, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+		t.Cleanup(func() { _ = out.close() })
+		out.Summary("release 1.4")
+		out.Fact("branch", "main")
+		task := out.Task("tag")
+		task.Fact("on disk", "508.8 MB")
+		succeed(task)
+		_ = out.finish()
+		return buf.String()
+	}
+
+	normal := render(false)
+	if !strings.Contains(normal, "release 1.4\nbranch  main\n") {
+		t.Errorf("a Run Fact must print under the Summary at normal verbosity:\n%s", normal)
+	}
+	if strings.Contains(normal, "on disk") {
+		t.Errorf("a Task Fact must hide at normal verbosity:\n%s", normal)
+	}
+	verbose := render(true)
+	if !strings.Contains(verbose, "branch  main") || !strings.Contains(verbose, "on disk  508.8 MB") {
+		t.Errorf("Verbose must show Run and Task Facts:\n%s", verbose)
+	}
+
+	contract, err := os.ReadFile("CONTRACT.md")
+	if err != nil {
+		t.Fatalf("read CONTRACT.md: %v", err)
+	}
+	if !strings.Contains(string(contract), runFactRule) {
+		t.Errorf("CONTRACT.md must state the Fact rule: %q", runFactRule)
 	}
 }
