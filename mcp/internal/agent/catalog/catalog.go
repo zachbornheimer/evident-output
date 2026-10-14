@@ -87,7 +87,7 @@ failure on its own Task and use evo.Next(evo.Action{Label: ...}) for follow-up g
 			ID:       "tasks",
 			Title:    "Tasks and progress",
 			UseCases: []string{"progress", "collections", "phase", "bytes", "heartbeat", "loop", "retry", "skip"},
-			Concepts: []string{"Task", "Group", "Sequence", "Progress", "Each", "Define", "Skipped"},
+			Concepts: []string{"Task", "Group", "Sequence", "Progress", "Define", "Exclude"},
 			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030", "API-039", "API-045", "API-051", "API-062"},
 			Body: `Task is one independently schedulable promise whose outcome is independently meaningful to the user (ZYS-838) —
 not a display row, not a subject label, not a container. A good Task name answers "what will this unit of work
@@ -169,7 +169,7 @@ only annotation, nested dim lines otherwise.`,
 			ID:       "evidence-provenance",
 			Title:    "File, Verify, and provenance (spec §55/§56)",
 			UseCases: []string{"file", "idempotent", "provenance", "freshness", "cache", "manifest", "verify", "fingerprint"},
-			Concepts: []string{"File", "FileSpec", "Verify", "Fingerprint", "FSPath", "Value", "App", "Basis"},
+			Concepts: []string{"File", "FileSpec", "Verify", "FileSpec.Inputs", "FileSpec.Values"},
 			Body: `Common file state goes through evo.File(ctx, evo.FileSpec{Path, Contents, Mode, Inputs, Values}) inside
 task.Define — it creates, rewrites on drift, and no-ops when the desired state already matches; ctx must come
 from a Task's Define callback. Do not teach a hand-rolled Evidence callback (a legacy named mutating registration)
@@ -198,7 +198,7 @@ Never invent an Input the source code does not actually read (EVO-PROVENANCE-001
 			ID:       "streams",
 			Title:    "Stdout and stderr contracts",
 			UseCases: []string{"json", "data-command", "progress-stderr", "pipe", "color", "child", "exit-code", "signal"},
-			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "Config", "ResultWriter", "Main", "Writer"},
+			Concepts: []string{"Output", "Plain", "JSON", "Config", "ResultWriter", "Main", "Writer"},
 			Rules:    []string{"STREAM-003", "STREAM-004", "OUT-001", "OUT-003", "OUT-004", "API-031", "EV-001", "SIG-001", "SIG-002"},
 			Body: `Human UI and logs must not contaminate structured stdout.
 Ordinary dual-stream: os.Exit(evo.Main(evo.Config{}, run)) — a zero Config picks Plain off-TTY and honours NO_COLOR.
@@ -243,7 +243,7 @@ Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 			ID:       "evo-file-exec",
 			Title:    "evo.File and evo.Exec: declarative tracked operations",
 			UseCases: []string{"write", "chmod", "generate", "subprocess", "pipeline", "reconcile", "resource", "lock"},
-			Concepts: []string{"File", "FileSpec", "Exec", "ExecSpec", "Fingerprint", "FSPath", "Outputs", "Resource", "FSResource", "Effect", "EffectSpec", "PartialEffect"},
+			Concepts: []string{"File", "FileSpec", "Exec", "ExecSpec", "ExecSpec.Inputs", "ExecSpec.Outputs", "EffectSpec.Path", "EffectSpec.Resource", "Effect", "EffectSpec", "PartialEffect"},
 			Rules:    []string{"EVO-FILE-001", "EVO-EXEC-001", "API-053", "API-054", "API-055", "API-058"},
 			Body: `evo.File(ctx, evo.FileSpec{Path, Contents, Mode, Inputs, Values}) replaces hand-rolled os.WriteFile +
 os.Chmod + a manual existence/hash check: it writes only on drift and no-ops when Path/Contents/Mode already
@@ -295,13 +295,13 @@ this rule's target.`,
 		},
 		{
 			ID:       "provenance",
-			Title:    "Basis honesty and manifest-skip honesty",
-			UseCases: []string{"basis", "freshness", "manifest", "skip", "already-satisfied"},
-			Concepts: []string{"Basis", "FSPath", "Fingerprint", "Verify", "Manifest"},
+			Title:    "Input honesty and manifest-skip honesty",
+			UseCases: []string{"inputs", "freshness", "manifest", "skip", "already-satisfied"},
+			Concepts: []string{"FileSpec.Inputs", "FileSpec.Values", "Verify", "State"},
 			Rules:    []string{"EVO-PROVENANCE-001", "EVO-PROVENANCE-002"},
-			Body: `evo.File/evo.Exec no-op when Basis, identity, and outputs are all current — every file or value a generator
-visibly reads belongs in Basis, or the operation's freshness claim is false (EVO-PROVENANCE-001). A generator that
-reads a config file, template, or environment value the call site never adds to Basis silently skips re-running
+			Body: `evo.File/evo.Exec no-op when Inputs, Values, and outputs are all current — every file or value a generator
+visibly reads belongs in Inputs or Values, or the operation's freshness claim is false (EVO-PROVENANCE-001). A generator that
+reads a config file, template, or environment value the call site never adds to Inputs or Values silently skips re-running
 after that input changes.
 
 The manifest is a record of what a past run did, not evidence about the current filesystem/process state. A
@@ -314,7 +314,7 @@ pre-definition Verify (or a tracked evo.File/evo.Exec check) that proves the cur
 			ID:       "interactive",
 			Title:    "Live region and debug",
 			UseCases: []string{"spinner", "debug", "narrow", "confirm", "prompt", "resize", "suspend", "child-ui"},
-			Concepts: []string{"LiveSurface", "VisibilityDelay", "Terminal", "Confirm", "Println"},
+			Concepts: []string{"Terminal", "Run.Suspend", "Run.Confirm", "Run.Text"},
 			Rules:    []string{"TERM-001", "TERM-006", "TERM-015", "CONFIRM-001", "CONFIRM-002", "LOG-001"},
 			Body: `A Task that resolves before the visibility threshold must not flash a spinner.
 Durable notes go through fmt.Fprintln(r.Text(), ...) — never the fmt print functions — while a live region is open: evo clears
@@ -339,7 +339,7 @@ Do not inherit os.Stdout, and do not clear the spinner around a child.`,
 			ID:       "first-paint",
 			Title:    "First paint and the heart contract",
 			UseCases: []string{"startup", "latency", "blank", "streaming"},
-			Concepts: []string{"Init", "VisibilityDelay", "Doing", "Progress"},
+			Concepts: []string{"Config", "Doing", "Progress"},
 			Rules:    []string{"FP-001", "FP-002", "FP-003", "FP-004", "FP-005"},
 			Body: `The user is always waiting for input, watching work, or reading a verdict — a blank terminal for the first
 one to three seconds of a run is none of those, and reads as a hang.
@@ -347,7 +347,7 @@ one to three seconds of a run is none of those, and reads as a hang.
 evo.Main arms first paint before any I/O: declare the first Task as the first statement of run, before
 config parsing, git walks, or a network dial. Main + the first declared entity must produce something honest on
 screen within 100ms of process start (FP-001). Declaring a Task paints it running (a spinner) immediately —
-VisibilityDelay must not hide that first running frame, so a fast bind cannot popup-complete (FP-005).
+nothing may hide that first running frame, so a fast bind cannot popup-complete (FP-005).
 
 Declare before you compute (FP-002): the first Task/Group/Sequence declaration comes before the first read/open/dial
 in main or run — a config load or repo walk that happens first, with the first evo.Task only after, is the exact

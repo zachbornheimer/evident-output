@@ -97,6 +97,23 @@ func sentenceAround(text string, at int) string {
 	return text[start:end]
 }
 
+// knows reports whether tag is a contract symbol: a package-level name, a
+// Type.Member the contract lists, or the name of a member of a listed type.
+func (c contractSurface) knows(tag string) bool {
+	if c.names[tag] {
+		return true
+	}
+	if owner, member, dotted := strings.Cut(tag, "."); dotted {
+		return c.members[owner][member]
+	}
+	for _, members := range c.members {
+		if members[tag] {
+			return true
+		}
+	}
+	return false
+}
+
 // memberReference matches Type.Member for each type with listed members,
 // not preceded by an identifier character (so ErrInvalidConfig.X, or a
 // package path ending in a type name, never match).
@@ -221,10 +238,18 @@ func suggestionValue(n ast.Node) *ast.BasicLit {
 // of) in the text the MCP teaches that CONTRACT.md's symbol tables do not
 // list. TestDocsCarryNoStaleAPI knows the names retired so far; this guard
 // needs no list, so a name 2.0 never had, or dropped without a note, cannot
-// be taught. A sentence may name a symbol only to say it was removed.
+// be taught. A sentence may name a symbol only to say it was removed. The
+// catalog guides' capitalized Concepts tags must each be a contract symbol.
 func TestDocsNameOnlyContractSymbols(t *testing.T) {
 	root := moduleRoot(t)
 	surface := readContractSurface(t, filepath.Join(root, "CONTRACT.md"))
+	for _, guide := range catalog.All() {
+		for _, tag := range guide.Concepts {
+			if isCapitalized(tag) && !surface.knows(tag) {
+				t.Errorf("catalog guide %s concept %q is not a CONTRACT.md symbol", guide.ID, tag)
+			}
+		}
+	}
 	for origin, text := range docCorpus(t, root) {
 		lines := strings.Split(text, "\n")
 		for i, line := range lines {
@@ -236,6 +261,10 @@ func TestDocsNameOnlyContractSymbols(t *testing.T) {
 		}
 	}
 }
+
+// isCapitalized reports whether tag names a Go symbol, as opposed to a
+// lowercase topic word such as "sanitize".
+func isCapitalized(tag string) bool { return tag != "" && tag[0] >= 'A' && tag[0] <= 'Z' }
 
 // removedNote marks a sentence that says a name was removed.
 var removedNote = regexp.MustCompile(`(?i)\bremoved in\b`)
