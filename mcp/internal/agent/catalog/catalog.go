@@ -29,7 +29,7 @@ func All() []Guide {
 			UseCases: []string{"items", "finish", "block", "ok", "main", "entity", "severity"},
 			Concepts: []string{"Output", "Task", "Conclusion", "Main", "Run", "Sequence", "Group"},
 			Rules: []string{
-				"API-001", "DOM-006", "DOM-007", "DOM-011", "CON-002",
+				"API-001", "DOM-007", "DOM-011", "CON-002",
 				"API-035", "API-037", "API-038", "DOM-018", "DOM-019", "DOM-020", "TAX-002", "TXT-020", "TXT-021",
 				"API-057", "API-060",
 			},
@@ -88,7 +88,7 @@ failure on its own Task and use evo.Next(evo.Action{Label: ...}) for follow-up g
 			Title:    "Tasks and progress",
 			UseCases: []string{"progress", "collections", "phase", "bytes", "heartbeat", "loop", "retry", "skip"},
 			Concepts: []string{"Task", "Group", "Sequence", "Progress", "Define", "Exclude"},
-			Rules:    []string{"DOM-016", "DOM-017", "BOUND-001", "API-030", "API-039", "API-045", "API-051"},
+			Rules:    []string{"DOM-017", "BOUND-001", "API-030", "API-039", "API-045", "API-051"},
 			Body: `Task is one independently schedulable promise whose outcome is independently meaningful to the user (ZYS-838) —
 not a display row, not a subject label, not a container. A good Task name answers "what will this unit of work
 accomplish or determine?" and usually reads as an action, verb + concrete object ("check file integrity", "format

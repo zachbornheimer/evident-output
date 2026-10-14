@@ -12,7 +12,7 @@ import (
 // Task, not only the rows on screen — so forcing one per scheduler
 // transition cost O(n) per Task and O(n²) per run (4000 Tasks: 46.9s).
 // Under the budget every transition still paints, which is what a small
-// run and FP-005's spinner-before-check need; past it, forced paints
+// run and a spinner-before-check need; past it, forced paints
 // coalesce under the frame-rate cap and the animator paints the latest
 // state on its next tick.
 type renderBudget struct {

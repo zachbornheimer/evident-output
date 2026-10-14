@@ -96,10 +96,22 @@ var retiredRules = []RetiredRule{
 		Instead:   "review at the 2.0 pin; if a shape the program needs is missing from CONTRACT.md, raise it as a contract issue instead of writing a local substitute.",
 	},
 	{
+		ID:        "DOM-006",
+		RetiredIn: RetiredRelease2_0,
+		Why:       "it flagged an explicit Start call ahead of Define; Start was removed in 2.0 and no 2.0 type has it, so the call does not compile and a Task never needs it. A Task begins when its Define callback runs.",
+		Instead:   "declare the Task and call Define directly, returning evo.Fail, evo.Refuse or evo.Exclude where the work ends that way.",
+	},
+	{
 		ID:        "DOM-014",
 		RetiredIn: RetiredRelease2_0,
 		Why:       "it flagged Detail(err), an error passed where Detail wants text; Detail now takes a string, so passing an error does not compile.",
 		Instead:   "pass evo.Detail(err.Error()) on evo.Fail or evo.Refuse, or return fmt.Errorf(\"...: %w\", err) from Define.",
+	},
+	{
+		ID:        "DOM-016",
+		RetiredIn: RetiredRelease2_0,
+		Why:       "it flagged an explicit Start call ahead of Doing; Start was removed in 2.0 and no 2.0 type has it, so the call does not compile. Doing is first evidence that a Task is running and needs no activation call.",
+		Instead:   "call Doing inside or beside the Task's Define callback; nothing activates a Task but its Define callback running.",
 	},
 	{
 		ID:        "EV-001",

@@ -112,7 +112,7 @@ func (e *Engine) Interactive() bool { return e != nil && e.cfg.Surface.IsInterac
 
 // Signal marks that the region may need a redraw. force bypasses the
 // frame-rate cap only, never VisibilityDelay, except that a newly declared
-// Running Task always paints (FP-005: spinner before check).
+// Running Task always paints, so its spinner shows before its check.
 func (e *Engine) Signal(force bool) {
 	if !e.Interactive() {
 		return
@@ -262,7 +262,7 @@ func (e *Engine) Stop() {
 
 // HoldRunning keeps the Task id's Running row on screen for one spinner
 // period, so a fast bind cannot resolve in the tick its spinner was painted
-// and show a popup-complete check (FP-005). It skips a domain clock that is
+// and show a popup-complete check. It skips a domain clock that is
 // not the wall clock (tests inject one) and a surface that is not
 // interactive. It takes the run's lock itself; call it without.
 func (e *Engine) HoldRunning(id record.TaskID) {

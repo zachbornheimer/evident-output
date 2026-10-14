@@ -174,6 +174,7 @@ var retiredSymbols = []RetiredSymbol{
 	{Contract: "Output.Close", RemovedIn: RetiredRelease2_0, Replacement: "return from run; Main and Execute close the run", Taught: regexp.MustCompile(`\b(?:out|output|Output)\.Close\b|\bFinish \+ Close\b|` + "`Close`")},
 	{Contract: "Println", RemovedIn: RetiredRelease2_0, Replacement: "fmt.Fprintln(r.Text(), ...)", Taught: regexp.MustCompile(`\b(?:evo|out|Output)\.Print(?:f|ln)?\b|(?:^|[^.\w|])Print(?:f|ln)?\(`)},
 	{Contract: "Block", RemovedIn: RetiredRelease2_0, Replacement: "return evo.Refuse(summary, opts...) from Define", Taught: regexp.MustCompile(`(?:^|[^.\w|])Block\(|\.Block\(|\bTask\.Block\b|\bBlock,\s+or\s+Skipped\b`)},
+	{Contract: "TaskHandle.Start(", RemovedIn: RetiredRelease2_0, Replacement: "Task.Define; a Task begins when its Define callback runs", Taught: regexp.MustCompile(`\b(?:t|it|task\w*)\.Start\(`)},
 	{Contract: "Wait", RemovedIn: RetiredRelease2_0, Replacement: "return from run; Evo owns the waiting", Taught: regexp.MustCompile(`\b(?:[Tt]ask\w*|[Gg]roup|[Ss]equence|seq)\.Wait\b|\)\.Wait\(\)`)},
 	{Contract: "Key", RemovedIn: RetiredRelease2_0, Replacement: "the Task name is its identity", Taught: regexp.MustCompile(`\b(?:[Tt]ask\w*)\.Key\b`)},
 	{Contract: "TaskHandle", RemovedIn: RetiredRelease2_0, Replacement: "Task", Taught: regexp.MustCompile(`\b(?:Task|Group|Sequence)Handle\b`)},

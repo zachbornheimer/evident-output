@@ -121,23 +121,6 @@ branches.Task("feature/x").Define(func(context.Context) error { return evo.Exclu
 			Certainty:       CertaintyHeuristic,
 		},
 		{
-			ID:        "DOM-006",
-			Category:  "DOM",
-			Severity:  SeverityWarning,
-			Invariant: "returning from Define is a direct legal terminal transition; explicit Start is not required",
-			Why:       "An Item is pending until it resolves; calling Start first is redundant ceremony and risks a spinner flash for a transition that finishes instantly.",
-			BadCode: `it := r.Task("disk space")
-it.Start()
-it.Define(checkDiskSpace)`,
-			GoodCode: `it := r.Task("disk space")
-it.Define(checkDiskSpace)`,
-			Remediation:     "Call Define (returning evo.Fail, evo.Refuse or evo.Exclude where the work ends that way) directly; remove the explicit Start call",
-			RelatedGuidance: []string{"common-api"},
-			VerificationIDs: []string{"DOM-006"},
-			Since:           "0.1.0",
-			Certainty:       CertaintyDeterministic,
-		},
-		{
 			ID:              "DOM-007",
 			Category:        "DOM",
 			Severity:        SeverityWarning,
@@ -151,24 +134,6 @@ it.Define(checkDiskSpace)`,
 			Since:           "0.1.0",
 			Certainty:       CertaintyHeuristic,
 			Detection:       DetectionGuidance, // no cheap detector: distinguishing a legitimate hand-built Problem from misuse needs call-site intent, not AST shape
-		},
-		{
-			ID:        "DOM-016",
-			Category:  "DOM",
-			Severity:  SeverityWarning,
-			Invariant: "Task.Doing without a prior Start activates the task directly into running, indeterminate state",
-			Why:       "Requiring Start before Doing is redundant ceremony, as it is for Define; Doing alone carries enough information to activate the task.",
-			BadCode: `t := out.Task("scan")
-t.Start()
-t.Doing("walking")`,
-			GoodCode: `t := out.Task("scan")
-t.Doing("walking")`,
-			Remediation:     "Call Doing directly; do not call Start first",
-			RelatedGuidance: []string{"tasks", "common-api"},
-			VerificationIDs: []string{"DOM-016"},
-			Since:           "0.1.0",
-			Certainty:       CertaintyHeuristic,
-			Detection:       DetectionGuidance, // no detector: Start is not part of the surface, so DOM-016 only documents the state
 		},
 		{
 			ID:        "DOM-017",

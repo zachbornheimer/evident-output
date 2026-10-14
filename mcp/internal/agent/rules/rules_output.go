@@ -31,7 +31,7 @@ fmt.Printf("progress %d\n", n)`,
 				"hand on the same task is easy to get half-right — evidence for the rule: four hand-rolled subprocess " +
 				"wirings this pattern replaced starved the capture (two with no fallback: dead port-in-use detection, " +
 				"empty DetailTail on failure).",
-			BadCode: `proof := task.Evidence()
+			BadCode: `proof := task.Evidence() // removed in 1.1
 cmd.Stdout = proof
 cmd.Stderr = proof
 if err := cmd.Run(); err != nil {
