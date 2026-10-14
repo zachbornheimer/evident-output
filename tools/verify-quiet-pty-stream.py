@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
-"""Prove a quiet Writer-backed Task keeps its live frame changing, from the pty stream.
+"""Prove the live frame keeps changing under a real pty, from the pty byte stream.
 
-Builds examples/quiet-writer and runs it under a real pty (no tmux). The reader
+Two scenarios, both bounded by --max-gap-ms (default 100):
+
+- default: a quiet Writer-backed Task (examples/quiet-writer), checked as below;
+- --tasks N: one Group of N trivial Tasks (examples/many-tasks); after the first
+  frame, no gap between changed frames may reach the bound, and every gap over
+  it is printed.
+
+Builds the example and runs it under a real pty (no tmux). The reader
 timestamps every read of the pty master with a monotonic clock, rebuilds the
 live frames from the byte stream (ptystream_frames), and checks the quiet
 interval, from the last Writer evidence line to the settle:
 
-- every gap between frames whose owner-row spinner glyph differs is under MAX_GAP_MS;
-- no frame stays unchanged for MAX_GAP_MS or more;
+- every gap between frames whose owner-row spinner glyph differs is under the bound;
+- no frame stays unchanged for the bound or more;
 - at least MIN_QUIET_CHANGES changed frames arrive;
 - the owner row stays named, all evidence lines stay on screen, no fake progress.
 
-A reader that was itself descheduled for MAX_GAP_MS or more cannot prove the
+A reader that was itself descheduled for the bound or more cannot prove the
 bound, so that attempt is retried (up to ATTEMPTS) and never passes.
 """
 
@@ -31,22 +38,28 @@ import sys
 import tempfile
 import termios
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 import ptystream_frames as stream
 
 ROOT = Path(__file__).resolve().parent.parent
-EXAMPLE = "./examples/quiet-writer"
+QUIET_EXAMPLE = "./examples/quiet-writer"
+MANY_EXAMPLE = "./examples/many-tasks"
 OWNER_ROW = "build"
 EVIDENCE_LINES = 6
 EVIDENCE = tuple(
     f"compile unit {n} of {EVIDENCE_LINES}" for n in range(1, EVIDENCE_LINES + 1)
 )
 QUIET_MS = 900
-MAX_GAP_MS = 100
+DEFAULT_MAX_GAP_MS = 100.0
 MIN_QUIET_CHANGES = 6
+MIN_MANY_CHANGES = 6
+MANY_HOLD_MS = 5
 ATTEMPTS = 3
-RUN_TIMEOUT_S = 10
+QUIET_TIMEOUT_S = 10
+MANY_TIMEOUT_S = 60
 READ_POLL_S = 0.002
 READ_SIZE = 65536
 PTY_ROWS, PTY_COLS = 24, 100
@@ -62,17 +75,29 @@ class Unprovable(Exception):
     """The reader was too slow to prove or disprove the bound."""
 
 
-def build_example(workdir: Path) -> Path:
-    binary = workdir / "quiet-writer"
+@dataclass(frozen=True)
+class Scenario:
+    """One example run under the pty and the check its frames must pass."""
+
+    example: str
+    args: tuple[str, ...]
+    timeout_s: int
+    verify: Callable[[list[stream.Frame], float], dict[str, float]]
+
+
+def build_example(example: str, workdir: Path) -> Path:
+    binary = workdir / Path(example).name
     subprocess.run(
-        ["go", "build", "-buildvcs=false", "-o", str(binary), EXAMPLE],
+        ["go", "build", "-buildvcs=false", "-o", str(binary), example],
         cwd=ROOT,
         check=True,
     )
     return binary
 
 
-def run_under_pty(binary: Path) -> tuple[list[stream.Chunk], int, float]:
+def run_under_pty(
+    binary: Path, args: tuple[str, ...], timeout_s: int
+) -> tuple[list[stream.Chunk], int, float]:
     """Return the timestamped reads, the child's exit status, and the reader's worst loop gap in ms."""
     pid, master = pty.fork()
     if pid == 0:
@@ -80,9 +105,9 @@ def run_under_pty(binary: Path) -> tuple[list[stream.Chunk], int, float]:
             0, termios.TIOCSWINSZ, struct.pack("HHHH", PTY_ROWS, PTY_COLS, 0, 0)
         )
         os.environ["TERM"] = TERM_VALUE
-        os.execv(str(binary), [str(binary), f"--quiet={QUIET_MS}ms"])
+        os.execv(str(binary), [str(binary), *args])
     chunks: list[stream.Chunk] = []
-    deadline = time.monotonic() + RUN_TIMEOUT_S
+    deadline = time.monotonic() + timeout_s
     last_loop = time.monotonic_ns()
     worst_loop_ns = 0
     try:
@@ -163,7 +188,12 @@ def check_quiet_frames(window: list[stream.Frame]) -> None:
             )
 
 
-def verify(frames: list[stream.Frame]) -> dict[str, float]:
+def describe_gaps(gaps: list[tuple[float, float]], max_gap_ms: float) -> str:
+    listed = ", ".join(f"{gap:.0f}ms at +{start:.0f}ms" for start, gap in gaps)
+    return f"{len(gaps)} frame gap(s) of {max_gap_ms:g}ms or more: {listed}"
+
+
+def verify_quiet(frames: list[stream.Frame], max_gap_ms: float) -> dict[str, float]:
     window = quiet_window(frames)
     if len(window) < 2:
         raise VerifyError("the quiet interval holds one frame")
@@ -174,41 +204,91 @@ def verify(frames: list[stream.Frame]) -> dict[str, float]:
         raise VerifyError(
             f"{len(quiet_changes)} changed frames while quiet, want at least {MIN_QUIET_CHANGES}"
         )
+    gaps = stream.gaps_over(changes, max_gap_ms)
+    if gaps:
+        raise VerifyError(describe_gaps(gaps, max_gap_ms))
+    stale = stalest_run_ms(window)
+    if stale >= max_gap_ms:
+        raise VerifyError(
+            f"a frame stayed unchanged {stale:.0f}ms, want <{max_gap_ms:g}ms"
+        )
     max_gap = max(
         ms(cur.at_ns, prev.at_ns) for prev, cur in itertools.pairwise(changes)
     )
-    if max_gap >= MAX_GAP_MS:
-        raise VerifyError(f"frames changed {max_gap:.0f}ms apart, want <{MAX_GAP_MS}ms")
-    stale = stalest_run_ms(window)
-    if stale >= MAX_GAP_MS:
-        raise VerifyError(
-            f"a frame stayed unchanged {stale:.0f}ms, want <{MAX_GAP_MS}ms"
-        )
     return {"max_gap_ms": round(max_gap, 1), "changed_frames": len(quiet_changes)}
 
 
-def attempt(binary: Path) -> dict[str, float]:
-    chunks, exit_code, reader_max_loop_ms = run_under_pty(binary)
-    if reader_max_loop_ms >= MAX_GAP_MS:
+def verify_many(frames: list[stream.Frame], max_gap_ms: float) -> dict[str, float]:
+    """Gaps between changed frames, ignoring the first frame (startup declares every Task)."""
+    changes = changed_frames(frames)[1:]
+    if len(changes) < MIN_MANY_CHANGES:
+        raise VerifyError(
+            f"{len(changes)} changed frames after the first, want at least {MIN_MANY_CHANGES}"
+        )
+    gaps = stream.gaps_over(changes, max_gap_ms)
+    if gaps:
+        raise VerifyError(describe_gaps(gaps, max_gap_ms))
+    max_gap = max(
+        ms(cur.at_ns, prev.at_ns) for prev, cur in itertools.pairwise(changes)
+    )
+    return {"max_gap_ms": round(max_gap, 1), "changed_frames": len(changes)}
+
+
+def scenario_for(tasks: int | None) -> Scenario:
+    if tasks is None:
+        return Scenario(
+            QUIET_EXAMPLE, (f"--quiet={QUIET_MS}ms",), QUIET_TIMEOUT_S, verify_quiet
+        )
+    return Scenario(
+        MANY_EXAMPLE,
+        (f"--tasks={tasks}", f"--hold={MANY_HOLD_MS}ms"),
+        MANY_TIMEOUT_S,
+        verify_many,
+    )
+
+
+def attempt(binary: Path, scenario: Scenario, max_gap_ms: float) -> dict[str, float]:
+    chunks, exit_code, reader_max_loop_ms = run_under_pty(
+        binary, scenario.args, scenario.timeout_s
+    )
+    if reader_max_loop_ms >= max_gap_ms:
         raise Unprovable(f"reader stalled {reader_max_loop_ms:.0f}ms")
     if exit_code != 0:
-        raise VerifyError(f"quiet-writer exit {exit_code}, want 0")
-    result = verify(stream.split_frames(chunks))
+        raise VerifyError(f"{Path(scenario.example).name} exit {exit_code}, want 0")
+    result = scenario.verify(stream.split_frames(chunks), max_gap_ms)
     return result | {"reader_max_loop_ms": round(reader_max_loop_ms, 1)}
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--tasks",
+        type=int,
+        default=None,
+        help="declare N trivial Tasks in one Group instead of the quiet Writer Task",
+    )
+    parser.add_argument(
+        "--max-gap-ms",
+        type=float,
+        default=DEFAULT_MAX_GAP_MS,
+        help="fail when two changed frames arrive this far apart or more",
+    )
+    return parser.parse_args()
+
+
 def main() -> int:
-    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args()
+    args = parse_args()
+    scenario = scenario_for(args.tasks)
     last_unprovable = ""
-    with tempfile.TemporaryDirectory(prefix="quiet-writer-bin-") as workdir:
+    with tempfile.TemporaryDirectory(prefix="verify-pty-stream-bin-") as workdir:
         try:
-            binary = build_example(Path(workdir))
+            binary = build_example(scenario.example, Path(workdir))
         except subprocess.CalledProcessError as err:
             print(f"FAIL quiet PTY stream: build: {err}", file=sys.stderr)
             return 1
         for number in range(1, ATTEMPTS + 1):
             try:
-                result = attempt(binary)
+                result = attempt(binary, scenario, args.max_gap_ms)
             except Unprovable as err:
                 last_unprovable = str(err)
                 print(

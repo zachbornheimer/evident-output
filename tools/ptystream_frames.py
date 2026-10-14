@@ -10,6 +10,7 @@ Splitting on that sequence and dropping the blank pieces yields the frames.
 from __future__ import annotations
 
 import bisect
+import itertools
 import re
 from dataclasses import dataclass
 
@@ -67,3 +68,13 @@ def split_frames(chunks: list[Chunk]) -> list[Frame]:
         if rows:
             frames.append(Frame(at_ns=arrival_ns(end - 1), rows=rows))
     return frames
+
+
+def gaps_over(changes: list[Frame], max_gap_ms: float) -> list[tuple[float, float]]:
+    """(start offset ms, gap ms) of each gap between consecutive frames at or over the bound."""
+    origin = changes[0].at_ns
+    gaps = (
+        ((prev.at_ns - origin) / NS_PER_MS, (cur.at_ns - prev.at_ns) / NS_PER_MS)
+        for prev, cur in itertools.pairwise(changes)
+    )
+    return [(start, gap) for start, gap in gaps if gap >= max_gap_ms]
