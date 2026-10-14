@@ -46,6 +46,12 @@ func astRule(fn func(filename string, file *ast.File, fset *token.FileSet) []Fin
 	return func(in fileInput) []Finding { return fn(in.filename, in.file, in.fset) }
 }
 
+// astSourceRule adapts a detector that walks the parsed file and cuts its
+// suggestions from the file's source text.
+func astSourceRule(fn func(filename, src string, file *ast.File, fset *token.FileSet) []Finding) func(fileInput) []Finding {
+	return func(in fileInput) []Finding { return fn(in.filename, in.src, in.file, in.fset) }
+}
+
 // fileDetectors is every file-level rule, in the order findings are
 // reported. Adding a rule adds one entry here next to its rationale.
 var fileDetectors = []detector{
@@ -210,7 +216,7 @@ var fileDetectors = []detector{
 	{name: "detectSummaryStampNarration", needsEvo: true, run: astRule(detectSummaryStampNarration)},
 	// EVO-DRYRUN-001: Define callback raw-calls a side effect Evo's runtime
 	// cannot intercept, breaking the dry-run guarantee.
-	{name: "detectRawMutationInDefine", needsEvo: true, run: astRule(detectRawMutationInDefine)},
+	{name: "detectRawMutationInDefine", needsEvo: true, run: astSourceRule(detectRawMutationInDefine)},
 	// EVO-DAG-001: a goroutine exists only to make Evo Tasks parallel.
 	{name: "detectGoroutineWrappingDefine", needsEvo: true, run: textRule(detectGoroutineWrappingDefine)},
 	// EVO-DAG-002: a chained .After(...) reproduces evo.Sequence.

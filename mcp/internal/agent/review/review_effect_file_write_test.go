@@ -204,3 +204,25 @@ func TestAPI057_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
 		}
 	}
 }
+
+// A deletion or a rename away has no FileSpec: evo.File states desired
+// contents, so the Effect that claims the path is where it belongs
+// (EVO-DRYRUN-001 and API-032 send a bare deletion there). API-057 must not
+// ask for an evo.File call that cannot say it.
+
+func TestAPI057_DeletionInsideEffect_StaysSilent(t *testing.T) {
+	for _, call := range []string{`os.Remove(path)`, `os.RemoveAll(path)`, `os.Rename(path, path+".old")`} {
+		src := `package p
+import (
+  "os"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func run(ctx context.Context, path string) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "file", Quantity: 1, Path: path}, func(context.Context) error {
+    return ` + call + `
+  })
+}
+`
+		assertNoRule(t, review.GoSource("prune.go", src), "API-057")
+	}
+}

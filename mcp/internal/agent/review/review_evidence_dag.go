@@ -35,6 +35,7 @@ var evoSQLMutationReceivers = map[string]bool{
 // evoRawMutationCallNames call, or Exec/ExecContext on a database handle
 // (sql true).
 type rawMutationCall struct {
+	call *ast.CallExpr
 	pos  token.Pos
 	name string
 	sql  bool
@@ -52,7 +53,7 @@ func rawMutationCalls(node ast.Node) []rawMutationCall {
 			return true
 		}
 		if dotted := calledFuncDotted(call); evoRawMutationCallNames[dotted] {
-			calls = append(calls, rawMutationCall{pos: call.Pos(), name: dotted})
+			calls = append(calls, rawMutationCall{call: call, pos: call.Pos(), name: dotted})
 			return true
 		}
 		sel, isSel := call.Fun.(*ast.SelectorExpr)
@@ -60,7 +61,7 @@ func rawMutationCalls(node ast.Node) []rawMutationCall {
 			return true
 		}
 		if recv := strings.ToLower(exprDottedName(sel.X)); evoSQLMutationReceivers[recv] {
-			calls = append(calls, rawMutationCall{pos: call.Pos(), name: exprDottedName(sel.X) + "." + sel.Sel.Name, sql: true})
+			calls = append(calls, rawMutationCall{call: call, pos: call.Pos(), name: exprDottedName(sel.X) + "." + sel.Sel.Name, sql: true})
 		}
 		return true
 	})
@@ -81,15 +82,15 @@ func firstRawMutationCall(node ast.Node) (pos token.Pos, name string, found bool
 // is the declared opaque mutation — the EffectSpec names the Verb, Object,
 // and Path claim, and dry-run never invokes the callback — so it does not
 // count. A bare mutation anywhere else in Define still does.
-func firstUnwrappedRawMutation(body ast.Node, pkg string) (pos token.Pos, name string, found bool) {
+func firstUnwrappedRawMutation(body ast.Node, pkg string) (rawMutationCall, bool) {
 	effects := effectCallbacks(body, pkg)
 	for _, c := range rawMutationCalls(body) {
 		if withinAny(c.pos, effects) {
 			continue
 		}
-		return c.pos, c.name, true
+		return c, true
 	}
-	return token.NoPos, "", false
+	return rawMutationCall{}, false
 }
 
 // effectCallbacks lists every pkg.Effect(ctx, spec, fn) callback literal
@@ -268,7 +269,7 @@ func detectMutatingVerify(filename string, file *ast.File, fset *token.FileSet) 
 // mutation (a database change, a deletion) through evo.Effect, whose
 // callback dry-run skips (spec §32.2).
 
-func detectRawMutationInDefine(filename string, file *ast.File, fset *token.FileSet) []Finding {
+func detectRawMutationInDefine(filename, src string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	disproven := evoDisprovenVars(file)
 	pkg := evoImportName(file)
@@ -281,18 +282,19 @@ func detectRawMutationInDefine(filename string, file *ast.File, fset *token.File
 		if !ok {
 			return true
 		}
-		pos, name, mutates := firstUnwrappedRawMutation(fl.Body, pkg)
+		mutation, mutates := firstUnwrappedRawMutation(fl.Body, pkg)
 		if !mutates {
 			return true
 		}
 		recv := exprDottedNameOrDefault(sel.X, "task")
+		pos := fset.Position(mutation.pos)
 		findings = append(findings, Finding{
 			RuleID:     "EVO-DRYRUN-001",
-			Message:    recv + ".Define raw-calls " + name + "; Evo cannot intercept an arbitrary side effect, so this callback is unsafe under dry-run",
+			Message:    recv + ".Define raw-calls " + mutation.name + "; Evo cannot intercept an arbitrary side effect, so this callback is unsafe under dry-run",
 			File:       filename,
-			Line:       fset.Position(pos).Line,
-			Column:     fset.Position(pos).Column,
-			Suggestion: rawMutationRoute(name),
+			Line:       pos.Line,
+			Column:     pos.Column,
+			Suggestion: rawMutationRoute(rawMutationSite{mutation: mutation, src: src, fset: fset, pkg: pkg, ctx: callbackContextName(fl)}),
 		})
 		return true
 	})
@@ -318,23 +320,3 @@ func stringLit(e ast.Expr) (string, bool) {
 	s, err := strconv.Unquote(lit.Value)
 	return s, err == nil
 }
-
-// rawMutationRoute names the Evo boundary that owns name's kind of
-// mutation: a database handle's Exec or a filesystem deletion goes through
-// evo.Effect (neither File nor Exec can express it as a counted change);
-// writes and processes go through File/Exec.
-func rawMutationRoute(name string) string {
-	if strings.HasSuffix(name, ".Exec") || strings.HasSuffix(name, ".ExecContext") {
-		if !strings.HasPrefix(name, "exec.") {
-			return "wrap " + name + " in evo.Effect(ctx, evo.EffectSpec{Verb: evo.Update, Object: \"row\", Quantity: n}, fn) so dry-run never invokes it"
-		}
-	}
-	if evoFSDeletionCallNames[name] {
-		return "wrap " + name + " in evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: \"file\", Quantity: n, Path: path}, fn) so dry-run never invokes it"
-	}
-	return "route the mutation through evo.File(ctx, evo.FileSpec{...}) or evo.Exec(ctx, evo.ExecSpec{...}) instead of calling " + name + " directly"
-}
-
-// evoFSDeletionCallNames are the raw calls that remove filesystem state —
-// the mutations evo.Effect with EffectSpec.Path (a filesystem claim) owns.
-var evoFSDeletionCallNames = map[string]bool{"os.Remove": true, "os.RemoveAll": true}

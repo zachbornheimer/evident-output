@@ -11,10 +11,16 @@
 // detection is structural, not based on an object string that merely
 // resembles a path. Flag known filesystem mutation calls inside an Effect
 // callback (for example os.WriteFile, os.Create, write-mode os.OpenFile,
-// os.Remove, os.Rename, and equivalent known filesystem abstractions). A
+// and equivalent known filesystem abstractions). A
 // path-looking Object alone is not sufficient evidence." A callback passed
 // as a same-file named function is resolved to that function's body, not
 // just a literal — the mutation is just as hidden either way.
+//
+// Only writes evo.File can express are listed. A deletion (os.Remove,
+// os.RemoveAll) or a rename away has no FileSpec: it is the Effect's own
+// work, claimed with EffectSpec.Path, and is where EVO-DRYRUN-001 and
+// API-032 send a bare deletion. Listing one here would tell the reviewer
+// to turn it into an evo.File call that cannot state it.
 package review
 
 import (
@@ -22,13 +28,13 @@ import (
 	"go/token"
 )
 
-// fsWriteMutatorNames are the filesystem mutation calls ZYS-851's Decisions
-// names outright, plus ioutil.WriteFile as os.WriteFile's pre-io/fs
-// synonym. os.OpenFile is handled separately (isWriteModeOpenFile) because
-// only a write-mode flag argument makes it a mutator.
+// fsWriteMutatorNames are the filesystem write calls ZYS-851's Decisions
+// names outright that evo.File can state as desired contents, plus
+// ioutil.WriteFile as os.WriteFile's pre-io/fs synonym. os.OpenFile is
+// handled separately (isWriteModeOpenFile) because only a write-mode flag
+// argument makes it a mutator.
 var fsWriteMutatorNames = map[string]bool{
-	"os.WriteFile": true, "os.Create": true, "os.Remove": true,
-	"os.Rename": true, "ioutil.WriteFile": true,
+	"os.WriteFile": true, "os.Create": true, "ioutil.WriteFile": true,
 }
 
 // detectFileWriteInEffectCallback is API-057: an evo.Effect callback

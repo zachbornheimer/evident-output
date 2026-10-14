@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -74,6 +75,21 @@ func applyReviewRewrites(t *testing.T, fixture string, wantMessages []string, mo
 		}
 	}
 
+	src = applyAllSuggestions(t, src, findings, moveIntoRun)
+
+	if again := review.GoSource("main.go", src); len(again.Findings) != 0 || again.RecheckRequired {
+		t.Fatalf("review is not clean after applying every suggestion:\n%s\nrewritten source:\n%s", describeFindings(again.Findings), src)
+	}
+	return src
+}
+
+// applyAllSuggestions applies every mechanically applicable suggestion in
+// findings to src, outermost first, then performs the documented manual
+// steps once (add the named imports, move statements into run) and returns
+// the rewritten source. A suggestion that is guidance only changes nothing.
+func applyAllSuggestions(t *testing.T, src string, findings []review.Finding, moveIntoRun func(*testing.T, string) string) string {
+	t.Helper()
+	findings = slices.Clone(findings)
 	sort.SliceStable(findings, func(i, j int) bool { return len(findings[i].Suggestion) > len(findings[j].Suggestion) })
 	var imports []string
 	var moved bool
@@ -97,12 +113,7 @@ func applyReviewRewrites(t *testing.T, fixture string, wantMessages []string, mo
 		}
 		src = moveIntoRun(t, src)
 	}
-	src = addImports(src, imports)
-
-	if again := review.GoSource("main.go", src); len(again.Findings) != 0 || again.RecheckRequired {
-		t.Fatalf("review is not clean after applying every suggestion:\n%s\nrewritten source:\n%s", describeFindings(again.Findings), src)
-	}
-	return src
+	return addImports(src, imports)
 }
 
 // applySuggestion applies one "replace OLD with NEW" or "delete OLD; why"
@@ -176,6 +187,15 @@ func moveStatementsIntoRun(t *testing.T, src string) string {
 // package, with every error fatal: unused names and imports included.
 func requireTypeChecksAgainstTwoZero(t *testing.T, src, companions string) {
 	t.Helper()
+	if problems := typeCheckProblemsAgainstTwoZero(t, src, companions); len(problems) > 0 {
+		t.Fatalf("the rewritten program does not compile against 2.0:\n  %s\nsource:\n%s", strings.Join(problems, "\n  "), src)
+	}
+}
+
+// typeCheckProblemsAgainstTwoZero returns every type error src has against
+// the real 2.0 package.
+func typeCheckProblemsAgainstTwoZero(t *testing.T, src, companions string) []string {
+	t.Helper()
 	fset := token.NewFileSet()
 	var files []*ast.File
 	for name, text := range map[string]string{"main.go": src, "companions.go": companions} {
@@ -191,7 +211,5 @@ func requireTypeChecksAgainstTwoZero(t *testing.T, src, companions string) {
 	var problems []string
 	conf := types.Config{Importer: importer.ForCompiler(fset, "source", nil), Error: func(err error) { problems = append(problems, err.Error()) }}
 	_, _ = conf.Check("main", fset, files, nil)
-	if len(problems) > 0 {
-		t.Fatalf("the rewritten program does not compile against 2.0:\n  %s\nsource:\n%s", strings.Join(problems, "\n  "), src)
-	}
+	return problems
 }

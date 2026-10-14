@@ -202,12 +202,32 @@ import (
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func prune(r *evo.Run, f string) {
-	r.Task("prune").Define(func(context.Context) error { return os.RemoveAll("old/" + f) })
+	r.Task("prune").Define(func(ctx context.Context) error { return os.RemoveAll("old/" + f) })
 }
 `
 	f := assertFinding(t, review.GoSource("bare_delete.go", src), "EVO-DRYRUN-001")
-	if !strings.Contains(f.Suggestion, "evo.Effect") || !strings.Contains(f.Suggestion, "Path: path") {
-		t.Fatalf("a bare deletion must be steered to evo.Effect with a Path claim: %q", f.Suggestion)
+	want := `replace os.RemoveAll("old/" + f) with evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "file", Quantity: 1, Path: "old/" + f}, func(context.Context) error { return os.RemoveAll("old/" + f) })`
+	if f.Suggestion != want {
+		t.Fatalf("a bare deletion must be steered to the exact evo.Effect rewrite with a Path claim:\n got: %s\nwant: %s", f.Suggestion, want)
+	}
+}
+
+// With no named context parameter the exact rewrite would not compile, so
+// the suggestion stays advice and says to name it.
+func TestEVODRYRUN001_BareDeletionWithUnnamedContext_AsksToNameIt(t *testing.T) {
+	src := `package p
+import (
+	"context"
+	"os"
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+func prune(r *evo.Run) {
+	r.Task("prune").Define(func(context.Context) error { return os.Remove("app.lock") })
+}
+`
+	f := assertFinding(t, review.GoSource("unnamed_ctx.go", src), "EVO-DRYRUN-001")
+	if strings.HasPrefix(f.Suggestion, "replace ") || !strings.Contains(f.Suggestion, "name the Define callback's context parameter") {
+		t.Fatalf("without a ctx name the suggestion must ask for one, not offer a rewrite that does not compile: %q", f.Suggestion)
 	}
 }
 

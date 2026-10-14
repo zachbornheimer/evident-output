@@ -21,7 +21,7 @@ func main() {
 	build.Done("3 checked")
 	_ = build.Evidence()
 	build.NextCommand("git", "status")
-	build.Delete("local tip", func() error { return nil }, evo.Affected(2))
+	build.Delete("local tip", func() error { return os.RemoveAll("tips") }, evo.Affected(2))
 	build.Record("install", 1, "package")
 	_ = evo.EncodeJSON(os.Stdout, nil)
 	fmt.Println(context.Background())

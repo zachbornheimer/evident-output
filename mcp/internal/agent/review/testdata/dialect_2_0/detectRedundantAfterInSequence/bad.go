@@ -1,4 +1,4 @@
-// After(managers) names an earlier step of the same Sequence.
+// A step orders itself after an earlier step of its own Sequence.
 package api065
 
 import (

@@ -43,12 +43,14 @@ func All() []Guide {
      evo.Delete, Object: "worktree", Quantity: n}, fn) }) for an opaque mutation (git ref,
      worktree, API change); evo.File(ctx, evo.FileSpec{...}) for file state. Config.DryRun picks
      [planned] vs [changed]; no call site ever flips its own tense or chooses Changed/Ready/Planned.
-     A filesystem mutator (os.WriteFile, os.Create, write-mode os.OpenFile, os.Remove, os.Rename)
-     inside an Effect callback is never correct (API-057): Effect is the opaque-mutation escape
-     hatch, not a second file-write API — route file state through evo.File, even when the new
-     content derives from an existing file's contents (read the file first, then pass the
-     derived result as FileSpec.Contents, or apply a unified diff with evo.Patch, which commits
-     through File and fails with ErrStaleBasis rather than overwriting a changed source).
+     A file write (os.WriteFile, os.Create, write-mode os.OpenFile) inside an Effect callback is
+     never correct (API-057): Effect is the opaque-mutation escape hatch, not a second file-write
+     API — route file state through evo.File, even when the new content derives from an existing
+     file's contents (read the file first, then pass the derived result as FileSpec.Contents, or
+     apply a unified diff with evo.Patch, which commits through File and fails with ErrStaleBasis
+     rather than overwriting a changed source). A deletion is the Effect's own work: os.Remove or
+     os.RemoveAll inside evo.Effect, with EffectSpec.Path naming the file (evo.File cannot state a
+     deletion).
   3) worktrees := r.Group("worktrees"); for _, path := range paths { worktrees.Task(path).Define(...) }
      for independent collections; evo.Sequence for ordered ones (same one-Task-per-item shape;
      Group.Each/Sequence.Each were removed in 1.0); .Writer() as cmd.Stdout so a talkative

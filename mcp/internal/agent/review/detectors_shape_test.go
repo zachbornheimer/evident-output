@@ -8,7 +8,7 @@ import (
 )
 
 // TestFileDetectorsAreFlatFunctionValues keeps the registry a flat list:
-// every entry's run is a detector function, or textRule/astRule of one,
+// every entry's run is a detector function, or textRule/astRule/astSourceRule of one,
 // never an inline closure that re-orders arguments.
 func TestFileDetectorsAreFlatFunctionValues(t *testing.T) {
 	fset := token.NewFileSet()
@@ -27,8 +27,8 @@ func TestFileDetectorsAreFlatFunctionValues(t *testing.T) {
 		switch v := kv.Value.(type) {
 		case *ast.Ident:
 		case *ast.CallExpr:
-			if fn, ok := v.Fun.(*ast.Ident); !ok || (fn.Name != "textRule" && fn.Name != "astRule") {
-				t.Errorf("%s: run is a call to something other than textRule/astRule", fset.Position(v.Pos()))
+			if fn, ok := v.Fun.(*ast.Ident); !ok || (fn.Name != "textRule" && fn.Name != "astRule" && fn.Name != "astSourceRule") {
+				t.Errorf("%s: run is a call to something other than textRule/astRule/astSourceRule", fset.Position(v.Pos()))
 			}
 		default:
 			t.Errorf("%s: run is %T, want a detector function value", fset.Position(v.Pos()), v)
