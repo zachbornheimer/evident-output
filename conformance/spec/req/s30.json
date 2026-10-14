@@ -720,7 +720,7 @@
   {
     "id": "C30-046",
     "section": "30",
-    "quote": "Dry run plans every mutation and runs no callback.",
+    "quote": "Dry run runs every Define callback, plans every mutation, and runs no Effect callback.",
     "tier": "1.1",
     "tests": [
       {
@@ -730,6 +730,10 @@
       {
         "pkg": ".",
         "run": "TestEffect_DryRunNeverExecutesCallAndPlansEffect"
+      },
+      {
+        "pkg": ".",
+        "run": "TestDryRunRunsDefineCallbacksAndSkipsEffects"
       }
     ],
     "default": false
