@@ -51,12 +51,12 @@ var retiredSymbols = []RetiredSymbol{
 
 	// ZYS-950: the TaskHandle mutation verbs and their quantity option.
 	// Opaque mutations use evo.Effect; file state uses evo.File.
-	{Contract: "TaskHandle.Add(", RemovedIn: RetiredRelease1_1, Replacement: "evo.Effect(ctx, EffectSpec{Verb: EffectAdd, ...}, fn)", Taught: mutationVerb("Add")},
-	{Contract: "TaskHandle.Create(", RemovedIn: RetiredRelease1_1, Replacement: "evo.Effect(ctx, EffectSpec{Verb: EffectCreate, ...}, fn)", Taught: mutationVerb("Create")},
-	{Contract: "TaskHandle.Delete(", RemovedIn: RetiredRelease1_1, Replacement: "evo.Effect(ctx, EffectSpec{Verb: EffectDelete, ...}, fn)", Taught: mutationVerb("Delete")},
-	{Contract: "TaskHandle.Push(", RemovedIn: RetiredRelease1_1, Replacement: "evo.Effect(ctx, EffectSpec{Verb: EffectPush, ...}, fn)", Taught: mutationVerb("Push")},
-	{Contract: "TaskHandle.Remove(", RemovedIn: RetiredRelease1_1, Replacement: "evo.Effect(ctx, EffectSpec{Verb: EffectRemove, ...}, fn)", Taught: mutationVerb("Remove")},
-	{Contract: "TaskHandle.Update(", RemovedIn: RetiredRelease1_1, Replacement: "evo.Effect(ctx, EffectSpec{Verb: EffectUpdate, ...}, fn)", Taught: mutationVerb("Update")},
+	{Contract: "TaskHandle.Add(", RemovedIn: RetiredRelease1_1, Replacement: "evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, ...}, fn)", Taught: mutationVerb("Add")},
+	{Contract: "TaskHandle.Create(", RemovedIn: RetiredRelease1_1, Replacement: "evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, ...}, fn)", Taught: mutationVerb("Create")},
+	{Contract: "TaskHandle.Delete(", RemovedIn: RetiredRelease1_1, Replacement: "evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, ...}, fn)", Taught: mutationVerb("Delete")},
+	{Contract: "TaskHandle.Push(", RemovedIn: RetiredRelease1_1, Replacement: "evo.Effect(ctx, evo.EffectSpec{Verb: evo.Update, ...}, fn)", Taught: mutationVerb("Push")},
+	{Contract: "TaskHandle.Remove(", RemovedIn: RetiredRelease1_1, Replacement: "evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, ...}, fn)", Taught: mutationVerb("Remove")},
+	{Contract: "TaskHandle.Update(", RemovedIn: RetiredRelease1_1, Replacement: "evo.Effect(ctx, evo.EffectSpec{Verb: evo.Update, ...}, fn)", Taught: mutationVerb("Update")},
 	{Contract: "TaskHandle.Write(", RemovedIn: RetiredRelease1_1, Replacement: "evo.File for file state, evo.Effect otherwise", Taught: mutationVerb("Write")},
 	{Contract: "Affected", RemovedIn: RetiredRelease1_1, Replacement: "EffectSpec.Quantity", Taught: regexp.MustCompile(`\bAffected\(`)},
 	{Contract: "MutationOption", RemovedIn: RetiredRelease1_1, Replacement: "EffectSpec", Taught: regexp.MustCompile(`\bMutationOption\b`)},
@@ -194,6 +194,7 @@ var retiredSymbols = []RetiredSymbol{
 	{Contract: "EffectRemove", RemovedIn: RetiredRelease2_0, Replacement: "evo.Delete", Taught: regexp.MustCompile(`\bEffectRemove\b`)},
 	{Contract: "EffectUpdate", RemovedIn: RetiredRelease2_0, Replacement: "evo.Update", Taught: regexp.MustCompile(`\bEffectUpdate\b`)},
 	{Contract: "EffectInstall", RemovedIn: RetiredRelease2_0, Replacement: "evo.Create", Taught: regexp.MustCompile(`\bEffectInstall\b`)},
+	{Contract: "EffectUninstall", RemovedIn: RetiredRelease2_0, Replacement: "evo.Delete", Taught: regexp.MustCompile(`\bEffectUninstall\b`)},
 }
 
 // apiSpelling matches a retired method taught as current API: a known evo

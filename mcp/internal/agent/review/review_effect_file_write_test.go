@@ -16,7 +16,7 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, path string, contents []byte) error {
-  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "config file", Quantity: 1}, func(context.Context) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Update, Object: "config file", Quantity: 1}, func(context.Context) error {
     return os.WriteFile(path, contents, 0o644)
   })
 }
@@ -48,7 +48,7 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, path string, contents []byte) error {
-  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "manifest", Quantity: 1}, writeManifest)
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, Object: "manifest", Quantity: 1}, writeManifest)
 }
 func writeManifest(context.Context) error {
   return os.WriteFile("manifest.json", []byte("{}"), 0o644)
@@ -70,7 +70,7 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, path string) error {
-  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "log file", Quantity: 1}, func(context.Context) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Update, Object: "log file", Quantity: 1}, func(context.Context) error {
     f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
     if err != nil {
       return err
@@ -93,7 +93,7 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, path string) error {
-  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "remote ref", Quantity: 1}, func(context.Context) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Update, Object: "remote ref", Quantity: 1}, func(context.Context) error {
     f, err := os.OpenFile(path, os.O_RDONLY, 0)
     if err != nil {
       return err
@@ -123,7 +123,7 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, path string) error {
-  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "config file", Quantity: 1}, func(context.Context) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Update, Object: "config file", Quantity: 1}, func(context.Context) error {
     existing, err := os.ReadFile(path)
     if err != nil {
       return err
@@ -151,7 +151,7 @@ func TestAPI057_WriteDerivedFromRead_SuggestsEvoFile(t *testing.T) {
 const realOpaqueEffectCallbackSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context, ref string) error {
-  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "remote ref", Quantity: 1}, func(context.Context) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "remote ref", Quantity: 1}, func(context.Context) error {
     return deleteRemoteRef(ctx, ref)
   })
 }

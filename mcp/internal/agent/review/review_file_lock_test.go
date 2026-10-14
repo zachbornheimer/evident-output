@@ -76,7 +76,7 @@ func f(ctx context.Context, fd int, p string) error {
 func f(ctx context.Context, f *os.File) error {
   unix.Flock(int(f.Fd()), unix.LOCK_EX)
   defer f.Close()
-  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "x", Quantity: 1}, func(context.Context) error { return nil })
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Update, Object: "x", Quantity: 1}, func(context.Context) error { return nil })
 }
 `, "unix.Flock(int(f.Fd()), unix.LOCK_EX)", "unix.Flock"},
 		{"O_EXCL lock file removed around Patch", `

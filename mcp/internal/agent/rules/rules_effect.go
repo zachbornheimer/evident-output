@@ -29,7 +29,7 @@ evo.Effect(ctx, spec, func(ctx context.Context) error {
 			Category:        "API",
 			Severity:        SeverityWarning,
 			Invariant:       "an EffectSpec.Object literal names the singular; evo pluralizes it from Quantity",
-			Why:             "`EffectSpec{Verb: EffectDelete, Object: \"worktrees\", Quantity: 1}` renders \"deleted 1 worktrees\" (zq axis-14 P17) because Pluralize treats an already-plural literal as unchanged; Object must stay singular so pluralization has one job.",
+			Why:             "`EffectSpec{Verb: Delete, Object: \"worktrees\", Quantity: 1}` renders \"deleted 1 worktrees\" (zq axis-14 P17) because Pluralize treats an already-plural literal as unchanged; Object must stay singular so pluralization has one job.",
 			BadCode:         `evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktrees", Quantity: 1}`,
 			GoodCode:        `evo.EffectSpec{Verb: evo.Delete, Object: "worktree", Quantity: 1}`,
 			Remediation:     "Pass the singular noun as EffectSpec.Object; let Quantity drive pluralization",

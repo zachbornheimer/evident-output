@@ -56,15 +56,15 @@ os.Exit(evo.Execute(ctx, evo.Config{Name: "tool"}, run).ExitCode())
 
 ## House rules (short)
 
-| Rule     | Meaning                                                                                       |
-| -------- | --------------------------------------------------------------------------------------------- |
-| RULE-001 | True verbs from the closed `EffectVerb` set; the domain noun goes in `Object`, never the verb |
-| RULE-002 | No vanity Tasks that restate the mutation ledger                                              |
-| RULE-003 | User failures → Task Problems, not slog-only                                                  |
-| RULE-004 | Predeclare concurrent Tasks before workers                                                    |
-| RULE-005 | Scale Task cardinality to product need                                                        |
-| RULE-006 | Capability ≠ obligation                                                                       |
-| PHIL-001 | One ordinary spelling per intent                                                              |
+| Rule     | Meaning                                                                                 |
+| -------- | --------------------------------------------------------------------------------------- |
+| RULE-001 | True verbs from the closed `Verb` set; the domain noun goes in `Object`, never the verb |
+| RULE-002 | No vanity Tasks that restate the mutation ledger                                        |
+| RULE-003 | User failures → Task Problems, not slog-only                                            |
+| RULE-004 | Predeclare concurrent Tasks before workers                                              |
+| RULE-005 | Scale Task cardinality to product need                                                  |
+| RULE-006 | Capability ≠ obligation                                                                 |
+| PHIL-001 | One ordinary spelling per intent                                                        |
 
 Batch elements are one Task with Progress+Doing (count + muted activity), not N Tasks.
 Use `TruncateNames` for a single skip/kept list when names must stay readable.

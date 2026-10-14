@@ -18,7 +18,7 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, diffPath string) error {
-  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "workspace", Quantity: 1}, func(context.Context) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Update, Object: "workspace", Quantity: 1}, func(context.Context) error {
     cmd := exec.Command("patch", "-p1", "-i", diffPath)
     return cmd.Run()
   })

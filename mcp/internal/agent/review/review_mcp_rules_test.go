@@ -226,7 +226,7 @@ func TestAPI041_GoroutineWithDefine_StaysSilent(t *testing.T) {
 const nilEffectCallbackSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context) error {
-  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: 2}, nil)
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, Object: "module", Quantity: 2}, nil)
 }
 `
 
@@ -244,7 +244,7 @@ func TestAPI042_NilEffectCallback_Fires(t *testing.T) {
 const noOpLiteralEffectCallbackSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context) error {
-  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktree", Quantity: 1}, func(context.Context) error { return nil })
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "worktree", Quantity: 1}, func(context.Context) error { return nil })
 }
 `
 
@@ -259,7 +259,7 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, name string, n int) error {
-  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: n}, func(context.Context) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, Object: "module", Quantity: n}, func(context.Context) error {
     return installedCount(name, n)
   })
 }
@@ -279,7 +279,7 @@ func TestAPI042_NoOpDelegatedEffectCallback_Fires(t *testing.T) {
 const realEffectCallbackSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context) error {
-  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: 2}, func(ctx context.Context) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, Object: "module", Quantity: 2}, func(ctx context.Context) error {
     return installPackages(ctx)
   })
 }
@@ -300,7 +300,7 @@ func TestAPI042_RealWorkEffectCallback_StaysSilent(t *testing.T) {
 const pluralEffectObjectSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context) error {
-  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktrees", Quantity: 1}, removeWorktree)
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "worktrees", Quantity: 1}, removeWorktree)
 }
 `
 
@@ -321,7 +321,7 @@ func TestAPI043_PluralEffectObjectLiteral_Fires(t *testing.T) {
 const singularEffectObjectSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context) error {
-  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktree", Quantity: 1}, removeWorktree)
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "worktree", Quantity: 1}, removeWorktree)
 }
 `
 
@@ -1392,7 +1392,7 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func moveWorktree(ctx context.Context, from, to string, marker []byte) error {
-  spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
+  spec := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Resource: evo.FSResource(from)}
   return evo.Effect(ctx, spec, func(ctx context.Context) error {
     return evo.File(ctx, evo.FileSpec{Path: to, Contents: marker})
   })
@@ -1416,7 +1416,7 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func moveWorktree(ctx context.Context, from, to string, marker []byte) error {
-  spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
+  spec := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Resource: evo.FSResource(from)}
   return evo.Effect(ctx, spec, func(ctx context.Context) error {
     return writeMarker(ctx, to, marker)
   })
@@ -1437,9 +1437,9 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func moveTwoWorktrees(ctx context.Context, a, b string) error {
-  outer := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(a)}
+  outer := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Resource: evo.FSResource(a)}
   return evo.Effect(ctx, outer, func(ctx context.Context) error {
-    inner := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(b)}
+    inner := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Resource: evo.FSResource(b)}
     return evo.Effect(ctx, inner, func(ctx context.Context) error { return nil })
   })
 }
@@ -1459,7 +1459,7 @@ func moveWorktree(ctx context.Context, from, to string, marker []byte) error {
   if err := evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}); err != nil {
     return err
   }
-  spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
+  spec := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Resource: evo.FSResource(from)}
   return evo.Effect(ctx, spec, func(ctx context.Context) error {
     return removeDir(from)
   })
@@ -1481,7 +1481,7 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func cleanCache(ctx context.Context, path string, marker []byte) error {
-  spec := evo.EffectSpec{Object: "cache entry", Verb: evo.EffectDelete}
+  spec := evo.EffectSpec{Object: "cache entry", Verb: evo.Delete}
   return evo.Effect(ctx, spec, func(ctx context.Context) error {
     return evo.File(ctx, evo.FileSpec{Path: path, Contents: marker})
   })
@@ -1886,10 +1886,10 @@ import (
 )
 func run(sweepTask, gcTask *evo.TaskHandle) {
   sweepTask.Define(func(ctx context.Context) error {
-    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "repo cache", Resource: evo.FSResource("/repo/cache")}, removeRepoCache)
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "repo cache", Resource: evo.FSResource("/repo/cache")}, removeRepoCache)
   })
   gcTask.Define(func(ctx context.Context) error {
-    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "repo cache", Resource: evo.FSResource("/repo/cache")}, removeRepoCache)
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "repo cache", Resource: evo.FSResource("/repo/cache")}, removeRepoCache)
   })
   // shared resource, exclusive access only
   gcTask.After(sweepTask)
@@ -1913,10 +1913,10 @@ import (
 )
 func run(lockTask, sweepTask *evo.TaskHandle) {
   lockTask.Define(func(ctx context.Context) error {
-    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "repo", Resource: evo.FSResource("/repo")}, refreshRepo)
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Update, Object: "repo", Resource: evo.FSResource("/repo")}, refreshRepo)
   })
   sweepTask.Define(func(ctx context.Context) error {
-    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "repo", Resource: evo.FSResource("/repo")}, removeRepo)
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "repo", Resource: evo.FSResource("/repo")}, removeRepo)
   })
   // shared resource, exclusive access only
   sweepTask.After(lockTask)

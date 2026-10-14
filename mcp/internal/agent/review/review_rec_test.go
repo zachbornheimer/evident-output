@@ -28,7 +28,7 @@ func f(task *evo.TaskHandle, n int) {
 		t.Fatalf("want API-032 for Options/To/Plain/quantity-first Delete, got no findings")
 	}
 	joined := joinSuggestions(found)
-	want := `with task.Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: n}, fn) })`
+	want := `with task.Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "local tip", Quantity: n}, fn) })`
 	if !strings.Contains(joined, want) {
 		t.Fatalf("suggestion must rewrite to Define + evo.Effect:\nwant %s\ngot  %q", want, joined)
 	}
@@ -63,7 +63,7 @@ func run(out *evo.Output) error {
 	found := findAPI032(res)
 	joined := joinSuggestions(found)
 	cases := []string{
-		`evo.EffectRemove, Object: "worktree", Quantity: n}`,
+		`evo.Delete, Object: "worktree", Quantity: n}`,
 		`task.Skipped(evo.Reason("skipped")`,
 		`.Doing("scanning worktrees")`,
 		`with out.Task("scan")`,
@@ -135,7 +135,7 @@ func f(task *evo.TaskHandle, n int, reason evo.TaxonomyReason) {
 	var buf bytes.Buffer
 	evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
 	task.Define(func(ctx context.Context) error {
-		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: n}, removeTip)
+		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "local tip", Quantity: n}, removeTip)
 	})
 	task.Skipped(reason)
 	task.Doing("scanning worktrees")
@@ -204,11 +204,11 @@ func f(task *evo.TaskHandle, n int) {
 `
 	res := review.GoSource("legacy.go", src)
 	joined := joinSuggestions(findAPI032(res))
-	want := `with task.Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: n}, func(context.Context) error { return removeTip() }) })`
+	want := `with task.Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "local tip", Quantity: n}, func(context.Context) error { return removeTip() }) })`
 	if !strings.Contains(joined, want) {
 		t.Fatalf("legacy Delete must rewrite to Define + evo.Effect:\nwant %s\ngot  %q", want, joined)
 	}
-	if !strings.Contains(joined, `evo.EffectPush, Object: "remote ref", Quantity: 1}, fn)`) {
+	if !strings.Contains(joined, `evo.Update, Object: "remote ref", Quantity: 1}, fn)`) {
 		t.Fatalf("legacy Push with a nil callback must still rewrite to evo.Effect, got %q", joined)
 	}
 }
@@ -315,7 +315,7 @@ func f(task *evo.TaskHandle) {
 }
 `
 	joined := joinSuggestions(findAPI032(review.GoSourceAt("pinned.go", src, "v1.1.0")))
-	if !strings.Contains(joined, `evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktree", Quantity: 1}`) {
+	if !strings.Contains(joined, `evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "worktree", Quantity: 1}`) {
 		t.Fatalf("a v1.1.0 pin must rewrite Delete to evo.Effect, got %q", joined)
 	}
 }

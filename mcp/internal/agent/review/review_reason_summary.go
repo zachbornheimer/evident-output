@@ -184,7 +184,7 @@ func skippedAlreadySatisfiedFinding(filename string, pos token.Position, recv, t
 // Decisions, 2026-09-23) — Summary is non-terminal result metadata, not a
 // replacement for the success-stamp channel Done(text) removed in 1.1.
 // That narration belongs to evo.File/evo.Effect's own record,
-// the Satisfied outcome, or evo.Fact instead.
+// the Satisfied outcome, or Task.Fact instead.
 
 // summaryStampMarkers are substrings (checked case-insensitive against the
 // full Summary text) that only ever narrate a mutation that already
@@ -247,7 +247,7 @@ func summaryStampNarrationFinding(filename string, pos token.Position, recv, tex
 		Line:    pos.Line,
 		Column:  pos.Column,
 		Suggestion: "move this narration to the primitive that owns it — evo.File/evo.Effect's own record, the Satisfied outcome (via " + recv +
-			".Verify), or evo.Fact — and reserve " + recv + ".Summary for result metadata such as a count or verdict",
+			".Verify), or " + recv + ".Fact — and reserve " + recv + ".Summary for result metadata such as a count or verdict",
 	}
 }
 

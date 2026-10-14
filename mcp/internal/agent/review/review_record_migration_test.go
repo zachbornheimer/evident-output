@@ -33,8 +33,8 @@ func TestAPI061_RecordInstallShaped_Fires(t *testing.T) {
 	if !strings.Contains(f.Suggestion, "evo.Effect") {
 		t.Fatalf("API-061 suggestion does not name evo.Effect: %q", f.Suggestion)
 	}
-	if !strings.Contains(f.Suggestion, "evo.Fact") {
-		t.Fatalf("API-061 suggestion does not name evo.Fact: %q", f.Suggestion)
+	if !strings.Contains(f.Suggestion, "task.Fact") {
+		t.Fatalf("API-061 suggestion does not name task.Fact: %q", f.Suggestion)
 	}
 	if !strings.Contains(f.Suggestion, "evo.File") {
 		t.Fatalf("API-061 suggestion does not name evo.File: %q", f.Suggestion)
@@ -62,7 +62,7 @@ func TestAPI061_RecordUninstallShaped_Fires(t *testing.T) {
 }
 
 // RecordLabel reports a classification, not a mutation — its migration
-// path is evo.Fact specifically, and the suggestion says so.
+// path is Fact specifically, and the suggestion says so.
 const recordLabelInformationShapedSrc = `package p
 import (
   "context"
@@ -76,8 +76,8 @@ func run(task *evo.TaskHandle, n int) {
 func TestAPI061_RecordLabelInformationShaped_Fires(t *testing.T) {
 	res := review.GoSource("readiness.go", recordLabelInformationShapedSrc)
 	f := findingByID(t, res, "API-061")
-	if !strings.Contains(f.Suggestion, "evo.Fact") {
-		t.Fatalf("RecordLabel suggestion does not name evo.Fact: %q", f.Suggestion)
+	if !strings.Contains(f.Suggestion, "task.Fact") {
+		t.Fatalf("RecordLabel suggestion does not name task.Fact: %q", f.Suggestion)
 	}
 	if !strings.Contains(f.Message, "RecordLabel") {
 		t.Fatalf("API-061 message does not name RecordLabel: %q", f.Message)
@@ -111,7 +111,7 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, task *evo.TaskHandle, n int, path string, contents []byte) error {
-  if err := evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectInstall, Quantity: n, Object: "module"}, func(ctx context.Context) error {
+  if err := evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, Quantity: n, Object: "module"}, func(ctx context.Context) error {
     return installModules(ctx, n)
   }); err != nil {
     return err
@@ -157,11 +157,11 @@ func TestAPI061_SuggestsExactRewrite(t *testing.T) {
 	}{
 		{
 			"install", `task.Record("install", n, "module")`,
-			`task.Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectInstall, Object: "module", Quantity: n}, fn) })`,
+			`task.Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, Object: "module", Quantity: n}, fn) })`,
 		},
 		{
 			"named delete", `task.RecordName("delete", "feat/a")`,
-			`evo.EffectSpec{Verb: evo.EffectDelete, Object: "feat/a", Quantity: 1}`,
+			`evo.EffectSpec{Verb: evo.Delete, Object: "feat/a", Quantity: 1}`,
 		},
 		{
 			"file write", `task.RecordName("write", path)`,
@@ -173,7 +173,7 @@ func TestAPI061_SuggestsExactRewrite(t *testing.T) {
 		},
 		{
 			"free-text verb", `task.Record("fetch-prune", n, "ref")`,
-			`no EffectVerb is spelled "fetch-prune"`,
+			`no verb is spelled "fetch-prune"`,
 		},
 	}
 	for _, tc := range cases {

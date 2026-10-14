@@ -132,7 +132,7 @@ import (
 
 func addColumn(task *evo.TaskHandle, db *sql.DB) {
 	task.Define(func(ctx context.Context) error {
-		spec := evo.EffectSpec{Verb: evo.EffectCreate, Object: "column", Quantity: 1}
+		spec := evo.EffectSpec{Verb: evo.Create, Object: "column", Quantity: 1}
 		return evo.Effect(ctx, spec, func(ctx context.Context) error {
 			_, err := db.ExecContext(ctx, "ALTER TABLE users ADD COLUMN email_verified boolean")
 			return err
@@ -155,7 +155,7 @@ import (
 
 func writeConfig(task *evo.TaskHandle, path string, data []byte) {
 	task.Define(func(ctx context.Context) error {
-		spec := evo.EffectSpec{Verb: evo.EffectUpdate, Object: "config", Quantity: 1}
+		spec := evo.EffectSpec{Verb: evo.Update, Object: "config", Quantity: 1}
 		return evo.Effect(ctx, spec, func(context.Context) error {
 			return os.WriteFile(path, data, 0o644)
 		})

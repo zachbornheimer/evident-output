@@ -116,7 +116,7 @@ func omittedBasisFinding(filename string, pos token.Position, path string) Findi
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,
-		Suggestion: fmt.Sprintf("Add evo.FSPath(%q) to Basis", path),
+		Suggestion: fmt.Sprintf("claim %q with EffectSpec.Path so the operation covers the file it reads", path),
 	}
 }
 

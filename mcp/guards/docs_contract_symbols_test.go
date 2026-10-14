@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
 )
 
@@ -72,6 +73,11 @@ func (c contractSurface) unknownReferences(text string) []string {
 			check("evo."+name, m[0])
 		}
 	}
+	for _, m := range bareEffectName.FindAllStringSubmatchIndex(text, -1) {
+		if name := text[m[2]:m[3]]; !c.names[name] {
+			check(name, m[0])
+		}
+	}
 	for _, m := range c.memberReference().FindAllStringSubmatchIndex(text, -1) {
 		if owner, member := text[m[2]:m[3]], text[m[4]:m[5]]; !c.members[owner][member] {
 			check(owner+"."+member, m[2])
@@ -79,6 +85,11 @@ func (c contractSurface) unknownReferences(text string) []string {
 	}
 	return unknown
 }
+
+// bareEffectName matches an Effect-prefixed name written without the evo.
+// qualifier (EffectSpec{Verb: EffectDelete}), the spelling 1.x taught for the
+// verbs 2.0 exports as Create, Update and Delete.
+var bareEffectName = regexp.MustCompile(`(?:^|[^\w.])(Effect[A-Z]\w*)`)
 
 // sentenceBreak ends a sentence or clause: a period or semicolon, then a space.
 var sentenceBreak = regexp.MustCompile(`[.;] `)
@@ -155,6 +166,9 @@ func docCorpus(t *testing.T, root string) map[string]string {
 			corpus["suggestion "+site] = text
 		}
 	}
+	for site, text := range detectorOutputs() {
+		corpus["detector output "+site] = text
+	}
 	return corpus
 }
 
@@ -179,8 +193,12 @@ func walkFiles(t *testing.T, dir, suffix string, visit func(rel, body string)) {
 	}
 }
 
+// detectorFieldNames are the fields detector code assigns the fix text to.
+var detectorFieldNames = map[string]bool{"Suggestion": true, "Remediation": true}
+
 // suggestionLiterals are the string literals Go code in dir assigns to a
-// Suggestion field, keyed by file:line.
+// Suggestion or Remediation field, keyed by file:line. A value built by
+// concatenation or fmt.Sprintf contributes every literal piece.
 func suggestionLiterals(t *testing.T, dir string) map[string]string {
 	t.Helper()
 	literals := map[string]string{}
@@ -194,11 +212,12 @@ func suggestionLiterals(t *testing.T, dir string) map[string]string {
 		if err != nil {
 			return err
 		}
+		rel, _ := filepath.Rel(moduleRoot(t), path)
 		ast.Inspect(file, func(n ast.Node) bool {
-			if lit := suggestionValue(n); lit != nil {
-				text, _ := strconv.Unquote(lit.Value)
-				rel, _ := filepath.Rel(moduleRoot(t), path)
-				literals[filepath.ToSlash(rel)+":"+strconv.Itoa(fset.Position(lit.Pos()).Line)] = text
+			if value := detectorFieldValue(n); value != nil {
+				if text := stringPieces(value); text != "" {
+					literals[filepath.ToSlash(rel)+":"+strconv.Itoa(fset.Position(value.Pos()).Line)] = text
+				}
 			}
 			return true
 		})
@@ -210,27 +229,35 @@ func suggestionLiterals(t *testing.T, dir string) map[string]string {
 	return literals
 }
 
-// suggestionValue is the string literal n assigns to a field named
-// Suggestion, in a composite literal key or an assignment, else nil.
-func suggestionValue(n ast.Node) *ast.BasicLit {
-	var value ast.Expr
+// detectorFieldValue is the expression n assigns to a field named in
+// detectorFieldNames, in a composite literal key or an assignment, else nil.
+func detectorFieldValue(n ast.Node) ast.Expr {
 	switch n := n.(type) {
 	case *ast.KeyValueExpr:
-		if key, ok := n.Key.(*ast.Ident); ok && key.Name == "Suggestion" {
-			value = n.Value
+		if key, ok := n.Key.(*ast.Ident); ok && detectorFieldNames[key.Name] {
+			return n.Value
 		}
 	case *ast.AssignStmt:
 		if len(n.Lhs) == 1 && len(n.Rhs) == 1 {
-			if sel, ok := n.Lhs[0].(*ast.SelectorExpr); ok && sel.Sel.Name == "Suggestion" {
-				value = n.Rhs[0]
+			if sel, ok := n.Lhs[0].(*ast.SelectorExpr); ok && detectorFieldNames[sel.Sel.Name] {
+				return n.Rhs[0]
 			}
 		}
 	}
-	lit, _ := value.(*ast.BasicLit)
-	if lit == nil || lit.Kind != token.STRING {
-		return nil
-	}
-	return lit
+	return nil
+}
+
+// stringPieces joins every string literal inside expr, in source order.
+func stringPieces(expr ast.Expr) string {
+	var pieces []string
+	ast.Inspect(expr, func(n ast.Node) bool {
+		if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+			text, _ := strconv.Unquote(lit.Value)
+			pieces = append(pieces, text)
+		}
+		return true
+	})
+	return strings.Join(pieces, "")
 }
 
 // TestDocsNameOnlyContractSymbols fails on any evo.X, Config.X, Run.X,
@@ -268,3 +295,37 @@ func isCapitalized(tag string) bool { return tag != "" && tag[0] >= 'A' && tag[0
 
 // removedNote marks a sentence that says a name was removed.
 var removedNote = regexp.MustCompile(`(?i)\bremoved in\b`)
+
+// retiredMutationSources are call sites of every removed mutation verb and
+// every Record shape, in both removed argument orders, as the detectors see
+// them in a reviewed file.
+func retiredMutationSources() map[string]string {
+	const header = "package p\nimport evo \"github.com/zachbornheimer/evident-output/v2\"\nfunc run(task *evo.TaskHandle, n int, path string) {\n  "
+	const footer = "\n}\n"
+	sources := map[string]string{}
+	for _, verb := range []string{"Add", "Create", "Delete", "Push", "Remove", "Update", "Write"} {
+		sources[verb+" quantity-first"] = header + `task.` + verb + `(n, "item")` + footer
+		sources[verb+" object-first"] = header + `task.` + verb + `("item", func() error { return nil })` + footer
+	}
+	for _, spelling := range []string{"add", "create", "delete", "install", "push", "remove", "uninstall", "update", "write", "fetch-prune"} {
+		sources["Record "+spelling] = header + `task.Record("` + spelling + `", n, "item")` + footer
+		sources["RecordName "+spelling] = header + `task.RecordName("` + spelling + `", "item")` + footer
+	}
+	sources["RecordLabel"] = header + `task.RecordLabel("ready", n, "worker")` + footer
+	return sources
+}
+
+// detectorOutputs are the Message and Suggestion texts the review detectors
+// produce for retiredMutationSources, keyed by source and rule. These are
+// computed from the call site's own identifiers, so no literal in the
+// detector code holds them whole.
+func detectorOutputs() map[string]string {
+	outputs := map[string]string{}
+	for name, src := range retiredMutationSources() {
+		for _, finding := range review.GoSource("p.go", src).Findings {
+			outputs[name+" "+finding.RuleID+" message"] = finding.Message
+			outputs[name+" "+finding.RuleID+" suggestion"] = finding.Suggestion
+		}
+	}
+	return outputs
+}

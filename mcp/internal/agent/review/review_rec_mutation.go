@@ -6,11 +6,11 @@ import (
 )
 
 // removedMutationVerbs are the TaskHandle mutation verbs removed in 1.1
-// (ZYS-950), mapped to the EffectVerb constant that replaces each. Write
-// has no Effect verb: file state goes through evo.File.
+// (ZYS-950), mapped to the exported evo.Verb that replaces each. Write has no
+// Effect verb: file state goes through evo.File.
 var removedMutationVerbs = map[string]string{
-	"Add": "EffectAdd", "Create": "EffectCreate", "Delete": "EffectDelete",
-	"Push": "EffectPush", "Remove": "EffectRemove", "Update": "EffectUpdate",
+	"Add": "Create", "Create": "Create", "Delete": "Delete",
+	"Push": "Update", "Remove": "Delete", "Update": "Update",
 	"Write": "",
 }
 

@@ -127,10 +127,10 @@ func detectUnboundedSliceIntoNarration(filename, src string) []Finding {
 		method := src[m[2]:m[3]]
 		findings = append(findings, Finding{
 			RuleID:     "BOUND-001",
-			Message:    "strings.Join of an unbounded slice passed to " + method + "; wrap it in evo.TruncateNames before rendering",
+			Message:    "strings.Join of an unbounded slice passed to " + method + "; bound the list before rendering",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: "replace strings.Join(...) with evo.TruncateNames(names, 8) inside ." + method + "(...)",
+			Suggestion: "join only the first few names and report the rest as a count inside ." + method + "(...)",
 		})
 	}
 	return findings

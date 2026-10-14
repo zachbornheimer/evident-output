@@ -3,7 +3,7 @@
 // (ZYS-812). They have no record-only replacement — Decisions (2026-09-23b)
 // route each call by what it actually reports: a real mutation belongs in
 // evo.Effect, information (a classification/count with no state change)
-// belongs in evo.Fact, and a file write belongs in evo.File/evo.Patch. The
+// belongs in task.Fact, and a file write belongs in evo.File/evo.Patch. The
 // suggestion spells the exact rewrite when the verb literal names one.
 //
 // Detection is structural: the method name and arg count must match the
@@ -66,7 +66,7 @@ func detectDeprecatedRecordCall(filename string, file *ast.File, fset *token.Fil
 
 // recordRouting is the three-way migration every removed Record* call
 // shares, appended to each suggestion so the reader sees the whole rule.
-const recordRouting = "Record* has no record-only replacement (ZYS-974): route a real mutation through evo.Effect, information/classification through evo.Fact, and a file write through evo.File/evo.Patch"
+const recordRouting = "Record* has no record-only replacement (ZYS-974): route a real mutation through evo.Effect, information/classification through task.Fact, and a file write through evo.File/evo.Patch"
 
 // deprecatedRecordCallFinding builds API-061's Finding, with the exact
 // rewrite when the call's verb literal determines one.
@@ -107,19 +107,10 @@ func recordRewrite(recv, verb string, args []ast.Expr) string {
 	if lit == "write" {
 		return "move the write into " + recv + ".Define(func(ctx context.Context) error { return evo.File(ctx, evo.FileSpec{Path: " + object + ", Contents: data}) })"
 	}
-	constant, ok := effectVerbConstant(lit)
+	exported, ok := exportedVerb(lit)
 	if !ok {
-		return "no EffectVerb is spelled " + strconv.Quote(lit) + "; pick the closest of " + strings.Join(effectVerbValues(), "/")
+		return "no verb is spelled " + strconv.Quote(lit) + "; pick the closest of evo." + strings.Join(exportedVerbNames, "/evo.")
 	}
-	return "move the mutation into " + recv + ".Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb: evo." + constant +
+	return "move the mutation into " + recv + ".Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb: evo." + exported +
 		", Object: " + object + ", Quantity: " + quantity + "}, fn) })"
-}
-
-// effectVerbValues is every EffectVerb spelling, in declaration order.
-func effectVerbValues() []string {
-	values := make([]string, len(effectVerbSpellings))
-	for i, v := range effectVerbSpellings {
-		values[i] = v.Value
-	}
-	return values
 }

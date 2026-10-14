@@ -73,7 +73,7 @@ func manualLockFinding(filename string, pos token.Position, r lockRegion) Findin
 	}
 	f.Message = r.holder + " locks around nothing but an " + r.evoCall + " call; Evo already claims its own path for writing with no caller code"
 	f.Suggestion = "drop the " + pair + " pair around this " + r.evoCall + " call; Evo claims its path itself." +
-		" For a non-File operation over the same path use evo.Effect(ctx, evo.EffectSpec{..., Resource: evo.FSResource(path)}, fn)"
+		" For a non-File operation over the same path use evo.Effect(ctx, evo.EffectSpec{..., Path: path}, fn)"
 	return f
 }
 

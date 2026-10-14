@@ -62,7 +62,7 @@ func detectPerFindingFakeTask(filename string, file *ast.File, fset *token.FileS
 				Line:    pos.Line,
 				Column:  pos.Column,
 				Suggestion: "replace the per-item .Task(...).Fail(...) with one owning Task that calls " +
-					"task.Problem(summary, evo.Location(path, line, 0), evo.Code(code)) once per finding inside the loop, " +
+					"task.Problem(summary, evo.On(location), evo.Code(code)) once per finding inside the loop, " +
 					"then Define resolves the Task Failed once if any Problem was accumulated",
 			})
 			return true
@@ -114,7 +114,7 @@ func detectFlattenedDiagnosticsLoop(filename, src string) []Finding {
 					", later flattened into one joined error string that discards each finding's own location/code/detail",
 				File: filename,
 				Line: lineAt(src, fn.offset+loop.offset),
-				Suggestion: "accumulate each finding with task.Problem(summary, evo.Location(path, line, 0), evo.Code(code)) " +
+				Suggestion: "accumulate each finding with task.Problem(summary, evo.On(location), evo.Code(code)) " +
 					"inside the loop instead of building " + name + " for strings.Join/errors.New",
 			})
 		}
