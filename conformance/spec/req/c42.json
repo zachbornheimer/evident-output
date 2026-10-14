@@ -163,7 +163,7 @@
       },
       {
         "pkg": ".",
-        "run": "TestGoroutineOfAFinishedNestedTaskIsNotTheNextNestedTasks"
+        "run": "TestGoroutineOfAFinishedNestedTaskIsNotTheNextNestedTasksAtCeiling2"
       }
     ],
     "default": false
