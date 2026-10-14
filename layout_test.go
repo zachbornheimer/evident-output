@@ -2,6 +2,8 @@ package evo
 
 import (
 	"fmt"
+	"go/scanner"
+	"go/token"
 	"os"
 	"os/exec"
 	"path"
@@ -127,15 +129,45 @@ func containsString(list []string, want string) bool {
 
 // rootLineBudget is where the root package stops being thin: it holds the
 // public surface and the composition root (LAYOUT.md), and every line past
-// that belongs to the internal package that owns it.
+// that belongs to the internal package that owns it. It budgets code lines
+// only, so documentation never competes with structure.
 const rootLineBudget = 4000
 
 // foldedSeam matches the marker of code folded into the root from a package
 // it absorbed.
 var foldedSeam = regexp.MustCompile(`// --- folded\sfrom `)
 
+// codeLines counts the lines of a Go source that carry at least one token
+// other than a comment: blank lines and comment-only lines are not code.
+func codeLines(t *testing.T, name string, body []byte) int {
+	t.Helper()
+	fset := token.NewFileSet()
+	file := fset.AddFile(name, fset.Base(), len(body))
+	var s scanner.Scanner
+	s.Init(file, body, func(pos token.Position, msg string) {
+		t.Fatalf("scan %s at %s: %s", name, pos, msg)
+	}, 0)
+	lines := map[int]bool{}
+	for {
+		pos, tok, lit := s.Scan()
+		if tok == token.EOF {
+			break
+		}
+		if tok == token.SEMICOLON && lit == "\n" {
+			continue
+		}
+		first := file.Line(pos)
+		last := first + strings.Count(lit, "\n")
+		for line := first; line <= last; line++ {
+			lines[line] = true
+		}
+	}
+	return len(lines)
+}
+
 // TestRootIsThin fails when the root package's non-test Go files reach
-// rootLineBudget lines together, or any of them carries a folded-from seam.
+// rootLineBudget code lines together (blank and comment lines are not
+// counted), or any of them carries a folded-from seam.
 func TestRootIsThin(t *testing.T) {
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -152,7 +184,7 @@ func TestRootIsThin(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
 		}
-		lines := strings.Count(string(body), "\n")
+		lines := codeLines(t, name, body)
 		total += lines
 		sizes = append(sizes, fmt.Sprintf("%s %d", name, lines))
 		if foldedSeam.Match(body) {
@@ -160,7 +192,8 @@ func TestRootIsThin(t *testing.T) {
 		}
 	}
 	if total >= rootLineBudget {
-		t.Errorf("the root package holds %d non-test lines, want under %d:\n  %s",
+		t.Errorf("the root package holds %d non-test code lines (non-blank, non-comment), want under %d:\n  %s",
 			total, rootLineBudget, strings.Join(sizes, "\n  "))
 	}
+	t.Logf("root package code lines: %d (budget %d)", total, rootLineBudget)
 }
