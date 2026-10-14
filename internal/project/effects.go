@@ -113,8 +113,7 @@ func writeNothingToDo(b *strings.Builder, sec EffectSection) {
 // Effect per task, the common case — to ONE aligned line: "[planned]
 // branches   delete 2 local tips" (fixture-repo-retire-dryrun.md; CONTRACT §8 folds per-item Effects with
 // one Verb and Object into one counted row). The subject pads to the aligned
-// block's width, then exactly two spaces before the verb; taskNameColumnMargin does not apply, since no
-// inline annotation sits beside it to clear.
+// block's width, then exactly two spaces before the verb.
 func writeEffectLine(b *strings.Builder, tag string, sec EffectSection, r record.EffectRecord) {
 	name := PadRight(sec.Subject, sec.NameWidth)
 	if r.HasQty {

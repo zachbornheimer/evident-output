@@ -30,19 +30,6 @@ func HasEffectSections(s record.Snapshot) bool {
 	return len(s.Changes) > 0 || len(s.Plans) > 0
 }
 
-// taskNameColumnMargin is the one extra column an inline annotation's own
-// text column carries beyond the widest sibling name (fixture-repo-retire-
-// dryrun.md, measured byte-for-byte: the widest name — "remote-tracking",
-// 15 cells — still leaves one blank column of its own before the fixed
-// 2-space gap to its "! "-prefixed or ledger-verb text, not zero). It
-// applies only where that fixture pins it — an inline warning/fact/taxonomy
-// annotation and a WriteEffects ledger row — never to a caller-supplied
-// Summary, which keeps the plain nameWidth+2 gap evo-rec.md's own examples
-// pin (TestSpecP16 etc.): the two annotation kinds render through different
-// visual conventions ("! text" / bare verb vs. a caller's own words) and are
-// measured against different fixtures.
-const taskNameColumnMargin = 1
-
 // maxVisibleProblems is the human default bound (OPEN-003). Structured snapshots
 // retain full record.Problem lists separately (DEC-FAIL-001/003).
 const maxVisibleProblems = 5
@@ -140,14 +127,6 @@ func writeVerificationFacts(b *strings.Builder, facts []record.Fact, indent stri
 // byte-length check overcounts multi-byte runes and undercounts wide ones,
 // so it agrees with the compact-layout width check only by coincidence.
 const warningInlineMaxCells = CompactLayoutMaxWidth
-
-// bangColumnFiller is as wide as inlineWarningText's "! " glyph+space
-// prefix — a Fact's inline text stands in this much blank space so its own
-// text starts at the same column a sibling row's "! <text>" would
-// (fixture-repo-retire-dryrun.md, measured byte-for-byte: "remote-tracking"
-// carries a bare Fact while its siblings carry "! kept ..."; all three
-// annotation texts land in one column).
-const bangColumnFiller = "  "
 
 // WriteTask renders a standalone task row unpadded — see WriteTaskAligned
 // for the sibling-column-alignment form fixture-repo-retire-dryrun.md

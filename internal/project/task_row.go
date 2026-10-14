@@ -41,10 +41,9 @@ func FoldedGroupRow(own record.TaskSnapshot, group record.State) TaskRow {
 // headline the Problems below must not repeat, and which annotation it
 // inlined (so the nested block does not repeat that either).
 type rowHead struct {
-	detail    string
-	annotated bool
-	headline  string
-	inlined   inlineAnnotation
+	detail   string
+	headline string
+	inlined  inlineAnnotation
 }
 
 // inlineAnnotation is which one annotation a row carries on its own line.
@@ -85,7 +84,7 @@ func (r TaskRow) head(s Style) rowHead {
 		return rowHead{detail: headlineDetail(t, line, s), headline: line}
 	}
 	if f, ok := inlineTaskFact(t); ok {
-		return rowHead{detail: inlineFactText(f, s), annotated: true, inlined: inlineFact}
+		return rowHead{detail: inlineFactText(f, s), inlined: inlineFact}
 	}
 	if t.State == record.Running {
 		return rowHead{detail: RunningDetail(t.Phase, t.Progress)}
@@ -111,14 +110,10 @@ func headlineDetail(t record.TaskSnapshot, line string, s Style) string {
 	}
 }
 
-// writeLine writes the row's own line. The annotation column carries
-// taskNameColumnMargin; a row with no detail is trimmed so it never ends in
-// dangling whitespace.
+// writeLine writes the row's own line; a row with no detail is trimmed so it
+// never ends in dangling whitespace.
 func (r TaskRow) writeLine(b *strings.Builder, head rowHead, s Style) {
 	width := r.nameWidth
-	if head.annotated {
-		width += taskNameColumnMargin
-	}
 	state := r.t.State
 	if r.glyphState != "" {
 		state = r.glyphState

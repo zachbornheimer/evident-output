@@ -95,7 +95,7 @@ func ExampleTask_Fact() {
 	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
-	// ✓ remote-tracking    stale  1
+	// ✓ remote-tracking  stale  1
 	//
 	// [succeeded]  tool
 }

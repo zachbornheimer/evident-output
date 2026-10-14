@@ -77,9 +77,10 @@ func inlineTaskFact(t record.TaskSnapshot) (record.Fact, bool) {
 }
 
 // inlineFactText renders an inline fact dim, with no attention glyph — a
-// Fact is information, never something demanding the reader's attention.
+// Fact is information, never something demanding the reader's attention. It
+// is detail text like a Summary, so it starts in the Summary column.
 func inlineFactText(f record.Fact, s Style) string {
-	return bangColumnFiller + s.Dim(factText(f))
+	return s.Dim(factText(f))
 }
 
 // writeNestedTaskFacts is inlineTaskFact's nested-line sibling: every fact
