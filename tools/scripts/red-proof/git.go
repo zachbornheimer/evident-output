@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -26,29 +25,7 @@ var fixPathspec = []string{"--", "*.go", ":(exclude)*_test.go"}
 type repoGit struct{ root string }
 
 func (g repoGit) Export(rev, dir string) error {
-	if err := checkRev(rev); err != nil {
-		return err
-	}
-	archive := exec.Command("git", "-C", g.root, "archive", "--format=tar", rev)
-	extract := exec.Command("tar", "-xf", "-", "-C", dir)
-	pipe, err := archive.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("pipe git archive: %w", err)
-	}
-	extract.Stdin = pipe
-	var stderr bytes.Buffer
-	archive.Stderr, extract.Stderr = &stderr, &stderr
-	if err := extract.Start(); err != nil {
-		return fmt.Errorf("start tar: %w", err)
-	}
-	if err := archive.Run(); err != nil {
-		_ = extract.Wait()
-		return fmt.Errorf("git archive %s: %w: %s", rev, err, stderr.String())
-	}
-	if err := extract.Wait(); err != nil {
-		return fmt.Errorf("extract archive into %s: %w: %s", dir, err, stderr.String())
-	}
-	return nil
+	return gitArchiveInto(g.root, rev, dir)
 }
 
 func (g repoGit) FixChanges(commit, rev string) ([]FileChange, error) {
@@ -140,16 +117,7 @@ func (g repoGit) change(commit string, kind ChangeKind, path string) (FileChange
 	return change, err
 }
 
-func (g repoGit) git(args ...string) ([]byte, error) {
-	cmd := exec.Command("git", append([]string{"-C", g.root}, args...)...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, stderr.String())
-	}
-	return out, nil
-}
+func (g repoGit) git(args ...string) ([]byte, error) { return gitOutput(g.root, args...) }
 
 // movedPaths lists the paths of rename and copy rows in `git diff --name-status`.
 func movedPaths(nameStatus string) []string {

@@ -33,7 +33,7 @@ func main() {
 }
 
 func execute(ledgerPath, only string, prover Prover, out io.Writer) int {
-	text, err := os.ReadFile(ledgerPath)
+	text, err := readFile(ledgerPath)
 	if err != nil {
 		_, _ = fmt.Fprintf(out, "read ledger: %v\n", err)
 		return exitReplayFailed

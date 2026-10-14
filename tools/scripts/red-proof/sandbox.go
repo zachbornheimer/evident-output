@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -57,7 +56,7 @@ func (s scratchSandbox) undo(target string, c FileChange) error {
 // removeIfUnchanged deletes a file the fix created; a later edit to it is a
 // conflict the tool cannot resolve.
 func removeIfUnchanged(target string, fixed []byte) error {
-	current, err := os.ReadFile(target)
+	current, err := readFile(target)
 	if err != nil {
 		return &ConflictError{Path: target, Reason: "file the fix added is gone"}
 	}
@@ -80,27 +79,21 @@ func mergeBack(target string, c FileChange) error {
 	if err := os.WriteFile(before, c.Before, filePerm); err != nil {
 		return err
 	}
-	out, err := exec.Command("git", "merge-file", target, fixed, before).CombinedOutput()
-	var exit *exec.ExitError
-	if errors.As(err, &exit) && exit.ExitCode() > 0 && exit.ExitCode() <= maxMergeConflicts {
-		return &ConflictError{Path: target, Reason: fmt.Sprintf("%d conflicting hunks", exit.ExitCode())}
-	}
+	status, out, err := gitMergeFile(target, fixed, before)
 	if err != nil {
 		return fmt.Errorf("git merge-file: %w: %s", err, strings.TrimSpace(string(out)))
 	}
-	return nil
+	switch {
+	case status == 0:
+		return nil
+	case status > 0 && status <= maxMergeConflicts:
+		return &ConflictError{Path: target, Reason: fmt.Sprintf("%d conflicting hunks", status)}
+	}
+	return fmt.Errorf("git merge-file exited %d: %s", status, strings.TrimSpace(string(out)))
 }
 
 func (scratchSandbox) RunTests(dir, pkg string, names []string) ([]byte, error) {
-	run := "^(" + strings.Join(names, "|") + ")$"
-	cmd := exec.Command("go", "test", "-json", "-p", goTestPackage, "-count=1", "-timeout", goTestTimeout, "-run", run, pkg)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	var exit *exec.ExitError
-	if err != nil && !errors.As(err, &exit) {
-		return nil, fmt.Errorf("go test %s: %w", pkg, err)
-	}
-	return out, nil
+	return goTestJSON(dir, pkg, names)
 }
 
 func tempScratch() (string, func(), error) {

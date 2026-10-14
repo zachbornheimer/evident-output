@@ -144,8 +144,10 @@ def run_plain(
     binary: Path, args: tuple[str, ...], timeout_s: int
 ) -> tuple[list[str], int]:
     """Return the stderr rows and exit status of the same run with output forced to plain."""
+    # The scenario's own exit status is data to compare, not a failure to raise.
     done = subprocess.run(
         [str(binary), *args],
+        check=False,
         env=os.environ | {"EVO_OUTPUT": PLAIN_OUTPUT},
         stdin=subprocess.DEVNULL,
         capture_output=True,

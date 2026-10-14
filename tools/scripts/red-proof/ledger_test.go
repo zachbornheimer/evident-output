@@ -4,7 +4,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -18,7 +17,7 @@ const moduleRoot = "../../.."
 var roundFixes = []string{"ddbd70f3", "d4965643", "852ea4b8", "8c9f44b6", "f0d90673"}
 
 func TestLedgerNamesEveryRoundFix(t *testing.T) {
-	text, err := os.ReadFile("ledger.yaml")
+	text, err := readFile("ledger.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}

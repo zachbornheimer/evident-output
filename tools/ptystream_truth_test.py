@@ -43,7 +43,7 @@ class MonotonicFramesTest(unittest.TestCase):
 
 
 class FinalMatchesPlainTest(unittest.TestCase):
-    PLAIN = ["◐ units  unit 3  holding", "✓ unit 2", "✓ unit 1", "✓ unit 3"]
+    PLAIN = ("◐ units  unit 3  holding", "✓ unit 2", "✓ unit 1", "✓ unit 3")
 
     def test_accepts_the_same_rows_in_any_order(self) -> None:
         truth.check_final_matches_plain(SETTLED, 0, self.PLAIN, 0)
