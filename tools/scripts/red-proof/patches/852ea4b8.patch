@@ -5,7 +5,7 @@ own hunks from reversing, so this removes the one write all three readers of the
 
 --- a/internal/freshness/task_table.go
 +++ b/internal/freshness/task_table.go
-@@ -96,9 +96,6 @@
+@@ -99,9 +99,6 @@ func (t *TaskTable) PlanOperation(id record.TaskID, changes ...string) {
  	t.mu.Lock()
  	defer t.mu.Unlock()
  	t.entryLocked(id).planned++
@@ -14,4 +14,4 @@ own hunks from reversing, so this removes the one write all three readers of the
 -	}
  }
 
- // Plan is the Plan of a Run that only plans its work, judged against what
+ // FailOperation notes that id had an operation of the given kind that ran and
