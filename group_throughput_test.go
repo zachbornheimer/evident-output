@@ -72,3 +72,19 @@ func TestGroup1kPlainStaysUnder200ms(t *testing.T) {
 		t.Fatalf("1,000 trivial Tasks in one Plain Group took %v, want <= %v", elapsed, group1kPlainBound)
 	}
 }
+
+// v1GroupBytesPerOp is v1.0.0's BenchmarkGroup1kPlain allocation, 7.39 MB/op
+// (7,388,988 to 7,408,393 B/op across runs). 2.0 allocates about 7.14 MB, so
+// the bound has room for B/op noise (about 0.3% between runs).
+const v1GroupBytesPerOp = 7_390_000
+
+// TestGroup1kPlainBytesPerOpUnderV1 holds the 1,000-Task Plain Group to the
+// bytes v1.0.0 allocated for it. Bytes per op do not depend on host load, so
+// unlike the wall-time guard above this one never skips.
+func TestGroup1kPlainBytesPerOpUnderV1(t *testing.T) {
+	result := testing.Benchmark(BenchmarkGroup1kPlain)
+	if got := result.AllocedBytesPerOp(); got > v1GroupBytesPerOp {
+		t.Fatalf("1,000 trivial Tasks in one Plain Group allocated %d B/op (%d allocs/op), want <= v1.0.0's %d",
+			got, result.AllocsPerOp(), v1GroupBytesPerOp)
+	}
+}

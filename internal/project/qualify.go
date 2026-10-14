@@ -74,12 +74,7 @@ func qualifyCollection(col record.TasksSnapshot, path string, names map[string]i
 		return col
 	case flattens(rest, items):
 		path = qualifiedName(path, col.Name)
-		col.Tasks = slices.Clone(col.Tasks)
-		for i := range col.Tasks {
-			if names[col.Tasks[i].Name] > 1 {
-				col.Tasks[i].Name = qualifiedName(path, col.Tasks[i].Name)
-			}
-		}
+		col.Tasks = qualifyTaskNames(col.Tasks, path, names)
 		col.Collections = slices.Clone(col.Collections)
 		for i, child := range col.Collections {
 			col.Collections[i] = qualifyCollection(child, path, names, flattens)
@@ -88,6 +83,21 @@ func qualifyCollection(col record.TasksSnapshot, path string, names map[string]i
 		col.Collections = qualifyLevel(rest.Tasks, col.Collections, flattens)
 	}
 	return col
+}
+
+// qualifyTaskNames prefixes the name of each Task whose name repeats in names.
+// The input is not modified; it is returned as is when no name repeats.
+func qualifyTaskNames(tasks []record.TaskSnapshot, path string, names map[string]int) []record.TaskSnapshot {
+	if !slices.ContainsFunc(tasks, func(t record.TaskSnapshot) bool { return names[t.Name] > 1 }) {
+		return tasks
+	}
+	out := slices.Clone(tasks)
+	for i := range out {
+		if names[out[i].Name] > 1 {
+			out[i].Name = qualifiedName(path, out[i].Name)
+		}
+	}
+	return out
 }
 
 func qualifiedName(path, name string) string {

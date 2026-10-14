@@ -36,6 +36,9 @@ func SnapshotAtVerbosity(s record.Snapshot, verbose bool) record.Snapshot {
 }
 
 func tasksAtVerbosity(tasks []record.TaskSnapshot, verbose bool) []record.TaskSnapshot {
+	if !slices.ContainsFunc(tasks, func(t record.TaskSnapshot) bool { return t.Facts != nil }) {
+		return tasks // nothing to hide, so the caller's slice is already the answer
+	}
 	out := slices.Clone(tasks)
 	for i := range out {
 		out[i] = TaskAtVerbosity(out[i], verbose)
