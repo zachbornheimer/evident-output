@@ -53,6 +53,10 @@ const (
 	ProblemTreeIndent = "   "
 	// problemDetailIndent continues multi-line Detail under a └─ / │ opener.
 	problemDetailIndent = "      "
+	// problemDetailGap separates a branch's continuation column from its
+	// continuation text; the blank continuation of a closing branch plus
+	// this gap is problemDetailIndent less the tree indent.
+	problemDetailGap = "  "
 	// TaskAnnotationIndent nests a standalone task's annotations — taxonomy
 	// tallies, verification details, warnings, facts — under its row
 	// (spec §26/§27: "✓ branches  50 checked" / "  ! kept 13 (...)").
@@ -86,21 +90,29 @@ const verificationFactsGap = "    "
 // Group-child indent, or "" at the root), the column the row's Problems
 // branch from too.
 func WriteVerificationDetails(b *strings.Builder, details []record.VerificationDetail, prefix string, taskFailed bool, s Style) {
-	if len(details) == 0 || (!taskFailed && !s.Verbose) {
-		return
+	writeVerificationBranches(b, VisibleVerificationDetails(details, taskFailed, s), prefix, s)
+}
+
+// VisibleVerificationDetails is the attributes a Task's row shows: all of
+// them once the task failed or under Verbose, none otherwise.
+func VisibleVerificationDetails(details []record.VerificationDetail, taskFailed bool, s Style) []record.VerificationDetail {
+	if !taskFailed && !s.Verbose {
+		return nil
 	}
+	return details
+}
+
+// writeVerificationBranches writes details as the last branches of a row's
+// evidence tree: the final attribute closes it.
+func writeVerificationBranches(b *strings.Builder, details []record.VerificationDetail, prefix string, s Style) {
 	for i, d := range details {
-		last := i == len(details)-1
-		branch, continuation := s.BranchGlyph(), s.Dim("│")
-		if last {
-			branch, continuation = s.EvidenceGlyph(), " "
-		}
+		branch := newEvidenceBranch(i == len(details)-1, s)
 		if d.Status == record.VerificationSatisfied {
-			fmt.Fprintf(b, "%s%s%s %s\n", prefix, ProblemTreeIndent, branch, s.Dim(d.Name+"  "+verifiedDetail))
+			fmt.Fprintf(b, "%s%s%s %s\n", prefix, ProblemTreeIndent, branch.glyph, s.Dim(d.Name+"  "+verifiedDetail))
 			continue
 		}
-		fmt.Fprintf(b, "%s%s%s %s %s\n", prefix, ProblemTreeIndent, branch, s.StateGlyph(record.Failed), d.Name)
-		writeVerificationFacts(b, d.Facts, prefix+ProblemTreeIndent+continuation+verificationFactsGap)
+		fmt.Fprintf(b, "%s%s%s %s %s\n", prefix, ProblemTreeIndent, branch.glyph, s.StateGlyph(record.Failed), d.Name)
+		writeVerificationFacts(b, d.Facts, prefix+ProblemTreeIndent+branch.continuation+verificationFactsGap)
 	}
 }
 

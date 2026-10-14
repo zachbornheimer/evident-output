@@ -15,10 +15,12 @@ import (
 // text itself renders at full intensity so a failure's proof is never the
 // lowest-contrast text on screen.
 //
-// last is true for the final Problem of the tree: a subject row then closes
-// the tree with the evidence glyph rather than leaving a branch dangling.
-func writeProblem(b *strings.Builder, p record.Problem, indent string, emphasize, last bool, s Style) {
+// closes is true only for the branch that ends the row's evidence tree: it
+// takes the evidence glyph rather than leaving a branch dangling, and every
+// other branch keeps the tree open with ├─ and │.
+func writeProblem(b *strings.Builder, p record.Problem, indent string, emphasize, closes bool, s Style) {
 	detail, tail := effectiveDetailAndTail(p)
+	branch := newEvidenceBranch(closes, s)
 	if p.Subject != "" {
 		extra := p.Summary
 		if p.Count != 0 {
@@ -28,17 +30,9 @@ func writeProblem(b *strings.Builder, p record.Problem, indent string, emphasize
 		if extra != "" {
 			subject += "  " + extra
 		}
-		branch := s.BranchGlyph()
-		if last {
-			branch = s.EvidenceGlyph()
-		}
-		fmt.Fprintf(b, "%s%s%s %s\n", indent, ProblemTreeIndent, branch, subject)
-		continuation := s.Dim("│")
-		if last {
-			continuation = " "
-		}
+		fmt.Fprintf(b, "%s%s%s %s\n", indent, ProblemTreeIndent, branch.glyph, subject)
 		for _, text := range []string{detail, tail} {
-			writeProblemDetailLines(b, text, continuation, indent, emphasize, s)
+			writeProblemDetailLines(b, text, branch.continuation, indent, emphasize, s)
 		}
 		return
 	}
@@ -46,13 +40,38 @@ func writeProblem(b *strings.Builder, p record.Problem, indent string, emphasize
 	// when the caller left it set — writeTask clears Summary when it already
 	// appears on the ✗ row so Detail alone is the evidence body (P4).
 	if detail != "" {
-		writeProblemDetailBlock(b, p.Summary, detail, indent, emphasize, s)
+		writeProblemDetailBlock(b, p.Summary, detail, indent, branch, emphasize, s)
 		if tail != "" {
-			writeAdditionalEvidenceLines(b, tail, indent, emphasize, s)
+			writeAdditionalEvidenceLines(b, tail, indent, branch, emphasize, s)
 		}
 		return
 	}
-	fmt.Fprintf(b, "%s%s%s %s\n", indent, ProblemTreeIndent, s.EvidenceGlyph(), s.Emphasized(p.Summary, emphasize))
+	fmt.Fprintf(b, "%s%s%s %s\n", indent, ProblemTreeIndent, branch.glyph, s.Emphasized(p.Summary, emphasize))
+}
+
+// evidenceBranch is the connector pair of one branch of a row's evidence
+// tree: the glyph that opens the branch and the continuation column that
+// carries its further lines. A branch that closes the tree opens with the
+// evidence glyph and continues in blank space; any other opens with ├─ and
+// continues under │.
+type evidenceBranch struct {
+	glyph        string
+	continuation string
+}
+
+// newEvidenceBranch is the connector pair for a branch that closes the tree
+// when closes is true and keeps it open otherwise.
+func newEvidenceBranch(closes bool, s Style) evidenceBranch {
+	if closes {
+		return evidenceBranch{glyph: s.EvidenceGlyph(), continuation: " "}
+	}
+	return evidenceBranch{glyph: s.BranchGlyph(), continuation: s.Dim("│")}
+}
+
+// detailIndent is the column a branch's continuation lines start at, beneath
+// the branch's own text.
+func (e evidenceBranch) detailIndent(indent string) string {
+	return indent + ProblemTreeIndent + e.continuation + problemDetailGap
 }
 
 // dedupeEvidenceTailAgainstRow is P7's addition (user-13-problems.md
@@ -102,9 +121,9 @@ func effectiveDetailAndTail(p record.Problem) (detail, tail string) {
 // under a just-written Detail block, matching writeProblemDetailBlock's own
 // continuation indent so the tail reads as more evidence for the same
 // problem rather than a new one.
-func writeAdditionalEvidenceLines(b *strings.Builder, tail, indent string, emphasize bool, s Style) {
+func writeAdditionalEvidenceLines(b *strings.Builder, tail, indent string, branch evidenceBranch, emphasize bool, s Style) {
 	for _, line := range splitPresentationLines(tail) {
-		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, s.Emphasized(line, emphasize))
+		fmt.Fprintf(b, "%s%s\n", branch.detailIndent(indent), s.Emphasized(line, emphasize))
 	}
 }
 
@@ -112,7 +131,7 @@ func writeAdditionalEvidenceLines(b *strings.Builder, tail, indent string, empha
 // the evidence connector. When summary is non-empty it opens the block;
 // continuations (and all detail lines when summary is empty) are indented
 // under it.
-func writeProblemDetailBlock(b *strings.Builder, summary, detail, indent string, emphasize bool, s Style) {
+func writeProblemDetailBlock(b *strings.Builder, summary, detail, indent string, branch evidenceBranch, emphasize bool, s Style) {
 	lines := splitPresentationLines(detail)
 	if summary == "" {
 		if len(lines) == 0 {
@@ -120,9 +139,9 @@ func writeProblemDetailBlock(b *strings.Builder, summary, detail, indent string,
 		}
 		summary, lines = lines[0], lines[1:]
 	}
-	fmt.Fprintf(b, "%s%s%s %s\n", indent, ProblemTreeIndent, s.EvidenceGlyph(), s.Emphasized(summary, emphasize))
+	fmt.Fprintf(b, "%s%s%s %s\n", indent, ProblemTreeIndent, branch.glyph, s.Emphasized(summary, emphasize))
 	for _, line := range lines {
-		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, s.Emphasized(line, emphasize))
+		fmt.Fprintf(b, "%s%s\n", branch.detailIndent(indent), s.Emphasized(line, emphasize))
 	}
 }
 

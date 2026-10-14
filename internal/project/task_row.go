@@ -62,7 +62,7 @@ func (r TaskRow) Write(b *strings.Builder, s Style) {
 	r.t = TaskAtVerbosity(r.t, s.Verbose)
 	head, taxonomyVerb := r.head(s)
 	r.writeLine(b, head, s)
-	r.writeProblems(b, head.headline, s)
+	r.writeEvidenceTree(b, head.headline, s)
 	r.writeNested(b, head.inlined, taxonomyVerb, s)
 }
 
@@ -136,13 +136,23 @@ func (r TaskRow) writeLine(b *strings.Builder, head rowHead, s Style) {
 	b.WriteByte('\n')
 }
 
-// writeProblems writes the Task's Problems under its row, at most
-// maxVisibleProblems of them plus an "and N more failures" line. A Problem
-// that only repeats the row's headline is dropped, and one whose Detail or
-// Subject carries the evidence loses its repeated summary. The tree closes
-// on its last row.
-func (r TaskRow) writeProblems(b *strings.Builder, rowHeadline string, s Style) {
+// writeEvidenceTree writes the row's evidence as one tree: its Problems,
+// at most maxVisibleProblems of them plus an "and N more failures" line,
+// then its verification attributes. Only the tree's last branch closes it.
+func (r TaskRow) writeEvidenceTree(b *strings.Builder, rowHeadline string, s Style) {
+	problems := r.visibleProblems(rowHeadline)
+	details := VisibleVerificationDetails(r.t.Verification, r.t.State == record.Failed, s)
 	emphasize := r.t.State == record.Failed || r.t.State == record.Refused
+	for i, p := range problems {
+		writeProblem(b, p, r.prefix, emphasize, len(details) == 0 && i == len(problems)-1, s)
+	}
+	writeVerificationBranches(b, details, r.prefix, s)
+}
+
+// visibleProblems is the Problems the row shows. A Problem that only
+// repeats the row's headline is dropped, and one whose Detail or Subject
+// carries the evidence loses its repeated summary.
+func (r TaskRow) visibleProblems(rowHeadline string) []record.Problem {
 	problems := r.t.Problems
 	omitted := max(len(problems)-maxVisibleProblems, 0)
 	problems = problems[:len(problems)-omitted]
@@ -165,13 +175,10 @@ func (r TaskRow) writeProblems(b *strings.Builder, rowHeadline string, s Style) 
 			Unit:    "failures",
 		})
 	}
-	for i, p := range shown {
-		writeProblem(b, p, r.prefix, emphasize, i == len(shown)-1, s)
-	}
+	return shown
 }
 
-// writeNested writes the row's tallies, verification details, warnings and
-// facts, leaving out whichever annotation the row's own line inlined.
+// writeNested writes the row's tallies, warnings and facts, leaving out whichever annotation the row's own line inlined.
 func (r TaskRow) writeNested(b *strings.Builder, inlined inlineAnnotation, taxonomyVerb Disposition, s Style) {
 	t := r.t
 	warnings, facts := t.Warnings, t.Facts
@@ -182,7 +189,6 @@ func (r TaskRow) writeNested(b *strings.Builder, inlined inlineAnnotation, taxon
 		facts = nil
 	}
 	WriteDispositions(b, r.nested, taskDispositions(t), taxonomyVerb, s)
-	WriteVerificationDetails(b, t.Verification, r.prefix, t.State == record.Failed, s)
 	WriteNestedTaskWarnings(b, warnings, r.nested, s)
 	writeNestedTaskFacts(b, facts, r.nested, s)
 }
