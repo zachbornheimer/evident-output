@@ -9,20 +9,23 @@ import "github.com/zachbornheimer/evident-output/internal/record"
 // does to t; Resolve then writes what the reader sees of it (the Summary,
 // the Problems) and settles t, all under the run's lock. A Problem without
 // its own detail gains the tail of the output t's child processes wrote, so
-// the detail a callback captured needs no opt-in (beginner-2).
+// the detail a callback captured needs no opt-in (beginner-2). That tail is
+// read before the run's lock: the capture's line callback takes the run's
+// lock, so the capture is a leaf the run's lock must never wait on.
 //
 // A callback disowning its own work has its Effects denied before the
 // settled row is committed, so the ledger never counts what the row denies.
 func (g *Graph) Resolve(t *Task, r Resolution) {
 	h := g.host
 	h.Resolving(t)
+	tail := evidenceTail(t, r.State, r.Problems)
 	h.Lock()
 	defer h.Unlock()
 	if h.CheckOpen() != nil {
 		return
 	}
 	disown := disowns(t, r)
-	verdict := g.decide(t, r, evidenceTail(t, r.State, r.Problems))
+	verdict := g.decide(t, r, tail)
 	if verdict == AlreadyResolved {
 		h.AlreadyResolved(t, r.Summary)
 		return

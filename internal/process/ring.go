@@ -82,6 +82,11 @@ func (r *Ring) Write(p []byte, stream Stream, normalize func(string) string) (in
 		return len(p), nil
 	}
 	n := len(p)
+	r.announce(r.write(p, stream, normalize))
+	return n, nil
+}
+
+func (r *Ring) write(p []byte, stream Stream, normalize func(string) string) (kept []string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	buf := r.pending(stream)
@@ -92,13 +97,13 @@ func (r *Ring) Write(p []byte, stream Stream, normalize func(string) string) (in
 			break
 		}
 		buf.Write(p[:i])
-		r.flushLocked(stream, normalize)
+		kept = r.flushLocked(kept, stream, normalize)
 		p = p[i+1:]
 	}
 	if buf.Len() > MaxCaptureChunk {
-		r.flushLocked(stream, normalize)
+		kept = r.flushLocked(kept, stream, normalize)
 	}
-	return n, nil
+	return kept
 }
 
 // Close flushes trailing partial lines on the given streams.
@@ -106,17 +111,38 @@ func (r *Ring) Close(streams []Stream, normalize func(string) string) error {
 	if r == nil {
 		return nil
 	}
+	r.announce(r.close(streams, normalize))
+	return nil
+}
+
+func (r *Ring) close(streams []Stream, normalize func(string) string) (kept []string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, stream := range streams {
 		if r.pending(stream).Len() > 0 {
-			r.flushLocked(stream, normalize)
+			kept = r.flushLocked(kept, stream, normalize)
 		}
 	}
-	return nil
+	return kept
 }
 
-func (r *Ring) flushLocked(stream Stream, normalize func(string) string) {
+// announce reports lines just kept to onAppend. It runs with r.mu released:
+// onAppend takes the run's lock, and the ring is a leaf in the lock order.
+func (r *Ring) announce(kept []string) {
+	r.mu.Lock()
+	onAppend := r.onAppend
+	r.mu.Unlock()
+	if onAppend == nil {
+		return
+	}
+	for _, line := range kept {
+		onAppend(line)
+	}
+}
+
+// flushLocked keeps the pending fragment on stream as a line, and returns
+// kept with that line appended for announce.
+func (r *Ring) flushLocked(kept []string, stream Stream, normalize func(string) string) []string {
 	buf := r.pending(stream)
 	line := buf.String()
 	buf.Reset()
@@ -124,7 +150,7 @@ func (r *Ring) flushLocked(stream Stream, normalize func(string) string) {
 		line = normalize(line)
 	}
 	if line == "" {
-		return
+		return kept
 	}
 	r.seq++
 	r.lines = append(r.lines, Line{Sequence: r.seq, Stream: stream, Text: line})
@@ -137,9 +163,7 @@ func (r *Ring) flushLocked(stream Stream, normalize func(string) string) {
 		r.nbytes -= len(r.lines[0].Text) + 1
 		r.lines = r.lines[1:]
 	}
-	if r.onAppend != nil {
-		r.onAppend(line)
-	}
+	return append(kept, line)
 }
 
 // SetOnAppend reports each completed retained line. Must be set before Write.

@@ -1,6 +1,10 @@
 package process
 
-import "testing"
+import (
+	"slices"
+	"testing"
+	"time"
+)
 
 func TestRingRetainsCompletedLinesAndBoundsTheTail(t *testing.T) {
 	t.Parallel()
@@ -55,5 +59,27 @@ func TestRingOnAppendSeesCompletedLinesOnly(t *testing.T) {
 	}
 	if len(seen) != 1 || seen[0] != "partial" {
 		t.Fatalf("completed = %v, want [partial]", seen)
+	}
+}
+
+// onAppend runs with the ring's mutex released: it takes the run's lock,
+// and a reader holding the run's lock reads the ring.
+func TestRingCallsOnAppendOutsideItsLock(t *testing.T) {
+	r := NewRing(0, 0)
+	var seen []int
+	r.SetOnAppend(func(string) { seen = append(seen, r.Len()) }) // re-enters r.mu
+	done := make(chan struct{})
+	go func() {
+		_, _ = r.Write([]byte("one\ntwo\npartial"), StreamStdout, nil)
+		_ = r.Close([]Stream{StreamStdout}, nil)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("onAppend ran with the ring's mutex held")
+	}
+	if want := []int{2, 2, 3}; !slices.Equal(seen, want) {
+		t.Errorf("Len seen by onAppend = %v, want %v (every line kept before it is announced)", seen, want)
 	}
 }
