@@ -99,7 +99,7 @@ system package, except `os` for the `os.Signal` type `CleanStop` names.
 | `ending.go`  | §4       | `Fail`, `Refuse`, `Exclude`, `Outcome` and its constants                      |
 | `confirm.go` | §5       | `Confirm`, `Suspend`, `ConfirmOption`, `Destructive`, `NonInteractive`        |
 | `output.go`  | §6       | `Output` and its constants, environment                                       |
-| `errors.go`  | §7       | the five sentinels                                                            |
+| `errors.go`  | §7       | every exported `Err` sentinel `CONTRACT.md` lists                             |
 
 ## Internal packages
 

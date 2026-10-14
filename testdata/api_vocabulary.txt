@@ -61,13 +61,13 @@ EncodeEventJSON	removed	Machine output
 EncodeJSON	removed	Machine output
 EncodeJSONL	removed	Machine output
 ErrComputedUnordered	helper	Errors
-ErrExecNonzeroExit	helper	File
-ErrExecOutputMissing	helper	File
+ErrExecNonzeroExit	helper	Errors
+ErrExecOutputMissing	helper	Errors
 ErrInvalidConfig	helper	Errors
-ErrPatchDoesNotApply	helper	File
+ErrPatchDoesNotApply	helper	Errors
 ErrReasonSkipOnly	removed	Skipped
 ErrReasonWrongTask	removed	Skipped
-ErrStaleBasis	helper	File
+ErrStaleBasis	helper	Errors
 EventJSON	removed	Machine output
 EventSchemaVersion	removed	Machine output
 Evidence	removed	Capture
