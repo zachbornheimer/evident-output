@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	txt "github.com/zachbornheimer/evident-output/internal/project"
@@ -186,10 +187,10 @@ func (o *Run) emitMessageLocked(line string, vis visibility) {
 		// State field reused as visibility tag in JSONL path via Name
 	})
 	if o.projectsVisibilityLocked(vis) {
-		o.emitLineProgressiveLocked()
+		o.stream.Lines()
 	} else {
 		// Hidden verbose: still count as "emitted" for residual bookkeeping of lines.
-		o.linesEmitted = o.rec.LineCount()
+		o.stream.SkipLines()
 	}
 }
 
@@ -290,6 +291,105 @@ func (o *Run) emitLogRecord(rec logRecord) {
 		}
 	}
 	o.emitDebugRecordLocked(record.SlogLevelName(rec.Level), rec.Message, fields, rec.Time, true)
+}
+
+// Debug records a structured diagnostic (§4.6 / §21.3).
+//
+// History mode (default): durable scrollback above the live region (or plain stream).
+// Pane mode: record is journaled and shown in the rolling live pane; not durable
+// scrollback unless a diagnostic tail is preserved at Finish.
+//
+// When Diagnostics is configured and is a different writer than the primary stream,
+// debug lines go to Diagnostics only (not the human Items/Tasks stream). Use
+// Capture for child-process evidence instead of DebugWriter when you need Fail Detail.
+// debugRecord is one structured diagnostic journal entry (§21.3).
+type debugRecord = record.DebugRecord
+
+func (o *Run) debug(message string, fields ...field) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.emitDebugLocked(message, fields, false)
+}
+
+func (o *Run) emitDebugLocked(message string, fields []field, force bool) {
+	if err := o.ensureOpen(); err != nil {
+		o.recordMisuse(err)
+		return
+	}
+	if !force && o.cfg.debugLevel > levelDebug {
+		return
+	}
+	rec := o.newDebugRecordLocked("DEBUG", message, fields, time.Time{})
+	o.projectDebugRecordLocked(rec)
+}
+
+// emitDebugRecordLocked journals a fully-formed debug record (slog bridge).
+// force bypasses DebugLevel filtering after slog already applied its min level.
+func (o *Run) emitDebugRecordLocked(levelName, message string, fields []field, at time.Time, force bool) {
+	if err := o.ensureOpen(); err != nil {
+		o.recordMisuse(err)
+		return
+	}
+	if !force && o.cfg.debugLevel > levelDebug {
+		return
+	}
+	rec := o.newDebugRecordLocked(levelName, message, fields, at)
+	o.projectDebugRecordLocked(rec)
+}
+
+func (o *Run) newDebugRecordLocked(levelName, message string, fields []field, at time.Time) debugRecord {
+	if at.IsZero() {
+		at = o.cfg.clock.Now()
+	}
+	rec := debugRecord{
+		Time:    at,
+		Level:   levelName,
+		Message: txt.Text(message),
+		Fields:  cloneFields(fields),
+	}
+	for i := range rec.Fields {
+		if rec.Fields[i].Sensitive {
+			rec.Fields[i].Value = record.RedactedValue
+		} else if o.cfg.redactor != nil {
+			rec.Fields[i].Value = o.cfg.redactor.RedactString(fmt.Sprint(rec.Fields[i].Value))
+		}
+	}
+	return rec
+}
+
+// projectDebugRecordLocked records rec through the run root, journals it,
+// and hands it to the durable stream to present.
+func (o *Run) projectDebugRecordLocked(rec debugRecord) {
+	o.graph.Root().Debug(rec)
+	o.graph.Root().Log(txt.FormatHistoryLine(rec, false))
+	o.bumpLocked()
+	o.appendEventLocked(recEvent{Type: "log.emitted"})
+	o.stream.Debug(rec)
+}
+
+// writeDiagnosticText emits text on the Diagnostics writer (thread-safe).
+func (o *Run) writeDiagnosticText(text string) {
+	if o == nil || text == "" {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.writeDiagnosticTextLocked(text)
+}
+
+func (o *Run) writeDiagnosticTextLocked(text string) {
+	if text != "" {
+		humanSinks{o}.Diagnostic(text)
+	}
+}
+
+func cloneFields(in []field) []field {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]field, len(in))
+	copy(out, in)
+	return out
 }
 
 // --- folded from writer.go ---

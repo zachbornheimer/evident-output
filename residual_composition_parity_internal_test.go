@@ -5,23 +5,20 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/testkit"
 )
 
 // TestResidualComposition_PlainAndInteractiveSectionParity is release-gate
-// round 6 finding 1's structural proof: residualPlainLocked and
-// residualInteractiveFinalLocked both call the one shared
-// residualCompositionLocked sequence now (unemitted lines, unresolved
-// entities, collections, effects, conclusion, debug tail). On a
-// non-interactive Output, both destinations own rendering the same
-// entities, so the two texts (modulo residualInteractiveFinalLocked's own
-// trailing-newline trim — its write-target formatting, not a section
-// difference) must be identical, in color and in no-color builds. A future
-// section hand-added to only one of the two wrapper functions — instead of
-// to residualCompositionLocked — breaks this test instead of silently
-// reaching only one destination.
+// round 6 finding 1's structural proof: the primary stream's residual and
+// the live terminal's final word are one composition (plain.Stream.Residual:
+// unemitted lines, unresolved entities, collections, effects, conclusion,
+// debug tail). On an interactive run whose rows all streamed already, the
+// two texts (modulo the final word's trailing-newline trim) must be
+// identical, in color and in no-color builds. A section that reached only
+// one destination breaks this test instead of silently going missing.
 func TestResidualComposition_PlainAndInteractiveSectionParity(t *testing.T) {
 	for _, colorOn := range []bool{false, true} {
-		opts := []option{plain(), visibilityDelay(0), dryRun()}
+		opts := []option{withTerminal(testkit.NewScreen(testkit.Interactive())), visibilityDelay(0), dryRun()}
 		if !colorOn {
 			opts = append(opts, withNoColor())
 		}
@@ -42,16 +39,13 @@ func TestResidualComposition_PlainAndInteractiveSectionParity(t *testing.T) {
 		record.FoldLeftoverMisuse(&conc, out.firstMisuse())
 		record.ApplyFailedExitCode(&conc, out.cfg.failedExitCode)
 		snap.Conclusion = &conc
-		linesFrom := out.linesEmitted
-
-		plain := out.residualPlainLocked(snap)
-		interactive := out.residualInteractiveFinalLocked(snap, linesFrom)
+		plain, interactive := out.stream.Residual(snap)
 		out.mu.Unlock()
 
 		gotPlain := strings.TrimRight(plain, "\n")
 		gotInteractive := strings.TrimRight(interactive, "\n")
 		if gotPlain != gotInteractive {
-			t.Fatalf("color=%v: residualPlainLocked and residualInteractiveFinalLocked diverged (parity property broken):\nplain:\n%q\ninteractive:\n%q",
+			t.Fatalf("color=%v: the residual and the final word diverged (parity property broken):\nplain:\n%q\ninteractive:\n%q",
 				colorOn, gotPlain, gotInteractive)
 		}
 		// Sanity: the effects section (finding 1's actual gap) must be present

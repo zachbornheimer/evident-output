@@ -20,6 +20,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/misuse"
 	"github.com/zachbornheimer/evident-output/internal/process"
 	txt "github.com/zachbornheimer/evident-output/internal/project"
+	"github.com/zachbornheimer/evident-output/internal/project/live"
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
 	"github.com/zachbornheimer/evident-output/internal/record"
 	"github.com/zachbornheimer/evident-output/internal/terminal"
@@ -1079,6 +1080,53 @@ func parseDebugEnv(v string) (logLevel, bool) {
 	}
 }
 
+// resolveGlyphProfileLocked turns a possibly-auto profile into a concrete
+// one. Called once at construction (newOutput) so every render call reads a
+// decided value instead of re-detecting locale per frame.
+func resolveGlyphProfileLocked(cfg *config) {
+	if cfg.glyphs != glyphsAuto {
+		return
+	}
+	if !interactiveOutputLocked(cfg) || localeAdvertisesUTF8() {
+		cfg.glyphs = glyphsUnicode
+		return
+	}
+	cfg.glyphs = glyphsASCII
+}
+
+// interactiveOutputLocked reports whether the configured terminal is a real
+// interactive surface. Plain/non-interactive projection keeps the Unicode
+// vocabulary unconditionally — evo-rec.md's glyph-safety default only
+// guards the live status column a human is watching.
+func interactiveOutputLocked(cfg *config) bool {
+	ls := liveSurfaceOf(*cfg)
+	return ls != nil && ls.IsInteractive()
+}
+
+// liveSurfaceOf is the surface a live region paints on: the configured
+// terminal, unless it cannot paint one or the run is plain.
+func liveSurfaceOf(cfg config) live.Surface {
+	if cfg.plain {
+		return nil
+	}
+	return live.SurfaceOf(cfg.terminal)
+}
+
+// localeAdvertisesUTF8 checks LC_ALL, then LC_CTYPE, then LANG (POSIX
+// override order) for a UTF-8 marker. Read directly at construction time —
+// the same pattern Config.Color's NO_COLOR detection uses — so no render
+// path re-reads the environment.
+func localeAdvertisesUTF8() bool {
+	for _, name := range []string{"LC_ALL", "LC_CTYPE", "LANG"} {
+		if v := process.Env(name); v != "" {
+			return strings.Contains(v, "UTF-8") || strings.Contains(v, "utf8")
+		}
+	}
+	// No locale env set at all: assume the historical default (UTF-8) rather
+	// than guessing ASCII from absence.
+	return true
+}
+
 // --- folded from machine.go ---
 
 func writeMachinePresentation(w io.Writer, snap snapshot, events []recEvent, proj projection, misuse error) error {
@@ -1147,7 +1195,7 @@ func (o *Run) close() error {
 	}
 	o.mu.Lock()
 	o.live.Stop()
-	o.stopPlainHeartbeatsLocked()
+	o.stream.StopHeartbeats()
 	o.closed = true
 	o.graph.Close()
 	o.mu.Unlock()
@@ -1303,7 +1351,7 @@ type config struct {
 	debugLevel        logLevel
 	debugAddSource    bool
 	debugPresentation debugPresentation
-	debugPane         debugPaneConfig
+	debugPane         txt.DebugPane
 	redactor          Redactor
 	maxEntities       int
 	maxEvents         int
@@ -1624,6 +1672,106 @@ func withFileFS(fsys fs.FS) option {
 // Test helpers reachable through the evo type alias (root export_test.go
 // cannot attach methods to engine types).
 
+// DebugPresentation selects how structured debug records project to a TTY (§4.6 / §21.3).
+type debugPresentation int
+
+const (
+	// DebugPresentationHistory appends durable scrollback above the live region (default).
+	debugPresentationHistory debugPresentation = iota
+	// DebugPresentationPane keeps a bounded rolling viewport inside the live region.
+	debugPresentationPane
+)
+
+// DebugPaneOption configures DebugPane presentation.
+type debugPaneOption interface {
+	applyPane(*txt.DebugPane)
+}
+
+type paneOptionFunc func(*txt.DebugPane)
+
+func (f paneOptionFunc) applyPane(c *txt.DebugPane) { f(c) }
+
+// PaneHeight sets how many debug records are visible in the pane (not including heading).
+func paneHeight(lines int) debugPaneOption {
+	return paneOptionFunc(func(c *txt.DebugPane) {
+		if lines > 0 {
+			c.Height = lines
+		}
+	})
+}
+
+// NewestFirst orders the pane with the most recent record first (default).
+func newestFirst() debugPaneOption {
+	return paneOptionFunc(func(c *txt.DebugPane) { c.NewestFirst = true })
+}
+
+// OldestFirst orders the pane chronologically (oldest visible first).
+func oldestFirst() debugPaneOption {
+	return paneOptionFunc(func(c *txt.DebugPane) { c.NewestFirst = false })
+}
+
+// PreserveDebugTail always emits a bounded diagnostic tail under the final report.
+// Without this, pane mode still preserves a tail on failed/blocked/cancelled conclusions.
+func preserveDebugTail() debugPaneOption {
+	return paneOptionFunc(func(c *txt.DebugPane) { c.PreserveAlways = true })
+}
+
+// DebugHistory selects durable append-above-and-redraw presentation (v0.4 default).
+func debugHistory() option {
+	return optionFunc(func(c *config) {
+		c.debugPresentation = debugPresentationHistory
+	})
+}
+
+// DebugPane selects a rolling TTY debug viewport at the bottom of the live region.
+func debugPane(opts ...debugPaneOption) option {
+	return optionFunc(func(c *config) {
+		c.debugPresentation = debugPresentationPane
+		cfg := txt.DebugPane{
+			Height:        txt.DefaultDebugPaneHeight,
+			NewestFirst:   true,
+			PreserveOnBad: true,
+		}
+		for _, o := range opts {
+			if o != nil {
+				o.applyPane(&cfg)
+			}
+		}
+		c.debugPane = cfg
+	})
+}
+
+// Glyphs selects the glyph capability profile (default GlyphsAuto).
+func glyphs(p glyphProfile) option {
+	return optionFunc(func(c *config) { c.glyphs = p })
+}
+
+// DataProjection selects data-command mode (UI/progress on diagnostic
+// stream) — a self-documenting marker at the call site; the routing itself
+// comes from pairing it with to(stderr)/withDiagnostics(stderr) (configToOptions).
+func dataProjection() option {
+	return optionFunc(func(*config) {})
+}
+
+// ExternalProjection selects snapshot-only host rendering.
+func externalProjection() option {
+	return optionFunc(func(c *config) { c.plain = true })
+}
+
+// humanStyle is how this run paints human rows.
+func (o *Run) humanStyle() txt.Style {
+	return txt.Style{Color: !o.cfg.noColor, Verbose: o.cfg.verbosity >= verbosityVerbose, Profile: o.cfg.glyphs}
+}
+
+// debugPanePresentation is the debug pane when debug records present in
+// the live region, nil when they stream as history.
+func (c *config) debugPanePresentation() *txt.DebugPane {
+	if c.debugPresentation != debugPresentationPane {
+		return nil
+	}
+	return &c.debugPane
+}
+
 // --- folded from capability.go ---
 
 // runHost is the Run as graph, freshness and change borrow it: its lock,
@@ -1874,8 +2022,8 @@ func (e runHost) Settled(t *graph.Task) {
 	if st.collection() != nil {
 		o.live.Signal(true)
 	} else {
-		o.commitResolvedTaskLocked(st.id)
-		o.commitNamedEffectsLocked(st.id)
+		o.stream.Commit(record.TaskID(st.id))
+		o.stream.CommitEffects(st.id)
 	}
 	if t.Rec.State().Succeeded() {
 		o.commitManifestLocked(st)
@@ -2116,7 +2264,7 @@ func (r *Run) Fact(name, value string) *Run {
 	r.graph.Root().Note(f)
 	r.bumpLocked()
 	r.emitWireEventLocked(wire.EventFactRecorded, "", wire.ToFactDoc(f).EventPayload())
-	r.writeDurableTextLocked(txt.Dim(f.Name+"  "+f.Value, !r.cfg.noColor) + "\n")
+	r.stream.Write(txt.Dim(f.Name+"  "+f.Value, !r.cfg.noColor) + "\n")
 	return r
 }
 
@@ -2131,7 +2279,7 @@ func (o *Run) warnLocked(p problem) {
 	o.appendEventLocked(recEvent{Type: "run.warned", OutputID: o.outputID})
 	o.emitWireEventLocked(wire.EventWarningRecorded, "", wire.ToProblemDoc(p).EventPayload())
 	glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(o.cfg.glyphs), txt.SGRYellow, !o.cfg.noColor)
-	o.writeDurableTextLocked(glyph + " " + p.Summary + "\n")
+	o.stream.Write(glyph + " " + p.Summary + "\n")
 }
 
 // --- folded from run_signal.go ---

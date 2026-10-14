@@ -10,6 +10,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/project"
+	renderplain "github.com/zachbornheimer/evident-output/internal/project/plain"
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
@@ -530,7 +531,7 @@ func (o *Run) setPhaseLocked(st *taskState, text string) {
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
 	o.live.Signal(true)
-	o.emitTaskRunningProgressiveLocked(st, triggerPhase)
+	o.stream.Running(st.node.TaskID(), renderplain.TriggerPhase, o.cfg.clock.Now())
 }
 
 // setLiveOnlyPhaseLocked is the shared locked body behind every phase
@@ -629,6 +630,16 @@ func (t *Task) Fact(name, value string) *Task {
 	})
 }
 
+// appendLiveTail records one completed Writer line: it enters the live tail
+// and becomes the phase, exactly as a mirrored line always has.
+func (t *Task) appendLiveTail(line string, retained int) {
+	t.annotate(func(st *taskState) {
+		line := project.Text(line)
+		t.out.board.PushTail(st.node.TaskID(), line, retained, t.out.cfg.clock.Now())
+		t.out.setLiveOnlyPhaseLocked(st, line)
+	})
+}
+
 // --- folded from task_next.go ---
 
 // --- folded from task_progress.go ---
@@ -666,7 +677,7 @@ func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind p
 	t.out.appendEventLocked(recEvent{Type: "task.progress_changed", EntityID: t.id})
 	// Progress is high-frequency: coalesce unless first frame.
 	t.out.live.Signal(false)
-	t.out.emitTaskRunningProgressiveLocked(st, triggerProgress)
+	t.out.stream.Running(st.node.TaskID(), renderplain.TriggerProgress, t.out.cfg.clock.Now())
 	return true
 }
 

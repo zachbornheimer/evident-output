@@ -369,7 +369,7 @@ func (o *Run) declareDryRun() {
 	if o.cfg.dryRun {
 		return
 	}
-	if o.durableRowsEmitted > 0 {
+	if o.stream.Written() > 0 {
 		o.recordMisuse(misuse.ErrDryRunDeclaredLate)
 		return
 	}

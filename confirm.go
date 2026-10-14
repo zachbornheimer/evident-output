@@ -9,6 +9,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/graph"
 	txt "github.com/zachbornheimer/evident-output/internal/project"
+	"github.com/zachbornheimer/evident-output/internal/record"
 	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
 
@@ -196,7 +197,7 @@ func (o *Run) confirmBlockOptions(answer graph.Answer, cfg confirmConfig) []Prob
 // resolved Confirm gate — see commitResolvedTaskLocked.
 func (o *Run) flushGateNow(id string) {
 	o.mu.Lock()
-	o.commitResolvedTaskLocked(id)
+	o.stream.Commit(record.TaskID(id))
 	o.mu.Unlock()
 }
 
@@ -256,13 +257,11 @@ func (o *Run) awaitConfirmTurn(abort <-chan struct{}) (endTurn func(), ok bool) 
 }
 
 // setOwnsWindow marks the Confirm gate id as the Task its Suspend window
-// shows, or clears the mark (see taskState.ownsWindow).
+// shows, or clears the mark.
 func (o *Run) setOwnsWindow(id string, owns bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if st := o.taskStates[id]; st != nil {
-		st.ownsWindow = owns
-	}
+	o.stream.OwnWindow(record.TaskID(id), owns)
 }
 
 // writeConfirmPrompt emits the durable "?  <question>  [y/N]" line,
@@ -288,7 +287,7 @@ func (o *Run) writeConfirmPrompt(question string, destructive bool, detail []str
 	// so the question/choices and the human's keystrokes never compete on one
 	// line — "? question [y/N] y" is exactly what this replaces.
 	b.WriteString(confirmInputLineGlyph)
-	o.writeWindowOwnerTextLocked(b.String())
+	o.stream.WriteOwner(b.String())
 	o.mu.Unlock()
 }
 
@@ -371,7 +370,7 @@ func (o *Run) Suspend(fn func() error) error {
 	err := fn()
 
 	o.mu.Lock()
-	o.live.Close(window, o.emitDurableTextLocked)
+	o.live.Close(window, o.stream.Emit)
 	o.mu.Unlock()
 	return err
 }

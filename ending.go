@@ -101,7 +101,7 @@ func (o *Run) settleUnresolvedTasksLocked() {
 		if record.IsTerminalTask(t.node.Rec.State()) {
 			continue
 		}
-		if t.node.Rec.ProblemCount() > 0 || o.hasRecordedEffectLocked(t.id) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || t.node.Rec.WarningCount() > 0 {
+		if t.node.Rec.ProblemCount() > 0 || o.rec.HasRecordedEffect(t.id) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || t.node.Rec.WarningCount() > 0 {
 			o.graph.Settle(t.node, succeeded)
 			o.followRecordLocked()
 			continue
@@ -191,17 +191,12 @@ func (o *Run) runErrorLocked(conc Conclusion) error {
 // behind a Suspend window still open at Finish prints first: no window close
 // will ever flush it.
 func (o *Run) finishHumanLocked(snap snapshot) (residual string, interactive bool) {
-	o.flushHeldTextLocked()
-	// Captured before residualPlainLocked drains o.linesEmitted for its own
-	// copy, so residualInteractiveFinalLocked's copy (below) sees the same
-	// unemitted tail instead of finding it already consumed (release-gate
-	// round 5 finding 1).
-	linesFrom := o.linesEmitted
-	residual = o.residualPlainLocked(snap)
+	o.stream.Flush()
+	residual, final := o.stream.Residual(snap)
 	if o.live.Interactive() {
 		// Interactive final: conclusion + any unemitted entities (not a
 		// second full dump).
-		o.live.Finish(o.residualInteractiveFinalLocked(snap, linesFrom))
+		o.live.Finish(final)
 		return residual, true
 	}
 	return residual, false

@@ -23,8 +23,6 @@ import (
 type (
 	// TimeSource provides the current time for deterministic tests.
 	timeSource = clock.Clock
-	// Scheduler is TimeSource's optional capability to run fn after a delay.
-	scheduler = clock.Scheduler
 	// systemClock uses the real wall clock.
 	systemClock = clock.Wall
 )
@@ -164,4 +162,51 @@ type Facades struct {
 	Redactor Redactor
 	Process  Process
 	FS       FS
+}
+
+// flusher is a writer that buffers until told to flush.
+type flusher interface {
+	Flush() error
+}
+
+// humanSinks are the writers human text reaches, as this run's
+// configuration wires them: the primary stream and its mirrors, and the
+// diagnostic stream.
+type humanSinks struct{ o *Run }
+
+func (s humanSinks) Human(text string) {
+	cfg := &s.o.cfg
+	writers := make([]io.Writer, 0, 1+len(cfg.extraWriters))
+	if cfg.primary != nil {
+		writers = append(writers, cfg.primary)
+	}
+	writers = append(writers, cfg.extraWriters...)
+	for _, w := range writers {
+		if w != nil {
+			writeFlushed(w, text)
+		}
+	}
+}
+
+func (s humanSinks) Diagnostic(text string) bool {
+	if s.o.cfg.diagnostic == nil {
+		return false
+	}
+	writeFlushed(s.o.cfg.diagnostic, text)
+	return true
+}
+
+func (s humanSinks) Separate() bool {
+	cfg := &s.o.cfg
+	return cfg.diagnostic != nil && cfg.primary != nil && cfg.diagnostic != cfg.primary
+}
+
+func (s humanSinks) SharesTerminal() bool { return s.o.cfg.diagnosticSharesTerminal }
+
+// writeFlushed writes text to w and flushes it when it buffers.
+func writeFlushed(w io.Writer, text string) {
+	_, _ = io.WriteString(w, text)
+	if f, ok := w.(flusher); ok {
+		_ = f.Flush()
+	}
 }
