@@ -72,40 +72,40 @@ func (g *Group) defineBuilder(run func()) {
 
 // Task declares a single root-level operation named name. A repeated name is a
 // duplicate sibling declaration (§3.1), never a get-or-create.
-func (o *Run) Task(name string) *Task {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.taskHandle(o.graph.DeclareTask(nil, name))
+func (r *Run) Task(name string) *Task {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.taskHandle(r.graph.DeclareTask(nil, name))
 }
 
 // Group declares independent child tasks that may overlap; a repeated name is a duplicate (§3.1).
-func (o *Run) Group(name string) *Group {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.groupHandle(o.graph.DeclareContainer(nil, name, false))
+func (r *Run) Group(name string) *Group {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.groupHandle(r.graph.DeclareContainer(nil, name, false))
 }
 
 // Sequence declares an ordered container: once a member fails or is cancelled,
 // later members never start. A repeated name is a duplicate sibling declaration (§3.1).
-func (o *Run) Sequence(name string) *Sequence {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return &Sequence{tasks: o.groupHandle(o.graph.DeclareContainer(nil, name, true))}
+func (r *Run) Sequence(name string) *Sequence {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return &Sequence{tasks: r.groupHandle(r.graph.DeclareContainer(nil, name, true))}
 }
 
-// taskHandle is the declared Task, or a refused handle keeping err. Callers hold o.mu.
-func (o *Run) taskHandle(node *graph.Task, err error) *Task {
+// taskHandle is the declared Task, or a refused handle keeping err. Callers hold r.mu.
+func (r *Run) taskHandle(node *graph.Task, err error) *Task {
 	if err != nil {
-		return o.rejectedTask(err)
+		return r.rejectedTask(err)
 	}
-	return o.taskStates[node.ID].handle
+	return r.taskStates[node.ID].handle
 }
 
-func (o *Run) groupHandle(node *graph.Container, err error) *Group {
+func (r *Run) groupHandle(node *graph.Container, err error) *Group {
 	if err != nil {
-		return o.rejectedGroup(err)
+		return r.rejectedGroup(err)
 	}
-	return o.containerStates[node.ID].handle
+	return r.containerStates[node.ID].handle
 }
 
 // Container is a node that can declare work beneath it: the run, a Group or a Sequence.
@@ -138,14 +138,14 @@ func (g *Group) Task(name string) *Task {
 	return g.out.declareChildTask(g, name)
 }
 
-func (o *Run) declareChildTask(g *Group, name string) *Task {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	col := o.containerStates[g.id]
+func (r *Run) declareChildTask(g *Group, name string) *Task {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	col := r.containerStates[g.id]
 	if col == nil {
-		return o.rejectedTask(g.rejected)
+		return r.rejectedTask(g.rejected)
 	}
-	return o.taskHandle(o.graph.DeclareTask(col.node, name))
+	return r.taskHandle(r.graph.DeclareTask(col.node, name))
 }
 
 // Sequence declares (or returns) an ordered child container nested here.
@@ -201,36 +201,36 @@ type Sequence struct {
 
 // Task declares a child Task that runs after the Sequence's earlier children settle. Sibling names are unique
 // per parent: declaring a name the Sequence already holds is misuse and returns a Task that never runs.
-func (g *Sequence) Task(name string) *Task {
-	if g == nil || g.tasks == nil {
+func (s *Sequence) Task(name string) *Task {
+	if s == nil || s.tasks == nil {
 		return &Task{}
 	}
-	return g.tasks.out.declareChildTask(g.tasks, name)
+	return s.tasks.out.declareChildTask(s.tasks, name)
 }
 
 // Summary sets a success-oriented sequence summary.
-func (g *Sequence) Summary(text string) *Sequence {
-	if g == nil || g.tasks == nil {
-		return g
+func (s *Sequence) Summary(text string) *Sequence {
+	if s == nil || s.tasks == nil {
+		return s
 	}
-	g.tasks.Summary(text)
-	return g
+	s.tasks.Summary(text)
+	return s
 }
 
 // Sequence declares (or returns) an ordered child container nested here.
-func (g *Sequence) Sequence(name string) *Sequence {
-	if g == nil || g.tasks == nil {
+func (s *Sequence) Sequence(name string) *Sequence {
+	if s == nil || s.tasks == nil {
 		return &Sequence{}
 	}
-	return g.tasks.Sequence(name)
+	return s.tasks.Sequence(name)
 }
 
 // Group declares (or returns) an independent child container nested here.
-func (g *Sequence) Group(name string) *Group {
-	if g == nil || g.tasks == nil {
+func (s *Sequence) Group(name string) *Group {
+	if s == nil || s.tasks == nil {
 		return &Group{}
 	}
-	return g.tasks.Group(name)
+	return s.tasks.Group(name)
 }
 
 func (g *Group) Build(fn func(*Group)) { g.define(fn) }

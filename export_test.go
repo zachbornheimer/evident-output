@@ -78,15 +78,15 @@ func KeepLastLinesForTest(n int) captureOption { return keepLastLines_1(n) }
 // so the human conclusion cannot read as success while the process fails, and is
 // also returned as Result.Err so embedders can distinguish work failure from
 // presentation/transport failure.
-func (o *Run) run(ctx context.Context, run RunFunc) Result {
-	if o == nil {
+func (r *Run) run(ctx context.Context, run RunFunc) Result {
+	if r == nil {
 		return Result{Conclusion: Conclusion{Outcome: Failed, exitCode: exitFailed}}
 	}
-	o.arm()
+	r.arm()
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return runInterruptible(ctx, o, run)
+	return runInterruptible(ctx, r, run)
 }
 
 // initRun builds a Run through the one constructor Execute and Main use, with t's settings when given.
@@ -124,37 +124,37 @@ func (t *Task) captureForTest(opts ...captureOption) *record.Capture {
 	return t.capture(opts...)
 }
 
-func (o *Run) events() []recEvent { return o.copyEvents() }
+func (r *Run) events() []recEvent { return r.copyEvents() }
 
-func (o *Run) debugForTest(message string, fields ...field) {
-	o.debug(message, fields...)
+func (r *Run) debugForTest(message string, fields ...field) {
+	r.debug(message, fields...)
 }
 
-func (o *Run) alsoWriteForTest(w io.Writer) {
+func (r *Run) alsoWriteForTest(w io.Writer) {
 	if w == nil {
 		return
 	}
-	o.cfg.extraWriters = append(o.cfg.extraWriters, w)
+	r.cfg.extraWriters = append(r.cfg.extraWriters, w)
 }
 
-func (o *Run) dropDiagnosticForTest() { o.cfg.diagnostic = nil }
+func (r *Run) dropDiagnosticForTest() { r.cfg.diagnostic = nil }
 
-func (o *Run) forceLiveVisibleForTest() {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.show.Live.Show()
+func (r *Run) forceLiveVisibleForTest() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.show.Live.Show()
 }
 
-func (o *Run) debugWriterForTest() io.WriteCloser { return o.debugWriter() }
+func (r *Run) debugWriterForTest() io.WriteCloser { return r.debugWriter() }
 
-func (o *Run) subjectForTest(text string) { o.subject(text) }
+func (r *Run) subjectForTest(text string) { r.subject(text) }
 
-func (o *Run) slogHandlerForTest() slog.Handler { return o.slogHandler() }
+func (r *Run) slogHandlerForTest() slog.Handler { return r.slogHandler() }
 
-func (o *Run) atForTest(visibility visibility) *printer { return o.at(visibility) }
+func (r *Run) atForTest(visibility visibility) *printer { return r.at(visibility) }
 
-func (o *Run) schedulerMaxObserved() int {
-	return o.graph.MaxObserved()
+func (r *Run) schedulerMaxObserved() int {
+	return r.graph.MaxObserved()
 }
 
 // Value fingerprints a caller-supplied scalar (string, bool, any signed/
@@ -250,8 +250,8 @@ func keepLastLines(n int) captureOption {
 }
 
 // Err returns the first recorded misuse error, if any.
-func (o *Run) err() error {
-	return o.firstMisuse()
+func (r *Run) err() error {
+	return r.firstMisuse()
 }
 
 // noopRedactor leaves strings unchanged.
@@ -286,8 +286,8 @@ type (
 // DebugLevel (default LevelInfo drops all lines) and is the wrong dialect for
 // child-command evidence used in Fail Detail. Use DebugWriter only when you
 // intentionally want DEBUG-level journal lines (and set debugLevel(Debug)).
-func (o *Run) debugWriter() io.WriteCloser {
-	return record.NewLineWriter(func(line string) { o.debug(line) })
+func (r *Run) debugWriter() io.WriteCloser {
+	return record.NewLineWriter(func(line string) { r.debug(line) })
 }
 
 // WriteJSON serializes result as the stable v2 "evo.run" wire document plus
@@ -309,11 +309,11 @@ func writeJSON(w io.Writer, result Result) error {
 
 // copyEvents is a copy of the durable events (v0.1 journal), current with the
 // record: every settle the graph made is journaled before it is read.
-func (o *Run) copyEvents() []recEvent {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.followRecordLocked()
-	return o.rec.Events(o.cfg.maxEvents)
+func (r *Run) copyEvents() []recEvent {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.followRecordLocked()
+	return r.rec.Events(r.cfg.maxEvents)
 }
 
 // PlainOptions configures pure plain projection (§25.4).
@@ -340,21 +340,21 @@ func renderPlain(s snapshot, opts plainOptions) ([]byte, error) {
 }
 
 // Snapshot returns an immutable copy of current state.
-func (o *Run) snapshot() snapshot {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.snapshotLocked()
+func (r *Run) snapshot() snapshot {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.snapshotLocked()
 }
 
 // Print formats like fmt.Sprint and enqueues human-facing text (line-buffered).
 // Errors are recorded on the Output and returned by Finish/Main — not ignored mid-stream.
-func (o *Run) print(args ...any) {
-	o.at(visibilityNormal).print(args...)
+func (r *Run) print(args ...any) {
+	r.at(visibilityNormal).print(args...)
 }
 
 // Printf formats like fmt.Sprintf and enqueues human-facing text (line-buffered).
-func (o *Run) printf(format string, args ...any) {
-	o.at(visibilityNormal).printf(format, args...)
+func (r *Run) printf(format string, args ...any) {
+	r.at(visibilityNormal).printf(format, args...)
 }
 
 // Print implements Printer.
@@ -417,11 +417,11 @@ func truncateNames(names []string, visible int) string {
 }
 
 // Snapshot returns the sequence snapshot with derived state.
-func (g *Sequence) snapshot() tasksSnapshot {
-	if g == nil || g.tasks == nil {
+func (s *Sequence) snapshot() tasksSnapshot {
+	if s == nil || s.tasks == nil {
 		return tasksSnapshot{State: empty}
 	}
-	return g.tasks.snapshot()
+	return s.tasks.snapshot()
 }
 
 // Context reports the cancellation signal this task's work runs under — the
@@ -466,8 +466,8 @@ func (t *Task) basis(inputs ...fingerprint) *Task {
 // identity source as Confirm's PolicyFlag / I2's Fail fallback: Config.Title
 // when set, else the binary's own basename. Use NextCommand instead when the
 // remedy is a different (foreign) tool.
-func (o *Run) nextSelf(args ...string) ProblemOption {
-	return nextCommand(o.selfName(), args...)
+func (r *Run) nextSelf(args ...string) ProblemOption {
+	return nextCommand(r.selfName(), args...)
 }
 
 // Bytes sets absolute byte progress (units and rate formatting).
@@ -494,10 +494,10 @@ func (st *taskState) neverDefined() bool { return st.node.NeverDefined() }
 // that resolution (it holds o.mu from settle to commit) and follows the
 // record for a settle made outside one, so a caller that reads the frame
 // right after Wait sees the settled row.
-func (o *Run) followRecordAfterWait() {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.followRecordLocked()
+func (r *Run) followRecordAfterWait() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.followRecordLocked()
 }
 
 // anyBlockedSoFar reports whether any Task is currently in the Blocked
@@ -506,13 +506,13 @@ func (o *Run) followRecordAfterWait() {
 // the two answer different questions and previously shared one name).
 // Internal only (P6 deletion census: no consumer needed the mid-run
 // question once Run/Conclusion existed) — see anyblocked_package_test.go.
-func (o *Run) anyBlockedSoFar() bool {
-	if o == nil {
+func (r *Run) anyBlockedSoFar() bool {
+	if r == nil {
 		return false
 	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	for _, t := range o.tasks {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, t := range r.tasks {
 		if t.node.Rec.State() == refused {
 			return true
 		}
@@ -520,7 +520,7 @@ func (o *Run) anyBlockedSoFar() bool {
 	return false
 }
 
-func (o *Run) nextSelfForTest(args ...string) ProblemOption { return o.nextSelf(args...) }
+func (r *Run) nextSelfForTest(args ...string) ProblemOption { return r.nextSelf(args...) }
 
 // BasisSource is one Task Basis input: something whose content identity is
 // observed when the Task starts. Build one with FingerprintBasis.
@@ -545,8 +545,8 @@ func nextCommand(executable string, args ...string) ProblemOption {
 }
 
 // fail records an output-level failure.
-func (o *Run) fail(summary string, options ...ProblemOption) {
-	o.endWith(failed, applyProblemOptions(project.Text(summary), options))
+func (r *Run) fail(summary string, options ...ProblemOption) {
+	r.endWith(failed, applyProblemOptions(project.Text(summary), options))
 }
 
 // settleTimeout bounds how long a test waits for submitted work to make
@@ -622,7 +622,7 @@ func containedTasks(c *graph.Container) []*graph.Task {
 // awaitSettled polls until every Task in tasks is terminal, then follows the
 // record so the frame shows each settled row, and joins why any did not
 // succeed.
-func (o *Run) awaitSettled(tasks []*graph.Task) error {
+func (r *Run) awaitSettled(tasks []*graph.Task) error {
 	deadline := time.Now().Add(settleTimeout)
 	var failures []error
 	for _, t := range tasks {
@@ -637,7 +637,7 @@ func (o *Run) awaitSettled(tasks []*graph.Task) error {
 			failures = append(failures, fmt.Errorf("%w: %s %s", errNotSucceeded, t.Name, state))
 		}
 	}
-	o.followRecordAfterWait()
+	r.followRecordAfterWait()
 	return errors.Join(failures...)
 }
 
@@ -655,8 +655,8 @@ func readFrom(output Output, w io.Writer) Facades {
 
 // Test-only entry points into production behaviour; no production caller needs them.
 
-func (o *Run) cancel(reason string) {
-	o.graph.EndRun(o.endingName(), record.TaskInit{State: cancelled, Summary: project.Text(reason)})
+func (r *Run) cancel(reason string) {
+	r.graph.EndRun(r.endingName(), record.TaskInit{State: cancelled, Summary: project.Text(reason)})
 }
 
 func (t *Task) cancel(reason string) {
@@ -664,21 +664,21 @@ func (t *Task) cancel(reason string) {
 }
 
 // context reports the run's cancellation signal (cancelled on interrupt and close). A nil Run reports a never-cancelled context.
-func (o *Run) context() context.Context {
-	if o == nil {
+func (r *Run) context() context.Context {
+	if r == nil {
 		return context.Background()
 	}
-	return o.graph.Context()
+	return r.graph.Context()
 }
 
-func (o *Run) debug(message string, fields ...field) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.emitDebugLocked(message, fields, false)
+func (r *Run) debug(message string, fields ...field) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.emitDebugLocked(message, fields, false)
 }
 
-func (o *Run) emitDebugLocked(message string, fields []field, force bool) {
-	o.emitDebugRecordLocked("DEBUG", message, fields, time.Time{}, force)
+func (r *Run) emitDebugLocked(message string, fields []field, force bool) {
+	r.emitDebugRecordLocked("DEBUG", message, fields, time.Time{}, force)
 }
 
 func detailTail(c *record.Capture) ProblemOption {

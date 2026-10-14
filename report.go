@@ -33,29 +33,29 @@ type printer struct {
 	visibility visibility
 }
 
-func (o *Run) at(visibility visibility) *printer {
-	return &printer{out: o, visibility: visibility}
+func (r *Run) at(visibility visibility) *printer {
+	return &printer{out: r, visibility: visibility}
 }
 
-func (o *Run) println(args ...any) {
-	o.at(visibilityNormal).println(args...)
+func (r *Run) println(args ...any) {
+	r.at(visibilityNormal).println(args...)
 }
 
 // subject prints one durable line immediately, like Config.Subject, for a caller that learns the subject
 // only after the run starts but before any other I/O. A no-op on a nil Run or empty text.
-func (o *Run) subject(text string) {
-	if o == nil || text == "" {
+func (r *Run) subject(text string) {
+	if r == nil || text == "" {
 		return
 	}
-	o.println(text)
+	r.println(text)
 }
 
 func (p *printer) println(args ...any) {
 	p.enqueue(fmt.Sprintln(args...))
 }
 
-func (o *Run) writer() io.Writer {
-	return o.at(visibilityNormal).writer()
+func (r *Run) writer() io.Writer {
+	return r.at(visibilityNormal).writer()
 }
 
 // ResultWriter returns the stdout data payload; presentation never writes to it. Human and Plain runs
@@ -63,14 +63,14 @@ func (o *Run) writer() io.Writer {
 // evo.run document's result, and a JSONL run streams each write as a result.written event, so stdout stays
 // machine-readable; both carry bytes that are not valid UTF-8 as base64. Writing after the run finished is
 // misuse in every mode and returns an error. A run with no payload stream returns io.Discard.
-func (o *Run) ResultWriter() io.Writer {
-	if o == nil {
+func (r *Run) ResultWriter() io.Writer {
+	if r == nil {
 		return io.Discard
 	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if o.cfg.result != nil || o.cfg.wireFormat == JSON || o.cfg.wireFormat == JSONL {
-		return resultWriter{o}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.cfg.result != nil || r.cfg.wireFormat == JSON || r.cfg.wireFormat == JSONL {
+		return resultWriter{r}
 	}
 	return io.Discard
 }
@@ -93,21 +93,21 @@ func (w resultWriter) Write(b []byte) (int, error) {
 
 // routeResult delivers b when the run itself owns the destination, and otherwise returns the raw payload
 // stream for the caller to write after the run lock is released, so a slow reader never stalls the run.
-func (o *Run) routeResult(b []byte) (io.Writer, error) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
+func (r *Run) routeResult(b []byte) (io.Writer, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.ensureOpen(); err != nil {
+		r.recordMisuse(err)
 		return nil, fmt.Errorf("write result: %w", err)
 	}
 	switch {
-	case o.cfg.wireFormat == JSONL:
-		o.emitWireEventLocked(wire.EventResultWritten, "", wire.NewResultWrittenPayload(b).EventPayload())
-	case o.cfg.wireFormat == JSON:
-		o.resultText.Write(b)
-	case o.cfg.resultSharesTerminal && o.show.Stream.WritePayload(string(b)):
+	case r.cfg.wireFormat == JSONL:
+		r.emitWireEventLocked(wire.EventResultWritten, "", wire.NewResultWrittenPayload(b).EventPayload())
+	case r.cfg.wireFormat == JSON:
+		r.resultText.Write(b)
+	case r.cfg.resultSharesTerminal && r.show.Stream.WritePayload(string(b)):
 	default:
-		return o.cfg.result, nil
+		return r.cfg.result, nil
 	}
 	return nil, nil
 }
@@ -141,48 +141,48 @@ func (p *printer) enqueue(s string) {
 	p.out.printLines.Add(s, p.visibility)
 }
 
-func (o *Run) emitMessageLocked(line string, vis visibility) {
+func (r *Run) emitMessageLocked(line string, vis visibility) {
 	if !utf8.ValidString(line) {
 		line = strings.ToValidUTF8(line, "\uFFFD")
 	}
 	line = txt.Text(line)
 	// Empty lines stay as messages so a blank Println matches fmt.
-	id := o.graph.NextID("message")
-	o.graph.Root().Print(messageSnapshot{ID: id, Text: line, Visibility: vis})
-	if o.projectsVisibilityLocked(vis) {
-		o.graph.Root().Log(line)
+	id := r.graph.NextID("message")
+	r.graph.Root().Print(messageSnapshot{ID: id, Text: line, Visibility: vis})
+	if r.projectsVisibilityLocked(vis) {
+		r.graph.Root().Log(line)
 	}
-	o.bumpLocked()
-	o.appendEventLocked(recEvent{
+	r.bumpLocked()
+	r.appendEventLocked(recEvent{
 		Type:     "message.emitted",
 		EntityID: id,
 		Name:     record.VisibilityName(vis),
 	})
-	if o.projectsVisibilityLocked(vis) {
-		o.show.Stream.Lines()
+	if r.projectsVisibilityLocked(vis) {
+		r.show.Stream.Lines()
 	} else {
 		// Hidden verbose still counts as emitted for lines bookkeeping.
-		o.show.Stream.SkipLines()
+		r.show.Stream.SkipLines()
 	}
 }
 
-func (o *Run) projectsVisibilityLocked(v visibility) bool {
+func (r *Run) projectsVisibilityLocked(v visibility) bool {
 	if v == visibilityVerbose {
-		return o.cfg.verbose
+		return r.cfg.verbose
 	}
 	return true
 }
 
 // slogHandler returns a slog.Handler that journals every accepted record as structured diagnostics. Level
 // policy is Config.Debug.Level. Application prose goes through Print/Task outcomes, not slog.
-func (o *Run) slogHandler() slog.Handler {
+func (r *Run) slogHandler() slog.Handler {
 	level := slogLevelOff
-	if o != nil {
-		o.mu.Lock()
-		level = logLevelToSlog(o.cfg.debugLevel)
-		o.mu.Unlock()
+	if r != nil {
+		r.mu.Lock()
+		level = logLevelToSlog(r.cfg.debugLevel)
+		r.mu.Unlock()
 	}
-	return record.NewSlogHandler(level, o.emitLogRecord)
+	return record.NewSlogHandler(level, r.emitLogRecord)
 }
 
 // slogLevelOff is above every level a record can carry, so a handler at it enables none.
@@ -224,8 +224,8 @@ func logLevelOf(l slog.Level) logLevel {
 
 // emitLogRecord journals every accepted slog record as structured diagnostics.
 // The raw PC stays on the LogRecord; a bare pc=<uintptr> never reaches rendering.
-func (o *Run) emitLogRecord(rec logRecord) {
-	if o == nil {
+func (r *Run) emitLogRecord(rec logRecord) {
+	if r == nil {
 		return
 	}
 	fields := make([]field, 0, len(rec.Attrs)+1)
@@ -233,9 +233,9 @@ func (o *Run) emitLogRecord(rec logRecord) {
 		fields = append(fields, field{Key: a.Key, Value: a.Value.Any()})
 	}
 	// Force: Handler.Enabled already applied Config.Debug.Level via min.
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.emitDebugRecordLocked(record.SlogLevelName(rec.Level), rec.Message, fields, rec.Time, true)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.emitDebugRecordLocked(record.SlogLevelName(rec.Level), rec.Message, fields, rec.Time, true)
 }
 
 // debugRecord is one structured diagnostic journal entry (§21.3).
@@ -243,21 +243,21 @@ type debugRecord = record.DebugRecord
 
 // emitDebugRecordLocked journals a formed debug record; force bypasses
 // DebugLevel after slog already applied its min level.
-func (o *Run) emitDebugRecordLocked(levelName, message string, fields []field, at time.Time, force bool) {
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
+func (r *Run) emitDebugRecordLocked(levelName, message string, fields []field, at time.Time, force bool) {
+	if err := r.ensureOpen(); err != nil {
+		r.recordMisuse(err)
 		return
 	}
-	if !force && o.cfg.debugLevel > levelDebug {
+	if !force && r.cfg.debugLevel > levelDebug {
 		return
 	}
-	rec := o.newDebugRecordLocked(levelName, message, fields, at)
-	o.projectDebugRecordLocked(rec)
+	rec := r.newDebugRecordLocked(levelName, message, fields, at)
+	r.projectDebugRecordLocked(rec)
 }
 
-func (o *Run) newDebugRecordLocked(levelName, message string, fields []field, at time.Time) debugRecord {
+func (r *Run) newDebugRecordLocked(levelName, message string, fields []field, at time.Time) debugRecord {
 	if at.IsZero() {
-		at = o.cfg.clock.Now()
+		at = r.cfg.clock.Now()
 	}
 	rec := debugRecord{
 		Time:    at,
@@ -268,20 +268,20 @@ func (o *Run) newDebugRecordLocked(levelName, message string, fields []field, at
 	for i := range rec.Fields {
 		if rec.Fields[i].Sensitive {
 			rec.Fields[i].Value = record.RedactedValue
-		} else if o.cfg.redactor != nil {
-			rec.Fields[i].Value = o.cfg.redactor.RedactString(fmt.Sprint(rec.Fields[i].Value))
+		} else if r.cfg.redactor != nil {
+			rec.Fields[i].Value = r.cfg.redactor.RedactString(fmt.Sprint(rec.Fields[i].Value))
 		}
 	}
 	return rec
 }
 
 // projectDebugRecordLocked records rec on the run root, journals it, and hands it to the stream.
-func (o *Run) projectDebugRecordLocked(rec debugRecord) {
-	o.graph.Root().Debug(rec)
-	o.graph.Root().Log(txt.FormatHistoryLine(rec, false))
-	o.bumpLocked()
-	o.appendEventLocked(recEvent{Type: "log.emitted"})
-	o.show.Stream.Debug(rec)
+func (r *Run) projectDebugRecordLocked(rec debugRecord) {
+	r.graph.Root().Debug(rec)
+	r.graph.Root().Log(txt.FormatHistoryLine(rec, false))
+	r.bumpLocked()
+	r.appendEventLocked(recEvent{Type: "log.emitted"})
+	r.show.Stream.Debug(rec)
 }
 
 func cloneFields(in []field) []field {
@@ -301,11 +301,11 @@ func writerIsCharDevice(w io.Writer) bool { return terminal.WriterIsCharDevice(w
 func sameTerminalDevice(a, b io.Writer) bool { return terminal.SameDevice(a, b) }
 
 // Text returns a writer for free human text, routed with the presentation so it never tears the live region.
-func (o *Run) Text() io.Writer { return o.writer() }
+func (r *Run) Text() io.Writer { return r.writer() }
 
 // SlogHandler returns a slog.Handler that writes into the debug journal at or above Config.Debug.
 // See the Run.SlogHandler example.
-func (o *Run) SlogHandler() slog.Handler { return o.slogHandler() }
+func (r *Run) SlogHandler() slog.Handler { return r.slogHandler() }
 
 func (r *Run) Summary(text string) *Run {
 	if r != nil {

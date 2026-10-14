@@ -352,8 +352,8 @@ type Run struct {
 	recorder              *Recorder
 }
 
-func (o *Run) keepMisuse() {}
-func (o *Run) noteMisuse() {}
+func (r *Run) keepMisuse() {}
+func (r *Run) noteMisuse() {}
 func (discardMisuse) RecordMisuseFor(string, error) {}
 func (s sink) RecordMisuseFor(subject string, err error) { s.store(err) }
 `

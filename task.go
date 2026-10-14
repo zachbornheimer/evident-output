@@ -87,10 +87,10 @@ func (t *Task) After(preds ...Predecessor) *Task {
 	return t
 }
 
-func (o *Run) predecessorsOfLocked(args []Predecessor) []graph.Predecessor {
+func (r *Run) predecessorsOfLocked(args []Predecessor) []graph.Predecessor {
 	preds := make([]graph.Predecessor, 0, len(args))
 	for _, arg := range args {
-		if pred, ok := o.predecessorOfLocked(arg); ok {
+		if pred, ok := r.predecessorOfLocked(arg); ok {
 			preds = append(preds, pred)
 		}
 	}
@@ -98,47 +98,47 @@ func (o *Run) predecessorsOfLocked(args []Predecessor) []graph.Predecessor {
 }
 
 // predecessorOfLocked resolves one After argument; a handle from another Output yields the empty predecessor, which never succeeds.
-func (o *Run) predecessorOfLocked(p Predecessor) (pred graph.Predecessor, ok bool) {
+func (r *Run) predecessorOfLocked(p Predecessor) (pred graph.Predecessor, ok bool) {
 	switch x := p.(type) {
 	case *Task:
 		if x == nil || x.id == "" {
 			return graph.Predecessor{}, false
 		}
-		if x.out == o {
-			return graph.AfterTask(o.nodeOfTask(x.id)), true
+		if x.out == r {
+			return graph.AfterTask(r.nodeOfTask(x.id)), true
 		}
 	case *Group:
 		if x == nil || x.id == "" {
 			return graph.Predecessor{}, false
 		}
-		if x.out == o {
-			return graph.AfterContainer(o.nodeOfContainer(x.id)), true
+		if x.out == r {
+			return graph.AfterContainer(r.nodeOfContainer(x.id)), true
 		}
 	case *Sequence:
 		if x == nil || x.tasks == nil {
 			return graph.Predecessor{}, false
 		}
-		return o.predecessorOfLocked(x.tasks)
+		return r.predecessorOfLocked(x.tasks)
 	case interface{ producer() *Task }:
 		if x == nil {
 			return graph.Predecessor{}, false
 		}
-		return o.predecessorOfLocked(x.producer())
+		return r.predecessorOfLocked(x.producer())
 	default:
 		return graph.Predecessor{}, false
 	}
 	return graph.Predecessor{}, true
 }
 
-func (o *Run) nodeOfTask(id string) *graph.Task {
-	if st := o.taskStates[id]; st != nil {
+func (r *Run) nodeOfTask(id string) *graph.Task {
+	if st := r.taskStates[id]; st != nil {
 		return st.node
 	}
 	return nil
 }
 
-func (o *Run) nodeOfContainer(id string) *graph.Container {
-	if st := o.containerStates[id]; st != nil {
+func (r *Run) nodeOfContainer(id string) *graph.Container {
+	if st := r.containerStates[id]; st != nil {
 		return st.node
 	}
 	return nil
@@ -198,28 +198,28 @@ func (t *Task) setLiveOnlyPhase(text string) {
 	t.annotate(func(st *taskState) { t.out.setLiveOnlyPhaseLocked(st, text) })
 }
 
-func (o *Run) setPhaseLocked(st *taskState, text string) {
-	if st.node.Doing(text, o.cfg.clock.Now()) {
-		o.announceRunningLocked(st)
+func (r *Run) setPhaseLocked(st *taskState, text string) {
+	if st.node.Doing(text, r.cfg.clock.Now()) {
+		r.announceRunningLocked(st)
 	}
-	o.bumpLocked()
-	o.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
-	o.show.Live.Signal(true)
+	r.bumpLocked()
+	r.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
+	r.show.Live.Signal(true)
 }
 
 // setLiveOnlyPhaseLocked is setPhaseLocked for non-narrated sources.
-func (o *Run) setLiveOnlyPhaseLocked(st *taskState, text string) {
+func (r *Run) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	// An identical live-only phase is a no-op: repeated Writer lines must not bump, emit or repaint.
-	changed, started := st.node.Mirror(text, o.cfg.clock.Now())
+	changed, started := st.node.Mirror(text, r.cfg.clock.Now())
 	if !changed {
 		return
 	}
 	if started {
-		o.announceRunningLocked(st)
+		r.announceRunningLocked(st)
 	}
-	o.bumpLocked()
-	o.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
-	o.show.Live.Signal(true)
+	r.bumpLocked()
+	r.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
+	r.show.Live.Signal(true)
 }
 
 // Summary sets one sanitized line of result text for the terminal row; last call wins, empty clears.
@@ -328,14 +328,14 @@ func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Tas
 
 // refuseNilDefine records the refusal of Define(nil) on st and settles its row NotStarted: a Task with no
 // callback can never run, so it is work the refusal took away, not a forgotten terminal verb.
-func (o *Run) refuseNilDefine(st *taskState) {
-	o.mu.Lock()
+func (r *Run) refuseNilDefine(st *taskState) {
+	r.mu.Lock()
 	st.refused = true
-	o.mu.Unlock()
-	o.recordMisuseFor(st.name, fmt.Errorf("%w: nil Define callback for task %q", ErrInvalidConfig, st.name))
+	r.mu.Unlock()
+	r.recordMisuseFor(st.name, fmt.Errorf("%w: nil Define callback for task %q", ErrInvalidConfig, st.name))
 }
 
 // definition is st's Define with fn as its callback; freshness checks it.
-func (o *Run) definition(st *taskState, fn func(context.Context) error) graph.Definition[*change.Run] {
-	return graph.Definition[*change.Run]{Owner: o.changes, Checks: o.freshness.Checks(st.node.TaskID()), Callback: fn}
+func (r *Run) definition(st *taskState, fn func(context.Context) error) graph.Definition[*change.Run] {
+	return graph.Definition[*change.Run]{Owner: r.changes, Checks: r.freshness.Checks(st.node.TaskID()), Callback: fn}
 }

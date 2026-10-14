@@ -110,44 +110,44 @@ func newRun(cfg config) *Run {
 	return o
 }
 
-func (o *Run) manifestConfig() freshness.ManifestConfig {
-	return freshness.ManifestConfig{AppID: o.cfg.appID, StateDir: o.cfg.stateDir, Workspace: o.changes.Workspace()}
+func (r *Run) manifestConfig() freshness.ManifestConfig {
+	return freshness.ManifestConfig{AppID: r.cfg.appID, StateDir: r.cfg.stateDir, Workspace: r.changes.Workspace()}
 }
 
 // promoteRunningLocked moves a Pending task to Running on its first unit of evidence (Phase, Progress,
 // Advance, Bytes, Step, Writer). A work callback starting is announced by taskStarted: the claim moved the row.
-func (o *Run) promoteRunningLocked(st *taskState) {
+func (r *Run) promoteRunningLocked(st *taskState) {
 	st.node.MarkRunning()
-	o.announceRunningLocked(st)
+	r.announceRunningLocked(st)
 }
 
 // announceRunningLocked is the render state a Task owes for becoming Running, answered once per Task.
 // A Sequence records misuse when a sibling is already Running; a Group's children are not policed.
-func (o *Run) announceRunningLocked(st *taskState) {
-	if !o.show.Started(st.node.TaskID()) {
+func (r *Run) announceRunningLocked(st *taskState) {
+	if !r.show.Started(st.node.TaskID()) {
 		return
 	}
 	if seq := st.node.Parent; seq != nil && seq.Sequential && seq.StepStarted(st.node) {
-		o.recordMisuse(errConcurrentRunning)
+		r.recordMisuse(errConcurrentRunning)
 	}
 }
 
-func (o *Run) bumpLocked() { o.show.Bump() }
+func (r *Run) bumpLocked() { r.show.Bump() }
 
 // appendEventLocked journals e in the order things happened: the record is followed first, so a settle a graph
 // goroutine made on its own is journaled before an event this section writes after it.
-func (o *Run) appendEventLocked(e recEvent) {
-	o.followRecordLocked()
-	e.Timestamp = o.cfg.clock.Now()
+func (r *Run) appendEventLocked(e recEvent) {
+	r.followRecordLocked()
+	e.Timestamp = r.cfg.clock.Now()
 	e.SchemaVersion = eventSchemaVersion
 	if e.OutputID == "" {
-		e.OutputID = o.outputID
+		e.OutputID = r.outputID
 	}
-	o.graph.Root().Journal(e, o.cfg.maxEvents)
+	r.graph.Root().Journal(e, r.cfg.maxEvents)
 }
 
-// followRecordLocked brings every projection up to date with the record. Callers hold o.mu.
-func (o *Run) followRecordLocked() { o.show.Follow() }
+// followRecordLocked brings every projection up to date with the record. Callers hold r.mu.
+func (r *Run) followRecordLocked() { r.show.Follow() }
 
 type taskState struct {
 	id string
@@ -189,30 +189,30 @@ func (st *taskState) collection() *tasksState {
 }
 
 // appendTaskLocked gives st a row in every projection and announces it; synthetic marks the run's own ending Task.
-func (o *Run) appendTaskLocked(st *taskState, synthetic bool) {
+func (r *Run) appendTaskLocked(st *taskState, synthetic bool) {
 	in := ""
 	if col := st.collection(); col != nil {
 		in = col.id
 	}
 	row := txt.DeclaredTask{ID: st.node.TaskID(), Node: st.node, Name: st.name, Declaration: st.node.Declaration, Rec: st.node.Rec, Synthetic: synthetic}
 	if !synthetic {
-		row.Timing.Declared = o.cfg.clock.Now()
+		row.Timing.Declared = r.cfg.clock.Now()
 	}
-	o.tasks = append(o.tasks, st)
+	r.tasks = append(r.tasks, st)
 	if in == "" {
-		o.rootTasks = append(o.rootTasks, st)
+		r.rootTasks = append(r.rootTasks, st)
 	}
-	o.show.DeclareTask(row, in)
+	r.show.DeclareTask(row, in)
 }
 
 // arm marks the live surface ready to paint before any entity is declared (first-paint rule). Idempotent.
-func (o *Run) arm() {
-	if o == nil {
+func (r *Run) arm() {
+	if r == nil {
 		return
 	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.show.Arm()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.show.Arm()
 }
 
 type presentHost struct{ o *Run }
@@ -225,23 +225,23 @@ func (h presentHost) Tracked(id record.TaskID) record.TaskOperations {
 	return h.o.freshness.Tasks().Tracked(id)
 }
 
-// snapshotLocked is the run as every projection shows it now. Callers hold o.mu.
-func (o *Run) snapshotLocked() snapshot {
-	return o.show.Snapshot(snapshot{
-		OutputID:  o.outputID,
-		Subject:   o.cfg.subject,
-		Summary:   o.rec.RunSummary(),
-		Lines:     o.rec.Lines(),
-		Timestamp: o.cfg.clock.Now(),
-		DryRun:    o.cfg.dryRun,
-		Warnings:  o.rec.RunWarnings(),
-		Facts:     o.rec.RunFacts(),
+// snapshotLocked is the run as every projection shows it now. Callers hold r.mu.
+func (r *Run) snapshotLocked() snapshot {
+	return r.show.Snapshot(snapshot{
+		OutputID:  r.outputID,
+		Subject:   r.cfg.subject,
+		Summary:   r.rec.RunSummary(),
+		Lines:     r.rec.Lines(),
+		Timestamp: r.cfg.clock.Now(),
+		DryRun:    r.cfg.dryRun,
+		Warnings:  r.rec.RunWarnings(),
+		Facts:     r.rec.RunFacts(),
 	})
 }
 
 // emitWireEventLocked writes one "evo.event" line; a run that streams no events writes nothing.
-func (o *Run) emitWireEventLocked(eventType, entityID string, payload map[string]any) {
-	o.show.Events.Emit(eventType, entityID, payload)
+func (r *Run) emitWireEventLocked(eventType, entityID string, payload map[string]any) {
+	r.show.Events.Emit(eventType, entityID, payload)
 }
 
 // Output selects the presentation encoding (CONTRACT §6).

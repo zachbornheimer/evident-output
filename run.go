@@ -60,7 +60,7 @@ func runInterruptible(ctx context.Context, out *Run, run RunFunc) Result {
 	notifySignals(sigCh, process.Interrupt, process.Terminate)
 	defer stopSignals(sigCh)
 
-	// runCtx is o.Context() for this run, detached from the caller's cancellation: the watcher
+	// runCtx is r.Context() for this run, detached from the caller's cancellation: the watcher
 	// records the Cancel first, so a task that sees Done ends Cancelled, not Failed with a deadline error.
 	runCtx := out.beginRunContext(watchedContext{ctx})
 
@@ -168,17 +168,17 @@ func concludeCancelled(out *Run, runErr error) Result {
 }
 
 // resultErr is Result.Err: what the body returned, joined with every misuse the run recorded.
-func (o *Run) resultErr(runErr error) error {
-	return joinErrors(runErr, o.allMisuse())
+func (r *Run) resultErr(runErr error) error {
+	return joinErrors(runErr, r.allMisuse())
 }
 
-func (o *Run) anyFailed() bool {
-	if o == nil {
+func (r *Run) anyFailed() bool {
+	if r == nil {
 		return false
 	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	for _, t := range o.tasks {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, t := range r.tasks {
 		if t.node.Rec.State() == failed {
 			return true
 		}
@@ -196,8 +196,8 @@ var processArgv0 = func() string {
 }
 
 // selfName is the resolved Config.Name: the binary's basename when none was given.
-func (o *Run) selfName() string {
-	return o.cfg.subject
+func (r *Run) selfName() string {
+	return r.cfg.subject
 }
 
 // identityFallbackName is the executable's basename or "command"; never a Subject.
@@ -216,57 +216,57 @@ func rendererError(err error) error {
 	return fmt.Errorf("%w: %v", errRenderer, err)
 }
 
-func (o *Run) ensureOpen() error {
-	if o.closed || o.finishing || o.finished {
+func (r *Run) ensureOpen() error {
+	if r.closed || r.finishing || r.finished {
 		return errClosed
 	}
 	return nil
 }
 
 // close is idempotent with a best-effort Finish: the first call tears down; a concurrent or later call waits and returns nil.
-func (o *Run) close() error {
-	o.mu.Lock()
-	if o.closing != nil {
-		closing := o.closing
-		o.mu.Unlock()
+func (r *Run) close() error {
+	r.mu.Lock()
+	if r.closing != nil {
+		closing := r.closing
+		r.mu.Unlock()
 		<-closing
 		return nil
 	}
-	o.closing = make(chan struct{})
-	defer close(o.closing)
+	r.closing = make(chan struct{})
+	defer close(r.closing)
 	// A Confirm still waiting would hold its caller forever once the run is gone.
-	for o.graph.CancelPendingGate(cancelCauseClose) {
+	for r.graph.CancelPendingGate(cancelCauseClose) {
 	}
-	needFinish := !o.finished
-	o.mu.Unlock()
+	needFinish := !r.finished
+	r.mu.Unlock()
 	if needFinish {
-		_ = o.finish()
+		_ = r.finish()
 	}
-	o.mu.Lock()
-	o.show.Live.Stop()
-	o.show.Stream.StopHeartbeats()
-	o.closed = true
-	o.graph.Close()
-	o.mu.Unlock()
-	o.graph.Cancel()
+	r.mu.Lock()
+	r.show.Live.Stop()
+	r.show.Stream.StopHeartbeats()
+	r.closed = true
+	r.graph.Close()
+	r.mu.Unlock()
+	r.graph.Cancel()
 	// Finish already wrote the manifest; this releases its lock (spec §11.3) and returns any failure. Close never rolls back committed records.
-	return o.freshness.Session().Close()
+	return r.freshness.Session().Close()
 }
 
 // beginRunContext installs ctx as the parent of this run's task scopes, replacing the placeholder from construction.
-func (o *Run) beginRunContext(ctx context.Context) context.Context {
-	return o.graph.BeginRunContext(ctx)
+func (r *Run) beginRunContext(ctx context.Context) context.Context {
+	return r.graph.BeginRunContext(ctx)
 }
 
-func (o *Run) conclusion() Conclusion {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if c, ok := o.rec.Conclusion(); ok {
+func (r *Run) conclusion() Conclusion {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if c, ok := r.rec.Conclusion(); ok {
 		return asEvoConclusion(c)
 	}
-	snap := o.snapshotLocked()
+	snap := r.snapshotLocked()
 	c := record.InferConclusion(snap)
-	o.explainCancellationLocked(&c)
+	r.explainCancellationLocked(&c)
 	return asEvoConclusion(c)
 }
 
@@ -275,11 +275,11 @@ const cancelCauseUser = "by user"
 const cancelCauseClose = "run closed"
 
 // explainCancellationLocked names what interrupted a cancelled run as its Explanation.
-func (o *Run) explainCancellationLocked(c *record.Conclusion) {
+func (r *Run) explainCancellationLocked(c *record.Conclusion) {
 	if c.Outcome != record.OutcomeCancelled {
 		return
 	}
-	if cause := o.graph.CancelCause(); cause != "" {
+	if cause := r.graph.CancelCause(); cause != "" {
 		c.Explanation = cause
 	}
 }
@@ -343,49 +343,49 @@ const (
 	glyphsASCII   = txt.GlyphsASCII
 )
 
-func (o *Run) humanStyle() txt.Style {
-	return txt.Style{Color: !o.cfg.noColor, Verbose: o.cfg.verbose, Profile: o.cfg.glyphs}
+func (r *Run) humanStyle() txt.Style {
+	return txt.Style{Color: !r.cfg.noColor, Verbose: r.cfg.verbose, Profile: r.cfg.glyphs}
 }
 
-func (o *Run) recordMisuse(err error) {
-	o.misuse.Record(err)
+func (r *Run) recordMisuse(err error) {
+	r.misuse.Record(err)
 }
 
-func (o *Run) recordMisuseFor(subject string, err error) {
-	o.misuse.RecordMisuseFor(subject, err)
+func (r *Run) recordMisuseFor(subject string, err error) {
+	r.misuse.RecordMisuseFor(subject, err)
 }
 
-func (o *Run) firstMisuse() error {
-	return o.misuse.First()
+func (r *Run) firstMisuse() error {
+	return r.misuse.First()
 }
 
 // allMisuse is every distinct misuse recorded, joined in record order.
-func (o *Run) allMisuse() error {
-	return o.misuse.All()
+func (r *Run) allMisuse() error {
+	return r.misuse.All()
 }
 
 // appendMisuseLineLocked renders the one required line for the first recorded misuse, so an exit code
 // never disagrees with what was printed. It is the corrective sentence; machine detail stays in JSON/debug.
-func (o *Run) appendMisuseLineLocked() {
-	o.graph.Root().Log(txt.MisuseLine(o.misuse.Hint(), !o.cfg.noColor))
+func (r *Run) appendMisuseLineLocked() {
+	r.graph.Root().Log(txt.MisuseLine(r.misuse.Hint(), !r.cfg.noColor))
 }
 
 // recordAlreadyResolvedLocked records ErrAlreadyResolved for a second terminal verb on task name.
-func (o *Run) recordAlreadyResolvedLocked(name, rejectedSummary string) {
-	o.misuse.Note(misuse.ErrAlreadyResolved, name, rejectedSummary)
+func (r *Run) recordAlreadyResolvedLocked(name, rejectedSummary string) {
+	r.misuse.Note(misuse.ErrAlreadyResolved, name, rejectedSummary)
 }
 
-// redactString applies the configured redactor. It takes no lock: locking Output.mu here deadlocked a
+// redactString applies the configured redactor. It takes no lock: locking Run.mu here deadlocked a
 // scheduled failure auto-attaching its evidence tail, where resolve already holds it.
-func (o *Run) redactString(s string) string {
-	if o == nil {
-		return s
-	}
-	r := o.cfg.redactor
+func (r *Run) redactString(s string) string {
 	if r == nil {
 		return s
 	}
-	return r.RedactString(s)
+	redactor := r.cfg.redactor
+	if redactor == nil {
+		return s
+	}
+	return redactor.RedactString(s)
 }
 
 // Fact accumulates a run-scoped name/value annotation (like Task.Fact): it renders a durable dim line
@@ -408,22 +408,22 @@ func (r *Run) Fact(name, value string) *Run {
 	return r
 }
 
-// warnLocked records p as a run-scoped warning and renders it; callers hold o.mu.
-func (o *Run) warnLocked(p problem) {
-	o.graph.Root().Warn(p)
-	o.bumpLocked()
-	o.appendEventLocked(recEvent{Type: "run.warned", OutputID: o.outputID})
-	o.emitWireEventLocked(wire.EventWarningRecorded, "", wire.ToProblemDoc(p).EventPayload())
-	glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(o.cfg.glyphs), txt.SGRYellow, !o.cfg.noColor)
-	o.show.Stream.Write(glyph + " " + p.Summary + "\n")
+// warnLocked records p as a run-scoped warning and renders it; callers hold r.mu.
+func (r *Run) warnLocked(p problem) {
+	r.graph.Root().Warn(p)
+	r.bumpLocked()
+	r.appendEventLocked(recEvent{Type: "run.warned", OutputID: r.outputID})
+	r.emitWireEventLocked(wire.EventWarningRecorded, "", wire.ToProblemDoc(p).EventPayload())
+	glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(r.cfg.glyphs), txt.SGRYellow, !r.cfg.noColor)
+	r.show.Stream.Write(glyph + " " + p.Summary + "\n")
 }
 
 // interrupt stops the run at the first signal; graph.Graph.Interrupt owns the order that keeps the ledger honest.
-func (o *Run) interrupt(reason string) {
-	if o == nil {
+func (r *Run) interrupt(reason string) {
+	if r == nil {
 		return
 	}
-	o.graph.Interrupt(cancelCauseUser, func() { o.graph.CancelActive(reason) })
+	r.graph.Interrupt(cancelCauseUser, func() { r.graph.CancelActive(reason) })
 }
 
 // RunFunc is the shape of application work; its context carries SIGINT/SIGTERM cancellation.

@@ -12,50 +12,50 @@ import (
 )
 
 // finish validates, computes the conclusion and emits the final projections; projection I/O runs outside the domain lock (§17.1).
-func (o *Run) finish() error {
-	o.graph.Drain()
-	o.saveManifest()
-	o.mu.Lock()
-	if o.finished {
-		err := o.allMisuse()
-		o.mu.Unlock()
+func (r *Run) finish() error {
+	r.graph.Drain()
+	r.saveManifest()
+	r.mu.Lock()
+	if r.finished {
+		err := r.allMisuse()
+		r.mu.Unlock()
 		return err
 	}
-	o.finishing = true
+	r.finishing = true
 	// Answer any notification still in flight before the run's last events are written.
-	o.followRecordLocked()
-	o.printLines.Flush()
+	r.followRecordLocked()
+	r.printLines.Flush()
 	// A failed or cancelled child must stop its later siblings reading as pending before the unresolved sweep marks them NotStarted.
-	o.autoResolveGroupsLocked()
-	o.settleUnresolvedTasksLocked()
-	snap := o.concludeLocked()
-	o.finished = true
-	o.finishing = false
-	misuse := o.runErrorLocked(asEvoConclusion(*snap.Conclusion))
+	r.autoResolveGroupsLocked()
+	r.settleUnresolvedTasksLocked()
+	snap := r.concludeLocked()
+	r.finished = true
+	r.finishing = false
+	misuse := r.runErrorLocked(asEvoConclusion(*snap.Conclusion))
 
-	residual, interactive := o.finishHumanLocked(snap)
-	cfg := o.cfg
-	o.mu.Unlock()
+	residual, interactive := r.finishHumanLocked(snap)
+	cfg := r.cfg
+	r.mu.Unlock()
 	return joinErrors(misuse, writeResidual(cfg, residual, interactive))
 }
 
 // saveManifest waits until every record this Run committed or staged is on disk and warns when it could not be:
 // the next run re-executes this run's work, and the reader must know why.
-func (o *Run) saveManifest() {
-	if err := o.freshness.Session().Save(); err != nil {
-		o.mu.Lock()
-		defer o.mu.Unlock()
-		if !o.finished {
-			o.warnManifestUnsavedLocked(err)
+func (r *Run) saveManifest() {
+	if err := r.freshness.Session().Save(); err != nil {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		if !r.finished {
+			r.warnManifestUnsavedLocked(err)
 		}
 	}
 }
 
-func (o *Run) warnManifestUnsavedLocked(err error) {
-	if !o.freshness.Session().FirstUnsavedWarning() {
+func (r *Run) warnManifestUnsavedLocked(err error) {
+	if !r.freshness.Session().FirstUnsavedWarning() {
 		return
 	}
-	o.warnLocked(record.ApplyProblemOptions(txt.Text("manifest not saved: "+err.Error()), nil))
+	r.warnLocked(record.ApplyProblemOptions(txt.Text("manifest not saved: "+err.Error()), nil))
 }
 
 // settleUnresolvedTasksLocked ends every Task still unresolved at Finish NotStarted: a Task nobody Defined never
@@ -63,29 +63,29 @@ func (o *Run) warnManifestUnsavedLocked(err error) {
 // dependent found them; the sweep ends the rest. On a clean finish the first Task nobody Defined also carries the
 // fix, since forgetting its Define is the caller's omission; a failed or cancelled run has a cause of its own to
 // report.
-func (o *Run) settleUnresolvedTasksLocked() {
-	o.show.Stream.BeginSweep()
-	for _, t := range o.tasks {
+func (r *Run) settleUnresolvedTasksLocked() {
+	r.show.Stream.BeginSweep()
+	for _, t := range r.tasks {
 		if record.IsTerminalTask(t.node.Rec.State()) {
 			continue
 		}
 		t.node.Summarize(notStartedSummary)
-		o.graph.Settle(t.node, notStarted)
-		o.followRecordLocked()
+		r.graph.Settle(t.node, notStarted)
+		r.followRecordLocked()
 	}
-	if undefined := o.undefinedTasksLocked(); len(undefined) > 0 && !o.abnormalFinishLocked() {
-		o.attachUndefinedTaskHintLocked(undefined)
+	if undefined := r.undefinedTasksLocked(); len(undefined) > 0 && !r.abnormalFinishLocked() {
+		r.attachUndefinedTaskHintLocked(undefined)
 	}
-	if o.firstMisuse() != nil {
-		o.appendMisuseLineLocked()
+	if r.firstMisuse() != nil {
+		r.appendMisuseLineLocked()
 	}
 }
 
 // undefinedTasksLocked is the Tasks nobody Defined, in declaration order. A Task whose Define was refused is
 // not one: the refusal already says what to fix.
-func (o *Run) undefinedTasksLocked() []*taskState {
+func (r *Run) undefinedTasksLocked() []*taskState {
 	var undefined []*taskState
-	for _, t := range o.tasks {
+	for _, t := range r.tasks {
 		if t.node.Phase() == graph.PhaseDeclared && t.node.Rec.State() == notStarted && !t.refused {
 			undefined = append(undefined, t)
 		}
@@ -94,22 +94,22 @@ func (o *Run) undefinedTasksLocked() []*taskState {
 }
 
 // concludeLocked infers the run's Conclusion from the settled snapshot, records it, and journals the run's end.
-func (o *Run) concludeLocked() snapshot {
-	snap := o.snapshotLocked()
+func (r *Run) concludeLocked() snapshot {
+	snap := r.snapshotLocked()
 	conc := record.InferConclusion(snap)
-	o.explainCancellationLocked(&conc)
-	record.FoldLeftoverMisuse(&conc, o.firstMisuse())
-	conc.RunID = o.outputID
-	conc.StartedAt = o.startedAt
-	conc.FinishedAt = o.cfg.clock.Now()
-	o.graph.Root().Conclude(conc)
+	r.explainCancellationLocked(&conc)
+	record.FoldLeftoverMisuse(&conc, r.firstMisuse())
+	conc.RunID = r.outputID
+	conc.StartedAt = r.startedAt
+	conc.FinishedAt = r.cfg.clock.Now()
+	r.graph.Root().Conclude(conc)
 	snap.Conclusion = &conc
-	o.appendEventLocked(recEvent{
+	r.appendEventLocked(recEvent{
 		Type:  "output.finished",
 		State: string(conc.Outcome),
 	})
 	// run.finished fires on every path through Finish, failure and cancel included.
-	o.emitWireEventLocked(wire.EventRunFinished, "", wire.RunFinishedPayload{
+	r.emitWireEventLocked(wire.EventRunFinished, "", wire.RunFinishedPayload{
 		Outcome: string(conc.Outcome), ExitCode: conc.ExitCode, Explanation: conc.Explanation, Summary: conc.Summary,
 	}.EventPayload())
 	return snap
@@ -118,21 +118,21 @@ func (o *Run) concludeLocked() snapshot {
 // runErrorLocked is the error Finish returns: the recorded misuse, joined with any machine-stream write failure.
 // FormatJSON's final "evo.run" document (§32.1) is written here, independent of the human projection;
 // a write failure there, or a mid-run "evo.event" JSONL failure (§32.2), is a real Run failure.
-func (o *Run) runErrorLocked(conc Conclusion) error {
-	misuse := o.allMisuse()
-	if o.cfg.wireFormat == JSON {
-		misuse = joinErrors(misuse, rendererError(wire.WriteRun(o.cfg.wireStream, record.Result{Conclusion: asRecordConclusion(conc), Payload: o.resultText.String()})))
+func (r *Run) runErrorLocked(conc Conclusion) error {
+	misuse := r.allMisuse()
+	if r.cfg.wireFormat == JSON {
+		misuse = joinErrors(misuse, rendererError(wire.WriteRun(r.cfg.wireStream, record.Result{Conclusion: asRecordConclusion(conc), Payload: r.resultText.String()})))
 	}
-	return joinErrors(misuse, rendererError(o.show.Events.Err()))
+	return joinErrors(misuse, rendererError(r.show.Events.Err()))
 }
 
 // finishHumanLocked renders the human stream's end: only the residual, since terminal outcomes already streamed;
 // on an interactive terminal it also paints the final live frame. Text held behind an open Suspend prints first.
-func (o *Run) finishHumanLocked(snap snapshot) (residual string, interactive bool) {
-	o.show.Stream.Flush()
-	residual, final := o.show.Stream.Residual(snap)
-	if o.show.Live.Interactive() {
-		o.show.Live.Finish(final)
+func (r *Run) finishHumanLocked(snap snapshot) (residual string, interactive bool) {
+	r.show.Stream.Flush()
+	residual, final := r.show.Stream.Residual(snap)
+	if r.show.Live.Interactive() {
+		r.show.Live.Finish(final)
 		return residual, true
 	}
 	return residual, false
@@ -173,8 +173,8 @@ func joinErrors(a, b error) error {
 
 // abnormalFinishLocked reports whether a Failed or Cancelled task exists: evidence that something interrupted
 // the run, not a caller who forgot to resolve a task. It gates whether a leftover Running task reads Cancelled/130.
-func (o *Run) abnormalFinishLocked() bool {
-	for _, t := range o.tasks {
+func (r *Run) abnormalFinishLocked() bool {
+	for _, t := range r.tasks {
 		if t.node.Rec.State() == failed || t.node.Rec.State() == cancelled {
 			return true
 		}
@@ -182,18 +182,18 @@ func (o *Run) abnormalFinishLocked() bool {
 	return false
 }
 
-// attachUndefinedTaskHintLocked attaches the fix to the first of tasks directly: the sweep runs after o.finishing,
+// attachUndefinedTaskHintLocked attaches the fix to the first of tasks directly: the sweep runs after r.finishing,
 // when Task.Problem refuses records.
-func (o *Run) attachUndefinedTaskHintLocked(tasks []*taskState) {
+func (r *Run) attachUndefinedTaskHintLocked(tasks []*taskState) {
 	first := tasks[0]
 	first.node.Recommend(asRecordAction(label(undefinedTaskHint(first.name, len(tasks)-1))))
-	o.show.Board.Changed(first.node.TaskID())
+	r.show.Board.Changed(first.node.TaskID())
 }
 
 // autoResolveGroupsLocked stops a Sequence implying "still might run" once a member failed or was cancelled:
 // later non-terminal siblings become NotStarted. Explicitly resolved siblings are untouched.
-func (o *Run) autoResolveGroupsLocked() {
-	for _, col := range o.collections {
+func (r *Run) autoResolveGroupsLocked() {
+	for _, col := range r.collections {
 		if !col.node.Sequential {
 			continue
 		}
@@ -209,8 +209,8 @@ func (o *Run) autoResolveGroupsLocked() {
 				continue
 			}
 			t.node.Summarize(notStartedSummary)
-			o.graph.Settle(t.node, notStarted)
-			o.followRecordLocked()
+			r.graph.Settle(t.node, notStarted)
+			r.followRecordLocked()
 		}
 	}
 }
@@ -228,28 +228,28 @@ func undefinedTaskHint(name string, others int) string {
 
 // rejectedTask is the handle a refused Task declaration (duplicate name or key, entity limit, closed Output)
 // returns, so a chained call never panics. err is never nil: Define on it is misuse, and Wait says the work never ran.
-func (o *Run) rejectedTask(err error) *Task {
-	return &Task{out: o, id: o.graph.NextID("task"), rejected: err}
+func (r *Run) rejectedTask(err error) *Task {
+	return &Task{out: r, id: r.graph.NextID("task"), rejected: err}
 }
 
 // rejectedGroup is rejectedTask's counterpart for a refused Group or Sequence; everything under it is refused too.
-func (o *Run) rejectedGroup(err error) *Group {
-	return &Group{out: o, id: o.graph.NextID("tasks"), rejected: err}
+func (r *Run) rejectedGroup(err error) *Group {
+	return &Group{out: r, id: r.graph.NextID("tasks"), rejected: err}
 }
 
-func (o *Run) end(err error) {
-	o.endWith(endingOf(err))
+func (r *Run) end(err error) {
+	r.endWith(endingOf(err))
 }
 
-func (o *Run) endWith(state entityState, p problem) {
-	o.graph.EndRun(o.endingName(), record.TaskInit{State: state, Problems: []problem{p}})
+func (r *Run) endWith(state entityState, p problem) {
+	r.graph.EndRun(r.endingName(), record.TaskInit{State: state, Problems: []problem{p}})
 }
 
 // endingName names the Task carrying the run's ending: the configured subject, else the executable's name.
-func (o *Run) endingName() string {
-	o.mu.Lock()
-	name := txt.Text(o.cfg.subject)
-	o.mu.Unlock()
+func (r *Run) endingName() string {
+	r.mu.Lock()
+	name := txt.Text(r.cfg.subject)
+	r.mu.Unlock()
 	if name != "" {
 		return name
 	}

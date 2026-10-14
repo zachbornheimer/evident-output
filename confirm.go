@@ -57,8 +57,8 @@ func NonInteractive(flag string) ConfirmOption {
 // refuses without asking ("no terminal to answer") when stdin is not a terminal, whatever the Output, and
 // closed input refuses with "no answer — stdin closed"; both point at how to confirm non-interactively. Declining exits 1 through the Conclusion, never Failed or Cancelled.
 // SIGINT or SIGTERM while waiting cancels the gate, and Confirm returns false.
-func (o *Run) Confirm(question string, opts ...ConfirmOption) bool {
-	if o == nil {
+func (r *Run) Confirm(question string, opts ...ConfirmOption) bool {
+	if r == nil {
 		return false
 	}
 	var cfg confirmConfig
@@ -67,30 +67,30 @@ func (o *Run) Confirm(question string, opts ...ConfirmOption) bool {
 			opt.applyConfirm(&cfg)
 		}
 	}
-	gate := o.confirmGate(question)
-	o.mu.Lock()
-	o.show.Stream.Ask(record.TaskID(gate.id))
-	o.mu.Unlock()
-	if !o.personCanAnswer() {
-		return o.settleGate(gate, graph.AnswerNoTerminal, cfg)
+	gate := r.confirmGate(question)
+	r.mu.Lock()
+	r.show.Stream.Ask(record.TaskID(gate.id))
+	r.mu.Unlock()
+	if !r.personCanAnswer() {
+		return r.settleGate(gate, graph.AnswerNoTerminal, cfg)
 	}
-	return o.promptConfirm(gate, question, cfg)
+	return r.promptConfirm(gate, question, cfg)
 }
 
 // confirmGate is the Task a Confirm settles: declared like any root Task from
 // the run body or a builder, and from inside a Define callback the library's
 // own row, since asking there is work, not a declaration (CONTRACT §5).
-func (o *Run) confirmGate(question string) *Task {
-	if !o.graph.DeclaredInCallback() {
-		return o.Task(question)
+func (r *Run) confirmGate(question string) *Task {
+	if !r.graph.DeclaredInCallback() {
+		return r.Task(question)
 	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.taskHandle(o.graph.DeclareConfirmGate(question))
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.taskHandle(r.graph.DeclareConfirmGate(question))
 }
 
 // settleGate resolves the gate as answer decides (graph.Answer.Outcome), commits its row, and reports whether it was yes.
-func (o *Run) settleGate(gate *Task, answer graph.Answer, cfg confirmConfig) bool {
+func (r *Run) settleGate(gate *Task, answer graph.Answer, cfg confirmConfig) bool {
 	switch answer.Outcome() {
 	case cancelled:
 		// The interrupt already resolved the gate.
@@ -100,62 +100,62 @@ func (o *Run) settleGate(gate *Task, answer graph.Answer, cfg confirmConfig) boo
 	default:
 		var next []ProblemOption
 		if answer.Unasked() {
-			next = append(next, Next(cfg.policyHint(o)))
+			next = append(next, Next(cfg.policyHint(r)))
 		}
 		gate.block(answer.Summary(), next...)
 	}
-	o.mu.Lock()
-	o.show.Stream.Commit(record.TaskID(gate.id))
-	o.mu.Unlock()
+	r.mu.Lock()
+	r.show.Stream.Commit(record.TaskID(gate.id))
+	r.mu.Unlock()
 	return answer.Outcome() == succeeded
 }
 
 // promptConfirm asks question inside one Suspend window, so no live frame lands between the prompt and the
 // resolved row. The abort channel is registered before anything is written, so a SIGINT from gate creation on
 // unblocks the read.
-func (o *Run) promptConfirm(gate *Task, question string, cfg confirmConfig) bool {
-	abort, release := o.graph.RegisterAbort(gate.id)
+func (r *Run) promptConfirm(gate *Task, question string, cfg confirmConfig) bool {
+	abort, release := r.graph.RegisterAbort(gate.id)
 	defer release()
-	endTurn, ok := o.confirmTurn.Take(abort)
+	endTurn, ok := r.confirmTurn.Take(abort)
 	if !ok {
-		return o.settleGate(gate, graph.AnswerInterrupted, cfg)
+		return r.settleGate(gate, graph.AnswerInterrupted, cfg)
 	}
 	defer endTurn()
-	o.ownWindow(gate.id, true)
-	defer o.ownWindow(gate.id, false)
+	r.ownWindow(gate.id, true)
+	defer r.ownWindow(gate.id, false)
 
 	var yes bool
-	_ = o.Suspend(func() error {
-		o.mu.Lock()
-		o.show.Stream.WriteOwner(txt.ConfirmPrompt(question, cfg.destructive, cfg.detail, o.humanStyle()))
-		o.mu.Unlock()
-		yes = o.settleGate(gate, graph.ReplyAnswer(terminal.ReadReply(o.confirmReader(), abort)), cfg)
+	_ = r.Suspend(func() error {
+		r.mu.Lock()
+		r.show.Stream.WriteOwner(txt.ConfirmPrompt(question, cfg.destructive, cfg.detail, r.humanStyle()))
+		r.mu.Unlock()
+		yes = r.settleGate(gate, graph.ReplyAnswer(terminal.ReadReply(r.confirmReader(), abort)), cfg)
 		return nil
 	})
 	return yes
 }
 
 // ownWindow marks the gate id as the Task its window shows, so its rows are not held back like a sibling's, or clears the mark.
-func (o *Run) ownWindow(id string, owns bool) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.show.Stream.OwnWindow(record.TaskID(id), owns)
+func (r *Run) ownWindow(id string, owns bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.show.Stream.OwnWindow(record.TaskID(id), owns)
 }
 
 // personCanAnswer reports whether a person can type an answer: stdin is a terminal whatever the Output, or
 // the caller's Terminal facade is an interactive surface, whose keyboard is the Stdin facade (CONTRACT §5).
-func (o *Run) personCanAnswer() bool {
-	if terminal.ReaderIsTerminal(o.confirmReader()) {
+func (r *Run) personCanAnswer() bool {
+	if terminal.ReaderIsTerminal(r.confirmReader()) {
 		return true
 	}
-	surface := live.SurfaceOf(o.cfg.terminal)
+	surface := live.SurfaceOf(r.cfg.terminal)
 	return surface != nil && surface.IsInteractive()
 }
 
 // confirmReader is the Stdin facade: standard input unless configured.
-func (o *Run) confirmReader() io.Reader {
-	if o.cfg.stdin != nil {
-		return o.cfg.stdin
+func (r *Run) confirmReader() io.Reader {
+	if r.cfg.stdin != nil {
+		return r.cfg.stdin
 	}
 	return terminal.Stdin()
 }
@@ -163,18 +163,18 @@ func (o *Run) confirmReader() io.Reader {
 // Suspend opens an exclusive-TTY window (Confirm's prompt, an interactive child program) around fn. It clears the
 // live region and keeps every paint off the surface until fn returns; it does not hold the scheduler, so
 // eligible siblings keep running (contract §3) and paint once it closes.
-func (o *Run) Suspend(fn func() error) error {
+func (r *Run) Suspend(fn func() error) error {
 	if fn == nil {
 		return nil
 	}
-	o.mu.Lock()
-	window := o.show.Live.Open()
-	o.mu.Unlock()
+	r.mu.Lock()
+	window := r.show.Live.Open()
+	r.mu.Unlock()
 
 	err := fn()
 
-	o.mu.Lock()
-	o.show.Live.Close(window, o.show.Stream.Emit)
-	o.mu.Unlock()
+	r.mu.Lock()
+	r.show.Live.Close(window, r.show.Stream.Emit)
+	r.mu.Unlock()
 	return err
 }

@@ -16,8 +16,8 @@ type runHost struct{ out *Run }
 
 const resourceWaitingPrefix = "waiting for "
 
-func (o *Run) newChangeHost() change.Host {
-	return change.NewHost(change.HostParts{Engine: runHost{out: o}, Record: o.rec, Graph: o.graph, Freshness: o.freshness})
+func (r *Run) newChangeHost() change.Host {
+	return change.NewHost(change.HostParts{Engine: runHost{out: r}, Record: r.rec, Graph: r.graph, Freshness: r.freshness})
 }
 
 func (e runHost) Lock()   { e.out.mu.Lock() }
@@ -124,16 +124,16 @@ func (e runHost) VerificationRecorded(task record.TaskID, details []record.Verif
 	}
 }
 
-// taskNameLocked is the name of the Task id, empty for an id the Run holds no Task for. Callers hold o.mu.
-func (o *Run) taskNameLocked(id record.TaskID) string {
-	if st := o.taskStates[string(id)]; st != nil {
+// taskNameLocked is the name of the Task id, empty for an id the Run holds no Task for. Callers hold r.mu.
+func (r *Run) taskNameLocked(id record.TaskID) string {
+	if st := r.taskStates[string(id)]; st != nil {
 		return st.name
 	}
 	return ""
 }
 
-// stateOf is the render state of the graph's Task t. Callers hold o.mu.
-func (o *Run) stateOf(t *graph.Task) *taskState { return o.taskStates[t.ID] }
+// stateOf is the render state of the graph's Task t. Callers hold r.mu.
+func (r *Run) stateOf(t *graph.Task) *taskState { return r.taskStates[t.ID] }
 
 func (runHost) Ending(err error) (record.State, record.Problem) { return endingOf(err) }
 
@@ -237,31 +237,31 @@ func (e runHost) Overturned(t *graph.Task) {
 // fileSettledLocked writes the settled Task where readers find it and returns its state, nil when it has none.
 // A Group or Sequence child repaints the live ledger and, in plain text, writes with its collection once that settles;
 // a standalone Task commits its rows to scrollback at once so later Printf/Confirm output never lands above finished
-// work. Callers hold o.mu.
-func (o *Run) fileSettledLocked(t *graph.Task) *taskState {
-	o.followRecordLocked()
-	st := o.stateOf(t)
+// work. Callers hold r.mu.
+func (r *Run) fileSettledLocked(t *graph.Task) *taskState {
+	r.followRecordLocked()
+	st := r.stateOf(t)
 	if st == nil {
 		return nil
 	}
-	o.show.Stream.Commit(record.TaskID(st.id))
+	r.show.Stream.Commit(record.TaskID(st.id))
 	if st.collection() != nil {
-		o.show.Live.Signal(true)
+		r.show.Live.Signal(true)
 	} else {
-		o.show.Stream.CommitEffects(st.id)
+		r.show.Stream.CommitEffects(st.id)
 	}
 	return st
 }
 
-// commitManifestLocked persists st's operations once it settled Done and narrates the commit. Callers hold o.mu.
-func (o *Run) commitManifestLocked(st *taskState) {
-	commit := o.freshness.Commit(o.graph.Context(), st.node, freshness.ModeFor(o.cfg.dryRun))
+// commitManifestLocked persists st's operations once it settled Done and narrates the commit. Callers hold r.mu.
+func (r *Run) commitManifestLocked(st *taskState) {
+	commit := r.freshness.Commit(r.graph.Context(), st.node, freshness.ModeFor(r.cfg.dryRun))
 	if commit.Err != nil {
-		o.warnManifestUnsavedLocked(commit.Err)
+		r.warnManifestUnsavedLocked(commit.Err)
 		return
 	}
 	if commit.Written {
-		o.emitWireEventLocked(wire.EventManifestTaskCommitted, st.id,
+		r.emitWireEventLocked(wire.EventManifestTaskCommitted, st.id,
 			wire.ManifestTaskCommittedPayload{Operations: commit.Operations}.EventPayload())
 	}
 }

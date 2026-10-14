@@ -10,9 +10,9 @@ import (
 
 // runDocument is the finished run's "evo.run" document, built from its
 // conclusion exactly as Finish writes it under FormatJSON.
-func (o *Run) runDocument(t testing.TB) []byte {
+func (r *Run) runDocument(t testing.TB) []byte {
 	t.Helper()
-	snap := o.snapshot()
+	snap := r.snapshot()
 	if snap.Conclusion == nil {
 		t.Fatal("run has no conclusion: finish it before reading its evo.run document")
 	}
@@ -24,10 +24,10 @@ func (o *Run) runDocument(t testing.TB) []byte {
 }
 
 // decodedRunDocument is runDocument decoded into the wire type.
-func (o *Run) decodedRunDocument(t testing.TB) wire.RunDocument {
+func (r *Run) decodedRunDocument(t testing.TB) wire.RunDocument {
 	t.Helper()
 	var doc wire.RunDocument
-	if err := json.Unmarshal(o.runDocument(t), &doc); err != nil {
+	if err := json.Unmarshal(r.runDocument(t), &doc); err != nil {
 		t.Fatalf("decode evo.run: %v", err)
 	}
 	return doc
