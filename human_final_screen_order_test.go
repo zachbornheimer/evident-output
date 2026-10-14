@@ -12,6 +12,10 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
+// finalScreenOrderCeiling lets declareUnrelated's first container wait on its
+// second while both hold a slot, regardless of GOMAXPROCS.
+const finalScreenOrderCeiling = 2
+
 // timingSuffix is the elapsed time a row may end in.
 var timingSuffix = regexp.MustCompile(`\s+—?\s*\d+(\.\d+)?(ms|s|m)$`)
 
@@ -165,14 +169,14 @@ func TestHumanFinalScreenOrderMatchesPlain(t *testing.T) {
 		{"chain released in order", declareChainAfterBlock, "0first", "0second", true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			plain, _ := runPlain(t, Config{}, c.declare)
+			plain, _ := runPlain(t, Config{MaxConcurrency: finalScreenOrderCeiling}, c.declare)
 
 			screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
 			facades := Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}
 			if !c.realClock {
 				facades.Clock = testkit.NewClock()
 			}
-			out := initRun(Config{Facades: facades},
+			out := initRun(Config{MaxConcurrency: finalScreenOrderCeiling, Facades: facades},
 				tuning{visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000})
 			c.declare(out)
 			_ = out.close()

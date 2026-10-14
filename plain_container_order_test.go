@@ -12,6 +12,10 @@ import (
 // plainOrderDeadline bounds a wait for a row the test expects mid-run.
 const plainOrderDeadline = 10 * time.Second
 
+// plainOrderCeiling lets a blocked root Task and a Group's Tasks run together,
+// regardless of GOMAXPROCS.
+const plainOrderCeiling = 2
+
 // TestPlainWritesAGroupWhenItSettlesNotAtFinish pins CONTRACT.md's "a
 // resolved row renders at once" for collection members: a Group's rows are
 // durable the moment the Group settles, ahead of any later-settling row.
@@ -20,7 +24,7 @@ const plainOrderDeadline = 10 * time.Second
 // the whole run ended.
 func TestPlainWritesAGroupWhenItSettlesNotAtFinish(t *testing.T) {
 	cfg := func() evo.Config {
-		return evo.Config{Name: "order", Output: evo.Plain, State: evo.State{Dir: t.TempDir(), AppID: "contract"}}
+		return evo.Config{Name: "order", Output: evo.Plain, MaxConcurrency: plainOrderCeiling, State: evo.State{Dir: t.TempDir(), AppID: "contract"}}
 	}
 	ok := func(context.Context) error { return nil }
 

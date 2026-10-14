@@ -12,6 +12,10 @@ import (
 // settleWait bounds how long the slower Task waits to see the faster one's ending on a stream.
 const settleWait = 30 * time.Second
 
+// twoFailuresCeiling lets the slow Task hold a slot while the fast one fails,
+// regardless of GOMAXPROCS.
+const twoFailuresCeiling = 2
+
 // TestExplanationWithTwoFailuresIsDeterministic pins CONTRACT section 4: when several Tasks end the run's
 // way, Conclusion.Explanation is the ending of the one that settled first, whatever the declaration order.
 // "slow" is declared first but settles after "fast", so "fast failed" must decide in every Output.
@@ -19,7 +23,7 @@ func TestExplanationWithTwoFailuresIsDeterministic(t *testing.T) {
 	for _, mode := range contractOutputs {
 		t.Run(outputName[mode], func(t *testing.T) {
 			var stdout, stderr lockedBuffer
-			cfg := evo.Config{Name: "explanation", Output: mode, Facades: evo.Facades{Stdout: &stdout, Stderr: &stderr}}
+			cfg := evo.Config{Name: "explanation", Output: mode, MaxConcurrency: twoFailuresCeiling, Facades: evo.Facades{Stdout: &stdout, Stderr: &stderr}}
 			fastEnded := make(chan struct{})
 			res := evo.Execute(context.Background(), cfg, func(_ context.Context, r *evo.Run) error {
 				r.Task("slow").Define(func(context.Context) error {

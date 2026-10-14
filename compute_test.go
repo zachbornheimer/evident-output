@@ -117,8 +117,9 @@ func TestContainerDefine_BuilderRunsOnceAfterPredecessor(t *testing.T) {
 }
 
 func TestContainerDefine_GroupChildrenRunConcurrently(t *testing.T) {
-	out := newQuietOutput(t)
 	const n = 4
+	out := initRun(Config{MaxConcurrency: n, Output: Plain, Facades: Facades{Stderr: io.Discard}}, tuning{})
+	t.Cleanup(func() { _ = out.close() })
 	var ready sync.WaitGroup
 	ready.Add(n)
 	g := out.Group("g")

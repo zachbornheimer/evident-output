@@ -53,9 +53,12 @@ func TestCompute_UnorderedGetFailsRunInDefaultMode(t *testing.T) {
 // waited for it ever yields a value the callback can carry on with.
 func TestUnorderedGetIsRefusedInEveryMode(t *testing.T) {
 	const attempts = 20
+	// The unsettled read holds a slot while its producer needs another, so the
+	// ceiling is set here rather than inherited from GOMAXPROCS.
+	const ceiling = 2
 	modes := map[string]runMode{
-		"default": {},
-		"dry run": {cfg: Config{DryRun: true}},
+		"default": {cfg: Config{MaxConcurrency: ceiling}},
+		"dry run": {cfg: Config{MaxConcurrency: ceiling, DryRun: true}},
 	}
 	reads := map[string]func(*testing.T, runMode){
 		"before the producer settles": assertUnorderedGetBeforeSettleUnwinds,

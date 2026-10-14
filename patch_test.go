@@ -14,6 +14,10 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/internal/graph"
 )
 
+// patchWorkspaceCeiling lets a test hold one writer mid-callback while a second
+// Task runs, regardless of GOMAXPROCS.
+const patchWorkspaceCeiling = 2
+
 // patchWorkspace is a temp workspace and an Output whose relative paths
 // resolve inside it.
 func patchWorkspace(t *testing.T, files map[string]string) (string, *Run) {
@@ -28,7 +32,7 @@ func patchWorkspace(t *testing.T, files map[string]string) (string, *Run) {
 			t.Fatal(err)
 		}
 	}
-	out := initRun(Config{State: State{Dir: t.TempDir()}})
+	out := initRun(Config{MaxConcurrency: patchWorkspaceCeiling, State: State{Dir: t.TempDir()}})
 	t.Cleanup(func() { _ = out.close() })
 	out.changes.PinWorkspace(dir)
 	return dir, out
