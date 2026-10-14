@@ -39,8 +39,8 @@ func TestPlain_CollectionChildStreamsMilestones(t *testing.T) {
 		t.Fatalf("plain must never be silent while work is Running; whole run:\n%s", buf.String())
 	}
 	lines := strings.Split(strings.TrimRight(midRun, "\n"), "\n")
-	if len(lines) < 5 || len(lines) > 20 {
-		t.Fatalf("want ~10 thinned milestones, got %d:\n%s", len(lines), midRun)
+	if len(lines) < 5 || len(lines) > 12 {
+		t.Fatalf("want first + about ten + final (5 to 12) milestone lines (CONTRACT §2 Task.Progress), got %d:\n%s", len(lines), midRun)
 	}
 	if !strings.Contains(lines[0], "1/111") {
 		t.Fatalf("the first tick always streams, got %q", lines[0])

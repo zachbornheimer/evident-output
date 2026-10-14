@@ -169,7 +169,7 @@ name still cancels the run.
 | `Task.Verify`       | method | `Verify(fn func(context.Context) (bool, error)) *Task`; read-only              |
 | `Task.Define`       | method | `Define(fn func(context.Context) error, opts ...DefineOption) *Task`           |
 | `Task.Doing`        | method | `Doing(text string, args ...any) *Task`; current item, live only               |
-| `Task.Progress`     | method | `Progress(completed, total int) *Task`                                         |
+| `Task.Progress`     | method | `Progress(completed, total int) *Task`; Plain: milestone lines only            |
 | `Task.Writer`       | method | `Writer() io.Writer`; its lines become the live tail and Capture               |
 | `Task.Fact`         | method | `Fact(name, value string) *Task`; hidden until Verbose                         |
 | `Task.Summary`      | method | `Summary(text string) *Task`; the settled row's headline                       |
