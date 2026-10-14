@@ -67,6 +67,9 @@ and its replacement.
 - **Endings:** `evo.Fail`, `evo.Refuse` and `evo.Exclude` as Task return
   values; `Task.Verify` resolves a Task Satisfied without running it.
 - `Run.Confirm` with `Destructive` and `NonInteractive`; `Run.Suspend`.
+- `Run.ResultWriter` writes the stdout data payload. Human and Plain runs now
+  present on stderr and keep stdout for the payload; JSON embeds it as the
+  `evo.run` document's `result` and JSONL streams `result.written` events.
 
 ## Unreleased
 

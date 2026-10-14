@@ -51,7 +51,9 @@ type RunDocument struct {
 	Outcome       string    `json:"outcome"`
 	ExitCode      int       `json:"exit_code"`
 	Explanation   string    `json:"explanation,omitempty"`
-	Data          RunData   `json:"data"`
+	// Result is what the run wrote to Run.ResultWriter; absent when it wrote nothing.
+	Result string  `json:"result,omitempty"`
+	Data   RunData `json:"data"`
 }
 
 // RunData is the "evo.run" envelope's "data" payload (spec §35).
@@ -212,6 +214,7 @@ func ToRunDocument(result record.Result, evoVersion string) RunDocument {
 		Outcome:       string(c.Outcome),
 		ExitCode:      c.ExitCode,
 		Explanation:   c.Explanation,
+		Result:        result.Payload,
 		Data: RunData{
 			Collections: make([]CollectionDoc, 0, len(c.Collections)),
 			Tasks:       make([]TaskDoc, 0, len(c.Tasks)),

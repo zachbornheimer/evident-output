@@ -10,6 +10,7 @@ import (
 
 	txt "github.com/zachbornheimer/evident-output/internal/project"
 	renderplain "github.com/zachbornheimer/evident-output/internal/project/plain"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 	"github.com/zachbornheimer/evident-output/internal/record"
 	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
@@ -57,18 +58,42 @@ func (o *Run) writer() io.Writer {
 	return o.at(visibilityNormal).writer()
 }
 
-// ResultWriter returns the stream for the application's data payload; presentation never writes to it.
-// It returns io.Discard when the run has no payload stream.
+// ResultWriter returns the stdout data payload; presentation never writes to it. Human and Plain runs
+// reserve stdout for it. A JSON run embeds what it receives as the evo.run document's result, and a JSONL
+// run streams each write as a result.written event, so stdout stays machine-readable. Writing after the run
+// finished is misuse and returns an error. A run with no payload stream returns io.Discard.
 func (o *Run) ResultWriter() io.Writer {
 	if o == nil {
 		return io.Discard
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if o.cfg.result != nil {
+	switch {
+	case o.cfg.result != nil:
 		return o.cfg.result
+	case o.cfg.wireFormat == formatJSON, o.cfg.wireFormat == formatJSONL:
+		return wireResultWriter{o}
 	}
 	return io.Discard
+}
+
+// wireResultWriter folds the payload into the machine document or event stream that owns stdout.
+type wireResultWriter struct{ o *Run }
+
+func (w wireResultWriter) Write(b []byte) (int, error) {
+	o := w.o
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if err := o.ensureOpen(); err != nil {
+		o.recordMisuse(err)
+		return 0, fmt.Errorf("write result: %w", err)
+	}
+	if o.cfg.wireFormat == formatJSONL {
+		o.emitWireEventLocked(wire.EventResultWritten, "", map[string]any{"text": string(b)})
+	} else {
+		o.resultText.Write(b)
+	}
+	return len(b), nil
 }
 
 func (p *printer) writer() io.Writer {

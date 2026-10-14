@@ -328,6 +328,12 @@ if !r.Confirm("delete 40 branches?", evo.Destructive(), evo.NonInteractive("--ye
 | `JSON`   | const | one `evo.run` document on stdout at Finish, presentation on stderr |
 | `JSONL`  | const | `evo.event` lines on stdout as they occur                          |
 
+`Run.ResultWriter` is the only writer to stdout in Human and Plain: rows,
+bands and `Run.Text` go to `Facades.Stderr`, so a pipe on stdout receives
+exactly the payload. In JSON the payload is the string `result` of the `evo.run`
+document, and in JSONL each write is one `result.written` event whose
+`payload.text` is the bytes written.
+
 Environment, applied only where `Config` is zero: `EVO_OUTPUT=human|plain|json|jsonl`,
 `EVO_VERBOSE=1`, `EVO_DEBUG=debug|info|warn|error` (the lowest `slog.Level`
 the journal keeps), `NO_COLOR`, and `FORCE_COLOR` (color in Human even when

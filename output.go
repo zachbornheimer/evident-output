@@ -1,6 +1,7 @@
 package evo
 
 import (
+	"strings"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/change"
@@ -58,6 +59,8 @@ type Run struct {
 	taskStates      map[string]*taskState
 	containerStates map[string]*tasksState
 
+	// resultText is what ResultWriter received in JSON, whose stdout carries one document the text rides in.
+	resultText strings.Builder
 	// printLines assembles Print fragments into message lines.
 	printLines *txt.PrintLines
 

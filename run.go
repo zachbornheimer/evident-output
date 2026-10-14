@@ -39,11 +39,20 @@ var errRunExitedWithoutReturn = errors.New("run callback exited without returnin
 // run ends Cancelled with exit code 130. Use Main for a program that should end
 // on SIGINT or SIGTERM.
 func Execute(ctx context.Context, cfg Config, run RunFunc) Result {
-	out := initRun(cfg)
+	out := initHostRun(cfg)
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	return runInterruptible(ctx, out, run)
+}
+
+// payloadOnStdout is cfg as a host runs it: a human or plain run reserves stdout for Run.ResultWriter's
+// payload and presents on stderr, the routing a machine Output already has. An external format keeps its own.
+func payloadOnStdout(cfg Config) Config {
+	if cfg.format == formatHuman && cfg.Output != JSON && cfg.Output != JSONL {
+		cfg.format = formatData
+	}
+	return cfg
 }
 
 // Main runs run under SIGINT and SIGTERM and returns the process exit code; it
@@ -55,7 +64,7 @@ func Main(run RunFunc, cfg ...Config) int {
 	if len(cfg) > 0 {
 		c = cfg[0]
 	}
-	out := initRun(c)
+	out := initHostRun(c)
 	return runInterruptible(context.Background(), out, run).ExitCode()
 }
 
@@ -569,8 +578,16 @@ func (cfg *config) modes(c Config) {
 // from EVO_OUTPUT, EVO_VERBOSE, EVO_DEBUG, NO_COLOR, and FORCE_COLOR. Explicit Config wins over
 // env; env wins over TTY.
 func initRun(configs ...Config) *Run {
-	cfg := resolveInitConfig(configs)
-	cfg = applyEnv(cfg)
+	return initResolved(applyEnv(resolveInitConfig(configs)))
+}
+
+// initHostRun is initRun for a host entry point (Execute, Main): the environment is applied first, then
+// stdout is reserved for the payload.
+func initHostRun(cfg Config) *Run {
+	return initResolved(payloadOnStdout(applyEnv(cfg)))
+}
+
+func initResolved(cfg Config) *Run {
 	resolved := resolveConfig(cfg)
 	out := newFromConfig(resolved)
 	return finishInit(out, cfg, resolved.facts)

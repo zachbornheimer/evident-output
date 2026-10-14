@@ -10,6 +10,8 @@ package record
 type Result struct {
 	Conclusion Conclusion
 	Err        error
+	// Payload is the data the run wrote to its result stream, for a format that has no stream of its own.
+	Payload string
 }
 
 // ExitCode returns the process exit code implied by this Result's

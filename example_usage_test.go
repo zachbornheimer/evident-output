@@ -12,10 +12,11 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// quietRun is the Config an example uses to print its run to stdout as
-// durable text: Plain output into out, diagnostics discarded.
+// quietRun is the Config an example uses to print its run as durable text:
+// Plain presentation goes to stderr, which an example captures into out.
+// Stdout carries only Run.ResultWriter's payload, so it is discarded.
 func quietRun(out io.Writer) evo.Config {
-	return evo.Config{Name: "demo", Output: evo.Plain, Facades: evo.Facades{Stdout: out, Stderr: io.Discard}}
+	return evo.Config{Name: "demo", Output: evo.Plain, Facades: evo.Facades{Stdout: io.Discard, Stderr: out}}
 }
 
 // A program is one body handed to Main; Main returns the exit code and the
@@ -58,7 +59,7 @@ func ExampleConfig_dryRun() {
 		Name:    "zq prune ~/repo",
 		DryRun:  true,
 		Output:  evo.Plain,
-		Facades: evo.Facades{Stdout: &out, Stderr: io.Discard},
+		Facades: evo.Facades{Stdout: io.Discard, Stderr: &out},
 	}
 	evo.Execute(context.Background(), cfg, func(ctx context.Context, r *evo.Run) error {
 		r.Task("prune landed branches").Define(func(ctx context.Context) error {

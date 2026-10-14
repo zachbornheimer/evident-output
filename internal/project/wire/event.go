@@ -46,6 +46,8 @@ const (
 	EventDefinitionFinished    = "definition.finished"
 	EventTaskFinished          = "task.finished"
 	EventRunFinished           = "run.finished"
+	// EventResultWritten carries one write to Run.ResultWriter as payload "text".
+	EventResultWritten = "result.written"
 )
 
 // Payload "kind" values of the operation, tracked_resource and basis events

@@ -128,7 +128,7 @@ func (o *Run) concludeLocked() snapshot {
 func (o *Run) runErrorLocked(conc Conclusion) error {
 	misuse := o.firstMisuse()
 	if o.cfg.wireFormat == formatJSON {
-		misuse = joinErrors(misuse, rendererError(wire.WriteRun(o.cfg.wireStream, record.Result{Conclusion: asRecordConclusion(conc)})))
+		misuse = joinErrors(misuse, rendererError(wire.WriteRun(o.cfg.wireStream, record.Result{Conclusion: asRecordConclusion(conc), Payload: o.resultText.String()})))
 	}
 	return joinErrors(misuse, rendererError(o.show.Events.Err()))
 }

@@ -525,6 +525,9 @@
     "outcome": {
       "type": "string"
     },
+    "result": {
+      "type": "string"
+    },
     "run_id": {
       "type": "string"
     },
