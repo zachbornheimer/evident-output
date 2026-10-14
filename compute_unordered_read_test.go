@@ -48,24 +48,31 @@ func TestCompute_UnorderedGetFailsRunInDefaultMode(t *testing.T) {
 	failedWithUnorderedRead(t, read)
 }
 
-// An unordered Get is a misuse whether or not the producer settled first:
-// the order is declared, not observed, so a read that raced ahead of the
-// producer fails with ErrComputedUnordered and never yields a zero the
-// callback can carry on with, in every mode.
-func TestCompute_UnorderedGetBeforeTheProducerSettlesFailsInEveryMode(t *testing.T) {
+// TestUnorderedGetIsRefusedInEveryMode pins CONTRACT.md §2: an unordered Get
+// fails the run with ErrComputedUnordered in every mode, dry-run included,
+// whether or not the producer settled first. The order is declared, not
+// observed, so neither a read that raced ahead of the producer nor one that
+// waited for it ever yields a value the callback can carry on with.
+func TestUnorderedGetIsRefusedInEveryMode(t *testing.T) {
 	const attempts = 20
 	modes := map[string]Config{
 		"default": {},
 		"strict":  {strict: true},
 		"dry run": {DryRun: true},
 	}
+	reads := map[string]func(*testing.T, Config){
+		"before the producer settles": assertUnorderedGetBeforeSettleUnwinds,
+		"after the producer settled":  assertUnorderedGetAfterSettleUnwinds,
+	}
 	for name, mode := range modes {
-		t.Run(name, func(t *testing.T) {
-			mode.stdout, mode.plain = io.Discard, true
-			for range attempts {
-				assertUnorderedGetBeforeSettleUnwinds(t, mode)
-			}
-		})
+		for when, assert := range reads {
+			t.Run(name+"/"+when, func(t *testing.T) {
+				mode.stdout, mode.plain = io.Discard, true
+				for range attempts {
+					assert(t, mode)
+				}
+			})
+		}
 	}
 }
 
@@ -86,6 +93,32 @@ func assertUnorderedGetBeforeSettleUnwinds(t *testing.T, mode Config) {
 		continued.Store(true)
 		return nil
 	})
+	assertReadUnwound(t, out, read, &continued)
+}
+
+// assertUnorderedGetAfterSettleUnwinds reads after the producer settled: the
+// callback proved settledness, not order, so Get still fails.
+func assertUnorderedGetAfterSettleUnwinds(t *testing.T, mode Config) {
+	t.Helper()
+	out := initRun(mode)
+	defer func() { _ = out.close() }()
+	made := out.Group("producers").Task("make")
+	producer := Compute(made, func(context.Context) (int, error) { return 1, nil })
+	var continued atomic.Bool
+	read := out.Group("consumers").Task("read")
+	read.Define(func(context.Context) error {
+		_ = made.wait()
+		_ = producer.Get()
+		continued.Store(true)
+		return nil
+	})
+	assertReadUnwound(t, out, read, &continued)
+}
+
+// assertReadUnwound finishes out and fails the test unless read's callback
+// unwound at its Get and the run failed with ErrComputedUnordered.
+func assertReadUnwound(t *testing.T, out *Run, read *Task, continued *atomic.Bool) {
+	t.Helper()
 	_ = out.finish()
 	if continued.Load() || !errors.Is(out.err(), ErrComputedUnordered) {
 		t.Fatalf("continued=%v, Err() = %v; want the callback unwound with ErrComputedUnordered", continued.Load(), out.err())

@@ -121,7 +121,7 @@
       },
       {
         "pkg": ".",
-        "run": "TestCompute_UnorderedGetBeforeTheProducerSettlesFailsInEveryMode"
+        "run": "TestUnorderedGetIsRefusedInEveryMode"
       },
       {
         "pkg": ".",
