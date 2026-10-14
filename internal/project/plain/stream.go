@@ -40,10 +40,9 @@ type Stream struct {
 	// for their membership to close before they stream (see block.go).
 	blocks  map[string]*block
 	waiting []*block
-	// streaming counts the root blocks streaming and not closed; held are
-	// the root rows that settled meanwhile (see block_stream.go).
-	streaming int
-	held      []*row
+	// held are the root rows waiting on a block they ran After (see
+	// block_stream.go).
+	held []*row
 }
 
 // Config is what a Stream writes and how.
@@ -123,6 +122,9 @@ type Declared struct {
 	Group   string
 	GroupID string
 	InGroup bool
+	// Awaits, when set, names the Tasks and collections the Task ran After,
+	// read when it settles: its edges are declared after the Task is.
+	Awaits func() (tasks []record.TaskID, groups []string)
 }
 
 // row is one Task as the durable stream keeps it.

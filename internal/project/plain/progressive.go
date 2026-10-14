@@ -138,7 +138,7 @@ func (s *Stream) Commit(id record.TaskID) {
 		return
 	}
 	s.CommitSettledBlocks()
-	if s.streaming > 0 && !r.ownsWindow {
+	if !r.ownsWindow && s.mustWait(r) {
 		if !r.held {
 			r.held = true
 			s.held = append(s.held, r)

@@ -159,6 +159,22 @@ func (c *Container) Path() record.ContainerPath { return c.path }
 // TaskID is the Task's id in the run record.
 func (t *Task) TaskID() record.TaskID { return record.TaskID(t.ID) }
 
+// Awaits is the Tasks and collections t was declared After, by id. Callers
+// hold the run's lock.
+func (t *Task) Awaits() (tasks []record.TaskID, collections []string) {
+	t.graph.lock()
+	defer t.graph.unlock()
+	for _, p := range t.after {
+		switch {
+		case p.task != nil:
+			tasks = append(tasks, p.task.TaskID())
+		case p.col != nil:
+			collections = append(collections, p.col.ID)
+		}
+	}
+	return tasks, collections
+}
+
 // ManifestKey is the Task's stable key in the manifest; with TaskID it makes
 // a Task the view freshness judges it through.
 func (t *Task) ManifestKey() string { return t.Key() }

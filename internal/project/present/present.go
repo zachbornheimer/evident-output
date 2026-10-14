@@ -140,6 +140,11 @@ func (p *Presenter) DeclareTask(t project.DeclaredTask, in string) {
 	if group != nil {
 		declared.Group, declared.GroupID, declared.InGroup = group.Name, group.ID, true
 	}
+	if n, ok := t.Node.(interface {
+		Awaits() ([]record.TaskID, []string)
+	}); ok {
+		declared.Awaits = n.Awaits
+	}
 	p.Stream.Declare(declared)
 	p.version++
 	if t.Synthetic {

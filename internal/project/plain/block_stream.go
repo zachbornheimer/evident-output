@@ -70,7 +70,6 @@ func (s *Stream) beginStream(root *block) {
 		return
 	}
 	root.mode, root.stop = modeStream, nil
-	s.streaming++
 	s.enqueue(root)
 	var out strings.Builder
 	for _, r := range root.pending {
@@ -129,9 +128,6 @@ func (s *Stream) reopen(b *block) {
 			continue
 		}
 		b.headed, b.closed = false, false
-		if b.parent == nil {
-			s.streaming++
-		}
 	}
 }
 
@@ -218,9 +214,6 @@ func (s *Stream) writeClose(out *strings.Builder, b *block) {
 	}
 	indentInto(out, line.String(), b.depth)
 	b.closed, b.root.written = true, true
-	if b.parent == nil {
-		s.streaming--
-	}
 }
 
 // finishStreamed writes what the run's end still owes the streamed block b,
@@ -248,15 +241,46 @@ func (s *Stream) finishStreamed(out *strings.Builder, b *block, col record.Tasks
 	}
 }
 
-// releaseHeld writes the root rows that waited on an open block, once none
-// is open.
-func (s *Stream) releaseHeld() {
-	if s.streaming > 0 || len(s.held) == 0 {
-		return
+// mustWait reports that the root row r ran After a Task or collection whose
+// rows are not in scrollback yet: a block still to write or to close, or a
+// row held for one. Its row waits, so cause precedes effect at any depth.
+func (s *Stream) mustWait(r *row) bool {
+	if r.Awaits == nil {
+		return false
 	}
+	tasks, groups := r.Awaits()
+	for _, id := range tasks {
+		p := s.rows[id]
+		if p != nil && (p.held || (p.block != nil && s.unwritten(p.block.root))) {
+			return true
+		}
+	}
+	return slices.ContainsFunc(groups, func(id string) bool {
+		b := s.blocks[id]
+		return b != nil && s.unwritten(b.root)
+	})
+}
+
+// unwritten reports that root has rows still to reach scrollback: it has
+// members unresolved, or settled ones it has not written, or a streamed
+// block it has not closed.
+func (s *Stream) unwritten(root *block) bool {
+	if root.mode == modeBuffered || root.mode == modeStream {
+		return !root.closed
+	}
+	return root.open > 0 || root.dirty
+}
+
+// releaseHeld writes the root rows that no longer wait on a block, in
+// settlement order.
+func (s *Stream) releaseHeld() {
 	held := s.held
 	s.held = nil
 	for _, r := range held {
+		if s.mustWait(r) {
+			s.held = append(s.held, r)
+			continue
+		}
 		r.held = false
 		s.writeRoot(r)
 	}

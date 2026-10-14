@@ -97,6 +97,12 @@ func (b *blockRun) task(id, in string) { b.declare(id, in, true) }
 // is one human output may hide.
 func (b *blockRun) noopTask(id, in string) { b.declare(id, in, false) }
 
+// after declares that Task id ran After the Tasks and collections named, as a
+// stream reads it when id settles.
+func (b *blockRun) after(id string, tasks []record.TaskID, groups ...string) {
+	b.stream.rows[record.TaskID(id)].Awaits = func() ([]record.TaskID, []string) { return tasks, groups }
+}
+
 func (b *blockRun) declare(id, in string, defineRan bool) {
 	rec := b.run.NewTask(record.TaskInit{ID: record.TaskID(id), State: record.Running, DefineRan: defineRan})
 	row := b.rows.DeclareTask(project.DeclaredTask{ID: record.TaskID(id), Node: blockNode{key: "task:" + id}, Name: id, Rec: rec}, in)

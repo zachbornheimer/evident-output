@@ -60,6 +60,7 @@ func TestPlainStreamsSettledMembersOfAnOpenGroup(t *testing.T) {
 		b.task("a", "sg")
 		b.task("c", "sg")
 		b.task("after", "")
+		b.after("after", nil, "sg")
 		b.settle("a", record.Succeeded)
 		b.settle("after", record.Succeeded)
 		if got := b.written(); strings.Contains(got, "after") {
@@ -140,6 +141,64 @@ func TestPlainWritesAGroupThatSettlesInsideTheGraceWhole(t *testing.T) {
 
 		if got := b.written(); !inOrder(got, "sg", "a") || strings.Contains(got, "b") {
 			t.Fatalf("want the header and the member that settled, got:\n%s", got)
+		}
+	})
+}
+
+// TestPlainWritesNestedGroupBeforeItsDependent: a Task wired After a Group
+// nested in another prints below the block that explains it, though that
+// block is not written until the outer Group settles. A Task wired to
+// nothing in a block never waits for one.
+func TestPlainWritesNestedGroupBeforeItsDependent(t *testing.T) {
+	setup := func(t *testing.T) (*blockRun, *bool) {
+		b := newBlockRun(t)
+		closed := b.collection("outer", false)
+		*b.collectionIn("inner", "outer", false) = true
+		b.task("slow", "outer")
+		b.task("i1", "inner")
+		b.task("dep", "")
+		b.task("alone", "")
+		b.after("dep", nil, "inner")
+		return b, closed
+	}
+
+	t.Run("the dependent waits for the block holding its predecessor", func(t *testing.T) {
+		b, closed := setup(t)
+		b.settle("i1", record.Succeeded)
+		b.settle("dep", record.Succeeded)
+		if got := b.written(); strings.Contains(got, "dep") {
+			t.Fatalf("the dependent printed above the block that explains it:\n%s", got)
+		}
+
+		*closed = true
+		b.settle("slow", record.Succeeded)
+
+		if got := b.written(); !inOrder(got, "inner", "i1", "slow", "dep") {
+			t.Fatalf("want the block, then its dependent, got:\n%s", got)
+		}
+	})
+
+	t.Run("an unrelated row does not wait", func(t *testing.T) {
+		b, _ := setup(t)
+		b.settle("i1", record.Succeeded)
+		b.settle("alone", record.Succeeded)
+
+		if got := b.written(); !strings.Contains(got, "alone") {
+			t.Fatalf("a row with no predecessor in an open block waited:\n%s", got)
+		}
+	})
+
+	t.Run("a row After a held row waits for it too", func(t *testing.T) {
+		b, closed := setup(t)
+		b.after("alone", []record.TaskID{"dep"})
+		b.settle("i1", record.Succeeded)
+		b.settle("dep", record.Succeeded)
+		b.settle("alone", record.Succeeded)
+		*closed = true
+		b.settle("slow", record.Succeeded)
+
+		if got := b.written(); !inOrder(got, "slow", "dep", "alone") {
+			t.Fatalf("want the dependent's own dependent after it, got:\n%s", got)
 		}
 	})
 }
