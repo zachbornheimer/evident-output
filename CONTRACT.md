@@ -145,18 +145,18 @@ producer by Sequence position or `After`; an unordered `Get` fails the run
 with `ErrComputedUnordered` in every mode. A goroutine a callback started is
 the callback's hands: its `Get` is judged as the callback's, as
 far as the runtime names who started it. Attribution ends at a goroutine
-that exited before anything asked about it, and at one first seen after the
+that exited before anything asked about it, at one first seen after the
 run's bounded allowance of lookups (eight for each callback or container builder
-running, shared by those running together), so a `Get` through such a
-goroutine is not caught. A goroutine that a finished nested Task left running
-is found by a change in the count of the process's running goroutines, so it
-can be missed when as many other goroutines end in the same moment.
+running, shared by those running together), and at the callback that started
+it once that callback has returned, so a `Get` through such a goroutine is not
+caught. A goroutine `time.AfterFunc` starts carries no creator, so a `Get`
+through it is not caught either.
 `Compute` on a Task that has a
 `Verify` is `ErrInvalidConfig` at declaration (section 7): a satisfied `Verify` skips the
 callback, so a value would exist only when the world says so. A `Build` runs
 once when its container becomes eligible, declares topology only, and closes
 the container's declaration phase; declaring work from inside a Task's
-callback is misuse. A signal named in `CleanStop`, arriving while that Task
+callback is misuse. Members declared before a `Build` callback exits through `runtime.Goexit` or panics still run. A signal named in `CleanStop`, arriving while that Task
 runs, cancels only that Task's context and ends it Succeeded; it does not
 cancel the run, so a run with nothing else left exits 0. A signal it does not
 name still cancels the run.
