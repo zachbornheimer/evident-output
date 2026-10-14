@@ -80,8 +80,13 @@ const v1GroupBytesPerOp = 7_390_000
 
 // TestGroup1kPlainBytesPerOpUnderV1 holds the 1,000-Task Plain Group to the
 // bytes v1.0.0 allocated for it. Bytes per op do not depend on host load, so
-// unlike the wall-time guard above this one never skips.
+// unlike the wall-time guard above this one never skips for load. The race
+// detector does inflate them (about 7.9 MB/op), so a -race build skips; the
+// plain run enforces the bound.
 func TestGroup1kPlainBytesPerOpUnderV1(t *testing.T) {
+	if scaletest.RaceDetector {
+		t.Skip("the race detector instruments allocations and inflates bytes/op; the plain run enforces the v1.0.0 bound")
+	}
 	result := testing.Benchmark(BenchmarkGroup1kPlain)
 	if got := result.AllocedBytesPerOp(); got > v1GroupBytesPerOp {
 		t.Fatalf("1,000 trivial Tasks in one Plain Group allocated %d B/op (%d allocs/op), want <= v1.0.0's %d",
