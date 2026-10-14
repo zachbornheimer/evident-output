@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"io"
 	"log/slog"
+	"reflect"
 	"strings"
 	"time"
 
@@ -252,7 +253,7 @@ func (cfg *config) liveTerminal(w io.Writer) {
 
 // debugOf sets the journal's level: Config.Debug, else EVO_DEBUG, else off.
 func (cfg *config) debugOf(level slog.Leveler) {
-	if level != nil {
+	if !levelerIsUnset(level) {
 		cfg.debugLevel = logLevelOf(level.Level())
 		return
 	}
@@ -260,6 +261,16 @@ func (cfg *config) debugOf(level slog.Leveler) {
 	if cfg.debugLevel == levelUnset {
 		cfg.debugLevel = levelOff
 	}
+}
+
+// levelerIsUnset reports whether l names no level: nil, or an interface holding a nil pointer (an unset
+// *slog.LevelVar field), whose Level method would dereference it.
+func levelerIsUnset(l slog.Leveler) bool {
+	if l == nil {
+		return true
+	}
+	v := reflect.ValueOf(l)
+	return v.Kind() == reflect.Pointer && v.IsNil()
 }
 
 // eventStream is where the evo.event stream writes: stdout in JSONL, nowhere otherwise.

@@ -76,3 +76,32 @@ func equalBools(a, b []bool) bool {
 	}
 	return true
 }
+
+// TestTypedNilDebugMeansOff pins CONTRACT section 6 for a Debug interface holding a nil pointer, such as an
+// unset *slog.LevelVar field: it is the zero Debug, so the journal stays off and EVO_DEBUG fills it in, rather
+// than Execute dereferencing the nil pointer.
+func TestTypedNilDebugMeansOff(t *testing.T) {
+	levels := []slog.Level{slog.LevelDebug, slog.LevelInfo, slog.LevelWarn, slog.LevelError}
+	var unset *slog.LevelVar
+
+	t.Run("journals nothing", func(t *testing.T) {
+		withEnvironment(t, nil)
+		enabled, printed := journalEnabled(t, evo.Config{Debug: unset}, levels...)
+		for i, level := range levels {
+			if enabled[i] {
+				t.Errorf("a typed-nil Config.Debug journals %s records", level)
+			}
+		}
+		if strings.Contains(printed, "record at") {
+			t.Errorf("a typed-nil Config.Debug printed slog records:\n%s", printed)
+		}
+	})
+
+	t.Run("EVO_DEBUG fills it in like the zero Debug", func(t *testing.T) {
+		withEnvironment(t, map[string]string{"EVO_DEBUG": "warn"})
+		enabled, _ := journalEnabled(t, evo.Config{Debug: unset}, levels...)
+		if want := []bool{false, false, true, true}; !equalBools(enabled, want) {
+			t.Errorf("EVO_DEBUG=warn with a typed-nil Debug journals %v at debug, info, warn, error; want %v", enabled, want)
+		}
+	})
+}
