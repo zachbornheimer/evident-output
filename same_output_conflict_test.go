@@ -59,3 +59,57 @@ func assertSameOutputConflictFailsBoth(t *testing.T, out *Run, declare func(stri
 		t.Errorf("exit code = %d, want %d", got, exitFailed)
 	}
 }
+
+// TestExecOutputConflictNamesExec pins that a same-output conflict names the
+// operation each Task used to claim the path, not always File: an Exec over a
+// File's path, a File over an Exec's path and two Execs each read as what they are.
+func TestExecOutputConflictNamesExec(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		first, second string
+		want          []string
+	}{
+		{"exec over file", "File", "Exec", []string{"this Exec", "File in Task"}},
+		{"file over exec", "Exec", "File", []string{"this File", "Exec in Task"}},
+		{"exec over exec", "Exec", "Exec", []string{"this Exec", "Exec in Task"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			tool := execFixture(t, dir, "tool", "v1")
+			shared := filepath.Join(dir, "shared.txt")
+			out := initRun(Config{State: State{Dir: t.TempDir()}, Facades: Facades{Process: &scriptedRunner{exitCode: 0}}})
+			t.Cleanup(func() { _ = out.close() })
+			claim := func(op string) func(context.Context) error {
+				return func(ctx context.Context) error {
+					if op == "File" {
+						return File(ctx, FileSpec{Path: shared, Contents: []byte("x")})
+					}
+					_, err := Exec(ctx, ExecSpec{executable: tool, Dir: dir, Outputs: []string{"shared.txt"}})
+					return err
+				}
+			}
+			first := out.Task("first")
+			first.Define(claim(tc.first))
+			_ = first.wait()
+			var secondErr error
+			second := out.Task("second")
+			second.Define(func(ctx context.Context) error {
+				secondErr = claim(tc.second)(ctx)
+				return secondErr
+			})
+			_ = second.wait()
+
+			if !errors.Is(secondErr, change.ErrFileConflictingProducer) {
+				t.Fatalf("second claim err = %v, want ErrFileConflictingProducer", secondErr)
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(secondErr.Error(), want) {
+					t.Errorf("conflict %q does not contain %q", secondErr, want)
+				}
+			}
+			if strings.Contains(secondErr.Error(), "File output path") {
+				t.Errorf("conflict %q still calls every output a File output", secondErr)
+			}
+		})
+	}
+}

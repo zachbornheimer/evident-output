@@ -113,7 +113,7 @@ func (r *Run) claimAll(id record.TaskID, outputs []string) error {
 	r.outputsMu.Lock()
 	defer r.outputsMu.Unlock()
 	for _, out := range outputs {
-		if err := r.claimOutputLocked(id, out); err != nil {
+		if err := r.claimOutputLocked(id, producerExec, out); err != nil {
 			return err
 		}
 	}

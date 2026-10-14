@@ -34,7 +34,7 @@ type Run struct {
 	// outputs records which Task first claimed each canonical File or Exec
 	// output path in this Run (spec §11.4/§8.3): a second Task claiming the
 	// same path is a producer conflict.
-	outputs map[string]record.TaskID
+	outputs map[string]outputClaim
 	// conflicts holds, for a Task whose claimed output another Task then
 	// claimed, the error its own File call returns before it settles.
 	conflicts map[record.TaskID]error
