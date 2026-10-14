@@ -86,6 +86,10 @@ type execTarget struct {
 	Outputs        []string // resolved against Dir, sorted
 }
 
+// changes reports whether the Exec declared Outputs: only then is a run of it a change to something Evo can
+// name. Without Outputs it ran, and nothing says it changed anything.
+func (t execTarget) changes() bool { return len(t.Outputs) > 0 }
+
 // Exec declares/reconciles one managed-state subprocess invocation: it
 // skips spawning when a prior record proves the operation is already
 // current (matching definition, Basis, and every declared Output digest),
@@ -157,9 +161,9 @@ func (r *Run) execEvaluate(ctx context.Context, id record.TaskID, spec ExecSpec,
 		r.host.AppendOperation(id, carried)
 	case freshness.ExecIsPlanned:
 		r.host.Observe(Observation{Task: id, Kind: OperationStarted, Subject: subject, Reason: eval.Reason})
-		r.recordEntry(id, record.NamedEntry("run", spec.Executable))
+		r.recordChange(id, spec.Executable, target)
 		r.host.PlanOperation(id, target.Outputs...)
-		r.host.Observe(Observation{Task: id, Kind: OperationFinished, Subject: subject, Changed: true})
+		r.host.Observe(Observation{Task: id, Kind: OperationFinished, Subject: subject, Changed: target.changes()})
 	default:
 		r.host.Observe(Observation{Task: id, Kind: OperationStarted, Subject: subject, Reason: eval.Reason})
 	}
@@ -192,13 +196,21 @@ func (r *Run) execRunAndRecord(ctx context.Context, id record.TaskID, spec ExecS
 		return result, fmt.Errorf("evo: Exec %q: %w", spec.Executable, verifyErr)
 	}
 
-	r.recordEntry(id, record.NamedEntry("run", spec.Executable))
+	r.recordChange(id, spec.Executable, target)
 	r.host.AppendOperation(id, freshness.OperationRecord{
 		Kind:                  freshness.OperationKindExec,
 		DefinitionFingerprint: eval.DefinitionFingerprint,
 		Basis:                 eval.Basis,
 		Outputs:               outputRecords,
 	})
-	r.host.Observe(Observation{Task: id, Kind: OperationFinished, Subject: Subject{Kind: SubjectExec, Name: spec.Executable}, Changed: true})
+	r.host.Observe(Observation{Task: id, Kind: OperationFinished, Subject: Subject{Kind: SubjectExec, Name: spec.Executable}, Changed: target.changes()})
 	return result, nil
+}
+
+// recordChange adds the ledger row for an Exec that declared Outputs. One that declared none ran but has no
+// result Evo can call a change, so it records only the operation (CONTRACT section 3).
+func (r *Run) recordChange(id record.TaskID, executable string, target execTarget) {
+	if target.changes() {
+		r.recordEntry(id, record.NamedEntry("run", executable))
+	}
 }

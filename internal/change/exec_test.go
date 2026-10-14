@@ -104,12 +104,34 @@ func TestExecSpawnFailureReturnsAZeroResult(t *testing.T) {
 	}
 }
 
+func TestExecWithoutOutputsRecordsNoLedgerEntry(t *testing.T) {
+	for _, applies := range []bool{true, false} {
+		host := newFakeHost(t.TempDir())
+		host.applies = applies
+		host.spawn = func(SpawnCommand) (ExecResult, error) { return ExecResult{Ran: true}, nil }
+		_, ctx := scopedRun(t, host)
+
+		if _, err := Exec(ctx, ExecSpec{Executable: shellTool}); err != nil {
+			t.Fatalf("applies=%v: Exec = %v", applies, err)
+		}
+
+		if got := host.recorded(); len(got) != 0 {
+			t.Errorf("applies=%v: recorded %v, want no ledger entry for an Exec that declared no Outputs", applies, got)
+		}
+		for _, observation := range host.observed {
+			if observation.Kind == OperationFinished && observation.Changed {
+				t.Errorf("applies=%v: the finished Exec was observed as a change", applies)
+			}
+		}
+	}
+}
+
 func TestExecDryRunPlansTheRunWithoutSpawning(t *testing.T) {
 	host := newFakeHost(t.TempDir())
 	host.applies = false
 	_, ctx := scopedRun(t, host)
 
-	result, err := Exec(ctx, ExecSpec{Executable: shellTool})
+	result, err := Exec(ctx, ExecSpec{Executable: shellTool, Outputs: []string{"made.txt"}})
 
 	if err != nil || result.Ran || len(host.spawned) != 0 {
 		t.Fatalf("planned Exec = (%+v, %v), spawned %v; want Ran false and no spawn", result, err, host.spawned)

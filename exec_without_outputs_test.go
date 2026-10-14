@@ -9,7 +9,7 @@ import (
 )
 
 // TestExecWithoutOutputsIsNotAChange pins CONTRACT section 3: an Exec with no Outputs runs on every Run and
-// is observed as having run, never as having changed anything. Running read-only checks leaves
+// is recorded as having run, never as having changed anything. Running read-only checks leaves
 // Conclusion.Changed false and the band unchanged.
 func TestExecWithoutOutputsIsNotAChange(t *testing.T) {
 	w := newFreshnessWorld(t)
@@ -32,8 +32,36 @@ func TestExecWithoutOutputsIsNotAChange(t *testing.T) {
 		if strings.Contains(run.Text(), "[changed]") {
 			t.Errorf("pass %d: the output reads [changed] for an Exec that declared no Outputs:\n%s", pass, run.Text())
 		}
-		if !strings.Contains(run.Text(), "ran true") {
-			t.Errorf("pass %d: the output does not say the Exec ran:\n%s", pass, run.Text())
-		}
 	}
+
+	t.Run("the run document records that it ran", func(t *testing.T) {
+		run := executeContract(context.Background(), t,
+			evo.Config{Name: "check", Output: evo.JSON, State: evo.State{Dir: w.state, AppID: "contract"}},
+			func(_ context.Context, r *evo.Run) error {
+				r.Task("echo").Define(func(ctx context.Context) error {
+					_, err := evo.Exec(ctx, evo.ExecSpec{Argv: []string{"true"}})
+					return err
+				})
+				return nil
+			})
+		data, _ := runDocument(t, run.Stdout)["data"].(map[string]any)
+		task := firstTask(t, data)
+		operations, _ := task["operations"].([]any)
+		if len(operations) != 1 || operations[0].(map[string]any)["executed"] != true {
+			t.Errorf("operations = %v, want one executed exec", task["operations"])
+		}
+		if effects, _ := data["effects"].([]any); len(effects) != 0 {
+			t.Errorf("effects = %v, want none for an Exec that declared no Outputs", effects)
+		}
+	})
+}
+
+// firstTask is the one Task an evo.run document's data lists.
+func firstTask(t *testing.T, data map[string]any) map[string]any {
+	t.Helper()
+	tasks, _ := data["tasks"].([]any)
+	if len(tasks) != 1 {
+		t.Fatalf("data.tasks = %v, want one Task", data["tasks"])
+	}
+	return tasks[0].(map[string]any)
 }

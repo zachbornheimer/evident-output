@@ -204,8 +204,9 @@ return evo.PartialEffect(committed, err)
 
 Every call takes the Define `ctx`. File and Exec are Satisfied when their
 Inputs, Values and recorded outputs are current; opaque Define work runs
-every Run. An Exec with no Outputs runs every Run and is observed as ran, never
-as a change: it leaves `Conclusion.Changed` and the band untouched. A Task whose File and Exec calls were all current, and which
+every Run. An Exec with no Outputs runs every Run and is recorded as ran in
+`operations`, never as a change: it leaves `Conclusion.Changed` and the band
+untouched. A Task whose File and Exec calls were all current, and which
 committed no Effect, settles Satisfied, not Succeeded, with no `Verify`. File and Exec fingerprint the content of every Input and every
 Value, so a changed Input byte or Value runs the operation again on the next
 Run, even when a File's Contents is unchanged. An Output whose bytes no
