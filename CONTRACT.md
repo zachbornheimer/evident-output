@@ -219,7 +219,7 @@ Run, even when a File's Contents is unchanged. An Output whose bytes no
 longer match what the last Run recorded has drifted, and its producer runs
 again to restore it. Cascade is by content: a step whose Input is another
 step's Output runs again only when those bytes changed, not because its
-producer ran. Dry run runs every Define callback, plans every mutation, and runs no Effect callback and no Exec, so a Define callback that opens a planned Exec's Output finds no file: a later Exec or File that names that Output in `Inputs` is planned instead (the `cp` line above), and opaque code skips the read under its own `Config.DryRun`. Each mutation
+producer ran. Dry run runs every Define callback, plans every mutation, and runs no Effect callback. It runs no Exec either, so a Define callback that opens a planned Exec's Output finds no file: a later Exec or File that names that Output in `Inputs` is planned instead (the `cp` line above), and opaque code skips the read under its own `Config.DryRun`. Each mutation
 appears once in the ledger as `[planned]` or `[changed]`; per-item mutations
 with one Verb and Object fold into one counted row. `EffectSpec.Path` claims
 that path for the Effect's callback, so Effects whose Paths are equal or one
