@@ -97,17 +97,16 @@ spelling to its 2.0 replacement.
 - **Present in 1.x and 2.0 with a changed signature or receiver:** `Action`, `After`, `Cancelled`, `Clock`, `Conclusion`, `Config`, `Confirm`, `Create`, `Define`, `Delete`, `Detail`, `Doing`, `Exec`, `ExecSpec`, `Fact`, `Failed`, `Fail`, `FileSpec`, `Group`, `Main`, `Next`, `Plain`, `Problem`, `Progress`, `Result`, `ResultWriter`, `Run`, `Sequence`, `SlogHandler`, `Summary`, `Suspend`, `Task`, `Terminal`, `Update`, `Verify`, `Writer`.
 - **Removed:** `Add`, `Affected`, `AlsoWrite`, `App`, `AssumeYes`, `Attachment`, `Block`, `Blocked`, `Blockf`, `Bytes`, `BytesKind`, `Cancel`, `ChangesSnapshot`, `Close`, `ColorAlways`, `ColorAuto`, `ColorMode`, `ColorNever`, `Command`, `CommandSpec`, `ConclusionJSON`, `ConclusionState`, `ConfirmDetail`, `Context`, `Count`, `DataProjection`, `DebugAddSource`, `DebugConfig`, `DebugHistory`, `DebugLevel`, `DebugPane`, `DebugPaneOption`, `DebugPresentation`, `DebugPresentationHistory`, `DebugPresentationPane`, `Default`, `DefaultConfig`, `DefaultVisibleNames`, `Delay`, `Determinate`, `Diagnostics`, `Done`, `DryRun`, `EffectRecord`, `Empty`, `EncodeEventJSON`, `EncodeJSON`, `EncodeJSONL`, `EntityOption`, `EntityState`, `Err`, `ErrAlreadyResolved`, `ErrClosed`, `ErrConcurrentRunning`, `ErrDryRunDeclaredLate`, `ErrDuplicateKey`, `ErrDuplicateSiblingName`, `ErrExecExecutableNotFound`, `ErrExecOutputMissingAfterSuccess`, `ErrExecSpecMissingExecutable`, `ErrFilePathIsSymlink`, `ErrFilePathTypeMismatch`, `ErrFileSpecMissingPath`, `ErrFileUnmanagedContentsMissing`, `ErrInvalidProgress`, `ErrKeyAfterDefine`, `ErrLimitExceeded`, `ErrNoTaskContext`, `ErrNotStarted`, `ErrProgressRegression`, `ErrReasonSkipOnly`, `ErrReasonWrongTask`, `ErrRenderer`, `ErrTaskClosed`, `ErrTerminalWithoutSink`, `ErrUnresolvedTask`, `ErrWaitDeadlock`, `Error`, `Event`, `EventJSON`, `EventSchemaVersion`, `Evidence`, `EvidenceOption`, `EvidencePhase`, `EvidenceStream`, `EvidenceStreamCombined`, `EvidenceStreamStderr`, `EvidenceStreamStdout`, `ExitBlocked`, `ExitCancelled`, `ExitFailed`, `ExitOK`, `ExternalProjection`, `FSPath`, `FactRecord`, `Failf`, `Failure`, `Field`, `FileFS`, `Fingerprint`, `FingerprintValue`, `Finish`, `FixedClock`, `ForSkip`, `Format`, `FormatData`, `FormatExternal`, `FormatHuman`, `FormatJSON`, `FormatJSONL`, `GlyphProfile`, `Glyphs`, `GlyphsASCII`, `GlyphsAuto`, `GlyphsUnicode`, `GroupHandle`, `ID`, `Incomplete`, `Indeterminate`, `Init`, `IsCharDevice`, `JSONAction`, `JSONChanges`, `JSONCollection`, `JSONCommand`, `JSONDocument`, `JSONEffectRecord`, `JSONMessage`, `JSONOutputMeta`, `JSONPlan`, `JSONProblem`, `JSONProgress`, `JSONSchemaVersion`, `JSONTask`, `KeepLastLines`, `Kept`, `Key`, `Label`, `LevelDebug`, `LevelError`, `LevelInfo`, `LevelTrace`, `LevelUnset`, `LevelWarn`, `LiveSurface`, `Location`, `LogLevel`, `LogRecord`, `MaxEntities`, `MaxEvents`, `MaxEvidenceBytes`, `MaxFrameRate`, `MessageSnapshot`, `MirrorToDebug`, `MirrorToDiagnostics`, `MutationOption`, `Name`, `NewestFirst`, `NextCommand`, `NoColor`, `NoopRedactor`, `NotStarted`, `OldestFirst`, `OnTask`, `Option`, `PaneHeight`, `ParseFormat`, `Pending`, `PlainOptions`, `PlanSnapshot`, `Pluralize`, `PolicyFlag`, `PolicyHint`, `PreserveDebugTail`, `Print`, `Printer`, `Printf`, `Println`, `ProblemCodeDuplicateSiblingName`, `ProblemCodeVerificationUnsatisfied`, `ProcessCommand`, `ProcessOutcome`, `ProcessRunner`, `ProgressKind`, `Projection`, `ProjectionHuman`, `ProjectionJSON`, `ProjectionJSONL`, `ProjectionPlain`, `ProjectionStreamJSON`, `PublishedRelease`, `Push`, `Reason`, `ReasonOption`, `Record`, `RecordLabel`, `RecordName`, `Redact`, `Remove`, `RenderPlain`, `Resolution`, `ResolutionAlreadySatisfied`, `ResolutionExecuted`, `ResolutionNoWork`, `ResultStream`, `Runner`, `Running`, `SequenceHandle`, `SetDefault`, `Skipped`, `Snapshot`, `SourceLocation`, `StartPhase`, `StateBlocked`, `StateCancelled`, `StateChanged`, `StateFailed`, `StatePlanned`, `StateReady`, `StateWarning`, `Stdin`, `Step`, `Strict`, `SystemClock`, `TaskEvidence`, `TaskHandle`, `TaskSnapshot`, `TasksSnapshot`, `TaxonomyReason`, `TaxonomyRecord`, `TerminalDriver`, `TimeSource`, `Title`, `To`, `TruncateNames`, `Unwrap`, `Value`, `Verbose`, `Verbosity`, `VerbosityNormal`, `VerbosityVerbose`, `Visibility`, `VisibilityDelay`, `VisibilityNormal`, `VisibilityVerbose`, `Wait`, `Warn`, `Width`, `Write`, `WriteJSON`.
 - **Removed (1.1 names the list above does not repeat):** `Basis`, `Capture`, `CaptureOption`, `CaptureStream`, `CaptureStreamCombined`, `CaptureStreamStderr`, `CaptureStreamStdout`, `EffectAdd`, `EffectCreate`, `EffectDelete`, `EffectInstall`, `EffectPush`, `EffectRemove`, `EffectUninstall`, `EffectUpdate`, `EffectVerb`, `ErrEffectCallbackMissing`, `ErrEffectObjectMissing`, `ErrEffectQuantityNotPositive`, `ErrEffectVerbInvalid`, `ErrInvalidPartialEffect`, `ErrInvalidResource`, `ErrNestedResourceAcquisition`, `ErrPatchBinaryUnsupported`, `ErrPatchDeleteUnsupported`, `ErrPatchMalformed`, `ErrPatchRenameUnsupported`, `ErrPatchUnsupported`, `Events`, `FSResource`, `FileSet`, `Files`, `LogicalResource`, `MaxCaptureBytes`, `ProblemSeverity`, `Resource`, `Severity`, `SeverityError`, `SeverityWarning`.
-- **No longer exported:** `ErrInvalidConfig` remains the misuse code recorded in `Result` for a misdeclared Task, Compute or EffectSpec, but is not a name a caller can reference. `Create`, `Delete`, `Plain` and `Update` keep their spelling with a new meaning (`Verb` and `Output` constants).
+- **`ErrInvalidConfig` is exported** (`CONTRACT.md` section 7). Every declaration or spec Evo refuses (a misdeclared Task, `Compute` or `EffectSpec`) wraps it and is joined into `Result.Err`. `Create`, `Delete`, `Plain` and `Update` keep their spelling with a new meaning (`Verb` and `Output` constants).
 - **`File`, `Exec` and `Patch` keep the 1.1 operations** (`File(ctx, FileSpec)`,
   `Exec(ctx, ExecSpec)`, `Patch(ctx, diff)`, which commits through `File`).
-  Tree/Find/Download/Extract/Clone/Checksum are not evo (contract §31/§37;
-  ZYS-1382 is not 1.2).
+  Tree/Find/Download/Extract/Clone/Checksum are not evo (ZYS-1382 is not 2.0).
 - **The renderer decides which rows deserve a line (no new API; callers just
   stop choosing):**
-  - A `Group` with no `Summary` of its own renders no header row in human
-    output; its children render as siblings. A live header stays while work
-    is in flight because its `N/M complete` count is the Group's own
-    progress. A `Sequence` keeps its header. JSON and JSONL keep the Group.
+  - A `Group` or `Sequence` keeps its own row in Human and Plain, with its
+    members indented beneath it, whether or not it has a `Summary`
+    (`CONTRACT.md` section 8). A container's own Task folds into that row.
+    JSON and JSONL nest the same members.
   - A finished no-op row (Succeeded with no work, or Satisfied, with
     no Summary, Problem, Warning, Fact, Progress, Action or effect) is hidden
     from human output when other content is visible, in a Group or, if
@@ -115,11 +114,12 @@ spelling to its 2.0 replacement.
     blocked or cancelled run; never in JSON/JSONL.
   - `[planned]` and `[changed]` ledger rows print in Task declaration order,
     whatever order the Tasks finished in.
-  - A cancelled run renders `[cancelled] <subject>  by user` (the cause is
-    now `Conclusion.Explanation`, also in JSON) and, only when an Effect
-    committed, `! partial changes were applied before cancellation`. This
-    replaces `! already mutated: ...` on cancelled runs; failed runs keep it.
-    Exit code stays 130.
+  - A cancelled run ends on a band that names what interrupted it,
+    `[cancelled]  <name>  by user` (the cause is `Conclusion.Explanation`,
+    also in JSON). When an Effect committed before the run stopped, a Failed
+    or Cancelled run adds one line under the band,
+    `!  already mutated: <summary>` (`CONTRACT.md` section 4). Exit code is
+    130 for a cancelled run.
 
 ### Added
 

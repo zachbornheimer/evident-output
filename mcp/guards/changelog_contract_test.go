@@ -93,6 +93,9 @@ func TestChangelogCurrentSectionNamesOnlyContractSymbols(t *testing.T) {
 				t.Errorf("CHANGELOG.md:%d names %s, which CONTRACT.md does not list:\n%s", first+i, bad, line)
 			}
 		}
+		for _, hit := range unqualifiedRetiredNames(line) {
+			t.Errorf("CHANGELOG.md:%d uses the retired name %s outside a list of removed names:\n%s", first+i, hit.name, line)
+		}
 	}
 }
 
