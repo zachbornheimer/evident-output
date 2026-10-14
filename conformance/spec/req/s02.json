@@ -4,12 +4,7 @@
     "section": "2",
     "quote": "Outcomes are runtime semantics, never caller-painted strings:",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_001_OutcomesAreRuntimeSemantics"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -19,10 +14,6 @@
     "quote": "The run-level **Conclusion** is only: **OK** \u00b7 **Blocked** \u00b7 **Failed** \u00b7 **Cancelled**.",
     "tier": "1.1",
     "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_002_ConclusionIsOKBlockedOrFailed"
-      },
       {
         "pkg": "./internal/engine",
         "run": "TestCancellation_RenderedBandMatchesContract"
@@ -36,12 +27,7 @@
     "section": "2",
     "quote": "Block: a policy or precondition refused the work (Blocked, exit 1). Fail: evaluation or required I/O failed (Failed, exit 2).",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_003_BlockAndFailAreDifferent"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: Block (now Refuse); see docs/migration/2.0.md"
   },
@@ -50,12 +36,7 @@
     "section": "2",
     "quote": "An error Problem fails the owning Define if the callback otherwise returns nil; a warning Problem does not.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_004_ErrorProblemFailsDefineWarningDoesNot"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -64,12 +45,7 @@
     "section": "2",
     "quote": "`Severity(SeverityWarning)` sets `warned` and never fails the Task.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_005_WarningSetsWarnedAndNeverChangesExit"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: Warn/Severity (Problem options removed); see docs/migration/2.0.md"
   },
@@ -78,12 +54,7 @@
     "section": "2",
     "quote": "Progress carries the count; the current-item text is orthogonal: `task.Progress(i, total).Doing(path)`.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_006_ProgressAndDoingAreOrthogonal"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -92,12 +63,7 @@
     "section": "2",
     "quote": "Summary = what did we learn or accomplish. It resolves nothing.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_007_SummaryResolvesNothing"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -106,12 +72,7 @@
     "section": "2",
     "quote": "Renders `- skipped N (...)` and does not set `warned`. Skipped is never AlreadySatisfied.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_008_SkippedIsAResolutionNotSatisfaction"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: Skipped (now Exclude); see docs/migration/2.0.md"
   },
@@ -120,12 +81,7 @@
     "section": "2",
     "quote": "Effect is the only opaque-mutation concept. The verbs are a closed set:",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/surface",
-        "run": "TestC02_023_EffectVerbsAreTheClosedEightSpellings"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -149,10 +105,6 @@
     "quote": "These names **must not exist** in the 1.1 exported API.",
     "tier": "1.1",
     "tests": [
-      {
-        "pkg": "./conformance/contract/surface",
-        "run": "TestC02_020_NotPartOfEvoNamesDoNotExist"
-      },
       {
         "pkg": "./mcp/guards",
         "run": "TestAPIGolden_VocabularyFreeze"
@@ -208,12 +160,7 @@
     "section": "2",
     "quote": "In 1.1 the API is `type Capture`, `type CaptureOption`, `type CaptureStream`.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/surface",
-        "run": "TestC02_022_CaptureNamesReplaceEvidenceCaptureNames"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -222,12 +169,7 @@
     "section": "2",
     "quote": "`Init(Config) *Output`: the only constructor. It installs the default instance unless `Config.Isolated` is set.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC02_030_InitInstallsDefaultUnlessIsolated"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: Init (now Main or Execute); see docs/migration/2.0.md"
   },
@@ -236,12 +178,7 @@
     "section": "2",
     "quote": "It never exits the process: `os.Exit(evo.Main(run))` does.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC02_031_MainReturnsTheExitCodeWithoutExiting"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -250,12 +187,7 @@
     "section": "2",
     "quote": "`Result` carries the Conclusion and the error `run` returned; `Result.ExitCode()` is the derived code.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC02_032_RunResultCarriesConclusionAndError"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -264,12 +196,7 @@
     "section": "2",
     "quote": "`Output.Close()`: idempotent cleanup that runs Finish when needed.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC02_033_CloseIsIdempotentAndFinishesWhenNeeded"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -278,12 +205,7 @@
     "section": "2",
     "quote": "Dry run (`Config.DryRun`): planned tense for every Effect, File, and Exec, announced by a `[dry-run] <Subject>` header. Mutation callbacks never run.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC02_034_DryRunAnnouncesHeaderAndNeverRunsMutations"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -292,12 +214,7 @@
     "section": "2",
     "quote": "announced by the Subject header alone, with no `[dry-run]` tag.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC02_035_PreviewPlansWithoutTheDryRunTag"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -306,12 +223,7 @@
     "section": "2",
     "quote": "Only `Output`, `GroupHandle`, and `SequenceHandle` declare children.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/surface",
-        "run": "TestC02_021_OnlyContainersDeclareChildren"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: TaskHandle/GroupHandle/SequenceHandle (now Task, Group, Sequence); see docs/migration/2.0.md"
   },
@@ -338,12 +250,7 @@
     "section": "2",
     "quote": "It freezes once set; repeating the same key is idempotent.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC02_038_KeyFreezesAndRepeatingItIsIdempotent"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -352,12 +259,7 @@
     "section": "2",
     "quote": "Sibling names are unique per parent across Task, Group, and Sequence",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC02_039_SiblingNamesAreUniquePerParent"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -366,12 +268,7 @@
     "section": "2",
     "quote": "It never runs `fn` inline.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC02_036_DefineNeverRunsTheCallbackInline"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -380,12 +277,7 @@
     "section": "2",
     "quote": "block until settled and return the aggregate error (\u00a730).",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC02_037_WaitReturnsTheAggregateError"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -394,12 +286,7 @@
     "section": "2",
     "quote": "`Doing(text string, args ...any)` names the current activity;",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_028_DoingFormatsItsVariadicArguments"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -409,10 +296,6 @@
     "quote": "Its last line becomes live activity, and a bounded, redacted tail is retained as Capture.",
     "tier": "1.1",
     "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_016_WriterRetainsOnlyABoundedRedactedTail"
-      },
       {
         "pkg": ".",
         "run": "TestWriter_UnterminatedWriteBecomesDoing"
@@ -426,12 +309,7 @@
     "section": "2",
     "quote": "Each call records one `TaxonomyRecord`.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC02_064_EachReasonCallRecordsOneTaxonomyRecord"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -440,12 +318,7 @@
     "section": "2",
     "quote": "Run scope: `Output.Fail(summary, opts...)` states a run-level failure.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_009_RunScopeFailFailsTheRun"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -454,12 +327,7 @@
     "section": "2",
     "quote": "`EntityState`: `Pending`, `Running`, `Done`, `Failed`, `Blocked`, `Cancelled`, `NotStarted`, `Skipped`, `Incomplete`, `Empty`.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_014_EntityStateSetIsTenDistinctValues"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: Skipped (now Exclude); see docs/migration/2.0.md"
   },
@@ -468,12 +336,7 @@
     "section": "2",
     "quote": "`Resolution` of a Done Task: `ResolutionExecuted` (Succeeded), `ResolutionAlreadySatisfied` (AlreadySatisfied), `ResolutionNoWork`.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_013_ResolutionsOfADoneTask"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: Done (a nil return from Define); see docs/migration/2.0.md"
   },
@@ -483,14 +346,6 @@
     "quote": "plus the `warned`, `partial`, and `cancelled` modifiers.",
     "tier": "1.1",
     "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_005_WarningSetsWarnedAndNeverChangesExit"
-      },
-      {
-        "pkg": "./conformance/contract/exitcodes",
-        "run": "TestC17_003_PartialModifiesTheHeadlineNeverTheExitCode"
-      },
       {
         "pkg": "./internal/engine",
         "run": "TestCancellation_RenderedBandMatchesContract"
@@ -504,12 +359,7 @@
     "section": "2",
     "quote": "Exit codes: `ExitOK` 0, `ExitBlocked` 1, `ExitFailed` 2 (or `Config.FailedExitCode`), `ExitCancelled` 130.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_015_ExitCodesAreFixed"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -518,12 +368,7 @@
     "section": "2",
     "quote": "`TaskEvidence` holds the before and after `EvidencePhase` observations.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC02_038_EvidenceHoldsBeforeAndAfterPhases"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: Evidence (now Task.Writer and Facts); see docs/migration/2.0.md"
   },
@@ -532,16 +377,7 @@
     "section": "2",
     "quote": "Hidden in normal human output, always in machine output (\u00a711).",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/facts",
-        "run": "TestC11_001_FactsAreHiddenInNormalOutputOnEveryOutcome"
-      },
-      {
-        "pkg": "./conformance/contract/facts",
-        "run": "TestC11_003_MachineOutputAlwaysCarriesFacts"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -550,12 +386,7 @@
     "section": "2",
     "quote": "`ProblemOption`s: `Severity(value)`, `Detail(text)`, `Code(value)`, `On(subject)`, `Location(path, line, column)`, `Count(value, unit...)`, `Next(action)`, `NextCommand(executable, args...)`.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_010_ProblemOptionsRecordStructuredParts"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: Warn/Severity (Problem options removed); see docs/migration/2.0.md"
   },
@@ -564,12 +395,7 @@
     "section": "2",
     "quote": "Actions on any Problem reach the run's next-steps output.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_011_ProblemActionsReachRunNextSteps"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -578,12 +404,7 @@
     "section": "2",
     "quote": "Stable problem codes: `ProblemCodeVerificationUnsatisfied`, `ProblemCodeDuplicateSiblingName`.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_012_StableProblemCodesAreDistinctAndNonEmpty"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -592,16 +413,7 @@
     "section": "2",
     "quote": "`EffectSpec`: `Verb`, `Object` (singular noun; Evo pluralizes it), `Quantity` (one aggregate count, > 0), `Resource` (optional, at most one).",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/facts",
-        "run": "TestC12_001_ContentFreeEffectIsRefusedAndRecordsNothing"
-      },
-      {
-        "pkg": "./conformance/contract/facts",
-        "run": "TestC12_002_AggregateRowsUseSubjectVerbQuantityObject"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -610,12 +422,7 @@
     "section": "2",
     "quote": "Planned rows use the imperative (`delete`, `install`); changed rows use the past tense (`deleted`, `installed`).",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/facts",
-        "run": "TestC12_002_AggregateRowsUseSubjectVerbQuantityObject"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -637,12 +444,7 @@
     "section": "2",
     "quote": "Errors: `ErrEffectVerbInvalid`, `ErrEffectObjectMissing`, `ErrEffectQuantityNotPositive`, `ErrEffectCallbackMissing`, `ErrInvalidPartialEffect`.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/facts",
-        "run": "TestC12_001_ContentFreeEffectIsRefusedAndRecordsNothing"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -651,20 +453,7 @@
     "section": "2",
     "quote": "`FileSpec`: `Path`, `Contents` (nil means unmanaged), `Mode` (0 means unmanaged), `Basis`.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC04_001_UnmanagedContentsCannotCreateAMissingFile"
-      },
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC04_002_ModeZeroKeepsExistingPermissionsAndNewFilesUseUmask"
-      },
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC04_003_FileMutatesOnlyManagedAttributes"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -701,16 +490,7 @@
     "section": "2",
     "quote": "Errors: `ErrFileSpecMissingPath`, `ErrFileUnmanagedContentsMissing`, `ErrFilePathIsSymlink`, `ErrFilePathTypeMismatch`,",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC04_001_UnmanagedContentsCannotCreateAMissingFile"
-      },
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC04_004_FileRefusesSymlinkAndWrongType"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -719,12 +499,7 @@
     "section": "2",
     "quote": "`Outputs` (declared outputs; none means always run)",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/freshness",
-        "run": "TestC02_050_ExecWithoutDeclaredOutputsAlwaysRuns"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -733,12 +508,7 @@
     "section": "2",
     "quote": "A decline concludes Blocked, exit 1.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/exitcodes",
-        "run": "TestC17_001_ConfirmDeclineConcludesBlocked"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -747,12 +517,7 @@
     "section": "2",
     "quote": "Text helpers: `Pluralize(quantity, singular)`, `TruncateNames(names, visible)` with `DefaultVisibleNames`, `IsCharDevice(w)`.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/surface",
-        "run": "TestC02_025_TextHelpers"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -761,12 +526,7 @@
     "section": "2",
     "quote": "`\u2713` done, `\u2717` failed, `\u2298` blocked, `!` warning",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/projection",
-        "run": "TestC13_009_GlyphsHaveOneMeaningEach"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -789,12 +549,7 @@
     "section": "2",
     "quote": "`-` not started or skipped detail",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/projection",
-        "run": "TestC13_009_GlyphsHaveOneMeaningEach"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -840,12 +595,7 @@
     "section": "2",
     "quote": "`ParseFormat(s)` parses a host CLI flag value.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/surface",
-        "run": "TestC02_026_ParseFormatReadsHostFlagValues"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -854,12 +604,7 @@
     "section": "2",
     "quote": "Environment, applied only when the matching Config field is zero: `EVO_OUTPUT`, `EVO_COLOR`, `EVO_VERBOSE`, `EVO_DEBUG` (\u00a716).",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC16_003_ExplicitConfigWinsOverEnvironmentWhichWinsOverInference"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -868,12 +613,7 @@
     "section": "2",
     "quote": "`WriteJSON(w, result)` writes it without owning stdout.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC01_001_OneTruthDrivesEveryProjection"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -882,12 +622,7 @@
     "section": "2",
     "quote": "`PublishedRelease`: the release this build reports.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/surface",
-        "run": "TestC02_027_PublishedReleaseIsReported"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -896,12 +631,7 @@
     "section": "2",
     "quote": "`MaxConcurrency` bounds executing callbacks (zero means GOMAXPROCS).",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/scheduler",
-        "run": "TestC03_004_SchedulerBoundsConcurrencyToConfig"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -910,12 +640,7 @@
     "section": "2",
     "quote": "`FailedExitCode` overrides exit 2 for Failed.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/exitcodes",
-        "run": "TestC17_002_FailedExitCodeOverridesExitTwo"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -924,12 +649,7 @@
     "section": "2",
     "quote": "`ErrAlreadyResolved`, `ErrTaskClosed`, `ErrClosed`, `ErrUnresolvedTask`, `ErrInvalidConfig`,",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/surface",
-        "run": "TestC02_024_MisuseErrorSentinelsAreDistinct"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -938,16 +658,7 @@
     "section": "2",
     "quote": "Misuse is recorded as a run-level misuse line with a remedy hint; under `Config.Strict` it panics.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC02_062_MisuseIsARunLevelLineWithARemedyHint"
-      },
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC02_063_StrictConfigPanicsOnMisuse"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -957,10 +668,6 @@
     "quote": "`ProcessRunner` and `FileFS` are the injection points for process execution and the file system.",
     "tier": "1.1",
     "tests": [
-      {
-        "pkg": "./conformance/contract/exec",
-        "run": "TestC30_060_RanIsFalseWhenExecDidNotSpawn"
-      },
       {
         "pkg": "./internal/engine",
         "run": "TestFileCreateKeepsV10ModeContractForInjectedFileFS"
@@ -974,12 +681,7 @@
     "section": "2",
     "quote": "the injectable process facade, set as `Config.ProcessRunner`.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/exec",
-        "run": "TestC30_060_RanIsFalseWhenExecDidNotSpawn"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   }

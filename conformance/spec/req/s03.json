@@ -4,12 +4,7 @@
     "section": "3",
     "quote": "Eligible siblings may run concurrently. Declaration order must not silently serialize them.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/scheduler",
-        "run": "TestC03_001_GroupSiblingsRunConcurrently"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -18,12 +13,7 @@
     "section": "3",
     "quote": "A Sequence contains ordered children.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/scheduler",
-        "run": "TestC03_002_SequenceRunsChildrenInOrderOneAtATime"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -32,12 +22,7 @@
     "section": "3",
     "quote": "`After` is the advanced explicit dependency escape hatch.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/scheduler",
-        "run": "TestC03_003_AfterDelaysATaskUntilItsPredecessorSettles"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -46,12 +31,7 @@
     "section": "3",
     "quote": "Evo owns goroutines, bounded concurrency, cancellation propagation, dependency readiness, lifecycle transitions, and failure propagation.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/scheduler",
-        "run": "TestC03_004_SchedulerBoundsConcurrencyToConfig"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -60,12 +40,7 @@
     "section": "3",
     "quote": "A Task is one independently meaningful schedulable promise. It does not contain child Tasks.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/surface",
-        "run": "TestC02_021_OnlyContainersDeclareChildren"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },

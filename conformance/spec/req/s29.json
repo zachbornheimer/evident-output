@@ -6,10 +6,6 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./conformance/contract/resources",
-        "run": "TestC30_080_AClaimNeverCreatesAnAfterEdge"
-      },
-      {
         "pkg": "./internal/engine",
         "run": "TestEffectsOnOneLogicalResourceNeverOverlap"
       }

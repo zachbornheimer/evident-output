@@ -12,10 +12,6 @@
       {
         "pkg": ".",
         "run": "TestPatchThroughPublicAPI"
-      },
-      {
-        "pkg": "./conformance/contract/patch",
-        "run": "TestC28_001_NativeDiffFlowCommitsThroughFile"
       }
     ],
     "default": false,
@@ -84,10 +80,6 @@
       {
         "pkg": "./internal/engine",
         "run": "TestFilesStaleCreationRefusesToOverwrite"
-      },
-      {
-        "pkg": "./conformance/contract/patch",
-        "run": "TestC30_071_PatchIsAllOrNothingAndNeverOverwritesAConcurrentEdit"
       }
     ],
     "default": false,
@@ -122,10 +114,6 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./conformance/contract/patch",
-        "run": "TestC28_001_NativeDiffFlowCommitsThroughFile"
-      },
-      {
         "pkg": "./internal/engine",
         "run": "TestFilesAppliesAndRecordsOnlyChangedFiles"
       }
@@ -142,10 +130,6 @@
       {
         "pkg": "./internal/engine",
         "run": "TestFilesClaimsEachPathWithoutCallerLocks"
-      },
-      {
-        "pkg": "./conformance/contract/resources",
-        "run": "TestC26_001_PublicVocabularyHasNoLockTerms"
       }
     ],
     "default": false,

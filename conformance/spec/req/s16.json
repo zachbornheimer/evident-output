@@ -4,12 +4,7 @@
     "section": "16",
     "quote": "`Config.Format: FormatJSON` writes exactly one `evo.run` document to stdout at Finish.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC16_001_FormatJSONWritesExactlyOneRunDocumentToStdout"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -18,12 +13,7 @@
     "section": "16",
     "quote": "`FormatJSONL` streams `evo.event` lines to stdout as they occur (`seq` strictly monotonic and the only ordering authority), ending with `run.finished` on every terminal path, including failure and cancellation.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC16_002_FormatJSONLStreamsMonotonicEventsEndingWithRunFinished"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -32,12 +22,7 @@
     "section": "16",
     "quote": "Human presentation goes to stderr in both.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC16_001_FormatJSONWritesExactlyOneRunDocumentToStdout"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -46,12 +31,7 @@
     "section": "16",
     "quote": "Explicit Config wins over the environment; the environment wins over TTY inference.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC16_003_ExplicitConfigWinsOverEnvironmentWhichWinsOverInference"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -60,12 +40,7 @@
     "section": "16",
     "quote": "Evo never infers machine output because stdout is a pipe. The caller states it.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC16_004_PipedStdoutNeverInfersMachineOutput"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -74,16 +49,7 @@
     "section": "16",
     "quote": "Every wire document carries `schema_version`: `evo.run` is `2.0` (`schema/run.v2.json`) and `evo.event` is `1.0`.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC16_001_FormatJSONWritesExactlyOneRunDocumentToStdout"
-      },
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC16_002_FormatJSONLStreamsMonotonicEventsEndingWithRunFinished"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -106,12 +72,7 @@
     "section": "16",
     "quote": "The `evo.run` task entry carries `id`, `key`, `parent_id`, `name`, `state`, `resolution`, `definition_executed`, `evidence`, `progress`, `activity`, `timing`, `verification`, `tracked_resources`, `basis`, `facts`, `dispositions`, `problems`, `warnings`, `operations`, and `summary`",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC16_005_TaskEntryCarriesEveryContractField"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -134,16 +95,7 @@
     "section": "16",
     "quote": "Top-level `data` carries `tasks`, `collections`, `effects` (each tagged `planned` or `changed`), `facts`, `problems`, and `actions`.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC16_006_CollectionsAndTopLevelDataCarryTheContractedKeys"
-      },
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC16_008_EffectsAreTaggedPlannedOrChanged"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -152,12 +104,7 @@
     "section": "16",
     "quote": "No projection invents state unavailable to the others.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC16_009_PlainJSONAndJSONLAgreeOnTheRunOutcome"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -166,12 +113,7 @@
     "section": "16",
     "quote": "Machine output should preserve, where applicable:",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC16_007_RunDocumentPreservesIdentityTimingModeAndOutcome"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -194,16 +136,7 @@
     "section": "16",
     "quote": "One typed runtime truth drives:",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC01_001_OneTruthDrivesEveryProjection"
-      },
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC16_009_PlainJSONAndJSONLAgreeOnTheRunOutcome"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -212,12 +145,7 @@
     "section": "16",
     "quote": "With no `Format` chosen, `EVO_OUTPUT=json` selects `FormatJSON` and `EVO_OUTPUT=jsonl` selects `FormatJSONL`.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC16_003_ExplicitConfigWinsOverEnvironmentWhichWinsOverInference"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   }

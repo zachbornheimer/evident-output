@@ -4,12 +4,7 @@
     "section": "4",
     "quote": "Declaring the file establishes the requested file state.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC01_003_FileEstablishesDesiredStateAndIsQuietWhenSatisfied"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -18,12 +13,7 @@
     "section": "4",
     "quote": "`Contents: nil` leaves contents alone and cannot create a missing file (`ErrFileUnmanagedContentsMissing`).",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC04_001_UnmanagedContentsCannotCreateAMissingFile"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -32,12 +22,7 @@
     "section": "4",
     "quote": "`Mode: 0` keeps an existing file's permissions, and a new file gets 0666 less the umask.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC04_002_ModeZeroKeepsExistingPermissionsAndNewFilesUseUmask"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -46,12 +31,7 @@
     "section": "4",
     "quote": "mutate only managed attributes;",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC04_003_FileMutatesOnlyManagedAttributes"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -60,12 +40,7 @@
     "section": "4",
     "quote": "File refuses a symlink at the path (`ErrFilePathIsSymlink`) and a path of the wrong type (`ErrFilePathTypeMismatch`).",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC04_004_FileRefusesSymlinkAndWrongType"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -74,12 +49,7 @@
     "section": "4",
     "quote": "`File`, `Files`, `Patch`, `Exec`, and `Effect` must be called with the context a Define callback received (`ErrNoTaskContext` otherwise).",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC04_005_OperationsRequireTheDefineContext"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -88,12 +58,7 @@
     "section": "4",
     "quote": "emit planned/changed Effects;",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC04_006_FileEmitsPlannedThenChangedRows"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -102,12 +67,7 @@
     "section": "4",
     "quote": "avoid unnecessary mutation;",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC01_003_FileEstablishesDesiredStateAndIsQuietWhenSatisfied"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },

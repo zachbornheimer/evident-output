@@ -4,12 +4,7 @@
     "section": "28",
     "quote": "For example, a `go fix -diff <target>` style flow may derive a patch without allowing the tool to mutate the real workspace.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/patch",
-        "run": "TestC28_001_NativeDiffFlowCommitsThroughFile"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -18,12 +13,7 @@
     "section": "28",
     "quote": "If the fixer requires multiple passes until stable, that convergence remains one user-meaningful Task such as `stabilize Go source`; individual passes are implementation activity, not Tasks.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/patch",
-        "run": "TestC28_002_MultiPassConvergenceStaysOneTask"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },

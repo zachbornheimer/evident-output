@@ -21,10 +21,6 @@
       {
         "pkg": ".",
         "run": "TestProblem_WarningSeveritySettlesDoneAndWarns"
-      },
-      {
-        "pkg": "./conformance/contract/tests22",
-        "run": "TestC22_021_ProblemCodesStayStableAcrossRunsAndWording"
       }
     ],
     "default": false,

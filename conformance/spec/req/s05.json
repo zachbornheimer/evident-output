@@ -4,12 +4,7 @@
     "section": "5",
     "quote": "Ordinary success should remain compact:",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC05_001_SuccessStaysCompactWithoutPerAttributeRows"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -18,12 +13,7 @@
     "section": "5",
     "quote": "Already satisfied is a successful resolution, e.g.:",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC02_001_OutcomesAreRuntimeSemantics"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -54,12 +44,7 @@
     "section": "5",
     "quote": "Checks registered before Define are ANDed.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC05_002_BeforeChecksAreANDedAndAllTrueSkipsTheCallback"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -68,12 +53,7 @@
     "section": "5",
     "quote": "Before the callback: all checks true resolves the Task Done with `ResolutionAlreadySatisfied`, and the callback never runs.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC05_002_BeforeChecksAreANDedAndAllTrueSkipsTheCallback"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: Done (a nil return from Define); see docs/migration/2.0.md"
   },
@@ -82,16 +62,7 @@
     "section": "5",
     "quote": "After a successful callback: any false check fails the Task with `ProblemCodeVerificationUnsatisfied` (`postcondition not satisfied`, exit 2).",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC05_003_FalseAfterCheckFailsWithUnsatisfiedCode"
-      },
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC05_004_CallbackThatEstablishesStateSatisfiesTheAfterCheck"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -100,12 +71,7 @@
     "section": "5",
     "quote": "Dry run and Preview skip the after-check only for a Task that recorded a planned row, because that mutation never ran.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC05_005_DryRunSkipsAfterCheckOnlyForPlannedWork"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: Preview (now Config.DryRun); see docs/migration/2.0.md"
   },
@@ -114,12 +80,7 @@
     "section": "5",
     "quote": "A callback that resolves its own Task (`Skipped`, `Block`) chose not to converge, so the after-check is skipped.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC05_006_SelfResolvingCallbackSkipsTheAfterCheck"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: Skipped (now Exclude); see docs/migration/2.0.md"
   },
@@ -128,12 +89,7 @@
     "section": "5",
     "quote": "If the callback committed an Effect before resolving itself, state changed and the after-check runs.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC05_007_CommittedEffectBeforeSelfResolutionStillRunsAfterCheck"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -142,12 +98,7 @@
     "section": "5",
     "quote": "A callback that calls `Skipped` and then returns an error fails with that error. The self-resolution was only a proposal, so no misuse line prints.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC05_008_SkippedThenErrorFailsWithThatErrorAndNoMisuseLine"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: Skipped (now Exclude); see docs/migration/2.0.md"
   },

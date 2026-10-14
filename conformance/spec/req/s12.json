@@ -4,12 +4,7 @@
     "section": "12",
     "quote": "is invalid. `Effect` refuses an empty `Object`, a non-positive `Quantity`, an unknown `Verb`, or a nil callback, and records nothing.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/facts",
-        "run": "TestC12_001_ContentFreeEffectIsRefusedAndRecordsNothing"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -18,12 +13,7 @@
     "section": "12",
     "quote": "An aggregate Effect row reads `<subject>  <verb> <quantity> <pluralized object>`. Its subject is the owning Task's name.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/facts",
-        "run": "TestC12_002_AggregateRowsUseSubjectVerbQuantityObject"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -32,12 +22,7 @@
     "section": "12",
     "quote": "Rows print in Task declaration order, whatever order the Tasks finished in.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/facts",
-        "run": "TestC12_003_RowsPrintInDeclarationOrderNotFinishOrder"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -46,12 +31,7 @@
     "section": "12",
     "quote": "Two same-named Tasks in different containers get separate rows, qualified by container path (`alpha \u203a prune`) when the bare name is ambiguous.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/facts",
-        "run": "TestC12_004_AmbiguousSectionNamesAreQualifiedByContainerPath"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -60,12 +40,7 @@
     "section": "12",
     "quote": "Subject columns align to the widest subject in the block, followed by exactly two spaces (\u00a730).",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/facts",
-        "run": "TestC12_005_SubjectColumnsAlignWithExactlyTwoSpaces"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -102,16 +77,7 @@
     "section": "12",
     "quote": "Dry-run must be structural. The same workflow model should produce:",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC04_006_FileEmitsPlannedThenChangedRows"
-      },
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC02_034_DryRunAnnouncesHeaderAndNeverRunsMutations"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   }

@@ -4,12 +4,7 @@
     "section": "11",
     "quote": "Ordinary Facts (`TaskHandle.Fact`, `Output.Fact`, `evo.Fact`) are hidden in normal human output on every Task outcome: success, warned, and failed alike.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/facts",
-        "run": "TestC11_001_FactsAreHiddenInNormalOutputOnEveryOutcome"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: TaskHandle/GroupHandle/SequenceHandle (now Task, Group, Sequence); see docs/migration/2.0.md"
   },
@@ -18,12 +13,7 @@
     "section": "11",
     "quote": "Verbose output shows them.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/facts",
-        "run": "TestC11_002_VerboseOutputShowsFacts"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -32,12 +22,7 @@
     "section": "11",
     "quote": "JSON and JSONL always carry them (`facts` on each `evo.run` task, `fact.recorded` events), whatever the human verbosity.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/facts",
-        "run": "TestC11_003_MachineOutputAlwaysCarriesFacts"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -46,12 +31,7 @@
     "section": "11",
     "quote": "`Config.Facts` are run-scoped Facts known at construction; they render with the header.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/facts",
-        "run": "TestC11_004_ConfigFactsRenderWithTheHeader"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -60,12 +40,7 @@
     "section": "11",
     "quote": "A Task that fails does not promote its unrelated ordinary Facts.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/facts",
-        "run": "TestC11_005_FailingTaskDoesNotPromoteUnrelatedFacts"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },

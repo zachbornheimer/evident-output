@@ -4,12 +4,7 @@
     "section": "7",
     "quote": "These semantic fingerprints participate in whether this result remains valid.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/freshness",
-        "run": "TestC07_001_ChangedBasisReRunsAndUnchangedBasisDoesNot"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -18,12 +13,7 @@
     "section": "7",
     "quote": "**Track semantic inputs, not ambient state.**",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/freshness",
-        "run": "TestC07_002_AmbientEnvironmentIsNotFingerprinted"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -32,12 +22,7 @@
     "section": "7",
     "quote": "Do not fingerprint the entire machine or environment by default.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/freshness",
-        "run": "TestC07_002_AmbientEnvironmentIsNotFingerprinted"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   }

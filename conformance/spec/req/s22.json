@@ -136,10 +136,6 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./conformance/contract/tests22",
-        "run": "TestC22_008_TimerAndCurrentItemLayoutStayPutAsSecondsTick"
-      },
-      {
         "pkg": ".",
         "run": "TestPruneContract_LiveCategoriesRenderContract18Frame"
       }
@@ -252,10 +248,6 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./conformance/contract/tests22",
-        "run": "TestC22_014_ChangedBasisInvalidatesAndAnUnchangedRunSpawnsNothing"
-      },
-      {
         "pkg": "./internal/engine",
         "run": "TestFileManifestBasisDriftForcesReconciliation"
       }
@@ -268,12 +260,7 @@
     "section": "22",
     "quote": "precise script/input provenance;",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/tests22",
-        "run": "TestC22_015_OnlyTheStageWhoseScriptOrInputChangedRespawns"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -304,12 +291,7 @@
     "section": "22",
     "quote": "unchanged upstream output stopping downstream invalidation;",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/tests22",
-        "run": "TestC22_017_UnchangedUpstreamOutputStopsDownstreamInvalidation"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -346,14 +328,6 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./conformance/contract/manifestpersist",
-        "run": "TestC22_019_MissingManifestIsACleanFirstRun"
-      },
-      {
-        "pkg": "./conformance/contract/manifestpersist",
-        "run": "TestC22_019_ManifestWritesAreAtomicForConcurrentReaders"
-      },
-      {
         "pkg": "./internal/engine",
         "run": "TestManifestCorruptFileIsSafeMissWithWarning"
       },
@@ -370,12 +344,7 @@
     "section": "22",
     "quote": "TTY/plain/JSON/JSONL semantic consistency;",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/tests22",
-        "run": "TestC22_020_TTYPlainJSONAndJSONLAgreeOnTheSameRun"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -384,12 +353,7 @@
     "section": "22",
     "quote": "stable problem codes;",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/tests22",
-        "run": "TestC22_021_ProblemCodesStayStableAcrossRunsAndWording"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },

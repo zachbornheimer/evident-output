@@ -48,10 +48,6 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC30_004_SuccessResolvesOnlyThroughDefine"
-      },
-      {
         "pkg": ".",
         "run": "TestFinish_RemainingMisuse_RendersTaskLine"
       }
@@ -64,12 +60,7 @@
     "section": "30",
     "quote": "Terminal verbs: `Block`, `Fail`, `Skipped`, `Cancel`. `Doing`, `Progress`, `Writer`, `Fact`, `Problem`, `Summary`, `Next`, and `NextCommand` annotate and never resolve.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC30_005_AnnotatorsNeverResolveAndVerbsDo"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: Skipped (now Exclude); see docs/migration/2.0.md"
   },
@@ -137,10 +128,6 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC30_009_AlreadySatisfiedIsNeverSkipped"
-      },
-      {
         "pkg": ".",
         "run": "TestTaskSnapshot_ResolutionAlreadySatisfiedPreservesBeforeEvidence"
       }
@@ -153,12 +140,7 @@
     "section": "30",
     "quote": "`TaskHandle` has no child constructors.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC30_010_TaskHandleHasNoChildConstructors"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: TaskHandle/GroupHandle/SequenceHandle (now Task, Group, Sequence); see docs/migration/2.0.md"
   },
@@ -168,10 +150,6 @@
     "quote": "`Summary(text string) *TaskHandle` is one sanitized single-line result field. The last call wins; empty clears.",
     "tier": "1.1",
     "tests": [
-      {
-        "pkg": "./conformance/contract/summary",
-        "run": "TestC30_011_SummaryIsOneSanitizedLineLastCallWinsEmptyClears"
-      },
       {
         "pkg": ".",
         "run": "TestTask_SummaryLastCallWinsAndEmptyClears"
@@ -218,10 +196,6 @@
     "quote": "`GroupHandle.Summary` and `SequenceHandle.Summary` share its sanitization and projection.",
     "tier": "1.1",
     "tests": [
-      {
-        "pkg": "./conformance/contract/summary",
-        "run": "TestC30_014_ContainerSummariesShareTheTaskSanitization"
-      },
       {
         "pkg": ".",
         "run": "TestGroup_SummaryKeepsTheGroupRowOverASingleExplicitChild"
@@ -441,12 +415,7 @@
     "section": "30",
     "quote": "`TaskHandle.Wait()` returns nil on success; the callback's error;",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/wait",
-        "run": "TestC30_026_WaitReturnsNilOnSuccessAndTheCallbackError"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: TaskHandle/GroupHandle/SequenceHandle (now Task, Group, Sequence); see docs/migration/2.0.md"
   },
@@ -509,16 +478,7 @@
     "section": "30",
     "quote": "the cancellation, `errors.Is`-compatible;",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/wait",
-        "run": "TestC30_030_WaitReturnsTheCancellation"
-      },
-      {
-        "pkg": "./conformance/contract/wait",
-        "run": "TestC30_030_WaitOnAnInterruptedCallbackIsErrorsIsCanceled"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -601,10 +561,6 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC30_035_CollectionWithBlockedChildSnapshotsBlocked"
-      },
-      {
         "pkg": ".",
         "run": "TestBlockedInsideContainer_ConcludesBlocked"
       }
@@ -617,12 +573,7 @@
     "section": "30",
     "quote": "A Wait's answer never depends on which Waits ran before it.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/wait",
-        "run": "TestC30_036_WaitAnswerNeverDependsOnPriorWaits"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -667,12 +618,7 @@
     "section": "30",
     "quote": "There is no Warn call.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC30_039_NoWarnCall"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: Warn/Severity (Problem options removed); see docs/migration/2.0.md"
   },
@@ -713,12 +659,7 @@
     "section": "30",
     "quote": "There is no second finding type.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/lifecycle",
-        "run": "TestC30_042_NoSecondFindingType"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -934,12 +875,7 @@
     "section": "30",
     "quote": "Dry run never invokes the callback, so it plans the full Quantity.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/effects",
-        "run": "TestC30_055_PartialEffectDryRunPlansTheFullQuantity"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -948,12 +884,7 @@
     "section": "30",
     "quote": "PartialEffect implies no rollback and no retry.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/effects",
-        "run": "TestC30_056_PartialEffectImpliesNoRollbackAndNoRetry"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -1008,12 +939,7 @@
     "section": "30",
     "quote": "`Ran` is false when Exec did not spawn (a current manifest hit, a dry-run plan) and alongside a spawn, cancellation, or configuration error.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/exec",
-        "run": "TestC30_060_RanIsFalseWhenExecDidNotSpawn"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -1023,10 +949,6 @@
     "quote": "`Stdout`/`Stderr` are the sanitized, redacted Capture tail (at most 200 completed lines, about 256 KiB total); `Truncated` reports loss.",
     "tier": "1.1",
     "tests": [
-      {
-        "pkg": "./conformance/contract/exec",
-        "run": "TestC30_061_StdoutIsABoundedTailAndTruncatedReportsLoss"
-      },
       {
         "pkg": "./internal/engine",
         "run": "TestExecCapturedSecretIsRedactedBeforeRetention"
@@ -1202,12 +1124,7 @@
     "section": "30",
     "quote": "Files is not a transaction: already-committed Effects stay truthful when a later file fails.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/patch",
-        "run": "TestC30_071_PatchIsAllOrNothingAndNeverOverwritesAConcurrentEdit"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -1343,10 +1260,6 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./conformance/contract/resources",
-        "run": "TestC30_079_AWaitingTaskShowsWaitingForItsResource"
-      },
-      {
         "pkg": "./internal/engine",
         "run": "TestUncontendedEffectResourceIsSilent"
       }
@@ -1359,12 +1272,7 @@
     "section": "30",
     "quote": "A claim coordinates overlap only. It never creates an After edge",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/resources",
-        "run": "TestC30_080_AClaimNeverCreatesAnAfterEdge"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -1373,12 +1281,7 @@
     "section": "30",
     "quote": "and never enters freshness.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/resources",
-        "run": "TestC30_081_AClaimNeverEntersFreshness"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -1409,10 +1312,6 @@
       {
         "pkg": "./internal/engine",
         "run": "TestOpaqueTasksDoNotRewriteTheManifestPerSettle"
-      },
-      {
-        "pkg": "./conformance/contract/manifestpersist",
-        "run": "TestC22_019_ManifestWritesAreAtomicForConcurrentReaders"
       }
     ],
     "default": false,
@@ -1437,12 +1336,7 @@
     "section": "30",
     "quote": "A write that failed is retried on the next flush.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/manifestpersist",
-        "run": "TestC30_085_AFailedManifestWriteIsRetriedOnTheNextFlush"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   }

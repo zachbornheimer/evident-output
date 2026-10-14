@@ -6,10 +6,6 @@
     "tier": "1.1",
     "tests": [
       {
-        "pkg": "./conformance/contract/freshness",
-        "run": "TestC10_001_MissingAndCorruptManifestsReExecuteSafely"
-      },
-      {
         "pkg": "./internal/freshness",
         "run": "TestStoreCorruptManifestIsSafeMissNotEvidence"
       },
@@ -53,12 +49,7 @@
     "section": "10",
     "quote": "missing manifest;",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/freshness",
-        "run": "TestC10_001_MissingAndCorruptManifestsReExecuteSafely"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -68,10 +59,6 @@
     "quote": "corrupt manifest;",
     "tier": "1.1",
     "tests": [
-      {
-        "pkg": "./conformance/contract/freshness",
-        "run": "TestC10_001_MissingAndCorruptManifestsReExecuteSafely"
-      },
       {
         "pkg": "./internal/freshness",
         "run": "TestStoreCorruptManifestIsSafeMissNotEvidence"
@@ -99,12 +86,7 @@
     "section": "10",
     "quote": "fingerprint algorithm changes.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/freshness",
-        "run": "TestC10_010_ManifestPersistsTheFingerprintAlgorithm"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -113,12 +95,7 @@
     "section": "10",
     "quote": "missing resources;",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/freshness",
-        "run": "TestC10_011_MissingBasisResourceIsHandledNotFatal"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },

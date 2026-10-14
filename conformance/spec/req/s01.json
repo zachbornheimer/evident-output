@@ -4,16 +4,7 @@
     "section": "1",
     "quote": "Evident Output lets application code describe work once and derives, from the same typed runtime truth:",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC01_001_OneTruthDrivesEveryProjection"
-      },
-      {
-        "pkg": "./conformance/contract/machine",
-        "run": "TestC16_009_PlainJSONAndJSONLAgreeOnTheRunOutcome"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -22,16 +13,7 @@
     "section": "1",
     "quote": "False invalidation is acceptable. False \u201calready satisfied\u201d is not.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/outcomes",
-        "run": "TestC01_002_FalseAlreadySatisfiedNeverReported"
-      },
-      {
-        "pkg": "./conformance/contract/freshness",
-        "run": "TestC10_001_MissingAndCorruptManifestsReExecuteSafely"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -40,12 +22,7 @@
     "section": "1",
     "quote": "declarative state establishment for common resources;",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/operations",
-        "run": "TestC01_003_FileEstablishesDesiredStateAndIsQuietWhenSatisfied"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   }

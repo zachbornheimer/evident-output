@@ -4,12 +4,7 @@
     "section": "26",
     "quote": "The application does **not** manage mutexes, lock files, lock ordering, or unlock lifecycle.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/resources",
-        "run": "TestC26_001_PublicVocabularyHasNoLockTerms"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -80,12 +75,7 @@
     "section": "26",
     "quote": "If contention matters to the user, the renderer may show that work is waiting;",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/resources",
-        "run": "TestC30_079_AWaitingTaskShowsWaitingForItsResource"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -151,12 +141,7 @@
     "section": "26",
     "quote": "The public vocabulary has no mutex terms.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/resources",
-        "run": "TestC26_001_PublicVocabularyHasNoLockTerms"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },

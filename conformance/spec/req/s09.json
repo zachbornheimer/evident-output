@@ -4,12 +4,7 @@
     "section": "9",
     "quote": "Freshness propagation follows actual changed resources, not merely the fact that an upstream Task executed.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/freshness",
-        "run": "TestC09_001_FreshnessFollowsChangedOutputsNotExecutedUpstream"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -18,12 +13,7 @@
     "section": "9",
     "quote": "If `normalize` must be revalidated but produces the same `normalized.json` fingerprint, downstream work should remain satisfied where safe.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/freshness",
-        "run": "TestC09_001_FreshnessFollowsChangedOutputsNotExecutedUpstream"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -32,12 +22,7 @@
     "section": "9",
     "quote": "These are separate graphs.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/freshness",
-        "run": "TestC09_001_FreshnessFollowsChangedOutputsNotExecutedUpstream"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   }
