@@ -36,25 +36,25 @@ type ConfirmOption interface{ applyConfirm() }
 
 func Destructive() ConfirmOption
 func NonInteractive(flag string) ConfirmOption
-func (o *Run) Confirm(question string, opts ...ConfirmOption) bool
-func (o *Run) confirmGate()
-func (o *Run) settleGate()
-func (o *Run) promptConfirm()
-func (o *Run) ownWindow()
-func (o *Run) personCanAnswer()
-func (o *Run) confirmReader()
-func (o *Run) Suspend(fn func() error) error
+func (r *Run) Confirm(question string, opts ...ConfirmOption) bool
+func (r *Run) confirmGate()
+func (r *Run) settleGate()
+func (r *Run) promptConfirm()
+func (r *Run) ownWindow()
+func (r *Run) personCanAnswer()
+func (r *Run) confirmReader()
+func (r *Run) Suspend(fn func() error) error
 func (g *Group) After(preds ...Predecessor) *Group
 func (s *Sequence) After(preds ...Predecessor) *Sequence
 func (g *Group) define()
 func (s *Sequence) define()
 func (g *Group) recordInvalid()
 func (g *Group) defineBuilder()
-func (o *Run) Task(name string) *Task
-func (o *Run) Group(name string) *Group
-func (o *Run) Sequence(name string) *Sequence
-func (o *Run) taskHandle()
-func (o *Run) groupHandle()
+func (r *Run) Task(name string) *Task
+func (r *Run) Group(name string) *Group
+func (r *Run) Sequence(name string) *Sequence
+func (r *Run) taskHandle()
+func (r *Run) groupHandle()
 
 type Container interface {
 	Task(name string) *Task
@@ -64,7 +64,7 @@ type Container interface {
 type Group struct{}
 
 func (g *Group) Task(name string) *Task
-func (o *Run) declareChildTask()
+func (r *Run) declareChildTask()
 func (g *Group) Sequence(name string) *Sequence
 func (g *Group) Group(name string) *Group
 func (g *Group) declareChild()
@@ -72,10 +72,10 @@ func (g *Group) Summary(text string) *Group
 
 type Sequence struct{}
 
-func (g *Sequence) Task(name string) *Task
-func (g *Sequence) Summary(text string) *Sequence
-func (g *Sequence) Sequence(name string) *Sequence
-func (g *Sequence) Group(name string) *Group
+func (s *Sequence) Task(name string) *Task
+func (s *Sequence) Summary(text string) *Sequence
+func (s *Sequence) Sequence(name string) *Sequence
+func (s *Sequence) Group(name string) *Group
 func (g *Group) Build(fn func(*Group))
 func (s *Sequence) Build(fn func(*Sequence))
 
@@ -100,22 +100,22 @@ type EffectSpec struct {
 func (s EffectSpec) toChange()
 func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error) error
 func PartialEffect(committed int, err error) error
-func (o *Run) finish()
-func (o *Run) saveManifest()
-func (o *Run) warnManifestUnsavedLocked()
-func (o *Run) settleUnresolvedTasksLocked()
-func (o *Run) concludeLocked()
-func (o *Run) runErrorLocked()
-func (o *Run) finishHumanLocked()
-func (o *Run) resolveUnstartedTaskLocked()
-func (o *Run) abnormalFinishLocked()
-func (o *Run) attachUnresolvedTaskHintLocked()
-func (o *Run) autoResolveGroupsLocked()
-func (o *Run) rejectedTask()
-func (o *Run) rejectedGroup()
-func (o *Run) end()
-func (o *Run) endWith()
-func (o *Run) endingName()
+func (r *Run) finish()
+func (r *Run) saveManifest()
+func (r *Run) warnManifestUnsavedLocked()
+func (r *Run) settleUnresolvedTasksLocked()
+func (r *Run) undefinedTasksLocked()
+func (r *Run) concludeLocked()
+func (r *Run) runErrorLocked()
+func (r *Run) finishHumanLocked()
+func (r *Run) abnormalFinishLocked()
+func (r *Run) attachUndefinedTaskHintLocked()
+func (r *Run) autoResolveGroupsLocked()
+func (r *Run) rejectedTask()
+func (r *Run) rejectedGroup()
+func (r *Run) end()
+func (r *Run) endWith()
+func (r *Run) endingName()
 
 type Outcome string
 
@@ -197,24 +197,24 @@ type FileSpec struct {
 }
 
 func (s FileSpec) toChange()
-func (o *Run) newChangeHost()
-func (o *Run) taskNameLocked()
-func (o *Run) stateOf()
-func (o *Run) fileSettledLocked()
-func (o *Run) commitManifestLocked()
+func (r *Run) newChangeHost()
+func (r *Run) taskNameLocked()
+func (r *Run) stateOf()
+func (r *Run) fileSettledLocked()
+func (r *Run) commitManifestLocked()
 
 type Run struct{}
 
-func (o *Run) manifestConfig()
-func (o *Run) promoteRunningLocked()
-func (o *Run) announceRunningLocked()
-func (o *Run) bumpLocked()
-func (o *Run) appendEventLocked()
-func (o *Run) followRecordLocked()
-func (o *Run) appendTaskLocked()
-func (o *Run) arm()
-func (o *Run) snapshotLocked()
-func (o *Run) emitWireEventLocked()
+func (r *Run) manifestConfig()
+func (r *Run) promoteRunningLocked()
+func (r *Run) announceRunningLocked()
+func (r *Run) bumpLocked()
+func (r *Run) appendEventLocked()
+func (r *Run) followRecordLocked()
+func (r *Run) appendTaskLocked()
+func (r *Run) arm()
+func (r *Run) snapshotLocked()
+func (r *Run) emitWireEventLocked()
 
 type Output int
 
@@ -242,21 +242,21 @@ type Action struct {
 	Label	string
 }
 
-func (o *Run) at()
-func (o *Run) println()
-func (o *Run) subject()
-func (o *Run) writer()
-func (o *Run) ResultWriter() io.Writer
-func (o *Run) routeResult()
-func (o *Run) emitMessageLocked()
-func (o *Run) projectsVisibilityLocked()
-func (o *Run) slogHandler()
-func (o *Run) emitLogRecord()
-func (o *Run) emitDebugRecordLocked()
-func (o *Run) newDebugRecordLocked()
-func (o *Run) projectDebugRecordLocked()
-func (o *Run) Text() io.Writer
-func (o *Run) SlogHandler() slog.Handler
+func (r *Run) at()
+func (r *Run) println()
+func (r *Run) subject()
+func (r *Run) writer()
+func (r *Run) ResultWriter() io.Writer
+func (r *Run) routeResult()
+func (r *Run) emitMessageLocked()
+func (r *Run) projectsVisibilityLocked()
+func (r *Run) slogHandler()
+func (r *Run) emitLogRecord()
+func (r *Run) emitDebugRecordLocked()
+func (r *Run) newDebugRecordLocked()
+func (r *Run) projectDebugRecordLocked()
+func (r *Run) Text() io.Writer
+func (r *Run) SlogHandler() slog.Handler
 func (r *Run) Summary(text string) *Run
 func (t *Task) Progress(completed, total int) *Task
 func (t *Task) setProgress()
@@ -279,25 +279,25 @@ type Conclusion struct {
 
 func Execute(ctx context.Context, cfg Config, run RunFunc) Result
 func Main(cfg Config, run RunFunc) int
-func (o *Run) resultErr()
-func (o *Run) anyFailed()
-func (o *Run) selfName()
-func (o *Run) ensureOpen()
-func (o *Run) close()
-func (o *Run) beginRunContext()
-func (o *Run) conclusion()
-func (o *Run) explainCancellationLocked()
-func (o *Run) humanStyle()
-func (o *Run) recordMisuse()
-func (o *Run) recordMisuseFor()
-func (o *Run) firstMisuse()
-func (o *Run) allMisuse()
-func (o *Run) appendMisuseLineLocked()
-func (o *Run) recordAlreadyResolvedLocked()
-func (o *Run) redactString()
+func (r *Run) resultErr()
+func (r *Run) anyFailed()
+func (r *Run) selfName()
+func (r *Run) ensureOpen()
+func (r *Run) close()
+func (r *Run) beginRunContext()
+func (r *Run) conclusion()
+func (r *Run) explainCancellationLocked()
+func (r *Run) humanStyle()
+func (r *Run) recordMisuse()
+func (r *Run) recordMisuseFor()
+func (r *Run) firstMisuse()
+func (r *Run) allMisuse()
+func (r *Run) appendMisuseLineLocked()
+func (r *Run) recordAlreadyResolvedLocked()
+func (r *Run) redactString()
 func (r *Run) Fact(name, value string) *Run
-func (o *Run) warnLocked()
-func (o *Run) interrupt()
+func (r *Run) warnLocked()
+func (r *Run) interrupt()
 
 type RunFunc func(context.Context, *Run) error
 type Task struct{}
@@ -314,20 +314,18 @@ func (*Task) predecessor()
 func (*Group) predecessor()
 func (*Sequence) predecessor()
 func (t *Task) After(preds ...Predecessor) *Task
-func (o *Run) predecessorsOfLocked()
-func (o *Run) predecessorOfLocked()
-func (o *Run) nodeOfTask()
-func (o *Run) nodeOfContainer()
+func (r *Run) predecessorsOfLocked()
+func (r *Run) predecessorOfLocked()
+func (r *Run) nodeOfTask()
+func (r *Run) nodeOfContainer()
 func (t *Task) Doing(text string, args ...any) *Task
 func (t *Task) annotate()
 func (t *Task) withTask()
 func (t *Task) setLiveOnlyPhase()
-func (o *Run) setPhaseLocked()
-func (o *Run) setLiveOnlyPhaseLocked()
-func (t *Task) recordWarning()
+func (r *Run) setPhaseLocked()
+func (r *Run) setLiveOnlyPhaseLocked()
 func (t *Task) Summary(text string) *Task
 func (t *Task) Problem(summary string, opts ...ProblemOption) *Task
-func (t *Task) recordBlockingProblem()
 func (t *Task) Fact(name, value string) *Task
 func (t *Task) appendLiveTail()
 
@@ -337,6 +335,5 @@ type defineConfig struct{}
 func CleanStop(signals ...os.Signal) DefineOption
 func (t *Task) Verify(fn func(context.Context) (bool, error)) *Task
 func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Task
-func (o *Run) refuseNilDefine()
-func (o *Run) definition()
-
+func (r *Run) refuseNilDefine()
+func (r *Run) definition()
