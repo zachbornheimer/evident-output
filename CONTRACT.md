@@ -56,57 +56,57 @@ became the Conclusion's, or what interrupted the run. `evo.run` and
 `run.finished` carry the same text as `explanation`. It is empty for
 Succeeded, Satisfied and Excluded.
 
-| Symbol                   | Kind   | Meaning                                                                                     |
-| ------------------------ | ------ | ------------------------------------------------------------------------------------------- |
-| `Main`                   | func   | `Main(cfg Config, run RunFunc) int` — run with signals, return exit                         |
-| `Execute`                | func   | `Execute(ctx context.Context, cfg Config, run RunFunc) Result` — run without signals        |
-| `RunFunc`                | type   | `func(ctx context.Context, r *Run) error`, the application body                             |
-| `Config`                 | type   | the run's settings; zero value is valid                                                     |
-| `Config.Name`            | field  | what ran and on what, e.g. `zq prune ~/repo`                                                |
-| `Config.DryRun`          | field  | plan every change, run no mutation                                                          |
-| `Config.Verbose`         | field  | show hidden Facts and per-reason items                                                      |
-| `Config.Output`          | field  | `Output` selector                                                                           |
-| `Config.Debug`           | field  | `slog.Level`; the lowest level the debug journal keeps                                      |
-| `Config.MaxConcurrency`  | field  | bound on executing callbacks; zero means GOMAXPROCS                                         |
-| `Config.State`           | field  | where recorded status lives                                                                 |
-| `Config.Facades`         | field  | system boundaries, replaceable in tests                                                     |
-| `State`                  | type   | manifest location                                                                           |
-| `State.Dir`              | field  | directory; zero means the platform state dir                                                |
-| `State.AppID`            | field  | namespace; zero means the binary name                                                       |
-| `Facades`                | type   | every system boundary Evo touches                                                           |
-| `Facades.Stdin`          | field  | `io.Reader`                                                                                 |
-| `Facades.Stdout`         | field  | `io.Writer`                                                                                 |
-| `Facades.Stderr`         | field  | `io.Writer`                                                                                 |
-| `Facades.Clock`          | field  | `Clock`                                                                                     |
-| `Facades.Terminal`       | field  | `Terminal`                                                                                  |
-| `Facades.Redactor`       | field  | `Redactor`                                                                                  |
-| `Facades.Process`        | field  | `Process`                                                                                   |
-| `Facades.FS`             | field  | `FS`                                                                                        |
-| `Clock`                  | type   | time source                                                                                 |
-| `Terminal`               | type   | terminal driver                                                                             |
-| `Redactor`               | type   | secret redaction over captured text                                                         |
-| `Process`                | type   | process spawner                                                                             |
-| `FS`                     | type   | filesystem                                                                                  |
-| `Run`                    | type   | the root of one invocation; a `Container`                                                   |
-| `Run.Task`               | method | declare a root Task                                                                         |
-| `Run.Group`              | method | declare a root Group                                                                        |
-| `Run.Sequence`           | method | declare a root Sequence                                                                     |
-| `Run.Fact`               | method | `Fact(name, value string) *Run`; run-scoped structured information                          |
-| `Run.Summary`            | method | `Summary(text string) *Run`; the one line the application contributes before the Conclusion |
-| `Run.Confirm`            | method | `Confirm(question string, opts ...ConfirmOption) bool`; decline is Refused                  |
-| `Run.Suspend`            | method | `Suspend(fn func() error) error`; pause the live region around `fn`                         |
-| `Run.Text`               | method | `Text() io.Writer`; free human text, routed with the presentation                           |
-| `Run.ResultWriter`       | method | `ResultWriter() io.Writer`; the stdout data payload                                         |
-| `Run.SlogHandler`        | method | `SlogHandler() slog.Handler`; writes into the debug journal                                 |
-| `Result`                 | type   | what `Execute` returns                                                                      |
-| `Result.Conclusion`      | field  | the verdict                                                                                 |
-| `Result.Err`             | field  | the error the application body returned, joined with the first misuse                       |
-| `Result.ExitCode`        | method | 0 Succeeded, Satisfied or Excluded · 1 Refused · 2 Failed · 130 Cancelled                   |
-| `Conclusion`             | type   | one verdict for UI and exit                                                                 |
-| `Conclusion.Outcome`     | field  | the worst Task outcome                                                                      |
-| `Conclusion.Changed`     | field  | any mutation committed                                                                      |
-| `Conclusion.DryRun`      | field  | planned tense                                                                               |
-| `Conclusion.Explanation` | field  | the deciding ending when Refused, Failed or Cancelled; empty otherwise                      |
+| Symbol                   | Kind   | Meaning                                                                              |
+| ------------------------ | ------ | ------------------------------------------------------------------------------------ |
+| `Main`                   | func   | `Main(cfg Config, run RunFunc) int` — run with signals, return exit                  |
+| `Execute`                | func   | `Execute(ctx context.Context, cfg Config, run RunFunc) Result` — run without signals |
+| `RunFunc`                | type   | `func(ctx context.Context, r *Run) error`, the application body                      |
+| `Config`                 | type   | the run's settings; zero value is valid                                              |
+| `Config.Name`            | field  | what ran and on what, e.g. `zq prune ~/repo`                                         |
+| `Config.DryRun`          | field  | plan every change, run no mutation                                                   |
+| `Config.Verbose`         | field  | show hidden Facts and per-reason items                                               |
+| `Config.Output`          | field  | `Output` selector                                                                    |
+| `Config.Debug`           | field  | `slog.Level`; the lowest level the debug journal keeps                               |
+| `Config.MaxConcurrency`  | field  | bound on executing callbacks; zero means GOMAXPROCS                                  |
+| `Config.State`           | field  | where recorded status lives                                                          |
+| `Config.Facades`         | field  | system boundaries, replaceable in tests                                              |
+| `State`                  | type   | manifest location                                                                    |
+| `State.Dir`              | field  | directory; zero means the platform state dir                                         |
+| `State.AppID`            | field  | namespace; zero means the binary name                                                |
+| `Facades`                | type   | every system boundary Evo touches                                                    |
+| `Facades.Stdin`          | field  | `io.Reader`                                                                          |
+| `Facades.Stdout`         | field  | `io.Writer`                                                                          |
+| `Facades.Stderr`         | field  | `io.Writer`                                                                          |
+| `Facades.Clock`          | field  | `Clock`                                                                              |
+| `Facades.Terminal`       | field  | `Terminal`                                                                           |
+| `Facades.Redactor`       | field  | `Redactor`                                                                           |
+| `Facades.Process`        | field  | `Process`                                                                            |
+| `Facades.FS`             | field  | `FS`                                                                                 |
+| `Clock`                  | type   | time source                                                                          |
+| `Terminal`               | type   | terminal driver                                                                      |
+| `Redactor`               | type   | secret redaction over captured text                                                  |
+| `Process`                | type   | process spawner                                                                      |
+| `FS`                     | type   | filesystem                                                                           |
+| `Run`                    | type   | the root of one invocation; a `Container`                                            |
+| `Run.Task`               | method | declare a root Task                                                                  |
+| `Run.Group`              | method | declare a root Group                                                                 |
+| `Run.Sequence`           | method | declare a root Sequence                                                              |
+| `Run.Fact`               | method | `Fact(name, value string) *Run`; run-scoped structured information                   |
+| `Run.Summary`            | method | `Summary(text string) *Run`; the application's one line, printed before every row    |
+| `Run.Confirm`            | method | `Confirm(question string, opts ...ConfirmOption) bool`; decline is Refused           |
+| `Run.Suspend`            | method | `Suspend(fn func() error) error`; pause the live region around `fn`                  |
+| `Run.Text`               | method | `Text() io.Writer`; free human text, routed with the presentation                    |
+| `Run.ResultWriter`       | method | `ResultWriter() io.Writer`; the stdout data payload                                  |
+| `Run.SlogHandler`        | method | `SlogHandler() slog.Handler`; writes into the debug journal                          |
+| `Result`                 | type   | what `Execute` returns                                                               |
+| `Result.Conclusion`      | field  | the verdict                                                                          |
+| `Result.Err`             | field  | the error the application body returned, joined with the first misuse                |
+| `Result.ExitCode`        | method | 0 Succeeded, Satisfied or Excluded · 1 Refused · 2 Failed · 130 Cancelled            |
+| `Conclusion`             | type   | one verdict for UI and exit                                                          |
+| `Conclusion.Outcome`     | field  | the worst Task outcome                                                               |
+| `Conclusion.Changed`     | field  | any mutation committed                                                               |
+| `Conclusion.DryRun`      | field  | planned tense                                                                        |
+| `Conclusion.Explanation` | field  | the deciding ending when Refused, Failed or Cancelled; empty otherwise               |
 
 ## 2. Work
 
@@ -285,6 +285,15 @@ Task's outcome, as `Conclusion.Outcome`, and as `outcome` in `evo.run` and
 word. A NotStarted Task has no Outcome, so both machine projections omit its
 `outcome`. No other verdict spelling exists.
 
+Human and Plain end with one band, `[<headline>]  <name>`. The headline is the
+Conclusion's Outcome, except that a Succeeded run reads `changed` when it
+committed a mutation and `planned` in a dry run. The band adds `· partial`
+when some declared Task never reached an Outcome: a predecessor or an earlier
+Sequence step left it NotStarted, or the run ended while it was still pending
+or running. `· partial` qualifies the headline and never replaces it, so
+`[failed · partial]` is still exit 2. A Cancelled band omits it, since
+Cancelled already says the run stopped short.
+
 | Symbol           | Kind  | Meaning                                                                                          |
 | ---------------- | ----- | ------------------------------------------------------------------------------------------------ |
 | `Fail`           | func  | `Fail(summary string, opts ...ProblemOption) error`; ran and broke                               |
@@ -336,7 +345,8 @@ declaration, so it is never misuse. `Detail` is also a `ConfirmOption`.
 | `JSON`   | const | one `evo.run` document on stdout at Finish, presentation on stderr |
 | `JSONL`  | const | `evo.event` lines on stdout as they occur                          |
 
-`Run.ResultWriter` is the only writer to stdout in Human and Plain: rows,
+`Run.Summary` prints once, as the first line of Human and Plain, before every
+row, wherever the body calls it. `Run.ResultWriter` is the only writer to stdout in Human and Plain: rows,
 bands and `Run.Text` go to `Facades.Stderr`, so a pipe on stdout receives
 exactly the payload. In JSON the payload is the string `result` of the `evo.run`
 document, and in JSONL each write is one `result.written` event whose
