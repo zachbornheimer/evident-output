@@ -341,14 +341,16 @@ if !r.Confirm("delete 40 branches?", evo.Destructive(), evo.NonInteractive("--ye
 is not a terminal nobody can answer, and the row is Refused
 "no terminal to answer" (never "blocked by policy", which is `Exclude`'s word).
 A character device that is not a terminal, such as `/dev/null`, is not a
-terminal. `NonInteractive` does not change the wording; it only names the
-flag the Next step points at. A test that must not depend on the process's
+terminal. A person who answers no has chosen, so a declined Confirm prints no
+Next step: the Next step appears only when nobody could answer, whether there
+is no terminal or the input closed. `NonInteractive` does not change the
+wording; it only names the flag that Next step points at. A test that must not depend on the process's
 stdin sets `Facades.Stdin` to a reader that is not a terminal.
 
 `Confirm` may be asked from the run body or from inside a `Define` callback.
 Either way it settles a row of its own named by the question: Succeeded on
-yes, and Refused when declined or when nobody can answer, with the
-non-interactive flag as the next step. Asking from a callback is not a
+yes, and Refused when declined or when nobody can answer; only the
+second carries the non-interactive flag as its next step. Asking from a callback is not a
 declaration, so it is never misuse. `Detail` is also a `ConfirmOption`.
 
 ## 6. Output
