@@ -357,12 +357,23 @@ document, and in JSONL each write is one `result.written` event whose
 `result_base64` and `payload.base64` instead of text, and Human and Plain pass
 every byte through unchanged.
 
-Environment, applied only where `Config` is zero: `EVO_OUTPUT=human|plain|json|jsonl`,
-`EVO_VERBOSE=1`, `EVO_DEBUG=debug|info|warn|error` (the lowest `slog.Level`
-the journal keeps), `NO_COLOR`, and `FORCE_COLOR` (color in Human even when
-stdout is not a terminal). These are the only variables Evo reads, and a
-value outside its list is ignored. Machine output is never inferred from a
-piped stdout.
+Environment, applied only where `Config` is zero:
+
+| Variable    | Values                            | Effect                                                                                          |
+| ----------- | --------------------------------- | ----------------------------------------------------------------------------------------------- |
+| EVO_OUTPUT  | `human`, `plain`, `json`, `jsonl` | selects `Output`                                                                                |
+| EVO_VERBOSE | `1`                               | same as `Config.Verbose`                                                                        |
+| EVO_DEBUG   | `debug`, `info`, `warn`, `error`  | the lowest `slog.Level` the journal keeps                                                       |
+| NO_COLOR    | any non-empty value               | no color; wins over `FORCE_COLOR`                                                               |
+| FORCE_COLOR | any value except empty and `0`    | color in Human even when stdout is not a terminal                                               |
+| LC_ALL      | a locale name                     | glyph selection on a live terminal; the first non-empty of `LC_ALL`, `LC_CTYPE`, `LANG` decides |
+| LC_CTYPE    | a locale name                     | the same lookup, consulted when `LC_ALL` is empty                                               |
+| LANG        | a locale name                     | the same lookup, consulted when `LC_ALL` and `LC_CTYPE` are empty                               |
+
+These are the only variables Evo reads, and a value outside its list is
+ignored. Machine output is never inferred from a piped stdout. A locale
+containing `UTF-8` or `utf8` draws Unicode glyphs; any other locale draws ASCII
+glyphs in the live status column. With none of the three set, Evo assumes UTF-8.
 
 A JSONL run emits exactly one `task.finished` event for every Task it
 declared, including a Task that never started because a predecessor failed

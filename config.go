@@ -356,8 +356,8 @@ func liveSurfaceOf(cfg config) live.Surface {
 
 // localeAdvertisesUTF8 checks LC_ALL, then LC_CTYPE, then LANG for a UTF-8 marker, read at construction.
 func localeAdvertisesUTF8() bool {
-	for _, name := range []string{"LC_ALL", "LC_CTYPE", "LANG"} {
-		if v := process.Env(name); v != "" {
+	for _, v := range []string{process.Env(envKeyLocaleAll), process.Env(envKeyLocaleType), process.Env(envKeyLang)} {
+		if v != "" {
 			return strings.Contains(v, "UTF-8") || strings.Contains(v, "utf8")
 		}
 	}

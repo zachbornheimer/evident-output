@@ -263,6 +263,9 @@ const (
 	envKeyDebug      = "EVO_DEBUG"
 	envKeyNoColor    = "NO_COLOR"
 	envKeyForceColor = "FORCE_COLOR"
+	envKeyLocaleAll  = "LC_ALL"
+	envKeyLocaleType = "LC_CTYPE"
+	envKeyLang       = "LANG"
 )
 
 const (
