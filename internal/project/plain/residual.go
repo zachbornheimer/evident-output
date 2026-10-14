@@ -1,6 +1,7 @@
 package plain
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/project"
@@ -68,7 +69,7 @@ func (s *Stream) writeEntities(b *strings.Builder, snap record.Snapshot) {
 		shown[t.ID] = true
 	}
 	s.writeRoots(b, shown, false)
-	for _, col := range human.Collections {
+	for _, col := range slices.SortedStableFunc(slices.Values(human.Collections), s.bySettlement) {
 		switch blk := s.blocks[col.ID]; {
 		case blk != nil && blk.mode == modeStream:
 			s.finishStreamed(b, blk, col)

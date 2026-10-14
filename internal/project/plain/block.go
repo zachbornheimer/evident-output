@@ -1,6 +1,8 @@
 package plain
 
 import (
+	"cmp"
+	"math"
 	"strings"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/project"
@@ -82,6 +84,11 @@ type block struct {
 	dirty, queued bool
 	// written is set once an atomic block reached scrollback.
 	written bool
+	// settled, on a root block, is the place it took among the root blocks
+	// when its last Task resolved, counting from 1; 0 while any Task at or
+	// beneath it is unresolved. The final output lists root blocks in this
+	// order.
+	settled int
 }
 
 // DeclareGroup keeps a block for g.
@@ -102,6 +109,7 @@ func (s *Stream) enter(r *row) {
 	}
 	r.block = b
 	b.root.rows = append(b.root.rows, r)
+	b.root.settled = 0
 	for ; b != nil; b = b.parent {
 		b.open++
 	}
@@ -112,7 +120,7 @@ func (s *Stream) enter(r *row) {
 // plain text streams them.
 func (s *Stream) commitMember(r *row) {
 	state := r.Rec.State()
-	if r.block == nil || !record.IsTerminalTask(state) || s.cfg.Region.Interactive() {
+	if r.block == nil || !record.IsTerminalTask(state) {
 		return
 	}
 	if !r.counted {
@@ -120,6 +128,10 @@ func (s *Stream) commitMember(r *row) {
 		for b := r.block; b != nil; b = b.parent {
 			b.open--
 		}
+		s.markSettled(r.block.root)
+	}
+	if s.cfg.Region.Interactive() {
+		return
 	}
 	if r.emitted && r.emittedAs == state {
 		return
@@ -138,6 +150,29 @@ func (s *Stream) commitMember(r *row) {
 	root.dirty = true
 	s.queue(root)
 	s.CommitSettledBlocks()
+}
+
+// markSettled gives the root block its place among the root blocks, when no
+// Task at or beneath it is unresolved.
+func (s *Stream) markSettled(root *block) {
+	if root.open > 0 {
+		return
+	}
+	s.settledBlocks++
+	root.settled = s.settledBlocks
+}
+
+// bySettlement orders root blocks as they settled: the settled ones by their
+// place, then the unsettled ones, which compare equal and so keep the
+// declaration order a stable sort leaves them in.
+func (s *Stream) bySettlement(a, b record.TasksSnapshot) int {
+	place := func(col record.TasksSnapshot) int {
+		if blk := s.blocks[col.ID]; blk != nil && blk.settled > 0 {
+			return blk.settled
+		}
+		return math.MaxInt
+	}
+	return cmp.Compare(place(a), place(b))
 }
 
 // queue holds an atomic b until its membership closes, once it has nothing

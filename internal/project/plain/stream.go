@@ -40,6 +40,9 @@ type Stream struct {
 	// for their membership to close before they stream (see block.go).
 	blocks  map[string]*block
 	waiting []*block
+	// settledBlocks counts the root blocks that settled, so each takes the
+	// next place (block.settled).
+	settledBlocks int
 	// held are the root rows waiting on a block they ran After (see
 	// block_stream.go).
 	held []*row
