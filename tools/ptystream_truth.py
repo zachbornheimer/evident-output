@@ -108,21 +108,30 @@ def _rows(raw: Iterable[str]) -> list[Row]:
     return rows
 
 
-def _closing_index(rows: Sequence[Row], header: int) -> int | None:
-    """Index of the row that closes the ``◐`` block opened at ``header``, if one does.
+def _closings(rows: Sequence[Row]) -> dict[int, int]:
+    """Index of each ``◐`` header to the row that closes its block, in one pass.
 
     A block's closing row has the header's depth and name and a final glyph, and
     every row between them is a member (deeper). A ``◐`` row with no such row is a
-    heartbeat for a long Task, not a block.
+    heartbeat for a long Task, not a block, and is absent from the result.
     """
-    depth, name = rows[header].depth, rows[header].name
-    for index in range(header + 1, len(rows)):
-        row = rows[index]
-        if row.depth < depth or (row.depth == depth and row.name != name):
-            return None
-        if row.depth == depth and row.text[:1] in FINAL:
-            return index
-    return None
+    closing: dict[int, int] = {}
+    open_headers: list[int] = []
+    for index, row in enumerate(rows):
+        while open_headers and (
+            rows[open_headers[-1]].depth > row.depth
+            or (
+                rows[open_headers[-1]].depth == row.depth
+                and rows[open_headers[-1]].name != row.name
+            )
+        ):
+            open_headers.pop()
+        if row.text[:1] == PROGRESS:
+            open_headers.append(index)
+        elif row.text[:1] in FINAL:
+            while open_headers and rows[open_headers[-1]].depth == row.depth:
+                closing[open_headers.pop()] = index
+    return closing
 
 
 def _settle_blocks(rows: Sequence[Row]) -> list[Row]:
@@ -132,6 +141,7 @@ def _settle_blocks(rows: Sequence[Row]) -> list[Row]:
     they settle, then the verdict. The Human final screen shows the verdict first.
     Heartbeat ``◐`` rows are dropped.
     """
+    closing = _closings(rows)
     settled: list[Row] = []
     index = 0
     while index < len(rows):
@@ -140,7 +150,7 @@ def _settle_blocks(rows: Sequence[Row]) -> list[Row]:
             settled.append(row)
             index += 1
             continue
-        close = _closing_index(rows, index)
+        close = closing.get(index)
         if close is None:
             index += 1
             continue
