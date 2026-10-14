@@ -14,10 +14,15 @@ import (
 	"regexp"
 )
 
-// fileLiteralSuffix matches a string literal that plausibly names a file
-// ("...template.txt") rather than a bare flag or directory — the same
-// literal-only signal used for both read-call and Exec-Argv detection.
-var fileLiteralSuffix = regexp.MustCompile(`\.[A-Za-z0-9]+$`)
+// filePathLiteral matches a string literal that is one plain path ending in
+// an extension ("dir/template.txt"): no whitespace and no shell
+// metacharacter, so a shell script operand ("cat a.txt > all.txt") is never
+// mistaken for a path.
+var filePathLiteral = regexp.MustCompile(`^[\w@%+=:,./~-]+\.[A-Za-z0-9]+$`)
+
+// scriptFlags are the interpreter flags whose next Argv operand is program
+// text, not a file ("sh -c SCRIPT", "perl -e SCRIPT").
+var scriptFlags = map[string]bool{"-c": true, "-e": true}
 
 // visibleReadFuncs are the calls this detector treats as "visibly reads
 // these paths" (spec §57's own wording), keyed by package identifier —
@@ -191,14 +196,17 @@ func compositeLitField(lit *ast.CompositeLit, name string) ast.Expr {
 }
 
 // literalFileArgv extracts every string literal in an Argv composite
-// literal after the program that plausibly names a file (fileLiteralSuffix),
-// together with its position — a non-literal element (a variable) is
-// skipped, never inferred.
+// literal after the program that is a plain file path (filePathLiteral),
+// together with its position — a non-literal element (a variable) and the
+// operand after a script flag (scriptFlags) are skipped, never inferred.
 func literalFileArgv(argv *ast.CompositeLit) []pathCandidate {
 	var out []pathCandidate
+	afterScriptFlag := false
 	for _, elt := range argv.Elts[1:] {
 		s, ok := stringLiteralValue(elt)
-		if !ok || !fileLiteralSuffix.MatchString(s) {
+		skip := afterScriptFlag
+		afterScriptFlag = ok && scriptFlags[s]
+		if !ok || skip || !filePathLiteral.MatchString(s) {
 			continue
 		}
 		out = append(out, pathCandidate{path: s, pos: elt.Pos()})

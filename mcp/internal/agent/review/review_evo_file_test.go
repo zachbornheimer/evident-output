@@ -469,6 +469,35 @@ func TestProvenanceRuleDetectsUndeclaredInput(t *testing.T) {
 	}
 }
 
+// TestProvenanceIgnoresShellScriptOperands reviews the gate-4 probe whose
+// concat Task runs `sh -c "cat a.txt b.txt c.txt > all.txt"` with every file
+// already declared in Inputs/Outputs: the script operand is one string, not a
+// path, and must never be reported as an omitted input. A real file Argv entry
+// beside it still is.
+func TestProvenanceIgnoresShellScriptOperands(t *testing.T) {
+	src, err := os.ReadFile(filepath.Join("testdata", "provenance", "shell_script_operands", "main.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found := findingsByID(review.GoSource("main.go", string(src)), "EVO-PROVENANCE-001"); len(found) != 0 {
+		t.Fatalf("shell script operand reported as an omitted input: %+v", found)
+	}
+	for name, argv := range map[string]string{
+		"sh -c whitespace-free script":  `"sh", "-c", "build.sh"`,
+		"python -c script":              `"python3", "-c", "import x; x.go()", "real.txt"`,
+		"perl -e script":                `"perl", "-e", "print 1 > out.log", "real.txt"`,
+		"metacharacter-bearing literal": `"tool", "a.txt>b.txt", "real.txt"`,
+	} {
+		src := "package p\nimport (\n\t\"context\"\n\tevo \"github.com/zachbornheimer/evident-output/v2\"\n)\n" +
+			"func f(ctx context.Context) error {\n\t_, err := evo.Exec(ctx, evo.ExecSpec{Argv: []string{" + argv + "}, Outputs: []string{\"o\"}})\n\treturn err\n}\n"
+		found := findingsByID(review.GoSource("p.go", src), "EVO-PROVENANCE-001")
+		wantReal := name != "sh -c whitespace-free script"
+		if wantReal != (len(found) == 1 && strings.Contains(found[0].Message, "real.txt")) || len(found) > 1 {
+			t.Errorf("%s: want a finding for real.txt only=%v, got %+v", name, wantReal, found)
+		}
+	}
+}
+
 // The rule's own BadCode raises the finding and its GoodCode raises none and
 // never wraps a nil error.
 func TestProvenanceRuleExamplesRoundTrip(t *testing.T) {
