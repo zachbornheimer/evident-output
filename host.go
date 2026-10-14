@@ -90,7 +90,7 @@ func (e runHost) SectionOpened(_ record.TaskID, section string, tense record.Led
 	e.out.appendEventLocked(recEvent{Type: tense.DeclaredEvent(), EntityID: section})
 }
 
-// EntryRecorded journals a recorded ledger row and narrates it as the §38 effect line.
+// EntryRecorded journals a recorded ledger row and narrates it as the effect line.
 func (e runHost) EntryRecorded(task record.TaskID, row change.LedgerRow) {
 	o := e.out
 	if row.Added {
@@ -104,7 +104,7 @@ func (e runHost) EntryRecorded(task record.TaskID, row change.LedgerRow) {
 	o.emitWireEventLocked(event, string(task), effectPayload(row).EventPayload())
 }
 
-// effectPayload is row as the §38 effect line: the quantity the ledger recorded, so the JSONL stream agrees
+// effectPayload is row as the effect line: the quantity the ledger recorded, so the JSONL stream agrees
 // with the human rows and the final document.
 func effectPayload(row change.LedgerRow) wire.EffectPayload {
 	payload := wire.EffectPayload{Verb: row.Verb, Object: row.Entry.Object()}
@@ -272,7 +272,7 @@ func (e runHost) RunEnded(t *graph.Task) {
 	o.appendTaskLocked(&taskState{id: t.ID, node: t, name: t.Name}, true)
 }
 
-// narrate streams one §38 event about a Task under the Run's lock; a run that streams no events skips the lock.
+// narrate streams one event about a Task under the Run's lock; a run that streams no events skips the lock.
 func (e runHost) narrate(event, entityID string, payload func() map[string]any) {
 	o := e.out
 	if !o.show.Events.On() {
@@ -312,7 +312,7 @@ func (e runHost) BasisJudged(id record.TaskID, judgement freshness.BasisJudgemen
 	})
 }
 
-// VerifierObserved narrates one Verify check's outcome (spec §38), named for the Task it verifies.
+// VerifierObserved narrates one Verify check's outcome (schema/event.v2.json), named for the Task it verifies.
 func (e runHost) VerifierObserved(id record.TaskID, outcome freshness.VerifierOutcome) {
 	e.narrate(wire.EventVerificationObserved, string(id), func() map[string]any {
 		status := wire.VerificationUnsatisfied
@@ -326,7 +326,7 @@ func (e runHost) VerifierObserved(id record.TaskID, outcome freshness.VerifierOu
 	})
 }
 
-// Observe narrates one step of a tracked operation as a §38 "evo.event" line; the wire vocabulary stays at this edge.
+// Observe narrates one step of a tracked operation as an "evo.event" line; the wire vocabulary stays at this edge.
 func (e runHost) Observe(ob change.Observation) {
 	e.out.emitWireEventLocked(observationEvent(ob.Kind), string(ob.Task), observationPayload(ob))
 }
@@ -346,7 +346,7 @@ func observationEvent(kind change.ObservationKind) string {
 	}
 }
 
-// observationPayload is the §38 payload for ob: the subject's kind and name under its kind's
+// observationPayload is the event payload for ob: the subject's kind and name under its kind's
 // historical key, then the step's fields. A File's basis.fingerprinted line never names its kind.
 func observationPayload(ob change.Observation) map[string]any {
 	subject := wire.ObservedSubject{Kind: wire.PayloadKindFile, Path: ob.Subject.Name}

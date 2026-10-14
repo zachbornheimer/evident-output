@@ -1,6 +1,6 @@
 package rules
 
-// provenanceRules is EVO-PROVENANCE-001 and EVO-PROVENANCE-002 (spec §57):
+// provenanceRules is EVO-PROVENANCE-001 and EVO-PROVENANCE-002:
 // the two rules guarding Inputs honesty and manifest-skip honesty.
 // EVO-PROVENANCE-001 has a narrow, literal-only static detector
 // (review.detectOmittedInputPath): a string-literal path visibly read or
@@ -47,7 +47,7 @@ return err`,
 	return fmt.Errorf("generate build/out.bin: %w", err)
 }
 return nil`,
-		Remediation:     "Add every file the generator actually reads to Inputs, and every value to Values; do not invent an Inputs entry the source does not justify (§58) — trace the generator's real inputs instead",
+		Remediation:     "Add every file the generator actually reads to Inputs, and every value to Values; do not invent an Inputs entry the source does not justify — trace the generator's real inputs instead",
 		RelatedGuidance: []string{"provenance", "evo-file-exec"},
 		VerificationIDs: []string{"EVO-PROVENANCE-001"},
 		Since:           "1.0.0",

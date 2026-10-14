@@ -2,7 +2,7 @@
 
 Order for learning and documentation. Advanced paths are studio notes, not the lead sheet.
 
-## Ladder (spec §44 order)
+## Ladder
 
 ```text
 1. Task + Define — one atomic operation; Define(fn func(context.Context) error) is the

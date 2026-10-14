@@ -21,7 +21,7 @@ import (
 // step with it.
 const Release = "v2.0.0"
 
-// Events is a run's "evo.event" JSONL stream (§38). It numbers its lines
+// Events is a run's "evo.event" JSONL stream. It numbers its lines
 // with its own counter, so they run 1, 2, 3 with no gap a consumer could
 // mistake for a lost line. A write failure does not stop the stream —
 // lines already written stay valid (§32.2) — but the first one is kept,
@@ -66,7 +66,7 @@ func (e *Events) Emit(eventType, entityID string, payload map[string]any) {
 func (e *Events) Err() error { return e.err }
 
 // WriteRun writes result as the final "evo.run" document plus one trailing
-// newline (§53). A nil w writes nothing.
+// newline. A nil w writes nothing.
 func WriteRun(w io.Writer, result record.Result) error {
 	if w == nil {
 		return nil

@@ -9,7 +9,7 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
-// handleConformanceTool answers spec §60's conformance questions (is this
+// handleConformanceTool answers the conformance questions (is this
 // Evo usage current, what is stale/unsafe/upgradable, what provenance is
 // explicit vs opaque) by running the same static review evident_output_review
 // uses and reshaping the result to the conformance wire shape. It accepts a
@@ -77,7 +77,7 @@ func conformanceDirectoryResult(args map[string]any) (review.Result, error) {
 	return res, nil
 }
 
-// writeConformanceResult writes the spec §60 shape:
+// writeConformanceResult writes the conformance shape:
 // {target_version, findings[{rule,severity,file,line,summary,migration}]}.
 func writeConformanceResult(id any, report review.ConformanceReport) {
 	text := fmt.Sprintf("target_version=%s findings=%d", report.TargetVersion, len(report.Findings))

@@ -1,4 +1,4 @@
-// Package review — EVO-FILE-001 and EVO-EXEC-001 (spec §57): hand-rolled
+// Package review — EVO-FILE-001 and EVO-EXEC-001: hand-rolled
 // file/process reconciliation that evo.File/evo.Exec exist to replace, plus
 // the honest freshness-boundary warning spec §7 documents (tracking an
 // output after arbitrary work cannot retroactively skip that work).

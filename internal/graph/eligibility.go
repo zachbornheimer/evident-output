@@ -167,7 +167,7 @@ const (
 	// predecessor further on that fails meanwhile is found then.
 	scanToBlocker predScan = iota
 	// scanAll reads every predecessor, so one that already failed settles
-	// the Task NotStarted at once (§48).
+	// the Task NotStarted at once.
 	scanAll
 )
 

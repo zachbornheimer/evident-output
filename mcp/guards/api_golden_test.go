@@ -9,7 +9,7 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/apisurface"
 )
 
-// api_golden_test.go is §46's public API golden: the live exported surface
+// api_golden_test.go is the public API golden: the live exported surface
 // of the root evo package must equal testdata/api_golden.txt, contain every
 // identifier in testdata/api_required.txt, and contain none of
 // apisurface.RetiredNames. Regenerating the golden cannot drop a required

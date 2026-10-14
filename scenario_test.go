@@ -148,7 +148,7 @@ func newFailedChmodFile(t *testing.T, dir, displayPath string) (FileSpec, *testk
 
 // TestScenario_PartialFailure is the golden for the "Partial failure" tab: one
 // File reconciliation whose contents write succeeds and whose chmod
-// then fails, rendering the spec §2/§8.2/§20-21/§41 per-attribute
+// then fails, rendering the spec §2/§8.2/§20-21 per-attribute
 // verification-detail shape — a satisfied attribute beside a failed one,
 // the failed one's own error/path/mode Facts nested beneath it.
 func TestScenario_PartialFailure(t *testing.T) {
@@ -256,19 +256,19 @@ func TestScenario_Stress(t *testing.T) {
 //     plain output is an append-only log: a row commits the instant it
 //     resolves (testkit's own PersistedText doc comment), and "branches"
 //     genuinely never resolves until Finish's unresolved-task sweep, after
-//     everything that already finished. The spec's own §43 canonical
-//     example orders the same shape the other way — "not started" trailing
+//     everything that already finished. The 1.x spec's canonical
+//     cancellation example orders the same shape the other way — "not started" trailing
 //     an already-interrupted sibling — which is exactly what an
 //     append-only model can produce; that ordering is followed here.
 //   - The frame doesn't show it, but a committed effect must never
-//     disappear once work is cut short (spec §15/§43: "Committed effects
+//     disappear once work is cut short (spec §15: "Committed effects
 //     remain... never implying rollback"), so the cancellation band adds
 //     "! partial changes were applied before cancellation" (CONTRACT §8).
 //     The note is derived from the committed Effects, not caller-authored,
 //     and it does not repeat the ledger line above it.
 //
 // The frame's glyph for the interrupted row ("-") is not used here either:
-// spec §43's own example and the glyph table (§41) both use "■" for
+// the 1.x spec's cancellation example and its glyph table both use "■" for
 // Cancelled, distinct from "-" for NotStarted — the frame's own two rows
 // use the same glyph for two different states, which the spec resolves.
 func TestScenario_CancelledAfterMutation(t *testing.T) {

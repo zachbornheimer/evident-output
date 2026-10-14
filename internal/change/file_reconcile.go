@@ -123,7 +123,7 @@ func (r *Run) commitFile(ctx context.Context, op fileOperation) error {
 // inspection, no write syscall, and no Effect — an unchanged File is
 // silent on its second Run. The prior record still carries forward so a
 // later Task settle recommits identical state. This is the "nested
-// operation skipped as current" case (spec §38), distinct from a whole
+// operation skipped as current" case (schema/event.v2.json), distinct from a whole
 // Task skipped by a pre-definition Verify (evidence.evaluated).
 func (r *Run) carryForwardCurrentFile(op fileOperation, prior freshness.OperationRecord, reason string) {
 	r.host.Observe(Observation{Task: op.taskID, Kind: OperationSkippedCurrent, Subject: op.subject(), Reason: reason})

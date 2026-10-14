@@ -5,7 +5,7 @@ package freshness
 
 import "context"
 
-// Reasons a Consultation reports for its verdict (spec §38: events must
+// Reasons a Consultation reports for its verdict (events must
 // distinguish Basis drift from tracked output drift from no prior record at
 // all).
 const (
@@ -154,7 +154,7 @@ func (c ExecCall) Evaluate(ctx context.Context, store *ManifestStore, key string
 }
 
 // reason is the Exec's verdict, mirroring FileCall.Consult's categories
-// (spec §38) so Exec's operation.started/skipped_current payloads carry the
+// (schema/event.v2.json) so Exec's operation.started/skipped_current payloads carry the
 // same "reason" vocabulary File's do.
 func (c ExecCall) reason(ctx context.Context, prior OperationRecord, hasPrior bool, definition string) (string, error) {
 	if len(c.Outputs) == 0 {

@@ -23,22 +23,22 @@ type Conclusion struct {
 	Actions     []Action
 	ExitCode    int
 	// RunID identifies the Output instance that produced this Conclusion —
-	// the wire v2 envelope's "run_id" (increment 4, spec §35). Mirrors the
+	// the wire v2 envelope's "run_id" (increment 4, schema/run.v3.json). Mirrors the
 	// engine's existing per-instance id (Output.outputID); never generated
 	// twice for one run.
 	RunID string
 	// StartedAt/FinishedAt are the run's wall-clock bounds, read through the
 	// engine's Clock facade — the wire v2 envelope's "started_at"/
-	// "finished_at"/derived "duration_ms" (spec §35). Zero until Finish sets
+	// "finished_at"/derived "duration_ms" (schema/run.v3.json). Zero until Finish sets
 	// them.
 	StartedAt  time.Time
 	FinishedAt time.Time
 	// DryRun mirrors Snapshot.DryRun — the wire v2 envelope's "mode"
-	// (apply|dry_run, spec §35) has no other source, since Result/Conclusion
-	// alone is WriteJSON's whole contract (spec §53).
+	// (apply|dry_run, schema/run.v3.json) has no other source, since Result/Conclusion
+	// alone is WriteJSON's whole contract.
 	DryRun bool
 	// Facts mirrors Snapshot.Facts (run-scoped evo.Fact annotations) — the
-	// wire v2 envelope's top-level "data.facts" (spec §35/§36).
+	// wire v2 envelope's top-level "data.facts" (schema/run.v3.json).
 	Facts []Fact
 }
 

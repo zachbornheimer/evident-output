@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// spec §60: the conformance operation returns
+// The conformance operation returns
 // {target_version, findings[{rule,severity,file,line,summary,migration}]}.
 const manualFileReconciliationSource = `package p
 

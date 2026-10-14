@@ -1,6 +1,6 @@
 package rules
 
-// MigrationRow is one machine-readable version-transition entry (spec §59):
+// MigrationRow is one machine-readable version-transition entry:
 // a stale/legacy shape and the current replacement, keyed by the rule that
 // detects the stale shape where one exists (empty for a shape no detector
 // currently flags).
@@ -14,7 +14,7 @@ type MigrationRow struct {
 }
 
 // Migrations returns the version-transition table an MCP upgrade assistant
-// (spec §58/§59) can consume without parsing prose: given an observed
+// can consume without parsing prose: given an observed
 // call-site shape, look up its row for the mechanical replacement.
 func Migrations() []MigrationRow {
 	return []MigrationRow{
@@ -38,7 +38,7 @@ func Migrations() []MigrationRow {
 			Notes:  "one FileSpec{Path, Contents, Mode, Basis} call replaces the write/chmod/check boilerplate where semantics match",
 		},
 		{
-			// EVO-EVIDENCE-002 would be spec §57's detector for this shape;
+			// EVO-EVIDENCE-002 would be the detector for this shape;
 			// no such rule exists yet, so left uncited rather than claiming
 			// a rule ID that does not resolve.
 			From:  "named Evidence used only for common file state",

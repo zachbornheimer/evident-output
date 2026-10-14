@@ -37,7 +37,7 @@ func asJSONObject(t *testing.T, v any) map[string]any {
 	return out
 }
 
-// TestEventPayload_EncodesAsItsDoc proves each §38 payload carries exactly
+// TestEventPayload_EncodesAsItsDoc proves each event payload carries exactly
 // the fields and values its evo.run doc encodes, with ProblemDoc's
 // "message" renamed to JSONL's "summary" and nothing else changed.
 func TestEventPayload_EncodesAsItsDoc(t *testing.T) {

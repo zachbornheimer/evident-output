@@ -15,7 +15,7 @@ import (
 
 // EVO-FILE-001: manual os.WriteFile + os.Chmod on the same path is exactly
 // the boilerplate evo.File's Path/Contents/Mode/Inputs fields replace
-// (spec §62 "manual common file reconciliation → simplification finding").
+// (manual common file reconciliation → simplification finding).
 func TestEVOFILE001_ManualWriteAndChmod_EmitsSimplificationFinding(t *testing.T) {
 	src := `package p
 import (
@@ -44,7 +44,7 @@ func writeConfig(r *evo.Run, path string, data []byte) error {
 }
 
 // evo.File used declaratively must never itself be flagged — it performs no
-// direct os.WriteFile/os.Chmod call site (spec §62 "evo.File desired state → no finding").
+// direct os.WriteFile/os.Chmod call site (evo.File desired state → no finding).
 func TestEVOFILE001_DeclarativeEvoFile_NoFinding(t *testing.T) {
 	src := `package p
 import (
@@ -66,8 +66,8 @@ func writeConfig(ctx context.Context, path string, data []byte, mode fs.FileMode
 
 // EVO-FILE-001 (freshness-boundary warning): generate(ctx) already ran
 // before the trailing evo.File return — tracking cannot retroactively skip
-// work that already executed (spec §7, §62 "expensive work before trailing
-// evo.File → warning that tracking cannot retroactively skip it").
+// work that already executed (spec §7: expensive work before trailing
+// evo.File → warning that tracking cannot retroactively skip it).
 func TestEVOFILE001_ExpensiveWorkBeforeTrailingFile_EmitsWarning(t *testing.T) {
 	src := `package p
 import (
@@ -115,8 +115,8 @@ func sanitizeKey(path string) string { return path }
 }
 
 // EVO-EXEC-001: raw exec.Command guarded by a hand-rolled staleness check
-// duplicates evo.Exec's Inputs/Outputs freshness contract (spec §62 "raw
-// exec + manual output hashes → evo.Exec suggestion").
+// duplicates evo.Exec's Inputs/Outputs freshness contract (a raw
+// exec + manual output hashes → evo.Exec suggestion).
 func TestEVOEXEC001_RawExecWithManualFreshness_EmitsSuggestion(t *testing.T) {
 	src := `package p
 import (
@@ -140,7 +140,7 @@ func outputIsStale(a, b string) bool { return true }
 }
 
 // evo.Exec with a declared Inputs/Outputs contract must never itself be
-// flagged (spec §62 "evo.Exec generated output + Inputs → no finding").
+// flagged (evo.Exec generated output + Inputs → no finding).
 func TestEVOEXEC001_DeclarativeEvoExec_NoFinding(t *testing.T) {
 	src := `package p
 import (
@@ -178,7 +178,7 @@ func findingsByID(res review.Result, id string) []review.Finding {
 
 // EVO-PROVENANCE-001: a string-literal path read via os.ReadFile in the
 // same function that builds an evo.File call is flagged when that call's
-// Inputs omit it (spec §57's own "template.txt is read but omitted").
+// Inputs omit it ("template.txt is read but omitted").
 func TestEVOPROVENANCE001_VisibleReadOmittedFromInputs_EmitsFindingAtReadLine(t *testing.T) {
 	src := `package p
 import (

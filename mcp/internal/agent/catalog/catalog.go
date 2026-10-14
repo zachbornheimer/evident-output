@@ -167,7 +167,7 @@ only annotation, nested dim lines otherwise.`,
 		},
 		{
 			ID:       "evidence-provenance",
-			Title:    "File, Verify, and provenance (spec §55/§56)",
+			Title:    "File, Verify, and provenance",
 			UseCases: []string{"file", "idempotent", "provenance", "freshness", "cache", "manifest", "verify", "fingerprint"},
 			Concepts: []string{"File", "FileSpec", "Verify", "FileSpec.Inputs", "FileSpec.Values"},
 			Body: `Common file state goes through evo.File(ctx, evo.FileSpec{Path, Contents, Mode, Inputs, Values}) inside
@@ -180,7 +180,7 @@ tracked file state, then FileSpec.Inputs / ExecSpec.Inputs and Values only when 
 depends on external inputs File/Exec do not already track, then Task.Verify only for domains Evo cannot
 track automatically. Never lead with manifest internals or renderer controls.
 
-Teach the exact distinction (spec §56) — these are four different claims, not synonyms:
+Teach the exact distinction — these are four different claims, not synonyms:
   - Task.Verify controls whole-Task fast skipping in 1.0: a pre-Define check that, when true, skips Define
     entirely and settles Satisfied.
   - Values (FileSpec.Values / ExecSpec.Values) name the non-file facts that decide freshness, such as a tool

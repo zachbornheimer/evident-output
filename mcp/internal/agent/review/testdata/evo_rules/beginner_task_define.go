@@ -1,4 +1,4 @@
-// Fixture: §62 baseline. A beginner Task+Define with no Evidence/Verify/
+// Fixture: baseline. A beginner Task+Define with no Evidence/Verify/
 // goroutine/DAG shape must produce zero EVO-* findings.
 package beginner
 

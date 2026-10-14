@@ -401,7 +401,7 @@ func (r secretRedactor) RedactString(s string) string {
 }
 
 // TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput proves
-// spec §11.6/§64's known-producer barrier itself, deterministically: once a
+// spec §11.6's known-producer barrier itself, deterministically: once a
 // producer has claimed a canonical Output (spec: claiming opens the gate
 // immediately, before that operation's spawn even starts), a consumer's
 // concurrent Basis fingerprint on that same path blocks until the producer

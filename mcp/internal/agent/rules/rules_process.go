@@ -1,6 +1,6 @@
 package rules
 
-// processRules is the EVO-EXIT-*/EVO-LIVE-* family (spec §57) plus SIG-002:
+// processRules is the EVO-EXIT-*/EVO-LIVE-* family plus SIG-002:
 // process-level control (exit code, raw stdout writes, interrupt wiring)
 // that bypasses evo's own conclusion, live rendering, or signal ownership
 // rather than going through it.

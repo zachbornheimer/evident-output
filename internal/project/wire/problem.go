@@ -3,7 +3,7 @@ package wire
 import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 // ProblemDoc is a wire-format Problem: stable code plus a human message a
-// machine consumer must not parse (spec §37). It carries every
+// machine consumer must not parse (schema/run.v3.json). It carries every
 // record.Problem field an exported ProblemOption can set, so the plain/TTY
 // row never shows machine truth this document drops (ZYS-823).
 type ProblemDoc struct {

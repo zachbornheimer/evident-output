@@ -10,7 +10,7 @@ import (
 // heartbeatFakeClock is a TimeSource + Scheduler test double: Now() only
 // moves on Advance (like manualClock in live_universal_heartbeat_internal_
 // test.go), and AfterFunc arms a callback that Advance fires, in place,
-// once the fake time reaches or passes its deadline — so the §40 plain
+// once the fake time reaches or passes its deadline — so the plain
 // heartbeat (which schedules real future work off the injected clock) is
 // testable without a sleep.
 type heartbeatFakeClock struct {
@@ -72,7 +72,7 @@ func (c *heartbeatFakeClock) Advance(d time.Duration) {
 }
 
 // TestPlainHeartbeat_SilentRunningTaskEmitsEvery30s is the red-first proof
-// for spec §40: a Running task that never narrates its own progress still
+// for the plain heartbeat: a Running task that never narrates its own progress still
 // earns an automatic durable heartbeat no more often than every 30s, in
 // plain/non-interactive human output.
 func TestPlainHeartbeat_SilentRunningTaskEmitsEvery30s(t *testing.T) {
@@ -139,7 +139,7 @@ func TestPlainHeartbeat_RealMilestoneDefersIt(t *testing.T) {
 
 // TestPlainHeartbeat_InteractiveLiveNeverEmitsOne proves the live TTY
 // renderer keeps its own liveness contract (§23.1's spinner motion) and
-// never also gets a durable §40 heartbeat line.
+// never also gets a durable heartbeat line.
 func TestPlainHeartbeat_InteractiveLiveNeverEmitsOne(t *testing.T) {
 	clock := newHeartbeatFakeClock()
 	var stdout, stderr nopFlushWriter

@@ -77,7 +77,7 @@ func detectSelectorCallRules(in fileInput) []Finding {
 	return findings
 }
 
-// fmtPrintAlongsideEvo is STREAM-003 and EVO-LIVE-001 (spec §57): fmt.Print*
+// fmtPrintAlongsideEvo is STREAM-003 and EVO-LIVE-001: fmt.Print*
 // in an evo file. Both fire so existing STREAM-003 consumers see no change;
 // fmt.Fprint* to os.Stderr or a known-safe writer is allowed (flag.Usage,
 // pre-session errors), and so is a TerminalDriver writing to its own sink
@@ -121,8 +121,8 @@ func streamNamedWrite(c selectorCall) []Finding {
 		"replace "+recv+"."+c.name+"(...) with fmt.Fprint*(r.Text(), ...) (or the owning Task's Capture/Writer)")}
 }
 
-// exitBypassingConclusion is API-018 and EVO-EXIT-001 (spec §57's ID for
-// the same bypass; both fire so existing API-018 consumers see no change):
+// exitBypassingConclusion is API-018 and EVO-EXIT-001 (its ID in the
+// rule catalog for the same bypass; both fire so existing API-018 consumers see no change):
 // os.Exit with a code not derived from evo.Main/Run (evo.MainWith was
 // removed in 1.0). Both carry one suggestion, so the one defect has one
 // fix, and it names only spellings that compile.

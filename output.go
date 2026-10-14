@@ -29,7 +29,7 @@ type Run struct {
 	cfg config
 
 	outputID string
-	// startedAt is the wire envelope's started_at (§35), read back at Finish, never re-derived.
+	// startedAt is the wire envelope's started_at (schema/run.v3.json), read back at Finish, never re-derived.
 	startedAt time.Time
 	closed    bool
 	// closing is non-nil once a Close claimed the teardown and closes when it
@@ -239,7 +239,7 @@ func (o *Run) snapshotLocked() snapshot {
 	})
 }
 
-// emitWireEventLocked writes one §38 "evo.event" line; a run that streams no events writes nothing.
+// emitWireEventLocked writes one "evo.event" line; a run that streams no events writes nothing.
 func (o *Run) emitWireEventLocked(eventType, entityID string, payload map[string]any) {
 	o.show.Events.Emit(eventType, entityID, payload)
 }

@@ -1,4 +1,4 @@
-// Package review — spec §57 EVO-DAG-001/002/003: application code inventing
+// Package review — EVO-DAG-001/002/003: application code inventing
 // its own scheduling (a goroutine, a hand-chained .After(...)) or leaving a
 // visible producer/consumer relationship unordered, where Group/Sequence/
 // After already say the same thing declaratively.
@@ -13,7 +13,7 @@ import (
 // ===== EVO-DAG-001: a goroutine wraps a call that already submits work to
 // Evo's scheduler (.Define). Group/Sequence already run eligible children
 // concurrently; the goroutine exists only to make Evo Tasks parallel a
-// second time (spec §4, §57).
+// second time (spec §4).
 
 func detectGoroutineWrappingDefine(filename, src string) []Finding {
 	var findings []Finding
@@ -45,7 +45,7 @@ func detectGoroutineWrappingDefine(filename, src string) []Finding {
 
 // ===== EVO-DAG-002: a chain of .After(...) calls reproduces exactly the
 // ordering evo.Sequence already gives its children automatically (spec §5,
-// §6, §57).
+// §6).
 
 // afterEdge is one child.After(parent) call site.
 type afterEdge struct {
@@ -120,7 +120,7 @@ func detectAfterChainDuplicatesSequence(filename string, file *ast.File, fset *t
 // ===== EVO-DAG-003: a producer/consumer resource relationship is visible
 // (one Task's evo.File(...) establishes a path; another Task's raw read
 // call observes the same literal path) but nothing orders them — first-run
-// scheduler ordering is missing (spec §11.5, §47, §57).
+// scheduler ordering is missing (spec §11.5).
 
 // resourceEdge is one file path a Task's Define callback either establishes
 // (evo.File's Path field) or reads (a raw os.ReadFile/os.Open/ioutil.ReadFile

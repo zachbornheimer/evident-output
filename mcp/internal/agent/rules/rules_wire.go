@@ -1,6 +1,6 @@
 package rules
 
-// wireRules is the EVO-WIRE-* family (spec §57): the machine-readable
+// wireRules is the EVO-WIRE-* family: the machine-readable
 // JSON/JSONL surface must stay the one sanctioned encoder, versioned, and
 // never interleaved with human text on the same stream.
 func wireRules() []Rule {

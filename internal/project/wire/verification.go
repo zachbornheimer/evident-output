@@ -2,7 +2,7 @@ package wire
 
 import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
-// VerificationDoc is one diagnostic sub-result (spec §36): a managed
+// VerificationDoc is one diagnostic sub-result (schema/run.v3.json): a managed
 // attribute an evo.File/Patch/Exec operation reconciled, satisfied or not.
 // Facts explains a non-satisfied entry (error/path/mode, §8.2) so a machine
 // consumer never parses the human "failed: permissions" row to learn why.
@@ -12,7 +12,7 @@ type VerificationDoc struct {
 	Facts  []FactDoc `json:"facts,omitempty"`
 }
 
-// Verification statuses (spec §36).
+// Verification statuses (schema/run.v3.json).
 const (
 	VerificationSatisfied   = "satisfied"
 	VerificationUnsatisfied = "unsatisfied"
@@ -20,7 +20,7 @@ const (
 	VerificationUnknown     = "unknown"
 )
 
-// FactDoc is a wire-format Fact annotation (spec §36/§39's "Facts" data).
+// FactDoc is a wire-format Fact annotation (schema/run.v3.json "Facts" data).
 type FactDoc struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`

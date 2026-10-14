@@ -2,13 +2,13 @@ package review
 
 import "github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
 
-// defaultConformanceTargetVersion is the target_version spec §60's example
-// output names when a caller does not pin one — the module's next
+// defaultConformanceTargetVersion is the target_version the conformance
+// shape defaults to when a caller does not pin one — the module's next
 // unreleased version, which is what "is this Evo usage current" means
 // absent an explicit desired_version.
 const defaultConformanceTargetVersion = "next"
 
-// ConformanceFinding is one row of the spec §60 MCP conformance shape.
+// ConformanceFinding is one row of the MCP conformance shape.
 type ConformanceFinding struct {
 	Rule      string `json:"rule"`
 	Severity  string `json:"severity"`
@@ -18,7 +18,7 @@ type ConformanceFinding struct {
 	Migration string `json:"migration,omitempty"`
 }
 
-// ConformanceReport is the spec §60 MCP conformance operation output:
+// ConformanceReport is the MCP conformance operation output:
 // "is this Evo usage current, what is stale, what is unsafe, what can be
 // mechanically upgraded, what provenance is explicit vs opaque, what
 // requires developer intent" — answered per finding via its rule.
@@ -27,7 +27,7 @@ type ConformanceReport struct {
 	Findings      []ConformanceFinding `json:"findings"`
 }
 
-// Conformance reshapes a review Result into the spec §60 conformance shape.
+// Conformance reshapes a review Result into the conformance shape.
 // targetVersion falls back to res.DesiredVersion, then to "next".
 func Conformance(res Result, targetVersion string) ConformanceReport {
 	target := targetVersion

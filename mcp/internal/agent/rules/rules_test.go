@@ -143,7 +143,7 @@ func TestRules_NeverTeachRemovedMutationVerbs(t *testing.T) {
 	}
 }
 
-// TestExplainEvidenceDAGRules proves the 1.0-era rules (spec §57) have a
+// TestExplainEvidenceDAGRules proves the 1.0-era rules have a
 // complete payload and are pinned to the release whose API their Suggestion
 // requires (Verify/evo.File/evo.Exec/Sequence).
 func TestExplainEvidenceDAGRules(t *testing.T) {

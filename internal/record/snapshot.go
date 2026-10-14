@@ -8,7 +8,7 @@
 // The root package (github.com/zachbornheimer/evident-output/v2) re-declares
 // every type here as a public alias (type X = core.X) so the published API
 // surface is unchanged; root's own doc comment on each alias is the
-// pkg.go.dev-visible one (see EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md §38).
+// pkg.go.dev-visible one (see schema/event.v2.json).
 package record
 
 import (
@@ -96,11 +96,11 @@ type TaskSnapshot struct {
 	// annotations-slot placement rule Warnings uses at warning severity).
 	Facts []Fact
 	// Verification holds every VerificationDetail an evo.File/evo.Exec
-	// operation this Task ran recorded (spec §2/§8.2/§36) — one entry per
+	// operation this Task ran recorded (spec §2/§8.2, schema/run.v3.json) — one entry per
 	// managed attribute, satisfied or not. Rendering shows the full list
 	// once the Task itself failed (so a reader sees which attribute is
 	// isolated from the ones that already held); a succeeded Task's own
-	// satisfied entries surface only under Verbose (spec §49).
+	// satisfied entries surface only under Verbose.
 	Verification []VerificationDetail
 	Actions      []Action
 	// Skipped/Kept are the disposition taxonomy accumulated by

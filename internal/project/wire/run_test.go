@@ -27,7 +27,7 @@ func baseConclusion() record.Conclusion {
 	}
 }
 
-// runFixture returns the eight §35-required scenarios: success,
+// runFixture returns the eight required scenarios: success,
 // already-satisfied, failure, blocked, cancelled, dry-run, provenance
 // revalidation placeholder, partial effects.
 func runFixtures() map[string]record.Result {

@@ -162,7 +162,7 @@ func (r *Run) observeFileBasis(ctx context.Context, op fileOperation) ([]freshne
 
 // consultFile resolves this File call's prior operation record (if any) and
 // reports whether it is still current against the observed basis (spec
-// §11.4/§11.5), plus the freshness reason (spec §38: "Basis drift" vs
+// §11.4/§11.5), plus the freshness reason ("Basis drift" vs
 // "tracked output drift" vs no prior record must be distinguishable). prior
 // is always returned so the caller can carry it forward unchanged on a
 // current hit.

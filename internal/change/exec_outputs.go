@@ -67,7 +67,7 @@ func mergedExecEnv(overrides map[string]string) []string {
 }
 
 // observeVerifiedExecOutputs wraps verifiedExecOutputs with one
-// tracked_resource.observed event per declared output (spec §38), mirroring
+// tracked_resource.observed event per declared output (schema/event.v2.json), mirroring
 // File's single tracked_resource.observed for its one managed path — Exec
 // has as many tracked resources as it has declared Outputs.
 func (r *Run) observeVerifiedExecOutputs(ctx context.Context, id record.TaskID, outputs []string) ([]freshness.OutputRecord, error) {

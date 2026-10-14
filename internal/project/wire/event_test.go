@@ -46,7 +46,7 @@ func TestToEventDocument_SeqIsOrderingAuthority(t *testing.T) {
 	}
 }
 
-// TestEventFamilies_AreDistinctFromLegacyEventTypes documents that the §38
+// TestEventFamilies_AreDistinctFromLegacyEventTypes documents that the
 // family constants are a separate vocabulary from the runtime's current
 // Event.Type strings (output.started, task.blocked, ...) — increment 4 does
 // not remap the runtime, only defines where the eventual family names live.
@@ -70,11 +70,11 @@ func TestEventFamilies_AreDistinctFromLegacyEventTypes(t *testing.T) {
 		seen[f] = true
 	}
 	if len(seen) != 21 {
-		t.Fatalf("got %d distinct §38 event families, want 21", len(seen))
+		t.Fatalf("got %d distinct event families, want 21", len(seen))
 	}
 }
 
-// The payload kinds are spec §38 wire vocabulary: a consumer filters on these
+// The payload kinds are schema/event.v2.json wire vocabulary: a consumer filters on these
 // exact strings, so they never follow the manifest's record kinds.
 func TestPayloadKindsAreTheSpecVocabulary(t *testing.T) {
 	for _, c := range []struct{ got, want string }{

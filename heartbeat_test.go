@@ -112,7 +112,7 @@ func TestHeartbeat_AppearsRegardlessOfProgressActivity(t *testing.T) {
 // live row is, so an inline elapsed suffix would just be a wrong, frozen
 // number the moment it was written.
 //
-// This is a different mechanism from spec §40's own plain-mode durable
+// This is a different mechanism from the plain-mode durable
 // heartbeat (internal/engine/plain_heartbeat.go), which is a distinct,
 // separate "• push  — 30s" line, not a suffix on the task's own row — a
 // silent task advancing past plainHeartbeatInterval (30s) is expected to

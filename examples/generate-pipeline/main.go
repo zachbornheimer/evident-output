@@ -1,4 +1,4 @@
-// Command generate-pipeline demos spec §64's canonical Exec pipeline shape:
+// Command generate-pipeline demos a canonical Exec pipeline shape:
 // a normalize stage (schema.xlsx -> schema.json) feeding a compile stage
 // (schema.json + compile.py -> output.bin), sequenced with Sequence (declaration order, never concurrent) the way
 // a real pipeline must be (a Basis relationship alone never implies
@@ -77,7 +77,7 @@ set -eu
 cat schema.json compile.py > output.bin
 `
 
-// runPipeline mirrors spec §64: normalize's Output (schema.json) is
+// runPipeline mirrors the pipeline above: normalize's Output (schema.json) is
 // compile's Basis input, and compile is declared after normalize in the same Sequence so the
 // pipeline's real execution order matches the data dependency the freshness
 // graph alone does not infer.

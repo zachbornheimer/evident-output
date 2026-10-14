@@ -35,7 +35,7 @@ func ExampleTask_Define() {
 // ExampleTask_Verify registers a boolean, read-only pre-Define check.
 // A Verify that reports the desired state already holds skips Define
 // entirely and resolves ResolutionAlreadySatisfied — the one advanced
-// escape hatch for domains Evo cannot track automatically (spec §56).
+// escape hatch for domains Evo cannot track automatically.
 func ExampleTask_Verify() {
 	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	task := out.Task("already-configured")
@@ -52,7 +52,7 @@ func ExampleTask_Verify() {
 // ExampleFile declares/reconciles one managed-state file resource: Evo
 // creates it, rewrites it when Contents differ, and no-ops when the
 // desired state already holds — common file work never needs a hand-
-// written Evidence callback (spec §8, §56).
+// written Evidence callback (spec §8).
 func ExampleFile() {
 	dir, err := os.MkdirTemp("", "evo-example-file")
 	if err != nil {

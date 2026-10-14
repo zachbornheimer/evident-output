@@ -98,7 +98,7 @@ func TestFileManifestBasisDriftForcesReconciliation(t *testing.T) {
 		t.Fatalf("Basis drift must reconcile, got: %v", wireEventTypes(events))
 	}
 	if reason := events[started].Payload["reason"]; reason != freshness.ReasonBasisDrift {
-		t.Fatalf("freshness reason = %v, want %q (spec §38: Basis drift must be distinguishable)", reason, freshness.ReasonBasisDrift)
+		t.Fatalf("freshness reason = %v, want %q (Basis drift must be distinguishable)", reason, freshness.ReasonBasisDrift)
 	}
 }
 
@@ -133,7 +133,7 @@ func TestFileManifestOutputDriftForcesReconciliation(t *testing.T) {
 }
 
 // TestFileManifestDryRunNeverCommitsAndRecordsPlannedEffect proves spec
-// §8.2/§51: a dry run that would mutate a stale File records a planned
+// §8.2: a dry run that would mutate a stale File records a planned
 // Effect and performs no write, and never commits manifest state — a
 // following non-dry-run Run still sees no prior record.
 func TestFileManifestDryRunNeverCommitsAndRecordsPlannedEffect(t *testing.T) {
@@ -173,7 +173,7 @@ func TestFileManifestDryRunNeverCommitsAndRecordsPlannedEffect(t *testing.T) {
 	}
 }
 
-// TestFileManifestCommittedEffectRecordedOnMutation proves spec §27/§51: a
+// TestFileManifestCommittedEffectRecordedOnMutation proves spec §27: a
 // non-dry-run File call that actually writes records a committed Effect in
 // the Task's own Changes ledger.
 func TestFileManifestCommittedEffectRecordedOnMutation(t *testing.T) {

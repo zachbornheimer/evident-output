@@ -1,4 +1,4 @@
-// Package review — EVO-PROVENANCE-001's narrow static detector (spec §57):
+// Package review — EVO-PROVENANCE-001's narrow static detector:
 // a literal-only check that a function building an evo.Exec/evo.File call
 // does not also visibly read, via a string-literal path, a file that call's
 // Inputs omit. EVO-PROVENANCE-002 stays Detection: "guidance"
@@ -25,7 +25,7 @@ var filePathLiteral = regexp.MustCompile(`^[\w@%+=:,./~-]+\.[A-Za-z0-9]+$`)
 var scriptFlags = map[string]bool{"-c": true, "-e": true}
 
 // visibleReadFuncs are the calls this detector treats as "visibly reads
-// these paths" (spec §57's own wording), keyed by package identifier —
+// these paths" (the detector's own wording), keyed by package identifier —
 // deliberately the cheapest, most common reads; anything else (bufio,
 // io/fs, a third-party client) is a miss, not a guess. Every literal
 // argument of os.ReadFile/Open/Stat and template.ParseFiles is a path read.

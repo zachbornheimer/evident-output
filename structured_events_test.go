@@ -80,7 +80,7 @@ func assertTypesEqual(t *testing.T, got []string, want ...string) {
 	}
 }
 
-// TestWireEvents_SuccessOrdering proves the §38 family sequence for the
+// TestWireEvents_SuccessOrdering proves the event family sequence for the
 // simplest scripted run: one Task, Define succeeds, no Verify, no tracked
 // operation — the exact deterministic backbone every richer scenario below
 // still contains.
@@ -107,7 +107,7 @@ func TestWireEvents_SuccessOrdering(t *testing.T) {
 	)
 }
 
-// TestWireEvents_AlreadySatisfiedSkipsDefinition proves spec §38's "whole
+// TestWireEvents_AlreadySatisfiedSkipsDefinition proves schema/event.v2.json's "whole
 // Task skipped from current pre-definition Verify Evidence" distinction:
 // a satisfied pre-Define Verify resolves the Task without ever entering
 // Define, so no definition.started/definition.finished appear, and
@@ -148,7 +148,7 @@ func TestWireEvents_AlreadySatisfiedSkipsDefinition(t *testing.T) {
 	}
 }
 
-// TestWireEvents_FileOperationSkippedCurrent proves spec §38's "nested
+// TestWireEvents_FileOperationSkippedCurrent proves schema/event.v2.json's "nested
 // operation skipped as current"/"upstream revalidated with identical
 // output" case: a second Run sharing one manifest Store hits the freshness
 // fast path and emits operation.skipped_current instead of
@@ -238,7 +238,7 @@ func TestWireEvents_FileOperationStartedAndFinished(t *testing.T) {
 }
 
 // TestWireEvents_ExecOperationStartedAndFinished proves Exec emits the same
-// §38 operation family File does: basis.fingerprinted ahead of the
+// operation family File does: basis.fingerprinted ahead of the
 // freshness check, operation.started naming why the manifest considered
 // this not current, tracked_resource.observed for the declared Output,
 // operation.finished changed=true, and manifest.task_committed once the
@@ -335,7 +335,7 @@ func TestWireEvents_ExecOperationSkippedCurrent(t *testing.T) {
 }
 
 // TestWireEvents_RunFinishedOnFailure and TestWireEvents_RunFinishedOnCancel
-// prove run.finished fires (spec §38) on every terminal path, not only the
+// prove run.finished fires (schema/event.v2.json) on every terminal path, not only the
 // clean-success one.
 
 func TestWireEvents_RunFinishedOnFailure(t *testing.T) {
@@ -378,7 +378,7 @@ func TestWireEvents_RunFinishedOnCancel(t *testing.T) {
 }
 
 // TestWireEvents_SeqStrictlyMonotonic_UnderConcurrentTasks proves seq is
-// the strict, race-free ordering authority (spec §38) even when many Tasks
+// the strict, race-free ordering authority (schema/event.v2.json) even when many Tasks
 // resolve from concurrent scheduler goroutines — run with -race.
 func TestWireEvents_SeqStrictlyMonotonic_UnderConcurrentTasks(t *testing.T) {
 	const taskCount = 40
@@ -419,7 +419,7 @@ func TestWireEvents_SeqStrictlyMonotonic_UnderConcurrentTasks(t *testing.T) {
 
 // TestWireEvents_RunIDStableAcrossAllLines proves ZYS-823's "single stable
 // run_id on every line" requirement: every "evo.event" line in one JSONL
-// stream carries the same non-empty run_id (spec §38's RunID = the runtime
+// stream carries the same non-empty run_id (RunID = the runtime
 // Output's own outputID, set once at Init and never reassigned).
 func TestWireEvents_RunIDStableAcrossAllLines(t *testing.T) {
 	var stdout nopFlushWriter

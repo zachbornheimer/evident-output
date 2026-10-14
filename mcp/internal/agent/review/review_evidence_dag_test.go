@@ -9,7 +9,7 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
-// readFixture loads a §62 fixture from testdata/evo_rules by name.
+// readFixture loads a fixture from testdata/evo_rules by name.
 func readFixture(t *testing.T, name string) string {
 	t.Helper()
 	src, err := os.ReadFile(filepath.Join("testdata", "evo_rules", name))
@@ -243,7 +243,7 @@ func TestEVODAG001_NoGoroutine_StaysSilent(t *testing.T) {
 	assertNoFinding(t, res, "EVO-DAG-001")
 }
 
-// §62 baselines: no EVO-* finding on ordinary, current usage.
+// Baselines: no EVO-* finding on ordinary, current usage.
 
 func evoFindings(res review.Result) []review.Finding {
 	var out []review.Finding
@@ -269,7 +269,7 @@ func TestEVORules_GroupIndependentSequenceOrdered_NoFinding(t *testing.T) {
 	}
 }
 
-// §57/§62: every EVO-EVIDENCE/VERIFY/DRYRUN/DAG rule's Suggestion requires
+// Every EVO-EVIDENCE/VERIFY/DRYRUN/DAG rule's Suggestion requires
 // 1.0.0-only API (Verify, evo.File, evo.Exec, Sequence/After) and carries
 // RequiredVersion "1.0.0" — so none of them may fire for a pin older than
 // 1.0.0, matching detectDeprecatedSpellings' dialectAtLeast gating pattern.

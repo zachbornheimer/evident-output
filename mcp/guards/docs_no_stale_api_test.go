@@ -12,8 +12,8 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
 )
 
-// Every rules.RetiredSymbol with a Taught pattern is checked (spec §46's public
-// API drift test, mirrored here for prose: docs, README, doc.go, and the
+// Every rules.RetiredSymbol with a Taught pattern is checked (the public API
+// drift test, mirrored here for prose: docs, README, doc.go, and the
 // agent sections corpus). A hit is only legitimate inside a note that says
 // "removed in <release>" for that symbol's release — teaching it as
 // current, live surface is the defect this test exists to catch.

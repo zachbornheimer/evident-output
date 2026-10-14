@@ -1,6 +1,6 @@
 package rules
 
-// fileAndExecRules is EVO-FILE-001 and EVO-EXEC-001 (spec §57): the two
+// fileAndExecRules is EVO-FILE-001 and EVO-EXEC-001: the two
 // rules that flag hand-rolled file/process reconciliation evo.File and
 // evo.Exec exist to replace.
 func init() { registerFamily(fileAndExecRules()) }

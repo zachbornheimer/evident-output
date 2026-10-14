@@ -1,7 +1,7 @@
 package record
 
 // VerificationStatus is one VerificationDetail's per-attribute outcome
-// (spec §36's Task JSON `verification: [{name, status}]`).
+// (schema/run.v3.json's Task `verification: [{name, status}]`).
 type VerificationStatus string
 
 const (

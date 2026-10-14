@@ -1,6 +1,6 @@
 package rules
 
-// uiRules is the EVO-UI-* family (spec §57): presentation the caller
+// uiRules is the EVO-UI-* family: presentation the caller
 // hand-rolls when evo already models the same information/state.
 func uiRules() []Rule {
 	return []Rule{

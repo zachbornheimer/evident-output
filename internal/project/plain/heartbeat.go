@@ -9,7 +9,7 @@ import (
 )
 
 // heartbeatInterval is how often silent long-running work earns an
-// automatic durable heartbeat line in plain human output (spec §40):
+// automatic durable heartbeat line in plain human output:
 // "• generate schema  — 30s", then "— 1m", and so on — proof of life for a
 // CI log between real milestones. Far slower than the live terminal's 100ms
 // rule (§23.1): the live region proves liveness with spinner motion.
@@ -56,7 +56,7 @@ func (s *Stream) Started(id record.TaskID, now time.Time) {
 }
 
 // milestone restarts r's idle window from a real durable emission: "stops
-// on any real milestone" (§40) supersedes the pending heartbeat, it does
+// on any real milestone" supersedes the pending heartbeat, it does
 // not revoke heartbeats, so a Task that goes silent again earns its next
 // one an interval after this update, showing elapsed time from it.
 func (r *row) milestone(now time.Time) {

@@ -6,7 +6,7 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
 )
 
-// TestExplainEvoUIWireFamily covers the spec §57 EVO-UI-*/EVO-WIRE-*/
+// TestExplainEvoUIWireFamily covers the EVO-UI-*/EVO-WIRE-*/
 // EVO-EXIT-*/EVO-LIVE-* rules: every one is registered, has a full payload,
 // and none is Detection=guidance: EVO-UI-004 and EVO-WIRE-002 gained
 // detectors (C21-012, C21-014) and must stay detectable.

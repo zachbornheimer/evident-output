@@ -8,28 +8,27 @@ import (
 )
 
 // RunSchemaVersion is the "evo.run" final document's schema_version
-// (spec §35: "If the desired new envelope is incompatible, introduce a new
-// final JSON schema version" — this is the incompatible replacement of the
-// 1.x "2.0" document, versioned 3.0 and published as schema/run.v3.json).
+// (this is the incompatible replacement of the 1.x "2.0" document, versioned
+// 3.0 and published as schema/run.v3.json).
 const RunSchemaVersion = "3.0"
 
-// RunObject is the "evo.run" envelope's object discriminator (spec §35).
+// RunObject is the "evo.run" envelope's object discriminator (schema/run.v3.json).
 const RunObject = "evo.run"
 
-// Run modes (spec §35: "mode: apply | dry_run").
+// Run modes (schema/run.v3.json: "mode: apply | dry_run").
 const (
 	ModeApply  = "apply"
 	ModeDryRun = "dry_run"
 )
 
-// Evidence phase sources (spec §36).
+// Evidence phase sources (schema/run.v3.json).
 const (
 	EvidenceSourceVerify     = "verify"
 	EvidenceSourceOperations = "operations"
 	EvidenceSourceMixed      = "mixed"
 )
 
-// Effect ledger status (spec §26/§35: the human "[planned]"/"[changed]"
+// Effect ledger status (spec §26, schema/run.v3.json: the human "[planned]"/"[changed]"
 // ledger rows, carried onto the wire so a machine consumer can tell them
 // apart without parsing the human verb tense).
 const (
@@ -37,7 +36,7 @@ const (
 	EffectStatusChanged = "changed"
 )
 
-// RunDocument is the final "evo.run" wire document (spec §35).
+// RunDocument is the final "evo.run" wire document (schema/run.v3.json).
 type RunDocument struct {
 	Object        string    `json:"object"`
 	SchemaVersion string    `json:"schema_version"`
@@ -61,7 +60,7 @@ type RunDocument struct {
 	Data         RunData `json:"data"`
 }
 
-// RunData is the "evo.run" envelope's "data" payload (spec §35).
+// RunData is the "evo.run" envelope's "data" payload (schema/run.v3.json).
 type RunData struct {
 	Collections []CollectionDoc `json:"collections"`
 	Tasks       []TaskDoc       `json:"tasks"`
@@ -71,8 +70,8 @@ type RunData struct {
 	Actions     []ActionDoc     `json:"actions"`
 }
 
-// CollectionDoc is a Group/Sequence wire record (spec §36: "kind:
-// group|sequence, child IDs, derived progress, and state").
+// CollectionDoc is a Group/Sequence wire record (schema/run.v3.json: kind
+// group|sequence, child IDs, derived progress, and state).
 type CollectionDoc struct {
 	ID       string       `json:"id"`
 	Key      string       `json:"key,omitempty"`
@@ -85,7 +84,7 @@ type CollectionDoc struct {
 	Children []string     `json:"children"`
 }
 
-// Collection kinds (spec §36).
+// Collection kinds (schema/run.v3.json).
 const (
 	CollectionKindGroup    = "group"
 	CollectionKindSequence = "sequence"
@@ -98,7 +97,7 @@ type ProgressDoc struct {
 	Total     int64  `json:"total"`
 }
 
-// EvidencePhaseDoc is one Verify observation (spec §36). Satisfied and
+// EvidencePhaseDoc is one Verify observation (schema/run.v3.json). Satisfied and
 // Source are meaningful only when Evaluated is true; an unevaluated phase
 // marshals as {"evaluated":false} (see MarshalJSON).
 type EvidencePhaseDoc struct {
@@ -107,7 +106,7 @@ type EvidencePhaseDoc struct {
 	Source    string `json:"source,omitempty"`
 }
 
-// MarshalJSON omits Satisfied/Source when Evaluated is false (spec §36:
+// MarshalJSON omits Satisfied/Source when Evaluated is false (schema/run.v3.json:
 // "Satisfied and source are present only when evaluated=true"), instead of
 // a caller-visible field the schema would otherwise have to treat as
 // meaningful garbage.
@@ -122,15 +121,15 @@ func (p EvidencePhaseDoc) MarshalJSON() ([]byte, error) {
 	}{true, p.Satisfied, p.Source})
 }
 
-// EvidenceDoc pairs the pre- and post-Define observation phases (spec §36).
+// EvidenceDoc pairs the pre- and post-Define observation phases (schema/run.v3.json).
 // After is omitted entirely when Before already proved satisfied, because
-// Define never ran (spec §36: "If before.satisfied=true, after is omitted").
+// Define never ran (schema/run.v3.json: if before.satisfied=true, after is omitted).
 type EvidenceDoc struct {
 	Before EvidencePhaseDoc  `json:"before"`
 	After  *EvidencePhaseDoc `json:"after,omitempty"`
 }
 
-// TimingDoc is a task's duration breakdown (spec §36), measured from the
+// TimingDoc is a task's duration breakdown (schema/run.v3.json), measured from the
 // engine clock: queued until it started, running until it settled, total
 // from declaration. A phase that never happened is 0.
 type TimingDoc struct {
@@ -139,7 +138,7 @@ type TimingDoc struct {
 	TotalMs   int64 `json:"total_ms"`
 }
 
-// TrackedResourceDoc is one observable, fingerprintable resource (spec §36).
+// TrackedResourceDoc is one observable, fingerprintable resource (schema/run.v3.json).
 // Drawn from the Task's File and Exec operation records; empty when it ran none.
 type TrackedResourceDoc struct {
 	Kind        string `json:"kind"`
@@ -148,14 +147,14 @@ type TrackedResourceDoc struct {
 	Mode        string `json:"mode,omitempty"`
 }
 
-// BasisDoc is one semantic operation dependency (spec §36): Value is the
+// BasisDoc is one semantic operation dependency (schema/run.v3.json): Value is the
 // observed input's key.
 type BasisDoc struct {
 	Kind  string `json:"kind"`
 	Value string `json:"value"`
 }
 
-// OperationDoc is one nested Evo-native operation's state (spec §36).
+// OperationDoc is one nested Evo-native operation's state (schema/run.v3.json).
 // Current is true for every listed operation: only operations whose record
 // holds this run's state are listed.
 type OperationDoc struct {
@@ -164,7 +163,7 @@ type OperationDoc struct {
 	Current  bool   `json:"current"`
 }
 
-// TaskDoc is the full-fidelity Task wire record (spec §36) — normal TTY
+// TaskDoc is the full-fidelity Task wire record (schema/run.v3.json) — normal TTY
 // suppresses most of this; JSON keeps it all.
 type TaskDoc struct {
 	ID                 string               `json:"id"`
@@ -189,8 +188,8 @@ type TaskDoc struct {
 	Operations         []OperationDoc       `json:"operations"`
 }
 
-// EffectDoc is one flattened change/plan row (spec §35's top-level
-// "effects"), tagged with which ledger it came from so a machine consumer
+// EffectDoc is one flattened change/plan row (the top-level
+// "effects" of schema/run.v3.json), tagged with which ledger it came from so a machine consumer
 // gets the human [planned]/[changed] distinction without parsing verb tense.
 type EffectDoc struct {
 	Subject  string `json:"subject"`
@@ -201,7 +200,7 @@ type EffectDoc struct {
 }
 
 // ToRunDocument builds the "evo.run" wire document from a finished Result
-// (spec §53: WriteJSON's whole contract is Result, so every field below
+// (WriteJSON's whole contract is Result, so every field below
 // must be derivable from Conclusion alone). evoVersion is the caller's
 // evo_version literal: Release for every document this build writes.
 func ToRunDocument(result record.Result, evoVersion string) RunDocument {
@@ -250,7 +249,7 @@ func ToRunDocument(result record.Result, evoVersion string) RunDocument {
 
 // EncodeRun encodes result as the final "evo.run" document plus no trailing
 // newline (callers that need the newline — WriteJSON, FormatJSON's stdout
-// write — append it themselves; see spec §53).
+// write — append it themselves; see WriteJSON).
 func EncodeRun(result record.Result, evoVersion string) ([]byte, error) {
 	return json.MarshalIndent(ToRunDocument(result, evoVersion), "", "  ")
 }
@@ -342,7 +341,7 @@ func toProgressDoc(p record.Progress) *ProgressDoc {
 func toEvidenceDoc(e record.TaskEvidence) EvidenceDoc {
 	doc := EvidenceDoc{Before: toEvidencePhaseDoc(e.Before)}
 	if e.Before.Evaluated && e.Before.Satisfied {
-		// Define never ran (spec §36): after is omitted entirely.
+		// Define never ran (schema/run.v3.json): after is omitted entirely.
 		return doc
 	}
 	after := toEvidencePhaseDoc(e.After)

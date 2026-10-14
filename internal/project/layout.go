@@ -63,7 +63,7 @@ const (
 )
 
 // WriteVerificationDetails renders a Task's per-attribute reconciliation
-// outcomes (spec §2, §8.2, §20-21, §41, §49) — evo.File/evo.Exec's third
+// outcomes (spec §2, §8.2, §20-21) — evo.File/evo.Exec's third
 // evidence layer, which subconditions were satisfied or failed, not just
 // that the operation as a whole did. A satisfied attribute is a muted "-
 // <name>  already satisfied" line; a failed one keeps its own glyph and

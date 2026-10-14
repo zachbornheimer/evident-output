@@ -1,6 +1,6 @@
 package wire
 
-// The payload types below describe every evo.event payload the runtime writes, one per §38 event family.
+// The payload types below describe every evo.event payload the runtime writes, one per event family.
 // schema.go binds each to its event type, so schema/event.v2.json is generated from these types and a
 // payload key the schema does not declare fails the strict tests. Each EventPayload builds the payload
 // map directly, omitting an unset optional field exactly as the type's own omitempty tag omits it.
@@ -200,7 +200,7 @@ func (p RunFinishedPayload) EventPayload() map[string]any {
 }
 
 // ProblemRecordedPayload is a problem.recorded or warning.recorded payload: a ProblemDoc with its message
-// under "summary" (§38). ProblemDoc.EventPayload builds it.
+// under "summary". ProblemDoc.EventPayload builds it.
 type ProblemRecordedPayload struct {
 	Summary      string       `json:"summary"`
 	Code         string       `json:"code,omitempty"`

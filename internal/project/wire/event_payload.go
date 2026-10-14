@@ -5,15 +5,15 @@ import (
 	"unicode/utf8"
 )
 
-// Each EventPayload below is its doc's §38 "evo.event" payload: the same
+// Each EventPayload below is its doc's "evo.event" payload: the same
 // fields evo.run carries for that doc, built directly (no JSON round-trip
 // that could fail), with an unset optional field omitted exactly as the
 // doc's own omitempty tag omits it. event_payload_test.go proves each one
 // encodes to the doc's own JSON, so a field added to a doc without its
 // payload key fails there.
 
-// problemEventSummaryKey is JSONL's name for ProblemDoc.Message (§38);
-// evo.run calls the same field "message" (§36).
+// problemEventSummaryKey is JSONL's name for ProblemDoc.Message;
+// evo.run calls the same field "message" (schema/run.v3.json).
 const problemEventSummaryKey = "summary"
 
 // EventPayload is d as a problem.recorded/warning.recorded payload.

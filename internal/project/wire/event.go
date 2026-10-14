@@ -8,13 +8,13 @@ import (
 )
 
 // EventSchemaVersion is the "evo.event" JSONL line's schema_version
-// (spec §38), published as schema/event.v2.json.
+// (schema/event.v2.json), published as schema/event.v2.json.
 const EventSchemaVersion = "2.0"
 
-// EventObject is the "evo.event" envelope's object discriminator (spec §38).
+// EventObject is the "evo.event" envelope's object discriminator (schema/event.v2.json).
 const EventObject = "evo.event"
 
-// Required event families (spec §38). Increment 1's runtime event model does
+// Required event families (schema/event.v2.json). Increment 1's runtime event model does
 // not yet emit every family below (operation/basis/manifest families arrive
 // with increment 2's File/manifest work) — the constants are defined now so
 // call sites converge on one name instead of ad hoc strings, per the work
@@ -51,7 +51,7 @@ const (
 )
 
 // Payload "kind" values of the operation, tracked_resource and basis events
-// (spec §38): what the event is about, on the wire. The manifest keeps its own
+// (schema/event.v2.json): what the event is about, on the wire. The manifest keeps its own
 // record kinds in internal/freshness; the two vocabularies are independent.
 const (
 	PayloadKindFile       = "file"
@@ -59,7 +59,7 @@ const (
 	PayloadKindExecOutput = "exec-output"
 )
 
-// EventDocument is one "evo.event" JSONL line (spec §38). seq is the
+// EventDocument is one "evo.event" JSONL line (schema/event.v2.json). seq is the
 // ordering authority; timestamp (at) is informational only.
 type EventDocument struct {
 	Object        string         `json:"object"`
@@ -74,7 +74,7 @@ type EventDocument struct {
 
 // ToEventDocument builds the "evo.event" wire line from one runtime journal
 // Event. The runtime Event.Type vocabulary (output.started, task.blocked,
-// ...) predates the §38 family names above; increment 4 does not remap it —
+// ...) predates the event family names above; increment 4 does not remap it —
 // that migration is a runtime-model change (increment 2/3 territory), not a
 // wire-encoder one. The wire shape (object/schema_version/run_id/seq/at/
 // type/entity_id/payload) is final now regardless of which Type strings the

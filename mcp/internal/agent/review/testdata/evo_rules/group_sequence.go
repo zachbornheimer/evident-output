@@ -1,4 +1,4 @@
-// Fixture: §62 baseline. Group for independent work, Sequence for ordered
+// Fixture: baseline. Group for independent work, Sequence for ordered
 // work, no explicit .After(...) chain — zero EVO-* findings.
 package groupseq
 

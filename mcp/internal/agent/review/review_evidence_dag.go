@@ -1,4 +1,4 @@
-// Package review — spec §57 EVO-VERIFY-001/EVO-DRYRUN-001: the shapes where a
+// Package review — EVO-VERIFY-001/EVO-DRYRUN-001: the shapes where a
 // callback that promises read-only observation or dry-run safety instead
 // raw-calls a side effect Evo's runtime cannot see or intercept.
 package review
@@ -14,7 +14,7 @@ import (
 // a Define/Verify callback that promises dry-run safety or
 // read-only observation must route mutation through evo.File, evo.Exec, or
 // (for a database change neither models) evo.Effect instead of calling one
-// of these directly (spec §32.2, §57 EVO-DRYRUN-001). Inside an evo.Effect
+// of these directly (spec §32.2). Inside an evo.Effect
 // callback they are the declared mutation and are exempt.
 var evoRawMutationCallNames = map[string]bool{
 	"os.WriteFile": true, "os.Remove": true, "os.RemoveAll": true,
@@ -43,7 +43,7 @@ type rawMutationCall struct {
 // rawMutationCalls lists every evoRawMutationCallNames call, and every
 // Exec/ExecContext call on an evoSQLMutationReceivers handle, reachable
 // anywhere inside node (including nested closures) — the "obvious
-// mutation" shape spec §57 asks EVO-VERIFY-001/EVO-DRYRUN-001 to flag.
+// mutation" shape EVO-VERIFY-001/EVO-DRYRUN-001 flag.
 func rawMutationCalls(node ast.Node) []rawMutationCall {
 	var calls []rawMutationCall
 	ast.Inspect(node, func(n ast.Node) bool {
@@ -141,7 +141,7 @@ func funcLitArgAt(call *ast.CallExpr, method string, argCount, argN int, disprov
 // Define, After) are Evo-specific enough that excluding a variable
 // by name alone (e.g. "process", "child") would silently miss a real
 // *evo.TaskHandle sharing that name; disproven instead names identifiers
-// this file can structurally prove are not Evo (spec §57).
+// this file can structurally prove are not Evo.
 func isLikelyEvoTaskReceiver(x ast.Expr, disproven map[string]bool) bool {
 	switch v := x.(type) {
 	case *ast.Ident:
@@ -162,7 +162,7 @@ func isLikelyEvoTaskReceiver(x ast.Expr, disproven map[string]bool) bool {
 
 // evoLocalStructNames collects every struct type this file declares — Evo
 // never hands back a locally-declared struct, so a variable proven to hold
-// one of these is proven not to be an Evo handle (spec §57).
+// one of these is proven not to be an Evo handle.
 func evoLocalStructNames(file *ast.File) map[string]bool {
 	names := map[string]bool{}
 	for _, decl := range file.Decls {
@@ -187,7 +187,7 @@ func evoLocalStructNames(file *ast.File) map[string]bool {
 // composite literal (bare or address-of) of one of its own locally-declared
 // struct types — structural proof the identifier cannot hold a real Evo
 // handle no matter what it is named, replacing a name-based guess with a
-// fact the AST already states (spec §57).
+// fact the AST already states.
 func evoDisprovenVars(file *ast.File) map[string]bool {
 	localStructs := evoLocalStructNames(file)
 	disproven := map[string]bool{}
@@ -228,7 +228,7 @@ func isLocalStructLiteral(e ast.Expr, localStructs map[string]bool) bool {
 // ===== EVO-VERIFY-001: a task.Verify(func(ctx) (bool, error) { ... })
 // callback performs a raw mutation. Verify must be read-only — a verifier
 // error prevents blind mutation, but a mutating verifier can never be
-// safely retried or ANDed with another verifier (spec §9.1, §57).
+// safely retried or ANDed with another verifier (spec §9.1).
 
 func detectMutatingVerify(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
@@ -266,7 +266,7 @@ func detectMutatingVerify(filename string, file *ast.File, fset *token.FileSet) 
 // direct database mutation); code that promises Evo dry-run safety must route
 // file state through evo.File, processes through evo.Exec, and any other
 // mutation (a database change, a deletion) through evo.Effect, whose
-// callback dry-run skips (spec §32.2, §57).
+// callback dry-run skips (spec §32.2).
 
 func detectRawMutationInDefine(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding

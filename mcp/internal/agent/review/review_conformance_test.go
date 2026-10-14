@@ -7,7 +7,7 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
-// spec §60: {target_version, findings[{rule,severity,file,line,summary,migration}]}.
+// The conformance shape: {target_version, findings[{rule,severity,file,line,summary,migration}]}.
 func TestConformance_ReshapesFindingToSpecShape(t *testing.T) {
 	src := `package p
 import (
@@ -58,8 +58,8 @@ func TestConformance_UsesRequestedTargetVersionOverDesired(t *testing.T) {
 	}
 }
 
-// TestConformance_LegacyAPIExampleGetsVersionedMigrationGuidance is spec
-// §62's "legacy API example → versioned migration guidance" fixture: a 1.x
+// TestConformance_LegacyAPIExampleGetsVersionedMigrationGuidance is the
+// "legacy API example → versioned migration guidance" fixture: a 1.x
 // call site (`task.Block`, removed in 2.0) reviewed against the 2.0.0 target
 // must carry migration guidance naming the specific replacement
 // (`evo.Refuse`) — not a generic "this API changed" notice — proving the
@@ -93,7 +93,7 @@ func f(task *evo.TaskHandle) {
 }
 
 // A rule with no cheap per-call-site Suggestion still surfaces a migration
-// via the rule catalog's general remediation (spec §60's field is called
+// via the rule catalog's general remediation (the field is called
 // "migration", not "suggestion", precisely because it must never be empty
 // for a rule the reviewer actually emits).
 func TestConformance_FallsBackToRuleRemediationWhenNoSuggestion(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
 )
 
-// spec §59: the version-transition table must be machine-readable — every
+// The version-transition table must be machine-readable — every
 // row names both shapes and a target version, and a row whose RuleID is set
 // must resolve through rules.Explain (the same closed-loop guarantee
 // review's emitted IDs already carry).
@@ -59,7 +59,7 @@ func TestMigrations_CoversMainWithAndEachRemoval(t *testing.T) {
 	}
 }
 
-// spec §59 lists a named-Evidence-for-common-file-state row between the
+// The 1.x migration list had a named-Evidence-for-common-file-state row between the
 // evo.File row and the manual-counters row. The From side is the stale
 // shape; the To side is live 1.1 (evo.File), not the removed Evidence
 // spelling.
@@ -71,7 +71,7 @@ func TestMigrations_CoversNamedEvidenceForCommonFileState(t *testing.T) {
 			return
 		}
 	}
-	t.Fatal("missing §59 migration row: named Evidence used only for common file state → evo.File")
+	t.Fatal("missing migration row: named Evidence used only for common file state → evo.File")
 }
 
 // The six 1.1 removals an upgrade assistant must rewrite mechanically, each
