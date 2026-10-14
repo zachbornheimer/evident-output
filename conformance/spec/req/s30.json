@@ -247,7 +247,7 @@
       },
       {
         "pkg": ".",
-        "run": "TestProblemWarning_DoesNotResolveTask"
+        "run": "TestProblem_DoesNotResolveTask"
       }
     ],
     "default": false,
