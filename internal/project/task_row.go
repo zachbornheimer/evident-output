@@ -138,9 +138,9 @@ func (r TaskRow) writeLine(b *strings.Builder, head rowHead, s Style) {
 
 // writeProblems writes the Task's Problems under its row, at most
 // maxVisibleProblems of them plus an "and N more failures" line. A Problem
-// that only repeats the row's headline is dropped, and one whose Detail
-// carries the evidence loses its repeated summary. The tree closes on its
-// last row.
+// that only repeats the row's headline is dropped, and one whose Detail or
+// Subject carries the evidence loses its repeated summary. The tree closes
+// on its last row.
 func (r TaskRow) writeProblems(b *strings.Builder, rowHeadline string, s Style) {
 	emphasize := r.t.State == record.Failed || r.t.State == record.Refused
 	problems := r.t.Problems
@@ -153,7 +153,7 @@ func (r TaskRow) writeProblems(b *strings.Builder, rowHeadline string, s Style) 
 		if repeatsRow && p.Detail == "" && p.EvidenceTail == "" && (p.Subject == "" || r.t.State == record.Excluded) {
 			continue
 		}
-		if repeatsRow && (p.Detail != "" || p.EvidenceTail != "") {
+		if repeatsRow && (p.Detail != "" || p.EvidenceTail != "" || p.Subject != "") {
 			p.Summary = ""
 		}
 		shown = append(shown, p)

@@ -22,13 +22,17 @@ func writeProblem(b *strings.Builder, p record.Problem, indent string, emphasize
 	if p.Subject != "" {
 		extra := p.Summary
 		if p.Count != 0 {
-			extra = fmt.Sprintf("%s (%d)", p.Summary, p.Count)
+			extra = strings.TrimSpace(fmt.Sprintf("%s (%d)", p.Summary, p.Count))
+		}
+		subject := p.Subject
+		if extra != "" {
+			subject += "  " + extra
 		}
 		branch := s.BranchGlyph()
 		if last {
 			branch = s.EvidenceGlyph()
 		}
-		fmt.Fprintf(b, "%s%s%s %s  %s\n", indent, ProblemTreeIndent, branch, p.Subject, extra)
+		fmt.Fprintf(b, "%s%s%s %s\n", indent, ProblemTreeIndent, branch, subject)
 		continuation := s.Dim("│")
 		if last {
 			continuation = " "

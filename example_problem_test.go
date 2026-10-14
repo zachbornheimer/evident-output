@@ -96,7 +96,7 @@ func ExampleOn() {
 	fmt.Print(buf.String())
 	// Output:
 	// ✗ clean workspace  permission denied
-	//    └─ /var/cache  permission denied
+	//    └─ /var/cache
 	//
 	// [failed]  tool
 }
