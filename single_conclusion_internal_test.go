@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/terminal"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 // TestConfigToOptions_DefaultTTYMarksSharedPrimaryTerminal pins the
@@ -65,4 +66,44 @@ func TestFinish_SharedPrimaryTerminalRendersConclusionOnce(t *testing.T) {
 	if n := strings.Count(got, "[succeeded]"); n != 1 {
 		t.Fatalf("conclusion band count = %d, want exactly 1 in:\n%s", n, got)
 	}
+}
+
+// TestFinish_DistinctPrimaryAndTerminalKeepBothConclusions guards the
+// deliberately-separate-streams contract: when Facades.Stderr is a genuinely
+// distinct writer from Facades.Terminal, which reports no sink of its own,
+// Finish must keep writing the conclusion to both. samePrimaryAsTerminal is
+// never inferred from the writers, only set by resolveConfig at construction
+// when the driver's sink is the primary stream.
+func TestFinish_DistinctPrimaryAndTerminalKeepBothConclusions(t *testing.T) {
+	var primary bytes.Buffer
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := newOutput("distinct-writers",
+		to(&primary),
+		withTerminal(screen),
+		visibilityDelay(0),
+		withNoColor(),
+	)
+	t.Cleanup(func() { _ = out.close() })
+
+	out.Task("work").succeed("")
+	if err := out.finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	if !strings.Contains(primary.String(), "[succeeded]") {
+		t.Fatalf("distinct primary must still receive the conclusion:\n%s", primary.String())
+	}
+	if !screenWroteFinal(screen, "[succeeded]") {
+		t.Fatalf("terminal must still receive the conclusion, got operations:\n%#v", screen.Operations())
+	}
+}
+
+// screenWroteFinal reports whether screen drew a final frame containing text.
+func screenWroteFinal(screen *testkit.Screen, text string) bool {
+	for _, op := range screen.Operations() {
+		if op.Kind == "final" && strings.Contains(op.Text, text) {
+			return true
+		}
+	}
+	return false
 }
