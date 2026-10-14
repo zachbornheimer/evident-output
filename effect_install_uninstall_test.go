@@ -2,12 +2,10 @@ package evo
 
 import (
 	"bytes"
-	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/change"
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
 // TestEffectInstall_PlannedAndChangedTense proves EffectInstall and
@@ -66,18 +64,11 @@ func TestEffectInstall_PlannedAndChangedTense(t *testing.T) {
 		if err := out.finish(); err != nil {
 			t.Fatal(err)
 		}
-		data, err := wire.EncodeJSON(out.snapshot())
-		if err != nil {
-			t.Fatal(err)
+		doc := out.decodedRunDocument(t)
+		if len(doc.Data.Effects) != 1 {
+			t.Fatalf("want one effect, got %+v", doc.Data.Effects)
 		}
-		var doc wire.JSONDocument
-		if err := json.Unmarshal(data, &doc); err != nil {
-			t.Fatal(err)
-		}
-		if len(doc.Changes) != 1 || len(doc.Changes[0].Records) != 1 {
-			t.Fatalf("want one Changes record, got %+v", doc.Changes)
-		}
-		got := doc.Changes[0].Records[0]
+		got := doc.Data.Effects[0]
 		if got.Verb != "installed" {
 			t.Fatalf("want JSON verb %q, got %q", "installed", got.Verb)
 		}

@@ -33,18 +33,6 @@ func (o *Run) finish() error {
 	o.finishing = false
 	misuse := o.runErrorLocked(asEvoConclusion(*snap.Conclusion))
 
-	if o.cfg.projection.suppressesHuman() {
-		var events []recEvent
-		if o.cfg.projection == projectionJSONL {
-			events = o.rec.Events(o.cfg.maxEvents)
-		}
-		writer, projection := o.cfg.primary, o.cfg.projection
-		o.mu.Unlock()
-		if projection != projectionJSON && projection != projectionJSONL {
-			return misuse
-		}
-		return joinErrors(misuse, rendererError(wire.WriteMachine(writer, snap, events, projection == projectionJSONL)))
-	}
 	residual, interactive := o.finishHumanLocked(snap)
 	cfg := o.cfg
 	o.mu.Unlock()

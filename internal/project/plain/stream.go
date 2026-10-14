@@ -54,9 +54,6 @@ type Config struct {
 	// clock.Scheduler.
 	Clock clock.Clock
 	Style project.Style
-	// SuppressHuman drops every human row: a machine projection owns the
-	// primary stream.
-	SuppressHuman bool
 	// Pane is the debug pane when debug records present in the live
 	// region, nil when they stream as history.
 	Pane *project.DebugPane
@@ -163,14 +160,13 @@ func (s *Stream) WriteOwner(text string) {
 	}
 }
 
-// count counts text as a durable row and reports whether it should reach
-// the human stream at all.
+// count counts text as a durable row and reports whether it is one.
 func (s *Stream) count(text string) bool {
 	if text == "" {
 		return false
 	}
 	s.written++
-	return !s.cfg.SuppressHuman
+	return true
 }
 
 // Emit writes text to the human stream now: above the live region when one

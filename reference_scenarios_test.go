@@ -315,14 +315,8 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{stdout: &buf, title: "bpp-csharp", color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
+	h19Scenario(t, out)
 
-	succeed(out.Task("working tree"))
-	out.Task("branches").block("local-only", On("feat/sdk-full-consolidation"), count(1))
-	succeed(out.Task("remotes"))
-	if err := out.finish(); err != nil {
-		// blocked items are resolved; no unresolved error expected
-		t.Fatal(err)
-	}
 	human := out.conclusion()
 	snap := out.snapshot()
 	// re-infer from snapshot for machine
@@ -336,35 +330,43 @@ func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 	if human.exitCode != machineSnap.Conclusion.ExitCode {
 		t.Fatalf("human exit = %d, machine exit = %d", human.exitCode, machineSnap.Conclusion.ExitCode)
 	}
-	raw, err := wire.EncodeJSON(snap)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(raw), `"schema_version": "0.4"`) {
+	raw := out.runDocument(t)
+	if !strings.Contains(string(raw), `"schema_version": "`+wire.RunSchemaVersion+`"`) {
 		t.Fatalf("json missing schema_version:\n%s", raw)
 	}
-	if !strings.Contains(string(raw), `"state": "refused"`) {
-		t.Fatalf("json missing refused state:\n%s", raw)
+	if !strings.Contains(string(raw), `"outcome": "refused"`) {
+		t.Fatalf("json missing refused outcome:\n%s", raw)
 	}
-	// JSONL: one object per line, increasing sequence
-	lines, err := wire.EncodeJSONL(out.events())
-	if err != nil {
+}
+
+// TestH19_Output_EventStreamIsOneObjectPerLineInSequence is the JSONL half of
+// the H19 scenario: the same run, streamed as evo.event lines.
+func TestH19_Output_EventStreamIsOneObjectPerLineInSequence(t *testing.T) {
+	var buf bytes.Buffer
+	out := initRun(Config{format: formatJSONL, stdout: &buf, stderr: io.Discard, title: "bpp-csharp"})
+	t.Cleanup(func() { _ = out.close() })
+	h19Scenario(t, out)
+
+	events := decodeWireEvents(t, buf.String())
+	if len(events) < 2 {
+		t.Fatalf("expected multiple jsonl events, got %d", len(events))
+	}
+	for i, e := range events {
+		if want := uint64(i + 1); e.Seq != want {
+			t.Fatalf("event %d seq = %d, want %d", i, e.Seq, want)
+		}
+	}
+}
+
+// h19Scenario runs the H19 scenario to its finish: one clean Task and one
+// refused one.
+func h19Scenario(t *testing.T, out *Run) {
+	t.Helper()
+	succeed(out.Task("working tree"))
+	out.Task("branches").block("local-only", On("feat/sdk-full-consolidation"), count(1))
+	succeed(out.Task("remotes"))
+	if err := out.finish(); err != nil {
+		// blocked items are resolved; no unresolved error expected
 		t.Fatal(err)
-	}
-	n := 0
-	for line := range strings.SplitSeq(strings.TrimSpace(string(lines)), "\n") {
-		if line == "" {
-			continue
-		}
-		n++
-		if !strings.Contains(line, `"schema_version":"0.4"`) && !strings.Contains(line, `"schema_version": "0.4"`) {
-			// compact marshal has no space
-			if !strings.Contains(line, "schema_version") {
-				t.Fatalf("jsonl line missing schema_version: %s", line)
-			}
-		}
-	}
-	if n < 2 {
-		t.Fatalf("expected multiple jsonl events, got %d", n)
 	}
 }

@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
-
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -20,9 +18,8 @@ func TestAPI017_PureProjection(t *testing.T) {
 	if err != nil || len(b) == 0 {
 		t.Fatal(err, len(b))
 	}
-	j, err := wire.EncodeJSON(snap)
-	if err != nil || !strings.Contains(string(j), "schema_version") {
-		t.Fatal(err, string(j))
+	if j := out.runDocument(t); !strings.Contains(string(j), "schema_version") {
+		t.Fatal(string(j))
 	}
 	_ = out.close()
 }
@@ -144,7 +141,7 @@ func TestAPI030_CompatMatrixSmoke(t *testing.T) {
 	succeed(out.Task("a"))
 	out.debugForTest("d")
 	_ = out.finish()
-	_, _ = wire.EncodeJSON(out.snapshot())
+	_ = out.runDocument(t)
 }
 
 func TestAPI011_CobraNotRequired(t *testing.T) {

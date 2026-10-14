@@ -13,13 +13,13 @@ import (
 )
 
 func TestOUT008_InferenceInEvents(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	var buf bytes.Buffer
+	out := initRun(Config{format: formatJSONL, stdout: &buf, stderr: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("a"))
 	_ = out.finish()
-	raw, _ := wire.EncodeJSONL(out.events())
-	if !strings.Contains(string(raw), "output.finished") {
-		t.Fatal(string(raw))
+	if !strings.Contains(buf.String(), wire.EventRunFinished) {
+		t.Fatal(buf.String())
 	}
 }
 
@@ -28,10 +28,7 @@ func TestOUT009_UnknownJSONFieldsIgnoredByConsumers(t *testing.T) {
 	out := initRun(Config{stdout: io.Discard})
 	succeed(out.Task("a"))
 	_ = out.finish()
-	b, err := wire.EncodeJSON(out.snapshot())
-	if err != nil {
-		t.Fatal(err)
-	}
+	b := out.runDocument(t)
 	// Inject an unknown field as a consumer would see from a newer encoder.
 	var m map[string]any
 	if err := json.Unmarshal(b, &m); err != nil {
@@ -41,14 +38,12 @@ func TestOUT009_UnknownJSONFieldsIgnoredByConsumers(t *testing.T) {
 	raw, _ := json.Marshal(m)
 	var slim struct {
 		SchemaVersion string `json:"schema_version"`
-		Conclusion    struct {
-			State string `json:"state"`
-		} `json:"conclusion"`
+		Outcome       string `json:"outcome"`
 	}
 	if err := json.Unmarshal(raw, &slim); err != nil {
 		t.Fatal(err)
 	}
-	if slim.SchemaVersion != "0.4" || slim.Conclusion.State == "" {
+	if slim.SchemaVersion != wire.RunSchemaVersion || slim.Outcome == "" {
 		t.Fatalf("%+v", slim)
 	}
 }
@@ -100,15 +95,12 @@ func TestOUT012_ExitCodes(t *testing.T) {
 }
 
 func TestOUT006_JSONLOneObjectPerLine(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	var buf bytes.Buffer
+	out := initRun(Config{format: formatJSONL, stdout: &buf, stderr: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("a"))
 	_ = out.finish()
-	raw, err := wire.EncodeJSONL(out.events())
-	if err != nil {
-		t.Fatal(err)
-	}
-	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
 	if len(lines) < 2 {
 		t.Fatal(len(lines))
 	}
@@ -204,12 +196,12 @@ func TestOUT002_DiagnosticSeparate(t *testing.T) {
 }
 
 func TestOUT010_UnknownEnumForwardCompat(t *testing.T) {
-	// Consumers should tolerate extra conclusion fields — EncodeJSON has fixed enums we control
+	// Consumers should tolerate extra conclusion fields — the evo.run document has fixed enums we control
 	out := initRun(Config{stdout: io.Discard})
 	succeed(out.Task("a"))
 	_ = out.finish()
-	b, _ := wire.EncodeJSON(out.snapshot())
-	if !strings.Contains(string(b), "ready") && !strings.Contains(string(b), "state") {
+	b := out.runDocument(t)
+	if !strings.Contains(string(b), "outcome") {
 		t.Fatal(string(b))
 	}
 	_ = out.close()

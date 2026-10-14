@@ -8,8 +8,7 @@ import (
 )
 
 // EventSchemaVersion is the "evo.event" JSONL line's schema_version
-// (spec §38) — a distinct series from internal/render's legacy "0.3"
-// EventJSON, never touched by this package.
+// (spec §38).
 const EventSchemaVersion = "1.0"
 
 // EventObject is the "evo.event" envelope's object discriminator (spec §38).

@@ -3,12 +3,9 @@ package evo
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
-
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
 // TestProblem_TenPlusIndependentFindings is the ZYS-848 acceptance item
@@ -212,22 +209,9 @@ func TestProblem_SurvivesInJSON(t *testing.T) {
 	}
 
 	snap := out.snapshot()
-	encoded, err := wire.EncodeJSON(snap)
-	if err != nil {
-		t.Fatalf("EncodeJSON: %v", err)
-	}
-	var decoded struct {
-		Tasks []struct {
-			Problems []struct {
-				Code string `json:"code"`
-			} `json:"problems"`
-		} `json:"tasks"`
-	}
-	if err := json.Unmarshal(encoded, &decoded); err != nil {
-		t.Fatalf("decode JSON: %v", err)
-	}
-	if len(decoded.Tasks) != 1 || len(decoded.Tasks[0].Problems) != n {
-		t.Fatalf("want %d Problems in JSON (unbounded), got %#v", n, decoded.Tasks)
+	decoded := out.decodedRunDocument(t).Data.Tasks
+	if len(decoded) != 1 || len(decoded[0].Problems) != n {
+		t.Fatalf("want %d Problems in JSON (unbounded), got %#v", n, decoded)
 	}
 
 	// Plain projection of the same Snapshot bounds display and still states

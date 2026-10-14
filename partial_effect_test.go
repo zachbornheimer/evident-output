@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/change"
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
 // refDelete is the aggregate every PartialEffect test requests: delete 3
@@ -164,22 +163,6 @@ func TestPartialEffect_ErrorTextIsTheCause(t *testing.T) {
 func TestPartialEffect_MachineProjectionsAgreeOnCommittedCount(t *testing.T) {
 	t.Parallel()
 	partial := func(context.Context) error { return PartialEffect(2, errors.New("rejected")) }
-
-	t.Run("snapshot JSON", func(t *testing.T) {
-		t.Parallel()
-		r := partialRun(t, formatHuman, partial)
-		data, err := wire.EncodeJSON(r.out.snapshot())
-		if err != nil {
-			t.Fatal(err)
-		}
-		var doc wire.JSONDocument
-		if err := json.Unmarshal(data, &doc); err != nil {
-			t.Fatal(err)
-		}
-		if len(doc.Changes) != 1 || len(doc.Changes[0].Records) != 1 || *doc.Changes[0].Records[0].Quantity != 2 {
-			t.Fatalf("JSON changes = %s, want one record with quantity 2", data)
-		}
-	})
 
 	t.Run("final JSON document", func(t *testing.T) {
 		t.Parallel()

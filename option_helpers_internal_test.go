@@ -38,10 +38,6 @@ func plain() option {
 	return optionFunc(func(c *config) { c.plain = true })
 }
 
-func withProjection(p projection) option {
-	return optionFunc(func(c *config) { c.projection = p })
-}
-
 // NoColor disables color.
 func withNoColor() option {
 	return optionFunc(func(c *config) { c.noColor = true })

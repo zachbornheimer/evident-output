@@ -9,8 +9,8 @@ import (
 
 // RunSchemaVersion is the "evo.run" final document's schema_version
 // (spec §35: "If the desired new envelope is incompatible, introduce a new
-// final JSON schema version" — 1.0's "0.4" stays untouched in
-// internal/render; this is the incompatible replacement, versioned 2.0).
+// final JSON schema version" — this is the incompatible replacement of 1.0's
+// "0.4" document, versioned 2.0).
 const RunSchemaVersion = "2.0"
 
 // RunObject is the "evo.run" envelope's object discriminator (spec §35).
@@ -261,8 +261,7 @@ func modeFor(dryRun bool) string {
 }
 
 // appendCollectionDoc flattens col — and, recursively, every collection it
-// nests — into data.Collections/data.Tasks, mirroring
-// internal/render.appendJSONCollection's flattening for the v1 encoder.
+// nests — into data.Collections/data.Tasks.
 func appendCollectionDoc(data *RunData, parentID string, col record.TasksSnapshot) {
 	children := make([]string, 0, len(col.Tasks)+len(col.Collections))
 	for _, t := range col.Tasks {

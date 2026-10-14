@@ -59,17 +59,6 @@ func TestWriteCountsEveryRowAndHoldsInsideAWindow(t *testing.T) {
 	}
 }
 
-func TestSuppressedHumanStillCountsRows(t *testing.T) {
-	sinks := &bufferSinks{}
-	s := NewStream(Config{Run: record.NewRun(), Region: &quietRegion{}, Sinks: sinks, SuppressHuman: true})
-
-	s.Write("row\n")
-
-	if sinks.human.Len() != 0 || s.Written() != 1 {
-		t.Fatalf("human %q, written %d; want nothing written and one row counted", sinks.human.String(), s.Written())
-	}
-}
-
 func TestMilestonesThinProgressButKeepFirstAndLast(t *testing.T) {
 	var m mark
 	const total = 100

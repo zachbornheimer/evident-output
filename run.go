@@ -614,29 +614,9 @@ const (
 	// ProjectionHuman is ordinary TTY/plain inference; non-zero so an explicit value beats EVO_OUTPUT.
 	projectionHuman projection = iota + 1
 	projectionPlain
-	projectionJSON
-	projectionJSONL
-	// ProjectionStreamJSON writes one EventJSON line at each journal append.
-	projectionStreamJSON
 )
 
-func (p projection) forcesPlain() bool {
-	switch p {
-	case projectionPlain, projectionJSON, projectionJSONL, projectionStreamJSON:
-		return true
-	default:
-		return false
-	}
-}
-
-func (p projection) suppressesHuman() bool {
-	switch p {
-	case projectionJSON, projectionJSONL, projectionStreamJSON:
-		return true
-	default:
-		return false
-	}
-}
+func (p projection) forcesPlain() bool { return p == projectionPlain }
 
 var (
 	lookupEnvMu sync.RWMutex
@@ -655,9 +635,7 @@ func lookupEnv(key string) string {
 
 func applyEnv(c Config) Config {
 	if c.projection == 0 && c.Output == 0 {
-		if p, ok := parseOutputEnv(lookupEnv(envKeyOutput)); ok {
-			c = selectOutputEnv(c, p)
-		}
+		c = selectOutputEnv(c, lookupEnv(envKeyOutput))
 	}
 	if c.projection.forcesPlain() {
 		c.plain = true
@@ -676,33 +654,24 @@ func applyEnv(c Config) Config {
 	return c
 }
 
-// selectOutputEnv applies EVO_OUTPUT's projection p. json and jsonl pick the evo.run document and evo.event
-// stream when no Format was chosen; a caller-chosen Format keeps stdout, so p stays output.v1 on stderr.
-func selectOutputEnv(c Config, p projection) Config {
-	switch {
-	case c.format == formatHuman && p == projectionJSON:
-		c.format = formatJSON
-	case c.format == formatHuman && p == projectionJSONL:
-		c.format = formatJSONL
-	default:
-		c.projection = p
-	}
-	return c
-}
-
-func parseOutputEnv(v string) (projection, bool) {
+// selectOutputEnv applies EVO_OUTPUT's value v. json and jsonl pick the evo.run document and evo.event stream
+// when no Format was chosen; a caller-chosen Format keeps its own stdout, so they change nothing there.
+func selectOutputEnv(c Config, v string) Config {
 	switch strings.TrimSpace(v) {
 	case envOutputHuman:
-		return projectionHuman, true
+		c.projection = projectionHuman
 	case envOutputPlain:
-		return projectionPlain, true
+		c.projection = projectionPlain
 	case envOutputJSON:
-		return projectionJSON, true
+		if c.format == formatHuman {
+			c.format = formatJSON
+		}
 	case envOutputJSONL:
-		return projectionJSONL, true
-	default:
-		return 0, false
+		if c.format == formatHuman {
+			c.format = formatJSONL
+		}
 	}
+	return c
 }
 
 // forceColorRequested reports whether FORCE_COLOR asks for color; NO_COLOR wins, so it is checked first.

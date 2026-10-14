@@ -3,76 +3,52 @@ package evo
 import (
 	"bytes"
 	"context"
-	"strings"
+	"slices"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
-// finishSweepEventTypes is the event types a run that leaves one Task
-// forgotten writes to p, in order.
-func finishSweepEventTypes(t *testing.T, p projection) []string {
+// finishSweepEventTypes is the evo.event types a run streams when Finish
+// sweeps the Tasks it finds unresolved, in order.
+func finishSweepEventTypes(t *testing.T, declare func(*Run)) []string {
 	t.Helper()
 	var buf bytes.Buffer
-	o := newOutput("job", to(&buf), withProjection(p))
-	o.Task("forgotten") // never Defined, never resolved: the Finish sweep settles it
-	o.Task("ran").Define(func(context.Context) error { return nil })
+	o := initRun(Config{format: formatJSONL, stdout: &buf, stderr: &bytes.Buffer{}})
+	declare(o)
 	_ = o.finish()
-	var types []string
-	for line := range strings.SplitSeq(strings.TrimSpace(buf.String()), "\n") {
-		if _, after, ok := strings.Cut(line, `"type":"`); ok {
-			rest := after
-			types = append(types, rest[:strings.IndexByte(rest, '"')])
-		}
-	}
-	return types
+	return wireEventTypes(decodeWireEvents(t, buf.String()))
 }
 
-func TestFinishSweepJournalsSettlesBeforeOutputFinishedJSONL(t *testing.T) {
-	types := finishSweepEventTypes(t, projectionJSONL)
-	t.Logf("JSONL: %v", types)
-	if types[len(types)-1] != "output.finished" {
-		t.Errorf("JSONL: output.finished is not last: %v", types)
+func TestFinishSweepStreamsSettlesBeforeRunFinished(t *testing.T) {
+	types := finishSweepEventTypes(t, func(o *Run) {
+		o.Task("forgotten") // never Defined, never resolved: the Finish sweep settles it
+		o.Task("ran").Define(func(context.Context) error { return nil })
+	})
+	t.Logf("types: %v", types)
+	if types[len(types)-1] != wire.EventRunFinished {
+		t.Errorf("run.finished is not last: %v", types)
 	}
-	if !strings.Contains(strings.Join(types, " "), "task.incomplete") {
-		t.Errorf("JSONL: no task.incomplete for the swept task: %v", types)
+	// "forgotten" and "ran" both settle: two task.finished lines, both before run.finished.
+	if got := countOf(types, wire.EventTaskFinished); got != 2 {
+		t.Errorf("task.finished lines = %d, want 2 (the swept Task and the run one): %v", got, types)
 	}
 }
 
-func TestFinishSweepJournalsSettlesBeforeOutputFinishedStream(t *testing.T) {
-	types := finishSweepEventTypes(t, projectionStreamJSON)
-	t.Logf("stream: %v", types)
-	if types[len(types)-1] != "output.finished" {
-		t.Errorf("stream: output.finished is not last: %v", types)
+func TestAbnormalFinishSweepStreamsNotStartedBeforeRunFinished(t *testing.T) {
+	types := finishSweepEventTypes(t, func(o *Run) {
+		o.Task("boom").fail("broke")
+		o.Task("never") // abnormal finish: the sweep settles it NotStarted
+	})
+	t.Logf("types: %v", types)
+	if types[len(types)-1] != wire.EventRunFinished {
+		t.Errorf("run.finished is not last: %v", types)
+	}
+	if got := countOf(types, wire.EventTaskFinished); got != 2 {
+		t.Errorf("task.finished lines = %d, want 2 (the failed Task and the swept one): %v", got, types)
 	}
 }
 
-// abnormalSweepEventTypes is the event types a failed run that leaves one
-// Task undeclared-to-finish writes to p, in order.
-func abnormalSweepEventTypes(t *testing.T, p projection) []string {
-	t.Helper()
-	var buf bytes.Buffer
-	o := newOutput("job", to(&buf), withProjection(p))
-	o.Task("boom").fail("broke")
-	o.Task("never") // abnormal finish: the sweep settles it NotStarted
-	_ = o.finish()
-	var types []string
-	for line := range strings.SplitSeq(strings.TrimSpace(buf.String()), "\n") {
-		if _, after, ok := strings.Cut(line, `"type":"`); ok {
-			rest := after
-			types = append(types, rest[:strings.IndexByte(rest, '"')])
-		}
-	}
-	return types
-}
-
-func TestAbnormalFinishSweepJournalsNotStartedBeforeOutputFinished(t *testing.T) {
-	for _, p := range []projection{projectionJSONL, projectionStreamJSON} {
-		types := abnormalSweepEventTypes(t, p)
-		t.Logf("%v: %v", p, types)
-		if types[len(types)-1] != "output.finished" {
-			t.Errorf("%v: output.finished is not last", p)
-		}
-		if !strings.Contains(strings.Join(types, " "), "task.not_started") {
-			t.Errorf("%v: no task.not_started", p)
-		}
-	}
+func countOf(types []string, want string) int {
+	return len(slices.DeleteFunc(slices.Clone(types), func(s string) bool { return s != want }))
 }

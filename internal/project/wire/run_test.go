@@ -237,8 +237,8 @@ func TestToRunDocument_VerificationProjectsPerAttributeFactsToo(t *testing.T) {
 }
 
 // TestToProblemDoc_ProjectsLocationAndRemedies proves Location and
-// Remedies reach ProblemDoc; evo.run is the only machine document that
-// carries them (output.v1 is frozen at 1.1).
+// Remedies reach ProblemDoc; evo.run is the machine document that
+// carries them.
 func TestToProblemDoc_ProjectsLocationAndRemedies(t *testing.T) {
 	got := ToProblemDoc(record.Problem{
 		Summary:  "build failed",

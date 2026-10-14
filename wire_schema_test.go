@@ -8,20 +8,17 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
-
 	"github.com/zachbornheimer/evident-output/testkit"
 	"github.com/zachbornheimer/evident-output/testkit/wireschema"
 )
 
-// TestWireSchema_RenderedDocumentValidates is the gate schema/output.v1.json
-// never had (P8): a real wire.EncodeJSON(out.Snapshot()) document, covering a
-// warned task (JSONTask.Warnings, wire 0.4) and a blocked run
-// (ConclusionJSON.Warned), must validate against evo's own published JSON
+// TestWireSchema_RenderedDocumentValidates is the gate the published schema
+// needs beyond its generated-bytes check: a real evo.run document, covering a
+// warned task and a sequence, must validate against evo's own published JSON
 // Schema — so a future wire change that drifts from the schema fails here
 // instead of only being caught by a downstream consumer.
 func TestWireSchema_RenderedDocumentValidates(t *testing.T) {
-	schema := strictOutputSchema(t)
+	schema := strictRunSchema(t)
 
 	out := initRun(Config{stdout: io.Discard})
 	succeed(out.Task("working tree"))
@@ -30,23 +27,18 @@ func TestWireSchema_RenderedDocumentValidates(t *testing.T) {
 	succeed(seq.Task("remove tags"))
 	_ = out.finish()
 
-	doc, err := wire.EncodeJSON(out.snapshot())
-	if err != nil {
-		t.Fatalf("EncodeJSON: %v", err)
-	}
+	doc := out.runDocument(t)
 	if err := wireschema.Validate(schema, doc); err != nil {
-		t.Fatalf("rendered document does not conform to schema/output.v1.json:\n%v\n\ndocument:\n%s", err, doc)
+		t.Fatalf("rendered document does not conform to "+runSchemaPath+":\n%v\n\ndocument:\n%s", err, doc)
 	}
 }
 
-// TestWireSchema_RichProblemStaysWithinFrozenOutputV1 pins the 1.1 API
-// freeze on wire.EncodeJSON: a Task whose Problem sets Location, Next and an
-// EvidenceTail, beside a File verification failure with Facts, must still
-// validate against the Strict output.v1 schema. None of that data may leak
-// into output.v1 as an undeclared field; machine consumers read it from the
-// run document (internal/wire), which carries all of it.
-func TestWireSchema_RichProblemStaysWithinFrozenOutputV1(t *testing.T) {
-	schema := strictOutputSchema(t)
+// TestWireSchema_RichProblemStaysWithinPublishedRunSchema pins that a Task
+// whose Problem sets Location, Next and an EvidenceTail, beside a File
+// verification failure with Facts, validates against the Strict run schema:
+// every field the run document carries for them is declared by the schema.
+func TestWireSchema_RichProblemStaysWithinPublishedRunSchema(t *testing.T) {
+	schema := strictRunSchema(t)
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "agent.plist")
@@ -65,26 +57,26 @@ func TestWireSchema_RichProblemStaysWithinFrozenOutputV1(t *testing.T) {
 		location("main.go", 12, 3), nextCommand("go", "vet", "./..."))
 	_ = out.finish()
 
-	doc, err := wire.EncodeJSON(out.snapshot())
-	if err != nil {
-		t.Fatalf("EncodeJSON: %v", err)
-	}
+	doc := out.runDocument(t)
 	if err := wireschema.Validate(schema, doc); err != nil {
-		t.Fatalf("output.v1 grew past its frozen schema:\n%v\n\ndocument:\n%s", err, doc)
+		t.Fatalf("run document grew past its published schema:\n%v\n\ndocument:\n%s", err, doc)
 	}
 }
 
-// strictOutputSchema reads schema/output.v1.json with wireschema.Strict's
+// runSchemaPath is the published schema of the evo.run document.
+const runSchemaPath = "schema/run.v3.json"
+
+// strictRunSchema reads the published run schema with wireschema.Strict's
 // additionalProperties:false overlay, so an undeclared field fails.
-func strictOutputSchema(t *testing.T) []byte {
+func strictRunSchema(t *testing.T) []byte {
 	t.Helper()
-	schema, err := os.ReadFile("schema/output.v1.json")
+	schema, err := os.ReadFile(runSchemaPath)
 	if err != nil {
-		t.Fatalf("read schema/output.v1.json: %v", err)
+		t.Fatalf("read %s: %v", runSchemaPath, err)
 	}
 	strict, err := wireschema.Strict(schema)
 	if err != nil {
-		t.Fatalf("wireschema.Strict(output.v1.json): %v", err)
+		t.Fatalf("wireschema.Strict(%s): %v", runSchemaPath, err)
 	}
 	return strict
 }

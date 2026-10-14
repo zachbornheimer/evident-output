@@ -51,8 +51,8 @@ func ToProblemDoc(p record.Problem) ProblemDoc {
 	}
 }
 
-// ToActionDoc is the one record.Action projection, shared by evo.run and
-// the output.v1 renderer.
+// ToActionDoc is the one record.Action projection, shared by a Problem's
+// remedies and the run's actions.
 func ToActionDoc(a record.Action) ActionDoc {
 	ad := ActionDoc{Label: a.Label, URL: a.URL}
 	if a.Command != nil {

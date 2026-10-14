@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
 func TestPrint_MatchesFmtConstruction(t *testing.T) {
@@ -126,17 +124,13 @@ func TestTask_PrintfNames(t *testing.T) {
 	}
 }
 
-// TestEncodeJSON_ContainsTasks is C8: WriteJSON (an io.Writer wrapper adding
-// a trailing newline) is deleted — EncodeJSON is the surviving encoder; a
-// caller who wants the newline appends it themselves.
-func TestEncodeJSON_ContainsTasks(t *testing.T) {
+// TestRunDocument_ContainsTasks is C8: the evo.run document is the one JSON
+// encoding of a finished run, and it carries the run's tasks.
+func TestRunDocument_ContainsTasks(t *testing.T) {
 	out := initRun(Config{stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}})
 	succeed(out.Task("a"))
 	_ = out.finish()
-	b, err := wire.EncodeJSON(out.snapshot())
-	if err != nil {
-		t.Fatal(err)
-	}
+	b := out.runDocument(t)
 	if !strings.Contains(string(b), `"tasks"`) {
 		t.Fatalf("json: %s", b)
 	}

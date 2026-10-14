@@ -22,15 +22,15 @@ func TestPORT015_ReproducibleSchemaVersion(t *testing.T) {
 	out := initRun(Config{stdout: io.Discard})
 	succeed(out.Task("a"))
 	_ = out.finish()
-	b, _ := wire.EncodeJSON(out.snapshot())
-	if !strings.Contains(string(b), `"schema_version": "0.4"`) {
+	b := out.runDocument(t)
+	if !strings.Contains(string(b), `"schema_version": "`+wire.RunSchemaVersion+`"`) {
 		t.Fatal(string(b))
 	}
 	_ = out.close()
 }
 
 func TestPORT013_PublicAPIStableShape(t *testing.T) {
-	// Stable public surface: Init/Task/Tasks/Finish/Snapshot/EncodeJSON.
+	// Stable public surface: Init/Task/Tasks/Finish/Snapshot/evo.run.
 	out := initRun(Config{stdout: io.Discard, title: "s", plain: true})
 	succeed(out.Task("i"))
 	succeed(out.Task("t"))
@@ -41,9 +41,8 @@ func TestPORT013_PublicAPIStableShape(t *testing.T) {
 	if snap.Subject != "s" || len(snap.Tasks) != 2 {
 		t.Fatalf("%+v", snap)
 	}
-	b, err := wire.EncodeJSON(snap)
-	if err != nil || !strings.Contains(string(b), `"schema_version": "0.4"`) {
-		t.Fatal(err, string(b))
+	if b := out.runDocument(t); !strings.Contains(string(b), `"schema_version": "`+wire.RunSchemaVersion+`"`) {
+		t.Fatal(string(b))
 	}
 	_ = out.close()
 }
@@ -55,7 +54,7 @@ func TestPORT014_JSONDocumentHasRequiredFields(t *testing.T) {
 	out := initRun(Config{stdout: io.Discard})
 	succeed(out.Task("a"))
 	_ = out.finish()
-	b, _ := wire.EncodeJSON(out.snapshot())
+	b := out.runDocument(t)
 	if strings.Contains(string(b), `"items"`) {
 		t.Fatal(string(b))
 	}

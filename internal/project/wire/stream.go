@@ -74,35 +74,6 @@ func WriteRun(w io.Writer, result record.Result) error {
 	return writeEncoded(w, "evo.run", func() ([]byte, error) { return EncodeRun(result, Release) })
 }
 
-// WriteJournalLine writes e as one legacy streamed-JSON line. The journal
-// stream is best effort: a failure drops the line and nothing else.
-func WriteJournalLine(w io.Writer, e record.Event) {
-	if w != nil {
-		_ = writeEncoded(w, "journal "+e.Type, func() ([]byte, error) { return EncodeEventJSON(e) })
-	}
-}
-
-// WriteMachine writes the run's legacy machine projection: the whole
-// snapshot as JSON, or the journal as JSONL. Neither adds a newline of its
-// own.
-func WriteMachine(w io.Writer, snap record.Snapshot, events []record.Event, jsonl bool) error {
-	body, err := EncodeJSON(snap)
-	if jsonl {
-		body, err = EncodeJSONL(events)
-	}
-	if err != nil {
-		return fmt.Errorf("encode machine projection: %w", err)
-	}
-	if w == nil || len(body) == 0 {
-		return nil
-	}
-	if _, err := w.Write(body); err != nil {
-		return fmt.Errorf("write machine projection: %w", err)
-	}
-	flush(w)
-	return nil
-}
-
 // writeEncoded writes what encode builds as one line, then flushes a
 // buffering writer. what names the line in an error.
 func writeEncoded(w io.Writer, what string, encode func() ([]byte, error)) error {

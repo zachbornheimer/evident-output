@@ -2,7 +2,6 @@ package evo
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/misuse"
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
 type platformSecretRedactor struct{}
@@ -61,22 +59,12 @@ func TestEntityID_StableKeyInSnapshotAndJSON(t *testing.T) {
 		t.Fatalf("second task key: %+v", snap.Tasks)
 	}
 
-	raw, err := wire.EncodeJSON(snap)
-	if err != nil {
-		t.Fatal(err)
+	tasks := out.decodedRunDocument(t).Data.Tasks
+	if len(tasks) != 2 || tasks[0].Key != "gate.working-tree" {
+		t.Fatalf("json first task key: %+v", tasks)
 	}
-	var doc map[string]any
-	if err := json.Unmarshal(raw, &doc); err != nil {
-		t.Fatal(err)
-	}
-	tasks, _ := doc["tasks"].([]any)
-	task0, _ := tasks[0].(map[string]any)
-	if task0["key"] != "gate.working-tree" {
-		t.Fatalf("json first task key: %#v", task0)
-	}
-	task1, _ := tasks[1].(map[string]any)
-	if task1["key"] != "build.base.download" {
-		t.Fatalf("json second task key: %#v", task1)
+	if tasks[1].Key != "build.base.download" {
+		t.Fatalf("json second task key: %+v", tasks)
 	}
 }
 

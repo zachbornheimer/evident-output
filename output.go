@@ -138,7 +138,7 @@ func newRun(cfg config) *Run {
 		RunID: o.outputID, Events: cfg.eventStream(),
 		Surface: liveSurfaceOf(cfg), VisibilityDelay: cfg.visibilityDelay, MaxFrameRate: cfg.maxFrameRate,
 		Style: o.humanStyle(), Subject: cfg.subject,
-		Sinks: humanSinks{o}, SuppressHuman: cfg.projection.suppressesHuman(), Pane: cfg.debugPanePresentation(),
+		Sinks: humanSinks{o}, Pane: cfg.debugPanePresentation(),
 	})
 	o.printLines = txt.NewPrintLines(o.emitMessageLocked)
 	o.mu.Bind(run)
@@ -188,10 +188,7 @@ func (o *Run) appendEventLocked(e recEvent) {
 	if e.OutputID == "" {
 		e.OutputID = o.outputID
 	}
-	e = o.graph.Root().Journal(e, o.cfg.maxEvents)
-	if o.cfg.projection == projectionStreamJSON {
-		wire.WriteJournalLine(o.cfg.primary, e)
-	}
+	o.graph.Root().Journal(e, o.cfg.maxEvents)
 }
 
 // followRecordLocked brings every projection up to date with the record. Callers hold o.mu.

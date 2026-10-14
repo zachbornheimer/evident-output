@@ -63,7 +63,6 @@ type Config struct {
 	Style           project.Style
 	Subject         string
 	Sinks           plain.Sinks
-	SuppressHuman   bool
 	Pane            *project.DebugPane
 }
 
@@ -96,7 +95,7 @@ func New(cfg Config) *Presenter {
 	p.Stream = plain.NewStream(plain.Config{
 		Run: cfg.Run, Region: p.Live, Source: p.Rows, Sinks: cfg.Sinks, Scene: scene{p},
 		Lock: cfg.Lock, Clock: cfg.Clock, Style: cfg.Style,
-		SuppressHuman: cfg.SuppressHuman, Pane: cfg.Pane,
+		Pane: cfg.Pane,
 	})
 	p.Events = wire.NewEvents(cfg.Events, cfg.RunID, cfg.Clock)
 	p.follow = project.NewFollower(cfg.Run, cfg.Lock, reactions{p})
