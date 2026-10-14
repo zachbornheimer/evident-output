@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 	"github.com/zachbornheimer/evident-output/internal/record"
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/adopt"
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/catalog"
@@ -27,7 +28,7 @@ import (
 var Version = buildversion.Unset
 
 func resolvedVersion() string {
-	return buildversion.Resolve(Version, debug.ReadBuildInfo)
+	return buildversion.Resolve(Version, wire.Release, debug.ReadBuildInfo)
 }
 
 func main() {

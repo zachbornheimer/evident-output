@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/catalog"
 	"github.com/zachbornheimer/evident-output/mcp/internal/agent/rules"
 	"github.com/zachbornheimer/evident-output/mcp/internal/buildversion"
@@ -31,8 +32,8 @@ import (
 const serverInstructions = "This is the official Evident Output MCP server. It MUST be used whenever CLI output or presentation code is written or changed in a repo that uses evident-output (or is adopting it). Call evident_output_list_sections / evident_output_get_documentation for authoritative docs, evident_output_adopt_plan to inventory non-evo output in an existing codebase, and evident_output_review before treating any CLI output change as done. When review reports update_needed, call evident_output_update then restart the MCP host before treating review as done. When migrating existing evo call sites, evident_output_review is the autofixer (same role as svelte-autofixer): pass the Go source or kind=directory, apply every suggestion, and call again until zero findings. After applying evident_output_review's suggested fixes, call evident_output_review again on the same source — repeat until it reports zero findings (recheck_required=false); only then is the change clean. Catalog checksum available via resource evident-output://meta/catalog-checksum."
 
 // Version is injected at build time via -ldflags "-X main.Version=...".
-// installedVersionUnset stays "dev" only when neither the build-time stamp
-// nor the Go toolchain's own VCS stamp is available — see resolvedVersion.
+// installedVersionUnset marks an unstamped build; resolvedVersion never
+// prints it, falling back to wire.Release instead.
 const installedVersionUnset = buildversion.Unset
 
 var Version = installedVersionUnset
@@ -44,12 +45,12 @@ var Version = installedVersionUnset
 // — no ldflags needed, this is how `go version -m` reports any installed
 // Go tool's pin); else the VCS revision Go auto-embeds into local
 // go run/go build binaries built inside a git checkout (buildvcs=auto,
-// default since Go 1.18). A stale-host check ("is this binary older than
+// default since Go 1.18); else wire.Release. A stale-host check ("is this binary older than
 // the pin?") never has to trust the literal string "dev" (AGENTS.md
 // "Dialect the MCP enforces" / evo-dialect-axes-report.md axis 4/12: a
 // fresh --version printing "dev" cannot tell stale from fresh).
 func resolvedVersion() string {
-	return buildversion.Resolve(Version, debug.ReadBuildInfo)
+	return buildversion.Resolve(Version, wire.Release, debug.ReadBuildInfo)
 }
 
 // faultHook is an optional test-only injector for MCP-034 panic containment.

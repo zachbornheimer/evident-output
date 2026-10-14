@@ -12,6 +12,7 @@ func info(version string, settings ...debug.BuildSetting) ReadBuildInfo {
 }
 
 func TestResolve(t *testing.T) {
+	const release = "v2.0.0"
 	rev := debug.BuildSetting{Key: "vcs.revision", Value: "0123456789abcdef"}
 	dirty := debug.BuildSetting{Key: "vcs.modified", Value: "true"}
 	none := func() (*debug.BuildInfo, bool) { return nil, false }
@@ -24,11 +25,11 @@ func TestResolve(t *testing.T) {
 		{"module version", Unset, info("v0.4.7"), "v0.4.7"},
 		{"vcs revision", Unset, info("(devel)", rev), "devel+0123456789ab"},
 		{"dirty revision", Unset, info("(devel)", rev, dirty), "devel+0123456789ab-dirty"},
-		{"nothing known", Unset, info("(devel)"), Unset},
-		{"no build info", Unset, none, Unset},
+		{"nothing known", Unset, info("(devel)"), release},
+		{"no build info", Unset, none, release},
 	}
 	for _, c := range cases {
-		if got := Resolve(c.stamped, c.read); got != c.want {
+		if got := Resolve(c.stamped, release, c.read); got != c.want {
 			t.Errorf("%s: Resolve = %q, want %q", c.name, got, c.want)
 		}
 	}

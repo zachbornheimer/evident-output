@@ -22,15 +22,15 @@ type ReadBuildInfo func() (*debug.BuildInfo, bool)
 
 // Resolve returns, in priority order: the ldflags-stamped version when set;
 // the module version Go embeds for `go install pkg@vX.Y.Z`; else
-// devel+<vcs revision> (with -dirty) for local builds inside a git checkout.
-// It returns stamped unchanged when none of those are available.
-func Resolve(stamped string, read ReadBuildInfo) string {
+// devel+<vcs revision> (with -dirty) for local builds inside a git checkout;
+// else release, the version this source tree ships as.
+func Resolve(stamped, release string, read ReadBuildInfo) string {
 	if stamped != Unset {
 		return stamped
 	}
 	info, ok := read()
 	if !ok {
-		return stamped
+		return release
 	}
 	if v := info.Main.Version; v != "" && v != develModule {
 		return v
@@ -46,7 +46,7 @@ func Resolve(stamped string, read ReadBuildInfo) string {
 		}
 	}
 	if revision == "" {
-		return stamped
+		return release
 	}
 	if len(revision) > revisionLen {
 		revision = revision[:revisionLen]
