@@ -18,18 +18,11 @@ const problemEventSummaryKey = "summary"
 
 // EventPayload is d as a problem.recorded/warning.recorded payload.
 func (d ProblemDoc) EventPayload() map[string]any {
-	p := map[string]any{problemEventSummaryKey: d.Message}
-	putNonZero(p, "code", d.Code)
-	putNonZero(p, "subject", d.Subject)
-	putNonZero(p, "detail", d.Detail)
-	putNonZero(p, "evidence_tail", d.EvidenceTail)
-	putNonZero(p, "count", d.Count)
-	putNonZero(p, "unit", d.Unit)
-	putNonZero(p, "location", d.Location)
-	if len(d.Remedies) > 0 {
-		p["remedies"] = d.Remedies
-	}
-	return p
+	return ProblemRecordedPayload{
+		Summary: d.Message, Code: d.Code, Subject: d.Subject, Detail: d.Detail,
+		EvidenceTail: d.EvidenceTail, Count: d.Count, Unit: d.Unit,
+		Location: d.Location, Remedies: d.Remedies,
+	}.EventPayload()
 }
 
 // EventPayload is d as a verification.observed payload.
@@ -71,15 +64,6 @@ const (
 	PayloadKeyText   = "text"
 	PayloadKeyBase64 = "base64"
 )
-
-// ResultWrittenPayload is b as a result.written payload.
-func ResultWrittenPayload(b []byte) map[string]any {
-	text, encoded := TextOrBase64(string(b))
-	if encoded != "" {
-		return map[string]any{PayloadKeyBase64: encoded}
-	}
-	return map[string]any{PayloadKeyText: text}
-}
 
 // TextOrBase64 splits payload into the text that carries it exactly, or its base64 when the bytes are not
 // valid UTF-8; exactly one result is non-empty, unless payload is empty.

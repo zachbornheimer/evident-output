@@ -135,6 +135,13 @@ spelling to its 2.0 replacement.
 
 ### Fixed
 
+- `schema/event.v2.json` binds every event type's `payload` and closes
+  `type` to an enum of the 23 event types the runtime writes. Before, only
+  `definition.finished` and `verification.observed` payloads were bound, and
+  the other 21 types were `{"type": "object"}` with `type` any string. Each
+  payload is now generated from its Go type in `internal/project/wire`, and a
+  consumer validating strictly learns every field it may read. The change is
+  additive-safe: no emitted line changes, and `schema_version` stays `2.0`.
 - `schema/run.v3.json` accepts every real `evo.run` document under a stock
   draft 2020-12 validator. `task.activity` and `task.progress` are emitted as
   `null` when a Task has neither, but the schema declared them non-null;

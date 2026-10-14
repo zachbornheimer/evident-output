@@ -116,14 +116,9 @@ func (o *Run) concludeLocked() snapshot {
 		State: string(conc.Outcome),
 	})
 	// run.finished (§38) fires on every path through Finish, failure and cancel included.
-	payload := map[string]any{
-		"outcome":   string(conc.Outcome),
-		"exit_code": conc.ExitCode,
-	}
-	if conc.Explanation != "" {
-		payload["explanation"] = conc.Explanation
-	}
-	o.emitWireEventLocked(wire.EventRunFinished, "", payload)
+	o.emitWireEventLocked(wire.EventRunFinished, "", wire.RunFinishedPayload{
+		Outcome: string(conc.Outcome), ExitCode: conc.ExitCode, Explanation: conc.Explanation,
+	}.EventPayload())
 	return snap
 }
 

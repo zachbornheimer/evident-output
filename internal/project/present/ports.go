@@ -71,7 +71,7 @@ func (r reactions) Settled(id record.TaskID, to record.State) {
 	if row := p.Rows.Task(id); row != nil {
 		row.Timing.Settled = p.cfg.Clock.Now()
 	}
-	p.Narrate(wire.EventTaskFinished, string(id), func() map[string]any { return finishedPayload(t.rec) })
+	p.Narrate(wire.EventTaskFinished, string(id), finishedPayload(t.rec).EventPayload)
 	p.Board.Changed(id)
 	p.Stream.Settled(id)
 	p.journal("task."+string(to), string(id))
@@ -80,13 +80,6 @@ func (r reactions) Settled(id record.TaskID, to record.State) {
 // finishedPayload is task.finished's payload: the Outcome the Task settled
 // with, absent for a NotStarted Task exactly as in evo.run, and its Summary
 // when it has one (ZYS-971).
-func finishedPayload(rec *record.Task) map[string]any {
-	payload := map[string]any{}
-	if outcome := rec.State().Outcome(); outcome != "" {
-		payload["outcome"] = string(outcome)
-	}
-	if summary := rec.Summary(); summary != "" {
-		payload["summary"] = summary
-	}
-	return payload
+func finishedPayload(rec *record.Task) wire.TaskFinishedPayload {
+	return wire.TaskFinishedPayload{Outcome: string(rec.State().Outcome()), Summary: rec.Summary()}
 }

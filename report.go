@@ -103,7 +103,7 @@ func (o *Run) routeResult(b []byte) (io.Writer, error) {
 	}
 	switch {
 	case o.cfg.wireFormat == JSONL:
-		o.emitWireEventLocked(wire.EventResultWritten, "", wire.ResultWrittenPayload(b))
+		o.emitWireEventLocked(wire.EventResultWritten, "", wire.NewResultWrittenPayload(b).EventPayload())
 	case o.cfg.wireFormat == JSON:
 		o.resultText.Write(b)
 	case o.cfg.resultSharesTerminal && o.show.Stream.WritePayload(string(b)):

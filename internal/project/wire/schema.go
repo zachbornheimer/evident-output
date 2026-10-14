@@ -29,19 +29,61 @@ func EventJSONSchema() []byte {
 		"object":         map[string]any{"const": EventObject},
 		"schema_version": map[string]any{"const": EventSchemaVersion},
 		"seq":            map[string]any{"type": "integer", "minimum": 1},
+		"type":           map[string]any{"type": "string", "enum": EventTypes()},
 	}, documentedPayloads)
 }
 
-// documentedPayloads are the event types whose payload the schema binds, and the wire type each payload is.
+// EventPayloader is a payload type: it builds its own evo.event payload map.
+type EventPayloader interface {
+	EventPayload() map[string]any
+}
+
+// documentedPayloads binds every event type to the payload type that describes it, in the order the
+// constants are declared. The "type" enum is these names, so an event type is published exactly when its
+// payload is bound; TestEventSchemaBindsEveryEventType holds the list to the Event* constants.
 var documentedPayloads = []payloadSchema{
-	{EventDefinitionFinished, reflect.TypeFor[DefinitionFinishedPayload]()},
-	{EventVerificationObserved, reflect.TypeFor[VerificationDoc]()},
+	bind[RunStartedPayload](EventRunStarted),
+	bind[CollectionDeclaredPayload](EventCollectionDeclared),
+	bind[TaskDeclaredPayload](EventTaskDeclared),
+	bind[EmptyPayload](EventTaskEligible),
+	bind[EvidenceEvaluatedPayload](EventEvidenceEvaluated),
+	bind[EmptyPayload](EventTaskStarted),
+	bind[EmptyPayload](EventDefinitionStarted),
+	bind[OperationObservedPayload](EventOperationStarted),
+	bind[OperationObservedPayload](EventOperationSkippedCurrent),
+	bind[TrackedResourceObservedPayload](EventTrackedResourceObserved),
+	bind[BasisFingerprintedPayload](EventBasisFingerprinted),
+	bind[VerificationDoc](EventVerificationObserved),
+	bind[FactDoc](EventFactRecorded),
+	bind[ProblemRecordedPayload](EventWarningRecorded),
+	bind[ProblemRecordedPayload](EventProblemRecorded),
+	bind[EffectPayload](EventEffectPlanned),
+	bind[EffectPayload](EventEffectCommitted),
+	bind[ManifestTaskCommittedPayload](EventManifestTaskCommitted),
+	bind[OperationFinishedPayload](EventOperationFinished),
+	bind[DefinitionFinishedPayload](EventDefinitionFinished),
+	bind[TaskFinishedPayload](EventTaskFinished),
+	bind[RunFinishedPayload](EventRunFinished),
+	bind[ResultWrittenPayload](EventResultWritten),
+}
+
+// EventTypes are the event types an evo.event line may carry: the closed enum of the schema's "type".
+func EventTypes() []string {
+	types := make([]string, len(documentedPayloads))
+	for i, bound := range documentedPayloads {
+		types[i] = bound.event
+	}
+	return types
 }
 
 // payloadSchema binds the payload of one event type to the wire type that describes it.
 type payloadSchema struct {
 	event   string
 	payload reflect.Type
+}
+
+func bind[P EventPayloader](event string) payloadSchema {
+	return payloadSchema{event, reflect.TypeFor[P]()}
 }
 
 // conditions is the schema's allOf: one "when the type is this event, the payload is this shape" clause per
@@ -55,14 +97,26 @@ func (g *schemaGen) conditions(payloads []payloadSchema) []any {
 				"properties": map[string]any{"type": map[string]any{"const": p.event}},
 				"required":   []string{"type"},
 			},
-			"then": map[string]any{
-				"type":       "object",
-				"properties": map[string]any{"payload": g.property(p.payload)},
-				"required":   []string{"payload"},
-			},
+			"then": g.payloadClause(p.payload),
 		})
 	}
 	return clauses
+}
+
+// payloadClause is what an event's payload must be: the bound shape, present unless every field of it is
+// optional (the writer omits an empty payload).
+func (g *schemaGen) payloadClause(payload reflect.Type) map[string]any {
+	clause := map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"payload": g.property(payload)},
+	}
+	for _, field := range jsonFields(payload) {
+		if !field.omitempty {
+			clause["required"] = []string{"payload"}
+			break
+		}
+	}
+	return clause
 }
 
 func generateSchema(id, title string, root reflect.Type, overrides map[string]any, payloads ...[]payloadSchema) []byte {
@@ -93,22 +147,17 @@ type schemaGen struct {
 func (g *schemaGen) objectOf(t reflect.Type, overrides map[string]any) map[string]any {
 	t = unwrap(t)
 	props := map[string]any{}
-	required := make([]string, 0, t.NumField())
-	for i := range t.NumField() {
-		field := t.Field(i)
-		name, omitempty, skip := jsonField(field)
-		if skip {
-			continue
-		}
-		if override, ok := overrides[name]; ok {
-			props[name] = override
+	var required []string
+	for _, field := range jsonFields(t) {
+		if override, ok := overrides[field.name]; ok {
+			props[field.name] = override
 		} else {
-			props[name] = g.property(field.Type)
+			props[field.name] = g.property(field.typ)
 		}
-		if !omitempty {
-			required = append(required, name)
-			if field.Type.Kind() == reflect.Pointer {
-				props[name] = orNull(props[name])
+		if !field.omitempty {
+			required = append(required, field.name)
+			if field.typ.Kind() == reflect.Pointer {
+				props[field.name] = orNull(props[field.name])
 			}
 		}
 	}
@@ -189,6 +238,31 @@ func unwrap(t reflect.Type) reflect.Type {
 		t = t.Elem()
 	}
 	return t
+}
+
+// wireField is one JSON property of a struct: its name, whether the encoder omits it when empty, and its type.
+type wireField struct {
+	name      string
+	omitempty bool
+	typ       reflect.Type
+}
+
+// jsonFields are the JSON properties of struct t in declaration order. An embedded struct with no json tag
+// contributes its fields, as encoding/json flattens it.
+func jsonFields(t reflect.Type) []wireField {
+	fields := make([]wireField, 0, t.NumField())
+	for i := range t.NumField() {
+		field := t.Field(i)
+		if embedded := unwrap(field.Type); field.Anonymous && field.Tag.Get("json") == "" && embedded.Kind() == reflect.Struct {
+			fields = append(fields, jsonFields(embedded)...)
+			continue
+		}
+		name, omitempty, skip := jsonField(field)
+		if !skip {
+			fields = append(fields, wireField{name, omitempty, field.Type})
+		}
+	}
+	return fields
 }
 
 func jsonField(field reflect.StructField) (name string, omitempty, skip bool) {

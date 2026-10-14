@@ -102,7 +102,7 @@ func newRun(cfg config) *Run {
 	o.printLines = txt.NewPrintLines(o.emitMessageLocked)
 	o.mu.Bind(run)
 	o.appendEventLocked(recEvent{Type: "output.started", OutputID: o.outputID})
-	o.emitWireEventLocked(wire.EventRunStarted, "", runStartedPayload(o.cfg.subject))
+	o.emitWireEventLocked(wire.EventRunStarted, "", wire.RunStartedPayload{Name: o.cfg.subject}.EventPayload())
 	if cfg.dryRun {
 		// Announce before any task can reach the durable stream; unlocked is safe, o has not been returned yet.
 		o.show.PlannedHeader()
@@ -252,13 +252,6 @@ const (
 	JSON
 	JSONL
 )
-
-func runStartedPayload(title string) map[string]any {
-	if title == "" {
-		return nil
-	}
-	return map[string]any{"name": title}
-}
 
 // Environment keys honored at run start when the matching Config field is unset.
 const (

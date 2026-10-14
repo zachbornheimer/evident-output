@@ -2,6 +2,7 @@ package wire
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -59,6 +60,13 @@ func TestEventPayload_EncodesAsItsDoc(t *testing.T) {
 		{"fact", fullVerificationDoc.Facts[0].EventPayload(), asJSONObject(t, fullVerificationDoc.Facts[0])},
 		{"definition finished", DefinitionFinishedPayload{Failed: true}.EventPayload(), asJSONObject(t, DefinitionFinishedPayload{Failed: true})},
 	}
+	for _, payload := range fullEventPayloads() {
+		cases = append(cases, struct {
+			name    string
+			payload map[string]any
+			want    map[string]any
+		}{fmt.Sprintf("%T", payload), payload.EventPayload(), asJSONObject(t, payload)})
+	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := asJSONObject(t, tc.payload); !reflect.DeepEqual(got, tc.want) {
@@ -72,12 +80,57 @@ func TestEventPayload_EncodesAsItsDoc(t *testing.T) {
 // a doc field they leave zero would pass TestEventPayload_EncodesAsItsDoc
 // even when EventPayload never emits it.
 func TestEventPayload_FixturesSetEveryField(t *testing.T) {
-	for _, doc := range []any{fullProblemDoc, fullVerificationDoc, fullVerificationDoc.Facts[0]} {
+	docs := []any{fullProblemDoc, fullVerificationDoc, fullVerificationDoc.Facts[0]}
+	for _, payload := range fullEventPayloads() {
+		if _, oneOf := payload.(ResultWrittenPayload); !oneOf { // text and base64 are alternatives
+			docs = append(docs, payload)
+		}
+	}
+	for _, doc := range docs {
 		v := reflect.ValueOf(doc)
 		for i := range v.NumField() {
 			if v.Field(i).IsZero() {
 				t.Errorf("%T fixture leaves %s zero; set it so its payload key is checked", doc, v.Type().Field(i).Name)
 			}
 		}
+	}
+}
+
+// fullEventPayloads sets every field of each payload type that is not a ProblemDoc, so the payload's keys
+// are compared with the type's own JSON.
+func fullEventPayloads() []EventPayloader {
+	current := false
+	quantity := int64(3)
+	file := ObservedSubject{Kind: PayloadKindFile, Path: "a.txt"}
+	return []EventPayloader{
+		RunStartedPayload{Name: "tool"},
+		TaskDeclaredPayload{Name: "build"},
+		CollectionDeclaredPayload{Name: "checks", Kind: CollectionKindGroup, ParentID: "group_1"},
+		EvidenceEvaluatedPayload{Phase: EvidencePhaseAfterDefinition, Evaluated: true, Satisfied: true, Source: EvidenceSourceVerify},
+		OperationObservedPayload{ObservedSubject: file, Reason: "no_prior_record"},
+		OperationFinishedPayload{ObservedSubject: ObservedSubject{Kind: PayloadKindExec, Executable: "cp"}, Changed: true},
+		TrackedResourceObservedPayload{ObservedSubject: file, Exists: true},
+		BasisFingerprintedPayload{Kind: PayloadKindExecOutput, Path: "out", Executable: "cp", Count: 2, Current: &current},
+		EffectPayload{Verb: "delete", Object: "branches", Quantity: &quantity},
+		ManifestTaskCommittedPayload{Operations: 2},
+		TaskFinishedPayload{Outcome: "succeeded", Summary: "built"},
+		RunFinishedPayload{Outcome: "failed", ExitCode: 1, Explanation: "1 task failed"},
+		ResultWrittenPayload{Text: "bin/app"},
+		ResultWrittenPayload{Base64: "//4="},
+	}
+}
+
+// TestEventTypesAreEveryBoundPayload pins that a payload type is bound to an event type exactly once per
+// name, that an event with nothing to say carries no payload, and that each bound type builds its own map.
+func TestEventTypesAreEveryBoundPayload(t *testing.T) {
+	seen := map[string]bool{}
+	for _, name := range EventTypes() {
+		if seen[name] {
+			t.Errorf("event type %q is bound twice", name)
+		}
+		seen[name] = true
+	}
+	if got := (EmptyPayload{}).EventPayload(); len(got) != 0 {
+		t.Errorf("EmptyPayload carries %v, want nothing", got)
 	}
 }

@@ -90,7 +90,10 @@ func TestEffectRecordsTheCommittedSubsetOfAPartialEffect(t *testing.T) {
 		t.Fatalf("Effect = %v, want it to read as its cause", err)
 	}
 	got := host.recorded()
-	if len(got) != 1 || got[0].Payload("delete")["quantity"] != 1 {
+	if len(got) != 1 {
+		t.Fatalf("recorded %v, want one entry counting the 1 committed", got)
+	}
+	if quantity, counted := got[0].Quantity(); !counted || quantity != 1 {
 		t.Fatalf("recorded %v, want one entry counting the 1 committed", got)
 	}
 }

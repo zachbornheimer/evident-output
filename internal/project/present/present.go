@@ -147,7 +147,7 @@ func (p *Presenter) DeclareTask(t project.DeclaredTask, in string) {
 		return
 	}
 	p.journal("task.declared", string(t.ID))
-	p.Narrate(wire.EventTaskDeclared, string(t.ID), func() map[string]any { return map[string]any{"name": t.Name} })
+	p.Narrate(wire.EventTaskDeclared, string(t.ID), wire.TaskDeclaredPayload{Name: t.Name}.EventPayload)
 	p.Live.Signal(true)
 }
 
@@ -169,9 +169,7 @@ func (p *Presenter) DeclareGroup(g project.DeclaredGroup, parent string) {
 	if g.Sequential {
 		kind = wire.CollectionKindSequence
 	}
-	p.Narrate(wire.EventCollectionDeclared, g.ID, func() map[string]any {
-		return map[string]any{"name": g.Name, "kind": kind, "parent_id": parent}
-	})
+	p.Narrate(wire.EventCollectionDeclared, g.ID, wire.CollectionDeclaredPayload{Name: g.Name, Kind: kind, ParentID: parent}.EventPayload)
 }
 
 // Started answers the Task id becoming Running, once however its row got
@@ -189,7 +187,7 @@ func (p *Presenter) Started(id record.TaskID) bool {
 	}
 	p.Board.Changed(id)
 	p.Stream.Started(id, now)
-	p.Narrate(wire.EventTaskStarted, string(id), noPayload)
+	p.Narrate(wire.EventTaskStarted, string(id), wire.EmptyPayload{}.EventPayload)
 	return true
 }
 
@@ -229,5 +227,3 @@ func (p *Presenter) Arm() {
 func (p *Presenter) journal(eventType, entityID string) {
 	p.cfg.Host.Journal(record.Event{Type: eventType, EntityID: entityID})
 }
-
-func noPayload() map[string]any { return nil }

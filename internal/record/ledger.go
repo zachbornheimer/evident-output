@@ -74,16 +74,11 @@ func NamedEntry(verb, object string) LedgerEntry {
 // Verb is the imperative verb the entry was created with.
 func (e LedgerEntry) Verb() string { return e.verb }
 
-// Payload is the effect.planned / effect.committed wire payload for e,
-// recorded under verb. It carries the quantity the ledger recorded, so the
-// JSONL stream agrees with the human rows and the final document.
-func (e LedgerEntry) Payload(verb string) map[string]any {
-	payload := map[string]any{"verb": verb, "object": e.object}
-	if e.counted {
-		payload["quantity"] = e.quantity
-	}
-	return payload
-}
+// Object is what the entry acts on.
+func (e LedgerEntry) Object() string { return e.object }
+
+// Quantity is how many objects a counted entry acts on; counted is false for an entry naming one object.
+func (e LedgerEntry) Quantity() (quantity int, counted bool) { return e.quantity, e.counted }
 
 // LedgerOwner is the Task a ledger section belongs to, as the ledger needs
 // to know it: the section is placed by Declaration, found by ID, shown by

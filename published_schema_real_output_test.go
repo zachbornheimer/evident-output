@@ -39,6 +39,7 @@ func realOutputScenarios() []realOutputScenario {
 		{"result bytes", resultScenario("\xff\xfe binary")},
 		{"cancelled mid progress", cancelledMidProgressScenario},
 		{"group and sequence", structureScenario},
+		{"manifest not saved", manifestNotSavedScenario},
 	}
 	for _, outcome := range outcomeScenarios() {
 		scenarios = append(scenarios, realOutputScenario{string(outcome.want), outcome.run})
@@ -128,6 +129,28 @@ func cancelledMidProgressScenario(t *testing.T, mode evo.Output) contractRun {
 				case <-time.After(callbackPatience):
 					return errors.New("the run's cancellation never reached the callback")
 				}
+			})
+			return nil
+		})
+}
+
+// manifestNotSavedScenario makes the state directory read-only once a File is written, so the run warns that
+// its manifest was not saved.
+func manifestNotSavedScenario(t *testing.T, mode evo.Output) contractRun {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	state := t.TempDir()
+	t.Cleanup(func() { _ = os.Chmod(state, 0o700) })
+	target := filepath.Join(t.TempDir(), "f.txt")
+	return executeContract(context.Background(), t,
+		evo.Config{Name: "unsaved", Output: mode, State: evo.State{Dir: state, AppID: "schema"}},
+		func(_ context.Context, r *evo.Run) error {
+			r.Task("write").Define(func(ctx context.Context) error {
+				if err := evo.File(ctx, evo.FileSpec{Path: target, Contents: []byte("x")}); err != nil {
+					return err
+				}
+				return os.Chmod(state, 0o500)
 			})
 			return nil
 		})

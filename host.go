@@ -101,7 +101,18 @@ func (e runHost) EntryRecorded(task record.TaskID, row change.LedgerRow) {
 	if row.Tense == record.TenseChanged {
 		event = wire.EventEffectCommitted
 	}
-	o.emitWireEventLocked(event, string(task), row.Entry.Payload(row.Verb))
+	o.emitWireEventLocked(event, string(task), effectPayload(row).EventPayload())
+}
+
+// effectPayload is row as the §38 effect line: the quantity the ledger recorded, so the JSONL stream agrees
+// with the human rows and the final document.
+func effectPayload(row change.LedgerRow) wire.EffectPayload {
+	payload := wire.EffectPayload{Verb: row.Verb, Object: row.Entry.Object()}
+	if quantity, counted := row.Entry.Quantity(); counted {
+		recorded := int64(quantity)
+		payload.Quantity = &recorded
+	}
+	return payload
 }
 
 // VerificationRecorded files the Task's row again and narrates each detail as evo.run projects it.
@@ -180,7 +191,7 @@ func (e runHost) Started(t *graph.Task) bool {
 		// An interrupt settled the Task between its claim and this step: never started.
 		return false
 	}
-	o.emitWireEventLocked(wire.EventTaskEligible, st.id, nil)
+	o.emitWireEventLocked(wire.EventTaskEligible, st.id, wire.EmptyPayload{}.EventPayload())
 	if t.Rec.State() == pending {
 		o.promoteRunningLocked(st)
 	} else {
@@ -250,9 +261,8 @@ func (o *Run) commitManifestLocked(st *taskState) {
 		return
 	}
 	if commit.Written {
-		o.emitWireEventLocked(wire.EventManifestTaskCommitted, st.id, map[string]any{
-			"operations": commit.Operations,
-		})
+		o.emitWireEventLocked(wire.EventManifestTaskCommitted, st.id,
+			wire.ManifestTaskCommittedPayload{Operations: commit.Operations}.EventPayload())
 	}
 }
 
@@ -273,10 +283,8 @@ func (e runHost) narrate(event, entityID string, payload func() map[string]any) 
 	o.emitWireEventLocked(event, entityID, payload())
 }
 
-func noPayload() map[string]any { return nil }
-
 func (e runHost) DefinitionStarted(t *graph.Task) {
-	e.narrate(wire.EventDefinitionStarted, t.ID, noPayload)
+	e.narrate(wire.EventDefinitionStarted, t.ID, wire.EmptyPayload{}.EventPayload)
 }
 
 func (e runHost) DefinitionFinished(t *graph.Task, failed bool) {
@@ -287,22 +295,20 @@ func (e runHost) DefinitionFinished(t *graph.Task, failed bool) {
 
 func (e runHost) EvidenceEvaluated(t *graph.Task, phase graph.EvidencePhase, evidence record.EvidencePhase) {
 	e.narrate(wire.EventEvidenceEvaluated, t.ID, func() map[string]any {
-		name := "before_definition"
+		name := wire.EvidencePhaseBeforeDefinition
 		if phase == graph.EvidenceAfter {
-			name = "after_definition"
+			name = wire.EvidencePhaseAfterDefinition
 		}
-		return map[string]any{
-			"phase":     name,
-			"evaluated": evidence.Evaluated,
-			"satisfied": evidence.Satisfied,
-			"source":    evidence.Source,
-		}
+		return wire.EvidenceEvaluatedPayload{
+			Phase: name, Evaluated: evidence.Evaluated, Satisfied: evidence.Satisfied, Source: evidence.Source,
+		}.EventPayload()
 	})
 }
 
 func (e runHost) BasisJudged(id record.TaskID, judgement freshness.BasisJudgement) {
 	e.narrate(wire.EventBasisFingerprinted, string(id), func() map[string]any {
-		return map[string]any{"count": len(judgement.Observed), "current": judgement.Current}
+		current := judgement.Current
+		return wire.BasisFingerprintedPayload{Count: len(judgement.Observed), Current: &current}.EventPayload()
 	})
 }
 
@@ -343,28 +349,24 @@ func observationEvent(kind change.ObservationKind) string {
 // observationPayload is the §38 payload for ob: the subject's kind and name under its kind's
 // historical key, then the step's fields. A File's basis.fingerprinted line never names its kind.
 func observationPayload(ob change.Observation) map[string]any {
-	kind, nameKey := wire.PayloadKindFile, "path"
+	subject := wire.ObservedSubject{Kind: wire.PayloadKindFile, Path: ob.Subject.Name}
 	switch ob.Subject.Kind {
 	case change.SubjectExec:
-		kind, nameKey = wire.PayloadKindExec, "executable"
+		subject = wire.ObservedSubject{Kind: wire.PayloadKindExec, Executable: ob.Subject.Name}
 	case change.SubjectExecOutput:
-		kind = wire.PayloadKindExecOutput
-	}
-	payload := map[string]any{nameKey: ob.Subject.Name}
-	if ob.Kind != change.BasisFingerprinted || ob.Subject.Kind != change.SubjectFile {
-		payload["kind"] = kind
+		subject.Kind = wire.PayloadKindExecOutput
 	}
 	switch ob.Kind {
 	case change.OperationStarted, change.OperationSkippedCurrent:
-		if ob.Reason != "" {
-			payload["reason"] = ob.Reason
-		}
+		return wire.OperationObservedPayload{ObservedSubject: subject, Reason: ob.Reason}.EventPayload()
 	case change.OperationFinished:
-		payload["changed"] = ob.Changed
+		return wire.OperationFinishedPayload{ObservedSubject: subject, Changed: ob.Changed}.EventPayload()
 	case change.ResourceObserved:
-		payload["exists"] = ob.Exists
-	case change.BasisFingerprinted:
-		payload["count"] = ob.Count
+		return wire.TrackedResourceObservedPayload{ObservedSubject: subject, Exists: ob.Exists}.EventPayload()
 	}
-	return payload
+	basis := wire.BasisFingerprintedPayload{Kind: subject.Kind, Path: subject.Path, Executable: subject.Executable, Count: ob.Count}
+	if ob.Subject.Kind == change.SubjectFile {
+		basis.Kind = ""
+	}
+	return basis.EventPayload()
 }
