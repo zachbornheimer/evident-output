@@ -337,8 +337,8 @@ is not a terminal nobody can answer, and the row is Refused
 "no terminal to answer" (never "blocked by policy", which is `Exclude`'s word).
 
 `Confirm` asks whenever stdin is a terminal, whatever the `Output`. When stdin
-is not a terminal nobody can answer, and the row is Refused "no terminal to
-answer" (never "blocked by policy", which is `Exclude`'s word).
+is not a terminal nobody can answer, and the row is Refused
+"no terminal to answer" (never "blocked by policy", which is `Exclude`'s word).
 
 `Confirm` may be asked from the run body or from inside a `Define` callback.
 Either way it settles a row of its own named by the question: Succeeded on
