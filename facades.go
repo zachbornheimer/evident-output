@@ -85,10 +85,6 @@ func newCapture(o *Run, taskName string, opts []captureOption) *record.Capture {
 	return record.NewCapture(cfg)
 }
 
-func detailTail(c *record.Capture) ProblemOption {
-	return problemOption{record.WithEvidenceTail(c.DetailText)}
-}
-
 // Clock is the time source a Run reads: Now is the current time.
 type Clock interface {
 	Now() time.Time

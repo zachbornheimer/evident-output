@@ -322,25 +322,25 @@ func TestScenario_AlreadySatisfied(t *testing.T) {
 	// leaves the launch agent zero-information too. Under verbose it owns a
 	// visible Fact and keeps its row; cleanup always keeps its Summary.
 	cases := []struct {
-		verbosity verbosity
-		want      string
+		verbose bool
+		want    string
 	}{
-		{verbosityNormal, "✓ cleanup  nothing to do\n"},
-		{verbosityVerbose, "✓ write launch agent  already satisfied\n" +
+		{false, "✓ cleanup  nothing to do\n"},
+		{true, "✓ write launch agent  already satisfied\n" +
 			"  path  ~/Library/LaunchAgents/com.acme.prod.agent.plist\n" +
 			"✓ cleanup             nothing to do\n"},
 	}
 	for _, tc := range cases {
-		if got := renderV8AlreadySatisfied(t, tc.verbosity); got != tc.want {
-			t.Fatalf("verbosity %v mismatch:\n--- want ---\n%s\n--- got ---\n%s", tc.verbosity, tc.want, got)
+		if got := renderV8AlreadySatisfied(t, tc.verbose); got != tc.want {
+			t.Fatalf("verbose %v mismatch:\n--- want ---\n%s\n--- got ---\n%s", tc.verbose, tc.want, got)
 		}
 	}
 }
 
-func renderV8AlreadySatisfied(t *testing.T, verbosity verbosity) string {
+func renderV8AlreadySatisfied(t *testing.T, verbose bool) string {
 	t.Helper()
 	var buf bytes.Buffer
-	out := initRun(Config{Output: Plain, Verbose: verbosity == verbosityVerbose, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
+	out := initRun(Config{Output: Plain, Verbose: verbose, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	// Spec §19's suffix is ResolutionAlreadySatisfied, produced only by a

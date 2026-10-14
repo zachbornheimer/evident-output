@@ -13,10 +13,10 @@ import (
 // successful Tasks do not show routine Facts by default" and "Unrelated
 // configuration Facts stay hidden in normal mode even if the Task fails".
 
-func renderFactTask(t *testing.T, verbosity verbosity, resolve func(*Task)) (string, *Run) {
+func renderFactTask(t *testing.T, verbose bool, resolve func(*Task)) (string, *Run) {
 	t.Helper()
 	var buf bytes.Buffer
-	out := initRun(Config{Output: Plain, Verbose: verbosity == verbosityVerbose, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	out := initRun(Config{Output: Plain, Verbose: verbose, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("worktrees")
 	task.Fact("on disk", "508.8 MB")
@@ -26,7 +26,7 @@ func renderFactTask(t *testing.T, verbosity verbosity, resolve func(*Task)) (str
 }
 
 func TestTaskFact_HiddenOnNormalSuccess(t *testing.T) {
-	got, out := renderFactTask(t, verbosityNormal, func(task *Task) { succeed(task, "168 checked") })
+	got, out := renderFactTask(t, false, func(task *Task) { succeed(task, "168 checked") })
 	if strings.Contains(got, "on disk") || !strings.Contains(got, "✓ worktrees  168 checked") {
 		t.Fatalf("a routine task Fact must be hidden at normal verbosity:\n%s", got)
 	}
@@ -36,14 +36,14 @@ func TestTaskFact_HiddenOnNormalSuccess(t *testing.T) {
 }
 
 func TestTaskFact_ShownUnderVerbose(t *testing.T) {
-	got, _ := renderFactTask(t, verbosityVerbose, func(task *Task) { succeed(task, "168 checked") })
+	got, _ := renderFactTask(t, true, func(task *Task) { succeed(task, "168 checked") })
 	if !strings.Contains(got, "  on disk  508.8 MB") {
 		t.Fatalf("verbose must show the task Fact:\n%s", got)
 	}
 }
 
 func TestTaskFact_NotPromotedByFailure(t *testing.T) {
-	got, _ := renderFactTask(t, verbosityNormal, func(task *Task) { task.fail("remove failed") })
+	got, _ := renderFactTask(t, false, func(task *Task) { task.fail("remove failed") })
 	if strings.Contains(got, "on disk") || !strings.Contains(got, "remove failed") {
 		t.Fatalf("a task-scoped Fact is not promoted merely because its Task failed:\n%s", got)
 	}

@@ -802,3 +802,61 @@ func readFrom(output Output, w io.Writer) Facades {
 	}
 	return Facades{Stdout: io.Discard, Stderr: w}
 }
+
+// Test-only entry points into production behaviour; no production caller needs them.
+
+func (o *Run) cancel(reason string) {
+	o.graph.EndRun(o.endingName(), record.TaskInit{State: cancelled, Summary: project.Text(reason)})
+}
+
+func (t *Task) cancel(reason string) {
+	t.finish(cancelled, project.Text(reason), nil)
+}
+
+// context reports the run's cancellation signal (cancelled on interrupt and close). A nil Run reports a never-cancelled context.
+func (o *Run) context() context.Context {
+	if o == nil {
+		return context.Background()
+	}
+	return o.graph.Context()
+}
+
+func (o *Run) debug(message string, fields ...field) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.emitDebugLocked(message, fields, false)
+}
+
+func (o *Run) emitDebugLocked(message string, fields []field, force bool) {
+	o.emitDebugRecordLocked("DEBUG", message, fields, time.Time{}, force)
+}
+
+func (o *Run) writeDiagnosticText(text string) {
+	if o == nil || text == "" {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.writeDiagnosticTextLocked(text)
+}
+
+func (o *Run) writeDiagnosticTextLocked(text string) {
+	if text != "" {
+		humanSinks{o}.Diagnostic(text)
+	}
+}
+
+func detailTail(c *record.Capture) ProblemOption {
+	return problemOption{record.WithEvidenceTail(c.DetailText)}
+}
+
+type (
+	progress      = record.Progress
+	evidencePhase = record.EvidencePhase
+)
+
+var (
+	errLimitExceeded        = misuse.ErrLimitExceeded
+	errDeclaredInCallback   = misuse.ErrDeclaredInCallback
+	errDuplicateSiblingName = misuse.ErrDuplicateSiblingName
+)

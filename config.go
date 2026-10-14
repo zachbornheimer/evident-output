@@ -71,14 +71,6 @@ const (
 	colorNever
 )
 
-type verbosity int
-
-const (
-	verbosityNormal verbosity = iota
-	// verbosityVerbose also shows Facts and expands each Skipped/Kept row into one line per reason.
-	verbosityVerbose
-)
-
 type debugConfig struct {
 	// level is the minimum debug journal level; unset resolves from Config.Debug and EVO_DEBUG.
 	level      logLevel
@@ -151,13 +143,14 @@ type config struct {
 	maxEntities       int
 	maxEvents         int
 	maxConcurrency    int
-	verbosity         verbosity
-	stateDir          string
-	appID             string
-	processRunner     processRunner
-	fileFS            fs.FS
-	stdin             io.Reader
-	failedExitCode    int
+	// verbose shows Facts and expands each Skipped/Kept row into one line per reason.
+	verbose        bool
+	stateDir       string
+	appID          string
+	processRunner  processRunner
+	fileFS         fs.FS
+	stdin          io.Reader
+	failedExitCode int
 	// dryRun selects ledger tense: [planned]/imperative when true, [changed]/past when false.
 	dryRun bool
 	// preview marks the planned tense as a pre-confirm preview: the header is the subtitle alone.
@@ -221,7 +214,7 @@ func resolveConfig(c Config, t tuning) config {
 		cfg.visibilityDelay = *t.visibilityDelay
 	}
 	if c.Verbose || lookupEnv(envKeyVerbose) == envVerboseOn {
-		cfg.verbosity = verbosityVerbose
+		cfg.verbose = true
 	}
 	if cfg.dryRun {
 		cfg.dryRunHeaderText = t.subtitle

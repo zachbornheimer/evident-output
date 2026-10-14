@@ -44,10 +44,6 @@ func (t *Task) block(summary string, options ...ProblemOption) {
 	t.resolveWithProblem(refused, summary, options)
 }
 
-func (t *Task) cancel(reason string) {
-	t.finish(cancelled, project.Text(reason), nil)
-}
-
 // finish is the resolution path behind every terminal verb. Once a task is
 // submitted, a requested success is only a proposal the callback's return ratifies.
 func (t *Task) finish(state entityState, summary string, problems []problem) *Task {

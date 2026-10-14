@@ -168,7 +168,7 @@ func (o *Run) emitMessageLocked(line string, vis visibility) {
 
 func (o *Run) projectsVisibilityLocked(v visibility) bool {
 	if v == visibilityVerbose {
-		return o.cfg.verbosity >= verbosityVerbose
+		return o.cfg.verbose
 	}
 	return true
 }
@@ -247,16 +247,6 @@ func (o *Run) emitLogRecord(rec logRecord) {
 // debugRecord is one structured diagnostic journal entry (§21.3).
 type debugRecord = record.DebugRecord
 
-func (o *Run) debug(message string, fields ...field) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.emitDebugLocked(message, fields, false)
-}
-
-func (o *Run) emitDebugLocked(message string, fields []field, force bool) {
-	o.emitDebugRecordLocked("DEBUG", message, fields, time.Time{}, force)
-}
-
 // emitDebugRecordLocked journals a formed debug record; force bypasses
 // DebugLevel after slog already applied its min level.
 func (o *Run) emitDebugRecordLocked(levelName, message string, fields []field, at time.Time, force bool) {
@@ -298,21 +288,6 @@ func (o *Run) projectDebugRecordLocked(rec debugRecord) {
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "log.emitted"})
 	o.show.Stream.Debug(rec)
-}
-
-func (o *Run) writeDiagnosticText(text string) {
-	if o == nil || text == "" {
-		return
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.writeDiagnosticTextLocked(text)
-}
-
-func (o *Run) writeDiagnosticTextLocked(text string) {
-	if text != "" {
-		humanSinks{o}.Diagnostic(text)
-	}
 }
 
 func cloneFields(in []field) []field {

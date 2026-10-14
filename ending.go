@@ -289,10 +289,6 @@ func (o *Run) endingName() string {
 	return identityFallbackName()
 }
 
-func (o *Run) cancel(reason string) {
-	o.graph.EndRun(o.endingName(), record.TaskInit{State: cancelled, Summary: txt.Text(reason)})
-}
-
 type Outcome string
 
 const (

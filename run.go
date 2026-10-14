@@ -272,14 +272,6 @@ func (o *Run) beginRunContext(ctx context.Context) context.Context {
 	return o.graph.BeginRunContext(ctx)
 }
 
-// context reports the run's cancellation signal (cancelled on interrupt and close). A nil Run reports a never-cancelled context.
-func (o *Run) context() context.Context {
-	if o == nil {
-		return context.Background()
-	}
-	return o.graph.Context()
-}
-
 func (o *Run) conclusion() Conclusion {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -333,7 +325,6 @@ const (
 )
 
 type (
-	progress   = record.Progress
 	factRecord = record.Fact
 	recEvent   = record.Event
 )
@@ -355,8 +346,6 @@ const (
 	exitCancelled = record.ExitCancelled
 )
 
-type evidencePhase = record.EvidencePhase
-
 type (
 	problem      = record.Problem
 	field        = record.Field
@@ -371,7 +360,7 @@ const (
 )
 
 func (o *Run) humanStyle() txt.Style {
-	return txt.Style{Color: !o.cfg.noColor, Verbose: o.cfg.verbosity >= verbosityVerbose, Profile: o.cfg.glyphs}
+	return txt.Style{Color: !o.cfg.noColor, Verbose: o.cfg.verbose, Profile: o.cfg.glyphs}
 }
 
 func (o *Run) recordMisuse(err error) {

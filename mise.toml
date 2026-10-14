@@ -25,6 +25,7 @@ run = [
   "test -z \"$(gofmt -l .)\" || { gofmt -l .; echo 'gofmt: files need formatting'; exit 1; }",
   "go vet ./...",
   "staticcheck ./...",
+  "staticcheck -tests=false -checks U1000 ./...",
   "golangci-lint run ./...",
   "gitleaks detect --no-git -v",
 ]

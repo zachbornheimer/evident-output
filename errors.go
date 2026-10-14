@@ -16,14 +16,9 @@ var (
 	ErrInvalidConfig     = misuse.ErrInvalidConfig
 	errComputeWithVerify = misuse.ErrComputeWithVerify
 	errRenderer          = misuse.ErrRenderer
-	errLimitExceeded     = misuse.ErrLimitExceeded
 	errConcurrentRunning = misuse.ErrConcurrentRunning
 	// ErrComputedUnsettled: Computed.Get ran before the producing Task settled.
 	errComputedUnsettled = misuse.ErrComputedUnsettled
 	// ErrComputedUnordered: Computed.Get ran outside an order after the producer.
 	ErrComputedUnordered = misuse.ErrComputedUnordered
-	// ErrDeclaredInCallback: a Task, Group or Sequence was declared in a Define callback.
-	errDeclaredInCallback = misuse.ErrDeclaredInCallback
-	// ErrDuplicateSiblingName: a declaration reuses a sibling's name (§3.1).
-	errDuplicateSiblingName = misuse.ErrDuplicateSiblingName
 )
