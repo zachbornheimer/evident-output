@@ -102,7 +102,7 @@ func runInterruptible(ctx context.Context, out *Run, run RunFunc) Result {
 		break
 	}
 	interrupted.Store(true)
-	out.interrupt("interrupted")
+	out.interrupt(string(cancelled))
 	return awaitInterrupted(sigCh, done)
 }
 

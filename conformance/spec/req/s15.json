@@ -2,7 +2,7 @@
   {
     "id": "C15-001",
     "section": "15",
-    "quote": "A cancelled run ends `[cancelled] <subject>  by user`, the cause also recorded as `Conclusion.Explanation`.",
+    "quote": "A cancelled run ends `[cancelled]  <subject>  by user`, the cause also recorded as `Conclusion.Explanation`.",
     "tier": "1.1",
     "tests": [
       {

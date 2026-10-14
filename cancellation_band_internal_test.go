@@ -90,12 +90,12 @@ func TestCancellation_RenderedBandMatchesContract(t *testing.T) {
 
 	want := `■ categories
    ✓ remote-tracking
-   ■ worktrees        interrupted
+   ■ worktrees        cancelled
    - branches         not started
 
 [changed] remote-tracking  deleted 4 stale origin/*
 
-[cancelled] prune  by user
+[cancelled]  prune  by user
   ! partial changes were applied before cancellation
 `
 	if got := buf.String(); got != want {
@@ -108,7 +108,44 @@ func TestCancellation_NothingChangedOmitsThePartialChangesLine(t *testing.T) {
 	if strings.Contains(got, "partial changes") || strings.Contains(got, "already mutated") {
 		t.Fatalf("no committed effects, so no partial-changes line; got:\n%s", got)
 	}
-	if !strings.Contains(got, "[cancelled] prune  by user\n") {
-		t.Fatalf("band must read \"[cancelled] prune  by user\"; got:\n%s", got)
+	if !strings.Contains(got, "[cancelled]  prune  by user\n") {
+		t.Fatalf("band must read \"[cancelled]  prune  by user\"; got:\n%s", got)
+	}
+}
+
+// TestCancelledRunUsesOneWordAndAlignedBand pins that an interrupted run says "cancelled" everywhere: the
+// interrupted row, the row that never started because of it, and the band, whose tag is followed by the same
+// two spaces as every other conclusion band.
+func TestCancelledRunUsesOneWordAndAlignedBand(t *testing.T) {
+	var buf strings.Builder
+	out := initRun(Config{Name: "probe", Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
+	interrupt := sendOneSignal(t)
+	long := out.Task("long")
+	after := out.Task("after").After(long)
+	blocking := make(chan struct{})
+	code := make(chan int, 1)
+	go func() {
+		code <- out.run(context.Background(), func(ctx context.Context, r *Run) error {
+			long.Define(func(ctx context.Context) error {
+				close(blocking)
+				<-long.context().Done()
+				return nil
+			})
+			after.Define(func(ctx context.Context) error { return nil })
+			return long.wait()
+		}).ExitCode()
+	}()
+	<-blocking
+	interrupt()
+	<-code
+
+	got := buf.String()
+	if strings.Contains(got, "interrupted") {
+		t.Errorf("a cancelled run says \"interrupted\" where the Outcome is cancelled:\n%s", got)
+	}
+	for _, want := range []string{"■ long   cancelled\n", "- after  not started — long cancelled\n", "\n[cancelled]  probe  by user\n"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("cancelled run output lacks %q:\n%s", want, got)
+		}
 	}
 }

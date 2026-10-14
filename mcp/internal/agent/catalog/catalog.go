@@ -107,7 +107,7 @@ and can run on its own.
 
 Do not hand-pick rows: a Group with no Summary renders no header of its own, a finished no-op child is hidden while
 other content shows, [planned]/[changed] rows follow Task declaration order, and a cancelled run prints
-"[cancelled] subject  by user" plus a partial-changes note only if an Effect committed — never write those yourself.
+"[cancelled]  subject  by user" plus a partial-changes note only if an Effect committed — never write those yourself.
 
 Task is one atomic operation with optional Doing/Progress. Group/Sequence are collections that organize work — they
 are never themselves fake work created just to earn a success row; state is
