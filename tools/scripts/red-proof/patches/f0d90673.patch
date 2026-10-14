@@ -7,11 +7,11 @@ diff --git a/report.go b/report.go
 index 2c84ba18..ef7e4759 100644
 --- a/report.go
 +++ b/report.go
-@@ -106,7 +106,6 @@ func (o *Run) routeResult(b []byte) (io.Writer, error) {
- 		o.emitWireEventLocked(wire.EventResultWritten, "", wire.NewResultWrittenPayload(b).EventPayload())
- 	case o.cfg.wireFormat == JSON:
- 		o.resultText.Write(b)
--	case o.cfg.resultSharesTerminal && o.show.Stream.WritePayload(string(b)):
+@@ -105,7 +105,6 @@ func (r *Run) routeResult(b []byte) (io.Writer, error) {
+ 		r.emitWireEventLocked(wire.EventResultWritten, "", wire.NewResultWrittenPayload(b).EventPayload())
+ 	case r.cfg.wireFormat == JSON:
+ 		r.resultText.Write(b)
+-	case r.cfg.resultSharesTerminal && r.show.Stream.WritePayload(string(b)):
  	default:
- 		return o.cfg.result, nil
+ 		return r.cfg.result, nil
  	}
