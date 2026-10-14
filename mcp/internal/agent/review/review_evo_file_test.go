@@ -1,7 +1,10 @@
 package review_test
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/catalog"
@@ -11,7 +14,7 @@ import (
 )
 
 // EVO-FILE-001: manual os.WriteFile + os.Chmod on the same path is exactly
-// the boilerplate evo.File's Path/Contents/Mode/Basis fields replace
+// the boilerplate evo.File's Path/Contents/Mode/Inputs fields replace
 // (spec §62 "manual common file reconciliation → simplification finding").
 func TestEVOFILE001_ManualWriteAndChmod_EmitsSimplificationFinding(t *testing.T) {
 	src := `package p
@@ -48,8 +51,8 @@ import (
 	"context"
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
-func writeConfig(ctx context.Context, path string, data []byte, mode int, basis []evo.Fingerprint) error {
-	return evo.File(ctx, evo.FileSpec{Path: path, Contents: data, Mode: mode, Basis: basis})
+func writeConfig(ctx context.Context, path string, data []byte, mode int, inputs []string) error {
+	return evo.File(ctx, evo.FileSpec{Path: path, Contents: data, Mode: mode, Inputs: inputs})
 }
 `
 	res := review.GoSource("config.go", src)
@@ -70,12 +73,12 @@ import (
 	"context"
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
-func writeReport(ctx context.Context, output string, basis []evo.Fingerprint) error {
+func writeReport(ctx context.Context, output string, inputs []string) error {
 	data, err := generate(ctx)
 	if err != nil {
 		return err
 	}
-	return evo.File(ctx, evo.FileSpec{Path: output, Contents: data, Mode: 0o644, Basis: basis})
+	return evo.File(ctx, evo.FileSpec{Path: output, Contents: data, Mode: 0o644, Inputs: inputs})
 }
 func generate(ctx context.Context) ([]byte, error) { return nil, nil }
 `
@@ -96,9 +99,9 @@ import (
 	"context"
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
-func writeConfig(ctx context.Context, path string, data []byte, basis []evo.Fingerprint) error {
+func writeConfig(ctx context.Context, path string, data []byte, inputs []string) error {
 	key := sanitizeKey(path)
-	return evo.File(ctx, evo.FileSpec{Path: key, Contents: data, Mode: 0o644, Basis: basis})
+	return evo.File(ctx, evo.FileSpec{Path: key, Contents: data, Mode: 0o644, Inputs: inputs})
 }
 func sanitizeKey(path string) string { return path }
 `
@@ -111,7 +114,7 @@ func sanitizeKey(path string) string { return path }
 }
 
 // EVO-EXEC-001: raw exec.Command guarded by a hand-rolled staleness check
-// duplicates evo.Exec's Basis/Outputs freshness contract (spec §62 "raw
+// duplicates evo.Exec's Inputs/Outputs freshness contract (spec §62 "raw
 // exec + manual output hashes → evo.Exec suggestion").
 func TestEVOEXEC001_RawExecWithManualFreshness_EmitsSuggestion(t *testing.T) {
 	src := `package p
@@ -135,8 +138,8 @@ func outputIsStale(a, b string) bool { return true }
 	}
 }
 
-// evo.Exec with a declared Basis/Outputs contract must never itself be
-// flagged (spec §62 "evo.Exec generated output + Basis → no finding").
+// evo.Exec with a declared Inputs/Outputs contract must never itself be
+// flagged (spec §62 "evo.Exec generated output + Inputs → no finding").
 func TestEVOEXEC001_DeclarativeEvoExec_NoFinding(t *testing.T) {
 	src := `package p
 import (
@@ -145,10 +148,9 @@ import (
 )
 func generate(ctx context.Context, inputPath, outPath string) error {
 	return evo.Exec(ctx, evo.ExecSpec{
-		Executable: "python3",
-		Args:       []string{"generate.py", inputPath, outPath},
-		Basis:      []evo.Fingerprint{evo.FSPath(inputPath)},
-		Outputs:    []string{outPath},
+		Argv:    []string{"python3", "generate.py", inputPath, outPath},
+		Inputs:  []string{"generate.py", inputPath},
+		Outputs: []string{outPath},
 	})
 }
 `
@@ -173,9 +175,9 @@ func findingsByID(res review.Result, id string) []review.Finding {
 }
 
 // EVO-PROVENANCE-001: a string-literal path read via os.ReadFile in the
-// same function that builds an evo.File call's Basis is flagged when that
-// Basis omits it (spec §57's own "template.txt is read but omitted").
-func TestEVOPROVENANCE001_VisibleReadOmittedFromBasis_EmitsFindingAtReadLine(t *testing.T) {
+// same function that builds an evo.File call is flagged when that call's
+// Inputs omit it (spec §57's own "template.txt is read but omitted").
+func TestEVOPROVENANCE001_VisibleReadOmittedFromInputs_EmitsFindingAtReadLine(t *testing.T) {
 	src := `package p
 import (
 	"context"
@@ -188,7 +190,7 @@ func generate(ctx context.Context, out string) error {
 		Path:     out,
 		Contents: data,
 		Mode:     0o644,
-		Basis:    []evo.Fingerprint{evo.FSPath("input.xlsx")},
+		Inputs:   []string{"input.xlsx"},
 	})
 }
 `
@@ -200,10 +202,13 @@ func generate(ctx context.Context, out string) error {
 	if want := 8; found[0].Line != want {
 		t.Fatalf("Line = %d, want %d (the os.ReadFile call)", found[0].Line, want)
 	}
+	if !strings.Contains(found[0].Suggestion, `"template.txt" to FileSpec.Inputs`) {
+		t.Fatalf("suggestion must name the omitted path and FileSpec.Inputs: %q", found[0].Suggestion)
+	}
 }
 
-// The same read, with the path also listed in Basis, must never be flagged.
-func TestEVOPROVENANCE001_VisibleReadListedInBasis_NoFinding(t *testing.T) {
+// The same read, with the path also listed in Inputs, must never be flagged.
+func TestEVOPROVENANCE001_VisibleReadListedInInputs_NoFinding(t *testing.T) {
 	src := `package p
 import (
 	"context"
@@ -216,24 +221,40 @@ func generate(ctx context.Context, out string) error {
 		Path:     out,
 		Contents: data,
 		Mode:     0o644,
-		Basis: []evo.Fingerprint{
-			evo.FSPath("input.xlsx"),
-			evo.FSPath("template.txt"),
-		},
+		Inputs:   []string{"input.xlsx", "template.txt"},
 	})
 }
 `
 	res := review.GoSource("generate.go", src)
 	if found := findingsByID(res, "EVO-PROVENANCE-001"); len(found) != 0 {
-		t.Fatalf("false positive EVO-PROVENANCE-001 with path present in Basis: %+v", found)
+		t.Fatalf("false positive EVO-PROVENANCE-001 with path present in Inputs: %+v", found)
 	}
 }
 
-// A read that happens outside any function that also builds a Basis-bearing
-// evo.File/evo.Exec call has no Basis to compare against, so it is never
-// flagged — the rule is about a callback's own claimed freshness, not every
-// os.ReadFile in the package.
-func TestEVOPROVENANCE001_ReadOutsideAnyBasisCallback_NoFinding(t *testing.T) {
+// template.ParseFiles reads every path it is given.
+func TestEVOPROVENANCE001_TemplateParseFilesOmittedFromInputs_EmitsFinding(t *testing.T) {
+	src := `package p
+import (
+	"context"
+	"text/template"
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+func generate(ctx context.Context, out string) error {
+	tmpl, _ := template.ParseFiles("page.tmpl", "layout.tmpl")
+	_ = tmpl
+	return evo.File(ctx, evo.FileSpec{Path: out, Inputs: []string{"layout.tmpl"}})
+}
+`
+	found := findingsByID(review.GoSource("generate.go", src), "EVO-PROVENANCE-001")
+	if len(found) != 1 || found[0].Line != 8 {
+		t.Fatalf("want exactly one finding at line 8 (page.tmpl), got %+v", found)
+	}
+}
+
+// A read outside any function that also builds an evo.File/evo.Exec call has
+// no Inputs to compare against, so it is never flagged — the rule is about a
+// callback's own claimed freshness, not every os.ReadFile in the package.
+func TestEVOPROVENANCE001_ReadOutsideAnyFileCallback_NoFinding(t *testing.T) {
 	src := `package p
 import (
 	"context"
@@ -248,7 +269,7 @@ func generate(ctx context.Context, out string, data []byte) error {
 		Path:     out,
 		Contents: data,
 		Mode:     0o644,
-		Basis:    []evo.Fingerprint{evo.FSPath("input.xlsx")},
+		Inputs:   []string{"input.xlsx"},
 	})
 }
 `
@@ -258,8 +279,34 @@ func generate(ctx context.Context, out string, data []byte) error {
 	}
 }
 
+// A read in one Define callback is not tied to the File or Exec call of a
+// sibling callback in the same enclosing function: each function literal is
+// its own body.
+func TestEVOPROVENANCE001_ReadInSiblingCallback_NoFinding(t *testing.T) {
+	src := `package p
+import (
+	"context"
+	"os"
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+func run(ctx context.Context, r *evo.Run) error {
+	r.Task("load").Define(func(context.Context) error {
+		_, err := os.ReadFile("template.txt")
+		return err
+	})
+	r.Task("write").Define(func(ctx context.Context) error {
+		return evo.File(ctx, evo.FileSpec{Path: "out.txt", Inputs: []string{"input.xlsx"}})
+	})
+	return nil
+}
+`
+	if found := findingsByID(review.GoSource("run.go", src), "EVO-PROVENANCE-001"); len(found) != 0 {
+		t.Fatalf("false positive EVO-PROVENANCE-001 across sibling callbacks: %+v", found)
+	}
+}
+
 // A variable path is never inferred — only a string literal the source
-// itself spells out is ever compared against Basis.
+// itself spells out is ever compared against Inputs.
 func TestEVOPROVENANCE001_VariablePathRead_NoFinding(t *testing.T) {
 	src := `package p
 import (
@@ -273,7 +320,7 @@ func generate(ctx context.Context, out, templatePath string) error {
 		Path:     out,
 		Contents: data,
 		Mode:     0o644,
-		Basis:    []evo.Fingerprint{evo.FSPath("input.xlsx")},
+		Inputs:   []string{"input.xlsx"},
 	})
 }
 `
@@ -283,20 +330,21 @@ func generate(ctx context.Context, out, templatePath string) error {
 	}
 }
 
-// EVO-PROVENANCE-001's other shape: a literal Exec Arg naming a file, not
-// listed via evo.FSPath in that same call's Basis.
-func TestEVOPROVENANCE001_LiteralExecArgOmittedFromBasis_EmitsFinding(t *testing.T) {
+// EVO-PROVENANCE-001's other shape: a literal Exec Argv entry naming a file,
+// not listed in that same call's Inputs.
+func TestEVOPROVENANCE001_LiteralExecArgvOmittedFromInputs_EmitsFinding(t *testing.T) {
 	src := `package p
 import (
 	"context"
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func generate(ctx context.Context) error {
-	return evo.Exec(ctx, evo.ExecSpec{
-		Executable: "python3",
-		Args:       []string{"--input", "template.txt"},
-		Basis:      []evo.Fingerprint{},
+	_, err := evo.Exec(ctx, evo.ExecSpec{
+		Argv:    []string{"python3", "--input", "template.txt"},
+		Inputs:  []string{},
+		Outputs: []string{"report.json"},
 	})
+	return err
 }
 `
 	res := review.GoSource("generate.go", src)
@@ -304,76 +352,140 @@ func generate(ctx context.Context) error {
 	if len(found) != 1 {
 		t.Fatalf("got %d EVO-PROVENANCE-001 findings, want exactly 1: %+v", len(found), found)
 	}
-	if want := 9; found[0].Line != want {
-		t.Fatalf("Line = %d, want %d (the \"template.txt\" Arg literal)", found[0].Line, want)
+	if want := 8; found[0].Line != want {
+		t.Fatalf("Line = %d, want %d (the \"template.txt\" Argv literal)", found[0].Line, want)
 	}
 }
 
-// The same Exec Arg, listed in Basis, must never be flagged.
-func TestEVOPROVENANCE001_LiteralExecArgListedInBasis_NoFinding(t *testing.T) {
+// The same Argv entry, listed in Inputs, must never be flagged.
+func TestEVOPROVENANCE001_LiteralExecArgvListedInInputs_NoFinding(t *testing.T) {
 	src := `package p
 import (
 	"context"
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func generate(ctx context.Context) error {
-	return evo.Exec(ctx, evo.ExecSpec{
-		Executable: "python3",
-		Args:       []string{"--input", "template.txt"},
-		Basis:      []evo.Fingerprint{evo.FSPath("template.txt")},
+	_, err := evo.Exec(ctx, evo.ExecSpec{
+		Argv:   []string{"python3", "--input", "template.txt"},
+		Inputs: []string{"template.txt"},
 	})
+	return err
 }
 `
 	res := review.GoSource("generate.go", src)
 	if found := findingsByID(res, "EVO-PROVENANCE-001"); len(found) != 0 {
-		t.Fatalf("false positive EVO-PROVENANCE-001 with Exec Arg path present in Basis: %+v", found)
+		t.Fatalf("false positive EVO-PROVENANCE-001 with Argv path present in Inputs: %+v", found)
 	}
 }
 
-// An Exec Arg naming a path this same call declares as an Output is not an
+// An Exec with no Outputs, Inputs or Values always runs, so it claims no
+// freshness for an unlisted file to falsify.
+func TestEVOPROVENANCE001_ExecWithoutFreshnessClaim_NoFinding(t *testing.T) {
+	src := `package p
+import (
+	"context"
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+func generate(ctx context.Context) error {
+	_, err := evo.Exec(ctx, evo.ExecSpec{Argv: []string{"python3", "template.txt"}})
+	return err
+}
+`
+	if found := findingsByID(review.GoSource("generate.go", src), "EVO-PROVENANCE-001"); len(found) != 0 {
+		t.Fatalf("false positive EVO-PROVENANCE-001 on an always-run Exec: %+v", found)
+	}
+}
+
+// An Argv entry naming a path this same call declares as an Output is not an
 // undeclared input — it is where the child writes, not something the
-// callback reads and must fingerprint. Never flagged, Basis or no Basis.
-func TestEVOPROVENANCE001_LiteralExecArgListedInOutputs_NoFinding(t *testing.T) {
+// callback reads and must fingerprint. Never flagged.
+func TestEVOPROVENANCE001_LiteralExecArgvListedInOutputs_NoFinding(t *testing.T) {
 	src := `package p
 import (
 	"context"
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func generate(ctx context.Context) error {
-	return evo.Exec(ctx, evo.ExecSpec{
-		Executable: "python3",
-		Args:       []string{"--out", "report.json"},
-		Basis:      []evo.Fingerprint{},
-		Outputs:    []string{"report.json"},
+	_, err := evo.Exec(ctx, evo.ExecSpec{
+		Argv:    []string{"python3", "--out", "report.json"},
+		Inputs:  []string{},
+		Outputs: []string{"report.json"},
 	})
+	return err
 }
 `
 	res := review.GoSource("generate.go", src)
 	if found := findingsByID(res, "EVO-PROVENANCE-001"); len(found) != 0 {
-		t.Fatalf("false positive EVO-PROVENANCE-001 with Exec Arg path present in Outputs: %+v", found)
+		t.Fatalf("false positive EVO-PROVENANCE-001 with Argv path present in Outputs: %+v", found)
 	}
 }
 
-// An Exec Arg that repeats the call's own Executable literal (e.g. a
-// subcommand shape re-passing the tool's own name) is not an undeclared
-// input either — it names the program, not a file the callback reads.
-func TestEVOPROVENANCE001_LiteralExecArgEqualsExecutable_NoFinding(t *testing.T) {
+// Argv[0] names the program, never a file the callback reads: a subcommand
+// shape that repeats the tool's own name is not an undeclared input.
+func TestEVOPROVENANCE001_ExecProgramRepeatedInArgv_NoFinding(t *testing.T) {
 	src := `package p
 import (
 	"context"
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func generate(ctx context.Context) error {
-	return evo.Exec(ctx, evo.ExecSpec{
-		Executable: "tool.sh",
-		Args:       []string{"--self", "tool.sh"},
-		Basis:      []evo.Fingerprint{},
+	_, err := evo.Exec(ctx, evo.ExecSpec{
+		Argv:   []string{"tool.sh", "--self", "tool.sh"},
+		Inputs: []string{},
 	})
+	return err
 }
 `
 	res := review.GoSource("generate.go", src)
 	if found := findingsByID(res, "EVO-PROVENANCE-001"); len(found) != 0 {
-		t.Fatalf("false positive EVO-PROVENANCE-001 with Exec Arg equal to Executable: %+v", found)
+		t.Fatalf("false positive EVO-PROVENANCE-001 with Argv entry equal to the program: %+v", found)
+	}
+}
+
+// TestProvenanceRuleDetectsUndeclaredInput reviews the program the gate-3
+// review wrote against CONTRACT.md: its generate Task runs a script whose
+// template.txt (and script) it never lists in Inputs.
+func TestProvenanceRuleDetectsUndeclaredInput(t *testing.T) {
+	src, err := os.ReadFile(filepath.Join("testdata", "provenance", "undeclared_input", "main.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := findingsByID(review.GoSource("main.go", string(src)), "EVO-PROVENANCE-001")
+	paths := map[string]bool{}
+	for _, f := range found {
+		for _, path := range []string{"template.txt", "generate.py"} {
+			if strings.Contains(f.Message, path) {
+				paths[path] = true
+			}
+		}
+		if !strings.Contains(f.Suggestion, "ExecSpec.Inputs") {
+			t.Errorf("suggestion must name ExecSpec.Inputs, got %q", f.Suggestion)
+		}
+	}
+	if len(found) != 2 || !paths["template.txt"] || !paths["generate.py"] {
+		t.Fatalf("want one finding each for template.txt and generate.py, got %+v", found)
+	}
+}
+
+// The rule's own BadCode raises the finding and its GoodCode raises none and
+// never wraps a nil error.
+func TestProvenanceRuleExamplesRoundTrip(t *testing.T) {
+	r, ok := rules.Explain("EVO-PROVENANCE-001")
+	if !ok {
+		t.Fatal("EVO-PROVENANCE-001 is not registered in rules.Explain")
+	}
+	wrap := func(body string) string {
+		return "package p\nimport (\n\t\"context\"\n\t\"fmt\"\n\tevo \"github.com/zachbornheimer/evident-output/v2\"\n)\n" +
+			"var _ = fmt.Errorf\nfunc generate(ctx context.Context) error {\n" + body + "\n}\n"
+	}
+	if got := findingsByID(review.GoSource("bad.go", wrap(r.BadCode)), "EVO-PROVENANCE-001"); len(got) != 1 {
+		t.Errorf("BadCode must raise exactly one EVO-PROVENANCE-001 finding, got %+v", got)
+	}
+	if got := findingsByID(review.GoSource("good.go", wrap(r.GoodCode)), "EVO-PROVENANCE-001"); len(got) != 0 {
+		t.Errorf("GoodCode raises EVO-PROVENANCE-001: %+v", got)
+	}
+	if !strings.Contains(r.GoodCode, "err != nil") {
+		t.Errorf("GoodCode must wrap the error only when there is one:\n%s", r.GoodCode)
 	}
 }
 

@@ -295,8 +295,8 @@ var fileDetectors = []detector{
 	// EVO-EXEC-001: raw exec guarded by a hand-rolled freshness check.
 	{needsEvo: true, run: astRule(detectRawExecWithManualFreshness)},
 	// EVO-PROVENANCE-001: a literal path visibly read or passed as a
-	// literal Exec Arg that the call's own Basis omits.
-	{needsEvo: true, run: astRule(detectOmittedBasisPath)},
+	// literal Exec Argv entry that the call's own Inputs omit.
+	{needsEvo: true, run: astRule(detectOmittedInputPath)},
 	// DOM-014: Detail(err) where Detail expects user-visible text.
 	{needsEvo: true, run: textRule(detectDetailOfError)},
 	// MCP-014 / DOM-011: expected blocked item treated as application error.

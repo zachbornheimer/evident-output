@@ -35,13 +35,13 @@ func omittedBasisRule() Rule {
 		Why:       "evo.File/evo.Exec no-op when Inputs, Values, and outputs are all current. A generator that reads a config file, template, or environment value the call site never adds to Inputs or Values will silently skip re-running after that input changes — the operation reports itself fresh while its actual output is stale.",
 		BadCode: `_, err := evo.Exec(ctx, evo.ExecSpec{
 	Argv:    []string{"python3", "generate.py", "input.xlsx", "template.txt", "build/out.bin"},
-	Inputs:  []string{"input.xlsx"}, // template.txt is read but omitted
+	Inputs:  []string{"generate.py", "input.xlsx"}, // template.txt is read but omitted
 	Outputs: []string{"build/out.bin"},
 })
 return err`,
 		GoodCode: `if _, err := evo.Exec(ctx, evo.ExecSpec{
 	Argv:    []string{"python3", "generate.py", "input.xlsx", "template.txt", "build/out.bin"},
-	Inputs:  []string{"input.xlsx", "template.txt"},
+	Inputs:  []string{"generate.py", "input.xlsx", "template.txt"},
 	Outputs: []string{"build/out.bin"},
 }); err != nil {
 	return fmt.Errorf("generate build/out.bin: %w", err)
