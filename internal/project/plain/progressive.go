@@ -170,28 +170,48 @@ func (s *Stream) writeRoot(r *row) {
 	} else {
 		s.Write(b.String())
 	}
+	s.writeEffects(string(r.ID))
 	s.cfg.Region.Refresh()
 }
 
-// CommitEffects streams owner's planned and changed ledger sections the
-// instant its Task resolves, when a section holds a named (File or Exec)
-// row: a dry-run user sees each Task's items as its work finishes, not all
-// of them at Finish. A quantity-only section (Effect) still waits for
-// Finish. The section is marked streamed so Finish never renders it twice.
+// CommitEffects streams owner's planned and changed ledger sections right
+// after the owner's row, when a section holds a named (File or Exec) row: a
+// dry-run user sees each Task's items as its work finishes, not all of them
+// at Finish. A quantity-only section (Effect) still waits for Finish. The
+// section is marked streamed so Finish never renders it twice. A root row
+// still held back (it ran After an open collection) has not reached
+// scrollback, so its sections wait for it: writeRoot and Finish write them
+// the moment the row is written.
 func (s *Stream) CommitEffects(owner string) {
+	if r := s.rows[record.TaskID(owner)]; r != nil && !r.InGroup && !r.emitted {
+		return
+	}
+	s.writeEffects(owner)
+}
+
+// writeEffects writes owner's unstreamed named ledger sections now.
+func (s *Stream) writeEffects(owner string) {
+	if text := s.takeEffects(owner); text != "" {
+		s.Write(text)
+	}
+}
+
+// takeEffects is owner's unstreamed named ledger sections as ledger text,
+// marked streamed.
+func (s *Stream) takeEffects(owner string) string {
+	var b strings.Builder
 	for _, tense := range []record.LedgerTense{record.TensePlanned, record.TenseChanged} {
 		sec, ok := s.cfg.Run.Section(owner, tense)
 		if !ok || s.streamed[sec.ID] || !hasNamedRecord(sec.Records) {
 			continue
 		}
-		var b strings.Builder
 		project.WriteEffects(&b, project.EffectSection{
 			Kind: sec.Tense.String(), Subject: sec.Subject, Records: sec.Records,
 			IntendedVerb: sec.IntendedVerb, NameWidth: s.cfg.Run.MaxSubjectWidth(tense), Width: s.width(),
 		}, s.cfg.Style)
-		s.Write(b.String())
 		s.streamed[sec.ID] = true
 	}
+	return b.String()
 }
 
 // hasNamedRecord reports whether records holds a row without a quantity

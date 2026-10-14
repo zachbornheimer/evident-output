@@ -91,6 +91,7 @@ func (s *Stream) writeRoots(b *strings.Builder, shown map[string]bool, held bool
 			project.WriteTaskAligned(b, s.cfg.Source.Snapshot(r.ID), s.column.nameWidth(), s.cfg.Style)
 		}
 		r.emitted, r.emittedAs = true, r.Rec.State()
+		b.WriteString(s.takeEffects(string(r.ID)))
 	}
 }
 
