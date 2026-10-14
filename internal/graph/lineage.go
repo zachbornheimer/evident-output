@@ -140,12 +140,18 @@ func (l *lineage) isWorkerLocked(id GoroutineID) bool {
 // alive now, keeping the exited goroutines a live one still names as its
 // ancestor, so a chain through an exited creator survives while it is useful
 // and the memory follows the live goroutines rather than every goroutine ever.
+// A chain ends at a pooled worker, so nothing above one is ever read: a live
+// worker's ancestors are not kept, and the walk up from any other goroutine
+// stops at the first worker, which is kept so the chain still ends there.
 func (l *lineage) learnLocked() {
 	l.dumps.Add(1)
 	l.created, l.counted = goroutinesCreated()
 	live, workers := goroutineOrigins(allGoroutineTraces())
-	for _, creator := range slices.Collect(maps.Values(live)) {
-		for id := creator; id != 0; {
+	for _, child := range slices.Collect(maps.Keys(live)) {
+		if _, worker := workers[child]; worker {
+			continue
+		}
+		for id := live[child]; id != 0; {
 			if _, seen := live[id]; seen {
 				break
 			}
@@ -156,6 +162,7 @@ func (l *lineage) learnLocked() {
 			live[id] = older
 			if l.isWorkerLocked(id) {
 				workers[id] = struct{}{}
+				break
 			}
 			id = older
 		}
