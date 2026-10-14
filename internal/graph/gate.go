@@ -50,13 +50,29 @@ func (g *Graph) AddGate(c *Container, work func() error) *Task {
 		gateFor:     c,
 	}
 	gate.sched.preds = slices.Clone(c.entry)
-	gate.sched.work = Work{Run: work}
+	gate.sched.work = Work{Run: work, Exited: func(summary string) { g.failGate(gate, summary) }}
 	c.builder = &builder{gate: gate, phase: builderPending}
 	for p := c; p != nil; p = p.Parent {
 		p.tally.holds++
 	}
 	g.gates = append(g.gates, gate)
 	return gate
+}
+
+// failGate settles gate Failed on behalf of its container, whose row says
+// cause: the builder never finished declaring, so the container can never
+// succeed and the Tasks after it are stopped by it.
+func (g *Graph) failGate(gate *Task, cause string) {
+	g.lock()
+	defer g.unlock()
+	g.failGateLocked(gate, cause)
+}
+
+func (g *Graph) failGateLocked(gate *Task, cause string) {
+	if cause != "" {
+		gate.gateFor.Rec.SetSummary(cause)
+	}
+	g.settleLocked(gate, record.Failed)
 }
 
 // BuilderGate is the gate of c's deferred declaration work, nil when c has

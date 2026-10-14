@@ -41,9 +41,13 @@ func (r *Rows) verdict(g *DeclaredGroup) record.State {
 	return v.state()
 }
 
-// summary is g's Summary as its row shows it in state: only when it
-// succeeded with no warning or failure anywhere beneath it.
+// summary is g's Summary as its row shows it in state: when its builder
+// failed, the cause the failure left there; otherwise only when it succeeded
+// with no warning or failure anywhere beneath it.
 func (r *Rows) summary(g *DeclaredGroup, state record.State) string {
+	if g.Node.BuilderFailed() {
+		return g.Rec.Summary()
+	}
 	if !state.Succeeded() || g.Rec.Summary() == "" || r.warnedOrFailedBelow(g) {
 		return ""
 	}

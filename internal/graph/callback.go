@@ -26,12 +26,8 @@ func (g *Graph) runGate(c *claim) {
 	panicked := runBuilder(c.work.Run)
 	g.lock()
 	defer g.unlock()
-	if panicked != nil {
-		g.settleLocked(c.task, record.Failed)
-		return
-	}
-	if c.task.readRefusal.held() != nil {
-		g.settleLocked(c.task, record.Failed)
+	if panicked != nil || c.task.readRefusal.held() != nil {
+		g.failGateLocked(c.task, "")
 		return
 	}
 	g.settleLocked(c.task, record.Succeeded)
