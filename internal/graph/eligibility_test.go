@@ -69,7 +69,7 @@ func TestSucceededPredecessorQueuesItsDependent(t *testing.T) {
 	first := submit(g, "first")
 	second := submit(g, "second", AfterTask(first))
 
-	g.Claim(first)
+	claimNext(t, g, first)
 	g.Settle(first, record.Succeeded)
 
 	if next := g.NextEligible(); next != second {
@@ -109,7 +109,7 @@ func TestTaskDeclaredAfterAStepFailedSettlesNotStarted(t *testing.T) {
 	first := must(g.AddTask(seq, "first", record.TaskInit{State: record.Pending}))
 	g.Enqueue(first, func() error { return nil })
 	g.Place(first)
-	g.Claim(first)
+	claimNext(t, g, first)
 	g.Settle(first, record.Failed)
 	g.FailSequenceFollowers(first)
 
@@ -128,7 +128,7 @@ func TestBuilderGateHoldsTheContainerOpenUntilItConcludes(t *testing.T) {
 	} else {
 		g.Enqueue(gate, nil)
 		g.Place(gate)
-		g.Claim(gate)
+		claimNext(t, g, gate)
 		g.Settle(gate, record.Succeeded)
 	}
 
@@ -163,7 +163,7 @@ func TestListenerMayCallTheGraphWhileASettleCascades(t *testing.T) {
 	first := submit(g, "first")
 	submit(g, "second", AfterTask(first))
 
-	g.Claim(first)
+	claimNext(t, g, first)
 	g.Settle(first, record.Failed)
 
 	if heard.heard < 2 {
@@ -179,7 +179,7 @@ func TestFailedPredecessorSettlesItsDependentNotStarted(t *testing.T) {
 		t.Fatalf("second phase = %v with %d parked, want parked behind first", second.Phase(), g.Parked())
 	}
 
-	g.Claim(first)
+	claimNext(t, g, first)
 	g.Settle(first, record.Failed)
 
 	if got := second.Rec.State(); got != record.NotStarted {
@@ -190,5 +190,17 @@ func TestFailedPredecessorSettlesItsDependentNotStarted(t *testing.T) {
 	}
 	if g.Parked() != 0 {
 		t.Errorf("%d Tasks still parked after the cascade", g.Parked())
+	}
+}
+
+// claimNext claims the Task the scheduler would start next the way a pooled
+// worker does, and fails the test when that is not want.
+func claimNext(t *testing.T, g *Graph, want *Task) {
+	t.Helper()
+	g.lock()
+	c := g.takeEligibleLocked()
+	g.unlock()
+	if c == nil || c.task != want {
+		t.Fatalf("claimed %v, want %s", c, want.Name)
 	}
 }

@@ -36,12 +36,11 @@ type executor struct {
 // means the number of processors.
 func WithMaxConcurrency(n int) Option { return func(g *Graph) { g.exec.ceiling = n } }
 
-// claim is a Task whose callback was handed to a goroutine to run. pooled
-// means the claim took a scheduler slot the run must get back.
+// claim is a Task whose callback was handed to a goroutine to run, holding
+// the scheduler slot finishClaimed gives back.
 type claim struct {
-	task   *Task
-	work   Work
-	pooled bool
+	task *Task
+	work Work
 	// began is whether the Task started: set by start, before any goroutine
 	// runs the claim.
 	began bool
@@ -130,7 +129,7 @@ func (g *Graph) takeEligibleLocked() *claim {
 		return nil
 	}
 	g.takeSlotLocked()
-	return g.claimLocked(cand, true)
+	return g.claimLocked(cand)
 }
 
 // takeSlotLocked takes one scheduler slot; finishClaimed returns it.
@@ -139,18 +138,17 @@ func (g *Graph) takeSlotLocked() {
 	g.exec.maxObserved = max(g.exec.maxObserved, g.exec.inflight)
 }
 
-// claimLocked marks t's callback as started, for a pooled worker (which also
-// took a slot) or for a waiter that runs it on its own goroutine. The Task's
-// row is Running in the same step as the claim, so no moment exists in which
-// the scheduler runs a Task whose row still reads Pending: an interrupt
-// always finds a claimed Task Running.
-func (g *Graph) claimLocked(t *Task, pooled bool) *claim {
+// claimLocked marks t's callback as started, for the pooled worker that took
+// a slot for it. The Task's row is Running in the same step as the claim, so
+// no moment exists in which the scheduler runs a Task whose row still reads
+// Pending: an interrupt always finds a claimed Task Running.
+func (g *Graph) claimLocked(t *Task) *claim {
 	g.enterPhaseLocked(t, PhaseRunning)
 	if t.gateFor == nil && t.Rec.State() == record.Pending {
 		t.Rec.Transition(record.Running)
 	}
 	g.exec.executing.Add(1)
-	return &claim{task: t, work: t.sched.work, pooled: pooled}
+	return &claim{task: t, work: t.sched.work}
 }
 
 func (g *Graph) ceilingLocked() int { return g.exec.ceiling }
@@ -173,7 +171,7 @@ func (g *Graph) runPooled(c *claim, w *worker) {
 // finishClaimed is the deferred tail of every claimed callback: a panic
 // fails the row, the goroutine leaves the claim's work frame, and then, in
 // the critical section of the scheduling pass that follows, the slot
-// (pooled only) and the executing count are returned. A pooled worker has no
+// and the executing count are returned. A pooled worker has no
 // caller to take a strict panic, so what its pass finds is told without one.
 // Last, it settles whether the worker may run another claim (see worker) and
 // gives away the claim its pass kept for itself when it may not.
@@ -189,16 +187,14 @@ func (g *Graph) finishClaimed(c *claim, w *worker) {
 	}
 	defer g.WorkDone()
 	g.frames.leave(c.frame)
-	g.kickAfter(func() { g.releaseLocked(c) }, g.tellMisuseWithoutCaller, w)
+	g.kickAfter(g.releaseLocked, g.tellMisuseWithoutCaller, w)
 	w.reusable = (recovered != nil || c.returned) && !w.spawned && g.workers.spawns.quiet(w.opened)
 	g.rehome(w)
 }
 
-// releaseLocked hands back what c held.
-func (g *Graph) releaseLocked(c *claim) {
-	if c.pooled {
-		g.exec.inflight--
-	}
+// releaseLocked hands back the slot and the executing count a claim held.
+func (g *Graph) releaseLocked() {
+	g.exec.inflight--
 	g.exec.executing.Add(-1)
 }
 

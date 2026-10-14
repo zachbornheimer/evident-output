@@ -8,21 +8,19 @@ import (
 	"testing"
 )
 
-// lentSlotOutcome is what each Task's Wait returned and the value the
-// goroutine read.
-type lentSlotOutcome struct {
+// waiterOutcome is what each Task's wait returned and the value the goroutine
+// read.
+type waiterOutcome struct {
 	inner, outer error
 	read         int
 }
 
-// lentSlotRead runs a callback ordered After the producer that starts a
-// goroutine reading the producer's value, then Waits on another Task the
-// scheduler has not started. At a ceiling of one the callback's slot is lent,
-// and that Task runs inline on the callback's goroutine. The goroutine started
-// before the inner Task began, so it is the outer callback's hands and its
-// read is the outer callback's (ordered, allowed), never the inner Task's
-// (unordered).
-func lentSlotRead(t *testing.T, ceiling int) lentSlotOutcome {
+// waiterRead runs a callback ordered After the producer that starts a
+// goroutine reading the producer's value, then waits on another Task the
+// scheduler has not started. The goroutine started before the inner Task
+// began, so it is the outer callback's hands and its read is the outer
+// callback's (ordered, allowed), never the inner Task's (unordered).
+func waiterRead(t *testing.T, ceiling int) waiterOutcome {
 	t.Helper()
 	out := initRun(Config{MaxConcurrency: ceiling, Output: Plain, Facades: Facades{Stderr: io.Discard}})
 	defer func() { _ = out.close() }()
@@ -52,24 +50,24 @@ func lentSlotRead(t *testing.T, ceiling int) lentSlotOutcome {
 	close(innerDefined)
 
 	_ = out.finish()
-	return lentSlotOutcome{inner: inner.wait(), outer: outer.wait(), read: read}
+	return waiterOutcome{inner: inner.wait(), outer: outer.wait(), read: read}
 }
 
-// The same program at a ceiling of two runs the inner Task on its own slot:
-// the outcome must not depend on the ceiling.
-func TestComputedGet_GoroutineStartedBeforeARunIsTheLendersReaderAtAnyCeiling(t *testing.T) {
-	got := lentSlotRead(t, 2)
+// The inner Task runs on a worker of its own, concurrently with the outer
+// callback that waits on it, and the goroutine the outer callback started
+// still reads as the outer callback's.
+func TestComputedGet_GoroutineStartedBeforeAWaitedTaskBeganReadsAsTheWaitersAtCeiling2(t *testing.T) {
+	got := waiterRead(t, 2)
 	if errors.Is(got.inner, ErrComputedUnordered) || got.outer != nil || got.read != 7 {
 		t.Errorf("inner.Wait() = %v, outer.Wait() = %v, read = %d; want no ErrComputedUnordered, nil, 7", got.inner, got.outer, got.read)
 	}
 }
 
-// The builder analog: a callback starts a goroutine, then Waits on a
-// container whose builder has not run (ceiling 1: the builder runs inline on
-// the callback's goroutine). The goroutine's Wait on a settled Task is the
-// callback's, not the builder's, and must not be refused as inside it.
-func TestWait_GoroutineStartedBeforeALentBuilderRunIsNotInsideIt(t *testing.T) {
-	out := initRun(Config{MaxConcurrency: 1, Output: Plain, Facades: Facades{Stderr: io.Discard}})
+// The builder analog: a callback starts a goroutine, then waits on a
+// container whose builder has not run. The goroutine's wait on a settled Task
+// is the callback's, not the builder's, and must not be refused as inside it.
+func TestWait_GoroutineStartedBeforeAWaitedBuilderRanIsNotInsideIt(t *testing.T) {
+	out := initRun(Config{MaxConcurrency: 2, Output: Plain, Facades: Facades{Stderr: io.Discard}})
 	defer func() { _ = out.close() }()
 	made := out.Group("producers").Task("make").Define(func(context.Context) error { return nil })
 	if err := made.wait(); err != nil {

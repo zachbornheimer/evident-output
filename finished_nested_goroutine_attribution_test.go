@@ -11,9 +11,9 @@ type nestedOutcome struct {
 	read          int
 }
 
-// runFinishedNested: outer (After make) lends its slot to n1 (After make) at
-// the given ceiling. n1's callback starts goroutine Y and returns while Y
-// lives. outer then lends its slot to n2, which is NOT ordered after make.
+// runFinishedNested: outer (After make) Defines n1 (After make) and waits for
+// it at the given ceiling. n1's callback starts goroutine Y and returns while
+// Y lives. outer then Defines n2, which is NOT ordered after make, and waits.
 // While n2 runs, Y reads make's Computed. Y is n1's hands (n1 is After make)
 // and runs on outer's goroutine lineage (outer is After make): neither n2
 // nor anyone else did anything unordered. n2 never reads anything.

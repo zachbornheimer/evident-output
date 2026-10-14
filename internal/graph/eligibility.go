@@ -241,13 +241,6 @@ func (g *Graph) nextEligibleLocked() *Task {
 	}
 }
 
-// Claim marks t's callback as started: it is running now.
-func (g *Graph) Claim(t *Task) {
-	g.lock()
-	defer g.unlock()
-	g.claimLocked(t, false)
-}
-
 // Enqueue submits run as t's work. A gate arrives with its work already set.
 // The Task is counted as outstanding work until it settles or finishes
 // running (see WorkDone), and waits in the queue until Place decides where it
