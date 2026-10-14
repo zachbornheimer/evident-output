@@ -23,6 +23,20 @@ type selectorCall struct {
 	safeWriters map[string]bool
 	driverSinks []driverSinkMethod
 	runCodes    map[string]bool
+	// runEnded are the spans that run after an evo.Execute or evo.Main call
+	// has returned.
+	runEnded []posRange
+}
+
+// afterRunReturned reports whether c runs after the evo run it follows has
+// returned, so no live region or managed stream is open.
+func (c selectorCall) afterRunReturned() bool {
+	for _, r := range c.runEnded {
+		if r.contains(c.call.Pos()) {
+			return true
+		}
+	}
+	return false
 }
 
 // finding is a Finding at c's call site.
@@ -61,6 +75,7 @@ func detectSelectorCallRules(in fileInput) []Finding {
 	}
 	safeWriters, runCodes := localSafeWriterVars(in.file), runExitCodeVars(in.file)
 	driverSinks := terminalDriverMethods(in.file)
+	runEnded := runEndedRanges(in.file, evoImportName(in.file))
 	var findings []Finding
 	ast.Inspect(in.file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -73,7 +88,7 @@ func detectSelectorCallRules(in fileInput) []Finding {
 		}
 		c := selectorCall{
 			call: call, sel: sel, name: sel.Sel.Name, pos: in.fset.Position(n.Pos()), file: in.filename,
-			safeWriters: safeWriters, driverSinks: driverSinks, runCodes: runCodes,
+			safeWriters: safeWriters, driverSinks: driverSinks, runCodes: runCodes, runEnded: runEnded,
 		}
 		for _, r := range admitted {
 			findings = append(findings, r.check(c)...)
@@ -113,7 +128,7 @@ func forbiddenExecutionHelper(c selectorCall) []Finding {
 // pre-session errors), and so is a TerminalDriver writing to its own sink
 // (see terminalDriverMethods).
 func fmtPrintAlongsideEvo(c selectorCall) []Finding {
-	if id, ok := c.sel.X.(*ast.Ident); !ok || id.Name != "fmt" {
+	if id, ok := c.sel.X.(*ast.Ident); !ok || id.Name != "fmt" || c.afterRunReturned() {
 		return nil
 	}
 	switch c.name {
@@ -139,7 +154,7 @@ func fmtPrintAlongsideEvo(c selectorCall) []Finding {
 // Scoped to stream-shaped names so ordinary bytes.Buffer/strings.Builder
 // writers never match.
 func streamNamedWrite(c selectorCall) []Finding {
-	if c.name != "Write" && c.name != "WriteString" || isOSStdStreamExpr(c.sel.X) || isEvoOwnedWriterExpr(c.sel.X) {
+	if c.name != "Write" && c.name != "WriteString" || isOSStdStreamExpr(c.sel.X) || isEvoOwnedWriterExpr(c.sel.X) || c.afterRunReturned() {
 		return nil
 	}
 	recv := exprDottedName(c.sel.X)
