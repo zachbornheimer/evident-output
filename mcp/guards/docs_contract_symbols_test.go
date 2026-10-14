@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/catalog"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
 )
 
 // contractSymbolRow matches the first cell of a CONTRACT.md symbol table
