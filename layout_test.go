@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -129,8 +130,9 @@ func containsString(list []string, want string) bool {
 // that belongs to the internal package that owns it.
 const rootLineBudget = 4000
 
-// foldedSeam marks code folded into the root from a package it absorbed.
-const foldedSeam = "// --- folded from "
+// foldedSeam matches the marker of code folded into the root from a package
+// it absorbed.
+var foldedSeam = regexp.MustCompile(`// --- folded\sfrom `)
 
 // TestRootIsThin fails when the root package's non-test Go files reach
 // rootLineBudget lines together, or any of them carries a folded-from seam.
@@ -153,7 +155,7 @@ func TestRootIsThin(t *testing.T) {
 		lines := strings.Count(string(body), "\n")
 		total += lines
 		sizes = append(sizes, fmt.Sprintf("%s %d", name, lines))
-		if strings.Contains(string(body), foldedSeam) {
+		if foldedSeam.Match(body) {
 			t.Errorf("%s carries a folded-from seam; merge it into the file that owns it", name)
 		}
 	}
