@@ -3,6 +3,8 @@ package evo
 import (
 	"context"
 	"fmt"
+
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
 // succeed resolves task through the 1.1 success path — an empty Define,
@@ -19,16 +21,30 @@ func succeed(task *Task, summary ...string) {
 // commit resolves task through one Define whose work is specs, each an
 // Effect around a no-op mutation — the 1.1 form of the removed
 // record-only Task.Record (ZYS-974): the ledger row comes from the
-// Effect itself. It waits, so the rows exist when commit returns.
-func commit(task *Task, specs ...EffectSpec) {
+// Effect itself. It waits, so the rows exist when commit returns. A spec
+// is a public EffectSpec or, for a verb only the engine conjugates, a
+// change.EffectSpec.
+func commit[S EffectSpec | change.EffectSpec](task *Task, specs ...S) {
 	_ = task.Define(func(ctx context.Context) error {
 		for _, spec := range specs {
-			if err := Effect(ctx, spec, func(context.Context) error { return nil }); err != nil {
+			if err := noopEffect(ctx, spec); err != nil {
 				return err
 			}
 		}
 		return nil
 	}).wait()
+}
+
+// noopEffect performs spec around a mutation that does nothing.
+func noopEffect(ctx context.Context, spec any) error {
+	noop := func(context.Context) error { return nil }
+	switch s := spec.(type) {
+	case EffectSpec:
+		return Effect(ctx, s, noop)
+	case change.EffectSpec:
+		return change.Effect(ctx, s, noop)
+	}
+	return nil
 }
 
 // distinctBranchDeletes is n one-branch Effects, each naming its own

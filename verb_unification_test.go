@@ -21,13 +21,13 @@ func TestVerbVocabulary_UnifiedAcrossMutationVerbsAndRunModes(t *testing.T) {
 	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	cleanup := out.Task("cleanup")
-	cleanup.Define(effectOf(Verb(change.EffectAdd), "worktree", 2))
+	cleanup.Define(engineEffectOf(change.EffectAdd, "worktree", 2))
 
 	applied := out.Task("changes-section")
 	applied.Define(effectOf(Delete, "branch", 1))
 
 	pushed := out.Task("tags")
-	pushed.Define(effectOf(Verb(change.EffectPush), "tag", 1))
+	pushed.Define(engineEffectOf(change.EffectPush, "tag", 1))
 
 	_ = out.finish()
 
@@ -47,7 +47,7 @@ func TestVerbVocabulary_PlanKeepsImperativeUnderDryRun(t *testing.T) {
 	out := initRun(Config{DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	plan := out.Task("plan-section")
-	plan.Define(effectOf(Verb(change.EffectPush), "commit", 3))
+	plan.Define(engineEffectOf(change.EffectPush, "commit", 3))
 
 	_ = out.finish()
 

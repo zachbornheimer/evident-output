@@ -42,7 +42,7 @@ type EffectSpec struct {
 // Each refusal wraps ErrInvalidConfig and is recorded as the run's misuse, so
 // it reaches Result.Err (CONTRACT section 7).
 var (
-	ErrEffectVerbInvalid         = fmt.Errorf("%w: EffectSpec.Verb must be one of the EffectVerb constants", graph.ErrInvalidConfig)
+	ErrEffectVerbInvalid         = fmt.Errorf("%w: EffectSpec.Verb must be Create, Update or Delete", graph.ErrInvalidConfig)
 	ErrEffectObjectMissing       = fmt.Errorf("%w: EffectSpec.Object is required", graph.ErrInvalidConfig)
 	ErrEffectQuantityNotPositive = fmt.Errorf("%w: EffectSpec.Quantity must be > 0", graph.ErrInvalidConfig)
 	ErrEffectCallbackMissing     = fmt.Errorf("%w: Effect requires a non-nil callback", graph.ErrInvalidConfig)

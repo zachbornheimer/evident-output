@@ -256,7 +256,7 @@ re-executes; it never reports Satisfied.
 | `EffectSpec.Quantity`  | field | `int`; > 0; zero is refused (section 7)                                                                     |
 | `EffectSpec.Path`      | field | `string`; filesystem claim, overlaps by ancestry; optional                                                  |
 | `EffectSpec.Resource`  | field | `string`; logical resource name, overlaps by equal name; optional                                           |
-| `Verb`                 | type  | closed set                                                                                                  |
+| `Verb`                 | type  | closed set: no string converts to a Verb, and any value but these three is refused                          |
 | `Create`               | const | `Create Verb`                                                                                               |
 | `Update`               | const | `Update Verb`                                                                                               |
 | `Delete`               | const | `Delete Verb`                                                                                               |

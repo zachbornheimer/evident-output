@@ -14,7 +14,7 @@ func TestCoalesce_SingleMatchingChanges_SuppressesTrailingConclusion(t *testing.
 	out := initRun(Config{Name: "librarian", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
-	out.Task("librarian").Define(effectOf(Verb(change.EffectAdd), "file", 1))
+	out.Task("librarian").Define(engineEffectOf(change.EffectAdd, "file", 1))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestCoalesce_DryRunPlannedWithHeader_SuppressesTrailingConclusion(t *testin
 	branches.Define(effectOf(Delete, "local tip", 2))
 
 	worktrees := out.Task("worktrees")
-	worktrees.Define(effectOf(Verb(change.EffectRemove), "worktree", 1))
+	worktrees.Define(engineEffectOf(change.EffectRemove, "worktree", 1))
 
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
@@ -104,7 +104,7 @@ func TestCoalesce_ChangedPlusFailure_KeepsConclusion(t *testing.T) {
 	out := initRun(Config{Name: "librarian", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
-	out.Task("librarian").Define(effectOf(Verb(change.EffectAdd), "file", 7))
+	out.Task("librarian").Define(engineEffectOf(change.EffectAdd, "file", 7))
 	out.Task("placement").fail("not writable", On("arr/x"))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
@@ -123,7 +123,7 @@ func TestCoalesce_MultipleChanges_KeepsConclusion(t *testing.T) {
 	out := initRun(Config{Name: "tool", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
-	out.Task("files").Define(effectOf(Verb(change.EffectAdd), "file", 1))
+	out.Task("files").Define(engineEffectOf(change.EffectAdd, "file", 1))
 	out.Task("manifest").Define(effectOf(Update, "entry", 1))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
@@ -139,7 +139,7 @@ func TestCoalesce_SubjectMismatch_KeepsConclusion(t *testing.T) {
 	out := initRun(Config{Name: "tool", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
-	out.Task("other-subject").Define(effectOf(Verb(change.EffectAdd), "x", 1))
+	out.Task("other-subject").Define(engineEffectOf(change.EffectAdd, "x", 1))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 
 	tool := out.Task("tool")
-	tool.Define(effectOf(Verb(change.EffectAdd), "x", 1))
+	tool.Define(engineEffectOf(change.EffectAdd, "x", 1))
 	tool.Problem("working tree state not checked", severity(severityWarning), nextCommand("git", "status"))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
@@ -169,7 +169,7 @@ func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 func TestCoalesce_JSONStillHasConclusion(t *testing.T) {
 	out := initRun(Config{Name: "tool", Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
-	out.Task("tool").Define(effectOf(Verb(change.EffectAdd), "x", 1))
+	out.Task("tool").Define(engineEffectOf(change.EffectAdd, "x", 1))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}

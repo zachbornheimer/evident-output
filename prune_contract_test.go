@@ -218,7 +218,7 @@ func TestPruneContract_LedgerFollowsTaskDeclarationOrderNotCompletionOrder(t *te
 		worktrees := out.Task("worktrees")
 		remote := out.Task("remote-tracking")
 		commit(remote, EffectSpec{Verb: Delete, Object: "stale origin/* branch", Quantity: 4})
-		commit(worktrees, EffectSpec{Verb: Verb(change.EffectRemove), Object: "worktree", Quantity: 2})
+		commit(worktrees, change.EffectSpec{Verb: change.EffectRemove, Object: "worktree", Quantity: 2})
 		commit(branches, EffectSpec{Verb: Delete, Object: "local tip", Quantity: 40})
 		if err := out.finish(); err != nil {
 			t.Fatal(err)

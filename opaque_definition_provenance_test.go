@@ -158,7 +158,7 @@ func TestOpaqueTaskDefinitionRunsEveryRun(t *testing.T) {
 		pushes := 0
 		push := out.Task("push branch")
 		push.Define(func(ctx context.Context) error {
-			return Effect(ctx, EffectSpec{Verb: Verb(change.EffectPush), Object: "branch", Quantity: 1}, func(context.Context) error {
+			return change.Effect(ctx, change.EffectSpec{Verb: change.EffectPush, Object: "branch", Quantity: 1}, func(context.Context) error {
 				pushes++
 				return nil
 			})

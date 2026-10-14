@@ -218,10 +218,10 @@ func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 
 	commit(out.Task("dependencies"),
-		EffectSpec{Verb: Verb(change.EffectAdd), Object: "package", Quantity: 14},
-		EffectSpec{Verb: Update, Object: "package", Quantity: 4},
-		EffectSpec{Verb: Verb(change.EffectInstall), Object: "cached package", Quantity: 63},
-		EffectSpec{Verb: Create, Object: "app.lock", Quantity: 1},
+		change.EffectSpec{Verb: change.EffectAdd, Object: "package", Quantity: 14},
+		EffectSpec{Verb: Update, Object: "package", Quantity: 4}.toChange(),
+		change.EffectSpec{Verb: change.EffectInstall, Object: "cached package", Quantity: 63},
+		EffectSpec{Verb: Create, Object: "app.lock", Quantity: 1}.toChange(),
 	)
 
 	if err := out.finish(); err != nil {
@@ -251,9 +251,9 @@ func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 
 	commit(out.Task("dependencies"),
-		EffectSpec{Verb: Verb(change.EffectAdd), Object: "package", Quantity: 14},
-		EffectSpec{Verb: Update, Object: "package", Quantity: 4},
-		EffectSpec{Verb: Create, Object: "app.lock", Quantity: 1},
+		change.EffectSpec{Verb: change.EffectAdd, Object: "package", Quantity: 14},
+		EffectSpec{Verb: Update, Object: "package", Quantity: 4}.toChange(),
+		EffectSpec{Verb: Create, Object: "app.lock", Quantity: 1}.toChange(),
 	)
 
 	if err := out.finish(); err != nil {
@@ -278,8 +278,8 @@ func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 
 	commit(out.Task("delete account acme"),
-		EffectSpec{Verb: Delete, Object: "project", Quantity: 14},
-		EffectSpec{Verb: Verb(change.EffectRemove), Object: "API key", Quantity: 7},
+		EffectSpec{Verb: Delete, Object: "project", Quantity: 14}.toChange(),
+		change.EffectSpec{Verb: change.EffectRemove, Object: "API key", Quantity: 7},
 	)
 
 	if err := out.finish(); err != nil {

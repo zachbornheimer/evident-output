@@ -79,7 +79,7 @@ func TestTERM011_WidthZeroFallsBackSafely(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{width: 0})
 	t.Cleanup(func() { _ = out.close() })
-	out.Task("c").Define(effectOf(Verb(change.EffectAdd), "x", 1))
+	out.Task("c").Define(engineEffectOf(change.EffectAdd, "x", 1))
 	_ = out.finish()
 	if buf.Len() == 0 {
 		t.Fatal("expected output")

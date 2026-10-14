@@ -125,7 +125,7 @@ func TestEffect_RejectsContentFreeSpec(t *testing.T) {
 		{"zero quantity", EffectSpec{Verb: Delete, Object: "worktree"}, ok, change.ErrEffectQuantityNotPositive},
 		{"negative quantity", EffectSpec{Verb: Delete, Object: "worktree", Quantity: -1}, ok, change.ErrEffectQuantityNotPositive},
 		{"missing verb", EffectSpec{Object: "worktree", Quantity: 1}, ok, change.ErrEffectVerbInvalid},
-		{"write verb", EffectSpec{Verb: "write", Object: "worktree", Quantity: 1}, ok, change.ErrEffectVerbInvalid},
+		{"unnamed verb", EffectSpec{Verb: Verb(99), Object: "worktree", Quantity: 1}, ok, change.ErrEffectVerbInvalid},
 		{"missing object", EffectSpec{Verb: Delete, Quantity: 1}, ok, change.ErrEffectObjectMissing},
 		{"blank object", EffectSpec{Verb: Delete, Object: "  ", Quantity: 1}, ok, change.ErrEffectObjectMissing},
 		{"nil callback", worktreeDelete, nil, change.ErrEffectCallbackMissing},

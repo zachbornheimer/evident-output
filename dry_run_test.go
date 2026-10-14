@@ -136,7 +136,7 @@ func TestConjugatePast_TableIncludingIrregulars(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
 			out := initRun(Config{Name: "t", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
-			commit(out.Task("subject"), EffectSpec{Verb: Verb(imperative), Object: "object", Quantity: 1})
+			commit(out.Task("subject"), change.EffectSpec{Verb: imperative, Object: "object", Quantity: 1})
 			if err := out.finish(); err != nil {
 				t.Fatal(err)
 			}

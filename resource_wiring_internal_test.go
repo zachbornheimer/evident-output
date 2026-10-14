@@ -211,8 +211,8 @@ func TestEffectsOnOneLogicalResourceNeverOverlap(t *testing.T) {
 			resource = "  " + name + "\t"
 		}
 		task.Define(func(ctx context.Context) error {
-			spec := EffectSpec{Verb: Verb(change.EffectAdd), Object: "package", Quantity: 1, Resource: resource}
-			return Effect(ctx, spec, func(context.Context) error {
+			spec := change.EffectSpec{Verb: change.EffectAdd, Object: "package", Quantity: 1, Resource: resource}
+			return change.Effect(ctx, spec, func(context.Context) error {
 				n := active.Add(1)
 				for p := peak.Load(); n > p && !peak.CompareAndSwap(p, n); p = peak.Load() {
 				}
@@ -246,8 +246,8 @@ func TestEffectRejectsInvalidResource(t *testing.T) {
 		invoked := false
 		var effectErr error
 		task.Define(func(ctx context.Context) error {
-			spec := EffectSpec{Verb: Verb(change.EffectPush), Object: "tag", Quantity: 1, Resource: " "}
-			effectErr = Effect(ctx, spec, func(context.Context) error { invoked = true; return nil })
+			spec := change.EffectSpec{Verb: change.EffectPush, Object: "tag", Quantity: 1, Resource: " "}
+			effectErr = change.Effect(ctx, spec, func(context.Context) error { invoked = true; return nil })
 			return effectErr
 		})
 		_ = task.wait()
@@ -294,8 +294,8 @@ func TestFileInsideResourceEffectIsNestedMisuse(t *testing.T) {
 	task := out.Task("publish")
 	var fileErr error
 	task.Define(func(ctx context.Context) error {
-		spec := EffectSpec{Verb: Verb(change.EffectPush), Object: "tag", Quantity: 1, Resource: "remote " + t.Name()}
-		return Effect(ctx, spec, func(held context.Context) error {
+		spec := change.EffectSpec{Verb: change.EffectPush, Object: "tag", Quantity: 1, Resource: "remote " + t.Name()}
+		return change.Effect(ctx, spec, func(held context.Context) error {
 			fileErr = File(held, FileSpec{Path: filepath.Join(dir, "stamp"), Contents: []byte("x")})
 			return fileErr
 		})

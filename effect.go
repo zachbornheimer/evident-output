@@ -6,13 +6,28 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
-type Verb string
+// Verb is what an Effect does to its Object. It is a closed set: Create, Update and Delete are the only
+// values, no string converts to one, and an EffectSpec with any other Verb, the zero Verb included, is refused.
+type Verb uint8
 
 const (
-	Create Verb = "create"
-	Update Verb = "update"
-	Delete Verb = "delete"
+	Create Verb = iota + 1
+	Update
+	Delete
 )
+
+// engine is the engine's spelling of v, empty for a Verb that is none of the three.
+func (v Verb) engine() change.EffectVerb {
+	switch v {
+	case Create:
+		return change.EffectCreate
+	case Update:
+		return change.EffectUpdate
+	case Delete:
+		return change.EffectDelete
+	}
+	return ""
+}
 
 type EffectSpec struct {
 	Verb     Verb
@@ -28,16 +43,7 @@ type EffectSpec struct {
 }
 
 func (s EffectSpec) toChange() change.EffectSpec {
-	v := change.EffectVerb(s.Verb)
-	switch s.Verb {
-	case Create:
-		v = change.EffectCreate
-	case Update:
-		v = change.EffectUpdate
-	case Delete:
-		v = change.EffectDelete
-	}
-	return change.EffectSpec{Verb: v, Object: s.Object, Quantity: s.Quantity, Path: s.Path, Resource: s.Resource}
+	return change.EffectSpec{Verb: s.Verb.engine(), Object: s.Object, Quantity: s.Quantity, Path: s.Path, Resource: s.Resource}
 }
 
 // Effect performs one opaque mutation inside a Task's Define callback; see

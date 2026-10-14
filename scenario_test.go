@@ -60,7 +60,7 @@ func TestScenario_DryRunPlanOnly(t *testing.T) {
 	commit(branches.Summary("459 checked"), EffectSpec{Verb: Delete, Object: "local tip", Quantity: 40})
 
 	worktrees.Fact("kept", "292 (163 dirty, 89 unpushed, 40 ignored files)")
-	commit(worktrees.Summary("294 checked"), EffectSpec{Verb: Verb(change.EffectRemove), Object: "worktree", Quantity: 1})
+	commit(worktrees.Summary("294 checked"), change.EffectSpec{Verb: change.EffectRemove, Object: "worktree", Quantity: 1})
 
 	commit(remotes.Summary("4 stale refs"), EffectSpec{Verb: Delete, Object: "stale origin/*", Quantity: 4})
 

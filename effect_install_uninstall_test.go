@@ -19,7 +19,7 @@ func TestEffectInstall_PlannedAndChangedTense(t *testing.T) {
 		t.Parallel()
 		var buf bytes.Buffer
 		out := initRun(Config{DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
-		out.Task("packages").Define(effectOf(Verb(change.EffectInstall), "package", 3))
+		out.Task("packages").Define(engineEffectOf(change.EffectInstall, "package", 3))
 		if err := out.finish(); err != nil {
 			t.Fatal(err)
 		}
@@ -33,7 +33,7 @@ func TestEffectInstall_PlannedAndChangedTense(t *testing.T) {
 		t.Parallel()
 		var buf bytes.Buffer
 		out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
-		out.Task("packages").Define(effectOf(Verb(change.EffectInstall), "package", 3))
+		out.Task("packages").Define(engineEffectOf(change.EffectInstall, "package", 3))
 		if err := out.finish(); err != nil {
 			t.Fatal(err)
 		}
@@ -47,7 +47,7 @@ func TestEffectInstall_PlannedAndChangedTense(t *testing.T) {
 		t.Parallel()
 		var buf bytes.Buffer
 		out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
-		out.Task("packages").Define(effectOf(Verb(change.EffectUninstall), "package", 1))
+		out.Task("packages").Define(engineEffectOf(change.EffectUninstall, "package", 1))
 		if err := out.finish(); err != nil {
 			t.Fatal(err)
 		}
@@ -60,7 +60,7 @@ func TestEffectInstall_PlannedAndChangedTense(t *testing.T) {
 	t.Run("JSON structured verb data carries the same tense", func(t *testing.T) {
 		t.Parallel()
 		out := initRun(Config{Output: Plain})
-		out.Task("packages").Define(effectOf(Verb(change.EffectInstall), "package", 3))
+		out.Task("packages").Define(engineEffectOf(change.EffectInstall, "package", 3))
 		if err := out.finish(); err != nil {
 			t.Fatal(err)
 		}

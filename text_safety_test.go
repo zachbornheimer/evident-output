@@ -46,8 +46,8 @@ func TestTXT001_ASCIIWidthStable(t *testing.T) {
 	mk := func(w io.Writer, width int) {
 		out := initRun(Config{Name: "s", Output: Plain, Facades: Facades{Stderr: w}}, tuning{width: width, color: colorNever})
 		commit(out.Task("c"),
-			EffectSpec{Verb: Verb(change.EffectAdd), Object: "x", Quantity: 1},
-			EffectSpec{Verb: Create, Object: "f", Quantity: 1},
+			change.EffectSpec{Verb: change.EffectAdd, Object: "x", Quantity: 1},
+			EffectSpec{Verb: Create, Object: "f", Quantity: 1}.toChange(),
 		)
 		_ = out.finish()
 		_ = out.close()
@@ -134,8 +134,8 @@ func TestTXT016_LeaderBoundedAndOmittedNarrow(t *testing.T) {
 	mk := func(w io.Writer, cols int) {
 		out := initRun(Config{Name: "x", Output: Plain, Facades: Facades{Stderr: w}}, tuning{width: cols, color: colorNever})
 		ch := out.Task("files")
-		ch.Define(effectOf(Verb(change.EffectAdd), "a.go", 1))
-		ch.Define(effectOf(Verb(change.EffectRemove), "b.go", 2))
+		ch.Define(engineEffectOf(change.EffectAdd, "a.go", 1))
+		ch.Define(engineEffectOf(change.EffectRemove, "b.go", 2))
 		_ = out.finish()
 		_ = out.close()
 	}

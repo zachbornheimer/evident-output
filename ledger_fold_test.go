@@ -18,7 +18,7 @@ import (
 
 // centralizeEffect is one package's Effect in the zq shape.
 func centralizeEffect(verb change.EffectVerb, object string) func(context.Context) error {
-	return effectOf(Verb(verb), object, 1)
+	return engineEffectOf(verb, object, 1)
 }
 
 // declareCentralize declares the zq shape: Group "centralize packages" with

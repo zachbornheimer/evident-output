@@ -282,7 +282,7 @@ func TestDOM006_TaskDoneWithoutPhase(t *testing.T) {
 func TestDOM039_ChangesPlusFailure(t *testing.T) {
 	out := initRun(Config{Name: "deps", Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
-	out.Task("deps").Define(effectOf(Verb(change.EffectAdd), "package", 1))
+	out.Task("deps").Define(engineEffectOf(change.EffectAdd, "package", 1))
 	out.Task("install").fail("disk full")
 	if err := out.finish(); err != nil {
 		t.Fatal(err)

@@ -20,14 +20,14 @@ import (
 func TestPartialEffect_BindsToTheEffectWhoseCallbackReturnedIt(t *testing.T) {
 	t.Parallel()
 	cause := errors.New("ref 3 locked")
-	push := EffectSpec{Verb: Verb(change.EffectPush), Object: "branch", Quantity: 5}
+	push := change.EffectSpec{Verb: change.EffectPush, Object: "branch", Quantity: 5}
 	var buf bytes.Buffer
 	out := initRun(Config{Name: "sync", Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	var effectErr error
 	task := out.Task("sync")
 	task.Define(func(ctx context.Context) error {
-		effectErr = Effect(ctx, push, func(ctx context.Context) error {
+		effectErr = change.Effect(ctx, push, func(ctx context.Context) error {
 			return Effect(ctx, refDelete, func(context.Context) error {
 				return PartialEffect(2, cause)
 			})
@@ -57,13 +57,13 @@ func TestPartialEffect_BindsToTheEffectWhoseCallbackReturnedIt(t *testing.T) {
 // after an inner Effect's already-recorded one.
 func TestPartialEffect_JoinedAfterAnInnerOneStillCounts(t *testing.T) {
 	t.Parallel()
-	push := EffectSpec{Verb: Verb(change.EffectPush), Object: "branch", Quantity: 5}
+	push := change.EffectSpec{Verb: change.EffectPush, Object: "branch", Quantity: 5}
 	var buf bytes.Buffer
 	out := initRun(Config{Name: "sync", Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("sync")
 	task.Define(func(ctx context.Context) error {
-		return Effect(ctx, push, func(ctx context.Context) error {
+		return change.Effect(ctx, push, func(ctx context.Context) error {
 			inner := Effect(ctx, refDelete, func(context.Context) error {
 				return PartialEffect(1, errors.New("ref 2 locked"))
 			})

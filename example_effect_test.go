@@ -19,7 +19,7 @@ func ExampleEffect() {
 		out := initRun(Config{Name: "prune", DryRun: dryRun, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 		removed := 0
 		out.Task("worktrees").Define(func(ctx context.Context) error {
-			return Effect(ctx, EffectSpec{Verb: Verb(change.EffectRemove), Object: "stale worktree", Quantity: 2},
+			return change.Effect(ctx, change.EffectSpec{Verb: change.EffectRemove, Object: "stale worktree", Quantity: 2},
 				func(ctx context.Context) error {
 					removed = 2 // e.g. `git worktree remove` for each stale path, honoring ctx
 					return nil
@@ -39,9 +39,9 @@ func ExampleEffect() {
 // Constructing it performs no I/O — passing it to Effect does.
 func ExampleEffectSpec() {
 	spec := EffectSpec{Verb: Delete, Object: "remote ref", Quantity: 3}
-	fmt.Println(spec.Verb, spec.Quantity, spec.Object)
+	fmt.Println(spec.Verb == Delete, spec.Quantity, spec.Object)
 	// Output:
-	// delete 3 remote ref
+	// true 3 remote ref
 }
 
 // ExampleEffectVerb lists the closed verb set. There is no write verb:
@@ -58,7 +58,7 @@ func ExampleEffectVerb() {
 // ExampleEffectSpec_noResource shows the default: an EffectSpec with no
 // Path or Resource makes no claim.
 func ExampleEffectSpec_noResource() {
-	spec := EffectSpec{Verb: Verb(change.EffectPush), Object: "branch", Quantity: 1}
+	spec := change.EffectSpec{Verb: change.EffectPush, Object: "branch", Quantity: 1}
 	fmt.Println(spec.Path == "" && spec.Resource == "")
 	// Output:
 	// true
