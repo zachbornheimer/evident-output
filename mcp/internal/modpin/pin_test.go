@@ -61,3 +61,16 @@ func TestParse_NonPathReplaceRejected(t *testing.T) {
 		t.Fatalf("got %v, want ErrNonPathReplace", err)
 	}
 }
+
+func TestParseReadsThePinUnderEitherModulePath(t *testing.T) {
+	for _, modulePath := range []string{ModulePath, LegacyModulePath} {
+		goMod := "module app\n\nrequire " + modulePath + " v1.1.0\nreplace " + modulePath + " => ../evo\n"
+		pin, err := Parse(goMod, "/work/app")
+		if err != nil {
+			t.Fatalf("%s: %v", modulePath, err)
+		}
+		if pin.Version != "v1.1.0" || pin.ReplacePath != "/work/evo" {
+			t.Errorf("%s: pin = %+v, want version v1.1.0 and replace /work/evo", modulePath, pin)
+		}
+	}
+}

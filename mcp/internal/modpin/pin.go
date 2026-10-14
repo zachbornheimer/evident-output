@@ -11,6 +11,14 @@ import (
 // ModulePath is the Go module path for evident-output.
 const ModulePath = "github.com/zachbornheimer/evident-output/v2"
 
+// LegacyModulePath is the module path of the 1.x releases. A codebase still
+// being migrated requires and imports evident-output under it.
+const LegacyModulePath = "github.com/zachbornheimer/evident-output"
+
+// IsModulePath reports whether path names the evident-output module, under
+// its current path or the 1.x one.
+func IsModulePath(path string) bool { return path == ModulePath || path == LegacyModulePath }
+
 // ErrNonPathReplace is returned when a replace points at another module
 // instead of a filesystem path.
 var ErrNonPathReplace = fmt.Errorf("evident-output replace must be a filesystem path, not a module")
@@ -45,15 +53,19 @@ func RequireVersion(goMod, modulePath string) string {
 func Parse(goMod, goModDir string) (Pin, error) {
 	pin := Pin{
 		Module:     moduleLine(goMod),
-		Version:    RequireVersion(goMod, ModulePath),
-		SelfModule: moduleLine(goMod) == ModulePath,
+		SelfModule: IsModulePath(moduleLine(goMod)),
 	}
-	replace, err := replaceTarget(goMod, ModulePath)
-	if err != nil {
-		return Pin{}, err
-	}
-	if replace != "" {
-		pin.ReplacePath = resolveReplace(replace, goModDir)
+	for _, modulePath := range []string{ModulePath, LegacyModulePath} {
+		if pin.Version == "" {
+			pin.Version = RequireVersion(goMod, modulePath)
+		}
+		replace, err := replaceTarget(goMod, modulePath)
+		if err != nil {
+			return Pin{}, err
+		}
+		if replace != "" && pin.ReplacePath == "" {
+			pin.ReplacePath = resolveReplace(replace, goModDir)
+		}
 	}
 	return pin, nil
 }
