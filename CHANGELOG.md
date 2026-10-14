@@ -9,7 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Evident Output 2.0 is a new contract: the public surface is exactly the
 tables in [`CONTRACT.md`](CONTRACT.md). See
 [`docs/migration/2.0.md`](docs/migration/2.0.md) for every removed 1.x symbol
-and its replacement.
+and its replacement, and
+[`docs/migration/1.1.md`](docs/migration/1.1.md) for the 1.1 upgrade guide.
 
 ### Removed
 
@@ -32,253 +33,6 @@ and its replacement.
   recorded in `Result`), and the `Print` family (now `Run.Text`,
   `Task.Writer` and `Run.ResultWriter`). Every removed name has a row in
   `docs/migration/2.0.md`, enforced by `TestMigrationGuideMapsEveryRemovedName`.
-
-### Changed
-
-- **Four promises, one package each:** `internal/graph` decides when work
-  runs, `internal/freshness` whether it needs to, `internal/change` what it
-  changes, `internal/record` what happened, and `internal/project` how that
-  is shown. See [`LAYOUT.md`](LAYOUT.md).
-- **Two idioms:** specs are structs (`Config`, `FileSpec`, `ExecSpec`,
-  `EffectSpec`); messages are summary first, then options (`Problem`,
-  `Confirm`, `Fail`, `Refuse`). Work is always a function argument.
-- `evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn)` and `evo.File`
-  replace the 1.x mutation verbs. `Verb` is a closed set: `Create`, `Update`,
-  `Delete`.
-- Output is selected by `Config.Output` or `EVO_OUTPUT`
-  (`human|plain|json|jsonl`); machine output is never inferred from a pipe.
-- Every exported field and parameter names only `evo` or standard types:
-  `Config.Debug` is a `slog.Level`, `Action.Command` is argv,
-  `EffectSpec.Resource` is a logical resource name, and `Clock`, `Terminal`,
-  `Redactor`, `Process` and `FS` are interfaces a test can implement.
-  `Detail` is both a `ProblemOption` and a `ConfirmOption`.
-- `After` takes a `Predecessor`: only a Task, Group, Sequence or Computed.
-  `Exclude` takes `ProblemOption`s like `Fail` and `Refuse`; `ProblemOption`
-  and `ConfirmOption` are sealed. `CleanStop` names signals that end a Task
-  Succeeded.
-- `EffectSpec.Path` claims that path while the callback runs, so Effects on
-  equal or nested paths wait for each other; an `EffectSpec` that sets both
-  `Path` and `Resource` is `ErrInvalidConfig` and its callback never runs.
-
-### Added
-
-- **Outcomes:** `Succeeded`, `Satisfied`, `Excluded`, `Refused`, `Failed`,
-  `Cancelled`, with exit codes 0, 0, 0, 1, 2, 130.
-- **Endings:** `evo.Fail`, `evo.Refuse` and `evo.Exclude` as Task return
-  values; `Task.Verify` resolves a Task Satisfied without running it.
-- `Run.Confirm` with `Destructive` and `NonInteractive`; `Run.Suspend`.
-- `Run.ResultWriter` writes the stdout data payload. Human and Plain runs now
-  present on stderr and keep stdout for the payload; JSON embeds it as the
-  `evo.run` document's `result` and JSONL streams `result.written` events.
-
-## Unreleased
-
-Pre-2.0 entries below were written against 1.x and are superseded by
-2.0.0 above. See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the
-1.1 upgrade guide.
-
-### Changed (2.0)
-
-The public surface is exactly the `CONTRACT.md` tables. Names below changed
-between the last 1.x release and 2.0; `docs/migration/2.0.md` maps each 1.x
-spelling to its 2.0 replacement.
-
-- **Added or newly declared:** `Build`, `CleanStop`, `Compute`, `Computed`, `Container`, `DefineOption`, `Effect`, `EffectSpec`, `ErrComputedUnordered`, `ErrExecOutputMissing`, `ErrPatchDoesNotApply`, `ErrStaleBasis`, `Exclude`, `Excluded`, `ExecResult`, `Execute`, `ExitCode`, `FS`, `Facades`, `Get`, `Predecessor`, `Human`, `JSON`, `JSONL`, `NonInteractive`, `Outcome`, `PartialEffect`, `Patch`, `Process`, `Refuse`, `Refused`, `Satisfied`, `State`, `Succeeded`, `Text`, `Verb`.
-- **Present in 1.x and 2.0 with a changed signature or receiver:** `Action`, `After`, `Cancelled`, `Clock`, `Conclusion`, `Config`, `Confirm`, `Create`, `Define`, `Delete`, `Detail`, `Doing`, `Exec`, `ExecSpec`, `Fact`, `Failed`, `Fail`, `FileSpec`, `Group`, `Main`, `Next`, `Plain`, `Problem`, `Progress`, `Result`, `ResultWriter`, `Run`, `Sequence`, `SlogHandler`, `Summary`, `Suspend`, `Task`, `Terminal`, `Update`, `Verify`, `Writer`.
-- **Removed:** `Add`, `Affected`, `AlsoWrite`, `App`, `AssumeYes`, `Attachment`, `Block`, `Blocked`, `Blockf`, `Bytes`, `BytesKind`, `Cancel`, `ChangesSnapshot`, `Close`, `ColorAlways`, `ColorAuto`, `ColorMode`, `ColorNever`, `Command`, `CommandSpec`, `ConclusionJSON`, `ConclusionState`, `ConfirmDetail`, `Context`, `Count`, `DataProjection`, `DebugAddSource`, `DebugConfig`, `DebugHistory`, `DebugLevel`, `DebugPane`, `DebugPaneOption`, `DebugPresentation`, `DebugPresentationHistory`, `DebugPresentationPane`, `Default`, `DefaultConfig`, `DefaultVisibleNames`, `Delay`, `Determinate`, `Diagnostics`, `Done`, `DryRun`, `EffectRecord`, `Empty`, `EncodeEventJSON`, `EncodeJSON`, `EncodeJSONL`, `EntityOption`, `EntityState`, `Err`, `ErrAlreadyResolved`, `ErrClosed`, `ErrConcurrentRunning`, `ErrDryRunDeclaredLate`, `ErrDuplicateKey`, `ErrDuplicateSiblingName`, `ErrExecExecutableNotFound`, `ErrExecOutputMissingAfterSuccess`, `ErrExecSpecMissingExecutable`, `ErrFilePathIsSymlink`, `ErrFilePathTypeMismatch`, `ErrFileSpecMissingPath`, `ErrFileUnmanagedContentsMissing`, `ErrInvalidProgress`, `ErrKeyAfterDefine`, `ErrLimitExceeded`, `ErrNoTaskContext`, `ErrNotStarted`, `ErrProgressRegression`, `ErrReasonSkipOnly`, `ErrReasonWrongTask`, `ErrRenderer`, `ErrTaskClosed`, `ErrTerminalWithoutSink`, `ErrUnresolvedTask`, `ErrWaitDeadlock`, `Error`, `Event`, `EventJSON`, `EventSchemaVersion`, `Evidence`, `EvidenceOption`, `EvidencePhase`, `EvidenceStream`, `EvidenceStreamCombined`, `EvidenceStreamStderr`, `EvidenceStreamStdout`, `ExitBlocked`, `ExitCancelled`, `ExitFailed`, `ExitOK`, `ExternalProjection`, `FSPath`, `FactRecord`, `Failf`, `Failure`, `Field`, `FileFS`, `Fingerprint`, `FingerprintValue`, `Finish`, `FixedClock`, `ForSkip`, `Format`, `FormatData`, `FormatExternal`, `FormatHuman`, `FormatJSON`, `FormatJSONL`, `GlyphProfile`, `Glyphs`, `GlyphsASCII`, `GlyphsAuto`, `GlyphsUnicode`, `GroupHandle`, `ID`, `Incomplete`, `Indeterminate`, `Init`, `IsCharDevice`, `JSONAction`, `JSONChanges`, `JSONCollection`, `JSONCommand`, `JSONDocument`, `JSONEffectRecord`, `JSONMessage`, `JSONOutputMeta`, `JSONPlan`, `JSONProblem`, `JSONProgress`, `JSONSchemaVersion`, `JSONTask`, `KeepLastLines`, `Kept`, `Key`, `Label`, `LevelDebug`, `LevelError`, `LevelInfo`, `LevelTrace`, `LevelUnset`, `LevelWarn`, `LiveSurface`, `Location`, `LogLevel`, `LogRecord`, `MaxEntities`, `MaxEvents`, `MaxEvidenceBytes`, `MaxFrameRate`, `MessageSnapshot`, `MirrorToDebug`, `MirrorToDiagnostics`, `MutationOption`, `Name`, `NewestFirst`, `NextCommand`, `NoColor`, `NoopRedactor`, `NotStarted`, `OldestFirst`, `OnTask`, `Option`, `PaneHeight`, `ParseFormat`, `Pending`, `PlainOptions`, `PlanSnapshot`, `Pluralize`, `PolicyFlag`, `PolicyHint`, `PreserveDebugTail`, `Print`, `Printer`, `Printf`, `Println`, `ProblemCodeDuplicateSiblingName`, `ProblemCodeVerificationUnsatisfied`, `ProcessCommand`, `ProcessOutcome`, `ProcessRunner`, `ProgressKind`, `Projection`, `ProjectionHuman`, `ProjectionJSON`, `ProjectionJSONL`, `ProjectionPlain`, `ProjectionStreamJSON`, `PublishedRelease`, `Push`, `Reason`, `ReasonOption`, `Record`, `RecordLabel`, `RecordName`, `Redact`, `Remove`, `RenderPlain`, `Resolution`, `ResolutionAlreadySatisfied`, `ResolutionExecuted`, `ResolutionNoWork`, `ResultStream`, `Runner`, `Running`, `SequenceHandle`, `SetDefault`, `Skipped`, `Snapshot`, `SourceLocation`, `StartPhase`, `StateBlocked`, `StateCancelled`, `StateChanged`, `StateFailed`, `StatePlanned`, `StateReady`, `StateWarning`, `Stdin`, `Step`, `Strict`, `SystemClock`, `TaskEvidence`, `TaskHandle`, `TaskSnapshot`, `TasksSnapshot`, `TaxonomyReason`, `TaxonomyRecord`, `TerminalDriver`, `TimeSource`, `Title`, `To`, `TruncateNames`, `Unwrap`, `Value`, `Verbose`, `Verbosity`, `VerbosityNormal`, `VerbosityVerbose`, `Visibility`, `VisibilityDelay`, `VisibilityNormal`, `VisibilityVerbose`, `Wait`, `Warn`, `Width`, `Write`, `WriteJSON`.
-- **Removed (1.1 names the list above does not repeat):** `Basis`, `Capture`, `CaptureOption`, `CaptureStream`, `CaptureStreamCombined`, `CaptureStreamStderr`, `CaptureStreamStdout`, `EffectAdd`, `EffectCreate`, `EffectDelete`, `EffectInstall`, `EffectPush`, `EffectRemove`, `EffectUninstall`, `EffectUpdate`, `EffectVerb`, `ErrEffectCallbackMissing`, `ErrEffectObjectMissing`, `ErrEffectQuantityNotPositive`, `ErrEffectVerbInvalid`, `ErrInvalidPartialEffect`, `ErrInvalidResource`, `ErrNestedResourceAcquisition`, `ErrPatchBinaryUnsupported`, `ErrPatchDeleteUnsupported`, `ErrPatchMalformed`, `ErrPatchRenameUnsupported`, `ErrPatchUnsupported`, `Events`, `FSResource`, `FileSet`, `Files`, `LogicalResource`, `MaxCaptureBytes`, `ProblemSeverity`, `Resource`, `Severity`, `SeverityError`, `SeverityWarning`.
-- **No longer exported:** `ErrInvalidConfig` remains the misuse code recorded in `Result` for a misdeclared Task, Compute or EffectSpec, but is not a name a caller can reference. `Create`, `Delete`, `Plain` and `Update` keep their spelling with a new meaning (`Verb` and `Output` constants).
-
-### Changed (1.2)
-
-- **File/Patch/Exec remain the 1.1 operations** (`File(ctx, FileSpec)`,
-  `Exec(ctx, ExecSpec)`, `Patch` + `Files`). Tree/Find/Download/Extract/
-  Clone/Checksum are not evo (contract §31/§37; ZYS-1382 is not 1.2).
-
-### Added (1.2)
-
-- **Ledger fold (ZYS-1370):** per-item Effects that share a verb and object
-  under one Group/Sequence render as one `[changed]`/`[planned]` row for the
-  highest container whose whole subtree records that same Effect
-  (`[changed] centralize packages  updated 1,663 packages`), counted per item.
-  JSON and JSONL still carry every per-item Effect. No API change.
-- **`evo.Compute(task, fn) *Computed[T]` and `Computed[T].Get()`:** a Task
-  that produces a value. `fn` is the Task's `Define`; its error fails the
-  Task. Pass the `*Computed` to `After` on a Task, Group, or Sequence, in
-  any container, and call `Get()` from what runs after it. A failed,
-  blocked, cancelled, or skipped producer means its consumers never start
-  (NotStarted). `Get()` before the producer settled records
-  `ErrComputedUnsettled` with a remedy (a panic under `Config.Strict`) and
-  returns the zero value. It is never a data race.
-  Called from a Task or container builder that nothing orders after the
-  producer (no `After` edge, and not a later step of the same Sequence),
-  `Get()` records `ErrComputedUnordered` and returns the zero value. A later
-  Sequence step may `Get()` an earlier step's Computed without `After`.
-- **`GroupHandle.After`, `SequenceHandle.After`, and
-  `GroupHandle.Define(func(*GroupHandle))` /
-  `SequenceHandle.Define(func(*SequenceHandle))`:** a container declares its
-  children once its predecessors succeed. The builder is topology only (no
-  context, no error, runs once, must not `Wait`). If a predecessor failed,
-  the builder never runs and the container settles NotStarted. Per-item
-  Tasks declared inside work with `Skipped(evo.Reason(...))`. Declaring a
-  Task, Group, or Sequence from inside a Task's `Define` callback records
-  `ErrDeclaredInCallback`, whichever container it targets. Declare the
-  children up front or from `Define` on the container instead.
-- **`evo.Container` (ZYS-1203):** a node that can declare work beneath it
-  (`Task`, `Group`, `Sequence`). Satisfied by `*Output`, `*GroupHandle`,
-  and `*SequenceHandle`. A Task is never a Container.
-- **`TaskHandle.Basis(inputs ...Fingerprint)` and `ErrBasisAfterDefine`:**
-  declare a Task's freshness inputs before Define. A call after Define
-  records `ErrBasisAfterDefine` and is ignored.
-
-### Added
-
-- **Review rule EVO-EXIT-002:** flags `evo.Main(run)` written as a bare
-  statement (or `_ = evo.Main(run)`). `Main` returns the exit code and
-  never exits the process itself, so that program exits 0 after a failed
-  or blocked run. The fix is `os.Exit(evo.Main(run))`. The README, the
-  reference, the teaching ladder, and both skills said `Main` "exits the
-  process itself"; they now say it returns the code.
-- **Review rule API-063:** flags a `Verify` callback that returns a constant
-  (`return true, nil`), inline or bound to a local: it observes nothing, so
-  the row claims already-satisfied with no evidence.
-- **`evo.Effect(ctx, EffectSpec, fn) error`:** the one way to perform an
-  opaque mutation (a ref deletion, a push, an API change) inside `Define`.
-  `EffectSpec{Verb, Object, Quantity, Resource}` names it; `EffectVerb` is
-  a closed set (`EffectAdd`, `EffectCreate`, `EffectDelete`,
-  `EffectInstall`, `EffectPush`, `EffectRemove`, `EffectUninstall`,
-  `EffectUpdate`). Dry run records the plan and skips `fn`. Invalid specs
-  fail with `ErrEffectVerbInvalid`, `ErrEffectObjectMissing`,
-  `ErrEffectQuantityNotPositive`, or `ErrEffectCallbackMissing`.
-- **`evo.PartialEffect(committed int, err error) error`:** an Effect
-  callback returns it when only part of the work committed, so the ledger
-  records exactly that subset (`ErrInvalidPartialEffect` for a bad count).
-  It counts once, for the innermost Effect whose callback returned it; an
-  outer Effect that passes the error up records nothing for it.
-- **`Resource`, `evo.FSResource(path)`, `evo.LogicalResource(name)`:**
-  declare what an Effect writes; overlapping claims wait for each other and
-  the waiting row shows "waiting for <resource>". Acquiring a second
-  resource inside a held one fails with `ErrNestedResourceAcquisition`;
-  `ErrInvalidResource` rejects one that names no state (an empty path or
-  name, or a relative path with no workspace to anchor it).
-- **`evo.Patch(ctx, diff []byte) (FileSet, error)` and
-  `evo.Files(ctx, FileSet) error`:** derive the desired files from a
-  unified diff, then commit them through the same reconcile path as
-  `evo.File`. `Files` refuses to overwrite a source that changed since the
-  diff was read (`ErrStaleBasis`). Patch errors: `ErrPatchMalformed`,
-  `ErrPatchDoesNotApply`, `ErrPatchUnsupported`, `ErrPatchDeleteUnsupported`,
-  `ErrPatchRenameUnsupported`, `ErrPatchBinaryUnsupported`. A path beyond
-  a symlinked directory fails with `ErrPatchUnsupported`; Patch never
-  creates directories, so a file in a missing directory fails with
-  `ErrPatchDoesNotApply` before anything commits. Patch applies the diff
-  forward first, as `patch` and `git apply` do. Applying the same diff
-  again is already satisfied, not a failure; when the file matches both
-  sides of the diff, only this Task's own recorded result from its last
-  Run counts as already applied.
-- **`GroupHandle.Wait() error` and `SequenceHandle.Wait() error`:** wait for
-  every descendant; `nil` only when every one ran and succeeded,
-  `ErrNotStarted` when work never ran (including a Task nobody Defined).
-- **`TaskHandle.Summary(text string) *TaskHandle`:** one line of result text
-  for the terminal row. It never resolves the Task (it replaces
-  `Done(text)`).
-- **`ExecResult`:** what `evo.Exec` now returns: whether the child ran, its
-  exit code, and its captured `Stdout`/`Stderr` (with `Truncated`).
-- **`Output.Events() []Event`:** a copy of the durable event journal for
-  `EncodeJSONL` and other machine projections.
-- **`TaskHandle.Problem(summary string, opts ...ProblemOption) *TaskHandle`:**
-  a Task can own zero, one, or many `Problem`s before it resolves,
-  instead of a caller-invented `Task` per finding or every finding
-  flattened into one `errors.New` string. Severity defaults to
-  `SeverityError`: a nil `Define` return then settles Failed.
-  `Severity(SeverityWarning)` never fails the Task. The `Problem` shows
-  in `Snapshot` as soon as it is recorded.
-- **`wire.EventProblemRecorded`:** distinct wire event for `Problem`
-  accumulation (previously would have collided with `EventWarningRecorded`).
-- **`ProblemSeverity`, `SeverityError`, `SeverityWarning`, and
-  `Severity(ProblemSeverity)`:** a Problem's closed severity. Default is
-  `SeverityError` (a nil `Define` return then settles Failed).
-  `Severity(SeverityWarning)` uses the warning projection, does not fail
-  the Task, and sets `Conclusion.Warned` with exit 0.
-- **`Capture`, `CaptureOption`, `CaptureStream`, `CaptureStreamCombined`,
-  `CaptureStreamStdout`, `CaptureStreamStderr`, `MaxCaptureBytes`, and
-  `TaskHandle.Capture`:** retained stdout/stderr (ZYS-1185). Evidence now
-  means only state-proof (`TaskEvidence`, `EvidencePhase`).
-
-### Changed
-
-- **Spinner period** is 50ms, down from 80ms. The live frame must change at
-  least every 100ms while work is Running; at 80ms, 20ms of timer jitter
-  broke that bound under host load. 50ms leaves 50ms of headroom. No API
-  change.
-
-- **`EVO_OUTPUT=json` and `EVO_OUTPUT=jsonl`** (breaking): with no `Format`
-  chosen, they now select `FormatJSON` (one `evo.run` document on stdout)
-  and `FormatJSONL` (`evo.event` lines on stdout, streamed), with human
-  output on stderr. They wrote the output.v1 `JSONDocument` and 0.4
-  `EventJSON` lines, which carry no Facts and no Kept/Skipped records, so a
-  machine consumer lost what human verbosity hides. The `evo.run` task
-  gains `dispositions` (`{disposition, reason, name, causes}`), and the
-  event stream a `disposition.recorded` event. With `FormatData` or
-  `FormatExternal` chosen, `EVO_OUTPUT` keeps the output.v1 projection on
-  stderr. See [`docs/migration/1.1.md`](docs/migration/1.1.md#evo_outputjson-and-jsonl-write-the-evorun-document).
-- **`After` on a Group or Sequence** (breaking behavior): 1.0 counted an
-  empty collection as done at once, so `out.Task("fetch").After(g)` wired
-  before the loop that fills `g` started immediately. In 1.1 an empty
-  collection named in `After` stays open until `g.Wait()`, a Wait on the
-  dependent, or the end of the run closes it, and it waits for every
-  child declared before then. A collection already populated when it is
-  named is taken as declared: a child declared into it later never gates
-  that edge. A Task declared into a Sequence step the Sequence has already
-  moved past runs after the Sequence's latest step. To keep 1.0's timing,
-  declare the children before the `After`, or call `g.Wait()` before the
-  dependent should start. See
-  [`docs/migration/1.1.md`](docs/migration/1.1.md#after-on-a-group-or-sequence-waits-for-its-members).
-- **`TaskHandle.Fact(name, value string) *TaskHandle`** (breaking for method
-  values and interfaces) returns the Task to chain like `Problem` and
-  `Summary`: `var fact func(string, string) = task.Fact` and
-  `interface{ Fact(string, string) }` no longer compile.
-- **`evo.Exec(ctx, ExecSpec) (ExecResult, error)`** (breaking): it returned
-  only `error`. Assign or discard the result.
-- **`TaskHandle.Define(fn) *TaskHandle`** (breaking for method values and
-  interfaces): it returned nothing; it now returns the Task so a call can
-  chain, e.g. `task.Define(fn).Wait()`.
-- **An unmanaged-mode `evo.File`/`evo.Files` write keeps the file's
-  permissions**, and a new file gets `0666` less the umask. A content-only
-  patch of a `0755` script no longer leaves it `-rw-rw-rw-`. An injected
-  `Config.FileFS` keeps the v1.0 contract: `WriteAtomic` always receives a
-  real permission (`0666` for an unmanaged create, which `os.WriteFile`
-  masks by the umask), and an unmanaged rewrite now passes the file's
-  existing mode instead of `0666`.
-
-- **`KeepLastLines`, `MirrorToDebug`, and `MirrorToDiagnostics`** now
-  return `CaptureOption` (ZYS-1185). `MaxEvidenceBytes` is `MaxCaptureBytes`.
-
-- **A `Kept` record now concludes `warned` (contract §18).** Any Task that
-  records `Kept(reason)` sets `Conclusion.Warned`, the `--json`
-  `conclusion.warned` field, and the `· warned` band, so a run that kept
-  items it was asked to clean no longer reads as a plain `ready`. A
-  `Skipped` record renders `- skipped N (...)` and never warns.
-
-- **The renderer decides which rows deserve a line (no new API; callers just
-  stop choosing):**
-  - A `Group` with no `Summary` of its own renders no header row in human
-    output; its children render as siblings. A live header stays while work
-    is in flight because its `N/M complete` count is the Group's own
-    progress. A `Sequence` keeps its header. JSON and JSONL keep the Group.
-  - A finished no-op row (`Done`, resolved no-work or already-satisfied, with
-    no Summary, Problem, Warning, Fact, Progress, Action or effect) is hidden
-    from human output when other content is visible, in a Group or, if
-    proven already-satisfied by `Verify`, at the root. Never on a failed,
-    blocked or cancelled run; never in JSON/JSONL.
-  - `[planned]` and `[changed]` ledger rows print in Task declaration order,
-    whatever order the Tasks finished in.
-  - A cancelled run renders `[cancelled] <subject>  by user` (the cause is
-    now `Conclusion.Explanation`, also in JSON) and, only when an Effect
-    committed, `! partial changes were applied before cancellation`. This
-    replaces `! already mutated: ...` on cancelled runs; failed runs keep it.
-    Exit code stays 130.
-
-### Removed
 
 - **BREAKING (ZYS-1182): `TaskHandle.Next`, `TaskHandle.NextCommand`,
   `Output.Next`, and `Output.NextCommand`** were removed with no aliases. A
@@ -354,6 +108,235 @@ spelling to its 2.0 replacement.
 - **`KeepLastLines`, `MirrorToDebug`, and `MirrorToDiagnostics`** were
   removed from the public package. `MaxCaptureBytes` remains a
   `CaptureOption`.
+
+### Changed
+
+- **Four promises, one package each:** `internal/graph` decides when work
+  runs, `internal/freshness` whether it needs to, `internal/change` what it
+  changes, `internal/record` what happened, and `internal/project` how that
+  is shown. See [`LAYOUT.md`](LAYOUT.md).
+- **Two idioms:** specs are structs (`Config`, `FileSpec`, `ExecSpec`,
+  `EffectSpec`); messages are summary first, then options (`Problem`,
+  `Confirm`, `Fail`, `Refuse`). Work is always a function argument.
+- `evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn)` and `evo.File`
+  replace the 1.x mutation verbs. `Verb` is a closed set: `Create`, `Update`,
+  `Delete`.
+- Output is selected by `Config.Output` or `EVO_OUTPUT`
+  (`human|plain|json|jsonl`); machine output is never inferred from a pipe.
+- Every exported field and parameter names only `evo` or standard types:
+  `Config.Debug` is a `slog.Level`, `Action.Command` is argv,
+  `EffectSpec.Resource` is a logical resource name, and `Clock`, `Terminal`,
+  `Redactor`, `Process` and `FS` are interfaces a test can implement.
+  `Detail` is both a `ProblemOption` and a `ConfirmOption`.
+- `After` takes a `Predecessor`: only a Task, Group, Sequence or Computed.
+  `Exclude` takes `ProblemOption`s like `Fail` and `Refuse`; `ProblemOption`
+  and `ConfirmOption` are sealed. `CleanStop` names signals that end a Task
+  Succeeded.
+- `EffectSpec.Path` claims that path while the callback runs, so Effects on
+  equal or nested paths wait for each other; an `EffectSpec` that sets both
+  `Path` and `Resource` is `ErrInvalidConfig` and its callback never runs.
+
+The public surface is exactly the `CONTRACT.md` tables. Names below changed
+between the last 1.x release and 2.0; `docs/migration/2.0.md` maps each 1.x
+spelling to its 2.0 replacement.
+
+- **Added or newly declared:** `Build`, `CleanStop`, `Compute`, `Computed`, `Container`, `DefineOption`, `Effect`, `EffectSpec`, `ErrComputedUnordered`, `ErrExecOutputMissing`, `ErrPatchDoesNotApply`, `ErrStaleBasis`, `Exclude`, `Excluded`, `ExecResult`, `Execute`, `ExitCode`, `FS`, `Facades`, `Get`, `Predecessor`, `Human`, `JSON`, `JSONL`, `NonInteractive`, `Outcome`, `PartialEffect`, `Patch`, `Process`, `Refuse`, `Refused`, `Satisfied`, `State`, `Succeeded`, `Text`, `Verb`.
+- **Present in 1.x and 2.0 with a changed signature or receiver:** `Action`, `After`, `Cancelled`, `Clock`, `Conclusion`, `Config`, `Confirm`, `Create`, `Define`, `Delete`, `Detail`, `Doing`, `Exec`, `ExecSpec`, `Fact`, `Failed`, `Fail`, `FileSpec`, `Group`, `Main`, `Next`, `Plain`, `Problem`, `Progress`, `Result`, `ResultWriter`, `Run`, `Sequence`, `SlogHandler`, `Summary`, `Suspend`, `Task`, `Terminal`, `Update`, `Verify`, `Writer`.
+- **Removed:** `Add`, `Affected`, `AlsoWrite`, `App`, `AssumeYes`, `Attachment`, `Block`, `Blocked`, `Blockf`, `Bytes`, `BytesKind`, `Cancel`, `ChangesSnapshot`, `Close`, `ColorAlways`, `ColorAuto`, `ColorMode`, `ColorNever`, `Command`, `CommandSpec`, `ConclusionJSON`, `ConclusionState`, `ConfirmDetail`, `Context`, `Count`, `DataProjection`, `DebugAddSource`, `DebugConfig`, `DebugHistory`, `DebugLevel`, `DebugPane`, `DebugPaneOption`, `DebugPresentation`, `DebugPresentationHistory`, `DebugPresentationPane`, `Default`, `DefaultConfig`, `DefaultVisibleNames`, `Delay`, `Determinate`, `Diagnostics`, `Done`, `DryRun`, `EffectRecord`, `Empty`, `EncodeEventJSON`, `EncodeJSON`, `EncodeJSONL`, `EntityOption`, `EntityState`, `Err`, `ErrAlreadyResolved`, `ErrClosed`, `ErrConcurrentRunning`, `ErrDryRunDeclaredLate`, `ErrDuplicateKey`, `ErrDuplicateSiblingName`, `ErrExecExecutableNotFound`, `ErrExecOutputMissingAfterSuccess`, `ErrExecSpecMissingExecutable`, `ErrFilePathIsSymlink`, `ErrFilePathTypeMismatch`, `ErrFileSpecMissingPath`, `ErrFileUnmanagedContentsMissing`, `ErrInvalidProgress`, `ErrKeyAfterDefine`, `ErrLimitExceeded`, `ErrNoTaskContext`, `ErrNotStarted`, `ErrProgressRegression`, `ErrReasonSkipOnly`, `ErrReasonWrongTask`, `ErrRenderer`, `ErrTaskClosed`, `ErrTerminalWithoutSink`, `ErrUnresolvedTask`, `ErrWaitDeadlock`, `Error`, `Event`, `EventJSON`, `EventSchemaVersion`, `Evidence`, `EvidenceOption`, `EvidencePhase`, `EvidenceStream`, `EvidenceStreamCombined`, `EvidenceStreamStderr`, `EvidenceStreamStdout`, `ExitBlocked`, `ExitCancelled`, `ExitFailed`, `ExitOK`, `ExternalProjection`, `FSPath`, `FactRecord`, `Failf`, `Failure`, `Field`, `FileFS`, `Fingerprint`, `FingerprintValue`, `Finish`, `FixedClock`, `ForSkip`, `Format`, `FormatData`, `FormatExternal`, `FormatHuman`, `FormatJSON`, `FormatJSONL`, `GlyphProfile`, `Glyphs`, `GlyphsASCII`, `GlyphsAuto`, `GlyphsUnicode`, `GroupHandle`, `ID`, `Incomplete`, `Indeterminate`, `Init`, `IsCharDevice`, `JSONAction`, `JSONChanges`, `JSONCollection`, `JSONCommand`, `JSONDocument`, `JSONEffectRecord`, `JSONMessage`, `JSONOutputMeta`, `JSONPlan`, `JSONProblem`, `JSONProgress`, `JSONSchemaVersion`, `JSONTask`, `KeepLastLines`, `Kept`, `Key`, `Label`, `LevelDebug`, `LevelError`, `LevelInfo`, `LevelTrace`, `LevelUnset`, `LevelWarn`, `LiveSurface`, `Location`, `LogLevel`, `LogRecord`, `MaxEntities`, `MaxEvents`, `MaxEvidenceBytes`, `MaxFrameRate`, `MessageSnapshot`, `MirrorToDebug`, `MirrorToDiagnostics`, `MutationOption`, `Name`, `NewestFirst`, `NextCommand`, `NoColor`, `NoopRedactor`, `NotStarted`, `OldestFirst`, `OnTask`, `Option`, `PaneHeight`, `ParseFormat`, `Pending`, `PlainOptions`, `PlanSnapshot`, `Pluralize`, `PolicyFlag`, `PolicyHint`, `PreserveDebugTail`, `Print`, `Printer`, `Printf`, `Println`, `ProblemCodeDuplicateSiblingName`, `ProblemCodeVerificationUnsatisfied`, `ProcessCommand`, `ProcessOutcome`, `ProcessRunner`, `ProgressKind`, `Projection`, `ProjectionHuman`, `ProjectionJSON`, `ProjectionJSONL`, `ProjectionPlain`, `ProjectionStreamJSON`, `PublishedRelease`, `Push`, `Reason`, `ReasonOption`, `Record`, `RecordLabel`, `RecordName`, `Redact`, `Remove`, `RenderPlain`, `Resolution`, `ResolutionAlreadySatisfied`, `ResolutionExecuted`, `ResolutionNoWork`, `ResultStream`, `Runner`, `Running`, `SequenceHandle`, `SetDefault`, `Skipped`, `Snapshot`, `SourceLocation`, `StartPhase`, `StateBlocked`, `StateCancelled`, `StateChanged`, `StateFailed`, `StatePlanned`, `StateReady`, `StateWarning`, `Stdin`, `Step`, `Strict`, `SystemClock`, `TaskEvidence`, `TaskHandle`, `TaskSnapshot`, `TasksSnapshot`, `TaxonomyReason`, `TaxonomyRecord`, `TerminalDriver`, `TimeSource`, `Title`, `To`, `TruncateNames`, `Unwrap`, `Value`, `Verbose`, `Verbosity`, `VerbosityNormal`, `VerbosityVerbose`, `Visibility`, `VisibilityDelay`, `VisibilityNormal`, `VisibilityVerbose`, `Wait`, `Warn`, `Width`, `Write`, `WriteJSON`.
+- **Removed (1.1 names the list above does not repeat):** `Basis`, `Capture`, `CaptureOption`, `CaptureStream`, `CaptureStreamCombined`, `CaptureStreamStderr`, `CaptureStreamStdout`, `EffectAdd`, `EffectCreate`, `EffectDelete`, `EffectInstall`, `EffectPush`, `EffectRemove`, `EffectUninstall`, `EffectUpdate`, `EffectVerb`, `ErrEffectCallbackMissing`, `ErrEffectObjectMissing`, `ErrEffectQuantityNotPositive`, `ErrEffectVerbInvalid`, `ErrInvalidPartialEffect`, `ErrInvalidResource`, `ErrNestedResourceAcquisition`, `ErrPatchBinaryUnsupported`, `ErrPatchDeleteUnsupported`, `ErrPatchMalformed`, `ErrPatchRenameUnsupported`, `ErrPatchUnsupported`, `Events`, `FSResource`, `FileSet`, `Files`, `LogicalResource`, `MaxCaptureBytes`, `ProblemSeverity`, `Resource`, `Severity`, `SeverityError`, `SeverityWarning`.
+- **No longer exported:** `ErrInvalidConfig` remains the misuse code recorded in `Result` for a misdeclared Task, Compute or EffectSpec, but is not a name a caller can reference. `Create`, `Delete`, `Plain` and `Update` keep their spelling with a new meaning (`Verb` and `Output` constants).
+
+- **File/Patch/Exec remain the 1.1 operations** (`File(ctx, FileSpec)`,
+  `Exec(ctx, ExecSpec)`, `Patch` + `Files`). Tree/Find/Download/Extract/
+  Clone/Checksum are not evo (contract §31/§37; ZYS-1382 is not 1.2).
+
+- **Spinner period** is 50ms, down from 80ms. The live frame must change at
+  least every 100ms while work is Running; at 80ms, 20ms of timer jitter
+  broke that bound under host load. 50ms leaves 50ms of headroom. No API
+  change.
+
+- **`EVO_OUTPUT=json` and `EVO_OUTPUT=jsonl`** (breaking): with no `Format`
+  chosen, they now select `FormatJSON` (one `evo.run` document on stdout)
+  and `FormatJSONL` (`evo.event` lines on stdout, streamed), with human
+  output on stderr. They wrote the output.v1 `JSONDocument` and 0.4
+  `EventJSON` lines, which carry no Facts and no Kept/Skipped records, so a
+  machine consumer lost what human verbosity hides. The `evo.run` task
+  gains `dispositions` (`{disposition, reason, name, causes}`), and the
+  event stream a `disposition.recorded` event. With `FormatData` or
+  `FormatExternal` chosen, `EVO_OUTPUT` keeps the output.v1 projection on
+  stderr. See [`docs/migration/1.1.md`](docs/migration/1.1.md#evo_outputjson-and-jsonl-write-the-evorun-document).
+- **`After` on a Group or Sequence** (breaking behavior): 1.0 counted an
+  empty collection as done at once, so `out.Task("fetch").After(g)` wired
+  before the loop that fills `g` started immediately. In 1.1 an empty
+  collection named in `After` stays open until `g.Wait()`, a Wait on the
+  dependent, or the end of the run closes it, and it waits for every
+  child declared before then. A collection already populated when it is
+  named is taken as declared: a child declared into it later never gates
+  that edge. A Task declared into a Sequence step the Sequence has already
+  moved past runs after the Sequence's latest step. To keep 1.0's timing,
+  declare the children before the `After`, or call `g.Wait()` before the
+  dependent should start. See
+  [`docs/migration/1.1.md`](docs/migration/1.1.md#after-on-a-group-or-sequence-waits-for-its-members).
+- **`TaskHandle.Fact(name, value string) *TaskHandle`** (breaking for method
+  values and interfaces) returns the Task to chain like `Problem` and
+  `Summary`: `var fact func(string, string) = task.Fact` and
+  `interface{ Fact(string, string) }` no longer compile.
+- **`evo.Exec(ctx, ExecSpec) (ExecResult, error)`** (breaking): it returned
+  only `error`. Assign or discard the result.
+- **`TaskHandle.Define(fn) *TaskHandle`** (breaking for method values and
+  interfaces): it returned nothing; it now returns the Task so a call can
+  chain, e.g. `task.Define(fn).Wait()`.
+- **An unmanaged-mode `evo.File`/`evo.Files` write keeps the file's
+  permissions**, and a new file gets `0666` less the umask. A content-only
+  patch of a `0755` script no longer leaves it `-rw-rw-rw-`. An injected
+  `Config.FileFS` keeps the v1.0 contract: `WriteAtomic` always receives a
+  real permission (`0666` for an unmanaged create, which `os.WriteFile`
+  masks by the umask), and an unmanaged rewrite now passes the file's
+  existing mode instead of `0666`.
+
+- **`KeepLastLines`, `MirrorToDebug`, and `MirrorToDiagnostics`** now
+  return `CaptureOption` (ZYS-1185). `MaxEvidenceBytes` is `MaxCaptureBytes`.
+
+- **A `Kept` record now concludes `warned` (contract §18).** Any Task that
+  records `Kept(reason)` sets `Conclusion.Warned`, the `--json`
+  `conclusion.warned` field, and the `· warned` band, so a run that kept
+  items it was asked to clean no longer reads as a plain `ready`. A
+  `Skipped` record renders `- skipped N (...)` and never warns.
+
+- **The renderer decides which rows deserve a line (no new API; callers just
+  stop choosing):**
+  - A `Group` with no `Summary` of its own renders no header row in human
+    output; its children render as siblings. A live header stays while work
+    is in flight because its `N/M complete` count is the Group's own
+    progress. A `Sequence` keeps its header. JSON and JSONL keep the Group.
+  - A finished no-op row (`Done`, resolved no-work or already-satisfied, with
+    no Summary, Problem, Warning, Fact, Progress, Action or effect) is hidden
+    from human output when other content is visible, in a Group or, if
+    proven already-satisfied by `Verify`, at the root. Never on a failed,
+    blocked or cancelled run; never in JSON/JSONL.
+  - `[planned]` and `[changed]` ledger rows print in Task declaration order,
+    whatever order the Tasks finished in.
+  - A cancelled run renders `[cancelled] <subject>  by user` (the cause is
+    now `Conclusion.Explanation`, also in JSON) and, only when an Effect
+    committed, `! partial changes were applied before cancellation`. This
+    replaces `! already mutated: ...` on cancelled runs; failed runs keep it.
+    Exit code stays 130.
+
+### Added
+
+- **Outcomes:** `Succeeded`, `Satisfied`, `Excluded`, `Refused`, `Failed`,
+  `Cancelled`, with exit codes 0, 0, 0, 1, 2, 130.
+- **Endings:** `evo.Fail`, `evo.Refuse` and `evo.Exclude` as Task return
+  values; `Task.Verify` resolves a Task Satisfied without running it.
+- `Run.Confirm` with `Destructive` and `NonInteractive`; `Run.Suspend`.
+- `Run.ResultWriter` writes the stdout data payload. Human and Plain runs now
+  present on stderr and keep stdout for the payload; JSON embeds it as the
+  `evo.run` document's `result` and JSONL streams `result.written` events.
+
+- **Ledger fold (ZYS-1370):** per-item Effects that share a verb and object
+  under one Group/Sequence render as one `[changed]`/`[planned]` row for the
+  highest container whose whole subtree records that same Effect
+  (`[changed] centralize packages  updated 1,663 packages`), counted per item.
+  JSON and JSONL still carry every per-item Effect. No API change.
+- **`evo.Compute(task, fn) *Computed[T]` and `Computed[T].Get()`:** a Task
+  that produces a value. `fn` is the Task's `Define`; its error fails the
+  Task. Pass the `*Computed` to `After` on a Task, Group, or Sequence, in
+  any container, and call `Get()` from what runs after it. A failed,
+  blocked, cancelled, or skipped producer means its consumers never start
+  (NotStarted). `Get()` before the producer settled records
+  `ErrComputedUnsettled` with a remedy (a panic under `Config.Strict`) and
+  returns the zero value. It is never a data race.
+  Called from a Task or container builder that nothing orders after the
+  producer (no `After` edge, and not a later step of the same Sequence),
+  `Get()` records `ErrComputedUnordered` and returns the zero value. A later
+  Sequence step may `Get()` an earlier step's Computed without `After`.
+- **`GroupHandle.After`, `SequenceHandle.After`, and
+  `GroupHandle.Define(func(*GroupHandle))` /
+  `SequenceHandle.Define(func(*SequenceHandle))`:** a container declares its
+  children once its predecessors succeed. The builder is topology only (no
+  context, no error, runs once, must not `Wait`). If a predecessor failed,
+  the builder never runs and the container settles NotStarted. Per-item
+  Tasks declared inside work with `Skipped(evo.Reason(...))`. Declaring a
+  Task, Group, or Sequence from inside a Task's `Define` callback records
+  `ErrDeclaredInCallback`, whichever container it targets. Declare the
+  children up front or from `Define` on the container instead.
+- **`evo.Container` (ZYS-1203):** a node that can declare work beneath it
+  (`Task`, `Group`, `Sequence`). Satisfied by `*Output`, `*GroupHandle`,
+  and `*SequenceHandle`. A Task is never a Container.
+- **`TaskHandle.Basis(inputs ...Fingerprint)` and `ErrBasisAfterDefine`:**
+  declare a Task's freshness inputs before Define. A call after Define
+  records `ErrBasisAfterDefine` and is ignored.
+
+- **Review rule EVO-EXIT-002:** flags `evo.Main(run)` written as a bare
+  statement (or `_ = evo.Main(run)`). `Main` returns the exit code and
+  never exits the process itself, so that program exits 0 after a failed
+  or blocked run. The fix is `os.Exit(evo.Main(run))`. The README, the
+  reference, the teaching ladder, and both skills said `Main` "exits the
+  process itself"; they now say it returns the code.
+- **Review rule API-063:** flags a `Verify` callback that returns a constant
+  (`return true, nil`), inline or bound to a local: it observes nothing, so
+  the row claims already-satisfied with no evidence.
+- **`evo.Effect(ctx, EffectSpec, fn) error`:** the one way to perform an
+  opaque mutation (a ref deletion, a push, an API change) inside `Define`.
+  `EffectSpec{Verb, Object, Quantity, Resource}` names it; `EffectVerb` is
+  a closed set (`EffectAdd`, `EffectCreate`, `EffectDelete`,
+  `EffectInstall`, `EffectPush`, `EffectRemove`, `EffectUninstall`,
+  `EffectUpdate`). Dry run records the plan and skips `fn`. Invalid specs
+  fail with `ErrEffectVerbInvalid`, `ErrEffectObjectMissing`,
+  `ErrEffectQuantityNotPositive`, or `ErrEffectCallbackMissing`.
+- **`evo.PartialEffect(committed int, err error) error`:** an Effect
+  callback returns it when only part of the work committed, so the ledger
+  records exactly that subset (`ErrInvalidPartialEffect` for a bad count).
+  It counts once, for the innermost Effect whose callback returned it; an
+  outer Effect that passes the error up records nothing for it.
+- **`Resource`, `evo.FSResource(path)`, `evo.LogicalResource(name)`:**
+  declare what an Effect writes; overlapping claims wait for each other and
+  the waiting row shows "waiting for <resource>". Acquiring a second
+  resource inside a held one fails with `ErrNestedResourceAcquisition`;
+  `ErrInvalidResource` rejects one that names no state (an empty path or
+  name, or a relative path with no workspace to anchor it).
+- **`evo.Patch(ctx, diff []byte) (FileSet, error)` and
+  `evo.Files(ctx, FileSet) error`:** derive the desired files from a
+  unified diff, then commit them through the same reconcile path as
+  `evo.File`. `Files` refuses to overwrite a source that changed since the
+  diff was read (`ErrStaleBasis`). Patch errors: `ErrPatchMalformed`,
+  `ErrPatchDoesNotApply`, `ErrPatchUnsupported`, `ErrPatchDeleteUnsupported`,
+  `ErrPatchRenameUnsupported`, `ErrPatchBinaryUnsupported`. A path beyond
+  a symlinked directory fails with `ErrPatchUnsupported`; Patch never
+  creates directories, so a file in a missing directory fails with
+  `ErrPatchDoesNotApply` before anything commits. Patch applies the diff
+  forward first, as `patch` and `git apply` do. Applying the same diff
+  again is already satisfied, not a failure; when the file matches both
+  sides of the diff, only this Task's own recorded result from its last
+  Run counts as already applied.
+- **`GroupHandle.Wait() error` and `SequenceHandle.Wait() error`:** wait for
+  every descendant; `nil` only when every one ran and succeeded,
+  `ErrNotStarted` when work never ran (including a Task nobody Defined).
+- **`TaskHandle.Summary(text string) *TaskHandle`:** one line of result text
+  for the terminal row. It never resolves the Task (it replaces
+  `Done(text)`).
+- **`ExecResult`:** what `evo.Exec` now returns: whether the child ran, its
+  exit code, and its captured `Stdout`/`Stderr` (with `Truncated`).
+- **`Output.Events() []Event`:** a copy of the durable event journal for
+  `EncodeJSONL` and other machine projections.
+- **`TaskHandle.Problem(summary string, opts ...ProblemOption) *TaskHandle`:**
+  a Task can own zero, one, or many `Problem`s before it resolves,
+  instead of a caller-invented `Task` per finding or every finding
+  flattened into one `errors.New` string. Severity defaults to
+  `SeverityError`: a nil `Define` return then settles Failed.
+  `Severity(SeverityWarning)` never fails the Task. The `Problem` shows
+  in `Snapshot` as soon as it is recorded.
+- **`wire.EventProblemRecorded`:** distinct wire event for `Problem`
+  accumulation (previously would have collided with `EventWarningRecorded`).
+- **`ProblemSeverity`, `SeverityError`, `SeverityWarning`, and
+  `Severity(ProblemSeverity)`:** a Problem's closed severity. Default is
+  `SeverityError` (a nil `Define` return then settles Failed).
+  `Severity(SeverityWarning)` uses the warning projection, does not fail
+  the Task, and sets `Conclusion.Warned` with exit 0.
+- **`Capture`, `CaptureOption`, `CaptureStream`, `CaptureStreamCombined`,
+  `CaptureStreamStdout`, `CaptureStreamStderr`, `MaxCaptureBytes`, and
+  `TaskHandle.Capture`:** retained stdout/stderr (ZYS-1185). Evidence now
+  means only state-proof (`TaskEvidence`, `EvidencePhase`).
 
 ### Fixed
 

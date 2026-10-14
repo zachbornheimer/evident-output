@@ -71,7 +71,7 @@ const releasedGoldenRelPath = "testdata/api_golden_released.txt"
 
 // TestChangelogCoversEveryAPIChange fails when an exported declaration was
 // added, removed, or changed since the last release but CHANGELOG.md's
-// Unreleased section never names it, so the changelog stays mechanically
+// unreleased section never names it, so the changelog stays mechanically
 // complete rather than hand-remembered.
 func TestChangelogCoversEveryAPIChange(t *testing.T) {
 	root := moduleRoot(t)
@@ -88,7 +88,7 @@ func TestChangelogCoversEveryAPIChange(t *testing.T) {
 			continue
 		}
 		if !regexp.MustCompile(`\b` + regexp.QuoteMeta(m[1]) + `\b`).MatchString(unreleased) {
-			t.Errorf("CHANGELOG.md Unreleased never names %s, changed since the last release: %s", m[1], line)
+			t.Errorf("CHANGELOG.md unreleased section never names %s, changed since the last release: %s", m[1], line)
 		}
 	}
 }
@@ -123,15 +123,16 @@ func symmetricDifference(a, b map[string]bool) map[string]bool {
 	return out
 }
 
-// unreleasedSection is the text between "## Unreleased" and the next
-// "## " heading.
+// unreleasedSection is the text of the changelog section still marked
+// "(unreleased)": from its "## " heading to the next "## " heading.
 func unreleasedSection(changelog string) string {
-	_, rest, ok := strings.Cut(changelog, "\n## Unreleased\n")
-	if !ok {
-		return ""
+	for section := range strings.SplitSeq(changelog, "\n## ") {
+		heading, _, _ := strings.Cut(section, "\n")
+		if strings.HasSuffix(heading, unreleasedMarker) {
+			return section
+		}
 	}
-	if before, _, ok0 := strings.Cut(rest, "\n## "); ok0 {
-		return before
-	}
-	return rest
+	return ""
 }
+
+const unreleasedMarker = "(unreleased)"
