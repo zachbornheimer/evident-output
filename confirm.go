@@ -70,11 +70,23 @@ func (o *Run) Confirm(question string, opts ...ConfirmOption) bool {
 			opt.applyConfirm(&cfg)
 		}
 	}
-	gate := o.Task(question)
+	gate := o.confirmGate(question)
 	if o.cfg.plain {
 		return o.settleGate(gate, graph.AnswerPolicy, cfg)
 	}
 	return o.promptConfirm(gate, question, cfg)
+}
+
+// confirmGate is the Task a Confirm settles: declared like any root Task from
+// the run body or a builder, and from inside a Define callback the library's
+// own row, since asking there is work, not a declaration (CONTRACT §5).
+func (o *Run) confirmGate(question string) *Task {
+	if !o.graph.DeclaredInCallback() {
+		return o.Task(question)
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.taskHandle(o.graph.DeclareConfirmGate(question))
 }
 
 // settleGate resolves the gate as answer decides (graph.Answer.Outcome), commits its row, and reports whether it was yes.

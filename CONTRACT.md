@@ -320,7 +320,11 @@ if !r.Confirm("delete 40 branches?", evo.Destructive(), evo.NonInteractive("--ye
 | `Destructive`    | func | `Destructive() ConfirmOption`; default answer is no                    |
 | `NonInteractive` | func | `NonInteractive(argv ...string) ConfirmOption`; how to pass unattended |
 
-`Detail` is also a `ConfirmOption`.
+`Confirm` may be asked from the run body or from inside a `Define` callback.
+Either way it settles a row of its own named by the question: Succeeded on
+yes, and Refused when declined or when nobody can answer, with the
+non-interactive flag as the next step. Asking from a callback is not a
+declaration, so it is never misuse. `Detail` is also a `ConfirmOption`.
 
 ## 6. Output
 

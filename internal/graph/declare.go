@@ -64,11 +64,27 @@ func (g *Graph) admitDeclaration() error {
 	return nil
 }
 
+// DeclareConfirmGate declares the root row a Confirm asked from inside a
+// Task's callback settles. Asking is not topology the callback declares, so
+// it is no misuse there, and the row claims no sibling name: two Tasks may
+// ask the same question. The caller holds the run's lock.
+func (g *Graph) DeclareConfirmGate(question string) (*Task, error) {
+	if err := g.host.CheckOpen(); err != nil {
+		return nil, err
+	}
+	return g.addTaskRow(nil, DeclaredName(question))
+}
+
 // declareTaskRow declares a Task's row without claiming its name.
 func (g *Graph) declareTaskRow(parent *Container, name string) (*Task, error) {
 	if err := g.admitDeclaration(); err != nil {
 		return nil, err
 	}
+	return g.addTaskRow(parent, name)
+}
+
+// addTaskRow adds a pending Task's row under parent and announces it.
+func (g *Graph) addTaskRow(parent *Container, name string) (*Task, error) {
 	t, err := g.AddTask(parent, name, record.TaskInit{State: record.Pending, Progress: record.Progress{Kind: record.Indeterminate}})
 	if err != nil {
 		err = declarationRefusal(err)
