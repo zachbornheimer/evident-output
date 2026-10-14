@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestTask_DeclaresRunningSoTheRowCanSpin is FP-005 under the rec dialect:
+// TestTask_DeclaresRunningSoTheRowCanSpin pins the lifecycle CONTRACT section 2 states:
 // declare is Pending until submitted work starts. Doing is first evidence
 // that promotes to Running so the row can spin. Sequence children stay
 // Pending so later siblings do not all spin at once.
