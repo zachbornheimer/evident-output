@@ -36,6 +36,9 @@ func Compute[T any](task *Task, fn func(context.Context) (T, error)) *Computed[T
 	st := o.taskStates[task.id]
 	o.mu.Unlock()
 	if st != nil && len(o.freshness.Tasks().Verifiers(st.node.TaskID())) > 0 {
+		o.mu.Lock()
+		st.refused = true
+		o.mu.Unlock()
 		o.recordMisuseFor(st.name, fmt.Errorf("%w: %q", errComputeWithVerify, st.name))
 		return c
 	}

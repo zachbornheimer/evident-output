@@ -72,6 +72,12 @@ func (o *Run) settleUnresolvedTasksLocked() {
 			o.followRecordLocked()
 			continue
 		}
+		if t.refused {
+			t.node.Summarize(notStartedSummary)
+			o.graph.Settle(t.node, notStarted)
+			o.followRecordLocked()
+			continue
+		}
 		if !abnormal {
 			// Clean finish: a forgotten terminal verb is an incomplete story, not a caller bug. Never Cancelled/130 or exit
 			// escalation, running or not. Folded into Conclusion.Partial; the hint names the fix.
