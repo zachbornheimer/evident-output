@@ -31,13 +31,14 @@ type VerificationDetail struct {
 	Name   string
 	Status VerificationStatus
 	Facts  []Fact
+	// Failure is the error the operation returned for this attribute, nil
+	// unless it failed. A Problem line that restates it is left out of the
+	// row's evidence tree: this attribute's own branch states it.
+	Failure error
 }
 
 // FailedAttributeText is the words that say the attribute name failed to
-// verify: "failed: permissions". The attribute's own branch of a row's
-// evidence tree states that failure, so a Problem line that says it again,
-// as an error returned from File and recorded as a Detail does, is left out
-// of the tree.
+// verify: "failed: permissions".
 func FailedAttributeText(name string) string { return "failed: " + name }
 
 // SanitizeVerificationDetail neutralizes CSI/control sequences in d's

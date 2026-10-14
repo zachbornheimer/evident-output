@@ -92,8 +92,9 @@ func fileVerificationDetails(contentsManaged, modeManaged bool, chmodErr error, 
 		// Mode unmanaged: no "permissions" attribute to report on at all.
 	case chmodErr != nil:
 		details = append(details, record.VerificationDetail{
-			Name:   attributePermissions,
-			Status: record.VerificationError,
+			Name:    attributePermissions,
+			Status:  record.VerificationError,
+			Failure: ErrFilePermissionsFailed,
 			Facts: []record.Fact{
 				{Name: "error", Value: chmodErr.Error()},
 				{Name: "path", Value: displayPath},

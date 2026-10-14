@@ -98,32 +98,57 @@ func dedupeEvidenceTailAgainstRow(p record.Problem, rowSummary string) record.Pr
 	return p
 }
 
-// withoutRestatedAttributes is p without the Detail and EvidenceTail lines
-// that say a failed attribute in details failed: its own branch of the row's
-// evidence tree already does, so the tree states each failure once.
+// withoutRestatedAttributes is p without what its Detail and EvidenceTail
+// repeat of a failed attribute in details: that attribute's own branch of the
+// row's evidence tree states its Failure, so the tree states each failure
+// once. A line that is the failure alone is dropped; a line that wraps it
+// ("install: failed: permissions") keeps the caller's context.
 func withoutRestatedAttributes(p record.Problem, details []record.VerificationDetail) record.Problem {
-	var restated []string
+	var failures []string
 	for _, d := range details {
-		if d.Status != record.VerificationSatisfied {
-			restated = append(restated, record.FailedAttributeText(d.Name))
+		if d.Failure != nil && d.Status != record.VerificationSatisfied && d.Failure.Error() != "" {
+			failures = append(failures, d.Failure.Error())
 		}
 	}
-	if len(restated) == 0 {
+	if len(failures) == 0 {
 		return p
 	}
-	p.Detail = withoutLines(p.Detail, restated)
-	p.EvidenceTail = withoutLines(p.EvidenceTail, restated)
+	p.Detail = withoutFailures(p.Detail, failures)
+	p.EvidenceTail = withoutFailures(p.EvidenceTail, failures)
 	return p
 }
 
-// withoutLines is text without the lines equal to any of drop.
-func withoutLines(text string, drop []string) string {
+// withoutFailures is text with each line that is one of failures dropped and
+// each line that wraps one cut back to the context around it.
+func withoutFailures(text string, failures []string) string {
 	lines := splitPresentationLines(text)
-	kept := slices.DeleteFunc(slices.Clone(lines), func(line string) bool { return slices.Contains(drop, line) })
-	if len(kept) == len(lines) {
+	kept := make([]string, 0, len(lines))
+	for _, line := range lines {
+		context, restated := unwrapFailure(line, failures)
+		if !restated {
+			kept = append(kept, line)
+		} else if context != "" {
+			kept = append(kept, context)
+		}
+	}
+	if slices.Equal(kept, lines) {
 		return text
 	}
 	return strings.Join(kept, "\n")
+}
+
+// unwrapFailure reports whether line is one of failures, or wraps it the way
+// fmt.Errorf("%w") does, and the context in front of it.
+func unwrapFailure(line string, failures []string) (context string, restated bool) {
+	for _, failure := range failures {
+		if line == failure {
+			return "", true
+		}
+		if context, wrapped := strings.CutSuffix(line, ": "+failure); wrapped {
+			return context, true
+		}
+	}
+	return "", false
 }
 
 // effectiveDetailAndTail resolves a record.Problem's Detail and EvidenceTail into
