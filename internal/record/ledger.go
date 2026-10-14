@@ -110,9 +110,6 @@ type SectionView struct {
 	Records      []EffectRecord
 	IntendedVerb string
 	Containers   ContainerPath
-	// Streamed is true once the section's named rows were written at their
-	// owner's resolution, so Finish's residual ledger skips it.
-	Streamed bool
 }
 
 // ledgerSection is one Task's [changed] or [planned] rows: the Effects,
@@ -130,10 +127,6 @@ type ledgerSection struct {
 	// effect section grammar"), so a section that ends up with zero rows
 	// still renders "nothing to <verb> <subject>".
 	intendedVerb string
-	// streamed is true once the owner's resolution wrote this section's
-	// named rows; Finish's residual ledger skips it so its rows never
-	// render twice.
-	streamed bool
 }
 
 // order is the section's place in the ledger: its owner's declaration, so
@@ -160,7 +153,7 @@ func (s *ledgerSection) view() SectionView {
 	return SectionView{
 		ID: s.id, Tense: s.tense, Subject: s.subject,
 		Records: cloneRecords(s.records), IntendedVerb: s.intendedVerb,
-		Containers: s.owner.Containers, Streamed: s.streamed,
+		Containers: s.owner.Containers,
 	}
 }
 
@@ -264,17 +257,6 @@ func (l *ledger) hasRecordedEffect(ownerID string) bool {
 func (l *ledger) hasPlannedEffect(ownerID string) bool {
 	s, ok := l.find(ownerID, TensePlanned)
 	return ok && len(s.records) > 0
-}
-
-func (l *ledger) hasUnstreamedSection() bool {
-	for _, tense := range []LedgerTense{TenseChanged, TensePlanned} {
-		for _, s := range l.sections(tense) {
-			if !s.streamed {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // maxSubjectWidth is the widest subject among tense's sections, so their

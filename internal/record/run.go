@@ -118,16 +118,6 @@ func (r *Run) Sections(tense LedgerTense) []SectionView {
 	return views
 }
 
-// MarkSectionStreamed notes that ownerID's section in tense had its named
-// rows written, so Finish's residual ledger skips it.
-func (r *Run) MarkSectionStreamed(ownerID string, tense LedgerTense) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if s, ok := r.ledger.find(ownerID, tense); ok {
-		s.streamed = true
-	}
-}
-
 // HasLedgerSection reports whether ownerID owns a section in either tense.
 func (r *Run) HasLedgerSection(ownerID string) bool {
 	r.mu.Lock()
@@ -148,14 +138,6 @@ func (r *Run) HasPlannedEffect(ownerID string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.ledger.hasPlannedEffect(ownerID)
-}
-
-// HasUnstreamedSection reports whether any section still waits for Finish
-// to write it.
-func (r *Run) HasUnstreamedSection() bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.ledger.hasUnstreamedSection()
 }
 
 // MaxSubjectWidth is the widest subject among tense's sections, 0 for fewer

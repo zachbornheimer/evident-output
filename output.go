@@ -110,6 +110,11 @@ type Run struct {
 	// diagnostic-tail eligibility; not "the pane rendered this record".
 	debugPaneActive bool
 
+	// streamedSections are the ledger sections, by id, whose named rows
+	// were written at their owner's resolution, so Finish's residual ledger
+	// skips them.
+	streamedSections map[string]bool
+
 	// Print/Printf/Println line buffer.
 	pendingPrint strings.Builder
 	pendingVis   visibility // visibility of the current pending fragment
@@ -198,12 +203,13 @@ func newOutput(subject string, options ...option) *Run {
 	resolveGlyphProfileLocked(&cfg)
 	run := record.NewRun()
 	o := &Run{
-		cfg:             cfg,
-		rec:             run,
-		misuse:          misuse.New(cfg.strict),
-		outputID:        "out_1",
-		taskStates:      make(map[string]*taskState),
-		containerStates: make(map[string]*tasksState),
+		cfg:              cfg,
+		rec:              run,
+		misuse:           misuse.New(cfg.strict),
+		outputID:         "out_1",
+		taskStates:       make(map[string]*taskState),
+		containerStates:  make(map[string]*tasksState),
+		streamedSections: make(map[string]bool),
 	}
 	host := runHost{out: o}
 	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(o.misuse), graph.WithHost(host))
@@ -255,7 +261,7 @@ func (o *Run) emitPlannedHeaderLocked() {
 // documents its children as independent (worker-pool fan-out is a
 // supported, concurrency-safe pattern there), so it is not policed.
 func (o *Run) promoteRunningLocked(st *taskState) {
-	st.node.Rec.Transition(running)
+	st.node.MarkRunning()
 	o.announceRunningLocked(st)
 }
 
@@ -631,10 +637,10 @@ func (o *Run) newDebugRecordLocked(levelName, message string, fields []field, at
 }
 
 func (o *Run) projectDebugRecordLocked(rec debugRecord) {
-	o.rec.AppendDebugRecord(rec)
+	o.graph.Root().Debug(rec)
 	history := formatHistoryLine(rec, !o.cfg.noColor)
 	plainHistory := formatHistoryLine(rec, false)
-	o.rec.AppendLine(plainHistory)
+	o.graph.Root().Log(plainHistory)
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "log.emitted"})
 
@@ -796,7 +802,7 @@ func (o *Run) appendEventLocked(e recEvent) {
 	if e.OutputID == "" {
 		e.OutputID = o.outputID
 	}
-	e = o.rec.AppendEvent(e, o.cfg.maxEvents)
+	e = o.graph.Root().Journal(e, o.cfg.maxEvents)
 	if o.cfg.projection == projectionStreamJSON {
 		o.writeStreamJSONLocked(e)
 	}
@@ -2543,13 +2549,13 @@ func hasNamedEffectRecord(records []record.EffectRecord) bool {
 func (o *Run) commitNamedEffectsLocked(owner string) {
 	for _, tense := range []ledgerTense{tensePlanned, tenseChanged} {
 		s, ok := o.rec.Section(owner, tense)
-		if !ok || s.Streamed || !hasNamedEffectRecord(s.Records) {
+		if !ok || o.streamedSections[s.ID] || !hasNamedEffectRecord(s.Records) {
 			continue
 		}
 		var b strings.Builder
 		txt.WriteEffects(&b, o.effectSectionLocked(s, o.rec.MaxSubjectWidth(tense)), o.humanStyle())
 		o.writeDurableTextLocked(b.String())
-		o.rec.MarkSectionStreamed(owner, tense)
+		o.streamedSections[s.ID] = true
 	}
 }
 
@@ -2692,7 +2698,14 @@ func residualHasTaskRows(o *Run, snap snapshot) bool {
 // renders nothing further here, so it must not reserve the blank-line
 // separator either.
 func residualHasEffectSections(o *Run) bool {
-	return o.rec.HasUnstreamedSection()
+	for _, tense := range []ledgerTense{tenseChanged, tensePlanned} {
+		for _, s := range o.rec.Sections(tense) {
+			if !o.streamedSections[s.ID] {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // residualCompositionLocked is the ONE ordered sequence every human-stream
@@ -2778,10 +2791,10 @@ func (o *Run) writeResidualLedgerLocked(b *strings.Builder, style txt.Style) {
 }
 
 // foldSource is s as the renderer's ledger fold sees it.
-func foldSource(s record.SectionView) txt.SectionSource {
+func foldSource(s record.SectionView, streamed bool) txt.SectionSource {
 	return txt.SectionSource{
 		Subject: s.Subject, Records: s.Records, IntendedVerb: s.IntendedVerb,
-		Containers: s.Containers, Streamed: s.Streamed,
+		Containers: s.Containers, Streamed: streamed,
 	}
 }
 
@@ -2791,7 +2804,7 @@ func (o *Run) foldedSectionsLocked(tense ledgerTense) []txt.EffectSection {
 	sections := o.rec.Sections(tense)
 	sources := make([]txt.SectionSource, len(sections))
 	for i, s := range sections {
-		sources[i] = foldSource(s)
+		sources[i] = foldSource(s, o.streamedSections[s.ID])
 	}
 	return txt.FoldEffectSections(tense.String(), o.ledgerWidthLocked(), sources)
 }

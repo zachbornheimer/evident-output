@@ -95,7 +95,7 @@ func (t *Task) capture(opts ...captureOption) *record.Capture {
 	if st == nil {
 		return newCapture(o, "", opts)
 	}
-	return st.node.Rec.CaptureOr(func() *record.Capture { return newCapture(o, st.name, opts) })
+	return st.node.Capture(func() *record.Capture { return newCapture(o, st.name, opts) })
 }
 
 // newCapture is a Capture that redacts through o's Redactor.

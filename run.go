@@ -2042,12 +2042,6 @@ func observationPayload(ob change.Observation) map[string]any {
 
 // --- folded from misuse.go ---
 
-// misuseGlyph prefixes the one required misuse line the same way the
-// existing "! already mutated: ..." row does (writeAlreadyMutated) — "!" is
-// attention-only per evo-rec.md's glyph vocabulary, and a misuse line always
-// demands attention.
-const misuseGlyph = "!"
-
 func (o *Run) recordMisuse(err error) {
 	o.misuse.Record(err)
 }
@@ -2067,9 +2061,7 @@ func (o *Run) firstMisuse() error {
 // text (release-gate round 4 finding 2): machine detail stays in
 // JSON/debug, the human stream gets told what to do next.
 func (o *Run) appendMisuseLineLocked() {
-	hint := o.misuse.Hint()
-	glyph := txt.StyleGlyph(misuseGlyph, txt.SGRYellow, !o.cfg.noColor)
-	o.rec.AppendLine(fmt.Sprintf("%s  %s", glyph, hint))
+	o.graph.Root().Log(txt.MisuseLine(o.misuse.Hint(), !o.cfg.noColor))
 }
 
 // recordAlreadyResolvedLocked records ErrAlreadyResolved for a second
@@ -2255,7 +2247,7 @@ func (r *Run) Fact(name, value string) *Run {
 		r.recordMisuse(err)
 		return r
 	}
-	r.rec.RecordRunFact(f)
+	r.graph.Root().Note(f)
 	r.bumpLocked()
 	r.emitWireEventLocked(wire.EventFactRecorded, "", wire.ToFactDoc(f).EventPayload())
 	r.writeDurableTextLocked(txt.Dim(f.Name+"  "+f.Value, !r.cfg.noColor) + "\n")
@@ -2268,7 +2260,7 @@ func (r *Run) Fact(name, value string) *Run {
 // Task.Problem(..., Severity(SeverityWarning)) uses for the
 // conclusion's warned modifier.
 func (o *Run) warnLocked(p problem) {
-	o.rec.RecordRunWarning(p)
+	o.graph.Root().Warn(p)
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "run.warned", OutputID: o.outputID})
 	o.emitWireEventLocked(wire.EventWarningRecorded, "", wire.ToProblemDoc(p).EventPayload())

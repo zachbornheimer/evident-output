@@ -742,7 +742,7 @@ func (g *Group) Summary(text string) *Group {
 		g.out.recordMisuse(err)
 		return g
 	}
-	col.node.Rec.SetSummary(text)
+	col.node.Summarize(text)
 	g.out.bumpLocked()
 	g.out.appendEventLocked(recEvent{Type: "tasks.summary_set", EntityID: g.id})
 	return g
@@ -873,11 +873,8 @@ func (t *Task) setLiveOnlyPhase(text string) {
 // setPhaseLocked is Doing's locked body. Callers must already hold o.mu and
 // have checked ensureOpen/isTerminalTask.
 func (o *Run) setPhaseLocked(st *taskState, text string) {
-	st.node.Rec.SetPhase(text)
-	st.node.Rec.MarkActivity(o.cfg.clock.Now())
-	if st.node.Rec.State() == pending {
-		o.promoteRunningLocked(st)
-		st.node.Rec.EnsureIndeterminateProgress()
+	if st.node.Doing(text, o.cfg.clock.Now()) {
+		o.announceRunningLocked(st)
 	}
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
@@ -895,13 +892,12 @@ func (o *Run) setPhaseLocked(st *taskState, text string) {
 func (o *Run) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	// Identical live-only phase is a no-op: Writer leftover/repeated lines
 	// must not bump, emit task.phase_changed, or force a live paint.
-	if !st.node.Rec.SetPhaseIfChanged(text) {
+	changed, started := st.node.Mirror(text, o.cfg.clock.Now())
+	if !changed {
 		return
 	}
-	st.node.Rec.MarkActivity(o.cfg.clock.Now())
-	if st.node.Rec.State() == pending {
-		o.promoteRunningLocked(st)
-		st.node.Rec.EnsureIndeterminateProgress()
+	if started {
+		o.announceRunningLocked(st)
 	}
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
@@ -912,7 +908,7 @@ func (o *Run) setLiveOnlyPhaseLocked(st *taskState, text string) {
 // task.warned, EventWarningRecorded, censusWarned. Public Warn was removed in 1.1.
 func (t *Task) recordWarning(p problem) *Task {
 	return t.annotate(func(st *taskState) {
-		if st.node.Rec.AppendWarning(p) == 1 {
+		if st.node.Warn(p) {
 			st.censusWarned()
 		}
 		t.out.bumpLocked()
@@ -931,7 +927,7 @@ func (t *Task) recordWarning(p problem) *Task {
 // annotate). Group.Summary is the same shape one level up.
 func (t *Task) Summary(text string) *Task {
 	return t.annotate(func(st *taskState) {
-		st.node.Rec.SetSummary(text)
+		st.node.Summarize(text)
 		t.out.bumpLocked()
 		t.out.appendEventLocked(recEvent{Type: "task.summary_set", EntityID: t.id})
 		t.out.signalLiveLocked(true)
@@ -958,7 +954,7 @@ func (t *Task) Problem(summary string, opts ...ProblemOption) *Task {
 
 func (t *Task) recordBlockingProblem(p problem) *Task {
 	return t.annotate(func(st *taskState) {
-		st.node.Rec.AppendProblems(p)
+		st.node.Report(p)
 		t.out.bumpLocked()
 		t.out.appendEventLocked(recEvent{Type: "task.problem_recorded", EntityID: t.id})
 		t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, wire.ToProblemDoc(p).EventPayload())
@@ -975,7 +971,7 @@ func (t *Task) recordBlockingProblem(p problem) *Task {
 func (t *Task) Fact(name, value string) *Task {
 	f := record.SanitizeFact(factRecord{Name: project.Text(name), Value: project.Text(value)})
 	return t.annotate(func(st *taskState) {
-		st.node.Rec.AppendFact(f)
+		st.node.Note(f)
 		t.out.bumpLocked()
 		t.out.emitWireEventLocked(wire.EventFactRecorded, t.id, wire.ToFactDoc(f).EventPayload())
 		t.out.signalLiveLocked(true)
@@ -1003,7 +999,8 @@ func (t *Task) setProgress(completed, total int64, kind progressKind) *Task {
 // (e.g. Phase) that would otherwise describe a progress change that never
 // happened.
 func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind progressKind) bool {
-	switch st.node.Rec.ApplyProgress(completed, total, kind) {
+	verdict, started := st.node.Progress(completed, total, kind, t.out.cfg.clock.Now())
+	switch verdict {
 	case record.ProgressInvalid:
 		t.out.recordMisuse(errInvalidProgress)
 		return false
@@ -1011,9 +1008,8 @@ func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind p
 		t.out.recordMisuse(errProgressRegression)
 		return false
 	}
-	st.node.Rec.MarkActivity(t.out.cfg.clock.Now())
-	if st.node.Rec.State() == pending {
-		t.out.promoteRunningLocked(st)
+	if started {
+		t.out.announceRunningLocked(st)
 	}
 	t.out.bumpLocked()
 	t.out.appendEventLocked(recEvent{Type: "task.progress_changed", EntityID: t.id})

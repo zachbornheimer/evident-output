@@ -118,7 +118,7 @@ func (o *Run) settleUnresolvedTasksLocked() {
 			// misuse recorded: this is an honest partial outcome (folded
 			// into Conclusion.Partial), not bookkeeping the caller must fix.
 			// The hint still names the corrective action either way.
-			t.node.Rec.SetSummary(unresolvedTaskIncompleteSummary)
+			t.node.Summarize(unresolvedTaskIncompleteSummary)
 			o.graph.Settle(t.node, incomplete)
 			o.followRecordLocked()
 			attachUnresolvedTaskHintLocked(t)
@@ -150,7 +150,7 @@ func (o *Run) concludeLocked() snapshot {
 	conc.RunID = o.outputID
 	conc.StartedAt = o.startedAt
 	conc.FinishedAt = o.cfg.clock.Now()
-	o.rec.RecordConclusion(conc)
+	o.graph.Root().Conclude(conc)
 	snap.Conclusion = &conc
 	o.appendEventLocked(recEvent{
 		Type:  "output.finished",
@@ -282,12 +282,12 @@ func hasRecordedTaxonomy(t *taskState) bool {
 // ever reached Running — release-gate round 4 finding 3).
 func (o *Run) resolveUnstartedTaskLocked(t *taskState) {
 	if t.node.Rec.State() == running {
-		t.node.Rec.SetSummary(unresolvedTaskCancelledSummary)
+		t.node.Summarize(unresolvedTaskCancelledSummary)
 		o.graph.Settle(t.node, cancelled)
 		o.followRecordLocked()
 		return
 	}
-	t.node.Rec.SetSummary(notStartedSummary)
+	t.node.Summarize(notStartedSummary)
 	o.graph.Settle(t.node, notStarted)
 	o.followRecordLocked()
 }
@@ -313,7 +313,7 @@ func (o *Run) abnormalFinishLocked() bool {
 // o.finishing is set, when Task.Problem refuses new records, and the
 // task has no caller-authored diagnostic to own the hint.
 func attachUnresolvedTaskHintLocked(t *taskState) {
-	t.node.Rec.AppendAction(asRecordAction(label(unresolvedTaskHint)))
+	t.node.Recommend(asRecordAction(label(unresolvedTaskHint)))
 	t.markFiling()
 }
 
@@ -338,7 +338,7 @@ func (o *Run) autoResolveGroupsLocked() {
 			if record.IsTerminalTask(t.node.Rec.State()) {
 				continue
 			}
-			t.node.Rec.SetSummary(notStartedSummary)
+			t.node.Summarize(notStartedSummary)
 			o.graph.Settle(t.node, notStarted)
 			o.followRecordLocked()
 		}
