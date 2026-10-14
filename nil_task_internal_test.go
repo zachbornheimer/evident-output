@@ -10,7 +10,7 @@ func TestNilTaskTerminalVerbsAreSafe(t *testing.T) {
 			h.fail("f")
 			h.block("b")
 			h.cancel("c")
-			h.skip("s")
+			h.finish(excluded, "s", nil)
 		})
 	}
 }

@@ -30,7 +30,7 @@ type childIndex struct {
 	states          project.StateCounts
 	seenAll         seenHeap
 	seenWork        seenHeap
-	owns, peers     int
+	owns            int
 
 	// itemDispositions is the items' tally as of the items in [0,
 	// itemsThrough]; itemsStale means a change it cannot append to.
@@ -130,9 +130,6 @@ func (x *childIndex) file(r *row, view *record.TaskSnapshot) {
 		if f.kind.Rank < AttentionRanks {
 			x.byRank[f.kind.Rank].add(f.pos)
 		}
-		if f.kind.WorkPeer {
-			x.peers++
-		}
 		if !f.seen.IsZero() && !f.seen.Equal(f.workSeenAt) {
 			f.workSeenAt = f.seen
 			heap.Push(&x.seenWork, seenEntry{at: f.seen, r: r})
@@ -160,9 +157,6 @@ func (x *childIndex) unfile(r *row) {
 	x.workCounts.remove(f)
 	if f.kind.Rank < AttentionRanks {
 		x.byRank[f.kind.Rank].remove(f.pos)
-	}
-	if f.kind.WorkPeer {
-		x.peers--
 	}
 }
 
@@ -221,7 +215,7 @@ func (x *childIndex) project(g *group, rows int) ([]record.TaskSnapshot, ChildRo
 		All:    x.all.counts(x.seenAll.earliest(isFiled)),
 		Work:   x.workCounts.counts(x.seenWork.earliest(isWork)),
 		Items:  x.dispositions(g),
-		Census: project.ChildCensus{Items: x.items.len(), OwnTask: x.owns > 0, WorkPeer: x.peers > 0},
+		Census: project.ChildCensus{Items: x.items.len(), OwnTask: x.owns > 0},
 	}
 }
 

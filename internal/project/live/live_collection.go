@@ -324,5 +324,6 @@ func writeLiveDispositions(b *strings.Builder, indent string, items project.Disp
 	start := b.Len()
 	project.WriteTaxonomyHeadline(b, indent, project.DispositionSkipped, items.Skipped, s)
 	project.WriteTaxonomyHeadline(b, indent, project.DispositionKept, items.Kept, s)
+	project.WriteTaxonomyHeadline(b, indent, project.DispositionExcluded, items.Excluded, s)
 	return strings.Count(b.String()[start:], "\n")
 }

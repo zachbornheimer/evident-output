@@ -149,22 +149,20 @@ func writeTaxonomy(b *strings.Builder, indent string, verb Disposition, tally Ta
 			writeItemFacts(b, indent+problemDetailIndent, part, s)
 			continue
 		}
-		fmt.Fprintf(b, "%s%s%s: %s\n", indent, problemDetailIndent, part.Reason, TruncateNames(part.Names, 0, s.Profile))
+		fmt.Fprintf(b, "%s%s%s: %s\n", indent, problemDetailIndent, part.Reason, strings.Join(part.Names, ", "))
 	}
 }
 
 // writeItemFacts lists a Reason's items that carry Facts one per line
 // under it, each item's Facts at one column past the widest such name, so
-// a long name never moves them (E-100). Only the first
-// DefaultVisibleNames of them get a row; every other item folds into
-// the same bounded "a, b, c … +N more" list a Reason without Facts shows,
-// so one Fact never turns a thousand kept items into a thousand lines.
+// a long name never moves them (E-100). Items without Facts follow as one
+// comma-separated list: Verbose names every item.
 func writeItemFacts(b *strings.Builder, indent string, part ReasonTally, s Style) {
 	fmt.Fprintf(b, "%s%s:\n", indent, part.Reason)
 	var rows []int
 	var rest []string
 	for i, name := range part.Names {
-		if len(itemFacts(part, i)) > 0 && len(rows) < DefaultVisibleNames {
+		if len(itemFacts(part, i)) > 0 {
 			rows = append(rows, i)
 			continue
 		}
@@ -183,7 +181,7 @@ func writeItemFacts(b *strings.Builder, indent string, part ReasonTally, s Style
 		fmt.Fprintf(b, "%s  %s  %s\n", indent, PadRight(part.Names[i], width), s.Dim(strings.Join(pairs, "  ")))
 	}
 	if len(rest) > 0 {
-		fmt.Fprintf(b, "%s  %s\n", indent, TruncateNames(rest, 0, s.Profile))
+		fmt.Fprintf(b, "%s  %s\n", indent, strings.Join(rest, ", "))
 	}
 }
 
@@ -211,12 +209,18 @@ func WriteTaxonomyHeadline(b *strings.Builder, indent string, verb Disposition, 
 func WriteDispositions(b *strings.Builder, indent string, d Dispositions, inlinedVerb Disposition, s Style) {
 	writeTaxonomy(b, indent, DispositionSkipped, d.Skipped, inlinedVerb == DispositionSkipped, s)
 	writeTaxonomy(b, indent, DispositionKept, d.Kept, inlinedVerb == DispositionKept, s)
+	writeTaxonomy(b, indent, DispositionExcluded, d.Excluded, false, s)
 }
 
 // taskDispositions is t's own two tallies.
 func taskDispositions(t record.TaskSnapshot) Dispositions {
 	var d Dispositions
-	d.AddTask(&t)
+	for _, rec := range t.Skipped {
+		d.Skipped.addItem(rec, t.Facts)
+	}
+	for _, rec := range t.Kept {
+		d.Kept.addItem(rec, t.Facts)
+	}
 	return d
 }
 

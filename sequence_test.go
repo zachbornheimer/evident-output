@@ -72,7 +72,7 @@ func TestSequence_ExplicitResolutionWinsOverAutoResolution(t *testing.T) {
 
 	succeed(scan)
 	venv.fail("uv exited 1")
-	extras.skipForTest("optional, not needed")
+	extras.finish(excluded, "optional, not needed", nil)
 
 	_ = out.finish()
 

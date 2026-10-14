@@ -120,27 +120,26 @@ func TallyOf(records []record.TaxonomyRecord) Tally {
 	return t
 }
 
-// Dispositions are a Task's or a Group's two tallies.
+// Dispositions are a Task's or a Group's tallies.
 type Dispositions struct {
-	Skipped Tally
-	Kept    Tally
+	Skipped  Tally
+	Kept     Tally
+	Excluded Tally
 }
 
-// Empty reports whether nothing was skipped or kept.
-func (d Dispositions) Empty() bool { return d.Skipped.Total() == 0 && d.Kept.Total() == 0 }
+// Empty reports whether nothing was skipped, kept or excluded.
+func (d Dispositions) Empty() bool {
+	return d.Skipped.Total() == 0 && d.Kept.Total() == 0 && d.Excluded.Total() == 0
+}
 
 // Clone is a Dispositions the caller can hold after the original is mutated.
 func (d Dispositions) Clone() Dispositions {
-	return Dispositions{Skipped: d.Skipped.Clone(), Kept: d.Kept.Clone()}
+	return Dispositions{Skipped: d.Skipped.Clone(), Kept: d.Kept.Clone(), Excluded: d.Excluded.Clone()}
 }
 
-// AddTask counts t's own record.Excluded and Kept records, each carrying t's
-// Facts: t is the item the records name.
+// AddTask counts t, an Excluded item of a Group (IsDispositionItem), under
+// its Exclude reason, carrying t's Facts.
 func (d *Dispositions) AddTask(t *record.TaskSnapshot) {
-	for _, rec := range t.Skipped {
-		d.Skipped.addItem(rec, t.Facts)
-	}
-	for _, rec := range t.Kept {
-		d.Kept.addItem(rec, t.Facts)
-	}
+	reason, _ := ExcludeReason(t)
+	d.Excluded.addItem(record.TaxonomyRecord{Reason: reason, Name: t.Name}, t.Facts)
 }

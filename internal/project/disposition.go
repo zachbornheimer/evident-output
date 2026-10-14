@@ -8,6 +8,7 @@ const (
 	NoDisposition Disposition = iota
 	DispositionSkipped
 	DispositionKept
+	DispositionExcluded
 )
 
 // String is the verb a tally reads as ("skipped 3 (...)", "kept 2
@@ -18,6 +19,8 @@ func (d Disposition) String() string {
 		return "skipped"
 	case DispositionKept:
 		return "kept"
+	case DispositionExcluded:
+		return "excluded"
 	default:
 		return ""
 	}
@@ -30,8 +33,11 @@ func (d Disposition) String() string {
 // of an already-satisfied detail (GlyphSkipDetail), and "!" is reserved for
 // Warning. CONTRACT §8 folds per-item Excluded Tasks into one tally.
 func (d Disposition) Glyph(s Style) string {
-	if d == DispositionSkipped {
+	switch d {
+	case DispositionSkipped:
 		return s.Dim(GlyphSkipDetail.Render(s.Profile))
+	case DispositionExcluded:
+		return s.Dim(GlyphPending.Render(s.Profile))
 	}
 	return s.WarningGlyph()
 }

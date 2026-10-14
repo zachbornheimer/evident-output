@@ -48,7 +48,7 @@
   {
     "id": "C48-003",
     "section": "2.0 §8 What Evo promises",
-    "quote": "Per-item Excluded Tasks fold into one tally; per-item Effects with one Verb and Object fold into one counted row, named for the highest container every one of whose direct members contributed to it, so a sibling that did nothing this run never moves the row to a container above it; JSON keeps every item.",
+    "quote": "Per-item Effects with one Verb and Object fold into one counted row, named for the highest container every one of whose direct members contributed to it, so a sibling that did nothing this run never moves the row to a container above it; JSON keeps every item.",
     "tier": "1.1",
     "tests": [
       {
@@ -100,6 +100,19 @@
       {
         "pkg": ".",
         "run": "TestUnorderedGetIsRefusedInEveryMode"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C48-006",
+    "section": "2.0 §8 What Evo promises",
+    "quote": "Two or more Excluded Tasks of one Group, or one under the Group's own Task, fold into one tally line carrying the count and each Exclude reason, and Verbose names every item; a Sequence and the machine projections keep every item.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestExcludedItemsFoldIntoOneTally"
       }
     ],
     "default": false

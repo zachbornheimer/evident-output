@@ -90,21 +90,28 @@ func TestTallyCloneDoesNotShareBacking(t *testing.T) {
 	}
 }
 
-func TestDispositions_AddTaskSumsBothTallies(t *testing.T) {
+func TestDispositions_AddTaskCountsExcludedItemsByReason(t *testing.T) {
 	t.Parallel()
 	var d Dispositions
 	if !d.Empty() {
 		t.Fatal("zero Dispositions must be Empty")
 	}
-	skipped := []record.TaxonomyRecord{{Reason: "--skip-fetch", Name: "remote-tracking"}}
-	kept := []record.TaxonomyRecord{{Reason: "protected", Name: "main"}}
-	d.AddTask(&record.TaskSnapshot{Name: "remote-tracking", Skipped: skipped})
-	d.AddTask(&record.TaskSnapshot{Name: "main", Kept: kept})
-	d.AddTask(&record.TaskSnapshot{Name: "develop", Kept: []record.TaxonomyRecord{{Reason: "protected", Name: "develop"}}})
-	if d.Empty() || d.Skipped.Total() != 1 || d.Kept.Total() != 2 {
-		t.Fatalf("got skipped %d kept %d, want 1 and 2", d.Skipped.Total(), d.Kept.Total())
+	for _, item := range []struct{ name, reason string }{
+		{"main", "protected"}, {"remote-tracking", "--skip-fetch"}, {"develop", "protected"},
+	} {
+		d.AddTask(&record.TaskSnapshot{
+			Name: item.name, State: record.Excluded, Summary: item.reason,
+			Problems: []record.Problem{{Summary: item.reason}},
+		})
 	}
-	if names := d.Kept.Reasons()[0].Names; !reflect.DeepEqual(names, []string{"main", "develop"}) {
-		t.Fatalf("kept names = %v, want [main develop]", names)
+	if d.Empty() || d.Excluded.Total() != 3 {
+		t.Fatalf("got excluded %d, want 3", d.Excluded.Total())
+	}
+	want := []ReasonTally{
+		{Reason: "protected", Names: []string{"main", "develop"}},
+		{Reason: "--skip-fetch", Names: []string{"remote-tracking"}},
+	}
+	if got := d.Excluded.Reasons(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("excluded reasons = %#v, want %#v", got, want)
 	}
 }

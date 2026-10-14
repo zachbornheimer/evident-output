@@ -40,7 +40,7 @@ type ChildRoster struct {
 	// All counts every child; Work every child that is not a disposition
 	// item.
 	All, Work project.ChildCounts
-	// Items sums the disposition items' Skipped and Kept records.
+	// Items sums the disposition items' Excluded reasons.
 	Items  project.Dispositions
 	Census project.ChildCensus
 }
@@ -51,9 +51,9 @@ type ChildKind struct {
 	// Item reports a disposition item: counted in its collection's
 	// tally, never ranked.
 	Item bool
-	// OwnTask and WorkPeer feed the census that decides whether the
-	// items fold (project.ChildCensus).
-	OwnTask, WorkPeer bool
+	// OwnTask feeds the census that decides whether the items fold
+	// (project.ChildCensus).
+	OwnTask bool
 	// Rank is the attention rank of a non-item child; AttentionRanks or
 	// more is routine.
 	Rank int
@@ -71,7 +71,7 @@ func ClassifyChild(group string, t *record.TaskSnapshot) ChildKind {
 	case project.IsDispositionItem(group, t):
 		return ChildKind{Item: true}
 	default:
-		return ChildKind{WorkPeer: project.IsWorkPeer(t), Rank: liveRank(*t)}
+		return ChildKind{Rank: liveRank(*t)}
 	}
 }
 
@@ -100,8 +100,6 @@ func (c *LiveChildren) Admit(t *record.TaskSnapshot) bool {
 		return c.keptItems <= c.rows+1
 	case kind.OwnTask:
 		r.Census.OwnTask = true
-	case kind.WorkPeer:
-		r.Census.WorkPeer = true
 	}
 	r.Work.Add(t)
 	c.keptWork++
@@ -130,7 +128,7 @@ func (r ChildRoster) Project(col record.TasksSnapshot, kept []record.TaskSnapsho
 		return project.WithoutChildTally(col)
 	}
 	tally := project.ChildTally{All: r.All, Rest: r.All}
-	if !col.Sequential && r.Census.Folds(col.Summary) {
+	if !col.Sequential && r.Census.Folds() {
 		tally.Folded, tally.Items, tally.Rest = true, r.Items, r.Work
 	}
 	return project.WithChildTally(col, tally)

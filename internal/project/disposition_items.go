@@ -4,52 +4,60 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
-// A Group's per-item children that did nothing but resolve Kept or Skipped
-// (the item is the Task — mcp/docs/reference.md) are counted, not listed:
+// A Group's per-item children that did nothing but resolve Excluded (the
+// item is the Task, its one Problem the Exclude reason) are counted, not listed:
 // rendering every child is not a correctness requirement, retaining every
 // child in the model is, and aggregation is a renderer concern (CONTRACT §8:
-// per-item Excluded Tasks fold into one tally). Human output folds them into
-// one tally per disposition under the Group's row ("  ! kept N (...)"), and --verbose names every
-// item under its reason. Machine output never calls this; JSON and JSONL
-// keep every child Task.
+// Excluded Tasks fold into one tally). Human output folds them into one
+// tally under the Group's row ("  ○ excluded N (...)"), and --verbose names
+// every item under its reason. Machine output never calls this; JSON and
+// JSONL keep every child Task.
 
 // IsDispositionItem reports whether t is an item of the Group named group
-// whose only information is its Kept or Skipped record, so its row would
-// say nothing its Group's tally does not. The Group's own Task is never an item: it is
-// the row the tally hangs under.
+// whose only information is that it was Excluded for a reason, so its row
+// would say nothing its Group's tally does not. The Group's own Task is
+// never an item: it is the row the tally hangs under.
 func IsDispositionItem(group string, t *record.TaskSnapshot) bool {
-	if !t.State.Succeeded() && t.State != record.Excluded || t.Synthetic() || IsOwnTask(group, t) {
+	if t.Synthetic() || IsOwnTask(group, t) {
 		return false
 	}
-	if len(t.Kept) == 0 && len(t.Skipped) == 0 {
-		return false
-	}
+	reason, ok := ExcludeReason(t)
 	// Facts ride the item into its tally (verbose lists them beside the
 	// item's name), so they never break the fold (E-100).
-	return t.Summary == "" && t.Phase == "" && t.Progress.Total == 0 && t.Progress.Completed == 0 &&
-		len(t.Problems) == 0 && len(t.Warnings) == 0 &&
-		len(t.Actions) == 0 && len(t.Verification) == 0
+	return ok && (t.Summary == "" || t.Summary == reason) && t.Phase == "" && t.Progress.Total == 0 && t.Progress.Completed == 0 &&
+		len(t.Warnings) == 0 && len(t.Actions) == 0 && len(t.Verification) == 0
 }
 
-// minFoldedItems is the fewest disposition items a tally replaces when
-// no own Task names their subject. One item's own row already is its
-// count, and it carries the item's name: a lone Skipped peer
-// ("○ remote-tracking  - skipped 1 (--skip-fetch)") must not become a
-// nameless "- skipped 1" under a header its Group never had. Under a
-// Group's own Task every item is an item of that subject, so one is
-// enough ("✓ branches  2 checked" / "  ! kept 1 (protected)").
+// ExcludeReason is why t was Excluded: the Summary of the one Problem that
+// Exclude recorded. It reports false for any other Task, and for an
+// Excluded Task whose Problem says more than the reason (a Detail, subject,
+// Next action or other structure), since that row has information its
+// tally would drop.
+func ExcludeReason(t *record.TaskSnapshot) (string, bool) {
+	if t.State != record.Excluded || len(t.Problems) != 1 {
+		return "", false
+	}
+	p := &t.Problems[0]
+	bare := p.Summary != "" && p.Subject == "" && p.Detail == "" && p.EvidenceTail == "" && p.Count == 0 &&
+		p.Location == nil && p.Cause == nil && len(p.Evidence) == 0 && len(p.Actions) == 0 && len(p.Fields) == 0
+	return p.Summary, bare
+}
+
+// minFoldedItems is the fewest Excluded items a tally replaces when no own
+// Task hosts it. One item's own row already is its count, and it carries the
+// item's name. Under a Group's own Task every item is an item of that
+// subject, so one is enough ("✓ branches  2 checked" / "  ○ excluded 1
+// (protected)").
 const (
 	minFoldedItems        = 2
 	minFoldedItemsOwnTask = 1
 )
 
 // ChildCensus is how a Group's child Tasks partition for folding: its own
-// Task, its disposition items, and whether any other child finished work
-// of its own (a work peer).
+// Task and its disposition items.
 type ChildCensus struct {
-	Items    int
-	OwnTask  bool
-	WorkPeer bool
+	Items   int
+	OwnTask bool
 }
 
 func censusOf(col record.TasksSnapshot) ChildCensus {
@@ -61,28 +69,13 @@ func censusOf(col record.TasksSnapshot) ChildCensus {
 			c.OwnTask = true
 		case IsDispositionItem(col.Name, t):
 			c.Items++
-		case IsWorkPeer(t):
-			c.WorkPeer = true
 		}
 	}
 	return c
 }
 
-// IsWorkPeer reports whether t, a child that is neither its Group's own
-// Task nor a disposition item, finished work of its own worth a row. Its
-// presence says the Group's children are peer subjects (categories), not
-// items of one subject. A child still in flight is not one yet: it may
-// still resolve as an item.
-func IsWorkPeer(t *record.TaskSnapshot) bool {
-	return record.IsTerminalTask(t.State) && !IsZeroInformationTask(*t)
-}
-
 // foldsItems reports whether col's disposition items fold into a tally:
-// any of them under a Group's own Task, else at least minFoldedItems
-// under a Group whose Summary names their subject or that has no work
-// peer. Beside a work peer, with no such row, a Skipped or
-// Kept child is a peer category whose name is its information ("○ tags
-// - skipped 1 (--skip-fetch)"), so it keeps its row. A Sequence keeps
+// two or more of them, or any under a Group's own Task. A Sequence keeps
 // every row: its rows state an order the tally cannot (§5, and the
 // zero-information rule's same exemption).
 func foldsItems(col record.TasksSnapshot) bool {
@@ -92,15 +85,15 @@ func foldsItems(col record.TasksSnapshot) bool {
 	if tally, ok := ChildTallyOf(col); ok {
 		return tally.Folded
 	}
-	return censusOf(col).Folds(col.Summary)
+	return censusOf(col).Folds()
 }
 
-// Folds is foldsItems' rule for a Group with this census and summary.
-func (c ChildCensus) Folds(summary string) bool {
+// Folds is foldsItems' rule for a Group with this census.
+func (c ChildCensus) Folds() bool {
 	if c.OwnTask {
 		return c.Items >= minFoldedItemsOwnTask
 	}
-	return c.Items >= minFoldedItems && (summary != "" || !c.WorkPeer)
+	return c.Items >= minFoldedItems
 }
 
 // WithoutDispositionItems returns col without its disposition items, and

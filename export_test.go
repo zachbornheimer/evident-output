@@ -538,15 +538,6 @@ func (t *Task) fail(summary string, options ...ProblemOption) {
 	t.resolveWithProblem(failed, summary, options)
 }
 
-// skip resolves the task as skipped (the engine body behind Skipped).
-// reason is a printf format when args are present (fmt.Sprintf semantics).
-func (t *Task) skip(reason string, args ...any) *Task {
-	if len(args) > 0 {
-		reason = fmt.Sprintf(reason, args...)
-	}
-	return t.finish(excluded, project.Text(reason), nil)
-}
-
 // neverDefined reports whether st is still waiting on its caller: declared,
 // never Defined, and not resolved by a verb either.
 func (st *taskState) neverDefined() bool { return st.node.NeverDefined() }
@@ -585,10 +576,6 @@ func (o *Run) anyBlockedSoFar() bool {
 }
 
 func (o *Run) nextSelfForTest(args ...string) ProblemOption { return o.nextSelf(args...) }
-
-func (t *Task) skipForTest(reason string, args ...any) *Task {
-	return t.skip(reason, args...)
-}
 
 // BasisSource is one Task Basis input: something whose content identity is
 // observed when the Task starts. Build one with FingerprintBasis.
