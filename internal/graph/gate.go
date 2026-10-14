@@ -70,6 +70,14 @@ func (c *Container) BuilderGate() *Task {
 	return c.builder.gate
 }
 
+// HasBuilder reports whether c's children come from a Build callback rather
+// than direct declaration.
+func (c *Container) HasBuilder() bool {
+	c.graph.lockRead()
+	defer c.graph.unlockRead()
+	return c.builder != nil
+}
+
 // BuilderFailed reports whether c's builder panicked before declaring every
 // child.
 func (c *Container) BuilderFailed() bool {

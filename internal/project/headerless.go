@@ -14,10 +14,12 @@ import (
 // one, its state is derived from its children and its name is only a
 // category label, so the header is dropped and the children render as
 // siblings. A Sequence keeps its header because its order is meaning the
-// children alone do not state. Machine output never consults this: the
-// Group stays in the snapshot and the JSON document.
+// children alone do not state. A Group populated by Build keeps its header
+// too: its items are discovered while the run goes, and the header is the
+// row they belong to. Machine output never consults this: the Group stays
+// in the snapshot and the JSON document.
 func groupHeaderAddsNothing(col record.TasksSnapshot) bool {
-	return !col.Sequential && col.Summary == ""
+	return !col.Sequential && !col.Built && col.Summary == ""
 }
 
 // FlattensHeader reports whether col, with items already folded out of it,

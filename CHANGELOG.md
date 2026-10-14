@@ -111,6 +111,11 @@ and its replacement, and
 
 ### Changed
 
+- **Plain and Human rendering:** a Group declared by `Build` keeps its own row
+  with its items nested beneath it; a Problem tree ends on `└─`; an Excluded
+  Task states its reason once; the `already mutated` line says `wrote
+  cfg.txt` and `ran cp` instead of counting a path.
+
 - **Four promises, one package each:** `internal/graph` decides when work
   runs, `internal/freshness` whether it needs to, `internal/change` what it
   changes, `internal/record` what happened, and `internal/project` how that

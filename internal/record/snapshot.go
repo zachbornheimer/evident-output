@@ -218,7 +218,11 @@ type TasksSnapshot struct {
 	// dependency, "one Running child" heart contract, failure cascades to
 	// NotStarted) rather than an evo.Group (independent children,
 	// scheduler may overlap, concurrent Running children expected).
-	Sequential  bool
+	Sequential bool
+	// Built reports whether the container's children were declared by a
+	// Build callback, so the container is a named stage of the run whose
+	// members the reader cannot read off the declaration.
+	Built       bool
 	Declaration int
 
 	// tallies marks Tasks and Collections as partial lists when a live

@@ -118,8 +118,9 @@ func ExampleGroup_Build() {
 	// Output:
 	// ✓ consolidate packages
 	//    ✓ discover packages
-	//    ✓ centralize core
-	//    ✓ centralize render
+	//    ✓ centralize packages
+	//       ✓ centralize core
+	//       ✓ centralize render
 	//
 	// [succeeded]  demo
 }

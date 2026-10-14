@@ -75,6 +75,7 @@ type Node interface{ Key() string }
 // GroupNode is a collection's declaration as its row and verdict read it.
 type GroupNode interface {
 	Node
+	HasBuilder() bool
 	BuilderFailed() bool
 	BuilderNotStarted() bool
 }
@@ -184,7 +185,7 @@ func (r *Rows) Header(id string) record.TasksSnapshot {
 	state := r.verdict(g)
 	return record.TasksSnapshot{
 		ID: g.ID, Key: g.Node.Key(), Name: g.Name, State: state,
-		Summary: r.summary(g, state), Declaration: g.Declaration, Sequential: g.Sequential,
+		Summary: r.summary(g, state), Declaration: g.Declaration, Sequential: g.Sequential, Built: g.Node.HasBuilder(),
 	}
 }
 

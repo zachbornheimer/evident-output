@@ -2,6 +2,8 @@ package project
 
 import (
 	"fmt"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -253,17 +255,44 @@ func aggregateMutatedEffects(changes []record.ChangesSnapshot) []mutatedEffect {
 		if len(ch.Records) == 0 {
 			continue
 		}
-		e := changeSectionEffect(ch)
-		key := fmt.Sprintf("%s\x00%s\x00%t", e.verb, e.object, e.countable)
-		if at, ok := index[key]; ok {
-			effects[at].total += e.total
-			effects[at].owners = append(effects[at].owners, e.owners...)
-			continue
+		for _, e := range changeSectionEffects(ch) {
+			key := fmt.Sprintf("%s\x00%s\x00%t\x00%t", e.verb, e.object, e.countable, e.named)
+			if at, ok := index[key]; ok {
+				effects[at].total += e.total
+				effects[at].owners = appendMissing(effects[at].owners, e.owners...)
+				continue
+			}
+			index[key] = len(effects)
+			effects = append(effects, e)
 		}
-		index[key] = len(effects)
-		effects = append(effects, e)
 	}
 	return effects
+}
+
+// appendMissing is list with each of more it does not already hold.
+func appendMissing(list []string, more ...string) []string {
+	for _, item := range more {
+		if !slices.Contains(list, item) {
+			list = append(list, item)
+		}
+	}
+	return list
+}
+
+// changeSectionEffects is the effects a section states on the line: one per
+// operation when every record names its object without a quantity (File's
+// write, Exec's run), else the one effect its counted records sum to.
+func changeSectionEffects(ch record.ChangesSnapshot) []mutatedEffect {
+	var named []mutatedEffect
+	for _, r := range ch.Records {
+		if r.HasQty {
+			return []mutatedEffect{changeSectionEffect(ch)}
+		}
+		named = append(named, mutatedEffect{
+			verb: r.Verb, object: filepath.Base(r.Object), named: true, total: 1, owners: []string{ch.Subject},
+		})
+	}
+	return named
 }
 
 // changeSectionEffect sums a section's record quantities (no-qty records
@@ -308,9 +337,15 @@ type mutatedEffect struct {
 	countable bool
 	total     int64
 	owners    []string
+	// named marks an operation that states its object, not a quantity of it:
+	// "wrote cfg.txt", "ran cp".
+	named bool
 }
 
 func (e mutatedEffect) text() string {
+	if e.named {
+		return e.verb + " " + e.object
+	}
 	object := e.object
 	if e.countable {
 		object = Pluralize(e.total, object)

@@ -41,6 +41,7 @@ func (l countingLens) States(group string) StateCounts {
 type node string
 
 func (n node) Key() string           { return string(n) }
+func (node) HasBuilder() bool        { return true }
 func (node) BuilderFailed() bool     { return false }
 func (node) BuilderNotStarted() bool { return false }
 

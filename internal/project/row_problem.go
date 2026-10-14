@@ -14,19 +14,27 @@ import (
 // connectors stay Dim either way — they are decoration — but the evidence
 // text itself renders at full intensity so a failure's proof is never the
 // lowest-contrast text on screen.
-func writeProblem(b *strings.Builder, p record.Problem, indent string, emphasize bool, s Style) {
+//
+// last is true for the final Problem of the tree: a subject row then closes
+// the tree with the evidence glyph rather than leaving a branch dangling.
+func writeProblem(b *strings.Builder, p record.Problem, indent string, emphasize, last bool, s Style) {
 	detail, tail := effectiveDetailAndTail(p)
 	if p.Subject != "" {
 		extra := p.Summary
 		if p.Count != 0 {
 			extra = fmt.Sprintf("%s (%d)", p.Summary, p.Count)
 		}
-		fmt.Fprintf(b, "%s%s%s %s  %s\n", indent, ProblemTreeIndent, s.Dim("├─"), p.Subject, extra)
-		if detail != "" {
-			writeProblemDetailLines(b, detail, indent, emphasize, s)
+		branch := s.Dim("├─")
+		if last {
+			branch = s.EvidenceGlyph()
 		}
-		if tail != "" {
-			writeProblemDetailLines(b, tail, indent, emphasize, s)
+		fmt.Fprintf(b, "%s%s%s %s  %s\n", indent, ProblemTreeIndent, branch, p.Subject, extra)
+		continuation := s.Dim("│")
+		if last {
+			continuation = " "
+		}
+		for _, text := range []string{detail, tail} {
+			writeProblemDetailLines(b, text, continuation, indent, emphasize, s)
 		}
 		return
 	}
@@ -114,11 +122,11 @@ func writeProblemDetailBlock(b *strings.Builder, summary, detail, indent string,
 	}
 }
 
-// writeProblemDetailLines continues Detail under a subject (├─) row with │ prefixes.
-func writeProblemDetailLines(b *strings.Builder, detail, indent string, emphasize bool, s Style) {
-	pipe := s.Dim("│")
+// writeProblemDetailLines continues Detail under a subject row, each line
+// led by the continuation connector (│ under ├─, blank under the closing └─).
+func writeProblemDetailLines(b *strings.Builder, detail, continuation, indent string, emphasize bool, s Style) {
 	for _, line := range splitPresentationLines(detail) {
-		fmt.Fprintf(b, "%s%s%s %s\n", indent, ProblemTreeIndent, pipe, s.Emphasized(line, emphasize))
+		fmt.Fprintf(b, "%s%s%s %s\n", indent, ProblemTreeIndent, continuation, s.Emphasized(line, emphasize))
 	}
 }
 
