@@ -1,5 +1,3 @@
-//go:build ignore
-
 // Package architecture holds stdlib-grade audit gates for the evo module:
 // fitness tests that are not about any one feature's behavior but about
 // invariants the whole module must hold (dependency surface, no import-time
