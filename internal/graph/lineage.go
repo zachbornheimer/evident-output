@@ -7,33 +7,30 @@ import (
 	"sync/atomic"
 )
 
-// processLineage covers every goroutine in the process: who started a
+// processLineage covers every goroutine in the process: who spawned a
 // goroutine is a fact about the process, not about one Graph.
 var processLineage lineage
 
-// lineage remembers which goroutine started each goroutine it has seen. A
+// lineage remembers which goroutine spawned each goroutine it has seen. A
 // goroutine's creator is fixed when it starts and ids are never reused, so a
 // remembered creator never goes stale. Reading creators means a traceback of
 // every goroutine, which stops the world: one dump teaches the creator of
 // every goroutine alive then, so a creator pays for at most one, and the
-// goroutines it started, asking about it afterwards, pay for none. While the
+// goroutines it spawned, asking about it afterwards, pay for none. While the
 // process starts no goroutine (see goroutinesCreated) the last dump is still
 // the whole truth, and a question about a goroutine it did not name, or about
-// who started which, is answered without another.
+// who spawned which, is answered without another.
 type lineage struct {
 	mu       sync.Mutex
 	creators map[GoroutineID]GoroutineID
-	// started inverts creators as of the last dump: the goroutines each
-	// goroutine started.
-	started map[GoroutineID][]GoroutineID
 	// workers is the goroutines among creators that serve pooled claims. A
-	// chain ends at one: the goroutine that started a worker never authored
+	// chain ends at one: the goroutine that spawned a worker never authored
 	// the work the worker runs, so what that creator is running says nothing
-	// about a goroutine the worker's work started, whether the worker is still
+	// about a goroutine the worker's work spawned, whether the worker is still
 	// there or has gone. The dump names them, so they are kept exactly as long
 	// as creators keeps them.
 	workers map[GoroutineID]struct{}
-	// created is how many goroutines the process had started when the last
+	// created is how many goroutines the process had spawned when the last
 	// dump began; counted is false where the toolchain keeps no such count.
 	created uint64
 	counted bool
@@ -41,7 +38,7 @@ type lineage struct {
 	dumps atomic.Int64
 }
 
-// completeLocked reports whether no goroutine started since the last dump
+// completeLocked reports whether no goroutine spawned since the last dump
 // began, so every goroutine alive now was alive for it.
 func (l *lineage) completeLocked() bool {
 	created, counted := goroutinesCreated()
@@ -49,7 +46,7 @@ func (l *lineage) completeLocked() bool {
 }
 
 // refreshesPerCallback is how many dumps asking about unknown creators each
-// running callback adds to what the run may take. A creator that started after
+// running callback adds to what the run may take. A creator that spawned after
 // the last dump is unknown, and the dump that would name it cannot if it
 // already exited, so a fan-out of short-lived intermediate goroutines would
 // pay one dump each; the allowance caps the run's cost at a handful of dumps
@@ -94,12 +91,12 @@ func (b *refreshBudget) take() bool {
 	}
 }
 
-// chain lists from, then the goroutines that started it, nearest first, as
+// chain lists from, then the goroutines that spawned it, nearest first, as
 // far as the runtime named them: a creator that exited before anything saw it
 // ends the chain, and so does one still unknown once budget has no dump left.
 // A pooled worker is the last of its chain (see lineage.workers).
 // Only a goroutine the lineage has never seen costs a dump, so every goroutine
-// one creator started pays nothing once the creator is known. A nil budget has
+// one creator spawned pays nothing once the creator is known. A nil budget has
 // no limit.
 func (l *lineage) chain(from GoroutineID, budget *refreshBudget) []GoroutineID {
 	if from == 0 {
@@ -110,7 +107,7 @@ func (l *lineage) chain(from GoroutineID, budget *refreshBudget) []GoroutineID {
 	if _, known := l.creators[from]; !known {
 		switch {
 		case l.completeLocked():
-			// Nothing started since the dump, so a goroutine it did not
+			// Nothing spawned since the dump, so a goroutine it did not
 			// name is gone.
 			l.creators[from] = 0
 		case budget.take():
@@ -168,10 +165,6 @@ func (l *lineage) learnLocked() {
 		}
 	}
 	l.creators, l.workers = live, workers
-	l.started = make(map[GoroutineID][]GoroutineID, len(live))
-	for id, creator := range live {
-		l.started[creator] = append(l.started[creator], id)
-	}
 }
 
 // GoroutineDumps is how many stops of the world the process's lineage has
