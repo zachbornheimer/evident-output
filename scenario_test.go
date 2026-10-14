@@ -237,7 +237,7 @@ func TestScenario_Stress(t *testing.T) {
 		"[changed] remote-tracking  deleted 4 stale origin/*\n" +
 		"\n" +
 		"[failed]  " + testProgramName + "\n" +
-		"!  already mutated: 4 stale origin/* deleted\n"
+		"!  already mutated: deleted 4 stale origin/*\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}

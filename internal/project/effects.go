@@ -1,6 +1,7 @@
 package project
 
 import (
+	"cmp"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -228,7 +229,9 @@ func WriteAlreadyMutated(b *strings.Builder, changes []record.ChangesSnapshot, s
 // count — "1 module created; 1 module created" told the reader nothing twice
 // (P7). When more than one distinct effect survives, a fragment a single task
 // owns is named, so the reader learns where each effect happened; a run with
-// one effect keeps the unqualified spelling. ok is false when nothing
+// one effect keeps the unqualified spelling, and an operation that names its
+// object ("wrote cfg.txt") already says where it happened. Each fragment is
+// verb first, as the ledger says it. ok is false when nothing
 // committed, telling the caller to suppress the row.
 func SummarizeAlreadyMutated(changes []record.ChangesSnapshot) (string, bool) {
 	effects := aggregateMutatedEffects(changes)
@@ -238,7 +241,7 @@ func SummarizeAlreadyMutated(changes []record.ChangesSnapshot) (string, bool) {
 	parts := make([]string, 0, len(effects))
 	for _, e := range effects {
 		text := e.text()
-		if len(effects) > 1 && len(e.owners) == 1 {
+		if len(effects) > 1 && len(e.owners) == 1 && !e.named {
 			text = e.owners[0] + ": " + text
 		}
 		parts = append(parts, text)
@@ -342,6 +345,9 @@ type mutatedEffect struct {
 	named bool
 }
 
+// changedVerb states a count of effects whose records name more than one verb.
+const changedVerb = "changed"
+
 func (e mutatedEffect) text() string {
 	if e.named {
 		return e.verb + " " + e.object
@@ -350,8 +356,6 @@ func (e mutatedEffect) text() string {
 	if e.countable {
 		object = Pluralize(e.total, object)
 	}
-	if e.verb == "" {
-		return fmt.Sprintf("%s %s changed", quantityText(e.total), object)
-	}
-	return fmt.Sprintf("%s %s %s", quantityText(e.total), object, e.verb)
+	verb := cmp.Or(e.verb, changedVerb)
+	return fmt.Sprintf("%s %s %s", verb, quantityText(e.total), object)
 }

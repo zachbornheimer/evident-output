@@ -43,10 +43,10 @@ func TestConclusion_P7_AlreadyMutatedAggregatesAndNamesItsOwner(t *testing.T) {
 			out.Task("modules").Define(effectOf(Create, "module", 1))
 			out.Task("records").Define(effectOf(Update, "record", 1))
 		})
-		if !strings.Contains(got, "modules: 1 module created") {
+		if !strings.Contains(got, "modules: created 1 module") {
 			t.Fatalf("want the owning task named, got:\n%s", got)
 		}
-		if !strings.Contains(got, "records: 1 record updated") {
+		if !strings.Contains(got, "records: updated 1 record") {
 			t.Fatalf("want the owning task named, got:\n%s", got)
 		}
 	})
@@ -105,7 +105,7 @@ func TestConclusion_AlreadyMutated_Failed(t *testing.T) {
 		t.Log(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "!  already mutated: 1 origin tip deleted") {
+	if !strings.Contains(got, "!  already mutated: deleted 1 origin tip") {
 		t.Fatalf("want derived already-mutated line on Failed, got:\n%s", got)
 	}
 }

@@ -59,7 +59,7 @@ func TestLedgerFoldCountsCommittedPartOfPartialEffect(t *testing.T) {
 			})
 		}
 	})
-	assertFrame(t, got, "✓ a\n✗ b  context deadline exceeded\n✓ c\n\n[changed] npm  updated 5 packages\n\n[failed]  "+testProgramName+"\n!  already mutated: 5 packages updated\n")
+	assertFrame(t, got, "✓ a\n✗ b  context deadline exceeded\n✓ c\n\n[changed] npm  updated 5 packages\n\n[failed]  "+testProgramName+"\n!  already mutated: updated 5 packages\n")
 }
 
 // Probe A: one different sibling must not stop the rest folding.

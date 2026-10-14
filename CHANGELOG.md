@@ -116,6 +116,10 @@ and its replacement, and
   (`schema/event.v2.json`); the 1.x `run.v2.json` and `event.v1.json` are
   gone. In the generated schemas only the envelope's own `object` is the
   `evo.run` constant, so an effect's `object` validates as a string.
+- **Already-mutated band:** each effect reads verb first, as the ledger says it
+  (`deleted 1 branch`, `wrote cfg.txt`), not `1 branch deleted`; an operation
+  that names its object no longer repeats its Task (`wrote cfg.txt`, not
+  `write config: wrote cfg.txt`).
 - **Plain and Human rendering:** a Group declared by `Build` keeps its own row
   with its items nested beneath it; a Problem tree ends on `└─`; an Excluded
   Task states its reason once; the `already mutated` line says `wrote

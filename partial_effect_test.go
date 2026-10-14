@@ -68,7 +68,7 @@ func TestPartialEffect_TwoOfThreeRecordsCommittedAndFailsTheTask(t *testing.T) {
 	if qs := changedQuantities(r.out.snapshot()); len(qs) != 1 || qs[0] != 2 {
 		t.Fatalf("changed quantities = %v, want exactly [2]", qs)
 	}
-	if plain := collapse(r.rendered); !strings.Contains(plain, "2 remote refs deleted") || strings.Contains(plain, "3 remote refs") {
+	if plain := collapse(r.rendered); !strings.Contains(plain, "deleted 2 remote refs") || strings.Contains(plain, "3 remote refs") {
 		t.Fatalf("human output must report 2 committed, never 3:\n%s", r.rendered)
 	}
 }
