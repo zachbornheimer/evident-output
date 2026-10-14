@@ -171,17 +171,18 @@ func settledStates(into []State, tasks []TaskSnapshot, collections []TasksSnapsh
 }
 
 // decidingEnding is the ending of the first Task, at any depth, that settled
-// with outcome: why its Outcome became the run's. It is the first Problem's
-// summary when the Task recorded one, else the Task's Summary.
+// with outcome: why its Outcome became the run's. It is the Task's Summary,
+// which its ending writes, else the Problem its ending recorded last; a
+// non-fatal Problem recorded before the ending never explains the run.
 func decidingEnding(outcome Outcome, tasks []TaskSnapshot, collections []TasksSnapshot) string {
 	for _, t := range tasks {
 		if t.State.Outcome() != outcome {
 			continue
 		}
-		if len(t.Problems) > 0 {
-			return t.Problems[0].Summary
+		if t.Summary != "" || len(t.Problems) == 0 {
+			return t.Summary
 		}
-		return t.Summary
+		return t.Problems[len(t.Problems)-1].Summary
 	}
 	for _, col := range collections {
 		if why := decidingEnding(outcome, col.Tasks, col.Collections); why != "" {

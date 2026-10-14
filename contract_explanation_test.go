@@ -106,3 +106,31 @@ func assertWireExplanation(t *testing.T, what string, wire any, want string) {
 		t.Errorf("%s = %v, want %q", what, wire, want)
 	}
 }
+
+// TestExplanationNamesTheEndingNotTheFirstProblem pins CONTRACT.md §1: a
+// Task that records a non-fatal Problem and then fails explains the run with
+// its ending, never with the Problem it recorded first.
+func TestExplanationNamesTheEndingNotTheFirstProblem(t *testing.T) {
+	const ending, nit = "lint failed", "style nit"
+	for _, mode := range contractOutputs {
+		t.Run(outputName[mode], func(t *testing.T) {
+			run := executeContract(context.Background(), t, evo.Config{Name: "explanation", Output: mode},
+				func(_ context.Context, r *evo.Run) error {
+					r.Task("lint").Define(func(context.Context) error { return evo.Fail(ending) }).Problem(nit)
+					return nil
+				})
+			got := run.Result.Conclusion.Explanation
+			if got != ending {
+				t.Fatalf("Conclusion.Explanation = %q, want the ending %q", got, ending)
+			}
+			switch mode {
+			case evo.JSON:
+				assertWireExplanation(t, "evo.run explanation", runDocument(t, run.Stdout)["explanation"], got)
+			case evo.JSONL:
+				for _, event := range eventsOfType(runEvents(t, run.Stdout), "run.finished") {
+					assertWireExplanation(t, "run.finished explanation", payload(event)["explanation"], got)
+				}
+			}
+		})
+	}
+}
