@@ -159,7 +159,7 @@ func TestListenerMayCallTheGraphWhileASettleCascades(t *testing.T) {
 	run := record.NewRun()
 	g := New(run)
 	heard := &reentrantListener{g: g}
-	run.SetListener(heard)
+	run.Listen(heard)
 	first := submit(g, "first")
 	submit(g, "second", AfterTask(first))
 

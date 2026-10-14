@@ -197,7 +197,7 @@ func newRun(cfg config) *Run {
 	})
 	o.follow = txt.NewFollower(run, &o.mu, settleReactions{o})
 	o.mu.Bind(run)
-	run.SetListener(o.follow)
+	run.Listen(o.follow)
 	// Stable-enough id for a process-local output instance.
 	o.outputID = o.graph.NextID("out")
 	o.wireEvents = wire.NewEvents(cfg.eventStream(), o.outputID, cfg.clock)

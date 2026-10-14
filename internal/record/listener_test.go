@@ -46,7 +46,7 @@ func TestListenerHearsEveryTaskWriteByID(t *testing.T) {
 	run := NewRun()
 	task := run.NewTask(TaskInit{ID: "task_1"})
 	heard := &callbackListener{}
-	run.SetListener(heard)
+	run.Listen(heard)
 
 	task.SetPhase("working")
 	task.AppendFact(Fact{})
@@ -67,7 +67,7 @@ func TestListenerHearsOnlyWritesThatChangedSomething(t *testing.T) {
 	task := run.NewTask(TaskInit{ID: "task_1", State: Running})
 	task.SetPhase("same")
 	heard := &callbackListener{}
-	run.SetListener(heard)
+	run.Listen(heard)
 
 	task.SetPhaseIfChanged("same")
 	task.ApplyProgress(-1, 0, Determinate)
@@ -84,7 +84,7 @@ func TestListenerHearsOnlyWritesThatChangedSomething(t *testing.T) {
 func TestListenerHearsTheStampedEvent(t *testing.T) {
 	run := NewRun()
 	heard := &callbackListener{}
-	run.SetListener(heard)
+	run.Listen(heard)
 
 	stamped := run.AppendEvent(Event{Type: "task.declared", EntityID: "task_1"}, 0)
 
@@ -102,7 +102,7 @@ func (l *taskOnlyListener) TaskSettled(TaskID, State, State) {}
 func TestListenerWithoutEventsStillHearsTasksAndLeavesNoEventQueued(t *testing.T) {
 	run := NewRun()
 	heard := &taskOnlyListener{}
-	run.SetListener(heard)
+	run.Listen(heard)
 
 	run.AppendEvent(Event{Type: "x"}, 0)
 
@@ -121,7 +121,7 @@ func TestListenerRunsAfterTheRecordLockIsReleased(t *testing.T) {
 	heard := &callbackListener{}
 	heard.onTask = func() { _ = task.State(); reads++ }
 	heard.onEvent = func() { _ = run.Events(0); reads++ }
-	run.SetListener(heard)
+	run.Listen(heard)
 
 	task.SetSummary("done")
 	run.AppendEvent(Event{Type: "x"}, 0)
@@ -131,12 +131,12 @@ func TestListenerRunsAfterTheRecordLockIsReleased(t *testing.T) {
 	}
 }
 
-func TestSetListenerNilStopsListening(t *testing.T) {
+func TestListenNilStopsListening(t *testing.T) {
 	run := NewRun()
 	task := run.NewTask(TaskInit{ID: "task_1"})
 	heard := &callbackListener{}
-	run.SetListener(heard)
-	run.SetListener(nil)
+	run.Listen(heard)
+	run.Listen(nil)
 
 	task.SetSummary("quiet")
 	run.AppendEvent(Event{Type: "x"}, 0)

@@ -119,7 +119,7 @@ func TestFollowerAnswersEachSettleOnce(t *testing.T) {
 	log := &answerLog{answered: map[record.TaskID]int{}, owed: map[record.TaskID]bool{}}
 	var mu sync.Mutex
 	follower := NewFollower(run, &mu, log)
-	run.SetListener(follower)
+	run.Listen(follower)
 	task := run.NewTask(record.TaskInit{ID: "t", State: record.Running})
 
 	task.Settle(record.Succeeded)

@@ -7,7 +7,7 @@ func TestSettleIsHeardAsASettleInAnyEndingState(t *testing.T) {
 		run := NewRun()
 		task := run.NewTask(TaskInit{ID: "task_1", State: Pending})
 		heard := &callbackListener{}
-		run.SetListener(heard)
+		run.Listen(heard)
 
 		task.Settle(ending)
 
@@ -21,7 +21,7 @@ func TestTransitionIsNotASettle(t *testing.T) {
 	run := NewRun()
 	task := run.NewTask(TaskInit{ID: "task_1", State: Pending})
 	heard := &callbackListener{}
-	run.SetListener(heard)
+	run.Listen(heard)
 
 	task.Transition(Running)
 

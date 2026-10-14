@@ -26,7 +26,7 @@ type Run struct {
 	facts      []Fact
 	warnings   []Problem
 	conclusion *Conclusion
-	// listener hears changes after the lock is released (see SetListener).
+	// listener hears changes after the lock is released (see Listen).
 	listener atomic.Pointer[listenerBox]
 	// notes holds the notifications a Hold keeps back from the listener.
 	notes notifier

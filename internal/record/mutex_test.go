@@ -16,7 +16,7 @@ func TestMutexSectionHoldsNotificationsUntilTheMutexIsFree(t *testing.T) {
 		tookTheMutex++
 		mu.Unlock()
 	}
-	run.SetListener(heard)
+	run.Listen(heard)
 
 	mu.Lock()
 	task.SetPhase("in the section")

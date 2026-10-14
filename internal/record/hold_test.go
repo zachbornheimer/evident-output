@@ -6,7 +6,7 @@ func TestListenerHearsTheStateATransitionLeftAndEntered(t *testing.T) {
 	run := NewRun()
 	task := run.NewTask(TaskInit{ID: "task_1", State: Pending})
 	heard := &callbackListener{}
-	run.SetListener(heard)
+	run.Listen(heard)
 
 	task.Transition(Running)
 	task.SetPhase("working")
@@ -21,7 +21,7 @@ func TestHoldKeepsNotificationsBackUntilTheLastRelease(t *testing.T) {
 	run := NewRun()
 	task := run.NewTask(TaskInit{ID: "task_1"})
 	heard := &callbackListener{}
-	run.SetListener(heard)
+	run.Listen(heard)
 
 	run.Hold()
 	run.Hold()
@@ -42,7 +42,7 @@ func TestReleaseDeliversInTheOrderTheWritesHappened(t *testing.T) {
 	run := NewRun()
 	task := run.NewTask(TaskInit{ID: "task_1", State: Pending})
 	heard := &callbackListener{}
-	run.SetListener(heard)
+	run.Listen(heard)
 
 	run.Hold()
 	task.Transition(Running)
@@ -69,7 +69,7 @@ func TestListenerMayHoldAndWriteWhileItIsBeingTold(t *testing.T) {
 		defer run.Release()
 		task.SetSummary("from the listener")
 	}
-	run.SetListener(heard)
+	run.Listen(heard)
 
 	task.SetPhase("first")
 
@@ -82,7 +82,7 @@ func TestReleaseWithoutAHoldChangesNothing(t *testing.T) {
 	run := NewRun()
 	task := run.NewTask(TaskInit{ID: "task_1"})
 	heard := &callbackListener{}
-	run.SetListener(heard)
+	run.Listen(heard)
 
 	run.Release()
 	task.SetPhase("still told at once")

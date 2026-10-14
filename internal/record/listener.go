@@ -65,8 +65,8 @@ type notifier struct {
 	spare []notification
 }
 
-// SetListener makes l hear every later change; nil stops listening.
-func (r *Run) SetListener(l Listener) {
+// Listen makes l hear every later change; nil stops listening.
+func (r *Run) Listen(l Listener) {
 	if l == nil {
 		r.listener.Store(nil)
 		return

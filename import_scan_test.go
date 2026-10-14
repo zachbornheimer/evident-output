@@ -484,3 +484,76 @@ func isRecordValue(receiver ast.Expr, names map[string]bool) bool {
 	}
 	return false
 }
+
+// scanRootProductionFiles runs inspect on every non-test Go file of the root
+// package itself, not its subdirectories. It returns the sorted findings and
+// the files it inspected.
+func scanRootProductionFiles(inspect func(file string) ([]string, error)) ([]string, []string, error) {
+	matches, err := filepath.Glob("*.go")
+	if err != nil {
+		return nil, nil, fmt.Errorf("glob root files: %w", err)
+	}
+	var found, checked []string
+	for _, file := range matches {
+		if !isProductionGoFile(file) {
+			continue
+		}
+		checked = append(checked, file)
+		hits, inspectErr := inspect(file)
+		if inspectErr != nil {
+			return nil, nil, fmt.Errorf("inspect %s: %w", file, inspectErr)
+		}
+		found = append(found, hits...)
+	}
+	sort.Strings(found)
+	return found, checked, nil
+}
+
+// signalOnlyImport is the one system import the root package may make: os,
+// used for nothing but the os.Signal type CleanStop names.
+const signalOnlyImport = "os"
+
+// rootSystemTouches is touches for a root file, less an os import the file
+// uses only to name os.Signal.
+func rootSystemTouches(file string) ([]string, error) {
+	found, err := touches(file, isSystemImport, bannedCalls)
+	if err != nil {
+		return nil, err
+	}
+	signalOnly, err := usesOSOnlyForSignal(file)
+	if err != nil || !signalOnly {
+		return found, err
+	}
+	return slices.DeleteFunc(found, func(hit string) bool {
+		return strings.HasSuffix(hit, " import "+signalOnlyImport)
+	}), nil
+}
+
+// usesOSOnlyForSignal reports whether file imports os and every reference
+// to it is os.Signal.
+func usesOSOnlyForSignal(file string) (bool, error) {
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, file, nil, 0)
+	if err != nil {
+		return false, fmt.Errorf("parse: %w", err)
+	}
+	name := ""
+	for _, spec := range parsed.Imports {
+		if importPath, _ := strconv.Unquote(spec.Path.Value); importPath == signalOnlyImport && !isDotImport(spec) {
+			name = localPackageName(spec, importPath)
+		}
+	}
+	if name == "" {
+		return false, nil
+	}
+	signalOnly := true
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		if sel, ok := n.(*ast.SelectorExpr); ok {
+			if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == name && sel.Sel.Name != "Signal" {
+				signalOnly = false
+			}
+		}
+		return signalOnly
+	})
+	return signalOnly, nil
+}

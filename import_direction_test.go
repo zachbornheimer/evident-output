@@ -69,11 +69,12 @@ func isSystemImport(importPath string) bool {
 	return false
 }
 
-// TestOnlyFacadesTouchTheSystem fails when an internal package outside the
-// four facades imports a system package (os, os/exec, os/signal, os/user,
-// io/ioutil, syscall, x/term, x/sys) or references a banned function
-// (wall-clock, path resolution, walk, glob, context deadline), called or
-// taken as a value.
+// TestOnlyFacadesTouchTheSystem fails when the root package or an internal
+// package outside the four facades imports a system package (os, os/exec,
+// os/signal, os/user, io/ioutil, syscall, x/term, x/sys) or references a
+// banned function (wall-clock, path resolution, walk, glob, context
+// deadline), called or taken as a value. The root may import os only to
+// name the os.Signal type CleanStop takes.
 func TestOnlyFacadesTouchTheSystem(t *testing.T) {
 	violations, _, err := scanProductionFiles("internal", isFacadePackage, func(file string) ([]string, error) {
 		return touches(file, isSystemImport, bannedCalls)
@@ -81,6 +82,11 @@ func TestOnlyFacadesTouchTheSystem(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan internal/: %v", err)
 	}
+	rootViolations, _, err := scanRootProductionFiles(rootSystemTouches)
+	if err != nil {
+		t.Fatalf("scan the root package: %v", err)
+	}
+	violations = append(violations, rootViolations...)
 	if len(violations) > 0 {
 		t.Errorf("%d places outside the facades touch the system:\n  %s",
 			len(violations), strings.Join(violations, "\n  "))
@@ -382,6 +388,11 @@ func TestOnlyProducersWriteRecord(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan internal/: %v", err)
 	}
+	rootViolations, _, err := scanRootProductionFiles(recordWriteCalls)
+	if err != nil {
+		t.Fatalf("scan the root package: %v", err)
+	}
+	violations = append(violations, rootViolations...)
 	if len(violations) > 0 {
 		t.Errorf("%d record writes come from outside the producers:\n  %s",
 			len(violations), strings.Join(violations, "\n  "))
@@ -533,4 +544,43 @@ func isDissolvedImport(importPath string) bool {
 func skipHiddenAndTestdata(dir string) bool {
 	base := path.Base(dir)
 	return dir != "." && (strings.HasPrefix(base, ".") || base == "testdata")
+}
+
+// TestRecordAndSystemGuardsScanRoot proves the record-write and system
+// guards read every production file of the root package, and pins the one
+// system exception they grant it: os for os.Signal, nothing else of os.
+func TestRecordAndSystemGuardsScanRoot(t *testing.T) {
+	_, checked, err := scanRootProductionFiles(func(string) ([]string, error) { return nil, nil })
+	if err != nil {
+		t.Fatalf("scan the root package: %v", err)
+	}
+	for _, file := range []string{"run.go", "task.go", "output.go", "ending.go"} {
+		if !slices.Contains(checked, file) {
+			t.Errorf("the root scan skipped %s; it read %v", file, checked)
+		}
+	}
+	for _, file := range checked {
+		if strings.HasSuffix(file, "_test.go") {
+			t.Errorf("the root scan read test file %s", file)
+		}
+	}
+
+	cases := map[string]bool{
+		"package probe\n\nimport \"os\"\n\nfunc stop(s ...os.Signal) {}\n":                    true,
+		"package probe\n\nimport \"os\"\n\nfunc stop(s os.Signal) { _ = os.Getenv(\"X\") }\n": false,
+		"package probe\n\nimport \"os\"\n\nvar argv = os.Args\n":                              false,
+	}
+	for source, allowed := range cases {
+		file := path.Join(t.TempDir(), "probe.go")
+		if err := os.WriteFile(file, []byte(source), 0o600); err != nil {
+			t.Fatalf("write probe: %v", err)
+		}
+		found, err := rootSystemTouches(file)
+		if err != nil {
+			t.Fatalf("scan probe: %v", err)
+		}
+		if got := len(found) == 0; got != allowed {
+			t.Errorf("probe %q: allowed = %v, want %v (found %v)", source, got, allowed, found)
+		}
+	}
 }
