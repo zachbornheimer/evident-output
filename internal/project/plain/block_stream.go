@@ -15,9 +15,11 @@ import (
 // container's own verdict row. The scrollback of a run killed halfway holds
 // every verdict that existed.
 //
-// The container's own Task (the Task named for it) is the one member that
-// does not stream: the final output folds it into the container's row, so it
-// is held for the closing row, which then carries it as that row does.
+// The container's own Task (the Task named for it) streams like any member
+// when it settles without success, since a kill -9 must not lose the run's
+// only failure; the closing row then states the container's verdict. One
+// that succeeded does not stream: the final output folds it into the
+// container's row, so it is held for the closing row, which carries it.
 
 // streamGrace is how long a streamable block keeps its first settled
 // members to itself. A block that settles inside it writes whole, exactly as
@@ -109,7 +111,7 @@ func (s *Stream) streamInto(out *strings.Builder, r *row) {
 		return
 	}
 	s.reopen(r.block)
-	if r.block.isOwn(r) {
+	if r.block.isOwn(r) && r.Rec.State().Succeeded() {
 		r.block.own = r
 		return
 	}

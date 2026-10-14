@@ -234,3 +234,51 @@ func TestNotStartedDependentWritesWhenItsCauseIsDurable(t *testing.T) {
 		t.Fatalf("Finish still owed the dependent's row:\n%s", rest)
 	}
 }
+
+// TestOwnTaskFailureStreamsImmediately: a Group's own Task that fails is a
+// verdict a kill -9 must not lose, so it writes as a member row the moment
+// it settles, and the closing row keeps the Group's verdict. An own Task that
+// succeeds says nothing a close would lose and still folds into that row.
+func TestOwnTaskFailureStreamsImmediately(t *testing.T) {
+	t.Run("a failed own Task writes as a member when it settles", func(t *testing.T) {
+		b := newBlockRun(t)
+		closed := b.collection("pkg", false)
+		b.task("pkg", "pkg")
+		b.task("slow", "pkg")
+		b.rows.Task("pkg").Rec.SetSummary("own broke")
+
+		b.settle("pkg", record.Failed)
+
+		if got := b.written(); !inOrder(got, "pkg\n", "   ✗ pkg  own broke\n") || strings.Contains(got, "slow") {
+			t.Fatalf("the own Task's failure did not stream under the header:\n%s", got)
+		}
+		*closed = true
+		b.settle("slow", record.Succeeded)
+
+		got := b.written()
+		if !inOrder(got, "   ✗ pkg  own broke\n", "   ✓ slow\n", "✗ pkg\n") || strings.Count(got, "own broke") != 1 {
+			t.Fatalf("want the member row, its sibling, then the Group's verdict once:\n%s", got)
+		}
+		if rest := b.finish(); strings.Contains(rest, "own broke") {
+			t.Fatalf("Finish repeats the own Task's failure:\n%s", rest)
+		}
+	})
+
+	t.Run("a succeeded own Task still folds into the closing row", func(t *testing.T) {
+		b := newBlockRun(t)
+		closed := b.collection("pkg", false)
+		b.task("pkg", "pkg")
+		b.task("slow", "pkg")
+		b.settle("pkg", record.Succeeded)
+		if got := b.written(); got != "" {
+			t.Fatalf("a succeeded own Task wrote before the block did:\n%s", got)
+		}
+		b.settle("slow", record.Succeeded)
+		*closed = true
+		b.stream.CommitSettledBlocks()
+
+		if got := b.written(); got != "✓ pkg\n   ✓ slow\n" {
+			t.Fatalf("want the own Task folded into the Group's row, got:\n%s", got)
+		}
+	})
+}
