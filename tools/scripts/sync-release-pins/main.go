@@ -108,7 +108,7 @@ var literalPins = []literalPin{
 
 func (p literalPin) sync(root, want string) (bool, error) {
 	file := filepath.Join(root, filepath.FromSlash(p.path))
-	body, err := os.ReadFile(file)
+	body, err := fs.ReadFile(os.DirFS(root), p.path)
 	if err != nil {
 		return false, fmt.Errorf("read %s: %w", p.path, err)
 	}
