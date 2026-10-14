@@ -280,19 +280,18 @@ func TestChangeImportsOnlyRecordGraphFreshnessAndFacades(t *testing.T) {
 	}
 }
 
-// graphImporters are the only packages that may import internal/graph: the
-// engine that wires it today, and the packages that report into it later.
+// graphImporters are the only packages under internal/ that may import
+// internal/graph: the packages that report work into it.
 var graphImporters = []string{
-	"internal/engine",
 	"internal/change",
 	"internal/freshness",
 }
 
-// TestOnlyEngineChangeAndFreshnessImportGraph fails when any other package
+// TestOnlyChangeAndFreshnessImportGraph fails when any other package
 // under internal/ imports internal/graph. record, project, misuse and the
 // facades sit beside or beneath it and must not depend on how work is
 // scheduled.
-func TestOnlyEngineChangeAndFreshnessImportGraph(t *testing.T) {
+func TestOnlyChangeAndFreshnessImportGraph(t *testing.T) {
 	violations, _, err := scanProductionFiles("internal",
 		func(dir string) bool { return dir == graphPackage || slices.Contains(graphImporters, dir) },
 		func(file string) ([]string, error) { return touches(file, isGraphImport, nil) })
@@ -300,7 +299,7 @@ func TestOnlyEngineChangeAndFreshnessImportGraph(t *testing.T) {
 		t.Fatalf("scan internal/: %v", err)
 	}
 	if len(violations) > 0 {
-		t.Errorf("%d imports of %s come from outside engine, change and freshness:\n  %s",
+		t.Errorf("%d imports of %s come from outside change and freshness:\n  %s",
 			len(violations), graphPackage, strings.Join(violations, "\n  "))
 	}
 }
@@ -308,7 +307,6 @@ func TestOnlyEngineChangeAndFreshnessImportGraph(t *testing.T) {
 // recordProducerPackages are the only packages, besides record itself, that
 // may call a method that writes run truth into record.
 var recordProducerPackages = []string{
-	"internal/engine",
 	"internal/graph",
 	"internal/freshness",
 	"internal/change",
@@ -319,7 +317,7 @@ func isRecordProducerOrOwner(dir string) bool {
 }
 
 // TestOnlyProducersWriteRecord fails when a package other than record and the
-// producers (engine, graph, freshness, change) calls a method that writes
+// producers (graph, freshness, change) calls a method that writes
 // run truth: one whose name begins with Record, Append, Apply, Resolve, Set,
 // Transition, Mark or Clear, on a record value. core, render, text, wire and
 // the rest may read record, never write it. The scan has no type
