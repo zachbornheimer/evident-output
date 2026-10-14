@@ -19,7 +19,7 @@
   {
     "id": "C48-002",
     "section": "2.0 \u00a78 What Evo promises",
-    "quote": "Facts are hidden at normal verbosity and always in machine output; routine rows collapse; passing verification is silent, failing verification is shown.",
+    "quote": "Facts are hidden at normal verbosity and always in machine output; collapse folds routine detail away but never a container's own row: a Group or Sequence whose members all succeed keeps its row with the members indented beneath it, in Human and Plain as `evo.run` nests them; passing verification is silent, failing verification is shown.",
     "tier": "1.1",
     "tests": [
       {
