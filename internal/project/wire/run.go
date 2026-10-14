@@ -155,8 +155,8 @@ type BasisDoc struct {
 }
 
 // OperationDoc is one nested Evo-native operation's state (schema/run.v3.json).
-// Current is true for every listed operation: only operations whose record
-// holds this run's state are listed.
+// Current is false for an operation that ran and failed: no record holds this
+// run's state for it.
 type OperationDoc struct {
 	Kind     string `json:"kind"`
 	Executed bool   `json:"executed"`
@@ -379,7 +379,7 @@ func warningDocs(in []record.Problem) []ProblemDoc {
 func toOperationDocs(in []record.TaskOperation) []OperationDoc {
 	out := make([]OperationDoc, 0, len(in))
 	for _, op := range in {
-		out = append(out, OperationDoc{Kind: op.Kind, Executed: op.Executed, Current: true})
+		out = append(out, OperationDoc{Kind: op.Kind, Executed: op.Executed, Current: op.Current})
 	}
 	return out
 }

@@ -112,6 +112,14 @@ func (r *Run) PlanOperation(id record.TaskID, changes ...string) {
 	}
 }
 
+// FailOperation notes that id's operation of the given kind ran and failed;
+// see TaskTable.FailOperation.
+func (r *Run) FailOperation(id record.TaskID, kind string) {
+	if r.task(id) != nil {
+		r.tasks.FailOperation(id, kind)
+	}
+}
+
 // Plan is how this Run judges an operation's freshness: the zero Plan when
 // it applies its work.
 func (r *Run) Plan() Plan {

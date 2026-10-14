@@ -140,7 +140,11 @@ func (r *Run) reconcileExec(ctx context.Context, id record.TaskID, spec ExecSpec
 	if !eval.Spawns() {
 		return ExecResult{Ran: false}, nil
 	}
-	return r.execRunAndRecord(ctx, id, spec, target, eval)
+	result, runErr := r.execRunAndRecord(ctx, id, spec, target, eval)
+	if runErr != nil {
+		r.host.FailOperation(id, freshness.OperationKindExec)
+	}
+	return result, runErr
 }
 
 // execEvaluate resolves this call's manifest verdict and narrates it:

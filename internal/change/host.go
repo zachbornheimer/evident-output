@@ -86,6 +86,9 @@ type Manifest interface {
 	// was found stale and, in a planned Run, left unapplied. changes are the
 	// paths it would have changed.
 	PlanOperation(id record.TaskID, changes ...string)
+	// FailOperation notes that id's operation of the given kind ran and
+	// failed. It leaves no record.
+	FailOperation(id record.TaskID, kind string)
 	// Plan is how the Run judges an operation's freshness: the zero Plan
 	// when it applies its work.
 	Plan() freshness.Plan

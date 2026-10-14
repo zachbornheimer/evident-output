@@ -151,6 +151,7 @@ func (r *Run) applyFile(ctx context.Context, op fileOperation) error {
 		return nil
 	}
 	if mutateErr := r.mutateFile(fsys, op, delta); mutateErr != nil {
+		r.host.FailOperation(op.taskID, freshness.OperationKindFile)
 		return mutateErr
 	}
 	r.recordFileEffectIf(op, delta.mutates())

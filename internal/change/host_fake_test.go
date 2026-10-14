@@ -121,6 +121,8 @@ func (h *fakeHost) PlanOperation(record.TaskID, ...string) {
 	h.planned++
 }
 
+func (h *fakeHost) FailOperation(record.TaskID, string) {}
+
 func (h *fakeHost) Plan() freshness.Plan {
 	if h.applies {
 		return freshness.Plan{}

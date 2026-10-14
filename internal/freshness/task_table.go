@@ -37,6 +37,9 @@ type taskEntry struct {
 	// planned counts the operations a planned Run found stale and did not
 	// apply: they hold their place in the order but leave no record.
 	planned int
+	// failed holds the kind of each operation that ran and failed: it left
+	// no record, so it is neither committed nor part of the ordering.
+	failed []string
 	// verifiers are the Verify checks, ANDed in registration order (§9.1).
 	verifiers []Verifier
 }
@@ -101,6 +104,16 @@ func (t *TaskTable) PlanOperation(id record.TaskID, changes ...string) {
 	}
 }
 
+// FailOperation notes that id had an operation of the given kind that ran and
+// failed. It leaves no manifest record, but the run's final document lists the
+// attempt (CONTRACT.md section 8).
+func (t *TaskTable) FailOperation(id record.TaskID, kind string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	entry := t.entryLocked(id)
+	entry.failed = append(entry.failed, kind)
+}
+
 // Plan is the Plan of a Run that only plans its work, judged against what
 // this table's planned operations would change.
 func (t *TaskTable) Plan() Plan { return Plan{table: t} }
@@ -154,7 +167,7 @@ func (t *TaskTable) Operations(id record.TaskID) []OperationRecord {
 func (t *TaskTable) Tracked(id record.TaskID) record.TaskOperations {
 	var tracked record.TaskOperations
 	for _, op := range t.Operations(id) {
-		tracked.Operations = append(tracked.Operations, record.TaskOperation{Kind: op.Kind, Executed: !op.Carried})
+		tracked.Operations = append(tracked.Operations, record.TaskOperation{Kind: op.Kind, Executed: !op.Carried, Current: true})
 		for _, b := range op.Basis {
 			tracked.Basis = append(tracked.Basis, record.TaskBasisEntry{Kind: b.Kind, Key: b.Key})
 		}
@@ -162,5 +175,18 @@ func (t *TaskTable) Tracked(id record.TaskID) record.TaskOperations {
 			tracked.Resources = append(tracked.Resources, record.TaskResource{Kind: out.Kind, Path: out.Path, Fingerprint: out.Digest})
 		}
 	}
+	for _, kind := range t.failedKinds(id) {
+		tracked.Operations = append(tracked.Operations, record.TaskOperation{Kind: kind, Executed: true})
+	}
 	return tracked
+}
+
+// failedKinds is a copy of the kinds of id's operations that ran and failed.
+func (t *TaskTable) failedKinds(id record.TaskID) []string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if entry := t.tasks[id]; entry != nil {
+		return slices.Clone(entry.failed)
+	}
+	return nil
 }

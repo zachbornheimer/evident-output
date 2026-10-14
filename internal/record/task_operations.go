@@ -17,6 +17,9 @@ type TaskOperation struct {
 	// Executed is false for an operation the manifest proved current and the
 	// Task therefore did not run again.
 	Executed bool
+	// Current is true when the operation's record holds this run's state.
+	// An operation that ran and failed left no such record.
+	Current bool
 }
 
 // TaskBasisEntry is one input identity a Task's operations observed.

@@ -201,5 +201,10 @@ func (h *engineHost) PlanOperation(id record.TaskID, changes ...string) {
 	h.freshness.PlanOperation(id, changes...)
 }
 
+// FailOperation notes that id's operation of the given kind ran and failed.
+func (h *engineHost) FailOperation(id record.TaskID, kind string) {
+	h.freshness.FailOperation(id, kind)
+}
+
 // Plan is how the Run judges an operation's freshness.
 func (h *engineHost) Plan() freshness.Plan { return h.freshness.Plan() }
