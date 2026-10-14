@@ -112,7 +112,7 @@ func runDefinition[O any](g *Graph, t *Task, d Definition[O]) error {
 	t.Rec.MarkDefineRan()
 	callbackErr := d.Callback(ctx)
 	scope.Close()
-	g.host.DefinitionFinished(t, callbackErr != nil)
+	g.host.DefinitionFinished(t, g.endedInFailure(callbackErr))
 	if callbackErr != nil {
 		return callbackOutcome(callbackErr)
 	}
@@ -190,3 +190,13 @@ func (g *Graph) recordEvidence(t *Task, phase EvidencePhase, evidence record.Evi
 // reader. The Task may already be settled; the error only carries the
 // outcome back.
 func callbackOutcome(outcome error) error { return outcome }
+
+// endedInFailure reports whether a callback's result is a failure. An Exclude or Refuse ending is an error
+// the callback returned on purpose, to decide the Task's state rather than to fail it.
+func (g *Graph) endedInFailure(callbackErr error) bool {
+	if callbackErr == nil {
+		return false
+	}
+	state, _ := g.host.Ending(callbackErr)
+	return state == record.Failed
+}

@@ -144,3 +144,51 @@ func TestValidate_ConstMismatchFails(t *testing.T) {
 		t.Fatalf("unexpected violation: %v", err)
 	}
 }
+
+// conditionalSchema binds payload to a shape only for the event type that names it.
+const conditionalSchema = `{
+  "type": "object",
+  "properties": {"type": {"type": "string"}, "payload": {"type": "object"}},
+  "allOf": [{
+    "if": {"type": "object", "properties": {"type": {"const": "done"}}, "required": ["type"]},
+    "then": {"type": "object", "properties": {"payload": {"$ref": "#/$defs/done"}}, "required": ["payload"]}
+  }],
+  "$defs": {"done": {"type": "object", "required": ["failed"], "properties": {"failed": {"type": "boolean"}}}}
+}`
+
+func TestValidate_AppliesAConditionalClauseOnlyWhenItsConditionHolds(t *testing.T) {
+	schema := []byte(conditionalSchema)
+	cases := []struct {
+		name, doc string
+		valid     bool
+	}{
+		{"matching type with a conforming payload", `{"type":"done","payload":{"failed":false}}`, true},
+		{"matching type with a mistyped payload", `{"type":"done","payload":{"failed":"no"}}`, false},
+		{"matching type without a payload", `{"type":"done"}`, false},
+		{"other type is not bound by the clause", `{"type":"other","payload":{"anything":1}}`, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := wireschema.Validate(schema, []byte(tc.doc))
+			if tc.valid && err != nil {
+				t.Fatalf("unexpected violation: %v", err)
+			}
+			if !tc.valid && err == nil {
+				t.Fatal("expected a violation")
+			}
+		})
+	}
+}
+
+func TestStrict_LeavesAConditionOpenSoItMatchesTheWholeObject(t *testing.T) {
+	strict, err := wireschema.Strict([]byte(conditionalSchema))
+	if err != nil {
+		t.Fatalf("Strict: %v", err)
+	}
+	if err := wireschema.Validate(strict, []byte(`{"type":"done","payload":{"failed":true}}`)); err != nil {
+		t.Fatalf("a conforming document fails under Strict: %v", err)
+	}
+	if err := wireschema.Validate(strict, []byte(`{"type":"done","payload":{"failed":true,"extra":1}}`)); err == nil {
+		t.Fatal("Strict accepted an undeclared payload field")
+	}
+}

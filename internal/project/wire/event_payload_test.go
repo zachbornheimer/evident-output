@@ -57,6 +57,7 @@ func TestEventPayload_EncodesAsItsDoc(t *testing.T) {
 			asJSONObject(t, VerificationDoc{Name: "n", Status: VerificationSatisfied}),
 		},
 		{"fact", fullVerificationDoc.Facts[0].EventPayload(), asJSONObject(t, fullVerificationDoc.Facts[0])},
+		{"definition finished", DefinitionFinishedPayload{Failed: true}.EventPayload(), asJSONObject(t, DefinitionFinishedPayload{Failed: true})},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

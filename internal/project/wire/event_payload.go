@@ -41,6 +41,17 @@ func (d VerificationDoc) EventPayload() map[string]any {
 	return p
 }
 
+// DefinitionFinishedPayload is a definition.finished payload: Failed is whether the callback ended in
+// failure. A callback that ended in an Exclude or Refuse decision did not fail.
+type DefinitionFinishedPayload struct {
+	Failed bool `json:"failed"`
+}
+
+// EventPayload is p as the event's payload map.
+func (p DefinitionFinishedPayload) EventPayload() map[string]any {
+	return map[string]any{"failed": p.Failed}
+}
+
 // EventPayload is d as a fact.recorded payload.
 func (d FactDoc) EventPayload() map[string]any {
 	return map[string]any{"name": d.Name, "value": d.Value}

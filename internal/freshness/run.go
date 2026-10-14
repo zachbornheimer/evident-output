@@ -166,5 +166,5 @@ func SpecBasis(inputs []string, values map[string]string, explicit []Fingerprint
 // silence is the Narration of a Run nobody reads.
 type silence struct{}
 
-func (silence) BasisJudged(record.TaskID, BasisJudgement)            {}
-func (silence) VerifierObserved(record.TaskID, int, VerifierOutcome) {}
+func (silence) BasisJudged(record.TaskID, BasisJudgement)       {}
+func (silence) VerifierObserved(record.TaskID, VerifierOutcome) {}

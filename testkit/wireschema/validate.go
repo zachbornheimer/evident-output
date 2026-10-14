@@ -5,7 +5,8 @@
 //
 // It implements only the subset of JSON Schema (draft 2020-12) the wire
 // schema actually uses: object/array/string/integer/boolean, required,
-// properties, items, const, and $ref into $defs. That is a deliberate
+// properties, items, const, $ref into $defs, and allOf of if/then clauses
+// (how the evo.event schema binds each documented payload to its event type). That is a deliberate
 // boundary, not a shortcut — evo owns its own schema and controls what it
 // writes into it, so a full general-purpose validator is a dependency this
 // package doesn't need.
@@ -54,7 +55,10 @@ func injectAdditionalPropertiesFalse(node any) {
 		if _, hasProps := v["properties"]; hasProps {
 			v["additionalProperties"] = false
 		}
-		for _, child := range v {
+		for key, child := range v {
+			if key == "if" || key == "then" {
+				continue // a condition and its consequence describe part of an object, not all of it
+			}
 			injectAdditionalPropertiesFalse(child)
 		}
 	case []any:
@@ -108,6 +112,7 @@ func (v *validator) check(path string, schema map[string]any, value any) {
 		}
 		schema = resolved
 	}
+	v.checkConditions(path, schema, value)
 	if want, ok := schema["const"]; ok {
 		if fmt.Sprint(value) != fmt.Sprint(want) {
 			v.fail(path, "const mismatch: got %v, want %v", value, want)
@@ -139,6 +144,27 @@ func (v *validator) check(path string, schema map[string]any, value any) {
 	case "boolean":
 		if _, ok := value.(bool); !ok {
 			v.fail(path, "want boolean, got %T", value)
+		}
+	}
+}
+
+// checkConditions applies schema's allOf clauses: each clause's "then" binds value only when its "if" holds.
+func (v *validator) checkConditions(path string, schema map[string]any, value any) {
+	clauses, _ := schema["allOf"].([]any)
+	for _, raw := range clauses {
+		clause, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		condition, _ := clause["if"].(map[string]any)
+		consequence, _ := clause["then"].(map[string]any)
+		if condition == nil || consequence == nil {
+			continue
+		}
+		probe := &validator{defs: v.defs}
+		probe.check(path, condition, value)
+		if len(probe.errs) == 0 {
+			v.check(path, consequence, value)
 		}
 	}
 }

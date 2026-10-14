@@ -29,12 +29,48 @@ func EventJSONSchema() []byte {
 		"object":         map[string]any{"const": EventObject},
 		"schema_version": map[string]any{"const": EventSchemaVersion},
 		"seq":            map[string]any{"type": "integer", "minimum": 1},
-	})
+	}, documentedPayloads)
 }
 
-func generateSchema(id, title string, root reflect.Type, overrides map[string]any) []byte {
+// documentedPayloads are the event types whose payload the schema binds, and the wire type each payload is.
+var documentedPayloads = []payloadSchema{
+	{EventDefinitionFinished, reflect.TypeFor[DefinitionFinishedPayload]()},
+	{EventVerificationObserved, reflect.TypeFor[VerificationDoc]()},
+}
+
+// payloadSchema binds the payload of one event type to the wire type that describes it.
+type payloadSchema struct {
+	event   string
+	payload reflect.Type
+}
+
+// conditions is the schema's allOf: one "when the type is this event, the payload is this shape" clause per
+// documented payload. The payload shape is a $defs entry, so a strict reading rejects an undeclared field.
+func (g *schemaGen) conditions(payloads []payloadSchema) []any {
+	clauses := make([]any, 0, len(payloads))
+	for _, p := range payloads {
+		clauses = append(clauses, map[string]any{
+			"if": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"type": map[string]any{"const": p.event}},
+				"required":   []string{"type"},
+			},
+			"then": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"payload": g.property(p.payload)},
+				"required":   []string{"payload"},
+			},
+		})
+	}
+	return clauses
+}
+
+func generateSchema(id, title string, root reflect.Type, overrides map[string]any, payloads ...[]payloadSchema) []byte {
 	g := &schemaGen{defs: map[string]any{}}
 	schema := g.objectOf(root, overrides)
+	for _, documented := range payloads {
+		schema["allOf"] = g.conditions(documented)
+	}
 	schema["$schema"] = jsonSchemaDraft
 	schema["$id"] = id
 	schema["title"] = title

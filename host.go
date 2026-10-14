@@ -1,8 +1,6 @@
 package evo
 
 import (
-	"fmt"
-
 	"github.com/zachbornheimer/evident-output/v2/internal/change"
 	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
 	"github.com/zachbornheimer/evident-output/v2/internal/fs"
@@ -113,6 +111,14 @@ func (e runHost) VerificationRecorded(task record.TaskID, details []record.Verif
 	for _, d := range details {
 		o.emitWireEventLocked(wire.EventVerificationObserved, string(task), wire.ToVerificationDoc(d).EventPayload())
 	}
+}
+
+// taskNameLocked is the name of the Task id, empty for an id the Run holds no Task for. Callers hold o.mu.
+func (o *Run) taskNameLocked(id record.TaskID) string {
+	if st := o.taskStates[string(id)]; st != nil {
+		return st.name
+	}
+	return ""
 }
 
 // stateOf is the render state of the graph's Task t. Callers hold o.mu.
@@ -275,7 +281,7 @@ func (e runHost) DefinitionStarted(t *graph.Task) {
 
 func (e runHost) DefinitionFinished(t *graph.Task, failed bool) {
 	e.narrate(wire.EventDefinitionFinished, t.ID, func() map[string]any {
-		return map[string]any{"failed": failed}
+		return wire.DefinitionFinishedPayload{Failed: failed}.EventPayload()
 	})
 }
 
@@ -300,8 +306,8 @@ func (e runHost) BasisJudged(id record.TaskID, judgement freshness.BasisJudgemen
 	})
 }
 
-// VerifierObserved narrates one Verify check's outcome (spec §38), named by registration order.
-func (e runHost) VerifierObserved(id record.TaskID, index int, outcome freshness.VerifierOutcome) {
+// VerifierObserved narrates one Verify check's outcome (spec §38), named for the Task it verifies.
+func (e runHost) VerifierObserved(id record.TaskID, outcome freshness.VerifierOutcome) {
 	e.narrate(wire.EventVerificationObserved, string(id), func() map[string]any {
 		status := wire.VerificationUnsatisfied
 		switch outcome {
@@ -310,7 +316,7 @@ func (e runHost) VerifierObserved(id record.TaskID, index int, outcome freshness
 		case freshness.VerifierSatisfied:
 			status = wire.VerificationSatisfied
 		}
-		return wire.VerificationDoc{Name: fmt.Sprintf("verify_%d", index), Status: status}.EventPayload()
+		return wire.VerificationDoc{Name: e.out.taskNameLocked(id), Status: status}.EventPayload()
 	})
 }
 

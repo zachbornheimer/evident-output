@@ -1,6 +1,105 @@
 {
+  "$defs": {
+    "definitionFinishedPayload": {
+      "properties": {
+        "failed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "failed"
+      ],
+      "type": "object"
+    },
+    "fact": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "type": "object"
+    },
+    "verification": {
+      "properties": {
+        "facts": {
+          "items": {
+            "$ref": "#/$defs/fact"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "status"
+      ],
+      "type": "object"
+    }
+  },
   "$id": "https://evident-output.dev/schema/v2/event.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "definition.finished"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/definitionFinishedPayload"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "verification.observed"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/verification"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    }
+  ],
   "properties": {
     "at": {
       "type": "string"

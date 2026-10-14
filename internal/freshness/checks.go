@@ -15,9 +15,8 @@ import (
 type Narration interface {
 	// BasisJudged reports the verdict on a Task's declared Basis.
 	BasisJudged(id record.TaskID, judgement BasisJudgement)
-	// VerifierObserved reports how one Verify check ended, by its
-	// registration order.
-	VerifierObserved(id record.TaskID, index int, outcome VerifierOutcome)
+	// VerifierObserved reports how one Verify check of the Task ended.
+	VerifierObserved(id record.TaskID, outcome VerifierOutcome)
 }
 
 // taskChecks are graph.Checks for one Task.
@@ -49,8 +48,8 @@ func (c taskChecks) Verify(ctx context.Context) (evaluated, satisfied bool, err 
 	if len(c.verifiers) == 0 {
 		return false, false, nil
 	}
-	satisfied, err = EvaluateVerifiers(ctx, c.verifiers, func(index int, outcome VerifierOutcome) {
-		c.run.narration.VerifierObserved(c.id, index, outcome)
+	satisfied, err = EvaluateVerifiers(ctx, c.verifiers, func(_ int, outcome VerifierOutcome) {
+		c.run.narration.VerifierObserved(c.id, outcome)
 	})
 	return true, satisfied, err
 }
