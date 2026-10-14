@@ -40,9 +40,11 @@ type Stream struct {
 	// for their membership to close before they stream (see block.go).
 	blocks  map[string]*block
 	waiting []*block
-	// settledBlocks counts the root blocks that settled, so each takes the
-	// next place (block.settled).
-	settledBlocks int
+	// places counts the places handed out in the order rows became durable
+	// in Plain: a root row takes the next one when it settles, a root block
+	// when its last Task resolves or its grace passes with Tasks open
+	// (block.place). placedBlocks counts those the blocks took.
+	places, placedBlocks int
 	// held are the root rows waiting on a block they ran After (see
 	// block_stream.go).
 	held []*row
@@ -151,6 +153,9 @@ type row struct {
 	// counted is set once its settling was taken off the block's open count.
 	block   *block
 	counted bool
+	// place is the one a root Task took when it first settled (Stream.places),
+	// 0 before.
+	place int
 	// held is set while a root row waits on an open block to close.
 	held bool
 }

@@ -6,7 +6,8 @@ Two scenarios, both bounded by --max-gap-ms (default 100):
 - default: a quiet Writer-backed Task (examples/quiet-writer), checked as below;
 - --tasks N: one Group of N trivial Tasks (examples/many-tasks); after the first
   frame, no gap between changed frames may reach the bound, and every gap over
-  it is printed.
+  it is printed. With --late-root a free root Task also settles after the Group,
+  so --compare-plain checks a root row and a root collection in durable order.
 
 Builds the example and runs it under a real pty (no tmux). The reader
 timestamps every read of the pty master with a monotonic clock, rebuilds the
@@ -63,6 +64,7 @@ DEFAULT_MAX_GAP_MS = 100.0
 MIN_QUIET_CHANGES = 6
 MIN_MANY_CHANGES = 6
 MANY_HOLD_MS = 5
+LATE_ROOT_MS = 300
 ATTEMPTS = 3
 QUIET_TIMEOUT_S = 10
 MANY_TIMEOUT_S = 60
@@ -270,17 +272,15 @@ def verify_many(frames: list[stream.Frame], max_gap_ms: float) -> dict[str, floa
     return {"max_gap_ms": round(max_gap, 1), "changed_frames": len(changes)}
 
 
-def scenario_for(tasks: int | None) -> Scenario:
+def scenario_for(tasks: int | None, late_root: bool = False) -> Scenario:
     if tasks is None:
         return Scenario(
             QUIET_EXAMPLE, (f"--quiet={QUIET_MS}ms",), QUIET_TIMEOUT_S, verify_quiet
         )
-    return Scenario(
-        MANY_EXAMPLE,
-        (f"--tasks={tasks}", f"--hold={MANY_HOLD_MS}ms"),
-        MANY_TIMEOUT_S,
-        verify_many,
-    )
+    args = (f"--tasks={tasks}", f"--hold={MANY_HOLD_MS}ms")
+    if late_root:
+        args += (f"--late={LATE_ROOT_MS}ms",)
+    return Scenario(MANY_EXAMPLE, args, MANY_TIMEOUT_S, verify_many)
 
 
 def attempt(
@@ -320,12 +320,17 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="also require monotonic frames and a final screen equal to the Plain run",
     )
+    parser.add_argument(
+        "--late-root",
+        action="store_true",
+        help="with --tasks, also run a free root Task that settles after the Group",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    scenario = scenario_for(args.tasks)
+    scenario = scenario_for(args.tasks, args.late_root)
     last_unprovable = ""
     with tempfile.TemporaryDirectory(prefix="verify-pty-stream-bin-") as workdir:
         try:

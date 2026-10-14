@@ -1,6 +1,8 @@
 package plain
 
 import (
+	"cmp"
+	"math"
 	"slices"
 	"strings"
 
@@ -61,11 +63,12 @@ func (s *Stream) compose(snap record.Snapshot, linesFrom int, entities bool) str
 }
 
 // writeEntities writes the rows Finish still owes in the one order every
-// human destination shows: the root rows that wait on no collection, every
-// collection as it settled, the rows held for a collection in the order they
-// were released, then the rows that ran After a collection without ever
-// being held (a NotStarted dependent). A row never lands above the
-// collection that explains it (project.HumanProjection decides what shows).
+// human destination shows: the root rows that wait on no collection and every
+// collection in the order they became durable in Plain, the rows held for a
+// collection in the order they were released, then the rows that ran After a
+// collection without ever being held (a NotStarted dependent). A row never
+// lands above the collection that explains it (project.HumanProjection
+// decides what shows).
 func (s *Stream) writeEntities(b *strings.Builder, snap record.Snapshot) {
 	human := project.HumanProjection(snap, s.cfg.Style.Verbose)
 	shown := make(map[string]bool, len(human.Tasks))
@@ -82,13 +85,16 @@ func (s *Stream) writeEntities(b *strings.Builder, snap record.Snapshot) {
 			free = append(free, r)
 		}
 	}
-	s.writeRoots(b, shown, free)
-	for _, col := range slices.SortedStableFunc(slices.Values(human.Collections), s.bySettlement) {
-		switch blk := s.blocks[col.ID]; {
+	for _, e := range s.durableOrder(free, human.Collections) {
+		if e.row != nil {
+			s.writeRoots(b, shown, []*row{e.row})
+			continue
+		}
+		switch blk := s.blocks[e.col.ID]; {
 		case blk != nil && blk.mode == modeStream:
-			s.finishStreamed(b, blk, col)
-		case !s.blockStreamed(col.ID):
-			WriteCollection(b, col, s.cfg.Style)
+			s.finishStreamed(b, blk, e.col)
+		case !s.blockStreamed(e.col.ID):
+			WriteCollection(b, e.col, s.cfg.Style)
 		}
 	}
 	s.writeRoots(b, shown, s.held)
@@ -164,4 +170,40 @@ func (s *Stream) ledgerSources(tense record.LedgerTense, streaming string) []pro
 		}
 	}
 	return sources
+}
+
+// entity is one thing Finish writes at its place in the order rows became
+// durable: a root row, or a collection.
+type entity struct {
+	place int
+	row   *row
+	col   record.TasksSnapshot
+}
+
+// durableOrder is free and cols in the order they became durable in Plain: a
+// root row when it settled, a collection when it settled (inside its grace,
+// written whole) or began to stream. Those that never did follow, the rows
+// first, each in declaration order.
+func (s *Stream) durableOrder(free []*row, cols []record.TasksSnapshot) []entity {
+	var all []entity
+	for _, r := range free {
+		all = append(all, entity{place: r.place, row: r})
+	}
+	for _, col := range cols {
+		e := entity{col: col}
+		if blk := s.blocks[col.ID]; blk != nil {
+			e.place = blk.place
+		}
+		all = append(all, e)
+	}
+	slices.SortStableFunc(all, func(a, b entity) int { return cmp.Compare(a.placeKey(), b.placeKey()) })
+	return all
+}
+
+// placeKey is the place, with the unplaced after every placed one.
+func (e entity) placeKey() int {
+	if e.place == 0 {
+		return math.MaxInt
+	}
+	return e.place
 }

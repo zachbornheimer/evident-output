@@ -169,6 +169,19 @@ class FinalMatchesPlainTest(unittest.TestCase):
         with self.assertRaisesRegex(truth.TruthError, r"row 1.*depdep.*chain"):
             truth.check_final_matches_plain(screen, 0, plain, 0)
 
+    def test_rejects_a_free_root_row_above_a_collection_plain_wrote_first(self) -> None:
+        plain = ("✓ fast group", "   ✓ f1", "   ✓ f2", "✓ slow task")
+        screen = frame("✓ slow task", "✓ fast group", "   ✓ f1", "   ✓ f2")
+        with self.assertRaisesRegex(truth.TruthError, r"row 0.*slow task.*fast group"):
+            truth.check_final_matches_plain(screen, 0, plain, 0)
+
+    def test_accepts_a_free_root_row_after_a_streamed_block_in_durable_order(
+        self,
+    ) -> None:
+        plain = ("◐ units", "   ✓ unit 2", "   ✓ unit 1", "✓ units", "✓ late task")
+        screen = frame("✓ units", "   ✓ unit 1", "   ✓ unit 2", "✓ late task")
+        truth.check_final_matches_plain(screen, 0, plain, 0)
+
     def test_a_heartbeat_is_not_a_block(self) -> None:
         plain = ("◐ build  compiling", "✓ build")
         truth.check_final_matches_plain(frame("✓ build"), 0, plain, 0)

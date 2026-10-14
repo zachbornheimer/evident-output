@@ -31,9 +31,7 @@ const streamGrace = 500 * time.Millisecond
 // first member settles.
 func (s *Stream) decide(root *block) {
 	root.mode = modeAtomic
-	snap := s.cfg.Source.RootLevel(root.id)
-	col, ok := collectionOf(project.SnapshotAtVerbosity(snap, s.cfg.Style.Verbose), root.id)
-	if !ok || project.MayHideRows(col, s.cfg.Run.HasLedgerSection) || !rowsAreFinal(col) {
+	if !s.streamable(root) {
 		return
 	}
 	root.mode = modeBuffered
@@ -49,6 +47,15 @@ func (s *Stream) decide(root *block) {
 			s.beginStream(root)
 		}
 	})
+}
+
+// streamable reports that root's rows are the rows it ends as, so they may
+// be written one at a time: nothing may hide, collapse into a tally or fold
+// into a single row.
+func (s *Stream) streamable(root *block) bool {
+	snap := s.cfg.Source.RootLevel(root.id)
+	col, ok := collectionOf(project.SnapshotAtVerbosity(snap, s.cfg.Style.Verbose), root.id)
+	return ok && !project.MayHideRows(col, s.cfg.Run.HasLedgerSection) && rowsAreFinal(col)
 }
 
 // endGrace takes root out of its grace into mode, for a block that settled
@@ -72,6 +79,7 @@ func (s *Stream) beginStream(root *block) {
 		return
 	}
 	root.mode, root.stop = modeStream, nil
+	s.begin(root)
 	s.enqueue(root)
 	var out strings.Builder
 	for _, r := range root.pending {

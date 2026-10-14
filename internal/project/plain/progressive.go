@@ -161,6 +161,7 @@ func (s *Stream) Commit(id record.TaskID) {
 	if !record.IsTerminalTask(r.Rec.State()) || (r.emitted && r.emittedAs == r.Rec.State()) {
 		return
 	}
+	s.takeRowPlace(r)
 	s.CommitSettledBlocks()
 	if !r.ownsWindow && s.mustWait(r) {
 		if !r.held {
@@ -169,7 +170,19 @@ func (s *Stream) Commit(id record.TaskID) {
 		}
 		return
 	}
+	if s.followsPlacedBlock(r) {
+		return
+	}
 	s.writeRoot(r)
+}
+
+// followsPlacedBlock reports that r settled after a collection took its place
+// in the order rows became durable, on a terminal that keeps collections in
+// its region until Finish. Writing r now would put it above a collection
+// Plain wrote before it, so it stays in the region as a settled row and
+// Finish writes both in that order. r.place is what Finish sorts by.
+func (s *Stream) followsPlacedBlock(r *row) bool {
+	return s.cfg.Region.Interactive() && !r.ownsWindow && s.placedBlocks > 0
 }
 
 // writeRoot writes the resolved root row r now, unless it is a row Finish

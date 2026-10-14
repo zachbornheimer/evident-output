@@ -189,3 +189,76 @@ func TestHumanFinalScreenOrderMatchesPlain(t *testing.T) {
 		})
 	}
 }
+
+// declareRootGroupBeforeSlowTask is one program for both renderers on the real
+// clock: a root Group that settles at once (its rows write whole inside the
+// grace), then a free root Task that settles 300 ms later.
+func declareRootGroupBeforeSlowTask(out *Run) {
+	g := out.Group("fast group")
+	g.Task("f1").Define(pause(0))
+	g.Task("f2").Define(pause(0))
+	out.Task("slow task").Define(pause(300 * time.Millisecond))
+}
+
+// declareFreeTaskBetweenGroups is one program for both renderers on the real
+// clock: a free Task that settles at once, a Group that settles after it, and
+// a free Task that settles after the Group.
+func declareFreeTaskBetweenGroups(out *Run) {
+	out.Task("early").Define(pause(0))
+	g := out.Group("middle")
+	g.Task("m1").Define(pause(100 * time.Millisecond))
+	out.Task("late").Define(pause(300 * time.Millisecond))
+}
+
+// declareStreamedBlockBeforeSlowTask is one program for both renderers on the
+// real clock: a Group that outlasts the grace and settles at 700 ms, then a
+// free Task that settles at 1 s. Plain wrote the block's header at 500 ms.
+func declareStreamedBlockBeforeSlowTask(out *Run) {
+	g := out.Group("pkg")
+	g.Task("p1").Define(pause(700 * time.Millisecond))
+	out.Task("late").Define(pause(time.Second))
+}
+
+// TestHumanFinalScreenMatchesPlainDurableOrder pins that a free root row and a
+// root collection appear on the Human final screen in the order they became
+// durable in Plain, whichever of them settled first. The terminal keeps
+// collections in its region until Finish, so a row that settles after one waits
+// there and Finish writes both in that order, instead of the row printing above
+// the collection Plain wrote before it.
+func TestHumanFinalScreenMatchesPlainDurableOrder(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		declare func(*Run)
+		order   []string // the root rows, top to bottom
+	}{
+		{"a free Task settling after a Group that settled at once", declareRootGroupBeforeSlowTask, []string{"0fast group", "0slow task"}},
+		{"a Group between two free Tasks", declareFreeTaskBetweenGroups, []string{"0early", "0middle", "0late"}},
+		{"a Group that streamed in Plain before a later free Task", declareStreamedBlockBeforeSlowTask, []string{"0pkg", "0late"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			plain, _ := runPlain(t, Config{}, c.declare)
+
+			screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
+			out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}},
+				tuning{visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000})
+			c.declare(out)
+			_ = out.close()
+
+			streamed := streamedContainers(plain)
+			want, got := orderedRows(plain, streamed), orderedRows(screen.PersistedText(), streamed)
+			if !slices.Equal(got, want) {
+				t.Fatalf("Human final screen rows are ordered %q, Plain writes %q\n--- human ---\n%s\n--- plain ---\n%s",
+					got, want, screen.PersistedText(), plain)
+			}
+			var roots []string
+			for _, row := range got {
+				if strings.HasPrefix(row, "0") {
+					roots = append(roots, row)
+				}
+			}
+			if !slices.Equal(roots, c.order) {
+				t.Fatalf("root rows are ordered %q, want %q", roots, c.order)
+			}
+		})
+	}
+}

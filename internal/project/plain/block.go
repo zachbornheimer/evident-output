@@ -1,10 +1,9 @@
 package plain
 
 import (
-	"cmp"
-	"math"
 	"strings"
 
+	"github.com/zachbornheimer/evident-output/v2/internal/clock"
 	"github.com/zachbornheimer/evident-output/v2/internal/project"
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
@@ -84,11 +83,16 @@ type block struct {
 	dirty, queued bool
 	// written is set once an atomic block reached scrollback.
 	written bool
-	// settled, on a root block, is the place it took among the root blocks
-	// when its last Task resolved, counting from 1; 0 while any Task at or
-	// beneath it is unresolved. The final output lists root blocks in this
-	// order.
-	settled int
+	// place, on a root block, is where it stands in the order rows became
+	// durable in Plain, counting from 1 (Stream.places): taken when its last
+	// Task resolved, or when its grace passed with Tasks still open and it
+	// began to stream. 0 before either. The final output lists root rows and
+	// blocks in this order.
+	place int
+	// begun is set once the grace passed with Tasks open, so the place holds
+	// when more Tasks are declared into the block; graced once a live
+	// terminal armed that grace.
+	begun, graced bool
 }
 
 // DeclareGroup keeps a block for g.
@@ -109,7 +113,9 @@ func (s *Stream) enter(r *row) {
 	}
 	r.block = b
 	b.root.rows = append(b.root.rows, r)
-	b.root.settled = 0
+	if !b.root.begun {
+		b.root.place = 0
+	}
 	for ; b != nil; b = b.parent {
 		b.open++
 	}
@@ -131,6 +137,7 @@ func (s *Stream) commitMember(r *row) {
 		s.markSettled(r.block.root)
 	}
 	if s.cfg.Region.Interactive() {
+		s.beginGrace(r.block.root)
 		return
 	}
 	if r.emitted && r.emittedAs == state {
@@ -152,27 +159,64 @@ func (s *Stream) commitMember(r *row) {
 	s.CommitSettledBlocks()
 }
 
-// markSettled gives the root block its place among the root blocks, when no
-// Task at or beneath it is unresolved.
+// markSettled gives the root block its place among the rows that became
+// durable, when no Task at or beneath it is unresolved. A block that began
+// streaming took its place already.
 func (s *Stream) markSettled(root *block) {
 	if root.open > 0 {
 		return
 	}
-	s.settledBlocks++
-	root.settled = s.settledBlocks
+	s.takePlace(root)
 }
 
-// bySettlement orders root blocks as they settled: the settled ones by their
-// place, then the unsettled ones, which compare equal and so keep the
-// declaration order a stable sort leaves them in.
-func (s *Stream) bySettlement(a, b record.TasksSnapshot) int {
-	place := func(col record.TasksSnapshot) int {
-		if blk := s.blocks[col.ID]; blk != nil && blk.settled > 0 {
-			return blk.settled
-		}
-		return math.MaxInt
+// takePlace gives root the next place, once.
+func (s *Stream) takePlace(root *block) {
+	if root.place > 0 {
+		return
 	}
-	return cmp.Compare(place(a), place(b))
+	s.places++
+	s.placedBlocks++
+	root.place = s.places
+}
+
+// takeRowPlace gives the root row r the next place when it first settles.
+func (s *Stream) takeRowPlace(r *row) {
+	if r.place > 0 {
+		return
+	}
+	s.places++
+	r.place = s.places
+}
+
+// beginGrace arms, on a live terminal, the grace after which root would begin
+// to stream in Plain, so its place in the order is the one Plain writes it at.
+// The terminal writes the block at Finish; only its place is taken here.
+func (s *Stream) beginGrace(root *block) {
+	if root.graced || root.place > 0 {
+		return
+	}
+	root.graced = true
+	if !s.streamable(root) {
+		return
+	}
+	sched, ok := s.cfg.Clock.(clock.Scheduler)
+	if !ok {
+		s.begin(root)
+		return
+	}
+	root.stop = sched.AfterFunc(streamGrace, func() {
+		s.cfg.Lock.Lock()
+		defer s.cfg.Lock.Unlock()
+		if !s.cfg.Scene.Ended() && root.open > 0 && root.place == 0 {
+			s.begin(root)
+		}
+	})
+}
+
+// begin marks root as begun to stream and takes its place.
+func (s *Stream) begin(root *block) {
+	root.begun = true
+	s.takePlace(root)
 }
 
 // queue holds an atomic b until its membership closes, once it has nothing
