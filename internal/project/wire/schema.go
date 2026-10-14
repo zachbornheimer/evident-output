@@ -107,6 +107,9 @@ func (g *schemaGen) objectOf(t reflect.Type, overrides map[string]any) map[strin
 		}
 		if !omitempty {
 			required = append(required, name)
+			if field.Type.Kind() == reflect.Pointer {
+				props[name] = orNull(props[name])
+			}
 		}
 	}
 	schema := map[string]any{"type": "object", "properties": props}
@@ -114,6 +117,20 @@ func (g *schemaGen) objectOf(t reflect.Type, overrides map[string]any) map[strin
 		schema["required"] = required
 	}
 	return schema
+}
+
+// orNull widens schema to also accept JSON null: the encoder writes a nil pointer that has no omitempty as
+// null, so the schema must say so for a stock validator to accept the document.
+func orNull(schema any) any {
+	described, ok := schema.(map[string]any)
+	if !ok {
+		return schema
+	}
+	if name, isType := described["type"].(string); isType {
+		described["type"] = []string{name, "null"}
+		return described
+	}
+	return map[string]any{"anyOf": []any{described, map[string]any{"type": "null"}}}
 }
 
 func (g *schemaGen) property(t reflect.Type) any {

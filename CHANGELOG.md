@@ -135,6 +135,14 @@ spelling to its 2.0 replacement.
 
 ### Fixed
 
+- `schema/run.v3.json` accepts every real `evo.run` document under a stock
+  draft 2020-12 validator. `task.activity` and `task.progress` are emitted as
+  `null` when a Task has neither, but the schema declared them non-null;
+  they are now `["string", "null"]` and `anyOf [progress, null]`. The
+  documents are unchanged and `schema_version` stays `3.0`: the schema only
+  widened to describe what was always written. The repo's own validator no
+  longer treats `null` as matching any type, so the schema tests enforce what
+  ajv or Python `jsonschema` enforce.
 - A dry run judges each File and Exec in a Task against that operation's own
   record, as the real run does. A Task with several tracked operations
   planned the second one as `definition_changed` after a real run left it

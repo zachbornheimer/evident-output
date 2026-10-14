@@ -327,7 +327,10 @@
     "task": {
       "properties": {
         "activity": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "basis": {
           "items": {
@@ -381,7 +384,14 @@
           "type": "array"
         },
         "progress": {
-          "$ref": "#/$defs/progress"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/progress"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "state": {
           "type": "string"

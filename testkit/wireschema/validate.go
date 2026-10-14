@@ -4,9 +4,10 @@
 // nothing references that file — make it a gate").
 //
 // It implements only the subset of JSON Schema (draft 2020-12) the wire
-// schema actually uses: object/array/string/integer/boolean, required,
-// properties, items, const, $ref into $defs, and allOf of if/then clauses
-// (how the evo.event schema binds each documented payload to its event type). That is a deliberate
+// schema actually uses, with standard semantics for it: type (one name or a
+// list; JSON null matches only "null"), required, properties, items, const,
+// enum, minimum, anyOf, $ref into $defs, and allOf of if/then clauses (how the
+// evo.event schema binds each documented payload to its event type). That is a deliberate
 // boundary, not a shortcut — evo owns its own schema and controls what it
 // writes into it, so a full general-purpose validator is a dependency this
 // package doesn't need.
@@ -114,38 +115,13 @@ func (v *validator) check(path string, schema map[string]any, value any) {
 	}
 	v.checkConditions(path, schema, value)
 	if want, ok := schema["const"]; ok {
-		if fmt.Sprint(value) != fmt.Sprint(want) {
+		if !sameJSON(value, want) {
 			v.fail(path, "const mismatch: got %v, want %v", value, want)
 		}
-		return
 	}
-	// A present-but-JSON-null field satisfies any type (v2's nullable
-	// task.progress/task.activity: "required" means the key must be
-	// present, not that its value is never null — see spec §36's example
-	// document, where "progress": null and "activity": null are the normal
-	// shape for a task that never modeled either).
-	if value == nil {
-		return
-	}
-	wantType, _ := schema["type"].(string)
-	switch wantType {
-	case "object":
-		v.checkObject(path, schema, value)
-	case "array":
-		v.checkArray(path, schema, value)
-	case "string":
-		if _, ok := value.(string); !ok {
-			v.fail(path, "want string, got %T", value)
-		}
-	case "integer":
-		if !isJSONInteger(value) {
-			v.fail(path, "want integer, got %v (%T)", value, value)
-		}
-	case "boolean":
-		if _, ok := value.(bool); !ok {
-			v.fail(path, "want boolean, got %T", value)
-		}
-	}
+	v.checkAnyOf(path, schema, value)
+	v.checkEnum(path, schema, value)
+	v.checkType(path, schema, value)
 }
 
 // checkConditions applies schema's allOf clauses: each clause's "then" binds value only when its "if" holds.
@@ -255,13 +231,4 @@ func stringSlice(v any) []string {
 		}
 	}
 	return out
-}
-
-// isJSONInteger reports whether a decoded encoding/json float64 holds a
-// whole number — JSON has no separate integer type, so this is the
-// faithful way to check "integer" against a value that was always
-// unmarshaled as float64.
-func isJSONInteger(value any) bool {
-	f, ok := value.(float64)
-	return ok && f == float64(int64(f))
 }
