@@ -48,15 +48,22 @@ func (c *outputClash) Error() string { return c.path }
 // claimOutput records that id is the producing Task for canonical path. When
 // a different Task already claimed it in this Run, both Tasks fail (spec
 // §8.3/§11.4): this call returns the conflict, and the owner's File call
-// returns it too if it has not settled. It opens path's freshness gate, so a
-// later Task reading path as a Basis input waits for the producer.
+// returns it too if it has not settled. A won claim opens path's freshness
+// gate, so a later Task reading path as a Basis input waits for the producer.
 func (r *Run) claimOutput(id record.TaskID, path string) error {
 	r.outputsMu.Lock()
 	err := r.claimOutputLocked(id, path)
 	r.outputsMu.Unlock()
-	return r.reportClash(id, err)
+	if err != nil {
+		return r.reportClash(id, err)
+	}
+	r.barrier.Open(path)
+	return nil
 }
 
+// claimOutputLocked records id as path's producer, or returns the clash. It
+// opens no gate: a gate call takes graph.mu and can deliver record listeners
+// that take the run's lock, so it runs only once outputsMu is released.
 func (r *Run) claimOutputLocked(id record.TaskID, path string) error {
 	if r.outputs == nil {
 		r.outputs = make(map[string]record.TaskID)
@@ -65,7 +72,6 @@ func (r *Run) claimOutputLocked(id record.TaskID, path string) error {
 		return &outputClash{path: path, owner: owner}
 	}
 	r.outputs[path] = id
-	r.barrier.Open(path)
 	return nil
 }
 

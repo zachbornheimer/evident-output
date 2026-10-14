@@ -22,7 +22,8 @@ const workspaceFallback = "."
 //
 // Its mutexes sit between the engine's and the graph's in the lock order
 // (o.mu, then these, then graph.mu): none is held across a call into the
-// Host, and outputsMu is held while the graph opens or settles a gate.
+// Host or into the graph's gates, since a gate's unlock can deliver record
+// listeners that take o.mu.
 type Run struct {
 	host  Host
 	graph *graph.Graph

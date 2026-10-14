@@ -89,28 +89,33 @@ func resolveExecOutputs(dir string, outputs []string) []string {
 }
 
 // claimExecOutputs claims every one of outputs for id (spec §8.3/§11.4: two
-// operations claiming one canonical output conflict), unwinding any
-// already-claimed-by-this-call outputs before returning the conflict so a
-// partially claimed ExecSpec never leaves other outputs' barriers dangling
-// open. The returned release func settles every claimed output's barrier
-// exactly once and must be deferred by the caller.
+// operations claiming one canonical output conflict). Gates open only once
+// every claim is won, after outputsMu is released, so a partially claimed
+// ExecSpec never leaves a gate open. The returned release func settles every
+// claimed output's gate exactly once and must be deferred by the caller.
 func (r *Run) claimExecOutputs(id record.TaskID, outputs []string) (release func(), err error) {
-	r.outputsMu.Lock()
-	claimed := make([]string, 0, len(outputs))
-	for _, out := range outputs {
-		if claimErr := r.claimOutputLocked(id, out); claimErr != nil {
-			for _, done := range claimed {
-				r.barrier.Settle(done)
-			}
-			r.outputsMu.Unlock()
-			return nil, r.reportClash(id, claimErr)
-		}
-		claimed = append(claimed, out)
+	if err := r.claimAll(id, outputs); err != nil {
+		return nil, r.reportClash(id, err)
 	}
-	r.outputsMu.Unlock()
+	for _, out := range outputs {
+		r.barrier.Open(out)
+	}
 	return func() {
-		for _, out := range claimed {
+		for _, out := range outputs {
 			r.barrier.Settle(out)
 		}
 	}, nil
+}
+
+// claimAll records id as the producer of every one of outputs, stopping at
+// the first clash.
+func (r *Run) claimAll(id record.TaskID, outputs []string) error {
+	r.outputsMu.Lock()
+	defer r.outputsMu.Unlock()
+	for _, out := range outputs {
+		if err := r.claimOutputLocked(id, out); err != nil {
+			return err
+		}
+	}
+	return nil
 }
