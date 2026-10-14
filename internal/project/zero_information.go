@@ -148,6 +148,34 @@ func collectionsWithoutTasks(cols []record.TasksSnapshot, hidden map[string]bool
 	return out
 }
 
+// MayHideRows reports whether human output could hide a row of the root
+// collection col once the whole run is known: some Task in it is one the
+// zero-information rule admits where it sits (see the rule above) and no
+// [changed]/[planned] section is named for it (ledgered). Whether the row is
+// hidden then turns on the rest of the run, so a durable stream that cannot
+// yet know the rest must leave col's rows to Finish.
+func MayHideRows(col record.TasksSnapshot, ledgered func(taskID string) bool) bool {
+	return mayHideIn(col, hideProvenNoOp, ledgered)
+}
+
+func mayHideIn(col record.TasksSnapshot, parent hideScope, ledgered func(string) bool) bool {
+	scope := hideAnyNoOp
+	if col.Sequential || parent == hideNothing {
+		scope = hideNothing
+	}
+	for _, t := range col.Tasks {
+		if scope.admits(t) && !ledgered(t.ID) {
+			return true
+		}
+	}
+	for _, child := range col.Collections {
+		if mayHideIn(child, scope, ledgered) {
+			return true
+		}
+	}
+	return false
+}
+
 // HumanProjection is s as a human reader should see it at this verbosity:
 // hidden Facts dropped (SnapshotAtVerbosity), zero-information Tasks
 // removed, and a header-less Group's colliding row names qualified by

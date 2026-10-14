@@ -221,15 +221,18 @@ func TestScenario_Stress(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Ordering follows settlement, collections as whole blocks: the Group is
+	// open to new members until the drain begins, so it writes then, as one
+	// block ahead of the agent row that settles during the drain.
 	want := "✓ remote-tracking  4 stale refs\n" +
+		"✓ discover\n" +
+		"✓ services  already satisfied\n" +
 		"✗ write launch agent  failed: permissions\n" +
 		"  - contents  already satisfied\n" +
 		"  ✗ permissions\n" +
 		"    error  operation not permitted\n" +
 		"    path   " + displayPath + "\n" +
 		"    mode   0644\n" +
-		"✓ discover\n" +
-		"✓ services  already satisfied\n" +
 		"\n" +
 		"[changed] remote-tracking  deleted 4 stale origin/*\n" +
 		"\n" +

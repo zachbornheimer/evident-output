@@ -115,7 +115,9 @@ func (s *Stream) HeldBack(t record.TaskSnapshot) bool {
 }
 
 // Commit writes a resolved root Task's row to scrollback the instant it
-// resolves, interactive or not, and drops it from the live region.
+// resolves, interactive or not, and drops it from the live region. A Task
+// inside a collection writes with its collection instead (commitMember), and
+// any collection that settled earlier writes before this row does.
 // Progressive rows and Print lines interleave by resolution and call time:
 // a Task that resolved before a later Println or Confirm prompt renders
 // above it (release-gate round 5 finding 3). While a window is open a
@@ -124,13 +126,21 @@ func (s *Stream) HeldBack(t record.TaskSnapshot) bool {
 // again in a different state is written again, so scrollback tells both.
 func (s *Stream) Commit(id record.TaskID) {
 	r := s.rows[id]
-	if r == nil || !record.IsTerminalTask(r.Rec.State()) || (r.emitted && r.emittedAs == r.Rec.State()) {
+	if r == nil {
+		return
+	}
+	if r.InGroup {
+		s.commitMember(r)
+		return
+	}
+	if !record.IsTerminalTask(r.Rec.State()) || (r.emitted && r.emittedAs == r.Rec.State()) {
 		return
 	}
 	snap := s.cfg.Source.Snapshot(id)
 	if s.HeldBack(snap) {
 		return
 	}
+	s.CommitSettledBlocks()
 	var b strings.Builder
 	project.WriteTaskAligned(&b, snap, s.column.nameWidth(), s.cfg.Style)
 	r.emitted, r.emittedAs = true, r.Rec.State()

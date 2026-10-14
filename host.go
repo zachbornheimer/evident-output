@@ -218,18 +218,19 @@ func (e runHost) Overturned(t *graph.Task) {
 }
 
 // fileSettledLocked writes the settled Task where readers find it and returns its state, nil when it has none.
-// A Group or Sequence child repaints the live ledger; a standalone Task commits its rows to scrollback at once so
-// later Printf/Confirm output never lands above finished work. Callers hold o.mu.
+// A Group or Sequence child repaints the live ledger and, in plain text, writes with its collection once that settles;
+// a standalone Task commits its rows to scrollback at once so later Printf/Confirm output never lands above finished
+// work. Callers hold o.mu.
 func (o *Run) fileSettledLocked(t *graph.Task) *taskState {
 	o.followRecordLocked()
 	st := o.stateOf(t)
 	if st == nil {
 		return nil
 	}
+	o.show.Stream.Commit(record.TaskID(st.id))
 	if st.collection() != nil {
 		o.show.Live.Signal(true)
 	} else {
-		o.show.Stream.Commit(record.TaskID(st.id))
 		o.show.Stream.CommitEffects(st.id)
 	}
 	return st

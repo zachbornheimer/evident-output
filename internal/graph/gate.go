@@ -94,6 +94,18 @@ func (c *Container) BuilderNotStarted() bool {
 	return c.builder != nil && c.builder.phase == builderNotStarted
 }
 
+// MembershipClosed reports whether c's membership is taken as declared: no
+// builder beneath it is pending, and either an edge or a Wait sealed it or
+// the run's drain began. A Task may still be declared into a closed
+// collection (a later member never gates the edge that sealed it), so a
+// reader treats closed as "nothing more is expected", not "nothing more
+// can come".
+func (c *Container) MembershipClosed() bool {
+	c.graph.lockRead()
+	defer c.graph.unlockRead()
+	return c.tally.holds == 0 && (c.tally.sealed || c.graph.sched.draining)
+}
+
 // concludeGateLocked is settle's tail for a gate: it records the builder's
 // outcome, releases the membership holds the pending builder placed on its
 // container and ancestors, and places every Task that was waiting on them.

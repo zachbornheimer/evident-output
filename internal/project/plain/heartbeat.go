@@ -42,6 +42,9 @@ func (s *Stream) scheduler() (clock.Scheduler, bool) {
 // Started arms the Task id's heartbeat: its first check is due one interval
 // after now.
 func (s *Stream) Started(id record.TaskID, now time.Time) {
+	// A Task starts only once what it waits on settled, so a collection it
+	// follows is complete: write it before anything the Task writes.
+	s.CommitSettledBlocks()
 	r := s.rows[id]
 	sched, ok := s.scheduler()
 	if r == nil || !ok {

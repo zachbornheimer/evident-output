@@ -78,6 +78,9 @@ type GroupNode interface {
 	HasBuilder() bool
 	BuilderFailed() bool
 	BuilderNotStarted() bool
+	// MembershipClosed reports that nothing more is expected to be
+	// declared into the collection (graph.Container.MembershipClosed).
+	MembershipClosed() bool
 }
 
 // StateCounts counts a collection's direct Tasks by the states its verdict

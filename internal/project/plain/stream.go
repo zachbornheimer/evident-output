@@ -3,7 +3,6 @@ package plain
 import (
 	"strings"
 	"sync"
-	"unicode/utf8"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/clock"
 	"github.com/zachbornheimer/evident-output/v2/internal/project"
@@ -13,8 +12,9 @@ import (
 // Stream is a run's human durable text: every line the library writes goes
 // through it, in the order things happened (§17.5: a resolved row renders
 // at once, not at Finish). It decides what streams while the run works —
-// resolved root rows, named ledger sections, a Running Task's milestones,
-// heartbeats, debug history — and what Finish still owes (Residual).
+// resolved root rows, settled collections as whole blocks, named ledger
+// sections, a Running Task's milestones, heartbeats, debug history — and what
+// Finish still owes (Residual).
 //
 // A Stream is not safe for concurrent use: the run's lock guards it. Only
 // its heartbeat callbacks take that lock themselves.
@@ -39,6 +39,11 @@ type Stream struct {
 	// streamed are the ledger sections, by id, whose named rows already
 	// streamed at their Task's resolution.
 	streamed map[string]bool
+
+	// blocks are the collections by id; waiting the root blocks that wait
+	// for their membership to close before they stream (see block.go).
+	blocks  map[string]*block
+	waiting []*block
 }
 
 // Config is what a Stream writes and how.
@@ -80,6 +85,12 @@ type Region interface {
 // Source is what a Stream reads of a Task beyond its record.
 type Source interface {
 	Snapshot(id record.TaskID) record.TaskSnapshot
+	// Closed reports that nothing more is expected to be declared into the
+	// collection id.
+	Closed(id string) bool
+	// RootLevel is the run's root level as the human projection reads it,
+	// the collection detailed in full.
+	RootLevel(detailed string) record.Snapshot
 }
 
 // Sinks are the writers human text reaches, as the run wires them.
@@ -108,8 +119,10 @@ type Declared struct {
 	ID   record.TaskID
 	Name string
 	Rec  *record.Task
-	// Group is the name of the collection the Task sits in, when InGroup.
+	// Group is the name and GroupID the id of the collection the Task sits
+	// in, when InGroup.
 	Group   string
+	GroupID string
 	InGroup bool
 }
 
@@ -126,11 +139,18 @@ type row struct {
 	ownsWindow bool
 	mark       mark
 	beat       beat
+	// block is the root collection the Task sits under, nil at the root;
+	// counted is set once its settling was taken off the block's open count.
+	block   *block
+	counted bool
 }
 
 // NewStream starts a run's durable stream.
 func NewStream(cfg Config) *Stream {
-	return &Stream{cfg: cfg, rows: make(map[record.TaskID]*row), streamed: make(map[string]bool)}
+	return &Stream{
+		cfg: cfg, rows: make(map[record.TaskID]*row), streamed: make(map[string]bool),
+		blocks: make(map[string]*block),
+	}
 }
 
 // Declare keeps a row for t.
@@ -141,7 +161,9 @@ func (s *Stream) Declare(t Declared) {
 	if !t.InGroup {
 		s.roots = append(s.roots, r)
 		s.column.add(t.Name)
+		return
 	}
+	s.enter(r)
 }
 
 // Write emits durable text now, unless a window owns the terminal: then it
@@ -227,26 +249,4 @@ func (s *Stream) OwnWindow(id record.TaskID, owns bool) {
 	if r := s.rows[id]; r != nil {
 		r.ownsWindow = owns
 	}
-}
-
-// rootColumn is the sibling-column alignment width of root rows
-// (fixture-repo-retire-dryrun.md): every root Task declared so far, resolved
-// or not. A caller that declares its whole set of siblings before resolving
-// any gets the column a batch render would; declaring one, resolving it,
-// then declaring the next narrows the column to what was known at each
-// commit — the honest limit of rendering immediately (§17.5).
-type rootColumn struct{ count, width int }
-
-func (c *rootColumn) add(name string) {
-	c.count++
-	c.width = max(c.width, utf8.RuneCountInString(name))
-}
-
-// nameWidth is the column width, or 0 when fewer than two root Tasks exist
-// and there is nothing to align.
-func (c rootColumn) nameWidth() int {
-	if c.count < 2 {
-		return 0
-	}
-	return c.width
 }

@@ -80,7 +80,9 @@ func (s *Stream) writeEntities(b *strings.Builder, snap record.Snapshot) {
 		r.emitted = true
 	}
 	for _, col := range human.Collections {
-		WriteCollection(b, col, s.cfg.Style)
+		if !s.blockStreamed(col.ID) {
+			WriteCollection(b, col, s.cfg.Style)
+		}
 	}
 }
 
