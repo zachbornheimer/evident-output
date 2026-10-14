@@ -9,6 +9,7 @@ import (
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output/v2"
+	"github.com/zachbornheimer/evident-output/v2/internal/graph"
 	"github.com/zachbornheimer/evident-output/v2/testkit/scaletest"
 )
 
@@ -133,6 +134,9 @@ const perfBaselineEnv = "EVO_PERF_BASELINE"
 func TestGroup1kPlainWallTimeWithinTwentyPercentOfV1(t *testing.T) {
 	if os.Getenv(perfBaselineEnv) != "1" {
 		t.Skip("machine-specific baseline; run via mise run perf")
+	}
+	if !graph.WorkerReuseAvailable() {
+		t.Skip("worker reuse needs the /sched/goroutines-created runtime metric (Go 1.27); this toolchain runs every Task on its own goroutine, which the v1.0.0 bound does not describe")
 	}
 	if scaletest.RaceDetector {
 		t.Skip("the race detector slows every Task several times over; the plain run enforces the v1.0.0 bound")

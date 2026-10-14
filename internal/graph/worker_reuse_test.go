@@ -67,6 +67,35 @@ func TestWorkerReuseServesConsecutiveClaimsOnOneWorker(t *testing.T) {
 	}
 }
 
+// Without the runtime's goroutine count (Go before 1.27) the census proves
+// nothing, so no worker is reusable: every callback still runs, each on a
+// goroutine of its own.
+func TestWorkerReuseFallbackRunsEachCallbackOnItsOwnGoroutine(t *testing.T) {
+	const callbacks = 20
+	ledger := &spawnLedger{created: func() (uint64, bool) { return 0, false }}
+	var ran atomic.Int64
+	bodies := make([]func(), callbacks)
+	for i := range bodies {
+		bodies[i] = func() { ran.Add(1) }
+	}
+
+	ids := runOnOneSlot(t, ledger, bodies...)
+
+	if got := ran.Load(); got != callbacks {
+		t.Errorf("%d of %d callbacks ran", got, callbacks)
+	}
+	seen := make(map[GoroutineID]bool, callbacks)
+	for _, id := range ids {
+		if seen[id] {
+			t.Errorf("goroutine %d ran two callbacks, want one goroutine per callback (ids %v)", id, ids)
+		}
+		seen[id] = true
+	}
+	if starts := ledger.done.Load(); starts != callbacks {
+		t.Errorf("%d worker starts for %d callbacks, want one each", starts, callbacks)
+	}
+}
+
 // A goroutine any code starts while a claim runs ends the worker, so a busy
 // process declines reuse; it never serves a claim a goroutine's creator should
 // not.

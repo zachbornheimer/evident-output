@@ -42,6 +42,13 @@ and its replacement, and
 
 ### Changed
 
+- **Pooled workers:** the scheduler runs consecutive Tasks on one goroutine
+  instead of starting one per Task, which is what keeps a 1,000-Task Group
+  within 20 percent of v1.0.0's wall time. Reuse reads the
+  `/sched/goroutines-created` runtime metric, which first exists in Go 1.27. On
+  an earlier toolchain (the module still builds on Go 1.25) reuse is off and
+  every callback runs on its own goroutine, as in 1.x: the same results, without
+  the speedup.
 - **Wire schemas:** one schema per document, named for its version. `evo.run`
   is `schema_version` `3.0` (`schema/run.v3.json`) and `evo.event` is `2.0`
   (`schema/event.v2.json`); the 1.x `run.v2.json` and `event.v1.json` are

@@ -10,6 +10,12 @@ import (
 // print lock, so a goroutine reads its own once and then serves every claim it
 // may.
 //
+// Reuse depends on Go 1.27: the census reads the /sched/goroutines-created
+// runtime metric, which no earlier toolchain has. Without it (the module still
+// builds on Go 1.25) no worker is ever reusable, so every claim runs on a
+// goroutine of its own, as it did before pooling; WorkerReuseAvailable says
+// which case a build is in.
+//
 // A worker may serve another claim only if it has started no goroutine, ever.
 // The census is process-wide, so a goroutine any other code starts while a
 // claim runs also ends the worker: reuse is an optimisation that may be
@@ -248,4 +254,12 @@ func (l *spawnLedger) processCreated() (uint64, bool) {
 		return l.created()
 	}
 	return goroutinesCreated()
+}
+
+// WorkerReuseAvailable reports whether this toolchain lets a worker serve more
+// than one claim: it needs the /sched/goroutines-created runtime metric, which
+// Go 1.27 added. Where it is missing every claim runs on its own goroutine.
+func WorkerReuseAvailable() bool {
+	_, counted := goroutinesCreated()
+	return counted
 }
