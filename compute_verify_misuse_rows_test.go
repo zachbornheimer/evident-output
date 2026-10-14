@@ -9,7 +9,7 @@ import (
 
 // TestComputeVerifyMisuseRowsAreAccurate pins that declaring Compute and Verify on one Task prints the
 // misuse remedy and a truthful "not started" row: the Task never ran, so no "incomplete" row blames a missing
-// finish and no next step tells the caller to give the Task a Define callback they already wrote.
+// finish and no next step tells the caller to add a Define callback to a Task that already has its work.
 func TestComputeVerifyMisuseRowsAreAccurate(t *testing.T) {
 	var human bytes.Buffer
 	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &human}}, tuning{color: colorNever})
