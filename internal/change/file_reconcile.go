@@ -22,7 +22,7 @@ import (
 // the write, and the recorded output digest.
 func (r *Run) reconcileFile(ctx context.Context, id record.TaskID, spec FileSpec) error {
 	if spec.Path == "" {
-		return ErrFileSpecMissingPath
+		return r.refuse(ErrFileSpecMissingPath)
 	}
 	return r.establishFile(ctx, fileOperation{taskID: id, spec: spec, path: r.resolvePath(spec.Path)})
 }

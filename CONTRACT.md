@@ -149,7 +149,7 @@ goroutine is not caught. A goroutine that a finished nested Task left running
 is found by a change in the count of the process's running goroutines, so it
 can be missed when as many other goroutines end in the same moment.
 `Compute` on a Task that has a
-`Verify` is refused at declaration (section 7): a satisfied `Verify` skips the
+`Verify` is `ErrInvalidConfig` at declaration (section 7): a satisfied `Verify` skips the
 callback, so a value would exist only when the world says so. A `Build` runs
 once when its container becomes eligible, declares topology only, and closes
 the container's declaration phase; declaring work from inside a Task's
@@ -401,11 +401,11 @@ no gap, so a missing number means a lost line.
 
 Every declaration or spec Evo refuses is refused one way: the error wraps
 `ErrInvalidConfig`, is joined into `Result.Err`, and `Conclusion.Explanation`
-names it. That covers a duplicate sibling name, a Task, Group or Sequence
+states what was refused. That covers a duplicate sibling name, a Task, Group or Sequence
 declared from inside a `Define` callback, a nil `Define` callback, `Compute` on
 a Task with a `Verify`, an `EffectSpec` that sets both `Path` and `Resource`,
-and an `EffectSpec` whose `Quantity` is not above 0. The refused call's
-callback never runs. Other sections say "refused" and mean this rule.
+an `EffectSpec` whose `Quantity` is not above 0, a `FileSpec` with no `Path`,
+and an `ExecSpec` with no `Argv`. The refused call's callback never runs. Other sections say "refused" and mean this rule.
 
 ## 8. What Evo promises
 

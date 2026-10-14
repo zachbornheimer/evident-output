@@ -25,8 +25,11 @@ var (
 	ErrProgressRegression = errors.New("evo: progress moved backward")
 	// ErrDuplicateKey is recorded when two Tasks share a Key.
 	ErrDuplicateKey = errors.New("evo: duplicate entity key")
-	// ErrInvalidConfig is recorded when After/Verify land after Define, a
-	// Task is Defined twice, or Define is called with a nil callback.
+	// ErrInvalidConfig is the one sentinel for a declaration or spec Evo
+	// refuses (CONTRACT section 7): After/Verify landing after Define, a Task
+	// Defined twice, a nil callback, a duplicate sibling, a declaration from
+	// inside a callback, or an invalid Effect, File or Exec spec. Every
+	// refusal wraps it, so errors.Is finds it on Result.Err.
 	ErrInvalidConfig = errors.New("evo: invalid configuration")
 	// ErrComputeWithVerify is ErrInvalidConfig for Compute on a Task that has
 	// a Verify: a satisfied Verify skips the callback and leaves no value.
@@ -54,7 +57,7 @@ var (
 	ErrComputedUnordered = errors.New("evo: Computed read without an After edge or Sequence order to its Task")
 	// ErrDeclaredInCallback is why a declaration was refused: a Task, Group,
 	// or Sequence was declared from inside a Task's Define callback.
-	ErrDeclaredInCallback = errors.New("evo: declared from inside a Task callback")
+	ErrDeclaredInCallback = fmt.Errorf("%w: declared from inside a Task callback", ErrInvalidConfig)
 	// ErrDryRunDeclaredLate is recorded when DeclareDryRun is called after a
 	// durable row has already streamed.
 	ErrDryRunDeclaredLate = errors.New("evo: DeclareDryRun called after a durable row was already emitted")
@@ -66,7 +69,7 @@ var (
 	ErrDependencyCycle = errors.New("evo: After dependency cycle")
 	// ErrDuplicateSiblingName is recorded when a Task, Group, or Sequence is
 	// declared with a name already used by another child of the same parent.
-	ErrDuplicateSiblingName = errors.New("evo: duplicate sibling name")
+	ErrDuplicateSiblingName = fmt.Errorf("%w: duplicate sibling name", ErrInvalidConfig)
 	// ErrKeyAfterDefine is recorded when the task key override is called after
 	// Define.
 	ErrKeyAfterDefine = errors.New("evo: Key called after Define")

@@ -66,8 +66,8 @@ type ExecResult struct {
 
 // Exec-specific misuse/usage and outcome errors (spec §8.4).
 var (
-	// ErrExecSpecMissingExecutable is returned when ExecSpec.Executable is empty.
-	ErrExecSpecMissingExecutable = errors.New("evo: ExecSpec.Executable is required")
+	// ErrExecSpecMissingExecutable is returned when ExecSpec.Executable (Argv[0]) is empty.
+	ErrExecSpecMissingExecutable = fmt.Errorf("%w: ExecSpec.Argv must name an executable", graph.ErrInvalidConfig)
 	// ErrExecExecutableNotFound is returned when Executable cannot be resolved.
 	ErrExecExecutableNotFound = errors.New("evo: Exec could not resolve Executable")
 	// ErrExecNonzeroExit is returned when the child exits with a nonzero status.
@@ -111,7 +111,7 @@ func Exec(ctx context.Context, spec ExecSpec) (ExecResult, error) {
 // barrier, consult the manifest for a skip, otherwise spawn and verify.
 func (r *Run) reconcileExec(ctx context.Context, id record.TaskID, spec ExecSpec) (ExecResult, error) {
 	if spec.Executable == "" {
-		return ExecResult{}, ErrExecSpecMissingExecutable
+		return ExecResult{}, r.refuse(ErrExecSpecMissingExecutable)
 	}
 
 	dir := r.resolvePath(spec.Dir)

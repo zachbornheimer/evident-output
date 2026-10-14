@@ -35,7 +35,7 @@ type FileSpec struct {
 // File-specific misuse/usage errors (spec §8.1).
 var (
 	// ErrFileSpecMissingPath is returned when FileSpec.Path is empty.
-	ErrFileSpecMissingPath = errors.New("evo: FileSpec.Path is required")
+	ErrFileSpecMissingPath = fmt.Errorf("%w: FileSpec.Path is required", graph.ErrInvalidConfig)
 	// ErrFileUnmanagedContentsMissing is returned when Path does not exist
 	// and Contents is nil: Evo cannot invent contents merely to apply mode.
 	ErrFileUnmanagedContentsMissing = errors.New("evo: File cannot create a missing path with unmanaged Contents")

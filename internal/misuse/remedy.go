@@ -3,6 +3,7 @@ package misuse
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // hintFor names the concrete corrective action for every misuse sentinel
@@ -33,8 +34,10 @@ func hintFor(err error, subject, rejectedSummary string) string {
 		return fmt.Sprintf("duplicate sibling name: %s; give each child of one parent its own name", subject)
 	case errors.Is(err, ErrComputeWithVerify):
 		return fmt.Sprintf("Compute needs a Task without Verify: a satisfied Verify skips the callback and %s would have no value; drop the Verify or Compute a separate Task", subject)
+	case errors.Is(err, ErrDeclaredInCallback):
+		return "declare Tasks and containers in the run body or inside Group.Build or Sequence.Build; a Task's Define callback only does work"
 	case errors.Is(err, ErrInvalidConfig):
-		return "configure After and Verify before Define, and Define each task once with a non-nil callback"
+		return invalidConfigHint(err)
 	case errors.Is(err, ErrRenderer):
 		return "the configured writer failed; check the output destination"
 	case errors.Is(err, ErrLimitExceeded):
@@ -49,8 +52,6 @@ func hintFor(err error, subject, rejectedSummary string) string {
 		return fmt.Sprintf("%s has not settled; read Get only from a Task declared After it, or from a container builder whose After includes it", subject)
 	case errors.Is(err, ErrComputedUnordered):
 		return fmt.Sprintf("nothing orders this reader after %s; declare it .After(the Computed), or put it later in the same Sequence", subject)
-	case errors.Is(err, ErrDeclaredInCallback):
-		return "declare Tasks and containers in the run body or inside Group.Build or Sequence.Build; a Task's Define callback only does work"
 	case errors.Is(err, ErrDryRunDeclaredLate):
 		return "set Config.DryRun when starting the run, before any Task, Fact or Confirm row streams"
 	case errors.Is(err, ErrDependencyCycle):
@@ -63,4 +64,14 @@ func hintFor(err error, subject, rejectedSummary string) string {
 		// than a blank line.
 		return err.Error()
 	}
+}
+
+// invalidConfigHint is the corrective sentence for a refusal. The bare sentinel is a call made at the wrong
+// time (After, Verify or Define); one that carries its own detail, such as a refused spec, states that detail.
+func invalidConfigHint(err error) string {
+	detail, wrapped := strings.CutPrefix(err.Error(), ErrInvalidConfig.Error()+": ")
+	if !wrapped {
+		return "configure After and Verify before Define, and Define each task once with a non-nil callback"
+	}
+	return detail
 }

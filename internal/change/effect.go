@@ -5,7 +5,6 @@ package change
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -40,11 +39,13 @@ type EffectSpec struct {
 
 // Effect usage errors: a content-free Effect describes no mutation the
 // ledger could truthfully record, so Effect refuses it without invoking fn.
+// Each refusal wraps ErrInvalidConfig and is recorded as the run's misuse, so
+// it reaches Result.Err (CONTRACT section 7).
 var (
-	ErrEffectVerbInvalid         = errors.New("evo: EffectSpec.Verb must be one of the EffectVerb constants")
-	ErrEffectObjectMissing       = errors.New("evo: EffectSpec.Object is required")
-	ErrEffectQuantityNotPositive = errors.New("evo: EffectSpec.Quantity must be > 0")
-	ErrEffectCallbackMissing     = errors.New("evo: Effect requires a non-nil callback")
+	ErrEffectVerbInvalid         = fmt.Errorf("%w: EffectSpec.Verb must be one of the EffectVerb constants", graph.ErrInvalidConfig)
+	ErrEffectObjectMissing       = fmt.Errorf("%w: EffectSpec.Object is required", graph.ErrInvalidConfig)
+	ErrEffectQuantityNotPositive = fmt.Errorf("%w: EffectSpec.Quantity must be > 0", graph.ErrInvalidConfig)
+	ErrEffectCallbackMissing     = fmt.Errorf("%w: Effect requires a non-nil callback", graph.ErrInvalidConfig)
 	ErrEffectClaimsTwoResources  = fmt.Errorf("%w: EffectSpec sets both Path and Resource; an Effect claims one", graph.ErrInvalidConfig)
 )
 
@@ -67,7 +68,7 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 
 func (r *Run) effect(ctx context.Context, id record.TaskID, spec EffectSpec, fn func(context.Context) error) error {
 	if invalid := spec.validate(fn); invalid != nil {
-		return invalid
+		return r.refuse(invalid)
 	}
 	// Resolve the ledger once, before fn runs: an interrupt that cancels the
 	// row while fn runs describes work that really happened, and the reader
@@ -170,4 +171,11 @@ func (r *Run) runEffectCallback(ctx context.Context, id record.TaskID, fn func(c
 	deniedAtEntry := r.effects.enter(id)
 	defer func() { disowned = r.effects.exit(id, deniedAtEntry) }()
 	return false, fn(ctx)
+}
+
+// refuse records err as the run's misuse and returns it: a declaration or spec Evo refuses fails the Task
+// that made the call and also reaches Result.Err wrapping ErrInvalidConfig (CONTRACT section 7).
+func (r *Run) refuse(err error) error {
+	r.host.RecordMisuse(err)
+	return err
 }
