@@ -208,7 +208,7 @@ Run.ResultWriter carries the stdout domain payload; human presentation stays on 
 data command emits no partial payload by default.
 
 Exit codes come only from evo.Main's returned code (os.Exit(evo.Main(evo.Config{}, run))), or evo.Execute's returned Result.ExitCode() for a caller that needs the Conclusion and application error, not just the code (evo.MainWith was removed in 1.0): run(ctx) returns error, nothing else picks the code. Never hand-map an int
-to os.Exit — that is exactly how a Blocked run (1) gets silently read as success, or a real
+to os.Exit — that is exactly how a Refused run (1) gets silently read as success, or a real
 failure reads as blocked. SIGINT/SIGTERM already cancel the run's context through Main, so the
 ledger shows the run Cancelled and the process exit code (130) can never disagree; a caller-written
 signal.Notify handler that calls os.Exit itself bypasses that reconciliation (SIG-001). A host that wraps

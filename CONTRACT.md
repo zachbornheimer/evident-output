@@ -170,7 +170,7 @@ name still cancels the run.
 | `Task.Define`       | method | `Define(fn func(context.Context) error, opts ...DefineOption) *Task`           |
 | `Task.Doing`        | method | `Doing(text string, args ...any) *Task`; current item, live only               |
 | `Task.Progress`     | method | `Progress(completed, total int) *Task`; Plain: milestone lines only            |
-| `Task.Writer`       | method | `Writer() io.Writer`; its lines become the live tail and Capture               |
+| `Task.Writer`       | method | `Writer() io.Writer`; its lines become the live tail                           |
 | `Task.Fact`         | method | `Fact(name, value string) *Task`; hidden until Verbose                         |
 | `Task.Summary`      | method | `Summary(text string) *Task`; the settled row's headline                       |
 | `Task.Problem`      | method | `Problem(summary string, opts ...ProblemOption) *Task`; non-fatal              |
@@ -393,7 +393,7 @@ when the body never called it. `Run.ResultWriter` is the only writer to stdout i
 bands and `Run.Text` go to `Facades.Stderr`, so a pipe on stdout receives
 exactly the payload. In JSON the payload is the string `result` of the `evo.run`
 document, and in JSONL each write is one `result.written` event whose
-`payload.text` is the bytes written. Bytes that are not valid UTF-8 travel as
+`payload.text` is the text written. Output that is not valid UTF-8 travels as
 `result_base64` and `payload.base64` instead of text, and Human and Plain pass
 every byte through unchanged.
 

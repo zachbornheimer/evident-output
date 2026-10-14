@@ -16,7 +16,7 @@ func concurrencyRules() []Rule {
 if partial {
   os.Exit(130) // Partial is not interruption
 }`,
-			GoodCode:        `os.Exit(evo.Main(evo.Config{}, run)) // code derives from Outcome alone: 0 OK / 1 Blocked / 2 Failed / 130 Cancelled; Partial is a completeness modifier only`,
+			GoodCode:        `os.Exit(evo.Main(evo.Config{}, run)) // code derives from Outcome alone: 0 Succeeded, Satisfied or Excluded / 1 Refused / 2 Failed / 130 Cancelled`,
 			Remediation:     "Let evo.Main derive the exit code from Outcome (caller writes os.Exit(evo.Main(evo.Config{}, run))), or evo.Execute, whose Result.ExitCode() returns the same code (evo.MainWith was removed in 1.0); never hand-map an int, and never use 130 outside real interruption",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"CON-001"},

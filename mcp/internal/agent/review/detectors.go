@@ -241,8 +241,8 @@ var fileDetectors = []detector{
 	{name: "detectMissingProducerConsumerOrdering", needsEvo: true, run: astRule(detectMissingProducerConsumerOrdering)},
 	// API-056: a .After(...) edge whose comment and both Tasks' own
 	// resource declarations show the only reason is shared-resource
-	// exclusion, not a semantic dependency, which File/FSResource/
-	// LogicalResource claim coordination (ZYS-840) already provides.
+	// exclusion, not a semantic dependency, which File and the Effect
+	// Path and Resource claim coordination (ZYS-840) already provides.
 	{name: "detectAfterOnlyForResourceContention", needsEvo: true, run: detectAfterOnlyForResourceContention},
 	// API-039: Group that only ever has one child in source.
 	{name: "detectSingletonGroup", needsEvo: true, run: astRule(detectSingletonGroup)},

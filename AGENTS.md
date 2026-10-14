@@ -207,17 +207,8 @@ review flags it. Return the result from `Define` instead.
 
 ## Release policy
 
-Evident Output 1.x ships breaking changes in minor releases when the owner's
-API-freeze decisions call for them, with no compatibility shims. 1.0 dropped extra constructors and per-item helpers.
-
-- Removed in 1.1: the Task mutation verbs, `Done`, `Warn`, `Step`, `Kept` and `Affected`/`MutationOption`.
-- Removed in 1.1: `Record*` and capture-meaning `Evidence*` (`Capture` is the retained sink).
-- Also removed in 1.1: the printf `Fail` and `Block` verbs. docs/migration/1.1.md lists each.
-
-1.1 also changes `Exec` and
-`Define`, per the
-"Decisions (2026-09-23) — 1.1 API freeze" section of the Linear contract doc
-"Evident Output 1.x — Product + Implementation Contract" (project P-ZYS-23).
+Evident Output 2.0 is the current contract; `CONTRACT.md` is its whole
+surface. 1.x call sites migrate with `docs/migration/2.0.md`.
 
 Every breaking release carries a migration guide under `docs/migration/`
 listing each removed or changed symbol with before/after code, and the MCP

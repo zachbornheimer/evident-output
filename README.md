@@ -99,7 +99,7 @@ every mutation is planned (`[planned]`) and none runs.
 
 - [`CONTRACT.md`](CONTRACT.md) — the 2.0 usage contract and full exported surface
 - [`docs/migration/2.0.md`](docs/migration/2.0.md) — upgrading from 1.x: every removed symbol with its replacement
-- [`mcp/docs/reference.md`](mcp/docs/reference.md) — construction, config, lifecycle, severity dialect, evidence capture, platform adapters, vocabulary
+- [`mcp/docs/reference.md`](mcp/docs/reference.md) — construction, config, lifecycle, Problem and Outcome vocabulary, platform adapters, vocabulary
 - [`mcp/docs/development.md`](mcp/docs/development.md) — mise commands, conformance suite, examples ladder, CLI, machine output, production ANSI driver, testkit
 - [`mcp/docs/mcp.md`](mcp/docs/mcp.md) — the `evident-output-mcp` stdio server (Grok, Claude Code, Codex, …)
 - [`mcp/docs/teaching-ladder.md`](mcp/docs/teaching-ladder.md) — the ordinary-surface learning order

@@ -24,6 +24,7 @@ var bareRetiredNames = []string{
 	"Width", "Title", "NextCommand", "Skipped", "FSPath", "Executable", "Args",
 	"Bytes", "DebugHistory", "DebugPane", "TerminalDriver",
 	"Print", "Printf", "Println", "Capture", "FormatJSON",
+	"Blocked", "GlyphProfile", "NoColor",
 }
 
 // bareRetiredName matches a bareRetiredNames word, case-sensitive and whole.

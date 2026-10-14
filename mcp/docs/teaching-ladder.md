@@ -67,7 +67,7 @@ os.Exit(evo.Execute(ctx, evo.Config{Name: "tool"}, run).ExitCode())
 | PHIL-001 | One ordinary spelling per intent                                                        |
 
 Batch elements are one Task with Progress+Doing (count + muted activity), not N Tasks.
-Use `TruncateNames` for a single skip/kept list when names must stay readable.
+Name each item Task so a long list of names stays readable.
 
 ## Child output
 

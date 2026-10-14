@@ -20,6 +20,10 @@ import (
 // uses the MCP; it teaches the dialect, so the guards read it like any doc.
 const agentsGuide = "AGENTS.md"
 
+// contractDoc is the contract the docs are checked against. Its own prose is
+// part of the corpus: it may not describe a name its tables do not list.
+const contractDoc = "CONTRACT.md"
+
 // docCorpus is every text the MCP serves or ships as guidance, keyed by a
 // readable origin: AGENTS.md, docs, skills, the embedded sections, the catalog guides,
 // the rule texts (BadCode and Replacement included: a mistake the rule
@@ -34,6 +38,11 @@ func docCorpus(t *testing.T, root string) map[string]string {
 		t.Fatalf("read %s: %v", agentsGuide, err)
 	}
 	corpus[agentsGuide] = string(agents)
+	contract, err := os.ReadFile(filepath.Join(root, contractDoc))
+	if err != nil {
+		t.Fatalf("read %s: %v", contractDoc, err)
+	}
+	corpus[contractDoc] = string(contract)
 	for _, dir := range []string{"mcp/docs", "mcp/skills", "mcp/internal/agent/sections/embedded"} {
 		walkFiles(t, filepath.Join(root, dir), ".md", func(rel, body string) { corpus[filepath.ToSlash(rel)] = body })
 	}

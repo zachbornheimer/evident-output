@@ -1,6 +1,6 @@
 // Package review — EVO-UI-004 (C21-012): a print call that hand-picks a
 // color or a status word. Evo's renderer chooses glyph and color from Task
-// state and adapts them to Plain, NoColor, TTY and GlyphProfile; a raw ANSI
+// state and adapts them to Plain, NO_COLOR and TTY; a raw ANSI
 // escape or a "[OK]"-style tag survives none of those. Only string literals
 // printed directly are matched, so a color a library returns never fires.
 package review

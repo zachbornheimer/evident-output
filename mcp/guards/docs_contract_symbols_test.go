@@ -84,6 +84,9 @@ func (c contractSurface) unknownReferences(text string) []string {
 	for _, hit := range unqualifiedRetiredNames(text) {
 		check(hit.name, hit.at)
 	}
+	for _, hit := range c.backtickedUnknowns(text) {
+		check(hit.name, hit.at)
+	}
 	return unknown
 }
 

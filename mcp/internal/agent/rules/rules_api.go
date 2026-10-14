@@ -70,12 +70,12 @@ fmt.Fprint(os.Stdout, stdout.String())`,
 			Category:  "API",
 			Severity:  SeverityWarning,
 			Invariant: "process exit codes come only from os.Exit(evo.Main(evo.Config{}, run)), or evo.Execute's returned Result.ExitCode() (evo.MainWith was removed in 1.0)",
-			Why:       "A hand-mapped os.Exit int bypasses the Outcome→exit-code contract; a Blocked run (1) can silently read as success, or a real failure can read as blocked.",
+			Why:       "A hand-mapped os.Exit int bypasses the Outcome→exit-code contract; a Refused run (1) can silently read as success, or a real failure can read as refused.",
 			BadCode: `if err != nil {
   fmt.Println(err)
   os.Exit(1) // hand-mapped, not fed by evo
 }`,
-			GoodCode:        `os.Exit(evo.Main(evo.Config{}, run)) // run(ctx) returns error; Conclusion decides 0/1/2/130; Main derives the code, caller exits`,
+			GoodCode:        `os.Exit(evo.Main(evo.Config{}, run)) // run(ctx, r) returns error; Conclusion decides 0/1/2/130; Main derives the code, caller exits`,
 			Remediation:     "Route exit through os.Exit(evo.Main(evo.Config{}, run)), or evo.Execute's returned Result.ExitCode() for a caller that needs the code without exiting (evo.MainWith was removed in 1.0)",
 			RelatedGuidance: []string{"streams", "common-api"},
 			VerificationIDs: []string{"API-018"},
