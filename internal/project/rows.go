@@ -197,9 +197,11 @@ func (r *Rows) Header(id string) record.TasksSnapshot {
 func (r *Rows) Collection(id string) record.TasksSnapshot {
 	g := r.byGroup[id]
 	ts := r.Header(id)
+	ts.Tasks = slices.Grow(ts.Tasks, len(g.Tasks))
 	for _, t := range g.Tasks {
 		ts.Tasks = append(ts.Tasks, r.Snapshot(t.ID))
 	}
+	ts.Collections = slices.Grow(ts.Collections, len(g.Groups))
 	for _, child := range g.Groups {
 		ts.Collections = append(ts.Collections, r.Collection(child.ID))
 	}

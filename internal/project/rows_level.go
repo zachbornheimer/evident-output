@@ -1,6 +1,10 @@
 package project
 
-import "github.com/zachbornheimer/evident-output/v2/internal/record"
+import (
+	"slices"
+
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+)
 
 // Closed reports whether nothing more is expected to be declared into the
 // collection id: the point a durable stream may write its block, since a
@@ -33,6 +37,7 @@ func (r *Rows) RootLevel(detailed string) record.Snapshot {
 // collectionView is g with its members as views, recursively.
 func (r *Rows) collectionView(g *DeclaredGroup) record.TasksSnapshot {
 	ts := r.Header(g.ID)
+	ts.Tasks = slices.Grow(ts.Tasks, len(g.Tasks))
 	for _, t := range g.Tasks {
 		ts.Tasks = append(ts.Tasks, r.View(t.ID))
 	}
