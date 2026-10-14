@@ -13,7 +13,7 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/testkit/wireschema"
 )
 
-// repoRoot is the read-only fs.FS this file reads schema/run.v2.json
+// repoRoot is the read-only fs.FS this file reads schema/run.v3.json
 // through, matching wire_schema_test.go's os.ReadFile("schema/...") calls
 // at the same package level but going through an injectable fs.FS. It is
 // captured as an absolute path at package init, before any test in this
@@ -52,7 +52,7 @@ func mustAbsDirFS(dir string) fs.FS {
 // proof for the "Patch" acceptance bullet: a real Patch-derived
 // FileSet, committed through File, must leave the per-attribute
 // verification outcome that commit produced intact all the way through
-// WriteJSON's "run" encoding and schema/run.v2.json validation —
+// WriteJSON's "run" encoding and schema/run.v3.json validation —
 // not merely round-trip through a hand-built core.VerificationDetail
 // fixture the way internal/wire/compat_test.go's spliced-document tests
 // do. This is Patch's own machine provenance, one hop past File's (Patch
@@ -84,9 +84,9 @@ func TestPatch_FileVerification_SurvivesEncodeRun(t *testing.T) {
 		t.Fatalf("WriteJSON: %v", err)
 	}
 
-	schema, err := fs.ReadFile(repoRoot, "schema/run.v2.json")
+	schema, err := fs.ReadFile(repoRoot, "schema/run.v3.json")
 	if err != nil {
-		t.Fatalf("read schema/run.v2.json: %v", err)
+		t.Fatalf("read schema/run.v3.json: %v", err)
 	}
 	// wireschema.Strict, not the raw published schema: every other compat
 	// test in this repo (internal/wire/compat_test.go) validates against
@@ -95,10 +95,10 @@ func TestPatch_FileVerification_SurvivesEncodeRun(t *testing.T) {
 	// copy — this end-to-end Patch test held a weaker bar than the rest.
 	strict, err := wireschema.Strict(schema)
 	if err != nil {
-		t.Fatalf("wireschema.Strict(run.v2.json): %v", err)
+		t.Fatalf("wireschema.Strict(run.v3.json): %v", err)
 	}
 	if err := wireschema.Validate(strict, body.Bytes()); err != nil {
-		t.Fatalf("Patch-derived run document does not conform to schema/run.v2.json:\n%v\n\ndocument:\n%s", err, body.String())
+		t.Fatalf("Patch-derived run document does not conform to schema/run.v3.json:\n%v\n\ndocument:\n%s", err, body.String())
 	}
 
 	var doc struct {

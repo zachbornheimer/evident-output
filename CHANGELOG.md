@@ -111,6 +111,11 @@ and its replacement, and
 
 ### Changed
 
+- **Wire schemas:** one schema per document, named for its version. `evo.run`
+  is `schema_version` `3.0` (`schema/run.v3.json`) and `evo.event` is `2.0`
+  (`schema/event.v2.json`); the 1.x `run.v2.json` and `event.v1.json` are
+  gone. In the generated schemas only the envelope's own `object` is the
+  `evo.run` constant, so an effect's `object` validates as a string.
 - **Plain and Human rendering:** a Group declared by `Build` keeps its own row
   with its items nested beneath it; a Problem tree ends on `└─`; an Excluded
   Task states its reason once; the `already mutated` line says `wrote

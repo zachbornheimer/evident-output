@@ -162,9 +162,9 @@ func TestToRunDocument_Goldens(t *testing.T) {
 }
 
 func TestToRunDocument_ValidatesAgainstSchema(t *testing.T) {
-	schema, err := os.ReadFile("../../../schema/run.v2.json")
+	schema, err := os.ReadFile("../../../schema/run.v3.json")
 	if err != nil {
-		t.Fatalf("read schema/run.v2.json: %v", err)
+		t.Fatalf("read schema/run.v3.json: %v", err)
 	}
 	for name, result := range runFixtures() {
 		t.Run(name, func(t *testing.T) {
@@ -173,7 +173,7 @@ func TestToRunDocument_ValidatesAgainstSchema(t *testing.T) {
 				t.Fatalf("EncodeRun: %v", err)
 			}
 			if err := wireschema.Validate(schema, doc); err != nil {
-				t.Fatalf("evo.run document for %q does not conform to schema/run.v2.json:\n%v\n\ndocument:\n%s", name, err, doc)
+				t.Fatalf("evo.run document for %q does not conform to schema/run.v3.json:\n%v\n\ndocument:\n%s", name, err, doc)
 			}
 		})
 	}

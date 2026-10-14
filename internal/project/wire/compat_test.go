@@ -12,7 +12,7 @@ import (
 )
 
 // schemaDir is the read-only fs.FS this file's compat tests read
-// schema/run.v2.json through, so the read is an explicit injectable
+// schema/run.v3.json through, so the read is an explicit injectable
 // boundary rather than a bare os.ReadFile call.
 var schemaDir = os.DirFS("../../../schema")
 
@@ -37,7 +37,7 @@ var schemaDir = os.DirFS("../../../schema")
 // json.Marshal/Unmarshal on in-memory structs).
 const fixtureResourcePath = "fixture://managed/x"
 
-// runSchema reads schema/run.v2.json through schemaDir and strengthens it
+// runSchema reads schema/run.v3.json through schemaDir and strengthens it
 // with wireschema.Strict — the gate the tests below actually enforce:
 // these compat tests previously only exercised encoding/json on Go
 // structs, so they would still pass if the schema dropped a field it used
@@ -51,25 +51,25 @@ func runSchema(t *testing.T) []byte {
 	t.Helper()
 	strict, err := wireschema.Strict(rawRunSchema(t))
 	if err != nil {
-		t.Fatalf("wireschema.Strict(run.v2.json): %v", err)
+		t.Fatalf("wireschema.Strict(run.v3.json): %v", err)
 	}
 	return strict
 }
 
-// rawRunSchema reads schema/run.v2.json through schemaDir exactly as
+// rawRunSchema reads schema/run.v3.json through schemaDir exactly as
 // published, with no strictness overlay — the shape a real consumer
 // pinned to today's schema actually validates against.
 func rawRunSchema(t *testing.T) []byte {
 	t.Helper()
-	schema, err := fs.ReadFile(schemaDir, "run.v2.json")
+	schema, err := fs.ReadFile(schemaDir, "run.v3.json")
 	if err != nil {
-		t.Fatalf("read schema/run.v2.json: %v", err)
+		t.Fatalf("read schema/run.v3.json: %v", err)
 	}
 	return schema
 }
 
 // baseRunDocument returns a real "evo.run" document (one task, one Problem
-// carrying every field added since run.v2 first shipped: evidence_tail,
+// carrying every field added since run.v3 first shipped: evidence_tail,
 // location, remedies) produced by EncodeRun. Tests overwrite parts of it
 // with an older- or current-shape fixture, so every other required field
 // stays exactly as production code emits it.
@@ -99,7 +99,7 @@ func baseRunDocument(t *testing.T) map[string]any {
 	return doc
 }
 
-// validateSpliced re-marshals doc and validates it against schema/run.v2.json.
+// validateSpliced re-marshals doc and validates it against schema/run.v3.json.
 func validateSpliced(t *testing.T, doc map[string]any) {
 	t.Helper()
 	encoded, err := json.Marshal(doc)
@@ -107,7 +107,7 @@ func validateSpliced(t *testing.T, doc map[string]any) {
 		t.Fatalf("marshal spliced document: %v", err)
 	}
 	if err := wireschema.Validate(runSchema(t), encoded); err != nil {
-		t.Fatalf("spliced document does not conform to schema/run.v2.json:\n%v\n\ndocument:\n%s", err, encoded)
+		t.Fatalf("spliced document does not conform to schema/run.v3.json:\n%v\n\ndocument:\n%s", err, encoded)
 	}
 }
 
@@ -122,13 +122,13 @@ func firstProblem(doc map[string]any) map[string]any {
 	return firstTask(doc)["problems"].([]any)[0].(map[string]any)
 }
 
-// problemAdditions are the ProblemDoc keys added after run.v2 first
+// problemAdditions are the ProblemDoc keys added after run.v3 first
 // shipped; an older-shape Problem lacks all of them.
 var problemAdditions = []string{"evidence_tail", "location", "remedies"}
 
 // TestSchemaCompat_ProblemDocOlderShapeValidatesAgainstSchema proves a
 // Problem written before evidence_tail/location/remedies existed still
-// validates against today's Strict schema/run.v2.json.
+// validates against today's Strict schema/run.v3.json.
 func TestSchemaCompat_ProblemDocOlderShapeValidatesAgainstSchema(t *testing.T) {
 	doc := baseRunDocument(t)
 	older := firstProblem(doc)
@@ -142,7 +142,7 @@ func TestSchemaCompat_ProblemDocOlderShapeValidatesAgainstSchema(t *testing.T) {
 }
 
 // TestSchemaCompat_ProblemDocCurrentShapeValidatesAgainstSchema proves each
-// added Problem field is declared in schema/run.v2.json: under Strict, an
+// added Problem field is declared in schema/run.v3.json: under Strict, an
 // undeclared evidence_tail, location or remedies fails validation.
 func TestSchemaCompat_ProblemDocCurrentShapeValidatesAgainstSchema(t *testing.T) {
 	cases := map[string]any{
@@ -178,7 +178,7 @@ func TestSchemaCompat_VerificationDocOlderShapeValidatesAgainstSchema(t *testing
 
 // TestSchemaCompat_VerificationDocCurrentShapeValidatesAgainstSchema
 // proves VerificationDoc.Facts — Patch/File's per-attribute machine
-// provenance — validates against schema/run.v2.json's verification.facts.
+// provenance — validates against schema/run.v3.json's verification.facts.
 func TestSchemaCompat_VerificationDocCurrentShapeValidatesAgainstSchema(t *testing.T) {
 	doc := baseRunDocument(t)
 	firstTask(doc)["verification"] = []any{
@@ -195,7 +195,7 @@ func TestSchemaCompat_VerificationDocCurrentShapeValidatesAgainstSchema(t *testi
 
 // TestSchemaCompat_TrackedResourceDocShapesValidateAgainstSchema proves
 // TrackedResourceDoc's older shape (no mode) and current shape (with mode)
-// both validate against schema/run.v2.json's trackedResource $def.
+// both validate against schema/run.v3.json's trackedResource $def.
 func TestSchemaCompat_TrackedResourceDocShapesValidateAgainstSchema(t *testing.T) {
 	older := baseRunDocument(t)
 	firstTask(older)["tracked_resources"] = []any{
@@ -212,7 +212,7 @@ func TestSchemaCompat_TrackedResourceDocShapesValidateAgainstSchema(t *testing.T
 
 // TestSchemaCompat_BasisDocEmptyShapeValidatesAgainstSchema proves the
 // always-empty "basis" array toTaskDoc emits today validates against
-// schema/run.v2.json's basis $def, and that a populated BasisDoc (the
+// schema/run.v3.json's basis $def, and that a populated BasisDoc (the
 // shape ZYS-978 will start emitting once core has a data source) is
 // already schema-valid too — the $def is ready before the producer is.
 func TestSchemaCompat_BasisDocEmptyShapeValidatesAgainstSchema(t *testing.T) {
@@ -230,7 +230,7 @@ func TestSchemaCompat_BasisDocEmptyShapeValidatesAgainstSchema(t *testing.T) {
 // TestSchemaCompat_PublishedSchemaStaysPermissiveForFutureAdditions is the
 // other half of the additionalProperties fix: this test validates a real
 // document that carries a field never declared in the schema against the
-// raw published schema/run.v2.json (rawRunSchema, not runSchema(t)'s
+// raw published schema/run.v3.json (rawRunSchema, not runSchema(t)'s
 // wireschema.Strict-wrapped copy every other test in this file uses), and
 // requires that to still pass — so a consumer pinned to today's schema
 // does not break the day evo adds the next Problem/resource/Patch field.
@@ -242,6 +242,6 @@ func TestSchemaCompat_PublishedSchemaStaysPermissiveForFutureAdditions(t *testin
 		t.Fatalf("marshal spliced document: %v", err)
 	}
 	if err := wireschema.Validate(rawRunSchema(t), encoded); err != nil {
-		t.Fatalf("published schema/run.v2.json must stay additive-compatible, got: %v", err)
+		t.Fatalf("published schema/run.v3.json must stay additive-compatible, got: %v", err)
 	}
 }

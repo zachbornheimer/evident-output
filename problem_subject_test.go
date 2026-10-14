@@ -34,7 +34,7 @@ func warnSubjectRun(t *testing.T, count int) (human string, doc map[string]any) 
 
 // TestProblemWarning_OnSubjectReachesEveryProjection pins E-109: Warn("x",
 // On("job")) rendered "✓ check jobs  ! x" — the subject dropped from
-// the inline row — and the run.v2 task entry carried no trace of the
+// the inline row — and the run.v3 task entry carried no trace of the
 // warning. Every projection now carries the warning with its subject.
 func TestProblemWarning_OnSubjectReachesEveryProjection(t *testing.T) {
 	for _, count := range []int{1, 2} {
@@ -45,7 +45,7 @@ func TestProblemWarning_OnSubjectReachesEveryProjection(t *testing.T) {
 		task := doc["data"].(map[string]any)["tasks"].([]any)[0].(map[string]any)
 		warnings, _ := task["warnings"].([]any)
 		if len(warnings) != count || warnings[0].(map[string]any)["subject"] != "job" || warnings[0].(map[string]any)["message"] != "x" {
-			t.Errorf("%d warning(s): run.v2 task warnings = %v, want %d with subject job", count, task["warnings"], count)
+			t.Errorf("%d warning(s): run.v3 task warnings = %v, want %d with subject job", count, task["warnings"], count)
 		}
 	}
 }

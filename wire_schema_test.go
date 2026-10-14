@@ -2,12 +2,15 @@ package evo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
 	"github.com/zachbornheimer/evident-output/v2/testkit"
 	"github.com/zachbornheimer/evident-output/v2/testkit/wireschema"
 )
@@ -79,4 +82,59 @@ func strictRunSchema(t *testing.T) []byte {
 		t.Fatalf("wireschema.Strict(%s): %v", runSchemaPath, err)
 	}
 	return strict
+}
+
+// shippedSchemaVersions maps each published wire document kind to the schema_version the encoder writes.
+var shippedSchemaVersions = map[string]string{
+	"run":   wire.RunSchemaVersion,
+	"event": wire.EventSchemaVersion,
+}
+
+// TestSchemaVersionConstMatchesFile pins one schema per wire document, named <kind>.v<N>.json, whose
+// schema_version const is N.0 and the version the encoder writes: a consumer reading a file's name knows
+// the version it validates, and a stale schema cannot linger beside the current one.
+func TestSchemaVersionConstMatchesFile(t *testing.T) {
+	files, err := filepath.Glob("schema/*.json")
+	if err != nil {
+		t.Fatalf("glob schema: %v", err)
+	}
+	seen := map[string]string{}
+	for _, file := range files {
+		kind, major, ok := strings.Cut(strings.TrimSuffix(filepath.Base(file), ".json"), ".v")
+		if _, shipped := shippedSchemaVersions[kind]; !ok || !shipped {
+			t.Errorf("%s is not a shipped wire schema (<kind>.v<N>.json for kind run or event)", file)
+			continue
+		}
+		if prior, dup := seen[kind]; dup {
+			t.Errorf("two schemas for the %s document: %s and %s; keep one per wire version", kind, prior, file)
+		}
+		seen[kind] = file
+
+		body, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("read %s: %v", file, err)
+		}
+		var schema struct {
+			Properties struct {
+				SchemaVersion struct {
+					Const string `json:"const"`
+				} `json:"schema_version"`
+			} `json:"properties"`
+		}
+		if err := json.Unmarshal(body, &schema); err != nil {
+			t.Fatalf("decode %s: %v", file, err)
+		}
+		got := schema.Properties.SchemaVersion.Const
+		if want := major + ".0"; got != want {
+			t.Errorf("%s declares schema_version const %q, want %q from its file name", file, got, want)
+		}
+		if want := shippedSchemaVersions[kind]; got != want {
+			t.Errorf("%s declares schema_version const %q, but the encoder writes %q", file, got, want)
+		}
+	}
+	for kind := range shippedSchemaVersions {
+		if seen[kind] == "" {
+			t.Errorf("no schema/%s.v<N>.json is published", kind)
+		}
+	}
 }

@@ -33,8 +33,8 @@ func EventJSONSchema() []byte {
 }
 
 func generateSchema(id, title string, root reflect.Type, overrides map[string]any) []byte {
-	g := &schemaGen{defs: map[string]any{}, overrides: overrides}
-	schema := g.objectOf(root)
+	g := &schemaGen{defs: map[string]any{}}
+	schema := g.objectOf(root, overrides)
 	schema["$schema"] = jsonSchemaDraft
 	schema["$id"] = id
 	schema["title"] = title
@@ -49,11 +49,12 @@ func generateSchema(id, title string, root reflect.Type, overrides map[string]an
 }
 
 type schemaGen struct {
-	defs      map[string]any
-	overrides map[string]any
+	defs map[string]any
 }
 
-func (g *schemaGen) objectOf(t reflect.Type) map[string]any {
+// objectOf describes struct t. overrides replace named properties of t itself only: a nested struct's
+// field that shares a name (an effect's "object") is its own property, never the envelope's.
+func (g *schemaGen) objectOf(t reflect.Type, overrides map[string]any) map[string]any {
 	t = unwrap(t)
 	props := map[string]any{}
 	required := make([]string, 0, t.NumField())
@@ -63,7 +64,11 @@ func (g *schemaGen) objectOf(t reflect.Type) map[string]any {
 		if skip {
 			continue
 		}
-		props[name] = g.property(field.Type, name)
+		if override, ok := overrides[name]; ok {
+			props[name] = override
+		} else {
+			props[name] = g.property(field.Type)
+		}
 		if !omitempty {
 			required = append(required, name)
 		}
@@ -75,10 +80,7 @@ func (g *schemaGen) objectOf(t reflect.Type) map[string]any {
 	return schema
 }
 
-func (g *schemaGen) property(t reflect.Type, name string) any {
-	if override, ok := g.overrides[name]; ok {
-		return override
-	}
+func (g *schemaGen) property(t reflect.Type) any {
 	t = unwrap(t)
 	if t.Kind() == reflect.Struct && t != reflect.TypeFor[time.Time]() {
 		ref := g.define(t)
@@ -93,7 +95,7 @@ func (g *schemaGen) define(t reflect.Type) string {
 		return name
 	}
 	g.defs[name] = map[string]any{"type": "object"}
-	g.defs[name] = g.objectOf(t)
+	g.defs[name] = g.objectOf(t, nil)
 	return name
 }
 
@@ -115,7 +117,7 @@ func (g *schemaGen) typeSchema(t reflect.Type) any {
 		if t == reflect.TypeFor[time.Time]() {
 			return map[string]any{"type": "string"}
 		}
-		return g.objectOf(t)
+		return g.objectOf(t, nil)
 	default:
 		return map[string]any{}
 	}

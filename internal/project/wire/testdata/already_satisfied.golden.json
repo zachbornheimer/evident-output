@@ -1,6 +1,6 @@
 {
   "object": "evo.run",
-  "schema_version": "2.0",
+  "schema_version": "3.0",
   "evo_version": "1.0.0",
   "run_id": "out_1",
   "started_at": "2026-09-15T20:00:00Z",

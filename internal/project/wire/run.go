@@ -9,9 +9,9 @@ import (
 
 // RunSchemaVersion is the "evo.run" final document's schema_version
 // (spec §35: "If the desired new envelope is incompatible, introduce a new
-// final JSON schema version" — this is the incompatible replacement of 1.0's
-// "0.4" document, versioned 2.0).
-const RunSchemaVersion = "2.0"
+// final JSON schema version" — this is the incompatible replacement of the
+// 1.x "2.0" document, versioned 3.0 and published as schema/run.v3.json).
+const RunSchemaVersion = "3.0"
 
 // RunObject is the "evo.run" envelope's object discriminator (spec §35).
 const RunObject = "evo.run"

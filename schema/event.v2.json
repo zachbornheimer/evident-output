@@ -18,7 +18,7 @@
       "type": "string"
     },
     "schema_version": {
-      "const": "1.0"
+      "const": "2.0"
     },
     "seq": {
       "minimum": 1,
