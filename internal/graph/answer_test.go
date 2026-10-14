@@ -11,7 +11,7 @@ func TestAnswerOutcomeDecidesTheGateState(t *testing.T) {
 		AnswerYes:         record.Succeeded,
 		AnswerAssumedYes:  record.Succeeded,
 		AnswerNo:          record.Refused,
-		AnswerPolicy:      record.Refused,
+		AnswerNoTerminal:  record.Refused,
 		AnswerClosed:      record.Refused,
 		AnswerInterrupted: record.Cancelled,
 	}
@@ -31,7 +31,7 @@ func TestAnswerSummaryAndHint(t *testing.T) {
 		{AnswerYes, "", false},
 		{AnswerAssumedYes, "assumed --yes", false},
 		{AnswerNo, "declined", false},
-		{AnswerPolicy, "blocked by policy", true},
+		{AnswerNoTerminal, "no terminal to answer", true},
 		{AnswerClosed, "no answer — stdin closed", true},
 		{AnswerInterrupted, "", false},
 	}

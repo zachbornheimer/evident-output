@@ -16,9 +16,9 @@ const (
 	AnswerAssumedYes
 	// AnswerNo is any reply that is not affirmative, an empty line included.
 	AnswerNo
-	// AnswerPolicy is a refusal to ask: no terminal, plain output or a
-	// non-interactive run, without a flag answering for the human.
-	AnswerPolicy
+	// AnswerNoTerminal is a refusal to ask: stdin is not a terminal, so nobody
+	// can answer, and no flag answered for the human.
+	AnswerNoTerminal
 	// AnswerClosed is stdin closing before any answer arrived. Nothing decided
 	// to refuse; the stream gave no answer.
 	AnswerClosed
@@ -50,8 +50,8 @@ func (a Answer) Summary() string {
 		return "assumed --yes"
 	case AnswerNo:
 		return "declined"
-	case AnswerPolicy:
-		return "blocked by policy"
+	case AnswerNoTerminal:
+		return "no terminal to answer"
 	case AnswerClosed:
 		return "no answer — stdin closed"
 	default:
@@ -59,10 +59,10 @@ func (a Answer) Summary() string {
 	}
 }
 
-// Unasked reports a refusal nobody made on purpose — a policy that would
-// not ask, or input that closed — whose row points at how to confirm
+// Unasked reports a refusal nobody made on purpose — no terminal to ask at,
+// or input that closed — whose row points at how to confirm
 // non-interactively.
-func (a Answer) Unasked() bool { return a == AnswerPolicy || a == AnswerClosed }
+func (a Answer) Unasked() bool { return a == AnswerNoTerminal || a == AnswerClosed }
 
 // ReplyAnswer is the Answer a reply read at the prompt gives.
 func ReplyAnswer(r input.Reply) Answer {

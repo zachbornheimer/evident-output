@@ -5,6 +5,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/v2/internal/graph"
 	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/live"
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 	"github.com/zachbornheimer/evident-output/v2/internal/terminal"
 )
@@ -53,8 +54,8 @@ func NonInteractive(flag string) ConfirmOption {
 // so no call site hand-rolls a prompt that fights the spinner or misreports "no" as failure. question is verbatim.
 //
 // "y" or "yes" (any case) succeeds the gate and returns true. Anything else refuses it ("declined"); a plain run
-// refuses without asking ("blocked by policy"), and closed input refuses with "no answer — stdin closed"; both
-// point at how to confirm non-interactively. Declining exits 1 through the Conclusion, never Failed or Cancelled.
+// refuses without asking ("no terminal to answer") when stdin is not a terminal, whatever the Output, and
+// closed input refuses with "no answer — stdin closed"; both point at how to confirm non-interactively. Declining exits 1 through the Conclusion, never Failed or Cancelled.
 // SIGINT or SIGTERM while waiting cancels the gate, and Confirm returns false.
 func (o *Run) Confirm(question string, opts ...ConfirmOption) bool {
 	if o == nil {
@@ -67,8 +68,8 @@ func (o *Run) Confirm(question string, opts ...ConfirmOption) bool {
 		}
 	}
 	gate := o.confirmGate(question)
-	if o.cfg.plain {
-		return o.settleGate(gate, graph.AnswerPolicy, cfg)
+	if !o.personCanAnswer() {
+		return o.settleGate(gate, graph.AnswerNoTerminal, cfg)
 	}
 	return o.promptConfirm(gate, question, cfg)
 }
@@ -136,6 +137,16 @@ func (o *Run) ownWindow(id string, owns bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.show.Stream.OwnWindow(record.TaskID(id), owns)
+}
+
+// personCanAnswer reports whether a person can type an answer: stdin is a terminal whatever the Output, or
+// the caller's Terminal facade is an interactive surface, whose keyboard is the Stdin facade (CONTRACT §5).
+func (o *Run) personCanAnswer() bool {
+	if terminal.ReaderIsCharDevice(o.confirmReader()) {
+		return true
+	}
+	surface := live.SurfaceOf(o.cfg.terminal)
+	return surface != nil && surface.IsInteractive()
 }
 
 // confirmReader is the Stdin facade: standard input unless configured.

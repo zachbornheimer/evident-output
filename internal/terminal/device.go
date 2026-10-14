@@ -55,14 +55,20 @@ func MarkCharDevice(w io.Writer) func() {
 // (typical interactive TTY). Pipes, files, and non-file writers return false.
 func IsCharDevice(w io.Writer) bool {
 	f, ok := w.(*os.File)
-	if !ok {
-		return false
-	}
+	return ok && fileIsCharDevice(f)
+}
+
+// ReaderIsCharDevice reports whether r is an *os.File backed by a character
+// device: standard input a person types at. Pipes, files, and non-file
+// readers return false.
+func ReaderIsCharDevice(r io.Reader) bool {
+	f, ok := r.(*os.File)
+	return ok && fileIsCharDevice(f)
+}
+
+func fileIsCharDevice(f *os.File) bool {
 	st, err := f.Stat()
-	if err != nil {
-		return false
-	}
-	return st.Mode()&os.ModeCharDevice != 0
+	return err == nil && st.Mode()&os.ModeCharDevice != 0
 }
 
 // SameDevice reports whether a and b are both *os.File values backed by the

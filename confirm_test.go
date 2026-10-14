@@ -110,7 +110,7 @@ func TestConfirm_ZeroByteEOF_BlocksByPolicyNotDecline(t *testing.T) {
 		t.Fatalf("item state = %v, want Blocked", item.State)
 	}
 	if len(item.Problems) == 0 || item.Problems[0].Summary != "no answer — stdin closed" {
-		t.Fatalf("problems = %+v, want summary %q (not %q or %q)", item.Problems, "no answer — stdin closed", "blocked by policy", "declined")
+		t.Fatalf("problems = %+v, want summary %q (not %q or %q)", item.Problems, "no answer — stdin closed", "no terminal to answer", "declined")
 	}
 	if actions := policyBlockActions(t, item); len(actions) == 0 || !strings.Contains(actions[0].Label, "--yes") {
 		t.Fatalf("actions = %+v, want a --yes hint", actions)
@@ -119,7 +119,7 @@ func TestConfirm_ZeroByteEOF_BlocksByPolicyNotDecline(t *testing.T) {
 
 // TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin proves a
 // non-interactive run without --yes never blocks waiting on stdin: the gate
-// resolves Blocked "blocked by policy" with a Next hint, immediately.
+// resolves Blocked "no terminal to answer" with a Next hint, immediately.
 func TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin(t *testing.T) {
 	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard, Stdin: testkit.UnreadableStdin(t)}})
 
@@ -132,8 +132,8 @@ func TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin(t *testing.T) 
 	if item.State != refused {
 		t.Fatalf("item state = %v, want Blocked", item.State)
 	}
-	if len(item.Problems) == 0 || item.Problems[0].Summary != "blocked by policy" {
-		t.Fatalf("problems = %+v, want summary %q", item.Problems, "blocked by policy")
+	if len(item.Problems) == 0 || item.Problems[0].Summary != "no terminal to answer" {
+		t.Fatalf("problems = %+v, want summary %q", item.Problems, "no terminal to answer")
 	}
 	if actions := policyBlockActions(t, item); len(actions) == 0 || !strings.Contains(actions[0].Label, "--yes") {
 		t.Fatalf("actions = %+v, want a --yes hint", actions)
