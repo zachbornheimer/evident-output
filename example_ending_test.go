@@ -60,9 +60,12 @@ func ExampleVerb() {
 	cfg.DryRun = true
 	evo.Execute(context.Background(), cfg, func(ctx context.Context, r *evo.Run) error {
 		steps := r.Sequence("changes")
-		for _, verb := range []evo.Verb{evo.Create, evo.Update, evo.Delete} {
-			steps.Task(string(verb) + " branches").Define(func(ctx context.Context) error {
-				return evo.Effect(ctx, evo.EffectSpec{Verb: verb, Object: "branch", Quantity: 2}, func(context.Context) error { return nil })
+		for _, step := range []struct {
+			name string
+			verb evo.Verb
+		}{{"create", evo.Create}, {"update", evo.Update}, {"delete", evo.Delete}} {
+			steps.Task(step.name + " branches").Define(func(ctx context.Context) error {
+				return evo.Effect(ctx, evo.EffectSpec{Verb: step.verb, Object: "branch", Quantity: 2}, func(context.Context) error { return nil })
 			})
 		}
 		return nil
