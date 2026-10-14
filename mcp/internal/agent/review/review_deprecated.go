@@ -45,7 +45,7 @@ func detectHandAssembledFailureSummary(filename, src string) []Finding {
 			Message:    "printing a joined list duplicates the Conclusion summary; resolve each item on its own Item/Task instead",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: "replace with one Item/Task per entry, and Next(evo.Label(...)) for follow-up guidance",
+			Suggestion: "replace with one Task per entry, and evo.Next(evo.Action{Label: ...}) for follow-up guidance",
 		})
 	}
 	return findings
@@ -178,7 +178,7 @@ func newInMainFindings(filename, src string) []Finding {
 		Message:    "evo.New was removed with the item/task fold; evo.Main and evo.Execute are the only constructors",
 		File:       filename,
 		Line:       lineAt(src, offset+idx),
-		Suggestion: "replace evo.New(cfg) with os.Exit(evo.Main(cfg, run)) in ordinary main, or evo.Execute(ctx, cfg, run).ExitCode() when the caller owns the context and the exit",
+		Suggestion: "replace evo.New(cfg) (removed in 1.0) with os.Exit(evo.Main(cfg, run)) in ordinary main, or evo.Execute(ctx, cfg, run).ExitCode() when the caller owns the context and the exit",
 	}}
 }
 
@@ -211,7 +211,7 @@ func causeFindings(filename, src string) []Finding {
 			Message:    "evo.Cause was removed in 1.1; Fail/Block are statements — attach the error text with Detail, or return fmt.Errorf inside Define",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: `replace evo.Cause(err) with evo.Detail(err.Error()) on Fail/Block, or return fmt.Errorf("...: %w", err) inside Define`,
+			Suggestion: `replace evo.Cause(err) (removed in 1.1) with evo.Detail(err.Error()) on Fail/Block, or return fmt.Errorf("...: %w", err) inside Define`,
 		})
 	}
 	return findings

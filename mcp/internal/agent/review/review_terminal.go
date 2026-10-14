@@ -179,6 +179,6 @@ func detectHandRolledConfirm(filename, src string) []Finding {
 		Message:    "hand-rolled stdin confirm prompt in a file that imports evo; use evo.Confirm for spinner-pause + OK/declined/blocked resolution",
 		File:       filename,
 		Line:       line,
-		Suggestion: "replace the bufio/fmt.Scan prompt with evo.Confirm(question, evo.AssumeYes(flagYes))",
+		Suggestion: "replace the bufio/fmt.Scan prompt with r.Confirm(question, evo.NonInteractive(\"--yes\"))",
 	}}
 }

@@ -74,7 +74,7 @@ func detectHandAssembledTaxonomyCount(filename, src string) []Finding {
 			Message:    "hand-assembled skip/keep count string; record reason via task.Skipped and let evo derive and sum the partition",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: `replace with task.Skipped(evo.Reason("...")) for each item; evo derives and sums the count`,
+			Suggestion: `replace with one Task per item, each returning evo.Exclude("..."); evo derives and sums the count`,
 		})
 	}
 	return findings

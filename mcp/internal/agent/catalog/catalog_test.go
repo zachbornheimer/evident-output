@@ -120,7 +120,7 @@ func TestGuidesCoverPhaseQAdditions(t *testing.T) {
 		}
 		return false
 	}
-	for _, want := range []string{"TruncateNames", "Predeclare before fan-out", "task.Writer()", "Destructive()"} {
+	for _, want := range []string{"Bounded narration (BOUND-001)", "Predeclare before fan-out", "task.Writer()", "Destructive()"} {
 		if !bodyContains(want) {
 			t.Errorf("no guide body mentions %q", want)
 		}

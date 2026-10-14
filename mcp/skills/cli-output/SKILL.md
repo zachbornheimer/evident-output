@@ -127,7 +127,7 @@ Run the child inside the Task's `Define`: a Task given a `Writer` but never
 Defined stays unresolved and the run concludes `partial`.
 
 Do **not** use `DebugWriter` for child tools (API-029).
-Secrets: set `Config.Redactor`.
+Secrets: set `Facades.Redactor`.
 
 ## Platform contracts
 

@@ -10,8 +10,8 @@ func defineRules() []Rule {
 			MinDialect: "1.0.0",
 			Category:   "API",
 			Severity:   SeverityWarning,
-			Invariant:  "Skipped means a check never applied; Satisfied means the check applied and was already true — a reason naming a checked-and-already-true condition belongs to the latter",
-			Why:        "task.Skipped(evo.Reason(\"already up to date\")) reports \"did not apply\" for a precondition that was in fact checked and found already true; Verify (run before Define) or evo.File/evo.Exec's own tracked comparison settle Satisfied for exactly this case, and collapsing it into Skipped hides a real checked precondition behind the wrong glyph. True inapplicability (no project config, no Go module) stays Skipped.",
+			Invariant:  "Excluded means a check never applied; Satisfied means the check applied and was already true — a reason naming a checked-and-already-true condition belongs to the latter",
+			Why:        "return evo.Exclude(\"already up to date\") reports \"did not apply\" for a precondition that was in fact checked and found already true; Verify (run before Define) or evo.File/evo.Exec's own tracked comparison settle Satisfied for exactly this case, and collapsing it into Excluded hides a real checked precondition behind the wrong glyph. True inapplicability (no project config, no Go module) stays Excluded.",
 			BadCode: `if installedVersion == latestVersion {
   task.Skipped(evo.Reason("already up to date"))
   return
@@ -21,7 +21,7 @@ task.Define(func(ctx context.Context) error { return install(ctx) })`,
   return installedVersion == latestVersion, nil
 })
 task.Define(func(ctx context.Context) error { return install(ctx) })`,
-			Remediation:     "Move the already-true check into task.Verify(...) before Define, or rely on evo.File/evo.Exec's own tracked comparison, so evo settles Satisfied instead of Skipped; keep Skipped only for true inapplicability",
+			Remediation:     "Move the already-true check into task.Verify(...) before Define, or rely on evo.File/evo.Exec's own tracked comparison, so evo settles Satisfied instead of Excluded; keep evo.Exclude only for true inapplicability",
 			RelatedGuidance: []string{"tasks", "evidence-provenance"},
 			VerificationIDs: []string{"API-046"},
 			Since:           "1.1.0",
@@ -52,7 +52,7 @@ task.Define(func(ctx context.Context) error { return install(ctx) })`,
 			Category:   "API",
 			Severity:   SeverityError,
 			Invariant:  "a raw os/exec.Cmd wired to an Evo Task's Writer() does not hand-roll bytes.Buffer/io.MultiWriter capture or recognize cancellation by comparing captured output strings; evo.Exec already owns spawning, capture, liveness, sanitized/redacted bounded retention, and context-based cancellation, and returns an inspectable ExecResult",
-			Why:        "zq's run_captured_task.go allocates its own bytes.Buffer, combines task.Writer() with that buffer via io.MultiWriter, falls back to Result.Output when live redirection is unavailable, recognizes cancellation by comparing captured output strings, classifies nonzero exit itself, and manually attaches captured evidence through Failf — all of it now redundant with the ExecResult{Ran, ExitCode, Stdout, Stderr, Truncated} that evo.Exec returns (ZYS-850), plus errors.Is(err, evo.ErrExecNonzeroExit) for exit classification.",
+			Why:        "zq's run_captured_task.go allocates its own bytes.Buffer, combines task.Writer() with that buffer via io.MultiWriter, falls back to the command's own output when live redirection is unavailable, recognizes cancellation by comparing captured output strings, classifies nonzero exit itself, and manually attaches captured evidence through the failure's Detail — all of it now redundant with the ExecResult{Ran, ExitCode, Stdout, Stderr, Truncated} that evo.Exec returns (ZYS-850), plus errors.Is(err, evo.ErrExecNonzeroExit) for exit classification.",
 			BadCode: `var buf bytes.Buffer
 cmd.Stdout = io.MultiWriter(task.Writer(), &buf)
 cmd.Stderr = io.MultiWriter(task.Writer(), &buf)
@@ -67,7 +67,7 @@ if errors.Is(err, evo.ErrExecNonzeroExit) {
   return evo.Fail("lint failed", evo.Detail(res.Stdout))
 }
 return fmt.Errorf("run golangci-lint: %w", err)`,
-			Remediation:     "Delete the raw exec.Cmd, its hand-rolled bytes.Buffer/io.MultiWriter capture, and any output-string cancellation match; call evo.Exec(ctx, evo.ExecSpec{Executable, Args}) and inspect the returned ExecResult (and errors.Is(err, evo.ErrExecNonzeroExit)) instead",
+			Remediation:     "Delete the raw exec.Cmd, its hand-rolled bytes.Buffer/io.MultiWriter capture, and any output-string cancellation match; call evo.Exec(ctx, evo.ExecSpec{Argv: ...}) and inspect the returned ExecResult (and errors.Is(err, evo.ErrExecNonzeroExit)) instead",
 			RelatedGuidance: []string{"evo-file-exec", "tasks"},
 			VerificationIDs: []string{"API-054"},
 			Since:           "1.1.0",

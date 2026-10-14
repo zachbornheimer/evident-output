@@ -55,7 +55,7 @@ func All() []Guide {
      child's last line becomes the live doing-text.
   4) return evo.Exclude(reason) from a Task's Define — taxonomy counted and summed, never a bare
      "skipped N". The item name is the Task name (a named Group/Sequence child).
-  5) evo.Confirm(question, ...) — owns the whole gate (prompt, quiesce, ⊘/OK resolution, exit code).
+  5) r.Confirm(question, ...) — owns the whole gate (prompt, quiesce, ⊘ declined resolution); a decline is evo.Refuse, exit 1.
 
 Types: Task (work with Doing/Progress/mutations, resolved by what Define returns), Sequence (r.Sequence — named
 children in dependency order, later siblings NotStarted on failure/cancel), Group (r.Group — independent
@@ -68,19 +68,19 @@ Effect quantities tally and always render at Finish; a named row (evo.File "writ
 streams the instant its owning task resolves, bounded by the same viewport cap and "… +N more (not shown)"
 overflow the Finish ledger uses.
 
-Severity: Problem(summary, evo.Severity(evo.SeverityWarning)) = non-terminal annotation (does not resolve the task — call it any number of times before the
-Task resolves); Block = stop before mutate; Fail = evaluation failed.
+Severity: task.Problem(summary) = non-fatal finding (never ends the Task — call it any number of times before Define returns);
+evo.Refuse = stop before mutation; evo.Fail = evaluation failed.
 One Task, many Problems (1.1/ZYS-848): task.Problem(summary, opts...) appends one Problem without
-resolving the task — call it once per finding instead of a Task per finding. A nil Define return
-after any accumulated Problem at error severity resolves the Task Failed, never Done. See docs/migration/1.1.md.
-Exit-code honesty (DOM-020): Block and Fail carry different exit codes (1 vs 2) so a caller can tell "you did
+ending the Task — call it once per finding instead of a Task per finding. The Task keeps the Outcome its
+return gives: a nil return is Succeeded with the Problems attached, so a check that must fail returns evo.Fail.
+Exit-code honesty (DOM-020): evo.Refuse and evo.Fail carry different exit codes (1 vs 2) so a caller can tell "you did
 something wrong" from "something broke while checking". A usage or user mistake (missing flag, declined confirm,
-protected-branch policy) resolves Block, never Fail — routing it through Fail reports a user error as a system
+protected-branch policy) returns evo.Refuse, never evo.Fail — routing it through Fail reports a user error as a system
 failure.
-Do not Start (API-006); no caller RunAll/Map/Retry on evo receivers (API-026 — Group/Sequence/Define/After are the scheduler; Group.Each/Sequence.Each were removed in 1.0); Fail/Block are statements (the printf verbs were removed in 1.1); Doing/Reason are printf-variadic; Summary takes one literal string; Writer/Capture not DebugWriter (API-029).
+Do not Start (API-006); no caller RunAll/Map/Retry on evo receivers (API-026 — Group/Sequence/Define/After are the scheduler; Group.Each/Sequence.Each were removed in 1.0); evo.Fail/evo.Refuse are returned endings (the printf verbs were removed in 1.1); Doing is printf-variadic; Summary takes one literal string; Writer/Capture not DebugWriter (API-029).
 Never print a joined failure list yourself (CON-002): fmt.Fprintln(r.Text(), strings.Join(failures, "\n")) duplicates the
 one summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows. Resolve each
-failure on its own Task and use Next(evo.Label(...)) for follow-up guidance instead.`,
+failure on its own Task and use evo.Next(evo.Action{Label: ...}) for follow-up guidance instead.`,
 			TokenEstimate: 410,
 		},
 		{
@@ -135,14 +135,14 @@ Progress to the true completed count directly — there is no relative/delta cou
 Sealed-total invariant: indeterminate → determinate happens once; after a total is sealed it never changes, and
 completed > total is unrepresentable.
 
-Skip taxonomy: task.Skipped(reason) — evo counts, sums, and truncates the
-reason partition (never a bare "skipped 6"); reasons come from evo.Reason("protected") (get-or-create — repeated
-calls with the same text merge into one taxonomy bucket, so inline evo.Reason("protected") at every call site is
-correct as written; lifting it to a package-level var is a style choice, never required for correctness).
+Exclusion taxonomy: return evo.Exclude(reason) from the item Task's Define — evo counts, sums, and truncates the
+reason partition (never a bare "skipped 6"); repeated calls with the same text merge into one taxonomy bucket, so an
+inline evo.Exclude("protected") at every call site is correct as written; lifting it to a package-level var is a
+style choice, never required for correctness.
 
-Bounded narration (BOUND-001): a slice joined with strings.Join and handed straight to Because/Detail/Doing
-reproduces the same terminal flood evo.TruncateNames already fixed for Plan/Changes rows — wrap it:
-evo.TruncateNames(names, 8) before it reaches any of those three calls.
+Bounded narration (BOUND-001): a slice joined with strings.Join and handed straight to evo.Detail or Doing
+reproduces the terminal flood the bounded ledger rows already fix — cap it (the first 8 names plus a count)
+before it reaches either call.
 
 Predeclare before fan-out (API-030): call out.Task/Group.Task for every child before starting any goroutine
 or g.Go closure, then pass the handle in. Declaring the Task inside the closure races task creation with rendering
@@ -153,16 +153,15 @@ goroutines (Group.Each/Sequence.Each were removed in 1.0) — Evo's scheduler ow
 One Task, many Problems (API-051, 1.1.0): a check that finds several independent issues owns one Task and
 calls task.Problem(summary, opts...) once per finding — never one Task per finding (Task(file).Fail(...) in a
 loop) and never every finding flattened into one errors.New(strings.Join(...)) string. Problem appends a
-blocking finding without resolving the Task; the Task still resolves exactly once, Failed if Define returns nil
-but at least one Problem was accumulated. Every accumulated Problem survives in Snapshot/JSON/JSONL even when
+non-fatal finding without ending the Task; the Task still ends exactly once, by what Define returns (a check
+that must fail returns evo.Fail). Every accumulated Problem survives in Snapshot/JSON/JSONL even when
 human output bounds how many render inline.
 
 Facts vs Tasks (v0.4.0/P8): discovered information ("repository /repo", "language go", "config loaded") is not
 work — never fake a checkmark Task to display it. Use task.Fact(name, value) (attached to the Task that
-discovered it) or evo.Fact(name, value) (run-scoped) instead; both render as a durable dim "name  value" line,
-never a lifecycle row, fire-and-forget. task.Problem(summary, evo.Severity(evo.SeverityWarning)) is the
-warning-severity annotation on the lifecycle, never a replacement for it (a warned-but-unresolved Task
-auto-resolves success at Finish). Both flow through the same placement rule: inline on the row when it is the
+discovered it) or r.Fact(name, value) (run-scoped) instead; both render as a durable dim "name  value" line,
+never a lifecycle row, fire-and-forget. task.Problem(summary) is the
+non-fatal annotation on the lifecycle, never a replacement for it (a Task ends only by what Define returns). Both flow through the same placement rule: inline on the row when it is the
 only annotation, nested dim lines otherwise.`,
 			TokenEstimate: 320,
 		},
@@ -171,28 +170,28 @@ only annotation, nested dim lines otherwise.`,
 			Title:    "File, Verify, and provenance (spec §55/§56)",
 			UseCases: []string{"file", "idempotent", "provenance", "freshness", "cache", "manifest", "verify", "fingerprint"},
 			Concepts: []string{"File", "FileSpec", "Verify", "Fingerprint", "FSPath", "Value", "App", "Basis"},
-			Body: `Common file state goes through evo.File(ctx, evo.FileSpec{Path, Contents, Mode, Basis}) inside
+			Body: `Common file state goes through evo.File(ctx, evo.FileSpec{Path, Contents, Mode, Inputs, Values}) inside
 task.Define — it creates, rewrites on drift, and no-ops when the desired state already matches; ctx must come
 from a Task's Define callback. Do not teach a hand-rolled Evidence callback (a legacy named mutating registration)
 as the normal way to make file work idempotent — evo.File already covers it.
 
 Teach evo.Task("...").Define(fn) first, then Group/Sequence for collections, then evo.File for declarative
-tracked file state, then FileSpec.Basis / ExecSpec.Basis Fingerprint values (evo.FSPath/evo.Value/evo.App) only when freshness
-depends on semantic external inputs File/Exec do not already track, then Task.Verify only for domains Evo cannot
+tracked file state, then FileSpec.Inputs / ExecSpec.Inputs and Values only when freshness
+depends on external inputs File/Exec do not already track, then Task.Verify only for domains Evo cannot
 track automatically. Never lead with manifest internals or renderer controls.
 
 Teach the exact distinction (spec §56) — these are four different claims, not synonyms:
   - Task.Verify controls whole-Task fast skipping in 1.0: a pre-Define check that, when true, skips Define
     entirely and settles Satisfied.
-  - Application fingerprint (evo.App) is definition identity/invalidation metadata, not positive Evidence by
-    itself.
+  - Values (FileSpec.Values / ExecSpec.Values) name the non-file facts that decide freshness, such as a tool
+    version; they are invalidation metadata, not positive Evidence by itself.
   - Evo-native operation identity (evo.File's own tracked record) controls operation-level no-op/recompilation
     once the current invocation is observed.
-  - Basis (a []Fingerprint on FileSpec) explains operation freshness — it does not by itself prove current state.
+  - Inputs and Values explain operation freshness — they do not by themselves prove current state.
   - Evidence is a boolean current-state conclusion; only a true pre-Define Verify skips Define.
 Never claim that discovering evo.File at the end of a callback can skip expensive arbitrary code that already
 ran before it — only a pre-Define Verify can skip Define; File's own freshness check happens after Define starts.
-Never invent a Basis entry the source code does not actually read (EVO-PROVENANCE-001).`,
+Never invent an Input the source code does not actually read (EVO-PROVENANCE-001).`,
 			TokenEstimate: 300,
 		},
 		{
@@ -246,21 +245,21 @@ Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 			UseCases: []string{"write", "chmod", "generate", "subprocess", "pipeline", "reconcile", "resource", "lock"},
 			Concepts: []string{"File", "FileSpec", "Exec", "ExecSpec", "Fingerprint", "FSPath", "Outputs", "Resource", "FSResource", "Effect", "EffectSpec", "PartialEffect"},
 			Rules:    []string{"EVO-FILE-001", "EVO-EXEC-001", "API-053", "API-054", "API-055", "API-058"},
-			Body: `evo.File(ctx, evo.FileSpec{Path, Contents, Mode, Basis}) replaces hand-rolled os.WriteFile +
+			Body: `evo.File(ctx, evo.FileSpec{Path, Contents, Mode, Inputs, Values}) replaces hand-rolled os.WriteFile +
 os.Chmod + a manual existence/hash check: it writes only on drift and no-ops when Path/Contents/Mode already
 match, with dry-run safety the hand-rolled version never had (EVO-FILE-001).
 
 File also claims write-side ownership of its own Path automatically — application code never wraps it in a
-caller-managed sync.Mutex/RWMutex or lock file (API-055, ZYS-931/ZYS-840). Overlapping File/Basis/Effect claims
+caller-managed sync.Mutex/RWMutex or lock file (API-055, ZYS-931/ZYS-840). Overlapping File and Effect claims
 on the same or an ancestor path already wait on each other; a contended wait renders as "waiting for <path>" on
 its own. A non-File operation that still needs exclusivity over a path claims it explicitly with
-evo.FSResource(path) (or evo.LogicalResource(name) for non-filesystem shared state) via EffectSpec.Resource —
-never a caller lock, and never a generic Write(func...) callback for tracked file state.
+EffectSpec.Path (or EffectSpec.Resource, a logical name, for non-filesystem shared state) —
+never a caller lock, and never a bare callback for tracked file state.
 
-evo.Exec(ctx, evo.ExecSpec{Executable, Args, Basis, Outputs}) is the same declarative shape for an external
+evo.Exec(ctx, evo.ExecSpec{Argv, Inputs, Values, Outputs}) is the same declarative shape for an external
 process: it replaces os/exec.Command paired with a hand-written stat/hash/mtime freshness check, and no-ops
-when the declared Outputs are already current against Basis (EVO-EXEC-001). Outputs are the paths the process
-itself produces — never add them to Basis, and never flag a literal Exec Arg that already names a declared
+when the declared Outputs are already current against Inputs and Values (EVO-EXEC-001). Outputs are the paths the process
+itself produces — never add them to Inputs, and never flag a literal Exec Arg that already names a declared
 Output or the call's own Executable as an omitted input (EVO-PROVENANCE-001, see the provenance guide).
 
 evo.Exec returns (ExecResult, error): ExecResult carries Ran/ExitCode/Stdout/Stderr/Truncated, the same
@@ -269,21 +268,21 @@ structured Problems/Facts without taking over process spawning, capture, livenes
 callers that never inspect the result ignore it with "_, err := evo.Exec(ctx, spec)"; Exec still owns capture
 either way — there is no second raw subprocess API to reach for.
 
-Both share one freshness contract: Basis lists every additional Fingerprint input (evo.FSPath/evo.Value/evo.App)
+Both share one freshness contract: Inputs (paths) and Values (named values) list every input
 whose change should invalidate the current result — call it inside task.Define, from a ctx that Define supplies.
 
-File and file-backed Basis claim their own path automatically; no caller manages a mutex, lock file, or unlock
+File claims its own path automatically; no caller manages a mutex, lock file, or unlock
 lifecycle. For state Evo cannot model as desired file contents (a Git ref deletion, a worktree move, a remote
-push), evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity, Resource}, fn) performs one opaque mutation and,
-when Resource is set (evo.FSResource(path) or evo.LogicalResource(name)), holds it for fn's duration. Generic
-resource access holds at most one Resource at a time: a second evo.File or Resource-claiming evo.Effect call
-made with fn's own held ctx — directly, or through a helper fn hands that ctx to — fails deterministically with
-evo.ErrNestedResourceAcquisition instead of risking deadlock (API-053). Finish and return from the first
-Effect/File before starting a second, or claim one coarser Resource both mutations share.
+push), evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity, Path, Resource}, fn) performs one opaque mutation and,
+when Path or Resource is set, holds that claim for fn's duration. Generic
+resource access holds at most one claim at a time: a second evo.File or claim-holding evo.Effect call
+made with fn's own held ctx — directly, or through a helper fn hands that ctx to — is misuse and fails
+instead of risking deadlock (API-053). Finish and return from the first
+Effect/File before starting a second, or claim one coarser Path or Resource both mutations share.
 
 An Effect fn that committed part of its Quantity before failing returns evo.PartialEffect(committed, err):
 Effect records the committed subset as changed and still fails the Task with err (errors.Is/As intact). An
-invalid count or nil err returns evo.ErrInvalidPartialEffect and records nothing.
+invalid count or nil err fails the Task and records no change.
 
 evo.Patch(ctx, diff) derives the desired file states a unified diff describes — reading each source once under
 its own read claim — and commits each through evo.File, so dry-run
@@ -320,13 +319,13 @@ pre-definition Verify (or a tracked evo.File/evo.Exec check) that proves the cur
 			Body: `A Task that resolves before the visibility threshold must not flash a spinner.
 Durable notes go through fmt.Fprintln(r.Text(), ...) — never the fmt print functions — while a live region is open: evo clears
 the region, writes the line, redraws, atomically. fmt bypassing that path is how frames tear.
-evo.Confirm(question, ...) quiesces the live region for the whole ask-decide-resolve window before it prompts:
-no spinner ever animates while waiting on a human, and the answer resolves to OK, ⊘ declined, or ⊘ blocked by
-policy (never Failed, never Cancelled) — see common-api for the call.
+r.Confirm(question, ...) quiesces the live region for the whole ask-decide-resolve window before it prompts:
+no spinner ever animates while waiting on a human, and the answer is a bool: true, or ⊘ declined / refused off a
+terminal (return evo.Refuse; never Failed, never Cancelled) — see common-api for the call.
 A severe question (delete/remove/trash/retire/force) always adds evo.Destructive() (CONFIRM-002): it renders the
 prompt with an explicit "(destructive)" cue, so a user never approves a remote force-delete or trash mistaking it
 for an ordinary yes/no.
-Blocked (⊘, exit 1) is a distinct terminal state from Failed (✗, exit 2): a human "n", a policy refusal (no
+Refused (⊘, exit 1) is a distinct terminal state from Failed (✗, exit 2): a human "n", a policy refusal (no
 --yes off-TTY), and a protected-branch rule are all ⊘, never ✗.
 Resize is a rerender: width is re-read every frame; a narrowed pane recomputes truncation and compact layout
 live rather than leaving a wrapped remnant.

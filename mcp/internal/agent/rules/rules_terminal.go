@@ -87,15 +87,15 @@ if err := cmd.Run(); err != nil {
 			ID:        "CONFIRM-001",
 			Category:  "CONFIRM",
 			Severity:  SeverityWarning,
-			Invariant: "confirmation gates go through evo.Confirm, not a hand-rolled stdin prompt",
-			Why:       "A hand-rolled bufio/fmt.Scan prompt redraws under the live spinner, hangs CI when non-interactive, and reports a declined answer as a Go error instead of Blocked.",
+			Invariant: "confirmation gates go through Run.Confirm, not a hand-rolled stdin prompt",
+			Why:       "A hand-rolled bufio/fmt.Scan prompt redraws under the live spinner, hangs CI when non-interactive, and reports a declined answer as a Go error instead of Refused.",
 			BadCode: `reader := bufio.NewReader(os.Stdin)
 fmt.Print("delete origin/production-hotfix? [y/N] ")
 answer, _ := reader.ReadString('\n')`,
 			GoodCode: `if !r.Confirm("delete origin/production-hotfix?", evo.NonInteractive("--yes")) {
   return evo.Refuse("declined")
 }`,
-			Remediation:     "Replace hand-rolled stdin prompts with evo.Confirm; it owns spinner pause, the prompt line, and OK/⊘ resolution",
+			Remediation:     "Replace hand-rolled stdin prompts with r.Confirm; it owns spinner pause, the prompt line, and OK/⊘ resolution",
 			RelatedGuidance: []string{"interactive", "common-api"},
 			VerificationIDs: []string{"CONFIRM-001"},
 			Since:           "0.6.0",

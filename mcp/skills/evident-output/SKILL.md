@@ -65,8 +65,8 @@ grok mcp doctor evident-output --json
 - Absolute `Progress`/`Bytes`; `Advance` for deltas
 - Never `fmt.Print` during live UI; never happy-path `Start` (API-006)
 - Child process chatter → `cmd.Stdout = task.Writer()` (and stderr)
-- Sanitize is automatic; `Config.Redactor` scrubs the Capture ring + Debug fields
-- `Fail`/`Block` are statements (no return); inside Define, `return fmt.Errorf` and let Define resolve
+- Sanitize is automatic; `Facades.Redactor` scrubs the Capture ring + Debug fields
+- `evo.Fail`/`evo.Refuse` are returned from Define; for an ordinary error, `return fmt.Errorf` and let Define resolve it
 - Task is name-only: `out.Task("download")`. Child stdio: `cmd.Stdout = task.Writer()`
 - Data commands: write the domain payload to `r.ResultWriter()`
 - Prefer plain labels over `*f` constructors when identity must stay stable

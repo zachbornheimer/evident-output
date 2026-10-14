@@ -364,7 +364,7 @@ func detectDynamicReason(filename, src string) []Finding {
 				") is a cardinality bug — each distinct rendered value opens a new taxonomy bucket",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: `use a fixed string literal naming the classification, e.g. evo.Reason("protected"); fold the per-item detail into Skipped's name argument instead`,
+			Suggestion: `use a fixed string literal naming the classification, e.g. evo.Exclude("protected"); fold the per-item detail into the item Task's name instead`,
 		})
 	}
 	return findings
@@ -465,7 +465,7 @@ func detectCrammedSummary(filename, src string) []Finding {
 			Message:    verb + " summary hand-assembles a cause/action fragment into the text instead of using Detail/Next",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: "split the text: keep the summary short, move the cause to Detail(...) and the remedy to Next(evo.Label(...))",
+			Suggestion: "split the text: keep the summary short, move the cause to evo.Detail(...) and the remedy to evo.Next(evo.Action{Label: ...})",
 		})
 	}
 	return findings

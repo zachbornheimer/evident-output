@@ -13,10 +13,10 @@ Order for learning and documentation. Advanced paths are studio notes, not the l
    cannot express.
 3. evo.File for declarative managed-state file content.
 4. evo.Exec for external work with declared outputs.
-5. FileSpec.Basis / ExecSpec.Basis of Fingerprint values (evo.FSPath/evo.Value/evo.App)
-   when freshness depends on semantic external inputs beyond File/Exec's own tracking.
+5. FileSpec.Inputs / ExecSpec.Inputs (paths) and Values (named values)
+   when freshness depends on external inputs beyond File/Exec's own tracking.
 6. After for exceptional execution dependencies a Sequence would otherwise express.
-7. Facts / warnings / Effects / dry-run — Task.Fact, Task.Problem with SeverityWarning, Config.DryRun.
+7. Facts / warnings / Effects / dry-run — Task.Fact, Task.Problem (non-fatal), Config.DryRun.
 8. Task.Verify(func(context.Context) (bool, error)) only for domains Evo cannot track
    automatically — never the default way to make ordinary work idempotent.
 9. Top-level Config.Output / Config.Verbose — only when the host CLI needs machine or
@@ -88,14 +88,13 @@ task.Define(func(ctx context.Context) error {
 ok := r.Confirm("delete origin/production-hotfix?", evo.Destructive(), evo.NonInteractive("--yes"))
 ```
 
-Owns the whole gate: spinner pause, the `?` prompt, stdin. "n" resolves `⊘ declined`; non-TTY without
-`--yes` resolves `⊘ blocked by policy` — never a Go error, never Failed. `question` is the one
+Owns the whole gate: spinner pause, the `?` prompt, stdin. "n" returns false and resolves `⊘ declined`;
+non-TTY without the `NonInteractive` flag is refused — never a Go error. `question` is the one
 non-printf exception on this ladder — it is literal text, not a format string, so build it with
-`fmt.Sprintf` first if it needs interpolation. Both outcomes are `Blocked`, so the run concludes
-`[blocked]` → exit `1`; pass `AssumeYes` (or gate on your own flag before calling Confirm) if a
-decline should exit `0` instead. The blocked-by-policy hint defaults to naming a `--yes` flag your
-program may not actually have — pass `evo.PolicyFlag("--apply")` to name the real one:
-`evo.Confirm(q, evo.PolicyFlag("--apply"))`.
+`fmt.Sprintf` first if it needs interpolation. Return `evo.Refuse("declined")` after a false answer, so
+the run concludes Refused → exit `1`; gate on your own flag before calling Confirm if a decline
+should exit `0` instead. `evo.NonInteractive("--yes")` names the flag that passes the gate
+unattended, and the refusal's remedy names it, so pass your program's real flag spelling.
 
 ## Suspend (handing the tty to a child)
 

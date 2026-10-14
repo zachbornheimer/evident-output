@@ -285,6 +285,6 @@ func detectJSONStdoutMixedWithHumanText(filename, src string) []Finding {
 		Message:    "human text written to stdout in a file that also encodes JSON/JSONL to stdout; a machine consumer cannot parse the mixed stream",
 		File:       filename,
 		Line:       lineAt(src, loc[0]),
-		Suggestion: "route human presentation to Stderr (evo.FormatData) so stdout carries only the JSON/JSONL payload",
+		Suggestion: "route human presentation to Stderr (set Config.Output to evo.JSON or evo.JSONL) so stdout carries only the JSON/JSONL payload",
 	}}
 }

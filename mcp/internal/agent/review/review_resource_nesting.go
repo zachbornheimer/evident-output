@@ -237,6 +237,6 @@ func nestedResourceAcquisitionFinding(filename string, pos token.Position, calle
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,
-		Suggestion: "finish and return from the first evo.Effect/evo.File before starting a second, or claim one coarser Resource (e.g. evo.FSResource covering both paths) that both mutations share instead of nesting a second acquisition",
+		Suggestion: "finish and return from the first evo.Effect/evo.File before starting a second, or claim one coarser Path or Resource name that both mutations share instead of nesting a second acquisition",
 	}
 }
