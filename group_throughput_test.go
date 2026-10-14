@@ -93,3 +93,54 @@ func TestGroup1kPlainBytesPerOpUnderV1(t *testing.T) {
 			got, result.AllocsPerOp(), v1GroupBytesPerOp)
 	}
 }
+
+// v1GroupNsPerOp is v1.0.0's BenchmarkGroup1kPlain wall time: 8.97 ms/op, the
+// median of twelve runs (8.76 to 9.54 ms) on an Apple M1 Max, ten cores,
+// Go 1.27.2, with the host's one-minute load average between 4.9 and 6.1.
+// The round-5 runtime review measured it back to back with 2.0.
+const v1GroupNsPerOp = 8_970_000
+
+// group1kWallMargin is how much slower than v1.0.0 the same Group may run:
+// within 20 percent.
+const group1kWallMargin = 1.2
+
+// group1kBusyLoad is the one-minute load average above which the wall-time
+// bound says nothing: v1GroupNsPerOp was recorded at a load of about 5, and a
+// busier host slows v1.0.0 as much as 2.0.
+const group1kBusyLoad = 10
+
+// group1kRunsPerSample is how many Groups one timed sample runs, enough that
+// the timer's resolution and one slow start are a small share of it.
+const group1kRunsPerSample = 10
+
+// group1kMaxSamples is how many samples the bound gets to be met in. Host load
+// comes in bursts, such as the compile that ran just before the test, and a
+// burst only ever adds time, so a regression is a bound that none of them meet.
+const group1kMaxSamples = 4 * scaletest.CheapSamples
+
+// TestGroup1kPlainWallTimeWithinTwentyPercentOfV1 holds the 1,000-Task Plain
+// Group to the wall time v1.0.0 took for it, v1GroupNsPerOp, plus the
+// margin. The fastest sample is the estimate: host load only adds time. A busy
+// host skips, because the baseline was recorded on a quiet one; the race
+// detector skips, because it slows every Task.
+func TestGroup1kPlainWallTimeWithinTwentyPercentOfV1(t *testing.T) {
+	if scaletest.RaceDetector {
+		t.Skip("the race detector slows every Task several times over; the plain run enforces the v1.0.0 bound")
+	}
+	if busy, reason := scaletest.HostLoadExceeds(group1kBusyLoad); busy {
+		t.Skip(reason)
+	}
+	bound := time.Duration(v1GroupNsPerOp * group1kWallMargin)
+	perOp := scaletest.FastestUnder(group1kMaxSamples, bound, func() time.Duration {
+		return scaletest.Elapsed(func() {
+			for range group1kRunsPerSample {
+				runGroup1kPlain(t)
+			}
+		}) / group1kRunsPerSample
+	})
+	t.Logf("1,000 trivial Tasks in one Plain Group: %v/op, bound %v", perOp, bound)
+	if perOp > bound {
+		t.Fatalf("1,000 trivial Tasks in one Plain Group took %v/op, want <= %v (v1.0.0's %v plus 20%%)",
+			perOp, bound, time.Duration(v1GroupNsPerOp))
+	}
+}

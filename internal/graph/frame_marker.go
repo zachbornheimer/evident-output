@@ -54,10 +54,12 @@ const stackSampleFrames = 64
 // WalkStack calls visit with the function name of every frame on the
 // calling goroutine's stack, below WalkStack's own caller.
 func WalkStack(visit func(function string)) {
-	for size := stackSampleFrames; ; size *= 2 {
-		pcs := make([]uintptr, size)
+	var sampled [stackSampleFrames]uintptr
+	pcs := sampled[:]
+	for {
 		n := runtime.Callers(3, pcs)
-		if n == size {
+		if n == len(pcs) {
+			pcs = make([]uintptr, 2*len(pcs))
 			continue
 		}
 		for _, pc := range pcs[:n] {

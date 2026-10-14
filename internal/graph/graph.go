@@ -66,6 +66,7 @@ type Graph struct {
 	roots      siblings
 	sched      scheduler
 	exec       executor
+	workers    workerPool
 	frames     frames
 	// scope is the run's cancellation scope. It is swapped, not guarded:
 	// every callback reads it, and a read must not queue on the lock.
@@ -124,8 +125,9 @@ func (g *Graph) unlockRead() { g.mu.UnlockRead() }
 // Close ends the graph's lifecycle: it accepts no further Task.
 func (g *Graph) Close() {
 	g.lock()
-	defer g.unlock()
 	g.closed = true
+	g.unlock()
+	g.workers.dismiss()
 }
 
 // NextID is the next id under prefix, unique across the run whatever prefix.

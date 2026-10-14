@@ -62,10 +62,10 @@ type frames struct {
 
 // enter makes the calling goroutine t's. Work beginning also earns the run
 // the dumps asking about unknown creators may cost (see
-// refreshesPerCallback). The goroutine's id is read before the lock:
-// reading it costs a traceback under the runtime's process-wide print lock.
-func (f *frames) enter(t *Task) workFrame {
-	frame := workFrame{goroutine: CurrentGoroutine(), task: t}
+// refreshesPerCallback). id is the calling goroutine's, read once by the
+// worker that runs the callback (see worker).
+func (f *frames) enter(t *Task, id GoroutineID) workFrame {
+	frame := workFrame{goroutine: id, task: t}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.stacks == nil {
@@ -96,8 +96,8 @@ func (f *frames) leave(frame workFrame) {
 }
 
 // on is the Task or builder gate running on goroutine id, or nil. A pooled
-// worker ran no work before its callback began, so every goroutine it
-// starts is that callback's.
+// worker has started no goroutine before its callback began (see worker), so
+// every goroutine it starts is that callback's.
 func (f *frames) on(id GoroutineID) *Task {
 	f.mu.Lock()
 	defer f.mu.Unlock()

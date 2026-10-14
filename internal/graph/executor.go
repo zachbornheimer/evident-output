@@ -48,6 +48,9 @@ type claim struct {
 	// frame is the claim's work on the goroutine running it, once entered
 	// (see enter).
 	frame workFrame
+	// returned is whether the callback ran to its end: false for one that
+	// left through runtime.Goexit.
+	returned bool
 	// next links the claims one scheduling pass made, in claim order.
 	next *claim
 }
@@ -71,12 +74,13 @@ func (g *Graph) Kick() { g.kick(g.tellMisuse) }
 // scheduling pass is one critical section (see schedulingPass); the claims
 // it made start once the lock is free, since Started takes the run's lock,
 // which comes first in the lock order.
-func (g *Graph) kick(tell func([]misuseNote)) { g.kickAfter(nil, tell) }
+func (g *Graph) kick(tell func([]misuseNote)) { g.kickAfter(nil, tell, nil) }
 
 // kickAfter is kick whose first scheduling pass runs release first, in the
 // same critical section: a finishing worker hands its slot back and claims
-// the next Task in one trip through the graph's lock.
-func (g *Graph) kickAfter(release func(), tell func([]misuseNote)) {
+// the next Task in one trip through the graph's lock. A finishing worker
+// (nil for any other caller) runs the first Task it claims itself.
+func (g *Graph) kickAfter(release func(), tell func([]misuseNote), self *worker) {
 	var found []misuseNote
 	defer func() { tell(found) }()
 	for {
@@ -85,7 +89,7 @@ func (g *Graph) kickAfter(release func(), tell func([]misuseNote)) {
 		found = append(found, notes...)
 		for c := claims; c != nil; c = c.next {
 			c.start()
-			go g.runPooled(c)
+			g.place(c, self)
 		}
 		if !moved {
 			return
@@ -159,27 +163,33 @@ func (e *executor) resolveCeiling() {
 	}
 }
 
-// runPooled runs a Task claimed by Kick on a pooled worker.
-func (g *Graph) runPooled(c *claim) {
-	defer g.finishClaimed(c)
-	g.execute(c)
+// runPooled runs a Task claimed by Kick on worker w.
+func (g *Graph) runPooled(c *claim, w *worker) {
+	defer g.finishClaimed(c, w)
+	g.execute(c, w.id)
+	c.returned = true
 }
 
 // finishClaimed is the deferred tail of every claimed callback: a panic
 // fails the row, the goroutine leaves the claim's work frame, and then, in
 // the critical section of the scheduling pass that follows, the slot
-// (pooled only) and the executing count are returned. A pooled worker has no caller to
-// take a strict panic, so what its pass finds is told without one.
+// (pooled only) and the executing count are returned. A pooled worker has no
+// caller to take a strict panic, so what its pass finds is told without one.
+// Last, it settles whether the worker may run another claim (see worker) and
+// gives away the claim its pass kept for itself when it may not.
 //
 // The work is done only after that pass: a drain that wakes on it finds the
 // slot already returned and the next Task already claimed.
-func (g *Graph) finishClaimed(c *claim) {
-	if r := recover(); r != nil {
-		g.recordPanic(c, r)
+func (g *Graph) finishClaimed(c *claim, w *worker) {
+	recovered := recover()
+	if recovered != nil {
+		g.recordPanic(c, recovered)
 	}
 	defer g.WorkDone()
 	g.frames.leave(c.frame)
-	g.kickAfter(func() { g.releaseLocked(c) }, g.tellMisuseWithoutCaller)
+	g.kickAfter(func() { g.releaseLocked(c) }, g.tellMisuseWithoutCaller, w)
+	w.reusable = (recovered != nil || c.returned) && !w.spawned && workerSpawns.quiet(w.opened)
+	g.rehome(w)
 }
 
 // releaseLocked hands back what c held.
@@ -200,13 +210,14 @@ func (g *Graph) recordPanic(c *claim, recovered any) {
 
 // execute runs one Task's callback on a pooled worker and settles the Task
 // from what it returned: the scheduler's sole settlement point for submitted
-// work. A pooled worker ran no work before, so every goroutine it starts is
-// the callback's. finishClaimed leaves the frame execute enters.
-func (g *Graph) execute(c *claim) {
+// work. A pooled worker has started no goroutine before (see worker), so every
+// goroutine it starts is the callback's. finishClaimed leaves the frame execute
+// enters.
+func (g *Graph) execute(c *claim, id GoroutineID) {
 	if !c.began {
 		return
 	}
-	c.frame = g.frames.enter(c.task)
+	c.frame = g.frames.enter(c.task, id)
 	if c.task.IsGate() {
 		g.runGate(c)
 		return
@@ -235,6 +246,7 @@ func (g *Graph) Drain() {
 	g.BeginDrain()
 	g.Kick()
 	g.WaitForWork()
+	g.workers.dismiss()
 }
 
 // Executing is how many task callbacks are running now.

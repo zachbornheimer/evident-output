@@ -27,6 +27,21 @@ func Fastest(samples int, timed func() time.Duration) time.Duration {
 	return best
 }
 
+// FastestUnder is Fastest that stops once a sample is within bound: host load
+// only adds time, so one sample under the bound proves the work fits, and
+// samples taken after it could only agree. It runs at most samples times and
+// returns the smallest duration seen.
+func FastestUnder(samples int, bound time.Duration, timed func() time.Duration) time.Duration {
+	best := timed()
+	for range samples - 1 {
+		if best <= bound {
+			break
+		}
+		best = min(best, timed())
+	}
+	return best
+}
+
 // Elapsed returns how long run took.
 func Elapsed(run func()) time.Duration {
 	wall := clock.System()
