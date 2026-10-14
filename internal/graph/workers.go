@@ -11,11 +11,19 @@ import (
 // may.
 //
 // A worker may serve another claim only if it has started no goroutine, ever.
+// The census is process-wide, so a goroutine any other code starts while a
+// claim runs also ends the worker: reuse is an optimisation that may be
+// declined, never a guarantee, and declining is always safe.
 // A goroutine a callback started can outlive the callback, and a Computed read
 // from it must not find the next claim's work running on its creator. The
 // goroutine count settles it (see census): a worker whose claim saw any
 // goroutine start but the pool's own ends after that claim, and so does one
 // that started a worker itself.
+//
+// A callback that exits through runtime.Goexit is not reusable: its goroutine
+// is already unwinding, so finishClaimed runs on a goroutine that ends when it
+// returns, and reusable stays false. Only a callback that returned or
+// panicked (and was recovered) leaves a worker that can run another claim.
 type worker struct {
 	// next carries the claim an idle worker is handed, or nil to end it.
 	next chan *claim
@@ -34,10 +42,14 @@ type worker struct {
 // workerPool is the workers waiting for a claim. It has its own lock: a
 // declaration hands over a claim without queuing on the graph's. A worker
 // waits only while the run does: the drain ends it, as does Close.
+//
+// spawns is the ledger every worker the pool starts goes through, and the one
+// a worker's census is read from. A graph uses the process-wide workerSpawns.
 type workerPool struct {
 	mu        sync.Mutex
 	idle      []*worker
 	dismissed bool
+	spawns    *spawnLedger
 }
 
 // hand gives c to the idle worker that waited least long and reports whether
@@ -92,7 +104,7 @@ func (g *Graph) place(c *claim, w *worker) {
 		w.kept = c
 	case g.workers.hand(c):
 	default:
-		workerSpawns.start(func() { g.serve(c) })
+		g.workers.spawns.start(func() { g.serve(c) })
 		if w != nil {
 			w.spawned = true
 		}
@@ -113,7 +125,7 @@ func (g *Graph) rehome(w *worker) {
 func (g *Graph) serve(first *claim) {
 	w := &worker{next: make(chan *claim, 1), id: CurrentGoroutine()}
 	for c := first; c != nil; c = g.nextClaim(w) {
-		w.opened = workerSpawns.count()
+		w.opened = g.workers.spawns.count()
 		g.runPooled(c, w)
 	}
 }
@@ -132,7 +144,7 @@ func (g *Graph) nextClaim(w *worker) *claim {
 }
 
 // workerSpawns is the ledger of every goroutine this package starts for a
-// claim.
+// claim. It is process-wide because the census it is compared with is.
 var workerSpawns spawnLedger
 
 // spawnLedger counts the goroutines started through it, so they can be told
@@ -141,6 +153,10 @@ type spawnLedger struct {
 	// active is the spawns begun and not finished, done the ones finished.
 	active atomic.Int64
 	done   atomic.Uint64
+	// created reads how many goroutines the process has started; nil reads
+	// the runtime's count. A ledger whose created counts only its own spawns
+	// sees no goroutine but its own, however busy the process is.
+	created func() (uint64, bool)
 }
 
 // start runs f on a new goroutine.
@@ -165,7 +181,7 @@ type census struct {
 // during the read is in both counts or in neither.
 func (l *spawnLedger) count() census {
 	before, ours := l.active.Load(), l.done.Load()
-	created, counted := goroutinesCreated()
+	created, counted := l.processCreated()
 	steady := before == 0 && l.active.Load() == 0 && l.done.Load() == ours
 	return census{created: created, ours: ours, consistent: counted && steady}
 }
@@ -176,4 +192,13 @@ func (l *spawnLedger) count() census {
 func (l *spawnLedger) quiet(since census) bool {
 	now := l.count()
 	return since.consistent && now.consistent && now.created-since.created == now.ours-since.ours
+}
+
+// processCreated is how many goroutines the process has started, as the ledger
+// counts them.
+func (l *spawnLedger) processCreated() (uint64, bool) {
+	if l.created != nil {
+		return l.created()
+	}
+	return goroutinesCreated()
 }

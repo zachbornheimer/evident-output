@@ -3,46 +3,93 @@ package graph
 import (
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
-// runOnOneSlot submits one callback per name on a graph whose ceiling is a
+// withSpawnLedger runs the graph's workers against l.
+func withSpawnLedger(l *spawnLedger) Option {
+	return func(g *Graph) { g.workers.spawns = l }
+}
+
+// ownSpawnsOnly is a ledger that counts only the goroutines it starts, so the
+// worker census cannot see a goroutine any other code in the process starts.
+func ownSpawnsOnly() *spawnLedger {
+	l := &spawnLedger{}
+	l.created = func() (uint64, bool) { return l.done.Load(), true }
+	return l
+}
+
+// runOnOneSlot submits one callback per body on a graph whose ceiling is a
 // single slot, so the callbacks run one after another, and returns the
-// goroutine each ran on in submission order.
-func runOnOneSlot(t *testing.T, bodies ...func()) []GoroutineID {
+// goroutine each ran on in submission order. Every body is queued before the
+// first one runs, so each claim after the first is taken by the worker that
+// ends the claim before it, never by one that has not yet gone idle.
+func runOnOneSlot(t *testing.T, ledger *spawnLedger, bodies ...func()) []GoroutineID {
 	t.Helper()
-	g := New(record.NewRun(), WithMaxConcurrency(1))
+	g := New(record.NewRun(), WithMaxConcurrency(1), withSpawnLedger(ledger))
 	t.Cleanup(g.Close)
+	queued := make(chan struct{})
 	ids := make([]GoroutineID, len(bodies))
 	for i, body := range bodies {
 		task := declare(g, string(rune('a'+i)))
 		submitWork(g, task, settlingWork(g, task, func() error {
+			if i == 0 {
+				<-queued
+			}
 			ids[i] = CurrentGoroutine()
 			body()
 			return nil
 		}))
 	}
+	close(queued)
 	g.Drain()
 	return ids
 }
 
-func TestWorkerRunsTheNextClaimWhenItsCallbackStartedNoGoroutine(t *testing.T) {
+// Reuse is read off the ledger, not off a scheduling race: three claims that
+// start no goroutine cost exactly one worker start, however many processors
+// the host has and whatever else the process is doing.
+func TestWorkerReuseServesConsecutiveClaimsOnOneWorker(t *testing.T) {
 	trivial := func() {}
+	ledger := ownSpawnsOnly()
 
-	ids := runOnOneSlot(t, trivial, trivial, trivial)
+	ids := runOnOneSlot(t, ledger, trivial, trivial, trivial)
 
+	if starts := ledger.done.Load(); starts != 1 {
+		t.Errorf("3 claims started %d workers (callbacks ran on goroutines %v), want 1", starts, ids)
+	}
 	if ids[0] != ids[1] || ids[1] != ids[2] {
 		t.Errorf("callbacks ran on goroutines %v, want one worker for all three", ids)
 	}
 }
 
+// A goroutine any code starts while a claim runs ends the worker, so a busy
+// process declines reuse; it never serves a claim a goroutine's creator should
+// not.
+func TestWorkerReuseIsDeclinedWhenTheProcessStartsAGoroutine(t *testing.T) {
+	ledger := &spawnLedger{}
+	var stray sync.WaitGroup
+	stray.Add(1)
+	startsOne := func() {
+		go stray.Done()
+		stray.Wait()
+	}
+
+	ids := runOnOneSlot(t, ledger, startsOne, func() {})
+
+	if ids[0] == ids[1] {
+		t.Errorf("both callbacks ran on goroutine %d, want a fresh worker after a goroutine started", ids[0])
+	}
+}
+
 // A goroutine a callback started may outlive it and ask who started it. Its
 // creator must then still be nobody's but that callback's, so the worker that
-// ran the callback takes no further work.
-func TestWorkerEndsWhenItsCallbackStartedAGoroutine(t *testing.T) {
+// ran the callback takes no further work while that goroutine is alive.
+func TestWorkerEndsWhileItsCallbacksGoroutineIsAlive(t *testing.T) {
 	release := make(chan struct{})
 	var started sync.WaitGroup
 	started.Add(1)
@@ -54,22 +101,38 @@ func TestWorkerEndsWhenItsCallbackStartedAGoroutine(t *testing.T) {
 		started.Wait()
 	}
 	defer close(release)
+	var nextRanBeside atomic.Bool
+	next := func() {
+		select {
+		case <-release:
+		default:
+			nextRanBeside.Store(true)
+		}
+	}
 
-	ids := runOnOneSlot(t, spawning, func() {})
+	ids := runOnOneSlot(t, &spawnLedger{}, spawning, next)
 
 	if ids[0] == ids[1] {
 		t.Errorf("both callbacks ran on goroutine %d, want a fresh worker after one that started a goroutine", ids[0])
 	}
+	if !nextRanBeside.Load() {
+		t.Error("the second claim never ran while the first callback's goroutine was alive")
+	}
 }
 
-func TestNextClaimStillRunsWhenACallbackExitsItsGoroutine(t *testing.T) {
+// A callback that exits through runtime.Goexit ends its worker: the claim after
+// it runs on another goroutine.
+func TestWorkerEndsWhenItsCallbackExitsItsGoroutine(t *testing.T) {
 	exiting := func() { runtime.Goexit() }
 	ran := false
 
-	ids := runOnOneSlot(t, exiting, func() { ran = true })
+	ids := runOnOneSlot(t, ownSpawnsOnly(), exiting, func() { ran = true })
 
 	if !ran {
-		t.Errorf("the claim after a callback that exited its goroutine never ran (ids %v)", ids)
+		t.Fatalf("the claim after a callback that exited its goroutine never ran (ids %v)", ids)
+	}
+	if ids[0] == ids[1] {
+		t.Errorf("both callbacks ran on goroutine %d, want a fresh worker after a Goexit", ids[0])
 	}
 }
 

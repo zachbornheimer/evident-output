@@ -190,7 +190,7 @@ func (g *Graph) finishClaimed(c *claim, w *worker) {
 	defer g.WorkDone()
 	g.frames.leave(c.frame)
 	g.kickAfter(func() { g.releaseLocked(c) }, g.tellMisuseWithoutCaller, w)
-	w.reusable = (recovered != nil || c.returned) && !w.spawned && workerSpawns.quiet(w.opened)
+	w.reusable = (recovered != nil || c.returned) && !w.spawned && g.workers.spawns.quiet(w.opened)
 	g.rehome(w)
 }
 

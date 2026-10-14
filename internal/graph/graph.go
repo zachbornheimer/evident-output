@@ -104,6 +104,7 @@ func New(run *record.Run, options ...Option) *Graph {
 		misuse:     discardMisuse{},
 		tasks:      make(map[string]*Task),
 		containers: make(map[string]*Container),
+		workers:    workerPool{spawns: &workerSpawns},
 	}
 	g.scope.Store(newCancellationScope(processRoot()))
 	g.mu.Bind(run)
