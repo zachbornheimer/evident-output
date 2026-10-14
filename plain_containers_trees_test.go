@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // plainTreeLinePrefixes are the connectors a Task's Problem tree is drawn
