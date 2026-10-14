@@ -76,11 +76,18 @@ func (s *Stream) schedule(sched clock.Scheduler, r *row, wait time.Duration) {
 	r.beat.stop = sched.AfterFunc(wait, func() { s.check(id) })
 }
 
-// Settled stops the Task id's heartbeat: a settled Task never earns another.
+// Settled answers the Task id settling, whichever code settled it. Its
+// heartbeat stops: a settled Task never earns another. Its row is written
+// (Commit) too: a Task the scheduler settles NotStarted because its cause
+// failed or was excluded has no verb of its own to commit it, and its row
+// would wait for Finish though its cause is durable already.
 func (s *Stream) Settled(id record.TaskID) {
-	if r := s.rows[id]; r != nil {
-		r.stopBeat()
+	r := s.rows[id]
+	if r == nil {
+		return
 	}
+	r.stopBeat()
+	s.Commit(id)
 }
 
 // StopHeartbeats cancels every pending heartbeat, so a dropped run is

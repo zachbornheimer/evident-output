@@ -202,3 +202,35 @@ func TestPlainWritesNestedGroupBeforeItsDependent(t *testing.T) {
 		}
 	})
 }
+
+// TestNotStartedDependentWritesWhenItsCauseIsDurable: a Task that never ran
+// because a member of a Group was Excluded settles the moment that member
+// does, with no verb of its own to commit it. Its row follows the block that
+// holds its cause as soon as the block closes, not at Finish.
+func TestNotStartedDependentWritesWhenItsCauseIsDurable(t *testing.T) {
+	b := newBlockRun(t)
+	closed := b.collection("eg", false)
+	b.task("ex", "eg")
+	b.task("slow", "eg")
+	b.task("depEx", "")
+	b.after("depEx", []record.TaskID{"ex"})
+
+	b.settle("ex", record.Excluded)
+	// The scheduler's cascade settles the dependent; only the follower's
+	// Settled answer reaches the stream.
+	b.rows.Task("depEx").Rec.Settle(record.NotStarted)
+	b.stream.Settled("depEx")
+	if got := b.written(); strings.Contains(got, "depEx") {
+		t.Fatalf("the dependent printed above the block that holds its cause:\n%s", got)
+	}
+
+	*closed = true
+	b.settle("slow", record.Succeeded)
+
+	if got := b.written(); !inOrder(got, "eg", "ex", "slow", "depEx") {
+		t.Fatalf("want the block, then its NotStarted dependent, as the block closes; got:\n%s", got)
+	}
+	if rest := b.finish(); strings.Contains(rest, "depEx") {
+		t.Fatalf("Finish still owed the dependent's row:\n%s", rest)
+	}
+}
