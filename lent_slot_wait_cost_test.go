@@ -20,7 +20,7 @@ func TestLentSlotWaitCostIsIndependentOfGoroutineCount(t *testing.T) {
 	for range 5000 {
 		go func() { <-stop }()
 	}
-	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true, MaxConcurrency: 1})
+	out := initRun(Config{stdout: io.Discard, plain: true, MaxConcurrency: 1})
 	defer func() { _ = out.close() }()
 	children := out.Group("children")
 	tasks := make([]*Task, 200)

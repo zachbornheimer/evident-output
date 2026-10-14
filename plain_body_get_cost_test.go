@@ -26,7 +26,7 @@ func withBusyCallbackAndSettledProducer(t *testing.T, body func(producer *Comput
 	for range getCostIdleGoroutines {
 		go func() { <-stop }()
 	}
-	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true})
+	out := initRun(Config{stdout: io.Discard, plain: true})
 	defer func() { _ = out.close() }()
 	made := out.Task("make")
 	producer := Compute(made, func(context.Context) (int, error) { return 7, nil })

@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 )
 
 // TestPlainWaiterNeverRaisesTheCeiling: a caller outside any callback
@@ -95,7 +97,7 @@ func TestSpawnedWaiterBlockingItsCallbackFailsNamed(t *testing.T) {
 
 	select {
 	case err := <-done:
-		if !errors.Is(err, errWaitDeadlock) || !strings.Contains(err.Error(), "API-041") {
+		if !errors.Is(err, misuse.ErrWaitDeadlock) || !strings.Contains(err.Error(), "API-041") {
 			t.Fatalf("a.Wait() = %v, want ErrWaitDeadlock naming API-041", err)
 		}
 	case <-time.After(5 * time.Second):
@@ -141,7 +143,7 @@ func TestGrandchildWaiterBlockingItsCallbackFailsNamed(t *testing.T) {
 
 	select {
 	case err := <-done:
-		if !errors.Is(err, errWaitDeadlock) || !strings.Contains(err.Error(), "API-041") {
+		if !errors.Is(err, misuse.ErrWaitDeadlock) || !strings.Contains(err.Error(), "API-041") {
 			t.Fatalf("a.Wait() = %v, want ErrWaitDeadlock naming API-041", err)
 		}
 	case <-time.After(5 * time.Second):

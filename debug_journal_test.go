@@ -17,7 +17,7 @@ import (
 func TestLOG012_DebugDisabledOmitsHuman(t *testing.T) {
 	var buf bytes.Buffer
 	// default debug level is Info — Debug should be omitted from human when not enabled
-	out := initRun(Config{isolated: true, stdout: &buf, plain: true})
+	out := initRun(Config{stdout: &buf, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 	out.debugForTest("hidden-debug-line")
 	succeed(out.Task("a"))
@@ -30,7 +30,7 @@ func TestLOG012_DebugDisabledOmitsHuman(t *testing.T) {
 }
 
 func TestLOG010_SlogErrorValues(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, debug: debugConfig{level: levelDebug}})
 	t.Cleanup(func() { _ = out.close() })
 	// use Debug with error field
 	out.debugForTest("fail", field{Key: "err", Value: errors.New("boom")})
@@ -39,7 +39,7 @@ func TestLOG010_SlogErrorValues(t *testing.T) {
 
 func TestLOG002_DebugUsesClock(t *testing.T) {
 	clock := testkit.NewClock()
-	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, clock: clock, debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, clock: clock, debug: debugConfig{level: levelDebug}})
 	t.Cleanup(func() { _ = out.close() })
 	out.debugForTest("x")
 	ev := out.events()
@@ -55,7 +55,7 @@ func TestLOG002_DebugUsesClock(t *testing.T) {
 
 func TestLOG014_WarnMessageDistinctFromItemWarn(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 	out.println("log warning")
 	out.Task("i").Problem("item warning", severity(severityWarning))
@@ -67,7 +67,7 @@ func TestLOG014_WarnMessageDistinctFromItemWarn(t *testing.T) {
 }
 
 func TestLOG008_ConcurrentDebugWriters(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, debug: debugConfig{level: levelDebug}})
 	t.Cleanup(func() { _ = out.close() })
 	var wg sync.WaitGroup
 	for i := range 8 {
@@ -85,7 +85,7 @@ func TestLOG008_ConcurrentDebugWriters(t *testing.T) {
 
 func TestLOG003_FieldOrderStable(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, stderr: &buf, debug: debugConfig{level: levelDebug}, plain: true})
+	out := initRun(Config{stdout: &buf, stderr: &buf, debug: debugConfig{level: levelDebug}, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 	out.debugForTest("m", field{Key: "a", Value: 1}, field{Key: "b", Value: 2})
 	_ = out.finish()
@@ -97,7 +97,7 @@ func TestLOG003_FieldOrderStable(t *testing.T) {
 }
 
 func TestLOG015_LogBurstPreservesOrder(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, debug: debugConfig{level: levelDebug}})
 	t.Cleanup(func() { _ = out.close() })
 	for range 100 {
 		out.debugForTest("x")
@@ -107,7 +107,7 @@ func TestLOG015_LogBurstPreservesOrder(t *testing.T) {
 }
 
 func TestLOG011_RecursiveValuesBounded(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, debug: debugConfig{level: levelDebug}})
 	t.Cleanup(func() { _ = out.close() })
 	// don't create real cycle in Field — use deep map
 	m := map[string]any{"a": 1}
@@ -117,7 +117,7 @@ func TestLOG011_RecursiveValuesBounded(t *testing.T) {
 
 func TestLOG013_DebugWithJSONStdout(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, stderr: io.Discard, debug: debugConfig{level: levelDebug}, plain: true})
+	out := initRun(Config{stdout: &buf, stderr: io.Discard, debug: debugConfig{level: levelDebug}, plain: true})
 	out.debugForTest("d")
 	succeed(out.Task("a"))
 	_ = out.finish()

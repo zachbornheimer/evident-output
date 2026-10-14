@@ -23,7 +23,7 @@ import (
 func TestRun_Interrupt_DeclaredButNeverDefinedTaskIsNotMisuse(t *testing.T) {
 	var buf strings.Builder
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever,
+		plain: true, color: colorNever,
 		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
 	})
 	interrupt := sendOneSignal(t)

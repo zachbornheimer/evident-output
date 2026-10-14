@@ -23,7 +23,7 @@ func TestPlain_CollectionChildStreamsMilestones(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever, title: "zq", stdout: &buf,
+		plain: true, color: colorNever, title: "zq", stdout: &buf,
 	})
 
 	classify := out.Group("worktrees").Task("classify")

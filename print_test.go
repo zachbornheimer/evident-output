@@ -145,7 +145,7 @@ func TestEncodeJSON_ContainsTasks(t *testing.T) {
 func TestAbout_DeclareDryRun_MergesRepoPath(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 	out.aboutForTest("repo  /Users/zbornheimer/Developer/Zysys/flight")
 	out.declareDryRunForTest()

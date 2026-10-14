@@ -16,7 +16,7 @@ import (
 // of the whole process ending.
 func TestStrictSpawnedUnorderedReadFailsTheTaskInsteadOfEndingTheProcess(t *testing.T) {
 	if os.Getenv("EVO_STRICT_SPAWNED_CHILD") == "1" {
-		out := initRun(Config{isolated: true, stdout: io.Discard, plain: true, strict: true})
+		out := initRun(Config{stdout: io.Discard, plain: true, strict: true})
 		made := out.Group("producers").Task("make")
 		producer := Compute(made, func(context.Context) (int, error) { return 1, nil })
 		_ = made.wait()

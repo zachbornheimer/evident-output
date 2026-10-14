@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/change"
+	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 // patchWorkspace is a temp workspace and an Output whose relative paths
@@ -25,7 +28,7 @@ func patchWorkspace(t *testing.T, files map[string]string) (string, *Run) {
 			t.Fatal(err)
 		}
 	}
-	out := initRun(Config{isolated: true, stateDir: t.TempDir()})
+	out := initRun(Config{stateDir: t.TempDir()})
 	t.Cleanup(func() { _ = out.close() })
 	out.changes.PinWorkspace(dir)
 	return dir, out
@@ -130,15 +133,15 @@ func TestPatchUnsupportedFormsFailExplicitly(t *testing.T) {
 		diff string
 		want error
 	}{
-		"delete": {"diff --git a/greeting.txt b/greeting.txt\ndeleted file mode 100644\n", errPatchDeleteUnsupported},
-		"rename": {"diff --git a/greeting.txt b/g.txt\nrename from greeting.txt\nrename to g.txt\n", errPatchRenameUnsupported},
-		"binary": {"diff --git a/greeting.txt b/greeting.txt\nBinary files a/greeting.txt and b/greeting.txt differ\n", errPatchBinaryUnsupported},
+		"delete": {"diff --git a/greeting.txt b/greeting.txt\ndeleted file mode 100644\n", change.ErrPatchDeleteUnsupported},
+		"rename": {"diff --git a/greeting.txt b/g.txt\nrename from greeting.txt\nrename to g.txt\n", change.ErrPatchRenameUnsupported},
+		"binary": {"diff --git a/greeting.txt b/greeting.txt\nBinary files a/greeting.txt and b/greeting.txt differ\n", change.ErrPatchBinaryUnsupported},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			_, out := patchWorkspace(t, map[string]string{"greeting.txt": "hello\nworld\n"})
 			set, err := runPatchTask(t, out, tc.diff)
-			if !errors.Is(err, tc.want) || !errors.Is(err, errPatchUnsupported) {
+			if !errors.Is(err, tc.want) || !errors.Is(err, change.ErrPatchUnsupported) {
 				t.Fatalf("err = %v, want %v", err, tc.want)
 			}
 			if !reflect.DeepEqual(set, fileSet{}) {
@@ -169,13 +172,13 @@ func TestPatchRejectsSymlinkSource(t *testing.T) {
 	if err := os.Symlink(filepath.Join(dir, "real.txt"), filepath.Join(dir, "greeting.txt")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runPatchTask(t, out, modifyGreetingDiff); !errors.Is(err, errFilePathIsSymlink) {
+	if _, err := runPatchTask(t, out, modifyGreetingDiff); !errors.Is(err, change.ErrFilePathIsSymlink) {
 		t.Fatalf("err = %v, want ErrFilePathIsSymlink", err)
 	}
 }
 
 func TestPatchRequiresTaskContext(t *testing.T) {
-	if err := Patch(context.Background(), []byte(twoFileDiff)); !errors.Is(err, errNoTaskContext) {
+	if err := Patch(context.Background(), []byte(twoFileDiff)); !errors.Is(err, graph.ErrNoTaskContext) {
 		t.Fatalf("err = %v, want ErrNoTaskContext", err)
 	}
 }

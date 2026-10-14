@@ -36,7 +36,7 @@ func TestDoing_AfterCallerResolvedIsStillMisuse(t *testing.T) {
 func narrateAfterResolve(t *testing.T, resolve func(*Task)) string {
 	t.Helper()
 	var buf bytes.Buffer
-	out := initRun(Config{title: "zq", isolated: true, plain: true, stdout: &buf, stderr: &buf})
+	out := initRun(Config{title: "zq", plain: true, stdout: &buf, stderr: &buf})
 	task := out.Group("worktrees").Task("classify")
 	task.Doing("scanning")
 	resolve(task)

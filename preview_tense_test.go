@@ -22,7 +22,7 @@ func TestPreview_PlannedTenseWithoutTheDryRunTag(t *testing.T) {
 	called := false
 	var buf bytes.Buffer
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever,
+		plain: true, color: colorNever,
 		title: "zq", subject: "repo  /Users/zach/dev/flight", preview: true,
 		stdout: &buf,
 	})
@@ -63,7 +63,7 @@ func TestDryRun_KeepsItsTag(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever,
+		plain: true, color: colorNever,
 		title: "zq", subject: "repo  /Users/zach/dev/flight", DryRun: true,
 		stdout: &buf,
 	})

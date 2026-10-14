@@ -21,7 +21,7 @@ import (
 func TestGroupHandle_Wait_AllSucceed(t *testing.T) {
 	var buf strings.Builder
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever,
+		plain: true, color: colorNever,
 		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 	})
 
@@ -45,7 +45,7 @@ func TestGroupHandle_Wait_AllSucceed(t *testing.T) {
 func TestGroupHandle_Wait_DoesNotSerializeSiblings(t *testing.T) {
 	var buf strings.Builder
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever,
+		plain: true, color: colorNever,
 		MaxConcurrency: 3, stdout: &buf, stderr: io.Discard,
 	})
 
@@ -96,7 +96,7 @@ func TestGroupHandle_Wait_DoesNotSerializeSiblings(t *testing.T) {
 func TestGroupHandle_Wait_FailedChildIsDeterministic(t *testing.T) {
 	var buf strings.Builder
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever,
+		plain: true, color: colorNever,
 		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 	})
 
@@ -127,7 +127,7 @@ func TestGroupHandle_Wait_FailedChildIsDeterministic(t *testing.T) {
 func TestSequenceHandle_Wait_FailedStepOmitsNotStartedFollowers(t *testing.T) {
 	var buf strings.Builder
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever,
+		plain: true, color: colorNever,
 		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
 	})
 
@@ -144,7 +144,7 @@ func TestSequenceHandle_Wait_FailedStepOmitsNotStartedFollowers(t *testing.T) {
 		if !errors.Is(err, boom) {
 			t.Fatalf("seq.Wait() = %v, want errors.Is(err, boom)", err)
 		}
-		if errors.Is(err, errNotStarted) {
+		if errors.Is(err, graph.ErrNotStarted) {
 			t.Fatalf("seq.Wait() = %v, must not surface ErrNotStarted for a predecessor-caused follower", err)
 		}
 		if got := strings.Count(err.Error(), "scan failed"); got != 1 {
@@ -164,7 +164,7 @@ func TestSequenceHandle_Wait_FailedStepOmitsNotStartedFollowers(t *testing.T) {
 func TestGroupHandle_Wait_BlockedChildSurfacesFailure(t *testing.T) {
 	var buf strings.Builder
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever,
+		plain: true, color: colorNever,
 		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 	})
 
@@ -210,7 +210,7 @@ func TestGroupHandle_Wait_BlockedChildSurfacesFailure(t *testing.T) {
 func TestGroupHandle_Wait_CancelledChildIsVisible(t *testing.T) {
 	var buf strings.Builder
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever,
+		plain: true, color: colorNever,
 		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 	})
 
@@ -238,7 +238,7 @@ func TestGroupHandle_Wait_CancelledChildIsVisible(t *testing.T) {
 func TestSequenceHandle_Wait_PreservesOrdering(t *testing.T) {
 	var buf strings.Builder
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever,
+		plain: true, color: colorNever,
 		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 	})
 
@@ -278,7 +278,7 @@ func TestSequenceHandle_Wait_PreservesOrdering(t *testing.T) {
 func TestTaskHandle_Define_ReturnsHandleForChaining(t *testing.T) {
 	var buf strings.Builder
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever,
+		plain: true, color: colorNever,
 		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 	})
 
@@ -298,7 +298,7 @@ func TestTaskHandle_Define_ReturnsHandleForChaining(t *testing.T) {
 // must surface rather than be dropped as "already represented".
 func TestGroupHandle_Wait_ExternalPredecessorFailure(t *testing.T) {
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever,
+		plain: true, color: colorNever,
 		MaxConcurrency: 2, stdout: io.Discard, stderr: io.Discard,
 	})
 	var ran atomic.Bool
@@ -317,7 +317,7 @@ func TestGroupHandle_Wait_ExternalPredecessorFailure(t *testing.T) {
 	if ran.Load() {
 		t.Fatal("child ran despite its failed predecessor")
 	}
-	if !errors.Is(waitErr, errNotStarted) {
+	if !errors.Is(waitErr, graph.ErrNotStarted) {
 		t.Fatalf("Group.Wait = %v, want ErrNotStarted when no child ran", waitErr)
 	}
 }
@@ -326,7 +326,7 @@ func TestGroupHandle_Wait_ExternalPredecessorFailure(t *testing.T) {
 // counterpart of TestGroupHandle_Wait_ExternalPredecessorFailure.
 func TestSequenceHandle_Wait_ExternalPredecessorFailure(t *testing.T) {
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever,
+		plain: true, color: colorNever,
 		MaxConcurrency: 2, stdout: io.Discard, stderr: io.Discard,
 	})
 	var waitErr error
@@ -339,7 +339,7 @@ func TestSequenceHandle_Wait_ExternalPredecessorFailure(t *testing.T) {
 		waitErr = seq.wait()
 		return nil
 	})
-	if !errors.Is(waitErr, errNotStarted) {
+	if !errors.Is(waitErr, graph.ErrNotStarted) {
 		t.Fatalf("Sequence.Wait = %v, want ErrNotStarted when no step ran", waitErr)
 	}
 }

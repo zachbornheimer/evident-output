@@ -8,7 +8,7 @@ import (
 
 func TestA11Y009_ColorNotRequiredForMeaning(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	succeed(out.Task("ok"))
 	out.Task("bad").fail("x")
 	_ = out.finish()
@@ -21,7 +21,7 @@ func TestA11Y009_ColorNotRequiredForMeaning(t *testing.T) {
 
 func TestA11Y001_NoColorOption(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("x"))
 	_ = out.finish()
@@ -33,7 +33,7 @@ func TestA11Y001_NoColorOption(t *testing.T) {
 func TestA11Y005_PlainHasNoUnicodeRequirement(t *testing.T) {
 	// Plain mode may use unicode glyphs; meaning must remain without color (A11Y-004).
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("a"))
 	out.Task("b").block("no")
@@ -47,7 +47,7 @@ func TestA11Y005_PlainHasNoUnicodeRequirement(t *testing.T) {
 func TestA11Y010_UnknownPaletteSafe(t *testing.T) {
 	// NoColor path uses no SGR — portable
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	succeed(out.Task("a"))
 	_ = out.finish()
 	if strings.Contains(buf.String(), "\x1b[") {

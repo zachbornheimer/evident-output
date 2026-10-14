@@ -7,7 +7,7 @@ import (
 
 func TestSEC001_ItemNameNeutralizesESC(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	succeed(out.Task("evil\x1b[31mred"))
@@ -21,7 +21,7 @@ func TestSEC001_ItemNameNeutralizesESC(t *testing.T) {
 
 func TestSEC001_DonefAndCommandSanitize(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("t")

@@ -14,7 +14,7 @@ import (
 // by its container path because the bare name is ambiguous.
 func TestLedgerKeepsSameNamedTasksInDifferentContainersApart(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{isolated: true, plain: true, color: colorNever, stdout: &buf, stderr: io.Discard})
+	out := initRun(Config{plain: true, color: colorNever, stdout: &buf, stderr: io.Discard})
 	alpha := out.Sequence("alpha")
 	alpha.Task("prune").Define(effectOf(Delete, "branch", 1))
 	beta := out.Sequence("beta")
@@ -41,7 +41,7 @@ func TestLedgerKeepsSameNamedTasksInDifferentContainersApart(t *testing.T) {
 // bare name.
 func TestLedgerNamesAnUnambiguousNestedTaskBare(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{isolated: true, plain: true, color: colorNever, stdout: &buf, stderr: io.Discard})
+	out := initRun(Config{plain: true, color: colorNever, stdout: &buf, stderr: io.Discard})
 	out.Sequence("alpha").Task("prune").Define(effectOf(Delete, "branch", 2))
 	_ = out.close()
 	if want := "[changed] prune  deleted 2 branches"; !strings.Contains(buf.String(), want) {

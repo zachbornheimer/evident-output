@@ -14,7 +14,7 @@ import (
 // DetailTail is no longer an opt-in step a caller has to remember.
 func TestFail_AutoAttachesDetailTail_WhenEvidenceNonEmptyAndNoExplicitDetail(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	task := out.Task("build")
 	output := task.capture()
@@ -32,7 +32,7 @@ func TestFail_AutoAttachesDetailTail_WhenEvidenceNonEmptyAndNoExplicitDetail(t *
 // TestBlock_AutoAttachesDetailTail mirrors the Fail case for Block.
 func TestBlock_AutoAttachesDetailTail(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	task := out.Task("policy check")
 	output := task.capture()
@@ -52,7 +52,7 @@ func TestBlock_AutoAttachesDetailTail(t *testing.T) {
 // clobbers a caller's own wording.
 func TestFail_ExplicitDetail_NotOverwrittenByEvidence(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	task := out.Task("build")
 	output := task.capture()

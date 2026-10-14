@@ -9,50 +9,13 @@ import (
 	"testing"
 )
 
-// TestEffect_CallbackThatSkippedItsOwnTaskRecordsNoEffect is the red-first
-// proof for the canary's `create-skipped` probe: an Effect callback that
-// resolved its own task as Skipped and returned nil still put a `[changed]`
-// row in the ledger, so the ledger counted the package the installer had
-// just rejected. A nil return after the callback said "skipped" means "I
-// handled it", not "I did it"; the effect ledger must not count what the row
-// itself denies.
-func TestEffect_CallbackThatSkippedItsOwnTaskRecordsNoEffect(t *testing.T) {
-	t.Parallel()
-	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, title: "setup", stdout: &buf, plain: true, color: colorNever})
-
-	install := out.Group("install")
-	broken := install.Task("broken")
-	broken.Define(func(ctx context.Context) error {
-		return Effect(ctx, createModule, func(context.Context) error {
-			broken.skipped(reason("install failed"))
-			return nil
-		})
-	})
-	ok := install.Task("ok")
-	ok.Define(func(ctx context.Context) error {
-		return Effect(ctx, createModule, func(context.Context) error { return nil })
-	})
-	if err := out.finish(); err != nil {
-		t.Log(err)
-	}
-
-	got := buf.String()
-	if strings.Contains(got, "[changed] broken") {
-		t.Fatalf("a skipped callback must record no effect:\n%s", got)
-	}
-	if !strings.Contains(got, "created 1 module") {
-		t.Fatalf("the callback that did create must still be in the ledger:\n%s", got)
-	}
-}
-
 // TestEffect_CallbackThatFailedItsOwnTaskRecordsNoEffect is the same rule
 // on the other terminal verdict: an Effect callback that called Fail on its
 // own task and then returned nil claims no mutation — and is not misuse.
 func TestEffect_CallbackThatFailedItsOwnTaskRecordsNoEffect(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, title: "setup", stdout: &buf, plain: true, color: colorNever})
+	out := initRun(Config{title: "setup", stdout: &buf, plain: true, color: colorNever})
 
 	broken := out.Task("broken")
 	broken.Define(func(ctx context.Context) error {
@@ -79,7 +42,7 @@ func TestEffect_CallbackThatFailedItsOwnTaskRecordsNoEffect(t *testing.T) {
 func TestEffect_CallbackThatSummarizesItsOwnTaskKeepsTheEffect(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, title: "setup", stdout: &buf, plain: true, color: colorNever})
+	out := initRun(Config{title: "setup", stdout: &buf, plain: true, color: colorNever})
 
 	pkg := out.Task("numpy")
 	pkg.Define(func(ctx context.Context) error {
@@ -108,7 +71,7 @@ var createModule = EffectSpec{Verb: Create, Object: "module", Quantity: 1}
 func TestEffect_ConcurrentEffectsBothHonorTheRowsDenial(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, title: "setup", stdout: &buf, plain: true, color: colorNever})
+	out := initRun(Config{title: "setup", stdout: &buf, plain: true, color: colorNever})
 
 	broken := out.Task("broken")
 	broken.Define(func(ctx context.Context) error {
@@ -146,7 +109,7 @@ func TestEffect_ConcurrentEffectsBothHonorTheRowsDenial(t *testing.T) {
 // ledger — evo derives StateChanged, the caller never chose it.
 func TestEffect_SuccessCommitsChangedEffect(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "stale local branch", 2))
@@ -167,7 +130,7 @@ func TestEffect_SuccessCommitsChangedEffect(t *testing.T) {
 // fail) on a normal run.
 func TestEffect_NilCallRecordsWithoutExecuting(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "stale local branch", 2))
@@ -184,7 +147,7 @@ func TestEffect_NilCallRecordsWithoutExecuting(t *testing.T) {
 // commits no effect and returns the error verbatim — the caller decides
 // Fail/Block from there, evo never guesses.
 func TestEffect_CallErrorCommitsNothing(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, color: colorNever, plain: true})
+	out := initRun(Config{stdout: io.Discard, color: colorNever, plain: true})
 
 	branches := out.Task("branches")
 	wantErr := errors.New("permission denied")
@@ -209,7 +172,7 @@ func TestEffect_CallErrorCommitsNothing(t *testing.T) {
 // planned, never changed.
 func TestEffect_DryRunNeverExecutesCallAndPlansEffect(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true, DryRun: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true, DryRun: true})
 
 	branches := out.Task("branches")
 	called := false

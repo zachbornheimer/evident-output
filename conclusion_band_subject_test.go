@@ -14,7 +14,7 @@ import (
 // stuttering; only the bracketed tag carries the state word.
 func TestConclusionBand_NoTitleNeverStutters(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "stale local branch", 3))

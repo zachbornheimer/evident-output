@@ -20,7 +20,6 @@ func isolatedScheduler(t *testing.T, maxConcurrency int, stdout io.Writer, dryRu
 		stdout = io.Discard
 	}
 	out := initRun(Config{
-		isolated:       true,
 		plain:          true,
 		color:          colorNever,
 		clock:          testkit.NewClock(),

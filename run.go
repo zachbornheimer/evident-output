@@ -32,79 +32,6 @@ import (
 // callback's goroutine ended without returning.
 var errRunExitedWithoutReturn = errors.New("run callback exited without returning (runtime.Goexit)")
 
-// Run executes a CLI presentation lifecycle against this Output and returns
-// the Result (Conclusion plus the application error, if any) — the
-// Isolated-instance counterpart of Main, for a caller holding its own
-// *Run ((*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{}, func(ctx context.Context, r *evo.Run) error { return nil })).
-//
-// Typical entrypoint:
-//
-//	func main() {
-//	    out := (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{Name: "tool"}, func(ctx context.Context, r *evo.Run) error { return nil })
-//	    os.Exit(out.Run(context.Background(), run).ExitCode())
-//	}
-//
-// ctx carries caller-driven cancellation into run in addition to the
-// SIGINT/SIGTERM wiring below; a nil ctx runs as context.Background().
-//
-// Lifecycle: arm first paint → run → (reconcile run error into model) →
-// Finish → Close.
-//
-// Result.Conclusion.ExitCode:
-//   - nil Output → ExitFailed (2)
-//   - SIGINT/SIGTERM → Cancel on the active task (or the output) → ExitCancelled (130)
-//   - a second SIGINT/SIGTERM → ExitCancelled (130) returned immediately, without
-//     waiting for run to unwind, so the caller's
-//     os.Exit(out.Run(...).ExitCode()) exits now
-//   - Finish/Close bookkeeping misuse (a leftover unresolved task, a
-//     double-resolve, ...) is folded into the Conclusion before it renders,
-//     so the printed band and Conclusion.ExitCode already agree; a Blocked
-//     conclusion keeps ExitBlocked (1) regardless — the documented
-//     "Block → exit 1" contract wins over a leftover bookkeeping misuse
-//   - a genuine renderer/write failure (surfacing only after the band is
-//     already flushed) still escalates an otherwise-OK exit code to
-//     ExitFailed (2)
-//   - otherwise Conclusion.ExitCode after reconciling run errors into Fail
-//
-// Config.FailedExitCode (when non-zero) overrides ExitFailed for a failed
-// conclusion so CLIs that contract on exit 1 can set FailedExitCode: 1.
-//
-// A non-nil application error is recorded as an output-level Fail before Finish
-// so the human conclusion cannot read as success while the process fails, and is
-// also returned as Result.Err so embedders can distinguish work failure from
-// presentation/transport failure.
-func (o *Run) run(ctx context.Context, run RunFunc) Result {
-	if o == nil {
-		return Result{Conclusion: Conclusion{Outcome: Failed, exitCode: exitFailed}}
-	}
-	o.arm()
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	return runInterruptible(ctx, o, run)
-}
-
-// Run executes a CLI presentation lifecycle against the package-level default
-// instance (see Init) and returns the Result, never exiting — the
-// package-level counterpart of Output.Run, for callers (tests, or a caller
-// composing its own exit path) that need the Result without Main's exit-code
-// derivation.
-//
-// run reports only an error; the Conclusion (0/1/2/130) is the sole source of
-// the exit code — see Output.Run for the full lifecycle and signal contract.
-func execute_1(ctx context.Context, run RunFunc) Result {
-	return execute(ctx, run)
-}
-
-func execute(ctx context.Context, run RunFunc) Result {
-	out := defaultRun()
-	out.arm()
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	return runInterruptible(ctx, out, run)
-}
-
 // Main runs a CLI presentation lifecycle against the package-level default
 // instance (see Init) and returns the derived exit code; it does not itself
 // call os.Exit — the library still never calls os.Exit directly (aPI-018),
@@ -279,26 +206,6 @@ func concludeCancelled(out *Run, runErr error) Result {
 	return Result{Conclusion: out.conclusion(), Err: runErr}
 }
 
-// anyBlockedSoFar reports whether any Task is currently in the Blocked
-// state — a live, mid-run check (C12: named "SoFar" to distinguish it from
-// Conclusion.AnyBlocked, which reports the finished run's final verdict;
-// the two answer different questions and previously shared one name).
-// Internal only (P6 deletion census: no consumer needed the mid-run
-// question once Run/Conclusion existed) — see anyblocked_package_test.go.
-func (o *Run) anyBlockedSoFar() bool {
-	if o == nil {
-		return false
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	for _, t := range o.tasks {
-		if t.node.Rec.State() == refused {
-			return true
-		}
-	}
-	return false
-}
-
 // anyFailed reports whether any Task is currently Failed.
 func (o *Run) anyFailed() bool {
 	if o == nil {
@@ -380,27 +287,6 @@ const (
 	// (spec §32.1).
 	formatJSONL
 )
-
-// ParseFormat parses one of "human", "data", "external", "json", "jsonl"
-// (case-insensitive, surrounding whitespace ignored) into a Format — the
-// public entry point a host CLI's own --format/--json flag binds to (spec
-// §32.1). Evo does not parse os.Args itself.
-func parseFormat(s string) (format, error) {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "human":
-		return formatHuman, nil
-	case "data":
-		return formatData, nil
-	case "external":
-		return formatExternal, nil
-	case "json":
-		return formatJSON, nil
-	case "jsonl":
-		return formatJSONL, nil
-	default:
-		return 0, fmt.Errorf("%w: unknown format %q", errInvalidConfig, s)
-	}
-}
 
 // Verbosity selects which message visibilities are projected to the human stream.
 // Zero is normal (non-verbose) human detail.
@@ -556,13 +442,6 @@ type Config struct {
 	// DryRun for `--dry-run`, which really does stop; Preview for the plan a
 	// confirm gate is about to act on.
 	preview bool
-
-	// Isolated returns an independent Output that is not installed as the
-	// package-level default. First paint still arms — Isolated is not a
-	// blank-terminal exemption. Use for parallel tests and embedders that
-	// hold their own *Run instead of going through Default()/Task().
-	// This is the one and only opt-out from default installation.
-	isolated bool
 
 	// MaxConcurrency is the scheduler ceiling: it bounds every executing
 	// callback, including work a waiting goroutine runs itself. Zero means
@@ -997,14 +876,6 @@ func modeOptions(c Config) []option {
 
 // --- folded from default.go ---
 
-// defaultMu guards defaultOut, the package-level default instance installed
-// by Init/SetDefault and read by Default and the package-level Task/Item/
-// Print* facades below (mirrors slog.SetDefault).
-var (
-	defaultMu  sync.RWMutex
-	defaultOut *Run
-)
-
 // Init is the sole Output constructor. It builds an Output from cfg,
 // installs it as the package-level default, and arms first paint — call
 // once, in main, before any I/O:
@@ -1013,11 +884,6 @@ var (
 //	    (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{Name: "repo-retire"}, func(ctx context.Context, r *evo.Run) error { return nil })
 //	    os.Exit(evo.Main(run))
 //	}
-//
-// (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{}, func(ctx context.Context, r *evo.Run) error { return nil }) (or (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{}, func(ctx context.Context, r *evo.Run) error { return nil })) builds an
-// ordinary default instance. Config.Isolated returns an independent
-// instance that is not installed as the package default. First paint still
-// arms — Isolated is not a blank-terminal exemption.
 //
 // Init fills still-zero Config fields from EVO_OUTPUT, EVO_VERBOSE,
 // EVO_DEBUG, NO_COLOR, and FORCE_COLOR before TTY inference.
@@ -1030,12 +896,8 @@ func initRun(configs ...Config) *Run {
 	return finishInit(out, cfg, resolved.facts)
 }
 
-// finishInit applies the package-default install (unless Isolated) and the
-// first-paint invariant. Isolated skips SetDefault only.
+// finishInit applies the first-paint invariant and records Config facts.
 func finishInit(out *Run, cfg Config, facts []factRecord) *Run {
-	if !cfg.isolated {
-		setDefault(out)
-	}
 	out.changes.Workspace() // captured at Run start: relative paths never follow a later chdir
 	out.arm()
 	if cfg.subject != "" && !cfg.DryRun && !cfg.preview {
@@ -1055,77 +917,6 @@ func resolveInitConfig(configs []Config) Config {
 		return Config{}
 	}
 	return configs[0]
-}
-
-// SetDefault installs out as the package-level default Output.
-func setDefault(out *Run) {
-	defaultMu.Lock()
-	defaultOut = out
-	defaultMu.Unlock()
-}
-
-// Default returns the package-level default Output, lazily creating one with
-// a zero Config the first time it's needed — package-level Task/Print*
-// never panic even when the caller skipped Init.
-func defaultRun() *Run {
-	defaultMu.RLock()
-	out := defaultOut
-	defaultMu.RUnlock()
-	if out != nil {
-		return out
-	}
-
-	defaultMu.Lock()
-	defer defaultMu.Unlock()
-	if defaultOut == nil {
-		defaultOut = newFromConfig(resolveConfig(applyEnv(Config{})))
-	}
-	return defaultOut
-}
-
-// Task declares a Task on the default instance. A repeated name is a
-// duplicate sibling declaration (§3.1), not a get-or-create — see
-// Output.Task.
-func defaultTask(name string) *Task {
-	return defaultRun().Task(name)
-}
-
-// Reason returns a get-or-create taxonomy Reason by name on the default
-// instance registry — duplicate strings merge into one bucket, so an inline
-// evo.Reason("protected") at every call site is always legal; lifting it to a
-// package var (var reasonProtected = evo.Reason("protected")) is optional,
-// not required for correctness.
-func reason(name string) taxonomyReason {
-	return defaultRun().reasonGetOrCreate(name)
-}
-
-// Print formats like fmt.Sprint and enqueues human-facing text on the default instance.
-func print(args ...any) {
-	defaultRun().print(args...)
-}
-
-// Printf formats like fmt.Sprintf and enqueues human-facing text on the default instance.
-func printf(format string, args ...any) {
-	defaultRun().printf(format, args...)
-}
-
-// Println formats like fmt.Sprintln and enqueues a complete line on the default instance.
-func println(args ...any) {
-	defaultRun().println(args...)
-}
-
-// Verbose returns a Printer scoped to Verbose visibility on the default instance.
-func verbose() *printer {
-	return defaultRun().at(visibilityVerbose)
-}
-
-// SlogHandler returns a slog.Handler journaling to the default instance —
-// package-level sugar (release-gate round 8 finding 6) matching Task/Verbose:
-// a caller using the default-instance facade throughout a run should never
-// have to reach for a hosted *Run just for the slog bridge. See
-// Output.SlogHandler for the level policy and full contract.
-func slogHandler() slog.Handler {
-	return defaultRun().slogHandler()
 }
 
 // --- folded from env.go ---
@@ -1196,20 +987,6 @@ var (
 	lookupEnvMu sync.RWMutex
 	lookupEnvFn = process.Env
 )
-
-// SwapLookupEnv replaces the process-environment facade. Tests inject a
-// map instead of racing os.Setenv. Restore via the returned function.
-func swapLookupEnv(fn func(string) string) func() {
-	lookupEnvMu.Lock()
-	prev := lookupEnvFn
-	lookupEnvFn = fn
-	lookupEnvMu.Unlock()
-	return func() {
-		lookupEnvMu.Lock()
-		lookupEnvFn = prev
-		lookupEnvMu.Unlock()
-	}
-}
 
 // lookupEnv is the process-environment facade (same idea as processArgv0).
 func lookupEnv(key string) string {
@@ -1331,37 +1108,6 @@ func containerNode(col *tasksState) *graph.Container {
 		return nil
 	}
 	return col.node
-}
-
-// Key sets an advanced, refactor/rename-stable override for this Task's
-// §3.1 identity, replacing the default kind+parent-key+name derivation
-// within the application/workspace manifest namespace. Must be called
-// before Define — dependency/verification/execution configuration freezes
-// at Define, and identity is part of that configuration — a call after
-// Define, or after a terminal verb settled the Task, records
-// ErrKeyAfterDefine and leaves the task's key untouched. Repeating the key
-// the Task already has is a no-op. A key already claimed by another Task is
-// ErrDuplicateKey, the same identity-conflict error every other
-// explicit-key path already reports.
-func (t *Task) key(key string) *Task {
-	if t == nil || t.out == nil {
-		return t
-	}
-	o := t.out
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	st := o.taskStates[t.id]
-	if st == nil {
-		return t
-	}
-	if !st.neverDefined() {
-		o.recordMisuseFor(st.name, errKeyAfterDefine)
-		return t
-	}
-	if o.graph.Rekey(st.node, txt.Text(key)) == graph.KeyTaken {
-		o.recordMisuse(errDuplicateKey)
-	}
-	return t
 }
 
 // failDuplicateSiblingLocked records a real, visible Failed task carrying
@@ -1566,7 +1312,6 @@ type (
 	tasksSnapshot   = record.TasksSnapshot
 	changesSnapshot = record.ChangesSnapshot
 	planSnapshot    = record.PlanSnapshot
-	effectRecord    = record.EffectRecord
 )
 
 const (
@@ -1579,12 +1324,10 @@ const (
 type evidencePhase = record.EvidencePhase
 
 type (
-	problem        = record.Problem
-	sourceLocation = record.SourceLocation
-	attachment     = record.Attachment
-	field          = record.Field
-	commandSpec    = record.CommandSpec
-	glyphProfile   = txt.GlyphProfile
+	problem      = record.Problem
+	field        = record.Field
+	commandSpec  = record.CommandSpec
+	glyphProfile = txt.GlyphProfile
 )
 
 const (
@@ -1935,160 +1678,12 @@ func withFileFS(fsys fileFS) option {
 	return optionFunc(func(c *config) { c.fileFS = fsys })
 }
 
-func keepLastLines_1(n int) captureOption  { return keepLastLines(n) }
-func mirrorToDiagnostics_1() captureOption { return mirrorToDiagnostics() }
-func mirrorToDebug_1() captureOption       { return mirrorToDebug() }
-func renderPlain_1(s snapshot, opts plainOptions) ([]byte, error) {
-	return renderPlain(s, opts)
-}
-
-type (
-	capture        = evidence
-	systemClock_1  = systemClock
-	fixedClock_1   = fixedClock
-	noopRedactor_1 = noopRedactor
-)
-
-func fSPath(path string) fingerprint { return freshness.FSPath(path) }
-
 // Test helpers reachable through the evo type alias (root export_test.go
 // cannot attach methods to engine types).
 
-func (t *Task) runForTest(cmd *process.Cmd) error {
-	if t == nil || t.out == nil {
-		return nil
-	}
-	return t.run(cmd)
-}
-
-func (t *Task) captureForTest(opts ...captureOption) *evidence {
-	return t.capture(opts...)
-}
-func (o *Run) events() []recEvent { return o.copyEvents() }
-func (o *Run) debugForTest(message string, fields ...field) {
-	o.debug(message, fields...)
-}
-
-func (o *Run) alsoWriteForTest(w io.Writer) {
-	if w == nil {
-		return
-	}
-	o.cfg.extraWriters = append(o.cfg.extraWriters, w)
-}
-
-func (t *Task) skippedWithErrs(reason taxonomyReason, name string, errs ...error) {
-	t.recordTaxonomy(reason, name, dispositionSkip, errs)
-}
-func (o *Run) dropDiagnosticForTest() { o.cfg.diagnostic = nil }
-func (o *Run) forceLiveVisibleForTest() {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if o.live == nil {
-		o.live = &liveEngine{}
-		if live := o.liveLocked(); live != nil {
-			o.live.surface = live
-		}
-	}
-	o.live.visible = true
-	o.live.paintMu.Lock()
-	o.live.liveActive = true
-	o.live.paintMu.Unlock()
-}
-func (o *Run) debugWriterForTest() io.WriteCloser           { return o.debugWriter() }
-func (o *Run) declareDryRunForTest()                        { o.declareDryRun() }
-func (o *Run) aboutForTest(text string)                     { o.about(text) }
-func (o *Run) subjectForTest(text string)                   { o.subject(text) }
-func (o *Run) slogHandlerForTest() slog.Handler             { return o.slogHandler() }
-func (o *Run) nextSelfForTest(args ...string) ProblemOption { return o.nextSelf(args...) }
-func (t *Task) skipForTest(reason string, args ...any) *Task {
-	return t.skip(reason, args...)
-}
-func (o *Run) atForTest(visibility visibility) *printer { return o.at(visibility) }
-func (o *Run) schedulerMaxObserved() int {
-	return o.graph.MaxObserved()
-}
-
-func reasonConstrained(name string, opts ...reasonOption) taxonomyReason {
-	return defaultRun().reasonGetOrCreate(name, opts...)
-}
-
 // --- folded from basis.go ---
 
-// Fingerprint observes one Basis input's current content identity
-// (spec §11.1). Implementations must not mutate the world.
-type fingerprint = freshness.Fingerprint
-
-// Value fingerprints a caller-supplied scalar (string, bool, any signed/
-// unsigned integer, any finite float, time.Time, or []byte) under a stable,
-// safe name. Only the digest and name are ever persisted, never the raw
-// value. Any other type is an error when the Fingerprint is taken.
-func value(name string, v any) fingerprint { return freshness.Value(name, v) }
-
-// App fingerprints the running application itself: the executable's bytes
-// when readable, else its Go build ID, else an error when the Fingerprint
-// is taken. Include it in a Task's Basis only when the application's own
-// implementation is a semantic input to that Task's result.
-func app() fingerprint { return freshness.App() }
-
 // --- folded from capability.go ---
-
-// colorLevel describes terminal color support. Unexported (C8): no public
-// entry point ever returned this to a caller except detectCapabilities,
-// which is unexported alongside it.
-type colorLevel int
-
-const (
-	colorNone colorLevel = iota
-	colorBasic
-	color256
-	colorTrue
-)
-
-// capabilityProfile holds terminal capability facts (§22). Unexported (C8).
-type capabilityProfile struct {
-	Interactive bool
-	Color       colorLevel
-	Unicode     bool
-	Width       int
-	Height      int
-	NoColor     bool
-}
-
-// detectCapabilities builds a profile from options and environment-like
-// hints. Unexported (C8: no external caller). It does not read the real
-// environment in the core package without injection; callers pass
-// NoColor/Width/Plain options instead.
-func detectCapabilities(opts ...option) capabilityProfile {
-	cfg := config{
-		width:      defaultWidth,
-		debugLevel: levelInfo,
-	}
-	for _, o := range opts {
-		if o != nil {
-			o.apply(&cfg)
-		}
-	}
-	p := capabilityProfile{
-		Interactive: !cfg.plain,
-		Unicode:     true,
-		Width:       cfg.width,
-		Height:      24,
-		NoColor:     cfg.noColor,
-		Color:       colorBasic,
-	}
-	// Plain/non-interactive still allow semantic color on final reports unless NoColor.
-	if cfg.noColor {
-		p.Color = colorNone
-	}
-	if cfg.terminal != nil {
-		if ls := asLive(cfg.terminal); ls != nil {
-			p.Width = ls.Columns()
-			p.Height = ls.Rows()
-			p.Interactive = ls.IsInteractive() && p.Interactive
-		}
-	}
-	return p
-}
 
 // --- folded from change_host.go ---
 
@@ -2283,21 +1878,6 @@ func observationPayload(ob change.Observation) map[string]any {
 
 // --- folded from conjugate.go ---
 
-// Pluralize returns the plural spelling of singular when quantity != 1 (an
-// irregular table for the common exceptions, else the regular English
-// +s/+es/+ies rule), and singular unchanged when quantity == 1 — the
-// object-pluralization counterpart to the ledger's verb tense, so a
-// mutation call site stops writing its own singular/plural noun() switch:
-//
-//	worktrees.Remove(n, evo.Pluralize(n, "worktree")) // "1 worktree" / "2 worktrees"
-//
-// A glob/path/symbol object ("stale origin/*", "*.tmp") renders unchanged at
-// any quantity instead of blindly gaining a trailing "s" ("stale origin/*s")
-// the +s/+es/+ies rule was never designed to produce.
-func pluralize(quantity int64, singular string) string {
-	return txt.Pluralize(quantity, singular)
-}
-
 // --- folded from evidence.go ---
 
 const (
@@ -2343,22 +1923,6 @@ type captureOption interface {
 type captureOptionFunc func(*evidence)
 
 func (f captureOptionFunc) applyCapture(c *evidence) { f(c) }
-
-func keepLastLines(n int) captureOption {
-	return captureOptionFunc(func(c *evidence) {
-		if n > 0 {
-			c.maxLines = n
-		}
-	})
-}
-
-func mirrorToDiagnostics() captureOption {
-	return captureOptionFunc(func(c *evidence) { c.mirrorDiag = true })
-}
-
-func mirrorToDebug() captureOption {
-	return captureOptionFunc(func(c *evidence) { c.mirrorDebug = true })
-}
 
 func activityFeed(fn func(text string)) captureOption {
 	return captureOptionFunc(func(c *evidence) { c.onLine = fn })
@@ -2796,13 +2360,6 @@ func (o *Run) runModeLocked() freshness.RunMode {
 
 // --- folded from freshness_task.go ---
 
-// BasisSource is one Task Basis input: something whose content identity is
-// observed when the Task starts. Build one with FingerprintBasis.
-type basisSource = freshness.BasisSource
-
-// FingerprintBasis observes a Fingerprint (FSPath, Value, App).
-func fingerprintBasis(f fingerprint) basisSource { return freshness.FingerprintBasis(f) }
-
 // basisIsCurrent judges this Task's Basis as it starts (see
 // freshness.TaskTable.JudgeBasis) and narrates the verdict. A Task with no
 // Basis is never current.
@@ -2946,11 +2503,6 @@ func (o *Run) recordAlreadyResolvedLocked(name, rejectedSummary string) {
 	o.misuse.Note(misuse.ErrAlreadyResolved, name, rejectedSummary)
 }
 
-// Err returns the first recorded misuse error, if any.
-func (o *Run) err() error {
-	return o.firstMisuse()
-}
-
 // --- folded from position_set.go ---
 
 // positionSet is a set of non-negative positions that yields its members
@@ -3078,9 +2630,6 @@ func (s *positionSet) each(fn func(int)) {
 
 // --- folded from redact.go ---
 
-// noopRedactor leaves strings unchanged.
-type noopRedactor = process.NoopRedactor
-
 // Redact injects a redactor (Debug fields, Capture lines, problem detail paths).
 func redact(r Redactor) option {
 	return optionFunc(func(c *config) {
@@ -3110,13 +2659,6 @@ func (o *Run) redactString(s string) string {
 }
 
 // --- folded from run_annotations.go ---
-
-// Fact records a discovered name/value annotation on the default instance's
-// run itself, not on any one task — evo.Fact's package-level form. See
-// Output.Fact.
-func fact(name, value string) {
-	defaultRun().Fact(name, value)
-}
 
 // Fact accumulates a run-scoped discovered name/value annotation (P8
 // symmetry with Task.Fact) — information about the run, fire-and-
@@ -3628,10 +3170,6 @@ func asRecordConclusion(c Conclusion) record.Conclusion {
 		RunID: c.runID, StartedAt: c.startedAt, FinishedAt: c.finishedAt,
 		DryRun: c.DryRun, Facts: c.facts,
 	}
-}
-
-func asRecordResult(r Result) record.Result {
-	return record.Result{Conclusion: asRecordConclusion(r.Conclusion), Err: r.Err}
 }
 
 // Action is a recommended next step: argv a machine can run, or text only a

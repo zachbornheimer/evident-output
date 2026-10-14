@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/change"
 )
 
 // TestDryRun_TrueRendersPlannedImperative is the red-first case for the
@@ -12,7 +14,7 @@ import (
 func TestDryRun_TrueRendersPlannedImperative(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "retire", color: colorNever, plain: true, DryRun: true})
+	out := initRun(Config{stdout: &buf, title: "retire", color: colorNever, plain: true, DryRun: true})
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "local branch", 12))
 	if err := out.finish(); err != nil {
@@ -39,7 +41,7 @@ func TestDryRun_TrueRendersPlannedImperative(t *testing.T) {
 func TestDryRun_FalseRendersChangedPastTense(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "retire", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "retire", color: colorNever, plain: true})
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "local branch", 12))
 	if err := out.finish(); err != nil {
@@ -63,7 +65,7 @@ func TestDryRun_FalseRendersChangedPastTense(t *testing.T) {
 // therefore appears in the snapshot and FinalPlain.
 func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 	t.Parallel()
-	out := initRun(Config{isolated: true, title: "retire", color: colorNever})
+	out := initRun(Config{title: "retire", color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "local branch", 3))
@@ -96,7 +98,7 @@ func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 // Define accumulate into one section instead of one per call.
 func TestTaskHandle_MultipleMutationsAccumulateOnOneSubject(t *testing.T) {
 	t.Parallel()
-	out := initRun(Config{isolated: true, title: "retire", color: colorNever})
+	out := initRun(Config{title: "retire", color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	commit(out.Task("branches"),
 		EffectSpec{Verb: Delete, Object: "local branch", Quantity: 3},
@@ -119,21 +121,21 @@ func TestTaskHandle_MultipleMutationsAccumulateOnOneSubject(t *testing.T) {
 // consonant, and install/uninstall. (write->wrote belongs to File.)
 func TestConjugatePast_TableIncludingIrregulars(t *testing.T) {
 	t.Parallel()
-	cases := map[effectVerb]string{
-		effectAdd:       "added",
-		effectDelete:    "deleted",
-		effectCreate:    "created",
-		effectUpdate:    "updated",
-		effectRemove:    "removed",
-		effectPush:      "pushed",
-		effectInstall:   "installed",
-		effectUninstall: "uninstalled",
+	cases := map[change.EffectVerb]string{
+		change.EffectAdd:       "added",
+		change.EffectDelete:    "deleted",
+		change.EffectCreate:    "created",
+		change.EffectUpdate:    "updated",
+		change.EffectRemove:    "removed",
+		change.EffectPush:      "pushed",
+		change.EffectInstall:   "installed",
+		change.EffectUninstall: "uninstalled",
 	}
 	for imperative, want := range cases {
 		t.Run(string(imperative), func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			out := initRun(Config{isolated: true, stdout: &buf, title: "t", color: colorNever, plain: true})
+			out := initRun(Config{stdout: &buf, title: "t", color: colorNever, plain: true})
 			commit(out.Task("subject"), EffectSpec{Verb: Verb(imperative), Object: "object", Quantity: 1})
 			if err := out.finish(); err != nil {
 				t.Fatal(err)
@@ -150,7 +152,7 @@ func TestConjugatePast_TableIncludingIrregulars(t *testing.T) {
 // the "resolved tasks record misuse, never panic" contract.
 func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 	t.Parallel()
-	out := initRun(Config{isolated: true, title: "t", color: colorNever})
+	out := initRun(Config{title: "t", color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("branches")
 	succeed(task)

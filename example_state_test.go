@@ -9,7 +9,7 @@ import (
 // ExampleOutcome shows a Task's Outcome and the run's Conclusion.Outcome
 // for a Define that returned nil.
 func ExampleOutcome() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true})
 	task := out.Task("apply patch")
 	task.Define(func(context.Context) error { return nil })
 	_ = out.finish()
@@ -30,7 +30,7 @@ func ExampleProgressKind() {
 // ExampleProgress shows the absolute measurement Task.Progress
 // records, read back from the resolved TaskSnapshot.
 func ExampleProgress() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true})
 	task := out.Task("download image")
 	task.Progress(50, 100)
 	task.Define(func(context.Context) error { return nil })

@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
@@ -16,7 +17,7 @@ import (
 // Interactive H.2/H.17/H.20–H.22 require testkit terminal (v0.2).
 
 func TestH1_Task_PhaseStartsPendingTask(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	dependencies := out.Task("dependencies")
@@ -35,7 +36,7 @@ func TestH1_Task_PhaseStartsPendingTask(t *testing.T) {
 }
 
 func TestH3_Task_ProgressStartsDeterminateTask(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	dependencies := out.Task("dependencies")
@@ -51,7 +52,7 @@ func TestH3_Task_ProgressStartsDeterminateTask(t *testing.T) {
 }
 
 func TestH4_Task_InvalidProgressIsRecordedWithoutCorruption(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("download")
@@ -68,7 +69,7 @@ func TestH4_Task_InvalidProgressIsRecordedWithoutCorruption(t *testing.T) {
 }
 
 func TestH5_Task_BackwardProgressIsRejected(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("download")
@@ -81,7 +82,7 @@ func TestH5_Task_BackwardProgressIsRejected(t *testing.T) {
 }
 
 func TestH6_Item_BlockCreatesSingleProblem(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	workingTree := out.Task("working tree")
@@ -103,7 +104,7 @@ func TestH6_Item_BlockCreatesSingleProblem(t *testing.T) {
 }
 
 func TestH9_Task_FirstTerminalStateWins(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	item := out.Task("working tree")
@@ -119,7 +120,7 @@ func TestH9_Task_FirstTerminalStateWins(t *testing.T) {
 }
 
 func TestH10_Task_ConcurrentResolutionPreservesDeclarationOrder(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	workingTree := out.Task("working tree")
@@ -155,7 +156,7 @@ func TestH10_Task_ConcurrentResolutionPreservesDeclarationOrder(t *testing.T) {
 }
 
 func TestH11_Tasks_StateIsDerivedFromChildren(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	dependencies := out.Group("dependencies")
@@ -173,7 +174,7 @@ func TestH11_Tasks_StateIsDerivedFromChildren(t *testing.T) {
 
 func TestH12_Tasks_SuccessSummaryIsSuppressedOnFailure(t *testing.T) {
 	var output bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &output, title: "dependencies", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &output, title: "dependencies", color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	dependencies := out.Group("dependencies")
@@ -195,7 +196,7 @@ func TestH12_Tasks_SuccessSummaryIsSuppressedOnFailure(t *testing.T) {
 // terminal verb, and a clean finish must never escalate that to
 // ErrUnresolvedTask (previously pinned here as the old behavior).
 func TestH13_Output_FinishLeavesUnresolvedTaskPartial(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	dependencies := out.Group("dependencies")
@@ -213,13 +214,13 @@ func TestH13_Output_FinishLeavesUnresolvedTaskPartial(t *testing.T) {
 
 func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 	var output bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &output, title: "dependencies", width: 80, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &output, title: "dependencies", width: 80, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	commit(out.Task("dependencies"),
-		EffectSpec{Verb: Verb(effectAdd), Object: "package", Quantity: 14},
+		EffectSpec{Verb: Verb(change.EffectAdd), Object: "package", Quantity: 14},
 		EffectSpec{Verb: Update, Object: "package", Quantity: 4},
-		EffectSpec{Verb: Verb(effectInstall), Object: "cached package", Quantity: 63},
+		EffectSpec{Verb: Verb(change.EffectInstall), Object: "cached package", Quantity: 63},
 		EffectSpec{Verb: Create, Object: "app.lock", Quantity: 1},
 	)
 
@@ -246,11 +247,11 @@ func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 
 func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 	var output bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &output, title: "dependencies", width: 30, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &output, title: "dependencies", width: 30, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	commit(out.Task("dependencies"),
-		EffectSpec{Verb: Verb(effectAdd), Object: "package", Quantity: 14},
+		EffectSpec{Verb: Verb(change.EffectAdd), Object: "package", Quantity: 14},
 		EffectSpec{Verb: Update, Object: "package", Quantity: 4},
 		EffectSpec{Verb: Create, Object: "app.lock", Quantity: 1},
 	)
@@ -273,12 +274,12 @@ func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 }
 
 func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, title: "account acme", DryRun: true})
+	out := initRun(Config{stdout: io.Discard, title: "account acme", DryRun: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	commit(out.Task("delete account acme"),
 		EffectSpec{Verb: Delete, Object: "project", Quantity: 14},
-		EffectSpec{Verb: Verb(effectRemove), Object: "API key", Quantity: 7},
+		EffectSpec{Verb: Verb(change.EffectRemove), Object: "API key", Quantity: 7},
 	)
 
 	if err := out.finish(); err != nil {
@@ -293,7 +294,7 @@ func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
 
 func TestH18_Output_NonInteractiveContainsNoTerminalControls(t *testing.T) {
 	var output bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &output, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &output, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("dependencies")
@@ -312,7 +313,7 @@ func TestH18_Output_NonInteractiveContainsNoTerminalControls(t *testing.T) {
 
 func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "bpp-csharp", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "bpp-csharp", color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	succeed(out.Task("working tree"))

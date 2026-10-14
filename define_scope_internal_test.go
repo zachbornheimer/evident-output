@@ -19,7 +19,7 @@ func runOf(ctx context.Context) (*graph.Scope[*change.Run], error) {
 // inside a Define callback the context's scope resolves to the Task actually
 // running and to the Run's own changes.
 func TestDefineScope_InsideCallbackNamesTheRunningTaskAndItsRun(t *testing.T) {
-	out := initRun(Config{isolated: true})
+	out := initRun(Config{})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("scoped")
@@ -49,7 +49,7 @@ func TestDefineScope_InsideCallbackNamesTheRunningTaskAndItsRun(t *testing.T) {
 // reports ErrTaskClosed — the callback's own execution window is what "open"
 // means, not the Task's lifetime.
 func TestDefineScope_AfterCallbackReturnsErrTaskClosed(t *testing.T) {
-	out := initRun(Config{isolated: true})
+	out := initRun(Config{})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("closes")
@@ -60,7 +60,7 @@ func TestDefineScope_AfterCallbackReturnsErrTaskClosed(t *testing.T) {
 	})
 	_ = task.wait()
 
-	if _, err := runOf(captured); !errors.Is(err, errTaskClosed) {
+	if _, err := runOf(captured); !errors.Is(err, graph.ErrTaskClosed) {
 		t.Fatalf("the scope after the callback returned = %v, want ErrTaskClosed", err)
 	}
 }
@@ -68,7 +68,7 @@ func TestDefineScope_AfterCallbackReturnsErrTaskClosed(t *testing.T) {
 // TestDefineScope_OutsideACallbackReturnsErrNoTaskContext proves §7.1: a
 // context that never came from a Define callback reports ErrNoTaskContext.
 func TestDefineScope_OutsideACallbackReturnsErrNoTaskContext(t *testing.T) {
-	if _, err := runOf(context.Background()); !errors.Is(err, errNoTaskContext) {
+	if _, err := runOf(context.Background()); !errors.Is(err, graph.ErrNoTaskContext) {
 		t.Fatalf("the scope of context.Background() = %v, want ErrNoTaskContext", err)
 	}
 }

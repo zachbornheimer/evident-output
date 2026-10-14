@@ -2,7 +2,6 @@ package evo
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -189,38 +188,11 @@ func TestSequence_SequentialBytesProgressFinishesClean(t *testing.T) {
 	}
 }
 
-// TestSequence_PackageLevelRepeatIsDuplicateSibling mirrors Task's
-// identity contract (§3.1): Default().Sequence(name) called twice, and
-// Sequence.Task(name) called twice within one sequence, are duplicate
-// sibling declarations — each second call reports a distinct, orphaned
-// handle instead of silently merging into the first.
-func TestSequence_PackageLevelRepeatIsDuplicateSibling(t *testing.T) {
-	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
-	setDefault(out)
-	t.Cleanup(func() { _ = defaultRun().close() })
-
-	g1 := defaultRun().Sequence("python")
-	g2 := defaultRun().Sequence("python")
-	if g1 == g2 {
-		t.Fatal("Default().Sequence(name) called twice must return distinct handles")
-	}
-	if !errors.Is(out.err(), errDuplicateSiblingName) {
-		t.Fatalf("Err() = %v, want ErrDuplicateSiblingName", out.err())
-	}
-
-	t1 := g1.Task("venv")
-	t2 := g1.Task("venv")
-	if t1 == t2 {
-		t.Fatal("Sequence.Task(name) called twice must return distinct handles")
-	}
-}
-
 // TestSequence_TwoRunningChildrenRecordsMisuse is the red-first case for the
 // "one Running child" heart contract on a Sequence: promoting a
 // second sibling to Running while the first is still Running is misuse.
 func TestSequence_TwoRunningChildrenRecordsMisuse(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	setup := out.Sequence("python")
@@ -242,7 +214,7 @@ func TestSequence_TwoRunningChildrenRecordsMisuse(t *testing.T) {
 // now under its P3 name.
 func TestSequence_CascadeFailureNotStartsLaterSiblings(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	setup := out.Sequence("python")
@@ -269,7 +241,7 @@ func TestSequence_CascadeFailureNotStartsLaterSiblings(t *testing.T) {
 // Sequence via .Sequence(name) still cascades within itself, and its
 // failure surfaces at the root container's own derived header state.
 func TestSequence_CascadeNestedSequenceFailurePropagatesToRootHeader(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: &bytes.Buffer{}, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &bytes.Buffer{}, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	root := out.Sequence("release")

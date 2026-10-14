@@ -23,7 +23,7 @@ import (
 func TestWireSchema_RenderedDocumentValidates(t *testing.T) {
 	schema := strictOutputSchema(t)
 
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	succeed(out.Task("working tree"))
 	out.Task("branches").Problem("2 branches need attention", severity(severityWarning))
 	seq := out.Sequence("cleanup")
@@ -53,7 +53,7 @@ func TestWireSchema_RichProblemStaysWithinFrozenOutputV1(t *testing.T) {
 	fsys := testkit.NewFileFS()
 	fsys.FailChmod(path, errors.New("operation not permitted"))
 
-	out := initRun(Config{isolated: true, stdout: io.Discard, fileFS: fsys, stateDir: dir})
+	out := initRun(Config{stdout: io.Discard, fileFS: fsys, stateDir: dir})
 	out.Task("write launch agent").Define(func(ctx context.Context) error {
 		return File(ctx, FileSpec{Path: path, Contents: []byte("x"), Mode: 0o644})
 	})

@@ -11,7 +11,7 @@ import (
 
 func TestOUT021_DataProjectionOption(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &primary, stderr: &diag, color: colorNever, plain: true, format: formatData})
+	out := initRun(Config{stdout: &primary, stderr: &diag, color: colorNever, plain: true, format: formatData})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("scan").Doing("walk"), "ok")
 	_ = out.finish()
@@ -49,7 +49,7 @@ func TestAPI016_ExternalProjectionSnapshots(t *testing.T) {
 func TestProjection_StandaloneTaskPlainLiveParity(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	build := out.Task("build")

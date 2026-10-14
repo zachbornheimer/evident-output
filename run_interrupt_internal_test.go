@@ -42,7 +42,7 @@ func sendOneSignal(t *testing.T) (interrupt func()) {
 func TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue(t *testing.T) {
 	var buf strings.Builder
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever,
+		plain: true, color: colorNever,
 		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
 	})
 	interrupt := sendOneSignal(t)
@@ -119,7 +119,7 @@ func TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue(t *testing.T) {
 func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testing.T) {
 	var buf strings.Builder
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever,
+		plain: true, color: colorNever,
 		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
 	})
 	interrupt := sendOneSignal(t)
@@ -173,7 +173,7 @@ func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testin
 // hang TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue showed
 // when its run callback was still Defining when the signal landed.
 func TestInterrupt_WorkDefinedAfterTheSignalNeverStrandsTheDrain(t *testing.T) {
-	out := initRun(Config{isolated: true, plain: true, color: colorNever, stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{plain: true, color: colorNever, stdout: io.Discard, stderr: io.Discard})
 	out.interrupt("interrupted")
 	late := out.Task("late")
 	late.Define(func(context.Context) error { return nil })

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/change"
 )
 
 // TestVerbVocabulary_UnifiedAcrossMutationVerbsAndRunModes is C10: every
@@ -16,16 +18,16 @@ import (
 // separate types.
 func TestVerbVocabulary_UnifiedAcrossMutationVerbsAndRunModes(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	cleanup := out.Task("cleanup")
-	cleanup.Define(effectOf(Verb(effectAdd), "worktree", 2))
+	cleanup.Define(effectOf(Verb(change.EffectAdd), "worktree", 2))
 
 	applied := out.Task("changes-section")
 	applied.Define(effectOf(Delete, "branch", 1))
 
 	pushed := out.Task("tags")
-	pushed.Define(effectOf(Verb(effectPush), "tag", 1))
+	pushed.Define(effectOf(Verb(change.EffectPush), "tag", 1))
 
 	_ = out.finish()
 
@@ -42,10 +44,10 @@ func TestVerbVocabulary_UnifiedAcrossMutationVerbsAndRunModes(t *testing.T) {
 // ("push"), never conjugated, under Config.DryRun.
 func TestVerbVocabulary_PlanKeepsImperativeUnderDryRun(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true, DryRun: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true, DryRun: true})
 
 	plan := out.Task("plan-section")
-	plan.Define(effectOf(Verb(effectPush), "commit", 3))
+	plan.Define(effectOf(Verb(change.EffectPush), "commit", 3))
 
 	_ = out.finish()
 

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
 )
 
@@ -109,7 +110,7 @@ func TestExecSpawnsWhenNoOutputsDeclared(t *testing.T) {
 	dir := t.TempDir()
 	tool := execFixture(t, dir, "tool", "v1")
 	runner := &scriptedRunner{exitCode: 0}
-	out := initRun(Config{isolated: true, stateDir: t.TempDir(), processRunner: runner})
+	out := initRun(Config{stateDir: t.TempDir(), processRunner: runner})
 	t.Cleanup(func() { _ = out.close() })
 
 	if err := runExecTask(t, out, "no-outputs", ExecSpec{executable: tool}); err != nil {
@@ -130,7 +131,7 @@ func TestExecSkipsSecondRunWhenOutputsUnchanged(t *testing.T) {
 	outPath := filepath.Join(dir, "out.txt")
 
 	firstRunner := &scriptedRunner{exitCode: 0, stdout: []string{"built"}}
-	first := initRun(Config{isolated: true, stateDir: state, processRunner: firstRunner})
+	first := initRun(Config{stateDir: state, processRunner: firstRunner})
 	spec := ExecSpec{executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
 	// The fake runner does not itself write files; simulate the child's own
 	// effect (declared Outputs are its contract, not evo's).
@@ -146,7 +147,7 @@ func TestExecSkipsSecondRunWhenOutputsUnchanged(t *testing.T) {
 	}
 
 	secondRunner := &scriptedRunner{exitCode: 0}
-	second := initRun(Config{isolated: true, stateDir: state, processRunner: secondRunner})
+	second := initRun(Config{stateDir: state, processRunner: secondRunner})
 	t.Cleanup(func() { _ = second.close() })
 	result, err := runExecTaskResult(t, second, "build", spec)
 	if err != nil {
@@ -173,7 +174,7 @@ func TestExecRerunsWhenOutputDrifts(t *testing.T) {
 	if err := os.WriteFile(outPath, []byte("built"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	first := initRun(Config{isolated: true, stateDir: state, processRunner: &scriptedRunner{exitCode: 0}})
+	first := initRun(Config{stateDir: state, processRunner: &scriptedRunner{exitCode: 0}})
 	if err := runExecTask(t, first, "build", spec); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
@@ -184,7 +185,7 @@ func TestExecRerunsWhenOutputDrifts(t *testing.T) {
 		t.Fatal(err)
 	}
 	runner := &scriptedRunner{exitCode: 0}
-	second := initRun(Config{isolated: true, stateDir: state, processRunner: runner})
+	second := initRun(Config{stateDir: state, processRunner: runner})
 	t.Cleanup(func() { _ = second.close() })
 	if err := runExecTask(t, second, "build", spec); err != nil {
 		t.Fatalf("second run: %v", err)
@@ -198,11 +199,11 @@ func TestExecMissingOutputAfterSuccessFails(t *testing.T) {
 	dir := t.TempDir()
 	tool := execFixture(t, dir, "tool", "v1")
 	spec := ExecSpec{executable: tool, Outputs: []string{"never-written.txt"}, Dir: dir}
-	out := initRun(Config{isolated: true, stateDir: t.TempDir(), processRunner: &scriptedRunner{exitCode: 0}})
+	out := initRun(Config{stateDir: t.TempDir(), processRunner: &scriptedRunner{exitCode: 0}})
 	t.Cleanup(func() { _ = out.close() })
 
 	result, err := runExecTaskResult(t, out, "missing-output", spec)
-	if !errors.Is(err, errExecOutputMissingAfterSuccess) {
+	if !errors.Is(err, change.ErrExecOutputMissingAfterSuccess) {
 		t.Fatalf("err = %v, want ErrExecOutputMissingAfterSuccess", err)
 	}
 	if !result.Ran {
@@ -221,7 +222,7 @@ func TestExecNonzeroExitFailsAndCommitsNoRecord(t *testing.T) {
 	spec := ExecSpec{executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
 
 	runner := &scriptedRunner{exitCode: 1, stderr: []string{"boom"}}
-	out := initRun(Config{isolated: true, stateDir: state, processRunner: runner})
+	out := initRun(Config{stateDir: state, processRunner: runner})
 	result, err := runExecTaskResult(t, out, "fails", spec)
 	_ = out.close()
 	if !errors.Is(err, ErrExecNonzeroExit) {
@@ -246,7 +247,7 @@ func TestExecNonzeroExitFailsAndCommitsNoRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	nextRunner := &scriptedRunner{exitCode: 0}
-	next := initRun(Config{isolated: true, stateDir: state, processRunner: nextRunner})
+	next := initRun(Config{stateDir: state, processRunner: nextRunner})
 	t.Cleanup(func() { _ = next.close() })
 	if err := runExecTask(t, next, "fails", spec); err != nil {
 		t.Fatalf("recovery run: %v", err)
@@ -261,7 +262,7 @@ func TestExecDryRunNeverSpawns(t *testing.T) {
 	tool := execFixture(t, dir, "tool", "v1")
 	spec := ExecSpec{executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
 	runner := &scriptedRunner{exitCode: 0}
-	out := initRun(Config{isolated: true, DryRun: true, stateDir: t.TempDir(), processRunner: runner})
+	out := initRun(Config{DryRun: true, stateDir: t.TempDir(), processRunner: runner})
 	t.Cleanup(func() { _ = out.close() })
 
 	result, err := runExecTaskResult(t, out, "dry", spec)
@@ -285,7 +286,7 @@ func TestExecCancellationKillsProcess(t *testing.T) {
 	spec := ExecSpec{executable: tool}
 	gate := make(chan struct{}) // never closed: only ctx cancellation may release Run
 	runner := &scriptedRunner{exitCode: 0, gate: gate}
-	out := initRun(Config{isolated: true, stateDir: t.TempDir(), processRunner: runner})
+	out := initRun(Config{stateDir: t.TempDir(), processRunner: runner})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -323,7 +324,7 @@ func TestExecBasisDriftForcesRespawn(t *testing.T) {
 		executable: tool, Outputs: []string{"out.txt"}, Dir: dir,
 		basis: []freshness.Fingerprint{freshness.Value("input", 1)},
 	}
-	first := initRun(Config{isolated: true, stateDir: state, processRunner: &scriptedRunner{exitCode: 0}})
+	first := initRun(Config{stateDir: state, processRunner: &scriptedRunner{exitCode: 0}})
 	if err := runExecTask(t, first, "build", spec1); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
@@ -332,7 +333,7 @@ func TestExecBasisDriftForcesRespawn(t *testing.T) {
 	spec2 := spec1
 	spec2.basis = []freshness.Fingerprint{freshness.Value("input", 2)}
 	runner := &scriptedRunner{exitCode: 0}
-	second := initRun(Config{isolated: true, stateDir: state, processRunner: runner})
+	second := initRun(Config{stateDir: state, processRunner: runner})
 	t.Cleanup(func() { _ = second.close() })
 	if err := runExecTask(t, second, "build", spec2); err != nil {
 		t.Fatalf("second run: %v", err)
@@ -346,7 +347,7 @@ func TestExecCapturedLineBecomesActivity(t *testing.T) {
 	dir := t.TempDir()
 	tool := execFixture(t, dir, "tool", "v1")
 	runner := &scriptedRunner{exitCode: 0, stdout: []string{"step one", "step two"}}
-	out := initRun(Config{isolated: true, stateDir: t.TempDir(), processRunner: runner})
+	out := initRun(Config{stateDir: t.TempDir(), processRunner: runner})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("narrated")
@@ -367,7 +368,7 @@ func TestExecCapturedSecretIsRedactedBeforeRetention(t *testing.T) {
 	tool := execFixture(t, dir, "tool", "v1")
 	runner := &scriptedRunner{exitCode: 1, stdout: []string{"token=super-secret-value"}}
 	out := initRun(Config{
-		isolated: true, stateDir: t.TempDir(), processRunner: runner,
+		stateDir: t.TempDir(), processRunner: runner,
 		redactor: secretRedactor{secret: "super-secret-value"},
 	})
 	t.Cleanup(func() { _ = out.close() })
@@ -435,7 +436,7 @@ func TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput(t *testing.
 		compileTool:   consumerRunner,
 	}}
 
-	out := initRun(Config{isolated: true, stateDir: t.TempDir(), processRunner: router})
+	out := initRun(Config{stateDir: t.TempDir(), processRunner: router})
 	t.Cleanup(func() { _ = out.close() })
 
 	consumerObservedSchema := make(chan string, 1)
@@ -499,7 +500,7 @@ func TestExecProducerConflictFailsSecondClaim(t *testing.T) {
 	if err := os.WriteFile(sharedPath, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out := initRun(Config{isolated: true, stateDir: t.TempDir(), processRunner: &scriptedRunner{exitCode: 0}})
+	out := initRun(Config{stateDir: t.TempDir(), processRunner: &scriptedRunner{exitCode: 0}})
 	t.Cleanup(func() { _ = out.close() })
 
 	first := out.Task("first")
@@ -517,7 +518,7 @@ func TestExecProducerConflictFailsSecondClaim(t *testing.T) {
 	})
 	_ = second.wait()
 
-	if !errors.Is(secondErr, errFileConflictingProducer) {
+	if !errors.Is(secondErr, change.ErrFileConflictingProducer) {
 		t.Fatalf("second claim err = %v, want ErrFileConflictingProducer", secondErr)
 	}
 }

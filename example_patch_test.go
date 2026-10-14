@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/zachbornheimer/evident-output/internal/change"
 )
 
 // createNotesDiff creates a file that does not exist in the workspace, so
@@ -37,14 +39,14 @@ func ExamplePatch() {
 	}
 	defer restore()
 
-	out := initRun(Config{isolated: true, stateDir: dir, stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{stateDir: dir, stdout: io.Discard, stderr: io.Discard})
 	task := out.Task("apply notes")
 	task.Define(func(ctx context.Context) error {
 		err := Patch(ctx, []byte(createNotesDiff))
 		fmt.Println("create:", err)
 
 		err = Patch(ctx, []byte("diff --git a/go.mod b/go.mod\ndeleted file mode 100644\n"))
-		fmt.Println("delete unsupported:", errors.Is(err, errPatchDeleteUnsupported))
+		fmt.Println("delete unsupported:", errors.Is(err, change.ErrPatchDeleteUnsupported))
 		return nil
 	})
 	_ = task.wait()
@@ -61,7 +63,7 @@ func ExamplePatch() {
 // bound to the Basis it was derived from, with no accessor that could
 // separate the contents from that Basis.
 func ExampleFileSet() {
-	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard})
 	task := out.Task("derive notes")
 	task.Define(func(ctx context.Context) error {
 		var set fileSet
@@ -98,7 +100,7 @@ func ExampleFiles() {
 	}
 	const diff = "--- a/notes.txt\n+++ b/notes.txt\n@@ -1 +1 @@\n-draft\n+final\n"
 
-	out := initRun(Config{isolated: true, stateDir: dir, stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{stateDir: dir, stdout: io.Discard, stderr: io.Discard})
 	task := out.Task("finalize notes")
 	task.Define(func(ctx context.Context) error {
 		set, err := derivePatch(ctx, []byte(diff))

@@ -28,7 +28,7 @@ func misuseOf(o *Run) error {
 func TestAnnotation_AfterInterruptIsNotMisuse(t *testing.T) {
 	for name, annotate := range annotationVerbs {
 		t.Run(name, func(t *testing.T) {
-			out := initRun(Config{isolated: true, plain: true, color: colorNever, stdout: io.Discard, stderr: io.Discard})
+			out := initRun(Config{plain: true, color: colorNever, stdout: io.Discard, stderr: io.Discard})
 			task := out.Task("work")
 			task.cancel("interrupted")
 			annotate(task)
@@ -44,7 +44,7 @@ func TestAnnotation_AfterInterruptIsNotMisuse(t *testing.T) {
 func TestAnnotation_AfterCallerResolutionIsMisuse(t *testing.T) {
 	for name, annotate := range annotationVerbs {
 		t.Run(name, func(t *testing.T) {
-			out := initRun(Config{isolated: true, plain: true, color: colorNever, stdout: io.Discard, stderr: io.Discard})
+			out := initRun(Config{plain: true, color: colorNever, stdout: io.Discard, stderr: io.Discard})
 			task := out.Task("work")
 			task.fail("done badly")
 			annotate(task)

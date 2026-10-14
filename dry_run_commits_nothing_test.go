@@ -11,7 +11,7 @@ import (
 // and reports whether its Define ran.
 func runBasisTask(t *testing.T, state, val string, dry bool) bool {
 	t.Helper()
-	out := initRun(Config{isolated: true, stateDir: state, DryRun: dry})
+	out := initRun(Config{stateDir: state, DryRun: dry})
 	ran := false
 	task := out.Task("basis-task")
 	task.basis(value("v", val))
@@ -43,7 +43,7 @@ func TestDryRunNeverRecordsABasisItDidNotApply(t *testing.T) {
 // child spawned.
 func runTrackedExec(t *testing.T, state, work string, dry bool) bool {
 	t.Helper()
-	out := initRun(Config{isolated: true, stateDir: state, DryRun: dry})
+	out := initRun(Config{stateDir: state, DryRun: dry})
 	spawned := false
 	task := out.Task("exec")
 	task.Define(func(ctx context.Context) error {

@@ -11,7 +11,7 @@ import (
 // nothing outside the package needs it, since Output.Run/Conclusion already
 // answer the same question once a run has finished.
 func TestAnyBlockedSoFar_BeforeMutate(t *testing.T) {
-	out := initRun(Config{isolated: true})
+	out := initRun(Config{})
 	out.Task("a").succeed("")
 	out.Task("b").block("policy")
 	if !out.anyBlockedSoFar() {

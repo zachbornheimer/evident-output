@@ -231,31 +231,6 @@ func newOutput(subject string, options ...option) *Run {
 	return o
 }
 
-// DeclareDryRun switches this run into dry-run mode after construction — a
-// bounded late setter (I8): calling it once any durable row has already
-// streamed is misuse (ErrDryRunDeclaredLate), since those earlier rows
-// would not reflect the switch. There is no argv-sniffing helper; the
-// caller decides (e.g. from a flag parsed after Init) and calls this
-// explicitly, before any Task/Print/Confirm call. A no-op when the run is
-// already dry-run.
-func (o *Run) declareDryRun() {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		return
-	}
-	if o.cfg.dryRun {
-		return
-	}
-	if o.durableRowsEmitted > 0 {
-		o.recordMisuse(errDryRunDeclaredLate)
-		return
-	}
-	o.cfg.dryRun = true
-	o.emitPlannedHeaderLocked()
-}
-
 // emitPlannedHeaderLocked writes the planned run's opening announcement
 // immediately, once, through the same durable-write path
 // (writeDurableTextLocked) every other library-owned line uses.
@@ -755,40 +730,12 @@ func cloneFields(in []field) []field {
 
 // --- folded from debug_writer.go ---
 
-// DebugWriter returns a line-oriented writer that emits Debug lines on newline.
-// Partial UTF-8 sequences are buffered; control bytes are sanitized.
-//
-// Prefer Capture for external process stdout/stderr: DebugWriter is filtered by
-// DebugLevel (default LevelInfo drops all lines) and is the wrong dialect for
-// child-command evidence used in Fail Detail. Use DebugWriter only when you
-// intentionally want DEBUG-level journal lines (and set debugLevel(Debug)).
-func (o *Run) debugWriter() io.WriteCloser {
-	return record.NewLineWriter(func(line string) { o.debug(line) })
-}
-
 // --- folded from format.go ---
 
 func init() {
 	// Single source of truth: PublishedRelease, pinned once into the
 	// v2 wire encoder path (spec §32.1/§35's evo_version).
 	setWireEvoVersion(publishedRelease)
-}
-
-// WriteJSON serializes result as the stable v2 "evo.run" wire document plus
-// one trailing newline (spec §53) — the HTTP/embedding counterpart of
-// FormatJSON's automatic Stdout write. It never serializes internal
-// snapshots directly, and applies the same redaction Result's Conclusion
-// already carries. HTTP status (or any other transport-level outcome) is
-// the embedding application's own concern; Evo's outcome/exit semantics
-// stay in the body (Conclusion.State/ExitCode).
-func writeJSON(w io.Writer, result Result) error {
-	body, err := wire.EncodeRun(asRecordResult(result), publishedRelease)
-	if err != nil {
-		return fmt.Errorf("evo: encode evo.run document: %w", err)
-	}
-	body = append(body, '\n')
-	_, err = w.Write(body)
-	return err
 }
 
 // PublishedRelease is the single source of truth for the current published
@@ -884,15 +831,6 @@ func (o *Run) writeStreamJSONLocked(e recEvent) {
 	if f, ok := w.(flusher); ok {
 		_ = f.Flush()
 	}
-}
-
-// copyEvents is a copy of the durable events (v0.1 journal), current with the
-// record: every settle the graph made is journaled before it is read.
-func (o *Run) copyEvents() []recEvent {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.followRecordLocked()
-	return o.rec.Events(o.cfg.maxEvents)
 }
 
 // --- folded from ledger_entry.go ---
@@ -2170,29 +2108,6 @@ var _ io.Writer = (*phaseWriter)(nil)
 
 // --- folded from plain.go ---
 
-// PlainOptions configures pure plain projection (§25.4).
-type plainOptions struct {
-	width   int
-	noColor bool
-	// Verbose additionally emits per-reason name lists under a task's skip/keep
-	// taxonomy line. Counts and the reason partition always render; Verbose
-	// only adds the bounded (TruncateNames) name detail.
-	verbose bool
-	// Glyphs selects the state-glyph vocabulary. Plain projection has no live
-	// TTY to detect, so GlyphsAuto (the default) resolves to GlyphsUnicode —
-	// callers rendering off a known non-UTF-8 destination pass GlyphsASCII.
-	glyphs glyphProfile
-}
-
-// RenderPlain projects a snapshot to plain text without terminal ownership.
-func renderPlain(s snapshot, opts plainOptions) ([]byte, error) {
-	glyphs := opts.glyphs
-	if glyphs == glyphsAuto {
-		glyphs = glyphsUnicode
-	}
-	return []byte(renderplain.Plain(s, opts.width, opts.noColor, opts.verbose, glyphs)), nil
-}
-
 // --- folded from plain_heartbeat.go ---
 
 // plainHeartbeatInterval is how often silent long-running work earns an
@@ -2943,13 +2858,6 @@ func externalProjection() option {
 }
 
 // --- folded from snapshot.go ---
-
-// Snapshot returns an immutable copy of current state.
-func (o *Run) snapshot() snapshot {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.snapshotLocked()
-}
 
 func (o *Run) snapshotLocked() snapshot {
 	o.followRecordLocked()

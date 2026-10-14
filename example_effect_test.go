@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/change"
 )
 
 // ExampleEffect records an opaque mutation Evo cannot model as file state —
@@ -14,10 +16,10 @@ import (
 func ExampleEffect() {
 	for _, dryRun := range []bool{true, false} {
 		var buf strings.Builder
-		out := initRun(Config{isolated: true, title: "prune", plain: true, color: colorNever, DryRun: dryRun, stdout: &buf})
+		out := initRun(Config{title: "prune", plain: true, color: colorNever, DryRun: dryRun, stdout: &buf})
 		removed := 0
 		out.Task("worktrees").Define(func(ctx context.Context) error {
-			return Effect(ctx, EffectSpec{Verb: Verb(effectRemove), Object: "stale worktree", Quantity: 2},
+			return Effect(ctx, EffectSpec{Verb: Verb(change.EffectRemove), Object: "stale worktree", Quantity: 2},
 				func(ctx context.Context) error {
 					removed = 2 // e.g. `git worktree remove` for each stale path, honoring ctx
 					return nil
@@ -45,7 +47,7 @@ func ExampleEffectSpec() {
 // ExampleEffectVerb lists the closed verb set. There is no write verb:
 // file state goes through File, not an opaque Effect.
 func ExampleEffectVerb() {
-	for _, v := range []effectVerb{effectAdd, effectCreate, effectDelete, effectPush, effectRemove, effectUpdate} {
+	for _, v := range []change.EffectVerb{change.EffectAdd, change.EffectCreate, change.EffectDelete, change.EffectPush, change.EffectRemove, change.EffectUpdate} {
 		fmt.Print(v, " ")
 	}
 	fmt.Println()
@@ -56,7 +58,7 @@ func ExampleEffectVerb() {
 // ExampleEffectSpec_noResource shows the default: an EffectSpec with no
 // Path or Resource makes no claim.
 func ExampleEffectSpec_noResource() {
-	spec := EffectSpec{Verb: Verb(effectPush), Object: "branch", Quantity: 1}
+	spec := EffectSpec{Verb: Verb(change.EffectPush), Object: "branch", Quantity: 1}
 	fmt.Println(spec.Path == "" && spec.Resource == "")
 	// Output:
 	// true
@@ -67,7 +69,7 @@ func ExampleEffectSpec_noResource() {
 // that really happened and the Task still fails with the cause.
 func ExamplePartialEffect() {
 	var buf strings.Builder
-	out := initRun(Config{isolated: true, title: "prune", plain: true, color: colorNever, stdout: &buf})
+	out := initRun(Config{title: "prune", plain: true, color: colorNever, stdout: &buf})
 	rejected := errors.New("remote rejected refs/heads/old")
 	var effectErr error
 	out.Task("remote refs").Define(func(ctx context.Context) error {

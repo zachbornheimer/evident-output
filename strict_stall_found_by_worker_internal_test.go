@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 )
 
 const strictStallChildEnv = "EVO_STRICT_STALL_CHILD"
@@ -43,13 +45,13 @@ func runStrictStallFoundByFinishingWorker(t *testing.T) {
 
 	waitErr, returned := within(5*time.Second, a.wait)
 
-	if !returned || !errors.Is(waitErr, errWaitDeadlock) {
+	if !returned || !errors.Is(waitErr, misuse.ErrWaitDeadlock) {
 		t.Fatalf("a.Wait returned=%v err=%v, want ErrWaitDeadlock", returned, waitErr)
 	}
 	if waits := out.graph.Waits(); waits != 0 {
 		t.Errorf("parked waits = %d, want 0", waits)
 	}
-	if !errors.Is(out.firstMisuse(), errWaitDeadlock) {
+	if !errors.Is(out.firstMisuse(), misuse.ErrWaitDeadlock) {
 		t.Errorf("misuse = %v, want ErrWaitDeadlock", out.firstMisuse())
 	}
 	t.Log(strictStallSurvived)

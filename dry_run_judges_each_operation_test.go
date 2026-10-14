@@ -12,7 +12,7 @@ import (
 func runTaskOf(t *testing.T, state string, dry bool, operations ...func(context.Context) error) string {
 	t.Helper()
 	var stream syncBuffer
-	out := initRun(Config{isolated: true, stateDir: state, format: formatJSONL, stdout: &stream, stderr: &stream, DryRun: dry})
+	out := initRun(Config{stateDir: state, format: formatJSONL, stdout: &stream, stderr: &stream, DryRun: dry})
 	task := out.Task("two-operations").Define(func(ctx context.Context) error {
 		for _, operation := range operations {
 			if err := operation(ctx); err != nil {

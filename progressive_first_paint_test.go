@@ -35,7 +35,6 @@ func TestDoing_PlainModeEmitsTheFirstBeatBeforeTheTaskResolves(t *testing.T) {
 	var payload syncBuffer
 	o := initRun(Config{
 		title:           "zq",
-		isolated:        true,
 		format:          formatData,
 		stdout:          &payload,
 		stderr:          &out,

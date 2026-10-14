@@ -29,8 +29,7 @@ func TestGroup_LargePlainGroupAggregatesWithoutEach(t *testing.T) {
 		testkit.NoColor(),
 	)
 	out := initRun(Config{
-		stdout: io.Discard, stderr: io.Discard, isolated: true,
-		terminal: screen, visibilityDelay: DelayForTest(0),
+		stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0),
 	})
 	t.Cleanup(func() { _ = out.close() })
 
@@ -77,8 +76,7 @@ func TestGroup_SmallGroupStillShowsEveryChild(t *testing.T) {
 		testkit.NoColor(),
 	)
 	out := initRun(Config{
-		stdout: io.Discard, stderr: io.Discard, isolated: true,
-		terminal: screen, visibilityDelay: DelayForTest(0),
+		stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0),
 	})
 	t.Cleanup(func() { _ = out.close() })
 

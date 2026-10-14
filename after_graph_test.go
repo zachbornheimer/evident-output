@@ -8,13 +8,15 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 )
 
 func nopWork(context.Context) error { return nil }
 
 func newGraphTestOutput(t *testing.T) *Run {
 	t.Helper()
-	return initRun(Config{isolated: true, stateDir: t.TempDir(), stdout: io.Discard, stderr: io.Discard})
+	return initRun(Config{stateDir: t.TempDir(), stdout: io.Discard, stderr: io.Discard})
 }
 
 // closeWithin runs Finish and Close and fails the test, instead of hanging
@@ -78,8 +80,8 @@ func TestAfterCycle_SettlesBlockedInsteadOfHanging(t *testing.T) {
 			out := newGraphTestOutput(t)
 			tasks := tc.build(out)
 			err := closeWithin(t, out)
-			if !errors.Is(err, errDependencyCycle) {
-				t.Fatalf("Finish = %v, want errDependencyCycle", err)
+			if !errors.Is(err, misuse.ErrDependencyCycle) {
+				t.Fatalf("Finish = %v, want misuse.ErrDependencyCycle", err)
 			}
 			for _, task := range tasks {
 				snap := task.snapshot()

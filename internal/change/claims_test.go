@@ -534,3 +534,11 @@ func TestCheckFreeReportsHeldClaim(t *testing.T) {
 		t.Fatalf("CheckFree while holding = %v, want ErrNested", err)
 	}
 }
+
+// occupancy reports how many claims are held and queued; tests use it to
+// prove no path leaks ownership.
+func (r *ClaimRegistry) occupancy() (held, queued int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.held), len(r.queue)
+}

@@ -7,6 +7,9 @@ import (
 	"io"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/graph"
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 )
 
 // waitReturnDeadline bounds a Wait these tests expect to return promptly.
@@ -30,7 +33,7 @@ func waitWithin(t *testing.T, what string, wait func() error) error {
 
 func isolatedOutput(t *testing.T) *Run {
 	t.Helper()
-	out := initRun(Config{isolated: true, stateDir: t.TempDir(), stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{stateDir: t.TempDir(), stdout: io.Discard, stderr: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	return out
 }
@@ -43,7 +46,7 @@ func TestWaitAfterUndefinedPredecessorReportsNotStarted(t *testing.T) {
 	out := isolatedOutput(t)
 	a := out.Task("a")
 	b := out.Task("b").After(a).Define(noop)
-	if err := waitWithin(t, "b.Wait", b.wait); !errors.Is(err, errNotStarted) {
+	if err := waitWithin(t, "b.Wait", b.wait); !errors.Is(err, graph.ErrNotStarted) {
 		t.Fatalf("b.Wait = %v, want ErrNotStarted", err)
 	}
 }
@@ -54,7 +57,7 @@ func TestGroupWaitAfterUndefinedSiblingReportsNotStarted(t *testing.T) {
 	g := out.Group("g")
 	x := g.Task("x")
 	g.Task("y").After(x).Define(noop)
-	if err := waitWithin(t, "g.Wait", g.wait); !errors.Is(err, errNotStarted) {
+	if err := waitWithin(t, "g.Wait", g.wait); !errors.Is(err, graph.ErrNotStarted) {
 		t.Fatalf("g.Wait = %v, want ErrNotStarted", err)
 	}
 }
@@ -65,7 +68,7 @@ func TestWaitAfterGroupWithUndefinedMemberReportsNotStarted(t *testing.T) {
 	g := out.Group("g")
 	g.Task("member")
 	b := out.Task("b").After(g).Define(noop)
-	if err := waitWithin(t, "b.Wait", b.wait); !errors.Is(err, errNotStarted) {
+	if err := waitWithin(t, "b.Wait", b.wait); !errors.Is(err, graph.ErrNotStarted) {
 		t.Fatalf("b.Wait = %v, want ErrNotStarted", err)
 	}
 }
@@ -77,7 +80,7 @@ func TestSelfWaitDeadlockReleasesDespiteUnrelatedUndefinedTask(t *testing.T) {
 	out.Task("later row")
 	a := out.Task("a")
 	a.Define(func(context.Context) error { return a.wait() })
-	if err := waitWithin(t, "a.Wait", a.wait); !errors.Is(err, errWaitDeadlock) {
+	if err := waitWithin(t, "a.Wait", a.wait); !errors.Is(err, misuse.ErrWaitDeadlock) {
 		t.Fatalf("a.Wait = %v, want ErrWaitDeadlock", err)
 	}
 }
@@ -88,7 +91,7 @@ func TestWaitOnUndefinedAfterCycleReturns(t *testing.T) {
 	a, b := out.Task("a"), out.Task("b")
 	a.After(b)
 	b.After(a)
-	if err := waitWithin(t, "a.Wait", a.wait); !errors.Is(err, errNotStarted) {
+	if err := waitWithin(t, "a.Wait", a.wait); !errors.Is(err, graph.ErrNotStarted) {
 		t.Fatalf("a.Wait = %v, want ErrNotStarted", err)
 	}
 }
@@ -101,7 +104,7 @@ func TestWaitThroughUndefinedAfterCycleReturns(t *testing.T) {
 	a.After(b)
 	b.After(a)
 	c := out.Task("c").After(a).Define(noop)
-	if err := waitWithin(t, "c.Wait", c.wait); !errors.Is(err, errNotStarted) {
+	if err := waitWithin(t, "c.Wait", c.wait); !errors.Is(err, graph.ErrNotStarted) {
 		t.Fatalf("c.Wait = %v, want ErrNotStarted", err)
 	}
 }
@@ -120,7 +123,7 @@ func TestWaitThroughUndefinedDiamondIsBounded(t *testing.T) {
 		prev = []*Task{l, r}
 	}
 	bottom := out.Task("bottom").After(prev[0], prev[1]).Define(noop)
-	if err := waitWithin(t, "bottom.Wait", bottom.wait); !errors.Is(err, errNotStarted) {
+	if err := waitWithin(t, "bottom.Wait", bottom.wait); !errors.Is(err, graph.ErrNotStarted) {
 		t.Fatalf("bottom.Wait = %v, want ErrNotStarted", err)
 	}
 }

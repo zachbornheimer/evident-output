@@ -7,6 +7,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/change"
 )
 
 // The presentation contracts zq's prune needs from the renderer (Evident
@@ -14,7 +16,7 @@ import (
 // decides which rows deserve a line.
 
 func newPlainOutput(buf *bytes.Buffer, dryRun bool) *Run {
-	return initRun(Config{isolated: true, stdout: buf, title: "prune", color: colorNever, plain: true, DryRun: dryRun})
+	return initRun(Config{stdout: buf, title: "prune", color: colorNever, plain: true, DryRun: dryRun})
 }
 
 func machineDocument(t *testing.T, out *Run) string {
@@ -87,7 +89,7 @@ func TestPruneContract_ZeroInformationNoWorkRowIsHiddenFromHumanOutputOnly(t *te
 
 func TestPruneContract_JSONLStreamKeepsEveryTaskAndTheGroup(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "prune", format: formatJSONL})
+	out := initRun(Config{stdout: &buf, title: "prune", format: formatJSONL})
 	t.Cleanup(func() { _ = out.close() })
 
 	group := out.Group("categories")
@@ -216,7 +218,7 @@ func TestPruneContract_LedgerFollowsTaskDeclarationOrderNotCompletionOrder(t *te
 		worktrees := out.Task("worktrees")
 		remote := out.Task("remote-tracking")
 		commit(remote, EffectSpec{Verb: Delete, Object: "stale origin/* branch", Quantity: 4})
-		commit(worktrees, EffectSpec{Verb: Verb(effectRemove), Object: "worktree", Quantity: 2})
+		commit(worktrees, EffectSpec{Verb: Verb(change.EffectRemove), Object: "worktree", Quantity: 2})
 		commit(branches, EffectSpec{Verb: Delete, Object: "local tip", Quantity: 40})
 		if err := out.finish(); err != nil {
 			t.Fatal(err)
@@ -234,147 +236,6 @@ func TestPruneContract_LedgerFollowsTaskDeclarationOrderNotCompletionOrder(t *te
 		if strings.Join(subjects, ",") != strings.Join(want, ",") {
 			t.Fatalf("dryRun=%v: ledger subjects = %v, want declaration order %v; output:\n%s", dryRun, subjects, want, buf.String())
 		}
-	}
-}
-
-// keptItem is one item a prune category keeps, and why.
-type keptItem struct {
-	name   string
-	reason taxonomyReason
-}
-
-// pruneCategory is one zq prune category in the contract-correct per-item
-// shape: a Group named for the category holding the category's own Task
-// (same name: it classifies, summarizes, and owns the Effect, so the
-// ledger subject is the category — mcp/docs/reference.md "own Task") plus one
-// child Task per kept item that resolves Kept (the item is the Task).
-type pruneCategory struct {
-	name, summary string
-	effect        *EffectSpec
-	onDisk        string // routine Fact, verbose-only (§13, §21); "" for none
-	kept          []keptItem
-}
-
-// declare submits the category under parent and returns its own Task.
-// Kept children are declared up front; annotations happen inside Define.
-func (c pruneCategory) declare(parent *Group) *Task {
-	items := parent.Group(c.name)
-	work := items.Task(c.name)
-	for _, item := range c.kept {
-		items.Task(item.name).skipped(item.reason)
-	}
-	work.Define(func(ctx context.Context) error {
-		if c.onDisk != "" {
-			work.Fact("on disk", c.onDisk)
-		}
-		work.Summary(c.summary)
-		if c.effect == nil {
-			return nil
-		}
-		return Effect(ctx, *c.effect, func(context.Context) error { return nil })
-	})
-	return work
-}
-
-// renderPruneContract18 runs zq prune's dry-run under zq's own Config
-// (Title "zq", a Subject header) at verbosity.
-func renderPruneContract18(t *testing.T, verbosity verbosity) string {
-	t.Helper()
-	var buf bytes.Buffer
-	out := initRun(Config{
-		isolated: true, DryRun: true, color: colorNever, plain: true, verbosity: verbosity,
-		title: "zq", subject: "zq prune  ~/repo", stdout: &buf,
-	})
-	t.Cleanup(func() { _ = out.close() })
-
-	categories := out.Group("categories")
-	checkedOut, protected := reason("checked out"), reason("protected")
-	dirty, unpushed := reason("dirty"), reason("unpushed")
-	branches := pruneCategory{
-		name: "branches", summary: "188 checked",
-		effect: &EffectSpec{Verb: Delete, Object: "local tip", Quantity: 87},
-		kept:   []keptItem{{"feat/wt-a", checkedOut}, {"feat/wt-b", checkedOut}, {"main", protected}},
-	}.declare(categories)
-	worktrees := pruneCategory{
-		name: "worktrees", summary: "168 checked", onDisk: "508.8 MB",
-		effect: &EffectSpec{Verb: Verb(effectRemove), Object: "worktree", Quantity: 95},
-		kept:   []keptItem{{"../wt-a", dirty}, {"../wt-b", dirty}, {"../wt-c", unpushed}},
-	}.declare(categories)
-	remotes := pruneCategory{name: "remote-tracking", summary: "nothing to clean"}.declare(categories)
-	for _, category := range []*Task{branches, worktrees, remotes} {
-		if err := category.wait(); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := out.finish(); err != nil {
-		t.Fatal(err)
-	}
-	return buf.String()
-}
-
-// TestPruneContract_KeptUnderGroupedCategoriesRendersContract18 holds zq
-// prune's contract-correct per-item shape (pruneCategory) to the contract
-// §18 dry-run bytes TestV8_DryRunPlanOnly pins for the Warn-authored form.
-// Each category Group's kept children aggregate into one tally under the
-// category's row (§25: "aggregation is a renderer concern"; §26/§27:
-// "  ! kept N (...)"), the tally is one skipped fold under the category row, and the trailing
-// conclusion band is omitted because the planned rows already named the outcome.
-func TestPruneContract_KeptUnderGroupedCategoriesRendersContract18(t *testing.T) {
-	want := "[dry-run] zq prune  ~/repo\n" +
-		"\n" +
-		"✓ branches         188 checked\n" +
-		"  - skipped 3 (2 checked out, 1 protected)\n" +
-		"✓ worktrees        168 checked\n" +
-		"  - skipped 3 (2 dirty, 1 unpushed)\n" +
-		"✓ remote-tracking  nothing to clean\n" +
-		"\n" +
-		"[planned] branches   delete 87 local tips\n" +
-		"[planned] worktrees  remove 95 worktrees\n"
-	if got := renderPruneContract18(t, verbosityNormal); got != want {
-		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
-	}
-}
-
-// TestPruneContract_KeptTallyVerboseListsRealItemNames is the --verbose
-// half: the aggregated tally lists each kept child's own name under its
-// reason, and the routine "on disk" Fact appears.
-func TestPruneContract_KeptTallyVerboseListsRealItemNames(t *testing.T) {
-	got := renderPruneContract18(t, verbosityVerbose)
-	for _, want := range []string{
-		"✓ branches         188 checked\n  - skipped 3 (2 checked out, 1 protected)\n",
-		"checked out: feat/wt-a, feat/wt-b\n",
-		"protected: main\n",
-		"dirty: ../wt-a, ../wt-b\n",
-		"unpushed: ../wt-c\n",
-		"on disk  508.8 MB\n",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("verbose output lacks %q:\n%s", want, got)
-		}
-	}
-}
-
-// TestPruneContract_KeptChildrenStayInMachineOutput proves the aggregation
-// is human-only: JSON keeps every kept child Task.
-func TestPruneContract_KeptChildrenStayInMachineOutput(t *testing.T) {
-	var buf bytes.Buffer
-	out := newPlainOutput(&buf, true)
-	t.Cleanup(func() { _ = out.close() })
-	work := pruneCategory{
-		name: "branches", summary: "2 checked",
-		kept: []keptItem{{"feat/a", reason("unpushed")}, {"main", reason("protected")}},
-	}.declare(out.Group("categories"))
-	if err := work.wait(); err != nil {
-		t.Fatal(err)
-	}
-	if err := out.finish(); err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(buf.String(), "feat/a") {
-		t.Fatalf("human output must aggregate kept children into the tally:\n%s", buf.String())
-	}
-	if doc := machineDocument(t, out); !strings.Contains(doc, `"feat/a"`) || !strings.Contains(doc, `"main"`) {
-		t.Fatalf("machine output keeps every kept child:\n%s", doc)
 	}
 }
 

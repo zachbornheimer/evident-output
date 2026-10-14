@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 // runFilesTask derives diff with Patch and commits it with Files from one
@@ -231,7 +233,7 @@ func TestFilesClaimsEachPathWithoutCallerLocks(t *testing.T) {
 }
 
 func TestFilesRequiresTaskContext(t *testing.T) {
-	if err := files(context.Background(), fileSet{}); !errors.Is(err, errNoTaskContext) {
+	if err := files(context.Background(), fileSet{}); !errors.Is(err, graph.ErrNoTaskContext) {
 		t.Fatalf("err = %v, want ErrNoTaskContext", err)
 	}
 }

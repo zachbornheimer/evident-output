@@ -20,7 +20,7 @@ type nestedStepCost struct {
 // Sequence.
 func scheduleNestedSteps(tb testing.TB, n int) nestedStepCost {
 	tb.Helper()
-	out := initRun(Config{isolated: true, stateDir: tb.TempDir(), stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{stateDir: tb.TempDir(), stdout: io.Discard, stderr: io.Discard})
 	defer func() { _ = out.close() }()
 	seq := out.Sequence("phases")
 	tasks := make([]*Task, n)
@@ -73,7 +73,7 @@ func BenchmarkScheduleNestedSteps(b *testing.B) {
 // cost was k·n.
 func TestRepeatedStepFailuresStopFollowersOnce(t *testing.T) {
 	const k, n = 50, 200
-	out := initRun(Config{isolated: true, stateDir: t.TempDir(), stdout: io.Discard, stderr: io.Discard, MaxConcurrency: k})
+	out := initRun(Config{stateDir: t.TempDir(), stdout: io.Discard, stderr: io.Discard, MaxConcurrency: k})
 	defer func() { _ = out.close() }()
 	seq := out.Sequence("phases")
 	g := seq.Group("checks")

@@ -22,7 +22,7 @@ func TestLive_PerItemGroupsKeepHeaderAndAttention(t *testing.T) {
 	const n, workers = 30, 4
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
 	out := initRun(Config{
-		isolated: true, clock: testkit.NewClock(), terminal: screen, stdout: io.Discard, stderr: io.Discard,
+		clock: testkit.NewClock(), terminal: screen, stdout: io.Discard, stderr: io.Discard,
 		visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000, MaxConcurrency: workers,
 	})
 	t.Cleanup(func() { _ = out.close() })
@@ -90,7 +90,7 @@ func spinnerOf(frame, row string) string {
 // recurses correctly; this golden proves the rendered indentation does too.
 func TestNestedGroups_ThreeLevelPlainByteShape(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	root := out.Sequence("release")
@@ -115,7 +115,7 @@ func TestNestedGroups_ThreeLevelPlainByteShape(t *testing.T) {
 // indents its children 3 spaces deeper while Running.
 func TestNestedGroups_ThreeLevelLiveByteShape(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	root := out.Sequence("release")

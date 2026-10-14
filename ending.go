@@ -366,18 +366,7 @@ func (o *Run) rejectedGroup(err error) *Group {
 	return &Group{out: o, id: o.graph.NextID("tasks"), rejected: err}
 }
 
-// rejectedWaitOutcome is what Wait returns on a refused declaration: the
-// work never started, and why.
-func rejectedWaitOutcome(rejected error) error {
-	return fmt.Errorf("%w: %w", errNotStarted, rejected)
-}
-
 // --- folded from run_outcome.go ---
-
-// Fail records an output-level failure.
-func (o *Run) fail(summary string, options ...ProblemOption) {
-	o.endWith(failed, applyProblemOptions(txt.Text(summary), options))
-}
 
 // end records the ending the run body returned (see endingOf).
 func (o *Run) end(err error) {

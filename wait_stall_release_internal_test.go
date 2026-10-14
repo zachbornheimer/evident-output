@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/graph"
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 )
 
 // stallCeilings are the concurrency ceilings a stall release must hold at:
@@ -37,7 +38,7 @@ func TestStallReleaseAnswersWaitOnSettledTaskFromItsRow(t *testing.T) {
 			})
 			_ = waitWithin(t, "Finish", out.finish)
 			err := <-bSawA
-			if errors.Is(err, errWaitDeadlock) {
+			if errors.Is(err, misuse.ErrWaitDeadlock) {
 				t.Fatalf("b.Wait(a) = %v, want the Blocked row's answer, not a deadlock", err)
 			}
 			if !errors.Is(err, graph.ErrWaitFailed) {

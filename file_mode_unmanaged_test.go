@@ -33,7 +33,7 @@ func TestFileRewriteKeepsExistingModeWhenUnmanaged(t *testing.T) {
 	if err := os.Chmod(path, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	out := initRun(Config{isolated: true, stateDir: t.TempDir()})
+	out := initRun(Config{stateDir: t.TempDir()})
 	t.Cleanup(func() { _ = out.close() })
 	if err := runFileTask(t, out, "rewrite", FileSpec{Path: path, Contents: []byte("new\n")}); err != nil {
 		t.Fatalf("File: %v", err)
@@ -55,7 +55,7 @@ func TestFileRewriteKeepsModeZeroWhenUnmanaged(t *testing.T) {
 	if err := os.Chmod(path, 0); err != nil {
 		t.Fatal(err)
 	}
-	out := initRun(Config{isolated: true, stateDir: t.TempDir()})
+	out := initRun(Config{stateDir: t.TempDir()})
 	t.Cleanup(func() { _ = out.close() })
 	if err := runFileTask(t, out, "rewrite-zero", FileSpec{Path: path, Contents: []byte("new\n")}); err != nil {
 		t.Fatalf("File: %v", err)
@@ -70,7 +70,7 @@ func TestFileRewriteKeepsModeZeroWhenUnmanaged(t *testing.T) {
 func TestFileCreateHonorsUmaskWhenUnmanaged(t *testing.T) {
 	withUmask(t, 0o022)
 	path := filepath.Join(t.TempDir(), "new.txt")
-	out := initRun(Config{isolated: true, stateDir: t.TempDir()})
+	out := initRun(Config{stateDir: t.TempDir()})
 	t.Cleanup(func() { _ = out.close() })
 	if err := runFileTask(t, out, "create", FileSpec{Path: path, Contents: []byte("new\n")}); err != nil {
 		t.Fatalf("File: %v", err)
@@ -113,7 +113,7 @@ func TestFileRewriteKeepsSetuidWhenUnmanaged(t *testing.T) {
 	if statOrFatal(t, path).Mode()&fs.ModeSetuid == 0 {
 		t.Skip("this filesystem does not keep setuid on a regular file")
 	}
-	out := initRun(Config{isolated: true, stateDir: t.TempDir()})
+	out := initRun(Config{stateDir: t.TempDir()})
 	t.Cleanup(func() { _ = out.close() })
 	if err := runFileTask(t, out, "rewrite", FileSpec{Path: path, Contents: []byte("new\n")}); err != nil {
 		t.Fatalf("File: %v", err)
@@ -164,7 +164,7 @@ func TestFileCreateIgnoresALookalikeCreateOrdinaryMethod(t *testing.T) {
 	var ordinaryCalls, atomicCalls int
 	fsys := lookalikeCreatorFileFS{ordinaryCalls: &ordinaryCalls, atomicCalls: &atomicCalls}
 	path := filepath.Join(t.TempDir(), "new.txt")
-	out := initRun(Config{isolated: true, stateDir: t.TempDir(), fileFS: fsys})
+	out := initRun(Config{stateDir: t.TempDir(), fileFS: fsys})
 	t.Cleanup(func() { _ = out.close() })
 	if err := runFileTask(t, out, "create", FileSpec{Path: path, Contents: []byte("new\n")}); err != nil {
 		t.Fatalf("File: %v", err)
@@ -181,7 +181,7 @@ func TestFileCreateIgnoresALookalikeCreateOrdinaryMethod(t *testing.T) {
 func TestFileCreateKeepsV10ModeContractForInjectedFileFS(t *testing.T) {
 	withUmask(t, 0o022)
 	path := filepath.Join(t.TempDir(), "new.txt")
-	out := initRun(Config{isolated: true, stateDir: t.TempDir(), fileFS: v10FileFS{}})
+	out := initRun(Config{stateDir: t.TempDir(), fileFS: v10FileFS{}})
 	t.Cleanup(func() { _ = out.close() })
 	if err := runFileTask(t, out, "create", FileSpec{Path: path, Contents: []byte("new\n")}); err != nil {
 		t.Fatalf("File: %v", err)

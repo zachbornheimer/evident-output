@@ -61,7 +61,7 @@ func (erroringWriter) Write(p []byte) (int, error) {
 func TestFormatJSON_StdoutHasOneRunDocumentStderrHasHuman(t *testing.T) {
 	var stdout, stderr nopFlushWriter
 	out := initRun(Config{
-		isolated: true, title: "demo", format: formatJSON,
+		title: "demo", format: formatJSON,
 		stdout: &stdout, stderr: &stderr,
 	})
 	out.Task("build").succeed("")
@@ -96,7 +96,7 @@ func TestFormatJSON_StdoutHasOneRunDocumentStderrHasHuman(t *testing.T) {
 func TestFormatJSON_StdoutWriteFailureEscalatesToExitFailed(t *testing.T) {
 	var stderr nopFlushWriter
 	out := initRun(Config{
-		isolated: true, title: "demo", format: formatJSON,
+		title: "demo", format: formatJSON,
 		stdout: erroringWriter{}, stderr: &stderr,
 	})
 	result := out.run(context.Background(), func(ctx context.Context, r *Run) error {
@@ -111,7 +111,7 @@ func TestFormatJSON_StdoutWriteFailureEscalatesToExitFailed(t *testing.T) {
 func TestFormatJSONL_StdoutStreamsEventLinesStderrHasHuman(t *testing.T) {
 	var stdout, stderr nopFlushWriter
 	out := initRun(Config{
-		isolated: true, title: "demo", format: formatJSONL,
+		title: "demo", format: formatJSONL,
 		stdout: &stdout, stderr: &stderr,
 	})
 	out.Task("build").succeed("")
@@ -164,7 +164,7 @@ func TestFormatJSON_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 	var stdout, stderr nopFlushWriter
 	defer markWriterAsCharDevice(&stderr)()
 	out := initRun(Config{
-		isolated: true, title: "demo", format: formatJSON,
+		title: "demo", format: formatJSON,
 		stdout: &stdout, stderr: &stderr, visibilityDelay: delay(0),
 	})
 	out.Task("build").succeed("")
@@ -183,7 +183,7 @@ func TestFormatJSONL_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 	var stdout, stderr nopFlushWriter
 	defer markWriterAsCharDevice(&stderr)()
 	out := initRun(Config{
-		isolated: true, title: "demo", format: formatJSONL,
+		title: "demo", format: formatJSONL,
 		stdout: &stdout, stderr: &stderr, visibilityDelay: delay(0),
 	})
 	out.Task("build").succeed("")
@@ -198,7 +198,7 @@ func TestFormatJSONL_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 func TestFormatJSON_RunReturnsResultUsableByWireEncoder(t *testing.T) {
 	var stdout, stderr nopFlushWriter
 	out := initRun(Config{
-		isolated: true, title: "demo", format: formatJSON,
+		title: "demo", format: formatJSON,
 		stdout: &stdout, stderr: &stderr,
 	})
 	result := out.run(context.Background(), func(ctx context.Context, r *Run) error { return nil })

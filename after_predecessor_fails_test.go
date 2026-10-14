@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 // waitOutcomeTimeout bounds how long a test waits for Task.Wait to
@@ -18,7 +20,6 @@ const waitOutcomeTimeout = 2 * time.Second
 func newAfterFailTestOutput(t *testing.T, maxConcurrency int) *Run {
 	t.Helper()
 	out := initRun(Config{
-		isolated:       true,
 		stdout:         io.Discard,
 		stderr:         io.Discard,
 		MaxConcurrency: maxConcurrency,
@@ -82,7 +83,7 @@ func TestAfterPredecessorFails_WhileDependentAlreadyParkedInWait_SettlesImmediat
 
 			select {
 			case err := <-waitOutcome:
-				if !errors.Is(err, errNotStarted) {
+				if !errors.Is(err, graph.ErrNotStarted) {
 					t.Fatalf("Wait() = %v, want ErrNotStarted", err)
 				}
 			case <-time.After(waitOutcomeTimeout):
@@ -132,7 +133,7 @@ func TestAfterPredecessorFails_BeforeDependentIsSubmitted_SettlesImmediately(t *
 
 			select {
 			case err := <-waitOutcome:
-				if !errors.Is(err, errNotStarted) {
+				if !errors.Is(err, graph.ErrNotStarted) {
 					t.Fatalf("Wait() = %v, want ErrNotStarted", err)
 				}
 			case <-time.After(waitOutcomeTimeout):

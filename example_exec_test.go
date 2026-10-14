@@ -52,7 +52,7 @@ func ExampleExec() {
 
 	var buf bytes.Buffer
 	out := initRun(Config{
-		isolated: true, stdout: &buf, stderr: io.Discard, plain: true, stateDir: dir,
+		stdout: &buf, stderr: io.Discard, plain: true, stateDir: dir,
 		processRunner: runner,
 	})
 	task := out.Task("generate")
@@ -103,7 +103,7 @@ func ExampleExecResult() {
 
 	var buf bytes.Buffer
 	out := initRun(Config{
-		isolated: true, stdout: &buf, stderr: io.Discard, plain: true, stateDir: dir,
+		stdout: &buf, stderr: io.Discard, plain: true, stateDir: dir,
 		processRunner: runner,
 	})
 	task := out.Task("lint")
@@ -151,7 +151,7 @@ func ExampleConfig_runner() {
 
 	var buf bytes.Buffer
 	out := initRun(Config{
-		isolated: true, stdout: &buf, stderr: io.Discard, plain: true,
+		stdout: &buf, stderr: io.Discard, plain: true,
 		processRunner: runner,
 	})
 	out.Task("demo").Define(func(context.Context) error { return nil })

@@ -281,11 +281,3 @@ func (r *ClaimRegistry) release(h *hold) {
 	r.held = slices.DeleteFunc(r.held, func(g *hold) bool { return g == h })
 	r.regrantLocked(&h.claim)
 }
-
-// occupancy reports how many claims are held and queued; tests use it to
-// prove no path leaks ownership.
-func (r *ClaimRegistry) occupancy() (held, queued int) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return len(r.held), len(r.queue)
-}

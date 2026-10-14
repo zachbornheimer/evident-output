@@ -12,7 +12,7 @@ import (
 // container's Wait matches the sentinel with errors.Is, like a Task
 // callback's does, instead of carrying only its text.
 func TestComputedGet_UnorderedBuilderFailsTheContainerWithTheSentinel(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true})
+	out := initRun(Config{stdout: io.Discard, plain: true})
 	defer func() { _ = out.close() }()
 	producer := Compute(out.Task("make"), func(context.Context) (int, error) {
 		time.Sleep(10 * time.Millisecond)

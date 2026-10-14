@@ -10,7 +10,7 @@ import (
 // ExampleConclusion shows the multidimensional meaning of a finished
 // command, read from a real run.
 func ExampleConclusion() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true})
 	out.Task("apply patch").Define(func(context.Context) error { return nil })
 	_ = out.finish()
 	c := out.conclusion()
@@ -21,7 +21,7 @@ func ExampleConclusion() {
 
 // ExampleResolution shows that a Task whose Define ran records it.
 func ExampleResolution() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true})
 	task := out.Task("apply patch")
 	task.Define(func(context.Context) error { return nil })
 	_ = out.finish()
@@ -37,28 +37,4 @@ func ExampleEvent() {
 	fmt.Println(e.Type, e.Name)
 	// Output:
 	// task.done apply patch
-}
-
-// ExampleFact records a discovered name/value annotation about the run
-// itself.
-func ExampleFact() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
-	setDefault(out)
-	fact("language", "go")
-	_ = out.finish()
-	fmt.Println(len(out.snapshot().Facts) == 1, out.snapshot().Facts[0].Value)
-	// Output:
-	// true go
-}
-
-// ExampleWarn annotates the run itself with a warning, without resolving
-// any task.
-func ExampleWarn() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
-	setDefault(out)
-	out.Task("cache").Problem("cache directory missing, rebuilding", severity(severityWarning))
-	_ = out.finish()
-	fmt.Println(out.conclusion().warned)
-	// Output:
-	// true
 }

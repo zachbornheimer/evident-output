@@ -27,8 +27,6 @@ type (
 	scheduler = clock.Scheduler
 	// systemClock uses the real wall clock.
 	systemClock = clock.Wall
-	// fixedClock always returns the same instant.
-	fixedClock = clock.Fixed
 )
 
 // wall is the real clock for waits that must stay real whatever Clock the

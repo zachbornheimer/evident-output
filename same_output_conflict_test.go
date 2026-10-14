@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/change"
 )
 
 // TestSameOutputConflictFailsBothTasks pins that two Tasks writing one File
@@ -36,7 +38,7 @@ func TestSameOutputConflictFailsBothTasks(t *testing.T) {
 			t.Errorf("Task %s failure %q does not name Task %s", name, st.Summary, other)
 		}
 	}
-	if !errors.Is(err, errFileConflictingProducer) || !strings.Contains(err.Error(), `"a"`) || !strings.Contains(err.Error(), `"b"`) {
+	if !errors.Is(err, change.ErrFileConflictingProducer) || !strings.Contains(err.Error(), `"a"`) || !strings.Contains(err.Error(), `"b"`) {
 		t.Errorf("Finish error = %v, want ErrFileConflictingProducer naming both Tasks", err)
 	}
 	if got := out.conclusion().exitCode; got != exitFailed {

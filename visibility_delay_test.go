@@ -11,7 +11,7 @@ import (
 func TestVisibilityDelay_WithholdsLiveUntilElapsed(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, clock: clock, terminal: screen, visibilityDelay: DelayForTest(150 * time.Millisecond), color: colorNever})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, clock: clock, terminal: screen, visibilityDelay: DelayForTest(150 * time.Millisecond), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	armed := screen.LiveFrameCount()
@@ -40,7 +40,7 @@ func TestVisibilityDelay_WithholdsLiveUntilElapsed(t *testing.T) {
 
 func TestVisibilityDelay_ZeroIsImmediate(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("work")
@@ -54,7 +54,7 @@ func TestVisibilityDelay_ZeroIsImmediate(t *testing.T) {
 
 func TestTask_AlonePaintsLiveWithZeroDelay(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("work")

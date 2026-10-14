@@ -33,7 +33,7 @@ func TestInteractive_DualStreamDebugTailReachesLiveTerminal(t *testing.T) {
 	var primary, diagnostics bytes.Buffer
 
 	newest := true
-	out := initRun(Config{isolated: true, stdout: &primary, stderr: &diagnostics, terminal: screen, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug, view: debugPresentationPane, paneHeight: 5, newestFirst: &newest}, color: colorNever})
+	out := initRun(Config{stdout: &primary, stderr: &diagnostics, terminal: screen, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug, view: debugPresentationPane, paneHeight: 5, newestFirst: &newest}, color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.debugForTest("diagnostic detail line")

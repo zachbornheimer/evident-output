@@ -24,13 +24,6 @@ type (
 	// FileSet is the desired file states a Patch derived, each bound to the
 	// Basis it was derived from.
 	fileSet = change.FileSet
-	// EffectVerb is the closed set of imperative verbs an opaque Effect may
-	// declare. There is deliberately no write verb: file state goes through
-	// File (and Patch), never an opaque callback.
-	effectVerb = change.EffectVerb
-	// Resource names one unit of shared state an operation coordinates on
-	// (ZYS-840). It is sealed: only FSResource and LogicalResource make one.
-	resource = change.Resource
 
 	// FileFS is the facade evo.File performs every filesystem inspection and
 	// mutation through, instead of the os package directly (facade rule): the
@@ -40,18 +33,6 @@ type (
 	fileFS = fs.FS
 	// osFileFS is FileFS's real implementation, backing every production Output.
 	osFileFS = fs.Disk
-)
-
-// The complete EffectVerb enum.
-const (
-	effectAdd       = change.EffectAdd
-	effectCreate    = change.EffectCreate
-	effectDelete    = change.EffectDelete
-	effectInstall   = change.EffectInstall
-	effectPush      = change.EffectPush
-	effectRemove    = change.EffectRemove
-	effectUninstall = change.EffectUninstall
-	effectUpdate    = change.EffectUpdate
 )
 
 // File declares/reconciles one managed-state file resource; see change.File.
@@ -78,37 +59,12 @@ func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error
 // see change.PartialEffect.
 func PartialEffect(committed int, err error) error { return change.PartialEffect(committed, err) }
 
-// FSResource names the filesystem path path. A relative path resolves
-// against the Run's workspace directory, the same way FileSpec.Path does,
-// and symlinked ancestors resolve to their targets so an alias cannot bypass
-// coordination. A claim on a directory overlaps every claim on a path
-// beneath it. Construction performs no I/O.
-func fSResource(path string) resource { return change.FSResource(path) }
-
-// LogicalResource names non-filesystem shared state (a package manager, a
-// remote, a database) where no truthful filesystem path exists. Two logical
-// resources overlap only when their names match exactly after surrounding
-// whitespace is trimmed; names are not hierarchical.
-func logicalResource(name string) resource { return change.LogicalResource(name) }
-
 // File, Exec, Patch, Effect and resource sentinels.
 var (
-	errFilePathIsSymlink             = change.ErrFilePathIsSymlink
-	errFileConflictingProducer       = change.ErrFileConflictingProducer
-	ErrExecNonzeroExit               = change.ErrExecNonzeroExit
-	errExecOutputMissingAfterSuccess = change.ErrExecOutputMissingAfterSuccess
-	ErrExecOutputMissing             = change.ErrExecOutputMissingAfterSuccess
-	ErrStaleBasis                    = change.ErrStaleBasis
-	ErrPatchDoesNotApply             = change.ErrPatchDoesNotApply
-	errPatchUnsupported              = change.ErrPatchUnsupported
-	errPatchDeleteUnsupported        = change.ErrPatchDeleteUnsupported
-	errPatchRenameUnsupported        = change.ErrPatchRenameUnsupported
-	errPatchBinaryUnsupported        = change.ErrPatchBinaryUnsupported
-	errEffectVerbInvalid             = change.ErrEffectVerbInvalid
-	errEffectObjectMissing           = change.ErrEffectObjectMissing
-	errEffectQuantityNotPositive     = change.ErrEffectQuantityNotPositive
-	errEffectCallbackMissing         = change.ErrEffectCallbackMissing
-	errInvalidPartialEffect          = change.ErrInvalidPartialEffect
+	ErrExecNonzeroExit   = change.ErrExecNonzeroExit
+	ErrExecOutputMissing = change.ErrExecOutputMissingAfterSuccess
+	ErrStaleBasis        = change.ErrStaleBasis
+	ErrPatchDoesNotApply = change.ErrPatchDoesNotApply
 	// ErrNestedResourceAcquisition is returned, without waiting, when code
 	// already holding a resource (directly, or through any helper it passed
 	// its context to) asks for a second one, or calls Wait on a Task, Group,
@@ -121,9 +77,6 @@ var (
 	// caught, and can deadlock. Pass the held context instead, and never
 	// Wait from a goroutine spawned while holding a resource.
 	errNestedResourceAcquisition = change.ErrNestedResourceAcquisition
-	// ErrInvalidResource is returned when a Resource names nothing: an empty
-	// path or logical name.
-	errInvalidResource = change.ErrInvalidResource
 )
 
 type FileSpec struct {

@@ -320,20 +320,6 @@ func assertProblemKeptOnTask(t *testing.T, got taskSnapshot, want entityState, h
 	}
 }
 
-// TestProblem_SkippedKeepsItsProblem: a Problem recorded before Skipped
-// stays attached and the Task still settles Skipped.
-func TestProblem_SkippedKeepsItsProblem(t *testing.T) {
-	got, human := finishProblemRun(t, func(out *Run) {
-		task := out.Task("scan")
-		task.Define(func(context.Context) error {
-			task.Problem("blocking finding")
-			task.skipped(reason("nothing to do"))
-			return nil
-		})
-	})
-	assertProblemKeptOnTask(t, got, excluded, human)
-}
-
 // TestProblem_UnresolvedWarnedTaskKeepsItsProblem: Finish's amnesty for a
 // warned-but-unresolved Task settles it Done with its Problem attached.
 func TestProblem_UnresolvedWarnedTaskKeepsItsProblem(t *testing.T) {

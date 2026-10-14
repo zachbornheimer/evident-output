@@ -13,7 +13,7 @@ import (
 func TestTaskFact_RendersInlineDimNoBang(t *testing.T) {
 	var buf bytes.Buffer
 	// Contract §13/§21: a Task Fact is verbose-only; this block is the verbose view.
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true, verbosity: verbosityVerbose})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true, verbosity: verbosityVerbose})
 
 	scan := out.Task("remote-tracking")
 	scan.Fact("stale", "1")
@@ -35,7 +35,7 @@ func TestTaskFact_RendersInlineDimNoBang(t *testing.T) {
 // not resolve the task, so a subsequent Done still succeeds (mirrors
 // Task.Warn's non-terminal contract).
 func TestTaskFact_NeverResolvesTask(t *testing.T) {
-	out := initRun(Config{isolated: true, color: colorNever})
+	out := initRun(Config{color: colorNever})
 	task := out.Task("t")
 	task.Fact("language", "go")
 	succeed(task)
@@ -53,7 +53,7 @@ func TestTaskFact_NeverResolvesTask(t *testing.T) {
 // new headline state — a run with only that Problem concludes StateReady, warned.
 func TestProblemWarning_FeedsWarnedModifierNotHeadline(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	out.Task("config").Problem("no config file found, using defaults", severity(severityWarning))
 
@@ -80,7 +80,7 @@ func TestProblemWarning_FeedsWarnedModifierNotHeadline(t *testing.T) {
 // as a fire-and-forget durable dim line, distinct from any task.
 func TestOutputFact_RendersDurableDimLine(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	out.Fact("language", "go")
 

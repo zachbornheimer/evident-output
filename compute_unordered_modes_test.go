@@ -21,7 +21,7 @@ func TestCompute_UnorderedGetBeforeTheProducerSettlesFailsInEveryMode(t *testing
 	}
 	for name, mode := range modes {
 		t.Run(name, func(t *testing.T) {
-			mode.isolated, mode.stdout, mode.plain = true, io.Discard, true
+			mode.stdout, mode.plain = io.Discard, true
 			for range attempts {
 				assertUnorderedGetBeforeSettleUnwinds(t, mode)
 			}
@@ -59,7 +59,7 @@ func assertUnorderedGetBeforeSettleUnwinds(t *testing.T, mode Config) {
 // callback proved settledness with Wait, not order, so Get still fails and
 // the reader's Wait still matches the sentinel.
 func TestCompute_UnorderedGetAfterTheProducerSettledStillFailsTheReaderWithTheSentinel(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true})
+	out := initRun(Config{stdout: io.Discard, plain: true})
 	defer func() { _ = out.close() }()
 	made := out.Group("producers").Task("make")
 	producer := Compute(made, func(context.Context) (int, error) { return 1, nil })

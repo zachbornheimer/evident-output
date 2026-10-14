@@ -61,7 +61,7 @@ func TestConfig_SubjectRenderedOnceUnderTitle(t *testing.T) {
 // TestConfig_SubjectEmptyEmitsNothing proves the zero value is silent —
 // Config.Subject is opt-in, never a placeholder line.
 func TestConfig_SubjectEmptyEmitsNothing(t *testing.T) {
-	out := initRun(Config{isolated: true, title: "repo-retire", stdout: io.Discard})
+	out := initRun(Config{title: "repo-retire", stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("scan"))
 	if err := out.finish(); err != nil {
@@ -149,7 +149,7 @@ func TestNew_DataFormat_HumanOnStderr(t *testing.T) {
 
 func TestNewWithOptions_StillWorks(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	succeed(out.Task("legacy"))
 	_ = out.finish()
 	if !strings.Contains(buf.String(), "legacy") {

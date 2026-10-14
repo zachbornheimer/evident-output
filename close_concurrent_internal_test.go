@@ -13,7 +13,7 @@ import (
 // wait for that teardown and report nothing, not a double-release error.
 func TestConcurrentCloseTearsDownOnce(t *testing.T) {
 	dir := t.TempDir()
-	out := initRun(Config{isolated: true, stateDir: dir, stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{stateDir: dir, stdout: io.Discard, stderr: io.Discard})
 
 	release := make(chan struct{})
 	out.Task("write").Define(func(ctx context.Context) error {

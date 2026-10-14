@@ -13,7 +13,7 @@ import (
 // attention color still lives (writeNestedTaskWarnings).
 func TestPlain_ColorOnByDefault(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", plain: true, color: colorAlways})
+	out := initRun(Config{stdout: &buf, title: "demo", plain: true, color: colorAlways})
 	succeed(out.Task("ok"))
 	out.Task("bad").fail("x")
 	warn := out.Task("warn")
@@ -40,7 +40,7 @@ func TestPlain_ColorOnByDefault(t *testing.T) {
 
 func TestPlain_NoColorSuppressesSGR(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "demo", color: colorNever, plain: true})
 	succeed(out.Task("ok"))
 	out.Task("bad").fail("x")
 	if err := out.finish(); err != nil {

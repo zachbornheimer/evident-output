@@ -182,7 +182,7 @@ func countPhaseChanged(events []recEvent) int {
 // updates both.
 func TestWriter_IdenticalLiveOnlyPhaseIsNoOp(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{isolated: true, clock: TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{clock: TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("push")

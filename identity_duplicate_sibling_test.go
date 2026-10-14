@@ -4,6 +4,8 @@ import (
 	"errors"
 	"io"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 )
 
 // TestOutputTask_SameNameIsDuplicateSibling pins §3.1: Output.Task (the
@@ -14,7 +16,7 @@ import (
 // manifest reconciliation cannot tolerate (a merged identity could later
 // report a false "already satisfied").
 func TestOutputTask_SameNameIsDuplicateSibling(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	first := out.Task("gate.ready")
@@ -38,13 +40,13 @@ func TestOutputTask_SameNameIsDuplicateSibling(t *testing.T) {
 // identity conflict, distinct from §3.1's duplicate sibling name —
 // ErrDuplicateKey must still fire, not ErrDuplicateSiblingName.
 func TestOutputTask_DifferentNameSameKey_StillDuplicateKey(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("a").key("same")
 	out.Task("b").key("same")
 
-	if !errors.Is(out.err(), errDuplicateKey) {
+	if !errors.Is(out.err(), misuse.ErrDuplicateKey) {
 		t.Fatalf("expected ErrDuplicateKey, got %v", out.err())
 	}
 }

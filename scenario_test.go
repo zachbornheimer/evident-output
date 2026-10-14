@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -43,7 +44,7 @@ import (
 func TestScenario_DryRunPlanOnly(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{
-		isolated: true, DryRun: true, color: colorNever, plain: true,
+		DryRun: true, color: colorNever, plain: true,
 		subject: "zq prune  ~/Developer/Software-Automation-Holdings/.worktrees/eapp-system-style-contract-heading",
 		stdout:  &buf, stderr: io.Discard,
 	})
@@ -63,7 +64,7 @@ func TestScenario_DryRunPlanOnly(t *testing.T) {
 	commit(branches.Summary("459 checked"), EffectSpec{Verb: Delete, Object: "local tip", Quantity: 40})
 
 	worktrees.Fact("kept", "292 (163 dirty, 89 unpushed, 40 ignored files)")
-	commit(worktrees.Summary("294 checked"), EffectSpec{Verb: Verb(effectRemove), Object: "worktree", Quantity: 1})
+	commit(worktrees.Summary("294 checked"), EffectSpec{Verb: Verb(change.EffectRemove), Object: "worktree", Quantity: 1})
 
 	commit(remotes.Summary("4 stale refs"), EffectSpec{Verb: Delete, Object: "stale origin/*", Quantity: 4})
 
@@ -99,7 +100,7 @@ func TestScenario_DryRunPlanOnly(t *testing.T) {
 func TestScenario_NothingToClean(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{
-		isolated: true, color: colorNever, plain: true, title: "prune",
+		color: colorNever, plain: true, title: "prune",
 		subject: "zq prune  ~/Developer/Personal/zq",
 		stdout:  &buf, stderr: io.Discard,
 	})
@@ -165,7 +166,7 @@ func TestScenario_PartialFailure(t *testing.T) {
 
 	var buf bytes.Buffer
 	out := initRun(Config{
-		isolated: true, color: colorNever, plain: true, fileFS: fsys,
+		color: colorNever, plain: true, fileFS: fsys,
 		// StateDir isolates this test's manifest to its own temp
 		// directory (spec §11.3) — without it, File's default
 		// manifest path is derived from the real machine cache dir and
@@ -212,7 +213,7 @@ func TestScenario_Stress(t *testing.T) {
 
 	var buf bytes.Buffer
 	out := initRun(Config{
-		isolated: true, color: colorNever, plain: true, fileFS: fsys,
+		color: colorNever, plain: true, fileFS: fsys,
 		stateDir: t.TempDir(),
 		stdout:   &buf, stderr: io.Discard,
 	})
@@ -280,7 +281,7 @@ func TestScenario_Stress(t *testing.T) {
 func TestScenario_CancelledAfterMutation(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{
-		isolated: true, color: colorNever, plain: true, title: "prune",
+		color: colorNever, plain: true, title: "prune",
 		subject: "zq prune --apply  ~/.../eapp-system-style-contract-heading",
 		stdout:  &buf, stderr: io.Discard,
 	})
@@ -355,7 +356,7 @@ func TestScenario_AlreadySatisfied(t *testing.T) {
 func renderV8AlreadySatisfied(t *testing.T, verbosity verbosity) string {
 	t.Helper()
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, color: colorNever, plain: true, stdout: &buf, stderr: io.Discard, verbosity: verbosity})
+	out := initRun(Config{color: colorNever, plain: true, stdout: &buf, stderr: io.Discard, verbosity: verbosity})
 	t.Cleanup(func() { _ = out.close() })
 
 	// Spec §19's suffix is ResolutionAlreadySatisfied, produced only by a
@@ -402,7 +403,7 @@ func TestScenario_StressLive(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
 	out := initRun(Config{
-		isolated: true, clock: clock, terminal: screen, fileFS: fsys,
+		clock: clock, terminal: screen, fileFS: fsys,
 		stateDir: t.TempDir(), stdout: io.Discard, stderr: io.Discard,
 		visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000,
 	})
@@ -487,7 +488,7 @@ func TestScenario_DependencyInstall(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
 	out := initRun(Config{
-		isolated: true, clock: clock, terminal: screen, stdout: io.Discard, stderr: io.Discard,
+		clock: clock, terminal: screen, stdout: io.Discard, stderr: io.Discard,
 		visibilityDelay: DelayForTest(0), color: colorNever,
 		// A high cap disables the interactive redraw frame-rate coalescing
 		// (default 20fps/50ms) that would otherwise drop the second of two
@@ -547,7 +548,7 @@ func TestScenario_LiveParallelPrune(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
 	out := initRun(Config{
-		isolated: true, clock: clock, terminal: screen, stdout: io.Discard, stderr: io.Discard,
+		clock: clock, terminal: screen, stdout: io.Discard, stderr: io.Discard,
 		visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000,
 	})
 	t.Cleanup(func() { _ = out.close() })
@@ -594,7 +595,7 @@ func TestScenario_GenericSuccessPlusActiveWork(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
 	out := initRun(Config{
-		isolated: true, clock: clock, terminal: screen, stdout: io.Discard, stderr: io.Discard,
+		clock: clock, terminal: screen, stdout: io.Discard, stderr: io.Discard,
 		visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000,
 	})
 	t.Cleanup(func() { _ = out.close() })

@@ -18,7 +18,7 @@ import (
 func manifestOutput(state string) (*Run, *bytes.Buffer) {
 	var buf bytes.Buffer
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever, stateDir: state,
+		plain: true, color: colorNever, stateDir: state,
 		stdout: &buf, stderr: &buf,
 	})
 	return out, &buf

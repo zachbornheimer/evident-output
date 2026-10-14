@@ -6,13 +6,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/terminal"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
 func TestTERM020_CompletedCollapseUnderPressure(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Height(5), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, terminal: screen, visibilityDelay: DelayForTest(0)})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 	g := out.Group("g")
 	for range 30 {
@@ -28,7 +29,7 @@ func TestTERM020_CompletedCollapseUnderPressure(t *testing.T) {
 func TestTERM023_SplitStreamsNoCrossCursor(t *testing.T) {
 	var primary, diag bytes.Buffer
 	// NoColor: this test forbids cursor CSI, not semantic SGR color.
-	out := initRun(Config{isolated: true, stdout: &primary, stderr: &diag, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &primary, stderr: &diag, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("a"))
 	_ = out.finish()
@@ -40,7 +41,7 @@ func TestTERM023_SplitStreamsNoCrossCursor(t *testing.T) {
 
 func TestTERM021_FinalCollectionOutput(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	g := out.Group("deps")
 	g.Summary("installed 2")
 	succeed(g.Task("a"))
@@ -55,7 +56,7 @@ func TestTERM021_FinalCollectionOutput(t *testing.T) {
 func TestTERM024_BrokenPipeNoPanic(t *testing.T) {
 	r, w := io.Pipe()
 	_ = r.Close()
-	out := initRun(Config{isolated: true, stdout: w, plain: true})
+	out := initRun(Config{stdout: w, plain: true})
 	succeed(out.Task("a"))
 	_ = out.finish() // may fail write
 	_ = w.Close()
@@ -76,9 +77,9 @@ func TestTERM007_ShortWriteDisablesInteractive(t *testing.T) {
 
 func TestTERM011_WidthZeroFallsBackSafely(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, width: 0, plain: true})
+	out := initRun(Config{stdout: &buf, width: 0, plain: true})
 	t.Cleanup(func() { _ = out.close() })
-	out.Task("c").Define(effectOf(Verb(effectAdd), "x", 1))
+	out.Task("c").Define(effectOf(Verb(change.EffectAdd), "x", 1))
 	_ = out.finish()
 	if buf.Len() == 0 {
 		t.Fatal("expected output")
@@ -87,7 +88,7 @@ func TestTERM011_WidthZeroFallsBackSafely(t *testing.T) {
 
 func TestTERM012_SmallHeightBudget(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(4), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, terminal: screen, visibilityDelay: DelayForTest(0)})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 	col := out.Group("g")
 	for range 20 {

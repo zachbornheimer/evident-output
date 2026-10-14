@@ -33,7 +33,6 @@ func hasLiveRegion(s string) bool {
 
 func isolatedInit(t *testing.T, cfg Config) *Run {
 	t.Helper()
-	cfg.isolated = true
 	out := initRun(cfg)
 	t.Cleanup(func() { _ = out.close() })
 	return out

@@ -25,7 +25,7 @@ func startsInsideWindow(t *testing.T, started <-chan struct{}) {
 }
 
 func TestSuspend_StartsAnEligibleSiblingBeforeTheWindowCloses(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	started := make(chan struct{})
 
@@ -95,7 +95,7 @@ func TestSuspend_PaintsNoFrameInsideTheWindowWhenASiblingStartsInIt(t *testing.T
 }
 
 func TestSuspend_CallbackErrorPropagates(t *testing.T) {
-	out := initRun(Config{isolated: true})
+	out := initRun(Config{})
 	t.Cleanup(func() { _ = out.close() })
 	err := out.Suspend(func() error { return io.EOF })
 	if err != io.EOF {
@@ -104,7 +104,7 @@ func TestSuspend_CallbackErrorPropagates(t *testing.T) {
 }
 
 func TestSuspend_NestedDoesNotPanic(t *testing.T) {
-	out := initRun(Config{isolated: true})
+	out := initRun(Config{})
 	t.Cleanup(func() { _ = out.close() })
 	_ = out.Suspend(func() error {
 		return out.Suspend(func() error { return nil })

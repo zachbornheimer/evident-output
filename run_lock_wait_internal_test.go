@@ -38,7 +38,7 @@ func waitForLockWaiter(t *testing.T) {
 func TestRun_SignalStopsARunQueuedOnTheStateLock(t *testing.T) {
 	state, files := t.TempDir(), t.TempDir()
 
-	holder := initRun(Config{isolated: true, plain: true, stateDir: state, stdout: io.Discard, stderr: io.Discard})
+	holder := initRun(Config{plain: true, stateDir: state, stdout: io.Discard, stderr: io.Discard})
 	held, release := make(chan struct{}), make(chan struct{})
 	holderDone := make(chan struct{})
 	go func() {
@@ -57,7 +57,7 @@ func TestRun_SignalStopsARunQueuedOnTheStateLock(t *testing.T) {
 	defer func() { close(release); <-holderDone }()
 
 	interrupt := sendOneSignal(t)
-	queued := initRun(Config{isolated: true, plain: true, stateDir: state, stdout: io.Discard, stderr: io.Discard})
+	queued := initRun(Config{plain: true, stateDir: state, stdout: io.Discard, stderr: io.Discard})
 	code := make(chan int, 1)
 	go func() {
 		code <- queued.run(context.Background(), func(ctx context.Context, r *Run) error {
@@ -87,13 +87,13 @@ func TestRun_SignalStopsARunQueuedOnTheStateLock(t *testing.T) {
 // forever.
 func TestManifestFor_AfterCloseReleasesTheStateLock(t *testing.T) {
 	state := t.TempDir()
-	closed := initRun(Config{isolated: true, plain: true, stateDir: state, stdout: io.Discard, stderr: io.Discard})
+	closed := initRun(Config{plain: true, stateDir: state, stdout: io.Discard, stderr: io.Discard})
 	_ = closed.close()
 	if store, err := closed.manifestFor(context.Background()); store != nil || !errors.Is(err, errClosed) {
 		t.Fatalf("manifestFor after Close = (%v, %v), want (nil, ErrClosed)", store, err)
 	}
 
-	next := initRun(Config{isolated: true, plain: true, stateDir: state, stdout: io.Discard, stderr: io.Discard})
+	next := initRun(Config{plain: true, stateDir: state, stdout: io.Discard, stderr: io.Discard})
 	defer func() { _ = next.close() }()
 	ctx, cancel := context.WithTimeout(context.Background(), interruptBudget)
 	defer cancel()

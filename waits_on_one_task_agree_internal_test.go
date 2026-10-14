@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 )
 
 // besideStallCeilings are the concurrency ceilings the stall below must resolve the
@@ -61,7 +63,7 @@ func TestSlice36_ACycleBesideASettledOwingTaskIsStillNamed(t *testing.T) {
 	for _, ceiling := range besideStallCeilings {
 		t.Run(fmt.Sprint(ceiling), func(t *testing.T) {
 			_, a, b, _ := stallBesideASettledOwingTask(t, ceiling)
-			if !errors.Is(a, errWaitDeadlock) || !errors.Is(b, errWaitDeadlock) {
+			if !errors.Is(a, misuse.ErrWaitDeadlock) || !errors.Is(b, misuse.ErrWaitDeadlock) {
 				t.Errorf("cycle not named: a=%v b=%v", a, b)
 			}
 		})

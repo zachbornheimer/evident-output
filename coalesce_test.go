@@ -5,14 +5,16 @@ import (
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/change"
 )
 
 func TestCoalesce_SingleMatchingChanges_SuppressesTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "librarian", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "librarian", color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
-	out.Task("librarian").Define(effectOf(Verb(effectAdd), "file", 1))
+	out.Task("librarian").Define(effectOf(Verb(change.EffectAdd), "file", 1))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +34,7 @@ func TestCoalesce_SingleMatchingChanges_SuppressesTrailingConclusion(t *testing.
 
 func TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "librarian", color: colorNever, plain: true, DryRun: true})
+	out := initRun(Config{stdout: &buf, title: "librarian", color: colorNever, plain: true, DryRun: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("librarian").Define(effectOf(Update, "file", 1))
@@ -55,14 +57,14 @@ func TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion(t *testing.T) 
 // the per-section ledger rows already told the whole story.
 func TestCoalesce_DryRunPlannedWithHeader_SuppressesTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, DryRun: true, subject: "repo  /demo", stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{DryRun: true, subject: "repo  /demo", stdout: &buf, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "local tip", 2))
 
 	worktrees := out.Task("worktrees")
-	worktrees.Define(effectOf(Verb(effectRemove), "worktree", 1))
+	worktrees.Define(effectOf(Verb(change.EffectRemove), "worktree", 1))
 
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
@@ -80,7 +82,7 @@ func TestCoalesce_DryRunPlannedWithHeader_SuppressesTrailingConclusion(t *testin
 // per-section ledger rows never show it.
 func TestCoalesce_DryRunWarned_KeepsTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, DryRun: true, subject: "repo  /demo", stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{DryRun: true, subject: "repo  /demo", stdout: &buf, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	branches := out.Task("branches")
@@ -99,10 +101,10 @@ func TestCoalesce_DryRunWarned_KeepsTrailingConclusion(t *testing.T) {
 
 func TestCoalesce_ChangedPlusFailure_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "librarian", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "librarian", color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
-	out.Task("librarian").Define(effectOf(Verb(effectAdd), "file", 7))
+	out.Task("librarian").Define(effectOf(Verb(change.EffectAdd), "file", 7))
 	out.Task("placement").fail("not writable", On("arr/x"))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
@@ -118,10 +120,10 @@ func TestCoalesce_ChangedPlusFailure_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_MultipleChanges_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "tool", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "tool", color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
-	out.Task("files").Define(effectOf(Verb(effectAdd), "file", 1))
+	out.Task("files").Define(effectOf(Verb(change.EffectAdd), "file", 1))
 	out.Task("manifest").Define(effectOf(Update, "entry", 1))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
@@ -134,10 +136,10 @@ func TestCoalesce_MultipleChanges_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_SubjectMismatch_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "tool", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "tool", color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
-	out.Task("other-subject").Define(effectOf(Verb(effectAdd), "x", 1))
+	out.Task("other-subject").Define(effectOf(Verb(change.EffectAdd), "x", 1))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -148,11 +150,11 @@ func TestCoalesce_SubjectMismatch_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "tool", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "tool", color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	tool := out.Task("tool")
-	tool.Define(effectOf(Verb(effectAdd), "x", 1))
+	tool.Define(effectOf(Verb(change.EffectAdd), "x", 1))
 	tool.Problem("working tree state not checked", severity(severityWarning), nextCommand("git", "status"))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
@@ -165,9 +167,9 @@ func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 }
 
 func TestCoalesce_JSONStillHasConclusion(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, title: "tool"})
+	out := initRun(Config{stdout: io.Discard, title: "tool"})
 	t.Cleanup(func() { _ = out.close() })
-	out.Task("tool").Define(effectOf(Verb(effectAdd), "x", 1))
+	out.Task("tool").Define(effectOf(Verb(change.EffectAdd), "x", 1))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +185,7 @@ func TestCoalesce_JSONStillHasConclusion(t *testing.T) {
 
 func TestCoalesce_TitleWithoutSemanticReport_OmitsHumanConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "zq", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "zq", color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.println("zq v0.2.14")
@@ -201,7 +203,7 @@ func TestCoalesce_TitleWithoutSemanticReport_OmitsHumanConclusion(t *testing.T) 
 
 func TestCoalesce_SingleMatchingItem_OmitsRepeatedConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "database", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "database", color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	succeed(out.Task("database"))
@@ -219,7 +221,7 @@ func TestCoalesce_SingleMatchingItem_OmitsRepeatedConclusion(t *testing.T) {
 
 func TestCoalesce_SingleItemForBroaderSubject_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "release v1.4", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "release v1.4", color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("release signature").block("signature is missing")
@@ -234,7 +236,7 @@ func TestCoalesce_SingleItemForBroaderSubject_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_MultipleItems_KeepsAggregateConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "repository", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "repository", color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	succeed(out.Task("working tree"))

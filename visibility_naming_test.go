@@ -13,7 +13,7 @@ func TestVisibilityNormal_PrefixedConsistently(t *testing.T) {
 	if visibilityNormal != 0 {
 		t.Fatalf("VisibilityNormal = %v, want the zero value", visibilityNormal)
 	}
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	out.atForTest(visibilityNormal).println("hello")
 }

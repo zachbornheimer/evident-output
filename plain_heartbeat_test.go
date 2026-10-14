@@ -79,7 +79,7 @@ func TestPlainHeartbeat_SilentRunningTaskEmitsEvery30s(t *testing.T) {
 	clock := newHeartbeatFakeClock()
 	var buf strings.Builder
 	out := initRun(Config{
-		isolated: true, title: "demo", plain: true,
+		title: "demo", plain: true,
 		stdout: &buf, stderr: &buf, clock: clock,
 	})
 	t.Cleanup(func() { _ = out.close() })
@@ -122,7 +122,7 @@ func TestPlainHeartbeat_RealMilestoneDefersIt(t *testing.T) {
 	clock := newHeartbeatFakeClock()
 	var buf strings.Builder
 	out := initRun(Config{
-		isolated: true, title: "demo", plain: true,
+		title: "demo", plain: true,
 		stdout: &buf, stderr: &buf, clock: clock,
 	})
 	t.Cleanup(func() { _ = out.close() })
@@ -151,7 +151,7 @@ func TestPlainHeartbeat_InteractiveLiveNeverEmitsOne(t *testing.T) {
 	var stdout, stderr nopFlushWriter
 	defer markWriterAsCharDevice(&stdout)()
 	out := initRun(Config{
-		isolated: true, title: "demo",
+		title:  "demo",
 		stdout: &stdout, stderr: &stderr, clock: clock, visibilityDelay: delay(0),
 	})
 	t.Cleanup(func() { _ = out.close() })

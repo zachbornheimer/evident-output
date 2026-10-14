@@ -6,6 +6,8 @@ import (
 	"io"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 )
 
 // twoLevelRead runs read on a goroutine started by a goroutine that stays
@@ -29,7 +31,7 @@ func twoLevelRead(read func()) {
 // itself made no lookup before its read.
 func unorderedGrandchildReadWhileAnotherCallbackFansOut(t *testing.T, others int) error {
 	t.Helper()
-	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true, MaxConcurrency: 2})
+	out := initRun(Config{stdout: io.Discard, plain: true, MaxConcurrency: 2})
 	defer func() { _ = out.close() }()
 	made := out.Group("producers").Task("make")
 	producer := Compute(made, func(context.Context) (int, error) { return 7, nil })
@@ -78,7 +80,7 @@ func TestAnotherCallbacksFanOutDoesNotEndThisCallbacksGrandchildAttribution(t *t
 // while holder blocks on it, the API-041 deadlock shape, which must be
 // released with ErrWaitDeadlock after another callback's fan-out ran first.
 func TestGrandchildDeadlockIsReleasedAfterAnotherCallbackFansOut(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true, MaxConcurrency: 2})
+	out := initRun(Config{stdout: io.Discard, plain: true, MaxConcurrency: 2})
 	hung := false
 	defer func() {
 		if !hung {
@@ -112,7 +114,7 @@ func TestGrandchildDeadlockIsReleasedAfterAnotherCallbackFansOut(t *testing.T) {
 	})
 	select {
 	case err := <-waitErr:
-		if !errors.Is(err, errWaitDeadlock) {
+		if !errors.Is(err, misuse.ErrWaitDeadlock) {
 			t.Fatalf("grandchild later.Wait() = %v, want ErrWaitDeadlock", err)
 		}
 	case <-time.After(5 * time.Second):

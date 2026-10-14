@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/change"
 )
 
 // TestPartialEffect_BindsToTheEffectWhoseCallbackReturnedIt proves an
@@ -18,9 +20,9 @@ import (
 func TestPartialEffect_BindsToTheEffectWhoseCallbackReturnedIt(t *testing.T) {
 	t.Parallel()
 	cause := errors.New("ref 3 locked")
-	push := EffectSpec{Verb: Verb(effectPush), Object: "branch", Quantity: 5}
+	push := EffectSpec{Verb: Verb(change.EffectPush), Object: "branch", Quantity: 5}
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "sync", color: colorNever, plain: true, stderr: io.Discard})
+	out := initRun(Config{stdout: &buf, title: "sync", color: colorNever, plain: true, stderr: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	var effectErr error
 	task := out.Task("sync")
@@ -55,9 +57,9 @@ func TestPartialEffect_BindsToTheEffectWhoseCallbackReturnedIt(t *testing.T) {
 // after an inner Effect's already-recorded one.
 func TestPartialEffect_JoinedAfterAnInnerOneStillCounts(t *testing.T) {
 	t.Parallel()
-	push := EffectSpec{Verb: Verb(effectPush), Object: "branch", Quantity: 5}
+	push := EffectSpec{Verb: Verb(change.EffectPush), Object: "branch", Quantity: 5}
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "sync", color: colorNever, plain: true, stderr: io.Discard})
+	out := initRun(Config{stdout: &buf, title: "sync", color: colorNever, plain: true, stderr: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("sync")
 	task.Define(func(ctx context.Context) error {

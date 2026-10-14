@@ -73,40 +73,6 @@ func withinBudget(t *testing.T, what string, work func()) {
 	}
 }
 
-// TestScheduler_P15_WaitOnTerminalTaskReturnsInsteadOfHanging pins the P15
-// probe: defining work on an already-resolved task never runs that work, so
-// a caller waiting on it must be told immediately rather than blocked
-// forever.
-func TestScheduler_P15_WaitOnTerminalTaskReturnsInsteadOfHanging(t *testing.T) {
-	t.Parallel()
-	out := isolatedScheduler(t, 1, io.Discard, false)
-	task := out.Task("venv")
-	task.skipped(reason("present"))
-
-	var ran atomic.Bool
-	var waitErr error
-	withinBudget(t, "Define+Wait on a resolved task", func() {
-		task.Define(func(ctx context.Context) error {
-			ran.Store(true)
-			return nil
-		})
-		waitErr = task.wait()
-	})
-
-	if ran.Load() {
-		t.Fatal("callback ran on an already-resolved task")
-	}
-	if waitErr != nil {
-		t.Fatalf("Wait = %v, want nil", waitErr)
-	}
-	if err := out.err(); !errors.Is(err, errAlreadyResolved) {
-		t.Fatalf("misuse = %v, want ErrAlreadyResolved", err)
-	}
-	if got := task.snapshot().State; got != excluded {
-		t.Fatalf("task state = %v, want Skipped", got)
-	}
-}
-
 // TestScheduler_P16_NestedWaitAtCeilingCompletes pins the P16 probe: a
 // goroutine blocked inside Wait is not doing work, so the concurrency
 // ceiling must never be the reason the task it waits on cannot start.

@@ -71,42 +71,6 @@ func TestFinish_TeachingLadder_EachThenReturnNil_NeverCancels(t *testing.T) {
 	}
 }
 
-// TestFinish_TaxonomyOnlyTaskWithDeclinedConfirm_BlockedNeverEscalates is
-// beginner-gate-2 finding (iii): a task that only recorded taxonomy
-// (Skipped/Kept) and was never given a terminal verb told an honest,
-// complete story already, same as a recorded effect or a sealed loop. And
-// separately: a Confirm gate that resolves Blocked (declined / blocked by
-// policy, per Confirm's own contract) must keep the run's exit code at
-// ExitBlocked (1) — a leftover bookkeeping misuse must never silently
-// escalate that to ExitFailed (2); the documented "Block → exit 1" contract
-// wins.
-func TestFinish_TaxonomyOnlyTaskWithDeclinedConfirm_BlockedNeverEscalates(t *testing.T) {
-	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
-
-	reason := reason("protected")
-	out.Task("prune branches").skipped(reason)
-
-	if confirmed := out.Confirm("delete origin/production-hotfix?"); confirmed {
-		t.Fatal("Confirm() = true, want false (plain mode without AssumeYes blocks by policy)")
-	}
-
-	if err := out.finish(); err != nil {
-		t.Fatalf("Finish() = %v, want nil (taxonomy-only task should auto-resolve Done, no misuse)", err)
-	}
-	rendered := buf.String()
-	if strings.Contains(rendered, "misuse") {
-		t.Fatalf("no misuse expected — taxonomy-only task auto-resolves, and Confirm's Blocked is not misuse:\n%s", rendered)
-	}
-	conc := out.conclusion()
-	if conc.headline() != headlineRefused {
-		t.Fatalf("state = %v, want StateBlocked (the declined Confirm gate)", conc.headline())
-	}
-	if conc.exitCode != exitRefused {
-		t.Fatalf("exit code = %d, want %d (ExitBlocked) — a recorded misuse must never escalate Block to Failed", conc.exitCode, exitRefused)
-	}
-}
-
 // TestRun_BlockedWithLeftoverMisuse_NeverEscalatesToFailed exercises the
 // same "Block → exit 1 wins" contract through the full Output.Run lifecycle
 // (where Finish's returned misuse error previously forced ExitFailed even

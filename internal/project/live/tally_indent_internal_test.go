@@ -59,3 +59,10 @@ func TestLiveGroupTallies_ShareTheChildColumn(t *testing.T) {
 		}
 	}
 }
+
+// writeLiveCollection writes col's live rows within height and reports how
+// many it wrote. It exceeds height only below a Group's floor (see
+// minLiveChildRows).
+func writeLiveCollection(b *strings.Builder, col record.TasksSnapshot, height int, st liveStyle) (rows int) {
+	return writeAlignedLiveCollection(b, col, height, 0, st)
+}

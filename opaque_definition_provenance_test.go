@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
 )
 
@@ -40,7 +41,7 @@ func TestOpaqueTaskDefinitionFallsBackToAppFingerprintWhenRunHasManifestActivity
 	state := t.TempDir()
 	path := filepath.Join(t.TempDir(), "managed.txt")
 
-	out := initRun(Config{isolated: true, stateDir: state})
+	out := initRun(Config{stateDir: state})
 	t.Cleanup(func() { _ = out.close() })
 
 	if err := runFileTask(t, out, "file", FileSpec{Path: path, Contents: []byte("desired")}); err != nil {
@@ -82,7 +83,7 @@ func TestPreciseFileTaskLeavesTaskLevelDefinitionFingerprintEmpty(t *testing.T) 
 	state := t.TempDir()
 	path := filepath.Join(t.TempDir(), "managed.txt")
 
-	out := initRun(Config{isolated: true, stateDir: state})
+	out := initRun(Config{stateDir: state})
 	t.Cleanup(func() { _ = out.close() })
 	fileTask, fileKey := taskManifestKey(t, out, "file")
 	fileTask.Define(func(ctx context.Context) error {
@@ -122,7 +123,7 @@ func TestPreciseFileTaskLeavesTaskLevelDefinitionFingerprintEmpty(t *testing.T) 
 // consumer sees zero new filesystem side effects from this fallback.
 func TestOpaqueOnlyRunNeverOpensManifest(t *testing.T) {
 	state := t.TempDir()
-	out := initRun(Config{isolated: true, stateDir: state})
+	out := initRun(Config{stateDir: state})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("opaque-only")
@@ -148,7 +149,7 @@ func TestOpaqueTaskDefinitionRunsEveryRun(t *testing.T) {
 	managed := filepath.Join(t.TempDir(), "managed.txt")
 
 	runOnce := func(run int) int {
-		out := initRun(Config{isolated: true, stateDir: stateDir})
+		out := initRun(Config{stateDir: stateDir})
 		defer func() { _ = out.close() }()
 		if err := runFileTask(t, out, "file", FileSpec{Path: managed, Contents: []byte("desired")}); err != nil {
 			t.Fatalf("run %d file task: %v", run, err)
@@ -156,7 +157,7 @@ func TestOpaqueTaskDefinitionRunsEveryRun(t *testing.T) {
 		pushes := 0
 		push := out.Task("push branch")
 		push.Define(func(ctx context.Context) error {
-			return Effect(ctx, EffectSpec{Verb: Verb(effectPush), Object: "branch", Quantity: 1}, func(context.Context) error {
+			return Effect(ctx, EffectSpec{Verb: Verb(change.EffectPush), Object: "branch", Quantity: 1}, func(context.Context) error {
 				pushes++
 				return nil
 			})
@@ -191,7 +192,7 @@ func TestOpaqueTasksDoNotRewriteTheManifestPerSettle(t *testing.T) {
 	const opaqueTasks = 50
 	state := t.TempDir()
 	path := filepath.Join(t.TempDir(), "managed.txt")
-	out := initRun(Config{isolated: true, stateDir: state})
+	out := initRun(Config{stateDir: state})
 	t.Cleanup(func() { _ = out.close() })
 
 	if err := runFileTask(t, out, "file", FileSpec{Path: path, Contents: []byte("desired")}); err != nil {

@@ -9,7 +9,7 @@ import (
 // ExampleSnapshot reads the immutable complete presentation state of a
 // finished run.
 func ExampleSnapshot() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true})
 	out.Task("apply patch").Define(func(context.Context) error { return nil })
 	_ = out.finish()
 	snap := out.snapshot()
@@ -21,7 +21,7 @@ func ExampleSnapshot() {
 // ExampleChangesSnapshot reads an immutable changes section: the records a
 // mutation verb recorded, run without DryRun.
 func ExampleChangesSnapshot() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true})
 	out.Task("prune branches").Define(effectOf(Delete, "stale branch", 2))
 	_ = out.finish()
 	changes := out.snapshot().Changes[0]
@@ -33,7 +33,7 @@ func ExampleChangesSnapshot() {
 // ExamplePlanSnapshot reads an immutable plan section: the records a
 // mutation verb recorded under DryRun.
 func ExamplePlanSnapshot() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true, DryRun: true})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, DryRun: true})
 	out.Task("prune branches").Define(effectOf(Delete, "stale branch", 2))
 	_ = out.finish()
 	plan := out.snapshot().Plans[0]
@@ -48,17 +48,4 @@ func ExampleEffectRecord() {
 	fmt.Println(r.Verb, r.Quantity, r.Object)
 	// Output:
 	// delete 2 stale branch
-}
-
-// ExampleMessageSnapshot shows one logical user-facing message in the
-// canonical model, read from a finished Snapshot.
-func ExampleMessageSnapshot() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true, isolated: true})
-	setDefault(out)
-	println("reading configuration")
-	_ = out.finish()
-	msg := out.snapshot().Messages[0]
-	fmt.Println(msg.Text, msg.Visibility == visibilityNormal)
-	// Output:
-	// reading configuration true
 }

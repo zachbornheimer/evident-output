@@ -13,7 +13,7 @@ import (
 )
 
 func TestOUT008_InferenceInEvents(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("a"))
 	_ = out.finish()
@@ -25,7 +25,7 @@ func TestOUT008_InferenceInEvents(t *testing.T) {
 
 func TestOUT009_UnknownJSONFieldsIgnoredByConsumers(t *testing.T) {
 	// Older reader: unmarshal known fields; ignore extras if present.
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	succeed(out.Task("a"))
 	_ = out.finish()
 	b, err := wire.EncodeJSON(out.snapshot())
@@ -55,7 +55,7 @@ func TestOUT009_UnknownJSONFieldsIgnoredByConsumers(t *testing.T) {
 
 func TestOUT020_NoSubjectOmitsGuess(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	succeed(out.Task("a"))
 	_ = out.finish()
 	// should not invent a subject name
@@ -66,7 +66,7 @@ func TestOUT020_NoSubjectOmitsGuess(t *testing.T) {
 }
 
 func TestOUT022_PlanVsChanges(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, DryRun: true})
+	out := initRun(Config{stdout: io.Discard, DryRun: true})
 	p := out.Task("p")
 	p.Define(effectOf(Delete, "x", 1))
 	_ = out.finish()
@@ -88,7 +88,7 @@ func TestOUT012_ExitCodes(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out := initRun(Config{isolated: true, stdout: io.Discard})
+			out := initRun(Config{stdout: io.Discard})
 			tc.fn(out)
 			_ = out.finish()
 			if out.conclusion().exitCode != tc.code {
@@ -100,7 +100,7 @@ func TestOUT012_ExitCodes(t *testing.T) {
 }
 
 func TestOUT006_JSONLOneObjectPerLine(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("a"))
 	_ = out.finish()
@@ -125,7 +125,7 @@ func TestOUT006_JSONLOneObjectPerLine(t *testing.T) {
 func TestOUT007_DeterministicJSONWithFixedClock(t *testing.T) {
 	// same semantic state → same conclusion fields (IDs differ by construction)
 	mk := func() Conclusion {
-		out := initRun(Config{isolated: true, stdout: io.Discard})
+		out := initRun(Config{stdout: io.Discard})
 		succeed(out.Task("a"))
 		out.Task("b").block("x")
 		_ = out.finish()
@@ -140,7 +140,7 @@ func TestOUT007_DeterministicJSONWithFixedClock(t *testing.T) {
 }
 
 func TestOUT011_EventTimestampsPresent(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("a"))
 	_ = out.finish()
@@ -156,7 +156,7 @@ func TestOUT011_EventTimestampsPresent(t *testing.T) {
 
 func TestOUT023_LineWhileLive(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor(), testkit.Width(80))
-	out := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("t").Doing("p")
 	out.println("durable hello")
@@ -167,7 +167,7 @@ func TestOUT023_LineWhileLive(t *testing.T) {
 
 func TestOUT024_Linef(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, plain: true})
+	out := initRun(Config{stdout: &buf, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 	out.printf("count=%d", 3)
 	succeed(out.Task("a"))
@@ -178,7 +178,7 @@ func TestOUT024_Linef(t *testing.T) {
 }
 
 func TestOUT017_FinalProgressExact(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("t")
 	for i := int64(0); i <= 100; i++ {
@@ -193,7 +193,7 @@ func TestOUT017_FinalProgressExact(t *testing.T) {
 
 func TestOUT002_DiagnosticSeparate(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &primary, stderr: &diag, plain: true})
+	out := initRun(Config{stdout: &primary, stderr: &diag, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("a"))
 	_ = out.finish()
@@ -205,7 +205,7 @@ func TestOUT002_DiagnosticSeparate(t *testing.T) {
 
 func TestOUT010_UnknownEnumForwardCompat(t *testing.T) {
 	// Consumers should tolerate extra conclusion fields — EncodeJSON has fixed enums we control
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	succeed(out.Task("a"))
 	_ = out.finish()
 	b, _ := wire.EncodeJSON(out.snapshot())
@@ -216,7 +216,7 @@ func TestOUT010_UnknownEnumForwardCompat(t *testing.T) {
 }
 
 func TestOUT013_ExitCodeOnConclusion(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	out.Task("a").block("b")
 	_ = out.finish()
 	if out.conclusion().exitCode != 1 {
@@ -226,14 +226,14 @@ func TestOUT013_ExitCodeOnConclusion(t *testing.T) {
 }
 
 func TestOUT015_EventStreamBounded(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	for range 1000 {
 		out.debugForTest("x")
 	}
 	// with default debug level, Debug may no-op — enable
 	_ = out.close()
-	out2 := initRun(Config{isolated: true, stdout: io.Discard, stderr: io.Discard, debug: debugConfig{level: levelDebug}})
+	out2 := initRun(Config{stdout: io.Discard, stderr: io.Discard, debug: debugConfig{level: levelDebug}})
 	for range 500 {
 		out2.debugForTest("x")
 	}
@@ -247,7 +247,7 @@ func TestOUT015_EventStreamBounded(t *testing.T) {
 func TestOUT016_BrokenPipePolicy(t *testing.T) {
 	r, w := io.Pipe()
 	_ = r.Close() // reader closed => writes fail
-	out := initRun(Config{isolated: true, stdout: w, plain: true})
+	out := initRun(Config{stdout: w, plain: true})
 	succeed(out.Task("a"))
 	// Finish write may error on pipe — must not panic
 	_ = out.finish()

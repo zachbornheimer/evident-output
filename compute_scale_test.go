@@ -36,7 +36,7 @@ const (
 
 func newScaleOutput(t *testing.T) *Run {
 	t.Helper()
-	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true, maxEntities: scaleMaxEntities})
+	out := initRun(Config{stdout: io.Discard, plain: true, maxEntities: scaleMaxEntities})
 	t.Cleanup(func() { _ = out.close() })
 	return out
 }
@@ -95,51 +95,6 @@ func assertScalesLinearly(t *testing.T, name string, fullTasks int, run func(tas
 	if full.bytesPerTask > maxBytesPerTask {
 		t.Fatalf("%s: %.0f bytes allocated per Task, want <= %d", name, full.bytesPerTask, maxBytesPerTask)
 	}
-}
-
-// runZqShape declares zq's real prune shape: two manager Groups under one
-// builder, distinct-package Tasks that each report many progress steps,
-// and a few Skipped "modified" Tasks.
-func runZqShape(t *testing.T, packagesPerManager int) {
-	t.Helper()
-	out := newScaleOutput(t)
-	packages := out.Sequence("consolidate packages")
-	inventory := Compute(packages.Task("discover installed packages"), func(context.Context) ([]string, error) {
-		return []string{"npm", "composer"}, nil
-	})
-	centralize := packages.Group("centralize packages")
-	centralize.define(func(g *Group) {
-		for _, manager := range inventory.Get() {
-			mg := g.Group(manager)
-			for i := range packagesPerManager {
-				task := mg.Task(fmt.Sprintf("centralize %s-pkg-%d", manager, i))
-				task.Define(func(context.Context) error {
-					for step := 1; step <= zqShapeStepsPerTask; step++ {
-						task.Doing("step %d", step)
-						task.Progress(step, zqShapeStepsPerTask)
-					}
-					return nil
-				})
-			}
-		}
-		kept := g.Group("modified checkouts")
-		for i := range zqShapeModifiedTasks {
-			kept.Task(fmt.Sprintf("keep modified pkg (checkout-%d)", i)).skipped(reason("modified"))
-		}
-	})
-	if err := out.finish(); err != nil {
-		t.Fatalf("Finish: %v", err)
-	}
-	if err := out.err(); err != nil {
-		t.Fatalf("Err: %v", err)
-	}
-}
-
-func TestContainerDefine_ZqShapedRunScalesLinearly(t *testing.T) {
-	full := zqShapeManagers * zqShapePackagesPerManager
-	assertScalesLinearly(t, "zq-shaped run", full, func(tasks int) {
-		runZqShape(t, tasks/zqShapeManagers)
-	})
 }
 
 func runBulkBuilder(t *testing.T, tasks int) {

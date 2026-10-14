@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
@@ -31,7 +32,7 @@ type partialResult struct {
 func partialRun(t *testing.T, format format, fn func(context.Context) error) partialResult {
 	t.Helper()
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "prune", color: colorNever, plain: true, format: format, stderr: io.Discard})
+	out := initRun(Config{stdout: &buf, title: "prune", color: colorNever, plain: true, format: format, stderr: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	var effectErr error
 	task := out.Task("refs")
@@ -80,7 +81,7 @@ func TestPartialEffect_ZeroOfThreeRecordsNothingAndFails(t *testing.T) {
 	r := partialRun(t, formatHuman, func(context.Context) error {
 		return PartialEffect(0, cause)
 	})
-	if !errors.Is(r.effectErr, cause) || errors.Is(r.effectErr, errInvalidPartialEffect) {
+	if !errors.Is(r.effectErr, cause) || errors.Is(r.effectErr, change.ErrInvalidPartialEffect) {
 		t.Fatalf("Effect err = %v, want the supplied cause and not ErrInvalidPartialEffect", r.effectErr)
 	}
 	if r.state != failed {
@@ -121,7 +122,7 @@ func TestPartialEffect_InvalidDataIsRejectedAndRecordsNothing(t *testing.T) {
 			r := partialRun(t, formatHuman, func(context.Context) error {
 				return PartialEffect(tc.committed, tc.err)
 			})
-			if !errors.Is(r.effectErr, errInvalidPartialEffect) {
+			if !errors.Is(r.effectErr, change.ErrInvalidPartialEffect) {
 				t.Fatalf("Effect err = %v, want ErrInvalidPartialEffect", r.effectErr)
 			}
 			if tc.keepCause && !errors.Is(r.effectErr, cause) {

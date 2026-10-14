@@ -5,18 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
 	"slices"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
 	"github.com/zachbornheimer/evident-output/internal/graph"
-	"github.com/zachbornheimer/evident-output/internal/process"
 	"github.com/zachbornheimer/evident-output/internal/project"
 	"github.com/zachbornheimer/evident-output/internal/project/live"
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
@@ -30,58 +26,6 @@ type Task struct {
 	// rejected is why the declaration was refused (see rejectedTask); nil
 	// for a declared Task.
 	rejected error
-}
-
-// Context reports the cancellation signal this task's work runs under — the
-// run's own (see Output.Context), so a Define or Effect callback
-// doing I/O selects on it and stops when the run is interrupted.
-func (t *Task) context() context.Context {
-	if t == nil {
-		return context.Background()
-	}
-	return t.out.context()
-}
-
-// Snapshot returns the task snapshot.
-func (t *Task) snapshot() taskSnapshot {
-	if t == nil || t.out == nil {
-		return taskSnapshot{State: pending, Progress: progress{Kind: indeterminate}}
-	}
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskStates[t.id]
-	if st == nil {
-		return taskSnapshot{ID: t.id, State: pending, Progress: progress{Kind: indeterminate}}
-	}
-	return st.snapshot()
-}
-
-// Basis declares freshness inputs for this Task. Calls accumulate. Basis is
-// Task configuration frozen at Define: a call after Define records
-// ErrBasisAfterDefine and is ignored.
-func (t *Task) basis(inputs ...fingerprint) *Task {
-	if t == nil || t.out == nil {
-		return t
-	}
-	o := t.out
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	st := o.taskStates[t.id]
-	if st == nil {
-		return t
-	}
-	if !st.neverDefined() {
-		o.recordMisuseFor(st.name, errBasisAfterDefine)
-		return t
-	}
-	sources := make([]basisSource, 0, len(inputs))
-	for _, in := range inputs {
-		if in != nil {
-			sources = append(sources, fingerprintBasis(in))
-		}
-	}
-	o.taskFreshness.AddInputs(st.TaskID(), sources...)
-	return t
 }
 
 // --- folded from after.go ---
@@ -692,44 +636,6 @@ func (st *taskState) collection() *tasksState {
 
 // --- folded from container_wait.go ---
 
-// Wait blocks until every task this Group's children (and their nested
-// children, recursively) declared has settled, and returns their aggregate
-// outcome. It does not itself serialize eligible
-// siblings: every descendant Task was already submitted to the scheduler by
-// its own Define call, so Wait only parks on outcomes the scheduler is
-// already free to produce concurrently — the same non-serializing guarantee
-// waiting on a task already gives a single Task.
-//
-// A caller never snapshots/counts failed children to know whether the
-// container succeeded: Wait alone is the ordinary control-flow answer, and
-// it returns nil only when every descendant actually ran and succeeded.
-// Per-child detail remains available through Snapshot.
-func (g *Group) wait() error {
-	if g == nil || g.out == nil {
-		return nil
-	}
-	if g.rejected != nil {
-		return rejectedWaitOutcome(g.rejected)
-	}
-	node := g.out.graph.Container(g.id)
-	if node == nil {
-		return nil
-	}
-	outcome := g.out.graph.WaitContainer(node)
-	g.out.followRecordAfterWait()
-	return outcome
-}
-
-// Wait is Sequence's counterpart to waiting on a group: the ordered container
-// settles once every declared step (and any nested Group/Sequence) has
-// settled, honoring the same NotStarted-suppression and error-join rules.
-func (s *Sequence) wait() error {
-	if s == nil || s.tasks == nil {
-		return nil
-	}
-	return s.tasks.wait()
-}
-
 // --- folded from declare.go ---
 
 // declarationRefusal is the engine's error for a declaration the graph refused.
@@ -993,32 +899,7 @@ func (g *Group) Summary(text string) *Group {
 	return g
 }
 
-// Snapshot returns the collection snapshot with derived state.
-func (g *Group) snapshot() tasksSnapshot {
-	if g == nil || g.out == nil {
-		return tasksSnapshot{State: empty}
-	}
-	g.out.mu.Lock()
-	defer g.out.mu.Unlock()
-	col := g.out.containerStates[g.id]
-	if col == nil {
-		return tasksSnapshot{ID: g.id, State: empty}
-	}
-	return col.snapshot()
-}
-
 // --- folded from names.go ---
-
-// DefaultVisibleNames is how many names TruncateNames keeps before summarizing.
-const defaultVisibleNames = project.DefaultVisibleNames
-
-// TruncateNames joins names for a skip/kept-style summary.
-func truncateNames(names []string, visible int) string {
-	if visible <= 0 {
-		visible = defaultVisibleNames
-	}
-	return project.TruncateNames(names, visible)
-}
 
 // --- folded from sequence.go ---
 
@@ -1045,14 +926,6 @@ func (g *Sequence) Summary(text string) *Sequence {
 	}
 	g.tasks.Summary(text)
 	return g
-}
-
-// Snapshot returns the sequence snapshot with derived state.
-func (g *Sequence) snapshot() tasksSnapshot {
-	if g == nil || g.tasks == nil {
-		return tasksSnapshot{State: empty}
-	}
-	return g.tasks.snapshot()
 }
 
 // Sequence declares (or returns) an ordered child container nested here.
@@ -1297,16 +1170,6 @@ func (o *Run) commitSettledLocked(st *taskState) {
 
 // --- folded from task_next.go ---
 
-// nextSelf is a ProblemOption that attaches a command action re-running the
-// caller's own binary with args — a self-referencing remedy ("rerun with
-// --apply") that doesn't restate which binary to run (I6). Uses the same
-// identity source as Confirm's PolicyFlag / I2's Fail fallback: Config.Title
-// when set, else the binary's own basename. Use NextCommand instead when the
-// remedy is a different (foreign) tool.
-func (o *Run) nextSelf(args ...string) ProblemOption {
-	return nextCommand(o.policySourceName(), args...)
-}
-
 // --- folded from task_progress.go ---
 
 // Progress sets absolute completed/total count progress.
@@ -1314,11 +1177,6 @@ func (o *Run) nextSelf(args ...string) ProblemOption {
 // Prefer absolute Progress over Advance so retries cannot double-count.
 func (t *Task) Progress(completed, total int) *Task {
 	return t.setProgress(int64(completed), int64(total), determinate)
-}
-
-// Bytes sets absolute byte progress (units and rate formatting).
-func (t *Task) bytes(completed, total int64) *Task {
-	return t.setProgress(completed, total, bytesKind)
 }
 
 func (t *Task) setProgress(completed, total int64, kind progressKind) *Task {
@@ -1361,14 +1219,6 @@ func (t *Task) succeed(summary string) {
 	t.finish(succeeded, project.Text(summary), nil)
 }
 
-// Fail resolves the task as failed. This is a statement, not a fluent
-// chain — Fail returns nothing, so a bare `task.Fail("summary")` is
-// errcheck-clean. A nil *Task is safe and resolves nothing. Inside
-// Define, return the error as well so Wait sees the callback's own result.
-func (t *Task) fail(summary string, options ...ProblemOption) {
-	t.resolveWithProblem(failed, summary, options)
-}
-
 // resolveWithProblem is Fail and Block: resolve as state with one Problem
 // built from summary and options.
 func (t *Task) resolveWithProblem(state entityState, summary string, options []ProblemOption) {
@@ -1389,15 +1239,6 @@ func (t *Task) block(summary string, options ...ProblemOption) {
 // resolves nothing.
 func (t *Task) cancel(reason string) {
 	t.finish(cancelled, project.Text(reason), nil)
-}
-
-// skip resolves the task as skipped (the engine body behind Skipped).
-// reason is a printf format when args are present (fmt.Sprintf semantics).
-func (t *Task) skip(reason string, args ...any) *Task {
-	if len(args) > 0 {
-		reason = fmt.Sprintf(reason, args...)
-	}
-	return t.finish(excluded, project.Text(reason), nil)
 }
 
 // failScheduled resolves the task Failed on the scheduler's authority,
@@ -1523,134 +1364,6 @@ func taskFinishedPayload(st *taskState) map[string]any {
 
 // --- folded from task_run.go ---
 
-// Run is the ordinary way to shell out from a Task: it executes cmd as this
-// task's subprocess, wiring cmd.Stdout/cmd.Stderr through the same evidence +
-// PhaseWriter plumbing PhaseWriter uses directly. Each line becomes the
-// task's live Phase, and every byte is retained (redacted, bounded) in the
-// task's evidence ring so DetailTail has proof after Fail — reach for
-// evidence directly only when the caller isn't running a process.Cmd. If
-// cmd.Stdout/cmd.Stderr already point somewhere (a caller wiring its own log
-// file, say), Run tees into it rather than replacing it.
-//
-// If the task has no Phase yet, Run sets one from cmd's basename
-// (filepath.Base(cmd.Path) or cmd.Args[0]) so a live view shows what's
-// running before the child ever writes a line.
-//
-// Run adds no context handling of its own and leaves cmd's standard input
-// unset.
-//
-// Run returns the subprocess error verbatim and never resolves the task —
-// the caller's Define callback turns the result into the outcome:
-//
-//	cmd := process.NewCmd("go", "build", "./...")
-//	if err := task.run(cmd); err != nil {
-//	    return fmt.Errorf("build failed: %w", err)
-//	}
-//	return nil
-func (t *Task) run(cmd *process.Cmd) error {
-	if t != nil && t.out != nil {
-		t.ensurePhase(commandPhaseName(cmd))
-		pw := &phaseWriter{task: t, evidence: t.capture()}
-		cmd.SetStdout(teeSubprocessWriter(cmd.Stdout(), pw))
-		cmd.SetStderr(teeSubprocessWriter(cmd.Stderr(), pw))
-	}
-	return cmd.Run()
-}
-
-// shellWrapperBasenames names common shell/interpreter wrappers whose own
-// basename is a meaningless phase — the actual work lives in a -c/-Command
-// script argument, not the wrapper's own name. FP-004 ("no placeholder
-// phase") applies to Run itself: exec.Command("sh", "-c", "go build ./...")
-// must not publish "sh" as the live phase (beginner-11).
-var shellWrapperBasenames = map[string]bool{
-	"sh": true, "bash": true, "zsh": true, "ksh": true, "dash": true,
-	"cmd": true, "cmd.exe": true, "powershell": true, "powershell.exe": true, "pwsh": true,
-}
-
-// commandPhaseName is the human phase text for a not-yet-run *exec.Cmd: the
-// basename of the resolved path when set, else the first argv element —
-// exec.Command("go", "build") and exec.Command("/usr/bin/go", "build") both
-// read "go", not a full path. A shell wrapper's own basename is skipped in
-// favor of its -c/-Command script's first word; when neither is available,
-// commandPhaseName returns "" and ensurePhase defers to first output rather
-// than publish a placeholder.
-func commandPhaseName(cmd *process.Cmd) string {
-	name := ""
-	switch {
-	case cmd.Path() != "":
-		name = filepath.Base(cmd.Path())
-	case len(cmd.Args()) > 0:
-		name = filepath.Base(cmd.Args()[0])
-	}
-	if name == "" || !shellWrapperBasenames[name] {
-		return name
-	}
-	if script := shellScriptCommandName(cmd.Args()); script != "" {
-		return script
-	}
-	return ""
-}
-
-// shellScriptCommandName returns the basename of the first word of a shell
-// -c (or Windows -Command) script argument, so "sh -c 'go build ./...'"
-// reads "go", not "sh" — but only when the script is a single simple command.
-// A compound script (newline, ;, &&, or |) has no one "first word" that
-// honestly describes the whole script — "cd /tmp && make" naming an initial
-// phase of "cd" would be a placeholder as misleading as the wrapper's own
-// basename FP-004 already guards against (release-gate round 5 finding 7).
-// commandPhaseName returns "" instead, and Run's ensurePhase defers to the
-// child's first output line.
-func shellScriptCommandName(args []string) string {
-	for i, a := range args {
-		if (a == "-c" || a == "-Command") && i+1 < len(args) {
-			script := args[i+1]
-			if !isSingleSimpleCommand(script) {
-				return ""
-			}
-			fields := strings.Fields(script)
-			if len(fields) > 0 {
-				return filepath.Base(fields[0])
-			}
-		}
-	}
-	return ""
-}
-
-// compoundShellOperators are substrings that mark a shell script as more
-// than one simple command — the presence of any of these means no single
-// "first word" honestly names the whole script.
-var compoundShellOperators = []string{"\n", ";", "&&", "|"}
-
-// isSingleSimpleCommand reports whether script contains none of
-// compoundShellOperators.
-func isSingleSimpleCommand(script string) bool {
-	for _, op := range compoundShellOperators {
-		if strings.Contains(script, op) {
-			return false
-		}
-	}
-	return true
-}
-
-// ensurePhase sets phase only when the task has none yet, so Run never
-// overwrites a phase the caller already declared before calling it.
-func (t *Task) ensurePhase(phase string) {
-	if phase == "" || t.snapshot().Phase != "" {
-		return
-	}
-	t.Doing(phase)
-}
-
-// teeSubprocessWriter adds extra to existing without discarding it — an
-// already-wired cmd.Stdout/cmd.Stderr keeps receiving output, and Run's own
-// capture/phase plumbing observes the same bytes.
-func teeSubprocessWriter(existing io.Writer, extra io.Writer) io.Writer {
-	if existing == nil {
-		return extra
-	}
-	return io.MultiWriter(existing, extra)
-}
-
 // --- folded from task_state.go ---
 
 // key is the Task's §3.1 stable key, empty for a Task the graph never declared.
@@ -1662,10 +1375,6 @@ func (st *taskState) TaskID() record.TaskID { return record.TaskID(st.id) }
 
 // ManifestKey is the Task's stable key in the manifest.
 func (st *taskState) ManifestKey() string { return st.key() }
-
-// neverDefined reports whether st is still waiting on its caller: declared,
-// never Defined, and not resolved by a verb either.
-func (st *taskState) neverDefined() bool { return st.node.NeverDefined() }
 
 // isGate reports whether st is a container builder's gate, no row and in no
 // collection.
@@ -1790,155 +1499,7 @@ func (c *tasksState) containerPath() record.ContainerPath {
 
 // --- folded from task_taxonomy.go ---
 
-// dispositionVerb names which accumulation act a Reason's usage constraints
-// are checked against — Task.Skipped, or the keep records Kept used
-// before it was removed in 1.1.
-type dispositionVerb string
-
-const (
-	dispositionSkip dispositionVerb = "skip"
-	dispositionKeep dispositionVerb = "keep"
-)
-
-// wireName is v's record kind on the machine wire.
-func (v dispositionVerb) wireName() string {
-	if v == dispositionSkip {
-		return wire.DispositionSkipped
-	}
-	return wire.DispositionKept
-}
-
-// Skipped accumulates a (reason, name) skip record on the task, with an
-// optional trailing errs for evidence of why. It returns nothing —
-// accumulating a record is an act, not a value to chain — is usable before
-// the task resolves, and does not itself resolve the task. The taxonomy line
-// ("- skipped N (a reasonA, b reasonB)") is derived from every accumulated
-// record at render time, so no caller can hand-build (and thereby miscount)
-// the summary; the aggregation key is untouched by errs. Any errs render as
-// one bounded evidence line under the count row (first cause + "(+N more)"),
-// full list under Verbose.
-func (t *Task) skipped(reason taxonomyReason) {
-	t.recordTaxonomy(reason, "", dispositionSkip, nil)
-	t.finish(excluded, "", nil)
-}
-
-func (t *Task) recordTaxonomy(reason taxonomyReason, name string, verb dispositionVerb, errs []error) {
-	t.withTask(func(st *taskState) { t.recordTaxonomyLocked(st, reason, name, verb, errs) })
-}
-
-func (t *Task) recordTaxonomyLocked(st *taskState, reason taxonomyReason, name string, verb dispositionVerb, errs []error) {
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return
-	}
-	if record.IsTerminalTask(st.node.Rec.State()) {
-		t.out.recordMisuseFor(st.name, errAlreadyResolved)
-		return
-	}
-	t.out.enforceReasonConstraintLocked(reason, st.name, verb)
-	if name == "" {
-		name = st.name
-	}
-	rec := taxonomyRecord{Reason: reason.Name(), Name: project.Text(name), Causes: causesFromErrors(errs)}
-	switch verb {
-	case dispositionSkip:
-		st.node.Rec.AppendSkipped(rec)
-	case dispositionKeep:
-		st.node.Rec.AppendKept(rec)
-	}
-	t.out.bumpLocked()
-	t.out.appendEventLocked(recEvent{Type: "task." + string(verb) + "_recorded", EntityID: t.id})
-	t.out.emitWireEventLocked(wire.EventDispositionRecorded, t.id, wire.ToDispositionDoc(verb.wireName(), rec).EventPayload())
-}
-
-// causesFromErrors renders each non-nil err's text, sanitized like every
-// other human-visible taxonomy field, for TaxonomyRecord.Causes.
-func causesFromErrors(errs []error) []string {
-	if len(errs) == 0 {
-		return nil
-	}
-	var out []string
-	for _, err := range errs {
-		if err == nil {
-			continue
-		}
-		out = append(out, project.Text(err.Error()))
-	}
-	return out
-}
-
-// enforceReasonConstraintLocked records misuse when reason's declared
-// constraints (ForSkip, OnTask) don't match how it is being used here.
-// Strict panics via recordMisuse; production still counts the record —
-// a constraint violation degrades to "counted anyway", never a dropped truth.
-func (o *Run) enforceReasonConstraintLocked(reason taxonomyReason, taskName string, verb dispositionVerb) {
-	if reason.SkipOnly() && verb != dispositionSkip {
-		o.recordMisuse(errReasonSkipOnly)
-	}
-	if reason.OnlyOnTask() != "" && reason.OnlyOnTask() != taskName {
-		o.recordMisuse(errReasonWrongTask)
-	}
-}
-
 // --- folded from wait.go ---
-
-// Wait blocks until the task is terminal and returns the error its callback
-// returned (nil on Done, Skipped, or a dry run that never invoked it).
-//
-// A task that was already resolved before it was defined never runs its
-// callback (the misuse is recorded at the Define call), and Wait returns nil
-// immediately rather than blocking on work that will never happen (P15).
-//
-// A task that never ran — an abandoned queue, a predecessor that failed —
-// returns ErrNotStarted rather than nil, and a cancelled one returns its
-// cancellation: Wait never reports success for work that did not happen.
-//
-// Wait called while the calling goroutine holds a resource claim (inside an
-// Effect, File, or Basis hold) returns ErrNestedResourceAcquisition without
-// waiting: the awaited work could need that claim, and neither could move.
-//
-// A waiter has stopped doing work, so the concurrency ceiling must not be
-// the reason the task it waits on cannot start (P16). Wait therefore runs
-// that task, and whatever is holding it back, on its own goroutine when the
-// scheduler has not picked them up (see graph.Graph.RunWaited): nested
-// Define+Wait completes even at MaxConcurrency 1, because the waiting
-// callback's slot carries the work it is waiting for instead of idling.
-//
-// MaxConcurrency bounds every executing callback. A plain caller (one
-// outside any callback) holds no slot, so it runs work only in a free slot
-// and otherwise waits for the pool. A goroutine a callback started holds
-// none either: if that callback blocks on it while every slot is held,
-// neither can move, and Wait returns ErrWaitDeadlock naming the shape
-// instead of hanging. Declare that work as Tasks under a Group, or Wait
-// inside the callback itself (API-041).
-func (t *Task) wait() error {
-	if t == nil || t.out == nil {
-		return nil
-	}
-	if t.rejected != nil {
-		return rejectedWaitOutcome(t.rejected)
-	}
-	node := t.out.graph.Task(t.id)
-	if node == nil {
-		return nil
-	}
-	outcome := t.out.graph.Wait(node)
-	t.out.followRecordAfterWait()
-	return outcome
-}
-
-// followRecordAfterWait is what a Wait owes its caller once the graph let it
-// go: the render state has answered every settle the Wait saw. A Task's done
-// channel closes inside the graph's critical section, before the resolution
-// that settled it has painted and filed the row. Taking o.mu here waits out
-// that resolution (it holds o.mu from settle to commit) and follows the
-// record for a settle made outside one, so a caller that reads the frame
-// right after Wait sees the settled row.
-func (o *Run) followRecordAfterWait() {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.followRecordLocked()
-}
 
 type DefineOption func(*defineConfig)
 

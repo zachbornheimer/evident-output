@@ -71,7 +71,7 @@ func TestRemedy_BlockAndFailReachRunJSONActions(t *testing.T) {
 	for name, resolve := range cases {
 		t.Run(name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			out := initRun(Config{isolated: true, title: "tool", stdout: &stdout, stderr: &stderr, plain: true, color: colorNever, format: formatJSON})
+			out := initRun(Config{title: "tool", stdout: &stdout, stderr: &stderr, plain: true, color: colorNever, format: formatJSON})
 			resolve(out.Task("gate"))
 			_ = out.finish()
 
@@ -93,7 +93,7 @@ func TestRemedy_BlockAndFailReachRunJSONActions(t *testing.T) {
 // task-level attachment).
 func TestRemedy_ConfirmPolicyHintReachesRunJSONActions(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	out := initRun(Config{isolated: true, title: "tool", stdout: &stdout, stderr: &stderr, plain: true, color: colorNever, format: formatJSON})
+	out := initRun(Config{title: "tool", stdout: &stdout, stderr: &stderr, plain: true, color: colorNever, format: formatJSON})
 	out.Confirm("delete?")
 	_ = out.finish()
 
@@ -116,7 +116,7 @@ func TestRemedy_ConfirmPolicyHintReachesRunJSONActions(t *testing.T) {
 // exits 2.
 func TestRemedy_FailInsideDefineCarriesDetailAndRemedyToRunJSON(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	out := initRun(Config{isolated: true, title: "zq", stdout: &stdout, stderr: &stderr, plain: true, color: colorNever, format: formatJSON})
+	out := initRun(Config{title: "zq", stdout: &stdout, stderr: &stderr, plain: true, color: colorNever, format: formatJSON})
 	lint := out.Task("lint")
 	lint.Define(func(context.Context) error {
 		lint.fail("lint failed", Detail("exit status 1"), nextCommand("zq", "fix"))

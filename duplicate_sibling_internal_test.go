@@ -12,7 +12,7 @@ import (
 func finishedPlain(t *testing.T, declare func(o *Run)) string {
 	t.Helper()
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, plain: true, color: colorNever, stdout: &buf, stderr: &buf})
+	out := initRun(Config{plain: true, color: colorNever, stdout: &buf, stderr: &buf})
 	t.Cleanup(func() { _ = out.close() })
 	declare(out)
 	_ = out.finish()
@@ -78,7 +78,7 @@ func TestRootContainerNamesShareOneRegistry(t *testing.T) {
 // derives its identity exactly as the original declaration did, at the
 // root and under a Group, so one rule decides both.
 func TestDuplicateSiblingRefusalRowSharesItsSiblingsIdentity(t *testing.T) {
-	out := initRun(Config{isolated: true, plain: true, color: colorNever, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}})
+	out := initRun(Config{plain: true, color: colorNever, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}})
 	t.Cleanup(func() { _ = out.close() })
 	g := out.Group("g")
 	pairs := [][2]*Task{

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
@@ -84,7 +85,7 @@ func TestEntityID_DuplicateIsMisuse(t *testing.T) {
 	out := initRun(Config{title: "dup", stdout: &buf, stderr: &buf})
 	succeed(out.Task("a").key("same"))
 	succeed(out.Task("b").key("same"))
-	if !errors.Is(out.err(), errDuplicateKey) {
+	if !errors.Is(out.err(), misuse.ErrDuplicateKey) {
 		t.Fatal("expected ErrDuplicateKey misuse")
 	}
 }

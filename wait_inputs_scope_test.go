@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 // A Wait seals the same inputs whatever other Waits ran before it. Here
@@ -59,7 +61,7 @@ func TestWaitOnUndefinedTaskSettlesNotStarted(t *testing.T) {
 	out := isolatedOutput(t)
 	x := out.Task("x")
 	err := waitWithin(t, "x.Wait", x.wait)
-	if !errors.Is(err, errNotStarted) || !strings.Contains(err.Error(), "x was never defined") {
+	if !errors.Is(err, graph.ErrNotStarted) || !strings.Contains(err.Error(), "x was never defined") {
 		t.Errorf("x.Wait = %v, want ErrNotStarted naming x", err)
 	}
 	if got := x.snapshot().State; got != notStarted {

@@ -39,7 +39,7 @@ func TestTaskHandle_Wait_SelfResolvedBeforeReturn_IsNotSuccess(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var buf strings.Builder
 			out := initRun(Config{
-				isolated: true, plain: true, color: colorNever,
+				plain: true, color: colorNever,
 				MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
 			})
 			var waitErr error

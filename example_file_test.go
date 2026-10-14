@@ -46,7 +46,7 @@ func ExampleFileFS() {
 
 	fsys := testkit.NewFileFS()
 	out := initRun(Config{
-		isolated: true, fileFS: fsys, plain: true, color: colorNever,
+		fileFS: fsys, plain: true, color: colorNever,
 		// StateDir isolates this example's manifest to its own temp
 		// directory (spec §11.3) — without it, File's default manifest
 		// path is derived from the real machine cache dir and can

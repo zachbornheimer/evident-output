@@ -58,7 +58,7 @@ func TestConclusion_P7_AlreadyMutatedAggregatesAndNamesItsOwner(t *testing.T) {
 // never a caller-assembled string and never a second copy of the ledger.
 func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "local branch", 8))
 	out.cancel("interrupted")
@@ -77,7 +77,7 @@ func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 // no attention. Partial truth still holds: there is simply nothing to report.
 func TestConclusion_AlreadyMutated_CancelledEmptyLedger(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	out.Task("scan").Doing("scanning")
 	out.cancel("interrupted")
 	if err := out.finish(); err != nil {
@@ -93,7 +93,7 @@ func TestConclusion_AlreadyMutated_CancelledEmptyLedger(t *testing.T) {
 // on a Failed conclusion, not only Cancelled.
 func TestConclusion_AlreadyMutated_Failed(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	remotes := out.Task("remotes")
 	remotes.Define(func(ctx context.Context) error {
 		if err := effectOf(Delete, "origin tip", 1)(ctx); err != nil {
@@ -114,7 +114,7 @@ func TestConclusion_AlreadyMutated_Failed(t *testing.T) {
 // specific to abnormal termination — a normal Done run never renders it.
 func TestConclusion_AlreadyMutated_NotRenderedOnSuccess(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "local branch", 8))
 	if err := out.finish(); err != nil {

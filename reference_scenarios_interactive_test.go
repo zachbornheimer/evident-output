@@ -21,7 +21,7 @@ func TestH2_Task_InstantCompletionDoesNotFlashSpinner(t *testing.T) {
 	)
 	clock := testkit.NewClock()
 
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, clock: clock, terminal: screen, visibilityDelay: DelayForTest(150 * time.Millisecond)})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, clock: clock, terminal: screen, visibilityDelay: DelayForTest(150 * time.Millisecond)})
 	t.Cleanup(func() { _ = out.close() })
 
 	dependencies := out.Task("dependencies")
@@ -60,7 +60,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	// FixedClock freezes spinner glyphs for stable operation expectations.
 	fixed := TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	discard := io.Discard
-	out := initRun(Config{isolated: true, clock: fixed, terminal: screen, stdout: discard, stderr: discard, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}, color: colorNever})
+	out := initRun(Config{clock: fixed, terminal: screen, stdout: discard, stderr: discard, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}, color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("dependencies")
@@ -97,7 +97,7 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 	)
 
 	fixed := TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, clock: fixed, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, clock: fixed, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	dependencies := out.Group("dependencies")
@@ -141,7 +141,7 @@ func TestH21_Tasks_ScreenBudgetSelectsImportantRowsAndReportsOmission(t *testing
 		testkit.NoColor(),
 	)
 
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, terminal: screen, visibilityDelay: DelayForTest(0)})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 
 	dependencies := out.Group("dependencies")
@@ -181,7 +181,7 @@ func TestH22_Task_HighFrequencyProgressIsCoalesced(t *testing.T) {
 	)
 	clock := testkit.NewClock()
 
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, isolated: true, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0)})
+	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 
 	download := out.Task("download")
@@ -212,7 +212,7 @@ func TestLive_RepeatedStyledPhasesFitTerminalWidth(t *testing.T) {
 		testkit.Interactive(),
 		testkit.Width(columns),
 	)
-	out := initRun(Config{isolated: true, clock: TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0)})
+	out := initRun(Config{clock: TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("goimports check")

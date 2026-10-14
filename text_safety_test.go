@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/change"
 	txt "github.com/zachbornheimer/evident-output/internal/project"
 )
 
@@ -25,7 +26,7 @@ func TestTXT009_CRLFNeutralized(t *testing.T) {
 }
 
 func TestTXT010_NewlineInNameNormalized(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	it := out.Task("a\nb")
 	if strings.Contains(it.snapshot().Name, "\n") {
@@ -34,7 +35,7 @@ func TestTXT010_NewlineInNameNormalized(t *testing.T) {
 }
 
 func TestTXT020_EmptyNameStillCreates(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task(""))
 	_ = out.finish()
@@ -43,9 +44,9 @@ func TestTXT020_EmptyNameStillCreates(t *testing.T) {
 func TestTXT001_ASCIIWidthStable(t *testing.T) {
 	var wide, narrow bytes.Buffer
 	mk := func(w io.Writer, width int) {
-		out := initRun(Config{isolated: true, stdout: w, title: "s", width: width, color: colorNever, plain: true})
+		out := initRun(Config{stdout: w, title: "s", width: width, color: colorNever, plain: true})
 		commit(out.Task("c"),
-			EffectSpec{Verb: Verb(effectAdd), Object: "x", Quantity: 1},
+			EffectSpec{Verb: Verb(change.EffectAdd), Object: "x", Quantity: 1},
 			EffectSpec{Verb: Create, Object: "f", Quantity: 1},
 		)
 		_ = out.finish()
@@ -74,7 +75,7 @@ func TestTXT012_LongPathTruncationPolicy(t *testing.T) {
 
 func TestTXT017_DuplicateNamesReadable(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 	// Output.Task get-or-creates by name (L1); two distinct rows sharing a
 	// display name need distinct ID.
@@ -87,7 +88,7 @@ func TestTXT017_DuplicateNamesReadable(t *testing.T) {
 }
 
 func TestTXT018_BidiInNames(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 	it := out.Task("ok\u202Ebad")
 	if strings.ContainsRune(it.snapshot().Name, '\u202e') {
@@ -112,7 +113,7 @@ func TestTXT014_OSC8ZeroCells(t *testing.T) {
 
 func TestTXT015_NarrowStackDetailParent(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "repo", width: 28, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "repo", width: 28, color: colorNever, plain: true})
 	out.Task("working tree").block("dirty", Detail("commit or stash"))
 	succeed(out.Task("remote"))
 	if err := out.finish(); err != nil {
@@ -131,10 +132,10 @@ func TestTXT015_NarrowStackDetailParent(t *testing.T) {
 func TestTXT016_LeaderBoundedAndOmittedNarrow(t *testing.T) {
 	var wide, narrow bytes.Buffer
 	mk := func(w io.Writer, cols int) {
-		out := initRun(Config{isolated: true, stdout: w, title: "x", width: cols, color: colorNever, plain: true})
+		out := initRun(Config{stdout: w, title: "x", width: cols, color: colorNever, plain: true})
 		ch := out.Task("files")
-		ch.Define(effectOf(Verb(effectAdd), "a.go", 1))
-		ch.Define(effectOf(Verb(effectRemove), "b.go", 2))
+		ch.Define(effectOf(Verb(change.EffectAdd), "a.go", 1))
+		ch.Define(effectOf(Verb(change.EffectRemove), "b.go", 2))
 		_ = out.finish()
 		_ = out.close()
 	}

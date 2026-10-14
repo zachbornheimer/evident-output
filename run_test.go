@@ -11,7 +11,7 @@ import (
 
 func TestMainWith_SuccessExitZero(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "demo", color: colorNever, plain: true})
 	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		succeed(out.Task("working tree"))
 		return nil
@@ -26,7 +26,7 @@ func TestMainWith_SuccessExitZero(t *testing.T) {
 
 func TestMainWith_BlockedExitOne(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "demo", color: colorNever, plain: true})
 	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		out.Task("working tree").block("dirty")
 		return nil
@@ -38,7 +38,7 @@ func TestMainWith_BlockedExitOne(t *testing.T) {
 
 func TestMainWith_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "demo", color: colorNever, plain: true})
 	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		succeed(out.Task("x"))
 		return errors.New("app boom")

@@ -88,7 +88,7 @@ func TestConclusion_WarnOnlyAutoResolvesDoneAndStaysWarned(t *testing.T) {
 // killed that dead enum member (it was never assigned by inferConclusion)
 // rather than keep two competing models of the same fact.
 func TestConclusion_LoneIncompleteTaskIsNotPartialHeadline(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	out.Task("install") // declared, never resolved
 
 	_ = out.finish()
@@ -111,7 +111,7 @@ func TestConclusion_LoneIncompleteTaskIsNotPartialHeadline(t *testing.T) {
 // suppressed rather than papering over the warning underneath it.
 func TestConclusion_WarnedGroupChildReachesConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	group := out.Group("dependencies")
@@ -138,7 +138,7 @@ func TestConclusion_WarnedGroupChildReachesConclusion(t *testing.T) {
 }
 
 func TestConclusion_PlanOnlyIsPlanned(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, title: "acct", DryRun: true})
+	out := initRun(Config{stdout: io.Discard, title: "acct", DryRun: true})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("delete").Define(effectOf(Delete, "thing", 1))
 	_ = out.finish()

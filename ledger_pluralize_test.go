@@ -12,7 +12,7 @@ import (
 // singular/plural noun or calls Pluralize itself.
 func TestLedger_PluralizesSingularObjectFromQuantity(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	out.Task("cleanup").Define(effectOf(Delete, "stale local branch", 8))
 	_ = out.finish()
@@ -30,7 +30,7 @@ func TestLedger_PluralizesSingularObjectFromQuantity(t *testing.T) {
 // singular form unchanged.
 func TestLedger_QuantityOne_StaysSingular(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	out.Task("cleanup").Define(effectOf(Delete, "stale local branch", 1))
 	_ = out.finish()

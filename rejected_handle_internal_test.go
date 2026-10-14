@@ -6,11 +6,12 @@ import (
 	"io"
 	"testing"
 
+	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/misuse"
 )
 
 func quietOutput(cfg Config) *Run {
-	cfg.isolated, cfg.plain, cfg.color = true, true, colorNever
+	cfg.plain, cfg.color = true, colorNever
 	cfg.stdout, cfg.stderr = io.Discard, io.Discard
 	return initRun(cfg)
 }
@@ -73,7 +74,7 @@ func TestRejectedDeclaration_WaitNeverReportsSuccess(t *testing.T) {
 			out := quietOutput(tc.cfg)
 			t.Cleanup(func() { _ = out.close() })
 			err := tc.declare(out).wait()
-			if !errors.Is(err, errNotStarted) || !errors.Is(err, tc.rejected) {
+			if !errors.Is(err, graph.ErrNotStarted) || !errors.Is(err, tc.rejected) {
 				t.Fatalf("Wait on a rejected declaration = %v, want ErrNotStarted wrapping %v", err, tc.rejected)
 			}
 		})

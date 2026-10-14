@@ -56,13 +56,6 @@ var (
 	atRoot      = liveBodyLevel{groupsFirst: true}
 )
 
-// writeLiveCollection writes col's live rows within height and reports how
-// many it wrote. It exceeds height only below a Group's floor (see
-// minLiveChildRows).
-func writeLiveCollection(b *strings.Builder, col record.TasksSnapshot, height int, st liveStyle) (rows int) {
-	return writeAlignedLiveCollection(b, col, height, 0, st)
-}
-
 // writeAlignedLiveCollection is writeLiveCollection for a collection whose
 // one row shares its siblings' name column (nameWidth; 0 for none): a
 // Group rendering as its own Task, under a header-less parent, aligns like

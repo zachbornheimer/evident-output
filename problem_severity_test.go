@@ -10,7 +10,7 @@ import (
 
 func TestProblem_DefaultSeverityNeverEndsTaskOrRun(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true, stateDir: t.TempDir()})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true, stateDir: t.TempDir()})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("check")
@@ -31,7 +31,7 @@ func TestProblem_DefaultSeverityNeverEndsTaskOrRun(t *testing.T) {
 
 func TestProblem_WarningSeveritySettlesDoneAndWarns(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true, stateDir: t.TempDir()})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true, stateDir: t.TempDir()})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("check")
@@ -60,7 +60,7 @@ func TestProblem_WarningSeveritySettlesDoneAndWarns(t *testing.T) {
 
 func TestProblem_InvalidSeverityIsRejected(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true, stateDir: t.TempDir()})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true, stateDir: t.TempDir()})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("check")
@@ -83,7 +83,7 @@ func TestProblem_InvalidSeverityIsRejected(t *testing.T) {
 // compact form: one short warning renders directly on the task's own ✓ row.
 func TestProblemWarning_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	branches := out.Task("branches")
 	branches.Problem("kept 11 (7 protected, 4 unpushed)", severity(severityWarning))
@@ -109,7 +109,7 @@ func TestProblemWarning_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 // lines below it.
 func TestProblemWarning_MultipleWarningsNestUnderneath(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	branches := out.Task("branches")
 	branches.Problem("kept 11 (7 protected, 4 unpushed)", severity(severityWarning))
@@ -131,7 +131,7 @@ func TestProblemWarning_MultipleWarningsNestUnderneath(t *testing.T) {
 // TestProblemWarning_DoesNotResolveTask proves Warn is non-terminal: the task
 // stays Pending immediately after Warn, and a later Done still resolves it.
 func TestProblemWarning_DoesNotResolveTask(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 
 	task := out.Task("cache")
 	task.Problem("stale entry ignored", severity(severityWarning))
@@ -149,7 +149,7 @@ func TestProblemWarning_DoesNotResolveTask(t *testing.T) {
 // only ever calls Warn (no terminal verb) auto-resolves Done at Finish, the
 // same amnesty a recorded effect or sealed progress already gets.
 func TestProblemWarning_UnresolvedTaskAutoResolvesDoneAtFinish(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 
 	out.Task("cache").Problem("stale entry ignored", severity(severityWarning))
 	if err := out.finish(); err != nil {
@@ -170,7 +170,7 @@ func TestProblemWarning_UnresolvedTaskAutoResolvesDoneAtFinish(t *testing.T) {
 // no bang at all.
 func TestProblemWarning_InlineRendersBangPrefix(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	branches := out.Task("branches")
@@ -192,7 +192,7 @@ func TestProblemWarning_InlineRendersBangPrefix(t *testing.T) {
 // forced onto a nested line just because its byte length is inflated.
 func TestProblemWarning_InlineThresholdMeasuresDisplayWidthNotBytes(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	// Each "é" is 2 bytes but 1 display cell — 30 of them is 60 bytes but

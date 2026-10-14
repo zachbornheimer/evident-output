@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/change"
+	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 // effectRun runs one Task whose Define calls Effect(spec, fn) and
@@ -14,7 +17,7 @@ import (
 func effectRun(t *testing.T, dryRun bool, spec EffectSpec, fn func(context.Context) error) (*Run, string, error) {
 	t.Helper()
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "prune", color: colorNever, plain: true, DryRun: dryRun})
+	out := initRun(Config{stdout: &buf, title: "prune", color: colorNever, plain: true, DryRun: dryRun})
 	t.Cleanup(func() { _ = out.close() })
 	var effectErr error
 	out.Task("worktrees").Define(func(ctx context.Context) error {
@@ -52,7 +55,7 @@ func TestEffect_DryRunRecordsPlannedAndNeverInvokesFn(t *testing.T) {
 func TestEffect_ApplyRecordsChangedOnlyAfterFnSucceeds(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "prune", color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "prune", color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 	changesDuringFn := -1
 	var effectErr error
@@ -92,7 +95,7 @@ func TestEffect_ApplyFailureRecordsNothingAndReturnsFnError(t *testing.T) {
 
 func TestEffect_FnReceivesSchedulerOwnedContext(t *testing.T) {
 	t.Parallel()
-	out := initRun(Config{isolated: true, title: "prune", color: colorNever})
+	out := initRun(Config{title: "prune", color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	var defineCtx, fnCtx context.Context
 	out.Task("worktrees").Define(func(ctx context.Context) error {
@@ -119,13 +122,13 @@ func TestEffect_RejectsContentFreeSpec(t *testing.T) {
 		fn   func(context.Context) error
 		want error
 	}{
-		{"zero quantity", EffectSpec{Verb: Delete, Object: "worktree"}, ok, errEffectQuantityNotPositive},
-		{"negative quantity", EffectSpec{Verb: Delete, Object: "worktree", Quantity: -1}, ok, errEffectQuantityNotPositive},
-		{"missing verb", EffectSpec{Object: "worktree", Quantity: 1}, ok, errEffectVerbInvalid},
-		{"write verb", EffectSpec{Verb: "write", Object: "worktree", Quantity: 1}, ok, errEffectVerbInvalid},
-		{"missing object", EffectSpec{Verb: Delete, Quantity: 1}, ok, errEffectObjectMissing},
-		{"blank object", EffectSpec{Verb: Delete, Object: "  ", Quantity: 1}, ok, errEffectObjectMissing},
-		{"nil callback", worktreeDelete, nil, errEffectCallbackMissing},
+		{"zero quantity", EffectSpec{Verb: Delete, Object: "worktree"}, ok, change.ErrEffectQuantityNotPositive},
+		{"negative quantity", EffectSpec{Verb: Delete, Object: "worktree", Quantity: -1}, ok, change.ErrEffectQuantityNotPositive},
+		{"missing verb", EffectSpec{Object: "worktree", Quantity: 1}, ok, change.ErrEffectVerbInvalid},
+		{"write verb", EffectSpec{Verb: "write", Object: "worktree", Quantity: 1}, ok, change.ErrEffectVerbInvalid},
+		{"missing object", EffectSpec{Verb: Delete, Quantity: 1}, ok, change.ErrEffectObjectMissing},
+		{"blank object", EffectSpec{Verb: Delete, Object: "  ", Quantity: 1}, ok, change.ErrEffectObjectMissing},
+		{"nil callback", worktreeDelete, nil, change.ErrEffectCallbackMissing},
 	}
 	for _, tc := range cases {
 		for _, dryRun := range []bool{false, true} {
@@ -158,7 +161,7 @@ func TestEffect_OutsideDefineReturnsErrNoTaskContext(t *testing.T) {
 		invoked = true
 		return nil
 	})
-	if !errors.Is(err, errNoTaskContext) || invoked {
+	if !errors.Is(err, graph.ErrNoTaskContext) || invoked {
 		t.Fatalf("err = %v invoked = %v, want ErrNoTaskContext and no call", err, invoked)
 	}
 }
@@ -171,7 +174,7 @@ func TestEffect_OutsideDefineReturnsErrNoTaskContext(t *testing.T) {
 // bounded-rows overflow this test proves needs 500 distinct rows to exercise.
 func TestWriteEffects_BoundedRows_500Records(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true, DryRun: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true, DryRun: true})
 	const total = 500
 	commit(out.Task("branches"), distinctBranchDeletes(total)...)
 	if err := out.finish(); err != nil {
@@ -195,7 +198,7 @@ func TestWriteEffects_BoundedRows_500Records(t *testing.T) {
 // mutation verb called after the task already resolved (Done) never
 // executes the call and never silently swallows the misuse as a nil error.
 func TestEffect_OnResolvedTaskReturnsErrorNeverNil(t *testing.T) {
-	out := initRun(Config{isolated: true, color: colorNever, plain: true})
+	out := initRun(Config{color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("branches")
@@ -211,7 +214,7 @@ func TestEffect_OnResolvedTaskReturnsErrorNeverNil(t *testing.T) {
 // in-flight call must not cause the effect that call just committed
 // to be silently dropped as spurious misuse.
 func TestEffect_ConcurrentSummaryDuringCallDoesNotDropEffect(t *testing.T) {
-	out := initRun(Config{isolated: true, color: colorNever, plain: true})
+	out := initRun(Config{color: colorNever, plain: true})
 	t.Cleanup(func() { _ = out.close() })
 
 	started := make(chan struct{})

@@ -18,7 +18,7 @@ func TestBlockedInsideContainer_ConcludesBlocked(t *testing.T) {
 		"nested":        func(out *Run) { out.Group("g").Sequence("s").Task("a").block("refused") },
 	} {
 		var buf bytes.Buffer
-		out := initRun(Config{isolated: true, stateDir: t.TempDir(), stdout: &buf, title: "block", color: colorNever, plain: true})
+		out := initRun(Config{stateDir: t.TempDir(), stdout: &buf, title: "block", color: colorNever, plain: true})
 		declare(out)
 		_ = out.finish()
 		c := out.conclusion()

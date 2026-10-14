@@ -19,7 +19,7 @@ const computedNeverRead = -1
 func TestCompute_OnATaskWithAVerifyIsInvalidWhateverTheVerifyFinds(t *testing.T) {
 	for name, satisfied := range map[string]bool{"work pending": false, "work already satisfied": true} {
 		t.Run(name, func(t *testing.T) {
-			out := initRun(Config{isolated: true, stdout: io.Discard, plain: true})
+			out := initRun(Config{stdout: io.Discard, plain: true})
 			defer func() { _ = out.close() }()
 			made := out.Task("make").Verify(func(context.Context) (bool, error) { return satisfied, nil })
 			producer := Compute(made, func(context.Context) (int, error) { return 1, nil })

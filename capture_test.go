@@ -117,7 +117,7 @@ func TestCapture_RingBoundsAndTruncation(t *testing.T) {
 
 func TestRunErrorCannotRenderReady(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "tool", stdout: &buf, stderr: &buf, isolated: true})
+	out := initRun(Config{title: "tool", stdout: &buf, stderr: &buf})
 	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		return fmt.Errorf("database unavailable")
 	}).ExitCode()
@@ -134,7 +134,7 @@ func TestRunErrorCannotRenderReady(t *testing.T) {
 
 func TestRunErrorOutranksBlockedConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "tool", stdout: &buf, stderr: &buf, isolated: true})
+	out := initRun(Config{title: "tool", stdout: &buf, stderr: &buf})
 	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		o := out
 		o.Task("policy").block("not permitted")
@@ -157,7 +157,7 @@ func TestConfig_PipeAndDiagnosticsWired(t *testing.T) {
 	defer func() { _ = w.Close() }()
 
 	var diag bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: w, stderr: &diag, title: "tool", debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	out := initRun(Config{stdout: w, stderr: &diag, title: "tool", debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
 	out.debugForTest("diag-line")
 	out.Task("gate").block("dirty")
 	if err := out.finish(); err != nil {
@@ -173,7 +173,7 @@ func TestConfig_PipeAndDiagnosticsWired(t *testing.T) {
 
 func TestDiagnostics_DualStream_DebugNotOnPrimary(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &primary, stderr: &diag, debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &primary, stderr: &diag, debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
 	out.debugForTest("internal only")
 	succeed(out.Task("ok"))
 	if err := out.finish(); err != nil {

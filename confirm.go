@@ -83,26 +83,9 @@ func (o *Run) policySourceName() string {
 	return identityFallbackName()
 }
 
-// AssumeYes skips the interactive prompt when v is true (the caller's --yes
-// flag). The gate resolves immediately as Done "assumed --yes", and Confirm
-// returns true without touching stdin or the live region.
-func assumeYes(v bool) ConfirmOption {
-	return confirmOption(func(c *confirmConfig) { c.assumeYes = v })
-}
-
 // Destructive annotates the rendered prompt line as "(destructive)".
 func Destructive() ConfirmOption {
 	return confirmOption(func(c *confirmConfig) { c.destructive = true })
-}
-
-// PolicyHint overrides the Next action rendered by Confirm's non-interactive
-// policy block. Without this option the block points at "pass --yes to
-// confirm non-interactively" — wrong for a caller whose confirm flag isn't
-// --yes (e.g. zq clean-repo's --apply). Pass the caller's own executable and
-// args so the hint names the flag that actually unblocks it.
-func policyHint(command string, args ...string) ConfirmOption {
-	hint := actionCommand(command, args...)
-	return confirmOption(func(c *confirmConfig) { c.policyHint = &hint })
 }
 
 // PolicyFlag sets the non-interactive policy hint to a flag on the caller's
@@ -114,11 +97,6 @@ func policyHint(command string, args ...string) ConfirmOption {
 // hint should point at a different tool.
 func policyFlag(flag string) ConfirmOption {
 	return confirmOption(func(c *confirmConfig) { c.policyFlag = flag })
-}
-
-// Confirm asks a yes/no question on the default instance. See Output.Confirm.
-func confirm(question string, opts ...ConfirmOption) bool {
-	return defaultRun().Confirm(question, opts...)
 }
 
 // Confirm quiesces the live region, renders a durable "?  <question>  [y/N]"

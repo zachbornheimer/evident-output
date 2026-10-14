@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 )
 
 // TestTaskHandle_KeyBeforeDefineOverridesDefaultIdentity proves §3.1's
@@ -12,7 +14,7 @@ import (
 // kind+parent-key+name derivation, and the override is visible on the
 // snapshot.
 func TestTaskHandle_KeyBeforeDefineOverridesDefaultIdentity(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("write plist")
@@ -37,7 +39,7 @@ func TestTaskHandle_KeyBeforeDefineOverridesDefaultIdentity(t *testing.T) {
 // (§3.1) is part of that configuration — Key after Define is refused and
 // leaves the task's key untouched.
 func TestTaskHandle_KeyAfterDefineIsAnError(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("write plist")
@@ -49,7 +51,7 @@ func TestTaskHandle_KeyAfterDefineIsAnError(t *testing.T) {
 	if after != before {
 		t.Fatalf("Key() after Define changed the key: before=%q after=%q", before, after)
 	}
-	if !errors.Is(out.err(), errKeyAfterDefine) {
+	if !errors.Is(out.err(), misuse.ErrKeyAfterDefine) {
 		t.Fatalf("Err() = %v, want ErrKeyAfterDefine", out.err())
 	}
 }
@@ -60,7 +62,7 @@ func TestTaskHandle_KeyAfterDefineIsAnError(t *testing.T) {
 // a duplicate-sibling-name (different mechanism, same underlying "identity
 // must be unambiguous" property).
 func TestTaskHandle_DuplicateExplicitKeyOfSameKindIsRejected(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	first := out.Task("write plist")
@@ -69,7 +71,7 @@ func TestTaskHandle_DuplicateExplicitKeyOfSameKindIsRejected(t *testing.T) {
 	second := out.Task("write plist copy")
 	second.key("launch-agent.write-plist")
 
-	if !errors.Is(out.err(), errDuplicateKey) {
+	if !errors.Is(out.err(), misuse.ErrDuplicateKey) {
 		t.Fatalf("Err() = %v, want ErrDuplicateKey", out.err())
 	}
 	if second.snapshot().Key == first.snapshot().Key {
@@ -80,7 +82,7 @@ func TestTaskHandle_DuplicateExplicitKeyOfSameKindIsRejected(t *testing.T) {
 // TestTaskHandle_RepeatingTheSameKeyIsIdempotent: setting a Task's key to
 // the key it already has is not a conflict with itself.
 func TestTaskHandle_RepeatingTheSameKeyIsIdempotent(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("write plist").key("x").key("x")
@@ -95,7 +97,7 @@ func TestTaskHandle_RepeatingTheSameKeyIsIdempotent(t *testing.T) {
 // TestTaskHandle_KeyAfterATerminalVerbIsAnError: a settled row's identity
 // is frozen like a Defined one's; Key after Fail must not rewrite it.
 func TestTaskHandle_KeyAfterATerminalVerbIsAnError(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard})
+	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("write plist")
@@ -105,7 +107,7 @@ func TestTaskHandle_KeyAfterATerminalVerbIsAnError(t *testing.T) {
 	if after := task.snapshot().Key; after != before {
 		t.Fatalf("Key() after Fail changed the key: before=%q after=%q", before, after)
 	}
-	if !errors.Is(out.err(), errKeyAfterDefine) {
+	if !errors.Is(out.err(), misuse.ErrKeyAfterDefine) {
 		t.Fatalf("Err() = %v, want ErrKeyAfterDefine", out.err())
 	}
 }

@@ -9,6 +9,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/graph"
+	"github.com/zachbornheimer/evident-output/internal/misuse"
 )
 
 // TestWait_NotStartedDependencyIsAnError pins the honesty of Wait's return
@@ -48,7 +51,7 @@ func TestWait_NotStartedDependencyIsAnError(t *testing.T) {
 	if got := blocked.snapshot().State; got != notStarted {
 		t.Fatalf("blocked state = %v, want NotStarted", got)
 	}
-	if !errors.Is(waitErr, errNotStarted) {
+	if !errors.Is(waitErr, graph.ErrNotStarted) {
 		t.Fatalf("Wait = %v, want ErrNotStarted", waitErr)
 	}
 	if got := waiter.snapshot().State; got != failed {
@@ -128,7 +131,7 @@ func TestWait_OnSelfIsMisuse(t *testing.T) {
 		_ = out.finish()
 	})
 
-	if !errors.Is(waitErr, errWaitDeadlock) {
+	if !errors.Is(waitErr, misuse.ErrWaitDeadlock) {
 		t.Fatalf("Wait = %v, want ErrWaitDeadlock", waitErr)
 	}
 	if !strings.Contains(waitErr.Error(), "mirror") {
@@ -137,7 +140,7 @@ func TestWait_OnSelfIsMisuse(t *testing.T) {
 	if got := task.snapshot().State; got != failed {
 		t.Fatalf("task state = %v, want Failed", got)
 	}
-	if err := out.err(); !errors.Is(err, errWaitDeadlock) {
+	if err := out.err(); !errors.Is(err, misuse.ErrWaitDeadlock) {
 		t.Fatalf("misuse = %v, want ErrWaitDeadlock recorded", err)
 	}
 	if rendered := buf.String(); !strings.Contains(rendered, "✗ mirror") {
@@ -176,7 +179,7 @@ func TestWait_MutualCycleIsMisuse(t *testing.T) {
 	})
 
 	for name, err := range map[string]error{"first": firstErr, "second": secondErr} {
-		if !errors.Is(err, errWaitDeadlock) {
+		if !errors.Is(err, misuse.ErrWaitDeadlock) {
 			t.Fatalf("%s Wait = %v, want ErrWaitDeadlock", name, err)
 		}
 	}

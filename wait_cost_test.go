@@ -9,7 +9,7 @@ import (
 // settledTask returns a Task that has already resolved Done.
 func settledTask(tb testing.TB) *Task {
 	tb.Helper()
-	out := initRun(Config{isolated: true, stateDir: tb.TempDir(), stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{stateDir: tb.TempDir(), stdout: io.Discard, stderr: io.Discard})
 	tb.Cleanup(func() { _ = out.close() })
 	task := out.Task("done")
 	task.Define(func(context.Context) error { return nil })

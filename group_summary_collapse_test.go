@@ -67,7 +67,7 @@ func resolvedRows(transcript string) string {
 func renderSubject(t *testing.T, groupName, childName, summary string) string {
 	t.Helper()
 	var buf bytes.Buffer
-	out := initRun(Config{title: "zq", isolated: true, plain: true, stdout: &buf, stderr: &buf})
+	out := initRun(Config{title: "zq", plain: true, stdout: &buf, stderr: &buf})
 	group := out.Group(groupName)
 	succeed(group.Task(childName).Doing("classifying tips"), "146 tips")
 	if summary != "" {

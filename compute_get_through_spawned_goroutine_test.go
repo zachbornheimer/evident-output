@@ -14,7 +14,7 @@ import (
 // settle first, and the Task fails with the sentinel. The goroutine cannot
 // unwind the callback, so the Task fails when the callback returns.
 func TestComputedGet_UnorderedCallbackReadingThroughASpawnedGoroutineIsRefused(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true})
+	out := initRun(Config{stdout: io.Discard, plain: true})
 	defer func() { _ = out.close() }()
 	made := out.Group("producers").Task("make")
 	producer := Compute(made, func(context.Context) (int, error) { return 1, nil })
@@ -44,7 +44,7 @@ func TestComputedGet_UnorderedCallbackReadingThroughASpawnedGoroutineIsRefused(t
 // The callback's hands reach through any number of goroutines: a read from a
 // goroutine started by a goroutine the callback started is refused the same.
 func TestComputedGet_UnorderedCallbackReadingThroughAGrandchildGoroutineIsRefused(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true})
+	out := initRun(Config{stdout: io.Discard, plain: true})
 	defer func() { _ = out.close() }()
 	made := out.Group("producers").Task("make")
 	producer := Compute(made, func(context.Context) (int, error) { return 1, nil })
@@ -71,7 +71,7 @@ func TestComputedGet_UnorderedCallbackReadingThroughAGrandchildGoroutineIsRefuse
 
 // The same read from a callback ordered after the producer is fine.
 func TestComputedGet_OrderedCallbackReadingThroughASpawnedGoroutineGetsTheValue(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true})
+	out := initRun(Config{stdout: io.Discard, plain: true})
 	defer func() { _ = out.close() }()
 	producer := Compute(out.Task("make"), func(context.Context) (int, error) { return 1, nil })
 	var got atomic.Int64
@@ -92,7 +92,7 @@ func TestComputedGet_OrderedCallbackReadingThroughASpawnedGoroutineGetsTheValue(
 // A builder is a reader too: a goroutine it starts is refused the same way,
 // and the container fails with the sentinel.
 func TestComputedGet_UnorderedBuilderReadingThroughASpawnedGoroutineFailsTheContainer(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: io.Discard, plain: true})
+	out := initRun(Config{stdout: io.Discard, plain: true})
 	defer func() { _ = out.close() }()
 	producer := Compute(out.Task("make"), func(context.Context) (int, error) { return 1, nil })
 	builder := out.Group("builder")

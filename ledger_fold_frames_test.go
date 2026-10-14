@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/change"
 )
 
 // assertFrame fails unless the whole plain output equals want: a ledger
@@ -18,14 +20,14 @@ func assertFrame(t *testing.T, got, want string) {
 
 func TestLedgerFoldFrameZqShapeApply(t *testing.T) {
 	got, _ := runPlain(t, Config{}, func(o *Run) {
-		declareCentralize(o, 2, func(string, int) func(context.Context) error { return centralizeEffect(effectUpdate, "package") })
+		declareCentralize(o, 2, func(string, int) func(context.Context) error { return centralizeEffect(change.EffectUpdate, "package") })
 	})
 	assertFrame(t, got, "✓ npm pkg 0\n✓ npm pkg 1\n✓ composer pkg 0\n✓ composer pkg 1\n\n[changed] centralize packages  updated 4 packages\n\n[changed]\n")
 }
 
 func TestLedgerFoldFrameZqShapeDryRun(t *testing.T) {
 	got, _ := runPlain(t, Config{DryRun: true}, func(o *Run) {
-		declareCentralize(o, 2, func(string, int) func(context.Context) error { return centralizeEffect(effectUpdate, "package") })
+		declareCentralize(o, 2, func(string, int) func(context.Context) error { return centralizeEffect(change.EffectUpdate, "package") })
 	})
 	assertFrame(t, got, "[dry-run] no changes will be made\n\n✓ npm pkg 0\n✓ npm pkg 1\n✓ composer pkg 0\n✓ composer pkg 1\n\n[planned] centralize packages  update 4 packages\n\n[planned]\n")
 }
@@ -34,7 +36,7 @@ func TestLedgerFoldFrameSequence(t *testing.T) {
 	got, _ := runPlain(t, Config{}, func(o *Run) {
 		s := o.Sequence("steps")
 		for _, name := range []string{"a", "b"} {
-			s.Task(name).Define(centralizeEffect(effectDelete, "cache"))
+			s.Task(name).Define(centralizeEffect(change.EffectDelete, "cache"))
 		}
 	})
 	assertFrame(t, got, "✓ steps\n   ✓ a\n   ✓ b\n\n[changed] steps  deleted 2 caches\n\n[changed]\n")

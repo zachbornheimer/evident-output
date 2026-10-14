@@ -13,7 +13,7 @@ import (
 func TestAfterCycle_PlainRowsStateTheCycleOnce(t *testing.T) {
 	var buf strings.Builder
 	out := initRun(Config{
-		isolated: true, plain: true, color: colorNever, title: "job",
+		plain: true, color: colorNever, title: "job",
 		stdout: &buf, stderr: io.Discard,
 	})
 	s := out.Sequence("s")

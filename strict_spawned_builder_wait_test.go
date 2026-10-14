@@ -15,7 +15,7 @@ import (
 // goroutine and the process would end.
 func TestStrictSpawnedBuilderWaitDoesNotEndTheProcess(t *testing.T) {
 	if os.Getenv("EVO_STRICT_BUILDER_WAIT_CHILD") == "1" {
-		out := initRun(Config{isolated: true, stdout: io.Discard, plain: true, strict: true})
+		out := initRun(Config{stdout: io.Discard, plain: true, strict: true})
 		other := out.Group("others").Task("other")
 		other.Define(func(context.Context) error { return nil })
 		built := out.Group("built")

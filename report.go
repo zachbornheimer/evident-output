@@ -51,17 +51,6 @@ func (o *Run) at(visibility visibility) *printer {
 	return &printer{out: o, visibility: visibility}
 }
 
-// Print formats like fmt.Sprint and enqueues human-facing text (line-buffered).
-// Errors are recorded on the Output and returned by Finish/Main — not ignored mid-stream.
-func (o *Run) print(args ...any) {
-	o.at(visibilityNormal).print(args...)
-}
-
-// Printf formats like fmt.Sprintf and enqueues human-facing text (line-buffered).
-func (o *Run) printf(format string, args ...any) {
-	o.at(visibilityNormal).printf(format, args...)
-}
-
 // Println formats like fmt.Sprintln and enqueues a complete human-facing line.
 func (o *Run) println(args ...any) {
 	o.at(visibilityNormal).println(args...)
@@ -76,29 +65,6 @@ func (o *Run) subject(text string) {
 		return
 	}
 	o.println(text)
-}
-
-// About names what this run is acting on without emitting a row. Call it
-// before DeclareDryRun so the header reads "[dry-run] repo  /path" instead
-// of the generic marker. Hosts that Init without a path (zq) used to drop
-// the name; the library that knows the path should call About.
-func (o *Run) about(text string) {
-	if o == nil || text == "" {
-		return
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.cfg.dryRunHeaderText = text
-}
-
-// Print implements Printer.
-func (p *printer) print(args ...any) {
-	p.enqueue(fmt.Sprint(args...))
-}
-
-// Printf implements Printer.
-func (p *printer) printf(format string, args ...any) {
-	p.enqueue(fmt.Sprintf(format, args...))
 }
 
 // Println implements Printer.
@@ -330,18 +296,6 @@ func (o *Run) emitLogRecord(rec logRecord) {
 
 // writerIsCharDevice is the TTY-detection facade construction uses.
 func writerIsCharDevice(w io.Writer) bool { return terminal.WriterIsCharDevice(w) }
-
-// MarkWriterAsCharDevice treats w as a TTY during construction so tests can
-// exercise live-region / color inference without opening a pty. Only this
-// writer matches; other tests' writers still use the OS check.
-func markWriterAsCharDevice(w io.Writer) func() { return terminal.MarkCharDevice(w) }
-
-// IsCharDevice reports whether w is an *os.File backed by a character device
-// (typical interactive TTY). Pipes, files, and non-file writers return false.
-//
-// Prefer Config{Stdout, Stderr} for ordinary dual-stream construction. This
-// helper remains for hosts that choose Plain/NoColor from a concrete writer.
-func isCharDevice(w io.Writer) bool { return terminal.IsCharDevice(w) }
 
 // sameTerminalDevice reports whether a and b name one physical character
 // device. construct.go uses this at construction time (configToOptions) to

@@ -34,7 +34,7 @@ func runWithin(t *testing.T, out *Run, fn RunFunc) Result {
 // needs), so the Wait fails as nested acquisition instead of blocking.
 func TestTaskHandle_Wait_UnderHeldClaimIsNestedAcquisition(t *testing.T) {
 	dir := t.TempDir()
-	out := initRun(Config{isolated: true, plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
 	var waitErr error
 	runWithin(t, out, func(ctx context.Context, r *Run) error {
 		b := out.Task("write file")
@@ -62,7 +62,7 @@ func TestTaskHandle_Wait_UnderHeldClaimIsNestedAcquisition(t *testing.T) {
 // acquisition, rather than parking on children that need the claim.
 func TestGroupHandle_Wait_UnderHeldClaimIsNestedAcquisition(t *testing.T) {
 	dir := t.TempDir()
-	out := initRun(Config{isolated: true, plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
 	var waitErr error
 	runWithin(t, out, func(ctx context.Context, r *Run) error {
 		files := out.Group("files")
@@ -89,7 +89,7 @@ func TestGroupHandle_Wait_UnderHeldClaimIsNestedAcquisition(t *testing.T) {
 // too broad: the same shape with no Resource on the Effect completes.
 func TestTaskHandle_Wait_WithoutClaimStillSucceeds(t *testing.T) {
 	dir := t.TempDir()
-	out := initRun(Config{isolated: true, plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
 	res := runWithin(t, out, func(ctx context.Context, r *Run) error {
 		b := out.Task("write file")
 		b.Define(func(ctx context.Context) error {
@@ -127,7 +127,7 @@ func waitFromSpawnedGoroutine(wait func() error) error {
 // own stack holds nothing, but the goroutine that started it does, so the
 // Wait is refused as nested acquisition instead of hanging for good.
 func TestGroupHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition(t *testing.T) {
-	out := initRun(Config{isolated: true, plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
 	var waitErr error
 	runWithin(t, out, func(ctx context.Context, r *Run) error {
 		jobs := out.Group("jobs")
@@ -152,7 +152,7 @@ func TestGroupHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition(t *t
 // TestTaskHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition is
 // the single-Task counterpart.
 func TestTaskHandle_Wait_FromGoroutineStartedUnderClaimIsNestedAcquisition(t *testing.T) {
-	out := initRun(Config{isolated: true, plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
 	var waitErr error
 	runWithin(t, out, func(ctx context.Context, r *Run) error {
 		c := out.Task("c")

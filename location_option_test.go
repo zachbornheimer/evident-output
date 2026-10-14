@@ -8,7 +8,7 @@ import (
 // ProblemOption is renamed Location(...) — it no longer shares a name with
 // Output.At(visibility), which confused autocomplete and readers alike.
 func TestProblemLocation_SetsSourceLocation(t *testing.T) {
-	out := initRun(Config{isolated: true, stdout: nil})
+	out := initRun(Config{stdout: nil})
 	task := out.Task("lint")
 	task.fail("syntax error", location("main.go", 12, 4))
 

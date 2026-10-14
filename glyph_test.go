@@ -13,7 +13,7 @@ import (
 // ASCII map (GLYPH-001) for the states a caller hits routinely.
 func TestGlyphsASCII_StateRowsUseTightenedVocabulary(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", glyphs: glyphsASCII, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "demo", glyphs: glyphsASCII, color: colorNever, plain: true})
 	succeed(out.Task("done"))
 	out.Task("failed").fail("boom")
 	out.Task("gate").block("declined")
@@ -37,7 +37,7 @@ func TestGlyphsASCII_StateRowsUseTightenedVocabulary(t *testing.T) {
 // remaining static rows requested in the work order.
 func TestGlyphsASCII_NotStartedAndPendingRows(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", glyphs: glyphsASCII, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "demo", glyphs: glyphsASCII, color: colorNever, plain: true})
 	group := out.Sequence("pipeline")
 	first := group.Task("first")
 	second := group.Task("second")
@@ -57,7 +57,7 @@ func TestGlyphsASCII_NotStartedAndPendingRows(t *testing.T) {
 // alphabet excludes every semantic glyph" rule: no frame collides with "-".
 func TestGlyphsASCII_SpinnerExcludesNotStartedGlyph(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive())
-	out := initRun(Config{isolated: true, stdout: &bytes.Buffer{}, terminal: screen, title: "demo", visibilityDelay: DelayForTest(0), glyphs: glyphsASCII})
+	out := initRun(Config{stdout: &bytes.Buffer{}, terminal: screen, title: "demo", visibilityDelay: DelayForTest(0), glyphs: glyphsASCII})
 	task := out.Task("install")
 	task.Doing("working")
 	frame := screen.LatestLiveText()
@@ -77,7 +77,7 @@ func TestGlyphsAuto_NonUTF8LocaleDowngradesOnlyWhenInteractive(t *testing.T) {
 
 	t.Run("interactive TTY downgrades to ASCII", func(t *testing.T) {
 		screen := testkit.NewScreen(testkit.Interactive())
-		out := initRun(Config{isolated: true, stdout: &bytes.Buffer{}, terminal: screen, title: "demo", visibilityDelay: DelayForTest(0)})
+		out := initRun(Config{stdout: &bytes.Buffer{}, terminal: screen, title: "demo", visibilityDelay: DelayForTest(0)})
 		task := out.Task("install")
 		task.Doing("working")
 		frame := screen.LatestLiveText()
@@ -89,7 +89,7 @@ func TestGlyphsAuto_NonUTF8LocaleDowngradesOnlyWhenInteractive(t *testing.T) {
 
 	t.Run("non-interactive keeps Unicode", func(t *testing.T) {
 		var buf bytes.Buffer
-		out := initRun(Config{isolated: true, stdout: &buf, title: "demo", color: colorNever, plain: true})
+		out := initRun(Config{stdout: &buf, title: "demo", color: colorNever, plain: true})
 		succeed(out.Task("done"))
 		if err := out.finish(); err != nil {
 			t.Fatal(err)
@@ -105,7 +105,7 @@ func TestGlyphsAuto_NonUTF8LocaleDowngradesOnlyWhenInteractive(t *testing.T) {
 func TestGlyphsAuto_UTF8LocaleKeepsUnicode(t *testing.T) {
 	t.Setenv("LC_ALL", "en_US.UTF-8")
 	screen := testkit.NewScreen(testkit.Interactive())
-	out := initRun(Config{isolated: true, stdout: &bytes.Buffer{}, terminal: screen, title: "demo", visibilityDelay: DelayForTest(0)})
+	out := initRun(Config{stdout: &bytes.Buffer{}, terminal: screen, title: "demo", visibilityDelay: DelayForTest(0)})
 	task := out.Task("install")
 	task.Doing("working")
 	frame := screen.LatestLiveText()
@@ -120,7 +120,7 @@ func TestGlyphsAuto_UTF8LocaleKeepsUnicode(t *testing.T) {
 // "don't change the Unicode glyphs themselves").
 func TestGlyphUnicode_UnchangedByProfileAxis(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, title: "demo", glyphs: glyphsUnicode, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, title: "demo", glyphs: glyphsUnicode, color: colorNever, plain: true})
 	succeed(out.Task("done"))
 	out.Task("failed").fail("boom")
 	out.Task("gate").block("declined")
@@ -156,7 +156,7 @@ func TestGlyphWidths_BlockedAndCancelledAreNarrow(t *testing.T) {
 // profile-aware glyph (→ Unicode, > ASCII) rather than a color-only cue.
 func TestWriteAction_NextActionGlyph(t *testing.T) {
 	var uniBuf strings.Builder
-	out := initRun(Config{isolated: true, stdout: &uniBuf, glyphs: glyphsUnicode, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &uniBuf, glyphs: glyphsUnicode, color: colorNever, plain: true})
 	done := out.Task("done")
 	done.Problem("repository not retired yet", severity(severityWarning), Next(label("repo-retire --retire demo")))
 	succeed(done)
@@ -168,7 +168,7 @@ func TestWriteAction_NextActionGlyph(t *testing.T) {
 	}
 
 	var asciiBuf strings.Builder
-	out2 := initRun(Config{isolated: true, stdout: &asciiBuf, glyphs: glyphsASCII, color: colorNever, plain: true})
+	out2 := initRun(Config{stdout: &asciiBuf, glyphs: glyphsASCII, color: colorNever, plain: true})
 	done2 := out2.Task("done")
 	done2.Problem("repository not retired yet", severity(severityWarning), Next(label("repo-retire --retire demo")))
 	succeed(done2)
@@ -185,7 +185,7 @@ func TestWriteAction_NextActionGlyph(t *testing.T) {
 // would mojibake on a non-UTF-8 terminal.
 func TestWriteProblem_EvidenceGlyph_ASCII(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{isolated: true, stdout: &buf, glyphs: glyphsASCII, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, glyphs: glyphsASCII, color: colorNever, plain: true})
 	out.Task("branches").fail("cannot lock ref", Detail("another git process seems to be running"))
 	if err := out.finish(); err != nil {
 		t.Log(err)
@@ -206,7 +206,7 @@ func TestConfirm_ASCIIProfile_PromptGlyph(t *testing.T) {
 	var buf strings.Builder
 	restore := markWriterAsCharDevice(&buf)
 	t.Cleanup(restore)
-	out := initRun(Config{isolated: true, stdout: &buf, stderr: &buf, stdin: strings.NewReader("y\n"), glyphs: glyphsASCII, color: colorNever})
+	out := initRun(Config{stdout: &buf, stderr: &buf, stdin: strings.NewReader("y\n"), glyphs: glyphsASCII, color: colorNever})
 	if ok := out.Confirm("proceed?"); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
 	}

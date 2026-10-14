@@ -52,7 +52,7 @@ func writeFooThroughFile(t *testing.T, w io.Writer, dryRun bool) *Run {
 	t.Helper()
 	dir := t.TempDir()
 	out := initRun(Config{
-		isolated: true, stdout: w, stderr: io.Discard, title: "cleanup",
+		stdout: w, stderr: io.Discard, title: "cleanup",
 		color: colorNever, plain: true, DryRun: dryRun,
 		fileFS: testkit.NewFileFS(), stateDir: dir,
 	})

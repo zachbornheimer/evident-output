@@ -13,7 +13,7 @@ import (
 // logs for anything that takes a while.
 func TestPlainProgress_StreamsMilestones_NotOnlyFirstTick(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	task := out.Task("download")
 	for i := 0; i <= 100; i += 10 {
@@ -37,7 +37,7 @@ func TestPlainProgress_StreamsMilestones_NotOnlyFirstTick(t *testing.T) {
 // misleading, not informative.
 func TestPlainProgress_NoSpinnerGlyph(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{isolated: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
 
 	out.Task("download").Progress(0, 100)
 
