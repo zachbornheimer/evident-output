@@ -58,21 +58,6 @@ type funcBody struct {
 	offset int
 }
 
-// firstFuncBody returns the first function body (brace-balanced) matching
-// any of the given names, best-effort via textual scan.
-func firstFuncBody(src string, names ...string) (string, int) {
-	for _, name := range names {
-		idx := strings.Index(src, "func "+name+"(")
-		if idx < 0 {
-			continue
-		}
-		if body, start, ok := balancedBraceBody(src, idx); ok {
-			return body, start
-		}
-	}
-	return "", -1
-}
-
 // allFuncBodies returns every top-level function body in src, best-effort.
 func allFuncBodies(src string) []funcBody {
 	var out []funcBody

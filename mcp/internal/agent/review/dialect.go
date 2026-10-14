@@ -64,16 +64,3 @@ func detectorVersion(explicit, moduleVersion, replacePath string) string {
 	}
 	return moduleVersion
 }
-
-// isEvoSurfaceRecv reports whether a dotted-call receiver is an evo
-// presentation handle (out.Plan, task.Capture). Domain names like
-// policy.Plan and Runner.Capture are not evo.
-func isEvoSurfaceRecv(name string) bool {
-	switch name {
-	case "out", "evo", "o", "output", "task", "item", "it", "t",
-		"group", "jobs", "pipeline", "gate", "toolTask":
-		return true
-	default:
-		return false
-	}
-}

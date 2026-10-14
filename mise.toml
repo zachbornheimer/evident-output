@@ -20,13 +20,20 @@ run = [
 ]
 
 [tasks.lint]
-description = "Format check, vet, staticcheck, golangci-lint, gitleaks — every finding is fatal"
+description = "Format check, vet, staticcheck, golangci-lint, gitleaks over the root and mcp modules — every finding is fatal"
+# mcp is its own module, so root `./...` never reaches it; the mcp lines run
+# the same linters the pre-push gate runs there (golangci-lint finds the root
+# .golangci.yml from the parent directory).
 run = [
   "test -z \"$(gofmt -l .)\" || { gofmt -l .; echo 'gofmt: files need formatting'; exit 1; }",
   "go vet ./...",
+  "cd mcp && go vet ./...",
   "staticcheck ./...",
+  "cd mcp && staticcheck ./...",
   "staticcheck -tests=false -checks U1000 ./...",
+  "cd mcp && staticcheck -tests=false -checks U1000 ./...",
   "golangci-lint run ./...",
+  "cd mcp && golangci-lint run ./...",
   "gitleaks detect --no-git -v",
 ]
 

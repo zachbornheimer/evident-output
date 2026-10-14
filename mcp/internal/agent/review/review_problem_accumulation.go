@@ -163,24 +163,3 @@ func forLoopBodies(src string) []loopBody {
 	}
 	return out
 }
-
-func exportedReasonName(text string) string {
-	var b strings.Builder
-	upperNext := true
-	for _, r := range text {
-		switch {
-		case r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9':
-			if upperNext && r >= 'a' && r <= 'z' {
-				r -= 'a' - 'A'
-			}
-			b.WriteRune(r)
-			upperNext = false
-		default:
-			upperNext = true
-		}
-	}
-	if b.Len() == 0 {
-		return "Reason"
-	}
-	return b.String()
-}
