@@ -52,7 +52,6 @@ type liveBodyLevel struct {
 
 var (
 	underHeader = liveBodyLevel{indent: 1, pad: project.GroupChildIndent}
-	inPlace     = liveBodyLevel{}
 	atRoot      = liveBodyLevel{groupsFirst: true}
 )
 
@@ -76,8 +75,6 @@ func writeAlignedLiveCollection(b *strings.Builder, col record.TasksSnapshot, he
 		b.WriteString(unit.Render(""))
 		b.WriteByte('\n')
 		writeLiveDispositions(b, project.TaskAnnotationIndent, items, height-headerRows, st.Style)
-	case liveFlattensHeader(col, items, height):
-		writeLiveBody(b, col, height, inPlace, st)
 	default:
 		done, total = liveHeaderProgress(col, done, total)
 		b.WriteString(liveGroupHeader(col, done, total, st).Render(""))
@@ -256,13 +253,6 @@ func liveHeaderProgress(col record.TasksSnapshot, done, total int) (int, int) {
 	return done, len(col.Collections) + left.Count
 }
 
-// liveBodyOverflows reports whether col's child Tasks and nested Groups
-// cannot each have one of height rows: its body will leave some out, so
-// only a header can carry what they add up to.
-func liveBodyOverflows(col record.TasksSnapshot, height int) bool {
-	return project.OwnCounts(col).Total+len(col.Collections)+project.CollectionTallyOf(col).Count > height
-}
-
 // completion is how many of col's own child Tasks have completed (Done or
 // Skipped) out of all of them, folded items included.
 func completion(col record.TasksSnapshot) (done, total int) {
@@ -293,24 +283,6 @@ func liveRoot(s record.Snapshot) record.TasksSnapshot {
 		root = project.WithChildTally(root, tally)
 	}
 	return project.WithCollectionTally(root, project.RootCollectionTallyOf(s))
-}
-
-// liveFlattensHeader is the live frame's rule for a Group given height
-// rows: the header stays while its aggregate "N/M complete" count says
-// something the rows do not (liveProgressAddsInformation) — never "0/0
-// complete" for a Group that holds only nested Groups — and whenever its
-// body overflows height, since then the rows cannot all speak for
-// themselves (E-111).
-func liveFlattensHeader(col record.TasksSnapshot, items project.Dispositions, height int) bool {
-	_, total := completion(col)
-	return project.FlattensHeader(col, items) && !project.LiveProgressAddsInformation(col, total) && !liveBodyOverflows(col, height)
-}
-
-// liveHeaderRule is liveFlattensHeader for a frame of height rows.
-func liveHeaderRule(height int) project.HeaderRule {
-	return func(col record.TasksSnapshot, items project.Dispositions) bool {
-		return liveFlattensHeader(col, items, height)
-	}
 }
 
 // writeLiveDispositions writes items' tallies at indent as the live frame

@@ -225,8 +225,9 @@ func TestScenario_Stress(t *testing.T) {
 	// open to new members until the drain begins, so it writes then, as one
 	// block ahead of the agent row that settles during the drain.
 	want := "✓ remote-tracking  4 stale refs\n" +
-		"✓ discover\n" +
-		"✓ services  already satisfied\n" +
+		"✓ deploy production\n" +
+		"   ✓ discover\n" +
+		"   ✓ services  already satisfied\n" +
 		"✗ write launch agent  failed: permissions\n" +
 		"  - contents  already satisfied\n" +
 		"  ✗ permissions\n" +
@@ -316,10 +317,10 @@ func TestScenario_CancelledAfterMutation(t *testing.T) {
 // than this single tab warrants; the golden follows the actual, tested
 // convention.
 func TestScenario_AlreadySatisfied(t *testing.T) {
-	// "deploy production" has no Summary, so its header is not a row, and
-	// its zero-information children (discover, prepare hosts, services:
-	// nothing to say, nothing changed) are hidden while other content
-	// exists. The launch agent's "path" is a routine Task Fact: contract
+	// "deploy production" keeps its row (contract §8: collapse never drops a
+	// container's own row), and its zero-information children (discover,
+	// prepare hosts, services: nothing to say, nothing changed) are hidden
+	// while other content exists. The launch agent's "path" is a routine Task Fact: contract
 	// §13/§21 hide it at normal verbosity (§21 labels this exact
 	// "✓ write launch agent / path ..." shape its "Verbose example"), which
 	// leaves the launch agent zero-information too. Under verbose it owns a
@@ -328,10 +329,11 @@ func TestScenario_AlreadySatisfied(t *testing.T) {
 		verbose bool
 		want    string
 	}{
-		{false, "✓ cleanup  nothing to do\n\n[succeeded]  " + testProgramName + "\n"},
-		{true, "✓ write launch agent  already satisfied\n" +
-			"  path  ~/Library/LaunchAgents/com.acme.prod.agent.plist\n" +
-			"✓ cleanup             nothing to do\n\n[succeeded]  " + testProgramName + "\n"},
+		{false, "✓ deploy production\n   ✓ cleanup  nothing to do\n\n[succeeded]  " + testProgramName + "\n"},
+		{true, "✓ deploy production\n" +
+			"   ✓ write launch agent  already satisfied\n" +
+			"   path  ~/Library/LaunchAgents/com.acme.prod.agent.plist\n" +
+			"   ✓ cleanup             nothing to do\n\n[succeeded]  " + testProgramName + "\n"},
 	}
 	for _, tc := range cases {
 		if got := renderV8AlreadySatisfied(t, tc.verbose); got != tc.want {
@@ -585,10 +587,9 @@ func TestScenario_GenericSuccessPlusActiveWork(t *testing.T) {
 	clock.Advance(6 * time.Second)
 	install.Progress(18, 40)
 
-	glyph := firstRune(strings.TrimPrefix(screen.LatestLiveText(), "✓ write plist\n✓ register\n✓ start\n"))
-	want := "✓ write plist\n" +
-		"✓ register\n" +
-		"✓ start\n" +
+	group := "✓ launch agent\n   ✓ write plist\n   ✓ register\n   ✓ start\n"
+	glyph := firstRune(strings.TrimPrefix(screen.LatestLiveText(), group))
+	want := group +
 		glyph + " install dependencies  [█████       ]  18/40 — 6s\n" +
 		"   " + glyph + " requests"
 	if got := screen.LatestLiveText(); got != want {

@@ -22,14 +22,14 @@ func TestLedgerFoldFrameZqShapeApply(t *testing.T) {
 	got, _ := runPlain(t, Config{}, func(o *Run) {
 		declareCentralize(o, 2, func(string, int) func(context.Context) error { return centralizeEffect(change.EffectUpdate, "package") })
 	})
-	assertFrame(t, got, "✓ npm pkg 0\n✓ npm pkg 1\n✓ composer pkg 0\n✓ composer pkg 1\n\n[changed] centralize packages  updated 4 packages\n\n[changed]  "+testProgramName+"\n")
+	assertFrame(t, got, "✓ centralize packages\n   ✓ npm\n      ✓ npm pkg 0\n      ✓ npm pkg 1\n   ✓ composer\n      ✓ composer pkg 0\n      ✓ composer pkg 1\n\n[changed] centralize packages  updated 4 packages\n\n[changed]  "+testProgramName+"\n")
 }
 
 func TestLedgerFoldFrameZqShapeDryRun(t *testing.T) {
 	got, _ := runPlain(t, Config{DryRun: true}, func(o *Run) {
 		declareCentralize(o, 2, func(string, int) func(context.Context) error { return centralizeEffect(change.EffectUpdate, "package") })
 	})
-	assertFrame(t, got, "[dry-run] no changes will be made\n\n✓ npm pkg 0\n✓ npm pkg 1\n✓ composer pkg 0\n✓ composer pkg 1\n\n[planned] centralize packages  update 4 packages\n\n[planned]  "+testProgramName+"\n")
+	assertFrame(t, got, "[dry-run] no changes will be made\n\n✓ centralize packages\n   ✓ npm\n      ✓ npm pkg 0\n      ✓ npm pkg 1\n   ✓ composer\n      ✓ composer pkg 0\n      ✓ composer pkg 1\n\n[planned] centralize packages  update 4 packages\n\n[planned]  "+testProgramName+"\n")
 }
 
 func TestLedgerFoldFrameSequence(t *testing.T) {
@@ -59,7 +59,7 @@ func TestLedgerFoldCountsCommittedPartOfPartialEffect(t *testing.T) {
 			})
 		}
 	})
-	assertFrame(t, got, "✓ a\n✗ b  context deadline exceeded\n✓ c\n\n[changed] npm  updated 5 packages\n\n[failed]  "+testProgramName+"\n!  already mutated: updated 5 packages\n")
+	assertFrame(t, got, "✗ npm\n   ✓ a\n   ✗ b  context deadline exceeded\n   ✓ c\n\n[changed] npm  updated 5 packages\n\n[failed]  "+testProgramName+"\n!  already mutated: updated 5 packages\n")
 }
 
 // Probe A: one different sibling must not stop the rest folding.
@@ -125,6 +125,6 @@ func TestLedgerFoldOwnTaskAndItemsShareOneSubject(t *testing.T) {
 			g.Task(fmt.Sprintf("b%d", i)).Define(effectOf(Delete, "branch", 1))
 		}
 	})
-	assertFrame(t, got, "✓ branches\n✓ b0\n✓ b1\n✓ b2\n\n"+
+	assertFrame(t, got, "✓ clean\n   ✓ branches\n      ✓ branches\n      ✓ b0\n      ✓ b1\n      ✓ b2\n\n"+
 		"[changed] branches  deleted 1 worktree\n[changed] branches  deleted 3 branches\n\n[changed]  "+testProgramName+"\n")
 }

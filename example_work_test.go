@@ -59,8 +59,9 @@ func ExampleGroup() {
 	})
 	fmt.Print(out.String())
 	// Output:
-	// ✓ fetch
-	// ✓ prune
+	// ✓ repository
+	//    ✓ fetch
+	//    ✓ prune
 	//
 	// [succeeded]  demo
 }

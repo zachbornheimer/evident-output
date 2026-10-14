@@ -28,7 +28,7 @@ func machineDocument(t *testing.T, out *Run) string {
 	return doc.String()
 }
 
-func TestPruneContract_GroupWithoutOwnInformationRendersNoHeaderRow(t *testing.T) {
+func TestPruneContract_GroupWithoutOwnInformationKeepsItsHeaderRow(t *testing.T) {
 	var buf bytes.Buffer
 	out := newPlainOutput(&buf, false)
 	t.Cleanup(func() { _ = out.close() })
@@ -40,9 +40,9 @@ func TestPruneContract_GroupWithoutOwnInformationRendersNoHeaderRow(t *testing.T
 		t.Fatal(err)
 	}
 
-	want := "✓ branches   deleted 3\n✓ worktrees  removed 1\n"
-	if got := buf.String(); !strings.HasPrefix(got, want) || strings.Contains(got, "categories") {
-		t.Fatalf("group header must not render; got:\n%q\nwant prefix:\n%q", got, want)
+	want := "✓ categories\n   ✓ branches   deleted 3\n   ✓ worktrees  removed 1\n"
+	if got := buf.String(); !strings.HasPrefix(got, want) {
+		t.Fatalf("group row must render with its Tasks nested; got:\n%q\nwant prefix:\n%q", got, want)
 	}
 	if doc := machineDocument(t, out); !strings.Contains(doc, `"categories"`) {
 		t.Fatalf("machine output must keep the group; got:\n%s", doc)
@@ -258,11 +258,10 @@ func TestPruneContract_LedgerSectionKeepsOnlyItsOwnTaskVisible(t *testing.T) {
 	}
 }
 
-// TestPruneContract_FlattenedSameNamedRowsNameTheirGroup pins that a
-// header-less Group's rows never read as identical siblings: two failing
-// "build" rows from two Groups each name their container, the same way
-// their ledger sections would ("g › build").
-func TestPruneContract_FlattenedSameNamedRowsNameTheirGroup(t *testing.T) {
+// TestPruneContract_SameNamedRowsStayBareUnderTheirGroups pins that two
+// failing "build" rows from two Groups need no qualification: each sits
+// nested under its own Group's row, which already says where it is.
+func TestPruneContract_SameNamedRowsStayBareUnderTheirGroups(t *testing.T) {
 	var buf bytes.Buffer
 	out := newPlainOutput(&buf, false)
 	t.Cleanup(func() { _ = out.close() })
@@ -274,25 +273,12 @@ func TestPruneContract_FlattenedSameNamedRowsNameTheirGroup(t *testing.T) {
 	_ = out.finish()
 
 	got := buf.String()
-	for _, row := range []string{"✗ g › build", "✓ g › ok", "✗ gwith header › build", "✓ gwith header › ok"} {
+	for _, row := range []string{"✗ g\n   ✗ build", "✗ gwith header", "   ✓ ok"} {
 		if !strings.Contains(got, row) {
-			t.Fatalf("missing %q: same-named rows must name their Group; got:\n%s", row, got)
+			t.Fatalf("missing %q: same-named rows sit bare under their Group; got:\n%s", row, got)
 		}
 	}
-}
-
-// TestPruneContract_FlattenedUniqueRowsKeepBareNames: qualification is for
-// collisions only; a unique name stays bare.
-func TestPruneContract_FlattenedUniqueRowsKeepBareNames(t *testing.T) {
-	var buf bytes.Buffer
-	out := newPlainOutput(&buf, false)
-	t.Cleanup(func() { _ = out.close() })
-
-	succeed(out.Group("a").Task("branches"), "deleted 3")
-	succeed(out.Group("b").Task("worktrees"), "removed 1")
-	_ = out.finish()
-
-	if got := buf.String(); strings.Contains(got, " › ") {
-		t.Fatalf("unique rows keep their bare names; got:\n%s", got)
+	if strings.Contains(got, " › ") {
+		t.Fatalf("rows under a Group row keep bare names; got:\n%s", got)
 	}
 }

@@ -43,7 +43,7 @@
       },
       {
         "pkg": ".",
-        "run": "TestPruneContract_GroupWithoutOwnInformationRendersNoHeaderRow"
+        "run": "TestPruneContract_GroupWithoutOwnInformationKeepsItsHeaderRow"
       }
     ],
     "default": false,

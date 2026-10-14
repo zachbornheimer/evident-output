@@ -178,10 +178,8 @@ func mayHideIn(col record.TasksSnapshot, parent hideScope, ledgered func(string)
 
 // HumanProjection is s as a human reader should see it at this verbosity:
 // hidden Facts dropped (SnapshotAtVerbosity), zero-information Tasks
-// removed, and a header-less Group's colliding row names qualified by
-// their container path. Machine projections take the snapshot as it is.
+// removed. Machine projections take the snapshot as it is.
 func HumanProjection(s record.Snapshot, verbose bool) record.Snapshot {
 	s = SnapshotAtVerbosity(s, verbose)
-	s = WithoutTasks(s, ZeroInformationTaskIDs(s))
-	return QualifyFlattenedRows(s, FlattensHeader)
+	return WithoutTasks(s, ZeroInformationTaskIDs(s))
 }

@@ -88,9 +88,10 @@ func TestCancellation_RenderedBandMatchesContract(t *testing.T) {
 		t.Fatalf("machine conclusion explanation = %q, want %q", got, cancelCauseUser)
 	}
 
-	want := `✓ remote-tracking
-■ worktrees        interrupted
-- branches         not started
+	want := `■ categories
+   ✓ remote-tracking
+   ■ worktrees        interrupted
+   - branches         not started
 
 [changed] remote-tracking  deleted 4 stale origin/*
 
