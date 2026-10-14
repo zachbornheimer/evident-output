@@ -157,3 +157,30 @@ func TestLineageAnswersAnExitedUnseenCreatorFromMemory(t *testing.T) {
 		t.Fatal("an exited creator asked again: it dumped again")
 	}
 }
+
+// A chain ends at a noted worker: its creator is not named, however the
+// worker's own creator is known.
+func TestChainEndsAtANotedWorker(t *testing.T) {
+	var l lineage
+	tr := startLineageTree(&l)
+	defer close(tr.exitParent)
+	defer close(tr.exitChild)
+	l.noteWorker(tr.child)
+	if got := l.chain(tr.child, nil); !slices.Equal(got, []GoroutineID{tr.child}) {
+		t.Fatalf("chain = %v, want only the worker %d", got, tr.child)
+	}
+}
+
+// A worker no goroutine names any more is forgotten at the next dump, and one
+// noted after the dump began is kept.
+func TestDumpForgetsWorkersNothingNames(t *testing.T) {
+	var l lineage
+	l.noteWorker(GoroutineID(1 << 40))
+	mark := l.notedBefore()
+	l.noteWorker(GoroutineID(1<<40 + 1))
+	l.forgetWorkersNotUsedBy(map[GoroutineID]GoroutineID{}, mark)
+	if l.isWorker(GoroutineID(1<<40)) || !l.isWorker(GoroutineID(1<<40+1)) {
+		t.Fatalf("forgotten = %v, kept = %v; want the worker noted before the mark forgotten, the later one kept",
+			!l.isWorker(GoroutineID(1<<40)), l.isWorker(GoroutineID(1<<40+1)))
+	}
+}

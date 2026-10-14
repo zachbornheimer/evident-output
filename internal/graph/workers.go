@@ -178,6 +178,7 @@ func (g *Graph) rehome(w *worker) {
 // it, for as long as it may.
 func (g *Graph) serve(first *claim) {
 	w := &worker{next: make(chan *claim, 1), id: CurrentGoroutine()}
+	processLineage.noteWorker(w.id)
 	g.workers.enroll(w)
 	defer g.workers.retire(w)
 	for c := first; c != nil; c = g.nextClaim(w) {
