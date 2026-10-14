@@ -1,6 +1,7 @@
 package plain
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -53,14 +54,37 @@ func (m mark) crossesMilestone(completed, total int64) bool {
 
 // streamName qualifies a streamed row with the subject it belongs to. The
 // durable transcript indents a collection's children under their header,
-// but a streamed milestone arrives on its own: three subjects each
-// narrating a child called "classify" would print three "◐ classify" lines
-// that name nothing.
+// but a streamed milestone or heartbeat arrives on its own: three subjects
+// each narrating a child called "classify" would print three "◐ classify"
+// lines that name nothing. A Task nested deeper names every container
+// outermost first ("outer › inner  long"), so same-named Tasks in different
+// branches stay apart.
 func (r *row) streamName() string {
-	if !r.InGroup || r.Group == r.Name {
+	if !r.InGroup {
 		return r.Name
 	}
-	return r.Group + "  " + r.Name
+	path := r.containerNames()
+	if r.Group == r.Name {
+		path = path[:len(path)-1]
+	}
+	if len(path) == 0 {
+		return r.Name
+	}
+	return strings.Join(path, record.QualifiedSubjectSeparator) + "  " + r.Name
+}
+
+// containerNames is the names of the collections enclosing r, outermost
+// first. A row whose block was never declared knows only its own Group.
+func (r *row) containerNames() []string {
+	if r.block == nil {
+		return []string{r.Group}
+	}
+	var path []string
+	for b := r.block; b != nil; b = b.parent {
+		path = append(path, b.name)
+	}
+	slices.Reverse(path)
+	return path
 }
 
 // Running streams the Task id's current phase or progress as a durable

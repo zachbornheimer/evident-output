@@ -3,6 +3,7 @@ package plain
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
@@ -90,5 +91,34 @@ func TestStreamNameQualifiesAChildByItsGroup(t *testing.T) {
 		if got := (&row{Declared: c.row}).streamName(); got != c.want {
 			t.Errorf("streamName(%+v) = %q, want %q", c.row, got, c.want)
 		}
+	}
+}
+
+// TestHeartbeatNamesNestedTasksByPath pins that a heartbeat for a Task two
+// collections deep names the whole container path, so same-named Tasks in
+// different branches of the tree stay apart: "outer › inner  long", never
+// the nearest container alone.
+func TestHeartbeatNamesNestedTasksByPath(t *testing.T) {
+	b := newBlockRun(t)
+	b.collection("outer", false)
+	b.collectionIn("inner", "outer", false)
+	b.collection("other", false)
+	b.collectionIn("inner2", "other", false)
+	b.task("long", "inner")
+	b.task("flat", "outer")
+
+	beat := func(id record.TaskID) string {
+		before := b.written()
+		now := time.Now()
+		b.stream.rows[id].beat.runningAt = now
+		b.stream.heartbeat(b.stream.rows[id], now)
+		return strings.TrimPrefix(b.written(), before)
+	}
+
+	if got := beat("long"); !strings.Contains(got, "outer › inner  long") {
+		t.Errorf("nested heartbeat = %q, want it to name outer › inner  long", got)
+	}
+	if got := beat("flat"); !strings.Contains(got, "outer  flat") || strings.Contains(got, "›") {
+		t.Errorf("one-level heartbeat = %q, want the unchanged %q", got, "outer  flat")
 	}
 }
