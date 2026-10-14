@@ -63,9 +63,8 @@ func testExists(t *testing.T, ref TestRef) bool {
 	return false
 }
 
-// The f0d90673 guard cannot reverse the commit's own hunks: later edits
-// rewrote ResultWriter. Its entry must carry a hand-written revert, and the
-// patch must exist, or the replay would have nothing to apply.
+// Every entry replays by a hand-written patch, so each must name one that
+// exists, or the replay would have nothing to apply.
 func TestLedgerRevertPatchesExist(t *testing.T) {
 	text, err := readFile("ledger.yaml")
 	if err != nil {
@@ -76,42 +75,41 @@ func TestLedgerRevertPatchesExist(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, e := range ledger.Entries {
-		if e.Commit == "f0d90673" && e.Revert == "" {
-			t.Errorf("entry %s names no revert patch", e.Commit)
-		}
-		if e.Revert == "" {
+		if e.Patch == "" {
+			t.Errorf("entry %s names no patch", e.Commit)
 			continue
 		}
-		if _, err := readFile(e.Revert); err != nil {
+		if _, err := readFile(e.Patch); err != nil {
 			t.Errorf("entry %s: %v", e.Commit, err)
 		}
 	}
 }
 
 func TestParseLedgerReadsEntriesAndTests(t *testing.T) {
-	text := "entries:\n  - commit: abcdef1\n    note: \"a: b\"\n    tests:\n      - pkg: ./x\n        name: TestOne\n      - pkg: .\n        name: TestTwo\n"
+	text := "entries:\n  - commit: abcdef1\n    note: \"a: b\"\n    patch: patches/a.patch\n    tests:\n      - pkg: ./x\n        name: TestOne\n      - pkg: .\n        name: TestTwo\n"
 	ledger, err := ParseLedger(text)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Entry{Commit: "abcdef1", Note: "a: b", Tests: []TestRef{{"./x", "TestOne"}, {".", "TestTwo"}}}
+	want := Entry{Commit: "abcdef1", Note: "a: b", Patch: "patches/a.patch", Tests: []TestRef{{"./x", "TestOne"}, {".", "TestTwo"}}}
 	if len(ledger.Entries) != 1 || !slices.Equal(ledger.Entries[0].Tests, want.Tests) || ledger.Entries[0].Note != want.Note {
 		t.Fatalf("entries = %+v, want [%+v]", ledger.Entries, want)
 	}
 }
 
 func TestParseLedgerRejectsWhatItCannotReplay(t *testing.T) {
-	const head = "entries:\n  - commit: abcdef1\n    tests:\n"
+	const head = "entries:\n  - commit: abcdef1\n    patch: patches/a.patch\n    tests:\n"
 	cases := map[string]string{
 		"unknown key":      head + "      - pkg: .\n        name: TestA\n    owner: me\n",
-		"no tests":         "entries:\n  - commit: abcdef1\n",
-		"bad commit":       "entries:\n  - commit: NOPE\n    tests:\n      - pkg: .\n        name: TestA\n",
+		"no tests":         "entries:\n  - commit: abcdef1\n    patch: patches/a.patch\n",
+		"no patch":         "entries:\n  - commit: abcdef1\n    tests:\n      - pkg: .\n        name: TestA\n",
+		"bad commit":       "entries:\n  - commit: NOPE\n    patch: patches/a.patch\n    tests:\n      - pkg: .\n        name: TestA\n",
 		"escaping package": head + "      - pkg: ../x\n        name: TestA\n",
 		"non-test name":    head + "      - pkg: .\n        name: helper\n",
 		"missing name":     head + "      - pkg: .\n",
-		"duplicate commit": head + "      - pkg: .\n        name: TestA\n  - commit: abcdef1\n    tests:\n      - pkg: .\n        name: TestA\n",
+		"duplicate commit": head + "      - pkg: .\n        name: TestA\n  - commit: abcdef1\n    patch: patches/a.patch\n    tests:\n      - pkg: .\n        name: TestA\n",
 		"stray line":       "entries:\nnonsense\n",
-		"revert outside":   "entries:\n  - commit: abcdef1\n    revert: ../x.patch\n    tests:\n      - pkg: .\n        name: TestA\n",
+		"patch outside":    "entries:\n  - commit: abcdef1\n    patch: ../x.patch\n    tests:\n      - pkg: .\n        name: TestA\n",
 	}
 	for name, text := range cases {
 		if _, err := ParseLedger(text); err == nil {

@@ -1,6 +1,7 @@
 // Command red-proof replays the proof that each ledgered fix is guarded: for
-// every entry in ledger.yaml it reverts the fix's non-test hunks in a scratch
-// copy of HEAD and requires every named test to fail there.
+// every entry in ledger.yaml it applies the entry's hand-written patch, which
+// re-introduces the bug, to a scratch copy of HEAD and requires every named
+// test to fail there.
 //
 //	go run ./tools/scripts/red-proof [-ledger FILE] [-repo DIR] [-only COMMIT]
 //
@@ -77,7 +78,7 @@ func exitCode(s Status) int {
 }
 
 func report(out io.Writer, res Result) {
-	_, _ = fmt.Fprintf(out, "%s %s: %s\n    fix removed in: %s\n", res.Status, res.Entry.Commit, res.Entry.Note, res.Basis)
+	_, _ = fmt.Fprintf(out, "%s %s: %s\n    bug re-introduced in: %s\n", res.Status, res.Entry.Commit, res.Entry.Note, res.Basis)
 	for _, line := range res.Lines {
 		_, _ = fmt.Fprintf(out, "    %s\n", line)
 	}

@@ -44,22 +44,6 @@ func TestGitArchiveIntoRejectsNonCommitRevision(t *testing.T) {
 	}
 }
 
-func TestGitMergeFileReportsConflictCountAsStatus(t *testing.T) {
-	dir := t.TempDir()
-	write := func(name, text string) string {
-		path := filepath.Join(dir, name)
-		if err := os.WriteFile(path, []byte(text), filePerm); err != nil {
-			t.Fatal(err)
-		}
-		return path
-	}
-	target, fixed, before := write("t", "mine\n"), write("f", "base\n"), write("b", "theirs\n")
-	status, _, err := gitMergeFile(target, fixed, before)
-	if err != nil || status != 1 {
-		t.Fatalf("status=%d err=%v; want one conflicting hunk and no error", status, err)
-	}
-}
-
 func TestReadFileMissingIsAnOSError(t *testing.T) {
 	_, err := readFile(filepath.Join(t.TempDir(), "absent"))
 	if !errors.Is(err, os.ErrNotExist) {

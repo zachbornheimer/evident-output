@@ -37,23 +37,6 @@ func readFile(path string) ([]byte, error) {
 	return os.ReadFile(clean)
 }
 
-// gitOutput runs `git -C root args...` and returns its stdout; a failure
-// carries git's stderr.
-func gitOutput(root string, args ...string) ([]byte, error) {
-	dir, err := cleanPath(root)
-	if err != nil {
-		return nil, err
-	}
-	cmd := exec.Command(gitCommand, append([]string{"-C", dir}, args...)...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, stderr.String())
-	}
-	return out, nil
-}
-
 // gitArchiveInto extracts the tree at rev of the repository at root into dir.
 func gitArchiveInto(root, rev, dir string) error {
 	if err := checkRev(rev); err != nil {
@@ -87,25 +70,6 @@ func gitArchiveInto(root, rev, dir string) error {
 		return fmt.Errorf("extract archive into %s: %w: %s", into, err, stderr.String())
 	}
 	return nil
-}
-
-// gitMergeFile three-way merges into target. A process that ran and exited
-// non-zero reports its status with a nil error; err means git did not run.
-func gitMergeFile(target, fixed, before string) (status int, output []byte, err error) {
-	paths := make([]string, 0, 3)
-	for _, path := range []string{target, fixed, before} {
-		clean, err := cleanPath(path)
-		if err != nil {
-			return 0, nil, err
-		}
-		paths = append(paths, clean)
-	}
-	out, err := exec.Command(gitCommand, append([]string{"merge-file"}, paths...)...).CombinedOutput()
-	var exit *exec.ExitError
-	if errors.As(err, &exit) {
-		return exit.ExitCode(), out, nil
-	}
-	return 0, out, err
 }
 
 // gitApply applies patch to the tree in dir, all hunks or none. dir is not a
