@@ -51,6 +51,9 @@ func (d *removedTwoZeroDetector) inspectOutputCall(call *ast.CallExpr, sel *ast.
 	case printFuncs[name] != "":
 		d.reportPrint(call, "Output."+name, d.runVarAt(call), name)
 		return
+	case d.isExecutingRun(call):
+		d.reportExecuteCall(call, "Output.Run")
+		return
 	case name == "Finish" || name == "Close":
 		d.guide(call, outputReceiver, name, "Main and Execute finish the run", "delete this call and return from run")
 		return

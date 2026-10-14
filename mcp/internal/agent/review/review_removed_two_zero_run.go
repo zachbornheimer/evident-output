@@ -11,12 +11,12 @@ import "go/ast"
 // method of the *evo.Run.
 var runMethods = map[string]bool{"Fact": true, "Confirm": true}
 
-// reportExecuteCall migrates evo.Run(ctx, run), which returned a Result, to
-// evo.Execute(ctx, cfg, run). The Config is the one the program's 1.x
-// construction call (removed in 2.0) gave.
-func (d *removedTwoZeroDetector) reportExecuteCall(call *ast.CallExpr) {
-	d.report(call, d.pkg+".Run(ctx, run) was removed in 2.0; "+d.pkg+".Execute(ctx, cfg, run) runs without signals and returns the Result",
-		"replace "+d.nodeSrc(call)+" with "+d.pkg+".Execute("+d.nodeSrc(call.Args[0])+", "+d.entry.hostConfig+", "+d.nodeSrc(call.Args[1])+")")
+// reportExecuteCall migrates evo.Run(ctx, run) and Output.Run(ctx, run),
+// which returned a Result, to evo.Execute(ctx, cfg, run). The Config is the
+// one the program's 1.x construction call (removed in 2.0) gave.
+func (d *removedTwoZeroDetector) reportExecuteCall(call *ast.CallExpr, label string) {
+	d.report(call, label+"(ctx, run) was removed in 2.0; "+d.pkg+".Execute(ctx, cfg, run) runs without signals and returns the Result",
+		d.replaceRunCall(call, d.pkg+".Execute("+d.nodeSrc(call.Args[0])+", "+d.entry.hostConfig+", ", call.Args[1]))
 }
 
 // inspectResultExitCode migrates Result.Conclusion.ExitCode, a field in 1.x
