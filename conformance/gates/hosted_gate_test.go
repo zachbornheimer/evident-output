@@ -28,9 +28,21 @@ func miseDepends(t *testing.T, mise, task string) []string {
 	return names
 }
 
+// workflowGateTasks lists every `mise run X` target the workflow's gate job
+// invokes, in order.
+func workflowGateTasks(workflow string) []string {
+	var tasks []string
+	for _, m := range regexp.MustCompile(`(?m)^\s+run: mise run (\S+)\s*$`).FindAllStringSubmatch(workflow, -1) {
+		tasks = append(tasks, m[1])
+	}
+	return tasks
+}
+
 // TestHostedGateIsTheLocalGateWithoutPerf proves the gate GitHub runs proves
 // what the local gate does, less only the wall-time bounds recorded on one
-// machine: `ci` is `ci-hosted` plus `perf`, and the workflow runs `ci-hosted`.
+// machine: `ci` is `ci-hosted` plus `perf`, and every task the workflow's
+// gate job runs is `ci-hosted` or one of its dependencies, so a step GitHub
+// fails cannot pass locally.
 func TestHostedGateIsTheLocalGateWithoutPerf(t *testing.T) {
 	root := repoRoot(t)
 	mise, err := os.ReadFile(filepath.Join(root, "mise.toml"))
@@ -51,10 +63,18 @@ func TestHostedGateIsTheLocalGateWithoutPerf(t *testing.T) {
 	if slices.Contains(hosted, "perf") {
 		t.Error("ci-hosted depends on perf, whose baseline a hosted runner cannot meet")
 	}
-	if !regexp.MustCompile(`(?m)^\s+run: mise run ci-hosted$`).Match(workflow) {
-		t.Error("ci.yml does not run `mise run ci-hosted`")
+
+	gate, _, _ := strings.Cut(string(workflow), "\n  min-go:")
+	invoked := workflowGateTasks(gate)
+	if !slices.Contains(invoked, "ci-hosted") {
+		t.Error("ci.yml gate job does not run `mise run ci-hosted`")
 	}
-	if regexp.MustCompile(`(?m)^\s+run: mise run ci$`).Match(workflow) {
-		t.Error("ci.yml runs `mise run ci`, which includes perf")
+	for _, task := range invoked {
+		if task != "ci-hosted" && !slices.Contains(hosted, task) {
+			t.Errorf("ci.yml gate job runs `mise run %s`, which ci-hosted (so ci) does not: %v", task, hosted)
+		}
+		if task == "ci" || task == "perf" {
+			t.Errorf("ci.yml gate job runs `mise run %s`, whose perf baseline a hosted runner cannot meet", task)
+		}
 	}
 }

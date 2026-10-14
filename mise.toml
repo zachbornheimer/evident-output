@@ -148,11 +148,13 @@ depends = [
   "api-contract",
   "spec-ratchet",
   "red-proof",
+  "test-race",
+  "examples",
   "perf",
 ]
 
 [tasks.ci-hosted]
-description = "ci without perf: what a CI runner can prove (its hardware is not the baseline's); GitHub Actions runs this"
+description = "ci without perf: what a CI runner can prove (its hardware is not the baseline's); GitHub Actions runs exactly this"
 depends = [
   "lint",
   "test",
@@ -163,6 +165,8 @@ depends = [
   "api-contract",
   "spec-ratchet",
   "red-proof",
+  "test-race",
+  "examples",
 ]
 
 [tasks.verify-quiet-pty-stream]
