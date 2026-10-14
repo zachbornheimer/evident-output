@@ -134,7 +134,7 @@ func TestH10_Task_ConcurrentResolutionPreservesDeclarationOrder(t *testing.T) {
 	group.Go(func() { succeed(remotes); close(remoteResolved) })
 	group.Go(func() {
 		<-remoteResolved
-		branches.Problem("unreachable", severity(severityWarning))
+		branches.Problem("unreachable")
 		close(branchResolved)
 	})
 	group.Go(func() { <-branchResolved; succeed(workingTree) })

@@ -64,21 +64,21 @@ func writeAlignedLiveCollection(b *strings.Builder, col record.TasksSnapshot, he
 	// Count before folding: a folded item is still a completed child, so
 	// "N/M complete" never drops when the items fold.
 	done, total := completion(col)
-	col, items := project.WithoutDispositionItems(col)
+	col, items := project.WithoutExcludedItems(col)
 	switch {
 	case project.RendersAsOwnTask(col):
 		taskRows := writeLiveTaskLine(b, col.Tasks[0], 0, nameWidth, st)
-		writeLiveDispositions(b, project.TaskAnnotationIndent, items, height-taskRows, st.Style)
+		writeLiveTally(b, project.TaskAnnotationIndent, items, height-taskRows, st.Style)
 	case project.PromotesLoneChildOntoHeader(col):
 		unit := liveTaskUnit(col.Tasks[0], 0, st)
 		unit.Name = col.Name + "  " + unit.Name
 		b.WriteString(unit.Render(""))
 		b.WriteByte('\n')
-		writeLiveDispositions(b, project.TaskAnnotationIndent, items, height-headerRows, st.Style)
+		writeLiveTally(b, project.TaskAnnotationIndent, items, height-headerRows, st.Style)
 	default:
 		done, total = liveHeaderProgress(col, done, total)
 		headRows, body := writeLiveGroupHead(b, col, done, total, st)
-		tallyRows := writeLiveDispositions(b, project.HeaderTallyIndent(body), items, height-headRows-omissionRows-minLiveChildRows, st.Style)
+		tallyRows := writeLiveTally(b, project.HeaderTallyIndent(body), items, height-headRows-omissionRows-minLiveChildRows, st.Style)
 		writeLiveBody(b, body, max(height-headRows-tallyRows, minLiveChildRows+omissionRows), underHeader, st)
 	}
 	return rowsSince(b, start)
@@ -202,7 +202,7 @@ func (f *liveFill) groups(col record.TasksSnapshot) {
 }
 
 // attentionGroups is the nested Groups that compete for rows when not all
-// of them fit: those holding a failed, warned, running or pending Task, in
+// of them fit: those holding a failed, running or pending Task, in
 // that order and declaration order within it, as many as there are rows.
 // The rest are counted.
 func (f *liveFill) attentionGroups(cols []record.TasksSnapshot) []record.TasksSnapshot {
@@ -244,7 +244,7 @@ func collectionRank(col record.TasksSnapshot) int {
 }
 
 // countsRank is the liveRank a tally can vouch for: running or pending.
-// Failed and warned Tasks are always kept, never only tallied.
+// Failed Tasks are always kept, never only tallied.
 func countsRank(c project.ChildCounts) int {
 	switch {
 	case c.Running:
@@ -305,25 +305,23 @@ func liveRoot(s record.Snapshot) record.TasksSnapshot {
 	return project.WithCollectionTally(root, project.RootCollectionTallyOf(s))
 }
 
-// writeLiveDispositions writes items' tallies at indent as the live frame
+// writeLiveTally writes items' tallies at indent as the live frame
 // shows them (never verbose) within maxRows, and reports how many rows they took, so
 // the frame's height budget can count them. When the cause lines do not
 // fit, each tally keeps its headline and drops its causes: the headline is
 // the count, the durable render still carries the evidence.
-func writeLiveDispositions(b *strings.Builder, indent string, items project.Dispositions, maxRows int, s project.Style) (rows int) {
+func writeLiveTally(b *strings.Builder, indent string, items project.Tally, maxRows int, s project.Style) (rows int) {
 	if items.Empty() {
 		return 0
 	}
 	s.Verbose = false
 	var full strings.Builder
-	project.WriteDispositions(&full, indent, items, project.NoDisposition, s)
+	project.WriteTally(&full, indent, items, s)
 	if rows = strings.Count(full.String(), "\n"); rows <= maxRows {
 		b.WriteString(full.String())
 		return rows
 	}
 	start := b.Len()
-	project.WriteTaxonomyHeadline(b, indent, project.DispositionSkipped, items.Skipped, s)
-	project.WriteTaxonomyHeadline(b, indent, project.DispositionKept, items.Kept, s)
-	project.WriteTaxonomyHeadline(b, indent, project.DispositionExcluded, items.Excluded, s)
+	project.WriteTallyHeadline(b, indent, items, s)
 	return strings.Count(b.String()[start:], "\n")
 }

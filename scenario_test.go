@@ -402,7 +402,6 @@ func TestScenario_StressLive(t *testing.T) {
 	services := deploy.Task("services")
 	services.Doing("payments-api")
 	services.Progress(14, 40)
-	services.Problem("audit-stream rollout slower than baseline", severity(severityWarning))
 
 	agent := deploy.Task("write launch agent")
 	agent.Define(func(ctx context.Context) error { return File(ctx, spec) })
@@ -447,7 +446,6 @@ func TestScenario_StressLive(t *testing.T) {
 		"      " + glyph + " host-031\n" +
 		"   " + glyph + " services   [████        ]  14/40 — 8s\n" +
 		"      " + glyph + " payments-api\n" +
-		"      ! audit-stream rollout slower than baseline\n" +
 		"   ✗ write launch agent  failed: permissions\n" +
 		"      ├─ contents  verified\n" +
 		"      └─ ✗ permissions\n" +

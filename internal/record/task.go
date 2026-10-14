@@ -20,15 +20,12 @@ type Task struct {
 	progress       Progress
 	summary        string
 	problems       []Problem
-	warnings       []Problem
 	facts          []Fact
 	actions        []Action
 	activityAt     time.Time
 	verification   []VerificationDetail
 	defineRan      bool
 	verifyEvidence TaskEvidence
-	skipped        []TaxonomyRecord
-	kept           []TaxonomyRecord
 	// capture is the output the Task's child processes wrote, once any
 	// writer asked for it.
 	capture *Capture
@@ -78,15 +75,12 @@ type TaskTruth struct {
 	Progress       Progress
 	Summary        string
 	Problems       []Problem
-	Warnings       []Problem
 	Facts          []Fact
 	Actions        []Action
 	ActivityAt     time.Time
 	Verification   []VerificationDetail
 	DefineRan      bool
 	VerifyEvidence TaskEvidence
-	Skipped        []TaxonomyRecord
-	Kept           []TaxonomyRecord
 	SettleOrder    uint64
 }
 
@@ -96,8 +90,8 @@ func (t *Task) Truth() TaskTruth {
 	defer t.run.mu.Unlock()
 	return TaskTruth{
 		State: t.state, Phase: t.phase, Progress: t.progress, Summary: t.summary,
-		Problems: t.problems, Warnings: t.warnings, Facts: t.facts, Actions: t.actions, ActivityAt: t.activityAt, Verification: t.verification,
-		DefineRan: t.defineRan, VerifyEvidence: t.verifyEvidence, Skipped: t.skipped, Kept: t.kept,
+		Problems: t.problems, Facts: t.facts, Actions: t.actions, ActivityAt: t.activityAt, Verification: t.verification,
+		DefineRan: t.defineRan, VerifyEvidence: t.verifyEvidence,
 		SettleOrder: t.settleOrder,
 	}
 }
@@ -363,58 +357,6 @@ func (t *Task) AttachVerification(details []VerificationDetail) []VerificationDe
 	defer t.run.mu.Unlock()
 	t.verification = append(t.verification, stored...)
 	return stored
-}
-
-// Skipped is a copy of the Task's skip records.
-func (t *Task) Skipped() []TaxonomyRecord {
-	t.run.mu.Lock()
-	defer t.run.mu.Unlock()
-	return CloneTaxonomy(t.skipped)
-}
-
-// Kept is a copy of the Task's keep records.
-func (t *Task) Kept() []TaxonomyRecord {
-	t.run.mu.Lock()
-	defer t.run.mu.Unlock()
-	return CloneTaxonomy(t.kept)
-}
-
-// HasTaxonomy reports whether the Task accumulated any skip or keep record.
-func (t *Task) HasTaxonomy() bool {
-	t.run.mu.Lock()
-	defer t.run.mu.Unlock()
-	return len(t.skipped) > 0 || len(t.kept) > 0
-}
-
-// AppendSkipped records one skipped item.
-func (t *Task) AppendSkipped(rec TaxonomyRecord) {
-	defer t.changed()
-	t.lockForWrite()
-	defer t.run.mu.Unlock()
-	t.skipped = append(t.skipped, rec)
-}
-
-// AppendKept records one kept item.
-func (t *Task) AppendKept(rec TaxonomyRecord) {
-	defer t.changed()
-	t.lockForWrite()
-	defer t.run.mu.Unlock()
-	t.kept = append(t.kept, rec)
-}
-
-// CloneTaxonomy deep-copies records, including each record's causes.
-func CloneTaxonomy(in []TaxonomyRecord) []TaxonomyRecord {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]TaxonomyRecord, len(in))
-	copy(out, in)
-	for i := range out {
-		if len(out[i].Causes) > 0 {
-			out[i].Causes = append([]string(nil), out[i].Causes...)
-		}
-	}
-	return out
 }
 
 // CaptureOr is the Task's retained process output, made by newCapture on

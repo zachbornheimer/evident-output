@@ -59,7 +59,7 @@ func (r *testRun) View(id record.TaskID) record.TaskSnapshot {
 	base := record.TaskSnapshot{
 		ID: string(id), Name: r.names[id], State: truth.State, Phase: truth.Phase,
 		Progress: truth.Progress, Summary: truth.Summary, Problems: truth.Problems,
-		Warnings: truth.Warnings, Skipped: truth.Skipped, Kept: truth.Kept, Collection: r.in[id],
+		Collection: r.in[id],
 	}
 	return record.WithLiveTail(record.NewTaskSnapshot(base, r.board.FirstSeen(id), false), r.board.Tail(id))
 }
@@ -124,11 +124,9 @@ func TestChildIndexFrameEqualsAWalkOfEveryChild(t *testing.T) {
 	states := []record.State{record.Running, record.Succeeded, record.Failed, record.Pending, record.NotStarted}
 	for step := range steps {
 		task := r.tasks[r.ids[rng.IntN(len(r.ids))]]
-		switch rng.IntN(4) {
+		switch rng.IntN(3) {
 		case 0:
 			task.SetPhase(fmt.Sprintf("phase %d", step))
-		case 1:
-			task.AppendWarning(record.Problem{Summary: "careful"})
 		default:
 			task.Transition(states[rng.IntN(len(states))])
 		}
@@ -146,9 +144,6 @@ func walkCensus(g *group, c *census) {
 		c.total++
 		state := r.rec.State()
 		c.count(state, 1)
-		if r.rec.WarningCount() > 0 {
-			c.warned++
-		}
 		if r.unstampedIn(state) {
 			c.unstamped++
 		}

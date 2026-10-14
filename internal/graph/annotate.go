@@ -63,10 +63,6 @@ func (t *Task) Progress(completed, total int64, kind record.ProgressKind, at tim
 // Summarize sets the Task's one line of result text; empty clears it.
 func (t *Task) Summarize(text string) { t.Rec.SetSummary(text) }
 
-// Warn records a warning-severity Problem and reports whether it was the
-// Task's first.
-func (t *Task) Warn(p record.Problem) (first bool) { return t.Rec.AppendWarning(p) == 1 }
-
 // Report records Problems that do not end the Task.
 func (t *Task) Report(problems ...record.Problem) { t.Rec.AppendProblems(problems...) }
 

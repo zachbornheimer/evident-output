@@ -530,53 +530,25 @@ func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
 	}
 }
 
-// TestWireEvents_WarningRecordedCarriesEvidenceTail is
-// TestWireEvents_ProblemRecordedCarriesEvidenceTail's warning.recorded
-// counterpart (task.go:290 — Warn's own emitWireEventLocked call was
-// untested).
-func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
+// TestWireEvents_ProblemRecordedCarriesItsProblemOptions proves a
+// problem.recorded line carries the Problem's structured fields, not just
+// its summary.
+func TestWireEvents_ProblemRecordedCarriesItsProblemOptions(t *testing.T) {
 	var stdout nopFlushWriter
 	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout}})
-	task := out.Task("build")
-	tail := task.captureForTest()
-	_, _ = fmt.Fprintln(tail, "warning: deprecated flag used")
-	task.Problem("non-blocking finding", severity(severityWarning), detailTail(tail))
-	task.Define(func(context.Context) error { return nil })
-	_ = task.wait()
+	out.Task("disk").Problem("disk nearly full", Code("W_DISK"), Detail("92% used"), location("/var", 0, 0))
 	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
 	events := decodeWireEvents(t, stdout.String())
-	idx := indexOfType(events, wire.EventWarningRecorded)
+	idx := indexOfType(events, wire.EventProblemRecorded)
 	if idx == -1 {
-		t.Fatalf("warning.recorded must fire, got: %v", wireEventTypes(events))
-	}
-	got, _ := events[idx].Payload["evidence_tail"].(string)
-	if !strings.Contains(got, "deprecated flag used") {
-		t.Fatalf("warning.recorded payload evidence_tail = %v, want it to contain the capture tail (full payload: %+v)", got, events[idx].Payload)
-	}
-}
-
-// TestWireEvents_RunWarningCarriesItsProblemOptions proves a run-level
-// Output.Warn's warning.recorded line carries the same structured fields
-// a Task warning's does, not just its summary.
-func TestWireEvents_RunWarningCarriesItsProblemOptions(t *testing.T) {
-	var stdout nopFlushWriter
-	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout}})
-	out.Task("disk").Problem("disk nearly full", severity(severityWarning), Code("W_DISK"), Detail("92% used"), location("/var", 0, 0))
-	if err := out.finish(); err != nil {
-		t.Fatalf("Finish: %v", err)
-	}
-
-	events := decodeWireEvents(t, stdout.String())
-	idx := indexOfType(events, wire.EventWarningRecorded)
-	if idx == -1 {
-		t.Fatalf("warning.recorded must fire, got: %v", wireEventTypes(events))
+		t.Fatalf("problem.recorded must fire, got: %v", wireEventTypes(events))
 	}
 	payload := events[idx].Payload
 	if payload["code"] != "W_DISK" || payload["detail"] != "92% used" || payload["location"] == nil {
-		t.Fatalf("run warning.recorded payload = %+v, want code, detail and location", payload)
+		t.Fatalf("problem.recorded payload = %+v, want code, detail and location", payload)
 	}
 }
 
@@ -707,18 +679,16 @@ func (w *failAfterNWriter) Write(p []byte) (int, error) {
 	return w.buf.Write(p)
 }
 
-// TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning is ZYS-848's
+// TestWireEvents_ProblemAccumulationStreamsOneLinePerProblem is ZYS-848's
 // wire-side "all Problems remain available in ... JSONL" acceptance item:
-// each Task.Problem call streams its own problem.recorded line,
-// distinct from warning.recorded, so a JSONL consumer never needs to guess
-// whether an accumulated finding was blocking or a warning.
-func TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning(t *testing.T) {
+// each Task.Problem call streams its own problem.recorded line.
+func TestWireEvents_ProblemAccumulationStreamsOneLinePerProblem(t *testing.T) {
 	var stdout nopFlushWriter
 	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout}})
 	task := out.Task("audit")
 	task.Problem("finding one", Code("A1"))
 	task.Problem("finding two", Code("A2"))
-	task.Problem("heads up", severity(severityWarning), Code("W1"))
+	task.Problem("heads up", Code("W1"))
 	task.Define(func(context.Context) error { return nil })
 	_ = task.wait()
 	if err := out.finish(); err != nil {
@@ -727,20 +697,14 @@ func TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning(t *testing.T) 
 
 	events := decodeWireEvents(t, stdout.String())
 	types := wireEventTypes(events)
-	problemCount, warningCount := 0, 0
+	problemCount := 0
 	for _, ty := range types {
-		switch ty {
-		case wire.EventProblemRecorded:
+		if ty == wire.EventProblemRecorded {
 			problemCount++
-		case wire.EventWarningRecorded:
-			warningCount++
 		}
 	}
-	if problemCount != 2 {
-		t.Fatalf("want 2 %s events, got %d in %v", wire.EventProblemRecorded, problemCount, types)
-	}
-	if warningCount != 1 {
-		t.Fatalf("want 1 %s recEvent, got %d in %v", wire.EventWarningRecorded, warningCount, types)
+	if problemCount != 3 {
+		t.Fatalf("want 3 %s events, got %d in %v", wire.EventProblemRecorded, problemCount, types)
 	}
 	// The task resolves from the Define return alone: Problems never end it.
 	finished := events[indexOfType(events, wire.EventTaskFinished)]

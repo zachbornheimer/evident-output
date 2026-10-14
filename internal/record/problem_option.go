@@ -1,19 +1,5 @@
 package record
 
-import "fmt"
-
-// ProblemSeverity is the closed set of Problem severities.
-type ProblemSeverity string
-
-const (
-	// SeverityError is the default Problem severity: the owning Task settles
-	// Failed if the Define callback otherwise returns nil.
-	SeverityError ProblemSeverity = "error"
-	// SeverityWarning annotates the Task without failing it. The run is
-	// warned and still exits 0 when nothing else failed.
-	SeverityWarning ProblemSeverity = "warning"
-)
-
 // ProblemOption configures a problem constructed by Block/Fail/Problem helpers.
 type ProblemOption interface {
 	applyProblem(*Problem)
@@ -22,13 +8,6 @@ type ProblemOption interface {
 type problemOptionFunc func(*Problem)
 
 func (f problemOptionFunc) applyProblem(p *Problem) { f(p) }
-
-// WithSeverity sets a Problem's severity. The empty value is treated as
-// SeverityError at the call site. Any other value is rejected there with a
-// context-bearing error.
-func WithSeverity(value ProblemSeverity) ProblemOption {
-	return problemOptionFunc(func(p *Problem) { p.Severity = string(value) })
-}
 
 // WithDetail sets user-visible detail text (strings only).
 func WithDetail(text string) ProblemOption {
@@ -88,30 +67,15 @@ func WithCommand(executable string, args ...string) ProblemOption {
 	return WithAction(Command(executable, args...))
 }
 
-// ApplyProblemOptions is the Problem summary and opts describe: severity
-// defaults to SeverityError, and every human-visible field is neutralized
-// here, once, for every construction path.
+// ApplyProblemOptions is the Problem summary and opts describe, with every
+// human-visible field neutralized here, once, for every construction path.
 func ApplyProblemOptions(summary string, opts []ProblemOption) Problem {
-	p := Problem{Summary: summary, Severity: string(SeverityError)}
+	p := Problem{Summary: summary}
 	for _, opt := range opts {
 		if opt != nil {
 			opt.applyProblem(&p)
 		}
 	}
-	if p.Severity == "" {
-		p.Severity = string(SeverityError)
-	}
 	// Single CSI/control neutralization boundary for every construction path.
 	return SanitizeProblem(p)
-}
-
-// ClassifiedProblemSeverity is p's severity, or an error naming the invalid
-// value when it is neither SeverityError nor SeverityWarning.
-func ClassifiedProblemSeverity(p Problem) (ProblemSeverity, error) {
-	switch ProblemSeverity(p.Severity) {
-	case SeverityError, SeverityWarning:
-		return ProblemSeverity(p.Severity), nil
-	default:
-		return "", fmt.Errorf("evo: invalid problem severity %q: want %q or %q", p.Severity, SeverityError, SeverityWarning)
-	}
 }

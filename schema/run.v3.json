@@ -147,31 +147,6 @@
       ],
       "type": "object"
     },
-    "disposition": {
-      "properties": {
-        "causes": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "disposition": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "reason": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "disposition",
-        "reason",
-        "name"
-      ],
-      "type": "object"
-    },
     "effect": {
       "properties": {
         "object": {
@@ -351,12 +326,6 @@
         "definition_executed": {
           "type": "boolean"
         },
-        "dispositions": {
-          "items": {
-            "$ref": "#/$defs/disposition"
-          },
-          "type": "array"
-        },
         "evidence": {
           "$ref": "#/$defs/evidence"
         },
@@ -440,12 +409,6 @@
             "$ref": "#/$defs/verification"
           },
           "type": "array"
-        },
-        "warnings": {
-          "items": {
-            "$ref": "#/$defs/problem"
-          },
-          "type": "array"
         }
       },
       "required": [
@@ -461,7 +424,6 @@
         "tracked_resources",
         "basis",
         "facts",
-        "dispositions",
         "problems",
         "operations"
       ],

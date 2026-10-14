@@ -47,29 +47,6 @@ func TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion(t *testing.T) 
 	}
 }
 
-// TestCoalesce_DryRunWarned_KeepsTrailingConclusion proves the suppression
-// does not overreach: a dry-run header plus a warned task still needs
-// the trailing band to carry the "· warned" modifier, since the header and
-// per-section ledger rows never show it.
-func TestCoalesce_DryRunWarned_KeepsTrailingConclusion(t *testing.T) {
-	var buf bytes.Buffer
-	out := initRun(Config{DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
-	t.Cleanup(func() { _ = out.close() })
-
-	branches := out.Task("branches")
-	branches.Problem("origin unreachable", severity(severityWarning))
-	branches.Define(effectOf(Delete, "local tip", 2))
-
-	if err := out.finish(); err != nil {
-		t.Fatal(err)
-	}
-
-	got := buf.String()
-	if !strings.Contains(got, "[planned · warned]") {
-		t.Fatalf("warned dry-run must keep its trailing band:\n%s", got)
-	}
-}
-
 func TestCoalesce_ChangedPlusFailure_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{Name: "librarian", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
@@ -134,7 +111,7 @@ func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 		<-problemRecorded
 		return effect(ctx)
 	})
-	tool.Problem("working tree state not checked", severity(severityWarning), nextCommand("git", "status"))
+	tool.Problem("working tree state not checked", nextCommand("git", "status"))
 	close(problemRecorded)
 	if err := out.finish(); err != nil {
 		t.Fatal(err)

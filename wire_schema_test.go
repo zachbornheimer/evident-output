@@ -25,7 +25,7 @@ func TestWireSchema_RenderedDocumentValidates(t *testing.T) {
 
 	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	succeed(out.Task("working tree"))
-	out.Task("branches").Problem("2 branches need attention", severity(severityWarning))
+	out.Task("branches").Problem("2 branches need attention")
 	seq := out.Sequence("cleanup")
 	succeed(seq.Task("remove tags"))
 	_ = out.finish()

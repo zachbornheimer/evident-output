@@ -48,34 +48,6 @@ func TestTaskFact_NeverResolvesTask(t *testing.T) {
 	}
 }
 
-// TestProblemWarning_FeedsWarnedModifierNotHeadline proves a warning-severity
-// Problem contributes to Conclusion.Warned/"· warned" without becoming a
-// new headline state — a run with only that Problem concludes StateReady, warned.
-func TestProblemWarning_FeedsWarnedModifierNotHeadline(t *testing.T) {
-	var buf bytes.Buffer
-	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
-
-	out.Task("config").Problem("no config file found, using defaults", severity(severityWarning))
-
-	if err := out.finish(); err != nil {
-		t.Fatal(err)
-	}
-	c := out.conclusion()
-	if c.headline() != headlineSucceeded {
-		t.Fatalf("state = %v, want StateReady (a bare Warn must not invent a headline)", c.headline())
-	}
-	if !c.warned {
-		t.Fatal("want Conclusion.Warned = true after a warning-severity Problem")
-	}
-	got := buf.String()
-	if !strings.Contains(got, "no config file found, using defaults") {
-		t.Fatalf("want the run-scoped warning text rendered, got:\n%s", got)
-	}
-	if !strings.Contains(got, "· warned") {
-		t.Fatalf("want the \"· warned\" band, got:\n%s", got)
-	}
-}
-
 // TestOutputFact_RendersDurableDimLine proves Fact (run-scoped) renders
 // as a fire-and-forget durable dim line, distinct from any task.
 func TestOutputFact_RendersDurableDimLine(t *testing.T) {

@@ -11,8 +11,8 @@ type Conclusion struct {
 	Summary string
 	Changed bool
 	Partial bool
-	// Warned reports a warning-severity Problem on some Task or collection,
-	// or on the run itself: a modifier on the Outcome, never a verdict.
+	// Warned reports a warning about the run itself (a manifest that could
+	// not be saved): a modifier on the Outcome, never a verdict.
 	Warned      bool
 	Cancelled   bool
 	Explanation string
@@ -77,28 +77,6 @@ func FoldLeftoverMisuse(c *Conclusion, misuse error) {
 	c.Explanation = misuse.Error()
 }
 
-// anyTaskWarned reports whether any task in tasks carries at least one
-// warning-severity Problem.
-func anyTaskWarned(tasks []TaskSnapshot) bool {
-	for _, t := range tasks {
-		if len(t.Warnings) > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-// anyCollectionWarned recurses into every container's own tasks and nested
-// containers, so a warned child at any depth marks the run Warned.
-func anyCollectionWarned(collections []TasksSnapshot) bool {
-	for _, col := range collections {
-		if anyTaskWarned(col.Tasks) || anyCollectionWarned(col.Collections) {
-			return true
-		}
-	}
-	return false
-}
-
 // InferConclusion derives the multidimensional meaning of a finished command
 // from its final Snapshot.
 func InferConclusion(s Snapshot) Conclusion {
@@ -132,7 +110,7 @@ func InferConclusion(s Snapshot) Conclusion {
 	if c.Outcome.ExitCode() != ExitOK {
 		c.Explanation = decidingEnding(c.Outcome, s.Tasks, s.Collections)
 	}
-	c.Warned = anyTaskWarned(s.Tasks) || anyCollectionWarned(s.Collections) || len(s.Warnings) > 0
+	c.Warned = len(s.Warnings) > 0
 	c.ExitCode = c.Outcome.ExitCode()
 	return c
 }

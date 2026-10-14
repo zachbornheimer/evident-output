@@ -211,9 +211,7 @@ type TaskDoc struct {
 	TrackedResources   []TrackedResourceDoc `json:"tracked_resources"`
 	Basis              []BasisDoc           `json:"basis"`
 	Facts              []FactDoc            `json:"facts"`
-	Dispositions       []DispositionDoc     `json:"dispositions"`
 	Problems           []ProblemDoc         `json:"problems"`
-	Warnings           []ProblemDoc         `json:"warnings,omitempty"`
 	Operations         []OperationDoc       `json:"operations"`
 }
 
@@ -345,9 +343,7 @@ func toTaskDoc(parentID string, t record.TaskSnapshot) TaskDoc {
 		TrackedResources:   toTrackedResourceDocs(t.Tracked.Resources),
 		Basis:              toBasisDocs(t.Tracked.Basis),
 		Facts:              toFactDocs(t.Facts),
-		Dispositions:       toDispositionDocs(t),
 		Problems:           toProblemDocs(t.Problems),
-		Warnings:           warningDocs(t.Warnings),
 		Operations:         toOperationDocs(t.Tracked.Operations),
 	}
 	return td
@@ -393,16 +389,6 @@ func toEffectDocs(subject, status string, in []record.EffectRecord) []EffectDoc 
 		out = append(out, rec)
 	}
 	return out
-}
-
-// warningDocs is a Task's non-blocking warnings on the wire, with every
-// structured option Warn took (Subject, Detail, remedies), or nil when it
-// has none (E-109: §16 machine output keeps warnings, not only Problems).
-func warningDocs(in []record.Problem) []ProblemDoc {
-	if len(in) == 0 {
-		return nil
-	}
-	return toProblemDocs(in)
 }
 
 func toOperationDocs(in []record.TaskOperation) []OperationDoc {

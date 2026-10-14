@@ -19,7 +19,6 @@ type Problem struct {
 	// When Detail is empty, EvidenceTail alone renders as the problem's detail
 	// body (DetailTail's original, still-supported shape).
 	EvidenceTail string
-	Severity     string
 	Count        int64
 	Unit         string
 	Location     *SourceLocation
@@ -114,7 +113,6 @@ func SanitizeProblem(p Problem) Problem {
 	p.Subject = SanitizeText(p.Subject)
 	p.Code = SanitizeText(p.Code)
 	p.Unit = SanitizeText(p.Unit)
-	p.Severity = SanitizeText(p.Severity)
 	if p.Location != nil {
 		loc := *p.Location
 		loc.Path = SanitizeText(loc.Path)

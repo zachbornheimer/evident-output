@@ -16,7 +16,7 @@ func TestTaskSnapshot_ResolutionNoWorkByDefault(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("no-define")
-	task.Problem("nothing to define", severity(severityWarning))
+	task.Problem("nothing to define")
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}

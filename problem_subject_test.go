@@ -8,15 +8,15 @@ import (
 	"testing"
 )
 
-// warnSubjectRun is one Task that warns count times, each On("job").
-func warnSubjectRun(t *testing.T, count int) (human string, doc map[string]any) {
+// problemSubjectRun is one Task that records count Problems, each On("job").
+func problemSubjectRun(t *testing.T, count int) (human string, doc map[string]any) {
 	t.Helper()
 	var buf bytes.Buffer
 	out := initRun(Config{Name: "warn", Output: Plain, State: State{Dir: t.TempDir()}, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	task := out.Task("check jobs")
 	task.Define(func(context.Context) error {
 		for range count {
-			task.Problem("x", severity(severityWarning), On("job"))
+			task.Problem("x", On("job"))
 		}
 		return nil
 	})
@@ -32,20 +32,19 @@ func warnSubjectRun(t *testing.T, count int) (human string, doc map[string]any) 
 	return buf.String(), doc
 }
 
-// TestProblemWarning_OnSubjectReachesEveryProjection pins E-109: Warn("x",
-// On("job")) rendered "✓ check jobs  ! x" — the subject dropped from
-// the inline row — and the run.v3 task entry carried no trace of the
-// warning. Every projection now carries the warning with its subject.
-func TestProblemWarning_OnSubjectReachesEveryProjection(t *testing.T) {
+// TestProblem_OnSubjectReachesEveryProjection pins E-109: Problem("x",
+// On("job")) names its subject in the human tree and carries it in the
+// run.v3 task entry, however many Problems the Task records.
+func TestProblem_OnSubjectReachesEveryProjection(t *testing.T) {
 	for _, count := range []int{1, 2} {
-		human, doc := warnSubjectRun(t, count)
-		if !strings.Contains(human, "job  x") {
-			t.Errorf("%d warning(s): human output drops the On subject:\n%s", count, human)
+		human, doc := problemSubjectRun(t, count)
+		if got := strings.Count(human, "─ job\n"); got != count {
+			t.Errorf("%d problem(s): human output names the On subject %d times, want %d:\n%s", count, got, count, human)
 		}
 		task := doc["data"].(map[string]any)["tasks"].([]any)[0].(map[string]any)
-		warnings, _ := task["warnings"].([]any)
-		if len(warnings) != count || warnings[0].(map[string]any)["subject"] != "job" || warnings[0].(map[string]any)["message"] != "x" {
-			t.Errorf("%d warning(s): run.v3 task warnings = %v, want %d with subject job", count, task["warnings"], count)
+		problems, _ := task["problems"].([]any)
+		if len(problems) != count || problems[0].(map[string]any)["subject"] != "job" || problems[0].(map[string]any)["message"] != "x" {
+			t.Errorf("%d problem(s): run.v3 task problems = %v, want %d with subject job", count, task["problems"], count)
 		}
 	}
 }

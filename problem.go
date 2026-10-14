@@ -10,11 +10,6 @@ type (
 	logRecord = record.LogRecord
 )
 
-const (
-	severityError   = record.SeverityError
-	severityWarning = record.SeverityWarning
-)
-
 // ProblemOption shapes the Problem that Fail, Refuse, Exclude or
 // Task.Problem records. It is sealed: only this package's constructors
 // make one.

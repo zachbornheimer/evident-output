@@ -173,7 +173,7 @@ func TestWriteAction_NextActionGlyph(t *testing.T) {
 	var uniBuf strings.Builder
 	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &uniBuf}}, tuning{color: colorNever})
 	done := out.Task("done")
-	done.Problem("repository not retired yet", severity(severityWarning), Next(label("repo-retire --retire demo")))
+	done.Problem("repository not retired yet", Next(label("repo-retire --retire demo")))
 	succeed(done)
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
@@ -184,7 +184,7 @@ func TestWriteAction_NextActionGlyph(t *testing.T) {
 
 	out2, asciiText := asciiRun(t)
 	done2 := out2.Task("done")
-	done2.Problem("repository not retired yet", severity(severityWarning), Next(label("repo-retire --retire demo")))
+	done2.Problem("repository not retired yet", Next(label("repo-retire --retire demo")))
 	succeed(done2)
 	if err := out2.finish(); err != nil {
 		t.Fatal(err)

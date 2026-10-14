@@ -92,11 +92,11 @@ func WriteCollection(b *strings.Builder, col record.TasksSnapshot, s project.Sty
 // writeCollectionAligned is WriteCollection with the name column a
 // collapsed one-row collection pads to (0 = its own name).
 func writeCollectionAligned(b *strings.Builder, col record.TasksSnapshot, nameWidth int, s project.Style) {
-	col, items := project.WithoutDispositionItems(col)
+	col, items := project.WithoutExcludedItems(col)
 	switch {
 	case project.RendersAsOwnTask(col):
 		project.WriteTaskAligned(b, col.Tasks[0], nameWidth, s)
-		project.WriteDispositions(b, project.TaskAnnotationIndent, items, project.NoDisposition, s)
+		project.WriteTally(b, project.TaskAnnotationIndent, items, s)
 	default:
 		body := col
 		if own, rest, folded := project.SplitOwnTask(col); folded {
@@ -105,7 +105,7 @@ func writeCollectionAligned(b *strings.Builder, col record.TasksSnapshot, nameWi
 		} else {
 			writeCollectionHeader(b, col, s)
 		}
-		project.WriteDispositions(b, project.HeaderTallyIndent(body), items, project.NoDisposition, s)
+		project.WriteTally(b, project.HeaderTallyIndent(body), items, s)
 		writeCollectionBody(b, body, s)
 	}
 }

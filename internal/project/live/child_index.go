@@ -21,7 +21,7 @@ import (
 type childIndex struct {
 	dirty []*row
 
-	// items are the disposition items and work every other child, by
+	// items are the Excluded items and work every other child, by
 	// declaration; byRank splits work by attention rank.
 	items, work positionSet
 	byRank      [AttentionRanks]positionSet
@@ -32,11 +32,11 @@ type childIndex struct {
 	seenWork        seenHeap
 	owns            int
 
-	// itemDispositions is the items' tally as of the items in [0,
+	// itemTally is the items' tally as of the items in [0,
 	// itemsThrough]; itemsStale means a change it cannot append to.
-	itemDispositions project.Dispositions
-	itemsThrough     int
-	itemsStale       bool
+	itemTally    project.Tally
+	itemsThrough int
+	itemsStale   bool
 
 	// unstamped are Tasks filed while Running or Pending that no frame
 	// has painted yet (row.stamp).
@@ -49,11 +49,10 @@ type filing struct {
 	// pos is the Task's declaration position among its collection's Tasks.
 	pos  int
 	kind ChildKind
-	// state, width, seen, and warned are the Task fields the counts read.
-	state  record.State
-	width  int
-	seen   time.Time
-	warned bool
+	// state, width and seen are the Task fields the counts read.
+	state record.State
+	width int
+	seen  time.Time
 	// allSeenAt and workSeenAt are the stamps last pushed to the seen heaps.
 	allSeenAt, workSeenAt time.Time
 }
@@ -90,7 +89,7 @@ func (x *childIndex) refile(g *group, r *row) {
 		filed: true, pos: old.pos, listed: old.listed,
 		kind:  ClassifyChild(g.name, &view),
 		state: r.rec.State(), width: r.width(),
-		seen: r.seen, warned: r.rec.WarningCount() > 0,
+		seen:      r.seen,
 		allSeenAt: old.allSeenAt, workSeenAt: old.workSeenAt,
 	}
 	if old.filed {
@@ -107,7 +106,7 @@ func (x *childIndex) refile(g *group, r *row) {
 
 func (f filing) sameFiling(o filing) bool {
 	return f.kind == o.kind && f.state == o.state && f.width == o.width &&
-		f.seen.Equal(o.seen) && f.warned == o.warned
+		f.seen.Equal(o.seen)
 }
 
 func (x *childIndex) file(r *row, view *record.TaskSnapshot) {
@@ -168,20 +167,20 @@ func (x *childIndex) fileItem(pos int, view *record.TaskSnapshot) {
 		x.itemsStale = true
 		return
 	}
-	x.itemDispositions.AddTask(view)
+	x.itemTally.AddItem(view)
 	x.itemsThrough = pos
 }
 
-func (x *childIndex) dispositions(g *group) project.Dispositions {
+func (x *childIndex) excluded(g *group) project.Tally {
 	if x.itemsStale {
-		x.itemDispositions, x.itemsThrough, x.itemsStale = project.Dispositions{}, -1, false
+		x.itemTally, x.itemsThrough, x.itemsStale = project.Tally{}, -1, false
 		x.items.each(func(pos int) {
 			view := g.board.source.View(g.tasks[pos].id)
-			x.itemDispositions.AddTask(&view)
+			x.itemTally.AddItem(&view)
 			x.itemsThrough = pos
 		})
 	}
-	return x.itemDispositions.Clone()
+	return x.itemTally.Clone()
 }
 
 // stampDirect stamps the Tasks filed while no frame had painted them, as
@@ -214,7 +213,7 @@ func (x *childIndex) project(g *group, rows int) ([]record.TaskSnapshot, ChildRo
 	return kept, ChildRoster{
 		All:    x.all.counts(x.seenAll.earliest(isFiled)),
 		Work:   x.workCounts.counts(x.seenWork.earliest(isWork)),
-		Items:  x.dispositions(g),
+		Items:  x.excluded(g),
 		Census: project.ChildCensus{Items: x.items.len(), OwnTask: x.owns > 0},
 	}
 }

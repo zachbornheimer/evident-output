@@ -40,11 +40,8 @@ type Snapshot struct {
 	// this to open with an unmissable header line; no caller decides whether
 	// to announce it.
 	DryRun bool
-	// Warnings holds run-scoped warning-severity Problems (P8) — a warning
-	// about the run itself, not about any one task. Feeds
-	// Conclusion.Warned/"· warned" exactly like a task warning, never a
-	// headline state of its own (evo-rec.md "warnings annotate lifecycle;
-	// they do not replace it"). Warn was removed in 1.1.
+	// Warnings holds warnings about the run itself, not about any one Task.
+	// They feed Conclusion.Warned and are never a headline state of their own.
 	Warnings []Problem
 	// Facts holds evo.Fact's run-scoped annotations (P8) — discovered
 	// information about the run itself (evo.Fact("language", "go")), fire-
@@ -83,17 +80,11 @@ type TaskSnapshot struct {
 	Progress        Progress
 	Summary         string
 	Problems        []Problem
-	// Warnings holds accumulated warning-severity Problems (P2): warnings
-	// annotate the task's lifecycle, they never become a lifecycle state of
-	// their own. Rendering inlines a single short warning on the task's own
-	// row; multiple or long warnings render as nested lines. Warn was
-	// removed in 1.1.
-	Warnings []Problem
 	// Facts holds Task.Fact's accumulated annotations (P8): discovered
 	// information about the task, at info severity — never a lifecycle state,
 	// never work of its own. Renders as a dim "name  value" line, inline when
 	// it is the task's only annotation, nested otherwise (same DisplayUnit
-	// annotations-slot placement rule Warnings uses at warning severity).
+	// annotations-slot placement rule).
 	Facts []Fact
 	// Verification holds every VerificationDetail an evo.File/evo.Exec
 	// operation this Task ran recorded (spec §2/§8.2, schema/run.v3.json) — one entry per
@@ -103,13 +94,8 @@ type TaskSnapshot struct {
 	// satisfied entries surface only under Verbose.
 	Verification []VerificationDetail
 	Actions      []Action
-	// Skipped/Kept are the disposition taxonomy accumulated by
-	// Task.Skipped/Kept — the source the "- skipped N (...)" / "! kept
-	// N (...)" render lines derive counts and reason partitions from.
-	Skipped     []TaxonomyRecord
-	Kept        []TaxonomyRecord
-	Collection  string
-	Declaration int
+	Collection   string
+	Declaration  int
 	// DefineRan reports that the Define callback was entered and returned
 	// successfully (§29/§30).
 	DefineRan bool
@@ -174,18 +160,6 @@ func (t TaskSnapshot) LiveFirstSeenAt() time.Time { return t.liveFirstSeenAt }
 // output-level outcome (Output.Fail/Cancel) rather than the caller having
 // declared it.
 func (t TaskSnapshot) Synthetic() bool { return t.synthetic }
-
-// TaxonomyRecord is one accumulated (reason, name) disposition entry —
-// recorded by Task.Skipped, never assembled by hand.
-type TaxonomyRecord struct {
-	Reason string
-	Name   string
-	// Causes holds the sanitized text of any errs passed to Skipped/Kept for
-	// this record — evidence for why the disposition happened, rendered as
-	// one bounded └─ line under the count row (first cause + "(+N more)"),
-	// full list under Verbose.
-	Causes []string
-}
 
 // TasksSnapshot is an immutable collection view (evo.Group or
 // evo.Sequence).

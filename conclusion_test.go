@@ -57,28 +57,6 @@ func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 	}
 }
 
-// TestConclusion_WarnOnlyAutoResolvesDoneAndStaysWarned is
-// TestConclusion_WarningOnlyStillReadsWarning's P2 replacement: Warn no
-// longer resolves its task (13-problem doc P2), so a task that only ever
-// calls Warn auto-resolves Done at Finish (the same amnesty a recorded
-// effect or sealed progress already gets) — the run reads StateReady, with
-// Conclusion.Warned still true so the warning stays visible.
-func TestConclusion_WarnOnlyAutoResolvesDoneAndStaysWarned(t *testing.T) {
-	t.Parallel()
-	out := initRun(Config{Name: "t"}, tuning{color: colorNever})
-	t.Cleanup(func() { _ = out.close() })
-	out.Task("i").Problem("careful", severity(severityWarning))
-	if err := out.finish(); err != nil {
-		t.Fatal(err)
-	}
-	if got := out.conclusion().headline(); got != headlineSucceeded {
-		t.Fatalf("conclusion state = %v, want StateReady (Warn auto-resolves Done, P2)", got)
-	}
-	if !out.conclusion().warned {
-		t.Fatal("Conclusion.Warned = false, want true: the recorded warning must stay visible")
-	}
-}
-
 // TestConclusion_LoneIncompleteTaskIsNotPartialHeadline is the red-first
 // case for evo-rec.md's "Partial is a modifier, not a root verdict": an
 // unresolved task at Finish must not invent a new headline state of its own
@@ -102,38 +80,6 @@ func TestConclusion_LoneIncompleteTaskIsNotPartialHeadline(t *testing.T) {
 	}
 	if !conc.partial {
 		t.Fatal("want Partial=true retained as evidence")
-	}
-}
-
-// TestConclusion_WarnedGroupChildReachesConclusion proves a warned-but-Done
-// child nested inside a container still surfaces the "· warned" modifier on
-// the run's own conclusion band, and the container's own success summary is
-// suppressed rather than papering over the warning underneath it.
-func TestConclusion_WarnedGroupChildReachesConclusion(t *testing.T) {
-	var buf bytes.Buffer
-	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
-	t.Cleanup(func() { _ = out.close() })
-
-	group := out.Group("dependencies")
-	child := group.Task("cache")
-	child.Problem("stale entry ignored", severity(severityWarning))
-	succeed(child)
-
-	if err := out.finish(); err != nil {
-		t.Fatalf("Finish: %v", err)
-	}
-	conc := out.conclusion()
-	if conc.headline() != headlineSucceeded {
-		t.Fatalf("state = %v, want StateReady", conc.headline())
-	}
-	if !conc.warned {
-		t.Fatal("Conclusion.Warned = false, want true (group-child warning must reach the conclusion)")
-	}
-	if conc.exitCode != exitOK {
-		t.Fatalf("exit code = %d, want %d", conc.exitCode, exitOK)
-	}
-	if !strings.Contains(buf.String(), "[succeeded · warned]") {
-		t.Fatalf("want the \"[succeeded · warned]\" conclusion band, got:\n%s", buf.String())
 	}
 }
 

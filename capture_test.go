@@ -54,26 +54,9 @@ func TestTaskCapture_DetailTail_OnFail(t *testing.T) {
 	if !strings.Contains(ps, "formula foo conflict") {
 		t.Fatalf("Fail Detail should surface tail:\n%s", ps)
 	}
-	// Still silent on diagnostics unless MirrorToDiagnostics.
+	// Still silent on diagnostics: a capture never mirrors itself.
 	if strings.Contains(diag.String(), "bottle not found") {
 		t.Fatalf("must not auto-mirror: %q", diag.String())
-	}
-}
-
-func TestCapture_MirrorToDiagnostics_OptIn(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &stdout, Stderr: &stderr}})
-	task := out.Task("x")
-	output := task.capture(MirrorToDiagnosticsForTest())
-	_, _ = fmt.Fprintln(output, "chatter")
-	_ = output.Close()
-	succeed(task)
-	_ = out.finish()
-	if !strings.Contains(stderr.String(), "chatter") {
-		t.Fatalf("opt-in mirror missing from stderr: %q", stderr.String())
-	}
-	if strings.Contains(stdout.String(), "chatter") {
-		t.Fatalf("the mirror reached stdout, which carries only the payload: %q", stdout.String())
 	}
 }
 

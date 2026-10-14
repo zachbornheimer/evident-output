@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 )
@@ -225,17 +226,16 @@ func TestProblem_SurvivesInJSON(t *testing.T) {
 	}
 }
 
-// TestWarn_AcceptsStructuredProblemOptions is the acceptance item "warning
-// Problems can carry the same useful structured metadata where
-// appropriate" — Warn now takes Detail/Code/Location like Problem/Fail/
-// Block do, and the metadata is retained on the Snapshot's Warnings.
-func TestWarn_AcceptsStructuredProblemOptions(t *testing.T) {
+// TestProblem_AcceptsStructuredProblemOptions: Task.Problem takes Detail,
+// Code and Location like Fail and Refuse do, and the metadata is retained on
+// the Snapshot's Problems.
+func TestProblem_AcceptsStructuredProblemOptions(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("cache")
-	task.Problem("stale entry ignored", severity(severityWarning),
+	task.Problem("stale entry ignored",
 		Detail("cache/entry-42.json is 9 days old"),
 		Code("CACHE-001"),
 		location("cache/entry-42.json", 0, 0),
@@ -246,27 +246,26 @@ func TestWarn_AcceptsStructuredProblemOptions(t *testing.T) {
 	}
 
 	snap := out.snapshot()
-	warnings := snap.Tasks[0].Warnings
-	if len(warnings) != 1 {
-		t.Fatalf("want one warning, got %d", len(warnings))
+	problems := snap.Tasks[0].Problems
+	if len(problems) != 1 {
+		t.Fatalf("want one problem, got %d", len(problems))
 	}
-	w := warnings[0]
+	w := problems[0]
 	if w.Code != "CACHE-001" || w.Detail != "cache/entry-42.json is 9 days old" {
-		t.Fatalf("want structured warning metadata retained, got %#v", w)
+		t.Fatalf("want structured problem metadata retained, got %#v", w)
 	}
 	if w.Location == nil || w.Location.Path != "cache/entry-42.json" {
-		t.Fatalf("want warning Location retained, got %#v", w.Location)
+		t.Fatalf("want problem Location retained, got %#v", w.Location)
 	}
 }
 
-// TestWarn_ReturnsHandleForChaining proves Warn's new *Task return
-// chains like Next/NextCommand already do.
-func TestWarn_ReturnsHandleForChaining(t *testing.T) {
+// TestProblem_ReturnsHandleForChaining proves Problem's *Task return chains.
+func TestProblem_ReturnsHandleForChaining(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.close() })
 
-	succeed(out.Task("chain").Problem("heads up", severity(severityWarning)), "finished anyway")
+	succeed(out.Task("chain").Problem("heads up"), "finished anyway")
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -304,15 +303,6 @@ func assertProblemKeptOnTask(t *testing.T, got taskSnapshot, want entityState, h
 	}
 }
 
-// TestProblem_UnresolvedWarnedTaskKeepsItsProblem: a warned Task nobody
-// Defined ends NotStarted at Finish with its Problem attached.
-func TestProblem_UnresolvedWarnedTaskKeepsItsProblem(t *testing.T) {
-	got, human := finishProblemRun(t, func(out *Run) {
-		out.Task("scan").Problem("blocking finding").Problem("also a warning", severity(severityWarning))
-	})
-	assertProblemKeptOnTask(t, got, notStarted, human)
-}
-
 // TestProblem_UnresolvedTaskKeepsItsProblem: a Task that recorded a
 // Problem and was never Defined ends NotStarted; the Problem stays attached.
 func TestProblem_UnresolvedTaskKeepsItsProblem(t *testing.T) {
@@ -339,4 +329,21 @@ func TestProblem_VisibleInSnapshotWhileRunning(t *testing.T) {
 	if len(live.Problems) != 1 || live.Problems[0].Summary != "blocking finding" {
 		t.Fatalf("a running Task's Snapshot must carry its recorded Problem, got %#v", live.Problems)
 	}
+}
+
+// TestProblem_DoesNotResolveTask proves Problem is non-terminal: the Task
+// stays unresolved right after Problem, and a later Done still resolves it.
+func TestProblem_DoesNotResolveTask(t *testing.T) {
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+
+	task := out.Task("cache")
+	task.Problem("stale entry ignored")
+	if got := task.snapshot().State; got == succeeded || got == failed || got == refused {
+		t.Fatalf("state = %v, want non-terminal (Problem must not resolve the task)", got)
+	}
+	succeed(task)
+	if got := task.snapshot().State; got != succeeded {
+		t.Fatalf("state = %v, want Done", got)
+	}
+	_ = out.finish()
 }

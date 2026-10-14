@@ -17,9 +17,8 @@ func IsZeroInformationTask(t record.TaskSnapshot) bool {
 		return false
 	}
 	return t.Summary == "" && t.Phase == "" && t.Progress.Total == 0 && t.Progress.Completed == 0 &&
-		len(t.Problems) == 0 && len(t.Warnings) == 0 && len(t.Facts) == 0 &&
-		len(t.Skipped) == 0 && len(t.Kept) == 0 && len(t.Actions) == 0 &&
-		len(t.Verification) == 0
+		len(t.Problems) == 0 && len(t.Facts) == 0 &&
+		len(t.Actions) == 0 && len(t.Verification) == 0
 }
 
 // IsProvenNoOpTask reports whether t is a zero-information Task whose no-op

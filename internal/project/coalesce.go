@@ -142,9 +142,6 @@ func normalizeSubject(s string) string {
 
 func hasIndependentConditionRows(s record.Snapshot) bool {
 	for _, t := range s.Tasks {
-		if len(t.Warnings) > 0 {
-			return true
-		}
 		switch t.State {
 		case record.Failed, record.Cancelled, record.Running, record.Pending:
 			return true
@@ -154,15 +151,12 @@ func hasIndependentConditionRows(s record.Snapshot) bool {
 }
 
 // anyCollectionHasIndependentConditionRows recurses into every container's
-// own children (E2.5 finding 1): a warned grandchild several containers deep
+// own children (E2.5 finding 1): a failed grandchild several containers deep
 // must count as an independent condition row the same way a root-level
-// warned task does, not just the container's own headline State.
+// failed task does, not just the container's own headline State.
 func anyCollectionHasIndependentConditionRows(collections []record.TasksSnapshot) bool {
 	for _, col := range collections {
 		for _, t := range col.Tasks {
-			if len(t.Warnings) > 0 {
-				return true
-			}
 			switch t.State {
 			case record.Failed, record.Cancelled, record.Running, record.Pending:
 				return true

@@ -79,28 +79,23 @@ func earlierSeen(a, b time.Time) time.Time {
 }
 
 // attentionRankCount is how many liveRank classes can fill a frame's rows
-// once a collection has more children than fit: failed, warned, running,
-// pending.
-const attentionRankCount = 4
+// once a collection has more children than fit: failed, running, pending.
+const attentionRankCount = 3
 
 // liveRank orders a child for the rows of a frame too small for all of
-// them: failed, warning, active (running), pending, successful, other.
-// Warning is a Done-task annotation (P2), not a lifecycle state, so it
-// ranks ahead of state on len(t.Warnings) rather than t.State.
+// them: failed, active (running), pending, successful, other.
 func liveRank(t record.TaskSnapshot) int {
 	switch {
 	case t.State == record.Failed:
 		return 0
-	case len(t.Warnings) > 0:
-		return 1
 	case t.State == record.Running:
-		return 2
+		return 1
 	case t.State == record.Pending:
-		return 3
+		return 2
 	case t.State.Succeeded(), t.State == record.Excluded:
-		return 4
+		return 3
 	default:
-		return 5
+		return 4
 	}
 }
 
@@ -121,9 +116,9 @@ func selectLiveChildren(tasks []record.TaskSnapshot, total, max int) (selected [
 		}
 	}
 	// Once there are more children than fit (the len(tasks) <= max early
-	// return above did not apply), only the attention ranks (0-3: failed,
-	// warning, running, pending) ever fill the budget — never rank 4/5
-	// (routine Done/Skipped/other). A large aggregated Group answers "what
+	// return above did not apply), only the attention ranks (0-2: failed,
+	// running, pending) ever fill the budget — never rank 3/4
+	// (routine Done/Excluded/other). A large aggregated Group answers "what
 	// needs my attention" plus the header's own N/total count; padding the
 	// remaining rows with routine "✓ package-NNN" landmarks merely because
 	// there happens to be vertical room left repeats what the header already

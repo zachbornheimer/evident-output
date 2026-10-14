@@ -222,18 +222,6 @@ func (o *Run) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	o.show.Live.Signal(true)
 }
 
-func (t *Task) recordWarning(p problem) *Task {
-	return t.annotate(func(st *taskState) {
-		if st.node.Warn(p) {
-			t.out.show.Board.Warned(st.node.TaskID())
-		}
-		t.out.bumpLocked()
-		t.out.appendEventLocked(recEvent{Type: "task.warned", EntityID: t.id})
-		t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, wire.ToProblemDoc(p).EventPayload())
-		t.out.show.Live.Signal(true)
-	})
-}
-
 // Summary sets one sanitized line of result text for the terminal row; last call wins, empty clears.
 // It never resolves the task. After the task resolved it is misuse unless the interrupt sweep resolved it.
 func (t *Task) Summary(text string) *Task {
@@ -246,20 +234,9 @@ func (t *Task) Summary(text string) *Task {
 }
 
 // Problem attaches one structured diagnostic. It never ends the Task or changes its outcome, which settles
-// from the Define callback's return alone; return a fatal finding through Fail. An invalid severity is rejected as misuse.
+// from the Define callback's return alone; return a fatal finding through Fail.
 func (t *Task) Problem(summary string, opts ...ProblemOption) *Task {
 	p := applyProblemOptions(project.Text(summary), opts)
-	sev, err := record.ClassifiedProblemSeverity(p)
-	if err != nil {
-		return t.annotate(func(st *taskState) { t.out.recordMisuse(err) })
-	}
-	if sev == severityWarning {
-		return t.recordWarning(p)
-	}
-	return t.recordBlockingProblem(p)
-}
-
-func (t *Task) recordBlockingProblem(p problem) *Task {
 	return t.annotate(func(st *taskState) {
 		st.node.Report(p)
 		t.out.bumpLocked()

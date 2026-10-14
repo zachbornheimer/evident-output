@@ -101,8 +101,6 @@ func mixedTasks(prefix string, n int) []record.TaskSnapshot {
 		switch {
 		case i%17 == 0:
 			t.State, t.Summary = record.Failed, "exit 1"
-		case i%11 == 0:
-			t.Warnings = []record.Problem{{Summary: "slow mirror"}}
 		case i%5 == 0:
 			t.State, t.Phase = record.Running, "fetching"
 		case i%3 == 0:

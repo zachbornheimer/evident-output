@@ -65,11 +65,11 @@ func SplitOwnTask(col record.TasksSnapshot) (own record.TaskSnapshot, rest recor
 }
 
 // OwnTaskRowName reports the name a child collection renders its one row
-// under when it renders as its own Task (after its disposition items fold
+// under when it renders as its own Task (after its Excluded items fold
 // into a tally), so a header-less parent can align that row with its
 // sibling rows.
 func OwnTaskRowName(col record.TasksSnapshot) (string, bool) {
-	rest, _ := WithoutDispositionItems(col)
+	rest, _ := WithoutExcludedItems(col)
 	if !RendersAsOwnTask(rest) {
 		return "", false
 	}

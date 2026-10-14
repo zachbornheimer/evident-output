@@ -30,9 +30,6 @@ func (l countingLens) States(group string) StateCounts {
 		default:
 			c.Unresolved++
 		}
-		if t.Rec.WarningCount() > 0 {
-			c.Warned++
-		}
 	}
 	return c
 }
@@ -78,9 +75,9 @@ func TestNestedFailureSurfacesAtTheRootHeader(t *testing.T) {
 	}
 }
 
-// TestSuccessSummaryHidesUnderAWarning proves a collection's own summary
-// does not paper over a warning beneath it.
-func TestSuccessSummaryHidesUnderAWarning(t *testing.T) {
+// TestSuccessSummaryHidesUnderAFailure proves a collection's own summary
+// does not paper over a failure beneath it.
+func TestSuccessSummaryHidesUnderAFailure(t *testing.T) {
 	rows, run := newTestRows()
 	group := run.NewContainer()
 	group.SetSummary("all clean")
@@ -88,11 +85,11 @@ func TestSuccessSummaryHidesUnderAWarning(t *testing.T) {
 	task := declareTask(rows, run, "careful", "g", record.Succeeded)
 
 	if got := rows.Header("g").Summary; got != "all clean" {
-		t.Fatalf("summary = %q before any warning, want it shown", got)
+		t.Fatalf("summary = %q before any failure, want it shown", got)
 	}
-	task.Rec.AppendWarning(record.Problem{Summary: "heads up"})
+	task.Rec.Settle(record.Failed)
 	if got := rows.Header("g").Summary; got != "" {
-		t.Fatalf("summary = %q under a warning, want it hidden", got)
+		t.Fatalf("summary = %q over a failure, want it hidden", got)
 	}
 }
 

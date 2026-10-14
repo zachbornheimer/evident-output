@@ -97,7 +97,7 @@ func rowsAreFinal(col record.TasksSnapshot) bool {
 	if project.RendersAsOwnTask(col) {
 		return false
 	}
-	if rest, _ := project.WithoutDispositionItems(col); len(rest.Tasks) != len(col.Tasks) {
+	if rest, _ := project.WithoutExcludedItems(col); len(rest.Tasks) != len(col.Tasks) {
 		return false
 	}
 	return !slices.ContainsFunc(col.Collections, func(c record.TasksSnapshot) bool { return !rowsAreFinal(c) })

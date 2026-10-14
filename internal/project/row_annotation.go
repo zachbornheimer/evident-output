@@ -7,24 +7,54 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
-// inlineTaskWarning reports the one warning that belongs directly on t's own
-// row (P2: "one short warning inlines on the ✓ row") — only when t has
-// exactly one warning, it is short enough, and the row isn't already
-// carrying a Summary of its own. Everything else nests below the row.
-func inlineTaskWarning(t record.TaskSnapshot) (string, bool) {
-	if !t.State.Succeeded() || t.Summary != "" || len(t.Warnings) != 1 {
-		return "", false
+// WriteTally writes tally's headline and, under Verbose, every item name
+// under its reason (items carrying Facts get a row each).
+func WriteTally(b *strings.Builder, indent string, tally Tally, s Style) {
+	if tally.Empty() {
+		return
 	}
-	msg := WarningText(t.Warnings[0])
-	if Cells(msg) > warningInlineMaxCells {
-		return "", false
+	WriteTallyHeadline(b, indent, tally, s)
+	if !s.Verbose {
+		return
 	}
-	return msg, true
+	for _, part := range tally.Reasons() {
+		if part.HasFacts() {
+			writeItemFacts(b, indent+problemDetailIndent, part, s)
+			continue
+		}
+		fmt.Fprintf(b, "%s%s%s: %s\n", indent, problemDetailIndent, part.Reason, strings.Join(part.Names, ", "))
+	}
 }
 
-// WarningText is one warning's text on any row: its Summary, after the
-// subject it is On when it has one ("job  x"), the way a Problem's
-// subject row reads (E-109).
+// WriteTallyHeadline writes tally's one count line ("○ excluded 3
+// (protected)"), or nothing when it is empty.
+func WriteTallyHeadline(b *strings.Builder, indent string, tally Tally, s Style) {
+	if tally.Empty() {
+		return
+	}
+	fmt.Fprintf(b, "%s%s %s\n", indent, s.Dim(GlyphPending.Render(s.Profile)), tallySummaryText(tally))
+}
+
+// tallySummaryText derives the "excluded N (<reason breakdown>)" headline:
+// one place computes the count and reason partition. A single reason
+// collapses to its bare name (the count already said N); several each carry
+// their own count so the parts sum to N.
+func tallySummaryText(tally Tally) string {
+	reasons := tally.Reasons()
+	parts := make([]string, len(reasons))
+	for i, part := range reasons {
+		if len(reasons) == 1 {
+			parts[i] = part.Reason
+			continue
+		}
+		parts[i] = fmt.Sprintf("%d %s", len(part.Names), part.Reason)
+	}
+	return fmt.Sprintf("excluded %d (%s)", tally.Total(), strings.Join(parts, ", "))
+}
+
+// WarningText is one run warning's text: its Summary, after the subject it
+// is On when it has one ("job  x"), the way a Problem's subject row reads
+// (E-109).
 func WarningText(w record.Problem) string {
 	if w.Subject == "" {
 		return w.Summary
@@ -32,53 +62,11 @@ func WarningText(w record.Problem) string {
 	return w.Subject + "  " + w.Summary
 }
 
-// inlineWarningText renders an inline warning with the same "! " bang the
-// nested writeNestedTaskWarnings line uses (E2.5 finding 3): the normative
-// repo-retire dry-run fixture inlines a warning as "! kept 13 (...)" — an
-// inline and a nested warning must signal identically, never a dim-only
-// inline row that drops the one glyph the fixture treats as load-bearing.
-func inlineWarningText(msg string, s Style) string {
-	return s.Dim(s.WarningGlyph() + " " + msg)
-}
-
-// inlineTaskTaxonomy mirrors inlineTaskWarning/inlineTaskFact for a task's
-// accumulated Kept/Skipped disposition records (fixture-repo-retire-dryrun.md:
-// "✓ branches          ! kept 13 (8 protected, 5 unpushed)" — a taxonomy
-// tally IS a warning in the unified annotation model, so it competes for the
-// same one-inline-annotation-per-row slot and is disqualified by the same
-// conditions: a Summary, an explicit Warn, or an explicit Fact already claims
-// the row. Both dispositions accumulated at once still nest below (rare, and
-// two summaries cannot share one inline slot). The returned verb tells the
-// caller which of Skipped/Kept was inlined, so its causes/Verbose name list
-// (writeTaxonomy's other output) still renders below the row — inlining
-// only replaces the headline count line, never the evidence under it.
-func inlineTaskTaxonomy(t record.TaskSnapshot) (text string, verb Disposition, ok bool) {
-	if !t.State.Succeeded() || t.Summary != "" || len(t.Warnings) != 0 || len(t.Facts) != 0 {
-		return "", NoDisposition, false
-	}
-	var records []record.TaxonomyRecord
-	switch {
-	case len(t.Skipped) > 0 && len(t.Kept) == 0:
-		verb, records = DispositionSkipped, t.Skipped
-	case len(t.Kept) > 0 && len(t.Skipped) == 0:
-		verb, records = DispositionKept, t.Kept
-	default:
-		return "", NoDisposition, false
-	}
-	text = taxonomySummaryText(verb, TallyOf(records))
-	if Cells(text) > warningInlineMaxCells {
-		return "", NoDisposition, false
-	}
-	return text, verb, true
-}
-
-// inlineTaskFact mirrors inlineTaskWarning at info severity (P8): a Done
-// task with no summary, no warnings, and exactly one Fact inlines that
-// fact's "name  value" text on its own row instead of nesting it — the same
-// "one short annotation inlines" rule Warn's severity already follows,
-// applied to Fact's severity too (one placement rule, two severities).
+// inlineTaskFact is the one Fact that belongs directly on t's own row: a Done
+// task with no summary and exactly one short Fact inlines that fact's
+// "name  value" text instead of nesting it.
 func inlineTaskFact(t record.TaskSnapshot) (record.Fact, bool) {
-	if !t.State.Succeeded() || t.Summary != "" || len(t.Warnings) != 0 || len(t.Facts) != 1 {
+	if !t.State.Succeeded() || t.Summary != "" || len(t.Facts) != 1 {
 		return record.Fact{}, false
 	}
 	f := t.Facts[0]
@@ -89,67 +77,17 @@ func inlineTaskFact(t record.TaskSnapshot) (record.Fact, bool) {
 }
 
 // inlineFactText renders an inline fact dim, with no attention glyph — a
-// Fact is information, never something demanding the reader's attention the
-// way an inline warning's "!" does. The leading bangColumnFiller keeps its
-// text aligned with a sibling's inline warning/taxonomy text regardless of
-// whether such a sibling exists on this render.
+// Fact is information, never something demanding the reader's attention.
 func inlineFactText(f record.Fact, s Style) string {
 	return bangColumnFiller + s.Dim(factText(f))
 }
 
 // writeNestedTaskFacts is inlineTaskFact's nested-line sibling: every fact
 // that didn't qualify for inlining renders as its own dim "name  value" line
-// under the task's row, the same indentation writeNestedTaskWarnings uses.
+// under the task's row.
 func writeNestedTaskFacts(b *strings.Builder, facts []record.Fact, indent string, s Style) {
 	for _, f := range facts {
 		fmt.Fprintf(b, "%s%s\n", indent, s.Dim(factText(f)))
-	}
-}
-
-// WriteNestedTaskWarnings emits warnings that didn't qualify for
-// inlineTaskWarning as their own "!" lines under the task's row (P2:
-// "multiple/long → nested dim ! lines"), indented by indent (two spaces for
-// a standalone task, problemTreeIndent for a collection child). The glyph
-// keeps the same yellow attention color writeTaxonomy's "!" rows use — the
-// one place a warned task still reads as "not silently clean" in a colored
-// terminal, now that its own row glyph is an ordinary green ✓.
-func WriteNestedTaskWarnings(b *strings.Builder, warnings []record.Problem, indent string, s Style) {
-	glyph := s.WarningGlyph()
-	for _, w := range warnings {
-		fmt.Fprintf(b, "%s%s %s\n", indent, glyph, WarningText(w))
-	}
-}
-
-// writeTaxonomy emits the derived "- skipped N (...)" / "! kept N (...)"
-// line for a task's accumulated disposition records. Count and reason
-// partition are computed here, mechanically, from the records themselves —
-// there is nothing for a caller to hand-assemble (and thereby miscount).
-// A single reason collapses to its bare name (the count already said N);
-// multiple reasons each carry their own count so the parts sum to N.
-// indent prefixes the taxonomy row (and, verbose, its detail rows) so a
-// collection child nests under its own glyph column and a standalone task
-// under its row (taskAnnotationIndent).
-// skipSummary is true when the caller already rendered this verb's summary
-// text inline on the task's own row (inlineTaskTaxonomy) — the causes
-// evidence line and Verbose name list below are unaffected by where the
-// headline text landed, so only the summary line itself is suppressed.
-func writeTaxonomy(b *strings.Builder, indent string, verb Disposition, tally Tally, skipSummary bool, s Style) {
-	if tally.Total() == 0 {
-		return
-	}
-	if !skipSummary {
-		WriteTaxonomyHeadline(b, indent, verb, tally, s)
-	}
-	writeTaxonomyCauses(b, indent, tally.Causes(), s)
-	if !s.Verbose {
-		return
-	}
-	for _, part := range tally.Reasons() {
-		if part.HasFacts() {
-			writeItemFacts(b, indent+problemDetailIndent, part, s)
-			continue
-		}
-		fmt.Fprintf(b, "%s%s%s: %s\n", indent, problemDetailIndent, part.Reason, strings.Join(part.Names, ", "))
 	}
 }
 
@@ -191,84 +129,6 @@ func itemFacts(part ReasonTally, i int) []record.Fact {
 		return part.Facts[i]
 	}
 	return nil
-}
-
-// WriteTaxonomyHeadline writes tally's one count line ("- skipped 3
-// (...)"), or nothing when it is empty.
-func WriteTaxonomyHeadline(b *strings.Builder, indent string, verb Disposition, tally Tally, s Style) {
-	if tally.Total() == 0 {
-		return
-	}
-	fmt.Fprintf(b, "%s%s %s\n", indent, verb.Glyph(s), taxonomySummaryText(verb, tally))
-}
-
-// WriteDispositions writes d's skipped then kept tallies at indent.
-// inlinedVerb names the tally the caller already rendered on its own row
-// (inlineTaskTaxonomy), whose headline line is then not repeated; "" when
-// noDisposition when none was inlined.
-func WriteDispositions(b *strings.Builder, indent string, d Dispositions, inlinedVerb Disposition, s Style) {
-	writeTaxonomy(b, indent, DispositionSkipped, d.Skipped, inlinedVerb == DispositionSkipped, s)
-	writeTaxonomy(b, indent, DispositionKept, d.Kept, inlinedVerb == DispositionKept, s)
-	writeTaxonomy(b, indent, DispositionExcluded, d.Excluded, false, s)
-}
-
-// taskDispositions is t's own two tallies.
-func taskDispositions(t record.TaskSnapshot) Dispositions {
-	var d Dispositions
-	for _, rec := range t.Skipped {
-		d.Skipped.addItem(rec, t.Facts)
-	}
-	for _, rec := range t.Kept {
-		d.Kept.addItem(rec, t.Facts)
-	}
-	return d
-}
-
-// inlineTaxonomyText is a tally inlined on its task's row, with the same
-// glyph its nested line would carry (disposition.glyph).
-func inlineTaxonomyText(text string, verb Disposition, s Style) string {
-	return s.Dim(verb.Glyph(s) + " " + text)
-}
-
-// taxonomySummaryText derives the "<verb> N (<reason breakdown>)" text shared
-// by a nested taxonomy line and an inlined one (inlineTaskTaxonomy) — one
-// place computes the count/reason partition so both placements render
-// byte-identical text (fixture-repo-retire-dryrun.md's "kept 13 (8 protected,
-// 5 unpushed)": single space before the parenthesis, not the two-space form
-// the pre-fixture rendering used).
-func taxonomySummaryText(verb Disposition, tally Tally) string {
-	reasons := tally.Reasons()
-	parts := make([]string, len(reasons))
-	for i, part := range reasons {
-		if len(reasons) == 1 {
-			parts[i] = part.Reason
-			continue
-		}
-		parts[i] = fmt.Sprintf("%d %s", len(part.Names), part.Reason)
-	}
-	return fmt.Sprintf("%s %d (%s)", verb, tally.Total(), strings.Join(parts, ", "))
-}
-
-// writeTaxonomyCauses renders a tally's accumulated Causes as evidence
-// under the count row: one bounded └─ line normally (first cause + "(+N
-// more)"), the full list under Verbose (one line per cause).
-func writeTaxonomyCauses(b *strings.Builder, indent string, causes []string, s Style) {
-	if len(causes) == 0 {
-		return
-	}
-	evidence := s.EvidenceGlyph()
-	if !s.Verbose {
-		line := causes[0]
-		if more := len(causes) - 1; more > 0 {
-			line = fmt.Sprintf("%s (+%d more)", line, more)
-		}
-		fmt.Fprintf(b, "%s%s%s %s\n", indent, ProblemTreeIndent, evidence, line)
-		return
-	}
-	fmt.Fprintf(b, "%s%s%s %s\n", indent, ProblemTreeIndent, evidence, causes[0])
-	for _, c := range causes[1:] {
-		fmt.Fprintf(b, "%s%s%s\n", indent, problemDetailIndent, c)
-	}
 }
 
 // WriteRunAnnotations renders run-scoped warning Problems and evo.Fact

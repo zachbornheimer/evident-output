@@ -85,9 +85,6 @@ func countStates(s *project.StateCounts, f *filing, delta int) {
 	default:
 		s.Unresolved += delta
 	}
-	if f.warned {
-		s.Warned += delta
-	}
 }
 
 // seenEntry is one Task's first-paint stamp.

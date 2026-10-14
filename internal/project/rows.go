@@ -86,7 +86,7 @@ type GroupNode interface {
 // StateCounts counts a collection's direct Tasks by the states its verdict
 // folds.
 type StateCounts struct {
-	Running, Failed, Refused, Cancelled, NotStarted, Unresolved, Warned int
+	Running, Failed, Refused, Cancelled, NotStarted, Unresolved int
 }
 
 // NewRows starts an empty row model reading other owners through lens.
@@ -145,8 +145,8 @@ func (r *Rows) View(id record.TaskID) record.TaskSnapshot {
 	base := record.TaskSnapshot{
 		ID: string(t.ID), Key: t.Node.Key(), Name: t.Name,
 		State: truth.State, Phase: truth.Phase, ActivityAt: truth.ActivityAt, Progress: truth.Progress,
-		Summary: truth.Summary, Problems: truth.Problems, Warnings: truth.Warnings, Facts: truth.Facts,
-		Verification: truth.Verification, Actions: truth.Actions, Skipped: truth.Skipped, Kept: truth.Kept,
+		Summary: truth.Summary, Problems: truth.Problems, Facts: truth.Facts,
+		Verification: truth.Verification, Actions: truth.Actions,
 		Collection: group, Declaration: t.Declaration, DefineRan: truth.DefineRan, Evidence: truth.VerifyEvidence,
 		Timing: t.Timing, SettleOrder: truth.SettleOrder,
 	}
@@ -157,29 +157,15 @@ func (r *Rows) View(id record.TaskID) record.TaskSnapshot {
 func (r *Rows) Snapshot(id record.TaskID) record.TaskSnapshot {
 	s := r.View(id)
 	s.Problems = record.CloneProblems(s.Problems)
-	s.Warnings = record.CloneProblems(s.Warnings)
 	s.Facts = record.CloneFacts(s.Facts)
 	s.Verification = record.CloneVerificationDetails(s.Verification)
 	s.Actions = record.CloneActions(s.Actions)
-	s.Skipped = cloneTaxonomy(s.Skipped)
-	s.Kept = cloneTaxonomy(s.Kept)
 	if !r.byTask[id].Synthetic {
 		s.Tracked = r.lens.Tracked(id)
 	}
 	tail := record.LiveTailOf(s)
 	tail.Lines = slices.Clone(tail.Lines)
 	return record.WithLiveTail(s, tail)
-}
-
-func cloneTaxonomy(in []record.TaxonomyRecord) []record.TaxonomyRecord {
-	if len(in) == 0 {
-		return nil
-	}
-	out := slices.Clone(in)
-	for i := range out {
-		out[i].Causes = slices.Clone(out[i].Causes)
-	}
-	return out
 }
 
 // Header is the collection id's row without its members.
@@ -238,9 +224,6 @@ func (r *Rows) Actions() []record.Action {
 		add(truth.Actions)
 		for _, p := range truth.Problems {
 			add(p.Actions)
-		}
-		for _, w := range truth.Warnings {
-			add(w.Actions)
 		}
 	}
 	return record.CloneActions(out)

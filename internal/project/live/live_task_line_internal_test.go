@@ -10,25 +10,6 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
-func TestWriteLiveTaskLine_FailedWarningNests(t *testing.T) {
-	t.Parallel()
-	var b strings.Builder
-	snap := record.TaskSnapshot{
-		Name:     "write launch agent",
-		State:    record.Failed,
-		Summary:  "failed: permissions",
-		Warnings: []record.Problem{{Summary: "chmod denied"}},
-	}
-	writeLiveTaskLine(&b, snap, 1, 0, testLiveStyle)
-	got := b.String()
-	if !strings.Contains(got, "✗ write launch agent  failed: permissions") {
-		t.Fatalf("missing failed parent:\n%s", got)
-	}
-	if !strings.Contains(got, "! chmod denied") {
-		t.Fatalf("Failed warning must nest under the parent:\n%s", got)
-	}
-}
-
 func TestWriteLiveTaskLine_GroupChildSplitsActivity(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder

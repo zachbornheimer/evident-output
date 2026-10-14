@@ -32,9 +32,7 @@ type (
 
 func DelayForTest(d time.Duration) *time.Duration { return delay(d) }
 
-func KeepLastLinesForTest(n int) captureOption  { return keepLastLines_1(n) }
-func MirrorToDiagnosticsForTest() captureOption { return mirrorToDiagnostics_1() }
-func MirrorToDebugForTest() captureOption       { return mirrorToDebug_1() }
+func KeepLastLinesForTest(n int) captureOption { return keepLastLines_1(n) }
 
 // Hooks only tests reach: observation, drivers and aliases moved out of
 // production so the shipped package carries no test-only code.
@@ -115,10 +113,6 @@ func swapLookupEnv(fn func(string) string) func() {
 }
 
 func keepLastLines_1(n int) captureOption { return keepLastLines(n) }
-
-func mirrorToDiagnostics_1() captureOption { return mirrorToDiagnostics() }
-
-func mirrorToDebug_1() captureOption { return mirrorToDebug() }
 
 func renderPlain_1(s snapshot, opts plainOptions) ([]byte, error) {
 	return renderPlain(s, opts)
@@ -252,55 +246,6 @@ func keepLastLines(n int) captureOption {
 		if n > 0 {
 			cfg.MaxLines = n
 		}
-	}
-}
-
-func mirrorToDiagnostics() captureOption { return mirrorCapture(true, false) }
-
-func mirrorToDebug() captureOption { return mirrorCapture(false, true) }
-
-// mirrorCapture also writes each kept line to Diagnostics, to the debug
-// journal, or both.
-func mirrorCapture(diag, debug bool) captureOption {
-	return func(o *Run, taskName string, cfg *record.CaptureConfig) {
-		if o == nil {
-			return
-		}
-		prior := cfg.OnLine
-		cfg.OnLine = func(line string) {
-			if prior != nil {
-				prior(line)
-			}
-			o.mirrorCaptureLine(diag, debug, taskName, line)
-		}
-	}
-}
-
-func (o *Run) mirrorCaptureLine(mirrorDiag, mirrorDebug bool, taskName, line string) {
-	if o == nil {
-		return
-	}
-	if mirrorDiag {
-		o.writeDiagnosticText(line + "\n")
-	}
-	if !mirrorDebug {
-		return
-	}
-	o.mu.Lock()
-	allowDebug := o.cfg.debugLevel <= levelDebug
-	hasDiag := o.cfg.diagnostic != nil
-	interactive := o.show.Live.Interactive()
-	o.mu.Unlock()
-	if !allowDebug {
-		return
-	}
-	if !hasDiag && !interactive {
-		return
-	}
-	if taskName != "" {
-		o.debug(line, field{Key: "task", Value: taskName})
-	} else {
-		o.debug(line)
 	}
 }
 
@@ -583,13 +528,6 @@ type basisSource = freshness.BasisSource
 
 // FingerprintBasis observes a Fingerprint (FSPath, Value, App).
 func fingerprintBasis(f fingerprint) basisSource { return freshness.FingerprintBasis(f) }
-
-type problemSeverity = record.ProblemSeverity
-
-// Severity sets a Problem's severity.
-func severity(value problemSeverity) ProblemOption {
-	return problemOption{record.WithSeverity(value)}
-}
 
 // Count sets a quantity and optional unit.
 func count(value int64, unit ...string) ProblemOption {

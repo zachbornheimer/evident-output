@@ -15,11 +15,11 @@ import (
 type ChildTally struct {
 	// All counts every child Task.
 	All ChildCounts
-	// Folded reports whether the collection's disposition items fold into
+	// Folded reports whether the collection's Excluded items fold into
 	// Items (the renderer's rule, decided over every child).
 	Folded bool
-	// Items sums the folded items' record.Excluded and Kept records.
-	Items Dispositions
+	// Items sums the folded Excluded items.
+	Items Tally
 	// Rest counts the children that remain once items fold: All when
 	// they do not.
 	Rest ChildCounts

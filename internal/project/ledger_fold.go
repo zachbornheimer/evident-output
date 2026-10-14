@@ -8,7 +8,7 @@ import (
 // each record the same Effect (verb and object) would otherwise print one
 // row per item; it prints one row for the container, counted per item:
 // "[changed] centralize packages  centralized 1,663 packages". Like the
-// Kept/Skipped tally (disposition_items.go), this is a renderer concern:
+// Kept/Skipped tally (excluded_items.go), this is a renderer concern:
 // JSON and JSONL keep every per-item Effect, and the model keeps every
 // section.
 //

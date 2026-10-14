@@ -184,12 +184,6 @@ func writeLiveTaskLine(b *strings.Builder, t record.TaskSnapshot, indent, nameWi
 		b.WriteByte('\n')
 	}
 	writeLiveTail(b, tail, pad+"   ", st)
-	// Spec §22: warnings must not disappear. Running/Failed rows keep their
-	// diagnostic parent line (bar/count or failure summary) and nest each
-	// warning underneath — Done still inlines a short warning on the ✓ row.
-	if t.State == record.Running || t.State == record.Failed {
-		project.WriteNestedTaskWarnings(b, t.Warnings, pad+"   ", st.Style)
-	}
 	if t.State == record.Failed {
 		project.WriteVerificationDetails(b, t.Verification, pad, true, st.Style)
 	}
@@ -305,9 +299,7 @@ func liveTaskUnit(t record.TaskSnapshot, indent int, st liveStyle) project.Displ
 }
 
 // liveSettledDetail is a finished row's detail: its byte total, the
-// already-satisfied resolution, its Summary, or its warnings — one line
-// per row live, so more than one warning names the first and counts the
-// rest (plain mode nests them instead).
+// already-satisfied resolution, or its Summary.
 func liveSettledDetail(t record.TaskSnapshot, st liveStyle) string {
 	switch {
 	case t.State.Succeeded() && t.Progress.Kind == record.BytesKind:
@@ -316,12 +308,6 @@ func liveSettledDetail(t record.TaskSnapshot, st liveStyle) string {
 		return project.AlreadySatisfiedRowDetail(t, st.Color)
 	case t.State.Succeeded() && t.Summary != "":
 		return st.Dim(t.Summary)
-	case t.State.Succeeded() && len(t.Warnings) > 0:
-		msg := project.WarningText(t.Warnings[0])
-		if more := len(t.Warnings) - 1; more > 0 {
-			msg = fmt.Sprintf("%s (+%d more)", msg, more)
-		}
-		return st.Dim(msg)
 	default:
 		return ""
 	}

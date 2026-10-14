@@ -13,11 +13,11 @@ import (
 // every item under its reason. Machine output never calls this; JSON and
 // JSONL keep every child Task.
 
-// IsDispositionItem reports whether t is an item of the Group named group
+// IsExcludedItem reports whether t is an item of the Group named group
 // whose only information is that it was Excluded for a reason, so its row
 // would say nothing its Group's tally does not. The Group's own Task is
 // never an item: it is the row the tally hangs under.
-func IsDispositionItem(group string, t *record.TaskSnapshot) bool {
+func IsExcludedItem(group string, t *record.TaskSnapshot) bool {
 	if t.Synthetic() || IsOwnTask(group, t) {
 		return false
 	}
@@ -25,7 +25,7 @@ func IsDispositionItem(group string, t *record.TaskSnapshot) bool {
 	// Facts ride the item into its tally (verbose lists them beside the
 	// item's name), so they never break the fold (E-100).
 	return ok && (t.Summary == "" || t.Summary == reason) && t.Phase == "" && t.Progress.Total == 0 && t.Progress.Completed == 0 &&
-		len(t.Warnings) == 0 && len(t.Actions) == 0 && len(t.Verification) == 0
+		len(t.Actions) == 0 && len(t.Verification) == 0
 }
 
 // ExcludeReason is why t was Excluded: the Summary of the one Problem that
@@ -54,7 +54,7 @@ const (
 )
 
 // ChildCensus is how a Group's child Tasks partition for folding: its own
-// Task and its disposition items.
+// Task and its Excluded items.
 type ChildCensus struct {
 	Items   int
 	OwnTask bool
@@ -67,14 +67,14 @@ func censusOf(col record.TasksSnapshot) ChildCensus {
 		switch {
 		case IsOwnTask(col.Name, t):
 			c.OwnTask = true
-		case IsDispositionItem(col.Name, t):
+		case IsExcludedItem(col.Name, t):
 			c.Items++
 		}
 	}
 	return c
 }
 
-// foldsItems reports whether col's disposition items fold into a tally:
+// foldsItems reports whether col's Excluded items fold into a tally:
 // two or more of them, or any under a Group's own Task. A Sequence keeps
 // every row: its rows state an order the tally cannot (§5, and the
 // zero-information rule's same exemption).
@@ -96,12 +96,12 @@ func (c ChildCensus) Folds() bool {
 	return c.Items >= minFoldedItems
 }
 
-// WithoutDispositionItems returns col without its disposition items, and
+// WithoutExcludedItems returns col without its Excluded items, and
 // their summed tallies, when it folds them (foldsItems) — linear in the
 // children, in child order, with no sorting, so a live frame can afford
 // it every tick.
-func WithoutDispositionItems(col record.TasksSnapshot) (record.TasksSnapshot, Dispositions) {
-	var items Dispositions
+func WithoutExcludedItems(col record.TasksSnapshot) (record.TasksSnapshot, Tally) {
+	var items Tally
 	if !foldsItems(col) {
 		return col, items
 	}
@@ -111,8 +111,8 @@ func WithoutDispositionItems(col record.TasksSnapshot) (record.TasksSnapshot, Di
 	var rest []record.TaskSnapshot
 	for i := range col.Tasks {
 		t := &col.Tasks[i]
-		if IsDispositionItem(col.Name, t) {
-			items.AddTask(t)
+		if IsExcludedItem(col.Name, t) {
+			items.AddItem(t)
 			continue
 		}
 		rest = append(rest, *t)
@@ -132,7 +132,7 @@ func WithoutDispositionItems(col record.TasksSnapshot) (record.TasksSnapshot, Di
 // surviving child rows they are the header's children too and share the
 // child column; with no child row left they annotate the header itself,
 // as a Task's tallies annotate its row ("✓ branches  6 checked" /
-// "  ! kept 3 (...)", §26/§27).
+// "  ○ excluded 3 (...)", §26/§27).
 func HeaderTallyIndent(folded record.TasksSnapshot) string {
 	if len(folded.Tasks) > 0 || len(folded.Collections) > 0 {
 		return GroupChildIndent

@@ -13,7 +13,7 @@ import (
 // show without walking it: a Group of per-item Groups costs a frame what the
 // screen shows, not what the run holds (E-091, E-096).
 type census struct {
-	total, done, running, pending, unfinished, failed, warned int
+	total, done, running, pending, unfinished, failed int
 	// unstamped counts Running or Pending Tasks no frame has painted yet
 	// (row.stamp), so a frame skips a subtree with none.
 	unstamped int
@@ -34,7 +34,7 @@ func (c *census) counts() project.ChildCounts {
 
 // rank is the attention rank of the census' most urgent Task.
 func (c *census) rank() int {
-	return AttentionRank(c.failed > 0, c.warned > 0, c.running > 0, c.pending > 0)
+	return AttentionRank(c.failed > 0, c.running > 0, c.pending > 0)
 }
 
 // count moves the per-state counts of one Task in state by delta.
@@ -80,13 +80,9 @@ func (g *group) currentCensus() *census {
 func (r *row) censusDeclared() {
 	width := r.width()
 	unstamped := r.unstampedIn(r.followed)
-	warned := r.rec.WarningCount() > 0
 	r.censusesAbove(func(c *census) {
 		c.total++
 		c.count(r.followed, 1)
-		if warned {
-			c.warned++
-		}
 		if unstamped {
 			c.unstamped++
 		}

@@ -7,7 +7,7 @@
     "tests": [
       {
         "pkg": ".",
-        "run": "TestProblemWarning_DoesNotResolveTask"
+        "run": "TestProblem_DoesNotResolveTask"
       },
       {
         "pkg": ".",

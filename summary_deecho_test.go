@@ -27,21 +27,21 @@ func TestFail_NoDetail_DropsRedundantProblemRow(t *testing.T) {
 	}
 }
 
-// TestWarn_MessagePlacement_MatchesFailBlock is beginner-3: Warn's message
-// gets the same summary placement as Fail/Block (the task's own glyph row
+// TestProblem_MessagePlacement_MatchesFailBlock is beginner-3: a Problem's
+// message gets the same summary placement as Fail/Block (the task's own glyph row
 // carries it), with the same de-echo dropping the redundant problem row.
-func TestWarn_MessagePlacement_MatchesFailBlock(t *testing.T) {
+func TestProblem_MessagePlacement_MatchesFailBlock(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
-	out.Task("optional tool").Problem("shellcheck not found", severity(severityWarning)).
+	out.Task("optional tool").Problem("shellcheck not found").
 		Define(func(context.Context) error { return nil })
 	_ = out.finish()
 
 	rendered := buf.String()
 	lines := strings.Split(strings.TrimRight(rendered, "\n"), "\n")
 	if len(lines) == 0 || !strings.Contains(lines[0], "optional tool") || !strings.Contains(lines[0], "shellcheck not found") {
-		t.Fatalf("expected the warning message on the same glyph row as the task name (Fail/Block placement), got:\n%s", rendered)
+		t.Fatalf("expected the Problem message on the same glyph row as the task name (Fail/Block placement), got:\n%s", rendered)
 	}
 	if strings.Count(rendered, "shellcheck not found") != 1 {
 		t.Fatalf("expected the message to appear exactly once, got:\n%s", rendered)

@@ -51,13 +51,6 @@ func ExampleProblemOption() {
 	// true
 }
 
-// ExampleProblemSeverity shows the closed set of Problem severities.
-func ExampleProblemSeverity() {
-	fmt.Println(severityError, severityWarning)
-	// Output:
-	// error warning
-}
-
 // ExampleDetail sets user-visible detail text on a Problem raised via
 // Task.Fail.
 func ExampleDetail() {

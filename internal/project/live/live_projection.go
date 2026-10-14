@@ -40,15 +40,15 @@ type ChildRoster struct {
 	// All counts every child; Work every child that is not a disposition
 	// item.
 	All, Work project.ChildCounts
-	// Items sums the disposition items' Excluded reasons.
-	Items  project.Dispositions
+	// Items sums the Excluded items' Excluded reasons.
+	Items  project.Tally
 	Census project.ChildCensus
 }
 
 // ChildKind is how a live frame files one child Task of the collection
 // named group.
 type ChildKind struct {
-	// Item reports a disposition item: counted in its collection's
+	// Item reports a Excluded item: counted in its collection's
 	// tally, never ranked.
 	Item bool
 	// OwnTask feeds the census that decides whether the items fold
@@ -68,7 +68,7 @@ func ClassifyChild(group string, t *record.TaskSnapshot) ChildKind {
 	switch {
 	case project.IsOwnTask(group, t):
 		return ChildKind{OwnTask: true, Rank: liveRank(*t)}
-	case project.IsDispositionItem(group, t):
+	case project.IsExcludedItem(group, t):
 		return ChildKind{Item: true}
 	default:
 		return ChildKind{Rank: liveRank(*t)}
@@ -77,7 +77,7 @@ func ClassifyChild(group string, t *record.TaskSnapshot) ChildKind {
 
 // ChildRows is how many rows of children a frame of rows rows admits by
 // attention rank; it admits one more, in declaration order, of each of
-// the disposition items and the other children.
+// the Excluded items and the other children.
 func ChildRows(rows int) int { return liveHeight(rows) }
 
 // NewLiveChildren starts the projection of the children of the collection
@@ -95,7 +95,7 @@ func (c *LiveChildren) Admit(t *record.TaskSnapshot) bool {
 	switch {
 	case kind.Item:
 		r.Census.Items++
-		r.Items.AddTask(t)
+		r.Items.AddItem(t)
 		c.keptItems++
 		return c.keptItems <= c.rows+1
 	case kind.OwnTask:
@@ -171,14 +171,12 @@ func (c *LiveCollections) Admit(rank int) bool {
 }
 
 // AttentionRank is the rank Admit takes for a collection whose Tasks, at
-// any depth, include a failed, a warned, a running or a pending one: the
+// any depth, include a failed, a running or a pending one: the
 // most urgent that applies, as liveRank orders a single Task.
-func AttentionRank(failed, warned, running, pending bool) int {
+func AttentionRank(failed, running, pending bool) int {
 	switch {
 	case failed:
 		return liveRank(record.TaskSnapshot{State: record.Failed})
-	case warned:
-		return 1
 	case running:
 		return liveRank(record.TaskSnapshot{State: record.Running})
 	case pending:

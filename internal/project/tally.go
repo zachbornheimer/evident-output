@@ -7,24 +7,22 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
-// Tally is the counted partition of disposition records (record.Skipped
-// or Task.Skipped): how many, split by Reason in first-seen order,
-// with the item names under each reason. It is the one owner of that
-// count, whether the records sit on a single Task or come from a Group's
-// per-item children, so the headline and its reason parts always sum.
+// Tally is the counted partition of a Group's Excluded item Tasks: how
+// many, split by Exclude reason in first-seen order, with the item names
+// under each reason. It is the one owner of that count, so the headline and
+// its reason parts always sum.
 //
-// Building one is a single O(records) pass with no sorting, so a renderer
-// may rebuild it every frame.
+// Building one is a single O(items) pass with no sorting, so a renderer may
+// rebuild it every frame.
 type Tally struct {
 	reasons []ReasonTally
 	index   map[string]int
-	causes  []string
 	total   int
 }
 
 // ReasonTally is one Reason's share of a Tally, with its item names in
-// record order. Facts, when set, is aligned with Names: the Facts of the
-// item Task each record came from (nil for an item with none).
+// declaration order. Facts is aligned with Names: the Facts of each item
+// Task (nil for an item with none).
 type ReasonTally struct {
 	Reason string
 	Names  []string
@@ -41,47 +39,43 @@ func (r ReasonTally) HasFacts() bool {
 	return false
 }
 
-// Add counts rec under its Reason.
-func (t *Tally) Add(rec record.TaxonomyRecord) { t.addItem(rec, nil) }
+// AddItem counts t, an Excluded item of a Group (IsExcludedItem), under its
+// Exclude reason, carrying t's Facts.
+func (t *Tally) AddItem(item *record.TaskSnapshot) {
+	reason, _ := ExcludeReason(item)
+	t.add(reason, item.Name, item.Facts)
+}
 
-// addItem counts rec, recording facts as its item's Facts.
-func (t *Tally) addItem(rec record.TaxonomyRecord, facts []record.Fact) {
+// add counts name under reason, recording facts as its item's Facts.
+func (t *Tally) add(reason, name string, facts []record.Fact) {
 	if t.index == nil {
 		t.index = make(map[string]int)
 	}
-	i, seen := t.index[rec.Reason]
+	i, seen := t.index[reason]
 	if !seen {
 		i = len(t.reasons)
-		t.index[rec.Reason] = i
-		t.reasons = append(t.reasons, ReasonTally{Reason: rec.Reason})
+		t.index[reason] = i
+		t.reasons = append(t.reasons, ReasonTally{Reason: reason})
 	}
 	r := &t.reasons[i]
-	r.Names = append(r.Names, rec.Name)
+	r.Names = append(r.Names, name)
 	if len(facts) > 0 || r.Facts != nil {
 		for len(r.Facts) < len(r.Names)-1 {
 			r.Facts = append(r.Facts, nil)
 		}
 		r.Facts = append(r.Facts, facts)
 	}
-	t.causes = append(t.causes, rec.Causes...)
 	t.total++
 }
 
-// AddAll counts every record in records.
-func (t *Tally) AddAll(records []record.TaxonomyRecord) {
-	for _, rec := range records {
-		t.Add(rec)
-	}
-}
-
-// Total is how many records the Tally counted.
+// Total is how many items the Tally counted.
 func (t Tally) Total() int { return t.total }
+
+// Empty reports whether the Tally counted nothing.
+func (t Tally) Empty() bool { return t.total == 0 }
 
 // Reasons is the partition, in the order each Reason was first recorded.
 func (t Tally) Reasons() []ReasonTally { return t.reasons }
-
-// Causes is every counted record's evidence text, in record order.
-func (t Tally) Causes() []string { return t.causes }
 
 // Clone is a Tally the caller can hold after the original is mutated.
 // Slice and map fields are copied, so a live index can keep appending
@@ -107,39 +101,5 @@ func (t Tally) Clone() Tally {
 	if len(t.index) > 0 {
 		out.index = maps.Clone(t.index)
 	}
-	if len(t.causes) > 0 {
-		out.causes = slices.Clone(t.causes)
-	}
 	return out
-}
-
-// TallyOf counts records.
-func TallyOf(records []record.TaxonomyRecord) Tally {
-	var t Tally
-	t.AddAll(records)
-	return t
-}
-
-// Dispositions are a Task's or a Group's tallies.
-type Dispositions struct {
-	Skipped  Tally
-	Kept     Tally
-	Excluded Tally
-}
-
-// Empty reports whether nothing was skipped, kept or excluded.
-func (d Dispositions) Empty() bool {
-	return d.Skipped.Total() == 0 && d.Kept.Total() == 0 && d.Excluded.Total() == 0
-}
-
-// Clone is a Dispositions the caller can hold after the original is mutated.
-func (d Dispositions) Clone() Dispositions {
-	return Dispositions{Skipped: d.Skipped.Clone(), Kept: d.Kept.Clone(), Excluded: d.Excluded.Clone()}
-}
-
-// AddTask counts t, an Excluded item of a Group (IsDispositionItem), under
-// its Exclude reason, carrying t's Facts.
-func (d *Dispositions) AddTask(t *record.TaskSnapshot) {
-	reason, _ := ExcludeReason(t)
-	d.Excluded.addItem(record.TaxonomyRecord{Reason: reason, Name: t.Name}, t.Facts)
 }

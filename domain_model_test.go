@@ -52,24 +52,6 @@ func TestDOM037_FailedConclusion(t *testing.T) {
 	}
 }
 
-// TestDOM038_WarningOnly is updated for P2: Warn no longer resolves its
-// task, so a task that only ever calls Warn auto-resolves Done at Finish
-// (the same amnesty a recorded effect gets) — the run reads StateReady, with
-// Conclusion.Warned carrying the warning forward instead of a StateWarning
-// headline.
-func TestDOM038_WarningOnly(t *testing.T) {
-	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
-	t.Cleanup(func() { _ = out.close() })
-	out.Task("i").Problem("careful", severity(severityWarning))
-	_ = out.finish()
-	if got := out.conclusion().headline(); got != headlineSucceeded {
-		t.Fatalf("state = %v, want StateReady (Warn auto-resolves Done, P2)", got)
-	}
-	if !out.conclusion().warned {
-		t.Fatal("Conclusion.Warned = false, want true")
-	}
-}
-
 func TestDOM041_ActionsPromoted(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
@@ -151,13 +133,13 @@ func TestDOM030_CollectionWarning(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 	g := out.Group("g")
 	succeed(g.Task("a"))
-	g.Task("b").Problem("soft", severity(severityWarning))
+	g.Task("b").Problem("soft")
 	snap := g.snapshot()
 	if snap.State != running && snap.State != pending {
 		t.Fatalf("state = %v, want Running or Pending (Warn no longer resolves its task)", snap.State)
 	}
-	if warnings := snap.Tasks[1].Warnings; len(warnings) != 1 || warnings[0].Summary != "soft" {
-		t.Fatalf("child warnings = %+v, want one warning %q", warnings, "soft")
+	if warnings := snap.Tasks[1].Problems; len(warnings) != 1 || warnings[0].Summary != "soft" {
+		t.Fatalf("child problems = %+v, want one warning %q", warnings, "soft")
 	}
 }
 
@@ -171,7 +153,7 @@ func TestDOM030b_CollectionWarningDetailIsRendered(t *testing.T) {
 	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	g := out.Group("capture")
 	succeed(g.Task("Brewfile"))
-	g.Task("Zen").Problem("skipped — zen-bootstrap not available", severity(severityWarning))
+	g.Task("Zen").Problem("skipped — zen-bootstrap not available")
 	_ = out.finish()
 	_ = out.close()
 
@@ -313,11 +295,11 @@ func TestDOM010_WarnAndFailWithStructuredSummary(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	w := out.Task("w")
-	w.Problem("soft", severity(severityWarning))
+	w.Problem("soft")
 	if got := w.snapshot().State; got == succeeded || got == failed || got == refused {
 		t.Fatalf("state = %q, want non-terminal: Warn must not resolve the task", got)
 	}
-	if warnings := w.snapshot().Warnings; len(warnings) != 1 || warnings[0].Summary != "soft" {
+	if warnings := w.snapshot().Problems; len(warnings) != 1 || warnings[0].Summary != "soft" {
 		t.Fatalf("warnings = %+v, want one warning %q", warnings, "soft")
 	}
 	succeed(w)

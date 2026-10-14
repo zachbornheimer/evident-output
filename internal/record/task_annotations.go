@@ -61,30 +61,6 @@ func takesEvidenceTail(state State) bool { return state == Failed || state == Re
 
 func lacksDetail(p Problem) bool { return p.Detail == "" && p.EvidenceTail == "" }
 
-// Warnings is a copy of the Task's warning-severity Problems.
-func (t *Task) Warnings() []Problem {
-	t.run.mu.Lock()
-	defer t.run.mu.Unlock()
-	return CloneProblems(t.warnings)
-}
-
-// WarningCount is how many warnings the Task holds.
-func (t *Task) WarningCount() int {
-	t.run.mu.Lock()
-	defer t.run.mu.Unlock()
-	return len(t.warnings)
-}
-
-// AppendWarning records a warning and returns how many the Task now holds.
-// Warnings annotate the Task's lifecycle; they never replace it.
-func (t *Task) AppendWarning(p Problem) int {
-	defer t.changed()
-	t.lockForWrite()
-	defer t.run.mu.Unlock()
-	t.warnings = append(t.warnings, p)
-	return len(t.warnings)
-}
-
 // Facts is a copy of the Task's discovered name/value annotations.
 func (t *Task) Facts() []Fact {
 	t.run.mu.Lock()

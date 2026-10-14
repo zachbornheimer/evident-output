@@ -167,13 +167,6 @@ func (b *Board) Changed(id record.TaskID) {
 	}
 }
 
-// Warned records the Task id's first warning.
-func (b *Board) Warned(id record.TaskID) {
-	if r := b.rows[id]; r != nil {
-		r.censusesAbove(func(c *census) { c.warned++ })
-	}
-}
-
 // FirstSeen is when a frame first painted the Task id, or the zero time.
 func (b *Board) FirstSeen(id record.TaskID) time.Time {
 	if r := b.rows[id]; r != nil {

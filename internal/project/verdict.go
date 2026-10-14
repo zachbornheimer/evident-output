@@ -50,20 +50,20 @@ func (r *Rows) summary(g *DeclaredGroup, state record.State) string {
 	if g.Node.BuilderFailed() || g.Node.BuilderNotStarted() {
 		return g.Rec.Summary()
 	}
-	if !state.Succeeded() || g.Rec.Summary() == "" || r.warnedOrFailedBelow(g) {
+	if !state.Succeeded() || g.Rec.Summary() == "" || r.failedBelow(g) {
 		return ""
 	}
 	return g.Rec.Summary()
 }
 
-// warnedOrFailedBelow reports a Failed or Cancelled Task, or one with a
-// warning, in g or any collection nested in it (E2.5 finding 1): a success
-// summary must not paper over trouble several levels deep.
-func (r *Rows) warnedOrFailedBelow(g *DeclaredGroup) bool {
-	if s := r.lens.States(g.ID); s.Failed > 0 || s.Cancelled > 0 || s.Warned > 0 {
+// failedBelow reports a Failed or Cancelled Task in g or any collection
+// nested in it (E2.5 finding 1): a success summary must not paper over
+// trouble several levels deep.
+func (r *Rows) failedBelow(g *DeclaredGroup) bool {
+	if s := r.lens.States(g.ID); s.Failed > 0 || s.Cancelled > 0 {
 		return true
 	}
-	return slices.ContainsFunc(g.Groups, r.warnedOrFailedBelow)
+	return slices.ContainsFunc(g.Groups, r.failedBelow)
 }
 
 // verdictFold accumulates member states into one collection verdict. A

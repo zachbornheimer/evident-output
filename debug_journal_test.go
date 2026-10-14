@@ -57,7 +57,7 @@ func TestLOG014_WarnMessageDistinctFromItemWarn(t *testing.T) {
 	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	out.println("log warning")
-	out.Task("i").Problem("item warning", severity(severityWarning))
+	out.Task("i").Problem("item warning")
 	_ = out.finish()
 	s := buf.String()
 	if !strings.Contains(s, "log warning") || !strings.Contains(s, "item warning") {
