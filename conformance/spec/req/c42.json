@@ -83,11 +83,7 @@
     "tests": [
       {
         "pkg": ".",
-        "run": "TestDryRun_UnsatisfiedVerifyWithNothingPlannedFails"
-      },
-      {
-        "pkg": ".",
-        "run": "TestDryRun_UnsatisfiedVerifyPlansInsteadOfFailing"
+        "run": "TestVerifyFalseAfterSuccessfulDefineFails"
       }
     ],
     "default": false
