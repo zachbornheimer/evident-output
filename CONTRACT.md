@@ -137,8 +137,9 @@ concurrency, dependency readiness and cancellation. `Define` submits and never
 runs inline; a nil return succeeds. `Verify` true before `Define` resolves
 Satisfied and the callback never runs; false after a successful callback
 fails the Task. A Failed, Refused, Excluded or Cancelled predecessor leaves
-its dependents NotStarted. A NotStarted Task's summary names the Task that
-stopped it. `After(group)` and `After(sequence)` wait on the container's own
+its dependents NotStarted. A NotStarted Task's summary names the Task at the
+root of its chain of predecessors, in that Task's state, whether a Group it ran
+After got its members from `Build` or declared them directly. `After(group)` and `After(sequence)` wait on the container's own
 outcome, which folds an Excluded member into success, so only a direct
 `After(task)` on an Excluded Task leaves its dependent NotStarted. `Get` is valid only from work ordered after the
 producer by Sequence position or `After`; an unordered `Get` fails the run

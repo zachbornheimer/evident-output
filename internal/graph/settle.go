@@ -18,6 +18,17 @@ func stoppedBy(name string, state record.State) string {
 	return NotStartedSummary + " — " + name + " " + strings.ReplaceAll(string(state), "_", " ")
 }
 
+// stoppedByTask is the summary of a Task kept from running by the Task p.
+// p that never ran already says what stopped it, and that is the root of the
+// chain, so its dependents repeat it; any other p is the root itself, named in
+// the state it ended in.
+func stoppedByTask(p *Task) string {
+	if summary := p.Rec.Summary(); p.Rec.State() == record.NotStarted && strings.HasPrefix(summary, NotStartedSummary+" — ") {
+		return summary
+	}
+	return stoppedBy(p.Name, p.Rec.State())
+}
+
 // Settle is the one way a Task reaches a terminal state. Every path that
 // ends a Task (a caller's verb, a scheduled callback's return, a failed
 // predecessor's cascade, a cancelled Confirm, a duplicate declaration,
@@ -77,14 +88,14 @@ func (g *Graph) markStoppedLocked(t *Task, summary string) {
 func (g *Graph) stopperLocked(p Predecessor) string {
 	switch {
 	case p.task != nil:
-		return stoppedBy(p.task.Name, p.task.Rec.State())
+		return stoppedByTask(p.task)
 	case p.col == nil:
 		return NotStartedSummary
 	case p.col.tally.stoppedBuilder != nil:
 		return p.col.tally.stoppedBuilder.summary(p.col.Name)
 	}
 	if m := p.col.tally.firstFailedMember(); m != nil {
-		return stoppedBy(m.Name, m.Rec.State())
+		return stoppedByTask(m)
 	}
 	return NotStartedSummary
 }
@@ -119,7 +130,7 @@ func (g *Graph) failSequenceFollowersLocked(failed *Task) {
 		if c.stoppedAfter != 0 && branch >= c.stoppedAfter {
 			return
 		}
-		c.stoppedAfter, c.stoppedBy = branch, stoppedBy(failed.Name, failed.Rec.State())
+		c.stoppedAfter, c.stoppedBy = branch, stoppedByTask(failed)
 		g.stopFollowersLocked(c, branch)
 	}
 }

@@ -52,7 +52,8 @@ func stopperRun(t *testing.T, built bool, ending stopperEnding, output evo.Outpu
 // in its real state, whether the Group's members come from Build or were
 // declared directly, and a row never prints above the collection that
 // explains it. A built Group whose gate never succeeded ran nothing, so the
-// Task after it is not "stopped by work failed": work never ran.
+// Task after it is not "stopped by work failed": work never ran. A Task
+// after a static Group names the same gate, not a member that never ran.
 func TestNotStartedNamesRealStopperForBuiltGroups(t *testing.T) {
 	for _, ending := range stopperEndings {
 		t.Run("built/"+ending.name, func(t *testing.T) {
@@ -64,12 +65,13 @@ func TestNotStartedNamesRealStopperForBuiltGroups(t *testing.T) {
 			assertStopperRun(t, true, ending, golden, stopped)
 		})
 		t.Run("static/"+ending.name, func(t *testing.T) {
+			stopped := "not started — gate " + ending.state
 			golden := ending.glyph + " gate    no\n" +
 				"- work\n" +
-				"   - w1  not started — gate " + ending.state + "\n" +
-				"- report  not started — w1 not started\n\n" +
+				"   - w1  " + stopped + "\n" +
+				"- report  " + stopped + "\n\n" +
 				ending.runEnd + "  stopper\n"
-			assertStopperRun(t, false, ending, golden, "not started — w1 not started")
+			assertStopperRun(t, false, ending, golden, stopped)
 		})
 	}
 }
