@@ -9,33 +9,28 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
 
-// confirmPolicyHint is the Next step a Confirm nobody answered points at,
-// when the caller named no flag of its own.
+// confirmPolicyHint is the Next step a Confirm nobody answered points at when the caller named no flag.
 const confirmPolicyHint = "pass --yes to confirm non-interactively"
 
-// ConfirmOption shapes a Confirm gate. It is sealed: only this package's
-// constructors make one, and Detail is one too.
+// ConfirmOption shapes a Confirm gate. It is sealed: only this package's constructors, and Detail, make one.
 type ConfirmOption interface {
 	applyConfirm(*confirmConfig)
 }
 
-// confirmOption is every ConfirmOption but Detail.
 type confirmOption func(*confirmConfig)
 
 func (f confirmOption) applyConfirm(c *confirmConfig) { f(c) }
 
 type confirmConfig struct {
 	destructive bool
-	// policyFlag is the flag of the caller's own executable that confirms
-	// non-interactively, resolved against the run's identity when the hint
-	// is shown, since only the run knows its title.
+	// policyFlag is the caller's own flag that confirms non-interactively,
+	// resolved when the hint is shown since only the run knows its title.
 	policyFlag string
 	// detail holds each Detail's context line, shown under the prompt.
 	detail []string
 }
 
-// policyHint is the Next step an unasked refusal points at: the caller's
-// flag on its own executable, or the default "pass --yes".
+// policyHint is the Next step an unasked refusal points at: the caller's flag, or the default "pass --yes".
 func (c confirmConfig) policyHint(o *Run) Action {
 	if c.policyFlag == "" {
 		return label(confirmPolicyHint)
@@ -48,9 +43,8 @@ func Destructive() ConfirmOption {
 	return confirmOption(func(c *confirmConfig) { c.destructive = true })
 }
 
-// NonInteractive names the flag of the caller's own executable that
-// confirms without a prompt (default "--yes"), for the hint a refusal
-// nobody answered shows.
+// NonInteractive names the flag of the caller's own executable that confirms without a prompt
+// (default "--yes"), shown in the hint a refusal nobody answered gives.
 func NonInteractive(argv ...string) ConfirmOption {
 	flag := "--yes"
 	if len(argv) > 0 {
@@ -59,18 +53,13 @@ func NonInteractive(argv ...string) ConfirmOption {
 	return confirmOption(func(c *confirmConfig) { c.policyFlag = flag })
 }
 
-// Confirm quiesces the live region, renders a durable "?  <question>  [y/N]"
-// gate, and reads one answer line — owning the whole gate so no call site
-// hand-rolls a [y/N] prompt that fights the spinner or misreports "no" as
-// failure (evo-rec.md "confirm gate" default). question is verbatim text,
-// not a format.
+// Confirm quiesces the live region, renders a durable "?  <question>  [y/N]" gate, and reads one answer line,
+// so no call site hand-rolls a prompt that fights the spinner or misreports "no" as failure. question is verbatim.
 //
-// "y" or "yes" (any case) succeeds the gate and returns true. Anything else
-// refuses it ("declined"); a plain run refuses without asking ("blocked by
-// policy"), and input that closes before an answer refuses with "no answer —
-// stdin closed"; both point at how to confirm non-interactively. Declining
-// is never Failed or Cancelled: it exits 1 through the Conclusion. SIGINT or
-// SIGTERM while waiting cancels the gate, and Confirm returns false.
+// "y" or "yes" (any case) succeeds the gate and returns true. Anything else refuses it ("declined"); a plain run
+// refuses without asking ("blocked by policy"), and closed input refuses with "no answer — stdin closed"; both
+// point at how to confirm non-interactively. Declining exits 1 through the Conclusion, never Failed or Cancelled.
+// SIGINT or SIGTERM while waiting cancels the gate, and Confirm returns false.
 func (o *Run) Confirm(question string, opts ...ConfirmOption) bool {
 	if o == nil {
 		return false
@@ -88,8 +77,7 @@ func (o *Run) Confirm(question string, opts ...ConfirmOption) bool {
 	return o.promptConfirm(gate, question, cfg)
 }
 
-// settleGate resolves the gate as answer decides (graph.Answer.Outcome),
-// commits its row at once, and reports whether the answer was yes.
+// settleGate resolves the gate as answer decides (graph.Answer.Outcome), commits its row, and reports whether it was yes.
 func (o *Run) settleGate(gate *Task, answer graph.Answer, cfg confirmConfig) bool {
 	switch answer.Outcome() {
 	case cancelled:
@@ -110,11 +98,9 @@ func (o *Run) settleGate(gate *Task, answer graph.Answer, cfg confirmConfig) boo
 	return answer.Outcome() == succeeded
 }
 
-// promptConfirm asks question inside one Suspend window, so no live frame
-// lands between the prompt and the gate's resolved row; siblings keep
-// running and paint once it closes. The abort channel is registered before
-// anything is written: a SIGINT from gate creation on unblocks the read
-// instead of being swallowed (X2).
+// promptConfirm asks question inside one Suspend window, so no live frame lands between the prompt and the
+// resolved row. The abort channel is registered before anything is written, so a SIGINT from gate creation on
+// unblocks the read.
 func (o *Run) promptConfirm(gate *Task, question string, cfg confirmConfig) bool {
 	abort, release := o.graph.RegisterAbort(gate.id)
 	defer release()
@@ -137,16 +123,14 @@ func (o *Run) promptConfirm(gate *Task, question string, cfg confirmConfig) bool
 	return yes
 }
 
-// ownWindow marks the gate id as the Task its window shows, so its rows
-// are not held back like a sibling's, or clears the mark.
+// ownWindow marks the gate id as the Task its window shows, so its rows are not held back like a sibling's, or clears the mark.
 func (o *Run) ownWindow(id string, owns bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.show.Stream.OwnWindow(record.TaskID(id), owns)
 }
 
-// confirmReader is the Stdin facade, the process's standard input unless
-// configured.
+// confirmReader is the Stdin facade: standard input unless configured.
 func (o *Run) confirmReader() io.Reader {
 	if o.cfg.stdin != nil {
 		return o.cfg.stdin
@@ -154,11 +138,9 @@ func (o *Run) confirmReader() io.Reader {
 	return terminal.Stdin()
 }
 
-// Suspend opens an exclusive-TTY window (Confirm's prompt and answer, an
-// interactive child program) around fn. It clears the live region and keeps
-// every paint off the surface until fn returns, so a sibling's frame cannot
-// overwrite the window; it does not hold the scheduler, so eligible
-// siblings keep running (contract §3) and paint once the window closes.
+// Suspend opens an exclusive-TTY window (Confirm's prompt, an interactive child program) around fn. It clears the
+// live region and keeps every paint off the surface until fn returns; it does not hold the scheduler, so
+// eligible siblings keep running (contract §3) and paint once it closes.
 func (o *Run) Suspend(fn func() error) error {
 	if fn == nil {
 		return nil

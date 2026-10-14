@@ -1,8 +1,6 @@
 package evo
 
 import (
-	"slices"
-	"strings"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/change"
@@ -18,7 +16,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
 
-// Output is the aggregate root for one command's presentation lifecycle.
+// Run is the aggregate root for one command's presentation lifecycle.
 type Run struct {
 	// mu guards the render state. Its sections hold the run's notifications,
 	// so the engine's listener hears a section's writes once the mutex is free.
@@ -26,61 +24,47 @@ type Run struct {
 	cfg config
 
 	outputID string
-	// startedAt is the wire v2 envelope's run_id-adjacent "started_at"
-	// (spec §35) — captured once at construction through the Clock facade,
-	// read back (never re-derived) at Finish.
+	// startedAt is the wire envelope's started_at (§35), read back at Finish, never re-derived.
 	startedAt time.Time
 	closed    bool
-	// closing is non-nil once a Close call claimed the teardown; it closes
-	// when that teardown ends, so a concurrent Close waits instead of
-	// tearing down twice.
+	// closing is non-nil once a Close claimed the teardown and closes when it
+	// ends, so a concurrent Close waits.
 	closing chan struct{}
 	// confirmTurn lets one Confirm at a time own the terminal.
 	confirmTurn *terminal.Turn
 	finishing   bool
 	finished    bool
-	// misuse records the first API misuse of this run. Graph workers call it
-	// without Output.mu; a strict recorder panics after recording, never
-	// under graph.mu.
+	// misuse records the first API misuse. Graph workers call it without Run.mu;
+	// a strict recorder panics after recording, never under graph.mu.
 	misuse *misuse.Recorder
-	// show is how the run is shown: rows, live region, durable stream and
-	// evo.event stream, kept current with the record.
+	// show presents the run: rows, live region, durable stream, evo.event stream.
 	show *present.Presenter
 
-	// changes performs the File, Exec, Patch and Effect operations of this
-	// Run, and owns the workspace relative paths resolve against.
+	// changes performs File, Exec, Patch and Effect and owns the workspace paths resolve against.
 	changes *change.Run
 
 	tasks []*taskState
-	// rootTasks are the tasks outside every collection, in declaration
-	// order: the ones a live frame walks beside the collections.
+	// rootTasks are the tasks outside every collection, in declaration order.
 	rootTasks   []*taskState
 	collections []*tasksState
-	// rec holds the run's truth: its event journal, ledger, history lines,
-	// messages, diagnostics, run-scoped facts and warnings, and Conclusion.
+	// rec holds the run's truth: journal, ledger, lines, messages, facts, warnings, Conclusion.
 	rec *record.Run
 
-	// graph is the declared shape of the run: identity, keys and numbering.
 	graph *graph.Graph
-	// taskStates and containerStates are engine's own state for each node the
-	// graph declared, keyed by the node's ID.
+	// taskStates and containerStates hold engine state per graph node, keyed by node ID.
 	taskStates      map[string]*taskState
 	containerStates map[string]*tasksState
 
-	// Print/Printf/Println line buffer.
-	pendingPrint strings.Builder
-	pendingVis   visibility // visibility of the current pending fragment
+	// printLines assembles Print fragments into message lines.
+	printLines *txt.PrintLines
 
-	// freshness is this Run's lazily opened reconciliation manifest (spec
-	// §11.3) and what it remembers about each Task: declared inputs,
-	// observed Basis, pending operation records and Verify checks.
-	freshness *freshness.Run
-	// cleanStops tracks running Tasks that end Succeeded on a named signal.
-	cleanStops cleanStopRegistry
+	// freshness is this Run's lazily opened reconciliation manifest (§11.3) and
+	// what it remembers about each Task.
+	freshness  *freshness.Run
+	cleanStops graph.CleanStops
 }
 
-// baseConfig is the config a run starts from before Config resolves
-// into it.
+// baseConfig is the config a run starts from before Config resolves into it.
 func baseConfig(subject string) config {
 	return config{
 		subject:         subject,
@@ -97,23 +81,12 @@ func baseConfig(subject string) config {
 	}
 }
 
-// newRun builds the run cfg describes: its graph, freshness and changes, and
-// every projection of it.
+// newRun builds the run cfg describes: its graph, freshness, changes and every projection.
 func newRun(cfg config) *Run {
-	// A Terminal driver supplied without to() must still land its
-	// non-interactive/residual projection somewhere (release-gate round 8
-	// finding 2): default primary to the driver's own Sink() when it
-	// reports one. A driver that explicitly reports no fixed sink (nil —
-	// e.g. a virtual test screen driving output straight through the live
-	// surface) is left alone; a driver that cannot answer the question at
-	// all is misuse, recorded below once o exists.
-	//
-	// Whenever the driver's sink IS the primary writer — whether that's this
-	// same defaulting, or an explicit to()/withDiagnostics() (Options path) or
-	// Config's own to(c.Facades.Stdout)/to(c.Facades.Stderr) wiring (Config.Terminal path,
-	// via configToOptions) that happens to coincide — the driver already
-	// rendered the conclusion there once; Finish's dual-write branch must
-	// not render it there again (release-gate round 9 finding 1).
+	// A Terminal driver supplied without to() must still land its residual projection: default primary to the
+	// driver's Sink(). A nil Sink means "no fixed sink" and is left alone; a driver that cannot answer is misuse,
+	// recorded below once o exists. When the driver's sink IS the primary writer, the driver already rendered
+	// the conclusion there once, so Finish must not render it again.
 	terminalWithoutSink := false
 	if cfg.terminal != nil {
 		sr, ok := cfg.terminal.(sinkReporter)
@@ -121,27 +94,17 @@ func newRun(cfg config) *Run {
 		case !ok:
 			terminalWithoutSink = cfg.primary == nil
 		case sr.Sink() == nil:
-			// Explicit "no fixed sink" — left alone.
 		case cfg.primary == nil:
 			cfg.primary = sr.Sink()
 			cfg.samePrimaryAsTerminal = true
 		case sr.Sink() == cfg.primary:
 			cfg.samePrimaryAsTerminal = true
 		case sr.Sink() == cfg.diagnostic:
-			// Driver owns the diagnostic stream; primary is a distinct
-			// stream the caller separately configured — both streams get
-			// their own copy by design, not a duplicate.
+			// The driver owns the diagnostic stream; primary is a distinct stream with its own copy.
 		}
 	}
-	// An Options build that installs neither to() nor a Terminal sink must
-	// still land its residual/conclusion projection somewhere — before this,
-	// primary stayed nil and Finish silently wrote zero bytes, even on a
-	// Fail (exit 2 with no evidence of why). Default to os.Stdout, matching
-	// the non-Options default, and apply the same TTY/color inference the
-	// non-Options path applies to that stream: never override an explicit
-	// withNoColor(), only ever strengthen it, so a defaulted destination piped
-	// to a file never leaks raw ANSI into it (release-gate round 9 findings
-	// 2 and 5).
+	// An Options build with neither to() nor a Terminal sink defaults to os.Stdout and infers color as the
+	// non-Options path does, only ever strengthening an explicit withNoColor() so a piped file never leaks ANSI.
 	if cfg.terminal == nil && cfg.primary == nil {
 		cfg.primary = terminal.Stdout()
 		if !cfg.noColor && (lookupEnv(envKeyNoColor) != "" || !writerIsCharDevice(cfg.primary)) {
@@ -169,7 +132,6 @@ func newRun(cfg config) *Run {
 	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(o.misuse), graph.WithHost(host))
 	o.freshness = freshness.NewRun(o.graph, freshness.RunConfig{Where: o.manifestConfig, Closed: errClosed, DryRun: host.DryRun, Narration: host})
 	o.changes = change.NewRun(o.newChangeHost(), o.graph)
-	// Stable-enough id for a process-local output instance.
 	o.outputID = o.graph.NextID("out")
 	o.show = present.New(present.Config{
 		Run: run, Lock: &o.mu, Clock: cfg.clock, Host: presentHost{o},
@@ -178,6 +140,7 @@ func newRun(cfg config) *Run {
 		Style: o.humanStyle(), Subject: cfg.subject,
 		Sinks: humanSinks{o}, SuppressHuman: cfg.projection.suppressesHuman(), Pane: cfg.debugPanePresentation(),
 	})
+	o.printLines = txt.NewPrintLines(o.emitMessageLocked)
 	o.mu.Bind(run)
 	o.startedAt = o.cfg.clock.Now()
 	o.appendEventLocked(recEvent{Type: "output.started", OutputID: o.outputID})
@@ -186,58 +149,38 @@ func newRun(cfg config) *Run {
 		o.recordMisuse(errTerminalWithoutSink)
 	}
 	if cfg.dryRun {
-		// Announce before any task/item can reach the durable stream: no
-		// caller path can finish a DryRun-configured Output without this
-		// line having appeared first (evo-rec.md Problem 1). Safe to write
-		// unlocked — o has not yet been returned to the caller.
+		// Announce before any task can reach the durable stream; unlocked is safe, o has not been returned yet.
 		o.show.PlannedHeader(o.cfg.preview, o.cfg.dryRunHeaderText)
 	}
 	return o
 }
 
-// manifestConfig names the manifest this Run reads: the configured
-// application id and state directory, scoped to the Run's workspace.
 func (o *Run) manifestConfig() freshness.ManifestConfig {
 	return freshness.ManifestConfig{AppID: o.cfg.appID, StateDir: o.cfg.stateDir, Workspace: o.changes.Workspace()}
 }
 
-// promoteRunningLocked transitions a Pending task to Running on its first
-// unit of evidence (Phase/Progress/Advance/Bytes/Step/Writer
-// write). A work callback starting is announced by taskStarted, since the
-// scheduler's claim already moved the row.
-// For a sequential collection (Sequence), it records misuse when a sibling is
-// already Running, enforcing the heart contract "one Running child"
-// (evo-rec.md) — callers still get the transition; Strict mode is what
-// escalates the violation to a panic. A plain Group collection
-// documents its children as independent (worker-pool fan-out is a
-// supported, concurrency-safe pattern there), so it is not policed.
+// promoteRunningLocked moves a Pending task to Running on its first unit of evidence (Phase, Progress,
+// Advance, Bytes, Step, Writer). A work callback starting is announced by taskStarted: the claim moved the row.
 func (o *Run) promoteRunningLocked(st *taskState) {
 	st.node.MarkRunning()
 	o.announceRunningLocked(st)
 }
 
-// announceRunningLocked is the render state a Task owes for becoming Running,
-// whoever moved its row: the Sequence check, the filing, the plain heartbeat
-// and the task.started event. It answers once per Task.
+// announceRunningLocked is the render state a Task owes for becoming Running, answered once per Task.
+// A Sequence records misuse when a sibling is already Running; a Group's children are not policed.
 func (o *Run) announceRunningLocked(st *taskState) {
 	if !o.show.Started(st.node.TaskID()) {
 		return
 	}
-	if col := st.collection(); col != nil && col.node.Sequential {
-		col.runningSteps = slices.DeleteFunc(col.runningSteps, func(s *taskState) bool { return s.node.Rec.State() != running })
-		if len(col.runningSteps) > 0 {
-			o.recordMisuse(errConcurrentRunning)
-		}
-		col.runningSteps = append(col.runningSteps, st)
+	if seq := st.node.Parent; seq != nil && seq.Sequential && seq.StepStarted(st.node) {
+		o.recordMisuse(errConcurrentRunning)
 	}
 }
 
 func (o *Run) bumpLocked() { o.show.Bump() }
 
-// appendEventLocked journals e. The journal is in the order things happened,
-// so the record is followed first: a settle a graph goroutine made on its own
-// is journaled before an event this section writes after it, however late the
-// record's listener hears it.
+// appendEventLocked journals e in the order things happened: the record is followed first, so a settle a graph
+// goroutine made on its own is journaled before an event this section writes after it.
 func (o *Run) appendEventLocked(e recEvent) {
 	o.followRecordLocked()
 	e.Timestamp = o.cfg.clock.Now()
@@ -251,15 +194,12 @@ func (o *Run) appendEventLocked(e recEvent) {
 	}
 }
 
-// followRecordLocked brings every projection up to date with the record.
-// Callers hold o.mu.
+// followRecordLocked brings every projection up to date with the record. Callers hold o.mu.
 func (o *Run) followRecordLocked() { o.show.Follow() }
 
 type taskState struct {
 	id string
-	// node is the graph's declaration of this Task. It owns the Task's stable
-	// key and everything the scheduler knows: its phase, predecessors and
-	// the work Define submitted.
+	// node is the graph's declaration of this Task; it owns the stable key and scheduling.
 	node   *graph.Task
 	name   string
 	handle *Task
@@ -267,28 +207,15 @@ type taskState struct {
 
 type tasksState struct {
 	id string
-	// out is the Output this container belongs to: a read of its live index
-	// first follows the record (see Output.followRecordLocked).
+	// out is the Run this container belongs to; reading its live index first follows the record.
 	out *Run
-	// node is the graph's declaration of this Group/Sequence and owns its
-	// §3.1 stable key.
+	// node is the graph's declaration of this Group/Sequence (§3.1 stable key).
 	node   *graph.Container
 	name   string
 	handle *Group
-
-	// runningSteps holds the children promoteRunningLocked moved to
-	// Running that may still be Running (pruned on each promotion), so the
-	// "one Running child" check never rescans every step.
-	runningSteps []*taskState
 }
 
-// A container's members belong to the graph: it declared them, in order, and
-// owns who contains whom. The engine keeps only each member's render state,
-// in the Output's tables keyed by the member's id, and reads the membership
-// through the node.
-
-// taskStates are the render states of the Tasks g declared directly, in
-// declaration order.
+// taskStates are the render states of the Tasks g declared directly, in declaration order.
 func (g *tasksState) taskStates() []*taskState {
 	nodes := g.node.Tasks()
 	states := make([]*taskState, len(nodes))
@@ -306,9 +233,7 @@ func (st *taskState) collection() *tasksState {
 	return st.handle.out.containerStates[st.node.Parent.ID]
 }
 
-// appendTaskLocked gives st a row in every projection and announces it:
-// synthetic for the Task the library invented to carry the run's own
-// ending. Callers hold o.mu.
+// appendTaskLocked gives st a row in every projection and announces it; synthetic marks the run's own ending Task.
 func (o *Run) appendTaskLocked(st *taskState, synthetic bool) {
 	in := ""
 	if col := st.collection(); col != nil {
@@ -325,9 +250,7 @@ func (o *Run) appendTaskLocked(st *taskState, synthetic bool) {
 	o.show.DeclareTask(row, in)
 }
 
-// arm marks the live surface ready to paint before any entity is declared,
-// so Init honors the first-paint rule even when the caller works before its
-// first Task. Idempotent.
+// arm marks the live surface ready to paint before any entity is declared (first-paint rule). Idempotent.
 func (o *Run) arm() {
 	if o == nil {
 		return
@@ -337,7 +260,6 @@ func (o *Run) arm() {
 	o.show.Arm()
 }
 
-// presentHost is what the presenter reads of this run.
 type presentHost struct{ o *Run }
 
 func (h presentHost) Ended() bool        { return h.o.closed || h.o.finished }
@@ -348,8 +270,7 @@ func (h presentHost) Tracked(id record.TaskID) record.TaskOperations {
 	return h.o.freshness.Tasks().Tracked(id)
 }
 
-// snapshotLocked is the run as every projection shows it now. Callers
-// hold o.mu.
+// snapshotLocked is the run as every projection shows it now. Callers hold o.mu.
 func (o *Run) snapshotLocked() snapshot {
 	return o.show.Snapshot(snapshot{
 		OutputID:      o.outputID,
@@ -364,8 +285,7 @@ func (o *Run) snapshotLocked() snapshot {
 	})
 }
 
-// emitWireEventLocked writes one §38 "evo.event" line for eventType about
-// entityID ("" for the run); a run that streams no events writes nothing.
+// emitWireEventLocked writes one §38 "evo.event" line; a run that streams no events writes nothing.
 func (o *Run) emitWireEventLocked(eventType, entityID string, payload map[string]any) {
 	o.show.Events.Emit(eventType, entityID, payload)
 }
@@ -380,8 +300,6 @@ const (
 	JSONL
 )
 
-// runStartedPayload carries the run's title on run.started; an untitled run
-// has no payload.
 func runStartedPayload(title string) map[string]any {
 	if title == "" {
 		return nil

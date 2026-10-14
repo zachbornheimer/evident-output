@@ -116,6 +116,9 @@ type Container struct {
 	key   string // fixed at declaration
 	path  record.ContainerPath
 	names siblings
+	// runningSteps are the steps of a Sequence that may still be Running
+	// (StepStarted); its callers serialize access.
+	runningSteps []*Task
 
 	// The rest is scheduling state, guarded by graph.mu.
 

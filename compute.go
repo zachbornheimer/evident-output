@@ -7,9 +7,9 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
-// Computed is the value a Task produces for the Tasks and containers
-// declared After it (see Compute). The graph decides when it may be read
-// (graph.Computed); this records the misuse of a read it refused.
+// Computed is the value a Task produces for the Tasks declared After it (see
+// Compute). The graph decides when it may be read; this records the misuse of
+// a refused read.
 type Computed[T any] struct {
 	task *Task
 	// value is nil for a producer the Output holds no Task for (a rejected
@@ -21,9 +21,8 @@ type Computed[T any] struct {
 // Computed.Get, and fn's error fails the Task. Compute is task's Define.
 //
 // A Task with a Verify cannot produce a value: a Verify that finds the work
-// already satisfied skips the callback, so whether a value exists would
-// depend on the state of the world instead of on the code. Compute on one is
-// ErrInvalidConfig at declaration, whatever the Verify would find.
+// satisfied skips the callback, so whether a value exists would depend on the
+// world instead of the code. Compute on one is ErrInvalidConfig at declaration.
 func Compute[T any](task *Task, fn func(context.Context) (T, error)) *Computed[T] {
 	c := &Computed[T]{task: task}
 	if task == nil || fn == nil {
@@ -56,7 +55,7 @@ func Compute[T any](task *Task, fn func(context.Context) (T, error)) *Computed[T
 	return c
 }
 
-// Producer is the Task that produces the value, for After.
+// producer is the Task that produces the value, for After.
 func (c *Computed[T]) producer() *Task {
 	if c == nil {
 		return nil
@@ -64,15 +63,14 @@ func (c *Computed[T]) producer() *Task {
 	return c.task
 }
 
-// Get returns the produced value. It is valid once the producing Task
-// settled successfully by running its callback; earlier it records
-// ErrComputedUnsettled and returns the zero value. A read the declared order
-// does not prove (no Sequence order and no After edge to the producer)
-// records ErrComputedUnordered. A refused read from inside a Task callback or
-// container builder unwinds it in every mode, so the Task or builder fails
-// with the sentinel instead of carrying on with a zero value and settling
-// Done. The value is written before the Task settles and read only after, so
-// Get is never a data race.
+// Get returns the produced value, valid once the producing Task settled
+// successfully by running its callback. Earlier it records
+// ErrComputedUnsettled and returns the zero value; a read the declared order
+// does not prove (no Sequence order or After edge) records
+// ErrComputedUnordered. A refused read inside a Task callback or container
+// builder unwinds in every mode, so the Task fails with the sentinel instead
+// of settling Done on a zero value. The value is written before the Task
+// settles and read only after, so Get is never a data race.
 func (c *Computed[T]) Get() T {
 	var zero T
 	if c == nil || c.task == nil || c.task.out == nil {

@@ -11,10 +11,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
-// Fail, Refuse, Exclude and Outcome live on Task.
-
-// Finish validates, computes conclusion, emits final projections.
-// Projection I/O runs outside the domain lock (§17.1).
+// finish validates, computes the conclusion and emits the final projections; projection I/O runs outside the domain lock (§17.1).
 func (o *Run) finish() error {
 	o.graph.Drain()
 	o.saveManifest()
@@ -25,14 +22,10 @@ func (o *Run) finish() error {
 		return err
 	}
 	o.finishing = true
-	// A Task that settled while a notification was still in flight is
-	// answered before the run's last events are written.
+	// Answer any notification still in flight before the run's last events are written.
 	o.followRecordLocked()
-	// Flush unterminated Print fragments into messages.
-	o.flushPendingPrintLocked()
-	// Group lifecycle: a failed/cancelled child stops its later siblings from
-	// reading as "still pending" before the generic unresolved-entity sweep
-	// below would otherwise mark them Incomplete (and record misuse).
+	o.printLines.Flush()
+	// A failed or cancelled child must stop its later siblings reading as pending before the unresolved sweep marks them Incomplete.
 	o.autoResolveGroupsLocked()
 	o.settleUnresolvedTasksLocked()
 	snap := o.concludeLocked()
@@ -58,10 +51,8 @@ func (o *Run) finish() error {
 	return joinErrors(misuse, writeResidual(cfg, residual, interactive))
 }
 
-// saveManifest waits until every record this Run committed or staged is on
-// disk (see freshness.ManifestSession.Save) and warns on the run when it
-// could not be: the next run re-executes work this one did, and the reader
-// must know why.
+// saveManifest waits until every record this Run committed or staged is on disk and warns when it could not be:
+// the next run re-executes this run's work, and the reader must know why.
 func (o *Run) saveManifest() {
 	if err := o.freshness.Session().Save(); err != nil {
 		o.mu.Lock()
@@ -72,8 +63,6 @@ func (o *Run) saveManifest() {
 	}
 }
 
-// warnManifestUnsavedLocked states once per run that the manifest could not
-// be saved. Callers hold o.mu.
 func (o *Run) warnManifestUnsavedLocked(err error) {
 	if !o.freshness.Session().FirstUnsavedWarning() {
 		return
@@ -81,21 +70,9 @@ func (o *Run) warnManifestUnsavedLocked(err error) {
 	o.warnLocked(record.ApplyProblemOptions(txt.Text("manifest not saved: "+err.Error()), nil))
 }
 
-// settleUnresolvedTasksLocked gives every Task still unresolved at Finish
-// its honest outcome.
-//
-// A task told an honest, complete story already — the caller just never
-// called a terminal verb — whenever it carries at least one of: a recorded
-// Problem (it settles Done: a Problem never ends a Task), a recorded Effect/File ledger row, a
-// sealed absolute progress (a completed Progress/Step loop reached its
-// total), recorded taxonomy (Skipped), or a recorded warning (P2: a
-// warning-severity Problem never itself resolves the task, so a warned-but-
-// unresolved task earns the same amnesty; Warn was removed in 1.1). The
-// easiest path (forgetting a terminal verb) becomes correct instead of a
-// surprising Cancelled/NotStarted plus
-// a silent exit-code flip (beginner-1, I1; beginner-gate-2 findings 1/2/4).
-// Anything else still reads as misuse, but now names the task so Finish
-// can render it.
+// settleUnresolvedTasksLocked gives every Task still unresolved at Finish its honest outcome. A task that
+// recorded a Problem, Effect/File row, sealed progress, taxonomy or warning already told a story and settles Done;
+// anything else is misuse and names the task so Finish can render it.
 func (o *Run) settleUnresolvedTasksLocked() {
 	abnormal := o.abnormalFinishLocked()
 	for _, t := range o.tasks {
@@ -108,17 +85,8 @@ func (o *Run) settleUnresolvedTasksLocked() {
 			continue
 		}
 		if !abnormal {
-			// Clean, unsignalled, error-free finish: a forgotten terminal
-			// verb told an incomplete story, not a caller bug — never
-			// Cancelled/130 (release-gate finding 1), and never misuse-driven
-			// exit escalation regardless of whether the task ever reached
-			// Running (release-gate round 4 finding 3: a Phase call that
-			// promoted it to Running before it was abandoned must not flip
-			// the exit code against an identical task that was never
-			// touched at all — same amnesty qualifier, same outcome). No
-			// misuse recorded: this is an honest partial outcome (folded
-			// into Conclusion.Partial), not bookkeeping the caller must fix.
-			// The hint still names the corrective action either way.
+			// Clean finish: a forgotten terminal verb is an incomplete story, not a caller bug. Never Cancelled/130 or exit
+			// escalation, running or not. Folded into Conclusion.Partial; the hint names the fix.
 			t.node.Summarize(unresolvedTaskIncompleteSummary)
 			o.graph.Settle(t.node, incomplete)
 			o.followRecordLocked()
@@ -126,8 +94,7 @@ func (o *Run) settleUnresolvedTasksLocked() {
 			continue
 		}
 		o.resolveUnstartedTaskLocked(t)
-		// A declared task that never started is work the failure or
-		// interrupt took away. That is the answer, not misuse.
+		// A declared task that never started is work the failure or interrupt took away, not misuse.
 		if t.node.Rec.State() == notStarted {
 			continue
 		}
@@ -139,9 +106,7 @@ func (o *Run) settleUnresolvedTasksLocked() {
 	}
 }
 
-// concludeLocked infers the run's Conclusion from the settled snapshot,
-// records it, and journals and emits the run's end. It returns the
-// snapshot carrying that Conclusion.
+// concludeLocked infers the run's Conclusion from the settled snapshot, records it, and journals the run's end.
 func (o *Run) concludeLocked() snapshot {
 	snap := o.snapshotLocked()
 	conc := record.InferConclusion(snap)
@@ -157,9 +122,7 @@ func (o *Run) concludeLocked() snapshot {
 		Type:  "output.finished",
 		State: string(conc.Outcome),
 	})
-	// run.finished (spec §38) fires on every path through Finish, including
-	// failure and cancel — conc.Outcome already reflects whichever outcome
-	// this run reached, the same single choke point output.finished uses.
+	// run.finished (§38) fires on every path through Finish, failure and cancel included.
 	payload := map[string]any{
 		"outcome":   string(conc.Outcome),
 		"exit_code": conc.ExitCode,
@@ -171,13 +134,9 @@ func (o *Run) concludeLocked() snapshot {
 	return snap
 }
 
-// runErrorLocked is the error Finish returns: the recorded misuse, joined
-// with any machine-stream write failure. FormatJSON's one final "evo.run"
-// document (spec §32.1) is written here — independent of the human
-// projection, which still streams to Stderr for this Format (§32.1:
-// "stderr: human live/plain presentation ... never mixed into stdout"). A
-// write failure there, or a mid-run "evo.event" JSONL write failure (spec
-// §32.2), is a real Run failure; earlier lines stay valid.
+// runErrorLocked is the error Finish returns: the recorded misuse, joined with any machine-stream write failure.
+// FormatJSON's final "evo.run" document (§32.1) is written here, independent of the human projection;
+// a write failure there, or a mid-run "evo.event" JSONL failure (§32.2), is a real Run failure.
 func (o *Run) runErrorLocked(conc Conclusion) error {
 	misuse := o.firstMisuse()
 	if o.cfg.wireFormat == formatJSON {
@@ -186,33 +145,21 @@ func (o *Run) runErrorLocked(conc Conclusion) error {
 	return joinErrors(misuse, rendererError(o.show.Events.Err()))
 }
 
-// finishHumanLocked renders the human stream's end: only the residual,
-// since terminal outcomes already streamed. On an interactive terminal it
-// also paints the final live frame, and reports that it did. Text held back
-// behind a Suspend window still open at Finish prints first: no window close
-// will ever flush it.
+// finishHumanLocked renders the human stream's end: only the residual, since terminal outcomes already streamed;
+// on an interactive terminal it also paints the final live frame. Text held behind an open Suspend prints first.
 func (o *Run) finishHumanLocked(snap snapshot) (residual string, interactive bool) {
 	o.show.Stream.Flush()
 	residual, final := o.show.Stream.Residual(snap)
 	if o.show.Live.Interactive() {
-		// Interactive final: conclusion + any unemitted entities (not a
-		// second full dump).
 		o.show.Live.Finish(final)
 		return residual, true
 	}
 	return residual, false
 }
 
-// writeResidual fans the residual out to its streams (CON-009): the
-// primary writer and every AlsoWrite mirror.
-//
-// On an interactive run the terminal already rendered this conclusion band
-// (WriteFinal), so primary is skipped when it and the live terminal share
-// one physical writer (default construction) — writing it again would
-// duplicate it on the same screen. AlsoWrite mirrors are never skipped:
-// they are a distinct stream from the terminal by definition, and
-// option.go's AlsoWrite promises the plain projection regardless of
-// interactive/plain (X4).
+// writeResidual fans the residual out to the primary writer and every AlsoWrite mirror (CON-009). On an
+// interactive run the terminal already rendered the conclusion, so primary is skipped when it shares a writer
+// with the terminal. AlsoWrite mirrors are never skipped.
 func writeResidual(cfg config, residual string, interactive bool) error {
 	writers := make([]io.Writer, 0, 1+len(cfg.extraWriters))
 	terminalHasIt := interactive && cfg.samePrimaryAsTerminal
@@ -232,7 +179,6 @@ func writeResidual(cfg config, residual string, interactive bool) error {
 	return writeErr
 }
 
-// joinErrors joins two errors, keeping a lone one unwrapped.
 func joinErrors(a, b error) error {
 	switch {
 	case a == nil:
@@ -244,12 +190,8 @@ func joinErrors(a, b error) error {
 	}
 }
 
-// hasSealedProgress reports whether t's absolute progress reached the total
-// it declared — a completed Progress/Step loop — same unresolved-task
-// amnesty rationale as hasRecordedEffectLocked (beginner-gate-2 findings
-// 1/2). Total must be positive and the kind explicitly set (Determinate or
-// BytesKind): a task that never called Progress/Bytes/Step carries the zero
-// value (Total 0, Kind "") and must not read as sealed.
+// hasSealedProgress reports whether t's progress reached its declared total. The kind must be set: a task that
+// never called Progress has the zero value (Total 0, Kind "") and must not read as sealed.
 func hasSealedProgress(t *taskState) bool {
 	if t.node.Rec.Progress().Kind == "" || t.node.Rec.Progress().Kind == indeterminate {
 		return false
@@ -257,25 +199,12 @@ func hasSealedProgress(t *taskState) bool {
 	return t.node.Rec.Progress().Total > 0 && t.node.Rec.Progress().Completed >= t.node.Rec.Progress().Total
 }
 
-// hasRecordedTaxonomy reports whether t accumulated any Skipped/Kept record
-// — same unresolved-task amnesty rationale as hasRecordedEffectLocked
-// (beginner-gate-2 finding 4): the disposition taxonomy already told an
-// honest, complete story even though nothing called a terminal verb.
 func hasRecordedTaxonomy(t *taskState) bool {
 	return t.node.Rec.HasTaxonomy()
 }
 
-// resolveUnstartedTaskLocked derives a real terminal state for a task Finish
-// found non-terminal during an abnormal finish (abnormalFinishLocked), from
-// the one model, so every consumer sees the same honest verdict instead of
-// hand-rolling the same cascade themselves: a task that had already started
-// (Running) reads as Cancelled, and a task that never got attention
-// (Pending) reads as NotStarted ("not started") — the same face a Group
-// gives an unstarted sibling (autoResolveGroupsLocked). Never called for a
-// task an explicit verb already resolved, and never called on a clean finish
-// at all (see Finish's own !abnormal branch, which resolves every
-// non-terminal task to Incomplete directly instead, regardless of whether it
-// ever reached Running — release-gate round 4 finding 3).
+// resolveUnstartedTaskLocked derives a terminal state for a task found non-terminal during an abnormal finish:
+// Running reads as Cancelled, Pending as NotStarted.
 func (o *Run) resolveUnstartedTaskLocked(t *taskState) {
 	if t.node.Rec.State() == running {
 		t.node.Summarize(unresolvedTaskCancelledSummary)
@@ -288,13 +217,8 @@ func (o *Run) resolveUnstartedTaskLocked(t *taskState) {
 	o.followRecordLocked()
 }
 
-// abnormalFinishLocked reports whether the run already carries a real Failed
-// or Cancelled task by the time Finish's unresolved-task sweep runs —
-// evidence that something genuinely interrupted the run (Output.Fail,
-// or a real SIGINT/SIGTERM cancellation via Output.Cancel/Task.Cancel),
-// not merely a caller who forgot to resolve a task. It gates whether a
-// leftover Running task may still read as Cancelled/130 (release-gate
-// finding 1).
+// abnormalFinishLocked reports whether a Failed or Cancelled task exists: evidence that something interrupted
+// the run, not a caller who forgot to resolve a task. It gates whether a leftover Running task reads Cancelled/130.
 func (o *Run) abnormalFinishLocked() bool {
 	for _, t := range o.tasks {
 		if t.node.Rec.State() == failed || t.node.Rec.State() == cancelled {
@@ -304,20 +228,14 @@ func (o *Run) abnormalFinishLocked() bool {
 	return false
 }
 
-// attachUnresolvedTaskHintLocked attaches unresolvedTaskHint to t directly.
-// A Problem cannot carry it: Finish's unresolved-task sweep runs after
-// o.finishing is set, when Task.Problem refuses new records, and the
-// task has no caller-authored diagnostic to own the hint.
+// attachUnresolvedTaskHintLocked attaches the hint directly: the sweep runs after o.finishing, when Task.Problem refuses records.
 func (o *Run) attachUnresolvedTaskHintLocked(t *taskState) {
 	t.node.Recommend(asRecordAction(label(unresolvedTaskHint)))
 	o.show.Board.Changed(t.node.TaskID())
 }
 
-// autoResolveGroupsLocked stops each group from implying "still might run"
-// once a member has already failed or been cancelled: every declared-after
-// sibling that has not reached its own terminal state becomes NotStarted.
-// A sibling the caller already resolved (explicitly or by an earlier trigger)
-// is left untouched — explicit resolution always wins.
+// autoResolveGroupsLocked stops a Sequence implying "still might run" once a member failed or was cancelled:
+// later non-terminal siblings become NotStarted. Explicitly resolved siblings are untouched.
 func (o *Run) autoResolveGroupsLocked() {
 	for _, col := range o.collections {
 		if !col.node.Sequential {
@@ -341,66 +259,38 @@ func (o *Run) autoResolveGroupsLocked() {
 	}
 }
 
-// notStartedSummary is the literal detail rendered for an auto-resolved group
-// child — fixed text, not caller-composed, so every call site spells it the
-// same way (evo-rec.md early-termination examples: "-  install  not started").
 const notStartedSummary = graph.NotStartedSummary
 
-// unresolvedTaskCancelledSummary is the literal detail rendered for a plain
-// (non-Group) task still Running when Finish is reached during an abnormal
-// finish (a real SIGINT/SIGTERM cancellation or an application error already
-// recorded elsewhere in the run) — the run concluded without a caller-
-// recorded verdict AND something really did cut it short, so the honest
-// terminal state is Cancelled rather than a stuck/incomplete glyph.
+// unresolvedTaskCancelledSummary is the detail for a task still Running at an abnormal finish.
 const unresolvedTaskCancelledSummary = "cancelled — run concluded before finish"
 
-// unresolvedTaskIncompleteSummary is the literal detail rendered for a plain
-// (non-Group) task still Running when Finish is reached during an otherwise
-// clean finish — no signal, no application error anywhere in the run. Cancel
-// (and its 130 exit) is reserved for a real interruption signal (release-gate
-// finding 1); a caller who simply forgot a terminal verb gets an honest
-// incomplete reading instead, folded into the conclusion as Partial rather
-// than invented as a headline of its own.
+// unresolvedTaskIncompleteSummary is the detail for a task still Running at a clean Finish. Cancelled/130 is
+// reserved for a real interruption; a forgotten terminal verb reads as incomplete, folded into Partial.
 const unresolvedTaskIncompleteSummary = "incomplete — run concluded before finish"
 
-// unresolvedTaskHint names the concrete corrective action for a task Finish
-// found with no final state — rendered as a "→" conclusion action the same
-// way Confirm's own policy hint renders (the Next ProblemOption), replacing the raw
-// "misuse: <name>: evo: ..." sentinel text that told the reader nothing
-// about what to do next (release-gate finding 3).
+// unresolvedTaskHint names the corrective action for a task Finish found with no final state.
 const unresolvedTaskHint = "call Define, Fail, Block, or Skipped on this task"
 
-// A refused declaration (a duplicate sibling name or key, the entity
-// limit, a closed Output) still hands the caller a handle, so a chained
-// call never panics. The handle keeps why it was refused: Define on it is
-// misuse, and Wait says the work never ran instead of reporting success
-// for work that did not happen.
-
-// rejectedTask is the handle a refused Task declaration returns. err is
-// the refusal and is never nil.
+// rejectedTask is the handle a refused Task declaration (duplicate name or key, entity limit, closed Output)
+// returns, so a chained call never panics. err is never nil: Define on it is misuse, and Wait says the work never ran.
 func (o *Run) rejectedTask(err error) *Task {
 	return &Task{out: o, id: o.graph.NextID("task"), rejected: err}
 }
 
-// rejectedGroup is rejectedTask's counterpart for a refused Group or
-// Sequence. Everything declared under it is refused for the same reason.
+// rejectedGroup is rejectedTask's counterpart for a refused Group or Sequence; everything under it is refused too.
 func (o *Run) rejectedGroup(err error) *Group {
 	return &Group{out: o, id: o.graph.NextID("tasks"), rejected: err}
 }
 
-// end records the ending the run body returned (see endingOf).
 func (o *Run) end(err error) {
 	o.endWith(endingOf(err))
 }
 
-// endWith settles the run's own ending, state and the Problem that says why,
-// on the Task the graph invents for it.
 func (o *Run) endWith(state entityState, p problem) {
 	o.graph.EndRun(o.endingName(), record.TaskInit{State: state, Problems: []problem{p}})
 }
 
-// endingName names the Task that carries the run's own ending: the
-// configured subject, else the executable's name.
+// endingName names the Task carrying the run's ending: the configured subject, else the executable's name.
 func (o *Run) endingName() string {
 	o.mu.Lock()
 	name := txt.Text(o.cfg.subject)
@@ -411,7 +301,6 @@ func (o *Run) endingName() string {
 	return identityFallbackName()
 }
 
-// cancel records output-level cancellation.
 func (o *Run) cancel(reason string) {
 	o.graph.EndRun(o.endingName(), record.TaskInit{State: cancelled, Summary: txt.Text(reason)})
 }

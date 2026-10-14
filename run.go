@@ -1,6 +1,7 @@
 package evo
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -26,22 +27,11 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
 
-// errRunExitedWithoutReturn is the application error recorded when the run
-// callback's goroutine ended without returning.
 var errRunExitedWithoutReturn = errors.New("run callback exited without returning (runtime.Goexit)")
 
-// Main runs a CLI presentation lifecycle against the package-level default
-// instance (see Init) and returns the derived exit code; it does not itself
-// call os.Exit — the library still never calls os.Exit directly (aPI-018),
-// so the caller owns process termination:
-//
-//	func main() {
-//	    (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{Name: "tool"}, func(ctx context.Context, r *evo.Run) error { return nil })
-//	    os.Exit(evo.Main(run))
-//	}
-//
-// Callers that need the full Result (Conclusion plus application error, for
-// embedding or JSON projection) call Run instead.
+// Execute runs a CLI presentation lifecycle against the instance Init installs
+// and returns its Result. It never calls os.Exit (API-018), so the caller owns
+// process termination. Callers that only need the exit code use Main.
 func Execute(ctx context.Context, cfg Config, run RunFunc) Result {
 	out := initRun(cfg)
 	if ctx == nil {
@@ -50,9 +40,8 @@ func Execute(ctx context.Context, cfg Config, run RunFunc) Result {
 	return runInterruptible(ctx, out, run)
 }
 
-// Main runs run under SIGINT and SIGTERM and returns the process exit code;
-// it never exits. cfg is optional: only the first Config is used, and any
-// further Config is ignored.
+// Main runs run under SIGINT and SIGTERM and returns the process exit code; it
+// never exits. Only the first cfg is used.
 func Main(run RunFunc, cfg ...Config) int {
 	c := Config{}
 	if len(cfg) > 0 {
@@ -62,37 +51,22 @@ func Main(run RunFunc, cfg ...Config) int {
 	return runInterruptible(context.Background(), out, run).ExitCode()
 }
 
-// runInterruptible executes run to completion, wiring SIGINT/SIGTERM into
-// cancellation of the active task (or the output itself) — and of the
-// derived ctx passed to run — so the ledger and exit code always agree. A
-// second signal returns ExitCancelled immediately instead of waiting for run
-// to unwind — the process-level os.Exit that wraps a caller's
-// os.Exit(evo.Main(run)) is what actually terminates.
+// runInterruptible runs run to completion, turning SIGINT/SIGTERM into cancellation of the
+// active task or the output. A second signal returns ExitCancelled without waiting for run to unwind.
 func runInterruptible(ctx context.Context, out *Run, run RunFunc) Result {
 	sigCh := make(chan process.Signal, signalChannelCapacity)
 	notifySignals(sigCh, process.Interrupt, process.Terminate)
 	defer stopSignals(sigCh)
 
-	// runCtx becomes o.Context() for the duration of this run (see
-	// beginRunContext): every Define/Verify task scope started from here
-	// on descends from the caller's own ctx, not just from run's local
-	// parameter.
-	//
-	// Cancellation is detached from the caller's ctx on purpose: the watcher
-	// below records the Cancel first (out.interrupt), then cancels the run,
-	// so a task that sees ctx.Done ends Cancelled rather than Failed with the
-	// caller's deadline error.
+	// runCtx is o.Context() for this run, detached from the caller's cancellation: the watcher
+	// records the Cancel first, so a task that sees Done ends Cancelled, not Failed with a deadline error.
 	runCtx := out.beginRunContext(watchedContext{ctx})
 
-	// The whole lifecycle (body, then the Finish drain) runs in one
-	// goroutine so the signal watcher below stays armed until the Result
-	// exists.
+	// One goroutine runs the body and the Finish drain so the signal watcher stays armed until the Result exists.
 	var interrupted atomic.Bool
 	done := make(chan Result, 1)
 	go func() {
-		// Delivered from a defer so a callback that ends its goroutine via
-		// runtime.Goexit (directly, or through a library such as
-		// testing.T.FailNow) still releases the waiter below.
+		// Sent from a defer so a callback ending via runtime.Goexit (testing.T.FailNow) still releases the waiter.
 		var (
 			err      error
 			returned bool
@@ -119,7 +93,7 @@ func runInterruptible(ctx context.Context, out *Run, run RunFunc) Result {
 			return result
 		case sig := <-sigCh:
 			// A signal a running Task named in CleanStop ends only that Task.
-			if out.cleanStops.stop(sig) {
+			if out.cleanStops.Stop(sig) {
 				continue
 			}
 		case <-ctx.Done():
@@ -131,8 +105,7 @@ func runInterruptible(ctx context.Context, out *Run, run RunFunc) Result {
 	return awaitInterrupted(sigCh, done)
 }
 
-// awaitInterrupted waits for the interrupted run's Result; a second signal
-// returns Cancelled at once instead of waiting for the run to unwind.
+// awaitInterrupted waits for the Result; a second signal returns Cancelled at once.
 func awaitInterrupted(sigCh <-chan process.Signal, done <-chan Result) Result {
 	select {
 	case result := <-done:
@@ -142,9 +115,7 @@ func awaitInterrupted(sigCh <-chan process.Signal, done <-chan Result) Result {
 	}
 }
 
-// watchedContext keeps the caller's deadline and values but not its
-// cancellation: the run's watcher is the only canceller, so it records the
-// Cancel before any task observes Done.
+// watchedContext keeps the caller's deadline and values but not its cancellation.
 type watchedContext struct{ parent context.Context }
 
 func (w watchedContext) Deadline() (time.Time, bool) { return w.parent.Deadline() }
@@ -152,8 +123,6 @@ func (w watchedContext) Done() <-chan struct{}       { return nil }
 func (w watchedContext) Err() error                  { return nil }
 func (w watchedContext) Value(key any) any           { return w.parent.Value(key) }
 
-// concludeInterruptible finalizes the run once its body returned: a run
-// that was signalled concludes Cancelled, any other as an ordinary run.
 func concludeInterruptible(out *Run, interrupted *atomic.Bool, runErr error) Result {
 	if interrupted.Load() {
 		return concludeCancelled(out, runErr)
@@ -161,8 +130,6 @@ func concludeInterruptible(out *Run, interrupted *atomic.Bool, runErr error) Res
 	return concludeRun(out, runErr)
 }
 
-// concludeRunAfterExit finalizes a run whose body ended its goroutine
-// without returning.
 func concludeRunAfterExit(out *Run, interrupted *atomic.Bool, returned bool, runErr error) Result {
 	if !returned {
 		runErr = errRunExitedWithoutReturn
@@ -170,41 +137,29 @@ func concludeRunAfterExit(out *Run, interrupted *atomic.Bool, returned bool, run
 	return concludeInterruptible(out, interrupted, runErr)
 }
 
-// concludeRun reconciles an ordinary (non-interrupted) run outcome into the
-// Result.
 func concludeRun(out *Run, runErr error) Result {
 	if runErr != nil && !out.anyFailed() {
-		// Synchronize the presentation model with the application error only when
-		// no entity already recorded Failed — avoids a duplicate synthetic Fail row
-		// on top of an existing task/item Fail. Exit code still comes from conclusion.
+		// Record the application error only when no entity already Failed (avoids a duplicate Fail row).
 		out.end(runErr)
 	}
 	finishErr := out.finish()
 	closeErr := out.close()
 	conclusion := out.conclusion()
-	// Bookkeeping misuse (a leftover unresolved task, a duplicate key, ...)
-	// is already folded into the Conclusion itself before the band renders
-	// (release-gate finding 2) — ExitCode already agrees with what printed.
-	// A genuine renderer/write failure is different: it surfaces only after
-	// the band is already flushed, so the band never had a chance to
-	// reflect it — that still escalates an otherwise-OK exit code here.
+	// Bookkeeping misuse is already in the Conclusion. A renderer or write failure surfaces after
+	// the band is flushed, so it escalates an otherwise-OK exit code here.
 	if conclusion.exitCode == exitOK && (errors.Is(finishErr, errRenderer) || errors.Is(closeErr, errRenderer)) {
 		conclusion.exitCode = exitFailed
 	}
 	return Result{Conclusion: conclusion, Err: runErr}
 }
 
-// concludeCancelled finalizes an interrupted run; the Conclusion computed
-// from the Cancel already recorded is the sole source of ExitCancelled.
-// runErr is the (usually context.Canceled-flavored) error run returned after
-// cancellation, carried through as Result.Err for embedders.
+// concludeCancelled: the recorded Cancel's Conclusion alone yields ExitCancelled; runErr rides as Result.Err.
 func concludeCancelled(out *Run, runErr error) Result {
 	_ = out.finish()
 	_ = out.close()
 	return Result{Conclusion: out.conclusion(), Err: runErr}
 }
 
-// anyFailed reports whether any Task is currently Failed.
 func (o *Run) anyFailed() bool {
 	if o == nil {
 		return false
@@ -219,9 +174,7 @@ func (o *Run) anyFailed() bool {
 	return false
 }
 
-// processArgv0 is the facade over the program name (facade rule: no direct
-// os.Args read anywhere else) — a var so tests can inject a fixed value
-// instead of depending on the real test binary's path.
+// processArgv0 is the facade over the program name; a var so tests can inject it.
 var processArgv0 = func() string {
 	args := process.Args()
 	if len(args) == 0 {
@@ -230,21 +183,7 @@ var processArgv0 = func() string {
 	return args[0]
 }
 
-// identityFallbackName is the executable's own basename, used only when an
-// output-level outcome (Output.Fail/Cancel) has no named task and no
-// explicit Config.Title to identify it with — replacing the generic literal
-// "command" with the caller's actual binary name (I2). This is deliberately
-// NOT plumbed into Snapshot.Subject / the conclusion band's Subject: Config.
-// Title stays the only way to set that, and many existing goldens depend on
-// the "no Subject configured" fallback (bare state name) staying exactly as
-// it is. Separately, when a DryRun run's Config.Subject header rendered and
-// the derived verdict settled on a pure StatePlanned (no failed/blocked/
-// warned/partial/cancelled), the trailing conclusion band itself is
-// suppressed as redundant with that header — see
-// txt.ShouldSuppressStandaloneConclusion and evo-rec.md's dry-run
-// section.
-// selfName names the caller's own executable: its Config.Title, else the
-// binary's basename — what a hint to rerun this program runs.
+// selfName is Config.Title, else the binary's basename.
 func (o *Run) selfName() string {
 	if o.cfg.subject != "" {
 		return o.cfg.subject
@@ -252,6 +191,7 @@ func (o *Run) selfName() string {
 	return identityFallbackName()
 }
 
+// identityFallbackName is the executable's basename or "command"; never a Subject.
 func identityFallbackName() string {
 	if base := filepath.Base(processArgv0()); base != "." && base != string(filepath.Separator) {
 		return base
@@ -259,89 +199,50 @@ func identityFallbackName() string {
 	return "command"
 }
 
-// ColorMode selects color policy. The zero value is automatic.
 type colorMode int
 
 const (
-	// ColorAuto uses TTY detection and honors NO_COLOR.
 	colorAuto colorMode = iota
-	// ColorAlways forces semantic color even off a TTY.
 	colorAlways
-	// ColorNever disables color.
 	colorNever
 )
 
-// Format selects the overall projection mode. Zero is ordinary human output.
 type format int
 
 const (
-	// FormatHuman is ordinary human (and optional interactive) presentation.
 	formatHuman format = iota
-	// FormatData reserves stdout for the application's domain payload; Evo
-	// human presentation goes to stderr (data-command mode).
+	// FormatData reserves stdout for the domain payload; human output goes to stderr.
 	formatData
-	// FormatExternal disables inline rendering (snapshots only).
 	formatExternal
-	// FormatJSON writes one final v2 "evo.run" document to Stdout at Finish;
-	// human presentation still goes to Stderr, exactly as FormatData routes
-	// it (spec §32.1). Do not infer this from stdout being a pipe — it is
-	// always an explicit top-level choice.
+	// FormatJSON writes one final v2 "evo.run" document to Stdout at Finish; human output goes to Stderr (spec §32.1).
 	formatJSON
-	// FormatJSONL streams v2 "evo.event" JSON lines to Stdout as they occur,
-	// plus a final run.finished line; human presentation goes to Stderr
-	// (spec §32.1).
+	// FormatJSONL streams v2 "evo.event" lines to Stdout plus a final run.finished line; human output goes to Stderr.
 	formatJSONL
 )
 
-// Verbosity selects which message visibilities are projected to the human stream.
-// Zero is normal (non-verbose) human detail.
 type verbosity int
 
 const (
-	// VerbosityNormal projects Normal-visibility messages only.
 	verbosityNormal verbosity = iota
-	// VerbosityVerbose also projects Verbose-visibility messages. It also
-	// expands each Task.Skipped/Kept taxonomy row from its default
-	// aggregated "! skipped N (reason1, reason2)" count into one named line
-	// per reason ("reason: name1, name2, ..."). The names themselves are
-	// never lost at VerbosityNormal — they are always present on the Go
-	// TaskSnapshot.Skipped/Kept fields (returned by Output.Snapshot and
-	// Task.Snapshot); VerbosityVerbose only changes whether the plain
-	// human render surfaces them. The wire JSONDocument (JSONTask) does not
-	// currently carry Skipped/Kept at all — read the Go snapshot directly to
-	// get the names programmatically.
+	// VerbosityVerbose also projects Verbose messages and expands each Task.Skipped/Kept row into
+	// one line per reason. The names live on TaskSnapshot; the wire JSONTask omits them.
 	verbosityVerbose
 )
 
-// DebugConfig configures the debug journal presentation.
 type debugConfig struct {
-	// Level is the minimum debug journal level. Zero (LevelUnset) resolves to
-	// LevelInfo. Use LevelTrace or LevelDebug to surface Debug/Capture mirrors.
-	level logLevel
-	// View selects history vs pane presentation (default History).
-	view debugPresentation
-	// PaneHeight is used when View is DebugPresentationPane (default 5).
+	// Level is the minimum debug journal level; zero resolves to LevelInfo.
+	level      logLevel
+	view       debugPresentation
 	paneHeight int
 	// NewestFirst orders the pane (default true when zero-config pane).
-	newestFirst *bool
-	// PreserveAlways forces a diagnostic tail on every Finish in pane mode.
+	newestFirst    *bool
 	preserveAlways bool
-	// AddSource resolves each record's call site to a source=file.go:line
-	// field on human/pane/history rendering (slog.HandlerOptions.AddSource
-	// semantics). Off by default: the raw program counter is always kept on
-	// LogRecord.PC for machine consumers, but a human debug line never shows
-	// a bare pc=<uintptr> unless this is set.
+	// AddSource resolves each record's call site to source=file.go:line; off by default (LogRecord.PC keeps it).
 	addSource bool
 }
 
-// Config is the sole application-facing construction surface.
-//
-// Zero values mean automatic/default behavior. Use DefaultConfig() when you
-// need a mutable baseline for advanced fields.
-//
-//	out := (*evo.Run)(nil); _ = evo.Execute(context.Background(), , func(ctx context.Context, r *evo.Run) error { return nil })
-//	out := (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{Name: "bpp-csharp"}, func(ctx context.Context, r *evo.Run) error { return nil })
-//	cfg := evo.Config{}; cfg.Name = "x"; out := (*evo.Run)(nil); _ = evo.Execute(context.Background(), cfg, func(ctx context.Context, r *evo.Run) error { return nil })
+// Config is the sole application-facing construction surface. Zero values mean
+// automatic defaults; DefaultConfig() is a mutable baseline.
 type Config struct {
 	Name string
 	// Title is the 1.x subject shown in the conclusion.
@@ -351,32 +252,19 @@ type Config struct {
 	State   State
 	Facades Facades
 
-	// Subject is an optional durable line rendered once, immediately, right
-	// under the title — a repo path, a target host, the thing every
-	// projection needs the reader to see up front. Set it once in Config
-	// instead of calling fmt.Fprintln(r.Text(), root) (or whatever the identifying
-	// value is) at every projection/command that needs to show it.
-	//
-	// When the subject text isn't known until after Init (e.g. resolved
-	// from a flag parsed later, but still before any other I/O), call
-	// Output.subject(text) instead — same one-shot durable-line semantics,
-	// as a post-construction setter (I3).
+	// Subject is an optional durable line rendered once under the title (a repo path, a target host).
+	// If unknown until after Init, call Output.subject(text) instead.
 	subject string
 
-	// Facts are run-scoped name/value lines painted with the header, before
-	// any Task. Use them for values known at construction (scan roots, the
-	// repo path). Discovery that happens during work belongs on the Task
-	// that learned it (task.Fact), not here.
+	// Facts are run-scoped name/value lines painted with the header, before any Task. Discovery
+	// during work belongs on the Task that learned it (task.Fact).
 	facts []factRecord
 
-	// Stdout is the ordinary human stream (default os.Stdout).
-	// In FormatData mode, Stdout is reserved for domain payload via ResultWriter;
-	// human presentation moves to Stderr.
+	// Stdout is the ordinary human stream (default os.Stdout); in FormatData it carries only domain payload.
 	stdout io.Writer
 	// Stderr owns diagnostics by default (default os.Stderr).
 	stderr io.Writer
-	// Result is an optional domain-payload writer. When nil and Format is
-	// FormatData, ResultWriter returns Stdout. Presentation never writes here.
+	// Result is an optional domain-payload writer; nil with FormatData means Stdout.
 	result io.Writer
 	// Stdin is the facade Confirm reads one answer line from (default os.Stdin).
 	stdin io.Reader
@@ -385,18 +273,13 @@ type Config struct {
 	verbosity verbosity
 	// Color policy (default ColorAuto).
 	color colorMode
-	// Format projection mode (default FormatHuman). Stream routing only —
-	// FormatData does not mean JSON. Presentation encoding is Projection.
+	// Format is the projection mode (default FormatHuman). It routes streams only; encoding is Projection.
 	format format
-	// Projection selects presentation encoding (human, plain, json, jsonl). Zero is unspecified: Init applies EVO_OUTPUT when set,
-	// otherwise human TTY/plain inference. Independent of Format.
+	// Projection selects presentation encoding. Zero defers to EVO_OUTPUT, else TTY/plain inference.
 	projection projection
 
-	// Debug is the lowest slog.Level the debug journal keeps. Zero is
-	// slog.LevelInfo, which EVO_DEBUG may lower or raise.
+	// Debug is the lowest slog.Level the debug journal keeps (zero is LevelInfo; EVO_DEBUG may change it).
 	Debug slog.Level
-	// debug configures the debug journal presentation; its level, when
-	// unset, comes from Debug.
 	debug debugConfig
 
 	// Advanced (optional) — zero values inherit safe defaults.
@@ -405,91 +288,51 @@ type Config struct {
 	terminal terminalDriver
 	strict   bool
 	width    int
-	// VisibilityDelay is the wait before the first live paint.
-	// nil means default (80ms). Non-nil is exact, including 0 for immediate.
-	// Use evo.Delay(d) to set a value from a duration literal.
+	// VisibilityDelay is the wait before the first live paint; nil means 80ms, non-nil is exact. Set with evo.Delay(d).
 	visibilityDelay *time.Duration
 	maxFrameRate    int
 	maxEntities     int
 	maxEvents       int
-	// Plain disables live interactive frames, on a TTY or off (C3: replaces
-	// the former separate ForcePlain and NonInteractive fields — every read
-	// site combined them with OR, so there was never a distinct behavior
-	// between the two to preserve).
+	// Plain disables live interactive frames, on a TTY or off.
 	plain bool
 
-	// Glyphs selects the state-glyph vocabulary (default GlyphsAuto: Unicode
-	// off a TTY or on a UTF-8 locale, ASCII on a non-UTF-8 interactive TTY).
+	// Glyphs selects the state-glyph vocabulary (default GlyphsAuto).
 	glyphs glyphProfile
 
-	// FailedExitCode is the process exit code when the conclusion is failed.
-	// Zero means use ExitFailed (2). Set to 1 for conventional CLI tools that
-	// treat any non-zero failure as exit 1 (e.g. quality gates / git hooks).
+	// FailedExitCode is the exit code when the conclusion is failed (zero means ExitFailed 2).
 	failedExitCode int
 
-	// DryRun declares this run a dry run once, for the whole process: every
-	// evo.Effect, evo.File, and evo.Exec call renders as
-	// a [planned] row with the imperative verb
-	// instead of a [changed] row with the past-tense verb. No call site writes
-	// its own tense.
+	// DryRun declares the whole run a dry run: evo.Effect, evo.File, and evo.Exec render as [planned] rows.
 	DryRun bool
 
-	// Preview declares this run a preview before a confirm gate: the same
-	// planned tense as DryRun — Effect callbacks never run and every
-	// Effect/File call renders as a [planned] row with the
-	// imperative verb — announced with the caller's own Config.Subject
-	// ("repo <path>") instead of the "[dry-run] <subject>" header, and with
-	// the same redundant-band suppression on a pure planned verdict.
-	//
-	// A preview is about to ask permission. Labelling it a dry run tells the
-	// user nothing will happen and then asks them to authorize it; the
-	// dialect's screenshot regression names that exact contradiction. Use
-	// DryRun for `--dry-run`, which really does stop; Preview for the plan a
-	// confirm gate is about to act on.
+	// Preview declares a preview before a confirm gate: DryRun's planned tense (Effect callbacks never run),
+	// announced with Config.Subject alone instead of "[dry-run] <subject>". Use DryRun for a real --dry-run.
 	preview bool
 
-	// MaxConcurrency is the scheduler ceiling: it bounds every executing
-	// callback, including work a waiting goroutine runs itself. Zero means
-	// GOMAXPROCS.
+	// MaxConcurrency is the scheduler ceiling for executing callbacks (zero means GOMAXPROCS).
 	MaxConcurrency int
 
-	// StateDir, when non-empty, is the exact manifest state directory File's
-	// reconciliation history is read from and committed to
-	// (<StateDir>/manifest-v1.json) — bypassing the default
-	// os.UserCacheDir()/evident-output/<app-id>/<workspace-hash>/ derivation
-	// entirely (spec §11.3). Tests set this to t.TempDir() for isolation.
+	// StateDir, when non-empty, is the exact manifest state directory (<StateDir>/manifest-v1.json),
+	// bypassing the default cache derivation (spec §11.3). Tests set it to t.TempDir().
 	stateDir string
 
-	// AppID overrides the derived application id (main-module path plus
-	// executable basename) used in the default manifest cache path.
-	// Ignored when StateDir is set.
+	// AppID overrides the application id in the default manifest cache path; ignored when StateDir is set.
 	appID string
 
-	// ProcessRunner overrides the facade evo.Exec spawns child processes
-	// through (spec §8.4). Nil uses the real OS process runner; tests
-	// inject testkit's scripted fake for deterministic Exec coverage.
+	// ProcessRunner overrides the facade evo.Exec spawns children through (spec §8.4); nil is the real OS runner.
 	processRunner processRunner
 
-	// FileFS overrides the facade evo.File performs filesystem I/O through
-	// (spec §8.2). Nil uses the real OS filesystem; tests inject a fake to
-	// script a reconciliation outcome (e.g. a chmod failure) deterministically.
+	// FileFS overrides the facade evo.File does filesystem I/O through (spec §8.2); nil is the real filesystem.
 	fileFS fs.FS
 }
 
 // Delay returns a non-nil *time.Duration for Config fields where zero is meaningful.
-//
-//	cfg.Name /*VisibilityDelay*/ = evo.Delay(0)                      // immediate
-//	cfg.Name /*VisibilityDelay*/ = evo.Delay(80 * time.Millisecond) // explicit default
 func delay(d time.Duration) *time.Duration {
 	return &d
 }
 
-// DefaultConfig returns a fresh ordinary CLI configuration.
-// Mutating the result does not affect later DefaultConfig() calls.
 func defaultConfig() Config {
 	return Config{
-		// Stdout/Stderr filled at resolve time so tests can still pass buffers
-		// without forcing os.Stdout into DefaultConfig equality checks.
 		debug: debugConfig{
 			level: levelInfo,
 			view:  debugPresentationHistory,
@@ -502,108 +345,48 @@ func defaultConfig() Config {
 	}
 }
 
-// resolveConfig fills zero-value fields with ordinary CLI defaults.
 func resolveConfig(c Config) Config {
 	base := defaultConfig()
-	if c.stdout == nil {
-		if c.Facades.Stdout != nil {
-			c.stdout = c.Facades.Stdout
-		} else {
-			c.stdout = terminal.Stdout()
-		}
-	}
-	if c.stderr == nil {
-		if c.Facades.Stderr != nil {
-			c.stderr = c.Facades.Stderr
-		} else {
-			c.stderr = terminal.Stderr()
-		}
-	}
-	if c.stdin == nil {
-		if c.Facades.Stdin != nil {
-			c.stdin = c.Facades.Stdin
-		} else {
-			c.stdin = terminal.Stdin()
-		}
-	}
-	if c.clock == nil && c.Facades.Clock != nil {
-		c.clock = c.Facades.Clock
-	}
-	if c.terminal == nil && c.Facades.Terminal != nil {
-		c.terminal = c.Facades.Terminal
-	}
-	if c.redactor == nil && c.Facades.Redactor != nil {
-		c.redactor = c.Facades.Redactor
-	}
-	if c.processRunner == nil && c.Facades.Process != nil {
-		c.processRunner = c.Facades.Process
-	}
-	if c.fileFS == nil && c.Facades.FS != nil {
-		c.fileFS = c.Facades.FS
-	}
-	if c.stateDir == "" && c.State.Dir != "" {
-		c.stateDir = c.State.Dir
-	}
-	if c.appID == "" && c.State.AppID != "" {
-		c.appID = c.State.AppID
-	}
-	if c.title == "" {
-		c.title = c.Name
-	}
+	c.stdout = cmp.Or(c.stdout, c.Facades.Stdout, terminal.Stdout())
+	c.stderr = cmp.Or(c.stderr, c.Facades.Stderr, terminal.Stderr())
+	c.stdin = cmp.Or(c.stdin, c.Facades.Stdin, terminal.Stdin())
+	c.clock = cmp.Or(c.clock, timeSource(c.Facades.Clock), timeSource(systemClock{}))
+	c.terminal = cmp.Or(c.terminal, terminalDriver(c.Facades.Terminal))
+	c.redactor = cmp.Or(c.redactor, c.Facades.Redactor, Redactor(process.NoopRedactor{}))
+	c.processRunner = cmp.Or(c.processRunner, processRunner(c.Facades.Process), process.System())
+	c.fileFS = cmp.Or(c.fileFS, fs.FS(c.Facades.FS), fs.FS(fs.Disk{}))
+	c.stateDir = cmp.Or(c.stateDir, c.State.Dir)
+	c.appID = cmp.Or(c.appID, c.State.AppID)
+	c.title = cmp.Or(c.title, c.Name)
 	if c.Verbose {
 		c.verbosity = verbosityVerbose
 	}
 	switch c.Output {
 	case Plain:
-		c.plain = true
-		c.projection = projectionPlain
+		c.plain, c.projection = true, projectionPlain
 	case JSON:
-		c.format = formatJSON
-		c.plain = true
+		c.format, c.plain = formatJSON, true
 	case JSONL:
-		c.format = formatJSONL
-		c.plain = true
+		c.format, c.plain = formatJSONL, true
 	}
-	// LevelUnset (zero) → LevelInfo. LevelTrace is non-zero and selectable via Config.
+	// LevelUnset (zero) takes Config.Debug's level; LevelTrace is non-zero.
 	if c.debug.level == levelUnset {
 		c.debug.level = logLevelOf(c.Debug)
 	}
-	if c.width <= 0 {
-		c.width = base.width
-	}
-	// nil = unspecified → default; non-nil (including 0) is intentional.
+	// nil = unspecified; non-nil, 0 included, is intentional.
 	if c.visibilityDelay == nil {
-		c.visibilityDelay = delay(defaultVisibilityDelay)
+		c.visibilityDelay = base.visibilityDelay
 	}
-	if c.maxFrameRate <= 0 {
-		c.maxFrameRate = base.maxFrameRate
-	}
-	if c.maxEntities <= 0 {
-		c.maxEntities = base.maxEntities
-	}
-	if c.maxEvents <= 0 {
-		c.maxEvents = base.maxEvents
-	}
-	if c.clock == nil {
-		c.clock = systemClock{}
-	}
-	if c.redactor == nil {
-		c.redactor = process.NoopRedactor{}
-	}
-	if c.processRunner == nil {
-		c.processRunner = process.System()
-	}
-	if c.fileFS == nil {
-		c.fileFS = fs.Disk{}
-	}
+	c.width = cmp.Or(max(c.width, 0), base.width)
+	c.maxFrameRate = cmp.Or(max(c.maxFrameRate, 0), base.maxFrameRate)
+	c.maxEntities = cmp.Or(max(c.maxEntities, 0), base.maxEntities)
+	c.maxEvents = cmp.Or(max(c.maxEvents, 0), base.maxEvents)
 	return c
 }
 
 func newFromConfig(c Config) *Run { return newRun(configOf(c)) }
 
-// configOf resolves Config into the run's private config, one concern at a
-// time. A later concern may refine an earlier one: plain output after a
-// live terminal, for example.
+// configOf resolves Config one concern at a time; a later concern may refine an earlier one.
 func configOf(c Config) config {
 	cfg := baseConfig(c.title)
 	cfg.streams(c)
@@ -615,8 +398,7 @@ func configOf(c Config) config {
 	return cfg
 }
 
-// humanWriter is the stream human output goes to: stderr when stdout
-// carries a document, stdout otherwise.
+// humanWriter is stderr when stdout carries a document, stdout otherwise.
 func humanWriter(c Config) io.Writer {
 	switch c.format {
 	case formatData, formatJSON, formatJSONL:
@@ -626,9 +408,7 @@ func humanWriter(c Config) io.Writer {
 	}
 }
 
-// streams routes each stream: a data command's progress to stderr and its
-// result to stdout, a machine Format's document to stdout, human output to
-// stdout otherwise; diagnostics always to stderr.
+// streams routes data-command progress to stderr, a machine Format's document to stdout, human output to stdout otherwise; diagnostics always to stderr.
 func (cfg *config) streams(c Config) {
 	cfg.primary, cfg.diagnostic, cfg.result = c.stdout, c.stderr, c.result
 	switch c.format {
@@ -645,8 +425,7 @@ func (cfg *config) streams(c Config) {
 	}
 }
 
-// color turns color off when asked to, or, in auto mode, when NO_COLOR is
-// set or human output is not a terminal.
+// color is off when asked, or in auto mode when NO_COLOR is set or human output is not a terminal.
 func (cfg *config) color(c Config) {
 	switch c.color {
 	case colorNever:
@@ -657,8 +436,7 @@ func (cfg *config) color(c Config) {
 	}
 }
 
-// terminalOf picks the terminal: the caller's driver, a live ANSI driver
-// over a terminal human output reaches, or none (plain).
+// terminalOf picks the caller's driver, a live ANSI driver over a terminal human output reaches, or none (plain).
 func (cfg *config) terminalOf(c Config) {
 	liveWriter := humanWriter(c)
 	switch {
@@ -684,9 +462,8 @@ func rendersInline(f format) bool {
 	}
 }
 
-// callerTerminal installs the caller's driver. A driver that reports its own
-// sink either shares a configured stream — its rendered conclusion must not
-// be written there twice — or becomes the primary stream.
+// callerTerminal installs the caller's driver. A driver reporting its own sink either shares a configured
+// stream (its conclusion must not be written there twice) or becomes the primary stream.
 func (cfg *config) callerTerminal(c Config) {
 	cfg.terminal = c.terminal
 	sr, ok := c.terminal.(sinkReporter)
@@ -704,12 +481,9 @@ func (cfg *config) callerTerminal(c Config) {
 	cfg.diagnosticSharesTerminal = sameTerminalDevice(sr.Sink(), c.stderr)
 }
 
-// liveTerminalHeight is the live region's height when the terminal does not
-// report one.
 const liveTerminalHeight = 24
 
-// liveTerminal builds the ANSI driver over liveWriter, sized from the
-// terminal unless Config.Width says otherwise.
+// liveTerminal builds the ANSI driver over liveWriter, sized from the terminal unless Config.Width says otherwise.
 func (cfg *config) liveTerminal(c Config, liveWriter io.Writer) {
 	width, height := c.width, liveTerminalHeight
 	if width <= 0 {
@@ -728,7 +502,6 @@ func (cfg *config) liveTerminal(c Config, liveWriter io.Writer) {
 	cfg.diagnosticSharesTerminal = sameTerminalDevice(liveWriter, c.stderr)
 }
 
-// runtime carries the run's facades and bounds.
 func (cfg *config) runtime(c Config) {
 	cfg.stdin = c.stdin
 	cfg.visibilityDelay = defaultVisibilityDelay
@@ -744,8 +517,7 @@ func (cfg *config) runtime(c Config) {
 	cfg.processRunner, cfg.fileFS = c.processRunner, c.fileFS
 }
 
-// debugOf configures the debug journal and its presentation: durable
-// history above the live region, or a rolling pane inside it.
+// debugOf configures the debug journal: durable history above the live region, or a rolling pane in it.
 func (cfg *config) debugOf(d debugConfig) {
 	cfg.debugLevel = d.level
 	if d.level == levelUnset {
@@ -767,8 +539,6 @@ func (cfg *config) debugOf(d debugConfig) {
 	cfg.debugPane.PreserveAlways = d.preserveAlways
 }
 
-// modes carries the run's modes: strictness, verbosity, exit code, dry run
-// and preview, and glyphs.
 func (cfg *config) modes(c Config) {
 	cfg.strict, cfg.verbosity, cfg.glyphs = c.strict, c.verbosity, c.glyphs
 	if c.failedExitCode != 0 {
@@ -781,18 +551,10 @@ func (cfg *config) modes(c Config) {
 	cfg.preview = c.preview
 }
 
-// Init is the sole Output constructor. It builds an Output from cfg,
-// installs it as the package-level default, and arms first paint — call
-// once, in main, before any I/O:
-//
-//	func main() {
-//	    (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{Name: "repo-retire"}, func(ctx context.Context, r *evo.Run) error { return nil })
-//	    os.Exit(evo.Main(run))
-//	}
-//
-// Init fills still-zero Config fields from EVO_OUTPUT, EVO_VERBOSE,
-// EVO_DEBUG, NO_COLOR, and FORCE_COLOR before TTY inference.
-// Explicit Config values win over env; env wins over TTY.
+// Init is the sole Output constructor: it installs the default Output built from cfg
+// and arms first paint. Call once, in main, before any I/O. It fills still-zero Config fields
+// from EVO_OUTPUT, EVO_VERBOSE, EVO_DEBUG, NO_COLOR, and FORCE_COLOR. Explicit Config wins over
+// env; env wins over TTY.
 func initRun(configs ...Config) *Run {
 	cfg := resolveInitConfig(configs)
 	cfg = applyEnv(cfg)
@@ -801,7 +563,6 @@ func initRun(configs ...Config) *Run {
 	return finishInit(out, cfg, resolved.facts)
 }
 
-// finishInit applies the first-paint invariant and records Config facts.
 func finishInit(out *Run, cfg Config, facts []factRecord) *Run {
 	out.changes.Workspace() // captured at Run start: relative paths never follow a later chdir
 	out.arm()
@@ -814,9 +575,6 @@ func finishInit(out *Run, cfg Config, facts []factRecord) *Run {
 	return out
 }
 
-// resolveInitConfig picks Init's effective Config from its variadic
-// argument: zero args is the zero Config ((*evo.Run)(nil); _ = evo.Execute(context.Background(), , func(ctx context.Context, r *evo.Run) error { return nil })), and one or more
-// uses the first.
 func resolveInitConfig(configs []Config) Config {
 	if len(configs) == 0 {
 		return Config{}
@@ -849,20 +607,14 @@ const (
 	envDebugError = "error"
 )
 
-// Projection selects presentation encoding. Independent of Format, which
-// only routes streams (stdout vs stderr). The zero value is unspecified:
-// Init fills it from EVO_OUTPUT when set, otherwise human TTY/plain inference.
+// Projection selects presentation encoding, independent of Format. Zero defers to EVO_OUTPUT, else TTY inference.
 type projection int
 
 const (
-	// ProjectionHuman is ordinary TTY/plain inference. Non-zero so an
-	// explicit Config{Projection: ProjectionHuman} wins over EVO_OUTPUT.
+	// ProjectionHuman is ordinary TTY/plain inference; non-zero so an explicit value beats EVO_OUTPUT.
 	projectionHuman projection = iota + 1
-	// ProjectionPlain forces the durable report (no live region).
 	projectionPlain
-	// ProjectionJSON writes a JSONDocument at Finish.
 	projectionJSON
-	// ProjectionJSONL writes Event JSON Lines at Finish.
 	projectionJSONL
 	// ProjectionStreamJSON writes one EventJSON line at each journal append.
 	projectionStreamJSON
@@ -891,7 +643,6 @@ var (
 	lookupEnvFn = process.Env
 )
 
-// lookupEnv is the process-environment facade (same idea as processArgv0).
 func lookupEnv(key string) string {
 	lookupEnvMu.RLock()
 	fn := lookupEnvFn
@@ -902,8 +653,6 @@ func lookupEnv(key string) string {
 	return fn(key)
 }
 
-// applyEnv fills zero Config fields from the process environment. Explicit
-// Config values already set are left alone. Options-path Init skips this.
 func applyEnv(c Config) Config {
 	if c.projection == 0 && c.Output == 0 {
 		if p, ok := parseOutputEnv(lookupEnv(envKeyOutput)); ok {
@@ -927,12 +676,8 @@ func applyEnv(c Config) Config {
 	return c
 }
 
-// selectOutputEnv applies EVO_OUTPUT's projection p. json and jsonl
-// select the evo.run document and evo.event stream (FormatJSON,
-// FormatJSONL) when no Format was chosen: those carry every structured
-// Fact, disposition and Problem, where the frozen output.v1 projection
-// cannot (E-090). A Format the caller chose keeps stdout for itself, so
-// there p stays the output.v1 projection on stderr.
+// selectOutputEnv applies EVO_OUTPUT's projection p. json and jsonl pick the evo.run document and evo.event
+// stream when no Format was chosen; a caller-chosen Format keeps stdout, so p stays output.v1 on stderr.
 func selectOutputEnv(c Config, p projection) Config {
 	switch {
 	case c.format == formatHuman && p == projectionJSON:
@@ -960,8 +705,7 @@ func parseOutputEnv(v string) (projection, bool) {
 	}
 }
 
-// forceColorRequested reports whether FORCE_COLOR asks for color. NO_COLOR
-// wins over FORCE_COLOR, so it is checked first.
+// forceColorRequested reports whether FORCE_COLOR asks for color; NO_COLOR wins, so it is checked first.
 func forceColorRequested() bool {
 	if lookupEnv(envKeyNoColor) != "" {
 		return false
@@ -985,9 +729,7 @@ func parseDebugEnv(v string) (logLevel, bool) {
 	}
 }
 
-// resolveGlyphProfileLocked turns a possibly-auto profile into a concrete
-// one. Called once at construction (newOutput) so every render call reads a
-// decided value instead of re-detecting locale per frame.
+// resolveGlyphProfileLocked turns an auto profile into a concrete one once, at construction.
 func resolveGlyphProfileLocked(cfg *config) {
 	if cfg.glyphs != glyphsAuto {
 		return
@@ -999,17 +741,13 @@ func resolveGlyphProfileLocked(cfg *config) {
 	cfg.glyphs = glyphsASCII
 }
 
-// interactiveOutputLocked reports whether the configured terminal is a real
-// interactive surface. Plain/non-interactive projection keeps the Unicode
-// vocabulary unconditionally — evo-rec.md's glyph-safety default only
-// guards the live status column a human is watching.
+// interactiveOutputLocked reports whether the terminal is a real interactive surface; the ASCII fallback guards only the live status column.
 func interactiveOutputLocked(cfg *config) bool {
 	ls := liveSurfaceOf(*cfg)
 	return ls != nil && ls.IsInteractive()
 }
 
-// liveSurfaceOf is the surface a live region paints on: the configured
-// terminal, unless it cannot paint one or the run is plain.
+// liveSurfaceOf is the terminal a live region paints on, unless it cannot paint one or the run is plain.
 func liveSurfaceOf(cfg config) live.Surface {
 	if cfg.plain {
 		return nil
@@ -1017,23 +755,18 @@ func liveSurfaceOf(cfg config) live.Surface {
 	return live.SurfaceOf(cfg.terminal)
 }
 
-// localeAdvertisesUTF8 checks LC_ALL, then LC_CTYPE, then LANG (POSIX
-// override order) for a UTF-8 marker. Read directly at construction time —
-// the same pattern Config.Color's NO_COLOR detection uses — so no render
-// path re-reads the environment.
+// localeAdvertisesUTF8 checks LC_ALL, then LC_CTYPE, then LANG for a UTF-8 marker, read at construction.
 func localeAdvertisesUTF8() bool {
 	for _, name := range []string{"LC_ALL", "LC_CTYPE", "LANG"} {
 		if v := process.Env(name); v != "" {
 			return strings.Contains(v, "UTF-8") || strings.Contains(v, "utf8")
 		}
 	}
-	// No locale env set at all: assume the historical default (UTF-8) rather
-	// than guessing ASCII from absence.
+	// No locale set: assume UTF-8 rather than guess ASCII from absence.
 	return true
 }
 
-// rendererError is err as the Run reports a renderer failure: a genuine
-// Run failure, not an ignored logging error (§32.2). nil stays nil.
+// rendererError reports a renderer failure as a genuine Run failure (§32.2); nil stays nil.
 func rendererError(err error) error {
 	if err == nil {
 		return nil
@@ -1041,8 +774,7 @@ func rendererError(err error) error {
 	return fmt.Errorf("%w: %v", errRenderer, err)
 }
 
-// eventStream is where the evo.event stream writes: Config.Stdout in Format
-// JSONL, nowhere otherwise (§32.1).
+// eventStream is where the evo.event stream writes: Config.Stdout in Format JSONL, nowhere otherwise (§32.1).
 func (c *config) eventStream() io.Writer {
 	if c.wireFormat != formatJSONL {
 		return nil
@@ -1057,9 +789,7 @@ func (o *Run) ensureOpen() error {
 	return nil
 }
 
-// Close is idempotent cleanup; best-effort Finish when needed. The first
-// call tears down and returns its error; a concurrent or later call waits
-// for that teardown to end and returns nil.
+// close is idempotent with a best-effort Finish: the first call tears down; a concurrent or later call waits and returns nil.
 func (o *Run) close() error {
 	o.mu.Lock()
 	if o.closing != nil {
@@ -1070,8 +800,7 @@ func (o *Run) close() error {
 	}
 	o.closing = make(chan struct{})
 	defer close(o.closing)
-	// A Confirm still waiting for an answer would hold its caller forever
-	// once the run is gone.
+	// A Confirm still waiting would hold its caller forever once the run is gone.
 	for o.graph.CancelPendingGate(cancelCauseClose) {
 	}
 	needFinish := !o.finished
@@ -1086,25 +815,16 @@ func (o *Run) close() error {
 	o.graph.Close()
 	o.mu.Unlock()
 	o.graph.Cancel()
-	// Finish already wrote the manifest and warned when it could not; this
-	// releases the Run's exclusive manifest lock (spec §11.3) and returns
-	// any write or release failure. Already committed Task records on disk
-	// are unaffected — Close never rolls anything back.
+	// Finish already wrote the manifest; this releases its lock (spec §11.3) and returns any failure. Close never rolls back committed records.
 	return o.freshness.Session().Close()
 }
 
-// beginRunContext installs ctx (Run/evo.Run's own ctx parameter) as the
-// parent of this run's task scopes, replacing the placeholder Init installed
-// for Define/Verify calls made before any Run (see graph.Graph.BeginRunContext).
+// beginRunContext installs ctx as the parent of this run's task scopes, replacing Init's placeholder.
 func (o *Run) beginRunContext(ctx context.Context) context.Context {
 	return o.graph.BeginRunContext(ctx)
 }
 
-// Context reports the run's cancellation signal. It is cancelled when the
-// run is interrupted (SIGINT/SIGTERM) and when the Output closes, so work
-// that does I/O can select on it and stop instead of running on past the ^C
-// that was supposed to end it. A nil Output reports a never-cancelled
-// context so a caller never has to nil-check before selecting.
+// context reports the run's cancellation signal (cancelled on interrupt and close). A nil Run reports a never-cancelled context.
 func (o *Run) context() context.Context {
 	if o == nil {
 		return context.Background()
@@ -1112,7 +832,6 @@ func (o *Run) context() context.Context {
 	return o.graph.Context()
 }
 
-// Conclusion returns the computed conclusion after Finish.
 func (o *Run) conclusion() Conclusion {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -1126,16 +845,11 @@ func (o *Run) conclusion() Conclusion {
 	return asEvoConclusion(c)
 }
 
-// cancelCauseUser is the cause an interrupt signal records: the person at
-// the terminal stopped the run.
 const cancelCauseUser = "by user"
 
-// cancelCauseClose is the cause a Close records on a Confirm still waiting.
 const cancelCauseClose = "run closed"
 
-// explainCancellationLocked names what interrupted a cancelled run as its
-// Explanation, ahead of the cancelled Task's own ending. Any other outcome
-// keeps its own Explanation untouched.
+// explainCancellationLocked names what interrupted a cancelled run as its Explanation.
 func (o *Run) explainCancellationLocked(c *record.Conclusion) {
 	if c.Outcome != record.OutcomeCancelled {
 		return
@@ -1145,9 +859,7 @@ func (o *Run) explainCancellationLocked(c *record.Conclusion) {
 	}
 }
 
-// Domain types live in internal/core / internal/txt. Engine aliases them so
-// implementation files keep unqualified names; the public evo package aliases
-// the same underlying types directly (not through this package).
+// Domain types live in internal/core and internal/txt; engine aliases them.
 
 type entityState = record.State
 
@@ -1234,87 +946,37 @@ type config struct {
 	maxConcurrency    int
 	extraWriters      []io.Writer
 	verbosity         verbosity
-	// stateDir/appID mirror Config.StateDir/Config.AppID (spec §11.3):
-	// stateDir, when non-empty, is the exact manifest state directory;
-	// appID overrides the derived application id used in the default
-	// cache-dir manifest path derivation.
-	stateDir string
-	appID    string
-	// processRunner is the facade evo.Exec spawns child processes through
-	// (spec §8.4). Defaults to osProcessRunner{} in resolveConfig.
-	processRunner processRunner
-	// fileFS is the facade evo.File performs filesystem I/O through (spec
-	// §8.2). Defaults to osFileFS{} in newOutput.
-	fileFS fs.FS
-	// stdin is the facade Confirm reads one answer line from (default os.Stdin,
-	// resolved lazily so NewWithOptions callers that skip Stdin still work).
-	stdin io.Reader
-	// failedExitCode overrides ExitFailed when conclusion is StateFailed.
-	// Zero means use ExitFailed (2).
-	failedExitCode int
-	// dryRun selects ledger tense: true renders Effect/File rows as
-	// [planned]/imperative, false as [changed]/past tense. Both
-	// Config.DryRun and Config.Preview set it — they are one tense with two
-	// announcements (see preview below).
+	stateDir          string
+	appID             string
+	processRunner     processRunner
+	fileFS            fs.FS
+	stdin             io.Reader
+	failedExitCode    int
+	// dryRun selects ledger tense: [planned]/imperative when true, [changed]/past when false.
 	dryRun bool
-	// preview says the planned tense above is a preview before a confirm
-	// gate, not a dry run, so the opening header is the caller's subject
-	// alone ("repo <path>") rather than "[dry-run] <subject>". A preview is
-	// about to ask permission; labelling it a dry run tells the user nothing
-	// will happen and then asks them to authorize it.
+	// preview marks the planned tense as a pre-confirm preview: the header is the caller's subject alone, not "[dry-run] <subject>".
 	preview bool
-	// glyphs selects the state-glyph vocabulary (GlyphsAuto resolved at
-	// construction to GlyphsUnicode or GlyphsASCII; see glyph.go).
-	glyphs glyphProfile
-	// samePrimaryAsTerminal records that the live Terminal driver was built
-	// around the same underlying writer as primary (Config's default-construction
-	// path: to(c.Facades.Stdout) and withTerminal(ansi-over-c.Facades.Stdout) target one stream).
-	// Set only where construction knows both writers, never inferred later by
-	// comparing file descriptors — see configToOptions. Finish uses it to skip
-	// the CON-009 dual-stream write, which would otherwise render the
-	// conclusion band twice on the one physical screen.
+	glyphs  glyphProfile
+	// samePrimaryAsTerminal: the live Terminal driver wraps the same writer as primary. Finish skips the
+	// CON-009 dual-stream write so the conclusion band is not rendered twice. Set only at construction.
 	samePrimaryAsTerminal bool
-	// diagnosticSharesTerminal records that the Diagnostics writer resolves
-	// to the same physical terminal device as the live region's Terminal
-	// driver, even though the two are distinct io.Writer values (the
-	// realistic default: Config{Stdout, Stderr} on an interactive shell,
-	// where fd 1 and fd 2 both name the one controlling tty). Set only at
-	// construction, where the real writers are known — see construct.go's
-	// sameTerminalDevice detection. projectDebugRecordLocked uses it to
-	// route dual-stream Debug records through the same clear-live →
-	// write-durable → repaint sequencing as single-stream records, instead
-	// of writing raw bytes to Diagnostics that would otherwise land
-	// mid-spinner-row on the one screen both writers share.
+	// diagnosticSharesTerminal: Diagnostics is the same physical terminal as the live driver (fd 1 and 2 on one tty).
+	// projectDebugRecordLocked then clears live, writes durable, repaints, so raw bytes never land mid-spinner-row.
 	diagnosticSharesTerminal bool
-	// dryRunHeaderText is Config.Subject's text, threaded through so a
-	// dry-run's opening announcement can merge onto ONE line — "[dry-run]
-	// <subject>" (fixture-repo-retire-dryrun.md) — instead of the marker and
-	// the subject printing as two separate durable lines. Only Init's
-	// synchronous Config{DryRun: true, Subject: "..."} path sets this before
-	// construction; DeclareDryRun's later switch keeps the marker's plain
-	// fallback text, since by then any Subject has already streamed as its
-	// own line.
+	// dryRunHeaderText is Config.Subject's text so a dry-run's announcement merges onto one "[dry-run] <subject>"
+	// line. Only Init's synchronous path sets it; DeclareDryRun's later switch keeps the marker alone.
 	dryRunHeaderText string
-	// wireFormat is non-zero only for FormatJSON/FormatJSONL (spec §32.1) —
-	// independent of the legacy projection field above, which drives the
-	// pre-existing EVO_OUTPUT-selected "0.4"/"0.3" encoders. wireStream is
-	// where the v2 document/event lines land (Config.Stdout); presentation
-	// keeps going to primary/diagnostic exactly as FormatData routes it.
+	// wireFormat is non-zero only for FormatJSON/FormatJSONL (spec §32.1). wireStream receives the v2
+	// document/event lines (Config.Stdout); presentation still goes to primary/diagnostic.
 	wireFormat format
 	wireStream io.Writer
 }
 
-// LogLevel is a diagnostic severity.
-//
-// The zero value is LevelUnset (Config resolves it to LevelInfo). Named levels
-// start at LevelTrace so ordinary Config{Debug: DebugConfig{Level: LevelTrace}}
-// is expressible without falling through the default path.
+// LogLevel is a diagnostic severity. Zero is LevelUnset; named levels start at LevelTrace.
 type logLevel int
 
 const (
-	// LevelUnset is the zero value. Config resolve maps it to LevelInfo.
 	levelUnset logLevel = iota
-	// LevelTrace is the most verbose journal level selectable via Config.
 	levelTrace
 	// LevelDebug enables Debug journal lines (and Capture MirrorToDebug).
 	levelDebug
@@ -1326,15 +988,10 @@ const (
 	levelError
 )
 
-// TerminalDriver is the exclusive owner of terminal control sequences.
 type terminalDriver = terminal.Driver
 
-// sinkReporter is implemented by a TerminalDriver that knows its own
-// destination writer (terminal.ANSI, testkit's drivers). configToOptions and
-// newOutput use it to DETECT whether a caller-supplied withTerminal(...) happens
-// to write to a stream evident-output already knows about (primary,
-// diagnostic, or either of Config's Stdout/Stderr), instead of only knowing
-// that for the one construction path that builds both itself.
+// sinkReporter is implemented by a TerminalDriver that knows its destination writer, so construction
+// can detect a caller-supplied terminal writing to an already-known stream.
 type sinkReporter interface {
 	Sink() io.Writer
 }
@@ -1343,32 +1000,21 @@ const (
 	defaultVisibilityDelay = 80 * time.Millisecond
 	defaultMaxFrameRate    = 20
 	defaultWidth           = 80
-	// defaultMaxEntities bounds items+tasks to prevent unbounded allocation (SEC-003).
-	defaultMaxEntities = 100_000
-	// defaultMaxEvents bounds the durable journal (CON-008 backpressure).
-	defaultMaxEvents = 50_000
+	defaultMaxEntities     = 100_000
+	defaultMaxEvents       = 50_000
 )
 
-// Test helpers reachable through the evo type alias (root export_test.go
-// cannot attach methods to engine types).
-
-// DebugPresentation selects how structured debug records project to a TTY (§4.6 / §21.3).
 type debugPresentation int
 
 const (
-	// DebugPresentationHistory appends durable scrollback above the live region (default).
 	debugPresentationHistory debugPresentation = iota
-	// DebugPresentationPane keeps a bounded rolling viewport inside the live region.
 	debugPresentationPane
 )
 
-// humanStyle is how this run paints human rows.
 func (o *Run) humanStyle() txt.Style {
 	return txt.Style{Color: !o.cfg.noColor, Verbose: o.cfg.verbosity >= verbosityVerbose, Profile: o.cfg.glyphs}
 }
 
-// debugPanePresentation is the debug pane when debug records present in
-// the live region, nil when they stream as history.
 func (c *config) debugPanePresentation() *txt.DebugPane {
 	if c.debugPresentation != debugPresentationPane {
 		return nil
@@ -1376,17 +1022,12 @@ func (c *config) debugPanePresentation() *txt.DebugPane {
 	return &c.debugPane
 }
 
-// runHost is the Run as graph, freshness and change borrow it: its lock,
-// its settings, its live rows and its edge to the reader. It implements
-// graph.Host, freshness.Narration and change.Engine; the packages make every
-// record write they owe themselves.
+// runHost is the Run as graph, freshness and change borrow it: it implements graph.Host,
+// freshness.Narration and change.Engine.
 type runHost struct{ out *Run }
 
-// resourceWaitingPrefix opens the live activity a Task shows while one of its
-// claims waits on a conflicting holder.
 const resourceWaitingPrefix = "waiting for "
 
-// newChangeHost is the Host this Run's changes report through.
 func (o *Run) newChangeHost() change.Host {
 	return change.NewHost(change.HostParts{Engine: runHost{out: o}, Record: o.rec, Graph: o.graph, Freshness: o.freshness})
 }
@@ -1394,20 +1035,16 @@ func (o *Run) newChangeHost() change.Host {
 func (e runHost) Lock()   { e.out.mu.Lock() }
 func (e runHost) Unlock() { e.out.mu.Unlock() }
 
-// DryRun reports whether the Run plans its changes instead of making them.
-// It is fixed at construction, so it needs no lock.
+// DryRun reports whether the Run plans instead of making changes; fixed at construction, so lock-free.
 func (e runHost) DryRun() bool { return e.out.cfg.dryRun }
 
-// FS is the filesystem File performs I/O through.
 func (e runHost) FS() fs.FS {
 	e.out.mu.Lock()
 	defer e.out.mu.Unlock()
 	return e.out.cfg.fileFS
 }
 
-// LedgerTense is the tense id's rows take: the shared guard (open, not yet
-// resolved) behind every change a Task records. A Task the Run does not
-// know fails without misuse.
+// LedgerTense is the tense id's rows take, and the shared guard behind every change a Task records.
 func (e runHost) LedgerTense(id record.TaskID) (record.LedgerTense, error) {
 	o := e.out
 	st := o.taskStates[string(id)]
@@ -1424,7 +1061,6 @@ func (e runHost) LedgerTense(id record.TaskID) (record.LedgerTense, error) {
 	return record.TenseFor(o.cfg.dryRun), nil
 }
 
-// CheckOpen refuses a write once the Run is closing.
 func (e runHost) CheckOpen() error {
 	err := e.out.ensureOpen()
 	if err != nil {
@@ -1433,16 +1069,12 @@ func (e runHost) CheckOpen() error {
 	return err
 }
 
-// RecordMisuse fails the Run with err.
 func (e runHost) RecordMisuse(err error) { e.out.recordMisuse(err) }
 
-// NoteManifestWarning surfaces a manifest's safe cache-miss warning
-// (corrupt or unknown prior manifest, spec §11.3) as a run-scoped Fact,
-// never as an error: a miss is always safe to continue past.
+// NoteManifestWarning surfaces a safe cache-miss warning (spec §11.3) as a run-scoped Fact, never an error.
 func (e runHost) NoteManifestWarning(warning error) { e.out.Fact("manifest", warning.Error()) }
 
-// ShowWaiting makes id's row read "waiting for <label>" and returns the
-// function that restores what it showed before.
+// ShowWaiting makes id's row read "waiting for <label>" and returns the restore function.
 func (e runHost) ShowWaiting(id record.TaskID, label string) (restore func()) {
 	o, taskID := e.out, string(id)
 	text := txt.Text(resourceWaitingPrefix + label)
@@ -1465,14 +1097,12 @@ func (e runHost) ShowWaiting(id record.TaskID, label string) (restore func()) {
 	}
 }
 
-// SectionOpened journals a ledger section a change opened.
 func (e runHost) SectionOpened(_ record.TaskID, section string, tense record.LedgerTense) {
 	e.out.bumpLocked()
 	e.out.appendEventLocked(recEvent{Type: tense.DeclaredEvent(), EntityID: section})
 }
 
-// EntryRecorded journals a ledger row a change recorded and narrates it as
-// the §38 effect line: planned in a planned run, committed otherwise.
+// EntryRecorded journals a recorded ledger row and narrates it as the §38 effect line.
 func (e runHost) EntryRecorded(task record.TaskID, row change.LedgerRow) {
 	o := e.out
 	if row.Added {
@@ -1486,8 +1116,7 @@ func (e runHost) EntryRecorded(task record.TaskID, row change.LedgerRow) {
 	o.emitWireEventLocked(event, string(task), row.Entry.Payload(row.Verb))
 }
 
-// VerificationRecorded files the Task's row again and narrates each detail
-// as the sanitized copy evo.run projects, so JSONL and JSON agree.
+// VerificationRecorded files the Task's row again and narrates each detail as evo.run projects it.
 func (e runHost) VerificationRecorded(task record.TaskID, details []record.VerificationDetail) {
 	o := e.out
 	o.show.Board.Changed(task)
@@ -1499,19 +1128,14 @@ func (e runHost) VerificationRecorded(task record.TaskID, details []record.Verif
 // stateOf is the render state of the graph's Task t. Callers hold o.mu.
 func (o *Run) stateOf(t *graph.Task) *taskState { return o.taskStates[t.ID] }
 
-// Ending is the state and Problem a callback's returned error settles.
 func (runHost) Ending(err error) (record.State, record.Problem) { return endingOf(err) }
 
-// Changed follows the record once t was written outside a resolution.
 func (e runHost) Changed(*graph.Task) { e.out.followRecordLocked() }
 
-// EndingName names the Task that carries the run's own ending: the
-// configured subject, else the executable's name.
+// EndingName names the Task carrying the run's own ending: the subject, else the executable.
 func (e runHost) EndingName() string { return e.out.endingName() }
 
-// TaskDeclared registers the row of a Task the graph just declared: its
-// render state, its place in its collection's live index and census, the
-// declaration events, and a forced paint.
+// TaskDeclared registers a just-declared Task's row, live index, census place, events, and a forced paint.
 func (e runHost) TaskDeclared(t *graph.Task) {
 	o := e.out
 	st := &taskState{id: t.ID, node: t, name: t.Name}
@@ -1520,8 +1144,7 @@ func (e runHost) TaskDeclared(t *graph.Task) {
 	o.appendTaskLocked(st, false)
 }
 
-// GateDeclared registers the gate of a container builder: no row, in no
-// collection, but followed like any Task.
+// GateDeclared registers the gate of a container builder: no row, no collection, followed like any Task.
 func (e runHost) GateDeclared(t *graph.Task) {
 	o := e.out
 	gate := &taskState{id: t.ID, node: t, name: t.Name}
@@ -1530,7 +1153,6 @@ func (e runHost) GateDeclared(t *graph.Task) {
 	o.show.DeclareGate(t.TaskID(), t.Rec)
 }
 
-// ContainerDeclared registers a Group or Sequence the graph just declared.
 func (e runHost) ContainerDeclared(c *graph.Container) {
 	o := e.out
 	st := &tasksState{id: c.ID, out: o, node: c, name: c.Name}
@@ -1547,11 +1169,8 @@ func (e runHost) ContainerDeclared(c *graph.Container) {
 	}, parentID)
 }
 
-// Started is the render work a claimed Task owes: the eligibility event, the
-// move to Running, the snapshot version and a forced paint, within the live
-// render budget, since a start is the spinner FP-005 requires before the
-// check. It reports whether the Task began: false when an interrupt settled
-// it between its claim and this step, so the scheduler skips its callback.
+// Started is the render work a claimed Task owes (eligibility event, Running, snapshot version, forced
+// paint). It reports false when an interrupt settled the Task first, so the scheduler skips its callback.
 func (e runHost) Started(t *graph.Task) bool {
 	if t.IsGate() {
 		return true
@@ -1562,8 +1181,7 @@ func (e runHost) Started(t *graph.Task) bool {
 	o.followRecordLocked()
 	st := o.stateOf(t)
 	if st == nil || record.IsTerminalTask(t.Rec.State()) {
-		// An interrupt settled the Task between its claim and this step: it
-		// never started, so it is neither eligible nor started.
+		// An interrupt settled the Task between its claim and this step: never started.
 		return false
 	}
 	o.emitWireEventLocked(wire.EventTaskEligible, st.id, nil)
@@ -1577,31 +1195,24 @@ func (e runHost) Started(t *graph.Task) bool {
 	return true
 }
 
-// Resolving lets a running row finish its spinner frame before it resolves.
 func (e runHost) Resolving(t *graph.Task) { e.out.show.Live.HoldRunning(record.TaskID(t.ID)) }
 
-// AlreadyResolved records a second terminal verb on t as misuse, keeping
-// the rejected call's own summary so the misuse line can show what got
-// dropped (release-gate round 5 finding 4).
+// AlreadyResolved records a second terminal verb on t as misuse, keeping the rejected summary.
 func (e runHost) AlreadyResolved(t *graph.Task, summary string) {
 	e.out.recordAlreadyResolvedLocked(t.Name, summary)
 }
 
-// Disowned disowns every Effect in flight for t: an Effect whose callback
-// resolved its own Task as anything but Done and then returned nil handled
-// the failure itself, and its work must not reach the ledger.
+// Disowned disowns every Effect in flight for t: an Effect whose callback resolved its own Task as
+// anything but Done and returned nil handled the failure itself, so its work must not reach the ledger.
 func (e runHost) Disowned(t *graph.Task) {
 	if id := t.TaskID(); e.out.changes.EffectInFlight(id) {
 		e.out.changes.DenyEffect(id)
 	}
 }
 
-// Settled follows the record and writes the settled Task where its readers
-// find it. A Group or Sequence child repaints the live ledger; a standalone
-// Task commits its row and its own File/Exec ledger rows to scrollback at
-// once, so later Printf/Confirm output can never land above finished work.
-// A Done Task commits its manifest record; Failed, Blocked, and Cancelled
-// never do (spec §8.2/§11.3).
+// Settled writes the settled Task where readers find it. A Group or Sequence child repaints the live
+// ledger; a standalone Task commits its rows to scrollback at once so later Printf/Confirm output never
+// lands above finished work. Only a Done Task commits its manifest record (spec §8.2/§11.3).
 func (e runHost) Settled(t *graph.Task) {
 	o := e.out
 	o.followRecordLocked()
@@ -1620,9 +1231,7 @@ func (e runHost) Settled(t *graph.Task) {
 	}
 }
 
-// commitManifestLocked persists st's accumulated operations as this Run's
-// truth (spec §11.3) once it settled Done, and narrates the commit; see
-// freshness.Run.Commit. Callers hold o.mu.
+// commitManifestLocked persists st's operations once it settled Done and narrates the commit. Callers hold o.mu.
 func (o *Run) commitManifestLocked(st *taskState) {
 	commit := o.freshness.Commit(o.graph.Context(), st.node, freshness.ModeFor(o.cfg.dryRun))
 	if commit.Err != nil {
@@ -1636,16 +1245,13 @@ func (o *Run) commitManifestLocked(st *taskState) {
 	}
 }
 
-// RunEnded registers the synthetic Task that carries the run's own ending:
-// one the caller never declared, already settled.
+// RunEnded registers the synthetic Task carrying the run's own ending, already settled.
 func (e runHost) RunEnded(t *graph.Task) {
 	o := e.out
 	o.appendTaskLocked(&taskState{id: t.ID, node: t, name: t.Name}, true)
 }
 
-// narrate streams one §38 event about a Task's work under the Run's lock.
-// A Run that streams no events skips the lock and never builds the payload,
-// so narration costs a callback nothing when nobody reads it.
+// narrate streams one §38 event about a Task under the Run's lock; a run that streams no events skips the lock.
 func (e runHost) narrate(event, entityID string, payload func() map[string]any) {
 	o := e.out
 	if !o.show.Events.On() {
@@ -1656,23 +1262,18 @@ func (e runHost) narrate(event, entityID string, payload func() map[string]any) 
 	o.emitWireEventLocked(event, entityID, payload())
 }
 
-// noPayload is an event that carries nothing beyond its entity.
 func noPayload() map[string]any { return nil }
 
-// DefinitionStarted narrates that t's callback was entered. Its row files
-// again from the record write that follows (MarkDefineRan).
 func (e runHost) DefinitionStarted(t *graph.Task) {
 	e.narrate(wire.EventDefinitionStarted, t.ID, noPayload)
 }
 
-// DefinitionFinished narrates that t's callback returned.
 func (e runHost) DefinitionFinished(t *graph.Task, failed bool) {
 	e.narrate(wire.EventDefinitionFinished, t.ID, func() map[string]any {
 		return map[string]any{"failed": failed}
 	})
 }
 
-// EvidenceEvaluated narrates one evidence phase (§30) as evidence.evaluated.
 func (e runHost) EvidenceEvaluated(t *graph.Task, phase graph.EvidencePhase, evidence record.EvidencePhase) {
 	e.narrate(wire.EventEvidenceEvaluated, t.ID, func() map[string]any {
 		name := "before_definition"
@@ -1688,16 +1289,13 @@ func (e runHost) EvidenceEvaluated(t *graph.Task, phase graph.EvidencePhase, evi
 	})
 }
 
-// BasisJudged narrates the verdict on a Task's Basis as basis.fingerprinted.
 func (e runHost) BasisJudged(id record.TaskID, judgement freshness.BasisJudgement) {
 	e.narrate(wire.EventBasisFingerprinted, string(id), func() map[string]any {
 		return map[string]any{"count": len(judgement.Observed), "current": judgement.Current}
 	})
 }
 
-// VerifierObserved narrates one Verify check's outcome as
-// verification.observed (spec §38), named by its registration order since
-// Verify registers anonymous funcs.
+// VerifierObserved narrates one Verify check's outcome (spec §38), named by registration order.
 func (e runHost) VerifierObserved(id record.TaskID, index int, outcome freshness.VerifierOutcome) {
 	e.narrate(wire.EventVerificationObserved, string(id), func() map[string]any {
 		status := wire.VerificationUnsatisfied
@@ -1711,14 +1309,11 @@ func (e runHost) VerifierObserved(id record.TaskID, index int, outcome freshness
 	})
 }
 
-// Observe narrates one step of a tracked operation as the §38 "evo.event"
-// line it has always been: change speaks of subjects and steps, the wire
-// vocabulary stays at this edge.
+// Observe narrates one step of a tracked operation as a §38 "evo.event" line; the wire vocabulary stays at this edge.
 func (e runHost) Observe(ob change.Observation) {
 	e.out.emitWireEventLocked(observationEvent(ob.Kind), string(ob.Task), observationPayload(ob))
 }
 
-// observationEvent is the §38 event type for a step of a tracked operation.
 func observationEvent(kind change.ObservationKind) string {
 	switch kind {
 	case change.OperationStarted:
@@ -1734,10 +1329,8 @@ func observationEvent(kind change.ObservationKind) string {
 	}
 }
 
-// observationPayload is the §38 payload for ob: the subject's kind and name
-// under the key its kind has always used, then the fields its step carries.
-// A File's basis.fingerprinted line has never named its kind, and still does
-// not.
+// observationPayload is the §38 payload for ob: the subject's kind and name under its kind's
+// historical key, then the step's fields. A File's basis.fingerprinted line never names its kind.
 func observationPayload(ob change.Observation) map[string]any {
 	kind, nameKey := wire.PayloadKindFile, "path"
 	switch ob.Subject.Kind {
@@ -1777,33 +1370,19 @@ func (o *Run) firstMisuse() error {
 	return o.misuse.First()
 }
 
-// appendMisuseLineLocked renders the one required line for the first
-// recorded misuse — an exit code may never disagree with everything the
-// caller saw printed (beginner-1). The line is the recorder's corrective
-// sentence for the recorded sentinel, never the raw "evo: ..." sentinel
-// text (release-gate round 4 finding 2): machine detail stays in
-// JSON/debug, the human stream gets told what to do next.
+// appendMisuseLineLocked renders the one required line for the first recorded misuse, so an exit code
+// never disagrees with what was printed. It is the corrective sentence; machine detail stays in JSON/debug.
 func (o *Run) appendMisuseLineLocked() {
 	o.graph.Root().Log(txt.MisuseLine(o.misuse.Hint(), !o.cfg.noColor))
 }
 
-// recordAlreadyResolvedLocked records ErrAlreadyResolved for a second
-// terminal verb (Fail/Block/Warn/Cancel/Skipped) on task name, retaining
-// the rejected call's own summary text — when it carried one — so the
-// misuse line can show what got dropped instead of only naming the task
-// (release-gate round 5 finding 4).
+// recordAlreadyResolvedLocked records ErrAlreadyResolved for a second terminal verb on task name.
 func (o *Run) recordAlreadyResolvedLocked(name, rejectedSummary string) {
 	o.misuse.Note(misuse.ErrAlreadyResolved, name, rejectedSummary)
 }
 
-// redactString applies the configured redactor.
-//
-// It takes no lock: the redactor is an Option, fixed when the Output is
-// constructed and never reassigned, and the constructor's return is what
-// publishes it. Reading it under Output.mu deadlocked the one path that
-// needs it most — a scheduled failure auto-attaching its evidence tail,
-// where resolve already holds that lock — so the lock bought nothing and
-// cost the whole run.
+// redactString applies the configured redactor. It takes no lock: locking Output.mu here deadlocked a
+// scheduled failure auto-attaching its evidence tail, where resolve already holds it.
 func (o *Run) redactString(s string) string {
 	if o == nil {
 		return s
@@ -1815,12 +1394,8 @@ func (o *Run) redactString(s string) string {
 	return r.RedactString(s)
 }
 
-// Fact accumulates a run-scoped discovered name/value annotation (P8
-// symmetry with Task.Fact) — information about the run, fire-and-
-// forget: it both renders a durable dim "name  value" line immediately
-// (the same "act now" contract Println has) and stores the annotation for
-// the structured Snapshot/JSON views. A nil Output is safe and records
-// nothing.
+// Fact accumulates a run-scoped name/value annotation (like Task.Fact): it renders a durable dim line
+// at once and stores it for Snapshot/JSON. A nil Run records nothing.
 func (r *Run) Fact(name, value string) *Run {
 	if r == nil {
 		return r
@@ -1839,11 +1414,7 @@ func (r *Run) Fact(name, value string) *Run {
 	return r
 }
 
-// warnLocked records p as a run-scoped warning and renders it. Callers
-// must already hold o.mu. Public Warn was removed in 1.1; this is the
-// engine's own path (a failed manifest flush) onto the same projection
-// Task.Problem(..., Severity(SeverityWarning)) uses for the
-// conclusion's warned modifier.
+// warnLocked records p as a run-scoped warning and renders it; callers hold o.mu.
 func (o *Run) warnLocked(p problem) {
 	o.graph.Root().Warn(p)
 	o.bumpLocked()
@@ -1853,9 +1424,7 @@ func (o *Run) warnLocked(p problem) {
 	o.show.Stream.Write(glyph + " " + p.Summary + "\n")
 }
 
-// interrupt stops the run at the first signal. The graph owns the order that
-// leaves the ledger honest (see graph.Graph.Interrupt) and what it cancels
-// (see graph.Graph.CancelActive).
+// interrupt stops the run at the first signal; graph.Graph.Interrupt owns the order that keeps the ledger honest.
 func (o *Run) interrupt(reason string) {
 	if o == nil {
 		return
@@ -1863,14 +1432,10 @@ func (o *Run) interrupt(reason string) {
 	o.graph.Interrupt(cancelCauseUser, func() { o.graph.CancelActive(reason) })
 }
 
-// RunFunc is the shape of application work handed to Run/Main/Output.Run —
-// a context.Context carries cancellation (wired to SIGINT/SIGTERM by those
-// entrypoints) in place of the pre-v0.6 no-context func() error form.
+// RunFunc is the shape of application work; its context carries SIGINT/SIGTERM cancellation.
 type RunFunc func(context.Context, *Run) error
 
-// signalNotifier and signalStopper abstract signal delivery (facade rule) so
-// SIGINT/SIGTERM handling in Main is exercised in tests without sending
-// real process signals.
+// signalNotifier and signalStopper abstract signal delivery (facade rule) so tests need no real signals.
 type (
 	signalNotifier func(c chan<- process.Signal, sig ...process.Signal)
 	signalStopper  func(c chan<- process.Signal)
@@ -1881,28 +1446,16 @@ var (
 	stopSignals   signalStopper  = process.StopNotify
 )
 
-// signalChannelCapacity holds one signal while cancelActive is in flight plus
-// one more so a second Ctrl-C arriving during cleanup is never dropped.
+// signalChannelCapacity holds one signal during cancelActive plus one so a second Ctrl-C is never dropped.
 const signalChannelCapacity = 2
 
-// Verify registers an advanced current-state observation check (§9.1),
-// ANDed with any previously registered check on this Task. Must be called
-// before Define — dependency/verification/execution configuration freezes
-// at Define — a call after Define is ignored and recorded as misuse.
+// Verify registers a current-state observation check (§9.1), ANDed with any earlier check on this Task.
+// Call it before Define, which freezes configuration; a later call is ignored and recorded as misuse.
 //
-// Define's own execution wiring (see graph.Define) runs every registered
-// Verify twice: once before the callback (with the Task already Running) —
-// all true skips the callback entirely and settles the Task Satisfied;
-// any false enters the callback; an
-// observation error fails the Task without entering the callback — and
-// once after a successful callback, where any false fails the Task with
-// ProblemCodeVerificationUnsatisfied and an observation error fails it
-// plainly. Neither check commits a success record on its own; only a fully
-// satisfied pass (pre- or post-) does. The after-check is skipped in two
-// cases only: Define resolved the Task itself (Block, or Kept/Skipped with
-// no Effect committed first), or a dry run or preview skipped an Effect
-// Define planned, so the observed state is the one before the plan. A
-// planned run whose Define planned nothing is checked like a real one.
+// Define runs every Verify twice. Before the callback, all true skips it and settles the Task Satisfied, any
+// false enters it, and an error fails the Task. After a successful callback, any false fails the Task with
+// ProblemCodeVerificationUnsatisfied. The after-check is skipped when Define resolved the Task itself, or a
+// dry run or preview skipped an Effect Define planned.
 func (t *Task) Verify(fn func(context.Context) (bool, error)) *Task {
 	if t == nil || t.out == nil || fn == nil {
 		return t
@@ -1922,19 +1475,9 @@ func (t *Task) Verify(fn func(context.Context) (bool, error)) *Task {
 	return t
 }
 
-// Define freezes this Task's dependency/verification configuration and
-// submits fn to the scheduler (§7): Define itself returns immediately after
-// submission, before fn ever runs; the scheduler starts fn as soon as the
-// Task is eligible; fn's error becomes the Task's outcome (see graph.Define
-// for the Verify-aware wiring); evo.Run/evo.Main wait for every submitted
-// Task before returning their Result.
-//
-// Define returns the same *Task (ZYS-849 Decisions) so the common
-// single-Task shape can be written `return task.Define(fn).Wait()`. This is
-// fluent sugar only — it does not change Define's asynchronous submission:
-// fn still runs on the scheduler, not inline before Define returns.
-//
-// A second Define on the same Task is misuse — configuration freezes once.
+// Define freezes this Task's dependency/verification configuration and submits fn to the scheduler (§7).
+// It returns the same *Task immediately, before fn runs, so `return task.Define(fn).Wait()` works; fn's error
+// becomes the Task's outcome. A second Define on the same Task is misuse.
 func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Task {
 	if t == nil || t.out == nil {
 		return t
@@ -1953,12 +1496,11 @@ func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Tas
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	graph.Define(o.graph, st.node, o.definition(st, o.cleanStops.wrap(cfg.cleanStopSignals, fn)))
+	graph.Define(o.graph, st.node, o.definition(st, o.cleanStops.Wrap(cfg.cleanStopSignals, fn)))
 	return t
 }
 
-// definition is st's Define with fn as its callback: the operations inside
-// it act through the Run's changes, and freshness checks it.
+// definition is st's Define with fn as its callback; freshness checks it.
 func (o *Run) definition(st *taskState, fn func(context.Context) error) graph.Definition[*change.Run] {
 	return graph.Definition[*change.Run]{Owner: o.changes, Checks: o.freshness.Checks(st.node.TaskID()), Callback: fn}
 }
@@ -2057,8 +1599,7 @@ func asRecordConclusion(c Conclusion) record.Conclusion {
 	}
 }
 
-// Action is a recommended next step: argv a machine can run, or text only a
-// human can act on.
+// Action is a recommended next step: argv a machine can run, or text only a human can act on.
 type Action struct {
 	Command              []string
 	Label                string
@@ -2069,7 +1610,6 @@ type Action struct {
 	destructive          bool
 }
 
-// argvOf is cmd as argv: the executable, then its arguments.
 func argvOf(cmd *commandSpec) []string {
 	if cmd == nil {
 		return nil
@@ -2077,7 +1617,6 @@ func argvOf(cmd *commandSpec) []string {
 	return append([]string{cmd.Executable}, cmd.Args...)
 }
 
-// commandOf is argv as the record's command, or nil for an empty argv.
 func commandOf(argv []string) *commandSpec {
 	if len(argv) == 0 {
 		return nil

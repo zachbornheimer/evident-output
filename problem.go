@@ -4,12 +4,6 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
-// Problem, ProblemOption and Action live with the record aliases until the slice-9 LAYOUT split.
-
-// Everything below forwards to internal/record, which now owns the recording
-// verbs. engine keeps the names so the root package needs no import change
-// yet; slice 8 deletes this file and repoints the root at record directly.
-
 type (
 	logRecord = record.LogRecord
 )
@@ -51,12 +45,12 @@ func applyProblemOptions(summary string, opts []ProblemOption) record.Problem {
 	return record.ApplyProblemOptions(summary, recordOpts)
 }
 
-// Command builds an action with an executable and arguments.
+// actionCommand builds an action with an executable and arguments.
 func actionCommand(executable string, args ...string) Action {
 	return asEvoAction(record.Command(executable, args...))
 }
 
-// Label builds a plain-text recommended next step with no executable command.
+// label builds a plain-text recommended next step with no executable command.
 func label(text string) Action { return asEvoAction(record.Label(text)) }
 
 // Detail is the longer explanation of a Problem, or a context line under a

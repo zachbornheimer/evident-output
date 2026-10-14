@@ -13,34 +13,21 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
-// Facades is the injectable system boundary for a Run: clock, terminal,
-// process, filesystem and redaction. Zero values select production defaults.
-
-// The root package keeps compiling through these aliases until the root
-// speaks internal/clock directly.
+// The root package keeps compiling through these aliases until it speaks internal/clock directly.
 type (
-	// TimeSource provides the current time for deterministic tests.
+	// timeSource provides the current time for deterministic tests.
 	timeSource = clock.Clock
 	// systemClock uses the real wall clock.
 	systemClock = clock.Wall
 )
 
-// ProcessRunner is the facade every evo.Exec spawn goes through instead of
-// exec.Cmd/os/exec directly (facade rule): the real runner in ordinary use,
-// a scripted testkit fake in tests.
+// processRunner is the facade every evo.Exec spawn goes through instead of os/exec.
 type processRunner = process.Runner
 
-// Spawn wires one Exec spawn's capture: stdout/stderr both feed the task's
-// Capture ring (sanitized, redacted, bounded), and each completed line
-// becomes the task's current Doing activity (spec §23) — never parsed for
-// totals, only narrated. Cancelling ctx kills the child (ProcessRunner's
-// contract); Close flushes any trailing partial line into Capture before the
-// result reads it back. The returned ExecResult's Stdout/Stderr come from
-// that same Capture ring (sanitized, redacted, bounded), never a second
-// unbounded copy; it is zero-valued alongside a spawn error. A spawn or
-// Capture-flush failure is wrapped with the resolved executable path here
-// (rather than left bare) since the caller's own wrap only knows
-// ExecSpec.Executable, not the path Evo actually resolved and tried to run.
+// Spawn wires one Exec spawn's capture: stdout and stderr both feed the task's Capture ring (sanitized,
+// redacted, bounded), and each completed line becomes the task's Doing activity, never parsed for totals.
+// Cancelling ctx kills the child. ExecResult output comes from that ring and is zero-valued alongside a
+// spawn error. Failures are wrapped with the resolved executable path, which the caller's wrap does not know.
 func (e runHost) Spawn(ctx context.Context, id record.TaskID, cmd change.SpawnCommand) (change.ExecResult, error) {
 	o := e.out
 	task := &Task{out: o, id: string(id)}
@@ -63,17 +50,14 @@ func (e runHost) Spawn(ctx context.Context, id record.TaskID, cmd change.SpawnCo
 	}, nil
 }
 
-// captureOption configures the Capture a Task's first capture call creates.
 type captureOption func(o *Run, taskName string, cfg *record.CaptureConfig)
 
-// activityFeed makes each kept line also become the Task's activity.
 func activityFeed(fn func(text string)) captureOption {
 	return func(_ *Run, _ string, cfg *record.CaptureConfig) { cfg.OnLine = fn }
 }
 
-// capture is the Task's Capture, created on first use with opts: Exec's
-// spawns and the phase writer share it, so the tail a failure shows holds
-// every line either wrote.
+// capture is the Task's Capture, created on first use with opts: Exec's spawns and the phase writer share it,
+// so the tail a failure shows holds every line either wrote.
 func (t *Task) capture(opts ...captureOption) *record.Capture {
 	if t == nil || t.out == nil {
 		return newCapture(nil, "", opts)
@@ -88,7 +72,6 @@ func (t *Task) capture(opts ...captureOption) *record.Capture {
 	return st.node.Capture(func() *record.Capture { return newCapture(o, st.name, opts) })
 }
 
-// newCapture is a Capture that redacts through o's Redactor.
 func newCapture(o *Run, taskName string, opts []captureOption) *record.Capture {
 	var cfg record.CaptureConfig
 	if o != nil {
@@ -102,7 +85,6 @@ func newCapture(o *Run, taskName string, opts []captureOption) *record.Capture {
 	return record.NewCapture(cfg)
 }
 
-// detailTail is the Problem option that attaches c's tail to a failure.
 func detailTail(c *record.Capture) ProblemOption {
 	return problemOption{record.WithEvidenceTail(c.DetailText)}
 }
@@ -125,11 +107,9 @@ type Redactor interface {
 }
 
 // Process spawns the child processes Exec runs. Run starts argv[0] (an
-// absolute path) with argv[1:] in dir with exactly env, writes the child's
-// output to stdout and stderr, and returns its exit status. A nonzero
-// exitCode is not an error; a non-nil error means the child produced no
-// exit status: it never started, or ctx ended it. Run kills the child when
-// ctx ends.
+// absolute path) with argv[1:] in dir with exactly env and returns its exit
+// status. A nonzero exitCode is not an error; a non-nil error means no exit
+// status: the child never started, or ctx ended it (Run kills it).
 type Process interface {
 	Run(ctx context.Context, argv []string, dir string, env []string, stdout, stderr io.Writer) (exitCode int, err error)
 }
@@ -165,9 +145,7 @@ type flusher interface {
 	Flush() error
 }
 
-// humanSinks are the writers human text reaches, as this run's
-// configuration wires them: the primary stream and its mirrors, and the
-// diagnostic stream.
+// humanSinks are the writers human text reaches: the primary stream, its mirrors, and the diagnostic stream.
 type humanSinks struct{ o *Run }
 
 func (s humanSinks) Human(text string) {

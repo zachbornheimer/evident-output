@@ -1,6 +1,7 @@
 package evo
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path"
@@ -121,4 +122,43 @@ func anyUnder(files []string, dir string) bool {
 
 func containsString(list []string, want string) bool {
 	return slices.Contains(list, want)
+}
+
+// rootLineBudget is where the root package stops being thin: it holds the
+// public surface and the composition root (LAYOUT.md), and every line past
+// that belongs to the internal package that owns it.
+const rootLineBudget = 4000
+
+// foldedSeam marks code folded into the root from a package it absorbed.
+const foldedSeam = "// --- folded from "
+
+// TestRootIsThin fails when the root package's non-test Go files reach
+// rootLineBudget lines together, or any of them carries a folded-from seam.
+func TestRootIsThin(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("read the root package: %v", err)
+	}
+	total := 0
+	var sizes []string
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		body, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		lines := strings.Count(string(body), "\n")
+		total += lines
+		sizes = append(sizes, fmt.Sprintf("%s %d", name, lines))
+		if strings.Contains(string(body), foldedSeam) {
+			t.Errorf("%s carries a folded-from seam; merge it into the file that owns it", name)
+		}
+	}
+	if total >= rootLineBudget {
+		t.Errorf("the root package holds %d non-test lines, want under %d:\n  %s",
+			total, rootLineBudget, strings.Join(sizes, "\n  "))
+	}
 }
