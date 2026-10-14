@@ -24,3 +24,6 @@ func LookPath(name string) (string, error) { return exec.LookPath(name) }
 func IsExplicitPath(executable string) bool {
 	return strings.ContainsRune(executable, os.PathSeparator)
 }
+
+// PID returns this process's id.
+func PID() int { return os.Getpid() }

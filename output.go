@@ -3,6 +3,7 @@ package evo
 import (
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/change"
@@ -70,6 +71,9 @@ type Run struct {
 	cleanStops graph.CleanStops
 }
 
+// runsStarted counts the runs this process has started; it keeps two runs on one frozen Clock apart.
+var runsStarted atomic.Uint64
+
 // newRun builds the run cfg describes: its graph, freshness, changes and every projection.
 func newRun(cfg config) *Run {
 	resolveGlyphProfileLocked(&cfg)
@@ -78,7 +82,6 @@ func newRun(cfg config) *Run {
 		cfg:             cfg,
 		rec:             run,
 		misuse:          misuse.New(cfg.strict),
-		outputID:        "out_1",
 		confirmTurn:     terminal.NewTurn(),
 		taskStates:      make(map[string]*taskState),
 		containerStates: make(map[string]*tasksState),
@@ -87,7 +90,8 @@ func newRun(cfg config) *Run {
 	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(o.misuse), graph.WithHost(host))
 	o.freshness = freshness.NewRun(o.graph, freshness.RunConfig{Where: o.manifestConfig, Closed: errClosed, DryRun: host.DryRun, Narration: host})
 	o.changes = change.NewRun(o.newChangeHost(), o.graph)
-	o.outputID = o.graph.NextID("out")
+	o.startedAt = cfg.clock.Now()
+	o.outputID = record.NewRunID(o.startedAt, process.PID(), runsStarted.Add(1))
 	o.show = present.New(present.Config{
 		Run: run, Lock: &o.mu, Clock: cfg.clock, Host: presentHost{o},
 		RunID: o.outputID, Events: cfg.eventStream(),
@@ -97,7 +101,6 @@ func newRun(cfg config) *Run {
 	})
 	o.printLines = txt.NewPrintLines(o.emitMessageLocked)
 	o.mu.Bind(run)
-	o.startedAt = o.cfg.clock.Now()
 	o.appendEventLocked(recEvent{Type: "output.started", OutputID: o.outputID})
 	o.emitWireEventLocked(wire.EventRunStarted, "", runStartedPayload(o.cfg.subject))
 	if cfg.dryRun {
