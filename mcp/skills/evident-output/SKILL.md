@@ -21,7 +21,7 @@ license: Apache-2.0
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Module               | `github.com/zachbornheimer/evident-output/v2`                                                                                                                                             |
 | MCP binary target    | `$HOME/.local/bin/evident-output-mcp`                                                                                                                                                     |
-| MCP install (pinned) | `go install github.com/zachbornheimer/evident-output/v2/mcp/cmd/evident-output-mcp@v2.0.0` then symlink `$(go env GOPATH)/bin/evident-output-mcp` → `$HOME/.local/bin/evident-output-mcp` |
+| MCP install (pinned) | `go install github.com/zachbornheimer/evident-output/mcp/v2/cmd/evident-output-mcp@v2.0.0` then symlink `$(go env GOPATH)/bin/evident-output-mcp` → `$HOME/.local/bin/evident-output-mcp` |
 
 ## Workflow when MCP is connected
 
@@ -42,7 +42,7 @@ On Grok: `evident-output__evident_output_*` (underscores, not dots).
 ## Quick MCP wire-up
 
 ```bash
-go install github.com/zachbornheimer/evident-output/v2/mcp/cmd/evident-output-mcp@v2.0.0
+go install github.com/zachbornheimer/evident-output/mcp/v2/cmd/evident-output-mcp@v2.0.0
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
 # After bumping evo: evident-output-mcp update --directory <repo> then restart the host.

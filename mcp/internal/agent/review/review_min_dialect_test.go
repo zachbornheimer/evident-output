@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
 )
 
 // pinBelow is a desired_version one minor release older than minDialect.

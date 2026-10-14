@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/modpin"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/modpin"
 )
 
 // Identity is the running MCP binary as review/update compare it to a pin.

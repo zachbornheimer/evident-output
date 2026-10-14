@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/apisurface"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/apisurface"
 )
 
 // dialectSurface is the CONTRACT.md public function set. Keys are receivers

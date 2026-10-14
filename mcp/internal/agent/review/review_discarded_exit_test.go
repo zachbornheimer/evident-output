@@ -3,7 +3,7 @@ package review_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
 // TestDiscardedMainCode pins E-114/EVO-EXIT-002: evo.Main returns the exit

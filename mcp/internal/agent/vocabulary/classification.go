@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/apisurface"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/apisurface"
 )
 
 // VocabularyRelPath is the module-root-relative freeze of every exported

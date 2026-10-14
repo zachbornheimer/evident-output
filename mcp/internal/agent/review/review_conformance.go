@@ -1,6 +1,6 @@
 package review
 
-import "github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
+import "github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
 
 // defaultConformanceTargetVersion is the target_version spec §60's example
 // output names when a caller does not pin one — the module's next

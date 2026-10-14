@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
 // TestExitBypass_OneFixThatCompiles pins API-018/EVO-EXIT-001: the one

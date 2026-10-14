@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
 // ZYS-1182 owner decision A: inside a Define callback, Fail adds structured

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/modpin"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/modpin"
 )
 
 func TestUpdateCLI_NeitherVersionNorDirectoryErrors(t *testing.T) {

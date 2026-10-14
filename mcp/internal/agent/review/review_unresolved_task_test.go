@@ -3,7 +3,7 @@ package review_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
 // DOM-021: a Task declared in a function that never resolves it or hands

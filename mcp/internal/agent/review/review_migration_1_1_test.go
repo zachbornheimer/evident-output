@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
 )
 
 // TestMigration1_1_DirtyFiresAndRewriteIsClean proves each 1.1 removal:

@@ -7,6 +7,11 @@ import (
 	"runtime/debug"
 )
 
+// PublishedRelease is the library release this MCP module ships against; the
+// root module's drift test and tools/scripts/sync-release-pins keep it equal
+// to the root's wire.Release.
+const PublishedRelease = "v2.0.0"
+
 // Unset is the ldflags default; a binary still carrying it was not stamped.
 const Unset = "dev"
 

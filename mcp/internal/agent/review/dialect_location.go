@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/modpin"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/modpin"
 )
 
 // Dialect is the one answer to "which dialect does review lint this code

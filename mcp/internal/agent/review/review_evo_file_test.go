@@ -4,10 +4,10 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/catalog"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/sections"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/sections"
 )
 
 // EVO-FILE-001: manual os.WriteFile + os.Chmod on the same path is exactly

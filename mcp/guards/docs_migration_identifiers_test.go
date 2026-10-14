@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/apisurface"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/apisurface"
 )
 
 // evoIdentifier matches an evo.<Exported> reference in prose or code.

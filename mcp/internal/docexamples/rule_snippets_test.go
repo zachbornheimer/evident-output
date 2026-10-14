@@ -3,8 +3,8 @@ package docexamples_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/docexamples"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/docexamples"
 )
 
 // TestRuleGoodCodeTypeChecks extends ZYS-830's harness to the one MCP

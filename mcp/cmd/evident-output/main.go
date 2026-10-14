@@ -13,22 +13,20 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/adopt"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/preview"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/buildversion"
 	evo "github.com/zachbornheimer/evident-output/v2"
-	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
-	"github.com/zachbornheimer/evident-output/v2/internal/record"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/adopt"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/catalog"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/preview"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/buildversion"
 )
 
 // Version is injected at build time via -ldflags "-X main.Version=...".
 var Version = buildversion.Unset
 
 func resolvedVersion() string {
-	return buildversion.Resolve(Version, wire.Release, debug.ReadBuildInfo)
+	return buildversion.Resolve(Version, buildversion.PublishedRelease, debug.ReadBuildInfo)
 }
 
 func main() {
@@ -156,7 +154,7 @@ func cmdPreview(args []string) error {
 		}
 		return nil
 	})
-	profiles := preview.DefaultProfiles(record.Snapshot{})
+	profiles := preview.DefaultProfiles(buf.String())
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(map[string]any{"profiles": profiles})

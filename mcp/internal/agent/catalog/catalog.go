@@ -329,7 +329,7 @@ Refused (⊘, exit 1) is a distinct terminal state from Failed (✗, exit 2): a 
 --yes off-TTY), and a protected-branch rule are all ⊘, never ✗.
 Resize is a rerender: width is re-read every frame; a narrowed pane recomputes truncation and compact layout
 live rather than leaving a wrapped remnant.
-Use evo.Terminal with testkit.Screen or terminal.NewANSI.
+Use evo.Terminal with testkit.Screen.
 
 Child processes go through cmd.Stdout = task.Writer() so the live row keeps moving.
 Do not inherit os.Stdout, and do not clear the spinner around a child.`,

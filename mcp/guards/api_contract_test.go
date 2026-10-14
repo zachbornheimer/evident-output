@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/apisurface"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/apisurface"
 )
 
 func TestAPIContract_RequiredNameAbsentFromFakeSurfaceFails(t *testing.T) {

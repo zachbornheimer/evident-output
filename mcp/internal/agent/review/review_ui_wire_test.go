@@ -3,7 +3,7 @@ package review_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
 // hasFinding reports whether res contains a finding for ruleID.
@@ -175,7 +175,6 @@ func f() {
 	good := `package p
 import (
   evo "github.com/zachbornheimer/evident-output/v2"
-  "github.com/zachbornheimer/evident-output/v2/internal/project"
 )
 func f() {
   out := evo.Init(evo.Config{})

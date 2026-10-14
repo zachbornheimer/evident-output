@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/catalog"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
 )
 
 // handleListGuides serves evident_output_list_guides.

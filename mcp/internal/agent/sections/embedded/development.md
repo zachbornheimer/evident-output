@@ -101,19 +101,6 @@ plain := buf.String()
 
 Schemas: `../schema/run.v3.json`, `../schema/event.v2.json`.
 
-## Production ANSI driver
-
-```go
-import "github.com/zachbornheimer/evident-output/v2/internal/terminal"
-
-drv := terminal.NewANSI(os.Stderr, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-_ = evo.Execute(ctx, evo.Config{Name: "deploy", Facades: evo.Facades{Terminal: drv}}, run)
-```
-
-No `To()` needed: the driver owns rendering, and evident-output detects its
-`Sink()` and routes the residual/plain projection there too — the conclusion
-band renders exactly once, never a second time on a different stream.
-
 ## Interactive (testkit / virtual terminal)
 
 ```go

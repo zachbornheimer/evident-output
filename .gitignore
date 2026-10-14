@@ -22,6 +22,8 @@
 !/mise.toml
 !/go.mod
 !/go.sum
+!/go.work
+!/go.work.sum
 !/.trunk/
 !/.trunk/trunk.yaml
 !/.github/

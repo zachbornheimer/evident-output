@@ -53,7 +53,7 @@ func printConfigHelp() {
 	fmt.Fprint(os.Stderr, "  grok          Grok ~/.grok/config.toml or project .grok/config.toml\n")
 	fmt.Fprint(os.Stderr, "  opencode      OpenCode MCP config snippet\n\n")
 	fmt.Fprint(os.Stderr, "Preferred install (pin a release tag — not @latest; never GOBIN=$HOME/.local/bin):\n")
-	fmt.Fprintf(os.Stderr, "  go install github.com/zachbornheimer/evident-output/v2/mcp/cmd/evident-output-mcp@%s\n  mkdir -p \"$HOME/.local/bin\"\n  ln -sfn \"$(go env GOPATH)/bin/evident-output-mcp\" \"$HOME/.local/bin/evident-output-mcp\"\n\n", Version)
+	fmt.Fprintf(os.Stderr, "  go install github.com/zachbornheimer/evident-output/mcp/v2/cmd/evident-output-mcp@%s\n  mkdir -p \"$HOME/.local/bin\"\n  ln -sfn \"$(go env GOPATH)/bin/evident-output-mcp\" \"$HOME/.local/bin/evident-output-mcp\"\n\n", Version)
 	fmt.Fprint(os.Stderr, "After bumping evo: evident-output-mcp update --directory <repo> then restart the host.\n")
 }
 
@@ -69,7 +69,7 @@ func clientConfig(client string) (string, error) {
 # Absolute path required: Grok's process PATH often omits $HOME/.local/bin.
 #
 # Install (pin release — not @latest; never GOBIN=$HOME/.local/bin):
-#   go install github.com/zachbornheimer/evident-output/v2/mcp/cmd/evident-output-mcp@%s
+#   go install github.com/zachbornheimer/evident-output/mcp/v2/cmd/evident-output-mcp@%s
 #   mkdir -p "$HOME/.local/bin"
 #   ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
 # After bumping evo: evident-output-mcp update --directory <repo> then restart the host.
@@ -95,7 +95,7 @@ startup_timeout_sec = 30
 `, nil
 	case "codex":
 		return fmt.Sprintf(`# Codex MCP (stdio)
-# Install: go install github.com/zachbornheimer/evident-output/v2/mcp/cmd/evident-output-mcp@%s
+# Install: go install github.com/zachbornheimer/evident-output/mcp/v2/cmd/evident-output-mcp@%s
 #   ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
 # After bumping evo: evident-output-mcp update --directory <repo> then restart the host.
 

@@ -3,7 +3,7 @@ package guards_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/catalog"
 )
 
 func TestSEC014_TraversalRejectedByCatalog(t *testing.T) {

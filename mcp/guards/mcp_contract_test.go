@@ -4,10 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/internal/record"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/catalog"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/preview"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/preview"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
 func TestMCP016_PartialOnlyWhenAnalysisIncomplete(t *testing.T) {
@@ -78,7 +77,7 @@ func TestMCP037_ReviewDoesNotMutateSource(t *testing.T) {
 // TestMCP025_PreviewProfilesFromSnapshot is the preview half of MCP-025: a
 // finished run's snapshot yields at least one preview profile.
 func TestMCP025_PreviewProfilesFromSnapshot(t *testing.T) {
-	profiles := preview.DefaultProfiles(record.Snapshot{})
+	profiles := preview.DefaultProfiles("plain preview")
 	if len(profiles) == 0 {
 		t.Fatal("no profiles")
 	}

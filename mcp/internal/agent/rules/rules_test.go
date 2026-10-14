@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
 )
 
 func TestMCP027_ExplainFullPayload(t *testing.T) {

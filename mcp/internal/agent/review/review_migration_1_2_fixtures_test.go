@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
 )
 
 // evoDefineBody wraps body as the Define callback of one Task, with ctx,

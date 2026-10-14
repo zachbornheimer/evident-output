@@ -3,7 +3,7 @@ package mcp_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
 // GUESSED SIGNATURES (ZYS-1369; none are settled):

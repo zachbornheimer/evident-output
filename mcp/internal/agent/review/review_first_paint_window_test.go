@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
 // entityBeforeInit declares a Task inside a closure that textually precedes

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/vocabulary"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/apisurface"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/vocabulary"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/apisurface"
 )
 
 // api_golden_test.go is §46's public API golden: the live exported surface

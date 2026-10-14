@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
 // PROG-001: the Advance suggestion must never prescribe <task>.Each(...) — it no longer exists (removed in 1.0; evo-dialect-axes-report.md axis 6/12).

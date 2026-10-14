@@ -16,10 +16,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/catalog"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/buildversion"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/buildversion"
 )
 
 // serverInstructions is the MCP `instructions` hint returned on initialize —
@@ -33,7 +32,7 @@ const serverInstructions = "This is the official Evident Output MCP server. It M
 
 // Version is injected at build time via -ldflags "-X main.Version=...".
 // installedVersionUnset marks an unstamped build; resolvedVersion never
-// prints it, falling back to wire.Release instead.
+// prints it, falling back to buildversion.PublishedRelease instead.
 const installedVersionUnset = buildversion.Unset
 
 var Version = installedVersionUnset
@@ -45,13 +44,13 @@ var Version = installedVersionUnset
 // — no ldflags needed, this is how `go version -m` reports any installed
 // Go tool's pin); else the VCS revision Go auto-embeds into local
 // go run/go build binaries built inside a git checkout (buildvcs=auto,
-// default since Go 1.18) appended to wire.Release as build metadata; else
-// bare wire.Release. A stale-host check ("is this binary older than
+// default since Go 1.18) appended to buildversion.PublishedRelease as build metadata; else
+// bare buildversion.PublishedRelease. A stale-host check ("is this binary older than
 // the pin?") never has to trust the literal string "dev" (AGENTS.md
 // "Dialect the MCP enforces" / evo-dialect-axes-report.md axis 4/12: a
 // fresh --version printing "dev" cannot tell stale from fresh).
 func resolvedVersion() string {
-	return buildversion.Resolve(Version, wire.Release, debug.ReadBuildInfo)
+	return buildversion.Resolve(Version, buildversion.PublishedRelease, debug.ReadBuildInfo)
 }
 
 // faultHook is an optional test-only injector for MCP-034 panic containment.

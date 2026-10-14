@@ -3,7 +3,7 @@ package review
 import (
 	"slices"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
 )
 
 // finalize is the one exit every Result's findings pass through: duplicates

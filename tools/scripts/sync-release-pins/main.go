@@ -29,8 +29,11 @@ func main() {
 	fmt.Fprintf(os.Stderr, "sync-release-pins: target %s\n", want)
 
 	// Any previous semver pin on this module → want.
-	modulePin := regexp.MustCompile(
-		`github\.com/zachbornheimer/evident-output(?:/v2)?((?:/mcp/cmd/[a-z0-9-]+)?)@(?:v\d+\.\d+\.\d+|latest)`,
+	rootPin := regexp.MustCompile(
+		`github\.com/zachbornheimer/evident-output(?:/v2)?@(?:v\d+\.\d+\.\d+|latest)`,
+	)
+	mcpPin := regexp.MustCompile(
+		`github\.com/zachbornheimer/evident-output/mcp(?:/v2)?(/cmd/[a-z0-9-]+)@(?:v\d+\.\d+\.\d+|latest)`,
 	)
 	// Prose chrome pins.
 	prosePin := regexp.MustCompile(
@@ -54,13 +57,24 @@ func main() {
 	}
 
 	changed := 0
+	for _, pin := range literalPins {
+		updated, err := pin.sync(root, want)
+		if err != nil {
+			fail(err)
+		}
+		if updated {
+			fmt.Fprintf(os.Stderr, "  updated %s\n", pin.path)
+			changed++
+		}
+	}
 	for _, path := range paths {
 		body, err := fs.ReadFile(repo, path)
 		if err != nil {
 			fail(err)
 		}
 		orig := string(body)
-		next := modulePin.ReplaceAllString(orig, "github.com/zachbornheimer/evident-output/v2$1@"+want)
+		next := rootPin.ReplaceAllString(orig, "github.com/zachbornheimer/evident-output/v2@"+want)
+		next = mcpPin.ReplaceAllString(next, "github.com/zachbornheimer/evident-output/mcp/v2${1}@"+want)
 		next = prosePin.ReplaceAllString(next, "${1}"+want)
 		// Common alternate prose forms.
 		next = regexp.MustCompile("`v\\d+\\.\\d+\\.\\d+` \\(never").ReplaceAllString(next, "`"+want+"` (never")
@@ -76,6 +90,39 @@ func main() {
 		}
 	}
 	fmt.Fprintf(os.Stderr, "sync-release-pins: %d file(s) updated\n", changed)
+}
+
+// literalPin is a release literal in a source file (not prose) that must
+// equal the root release: group 1 precedes the version, group 2 follows it.
+type literalPin struct {
+	path string
+	re   *regexp.Regexp
+}
+
+var literalPins = []literalPin{
+	// The MCP binary's fallback release when it carries no build info.
+	{"mcp/internal/buildversion/buildversion.go", regexp.MustCompile(`(PublishedRelease = ")v\d+\.\d+\.\d+(")`)},
+	// The MCP module's require of the root module it ships against.
+	{"mcp/go.mod", regexp.MustCompile(`(github\.com/zachbornheimer/evident-output/v2 )v\d+\.\d+\.\d+()`)},
+}
+
+func (p literalPin) sync(root, want string) (bool, error) {
+	file := filepath.Join(root, filepath.FromSlash(p.path))
+	body, err := os.ReadFile(file)
+	if err != nil {
+		return false, fmt.Errorf("read %s: %w", p.path, err)
+	}
+	if !p.re.Match(body) {
+		return false, fmt.Errorf("release literal not found in %s", p.path)
+	}
+	next := p.re.ReplaceAll(body, []byte("${1}"+want+"${2}"))
+	if string(next) == string(body) {
+		return false, nil
+	}
+	if err := os.WriteFile(file, next, 0o600); err != nil {
+		return false, fmt.Errorf("write %s: %w", p.path, err)
+	}
+	return true, nil
 }
 
 func fail(err error) {

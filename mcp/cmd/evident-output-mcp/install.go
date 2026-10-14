@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/modpin"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/modpin"
 )
 
 // InstallPlan is the go install + symlink the update runner executes.

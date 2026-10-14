@@ -1,4 +1,4 @@
-module github.com/zachbornheimer/evident-output/v2/mcp
+module github.com/zachbornheimer/evident-output/mcp/v2
 
 go 1.25.0
 

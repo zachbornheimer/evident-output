@@ -24,17 +24,17 @@ when available; stay useful when it is not.
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **GitHub repo**          | `https://github.com/zachbornheimer/evident-output`                                                                                                                                        |
 | **Go module**            | `github.com/zachbornheimer/evident-output/v2`                                                                                                                                             |
-| **MCP package**          | `github.com/zachbornheimer/evident-output/v2/mcp/cmd/evident-output-mcp`                                                                                                                  |
-| **CLI package**          | `github.com/zachbornheimer/evident-output/v2/mcp/cmd/evident-output`                                                                                                                      |
+| **MCP package**          | `github.com/zachbornheimer/evident-output/mcp/v2/cmd/evident-output-mcp`                                                                                                                  |
+| **CLI package**          | `github.com/zachbornheimer/evident-output/mcp/v2/cmd/evident-output`                                                                                                                      |
 | **This skill in-repo**   | `mcp/skills/cli-output/SKILL.md`                                                                                                                                                          |
-| **MCP install (module)** | `go install github.com/zachbornheimer/evident-output/v2/mcp/cmd/evident-output-mcp@v2.0.0` then `ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"` |
+| **MCP install (module)** | `go install github.com/zachbornheimer/evident-output/mcp/v2/cmd/evident-output-mcp@v2.0.0` then `ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"` |
 
 Host-specific wiring (Grok, Claude Code, Codex, …) lives under `mcp/integrations/<host>/` in the repo — not in this skill.
 
 ## Capability fallback
 
 1. **Connected MCP** — tools below
-2. **Standalone CLI** — `go run github.com/zachbornheimer/evident-output/v2/mcp/cmd/evident-output@v2.0.0 …`
+2. **Standalone CLI** — `go run github.com/zachbornheimer/evident-output/mcp/v2/cmd/evident-output@v2.0.0 …`
 3. **This skill’s static guidance**
 
 ## MCP tool names (underscores only)
@@ -149,7 +149,7 @@ Secrets: set `Facades.Redactor`.
 ## Review
 
 ```bash
-go run github.com/zachbornheimer/evident-output/v2/mcp/cmd/evident-output@v2.0.0 review ./path.go
+go run github.com/zachbornheimer/evident-output/mcp/v2/cmd/evident-output@v2.0.0 review ./path.go
 ```
 
 Until `recheck_required=false`. Rules include API-006 (Start), API-026 (caller RunAll/Map/Retry — not Group/Sequence/Define/After), API-028 (Donef without %), API-029 (Capture), STREAM-003 (fmt.Print).

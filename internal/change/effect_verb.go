@@ -1,7 +1,8 @@
 // This file owns the closed set of imperative verbs an opaque Effect may
 // declare. There is deliberately no write verb: file state goes through File
-// (and Patch), never an opaque callback. The review autofixer shares this one
-// list, so it never has to link the engine.
+// (and Patch), never an opaque callback. The review autofixer keeps its own
+// copy of the list so it never has to link the engine;
+// TestEffectVerbSpellingsMatchReviewList keeps the two equal.
 
 package change
 

@@ -3,7 +3,7 @@ package rules_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
 )
 
 // TestExplainEvoUIWireFamily covers the spec §57 EVO-UI-*/EVO-WIRE-*/

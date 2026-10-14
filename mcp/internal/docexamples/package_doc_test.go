@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/docexamples"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/docexamples"
 	"github.com/zachbornheimer/evident-output/v2/tools/gitenv"
 )
 

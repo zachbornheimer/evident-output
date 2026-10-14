@@ -63,6 +63,11 @@ if [[ ! "$next" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 	exit 1
 fi
 
+if git rev-parse -q --verify "refs/tags/mcp/${next}" >/dev/null 2>&1; then
+	echo "cut-release: tag mcp/${next} already exists — refuse to move it" >&2
+	exit 1
+fi
+
 if git rev-parse -q --verify "refs/tags/${next}" >/dev/null 2>&1; then
 	echo "cut-release: tag ${next} already exists — refuse to move it" >&2
 	exit 1
@@ -106,9 +111,9 @@ cp testdata/api_golden.txt testdata/api_golden_released.txt
 go test . -run 'PublishedRelease|VersionDrift' -count=1
 
 msg="${CUT_RELEASE_MESSAGE:-chore(${next}): cut release}"
-git add "$release_file" README.md mcp/docs/mcp.md mcp/internal/agent/sections/embedded mcp/skills mcp/integrations CHANGELOG.md testdata/api_golden_released.txt 2>/dev/null || true
+git add "$release_file" README.md mcp/docs/mcp.md mcp/internal/agent/sections/embedded mcp/skills mcp/integrations mcp/go.mod mcp/internal/buildversion/buildversion.go CHANGELOG.md testdata/api_golden_released.txt 2>/dev/null || true
 # Stage any pin surface the syncer touched (and CHANGELOG if promoted in-tree)
-git add -u README.md mcp/docs/mcp.md mcp/internal/agent/sections/embedded mcp/skills mcp/integrations "$release_file" CHANGELOG.md 2>/dev/null || true
+git add -u README.md mcp/docs/mcp.md mcp/internal/agent/sections/embedded mcp/skills mcp/integrations mcp/go.mod mcp/internal/buildversion/buildversion.go "$release_file" CHANGELOG.md 2>/dev/null || true
 if [[ -n "$(git status --porcelain)" ]]; then
 	git commit -m "$msg"
 else
@@ -116,12 +121,14 @@ else
 fi
 
 git tag -a "$next" -m "$next"
-echo "cut-release: tagged ${next} at $(git rev-parse --short HEAD)"
+# The mcp module lives in mcp/, so Go resolves its versions from mcp/-prefixed tags.
+git tag -a "mcp/${next}" -m "mcp/${next}"
+echo "cut-release: tagged ${next} and mcp/${next} at $(git rev-parse --short HEAD)"
 
 if [[ "${CUT_RELEASE_PUSH:-1}" == "1" ]]; then
 	git push origin HEAD
-	git push origin "refs/tags/${next}"
-	echo "cut-release: pushed HEAD and ${next}"
+	git push origin "refs/tags/${next}" "refs/tags/mcp/${next}"
+	echo "cut-release: pushed HEAD, ${next} and mcp/${next}"
 else
 	echo "cut-release: skip push (CUT_RELEASE_PUSH=0)"
 fi

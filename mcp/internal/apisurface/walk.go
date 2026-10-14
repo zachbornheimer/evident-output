@@ -14,7 +14,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/modpin"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/modpin"
 )
 
 // Walk parses every non-test .go file in dir (the root package) and

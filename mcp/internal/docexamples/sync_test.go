@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/catalog"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/docexamples"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/docexamples"
 )
 
 // docFixtures pins every ```go fence in the library's public docs to the
@@ -39,8 +39,7 @@ var docFixtures = []docexamples.DocFixture{
 	{Doc: "mcp/docs/reference.md", FenceIndex: 2, Fixture: "fixtures/reference_3"},
 
 	{Doc: "mcp/docs/development.md", FenceIndex: 0, Fixture: "fixtures/development_1"},
-	{Doc: "mcp/docs/development.md", FenceIndex: 1, Fixture: "fixtures/development_2"},
-	{Doc: "mcp/docs/development.md", FenceIndex: 2, Fixture: "fixtures/development_3"},
+	{Doc: "mcp/docs/development.md", FenceIndex: 1, Fixture: "fixtures/development_3"},
 
 	{Doc: "mcp/docs/teaching-ladder.md", FenceIndex: 0, Fixture: "fixtures/teaching_ladder_1"},
 	{Doc: "mcp/docs/teaching-ladder.md", FenceIndex: 1, Fixture: "fixtures/teaching_ladder_2"},

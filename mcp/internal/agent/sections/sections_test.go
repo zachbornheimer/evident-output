@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/sections"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/sections"
 )
 
 // TestEveryListedSectionIDResolves is the list↔get invariant this package

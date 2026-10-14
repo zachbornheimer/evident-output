@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/preview"
 	evo "github.com/zachbornheimer/evident-output/v2"
-	"github.com/zachbornheimer/evident-output/v2/internal/record"
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/preview"
 )
 
 // handlePreview serves evident_output_preview.
@@ -41,7 +40,7 @@ func handlePreview(id any, args map[string]any, cancelled *atomic.Bool) {
 		return nil
 	})
 	_ = dbg
-	profiles := preview.DefaultProfiles(record.Snapshot{})
+	profiles := preview.DefaultProfiles(buf.String())
 	if cancelled.Load() {
 		writeRPC(id, toolError("deadline exceeded"))
 		return

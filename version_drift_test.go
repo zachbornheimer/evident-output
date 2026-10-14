@@ -31,7 +31,7 @@ var forbiddenPathFragments = []string{
 
 // go get|install|run of this module at a version.
 var moduleVersionPin = regexp.MustCompile(
-	`github\.com/zachbornheimer/evident-output(?:/v2(?:/mcp/cmd/[a-z0-9-]+)?)?@(v\d+\.\d+\.\d+|latest)`,
+	`github\.com/zachbornheimer/evident-output(?:/v2|/mcp/v2/cmd/[a-z0-9-]+)?@(v\d+\.\d+\.\d+|latest)`,
 )
 
 // Status / pin chrome in prose.
@@ -197,4 +197,21 @@ func moduleRoot(t *testing.T) string {
 		t.Fatalf("expected module root at %s: %v", wd, err)
 	}
 	return wd
+}
+
+func TestVersionDrift_McpModuleShipsAgainstPublishedRelease(t *testing.T) {
+	root := moduleRoot(t)
+	wants := map[string]string{
+		"mcp/internal/buildversion/buildversion.go": `PublishedRelease = "` + wire.Release + `"`,
+		"mcp/go.mod": "github.com/zachbornheimer/evident-output/v2 " + wire.Release,
+	}
+	for rel, want := range wants {
+		body, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(body), want) {
+			t.Errorf("%s must contain %q (run mise run sync-release-pins)", rel, want)
+		}
+	}
 }
