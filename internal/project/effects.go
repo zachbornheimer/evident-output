@@ -190,10 +190,11 @@ func WriteLedger(b *strings.Builder, snap record.Snapshot, width int, s Style) {
 	for i, p := range snap.Plans {
 		plans[i] = SectionSource{Subject: p.Subject, Records: p.Records, IntendedVerb: p.IntendedVerb, Containers: record.PlanContainers(p)}
 	}
-	for _, sec := range FoldEffectSections("changed", width, changes) {
+	members := MembersOf(snap)
+	for _, sec := range FoldEffectSections("changed", width, changes, members) {
 		WriteEffects(b, sec, s)
 	}
-	for _, sec := range FoldEffectSections("planned", width, plans) {
+	for _, sec := range FoldEffectSections("planned", width, plans, members) {
 		WriteEffects(b, sec, s)
 	}
 }

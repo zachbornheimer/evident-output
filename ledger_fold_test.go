@@ -138,7 +138,7 @@ func TestLedgerFoldTerminalRowAlignsToFoldedSubject(t *testing.T) {
 
 func TestLedgerGroupsThousandsOnEveryCountedQuantity(t *testing.T) {
 	var b strings.Builder
-	for _, sec := range project.FoldEffectSections("changed", 80, foldSources(1663)) {
+	for _, sec := range project.FoldEffectSections("changed", 80, foldSources(1663), nil) {
 		project.WriteEffects(&b, sec, project.Style{})
 	}
 	if want := "[changed] all  updated 1,663 packages\n"; b.String() != want {
@@ -179,7 +179,7 @@ func TestLedgerFoldScalesLinearlyAndBoundsRowMemory(t *testing.T) {
 			runtime.GC()
 			var rows []project.EffectSection
 			cost := scaletest.CPUElapsed(func() {
-				rows = project.FoldEffectSections("changed", 80, sources)
+				rows = project.FoldEffectSections("changed", 80, sources, nil)
 				var b strings.Builder
 				for _, r := range rows {
 					project.WriteEffects(&b, r, project.Style{})

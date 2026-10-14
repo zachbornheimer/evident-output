@@ -18,8 +18,13 @@ import (
 //
 //  1. Uniform lift. A foldable section folds into the HIGHEST enclosing
 //     container whose whole subtree of ledger sections is foldable with
-//     that same pair, provided that container holds at least two. Two
-//     manager Groups under one category Group fold to the category.
+//     that same pair, provided that container holds at least two and every
+//     one of its direct members contributed to the row. Two manager Groups
+//     under one category Group fold to the category. A member that did
+//     nothing this run (a sibling that was already satisfied) still counts
+//     as a member, so the row never moves to a container that did not do
+//     all the mutating: the same mutation keeps the same subject whether a
+//     sibling happened to change or not.
 //  2. Direct siblings. In a container that is not uniform, the foldable
 //     sections that are its own direct children fold per (verb, object):
 //     each pair with two or more members is one row named for the
@@ -70,6 +75,11 @@ type containerFold struct {
 	// mixed is true once the subtree holds anything but foldable sections
 	// of one kind.
 	mixed bool
+	// contributors is how many of the container's direct members hold a
+	// foldable section; contributing marks that this container is already
+	// counted among its own parent's.
+	contributors int
+	contributing bool
 }
 
 // foldKey names one folded row: a container and the Effect it counts.
@@ -85,15 +95,18 @@ type foldSurvey struct {
 	// direct counts the foldable sections that are a container's own
 	// children, per Effect.
 	direct map[foldKey]int
+	// members is how many direct members each container holds.
+	members ContainerMembers
 }
 
 // FoldEffectSections lays sources out as ledger sections of kind ("changed"
 // or "planned"), in source order, with sibling same-effect sections folded
 // per the rule above and every row aligned to one subject column. A folded
 // row takes the place of its first member and keeps one record however
-// many items it counts.
-func FoldEffectSections(kind string, width int, sources []SectionSource) []EffectSection {
-	survey := surveyFold(sources)
+// many items it counts. members is what the run's containers hold (see
+// ContainerMembers); nil asks nothing of any container.
+func FoldEffectSections(kind string, width int, sources []SectionSource, members ContainerMembers) []EffectSection {
+	survey := surveyFold(sources, members)
 	var (
 		out      []EffectSection
 		foldedAt = map[foldKey]int{}
@@ -184,8 +197,8 @@ func qualifyDuplicates(out []EffectSection, shown []shownSubject) {
 
 // surveyFold tallies what every container above a section holds: one pass,
 // O(depth) per section.
-func surveyFold(sources []SectionSource) foldSurvey {
-	survey := foldSurvey{subtrees: map[string]*containerFold{}, direct: map[foldKey]int{}}
+func surveyFold(sources []SectionSource, members ContainerMembers) foldSurvey {
+	survey := foldSurvey{subtrees: map[string]*containerFold{}, direct: map[foldKey]int{}, members: members}
 	for _, src := range sources {
 		if src.inert() {
 			continue
@@ -194,7 +207,8 @@ func surveyFold(sources []SectionSource) foldSurvey {
 		if foldable {
 			survey.direct[foldKey{src.Containers[0].ID, k}]++
 		}
-		for _, c := range src.Containers {
+		path := make([]*containerFold, len(src.Containers))
+		for i, c := range src.Containers {
 			f, seen := survey.subtrees[c.ID]
 			if !seen {
 				f = &containerFold{kind: k}
@@ -202,9 +216,37 @@ func surveyFold(sources []SectionSource) foldSurvey {
 			}
 			f.count++
 			f.mixed = f.mixed || !foldable || f.kind != k
+			path[i] = f
+		}
+		if foldable {
+			countContribution(path)
 		}
 	}
 	return survey
+}
+
+// countContribution credits a foldable section to its Task's container and,
+// the first time a container holds one, to that container's parent in turn.
+// path is the section's containers, nearest first.
+func countContribution(path []*containerFold) {
+	path[0].contributors++
+	for i, f := range path {
+		if f.contributing {
+			return
+		}
+		f.contributing = true
+		if i+1 < len(path) {
+			path[i+1].contributors++
+		}
+	}
+}
+
+// everyMemberContributed reports whether all of container id's direct
+// members hold a foldable section. A container the snapshot does not
+// describe asks nothing.
+func (v foldSurvey) everyMemberContributed(id string) bool {
+	members, described := v.members[id]
+	return !described || v.subtrees[id].contributors == members
 }
 
 // target is the container src folds into and the row it joins, when it
@@ -224,15 +266,19 @@ func (v foldSurvey) target(src SectionSource) (record.ContainerPath, foldKey, bo
 }
 
 // highestUniform is the path from the highest container above src whose
-// whole subtree is foldable with src's Effect, when it holds two or more
-// sections.
+// whole subtree is foldable with src's Effect and whose every direct member
+// contributed, when it holds two or more sections. A container short of a
+// contributing member is passed over, not a stopping point: a failed item
+// leaves its Group short but the category above it can still be whole.
 func (v foldSurvey) highestUniform(src SectionSource) (record.ContainerPath, bool) {
 	top := -1
 	for i, c := range src.Containers {
 		if v.subtrees[c.ID].mixed {
 			break
 		}
-		top = i
+		if v.everyMemberContributed(c.ID) {
+			top = i
+		}
 	}
 	if top < 0 || v.subtrees[src.Containers[top].ID].count < 2 {
 		return nil, false

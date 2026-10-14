@@ -48,8 +48,9 @@ func (s *Stream) compose(snap record.Snapshot, linesFrom int, entities bool) str
 	if (s.declared > 0 || len(snap.Collections) > 0) && s.hasUnstreamedSection() {
 		b.WriteByte('\n')
 	}
+	members := project.MembersOf(snap)
 	for _, tense := range []record.LedgerTense{record.TenseChanged, record.TensePlanned} {
-		for _, sec := range s.foldedSections(tense) {
+		for _, sec := range s.foldedSections(tense, members) {
 			project.WriteEffects(&b, sec, style)
 		}
 	}
@@ -146,7 +147,7 @@ func (s *Stream) hasUnstreamedSection() bool {
 
 // foldedSections is tense's ledger laid out for project.WriteEffects, with
 // sibling same-effect sections folded into one row.
-func (s *Stream) foldedSections(tense record.LedgerTense) []project.EffectSection {
+func (s *Stream) foldedSections(tense record.LedgerTense, members project.ContainerMembers) []project.EffectSection {
 	sections := s.cfg.Run.Sections(tense)
 	sources := make([]project.SectionSource, len(sections))
 	for i, sec := range sections {
@@ -155,5 +156,5 @@ func (s *Stream) foldedSections(tense record.LedgerTense) []project.EffectSectio
 			Containers: sec.Containers, Streamed: s.streamed[sec.ID],
 		}
 	}
-	return project.FoldEffectSections(tense.String(), s.width(), sources)
+	return project.FoldEffectSections(tense.String(), s.width(), sources, members)
 }
