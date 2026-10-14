@@ -51,9 +51,26 @@ func contractRows(t *testing.T, path string) []contractRow {
 	return rows
 }
 
+// signatureKinds are the row kinds whose declaration has a Go shape to state:
+// a signature, a field's type or a constant's type. A type row stays exempt
+// because its members carry their own rows.
+var signatureKinds = map[string]bool{"func": true, "method": true, "field": true, "const": true}
+
+// TestEveryContractRowHasASignature fails on a row of a kind in
+// signatureKinds whose Meaning does not open with its Go declaration, the
+// promise CONTRACT.md makes of every row. TestContractSignaturesTypeCheck then
+// proves each declaration against the package.
+func TestEveryContractRowHasASignature(t *testing.T) {
+	for _, row := range contractRows(t, "CONTRACT.md") {
+		if signatureKinds[row.Kind] && leadingSpan.FindStringSubmatch(row.Meaning) == nil {
+			t.Errorf("CONTRACT.md %s row `%s` does not open with its Go declaration: %s", row.Kind, row.Symbol, row.Meaning)
+		}
+	}
+}
+
 // probeLine turns a row's leading Go span into one declaration that
 // type-checks only when package evo has exactly that shape. Rows without a
-// span, and const rows, state no shape and give "".
+// span give "".
 func probeLine(t *testing.T, pkg *types.Package, row contractRow) string {
 	t.Helper()
 	m := leadingSpan.FindStringSubmatch(row.Meaning)
@@ -80,6 +97,12 @@ func probeLine(t *testing.T, pkg *types.Package, row contractRow) string {
 		return fmt.Sprintf("var _ = func(x %s) %s { return x }", name, span)
 	case "field":
 		return fmt.Sprintf("var _ = identical[%s](&(*%s)(nil).%s)", span, owner, name)
+	case "const":
+		constName, typ, ok := strings.Cut(span, " ")
+		if !ok || constName != name {
+			return fmt.Sprintf("var _ = %sIsNotAConstDeclaration // %q", name, span)
+		}
+		return fmt.Sprintf("var _ %s = %s", typ, name)
 	}
 	return ""
 }
@@ -119,6 +142,7 @@ import (
 	. "github.com/zachbornheimer/evident-output/v2"
 	"context"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 )
@@ -126,6 +150,7 @@ import (
 var (
 	_ = context.Background
 	_ io.Reader
+	_ fs.FileMode
 	_ slog.Level
 	_ os.Signal
 )

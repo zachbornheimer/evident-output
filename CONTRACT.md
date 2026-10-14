@@ -56,57 +56,57 @@ became the Conclusion's, or what interrupted the run. `evo.run` and
 `run.finished` carry the same text as `explanation`. It is empty for
 Succeeded, Satisfied and Excluded.
 
-| Symbol                   | Kind   | Meaning                                                                              |
-| ------------------------ | ------ | ------------------------------------------------------------------------------------ |
-| `Main`                   | func   | `Main(cfg Config, run RunFunc) int` — run with signals, return exit                  |
-| `Execute`                | func   | `Execute(ctx context.Context, cfg Config, run RunFunc) Result` — run without signals |
-| `RunFunc`                | type   | `func(ctx context.Context, r *Run) error`, the application body                      |
-| `Config`                 | type   | the run's settings; zero value is valid                                              |
-| `Config.Name`            | field  | what ran and on what, e.g. `zq prune ~/repo`                                         |
-| `Config.DryRun`          | field  | plan every change, run no mutation                                                   |
-| `Config.Verbose`         | field  | show hidden Facts and per-reason items                                               |
-| `Config.Output`          | field  | `Output` selector                                                                    |
-| `Config.Debug`           | field  | `slog.Level`; the lowest level the debug journal keeps                               |
-| `Config.MaxConcurrency`  | field  | bound on executing callbacks; zero means GOMAXPROCS                                  |
-| `Config.State`           | field  | where recorded status lives                                                          |
-| `Config.Facades`         | field  | system boundaries, replaceable in tests                                              |
-| `State`                  | type   | manifest location                                                                    |
-| `State.Dir`              | field  | directory; zero means the platform state dir                                         |
-| `State.AppID`            | field  | namespace; zero means the binary name                                                |
-| `Facades`                | type   | every system boundary Evo touches                                                    |
-| `Facades.Stdin`          | field  | `io.Reader`                                                                          |
-| `Facades.Stdout`         | field  | `io.Writer`                                                                          |
-| `Facades.Stderr`         | field  | `io.Writer`                                                                          |
-| `Facades.Clock`          | field  | `Clock`                                                                              |
-| `Facades.Terminal`       | field  | `Terminal`                                                                           |
-| `Facades.Redactor`       | field  | `Redactor`                                                                           |
-| `Facades.Process`        | field  | `Process`                                                                            |
-| `Facades.FS`             | field  | `FS`                                                                                 |
-| `Clock`                  | type   | time source                                                                          |
-| `Terminal`               | type   | terminal driver                                                                      |
-| `Redactor`               | type   | secret redaction over captured text                                                  |
-| `Process`                | type   | process spawner                                                                      |
-| `FS`                     | type   | filesystem                                                                           |
-| `Run`                    | type   | the root of one invocation; a `Container`                                            |
-| `Run.Task`               | method | declare a root Task                                                                  |
-| `Run.Group`              | method | declare a root Group                                                                 |
-| `Run.Sequence`           | method | declare a root Sequence                                                              |
-| `Run.Fact`               | method | `Fact(name, value string) *Run`; run-scoped structured information                   |
-| `Run.Summary`            | method | `Summary(text string) *Run`; the application's one line, printed before every row    |
-| `Run.Confirm`            | method | `Confirm(question string, opts ...ConfirmOption) bool`; decline is Refused           |
-| `Run.Suspend`            | method | `Suspend(fn func() error) error`; pause the live region around `fn`                  |
-| `Run.Text`               | method | `Text() io.Writer`; free human text, routed with the presentation                    |
-| `Run.ResultWriter`       | method | `ResultWriter() io.Writer`; the stdout data payload                                  |
-| `Run.SlogHandler`        | method | `SlogHandler() slog.Handler`; writes into the debug journal                          |
-| `Result`                 | type   | what `Execute` returns                                                               |
-| `Result.Conclusion`      | field  | the verdict                                                                          |
-| `Result.Err`             | field  | the error the application body returned, joined with the first misuse                |
-| `Result.ExitCode`        | method | 0 Succeeded, Satisfied or Excluded · 1 Refused · 2 Failed · 130 Cancelled            |
-| `Conclusion`             | type   | one verdict for UI and exit                                                          |
-| `Conclusion.Outcome`     | field  | the worst Task outcome                                                               |
-| `Conclusion.Changed`     | field  | any mutation committed                                                               |
-| `Conclusion.DryRun`      | field  | planned tense                                                                        |
-| `Conclusion.Explanation` | field  | the deciding ending when Refused, Failed or Cancelled; empty otherwise               |
+| Symbol                   | Kind   | Meaning                                                                                     |
+| ------------------------ | ------ | ------------------------------------------------------------------------------------------- |
+| `Main`                   | func   | `Main(cfg Config, run RunFunc) int` — run with signals, return exit                         |
+| `Execute`                | func   | `Execute(ctx context.Context, cfg Config, run RunFunc) Result` — run without signals        |
+| `RunFunc`                | type   | `func(ctx context.Context, r *Run) error`, the application body                             |
+| `Config`                 | type   | the run's settings; zero value is valid                                                     |
+| `Config.Name`            | field  | `string`; what ran and on what, e.g. `zq prune ~/repo`                                      |
+| `Config.DryRun`          | field  | `bool`; plan every change, run no mutation                                                  |
+| `Config.Verbose`         | field  | `bool`; show hidden Facts and per-reason items                                              |
+| `Config.Output`          | field  | `Output` selector                                                                           |
+| `Config.Debug`           | field  | `slog.Level`; the lowest level the debug journal keeps                                      |
+| `Config.MaxConcurrency`  | field  | `int`; bound on executing callbacks; zero means GOMAXPROCS                                  |
+| `Config.State`           | field  | `State`; where recorded status lives                                                        |
+| `Config.Facades`         | field  | `Facades`; system boundaries, replaceable in tests                                          |
+| `State`                  | type   | manifest location                                                                           |
+| `State.Dir`              | field  | `string`; directory; zero means the platform state dir                                      |
+| `State.AppID`            | field  | `string`; namespace; zero means the binary name                                             |
+| `Facades`                | type   | every system boundary Evo touches                                                           |
+| `Facades.Stdin`          | field  | `io.Reader`                                                                                 |
+| `Facades.Stdout`         | field  | `io.Writer`                                                                                 |
+| `Facades.Stderr`         | field  | `io.Writer`                                                                                 |
+| `Facades.Clock`          | field  | `Clock`                                                                                     |
+| `Facades.Terminal`       | field  | `Terminal`                                                                                  |
+| `Facades.Redactor`       | field  | `Redactor`                                                                                  |
+| `Facades.Process`        | field  | `Process`                                                                                   |
+| `Facades.FS`             | field  | `FS`                                                                                        |
+| `Clock`                  | type   | time source                                                                                 |
+| `Terminal`               | type   | terminal driver                                                                             |
+| `Redactor`               | type   | secret redaction over captured text                                                         |
+| `Process`                | type   | process spawner                                                                             |
+| `FS`                     | type   | filesystem                                                                                  |
+| `Run`                    | type   | the root of one invocation; a `Container`                                                   |
+| `Run.Task`               | method | `Task(name string) *Task`; declare a root Task                                              |
+| `Run.Group`              | method | `Group(name string) *Group`; declare a root Group                                           |
+| `Run.Sequence`           | method | `Sequence(name string) *Sequence`; declare a root Sequence                                  |
+| `Run.Fact`               | method | `Fact(name, value string) *Run`; run-scoped structured information                          |
+| `Run.Summary`            | method | `Summary(text string) *Run`; the application's one line, printed before every row           |
+| `Run.Confirm`            | method | `Confirm(question string, opts ...ConfirmOption) bool`; decline is Refused                  |
+| `Run.Suspend`            | method | `Suspend(fn func() error) error`; pause the live region around `fn`                         |
+| `Run.Text`               | method | `Text() io.Writer`; free human text, routed with the presentation                           |
+| `Run.ResultWriter`       | method | `ResultWriter() io.Writer`; the stdout data payload                                         |
+| `Run.SlogHandler`        | method | `SlogHandler() slog.Handler`; writes into the debug journal                                 |
+| `Result`                 | type   | what `Execute` returns                                                                      |
+| `Result.Conclusion`      | field  | `Conclusion`; the verdict                                                                   |
+| `Result.Err`             | field  | `error`; the error the application body returned, joined with the first misuse              |
+| `Result.ExitCode`        | method | `ExitCode() int`; 0 Succeeded, Satisfied or Excluded · 1 Refused · 2 Failed · 130 Cancelled |
+| `Conclusion`             | type   | one verdict for UI and exit                                                                 |
+| `Conclusion.Outcome`     | field  | `Outcome`; the worst Task outcome                                                           |
+| `Conclusion.Changed`     | field  | `bool`; any mutation committed                                                              |
+| `Conclusion.DryRun`      | field  | `bool`; planned tense                                                                       |
+| `Conclusion.Explanation` | field  | `string`; the deciding ending when Refused, Failed or Cancelled; empty otherwise            |
 
 ## 2. Work
 
@@ -168,23 +168,23 @@ name still cancels the run.
 | `Task.Doing`        | method | `Doing(text string, args ...any) *Task`; current item, live only               |
 | `Task.Progress`     | method | `Progress(completed, total int) *Task`                                         |
 | `Task.Writer`       | method | `Writer() io.Writer`; its lines become the live tail and Capture               |
-| `Task.Fact`         | method | structured information learned                                                 |
-| `Task.Summary`      | method | the settled row's headline                                                     |
+| `Task.Fact`         | method | `Fact(name, value string) *Task`; structured information learned               |
+| `Task.Summary`      | method | `Summary(text string) *Task`; the settled row's headline                       |
 | `Task.Problem`      | method | `Problem(summary string, opts ...ProblemOption) *Task`; non-fatal              |
 | `Group`             | type   | independent children; eligible siblings may run concurrently                   |
-| `Group.Task`        | method | declare a child Task                                                           |
-| `Group.Group`       | method | declare a child Group                                                          |
-| `Group.Sequence`    | method | declare a child Sequence                                                       |
+| `Group.Task`        | method | `Task(name string) *Task`; declare a child Task                                |
+| `Group.Group`       | method | `Group(name string) *Group`; declare a child Group                             |
+| `Group.Sequence`    | method | `Sequence(name string) *Sequence`; declare a child Sequence                    |
 | `Group.After`       | method | `After(preds ...Predecessor) *Group`                                           |
 | `Group.Build`       | method | `Build(fn func(*Group))`; topology once eligible                               |
-| `Group.Summary`     | method | the container row's headline                                                   |
+| `Group.Summary`     | method | `Summary(text string) *Group`; the container row's headline                    |
 | `Sequence`          | type   | ordered children; one Running child                                            |
-| `Sequence.Task`     | method | declare a child Task                                                           |
-| `Sequence.Group`    | method | declare a child Group                                                          |
-| `Sequence.Sequence` | method | declare a child Sequence                                                       |
+| `Sequence.Task`     | method | `Task(name string) *Task`; declare a child Task                                |
+| `Sequence.Group`    | method | `Group(name string) *Group`; declare a child Group                             |
+| `Sequence.Sequence` | method | `Sequence(name string) *Sequence`; declare a child Sequence                    |
 | `Sequence.After`    | method | `After(preds ...Predecessor) *Sequence`                                        |
 | `Sequence.Build`    | method | `Build(fn func(*Sequence))`                                                    |
-| `Sequence.Summary`  | method | the container row's headline                                                   |
+| `Sequence.Summary`  | method | `Summary(text string) *Sequence`; the container row's headline                 |
 | `Container`         | type   | interface `{Task; Group; Sequence}` satisfied by Run, Group, Sequence          |
 | `Compute`           | func   | `Compute[T any](task *Task, fn func(context.Context) (T, error)) *Computed[T]` |
 | `Computed`          | type   | the value a successful Task produced                                           |
@@ -225,42 +225,42 @@ source changed since it was read fails with
 `ErrStaleBasis` instead of overwriting. Uncertain or missing recorded status
 re-executes; it never reports Satisfied.
 
-| Symbol                 | Kind  | Meaning                                                                                             |
-| ---------------------- | ----- | --------------------------------------------------------------------------------------------------- |
-| `File`                 | func  | `File(ctx context.Context, spec FileSpec) error`; desired state of one file                         |
-| `FileSpec`             | type  |                                                                                                     |
-| `FileSpec.Path`        | field | relative paths resolve against the workspace                                                        |
-| `FileSpec.Contents`    | field | nil leaves contents unmanaged                                                                       |
-| `FileSpec.Mode`        | field | zero leaves mode unmanaged                                                                          |
-| `FileSpec.Inputs`      | field | paths whose content decides freshness                                                               |
-| `FileSpec.Values`      | field | named values that decide freshness                                                                  |
-| `Exec`                 | func  | `Exec(ctx context.Context, spec ExecSpec) (ExecResult, error)`                                      |
-| `ExecSpec`             | type  |                                                                                                     |
-| `ExecSpec.Argv`        | field | executable and arguments, no shell                                                                  |
-| `ExecSpec.Dir`         | field | working directory; relative `Outputs` resolve against it, relative `Inputs` against the workspace   |
-| `ExecSpec.Env`         | field | explicit entries only; they enter freshness                                                         |
-| `ExecSpec.Inputs`      | field | paths whose content decides freshness                                                               |
-| `ExecSpec.Values`      | field | named values that decide freshness                                                                  |
-| `ExecSpec.Outputs`     | field | declared outputs; none means always run                                                             |
-| `ExecResult`           | type  |                                                                                                     |
-| `ExecResult.Ran`       | field | false on Satisfied, dry run, or spawn failure                                                       |
-| `ExecResult.ExitCode`  | field |                                                                                                     |
-| `ExecResult.Stdout`    | field | bounded, redacted tail                                                                              |
-| `ExecResult.Stderr`    | field | bounded, redacted tail                                                                              |
-| `ExecResult.Truncated` | field |                                                                                                     |
-| `Patch`                | func  | `Patch(ctx context.Context, diff []byte) error`; derive from a unified diff and commit through File |
-| `Effect`               | func  | `Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error) error`                |
-| `EffectSpec`           | type  |                                                                                                     |
-| `EffectSpec.Verb`      | field |                                                                                                     |
-| `EffectSpec.Object`    | field | singular noun; Evo pluralizes                                                                       |
-| `EffectSpec.Quantity`  | field | > 0                                                                                                 |
-| `EffectSpec.Path`      | field | filesystem claim, overlaps by ancestry; optional                                                    |
-| `EffectSpec.Resource`  | field | `string`; logical resource name, overlaps by equal name; optional                                   |
-| `Verb`                 | type  | closed set                                                                                          |
-| `Create`               | const |                                                                                                     |
-| `Update`               | const |                                                                                                     |
-| `Delete`               | const |                                                                                                     |
-| `PartialEffect`        | func  | `PartialEffect(committed int, err error) error`; part committed                                     |
+| Symbol                 | Kind  | Meaning                                                                                                     |
+| ---------------------- | ----- | ----------------------------------------------------------------------------------------------------------- |
+| `File`                 | func  | `File(ctx context.Context, spec FileSpec) error`; desired state of one file                                 |
+| `FileSpec`             | type  |                                                                                                             |
+| `FileSpec.Path`        | field | `string`; relative paths resolve against the workspace                                                      |
+| `FileSpec.Contents`    | field | `[]byte`; nil leaves contents unmanaged                                                                     |
+| `FileSpec.Mode`        | field | `fs.FileMode`; zero leaves mode unmanaged                                                                   |
+| `FileSpec.Inputs`      | field | `[]string`; paths whose content decides freshness                                                           |
+| `FileSpec.Values`      | field | `map[string]string`; named values that decide freshness                                                     |
+| `Exec`                 | func  | `Exec(ctx context.Context, spec ExecSpec) (ExecResult, error)`                                              |
+| `ExecSpec`             | type  |                                                                                                             |
+| `ExecSpec.Argv`        | field | `[]string`; executable and arguments, no shell                                                              |
+| `ExecSpec.Dir`         | field | `string`; working directory; relative `Outputs` resolve against it, relative `Inputs` against the workspace |
+| `ExecSpec.Env`         | field | `map[string]string`; explicit entries only; they enter freshness                                            |
+| `ExecSpec.Inputs`      | field | `[]string`; paths whose content decides freshness                                                           |
+| `ExecSpec.Values`      | field | `map[string]string`; named values that decide freshness                                                     |
+| `ExecSpec.Outputs`     | field | `[]string`; declared outputs; none means always run                                                         |
+| `ExecResult`           | type  |                                                                                                             |
+| `ExecResult.Ran`       | field | `bool`; false on Satisfied, dry run, or spawn failure                                                       |
+| `ExecResult.ExitCode`  | field | `int`                                                                                                       |
+| `ExecResult.Stdout`    | field | `string`; bounded, redacted tail                                                                            |
+| `ExecResult.Stderr`    | field | `string`; bounded, redacted tail                                                                            |
+| `ExecResult.Truncated` | field | `bool`                                                                                                      |
+| `Patch`                | func  | `Patch(ctx context.Context, diff []byte) error`; derive from a unified diff and commit through File         |
+| `Effect`               | func  | `Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error) error`                        |
+| `EffectSpec`           | type  |                                                                                                             |
+| `EffectSpec.Verb`      | field | `Verb`                                                                                                      |
+| `EffectSpec.Object`    | field | `string`; singular noun; Evo pluralizes                                                                     |
+| `EffectSpec.Quantity`  | field | `int`; > 0                                                                                                  |
+| `EffectSpec.Path`      | field | `string`; filesystem claim, overlaps by ancestry; optional                                                  |
+| `EffectSpec.Resource`  | field | `string`; logical resource name, overlaps by equal name; optional                                           |
+| `Verb`                 | type  | closed set                                                                                                  |
+| `Create`               | const | `Create Verb`                                                                                               |
+| `Update`               | const | `Update Verb`                                                                                               |
+| `Delete`               | const | `Delete Verb`                                                                                               |
+| `PartialEffect`        | func  | `PartialEffect(committed int, err error) error`; part committed                                             |
 
 ## 4. Endings and findings
 
@@ -309,14 +309,14 @@ Cancelled already says the run stopped short.
 | `Next`           | func  | `Next(a Action) ProblemOption`; recommended next step                                            |
 | `Action`         | type  |                                                                                                  |
 | `Action.Command` | field | `[]string`; argv a machine can run                                                               |
-| `Action.Label`   | field | text only a human can act on                                                                     |
+| `Action.Label`   | field | `string`; text only a human can act on                                                           |
 | `Outcome`        | type  | closed set; the only verdict type                                                                |
-| `Succeeded`      | const | ran and succeeded; exit 0                                                                        |
-| `Satisfied`      | const | requested state already true; nothing ran; exit 0                                                |
-| `Excluded`       | const | policy chose not to run it; exit 0                                                               |
-| `Refused`        | const | a precondition stopped it; exit 1                                                                |
-| `Failed`         | const | ran and failed; exit 2                                                                           |
-| `Cancelled`      | const | interrupted; exit 130                                                                            |
+| `Succeeded`      | const | `Succeeded Outcome`; ran and succeeded; exit 0                                                   |
+| `Satisfied`      | const | `Satisfied Outcome`; requested state already true; nothing ran; exit 0                           |
+| `Excluded`       | const | `Excluded Outcome`; policy chose not to run it; exit 0                                           |
+| `Refused`        | const | `Refused Outcome`; a precondition stopped it; exit 1                                             |
+| `Failed`         | const | `Failed Outcome`; ran and failed; exit 2                                                         |
+| `Cancelled`      | const | `Cancelled Outcome`; interrupted; exit 130                                                       |
 
 ## 5. Confirm
 
@@ -340,13 +340,13 @@ declaration, so it is never misuse. `Detail` is also a `ConfirmOption`.
 
 ## 6. Output
 
-| Symbol   | Kind  | Meaning                                                            |
-| -------- | ----- | ------------------------------------------------------------------ |
-| `Output` | type  | encoding selector                                                  |
-| `Human`  | const | live TTY presentation                                              |
-| `Plain`  | const | durable text, one line per event, no live region                   |
-| `JSON`   | const | one `evo.run` document on stdout at Finish, presentation on stderr |
-| `JSONL`  | const | `evo.event` lines on stdout as they occur                          |
+| Symbol   | Kind  | Meaning                                                                           |
+| -------- | ----- | --------------------------------------------------------------------------------- |
+| `Output` | type  | encoding selector                                                                 |
+| `Human`  | const | `Human Output`; live TTY presentation                                             |
+| `Plain`  | const | `Plain Output`; durable text, one line per event, no live region                  |
+| `JSON`   | const | `JSON Output`; one `evo.run` document on stdout at Finish, presentation on stderr |
+| `JSONL`  | const | `JSONL Output`; `evo.event` lines on stdout as they occur                         |
 
 `Run.Summary` prints once, as the first line of Human and Plain, before every
 row, wherever the body calls it. `Run.ResultWriter` is the only writer to stdout in Human and Plain: rows,
