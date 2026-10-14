@@ -3,6 +3,7 @@ package evo
 import (
 	"context"
 	"io"
+	"os"
 	"strings"
 	"testing"
 )
@@ -96,7 +97,7 @@ func TestCancellation_RenderedBandMatchesContract(t *testing.T) {
 [changed] remote-tracking  deleted 4 stale origin/*
 
 [cancelled]  prune  by user
-  ! partial changes were applied before cancellation
+!  already mutated: deleted 4 stale origin/*
 `
 	if got := buf.String(); got != want {
 		t.Fatalf("cancellation output mismatch\ngot:\n%s\nwant:\n%s", got, want)
@@ -106,7 +107,7 @@ func TestCancellation_RenderedBandMatchesContract(t *testing.T) {
 func TestCancellation_NothingChangedOmitsThePartialChangesLine(t *testing.T) {
 	got, _ := runInterruptedPrune(t, false)
 	if strings.Contains(got, "partial changes") || strings.Contains(got, "already mutated") {
-		t.Fatalf("no committed effects, so no partial-changes line; got:\n%s", got)
+		t.Fatalf("no committed effects, so no already-mutated line; got:\n%s", got)
 	}
 	if !strings.Contains(got, "[cancelled]  prune  by user\n") {
 		t.Fatalf("band must read \"[cancelled]  prune  by user\"; got:\n%s", got)
@@ -146,6 +147,43 @@ func TestCancelledRunUsesOneWordAndAlignedBand(t *testing.T) {
 	for _, want := range []string{"■ long   cancelled\n", "- after  not started — long cancelled\n", "\n[cancelled]  probe  by user\n"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("cancelled run output lacks %q:\n%s", want, got)
+		}
+	}
+}
+
+// TestCancelledBandMatchesContractShape pins CONTRACT section 4: a Cancelled
+// run ends with the band `[cancelled]  <name>  <cause>`, and a mutation it
+// leaves behind is stated the way a Failed run states it,
+// `!  already mutated: <ledger summary>`, so one fact has one spelling. The
+// shape is in the contract text, not only in the code.
+func TestCancelledBandMatchesContractShape(t *testing.T) {
+	got, _ := runInterruptedPrune(t, true)
+	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
+	band := -1
+	for i, line := range lines {
+		if strings.HasPrefix(line, "[cancelled]") {
+			band = i
+		}
+	}
+	if band < 0 {
+		t.Fatalf("no cancelled band in:\n%s", got)
+	}
+	if want := "[cancelled]  prune  " + cancelCauseUser; lines[band] != want {
+		t.Errorf("band line = %q, want %q", lines[band], want)
+	}
+	if want := "!  already mutated: deleted 4 stale origin/*"; band+1 >= len(lines) || lines[band+1] != want {
+		t.Errorf("line under the band = %q, want %q", lines[band+1:], want)
+	}
+	if strings.Contains(got, "partial changes") {
+		t.Errorf("a second spelling of the mutated fact remains:\n%s", got)
+	}
+	contract, err := os.ReadFile("CONTRACT.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, shape := range []string{"`[cancelled]  <name>  by user`", "`!  already mutated: <summary>`"} {
+		if !strings.Contains(string(contract), shape) {
+			t.Errorf("CONTRACT.md does not state the shape %s", shape)
 		}
 	}
 }

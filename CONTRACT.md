@@ -305,7 +305,11 @@ when some declared Task never reached an Outcome: a predecessor or an earlier
 Sequence step left it NotStarted, or the run ended while it was still pending
 or running. `· partial` qualifies the headline and never replaces it, so
 `[failed · partial]` is still exit 2. A Cancelled band omits it, since
-Cancelled already says the run stopped short.
+Cancelled already says the run stopped short. A Cancelled band ends with what
+interrupted the run, `[cancelled]  <name>  by user`: the cause
+`Conclusion.Explanation` holds, which no Task row owns. A Failed or Cancelled
+run that committed a mutation adds one line under the band,
+`!  already mutated: <summary>`, in no other spelling.
 
 | Symbol           | Kind  | Meaning                                                                                          |
 | ---------------- | ----- | ------------------------------------------------------------------------------------------------ |

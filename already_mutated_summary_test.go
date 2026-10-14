@@ -54,8 +54,8 @@ func TestConclusion_P7_AlreadyMutatedAggregatesAndNamesItsOwner(t *testing.T) {
 
 // TestConclusion_AlreadyMutated_CancelledWithChanges is red-first for item 1:
 // a Cancelled run with committed effects must render one derived
-// "! partial changes were applied before cancellation" note (CONTRACT §8),
-// never a caller-assembled string and never a second copy of the ledger.
+// "!  already mutated: ..." line (CONTRACT §4), the spelling a Failed run uses,
+// never a caller-assembled string.
 func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 	var buf strings.Builder
 	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
@@ -66,8 +66,8 @@ func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 		t.Log(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "! partial changes were applied before cancellation") {
-		t.Fatalf("want the partial-changes note, got:\n%s", got)
+	if !strings.Contains(got, "!  already mutated: deleted 8 local branches") {
+		t.Fatalf("want the already-mutated line, got:\n%s", got)
 	}
 }
 

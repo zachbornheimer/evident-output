@@ -263,9 +263,8 @@ func TestScenario_Stress(t *testing.T) {
 //   - The frame doesn't show it, but a committed effect must never
 //     disappear once work is cut short (spec §15: "Committed effects
 //     remain... never implying rollback"), so the cancellation band adds
-//     "! partial changes were applied before cancellation" (CONTRACT §8).
-//     The note is derived from the committed Effects, not caller-authored,
-//     and it does not repeat the ledger line above it.
+//     "!  already mutated: ..." exactly as a Failed run spells it (CONTRACT §4).
+//     The line is derived from the committed Effects, not caller-authored.
 //
 // The frame's glyph for the interrupted row ("-") is not used here either:
 // the 1.x spec's cancellation example and its glyph table both use "■" for
@@ -295,7 +294,7 @@ func TestScenario_CancelledAfterMutation(t *testing.T) {
 		"[changed] remote-tracking  deleted 4 stale origin/*\n" +
 		"\n" +
 		"[cancelled]  prune  interrupted\n" +
-		"  ! partial changes were applied before cancellation\n"
+		"!  already mutated: deleted 4 stale origin/*\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
