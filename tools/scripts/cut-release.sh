@@ -102,7 +102,7 @@ go run ./tools/scripts/sync-release-pins
 # diffs the next unreleased section against.
 cp testdata/api_golden.txt testdata/api_golden_released.txt
 # mcp/docs/mcp.md is embedded into the MCP binary; regenerate or the staleness gate goes red
-go generate ./mcp/internal/agent/sections
+(cd mcp && go generate ./internal/agent/sections)
 go test . -run 'PublishedRelease|VersionDrift' -count=1
 
 msg="${CUT_RELEASE_MESSAGE:-chore(${next}): cut release}"
