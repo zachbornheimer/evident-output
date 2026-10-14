@@ -99,7 +99,7 @@ _ = evo.Execute(ctx, evo.Config{Name: "tool", Output: evo.Plain, Facades: evo.Fa
 plain := buf.String()
 ```
 
-Schemas: `../schema/output.v1.json`, `../schema/event.v1.json`.
+Schemas: `../schema/run.v3.json`, `../schema/event.v2.json`.
 
 ## Production ANSI driver
 

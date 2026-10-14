@@ -92,7 +92,7 @@ func TestValidate_NoAdditionalPropertiesDirectiveAllowsUnknownField(t *testing.T
 
 // TestStrict_AcceptsAdditiveFieldAgainstPlainSchema proves the ZYS-823
 // contract Strict exists to protect: a plain (non-strict) schema, the
-// shape schema/run.v2.json and schema/output.v1.json are published as,
+// shape schema/run.v3.json is published as,
 // keeps validating a document that carries a field the schema never
 // declared — an additive field is not a breaking change against the
 // published schema.

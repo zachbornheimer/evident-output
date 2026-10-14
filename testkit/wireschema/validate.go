@@ -1,5 +1,5 @@
 // Package wireschema validates a rendered JSON document against evo's own
-// published JSON Schema (schema/output.v1.json) — the facade that makes the
+// published JSON Schema (schema/run.v3.json) — the facade that makes the
 // schema file an enforced gate instead of prose nobody checks (P8: "today
 // nothing references that file — make it a gate").
 //
@@ -22,8 +22,8 @@ import (
 // every $def that declares "properties", so Validate(Strict(schema), doc)
 // rejects any field the schema does not declare.
 //
-// The published schema files (schema/run.v2.json, schema/output.v1.json)
-// stay permissive on disk — additionalProperties:false there would turn
+// The published schema file (schema/run.v3.json)
+// stays permissive on disk — additionalProperties:false there would turn
 // every future additive field into a breaking schema_version bump, which
 // contradicts the "schema compatibility tests cover additions" contract.
 // Strict exists so tests can still catch the regression that motivated
