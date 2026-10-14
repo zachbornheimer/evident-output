@@ -1,4 +1,4 @@
-// Elapsed: the one compact duration form (contract §32).
+// Elapsed: the one compact duration form (CONTRACT §6).
 package project
 
 import (

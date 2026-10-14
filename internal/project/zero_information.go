@@ -6,7 +6,7 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
-// Rows are scarce (contract §13): a Task that finished with nothing to do
+// Rows are scarce (CONTRACT §8): a Task that finished with nothing to do
 // and nothing to say adds a line and no information. Human output drops such
 // a row when other content gives the reader something to look at.
 //

@@ -6,14 +6,12 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
-// A Task's own Facts (Task.Fact) are routine context, not results
-// (contract §13: "normal successful Task    hide ordinary Facts ...
-// verbose    show Task/run Facts"). They are not promoted when the Task
-// warns or fails either: "A generic Task-scoped or run-scoped Fact is not
-// promoted merely because some Task failed" (§13); "Unrelated configuration
-// Facts stay hidden in normal mode even if the Task fails" (§21). Facts
-// that explain a failure travel on the failing operation's
-// VerificationDetail and render with it. Machine output never calls this.
+// A Task's own Facts (Task.Fact) are routine context, not results: CONTRACT
+// §8 hides them at normal verbosity and always keeps them in machine output.
+// They are not promoted when the Task warns or fails either; a Task-scoped
+// Fact stays hidden in normal mode even if the Task fails. Facts that explain
+// a failure travel on the failing operation's VerificationDetail and render
+// with it. Machine output never calls this.
 
 // TaskAtVerbosity is t as a human reader sees it: its Facts kept only under
 // verbose.

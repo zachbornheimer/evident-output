@@ -61,7 +61,7 @@ var (
 	GlyphCancelled    = glyphSpec{"■", "[cancel]"}
 	GlyphNotStarted   = glyphSpec{"-", "[-]"}
 	// GlyphSkipDetail leads a skipped/already-satisfied detail row — a plain
-	// dash in both profiles (contract §20, §41 "Already-satisfied detail").
+	// dash in both profiles (CONTRACT §6).
 	GlyphSkipDetail = glyphSpec{"-", "-"}
 	GlyphPending    = glyphSpec{"○", "[.]"}
 	GlyphRunning    = glyphSpec{"◐", "[~]"}

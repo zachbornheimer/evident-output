@@ -7,12 +7,9 @@ import (
 	"testing"
 )
 
-// Contract §13: "normal successful Task    hide ordinary Facts ...
-// verbose    show Task/run Facts ... JSON/JSONL    retain structured Facts
-// regardless of human verbosity", and "A generic Task-scoped or run-scoped
-// Fact is not promoted merely because some Task failed". §21: "Normal
-// successful Tasks do not show routine Facts by default" and "Unrelated
-// configuration Facts stay hidden in normal mode even if the Task fails".
+// CONTRACT §8: Task Facts hide at normal verbosity, show under Verbose, and
+// machine output keeps them regardless. A Task-scoped Fact is not promoted
+// merely because its Task failed.
 
 func renderFactTask(t *testing.T, verbose bool, resolve func(*Task)) (string, *Run) {
 	t.Helper()

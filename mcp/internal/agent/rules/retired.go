@@ -156,7 +156,7 @@ var retiredSymbols = []RetiredSymbol{
 	{Contract: "Width", RemovedIn: RetiredRelease1_1, Replacement: "no option; Evo picks the presentation from Output and Terminal"},
 
 	// ZYS-1382 was not 1.2: File/Patch/Exec stay the 1.1 operations
-	// (contract §31/§37). These nouns leaked on integrate/evo-1.2-candidate
+	// (CONTRACT §3). These nouns leaked on integrate/evo-1.2-candidate
 	// and are not evo.
 	{Contract: "Tree", RemovedIn: RetiredRelease1_2, Replacement: "evo.File / evo.Effect", Taught: regexp.MustCompile(`\bevo\.Tree\b`)},
 	{Contract: "Find", RemovedIn: RetiredRelease1_2, Replacement: "caller-owned discovery, then evo.File", Taught: regexp.MustCompile(`\bevo\.Find\b`)},

@@ -54,7 +54,7 @@ func TestConclusion_P7_AlreadyMutatedAggregatesAndNamesItsOwner(t *testing.T) {
 
 // TestConclusion_AlreadyMutated_CancelledWithChanges is red-first for item 1:
 // a Cancelled run with committed effects must render one derived
-// "! partial changes were applied before cancellation" note (contract §15),
+// "! partial changes were applied before cancellation" note (CONTRACT §8),
 // never a caller-assembled string and never a second copy of the ledger.
 func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 	var buf strings.Builder

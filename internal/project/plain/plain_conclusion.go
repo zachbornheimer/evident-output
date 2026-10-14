@@ -60,8 +60,8 @@ func WriteConclusion(b *strings.Builder, c record.Conclusion, s project.Style) {
 	}
 }
 
-// writeCancellationBand renders the cancelled outcome as contract §15 shows
-// it: "[cancelled]  <subject>  <cause>", then the partial-changes note only
+// writeCancellationBand renders the cancelled outcome as CONTRACT §4
+// shows it: "[cancelled]  <subject>  <cause>", then the partial-changes note only
 // when some Effect committed. The cause is the Conclusion's Explanation (for
 // example "by user"), carried on the band line itself instead of a second
 // sentence beneath it.

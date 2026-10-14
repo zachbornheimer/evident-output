@@ -6,10 +6,10 @@ import (
 
 // A Group's per-item children that did nothing but resolve Kept or Skipped
 // (the item is the Task — mcp/docs/reference.md) are counted, not listed:
-// "Rendering every child is not a correctness requirement; retaining every
-// child in the model is" and "aggregation is a renderer concern" (contract
-// §25). Human output folds them into one tally per disposition under the
-// Group's row ("  ! kept N (...)", §26/§27), and --verbose names every
+// rendering every child is not a correctness requirement, retaining every
+// child in the model is, and aggregation is a renderer concern (CONTRACT §8:
+// per-item Excluded Tasks fold into one tally). Human output folds them into
+// one tally per disposition under the Group's row ("  ! kept N (...)"), and --verbose names every
 // item under its reason. Machine output never calls this; JSON and JSONL
 // keep every child Task.
 

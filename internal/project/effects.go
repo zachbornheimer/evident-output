@@ -111,9 +111,9 @@ func writeNothingToDo(b *strings.Builder, sec EffectSection) {
 
 // writeEffectLine collapses a section with one distinct record — one
 // Effect per task, the common case — to ONE aligned line: "[planned]
-// branches   delete 2 local tips" (fixture-repo-retire-dryrun.md). Contract
-// §18: the subject pads to the aligned block's width, then exactly two
-// spaces before the verb; taskNameColumnMargin does not apply, since no
+// branches   delete 2 local tips" (fixture-repo-retire-dryrun.md; CONTRACT §8 folds per-item Effects with
+// one Verb and Object into one counted row). The subject pads to the aligned
+// block's width, then exactly two spaces before the verb; taskNameColumnMargin does not apply, since no
 // inline annotation sits beside it to clear.
 func writeEffectLine(b *strings.Builder, tag string, sec EffectSection, r record.EffectRecord) {
 	name := PadRight(sec.Subject, sec.NameWidth)

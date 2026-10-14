@@ -12,7 +12,7 @@ import (
 // are work. Facts are information.").
 func TestTaskFact_RendersInlineDimNoBang(t *testing.T) {
 	var buf bytes.Buffer
-	// Contract §13/§21: a Task Fact is verbose-only; this block is the verbose view.
+	// CONTRACT §8: a Task Fact hides until Verbose; this block is the verbose view.
 	out := initRun(Config{Verbose: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	scan := out.Task("remote-tracking")

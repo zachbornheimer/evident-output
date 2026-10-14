@@ -87,7 +87,7 @@ func ExampleFile() {
 // Task and never fakes a checkmark merely to display a value.
 func ExampleTask_Fact() {
 	var buf bytes.Buffer
-	// A Task Fact is routine context: it renders only under verbose (contract §13).
+	// A Task Fact is routine context: it renders only under verbose (CONTRACT §8).
 	out := initRun(Config{Verbose: true, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}})
 	scan := out.Task("remote-tracking")
 	scan.Fact("stale", "1")

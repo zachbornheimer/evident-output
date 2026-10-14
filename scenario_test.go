@@ -263,7 +263,7 @@ func TestScenario_Stress(t *testing.T) {
 //   - The frame doesn't show it, but a committed effect must never
 //     disappear once work is cut short (spec §15/§43: "Committed effects
 //     remain... never implying rollback"), so the cancellation band adds
-//     "! partial changes were applied before cancellation" (contract §15).
+//     "! partial changes were applied before cancellation" (CONTRACT §8).
 //     The note is derived from the committed Effects, not caller-authored,
 //     and it does not repeat the ledger line above it.
 //
@@ -317,12 +317,11 @@ func TestScenario_CancelledAfterMutation(t *testing.T) {
 // than this single tab warrants; the golden follows the actual, tested
 // convention.
 func TestScenario_AlreadySatisfied(t *testing.T) {
-	// "deploy production" keeps its row (contract §8: collapse never drops a
+	// "deploy production" keeps its row (CONTRACT §8: collapse never drops a
 	// container's own row), and its zero-information children (discover,
 	// prepare hosts, services: nothing to say, nothing changed) are hidden
-	// while other content exists. The launch agent's "path" is a routine Task Fact: contract
-	// §13/§21 hide it at normal verbosity (§21 labels this exact
-	// "✓ write launch agent / path ..." shape its "Verbose example"), which
+	// while other content exists. The launch agent's "path" is a routine Task Fact:
+	// CONTRACT §8 hides it until Verbose, which
 	// leaves the launch agent zero-information too. Under verbose it owns a
 	// visible Fact and keeps its row; cleanup always keeps its Summary.
 	cases := []struct {
