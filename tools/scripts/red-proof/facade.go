@@ -72,6 +72,26 @@ func gitArchiveInto(root, rev, dir string) error {
 	return nil
 }
 
+// gitCommitFiles lists the files commit rev changed, and reports whether the
+// repository at root holds that commit at all (a bare archive does not).
+func gitCommitFiles(root, rev string) (files []string, available bool, err error) {
+	if err := checkRev(rev); err != nil {
+		return nil, false, err
+	}
+	repo, err := cleanPath(root)
+	if err != nil {
+		return nil, false, err
+	}
+	if exec.Command(gitCommand, "-C", repo, "cat-file", "-e", rev+"^{commit}").Run() != nil {
+		return nil, false, nil
+	}
+	out, err := exec.Command(gitCommand, "-C", repo, "show", "--name-only", "--format=", rev).Output()
+	if err != nil {
+		return nil, true, fmt.Errorf("git show %s: %w", rev, err)
+	}
+	return strings.Fields(string(out)), true, nil
+}
+
 // gitApply applies patch to the tree in dir, all hunks or none. dir is not a
 // repository, so git works on the files alone.
 func gitApply(dir string, patch []byte) error {

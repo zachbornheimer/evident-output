@@ -68,3 +68,13 @@ func TestGitApplyAppliesAPatchOrLeavesTheTreeAlone(t *testing.T) {
 		t.Fatal("gitApply accepted a patch whose context is gone")
 	}
 }
+
+func TestGitCommitFilesReportsAMissingCommitAndRefusesNonCommitRevisions(t *testing.T) {
+	if _, _, err := gitCommitFiles(t.TempDir(), "--output=x"); err == nil || !strings.Contains(err.Error(), "neither HEAD nor a hex commit id") {
+		t.Fatalf("got %v, want the revision check to refuse an option", err)
+	}
+	files, available, err := gitCommitFiles(t.TempDir(), "abcdef1")
+	if err != nil || available || len(files) != 0 {
+		t.Fatalf("gitCommitFiles outside a repository = %v, %t, %v; want no files, unavailable, no error", files, available, err)
+	}
+}

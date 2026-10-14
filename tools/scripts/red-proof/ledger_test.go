@@ -85,6 +85,43 @@ func TestLedgerRevertPatchesExist(t *testing.T) {
 	}
 }
 
+// A patch re-introduces the fix commit's bug; one that reaches a file the fix
+// never touched is no longer that bug. The commit object may be missing from a
+// bare archive, and then the check says so rather than passing silently.
+func TestLedgerPatchTouchesOnlyTheFixCommitsFiles(t *testing.T) {
+	text, err := readFile("ledger.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ledger, err := ParseLedger(string(text))
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := repoGit{root: moduleRoot}
+	for _, e := range ledger.Entries {
+		t.Run(e.Commit, func(t *testing.T) {
+			fixFiles, available, err := repo.ChangedFiles(e.Commit)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !available {
+				t.Skipf("commit %s is not in this repository (bare archive), so its files cannot be listed", e.Commit)
+			}
+			patch, err := readFile(e.Patch)
+			if err != nil {
+				t.Fatal(err)
+			}
+			patched := patchPaths(patch)
+			if len(patched) == 0 {
+				t.Fatalf("%s patches no file", e.Patch)
+			}
+			if outside := outsideFix(patched, fixFiles); len(outside) > 0 {
+				t.Errorf("%s patches %v, which commit %s did not change (or are test files)", e.Patch, outside, e.Commit)
+			}
+		})
+	}
+}
+
 func TestParseLedgerReadsEntriesAndTests(t *testing.T) {
 	text := "entries:\n  - commit: abcdef1\n    note: \"a: b\"\n    patch: patches/a.patch\n    tests:\n      - pkg: ./x\n        name: TestOne\n      - pkg: .\n        name: TestTwo\n"
 	ledger, err := ParseLedger(text)

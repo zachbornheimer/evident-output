@@ -6,9 +6,17 @@ import (
 	"testing"
 )
 
-type fakeGit struct{ exportErr error }
+type fakeGit struct {
+	exportErr error
+	changed   []string // files the fix commit changed
+	missing   bool     // the repository lacks the fix commit
+}
 
 func (g fakeGit) Export(string, string) error { return g.exportErr }
+
+func (g fakeGit) ChangedFiles(string) ([]string, bool, error) {
+	return g.changed, !g.missing, nil
+}
 
 type fakeSandbox struct {
 	applyErr error
@@ -28,8 +36,11 @@ func (s fakeSandbox) RunTests(_, pkg string, _ []string) ([]byte, error) {
 }
 
 func fakePatch(name string) ([]byte, error) {
-	if name == "patches/missing.patch" {
+	switch name {
+	case "patches/missing.patch":
 		return nil, errors.New("no such patch")
+	case "patches/stray.patch":
+		return []byte("--- a/x.go\n+++ b/x.go\n--- a/other.go\n+++ b/other.go\n"), nil
 	}
 	return []byte("patch " + name), nil
 }
@@ -127,5 +138,27 @@ func TestProveErrorsWhenThePatchIsUnusable(t *testing.T) {
 		if res := proverWith(fakeGit{}, c.sb).Prove(e); res.Status != Errored {
 			t.Errorf("%s: status = %s, want ERROR, never PASS; lines %v", name, res.Status, res.Lines)
 		}
+	}
+}
+
+func TestProveRefusesAPatchBeyondTheFixCommitsFiles(t *testing.T) {
+	e := entry
+	e.Patch = "patches/stray.patch"
+	res := proverWith(fakeGit{changed: []string{"x.go"}}, fakeSandbox{}).Prove(e)
+	if res.Status != Errored || !strings.Contains(strings.Join(res.Lines, "\n"), "other.go") {
+		t.Fatalf("status = %s, lines %v; want ERROR naming other.go", res.Status, res.Lines)
+	}
+}
+
+func TestProveSaysWhenTheFixCommitIsMissingSoScopeIsUnchecked(t *testing.T) {
+	e := entry
+	e.Patch = "patches/stray.patch"
+	allRed := events(
+		`{"Action":"run","Test":"TestA"}`, `{"Action":"fail","Test":"TestA"}`,
+		`{"Action":"run","Test":"TestB"}`, `{"Action":"fail","Test":"TestB"}`,
+	)
+	res := proverWith(fakeGit{missing: true}, fakeSandbox{out: map[string][]byte{".": allRed}}).Prove(e)
+	if res.Status != Proven || !strings.Contains(strings.Join(res.Lines, "\n"), "scope unchecked") {
+		t.Fatalf("status = %s, lines %v; want PASS with a scope-unchecked note", res.Status, res.Lines)
 	}
 }

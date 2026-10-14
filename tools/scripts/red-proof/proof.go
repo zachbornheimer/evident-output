@@ -9,6 +9,9 @@ import (
 type Git interface {
 	// Export writes the tree at rev into an empty directory.
 	Export(rev, dir string) error
+	// ChangedFiles lists the files commit rev changed; available is false
+	// when the repository does not hold that commit.
+	ChangedFiles(rev string) (files []string, available bool, err error)
 }
 
 // Sandbox is the scratch-tree boundary; tests substitute a fake.
@@ -80,21 +83,39 @@ func (p Prover) Prove(e Entry) Result {
 	if err := p.Git.Export(headRev, dir); err != nil {
 		return fail(fmt.Errorf("export %s: %w", headRev, err))
 	}
-	if err := p.applyPatch(dir, e); err != nil {
+	patch, err := p.ReadPatch(e.Patch)
+	if err != nil {
+		return fail(fmt.Errorf("read patch %s: %w", e.Patch, err))
+	}
+	note, err := p.checkPatchScope(e, patch)
+	if err != nil {
 		return fail(err)
+	}
+	if note != "" {
+		res.Lines = append(res.Lines, note)
+	}
+	if err := p.Sandbox.ApplyPatch(dir, patch); err != nil {
+		return fail(fmt.Errorf("apply patch %s for fix %s: %w", e.Patch, e.Commit, err))
 	}
 	return p.replay(dir, res)
 }
 
-func (p Prover) applyPatch(dir string, e Entry) error {
-	patch, err := p.ReadPatch(e.Patch)
+// checkPatchScope requires the patch to touch only non-test files the fix
+// commit changed: a patch that reaches further no longer re-introduces that
+// commit's bug. When the repository lacks the commit the scope cannot be
+// checked, and the returned note says so.
+func (p Prover) checkPatchScope(e Entry, patch []byte) (note string, err error) {
+	fixFiles, available, err := p.Git.ChangedFiles(e.Commit)
 	if err != nil {
-		return fmt.Errorf("read patch %s: %w", e.Patch, err)
+		return "", fmt.Errorf("list files of fix %s: %w", e.Commit, err)
 	}
-	if err := p.Sandbox.ApplyPatch(dir, patch); err != nil {
-		return fmt.Errorf("apply patch %s for fix %s: %w", e.Patch, e.Commit, err)
+	if !available {
+		return fmt.Sprintf("scope unchecked: commit %s is not in this repository", e.Commit), nil
 	}
-	return nil
+	if outside := outsideFix(patchPaths(patch), fixFiles); len(outside) > 0 {
+		return "", fmt.Errorf("patch %s touches %v, which fix %s did not change (or are test files)", e.Patch, outside, e.Commit)
+	}
+	return "", nil
 }
 
 func (p Prover) replay(dir string, res Result) Result {

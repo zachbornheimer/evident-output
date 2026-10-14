@@ -20,3 +20,9 @@ type repoGit struct{ root string }
 func (g repoGit) Export(rev, dir string) error {
 	return gitArchiveInto(g.root, rev, dir)
 }
+
+// ChangedFiles lists the files commit rev changed; available is false when the
+// repository does not hold the commit.
+func (g repoGit) ChangedFiles(rev string) (files []string, available bool, err error) {
+	return gitCommitFiles(g.root, rev)
+}

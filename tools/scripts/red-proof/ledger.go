@@ -20,7 +20,8 @@ type Entry struct {
 	Note   string
 	// Patch names the hand-written patch, relative to the ledger, that
 	// re-introduces the bug in HEAD. Reversing the commit's own hunks is not
-	// an option: later edits keep them from applying.
+	// an option: later edits keep them from applying. It may patch only
+	// non-test files the fix commit changed (TestLedgerPatchTouchesOnlyTheFixCommitsFiles).
 	Patch string
 	Tests []TestRef
 }
