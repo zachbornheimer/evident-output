@@ -48,7 +48,7 @@
   {
     "id": "C48-003",
     "section": "2.0 §8 What Evo promises",
-    "quote": "Per-item Excluded Tasks fold into one tally; per-item Effects with one Verb and Object fold into one counted row, named for the highest container every one of whose members contributed to it, so a sibling that did nothing this run never moves the row to a container above it; JSON keeps every item.",
+    "quote": "Per-item Excluded Tasks fold into one tally; per-item Effects with one Verb and Object fold into one counted row, named for the highest container every one of whose direct members contributed to it, so a sibling that did nothing this run never moves the row to a container above it; JSON keeps every item.",
     "tier": "1.1",
     "tests": [
       {
