@@ -102,7 +102,7 @@ Succeeded, Satisfied and Excluded.
 | `Run.SlogHandler`        | method | `SlogHandler() slog.Handler`; writes into the debug journal                                 |
 | `Result`                 | type   | what `Execute` returns                                                                      |
 | `Result.Conclusion`      | field  | `Conclusion`; the verdict                                                                   |
-| `Result.Err`             | field  | `error`; the error the application body returned, joined with the first misuse              |
+| `Result.Err`             | field  | `error`; the error the application body returned, joined with every misuse, in record order |
 | `Result.ExitCode`        | method | `ExitCode() int`; 0 Succeeded, Satisfied or Excluded · 1 Refused · 2 Failed · 130 Cancelled |
 | `Conclusion`             | type   | one verdict for UI and exit                                                                 |
 | `Conclusion.Outcome`     | field  | `Outcome`; the worst Task outcome                                                           |

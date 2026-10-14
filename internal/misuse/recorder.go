@@ -1,12 +1,18 @@
 package misuse
 
-import "sync"
+import (
+	"errors"
+	"sync"
+)
 
-// Recorder is the first-misuse store for one run. Any goroutine may record,
-// including graph workers that hold no engine lock.
+// Recorder is the misuse store for one run. Any goroutine may record,
+// including graph workers that hold no engine lock. It keeps every distinct
+// misuse in record order; the first also names the corrective hint.
 type Recorder struct {
 	mu              sync.Mutex
 	first           error
+	all             []error
+	seen            map[string]struct{}
 	subject         string
 	rejectedSummary string
 }
@@ -27,8 +33,10 @@ func (r *Recorder) Record(err error) {
 	r.Note(err, "", "")
 }
 
-// Note records err as the run's misuse when it is the first, with the
-// entity and rejected summary that name it.
+// Note records err as one of the run's misuses, with the entity and rejected
+// summary that name it when it is the first. A misuse whose text repeats an
+// earlier one (the same Task resolved twice, many Tasks left unresolved) is
+// kept once, so the joined error stays as long as the distinct problems.
 func (r *Recorder) Note(err error, subject, rejectedSummary string) {
 	if err == nil {
 		return
@@ -38,6 +46,23 @@ func (r *Recorder) Note(err error, subject, rejectedSummary string) {
 	if r.first == nil {
 		r.first, r.subject, r.rejectedSummary = err, subject, rejectedSummary
 	}
+	text := err.Error()
+	if _, repeat := r.seen[text]; repeat {
+		return
+	}
+	if r.seen == nil {
+		r.seen = map[string]struct{}{}
+	}
+	r.seen[text] = struct{}{}
+	r.all = append(r.all, err)
+}
+
+// All is every distinct misuse recorded, joined in record order, nil when
+// there is none.
+func (r *Recorder) All() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return errors.Join(r.all...)
 }
 
 // First is the first misuse recorded, nil when there is none.

@@ -92,5 +92,33 @@ func TestDefineNilSettlesItsRowNotStartedWithTheRefusal(t *testing.T) {
 	}
 	if !strings.Contains(text, `nil Define callback for task "nil"`) {
 		t.Errorf("the output does not state the Define(nil) refusal:\n%s", text)
+// TestResultErrJoinsEveryRefusal pins CONTRACT section 7: every refusal a run records is joined into Result.Err
+// in the order recorded, while Conclusion.Explanation names the first. The two refusals the run body makes have
+// a fixed order; the one a Task callback makes lands whenever that callback runs, so only its presence is pinned.
+func TestResultErrJoinsEveryRefusal(t *testing.T) {
+	run := executeContract(context.Background(), t, evo.Config{Name: "refused", Output: evo.Plain}, func(_ context.Context, r *evo.Run) error {
+		r.Task("build").Define(func(context.Context) error { return nil })
+		r.Task("build").Define(func(context.Context) error { return nil })
+		made := r.Task("make").Verify(func(context.Context) (bool, error) { return false, nil })
+		evo.Compute(made, func(context.Context) (int, error) { return 1, nil })
+		r.Task("prune").Define(func(ctx context.Context) error {
+			spec := evo.EffectSpec{Verb: evo.Delete, Object: "branch", Quantity: 0}
+			return evo.Effect(ctx, spec, func(context.Context) error { return nil })
+		})
+		return nil
+	})
+	if !errors.Is(run.Result.Err, evo.ErrInvalidConfig) {
+		t.Fatalf("Result.Err = %v, want it to wrap evo.ErrInvalidConfig", run.Result.Err)
+	}
+	got := run.Result.Err.Error()
+	duplicate, compute, effect := strings.Index(got, "duplicate sibling name"), strings.Index(got, "Compute on a Task with a Verify"), strings.Index(got, "Quantity must be > 0")
+	if duplicate < 0 || compute < 0 || effect < 0 {
+		t.Errorf("Result.Err = %q, want it to state the duplicate sibling, the Compute on a Verify and the zero Quantity", got)
+	}
+	if duplicate > compute {
+		t.Errorf("Result.Err = %q states the Compute refusal before the duplicate sibling that was recorded first", got)
+	}
+	if explanation := run.Result.Conclusion.Explanation; !strings.Contains(explanation, "duplicate task name") {
+		t.Errorf("Conclusion.Explanation = %q, want it to name the first refusal, the duplicate task name", explanation)
 	}
 }

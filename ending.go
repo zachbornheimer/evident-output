@@ -17,7 +17,7 @@ func (o *Run) finish() error {
 	o.saveManifest()
 	o.mu.Lock()
 	if o.finished {
-		err := o.firstMisuse()
+		err := o.allMisuse()
 		o.mu.Unlock()
 		return err
 	}
@@ -126,7 +126,7 @@ func (o *Run) concludeLocked() snapshot {
 // FormatJSON's final "evo.run" document (§32.1) is written here, independent of the human projection;
 // a write failure there, or a mid-run "evo.event" JSONL failure (§32.2), is a real Run failure.
 func (o *Run) runErrorLocked(conc Conclusion) error {
-	misuse := o.firstMisuse()
+	misuse := o.allMisuse()
 	if o.cfg.wireFormat == JSON {
 		misuse = joinErrors(misuse, rendererError(wire.WriteRun(o.cfg.wireStream, record.Result{Conclusion: asRecordConclusion(conc), Payload: o.resultText.String()})))
 	}

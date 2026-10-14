@@ -161,17 +161,9 @@ func concludeCancelled(out *Run, runErr error) Result {
 	return Result{Conclusion: out.conclusion(), Err: out.resultErr(runErr)}
 }
 
-// resultErr is Result.Err: what the body returned, joined with the first misuse the run recorded.
+// resultErr is Result.Err: what the body returned, joined with every misuse the run recorded.
 func (o *Run) resultErr(runErr error) error {
-	misused := o.firstMisuse()
-	switch {
-	case misused == nil:
-		return runErr
-	case runErr == nil:
-		return misused
-	default:
-		return errors.Join(runErr, misused)
-	}
+	return joinErrors(runErr, o.allMisuse())
 }
 
 func (o *Run) anyFailed() bool {
@@ -360,6 +352,11 @@ func (o *Run) recordMisuseFor(subject string, err error) {
 
 func (o *Run) firstMisuse() error {
 	return o.misuse.First()
+}
+
+// allMisuse is every distinct misuse recorded, joined in record order.
+func (o *Run) allMisuse() error {
+	return o.misuse.All()
 }
 
 // appendMisuseLineLocked renders the one required line for the first recorded misuse, so an exit code
