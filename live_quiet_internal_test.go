@@ -23,7 +23,7 @@ func quietLiveOutput(t *testing.T) (*Run, *countingLiveSurface, *manualClock) {
 func liveFrameAfter(out *Run, screen *countingLiveSurface, clock *manualClock, advance time.Duration) string {
 	clock.Advance(advance)
 	out.mu.Lock()
-	out.renderLiveLocked(true)
+	out.live.Render()
 	out.mu.Unlock()
 	return screen.latestText()
 }

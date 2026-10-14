@@ -15,6 +15,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/misuse"
 	"github.com/zachbornheimer/evident-output/internal/process"
 	"github.com/zachbornheimer/evident-output/internal/project"
+	"github.com/zachbornheimer/evident-output/internal/project/live"
 	renderplain "github.com/zachbornheimer/evident-output/internal/project/plain"
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
 	"github.com/zachbornheimer/evident-output/internal/record"
@@ -160,16 +161,7 @@ func (o *Run) dropDiagnosticForTest() { o.cfg.diagnostic = nil }
 func (o *Run) forceLiveVisibleForTest() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if o.live == nil {
-		o.live = &liveEngine{}
-		if live := o.liveLocked(); live != nil {
-			o.live.surface = live
-		}
-	}
-	o.live.visible = true
-	o.live.paintMu.Lock()
-	o.live.liveActive = true
-	o.live.paintMu.Unlock()
+	o.live.Show()
 }
 
 func (o *Run) debugWriterForTest() io.WriteCloser { return o.debugWriter() }
@@ -249,7 +241,7 @@ func detectCapabilities(opts ...option) capabilityProfile {
 		p.Color = colorNone
 	}
 	if cfg.terminal != nil {
-		if ls := asLive(cfg.terminal); ls != nil {
+		if ls := live.SurfaceOf(cfg.terminal); ls != nil {
 			p.Width = ls.Columns()
 			p.Height = ls.Rows()
 			p.Interactive = ls.IsInteractive() && p.Interactive
@@ -315,10 +307,7 @@ func (o *Run) mirrorCaptureLine(mirrorDiag, mirrorDebug bool, taskName, line str
 	o.mu.Lock()
 	allowDebug := o.cfg.debugLevel <= levelDebug
 	hasDiag := o.cfg.diagnostic != nil
-	interactive := false
-	if live := o.liveLocked(); live != nil {
-		interactive = live.IsInteractive() && !o.cfg.plain
-	}
+	interactive := o.live.Interactive()
 	o.mu.Unlock()
 	if !allowDebug {
 		return
@@ -726,7 +715,9 @@ func (o *Run) fail(summary string, options ...ProblemOption) {
 	o.endWith(failed, applyProblemOptions(project.Text(summary), options))
 }
 
-// settleTimeout bounds how long a test waits for submitted work to settle.
+// settleTimeout bounds how long a test waits for submitted work to make
+// progress: each Task that settles restarts it, so a large run under the
+// race detector is never cut off while it is still settling.
 const settleTimeout = 5 * time.Second
 
 // settlePoll is how often a test re-reads a row while it waits.
@@ -807,6 +798,7 @@ func (o *Run) awaitSettled(tasks []*graph.Task) error {
 			}
 			time.Sleep(settlePoll)
 		}
+		deadline = time.Now().Add(settleTimeout)
 		if state := t.Rec.State(); !state.Succeeded() && state != record.Excluded {
 			failures = append(failures, fmt.Errorf("%w: %s %s", errNotSucceeded, t.Name, state))
 		}

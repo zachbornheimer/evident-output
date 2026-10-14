@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/internal/project/live"
 	"github.com/zachbornheimer/evident-output/testkit/scaletest"
 )
 
@@ -35,10 +36,10 @@ func liveFrameFull(out *Run, now time.Time) string {
 	return out.renderLiveRegionWithDebugLocked(80, 24, now)
 }
 
-// renderLiveRegionWithDebugLocked builds one frame the way the animator does.
-// o.mu is held.
+// renderLiveRegionWithDebugLocked builds one frame's rows the way the
+// animator does: the board's snapshot, then its text. o.mu is held.
 func (o *Run) renderLiveRegionWithDebugLocked(width, height int, now time.Time) string {
-	return o.liveFrameAtLocked(width, height, now).render()
+	return live.FitLiveRegion(live.LiveRegion(o.board.Frame(height, now), height, width, now, o.humanStyle()), width)
 }
 
 // liveFrameCost is the fastest of several repaints of an n-Task Group, so

@@ -85,9 +85,9 @@ func TestLiveHeartbeat_PendingRowAnimatesPastElapsedThreshold(t *testing.T) {
 	clock.Advance(15 * time.Second)
 
 	out.mu.Lock()
-	out.renderLiveLocked(true)
+	out.live.Render()
 	frame := drv.latest()
-	animating := out.needsSpinnerAnimLocked()
+	animating := out.board.Animating()
 	out.mu.Unlock()
 
 	if !strings.Contains(frame, "waiting") {
@@ -115,7 +115,7 @@ func TestLiveHeartbeat_RunningNoPhaseZeroTotalAnimates(t *testing.T) {
 	clock.Advance(15 * time.Second)
 
 	out.mu.Lock()
-	out.renderLiveLocked(true)
+	out.live.Render()
 	frame := drv.latest()
 	out.mu.Unlock()
 
@@ -147,7 +147,7 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 		grp.Task("goimports") // stays Pending
 
 		out.mu.Lock()
-		out.renderLiveLocked(true)
+		out.live.Render()
 		frame := drv.latest()
 		out.mu.Unlock()
 
@@ -168,7 +168,7 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 		grp.Task("b")
 
 		out.mu.Lock()
-		out.renderLiveLocked(true)
+		out.live.Render()
 		frame := drv.latest()
 		out.mu.Unlock()
 

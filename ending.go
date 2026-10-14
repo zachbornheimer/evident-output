@@ -198,10 +198,10 @@ func (o *Run) finishHumanLocked(snap snapshot) (residual string, interactive boo
 	// round 5 finding 1).
 	linesFrom := o.linesEmitted
 	residual = o.residualPlainLocked(snap)
-	if live := o.liveLocked(); live != nil && live.IsInteractive() && !o.cfg.plain {
+	if o.live.Interactive() {
 		// Interactive final: conclusion + any unemitted entities (not a
 		// second full dump).
-		o.finishLiveLocked(o.residualInteractiveFinalLocked(snap, linesFrom))
+		o.live.Finish(o.residualInteractiveFinalLocked(snap, linesFrom))
 		return residual, true
 	}
 	return residual, false
@@ -314,7 +314,7 @@ func (o *Run) abnormalFinishLocked() bool {
 // task has no caller-authored diagnostic to own the hint.
 func attachUnresolvedTaskHintLocked(t *taskState) {
 	t.node.Recommend(asRecordAction(label(unresolvedTaskHint)))
-	t.markFiling()
+	t.board.Changed(t.node.TaskID())
 }
 
 // autoResolveGroupsLocked stops each group from implying "still might run"

@@ -15,6 +15,10 @@ import (
 // tailTestLines is far more Writer output than the live tail can show.
 const tailTestLines = 500
 
+// liveTailLines is the live tail's window: the Writer lines a frame shows
+// under a Running row.
+const liveTailLines = 6
+
 func writeNumberedLines(t *testing.T, task *Task, n int) {
 	t.Helper()
 	w := task.Writer()
@@ -53,12 +57,6 @@ func TestWriter_LiveTailStaysBoundedWhileCaptureKeepsTheStream(t *testing.T) {
 	}
 	if want := process.DefaultCaptureLines; tail.Evidence != want {
 		t.Fatalf("tail.Evidence = %d, want %d lines in the ring", tail.Evidence, want)
-	}
-	out.mu.Lock()
-	capacity := cap(out.taskStates[task.id].tail.lines)
-	out.mu.Unlock()
-	if capacity != liveTailLines {
-		t.Fatalf("tail backing capacity = %d after %d lines, want fixed %d", capacity, tailTestLines, liveTailLines)
 	}
 }
 

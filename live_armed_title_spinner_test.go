@@ -30,8 +30,8 @@ func TestLive_ArmedTitleKeepsAnimatorAndAdvancesGlyph(t *testing.T) {
 	}
 
 	out.mu.Lock()
-	needs := out.needsSpinnerAnimLocked()
-	running := out.live != nil && out.live.animRunning
+	needs := out.board.Animating()
+	running := out.live.Animating()
 	out.mu.Unlock()
 	if !needs {
 		t.Fatal("armed title spinner must keep needsSpinnerAnimLocked true")
@@ -42,7 +42,7 @@ func TestLive_ArmedTitleKeepsAnimatorAndAdvancesGlyph(t *testing.T) {
 
 	clock.Advance(txt.SpinnerPeriod + time.Millisecond)
 	out.mu.Lock()
-	out.renderLiveLocked(true)
+	out.live.Render()
 	out.mu.Unlock()
 	second := drv.latest()
 	if second == first {

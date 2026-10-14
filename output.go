@@ -7,12 +7,10 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
 	"github.com/zachbornheimer/evident-output/internal/change"
-	"github.com/zachbornheimer/evident-output/internal/clock"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/fs"
 	"github.com/zachbornheimer/evident-output/internal/graph"
@@ -56,12 +54,14 @@ type Run struct {
 	confirmTurn chan struct{}
 	finishing   bool
 	finished    bool
-	armed       bool // set by arm(): live surface may paint before any entity exists
 	// misuse records the first API misuse of this run. Graph workers call it
 	// without Output.mu; a strict recorder panics after recording, never
 	// under graph.mu.
 	misuse *misuse.Recorder
-	live   *liveEngine
+	// board is the live model of the declared Tasks and collections; live
+	// paints it on an interactive surface, nil without one.
+	board *live.Board
+	live  *live.Engine
 
 	// changes performs the File, Exec, Patch and Effect operations of this
 	// Run, and owns the workspace relative paths resolve against.
@@ -215,6 +215,14 @@ func newOutput(subject string, options ...option) *Run {
 	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(o.misuse), graph.WithHost(host))
 	o.freshness = freshness.NewRun(o.graph, freshness.RunConfig{Where: o.manifestConfig, Closed: errClosed, DryRun: host.DryRun, Narration: host})
 	o.changes = change.NewRun(o.newChangeHost(), o.graph)
+	o.board = live.NewBoard(run, boardSource{o})
+	if surface := liveSurfaceOf(cfg); surface != nil {
+		o.live = live.NewEngine(live.Config{
+			Surface: surface, Board: o.board, Scene: liveScene{o}, Lock: &o.mu, Clock: cfg.clock,
+			VisibilityDelay: cfg.visibilityDelay, MaxFrameRate: cfg.maxFrameRate,
+			Style: o.humanStyle(), Subject: cfg.subject,
+		})
+	}
 	o.mu.Bind(run)
 	run.SetListener(outputListener{o: o})
 	// Stable-enough id for a process-local output instance.
@@ -281,7 +289,7 @@ func (o *Run) announceRunningLocked(st *taskState) {
 		}
 		col.runningSteps = append(col.runningSteps, st)
 	}
-	st.markFiling()
+	o.board.Changed(st.node.TaskID())
 	o.armPlainHeartbeatLocked(st, o.cfg.clock.Now())
 	o.emitWireEventLocked(wire.EventTaskStarted, st.id, nil)
 }
@@ -645,7 +653,7 @@ func (o *Run) projectDebugRecordLocked(rec debugRecord) {
 	o.appendEventLocked(recEvent{Type: "log.emitted"})
 
 	dual := o.cfg.diagnostic != nil && o.cfg.primary != nil && o.cfg.diagnostic != o.cfg.primary
-	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain
+	interactive := o.live.Interactive()
 	panePresentation := o.cfg.debugPresentation == debugPresentationPane
 
 	// dualSameTerminal is true when Diagnostics is a distinct writer from
@@ -679,11 +687,11 @@ func (o *Run) projectDebugRecordLocked(rec debugRecord) {
 	if interactive && panePresentation {
 		o.debugPaneActive = true
 		o.linesEmitted = o.rec.LineCount()
-		o.signalLiveLocked(true)
+		o.live.Signal(true)
 		return
 	}
 	if interactive {
-		o.debugLiveLocked(history)
+		o.live.Durable(history)
 	} else {
 		o.writeDurableTextLocked(history + "\n")
 	}
@@ -767,11 +775,17 @@ func resolveGlyphProfileLocked(cfg *config) {
 // vocabulary unconditionally — evo-rec.md's glyph-safety default only
 // guards the live status column a human is watching.
 func interactiveOutputLocked(cfg *config) bool {
-	if cfg.plain {
-		return false
-	}
-	ls := asLive(cfg.terminal)
+	ls := liveSurfaceOf(*cfg)
 	return ls != nil && ls.IsInteractive()
+}
+
+// liveSurfaceOf is the surface a live region paints on: the configured
+// terminal, unless it cannot paint one or the run is plain.
+func liveSurfaceOf(cfg config) live.Surface {
+	if cfg.plain {
+		return nil
+	}
+	return live.SurfaceOf(cfg.terminal)
 }
 
 // localeAdvertisesUTF8 checks LC_ALL, then LC_CTYPE, then LANG (POSIX
@@ -829,6 +843,11 @@ func (o *Run) writeStreamJSONLocked(e recEvent) {
 // appendTaskLocked adds st to the run's Tasks in declaration order. Caller
 // must hold o.mu.
 func (o *Run) appendTaskLocked(st *taskState) {
+	in := ""
+	if col := st.collection(); col != nil {
+		in = col.id
+	}
+	o.board.DeclareTask(st.node.TaskID(), st.name, st.node.Rec, in)
 	o.tasks = append(o.tasks, st)
 	if st.collection() == nil {
 		o.rootTasks = append(o.rootTasks, st)
@@ -867,10 +886,6 @@ func (o *Run) hasRecordedEffectLocked(taskID string) bool {
 }
 
 // --- folded from listener.go ---
-
-// declaredState is the state a Task is declared in, and so the state the
-// render state first follows it from.
-const declaredState = pending
 
 // The engine's render state follows the record by pulling, never by being
 // pushed. A write to the record logs its Task while the record's lock is
@@ -928,11 +943,13 @@ func (o *Run) pullRecordLocked() {
 		if st == nil {
 			continue
 		}
-		st.markFiling()
-		st.censusSync()
+		to, followed := o.board.Follow(id)
+		if !followed {
+			to = st.node.Rec.State()
+		}
 		if st.node.Rec.IsSettled() && !st.settleAnswered {
 			st.settleAnswered = true
-			o.settles = append(o.settles, settleReaction{st: st, to: st.followed})
+			o.settles = append(o.settles, settleReaction{st: st, to: to})
 		}
 	}
 }
@@ -958,13 +975,11 @@ func (o *Run) taskSettledLocked(st *taskState, to entityState) {
 		o.bumpLocked()
 		return
 	}
-	st.markFiling()
+	o.board.Changed(st.node.TaskID())
 	o.stopPlainHeartbeatLocked(st)
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "task." + string(to), EntityID: st.id})
 }
-
-// --- folded from live.go ---
 
 type taskState struct {
 	id string
@@ -974,19 +989,9 @@ type taskState struct {
 	node   *graph.Task
 	name   string
 	handle *Task
+	// board holds the Task's live row: its first paint and live tail.
+	board *live.Board
 
-	// liveFirstSeenAt is the domain-clock time this task was first actually
-	// painted in the live region (see taskState.stampLiveFirstSeen in live.go) —
-	// the one elapsed-time anchor every row's heartbeat suffix reads (P5),
-	// including a Pending task, which never calls Phase/Progress.
-	liveFirstSeenAt time.Time
-
-	// followed is the state the render state last accounted for: the live
-	// census counts the Task under it, and a later difference from the
-	// record's state is what followRecordLocked reacts to. A Task starts
-	// followed as declaredState, so a Task settled before the engine ever
-	// saw it still gets its first reaction.
-	followed entityState
 	// settleAnswered is set once the render work a settle owes was queued.
 	settleAnswered bool
 	// runningAnnounced is set once the render work becoming Running owes was
@@ -1000,15 +1005,8 @@ type taskState struct {
 	// not held back like a sibling's.
 	ownsWindow bool
 
-	// filing is where this Task stands in its collection's childIndex.
-	filing filing
-
 	// heartbeat is the §40 plain-mode durable heartbeat's state.
 	heartbeat plainHeartbeat
-
-	// tail is the bounded window of Writer lines a live frame draws beneath
-	// this row; evidence above stays the full record.
-	tail liveTail
 
 	// Emission bookkeeping so terminal standalone tasks stream in plain mode
 	// on resolve (P2).
@@ -1038,19 +1036,10 @@ type tasksState struct {
 	name   string
 	handle *Group
 
-	// kids is what a live frame and the verdict read of tasks.
-	kids childIndex
-
 	// runningSteps holds the children promoteRunningLocked moved to
 	// Running that may still be Running (pruned on each promotion), so the
 	// "one Running child" check never rescans every step.
 	runningSteps []*taskState
-
-	// census counts its descendant Tasks for the live frame (liveCensus).
-	census liveCensus
-	// hasNamesake records that a child Task carries this container's own
-	// name, the only way it can render as its own Task (liveOwnRow).
-	hasNamesake bool
 }
 
 // A container's members belong to the graph: it declared them, in order, and
@@ -1060,11 +1049,6 @@ type tasksState struct {
 
 // taskCount is how many Tasks g declared directly.
 func (g *tasksState) taskCount() int { return g.node.TaskCount() }
-
-// taskAt is the render state of the Task g declared at position pos.
-func (g *tasksState) taskAt(pos int) *taskState {
-	return g.out.taskStates[g.node.TaskAt(pos).ID]
-}
 
 // taskStates are the render states of the Tasks g declared directly, in
 // declaration order.
@@ -1088,14 +1072,6 @@ func (g *tasksState) childStates() []*tasksState {
 	return states
 }
 
-// parent is the container g is nested in, nil at the root.
-func (g *tasksState) parent() *tasksState {
-	if g.node.Parent == nil {
-		return nil
-	}
-	return g.out.containerStates[g.node.Parent.ID]
-}
-
 // collection is the container st was declared under, nil for a root Task.
 func (st *taskState) collection() *tasksState {
 	if st.node.Parent == nil {
@@ -1104,231 +1080,49 @@ func (st *taskState) collection() *tasksState {
 	return st.handle.out.containerStates[st.node.Parent.ID]
 }
 
-// LiveSurface is an interactive terminal sink for live-region rendering.
-// testkit.Screen implements this; production drivers can as well.
-type liveSurface interface {
-	terminalDriver
-	Columns() int
-	Rows() int
-	IsInteractive() bool
-	WriteLive(text string)
-	ClearLive()
-	WriteDurable(line string)
-	WriteFinal(text string)
+// liveScene is what the live engine reads of this run.
+type liveScene struct{ o *Run }
+
+func (s liveScene) Ended() bool { return s.o.closed || s.o.finished }
+
+func (s liveScene) Resized(width int) { s.o.cfg.width = width }
+
+// Pane is the debug pane (§21.3.2) a frame draws under its rows.
+func (s liveScene) Pane(width, height int) (string, int) {
+	o := s.o
+	recorded := o.rec.DebugRecordCount()
+	if o.cfg.debugPresentation != debugPresentationPane || recorded == 0 {
+		return "", 0
+	}
+	var pane strings.Builder
+	writeDebugPane(&pane, o.rec.DebugRecordTail(o.cfg.debugPane.rows()), o.cfg.debugPane, width, o.humanStyle().Color)
+	return pane.String(), min(debugPaneReservedRows(o.cfg.debugPane, recorded), height-1)
 }
 
-// asLive returns a LiveSurface when the configured terminal supports it.
-func asLive(d terminalDriver) liveSurface {
-	if d == nil {
-		return nil
-	}
-	if ls, ok := d.(liveSurface); ok {
-		return ls
-	}
-	return nil
+// boardSource is what the live board reads of this run's Tasks and
+// collections.
+type boardSource struct{ o *Run }
+
+func (s boardSource) Pull() { s.o.pullRecordLocked() }
+
+func (s boardSource) View(id record.TaskID) record.TaskSnapshot {
+	return s.o.taskStates[string(id)].view()
 }
 
-type liveEngine struct {
-	surface liveSurface
-	visible bool
-	// quiesced counts the open Suspend windows (guarded by o.mu): while any
-	// is open nothing is painted, and no signal makes the region visible.
-	quiesced int
-	// heldText is the durable text that settled while a window was open
-	// (guarded by o.mu), in arrival order: the window owns the terminal, so
-	// it prints once the last window closes.
-	heldText []string
-
-	// paintMu serializes writes to the surface and guards what describes
-	// them. Lock order is o.mu, then paintMu; a paint never takes o.mu
-	// while holding it.
-	paintMu      sync.Mutex
-	lastLiveText string
-	liveActive   bool
-	floorSeq     uint64 // frames at or below it were snapshotted before a clear
-	paintedSeq   uint64 // the newest frame that reached paint
-
-	// seq numbers frames in snapshot order; guarded by o.mu.
-	seq uint64
-
-	// lastRender is the domain time of the last write (nil: never painted),
-	// lastWrite the wall time it began.
-	lastRender    atomic.Pointer[time.Time]
-	lastWrite     atomic.Pointer[time.Time]
-	pendingRedraw atomic.Bool
-
-	// meter and skippedGlyph back the animator's overload backpressure.
-	meter        frameMeter
-	skippedGlyph atomic.Int64
-
-	// activitySince is set when live activity first appears; VisibilityDelay
-	// withholds the first paint until the domain clock advances past the delay
-	// (force terminal outcomes bypass the delay).
-	activitySince time.Time
-	waitingDelay  bool
-
-	// anim drives independent spinner ticks while any task is Running,
-	// so indeterminate rows animate even when determinate bars are idle.
-	// Also used to promote visibility once VisibilityDelay elapses.
-	animMu      sync.Mutex
-	animRunning bool
-	animStop    chan struct{}
-
-	// resizeArmed is true when SIGWINCH watch is registered on the surface.
-	resizeArmed bool
-
-	// forced meters the render work forced paints spent in the current
-	// frame interval.
-	forced renderBudget
+func (s boardSource) Snapshot(id record.TaskID) record.TaskSnapshot {
+	return s.o.taskStates[string(id)].snapshot()
 }
 
-func (o *Run) liveLocked() liveSurface {
-	if o.cfg.plain {
-		return nil
-	}
-	return asLive(o.cfg.terminal)
+func (s boardSource) Header(id string) record.TasksSnapshot {
+	return s.o.containerStates[id].header()
 }
 
-// signalLiveLocked marks that interactive presentation may need a redraw.
-// force=true bypasses frame-rate coalescing only (not VisibilityDelay).
-// VisibilityDelay withholds the first live paint after activity starts, except
-// a newly declared Running task always paints (FP-005: spinner before check).
-func (o *Run) signalLiveLocked(force bool) {
-	live := o.liveLocked()
-	if live == nil || !live.IsInteractive() {
-		return
-	}
-	if o.live == nil {
-		o.live = &liveEngine{surface: live}
-		o.startResizeWatchLocked(live)
-	}
-	if o.live.quiesced > 0 {
-		return
-	}
-	now := o.cfg.clock.Now()
-	if !o.visibilitySettledLocked(now) && o.hasLiveActivityLocked() {
-		if o.live.activitySince.IsZero() {
-			o.live.activitySince = now
-		}
-		delay := o.cfg.visibilityDelay
-		// delay <= 0 means immediate (tests use visibilityDelay(0)). A newly
-		// declared Running task bypasses the delay so the first frame is a
-		// spinner, not a popup-complete check (FP-005).
-		if delay <= 0 || now.Sub(o.live.activitySince) >= delay || o.hasUnpaintedRunningLocked() || o.armedTitleLiveLocked() {
-			o.live.visible = true
-			o.live.waitingDelay = false
-		} else {
-			o.live.waitingDelay = true
-			// Wall ticker re-checks delay; fixedClock tests re-enter after Advance.
-			o.ensureSpinnerAnimatorLocked()
-			return
-		}
-	}
-	if !o.live.visible {
-		return
-	}
-	lastRender := o.live.lastRender.Load()
-	if lastRender != nil && len(o.tasks) > forcedRenderRowsPerInterval {
-		// Past the forced budget's row count the animator owns painting: it
-		// ticks every spinner period while anything is unresolved, so workers
-		// never render inline. The first paint and every direct
-		// renderLiveLocked caller (finish, suspend, durable redraw) stay
-		// synchronous. The gate counts Tasks, not time, so it is deterministic.
-		o.live.pendingRedraw.Store(true)
-		o.ensureSpinnerAnimatorLocked()
-		return
-	}
-	minGap := time.Second / time.Duration(max(1, o.cfg.maxFrameRate))
-	if force && !o.live.forced.allow(now, minGap, len(o.tasks)) {
-		force = false
-	}
-	if !force && lastRender != nil {
-		if now.Sub(*lastRender) < minGap {
-			// The animator paints the coalesced change on its next tick.
-			o.live.pendingRedraw.Store(true)
-			o.ensureSpinnerAnimatorLocked()
-			return
-		}
-	}
-	o.renderLiveLocked(force)
-	o.ensureSpinnerAnimatorLocked()
+func (s boardSource) Emitted(id record.TaskID) bool {
+	return s.o.taskStates[string(id)].coreEmitted
 }
 
-// visibilitySettledLocked reports whether VisibilityDelay can no longer
-// withhold a paint: the region is visible and the delay since activity
-// began has elapsed. Past that point the activity scan decides nothing,
-// and skipping it keeps each signal from walking every Task.
-func (o *Run) visibilitySettledLocked(now time.Time) bool {
-	return o.live.visible && !o.live.activitySince.IsZero() &&
-		(o.cfg.visibilityDelay <= 0 || now.Sub(o.live.activitySince) >= o.cfg.visibilityDelay)
-}
-
-// holdRunningPaint keeps a Running row on screen for one spinner period so a
-// fast bind cannot resolve in the same tick the spinner was painted — the
-// viewer would otherwise see a popup-complete check (FP-005). Skipped when
-// the clock is not the wall clock (tests inject Clock) or the surface is
-// not an interactive live terminal.
-func (o *Run) holdRunningPaint(id string) {
-	o.mu.Lock()
-	if _, ok := o.cfg.clock.(clock.Wall); !ok {
-		o.mu.Unlock()
-		return
-	}
-	live := o.liveLocked()
-	if live == nil || !live.IsInteractive() {
-		o.mu.Unlock()
-		return
-	}
-	st := o.taskStates[id]
-	if st == nil || st.node.Rec.State() != running {
-		o.mu.Unlock()
-		return
-	}
-	seen := st.liveFirstSeenAt
-	o.mu.Unlock()
-	wait := txt.SpinnerPeriod
-	if !seen.IsZero() {
-		wait = txt.SpinnerPeriod - wall.Since(seen)
-	}
-	if wait > 0 {
-		wall.Sleep(wait)
-	}
-}
-
-func (o *Run) hasUnpaintedRunningLocked() bool {
-	for _, t := range o.tasks {
-		if t.node.Rec.State() == running && t.liveFirstSeenAt.IsZero() {
-			return true
-		}
-	}
-	return false
-}
-
-func (o *Run) hasLiveActivityLocked() bool {
-	for _, t := range o.tasks {
-		// Pending counts too: a declared task renders its named "○" row
-		// immediately (evo-rec.md "predeclare Tasks; ... others named
-		// idle") — VisibilityDelay withholds the *spinner flash* for
-		// near-instant work, not the fact that a task now exists.
-		if t.node.Rec.State() == running || t.node.Rec.State() == pending || t.node.Rec.Phase() != "" {
-			return true
-		}
-		if t.node.Rec.Progress().Kind == determinate || t.node.Rec.Progress().Kind == bytesKind {
-			if t.node.Rec.State() == running || t.node.Rec.State().Succeeded() || t.node.Rec.State() == failed {
-				return true
-			}
-		}
-	}
-	// Armed-but-empty: Init promised a paint before any entity exists. Once
-	// the first Task/Tasks is declared, its own state drives activity.
-	return o.armedTitleLiveLocked()
-}
-
-// armedTitleLiveLocked is the title-only live spinner painted by arm() before
-// any Task exists. hasLiveActivityLocked and needsSpinnerAnimLocked must agree
-// on this predicate — otherwise the header spinner is shown and then frozen.
-func (o *Run) armedTitleLiveLocked() bool {
-	return o.armed && len(o.tasks) == 0 && len(o.collections) == 0
+func (s boardSource) HeldBack(view *record.TaskSnapshot) bool {
+	return s.o.heldBackAsNoOpLocked(*view)
 }
 
 // arm marks the live surface as ready to paint before any entity is declared,
@@ -1340,661 +1134,9 @@ func (o *Run) arm() {
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if o.armed {
-		return
+	if o.board.Arm() {
+		o.live.Signal(false)
 	}
-	o.armed = true
-	o.signalLiveLocked(false)
-}
-
-func (o *Run) renderLiveLocked(force bool) {
-	live := o.liveLocked()
-	if live == nil || o.live == nil || !o.live.visible || o.live.quiesced > 0 {
-		return
-	}
-	o.paintFrameLocked(live)
-}
-
-// needsSpinnerAnimLocked reports whether any live row should keep ticking: the
-// armed title-only spinner, or a Pending/Running task still rendered in the
-// current frame — not a standalone task already flushed to durable text and
-// dropped from the ticker (see liveSnapshotLocked's matching filter).
-// Counting only Running here used to let an all-Pending frame freeze forever
-// (evo-rec.md Problem 9). Omitting the armed title froze "⠦  zq" during
-// Init-to-first-Task work (ensureReady, fingerprint, Inspect).
-func (o *Run) needsSpinnerAnimLocked() bool {
-	if o.armedTitleLiveLocked() {
-		return true
-	}
-	for _, col := range o.collections {
-		if census := col.currentCensus(); census.running+census.pending > 0 {
-			return true
-		}
-	}
-	for _, t := range o.rootTasks {
-		if (t.node.Rec.State() == running || t.node.Rec.State() == pending) && !t.coreEmitted {
-			return true
-		}
-	}
-	return false
-}
-
-// ensureSpinnerAnimatorLocked starts a background tick that re-renders the live
-// region so indeterminate spinners advance without waiting for Progress calls,
-// and that promotes visibility once VisibilityDelay elapses.
-func (o *Run) ensureSpinnerAnimatorLocked() {
-	if o.live == nil || o.finished || o.closed {
-		return
-	}
-	// A running animator re-checks needsSpinnerAnimLocked on every tick and
-	// stops itself, so skip that O(n) scan on each signal while it runs.
-	o.live.animMu.Lock()
-	running := o.live.animRunning
-	o.live.animMu.Unlock()
-	if running {
-		return
-	}
-	// Waiting for delay: keep a ticker so we can paint when the threshold elapses.
-	switch {
-	case o.live.waitingDelay:
-		// fall through to start animator
-	case !o.live.visible:
-		return
-	case !o.needsSpinnerAnimLocked() && !o.live.pendingRedraw.Load():
-		o.stopSpinnerAnimatorLocked()
-		return
-	}
-	o.live.animMu.Lock()
-	if o.live.animRunning {
-		o.live.animMu.Unlock()
-		return
-	}
-	stop := make(chan struct{})
-	o.live.animStop = stop
-	o.live.animRunning = true
-	o.live.animMu.Unlock()
-	go o.spinnerAnimateLoop(stop)
-}
-
-func (o *Run) stopSpinnerAnimatorLocked() {
-	if o.live == nil {
-		return
-	}
-	o.live.animMu.Lock()
-	if o.live.animRunning && o.live.animStop != nil {
-		close(o.live.animStop)
-		o.live.animStop = nil
-		o.live.animRunning = false
-	}
-	o.live.animMu.Unlock()
-}
-
-// resizeWatcher is implemented by terminal.ANSI (SIGWINCH) and no-ops elsewhere.
-type resizeWatcher interface {
-	StartResizeWatch(onResize func())
-	StopResizeWatch()
-}
-
-// startResizeWatchLocked arms SIGWINCH → RefreshSize + forced live redraw.
-func (o *Run) startResizeWatchLocked(live liveSurface) {
-	w, ok := live.(resizeWatcher)
-	if !ok || o.live == nil || o.live.resizeArmed {
-		return
-	}
-	o.live.resizeArmed = true
-	w.StartResizeWatch(func() {
-		o.mu.Lock()
-		defer o.mu.Unlock()
-		if o.closed || o.finished || o.live == nil || !o.live.visible {
-			return
-		}
-		o.signalLiveLocked(true)
-	})
-}
-
-func (o *Run) stopResizeWatchLocked() {
-	if o.live == nil || !o.live.resizeArmed {
-		return
-	}
-	if w, ok := o.live.surface.(resizeWatcher); ok {
-		w.StopResizeWatch()
-	}
-	o.live.resizeArmed = false
-}
-
-func (o *Run) spinnerAnimateLoop(stop <-chan struct{}) {
-	// Real wall timer: spinner cadence is independent of the domain clock and
-	// of Progress/Phase call rate. Domain clock still selects the glyph frame
-	// (fixedClock freezes animation for golden tests).
-	t := wall.NewTimer(untilNextSpinnerSlot(wall.Now()))
-	defer t.Stop()
-	for {
-		select {
-		case <-stop:
-			return
-		case <-t.C:
-			t.Reset(untilNextSpinnerSlot(wall.Now()))
-			o.mu.Lock()
-			next := o.animatorTickLocked()
-			if next == tickPaint || next == tickFlush {
-				o.paintFrameUnlocked(o.live.surface)
-			}
-			o.mu.Unlock()
-			if next == tickStop || next == tickFlush {
-				return
-			}
-		}
-	}
-}
-
-// animatorStep is what one animator tick decided.
-type animatorStep int
-
-const (
-	tickContinue animatorStep = iota // nothing to paint; keep ticking
-	tickStop                         // nothing to paint; the animator has stopped
-	tickPaint                        // paint a frame, keep ticking
-	tickFlush                        // paint the last coalesced change; the animator has stopped
-)
-
-// animatorTickLocked decides one tick: it settles visibility and stops the
-// animator when nothing is left to animate, and skips a glyph-only repaint
-// while an overloaded surface was written too recently to need it.
-func (o *Run) animatorTickLocked() animatorStep {
-	if o.closed || o.finished || o.live == nil {
-		o.stopSpinnerAnimatorLocked()
-		return tickStop
-	}
-	if o.live.quiesced > 0 {
-		return tickContinue
-	}
-	// Promote visibility after VisibilityDelay using domain clock.
-	if o.live.waitingDelay && o.hasLiveActivityLocked() {
-		delay := o.cfg.visibilityDelay
-		now := o.cfg.clock.Now()
-		if delay <= 0 || now.Sub(o.live.activitySince) >= delay {
-			o.live.visible = true
-			o.live.waitingDelay = false
-			o.renderLiveLocked(true)
-		}
-		return tickContinue
-	}
-	if !o.live.visible {
-		o.stopSpinnerAnimatorLocked()
-		return tickStop
-	}
-	if !o.needsSpinnerAnimLocked() {
-		o.stopSpinnerAnimatorLocked()
-		// Paint the last coalesced change before going quiet, so
-		// the frame on screen is never older than the run.
-		if o.live.pendingRedraw.Load() {
-			return tickFlush
-		}
-		return tickStop
-	}
-	if !o.live.pendingRedraw.Load() && o.live.shouldSkipGlyph() {
-		o.live.skippedGlyph.Add(1)
-		return tickContinue
-	}
-	// Force redraw so time-based spinner glyphs advance.
-	return tickPaint
-}
-
-// spinnerSlotSettle is how far past a glyph-slot boundary the animator
-// wakes, so the paint reads the new slot despite wall-clock slew.
-const spinnerSlotSettle = time.Millisecond
-
-// untilNextSpinnerSlot is the wait from now to just past the next boundary
-// of txt.SpinnerGlyph's slots. A free-running ticker has an arbitrary phase
-// against those slots: two ticks could read the same glyph, the identical
-// frame would be skipped, and a quiet Running row would sit stale for two
-// periods. Waking once per slot makes every wake a changed frame.
-func untilNextSpinnerSlot(now time.Time) time.Duration {
-	period := int64(txt.SpinnerPeriod)
-	return time.Duration(period-now.UnixNano()%period) + spinnerSlotSettle
-}
-
-// stampLiveFirstSeen anchors an unresolved task's heartbeat clock to the
-// moment it is actually painted in the live region for the first time —
-// never to declaration time, so a task declared up-front but not yet visible
-// does not appear pre-aged the instant it is finally shown (evo-rec.md
-// Problem 9). A no-op once set: the field only ever moves from zero once.
-// liveSnapshotLocked calls it on every Task as it builds a frame.
-func (t *taskState) stampLiveFirstSeen(now time.Time) {
-	if t.unstampedIn(t.node.Rec.State()) {
-		t.liveFirstSeenAt = now
-		t.markFiling()
-		t.censusStamped()
-	}
-}
-
-func (o *Run) debugLiveLocked(line string) {
-	live := o.liveLocked()
-	if live == nil || !live.IsInteractive() {
-		return
-	}
-	if o.live == nil {
-		o.live = &liveEngine{surface: live}
-	}
-	o.live.clear(live)
-	live.WriteDurable(line)
-	if o.live.visible && o.hasLiveActivityLocked() {
-		o.renderLiveLocked(true)
-	}
-}
-
-func (o *Run) finishLiveLocked(final string) {
-	live := o.liveLocked()
-	if live == nil || !live.IsInteractive() {
-		return
-	}
-	o.stopSpinnerAnimatorLocked()
-	if o.live != nil && o.live.clear(live) {
-		o.live.visible = false
-	}
-	// H.17 expects a compact final task line, not the full multi-section report.
-	live.WriteFinal(strings.TrimRight(final, "\n"))
-}
-
-// liveSnapshotLocked is what a live frame of rows rows draws from: the
-// effect sections, and every collection and standalone root Task as far
-// as the frame could show it (live.LiveChildren), so building a frame
-// snapshots the rows on screen rather than every Task in the run. A root
-// Task already durably flushed by commitResolvedTaskLocked (a never-ran
-// "fact-check" resolution — see its doc comment) is left out: it would
-// otherwise reappear on the next unrelated redraw and double-print.
-func (o *Run) liveSnapshotLocked(rows int, now time.Time) snapshot {
-	var s snapshot
-	s.Changes = o.rec.ChangeSnapshots()
-	s.Plans = o.rec.PlanSnapshots()
-	cols := liveCollections(o.collections, rows, now)
-	s.Collections = cols.Kept()
-	s = txt.WithRootCollectionTally(s, cols.Tally())
-	root := live.NewLiveChildren("", rows)
-	for _, t := range o.rootTasks {
-		t.stampLiveFirstSeen(now)
-		view := t.view()
-		if t.coreEmitted || o.heldBackAsNoOpLocked(view) {
-			continue
-		}
-		if root.Admit(&view) {
-			root.Keep(t.snapshot())
-		}
-	}
-	tasks := root.Collection(tasksSnapshot{})
-	s.Tasks = tasks.Tasks
-	if tally, ok := txt.ChildTallyOf(tasks); ok {
-		s = txt.WithRootTally(s, tally)
-	}
-	return s
-}
-
-// --- folded from live_audit.go ---
-
-// liveIndexAudit, when set, checks every live frame a collection builds
-// from its childIndex against the frame a walk of every child builds. The
-// tests set it, so each live test of the engine also proves the index
-// current at every mutation site.
-//
-// rev is the record's revision before the frame was built: an audit that
-// finds the record written since compares two different runs of it, and
-// skips.
-var liveIndexAudit func(g *tasksState, rows int, now time.Time, got tasksSnapshot, rev uint64)
-
-// --- folded from live_census.go ---
-
-// liveCensus counts every Task at or below one collection by what a live
-// frame ranks and tallies it on. Each Task transition moves the census of
-// every collection above it, so a frame can rank and tally a collection it
-// cannot show without walking it: a Group of per-item Groups costs a frame
-// what the screen shows, not what the run holds (E-091, E-096).
-//
-// slice 6: one of three counters of a collection's descendants by state, with
-// the graph's tally and stateCounts; they fold into one count owned by txt.
-type liveCensus struct {
-	total, done, running, pending, unfinished, failed, warned int
-	// unstamped counts Running or Pending Tasks no frame has painted yet
-	// (taskState.stampLiveFirstSeen), so a frame skips a subtree with none.
-	unstamped int
-	// earliestSeen is the earliest liveFirstSeenAt below; nameWidth the
-	// widest Task name, in runes.
-	earliestSeen time.Time
-	nameWidth    int
-}
-
-// counts is the census as the tally a live projection keeps.
-func (c *liveCensus) counts() txt.ChildCounts {
-	return txt.ChildCounts{
-		Total: c.total, Done: c.done,
-		Running: c.running > 0, Pending: c.pending > 0, Unfinished: c.unfinished > 0,
-		EarliestSeen: c.earliestSeen, NameWidth: c.nameWidth,
-	}
-}
-
-// rank is the attention rank of the census' most urgent Task.
-func (c *liveCensus) rank() int {
-	return live.AttentionRank(c.failed > 0, c.warned > 0, c.running > 0, c.pending > 0)
-}
-
-// count moves the per-state counts of one Task in state by delta.
-func (c *liveCensus) count(state entityState, delta int) {
-	switch state {
-	case succeeded, record.Satisfied, excluded:
-		c.done += delta
-	case running:
-		c.running += delta
-	case pending:
-		c.pending += delta
-	case failed:
-		c.failed += delta
-	}
-	if !record.IsTerminalTask(state) {
-		c.unfinished += delta
-	}
-}
-
-// seen folds a liveFirstSeenAt stamp into earliestSeen.
-func (c *liveCensus) seen(at time.Time) {
-	if !at.IsZero() && (c.earliestSeen.IsZero() || at.Before(c.earliestSeen)) {
-		c.earliestSeen = at
-	}
-}
-
-// censusesAbove calls fn on the census of every collection t sits under.
-func (t *taskState) censusesAbove(fn func(*liveCensus)) {
-	for c := t.collection(); c != nil; c = c.parent() {
-		fn(&c.census)
-	}
-}
-
-// unstamped reports whether t, in state, is a live row no frame painted.
-func (t *taskState) unstampedIn(state entityState) bool {
-	return (state == running || state == pending) && t.liveFirstSeenAt.IsZero()
-}
-
-// currentCensus is g's census after following the record, so it counts
-// every Task by the state the record holds now.
-func (g *tasksState) currentCensus() *liveCensus {
-	g.out.pullRecordLocked()
-	return &g.census
-}
-
-// censusDeclared counts a newly declared Task under the state it was
-// declared in; censusSync moves it from there.
-func (t *taskState) censusDeclared() {
-	width := utf8.RuneCountInString(t.name)
-	unstamped := t.unstampedIn(t.followed)
-	t.censusesAbove(func(c *liveCensus) {
-		c.total++
-		c.count(t.followed, 1)
-		if t.node.Rec.WarningCount() > 0 {
-			c.warned++
-		}
-		if unstamped {
-			c.unstamped++
-		}
-		c.nameWidth = max(c.nameWidth, width)
-		c.seen(t.liveFirstSeenAt)
-	})
-}
-
-// censusSync moves t from the state the census counts it under to the state
-// the record holds now. Moving by the counted state, not by the transition a
-// notification named, keeps the census right however late or how often the
-// record tells of a change.
-func (t *taskState) censusSync() {
-	from, to := t.followed, t.node.Rec.State()
-	if from == to {
-		return
-	}
-	t.followed = to
-	stampDelta := boolDelta(t.unstampedIn(to)) - boolDelta(t.unstampedIn(from))
-	t.censusesAbove(func(c *liveCensus) {
-		c.count(from, -1)
-		c.count(to, 1)
-		c.unstamped += stampDelta
-	})
-}
-
-// censusStamped records t's first live paint.
-func (t *taskState) censusStamped() {
-	t.censusesAbove(func(c *liveCensus) {
-		c.unstamped--
-		c.seen(t.liveFirstSeenAt)
-	})
-}
-
-// censusWarned records t's first warning.
-func (t *taskState) censusWarned() {
-	t.censusesAbove(func(c *liveCensus) { c.warned++ })
-}
-
-func boolDelta(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
-}
-
-// liveOwnRow is the name g's one row renders under when it renders as its
-// own Task, or "". Only a Group holding a Task of its own name can, so
-// every other Group answers without being walked.
-func (g *tasksState) liveOwnRow() string {
-	if !g.hasNamesake {
-		return ""
-	}
-	return live.OwnRowName(g.view())
-}
-
-// --- folded from live_meter.go ---
-
-// renderBudget bounds the render work forced paints may spend in one
-// frame interval. A forced paint renders the whole live region — every
-// Task, not only the rows on screen — so forcing one per scheduler
-// transition cost O(n) per Task and O(n²) per run (4000 Tasks: 46.9s).
-// Under the budget every transition still paints, which is what a small
-// run and FP-005's spinner-before-check need; past it, forced paints
-// coalesce under the frame-rate cap and the animator paints the latest
-// state on its next tick.
-type renderBudget struct {
-	since time.Time
-	spent int
-}
-
-// forcedRenderRowsPerInterval is the budget, in Task rows rendered, forced
-// paints may spend per frame interval.
-const forcedRenderRowsPerInterval = 4096
-
-// allow reports whether a forced paint of rows fits the budget at now, and
-// charges it when it does.
-func (b *renderBudget) allow(now time.Time, interval time.Duration, rows int) bool {
-	if b.since.IsZero() || now.Sub(b.since) >= interval {
-		b.since, b.spent = now, 0
-	}
-	if b.spent > 0 && b.spent+rows > forcedRenderRowsPerInterval {
-		return false
-	}
-	b.spent += rows
-	return true
-}
-
-// frameMeter remembers what the last live frame cost in wall time, from
-// snapshot through write. Workers and the animator both report to it.
-type frameMeter struct{ last atomic.Int64 }
-
-func (m *frameMeter) observe(d time.Duration) { m.last.Store(int64(d)) }
-
-func (m *frameMeter) cost() time.Duration { return time.Duration(m.last.Load()) }
-
-const (
-	// frameCostBudget is the most a frame may cost before the animator
-	// treats the surface as overloaded: a quarter of a spinner period.
-	frameCostBudget = txt.SpinnerPeriod / 4
-
-	// liveStaleCeiling is the longest a Running row's visible frame may stay
-	// unchanged (§14), as txt.SpinnerPeriod's doc states it.
-	liveStaleCeiling = 100 * time.Millisecond
-
-	// glyphSkipMargin is the slack kept under liveStaleCeiling for timer
-	// and scheduling jitter.
-	glyphSkipMargin = 20 * time.Millisecond
-)
-
-// skipGlyphRepaint reports whether the animator may skip this tick's
-// glyph-only repaint: the last frame cost more than frameCostBudget and the
-// screen was written so recently that the next tick still lands inside
-// liveStaleCeiling. After a skip sinceWrite is at least one period, so it
-// never skips twice in a row and cannot break the 100ms rule.
-func skipGlyphRepaint(lastCost, sinceWrite time.Duration) bool {
-	if lastCost <= frameCostBudget {
-		return false
-	}
-	return sinceWrite+txt.SpinnerPeriod+spinnerSlotSettle+glyphSkipMargin < liveStaleCeiling
-}
-
-// shouldSkipGlyph applies skipGlyphRepaint to the engine's last frame and
-// last write. A surface never written to is never skipped.
-func (l *liveEngine) shouldSkipGlyph() bool {
-	written := l.lastWrite.Load()
-	if written == nil {
-		return false
-	}
-	return skipGlyphRepaint(l.meter.cost(), wall.Since(*written))
-}
-
-// --- folded from live_paint.go ---
-
-// liveFrame is a live region as o.mu saw it: everything render needs, owned
-// by the frame. Its Snapshot is built from clones (see taskState.snapshot),
-// so rendering it after o.mu is released cannot race a mutating Task.
-type liveFrame struct {
-	surface       liveSurface
-	seq           uint64
-	snap          snapshot
-	width, height int
-	now           time.Time
-	style         txt.Style
-	subject       string
-	armedTitle    bool
-	pane          string
-}
-
-// liveFrameLocked snapshots the live region for surface and stamps it with
-// the next paint sequence number.
-func (o *Run) liveFrameLocked(surface liveSurface) liveFrame {
-	// Refresh geometry before layout when the driver supports it (ANSI + real TTY).
-	if r, ok := surface.(interface{ RefreshSize() }); ok {
-		r.RefreshSize()
-	}
-	cols, rows := surface.Columns(), surface.Rows()
-	// Keep config width in sync for plain residual paths that still use cfg.text.
-	if cols > 0 {
-		o.cfg.width = cols
-	}
-	f := o.liveFrameAtLocked(cols, rows, o.cfg.clock.Now())
-	o.live.seq++
-	f.seq = o.live.seq
-	f.surface = surface
-	return f
-}
-
-// liveFrameAtLocked is the under-lock half of a live frame: the snapshot
-// and the debug pane (§21.3.2), which is text already.
-func (o *Run) liveFrameAtLocked(width, height int, now time.Time) liveFrame {
-	style := o.humanStyle()
-	bodyHeight := height
-	var pane strings.Builder
-	if recorded := o.rec.DebugRecordCount(); o.cfg.debugPresentation == debugPresentationPane && recorded > 0 {
-		// Reserve rows for pane heading + visible records before budgeting the body.
-		paneRows := min(debugPaneReservedRows(o.cfg.debugPane, recorded), height-1)
-		bodyHeight = max(height-max(paneRows, 0), 1)
-		writeDebugPane(&pane, o.rec.DebugRecordTail(o.cfg.debugPane.rows()), o.cfg.debugPane, width, style.Color)
-	}
-	return liveFrame{
-		snap:       o.liveSnapshotLocked(bodyHeight, now),
-		width:      width,
-		height:     bodyHeight,
-		now:        now,
-		style:      style,
-		subject:    o.cfg.subject,
-		armedTitle: o.armedTitleLiveLocked(),
-		pane:       pane.String(),
-	}
-}
-
-// render is the lock-free half: the frame's text.
-func (f liveFrame) render() string {
-	body := live.LiveRegion(f.snap, f.height, f.width, f.now, f.style)
-	if body == "" && f.armedTitle {
-		body = live.ArmedTitleLine(f.subject, f.now, f.style)
-	}
-	if f.pane == "" {
-		return live.FitLiveRegion(body, f.width)
-	}
-	return live.FitLiveRegion(strings.TrimRight(body+f.pane, "\n"), f.width)
-}
-
-// paint writes f unless a newer frame or a clear has superseded it, and
-// reports whether it wrote. Identical bytes skip WriteLive: force bypasses
-// min-gap coalescing, but a spinner tick that reads the same glyph changes
-// nothing on screen.
-func (l *liveEngine) paint(f liveFrame, text string) bool {
-	l.paintMu.Lock()
-	defer l.paintMu.Unlock()
-	if f.seq <= l.floorSeq || f.seq < l.paintedSeq {
-		return false
-	}
-	l.paintedSeq = f.seq
-	if text == l.lastLiveText && l.liveActive {
-		return false
-	}
-	start := wall.Now()
-	l.lastWrite.Store(&start)
-	f.surface.WriteLive(text)
-	l.lastLiveText = text
-	l.liveActive = true
-	l.lastRender.Store(&f.now)
-	l.pendingRedraw.Store(false)
-	return true
-}
-
-// clear removes the live region from surface and reports whether one was on
-// screen. The caller holds o.mu, so seq is stable: every frame snapshotted
-// before this call is dropped, and an unlocked paint still in flight can
-// never land after a ClearLive, WriteDurable or WriteFinal.
-func (l *liveEngine) clear(surface liveSurface) bool {
-	l.paintMu.Lock()
-	defer l.paintMu.Unlock()
-	l.floorSeq = l.seq
-	if !l.liveActive {
-		return false
-	}
-	surface.ClearLive()
-	l.liveActive = false
-	l.lastLiveText = ""
-	return true
-}
-
-// paintFrameLocked snapshots, renders and writes one frame under o.mu: a
-// caller that needs the frame on screen when it returns.
-func (o *Run) paintFrameLocked(surface liveSurface) {
-	start := wall.Now()
-	f := o.liveFrameLocked(surface)
-	o.live.paint(f, f.render())
-	o.live.meter.observe(wall.Since(start))
-}
-
-// paintFrameUnlocked snapshots under o.mu and renders and writes with it
-// released, so a slow frame never stalls the workers. Enter and leave with
-// o.mu held.
-func (o *Run) paintFrameUnlocked(surface liveSurface) {
-	engine := o.live
-	start := wall.Now()
-	f := o.liveFrameLocked(surface)
-	o.mu.Unlock()
-	engine.paint(f, f.render())
-	engine.meter.observe(wall.Since(start))
-	o.mu.Lock()
 }
 
 // --- folded from phase_writer.go ---
@@ -2096,46 +1238,9 @@ func lineEnding(rest []byte) (completed bool, width int) {
 func (t *Task) appendLiveTail(line string, retained int) {
 	t.annotate(func(st *taskState) {
 		line := txt.Text(line)
-		st.tail.push(line, retained, t.out.cfg.clock.Now())
+		t.out.board.PushTail(st.node.TaskID(), line, retained, t.out.cfg.clock.Now())
 		t.out.setLiveOnlyPhaseLocked(st, line)
 	})
-}
-
-// liveTailLines is how many completed Writer lines a live frame shows under
-// a Running row. Fixed: the tail never grows with uptime; the Capture ring
-// keeps the full record and the footer reports how many lines it holds.
-const liveTailLines = 6
-
-// liveTail is a Task's most recent completed Writer lines, oldest first, at
-// most liveTailLines of them.
-type liveTail struct {
-	lines []string
-	// retained is the Capture ring's line count as of the latest push.
-	retained int
-	// lastLineAt is the domain-clock time of the latest push.
-	lastLineAt time.Time
-}
-
-// push appends line, evicting the oldest once full. Every completed line
-// counts, even one identical to the newest: it is new output, not a redraw.
-func (t *liveTail) push(line string, retained int, at time.Time) {
-	t.retained = retained
-	t.lastLineAt = at
-	if len(t.lines) == liveTailLines {
-		copy(t.lines, t.lines[1:])
-		t.lines[liveTailLines-1] = line
-		return
-	}
-	if t.lines == nil {
-		t.lines = make([]string, 0, liveTailLines)
-	}
-	t.lines = append(t.lines, line)
-}
-
-// view is the tail as a snapshot sees it, sharing t's lines (see
-// taskState.view).
-func (t *liveTail) view() record.LiveTail {
-	return record.LiveTail{Lines: t.lines, Evidence: t.retained, LastLineAt: t.lastLineAt}
 }
 
 var _ io.Writer = (*phaseWriter)(nil)
@@ -2162,8 +1267,7 @@ func (o *Run) wantsPlainHeartbeatLocked() (scheduler, bool) {
 	if !ok {
 		return nil, false
 	}
-	live := o.liveLocked()
-	if live != nil && live.IsInteractive() && !o.cfg.plain {
+	if o.live.Interactive() {
 		return nil, false
 	}
 	return sched, true
@@ -2342,8 +1446,7 @@ func (o *Run) writeDurableTextLocked(text string) {
 	if !o.countHumanTextLocked(text) {
 		return
 	}
-	if o.live != nil && o.live.quiesced > 0 {
-		o.live.heldText = append(o.live.heldText, text)
+	if o.live.Hold(text) {
 		return
 	}
 	o.emitDurableTextLocked(text)
@@ -2369,43 +1472,11 @@ func (o *Run) countHumanTextLocked(text string) bool {
 }
 
 // flushHeldTextLocked prints the text held while windows were open.
-func (o *Run) flushHeldTextLocked() {
-	if o.live == nil {
-		return
-	}
-	held := o.live.heldText
-	o.live.heldText = nil
-	for _, text := range held {
-		o.emitDurableTextLocked(text)
-	}
-}
+func (o *Run) flushHeldTextLocked() { o.live.Flush(o.emitDurableTextLocked) }
 
 // emitDurableTextLocked writes text to the human stream now.
 func (o *Run) emitDurableTextLocked(text string) {
-	live := o.liveLocked()
-	// A live region (including the armed, entity-less title line painted by
-	// arm()) may still be on screen even after the surface stops reporting
-	// itself interactive — terminal.ANSI disables IsInteractive() permanently
-	// on a short write, but the fd keeps accepting writes and the stale frame
-	// stays visible. Clear it on the surface's own bookkeeping (o.live.liveActive),
-	// not on a fresh interactive re-check, so durable text is never appended
-	// straight onto whatever line the live region last drew.
-	if live != nil && o.live != nil {
-		o.live.clear(live)
-	}
-	interactive := live != nil && live.IsInteractive() && !o.cfg.plain
-	if interactive {
-		if o.live == nil {
-			o.live = &liveEngine{surface: live}
-		}
-		live.WriteDurable(text)
-		// Redraw immediately (still holding o.mu) so the live region never sits
-		// blank or stale between this durable write and whatever caller or
-		// background tick next touches the terminal — the clear/write/redraw
-		// cycle is one atomic sequence under one lock (evo-rec.md #12).
-		if o.live.visible && o.hasLiveActivityLocked() {
-			o.renderLiveLocked(true)
-		}
+	if o.live.Durable(text) {
 		return
 	}
 	// Plain / non-interactive: stream like fmt — write now, flush now.
@@ -2502,17 +1573,7 @@ func (o *Run) commitResolvedTaskLocked(id string) {
 	} else {
 		o.writeDurableTextLocked(b.String())
 	}
-	live := o.liveLocked()
-	if live == nil || !live.IsInteractive() || o.cfg.plain {
-		return
-	}
-	if o.hasLiveActivityLocked() {
-		o.live.visible = true
-		o.renderLiveLocked(true)
-	} else if o.live != nil && o.live.clear(live) {
-		o.live.visible = false
-		o.stopSpinnerAnimatorLocked()
-	}
+	o.live.Refresh()
 }
 
 // hasNamedEffectRecord reports whether records holds at least one no-qty
@@ -2650,9 +1711,7 @@ func (o *Run) emitTaskRunningProgressiveLocked(st *taskState, trigger taskProgre
 	if st == nil || st.node.Rec.State() != running {
 		return
 	}
-	live := o.liveLocked()
-	interactive := live != nil && live.IsInteractive() && !o.cfg.plain
-	if interactive {
+	if o.live.Interactive() {
 		return
 	}
 	switch trigger {
@@ -2841,7 +1900,7 @@ func (o *Run) writeDebugTailLocked(b *strings.Builder, snap snapshot, color bool
 // conclusion).
 func (o *Run) residualPlainLocked(snap snapshot) string {
 	linesFrom := o.linesEmitted
-	interactive := o.liveLocked() != nil && o.liveLocked().IsInteractive() && !o.cfg.plain
+	interactive := o.live.Interactive()
 	text := o.residualCompositionLocked(snap, linesFrom, !interactive)
 	o.linesEmitted = len(snap.Lines)
 	return text
@@ -2983,7 +2042,7 @@ func (t *taskState) view() taskSnapshot {
 
 		Timing: t.timing,
 	}
-	return record.WithLiveTail(record.NewTaskSnapshot(base, t.liveFirstSeenAt, t.synthetic), t.tail.view())
+	return record.WithLiveTail(record.NewTaskSnapshot(base, t.board.FirstSeen(t.node.TaskID()), t.synthetic), t.board.Tail(t.node.TaskID()))
 }
 
 func cloneTaxonomy(in []taxonomyRecord) []taxonomyRecord {
@@ -3023,7 +2082,7 @@ func (g *tasksState) derivedState() entityState {
 	if len(children) == 0 && g.allTasksNotStarted(tasks) {
 		return notStarted
 	}
-	v := g.settled().states.fold()
+	v := foldStates(g.out.board.States(g.id))
 	for _, child := range children {
 		switch s := child.derivedState(); s {
 		case empty:
@@ -3037,7 +2096,15 @@ func (g *tasksState) derivedState() entityState {
 }
 
 func (g *tasksState) allTasksNotStarted(tasks int) bool {
-	return tasks > 0 && g.settled().states.notStarted == tasks
+	return tasks > 0 && g.out.board.States(g.id).NotStarted == tasks
+}
+
+// foldStates is the verdict of a collection's direct Tasks alone.
+func foldStates(s live.StateCounts) verdictFold {
+	return verdictFold{
+		running: s.Running > 0, failed: s.Failed > 0, refused: s.Refused > 0,
+		cancelled: s.Cancelled > 0, unresolved: s.Unresolved > 0,
+	}
 }
 
 // verdictFold accumulates member states into one container verdict. A
@@ -3097,7 +2164,7 @@ func (g *tasksState) displaySummary(st entityState) string {
 // this method already gave Failed/Cancelled, restored and extended to
 // Warnings.
 func (g *tasksState) hasWarnedOrFailedDescendant() bool {
-	if s := g.settled().states; s.failed > 0 || s.cancelled > 0 || s.warned > 0 {
+	if s := g.out.board.States(g.id); s.Failed > 0 || s.Cancelled > 0 || s.Warned > 0 {
 		return true
 	}
 	for _, child := range g.childStates() {
@@ -3164,63 +2231,6 @@ func (g *tasksState) header() tasksSnapshot {
 		Summary:     g.displaySummary(state),
 		Declaration: g.node.Declaration,
 		Sequential:  g.node.Sequential,
-	}
-}
-
-// liveSnapshot is g as a live frame of rows rows can show it: the
-// children it could select, snapshotted, and a tally of the rest (see
-// live.LiveChildren).
-func (g *tasksState) liveSnapshot(rows int, now time.Time) tasksSnapshot {
-	rev := g.out.rec.Revision()
-	g.stampDirectTasks(now)
-	ts := g.header()
-	kept, roster := g.settled().project(g, rows)
-	ts = liveCollections(g.childStates(), rows, now).Into(ts)
-	ts = roster.Project(ts, kept)
-	if liveIndexAudit != nil {
-		liveIndexAudit(g, rows, now, ts, rev)
-	}
-	return ts
-}
-
-// liveCollections projects cols for a live frame of rows rows: the ones
-// the frame can reach through liveSnapshot, the rest tallied from views
-// (see live.LiveCollections).
-func liveCollections(cols []*tasksState, rows int, now time.Time) *live.LiveCollections {
-	projected := live.NewLiveCollections(rows)
-	for _, col := range cols {
-		if census := col.currentCensus(); projected.Admit(census.rank()) {
-			projected.Keep(col.liveSnapshot(rows, now))
-			continue
-		}
-		col.stampLiveFirstSeen(now)
-		projected.Omit(col.census.counts(), col.liveOwnRow())
-	}
-	return projected
-}
-
-// view is g's header and its Tasks' views, recursively, without the cost
-// of a snapshot.
-func (g *tasksState) view() tasksSnapshot {
-	ts := g.header()
-	for _, t := range g.taskStates() {
-		ts.Tasks = append(ts.Tasks, t.view())
-	}
-	for _, child := range g.childStates() {
-		ts.Collections = append(ts.Collections, child.view())
-	}
-	return ts
-}
-
-// stampLiveFirstSeen stamps every Task at or below g, as a frame that
-// counted them does (see taskState.stampLiveFirstSeen).
-func (g *tasksState) stampLiveFirstSeen(now time.Time) {
-	if g.currentCensus().unstamped == 0 {
-		return
-	}
-	g.stampDirectTasks(now)
-	for _, child := range g.childStates() {
-		child.stampLiveFirstSeen(now)
 	}
 }
 

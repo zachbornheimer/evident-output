@@ -353,8 +353,6 @@ func isAffirmative(line string) bool {
 	}
 }
 
-// --- folded from suspend.go ---
-
 // Suspend opens an exclusive-TTY window (Confirm's prompt/answer, an external
 // interactive program) around fn. It clears the live region and keeps every
 // paint off the surface until fn returns, so a sibling's frame cannot
@@ -366,62 +364,16 @@ func (o *Run) Suspend(fn func() error) error {
 	if fn == nil {
 		return nil
 	}
-	window := o.openLiveWindow()
+	o.mu.Lock()
+	window := o.live.Open()
+	o.mu.Unlock()
 
 	err := fn()
 
-	o.closeLiveWindow(window)
+	o.mu.Lock()
+	o.live.Close(window, o.emitDurableTextLocked)
+	o.mu.Unlock()
 	return err
-}
-
-// liveWindow is one Suspend's hold on the live region: whether it quiesced
-// the region at all (an interactive surface), and whether that cleared a
-// painted frame the close must bring back.
-type liveWindow struct {
-	opened  bool
-	cleared bool
-}
-
-// openLiveWindow quiesces the live region: no paint reaches the surface
-// until every open window closes.
-func (o *Run) openLiveWindow() liveWindow {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	live := o.liveLocked()
-	if live == nil || !live.IsInteractive() {
-		return liveWindow{}
-	}
-	if o.live == nil {
-		o.live = &liveEngine{surface: live}
-	}
-	o.live.quiesced++
-	return liveWindow{opened: true, cleared: o.live.clear(live)}
-}
-
-// closeLiveWindow ends w. Once the last window closes, the region repaints:
-// the frame w cleared, or the rows siblings started inside it. The durable
-// text siblings settled inside the windows prints first, above the region.
-func (o *Run) closeLiveWindow(w liveWindow) {
-	if !w.opened {
-		return
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if o.live == nil {
-		return
-	}
-	o.live.quiesced--
-	if o.live.quiesced > 0 {
-		return
-	}
-	o.flushHeldTextLocked()
-	switch {
-	case w.cleared && o.needsSpinnerAnimLocked():
-		o.live.visible = true
-		o.renderLiveLocked(true)
-	case o.hasLiveActivityLocked():
-		o.signalLiveLocked(true)
-	}
 }
 
 func NonInteractive(argv ...string) ConfirmOption {

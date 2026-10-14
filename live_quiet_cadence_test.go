@@ -5,8 +5,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	txt "github.com/zachbornheimer/evident-output/internal/project"
 )
 
 type quietCadenceSurface struct {
@@ -198,29 +196,6 @@ func TestLive_QuietRunningTaskKeepsChangingFrames(t *testing.T) {
 		t.Logf("attempt %d unprovable: host stalled the process across %d stale interval(s)", attempt, len(stale))
 	}
 	t.Fatalf("unprovable under current load: %d attempts each overlapped a host stall", quietCadenceAttempts)
-}
-
-func TestUntilNextSpinnerSlot(t *testing.T) {
-	period := int64(txt.SpinnerPeriod)
-	base := time.Unix(0, 1000*period)
-	cases := map[string]time.Time{
-		"on boundary": base,
-		"just after":  base.Add(time.Nanosecond),
-		"just before": base.Add(txt.SpinnerPeriod - time.Nanosecond),
-		"mid slot":    base.Add(txt.SpinnerPeriod / 2),
-	}
-	for name, now := range cases {
-		t.Run(name, func(t *testing.T) {
-			wait := untilNextSpinnerSlot(now)
-			if wait <= 0 || wait > txt.SpinnerPeriod+spinnerSlotSettle {
-				t.Fatalf("wait %s outside (0, %s]", wait, txt.SpinnerPeriod+spinnerSlotSettle)
-			}
-			current := now.UnixNano() / period
-			if got := now.Add(wait).UnixNano() / period; got != current+1 {
-				t.Fatalf("wake lands in slot %d, want %d", got, current+1)
-			}
-		})
-	}
 }
 
 func TestStaleIntervalsFindsEveryEdgeAndGap(t *testing.T) {

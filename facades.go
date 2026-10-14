@@ -29,10 +29,6 @@ type (
 	systemClock = clock.Wall
 )
 
-// wall is the real clock for waits that must stay real whatever Clock the
-// application injected: spinner cadence, paint cost, throttled-write age.
-var wall = clock.System()
-
 // --- folded from process.go ---
 
 // ProcessRunner is the facade every evo.Exec spawn goes through instead of

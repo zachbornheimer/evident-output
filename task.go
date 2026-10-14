@@ -1,19 +1,15 @@
 package evo
 
 import (
-	"container/heap"
 	"context"
 	"fmt"
 	"os"
 	"slices"
 	"sync"
 	"sync/atomic"
-	"time"
-	"unicode/utf8"
 
 	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/project"
-	"github.com/zachbornheimer/evident-output/internal/project/live"
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
@@ -238,367 +234,6 @@ func (g *Group) defineBuilder(run func()) {
 	}
 	o.graph.DefineBuilder(col.node, run)
 }
-
-// --- folded from child_counts.go ---
-
-// childCounters counts a set of child Tasks by what a live tally reports
-// of them, and takes a Task back out when it moves to another set.
-type childCounters struct {
-	total, done, running, pending, unfinished int
-	// widths counts the Tasks at each name width, in runes, so the widest
-	// survives a removal.
-	widths   map[int]int
-	maxWidth int
-}
-
-func (c *childCounters) add(f *filing) {
-	c.move(f, 1)
-	if c.widths == nil {
-		c.widths = make(map[int]int)
-	}
-	c.widths[f.width]++
-	c.maxWidth = max(c.maxWidth, f.width)
-}
-
-func (c *childCounters) remove(f *filing) {
-	c.move(f, -1)
-	if c.widths[f.width]--; c.widths[f.width] > 0 {
-		return
-	}
-	delete(c.widths, f.width)
-	if f.width < c.maxWidth {
-		return
-	}
-	c.maxWidth = 0
-	for w := range c.widths {
-		c.maxWidth = max(c.maxWidth, w)
-	}
-}
-
-// move counts f's Task by delta in every per-state total.
-func (c *childCounters) move(f *filing, delta int) {
-	c.total += delta
-	switch f.state {
-	case succeeded, record.Satisfied, excluded:
-		c.done += delta
-	case running:
-		c.running += delta
-	case pending:
-		c.pending += delta
-	}
-	if !record.IsTerminalTask(f.state) {
-		c.unfinished += delta
-	}
-}
-
-// counts is c as a live tally, earliest being the earliest first paint
-// among the counted Tasks.
-func (c *childCounters) counts(earliest time.Time) project.ChildCounts {
-	return project.ChildCounts{
-		Total: c.total, Done: c.done,
-		Running: c.running > 0, Pending: c.pending > 0, Unfinished: c.unfinished > 0,
-		EarliestSeen: earliest, NameWidth: c.maxWidth,
-	}
-}
-
-// stateCounts counts a collection's direct Tasks by the states the
-// collection's verdict folds (verdictFold).
-//
-// slice 6: one of three counters of a collection's descendants by state, with
-// the graph's tally and liveCensus; they fold into one count owned by project.
-type stateCounts struct {
-	running, failed, refused, cancelled, notStarted, unresolved, warned int
-}
-
-func (s *stateCounts) add(f *filing)    { s.move(f, 1) }
-func (s *stateCounts) remove(f *filing) { s.move(f, -1) }
-
-func (s *stateCounts) move(f *filing, delta int) {
-	switch f.state {
-	case running:
-		s.running += delta
-	case failed:
-		s.failed += delta
-	case refused:
-		s.refused += delta
-	case cancelled:
-		s.cancelled += delta
-	case notStarted:
-		s.notStarted += delta
-	case succeeded, record.Satisfied, excluded:
-	default:
-		s.unresolved += delta
-	}
-	if f.warned {
-		s.warned += delta
-	}
-}
-
-// fold is the verdict of the counted Tasks alone.
-func (s stateCounts) fold() verdictFold {
-	return verdictFold{
-		running: s.running > 0, failed: s.failed > 0, refused: s.refused > 0,
-		cancelled: s.cancelled > 0, unresolved: s.unresolved > 0,
-	}
-}
-
-// seenEntry is one Task's first-paint stamp.
-type seenEntry struct {
-	at time.Time
-	t  *taskState
-}
-
-// seenHeap is the first-paint stamps of a set of Tasks, earliest on top.
-// A Task that left the set leaves its entry behind; earliest discards
-// those when they surface.
-type seenHeap []seenEntry
-
-func (h seenHeap) Len() int           { return len(h) }
-func (h seenHeap) Less(i, j int) bool { return h[i].at.Before(h[j].at) }
-func (h seenHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
-func (h *seenHeap) Push(x any)        { *h = append(*h, x.(seenEntry)) }
-func (h *seenHeap) Pop() any {
-	old := *h
-	e := old[len(old)-1]
-	*h = old[:len(old)-1]
-	return e
-}
-
-// earliest is the earliest stamp of a Task still in the set, per member,
-// or the zero time.
-func (h *seenHeap) earliest(member func(*taskState) bool) time.Time {
-	for h.Len() > 0 {
-		top := (*h)[0]
-		if member(top.t) && top.t.filing.seen.Equal(top.at) {
-			return top.at
-		}
-		heap.Pop(h)
-	}
-	return time.Time{}
-}
-
-// --- folded from child_index.go ---
-
-// childIndex keeps what a live frame needs of one collection's direct
-// Tasks current as they change, so a frame reads the children it can show
-// and the counts of the rest without walking them: a frame costs what the
-// screen shows, however many Tasks the collection holds (E-091).
-//
-// A Task that changed is marked (taskState.markFiling) and refiled at the
-// next read, so a burst of Progress calls on one Task refiles it once. The
-// index files each child the way live.ClassifyChild does, so the frame it
-// yields equals the one live.LiveChildren builds by walking every child.
-type childIndex struct {
-	dirty []*taskState
-
-	// items are the disposition items and work every other child, by
-	// declaration; byRank splits work by attention rank.
-	items, work positionSet
-	byRank      [live.AttentionRanks]positionSet
-
-	all, workCounts childCounters
-	states          stateCounts
-	seenAll         seenHeap
-	seenWork        seenHeap
-	owns, peers     int
-
-	// itemDispositions is the items' tally as of the items in [0,
-	// itemsThrough]; itemsStale means a change it cannot append to.
-	itemDispositions project.Dispositions
-	itemsThrough     int
-	itemsStale       bool
-
-	// unstamped are Tasks filed while Running or Pending that no frame
-	// has painted yet (taskState.stampLiveFirstSeen).
-	unstamped []*taskState
-}
-
-// filing is how one child Task is filed in its collection's childIndex.
-type filing struct {
-	filed, dirty, listed bool
-	// pos is the Task's declaration position among its collection's Tasks.
-	pos  int
-	kind live.ChildKind
-	// state, width, seen, and warned are the Task fields the counts read.
-	state  entityState
-	width  int
-	seen   time.Time
-	warned bool
-	// allSeenAt and workSeenAt are the stamps last pushed to the seen heaps.
-	allSeenAt, workSeenAt time.Time
-}
-
-// markFiling records that t changed in a way its collection's frame or
-// verdict reads, so the next read refiles it. Call it after any change to
-// a taskState field the collection's frame shows or counts.
-func (t *taskState) markFiling() {
-	col := t.collection()
-	if col == nil || t.filing.dirty {
-		return
-	}
-	t.filing.dirty = true
-	col.kids.dirty = append(col.kids.dirty, t)
-}
-
-// settled is g's index with every marked Task refiled.
-func (g *tasksState) settled() *childIndex {
-	g.out.pullRecordLocked()
-	x := &g.kids
-	for len(x.dirty) > 0 {
-		dirty := x.dirty
-		x.dirty = nil
-		for _, t := range dirty {
-			x.refile(g, t)
-		}
-	}
-	return x
-}
-
-func (x *childIndex) refile(g *tasksState, t *taskState) {
-	old := t.filing
-	view := t.view()
-	next := filing{
-		filed: true, pos: old.pos, listed: old.listed,
-		kind:  live.ClassifyChild(g.name, &view),
-		state: t.node.Rec.State(), width: utf8.RuneCountInString(t.name),
-		seen: t.liveFirstSeenAt, warned: t.node.Rec.WarningCount() > 0,
-		allSeenAt: old.allSeenAt, workSeenAt: old.workSeenAt,
-	}
-	if old.filed {
-		if next.sameFiling(old) && !next.kind.Item {
-			t.filing = next
-			return
-		}
-		x.unfile(t)
-		next.workSeenAt = time.Time{}
-	}
-	t.filing = next
-	x.file(g, t, &view)
-}
-
-func (f filing) sameFiling(o filing) bool {
-	return f.kind == o.kind && f.state == o.state && f.width == o.width &&
-		f.seen.Equal(o.seen) && f.warned == o.warned
-}
-
-func (x *childIndex) file(g *tasksState, t *taskState, view *record.TaskSnapshot) {
-	f := &t.filing
-	x.all.add(f)
-	x.states.add(f)
-	if f.kind.OwnTask {
-		x.owns++
-	}
-	if !f.seen.IsZero() && !f.seen.Equal(f.allSeenAt) {
-		f.allSeenAt = f.seen
-		heap.Push(&x.seenAll, seenEntry{at: f.seen, t: t})
-	}
-	if f.kind.Item {
-		x.items.add(f.pos)
-		x.fileItem(f.pos, view)
-	} else {
-		x.work.add(f.pos)
-		x.workCounts.add(f)
-		if f.kind.Rank < live.AttentionRanks {
-			x.byRank[f.kind.Rank].add(f.pos)
-		}
-		if f.kind.WorkPeer {
-			x.peers++
-		}
-		if !f.seen.IsZero() && !f.seen.Equal(f.workSeenAt) {
-			f.workSeenAt = f.seen
-			heap.Push(&x.seenWork, seenEntry{at: f.seen, t: t})
-		}
-	}
-	if t.unstampedIn(f.state) && !f.listed {
-		f.listed = true
-		x.unstamped = append(x.unstamped, t)
-	}
-}
-
-func (x *childIndex) unfile(t *taskState) {
-	f := &t.filing
-	x.all.remove(f)
-	x.states.remove(f)
-	if f.kind.OwnTask {
-		x.owns--
-	}
-	if f.kind.Item {
-		x.items.remove(f.pos)
-		x.itemsStale = true
-		return
-	}
-	x.work.remove(f.pos)
-	x.workCounts.remove(f)
-	if f.kind.Rank < live.AttentionRanks {
-		x.byRank[f.kind.Rank].remove(f.pos)
-	}
-	if f.kind.WorkPeer {
-		x.peers--
-	}
-}
-
-// fileItem adds the item at pos to the items' tally: appended when it
-// follows every item already in it, since the tally is in declaration
-// order, otherwise the tally is rebuilt at the next read.
-func (x *childIndex) fileItem(pos int, view *record.TaskSnapshot) {
-	if x.itemsStale || pos < x.itemsThrough {
-		x.itemsStale = true
-		return
-	}
-	x.itemDispositions.AddTask(view)
-	x.itemsThrough = pos
-}
-
-func (x *childIndex) dispositions(g *tasksState) project.Dispositions {
-	if x.itemsStale {
-		x.itemDispositions, x.itemsThrough, x.itemsStale = project.Dispositions{}, -1, false
-		x.items.each(func(pos int) {
-			view := g.taskAt(pos).view()
-			x.itemDispositions.AddTask(&view)
-			x.itemsThrough = pos
-		})
-	}
-	return x.itemDispositions.Clone()
-}
-
-// stampDirectTasks stamps the Tasks filed while no frame had painted
-// them, as a frame that counted them does.
-func (g *tasksState) stampDirectTasks(now time.Time) {
-	x := g.settled()
-	listed := x.unstamped
-	x.unstamped = nil
-	for _, t := range listed {
-		t.filing.listed = false
-		t.stampLiveFirstSeen(now)
-	}
-}
-
-// project is the children a frame of rows rows could show, snapshotted in
-// declaration order, and the roster of all of them.
-func (x *childIndex) project(g *tasksState, rows int) ([]record.TaskSnapshot, live.ChildRoster) {
-	budget := live.ChildRows(rows)
-	pos := x.items.appendFirst(nil, budget+1)
-	pos = x.work.appendFirst(pos, budget+1)
-	for r := range x.byRank {
-		pos = x.byRank[r].appendFirst(pos, budget)
-	}
-	slices.Sort(pos)
-	pos = slices.Compact(pos)
-	var kept []record.TaskSnapshot
-	for _, p := range pos {
-		kept = append(kept, g.taskAt(p).snapshot())
-	}
-	return kept, live.ChildRoster{
-		All:    x.all.counts(x.seenAll.earliest(isFiled)),
-		Work:   x.workCounts.counts(x.seenWork.earliest(isWork)),
-		Items:  x.dispositions(g),
-		Census: project.ChildCensus{Items: x.items.len(), OwnTask: x.owns > 0, WorkPeer: x.peers > 0},
-	}
-}
-
-func isFiled(t *taskState) bool { return t.filing.filed }
-
-func isWork(t *taskState) bool { return t.filing.filed && !t.filing.kind.Item }
 
 // --- folded from container_wait.go ---
 
@@ -852,7 +487,7 @@ func (t *Task) withTask(apply func(st *taskState)) *Task {
 	defer t.out.mu.Unlock()
 	if st := t.out.taskStates[t.id]; st != nil {
 		apply(st)
-		st.markFiling()
+		t.out.board.Changed(st.node.TaskID())
 	}
 	return t
 }
@@ -878,7 +513,7 @@ func (o *Run) setPhaseLocked(st *taskState, text string) {
 	}
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
-	o.signalLiveLocked(true)
+	o.live.Signal(true)
 	o.emitTaskRunningProgressiveLocked(st, triggerPhase)
 }
 
@@ -901,20 +536,20 @@ func (o *Run) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	}
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
-	o.signalLiveLocked(true)
+	o.live.Signal(true)
 }
 
 // recordWarning is the warning-severity Problem path: st.warnings,
-// task.warned, EventWarningRecorded, censusWarned. Public Warn was removed in 1.1.
+// task.warned, EventWarningRecorded, the board's first warning. Public Warn was removed in 1.1.
 func (t *Task) recordWarning(p problem) *Task {
 	return t.annotate(func(st *taskState) {
 		if st.node.Warn(p) {
-			st.censusWarned()
+			t.out.board.Warned(st.node.TaskID())
 		}
 		t.out.bumpLocked()
 		t.out.appendEventLocked(recEvent{Type: "task.warned", EntityID: t.id})
 		t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, wire.ToProblemDoc(p).EventPayload())
-		t.out.signalLiveLocked(true)
+		t.out.live.Signal(true)
 	})
 }
 
@@ -930,7 +565,7 @@ func (t *Task) Summary(text string) *Task {
 		st.node.Summarize(text)
 		t.out.bumpLocked()
 		t.out.appendEventLocked(recEvent{Type: "task.summary_set", EntityID: t.id})
-		t.out.signalLiveLocked(true)
+		t.out.live.Signal(true)
 	})
 }
 
@@ -958,7 +593,7 @@ func (t *Task) recordBlockingProblem(p problem) *Task {
 		t.out.bumpLocked()
 		t.out.appendEventLocked(recEvent{Type: "task.problem_recorded", EntityID: t.id})
 		t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, wire.ToProblemDoc(p).EventPayload())
-		t.out.signalLiveLocked(true)
+		t.out.live.Signal(true)
 	})
 }
 
@@ -974,7 +609,7 @@ func (t *Task) Fact(name, value string) *Task {
 		st.node.Note(f)
 		t.out.bumpLocked()
 		t.out.emitWireEventLocked(wire.EventFactRecorded, t.id, wire.ToFactDoc(f).EventPayload())
-		t.out.signalLiveLocked(true)
+		t.out.live.Signal(true)
 	})
 }
 
@@ -1014,7 +649,7 @@ func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind p
 	t.out.bumpLocked()
 	t.out.appendEventLocked(recEvent{Type: "task.progress_changed", EntityID: t.id})
 	// Progress is high-frequency: coalesce unless first frame.
-	t.out.signalLiveLocked(false)
+	t.out.live.Signal(false)
 	t.out.emitTaskRunningProgressiveLocked(st, triggerProgress)
 	return true
 }

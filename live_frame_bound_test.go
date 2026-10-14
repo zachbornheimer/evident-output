@@ -29,7 +29,7 @@ func liveFrameTasks(tb testing.TB, n, rows int) int {
 	}
 	out.mu.Lock()
 	defer out.mu.Unlock()
-	s := out.liveSnapshotLocked(rows, clock.t)
+	s := out.board.Frame(rows, clock.t)
 	kept := len(s.Tasks)
 	for _, col := range s.Collections {
 		kept += len(col.Tasks)
@@ -71,7 +71,7 @@ func liveFrameNestedTasks(tb testing.TB, n, rows int) int {
 	}
 	out.mu.Lock()
 	defer out.mu.Unlock()
-	return countSnapshotTasks(out.liveSnapshotLocked(rows, clock.t).Collections)
+	return countSnapshotTasks(out.board.Frame(rows, clock.t).Collections)
 }
 
 func countSnapshotTasks(cols []tasksSnapshot) int {
@@ -122,13 +122,13 @@ func nestedFrameAllocs(tb testing.TB, n, rows int) float64 {
 	// The animator renders frames outside o.mu, so one it already began
 	// keeps allocating after this lock is taken; stopping it leaves that one
 	// frame to finish inside the first sample.
-	out.stopSpinnerAnimatorLocked()
+	out.live.Stop()
 	// Scheduler goroutines finishing in the background allocate too, and
 	// AllocsPerRun counts every goroutine: the fewest of several samples is
 	// the frame's own cost.
 	least := math.Inf(1)
 	for range 5 {
-		least = min(least, testing.AllocsPerRun(1, func() { _ = out.liveSnapshotLocked(rows, clock.t) }))
+		least = min(least, testing.AllocsPerRun(1, func() { _ = out.board.Frame(rows, clock.t) }))
 	}
 	return least
 }
