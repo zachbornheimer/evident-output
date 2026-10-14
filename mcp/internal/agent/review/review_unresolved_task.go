@@ -20,10 +20,15 @@ var taskResolvingMethods = map[string]bool{
 	"Remove": true, "Update": true, "Write": true, "Run": true, "Each": true, "Go": true,
 }
 
+// noDefineSentence is CONTRACT.md §4's rule for a Task nobody Defined, which
+// DOM-021 states verbatim in every finding and in its explanation.
+const noDefineSentence = "A Task with no Define never returns, so it ends NotStarted at Finish whatever Facts, Problems, Progress or Verify it carries, and a Task After it names it as the one that stopped it."
+
 // detectUnresolvedTask is DOM-021: a Task declared in a function that
-// neither Defines it nor hands it on. Wiring its Writer or adding Facts
-// gives it no work, so the Task ends NotStarted and the run concludes
-// partial with a misuse hint. Test files are skipped.
+// neither Defines it nor hands it on, in whatever form the declaration
+// takes (a statement that keeps nothing, a blank assignment, a var, an
+// assignment). Wiring its Writer or adding Facts gives it no work, so the
+// Task ends NotStarted and the run concludes partial. Test files are skipped.
 func detectUnresolvedTask(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	if strings.HasSuffix(filename, "_test.go") {
 		return nil // a test declares a Task to probe how an unresolved row renders
@@ -34,40 +39,83 @@ func detectUnresolvedTask(filename string, file *ast.File, fset *token.FileSet) 
 		if !ok || fd.Body == nil {
 			continue
 		}
-		for _, bound := range declaredTasks(fd.Body) {
-			if taskSettledIn(fd.Body, bound.Name) {
+		for _, declared := range declaredTasks(fd.Body) {
+			if declared.name != "" && taskSettledIn(fd.Body, declared.name) {
 				continue
 			}
 			findings = append(findings, Finding{
 				RuleID:     "DOM-021",
-				Message:    "Task " + bound.Name + " is declared but never Defined or handed on; it never runs and the run concludes partial",
+				Message:    declared.subject() + " is declared but never Defined or handed on. " + noDefineSentence,
 				File:       filename,
-				Line:       fset.Position(bound.Pos()).Line,
-				Suggestion: "run the work inside " + bound.Name + ".Define(func(ctx context.Context) error { ... }) and return nil, evo.Fail, evo.Refuse or evo.Exclude",
+				Line:       fset.Position(declared.pos).Line,
+				Suggestion: declared.fix(),
 			})
 		}
 	}
 	return findings
 }
 
-// declaredTasks is every identifier body binds with := to a Task(...)
-// chain that does not already Define the Task itself.
-func declaredTasks(body *ast.BlockStmt) []*ast.Ident {
-	var bound []*ast.Ident
-	ast.Inspect(body, func(n ast.Node) bool {
-		assign, ok := n.(*ast.AssignStmt)
-		if !ok || assign.Tok != token.DEFINE || len(assign.Lhs) != len(assign.Rhs) {
-			return true
+// taskDeclaration is one Task a function declares and no Define reaches
+// yet: where, and the variable that keeps it ("" when nothing does).
+type taskDeclaration struct {
+	pos  token.Pos
+	name string
+}
+
+func (d taskDeclaration) subject() string {
+	if d.name == "" {
+		return "A Task"
+	}
+	return "Task " + d.name
+}
+
+func (d taskDeclaration) fix() string {
+	const work = ".Define(func(ctx context.Context) error { ... }) and return nil, evo.Fail, evo.Refuse or evo.Exclude"
+	if d.name == "" {
+		return "chain" + work + " onto the declaration, or keep the Task in a variable and Define it"
+	}
+	return "run the work inside " + d.name + work
+}
+
+// declaredTasks is every Task body declares with a Task(...) chain that
+// does not already Define it: a statement that keeps nothing, or an
+// assignment or var to a name (a blank name keeps nothing). A Task stored
+// in a field, element or channel is handed on and is not listed.
+func declaredTasks(body *ast.BlockStmt) []taskDeclaration {
+	var declared []taskDeclaration
+	add := func(pos token.Pos, name *ast.Ident) {
+		if name.Name == "_" {
+			declared = append(declared, taskDeclaration{pos: pos})
+			return
 		}
-		for i, rhs := range assign.Rhs {
-			id, isIdent := assign.Lhs[i].(*ast.Ident)
-			if isIdent && id.Name != "_" && isTaskChain(rhs) && !chainResolvesTask(rhs) {
-				bound = append(bound, id)
+		declared = append(declared, taskDeclaration{pos: name.Pos(), name: name.Name})
+	}
+	undefined := func(e ast.Expr) bool { return isTaskChain(e) && !chainResolvesTask(e) }
+	ast.Inspect(body, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.ExprStmt:
+			if undefined(n.X) {
+				declared = append(declared, taskDeclaration{pos: n.Pos()})
+			}
+		case *ast.AssignStmt:
+			if (n.Tok != token.DEFINE && n.Tok != token.ASSIGN) || len(n.Lhs) != len(n.Rhs) {
+				return true
+			}
+			for i, rhs := range n.Rhs {
+				if id, isIdent := n.Lhs[i].(*ast.Ident); isIdent && undefined(rhs) {
+					add(n.Pos(), id)
+				}
+			}
+		case *ast.ValueSpec:
+			for i, name := range n.Names {
+				if i < len(n.Values) && undefined(n.Values[i]) {
+					add(n.Pos(), name)
+				}
 			}
 		}
 		return true
 	})
-	return bound
+	return declared
 }
 
 // chainResolvesTask reports whether a Task(...) chain already calls Define,
@@ -148,6 +196,10 @@ func useSettlesTask(use *ast.Ident, parents []ast.Node) bool {
 		case *ast.AssignStmt:
 			if current == use && isAssignTarget(p, use) {
 				return false // the binding itself, not a use
+			}
+		case *ast.ValueSpec:
+			if current == use && slices.Contains(p.Names, use) {
+				return false // the declaration itself, not a use
 			}
 		case *ast.ExprStmt:
 			return false // a statement-level chain that never resolved

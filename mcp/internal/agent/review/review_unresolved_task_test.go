@@ -1,6 +1,7 @@
 package review_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
@@ -103,5 +104,65 @@ func TestDOM021_ChainWithoutResolvingLink_Fires(t *testing.T) {
 	res := review.GoSource("main.go", chainedButUnresolvedTaskSrc)
 	if f := findingByID(t, res, "DOM-021"); f.Line != 6 {
 		t.Fatalf("DOM-021 line = %d, want 6 (the declaration)", f.Line)
+	}
+}
+
+const undefinedTaskStatementsSrc = `package main
+
+import evo "github.com/zachbornheimer/evident-output/v2"
+
+func run(r *evo.Run) {
+	r.Task("bare")
+	r.Task("fact").Fact("k", "v")
+	_ = r.Task("discarded")
+	var declared = r.Task("declared")
+	var typed *evo.Task
+	typed = r.Task("assigned")
+}
+`
+
+// TestDOM021FiresOnBareTaskStatement pins that DOM-021 reports a Task no
+// Define reaches whatever form its declaration takes: a statement that binds
+// nothing, a blank assignment, a var, a plain assignment.
+func TestDOM021FiresOnBareTaskStatement(t *testing.T) {
+	res := review.GoSource("main.go", undefinedTaskStatementsSrc)
+	var lines []int
+	for _, f := range res.Findings {
+		if f.RuleID == "DOM-021" {
+			lines = append(lines, f.Line)
+		}
+	}
+	want := []int{6, 7, 8, 9, 11}
+	if !slices.Equal(lines, want) {
+		t.Fatalf("DOM-021 lines = %v, want %v (bare, fact, discarded, declared, assigned)", lines, want)
+	}
+}
+
+const definedOrHandedOnStatementsSrc = `package main
+
+import (
+	"context"
+
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+
+func run(r *evo.Run, tasks map[string]*evo.Task, keep chan *evo.Task) *evo.Task {
+	r.Task("defined").Define(func(context.Context) error { return nil })
+	r.Task("chained").Fact("k", "v").Define(func(context.Context) error { return nil })
+	tasks["stored"] = r.Task("stored")
+	keep <- r.Task("sent")
+	schedule(r.Task("passed"))
+	return r.Task("returned")
+}
+
+func schedule(*evo.Task) {}
+`
+
+func TestDOM021StaysSilentOnDefinedOrHandedOnStatements(t *testing.T) {
+	res := review.GoSource("main.go", definedOrHandedOnStatementsSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "DOM-021" {
+			t.Fatalf("false positive DOM-021: %+v", f)
+		}
 	}
 }
