@@ -230,6 +230,7 @@ func (o *Run) snapshotLocked() snapshot {
 	return o.show.Snapshot(snapshot{
 		OutputID:  o.outputID,
 		Subject:   o.cfg.subject,
+		Summary:   o.rec.RunSummary(),
 		Lines:     o.rec.Lines(),
 		Timestamp: o.cfg.clock.Now(),
 		DryRun:    o.cfg.dryRun,

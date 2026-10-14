@@ -21,6 +21,7 @@ type Conclusion struct {
 	DryRun      bool
 	Explanation string
 	subject     string
+	summary     string
 	partial     bool
 	warned      bool
 	cancelled   bool
@@ -39,7 +40,7 @@ type Conclusion struct {
 func asEvoConclusion(c record.Conclusion) Conclusion {
 	return Conclusion{
 		Outcome: Outcome(c.Outcome), Changed: c.Changed, DryRun: c.DryRun,
-		Explanation: c.Explanation, subject: c.Subject,
+		Explanation: c.Explanation, subject: c.Subject, summary: c.Summary,
 		partial: c.Partial, warned: c.Warned, cancelled: c.Cancelled,
 		tasks: c.Tasks, collections: c.Collections, changes: c.Changes,
 		plans: c.Plans, actions: asEvoActions(c.Actions), exitCode: c.ExitCode,
@@ -50,7 +51,7 @@ func asEvoConclusion(c record.Conclusion) Conclusion {
 
 func asRecordConclusion(c Conclusion) record.Conclusion {
 	return record.Conclusion{
-		Outcome: record.Outcome(c.Outcome), Subject: c.subject, Changed: c.Changed, Partial: c.partial,
+		Outcome: record.Outcome(c.Outcome), Subject: c.subject, Summary: c.summary, Changed: c.Changed, Partial: c.partial,
 		Warned: c.warned, Cancelled: c.cancelled, Explanation: c.Explanation,
 		Tasks: c.tasks, Collections: c.collections, Changes: c.changes,
 		Plans: c.plans, Actions: asRecordActions(c.actions), ExitCode: c.exitCode,

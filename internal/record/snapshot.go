@@ -19,9 +19,11 @@ import (
 
 // Snapshot is an immutable complete presentation state at a version.
 type Snapshot struct {
-	Version     uint64
-	OutputID    string
-	Subject     string
+	Version  uint64
+	OutputID string
+	Subject  string
+	// Summary is the application's one line about the run (Run.Summary), empty when it gave none.
+	Summary     string
 	Tasks       []TaskSnapshot
 	Collections []TasksSnapshot
 	Changes     []ChangesSnapshot

@@ -20,8 +20,10 @@ type Run struct {
 	debug    []DebugRecord
 	// facts and warnings are run-scoped annotations: the same "annotate, never
 	// resolve" contract a task's facts and warnings have, scoped to the run.
-	facts      []Fact
-	warnings   []Problem
+	facts    []Fact
+	warnings []Problem
+	// summary is the one line the application said about the run (Run.Summary); empty until it says one.
+	summary    string
 	conclusion *Conclusion
 	// listener hears changes after the lock is released (see Listen).
 	listener atomic.Pointer[listenerBox]

@@ -124,6 +124,10 @@ spelling to its 2.0 replacement.
 - `Run.ResultWriter` writes the stdout data payload. Human and Plain runs now
   present on stderr and keep stdout for the payload; JSON embeds it as the
   `evo.run` document's `result` and JSONL streams `result.written` events.
+- **`Run.Summary` on the wire:** the text `Run.Summary` prints is also the
+  `summary` field of the `evo.run` document and of the `run.finished` event's
+  payload, absent when the body never called it. Additive: `schema_version`
+  stays `3.0` for `evo.run` and `2.0` for `evo.event`.
 - **Ledger fold (ZYS-1370):** per-item Effects that share a verb and object
   under one Group/Sequence render as one `[changed]`/`[planned]` row for the
   highest container whose whole subtree records that same Effect

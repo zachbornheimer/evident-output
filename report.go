@@ -309,6 +309,9 @@ func (o *Run) Text() io.Writer { return o.writer() }
 func (o *Run) SlogHandler() slog.Handler { return o.slogHandler() }
 
 func (r *Run) Summary(text string) *Run {
+	if r != nil {
+		r.graph.Root().Summarize(text)
+	}
 	r.subject(text)
 	return r
 }

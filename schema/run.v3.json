@@ -549,6 +549,9 @@
     },
     "started_at": {
       "type": "string"
+    },
+    "summary": {
+      "type": "string"
     }
   },
   "required": [

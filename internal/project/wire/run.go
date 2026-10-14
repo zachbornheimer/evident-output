@@ -51,6 +51,8 @@ type RunDocument struct {
 	Outcome       string    `json:"outcome"`
 	ExitCode      int       `json:"exit_code"`
 	Explanation   string    `json:"explanation,omitempty"`
+	// Summary is the one line the application gave Run.Summary; absent when it gave none.
+	Summary string `json:"summary,omitempty"`
 	// Result is what the run wrote to Run.ResultWriter; absent when it wrote nothing or wrote bytes that are
 	// not valid UTF-8.
 	Result string `json:"result,omitempty"`
@@ -217,6 +219,7 @@ func ToRunDocument(result record.Result, evoVersion string) RunDocument {
 		Outcome:       string(c.Outcome),
 		ExitCode:      c.ExitCode,
 		Explanation:   c.Explanation,
+		Summary:       c.Summary,
 		Data: RunData{
 			Collections: make([]CollectionDoc, 0, len(c.Collections)),
 			Tasks:       make([]TaskDoc, 0, len(c.Tasks)),

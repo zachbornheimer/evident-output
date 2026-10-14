@@ -15,6 +15,25 @@ func (r *Run) RunFacts() []Fact {
 	return CloneFacts(r.facts)
 }
 
+// SetRunSummary records the application's one line about the run as sanitized text; empty text leaves
+// what was said before.
+func (r *Run) SetRunSummary(text string) {
+	text = SanitizeText(text)
+	if text == "" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.summary = text
+}
+
+// RunSummary is the run's recorded summary line, empty when the application never gave one.
+func (r *Run) RunSummary() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.summary
+}
+
 // RecordRunWarning records a warning-severity Problem about the run itself.
 func (r *Run) RecordRunWarning(p Problem) {
 	r.mu.Lock()

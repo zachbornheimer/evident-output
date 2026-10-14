@@ -114,7 +114,7 @@ func fullEventPayloads() []EventPayloader {
 		EffectPayload{Verb: "delete", Object: "branches", Quantity: &quantity},
 		ManifestTaskCommittedPayload{Operations: 2},
 		TaskFinishedPayload{Outcome: "succeeded", Summary: "built"},
-		RunFinishedPayload{Outcome: "failed", ExitCode: 1, Explanation: "1 task failed"},
+		RunFinishedPayload{Outcome: "failed", ExitCode: 1, Explanation: "1 task failed", Summary: "release 1.4"},
 		ResultWrittenPayload{Text: "bin/app"},
 		ResultWrittenPayload{Base64: "//4="},
 	}

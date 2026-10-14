@@ -183,17 +183,19 @@ func (p TaskFinishedPayload) EventPayload() map[string]any {
 	return payload
 }
 
-// RunFinishedPayload is a run.finished payload; Explanation is absent when the run gave none.
+// RunFinishedPayload is a run.finished payload; Explanation and Summary are absent when the run gave none.
 type RunFinishedPayload struct {
 	Outcome     string `json:"outcome"`
 	ExitCode    int    `json:"exit_code"`
 	Explanation string `json:"explanation,omitempty"`
+	Summary     string `json:"summary,omitempty"`
 }
 
 // EventPayload is p as the event's payload map.
 func (p RunFinishedPayload) EventPayload() map[string]any {
 	payload := map[string]any{"outcome": p.Outcome, "exit_code": p.ExitCode}
 	putNonZero(payload, "explanation", p.Explanation)
+	putNonZero(payload, "summary", p.Summary)
 	return payload
 }
 

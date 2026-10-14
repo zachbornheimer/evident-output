@@ -5,7 +5,7 @@ package graph
 
 import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
-// RunRoot is the run's own node: its Facts and warnings, the messages and
+// RunRoot is the run's own node: its summary, its Facts and warnings, the messages and
 // history lines it printed, its debug records and journal, and the
 // Conclusion.
 type RunRoot struct{ run *record.Run }
@@ -18,6 +18,9 @@ func (r RunRoot) Note(f record.Fact) { r.run.RecordRunFact(f) }
 
 // Warn records a run-scoped warning.
 func (r RunRoot) Warn(p record.Problem) { r.run.RecordRunWarning(p) }
+
+// Summarize records the application's one line about the run.
+func (r RunRoot) Summarize(text string) { r.run.SetRunSummary(text) }
 
 // Print records one printed message.
 func (r RunRoot) Print(m record.MessageSnapshot) { r.run.AppendMessage(m) }

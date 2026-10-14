@@ -7,6 +7,8 @@ type Conclusion struct {
 	// Outcome is the run's verdict: RunOutcome over every Task's Outcome.
 	Outcome Outcome
 	Subject string
+	// Summary is Snapshot.Summary: the evo.run "summary" and the run.finished payload's.
+	Summary string
 	Changed bool
 	Partial bool
 	// Warned reports a warning-severity Problem on some Task or collection,
@@ -102,6 +104,7 @@ func anyCollectionWarned(collections []TasksSnapshot) bool {
 func InferConclusion(s Snapshot) Conclusion {
 	c := Conclusion{
 		Subject:     s.Subject,
+		Summary:     s.Summary,
 		Tasks:       s.Tasks,
 		Collections: s.Collections,
 		Changes:     s.Changes,

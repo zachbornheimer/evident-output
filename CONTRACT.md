@@ -361,7 +361,9 @@ declaration, so it is never misuse. `Detail` is also a `ConfirmOption`.
 | `JSONL`  | const | `JSONL Output`; `evo.event` lines on stdout as they occur                         |
 
 `Run.Summary` prints once, as the first line of Human and Plain, before every
-row, wherever the body calls it. `Run.ResultWriter` is the only writer to stdout in Human and Plain: rows,
+row, wherever the body calls it. The same text is the run's `summary`: a field
+of the `evo.run` document and of the `run.finished` event's payload, absent
+when the body never called it. `Run.ResultWriter` is the only writer to stdout in Human and Plain: rows,
 bands and `Run.Text` go to `Facades.Stderr`, so a pipe on stdout receives
 exactly the payload. In JSON the payload is the string `result` of the `evo.run`
 document, and in JSONL each write is one `result.written` event whose
