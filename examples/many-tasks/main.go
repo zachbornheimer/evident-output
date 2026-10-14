@@ -1,7 +1,10 @@
 // Command many-tasks demos one Group of many trivial Tasks that all stay
 // Running for the same hold, so the live region has a large census to animate.
 //
-//	go run ./examples/many-tasks/ --tasks 10000
+//	go run ./examples/many-tasks/
+//	go run ./examples/many-tasks/ --tasks 20 --hold 1ms --late 5ms
+//
+// --tasks scales the Group; the default is 1000.
 //
 // With --late, a free root Task also runs, starting once the Group's last
 // Task settled and holding for that long, so a root collection and a root row

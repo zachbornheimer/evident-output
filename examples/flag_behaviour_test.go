@@ -18,7 +18,8 @@ import (
 const tmpDirArg = "{tmp}"
 
 // fastFlag is the flag every timed example declares to shorten its sleeps.
-// The table leaves it out; the runner appends it unless a pin names it.
+// Every pin runs with it, so the table leaves it out and the runner appends
+// it; that run is the --fast pin, and the declared-flag check counts it.
 const fastFlag = "--fast"
 
 // flagPin is one invocation of one example and the behaviour it must have.
@@ -48,7 +49,6 @@ var flagPins = []flagPin{
 
 	// repo-status refuses while the repository has blockers: exit 1, not 0.
 	{example: "repo-status", exit: 1, contains: []string{"2 branches need attention", "[refused]  bpp-csharp", "git branch -vv"}, absent: []string{"HEAD"}},
-	{example: "repo-status", args: []string{"--fast"}, exit: 1},
 	{example: "repo-status", args: []string{"--clean"}},
 	{example: "repo-status", args: []string{"--name", "my-repo"}, exit: 1, contains: []string{"[refused]  my-repo"}},
 	{example: "repo-status", args: []string{"--verbose"}, exit: 1, contains: []string{"HEAD"}},
@@ -57,7 +57,6 @@ var flagPins = []flagPin{
 	{example: "repo-status", args: []string{"--color", "sometimes"}, exit: 2},
 
 	{example: "install-pipeline"},
-	{example: "install-pipeline", args: []string{"--fast"}},
 	{example: "install-pipeline", args: []string{"--fail-tests"}, exit: 2},
 
 	// migrate plans by default and commits only with --apply. A failed
@@ -73,7 +72,6 @@ var flagPins = []flagPin{
 	// doctor reports findings and exits 0; --strict makes them blockers.
 	{example: "doctor", contains: []string{"cannot connect to docker socket", "[succeeded]"}},
 	{example: "doctor", args: []string{"--strict"}, exit: 1, contains: []string{"[refused]"}},
-	{example: "doctor", args: []string{"--fast"}},
 	{example: "doctor", args: []string{"--verbose"}, contains: []string{"probe interval"}},
 	{example: "doctor", args: []string{"--json"}, contains: []string{`"evo.run"`}},
 	{example: "doctor", args: []string{"--json", "--strict"}, exit: 1, contains: []string{`"evo.run"`}},
@@ -85,17 +83,15 @@ var flagPins = []flagPin{
 	{example: "data-command", args: []string{"--fail-link"}, exit: 2, stdoutEmpty: true},
 
 	{example: "named-tasks"},
-	{example: "many-tasks", args: []string{"--tasks", "10000"}},
+	{example: "many-tasks"},
 	{example: "many-tasks", args: []string{"--tasks", "20", "--hold", "1ms", "--late", "5ms"}},
 	{example: "live-progress"},
-	{example: "live-progress", args: []string{"--fast"}},
 	{example: "quiet-writer"},
 	{example: "quiet-writer", args: []string{"--quiet", "10ms"}},
-	{example: "debug-history", args: []string{"--fast"}, contains: []string{"[DEBUG] working tree scanned"}},
+	{example: "debug-history", contains: []string{"[DEBUG] working tree scanned"}},
 	{example: "debug-pane"},
-	{example: "debug-pane", args: []string{"--fast"}},
 	{example: "debug-pane", args: []string{"--fail"}, exit: 1, contains: []string{"[refused"}},
-	{example: "terminal-driver", args: []string{"--fast"}},
+	{example: "terminal-driver"},
 	{example: "terminal-driver", args: []string{"--frames"}, contains: []string{"── frame 1 ──"}},
 	{example: "terminal-driver", args: []string{"--step"}, contains: []string{"── frame 1 ──"}},
 
@@ -126,7 +122,7 @@ func TestExamplesPinDocumentedFlagBehaviour(t *testing.T) {
 		pinned := pinnedFlagsByExample()
 		for example, flags := range declared {
 			for _, name := range flags {
-				if !slices.Contains(pinned[example], name) {
+				if name != strings.TrimPrefix(fastFlag, "--") && !slices.Contains(pinned[example], name) {
 					t.Errorf("%s declares --%s but no pin exercises it", example, name)
 				}
 			}
@@ -257,17 +253,19 @@ func expandTmp(t *testing.T, args []string) []string {
 	return out
 }
 
+// buildAllExamples compiles every example with one go command and returns
+// the binary path of each, keyed by example name.
 func buildAllExamples(t *testing.T, examplesDir string, declared map[string][]string) map[string]string {
 	t.Helper()
 	outDir := t.TempDir()
+	build := newCommand("go", "build", "-buildvcs=false", "-o", outDir+string(filepath.Separator), "./...")
+	build.Dir = examplesDir
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build examples: %v\n%s", err, out)
+	}
 	bins := make(map[string]string, len(declared))
 	for example := range declared {
-		bin := filepath.Join(outDir, example)
-		build := buildExampleBinary(bin, filepath.Join(examplesDir, example))
-		if out, err := build.CombinedOutput(); err != nil {
-			t.Fatalf("build %s: %v\n%s", example, err, out)
-		}
-		bins[example] = bin
+		bins[example] = filepath.Join(outDir, example)
 	}
 	return bins
 }
