@@ -1,11 +1,22 @@
 package graph
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import (
+	"strings"
+
+	"github.com/zachbornheimer/evident-output/internal/record"
+)
 
 // NotStartedSummary is the fixed detail a Task that never ran carries: the
 // text is not caller-composed, so every site that settles a Task NotStarted
-// spells it the same way.
+// spells it the same way. A Task a predecessor stopped adds who stopped it
+// (see stoppedBy).
 const NotStartedSummary = "not started"
+
+// stoppedBy is the summary of a Task that never ran because the Task named
+// name settled in state, which no dependent accepts.
+func stoppedBy(name string, state record.State) string {
+	return NotStartedSummary + " — " + name + " " + strings.ReplaceAll(string(state), "_", " ")
+}
 
 // Settle is the one way a Task reaches a terminal state. Every path that
 // ends a Task (a caller's verb, a scheduled callback's return, a failed
@@ -49,8 +60,33 @@ func (g *Graph) MarkNotStarted(t *Task) {
 }
 
 func (g *Graph) markNotStartedLocked(t *Task) {
-	t.Rec.SetSummary(NotStartedSummary)
+	g.markStoppedLocked(t, NotStartedSummary)
+}
+
+// markStoppedLocked settles t NotStarted with summary, which says what
+// stopped it.
+func (g *Graph) markStoppedLocked(t *Task, summary string) {
+	t.Rec.SetSummary(summary)
 	g.settleLocked(t, record.NotStarted)
+}
+
+// stopperLocked is the summary of a Task that failed predecessor p keeps
+// from running: it names the Task that can never succeed, the earliest such
+// member of a collection, or a collection whose builder never declared its
+// members.
+func (g *Graph) stopperLocked(p Predecessor) string {
+	switch {
+	case p.task != nil:
+		return stoppedBy(p.task.Name, p.task.Rec.State())
+	case p.col == nil:
+		return NotStartedSummary
+	case p.col.tally.builderFailed:
+		return stoppedBy(p.col.Name, record.Failed)
+	}
+	if m := p.col.tally.firstFailedMember(); m != nil {
+		return stoppedBy(m.Name, m.Rec.State())
+	}
+	return NotStartedSummary
 }
 
 // abandonLocked releases the scheduler's hold on submitted work that
@@ -83,7 +119,7 @@ func (g *Graph) failSequenceFollowersLocked(failed *Task) {
 		if c.stoppedAfter != 0 && branch >= c.stoppedAfter {
 			return
 		}
-		c.stoppedAfter = branch
+		c.stoppedAfter, c.stoppedBy = branch, stoppedBy(failed.Name, failed.Rec.State())
 		g.stopFollowersLocked(c, branch)
 	}
 }
@@ -94,14 +130,14 @@ func (g *Graph) stopFollowersLocked(c *Container, branch int) {
 	for _, sib := range c.tasks {
 		if sib.Declaration > branch {
 			g.sched.followerChecks++
-			g.stopUnstartedLocked(sib)
+			g.stopUnstartedLocked(sib, c.stoppedBy)
 		}
 	}
 	for _, child := range c.children {
 		if child.Declaration > branch {
 			for _, member := range appendDescendantTasks(child, nil) {
 				g.sched.followerChecks++
-				g.stopUnstartedLocked(member)
+				g.stopUnstartedLocked(member, c.stoppedBy)
 			}
 		}
 	}
@@ -114,19 +150,19 @@ func (g *Graph) stopIfFollowerLocked(t *Task) {
 	branch := t.Declaration
 	for c := t.Parent; c != nil; branch, c = c.Declaration, c.Parent {
 		if c.Sequential && c.stoppedAfter != 0 && branch > c.stoppedAfter {
-			g.stopUnstartedLocked(t)
+			g.stopUnstartedLocked(t, c.stoppedBy)
 			return
 		}
 	}
 }
 
-// stopUnstartedLocked settles t NotStarted unless it already started or
-// resolved.
-func (g *Graph) stopUnstartedLocked(t *Task) {
+// stopUnstartedLocked settles t NotStarted with summary unless it already
+// started or resolved.
+func (g *Graph) stopUnstartedLocked(t *Task, summary string) {
 	if record.IsTerminalTask(t.Rec.State()) || t.sched.phase == PhaseRunning {
 		return
 	}
-	g.markNotStartedLocked(t)
+	g.markStoppedLocked(t, summary)
 }
 
 // FollowerChecks counts the Sequence followers examined, so a test can prove

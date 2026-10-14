@@ -92,6 +92,17 @@ func stateOutcome(s record.State) predOutcome {
 	}
 }
 
+// memberOutcome classifies a member's state for the Tasks after its
+// container: the container's own outcome folds an Excluded member into its
+// success (CONTRACT §2), so only a direct edge on an Excluded Task stops a
+// dependent.
+func memberOutcome(s record.State) predOutcome {
+	if s == record.Excluded {
+		return predSucceeded
+	}
+	return stateOutcome(s)
+}
+
 // StopsSequenceFollowers reports whether a step settling in state keeps
 // every later step of its Sequence from starting: the same states that can
 // never satisfy a dependent.

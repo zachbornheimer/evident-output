@@ -90,9 +90,13 @@ func (r reactions) Settled(id record.TaskID, to record.State) {
 }
 
 // finishedPayload is task.finished's payload: the Outcome the Task settled
-// with, and its Summary when it has one (ZYS-971).
+// with, absent for a NotStarted Task exactly as in evo.run, and its Summary
+// when it has one (ZYS-971).
 func finishedPayload(rec *record.Task) map[string]any {
-	payload := map[string]any{"outcome": string(rec.State().Outcome())}
+	payload := map[string]any{}
+	if outcome := rec.State().Outcome(); outcome != "" {
+		payload["outcome"] = string(outcome)
+	}
 	if summary := rec.Summary(); summary != "" {
 		payload["summary"] = summary
 	}

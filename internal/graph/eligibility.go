@@ -172,7 +172,8 @@ const (
 )
 
 // predsOutcomeLocked folds t's predecessors into one outcome and, while
-// that outcome is pending, the first predecessor still pending.
+// that outcome is pending, the first predecessor still pending; once it
+// failed, the predecessor that can never succeed.
 //
 // It forgets each Task predecessor it finds succeeded: a terminal state
 // never reverts, and rereading it on every wake would make fan-in over n
@@ -188,7 +189,7 @@ func (g *Graph) predsOutcomeLocked(t *Task, scan predScan) (predOutcome, Predece
 		g.sched.predChecks++
 		out, parkOn := g.outcomeLocked(p)
 		if out == predFailed {
-			verdict, blocker = predFailed, p
+			verdict, blocker = predFailed, parkOn
 			break
 		}
 		if out == predPending && verdict == predSucceeded {
@@ -305,7 +306,7 @@ func (g *Graph) placeLocked(t *Task, scan predScan) {
 			blocker.col.tally.park(t, cursor, open)
 		}
 	case predFailed:
-		g.markNotStartedLocked(t)
+		g.markStoppedLocked(t, g.stopperLocked(blocker))
 	}
 }
 

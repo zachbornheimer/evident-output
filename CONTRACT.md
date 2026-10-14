@@ -134,7 +134,10 @@ concurrency, dependency readiness and cancellation. `Define` submits and never
 runs inline; a nil return succeeds. `Verify` true before `Define` resolves
 Satisfied and the callback never runs; false after a successful callback
 fails the Task. A Failed, Refused, Excluded or Cancelled predecessor leaves
-its dependents NotStarted. `Get` is valid only from work ordered after the
+its dependents NotStarted. A NotStarted Task's summary names the Task that
+stopped it. `After(group)` and `After(sequence)` wait on the container's own
+outcome, which folds an Excluded member into success, so only a direct
+`After(task)` on an Excluded Task leaves its dependent NotStarted. `Get` is valid only from work ordered after the
 producer by Sequence position or `After`; an unordered `Get` fails the run
 with `ErrComputedUnordered` in every mode. A goroutine a callback started is
 the callback's hands: its `Get` is judged as the callback's, as
@@ -279,7 +282,8 @@ Problem their ending creates.
 `Outcome` is the only verdict type. Its six values appear unchanged as each
 Task's outcome, as `Conclusion.Outcome`, and as `outcome` in `evo.run` and
 `evo.event`; Human and Plain name every Outcome but Succeeded in its own
-word. No other verdict spelling exists.
+word. A NotStarted Task has no Outcome, so both machine projections omit its
+`outcome`. No other verdict spelling exists.
 
 | Symbol           | Kind  | Meaning                                                                                          |
 | ---------------- | ----- | ------------------------------------------------------------------------------------------------ |

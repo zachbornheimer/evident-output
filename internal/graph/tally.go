@@ -67,7 +67,7 @@ func (t *tally) declare(m *Task) {
 // settle records that member m may have settled and returns the Tasks whose
 // edges it resolved.
 func (t *tally) settle(m *Task) (woken []*Task) {
-	switch stateOutcome(m.Rec.State()) {
+	switch memberOutcome(m.Rec.State()) {
 	case predFailed:
 		if t.firstFailed != 0 && t.firstFailed <= m.Declaration {
 			return nil
@@ -86,7 +86,7 @@ func (t *tally) settle(m *Task) (woken []*Task) {
 		t.parked = t.parked[:i]
 		return woken
 	case predSucceeded:
-		for t.succeededPrefix < len(t.members) && stateOutcome(t.members[t.succeededPrefix].Rec.State()) == predSucceeded {
+		for t.succeededPrefix < len(t.members) && memberOutcome(t.members[t.succeededPrefix].Rec.State()) == predSucceeded {
 			t.succeededPrefix++
 		}
 		n := 0
@@ -104,6 +104,15 @@ func (t *tally) settle(m *Task) (woken []*Task) {
 // indexOf is where member m sits in declaration order.
 func (t *tally) indexOf(m *Task) int {
 	return sort.Search(len(t.members), func(i int) bool { return t.members[i].Declaration >= m.Declaration })
+}
+
+// firstFailedMember is the earliest member that can never succeed, or nil
+// while none has failed.
+func (t *tally) firstFailedMember() *Task {
+	if t.firstFailed == 0 {
+		return nil
+	}
+	return t.members[sort.Search(len(t.members), func(i int) bool { return t.members[i].Declaration >= t.firstFailed })]
 }
 
 // seal takes the membership of edges declared while the collection was

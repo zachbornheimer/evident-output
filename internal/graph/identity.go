@@ -138,6 +138,9 @@ type Container struct {
 	// stoppedAfter is, for a Sequence, the declaration of the earliest step
 	// a failure already stopped its later steps after (0: none yet).
 	stoppedAfter int
+	// stoppedBy is the summary the steps stoppedAfter stopped carry: who
+	// stopped them.
+	stoppedBy string
 	// tally counts this container's descendant Tasks by outcome, for the
 	// Tasks that run After it.
 	tally tally
