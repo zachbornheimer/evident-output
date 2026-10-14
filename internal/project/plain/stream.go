@@ -45,6 +45,9 @@ type Stream struct {
 	// when its last Task resolves or its grace passes with Tasks open
 	// (block.place). placedBlocks counts those the blocks took.
 	places, placedBlocks int
+	// sweeping is set while Finish ends the Tasks nobody ended: the rows
+	// that take a place from then on are Finish's own (row.late).
+	sweeping bool
 	// held are the root rows waiting on a block they ran After (see
 	// block_stream.go).
 	held []*row
@@ -154,8 +157,9 @@ type row struct {
 	block   *block
 	counted bool
 	// place is the one a root Task took when it first settled (Stream.places),
-	// 0 before.
+	// 0 before; late is set when Finish's sweep ended it.
 	place int
+	late  bool
 	// held is set while a root row waits on an open block to close.
 	held bool
 }
@@ -167,6 +171,10 @@ func NewStream(cfg Config) *Stream {
 		blocks: make(map[string]*block),
 	}
 }
+
+// BeginSweep marks the rows that settle from now on as Finish's: Tasks that
+// end only because the run did, which come after everything that happened.
+func (s *Stream) BeginSweep() { s.sweeping = true }
 
 // Declare keeps a row for t.
 func (s *Stream) Declare(t Declared) {

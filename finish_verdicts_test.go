@@ -8,19 +8,18 @@ import (
 	"testing"
 )
 
-// TestFinishResolvesRunningTaskAsCancelled pins the honest-verdict contract for
+// TestFinishEndsUndefinedTasksNotStarted pins the honest-verdict contract for
 // plain (non-Group) parallel tasks: when Main's run returns an error while
-// sibling tasks are still Running/Pending, Finish must resolve each task to a
-// real terminal state derived from the one model — Running becomes Cancelled
-// (■), Pending becomes "not started" — never a stuck/incomplete glyph that
-// forces the consumer to hand-roll the same cascade (evo-rec.md partial-truth
-// rules).
-func TestFinishResolvesRunningTaskAsCancelled(t *testing.T) {
+// sibling tasks have no Define, Finish ends each NotStarted (CONTRACT.md §4)
+// whether it only waited or also narrated work with Doing, because nothing of
+// it ran; it never invents a Cancelled (■) row for work nobody started
+// (evo-rec.md partial-truth rules).
+func TestFinishEndsUndefinedTasksNotStarted(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
-	running := out.Task("download")
-	running.Doing("fetching")
+	narrated := out.Task("download")
+	narrated.Doing("fetching")
 	pending := out.Sequence("steps").Task("verify")
 
 	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
@@ -30,22 +29,17 @@ func TestFinishResolvesRunningTaskAsCancelled(t *testing.T) {
 	if code != exitFailed {
 		t.Fatalf("exit code = %d, want ExitFailed (%d)", code, exitFailed)
 	}
-
-	runningState := running.snapshot().State
-	if runningState != cancelled {
-		t.Fatalf("running task state = %q, want %q", runningState, cancelled)
-	}
-
-	pendingState := pending.snapshot().State
-	if pendingState != notStarted {
-		t.Fatalf("pending task state = %q, want %q", pendingState, notStarted)
+	for name, task := range map[string]*Task{"narrated": narrated, "pending": pending} {
+		if state := task.snapshot().State; state != notStarted {
+			t.Fatalf("%s task state = %q, want %q", name, state, notStarted)
+		}
 	}
 
 	rendered := buf.String()
-	if !strings.Contains(rendered, "■") {
-		t.Fatalf("rendered output missing cancelled glyph (■):\n%s", rendered)
+	if strings.Contains(rendered, "■") {
+		t.Fatalf("rendered output draws a cancelled glyph (■) for work that never started:\n%s", rendered)
 	}
 	if !strings.Contains(rendered, "not started") {
-		t.Fatalf("rendered output missing \"not started\" for pending task:\n%s", rendered)
+		t.Fatalf("rendered output missing \"not started\" for the undefined tasks:\n%s", rendered)
 	}
 }

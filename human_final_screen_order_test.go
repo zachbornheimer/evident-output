@@ -137,6 +137,17 @@ func declareNotStartedDependent(out *Run) {
 	out.Task("depGroup").After(g).Define(pause(0))
 }
 
+// declareUndefinedBesideDependent is one program for both renderers: a Task
+// nobody Defined, declared before a Task After a Group. The dependent settles
+// while the run works and the undefined Task only when Finish ends it, so
+// Plain writes the dependent first.
+func declareUndefinedBesideDependent(out *Run) {
+	g := out.Group("g")
+	g.Task("g1").Define(pause(0))
+	out.Task("audit").Problem("audit is advisory")
+	out.Task("publish").After(g).Define(pause(0))
+}
+
 // declareChainAfterBlock is one program for both renderers: a chain of
 // Tasks After a Group, declared last-link first, so release order differs
 // from declaration order.
@@ -167,6 +178,7 @@ func TestHumanFinalScreenOrderMatchesPlain(t *testing.T) {
 		{"streamed block", declareStreamedBlock, "0pkg", "0tail", true},
 		{"not-started dependent", declareNotStartedDependent, "0eg", "0depSkipped", true},
 		{"chain released in order", declareChainAfterBlock, "0first", "0second", true},
+		{"undefined Task beside a dependent", declareUndefinedBesideDependent, "0publish", "0audit", false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			plain, _ := runPlain(t, Config{MaxConcurrency: finalScreenOrderCeiling}, c.declare)

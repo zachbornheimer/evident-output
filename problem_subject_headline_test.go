@@ -2,6 +2,7 @@ package evo
 
 import (
 	"bytes"
+	"context"
 	"testing"
 )
 
@@ -15,7 +16,8 @@ func TestProblemWithSubjectPrintsHeadlineOnce(t *testing.T) {
 		want  string
 	}{
 		{"advisory Problem on a Done Task", func(r *Run) {
-			r.Task("audit").Problem("audit is advisory", On("audit.ok"), Code("advisory"))
+			r.Task("audit").Problem("audit is advisory", On("audit.ok"), Code("advisory")).
+				Define(func(context.Context) error { return nil })
 		}, "! audit  audit is advisory\n   └─ audit.ok\n"},
 		{"failure", func(r *Run) {
 			r.Task("clean workspace").fail("permission denied", On("/var/cache"))

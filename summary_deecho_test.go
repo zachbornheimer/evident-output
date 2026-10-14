@@ -2,6 +2,7 @@ package evo
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 )
@@ -33,7 +34,8 @@ func TestWarn_MessagePlacement_MatchesFailBlock(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
-	out.Task("optional tool").Problem("shellcheck not found", severity(severityWarning))
+	out.Task("optional tool").Problem("shellcheck not found", severity(severityWarning)).
+		Define(func(context.Context) error { return nil })
 	_ = out.finish()
 
 	rendered := buf.String()

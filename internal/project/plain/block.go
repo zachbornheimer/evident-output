@@ -211,6 +211,7 @@ func (s *Stream) takeRowPlace(r *row) {
 	}
 	s.places++
 	r.place = s.places
+	r.late = s.sweeping
 }
 
 // beginGrace arms, on a live terminal, the grace after which root would begin

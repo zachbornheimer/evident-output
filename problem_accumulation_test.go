@@ -304,22 +304,22 @@ func assertProblemKeptOnTask(t *testing.T, got taskSnapshot, want entityState, h
 	}
 }
 
-// TestProblem_UnresolvedWarnedTaskKeepsItsProblem: Finish's amnesty for a
-// warned-but-unresolved Task settles it Done with its Problem attached.
+// TestProblem_UnresolvedWarnedTaskKeepsItsProblem: a warned Task nobody
+// Defined ends NotStarted at Finish with its Problem attached.
 func TestProblem_UnresolvedWarnedTaskKeepsItsProblem(t *testing.T) {
 	got, human := finishProblemRun(t, func(out *Run) {
 		out.Task("scan").Problem("blocking finding").Problem("also a warning", severity(severityWarning))
 	})
-	assertProblemKeptOnTask(t, got, succeeded, human)
+	assertProblemKeptOnTask(t, got, notStarted, human)
 }
 
 // TestProblem_UnresolvedTaskKeepsItsProblem: a Task that recorded a
-// Problem and was never resolved settles Done; the Problem stays attached.
+// Problem and was never Defined ends NotStarted; the Problem stays attached.
 func TestProblem_UnresolvedTaskKeepsItsProblem(t *testing.T) {
 	got, human := finishProblemRun(t, func(out *Run) {
 		out.Task("scan").Problem("blocking finding")
 	})
-	assertProblemKeptOnTask(t, got, succeeded, human)
+	assertProblemKeptOnTask(t, got, notStarted, human)
 }
 
 // TestProblem_VisibleInSnapshotWhileRunning: every Problem is kept in the

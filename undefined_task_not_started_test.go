@@ -69,3 +69,26 @@ func TestUndefinedTaskEndsNotStarted(t *testing.T) {
 		})
 	}
 }
+
+// TestUndefinedTaskPlainGolden pins what a reader sees: the undefined Task's
+// row, the dependent naming it as "not started", and a Next step that names
+// the Task to give a Define.
+func TestUndefinedTaskPlainGolden(t *testing.T) {
+	ok := func(context.Context) error { return nil }
+	run := executeContract(context.Background(), t, evo.Config{Name: "undefined", Output: evo.Plain},
+		func(_ context.Context, r *evo.Run) error {
+			audit := r.Task("audit").Problem("audit is advisory", evo.On("audit.cfg"))
+			r.Task("publish").After(audit).Define(ok)
+			r.Task("lint")
+			return nil
+		})
+	want := "- audit    not started\n" +
+		"   └─ audit.cfg  audit is advisory\n" +
+		"- publish  not started — audit not started\n" +
+		"- lint     not started\n\n" +
+		"[succeeded · partial]  undefined\n" +
+		"→  give Task \"audit\" (and 1 more) a Define callback that returns nil, evo.Fail, evo.Refuse or evo.Exclude\n"
+	if run.Stderr != want {
+		t.Errorf("Plain output =\n%s\nwant\n%s", run.Stderr, want)
+	}
+}

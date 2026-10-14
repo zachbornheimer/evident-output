@@ -24,7 +24,6 @@ var (
 var (
 	errClosed             = misuse.ErrClosed
 	errAlreadyResolved    = misuse.ErrAlreadyResolved
-	errUnresolvedTask     = misuse.ErrUnresolvedTask
 	errInvalidProgress    = misuse.ErrInvalidProgress
 	errProgressRegression = misuse.ErrProgressRegression
 	errComputeWithVerify  = misuse.ErrComputeWithVerify

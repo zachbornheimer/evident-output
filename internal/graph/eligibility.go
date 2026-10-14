@@ -299,7 +299,17 @@ func (g *Graph) placeLocked(t *Task, scan predScan) {
 			blocker.col.tally.park(t, cursor, open)
 		}
 	case predFailed:
+		g.settleNeverDefinedLocked(blocker.task)
 		g.markStoppedLocked(t, g.stopperLocked(blocker))
+	}
+}
+
+// settleNeverDefinedLocked ends p NotStarted when it is a Task nobody Defined,
+// the cause settling before the dependent it stops (CONTRACT.md §4). Any
+// other predecessor already settled itself.
+func (g *Graph) settleNeverDefinedLocked(p *Task) {
+	if p != nil && p.neverDefinedLocked() {
+		g.markNotStartedLocked(p)
 	}
 }
 

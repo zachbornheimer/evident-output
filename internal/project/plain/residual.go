@@ -65,9 +65,10 @@ func (s *Stream) compose(snap record.Snapshot, linesFrom int, entities bool) str
 // writeEntities writes the rows Finish still owes in the one order every
 // human destination shows: the root rows that wait on no collection and every
 // collection in the order they became durable in Plain, the rows held for a
-// collection in the order they were released, then the rows that ran After a
-// collection without ever being held (a NotStarted dependent). A row never
-// lands above the collection that explains it (project.HumanProjection
+// collection in the order they were released, the rows Finish itself ended
+// (a Task nobody Defined) in the order it ended them, then the rows that ran
+// After a collection without ever being held (a NotStarted dependent). A row
+// never lands above the collection that explains it (project.HumanProjection
 // decides what shows).
 func (s *Stream) writeEntities(b *strings.Builder, snap record.Snapshot) {
 	human := project.HumanProjection(snap, s.cfg.Style.Verbose)
@@ -75,10 +76,12 @@ func (s *Stream) writeEntities(b *strings.Builder, snap record.Snapshot) {
 	for _, t := range human.Tasks {
 		shown[t.ID] = true
 	}
-	var free, dependent []*row
+	var free, late, dependent []*row
 	for _, r := range s.roots {
 		switch {
 		case r.emitted || r.held:
+		case r.late:
+			late = append(late, r)
 		case s.awaitsCollection(r):
 			dependent = append(dependent, r)
 		default:
@@ -98,6 +101,7 @@ func (s *Stream) writeEntities(b *strings.Builder, snap record.Snapshot) {
 		}
 	}
 	s.writeRoots(b, shown, s.held)
+	s.writeRoots(b, shown, late)
 	s.writeRoots(b, shown, dependent)
 }
 

@@ -58,46 +58,39 @@ func (o *Run) warnManifestUnsavedLocked(err error) {
 	o.warnLocked(record.ApplyProblemOptions(txt.Text("manifest not saved: "+err.Error()), nil))
 }
 
-// settleUnresolvedTasksLocked gives every Task still unresolved at Finish its honest outcome. A task that
-// recorded a Problem, Effect/File row, sealed progress, taxonomy or warning already told a story and settles Done;
-// anything else is misuse and names the task so Finish can render it.
+// settleUnresolvedTasksLocked ends every Task still unresolved at Finish NotStarted: a Task nobody Defined never
+// returned, whatever Facts, Problems or Progress it carries (CONTRACT.md §4). Most were ended already, when a
+// dependent found them; the sweep ends the rest. On a clean finish the first Task nobody Defined also carries the
+// fix, since forgetting its Define is the caller's omission; a failed or cancelled run has a cause of its own to
+// report.
 func (o *Run) settleUnresolvedTasksLocked() {
-	abnormal := o.abnormalFinishLocked()
+	o.show.Stream.BeginSweep()
 	for _, t := range o.tasks {
 		if record.IsTerminalTask(t.node.Rec.State()) {
 			continue
 		}
-		if t.node.Rec.ProblemCount() > 0 || o.rec.HasRecordedEffect(t.id) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || t.node.Rec.WarningCount() > 0 {
-			o.graph.Settle(t.node, succeeded)
-			o.followRecordLocked()
-			continue
-		}
-		if t.refused {
-			t.node.Summarize(notStartedSummary)
-			o.graph.Settle(t.node, notStarted)
-			o.followRecordLocked()
-			continue
-		}
-		if !abnormal {
-			// Clean finish: a forgotten terminal verb is an incomplete story, not a caller bug. Never Cancelled/130 or exit
-			// escalation, running or not. Folded into Conclusion.Partial; the hint names the fix.
-			t.node.Summarize(unresolvedTaskIncompleteSummary)
-			o.graph.Settle(t.node, incomplete)
-			o.followRecordLocked()
-			o.attachUnresolvedTaskHintLocked(t)
-			continue
-		}
-		o.resolveUnstartedTaskLocked(t)
-		// A declared task that never started is work the failure or interrupt took away, not misuse.
-		if t.node.Rec.State() == notStarted {
-			continue
-		}
-		o.recordMisuseFor(t.name, errUnresolvedTask)
-		o.attachUnresolvedTaskHintLocked(t)
+		t.node.Summarize(notStartedSummary)
+		o.graph.Settle(t.node, notStarted)
+		o.followRecordLocked()
 	}
-	if misuse := o.firstMisuse(); misuse != nil && !errors.Is(misuse, errUnresolvedTask) {
+	if undefined := o.undefinedTasksLocked(); len(undefined) > 0 && !o.abnormalFinishLocked() {
+		o.attachUndefinedTaskHintLocked(undefined)
+	}
+	if o.firstMisuse() != nil {
 		o.appendMisuseLineLocked()
 	}
+}
+
+// undefinedTasksLocked is the Tasks nobody Defined, in declaration order. A Task whose Define was refused is
+// not one: the refusal already says what to fix.
+func (o *Run) undefinedTasksLocked() []*taskState {
+	var undefined []*taskState
+	for _, t := range o.tasks {
+		if t.node.Phase() == graph.PhaseDeclared && t.node.Rec.State() == notStarted && !t.refused {
+			undefined = append(undefined, t)
+		}
+	}
+	return undefined
 }
 
 // concludeLocked infers the run's Conclusion from the settled snapshot, records it, and journals the run's end.
@@ -178,33 +171,6 @@ func joinErrors(a, b error) error {
 	}
 }
 
-// hasSealedProgress reports whether t's progress reached its declared total. The kind must be set: a task that
-// never called Progress has the zero value (Total 0, Kind "") and must not read as sealed.
-func hasSealedProgress(t *taskState) bool {
-	if t.node.Rec.Progress().Kind == "" || t.node.Rec.Progress().Kind == indeterminate {
-		return false
-	}
-	return t.node.Rec.Progress().Total > 0 && t.node.Rec.Progress().Completed >= t.node.Rec.Progress().Total
-}
-
-func hasRecordedTaxonomy(t *taskState) bool {
-	return t.node.Rec.HasTaxonomy()
-}
-
-// resolveUnstartedTaskLocked derives a terminal state for a task found non-terminal during an abnormal finish:
-// Running reads as Cancelled, Pending as NotStarted.
-func (o *Run) resolveUnstartedTaskLocked(t *taskState) {
-	if t.node.Rec.State() == running {
-		t.node.Summarize(unresolvedTaskCancelledSummary)
-		o.graph.Settle(t.node, cancelled)
-		o.followRecordLocked()
-		return
-	}
-	t.node.Summarize(notStartedSummary)
-	o.graph.Settle(t.node, notStarted)
-	o.followRecordLocked()
-}
-
 // abnormalFinishLocked reports whether a Failed or Cancelled task exists: evidence that something interrupted
 // the run, not a caller who forgot to resolve a task. It gates whether a leftover Running task reads Cancelled/130.
 func (o *Run) abnormalFinishLocked() bool {
@@ -216,10 +182,12 @@ func (o *Run) abnormalFinishLocked() bool {
 	return false
 }
 
-// attachUnresolvedTaskHintLocked attaches the hint directly: the sweep runs after o.finishing, when Task.Problem refuses records.
-func (o *Run) attachUnresolvedTaskHintLocked(t *taskState) {
-	t.node.Recommend(asRecordAction(label(unresolvedTaskHint)))
-	o.show.Board.Changed(t.node.TaskID())
+// attachUndefinedTaskHintLocked attaches the fix to the first of tasks directly: the sweep runs after o.finishing,
+// when Task.Problem refuses records.
+func (o *Run) attachUndefinedTaskHintLocked(tasks []*taskState) {
+	first := tasks[0]
+	first.node.Recommend(asRecordAction(label(undefinedTaskHint(first.name, len(tasks)-1))))
+	o.show.Board.Changed(first.node.TaskID())
 }
 
 // autoResolveGroupsLocked stops a Sequence implying "still might run" once a member failed or was cancelled:
@@ -249,15 +217,14 @@ func (o *Run) autoResolveGroupsLocked() {
 
 const notStartedSummary = graph.NotStartedSummary
 
-// unresolvedTaskCancelledSummary is the detail for a task still Running at an abnormal finish.
-const unresolvedTaskCancelledSummary = "cancelled — run concluded before finish"
-
-// unresolvedTaskIncompleteSummary is the detail for a task still Running at a clean Finish. Cancelled/130 is
-// reserved for a real interruption; a forgotten terminal verb reads as incomplete, folded into Partial.
-const unresolvedTaskIncompleteSummary = "incomplete — run concluded before finish"
-
-// unresolvedTaskHint names the corrective action for a task Finish found with no final state.
-const unresolvedTaskHint = "return from the Define callback of this Task: nil, or evo.Fail, evo.Refuse or evo.Exclude"
+// undefinedTaskHint names the first Task Finish found with no Define, and how many others share its fault.
+func undefinedTaskHint(name string, others int) string {
+	const fix = "a Define callback that returns nil, evo.Fail, evo.Refuse or evo.Exclude"
+	if others == 0 {
+		return fmt.Sprintf("give Task %q %s", name, fix)
+	}
+	return fmt.Sprintf("give Task %q (and %d more) %s", name, others, fix)
+}
 
 // rejectedTask is the handle a refused Task declaration (duplicate name or key, entity limit, closed Output)
 // returns, so a chained call never panics. err is never nil: Define on it is misuse, and Wait says the work never ran.
