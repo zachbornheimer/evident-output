@@ -81,17 +81,48 @@ func (c contractSurface) unknownReferences(text string) []string {
 			check(text[m[2]:m[3]]+"."+member, m[2])
 		}
 	}
-	for _, m := range bareRetiredName.FindAllStringSubmatchIndex(text, -1) {
-		if !strings.HasSuffix(text[:m[2]], testkitQualifier) {
-			check(text[m[2]:m[3]], m[2])
-		}
+	for _, hit := range unqualifiedRetiredNames(text) {
+		check(hit.name, hit.at)
 	}
 	return unknown
 }
 
-// testkitQualifier precedes names that belong to the testkit package (its own
-// Width and NoColor options), not to the evo package the table retires.
-const testkitQualifier = "testkit."
+// retiredNameHit is one bareRetiredNames word in text, and its offset.
+type retiredNameHit struct {
+	name string
+	at   int
+}
+
+// unqualifiedRetiredNames are the bareRetiredNames words in text that are not
+// qualified into another package (otherPackageQualified).
+func unqualifiedRetiredNames(text string) []retiredNameHit {
+	var hits []retiredNameHit
+	for _, m := range bareRetiredName.FindAllStringSubmatchIndex(text, -1) {
+		if !otherPackageQualified(text[:m[2]]) {
+			hits = append(hits, retiredNameHit{name: text[m[2]:m[3]], at: m[2]})
+		}
+	}
+	return hits
+}
+
+// otherPackageQualifiers precede a name that belongs to another package, not
+// to the evo package the migration table retires: testkit's own Width and
+// NoColor options, and the standard library's fmt.Print, fmt.Printf and
+// fmt.Println, which the docs name when they say what to stop calling. A
+// bare Print, Printf or Println stays forbidden: that is the removed
+// evo.Print* spelling.
+var otherPackageQualifiers = []string{"testkit.", "fmt."}
+
+// otherPackageQualified reports whether before, the text up to a matched
+// name, ends in a qualifier that puts the name in another package.
+func otherPackageQualified(before string) bool {
+	for _, qualifier := range otherPackageQualifiers {
+		if strings.HasSuffix(before, qualifier) {
+			return true
+		}
+	}
+	return false
+}
 
 // bareEffectName matches an Effect-prefixed name written without the evo.
 // qualifier (EffectSpec{Verb: EffectDelete}), the spelling 1.x taught for the

@@ -45,7 +45,7 @@ var retiredRules = []RetiredRule{
 		ID:        "API-029",
 		RetiredIn: RetiredRelease2_0,
 		Why:       "it flagged DebugWriter used to carry a child process's output into the debug journal; DebugWriter was removed in 2.0 and the journal now takes only structured slog records, so the call does not compile.",
-		Instead:   "set cmd.Stdout and cmd.Stderr to task.Writer() inside the Task's Define so the output becomes the live tail and the retained Capture; log journal lines through r.SlogHandler().",
+		Instead:   "set cmd.Stdout and cmd.Stderr to task.Writer() inside the Task's Define so the output becomes the live tail and the retained ring; log journal lines through r.SlogHandler().",
 	},
 	{
 		ID:        "API-034",

@@ -65,7 +65,7 @@ grok mcp doctor evident-output --json
 - Absolute `Progress(completed, total)`
 - Never `fmt.Print` during live UI; write human text with `fmt.Fprintln(r.Text(), ...)`
 - Child process chatter → `cmd.Stdout = task.Writer()` (and stderr)
-- Sanitize is automatic; `Facades.Redactor` scrubs the Capture ring + Debug fields
+- Sanitize is automatic; `Facades.Redactor` scrubs the Writer's retained ring + Debug fields
 - `evo.Fail`/`evo.Refuse` are returned from Define; for an ordinary error, `return fmt.Errorf` and let Define resolve it
 - Task is name-only: `out.Task("download")`. Child stdio: `cmd.Stdout = task.Writer()`
 - Data commands: write the domain payload to `r.ResultWriter()`

@@ -28,7 +28,7 @@ func Migrations() []MigrationRow {
 			From:  "mutating Evidence callback (task.Evidence(\"write\", func() error { ... }))",
 			To:    "mutation in Define (evo.Effect / evo.File)",
 			Since: "1.0.0",
-			Notes: "a callback that mutates state belongs in Define; capture-meaning Evidence* was removed in 1.1 (Capture is the retained sink)",
+			Notes: "a callback that mutates state belongs in Define; capture-meaning Evidence* was removed in 1.1 (Task.Writer is the retained sink)",
 		},
 		{
 			From:   "manual os.WriteFile + os.Chmod + read-only Evidence",
@@ -42,7 +42,7 @@ func Migrations() []MigrationRow {
 			// no such rule exists yet, so left uncited rather than claiming
 			// a rule ID that does not resolve.
 			From:  "named Evidence used only for common file state",
-			To:    "evo.File's own tracked record (no extra Capture)",
+			To:    "evo.File's own tracked record (no extra Writer output)",
 			Since: "1.0.0",
 			Notes: "a named capture that only restates a file's own tracked state (path/mode/hash) duplicates evo.File's own record instead of adding new information",
 		},
@@ -55,7 +55,7 @@ func Migrations() []MigrationRow {
 		{
 			// No rule cites this row: the shape cannot be written in 2.0.
 			From:  "manual JSON struct marshal of Snapshot/Result",
-			To:    "versioned stable encoder (FormatJSON/FormatJSONL)",
+			To:    "versioned stable encoder (Config.Output JSON or JSONL)",
 			Since: "1.0.0",
 			Notes: "internal Snapshot/Result types are not public API; the versioned encoder owns the wire schema and its version bump",
 		},

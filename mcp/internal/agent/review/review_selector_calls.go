@@ -118,7 +118,7 @@ func streamNamedWrite(c selectorCall) []Finding {
 	}
 	return []Finding{c.finding("STREAM-003",
 		recv+"."+c.name+" writes directly to a stream-named field/variable alongside evo; route through fmt.Fprint*(r.Text(), ...) or a Task writer instead",
-		"replace "+recv+"."+c.name+"(...) with fmt.Fprint*(r.Text(), ...) (or the owning Task's Capture/Writer)")}
+		"replace "+recv+"."+c.name+"(...) with fmt.Fprint*(r.Text(), ...) (or the owning Task's Writer)")}
 }
 
 // exitBypassingConclusion is API-018 and EVO-EXIT-001 (its ID in the

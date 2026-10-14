@@ -17,7 +17,7 @@ func doWork(ctx context.Context) {
 	_ = evo.Execute(ctx, evo.Config{
 		Facades: evo.Facades{Terminal: screen, Clock: clock},
 	}, run)
-	// Phase/Progress draw a live region; a Task that resolves before the threshold does not flash.
+	// Doing and Progress draw a live region; a Task that resolves before the threshold does not flash.
 	// docexamples:snippet end
 }
 

@@ -13,10 +13,17 @@ import (
 // (Block, Title, Reason): the qualified-reference check cannot see
 // "resolve the Task with Fail or Block". Each must stay in the table and
 // out of CONTRACT.md (TestBareRetiredNamesAreRemoved).
+//
+// Print, Printf, Println, Capture and FormatJSON are the 1.x printing,
+// child-capture and formatting spellings; the whole corpus teaches
+// Run.Text(), Task.Writer() and Config.Output instead. The stdlib's
+// fmt.Print* is not the retired API and stays legal in its qualified form
+// (see otherPackageQualified).
 var bareRetiredNames = []string{
 	"Block", "Basis", "Record", "RecordLabel", "RecordName", "Reason",
 	"Width", "Title", "NextCommand", "Skipped", "FSPath", "Executable", "Args",
 	"Bytes", "DebugHistory", "DebugPane", "TerminalDriver",
+	"Print", "Printf", "Println", "Capture", "FormatJSON",
 }
 
 // bareRetiredName matches a bareRetiredNames word, case-sensitive and whole.
@@ -64,4 +71,23 @@ func migrationRemovedNames(t *testing.T, path string) map[string]bool {
 		t.Fatalf("%s: no table rows found", path)
 	}
 	return names
+}
+
+// TestBareRetiredNamesExemptOnlyQualifiedStdlib pins the documented
+// exemption: the standard library's fmt.Print, fmt.Printf and fmt.Println may
+// be named, the 1.x evo spellings and the bare words may not.
+func TestBareRetiredNamesExemptOnlyQualifiedStdlib(t *testing.T) {
+	for text, want := range map[string]int{
+		"never call fmt.Print, fmt.Printf or fmt.Println in a live UI": 0,
+		"fmt.Fprintln(r.Text(), x)":                                    0,
+		"evo.Print(x)":                                                 1,
+		"fmt.Print/Println":                                            1,
+		"Capture it with Task.Writer":                                  1,
+		"a hand-rolled Capture() pair, then FormatJSON":                2,
+		"capture ring and formatJSON helper":                           0,
+	} {
+		if got := len(unqualifiedRetiredNames(text)); got != want {
+			t.Errorf("unqualifiedRetiredNames(%q) = %d hits, want %d", text, got, want)
+		}
+	}
 }

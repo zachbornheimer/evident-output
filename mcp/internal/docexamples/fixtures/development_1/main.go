@@ -12,8 +12,8 @@ import (
 func doWork(ctx context.Context) {
 	// docexamples:snippet start
 	var buf bytes.Buffer
-	_ = evo.Execute(ctx, evo.Config{Name: "tool", Output: evo.Plain, Facades: evo.Facades{Stdout: &buf}}, run)
-	plain := buf.String()
+	_ = evo.Execute(ctx, evo.Config{Name: "tool", Output: evo.Plain, Facades: evo.Facades{Stderr: &buf}}, run)
+	plain := buf.String() // rows and bands; Facades.Stdout receives only Run.ResultWriter
 	// docexamples:snippet end
 
 	_ = plain

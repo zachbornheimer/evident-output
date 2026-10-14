@@ -21,7 +21,9 @@ func retiredRuleIDPattern(id string) *regexp.Regexp {
 
 // TestNoStaleRetiredRuleReferences keeps retired rules and removed methods
 // out of live guidance: a rule's text never cites a retired rule ID or
-// teaches a removed method outside a "removed in <release>" note; every
+// teaches a removed method or bare retired name (bareRetiredNames: Print,
+// Printf, Println, Capture, FormatJSON, ...) outside a "removed in <release>"
+// note, where only the standard library's qualified fmt.Print* stays legal; every
 // TRACEABILITY.md row that carries a retired rule ID is waived as retired,
 // not passing on the strength of a test that no longer exists; and the live
 // renderer's comments cite no retired rule ID.
@@ -46,6 +48,11 @@ func TestNoStaleRetiredRuleReferences(t *testing.T) {
 				for _, hit := range rules.UnexplainedRetired(text) {
 					t.Errorf("%s %s names removed %q without \"removed in %s\"; use %s",
 						r.ID, field, hit.Match, hit.Symbol.RemovedIn, hit.Symbol.Replacement)
+				}
+				for _, hit := range unqualifiedRetiredNames(text) {
+					if sentence, _ := sentenceAround(text, hit.at); !removedNote.MatchString(sentence) && r.MaxDialect == "" {
+						t.Errorf("%s %s names removed %q without \"removed in\"; write the 2.0 spelling or fmt.%[3]s", r.ID, field, hit.name)
+					}
 				}
 			}
 		}

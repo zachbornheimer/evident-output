@@ -222,9 +222,9 @@ inside Define return fmt.Errorf("...: %w", err), or return evo.Fail(summary, evo
 user-facing text.
 Never implement your own io.Writer whose Write method calls Task.Doing (API-031): that
 reimplements the exact adapter Writer already owns.
-Capture is task-owned. Ring always retains proof; Config.Debug.Level gates journal display.
+Task.Writer is task-owned: its ring always retains proof; Config.Debug.Level gates journal display.
 Do not hand-thread DebugWriter for brew/git.
-WriteJSON or FormatJSON/FormatJSONL for machines. Avoid fmt.Print during live UI — write to r.Text() (see interactive guide).`,
+Run.ResultWriter() for the data payload and Config.Output (json or jsonl) for machines. Avoid fmt.Print during live UI — write to r.Text() (see interactive guide).`,
 			TokenEstimate: 260,
 		},
 		{

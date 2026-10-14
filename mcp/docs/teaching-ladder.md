@@ -69,7 +69,7 @@ os.Exit(evo.Execute(ctx, evo.Config{Name: "tool"}, run).ExitCode())
 Batch elements are one Task with Progress+Doing (count + muted activity), not N Tasks.
 Use `TruncateNames` for a single skip/kept list when names must stay readable.
 
-## Capture
+## Child output
 
 ```go
 task.Define(func(ctx context.Context) error {

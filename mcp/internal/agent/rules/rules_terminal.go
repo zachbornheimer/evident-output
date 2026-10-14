@@ -55,7 +55,7 @@ go func() { <-c; os.Exit(1) }()`,
 			Why:             "A NUL byte means something wrote raw/binary data into the terminal stream outside evo's sanitize path.",
 			BadCode:         `// transcript contains \x00 from an unmanaged binary write`,
 			GoodCode:        `// all writes go through r.Text()/task.Writer, which sanitize text before it reaches the terminal`,
-			Remediation:     "Route the binary-producing writer through Capture/Writer or a text-only channel; never write raw child bytes straight to the terminal",
+			Remediation:     "Route the binary-producing writer through Task.Writer or a text-only channel; never write raw child bytes straight to the terminal",
 			RelatedGuidance: []string{"interactive", "streams"},
 			VerificationIDs: []string{"TERM-014"},
 			Since:           "0.1.0",
@@ -66,7 +66,7 @@ go func() { <-c; os.Exit(1) }()`,
 			Category:  "TERM",
 			Severity:  SeverityWarning,
 			Invariant: "a child process either runs through Task.Writer or inside Run.Suspend, never on the inherited terminal while the live frame is up",
-			Why:       "A child that inherits os.Stdout paints on the same TTY as the live row. Capture it with Task.Writer so the spinner keeps moving and the child's lines become the live tail; a child that must own the terminal (an interactive login) runs inside Run.Suspend, which pauses the live region around it.",
+			Why:       "A child that inherits os.Stdout paints on the same TTY as the live row. Route it through Task.Writer so the spinner keeps moving and the child's lines become the live tail; a child that must own the terminal (an interactive login) runs inside Run.Suspend, which pauses the live region around it.",
 			BadCode: `cmd := exec.Command("zq", "setup")
 cmd.Stdout = os.Stdout
 cmd.Stderr = os.Stderr

@@ -30,7 +30,7 @@ const RunSchemaVersion = "3.0"`,
 			Category:  "WIRE",
 			Severity:  SeverityError,
 			Invariant: "stdout carries only the data payload; human text goes to Run.Text()",
-			Why:       "A JSON document written to stdout alongside an ordinary human fmt.Print/Println on the same stream produces output no JSON or line parser can consume: the human line breaks json.Decoder mid-stream and corrupts every downstream jq or awk consumer. Run.ResultWriter() is the only writer to stdout in Human and Plain, and Run.Text() goes to stderr, so a pipe on stdout receives exactly the payload.",
+			Why:       "A JSON document written to stdout alongside an ordinary human fmt.Print or fmt.Println on the same stream produces output no JSON or line parser can consume: the human line breaks json.Decoder mid-stream and corrupts every downstream jq or awk consumer. Run.ResultWriter() is the only writer to stdout in Human and Plain, and Run.Text() goes to stderr, so a pipe on stdout receives exactly the payload.",
 			BadCode: `json.NewEncoder(r.ResultWriter()).Encode(doc)
 fmt.Println("done") // human text lands in the payload stream`,
 			GoodCode: `json.NewEncoder(r.ResultWriter()).Encode(doc)

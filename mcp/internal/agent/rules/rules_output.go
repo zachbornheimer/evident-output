@@ -26,8 +26,8 @@ fmt.Printf("progress %d\n", n)`,
 			ID:        "STREAM-004",
 			Category:  "STREAM",
 			Severity:  SeverityWarning,
-			Invariant: "one task wires subprocess capture through Writer, not a hand-rolled Capture() pair",
-			Why: "Task.Writer tees cmd.Stdout/cmd.Stderr into the live doing-text and the capture ring. Wiring a separate Capture handle by " +
+			Invariant: "one task wires subprocess capture through Writer, not a hand-rolled capture pair",
+			Why: "Task.Writer tees cmd.Stdout/cmd.Stderr into the live doing-text and the capture ring. Wiring a separate capture handle by " +
 				"hand on the same task is easy to get half-right — evidence for the rule: four hand-rolled subprocess " +
 				"wirings this pattern replaced starved the capture (two with no fallback: dead port-in-use detection, " +
 				"empty DetailTail on failure).",
@@ -42,7 +42,7 @@ cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
   return evo.Fail("build failed")
 }`,
-			Remediation:     "Set cmd.Stdout/cmd.Stderr to task.Writer() (Task.Run was removed in 1.0); do not hand-wire Capture from application code",
+			Remediation:     "Set cmd.Stdout/cmd.Stderr to task.Writer() (Task.Run was removed in 1.0); do not hand-wire a capture from application code",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"STREAM-004"},
 			Since:           "0.2.17",
@@ -151,7 +151,7 @@ _ = outcome`,
 			Why:             "A malicious or fuzzed ESC/CSI sequence embedded in a name/detail/phase string must never survive into the terminal write; evo's sanitize layer is the single point that guarantees this, so nothing should bypass it with a raw write of untrusted text.",
 			BadCode:         `fmt.Fprint(w, rawUserText) // bypasses evo's sanitize layer entirely`,
 			GoodCode:        `it := out.Task(rawUserText) // evo sanitizes ESC/CSI internally before it reaches the terminal`,
-			Remediation:     "Never bypass evo's managed Item/Task/Print* entry points with a raw write of untrusted text; sanitization only runs on the managed path",
+			Remediation:     "Never bypass evo's managed Run.Text() and Task.Writer() entry points with a raw write of untrusted text; sanitization only runs on the managed path",
 			RelatedGuidance: []string{"security"},
 			VerificationIDs: []string{"TXT-007", "SEC-001"},
 			Since:           "0.1.0",
