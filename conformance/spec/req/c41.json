@@ -23,7 +23,7 @@
   {
     "id": "C41-002",
     "section": "2.0 \u00a71 Run",
-    "quote": "`Execute` is the same for embedding: the caller owns the context and the exit.",
+    "quote": "`Execute` runs without signals, for embedding: the caller owns the context and the exit.",
     "tier": "1.1",
     "tests": [
       {
