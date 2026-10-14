@@ -9,10 +9,11 @@
 #
 # Never moves an existing tag. Never force-pushes.
 #
-# CHANGELOG hygiene: ## Unreleased body must be promoted to ## [X.Y.Z] before
-# (or during) the cut. This script stages CHANGELOG.md with the pin commit and
-# refuses to tag if Unreleased still holds release notes while ## [X.Y.Z] is
-# missing (set CUT_RELEASE_ALLOW_CHANGELOG_DRIFT=1 to override).
+# CHANGELOG hygiene: the in-flight section is headed "## X.Y.Z (unreleased)".
+# This script rewrites it to "## [X.Y.Z] - YYYY-MM-DD" (CUT_RELEASE_DATE
+# overrides today's date) and stages CHANGELOG.md with the pin commit. It
+# refuses to tag if the changelog has neither that section nor a released
+# "## [X.Y.Z]" heading (set CUT_RELEASE_ALLOW_CHANGELOG_DRIFT=1 to override).
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -73,27 +74,21 @@ echo "cut-release: ${current} → ${next}"
 # Bare version for Keep-a-Changelog headings: v0.5.0 → 0.5.0
 bare="${next#v}"
 changelog="CHANGELOG.md"
+unreleased_heading="## ${bare} (unreleased)"
+release_date="${CUT_RELEASE_DATE:-$(date +%Y-%m-%d)}"
 if [[ -f "$changelog" && "${CUT_RELEASE_ALLOW_CHANGELOG_DRIFT:-}" != "1" ]]; then
-	has_heading=0
 	if command grep -Eq "^## \\[${bare}\\]( |$)" "$changelog"; then
-		has_heading=1
-	fi
-
-	# Non-empty Unreleased body = any non-blank line between ## Unreleased and the next ##
-	unreleased_body="$(awk '
-    /^## Unreleased$/ {p=1; next}
-    /^## / && p {exit}
-    p && NF {print; exit}
-  ' "$changelog")"
-
-	if [[ "$has_heading" -eq 0 && -n "$unreleased_body" ]]; then
-		echo "cut-release: CHANGELOG.md still has Unreleased notes but no ## [${bare}] heading." >&2
-		echo "cut-release: promote ## Unreleased → ## [${bare}] (Keep a Changelog), then re-run." >&2
+		:
+	elif command grep -Fxq "$unreleased_heading" "$changelog"; then
+		tmp_changelog="$(mktemp)"
+		awk -v old="$unreleased_heading" -v new="## [${bare}] - ${release_date}" '$0 == old {print new; next} {print}' "$changelog" >"$tmp_changelog"
+		mv "$tmp_changelog" "$changelog"
+		echo "cut-release: CHANGELOG.md: ${unreleased_heading} → ## [${bare}] - ${release_date}"
+	else
+		echo "cut-release: CHANGELOG.md has neither '${unreleased_heading}' nor '## [${bare}]'." >&2
+		echo "cut-release: name the in-flight section '${unreleased_heading}', then re-run." >&2
 		echo "cut-release: override with CUT_RELEASE_ALLOW_CHANGELOG_DRIFT=1 only if intentional." >&2
 		exit 1
-	fi
-	if [[ "$has_heading" -eq 0 ]]; then
-		echo "cut-release: warning: CHANGELOG.md has no ## [${bare}] heading (Unreleased empty)." >&2
 	fi
 fi
 
@@ -104,7 +99,7 @@ mv "$tmp" "$release_file"
 
 go run ./tools/scripts/sync-release-pins
 # The released API contract is the baseline TestChangelogCoversEveryAPIChange
-# diffs the next Unreleased section against.
+# diffs the next unreleased section against.
 cp testdata/api_golden.txt testdata/api_golden_released.txt
 # mcp/docs/mcp.md is embedded into the MCP binary; regenerate or the staleness gate goes red
 go generate ./mcp/internal/agent/sections

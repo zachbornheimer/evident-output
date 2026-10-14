@@ -12,7 +12,7 @@ import (
 // evo_version, and the module and MCP pin install guidance names.
 //
 // When cutting a release:
-//  1. Promote CHANGELOG ## Unreleased → ## [X.Y.Z] (Keep a Changelog).
+//  1. Promote CHANGELOG ## X.Y.Z (unreleased) → ## [X.Y.Z] - date (Keep a Changelog).
 //  2. Set Release to the new tag (e.g. "v1.0.1").
 //  3. Prefer: mise run test && mise run cut-release
 //  4. Tag that commit; do not move prior tags.
