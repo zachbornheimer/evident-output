@@ -148,6 +148,20 @@ func (s *ManifestStore) CommitTask(ctx context.Context, app ApplicationRecord, t
 	return nil
 }
 
+// RetractTask forgets the record for taskKey and hands the write to the
+// background writer. It is for a Task that committed as Done and was then
+// found to have failed: the next Run must not trust what it recorded.
+func (s *ManifestStore) RetractTask(taskKey string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.doc.Tasks[taskKey]; !ok {
+		return
+	}
+	delete(s.doc.Tasks, taskKey)
+	s.w.version++
+	s.requestWriteLocked()
+}
+
 // StageTask records task like CommitTask, but asks for no write: the next
 // CommitTask or Flush writes it. It is for records nothing reads back
 // within the Run, so a Run of N such Tasks pays one write, not N.

@@ -26,7 +26,7 @@ func (g *Graph) Overturn(t *Task, err error) {
 	case state.Succeeded():
 		g.resettleFailedLocked(t, err)
 		g.unlock()
-		h.Settled(t)
+		h.Overturned(t)
 	default:
 		g.unlock()
 	}

@@ -34,8 +34,9 @@ type Task struct {
 	// writer asked for it.
 	capture *Capture
 
-	// settled is set by Settle and never cleared.
-	settled bool
+	// settlements counts the Settle calls. A Task settles again only when
+	// a Done Task is overturned to Failed.
+	settlements int
 
 	// logged is set while the Task waits in the run's change log; the log
 	// guards it.
@@ -130,17 +131,24 @@ func (t *Task) Settle(to State) (from State) {
 func (t *Task) IsSettled() bool {
 	t.run.mu.Lock()
 	defer t.run.mu.Unlock()
-	return t.settled
+	return t.settlements > 0
+}
+
+// TimesSettled is how many times Settle ended the Task: once, or twice when
+// it settled Done and was then overturned to Failed.
+func (t *Task) TimesSettled() int {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return t.settlements
 }
 
 // swapSettledState is swapState that also marks the Task settled.
 func (t *Task) swapSettledState(to State) (from State) {
 	t.lockForWrite()
 	defer t.run.mu.Unlock()
-	if !t.settled {
-		t.run.settledTasks.Add(1)
-	}
-	from, t.state, t.settled = t.state, to, true
+	t.run.settledTasks.Add(1)
+	t.settlements++
+	from, t.state = t.state, to
 	return from
 }
 

@@ -116,8 +116,11 @@ type Declared struct {
 // row is one Task as the durable stream keeps it.
 type row struct {
 	Declared
-	// emitted is set once the row reached scrollback.
-	emitted bool
+	// emitted is set once the row reached scrollback, and emittedAs is the
+	// state it showed there: a Task that settles again in another state
+	// (Done, then overturned to Failed) is written again.
+	emitted   bool
+	emittedAs record.State
 	// ownsWindow is set on a Confirm gate while its window is open: the
 	// window shows this row, so it is not held back like a sibling's.
 	ownsWindow bool

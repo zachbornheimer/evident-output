@@ -60,6 +60,10 @@ type TaskNarration interface {
 	// Settled commits t's settled row where its readers find it. The caller
 	// holds the lock.
 	Settled(t *Task)
+	// Overturned commits t's second settle, Failed after Done, where its
+	// readers find it, and takes back whatever the first settle committed.
+	// The caller holds the lock.
+	Overturned(t *Task)
 	// RunEnded registers the Task that carries the run's own ending. The
 	// caller holds the lock.
 	RunEnded(t *Task)

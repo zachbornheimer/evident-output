@@ -40,9 +40,10 @@ type Presenter struct {
 type task struct {
 	rec  *record.Task
 	gate bool
-	// started and answered are set once becoming Running and settling were
-	// answered, however the row got there.
-	started, answered bool
+	// started is set once becoming Running was answered, however the row got
+	// there. answered is how many of the record's settlements were answered.
+	started  bool
+	answered int
 }
 
 // Config is what a Presenter shows and where.

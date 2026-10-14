@@ -118,6 +118,11 @@ func (r *Run) Commit(ctx context.Context, t *graph.Task, mode RunMode) TaskCommi
 	return r.tasks.Commit(ctx, r.session, t, mode)
 }
 
+// Retract takes back t's committed record; see TaskTable.Retract.
+func (r *Run) Retract(t *graph.Task, mode RunMode) {
+	r.tasks.Retract(r.session, t, mode)
+}
+
 // JudgeBasis judges id's declared Basis as the Task starts; see
 // TaskTable.JudgeBasis. An unknown Task declared none.
 func (r *Run) JudgeBasis(ctx context.Context, id record.TaskID, mode RunMode) (BasisJudgement, error) {

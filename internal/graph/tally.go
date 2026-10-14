@@ -2,6 +2,7 @@ package graph
 
 import (
 	"math"
+	"sort"
 
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
@@ -17,7 +18,8 @@ import (
 type tally struct {
 	// members is every descendant Task, in declaration order.
 	members []*Task
-	// succeededPrefix is how many leading members succeeded.
+	// succeededPrefix is how many leading members succeeded. A member that
+	// succeeded and then failed (see Overturn) ends the prefix before it.
 	succeededPrefix int
 	// firstFailed is the declaration of the earliest member that can
 	// never succeed, or 0 while none has failed.
@@ -71,6 +73,7 @@ func (t *tally) settle(m *Task) (woken []*Task) {
 			return nil
 		}
 		t.firstFailed = m.Declaration
+		t.succeededPrefix = min(t.succeededPrefix, t.indexOf(m))
 		woken = append(woken, t.open...)
 		t.open = nil
 		i := len(t.parked)
@@ -96,6 +99,11 @@ func (t *tally) settle(m *Task) (woken []*Task) {
 	default:
 		return nil
 	}
+}
+
+// indexOf is where member m sits in declaration order.
+func (t *tally) indexOf(m *Task) int {
+	return sort.Search(len(t.members), func(i int) bool { return t.members[i].Declaration >= m.Declaration })
 }
 
 // seal takes the membership of edges declared while the collection was

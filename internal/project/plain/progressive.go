@@ -120,10 +120,11 @@ func (s *Stream) HeldBack(t record.TaskSnapshot) bool {
 // a Task that resolved before a later Println or Confirm prompt renders
 // above it (release-gate round 5 finding 3). While a window is open a
 // sibling's row is held until it closes; the row of the Task that owns the
-// window is not, since the window exists to show it.
+// window is not, since the window exists to show it. A Task that settles
+// again in a different state is written again, so scrollback tells both.
 func (s *Stream) Commit(id record.TaskID) {
 	r := s.rows[id]
-	if r == nil || r.emitted || !record.IsTerminalTask(r.Rec.State()) {
+	if r == nil || !record.IsTerminalTask(r.Rec.State()) || (r.emitted && r.emittedAs == r.Rec.State()) {
 		return
 	}
 	snap := s.cfg.Source.Snapshot(id)
@@ -132,7 +133,7 @@ func (s *Stream) Commit(id record.TaskID) {
 	}
 	var b strings.Builder
 	project.WriteTaskAligned(&b, snap, s.column.nameWidth(), s.cfg.Style)
-	r.emitted = true
+	r.emitted, r.emittedAs = true, r.Rec.State()
 	if b.Len() == 0 {
 		return
 	}

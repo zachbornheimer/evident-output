@@ -1192,15 +1192,31 @@ func (e runHost) Disowned(t *graph.Task) {
 	}
 }
 
-// Settled writes the settled Task where readers find it. A Group or Sequence child repaints the live
-// ledger; a standalone Task commits its rows to scrollback at once so later Printf/Confirm output never
-// lands above finished work. Only a Done Task commits its manifest record (spec §8.2/§11.3).
+// Settled writes the settled Task where readers find it. Only a Done Task commits its manifest record
+// (spec §8.2/§11.3).
 func (e runHost) Settled(t *graph.Task) {
-	o := e.out
+	st := e.out.fileSettledLocked(t)
+	if st != nil && t.Rec.State().Succeeded() {
+		e.out.commitManifestLocked(st)
+	}
+}
+
+// Overturned writes the Task's second settle, Failed after Done, where readers find it, and takes back the
+// manifest record its first settle committed: the next Run must not skip work this Run found to conflict.
+func (e runHost) Overturned(t *graph.Task) {
+	if st := e.out.fileSettledLocked(t); st != nil {
+		e.out.freshness.Retract(t, freshness.ModeFor(e.out.cfg.dryRun))
+	}
+}
+
+// fileSettledLocked writes the settled Task where readers find it and returns its state, nil when it has none.
+// A Group or Sequence child repaints the live ledger; a standalone Task commits its rows to scrollback at once so
+// later Printf/Confirm output never lands above finished work. Callers hold o.mu.
+func (o *Run) fileSettledLocked(t *graph.Task) *taskState {
 	o.followRecordLocked()
 	st := o.stateOf(t)
 	if st == nil {
-		return
+		return nil
 	}
 	if st.collection() != nil {
 		o.show.Live.Signal(true)
@@ -1208,9 +1224,7 @@ func (e runHost) Settled(t *graph.Task) {
 		o.show.Stream.Commit(record.TaskID(st.id))
 		o.show.Stream.CommitEffects(st.id)
 	}
-	if t.Rec.State().Succeeded() {
-		o.commitManifestLocked(st)
-	}
+	return st
 }
 
 // commitManifestLocked persists st's operations once it settled Done and narrates the commit. Callers hold o.mu.

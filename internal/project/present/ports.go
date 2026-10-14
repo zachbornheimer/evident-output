@@ -53,7 +53,7 @@ func (l lens) Tracked(id record.TaskID) record.TaskOperations { return l.p.cfg.H
 type reactions struct{ p *Presenter }
 
 // Changed follows one write to the Task id on the live board and reports
-// whether its settle is owed an answer, once per Task.
+// whether its settle is owed an answer, once per settlement.
 func (r reactions) Changed(id record.TaskID) (record.State, bool) {
 	t := r.p.tasks[id]
 	if t == nil {
@@ -63,10 +63,11 @@ func (r reactions) Changed(id record.TaskID) (record.State, bool) {
 	if !followed {
 		to = t.rec.State()
 	}
-	if !t.rec.IsSettled() || t.answered {
+	settlements := t.rec.TimesSettled()
+	if settlements <= t.answered {
 		return to, false
 	}
-	t.answered = true
+	t.answered = settlements
 	return to, true
 }
 

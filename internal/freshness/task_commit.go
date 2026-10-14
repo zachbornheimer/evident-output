@@ -69,3 +69,14 @@ func (t *TaskTable) Commit(ctx context.Context, session *ManifestSession, task T
 	}
 	return TaskCommit{Written: true, Operations: len(ops)}
 }
+
+// Retract forgets task's committed record, for a Task that settled Done and
+// was then overturned to Failed. Like Commit, a Run that opened no manifest
+// or only plans retracts nothing: it committed nothing to take back.
+func (t *TaskTable) Retract(session *ManifestSession, task TaskView, mode RunMode) {
+	store := session.Opened()
+	if store == nil || !mode.Remembers() {
+		return
+	}
+	store.RetractTask(task.ManifestKey())
+}
