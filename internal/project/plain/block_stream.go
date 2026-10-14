@@ -174,13 +174,13 @@ func (s *Stream) tailIsUnder(b *block) bool {
 }
 
 // writeHeader writes b's header at its depth. The first one registers b to
-// be closed. A repeat after an interruption only restates where b is, so it
-// reads as running: the closing row, not a header above its members, says
-// the verdict.
+// be closed. A header reads as running until b settles, since a member not yet
+// declared can still change what b is: the closing row, not a header above
+// its members, says the verdict.
 func (s *Stream) writeHeader(out *strings.Builder, b *block) {
 	header := s.cfg.Source.Header(b.id)
 	header.Summary = ""
-	if b.headed {
+	if b.headed || !s.settled(b) {
 		header.State = record.Running
 	}
 	var line strings.Builder
@@ -239,10 +239,13 @@ func hasUnclosedChild(root, b *block) bool {
 }
 
 // writeClose writes b's closing row: the container's own verdict, with its
-// own Task folded in when the final output folds it.
+// own Task folded in when the final output folds it. The row sits under the
+// collections above b, so when another line came since they last wrote it
+// heads them again first.
 func (s *Stream) writeClose(out *strings.Builder, b *block) {
 	header := s.cfg.Source.Header(b.id)
 	var line strings.Builder
+	s.openChain(out, b.parent)
 	switch own := b.own; {
 	case own != nil && header.Summary == "":
 		project.FoldedGroupRow(s.cfg.Source.Snapshot(own.ID), header.State).Write(&line, s.cfg.Style)

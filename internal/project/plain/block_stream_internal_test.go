@@ -85,7 +85,7 @@ func TestPlainStreamsSettledMembersOfAnOpenGroup(t *testing.T) {
 		b.settle("i1", record.Succeeded)
 
 		got := b.written()
-		if !inOrder(got, "outer\n", "   ✓ inner\n", "      ✓ i1\n") || strings.Contains(got, "slow") {
+		if !inOrder(got, "outer\n", "   ◐ inner\n", "      ✓ i1\n") || strings.Contains(got, "slow") {
 			t.Fatalf("the nested member did not stream under both headers:\n%s", got)
 		}
 	})
@@ -275,8 +275,8 @@ func TestOwnTaskFailureStreamsImmediately(t *testing.T) {
 		*closed = true
 		b.stream.CommitSettledBlocks()
 
-		if got := b.written(); got != "✓ pkg\n   ✓ slow\n" {
-			t.Fatalf("want the own Task folded into the Group's row, got:\n%s", got)
+		if got := b.written(); got != "◐ pkg\n   ✓ slow\n✓ pkg\n" {
+			t.Fatalf("want the own Task folded into the Group's closing row, got:\n%s", got)
 		}
 	})
 }
@@ -448,6 +448,82 @@ func TestPlainReheadsAnInterruptedNestedBlock(t *testing.T) {
 
 		if got := b.written(); strings.Count(got, "npm\n") != 2 || strings.Count(got, "clean\n") != 1 {
 			t.Fatalf("an uninterrupted block wrote a header again:\n%s", got)
+		}
+	})
+}
+
+// TestPlainReheadsBeforeClosingRow pins that a collection's closing row reads
+// as its own: when a root row settled between a block's last member and its
+// close, the chain above the closing row is headed again, so the verdict is
+// never indented under the unrelated row. A header reads running until the
+// block closes, whatever the members declared so far have done.
+func TestPlainReheadsBeforeClosingRow(t *testing.T) {
+	t.Run("a root row between the last member and the close", func(t *testing.T) {
+		b := newBlockRun(t)
+		b.collection("clean", false)
+		npmClosed := b.collectionIn("npm", "clean", false)
+		b.task("npm.a", "npm")
+		b.task("npm.b", "npm")
+		b.task("pip.a", "clean")
+		b.task("ask", "")
+
+		b.settle("npm.a", record.Succeeded)
+		b.settle("npm.b", record.Succeeded)
+		b.settle("ask", record.Succeeded)
+		*npmClosed = true
+		b.stream.CommitSettledBlocks()
+		b.settle("pip.a", record.Succeeded)
+
+		want := "◐ clean\n" +
+			"   ◐ npm\n" + "      ✓ npm.a\n" + "      ✓ npm.b\n" +
+			"✓ ask\n" +
+			"◐ clean\n" + "   ✓ npm\n" + "   ✓ pip.a\n"
+		if got := b.written(); got != want {
+			t.Fatalf("npm's verdict is not attributed to its collection:\n%s\nwant:\n%s", got, want)
+		}
+	})
+
+	t.Run("the outer collection's verdict follows the interrupting row too", func(t *testing.T) {
+		b := newBlockRun(t)
+		cleanClosed := b.collection("clean", false)
+		npmClosed := b.collectionIn("npm", "clean", false)
+		b.task("npm.a", "npm")
+		b.task("npm.b", "npm")
+		b.task("pip.a", "clean")
+		b.task("ask", "")
+
+		b.settle("npm.a", record.Succeeded)
+		b.settle("npm.b", record.Succeeded)
+		b.settle("pip.a", record.Succeeded)
+		b.settle("ask", record.Succeeded)
+		*npmClosed, *cleanClosed = true, true
+		b.stream.CommitSettledBlocks()
+
+		want := "◐ clean\n" + "   ◐ npm\n" + "      ✓ npm.a\n" + "      ✓ npm.b\n" +
+			"   ✓ pip.a\n" +
+			"✓ ask\n" +
+			"◐ clean\n" + "   ✓ npm\n" +
+			"✓ clean\n"
+		if got := b.written(); got != want {
+			t.Fatalf("clean never closed after the interruption:\n%s\nwant:\n%s", got, want)
+		}
+	})
+
+	t.Run("a header reads running while a member is still to be declared", func(t *testing.T) {
+		b := newBlockRun(t)
+		npmClosed := b.collection("npm", false)
+		b.task("npm.a", "npm")
+		b.settle("npm.a", record.Succeeded)
+		if got, want := b.written(), "◐ npm\n   ✓ npm.a\n"; got != want {
+			t.Fatalf("a header read as a verdict before its block closed:\n%s\nwant:\n%s", got, want)
+		}
+
+		b.task("npm.b", "npm")
+		b.settle("npm.b", record.Succeeded)
+		*npmClosed = true
+		b.stream.CommitSettledBlocks()
+		if got, want := b.written(), "◐ npm\n   ✓ npm.a\n   ✓ npm.b\n✓ npm\n"; got != want {
+			t.Fatalf("the block did not close with its verdict:\n%s\nwant:\n%s", got, want)
 		}
 	})
 }

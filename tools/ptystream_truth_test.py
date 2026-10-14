@@ -151,6 +151,31 @@ class FinalMatchesPlainTest(unittest.TestCase):
         ):
             truth.check_final_matches_plain(frame(*self.NEST_SCREEN), 0, plain, 0)
 
+    def test_rejects_a_closing_row_written_under_a_root_row(self) -> None:
+        screen = frame("✓ clean caches", "   ✓ npm", "      ✓ a", "⊘ publish  declined")
+        plain = (
+            "◐ clean caches",
+            "   ◐ npm",
+            "      ✓ a",
+            "⊘ publish  declined",
+            "   ✓ npm",
+        )
+        with self.assertRaises(truth.TruthError):
+            truth.check_final_matches_plain(screen, 0, plain, 0)
+
+    def test_accepts_a_closing_row_headed_again_after_a_root_row(self) -> None:
+        screen = frame("✓ clean caches", "   ✓ npm", "      ✓ a", "⊘ publish  declined")
+        plain = (
+            "◐ clean caches",
+            "   ◐ npm",
+            "      ✓ a",
+            "⊘ publish  declined",
+            "◐ clean caches",
+            "   ✓ npm",
+            "✓ clean caches",
+        )
+        truth.check_final_matches_plain(screen, 0, plain, 0)
+
     def test_an_unstreamed_container_keeps_its_member_order(self) -> None:
         plain = ("✓ seq", "   ✓ one", "   ✓ two")
         screen = frame("✓ seq", "   ✓ two", "   ✓ one")
