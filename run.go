@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/v2/internal/graph"
 	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
 	"github.com/zachbornheimer/evident-output/v2/internal/process"
 	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
@@ -75,6 +76,11 @@ func runInterruptible(ctx context.Context, out *Run, run RunFunc) Result {
 			finished bool
 		)
 		defer func() {
+			if r := recover(); r != nil {
+				// The panic ends the process; the run records it as the panic it was, not as an exit.
+				concludeRunAfterExit(out, &interrupted, true, graph.PanicError(r))
+				panic(r)
+			}
 			if !finished {
 				result = concludeRunAfterExit(out, &interrupted, returned, err)
 			}

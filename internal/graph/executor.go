@@ -202,7 +202,7 @@ func (g *Graph) releaseLocked() {
 // panic text.
 func (g *Graph) recordPanic(c *claim, recovered any) {
 	if c.work.Panicked != nil {
-		c.work.Panicked(panicError(recovered).Error())
+		c.work.Panicked(PanicError(recovered).Error())
 	}
 }
 
