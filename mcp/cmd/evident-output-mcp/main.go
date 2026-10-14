@@ -84,7 +84,7 @@ var toolNameRE = regexp.MustCompile(`^[a-z][a-z0-9_.]{0,63}$`)
 
 func main() {
 	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "version") {
-		fmt.Fprintf(os.Stderr, "evident-output-mcp %s\n", resolvedVersion())
+		fmt.Printf("evident-output-mcp %s\n", resolvedVersion())
 		os.Exit(0)
 	}
 	if len(os.Args) > 1 {
