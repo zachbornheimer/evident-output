@@ -74,27 +74,41 @@ def _check_count(completed: dict[str, int], name: str, row: str, number: int) ->
 
 
 def normalize_rows(rows: Iterable[str]) -> list[str]:
-    """Sorted final rows (glyph, name, reason) and run summaries, durations dropped."""
+    """Final rows (glyph, name, reason) and run summaries in screen order, durations dropped.
+
+    A streamed ``◐`` progress row is not a final row, so it is dropped. A streamed
+    block therefore contributes only its closing ``✓`` container row, at the position
+    where that row closes, which is where the settled form shows it.
+    """
     kept = []
     for row in rows:
         text = " ".join(row.split())
         if text[:1] in FINAL and text[1:2] == " " or text.startswith(SUMMARY_PREFIX):
             kept.append(DURATION_RE.sub("", text))
-    return sorted(kept)
+    return kept
 
 
 def check_final_matches_plain(
     final: stream.Frame, screen_exit: int, plain_rows: Iterable[str], plain_exit: int
 ) -> None:
-    """The last pty frame holds exactly the Plain run's final rows, and the exit codes agree."""
+    """The last pty frame holds the Plain run's final rows, in order, and the exit codes agree.
+
+    The sorted comparison runs first so a missing or extra row gets its specific
+    diagnostic. Only when the row sets match is the order checked, row by row.
+    """
     if screen_exit != plain_exit:
         raise TruthError(f"pty run exit {screen_exit}, Plain run exit {plain_exit}")
     screen, plain = normalize_rows(final.rows), normalize_rows(plain_rows)
-    if screen == plain:
-        return
-    missing = [row for row in plain if row not in screen]
-    extra = [row for row in screen if row not in plain]
-    raise TruthError(
-        f"final screen differs from Plain: missing {missing[:3]}, extra {extra[:3]}"
-        f" ({len(screen)} screen rows, {len(plain)} Plain rows)"
-    )
+    if sorted(screen) != sorted(plain):
+        missing = [row for row in plain if row not in screen]
+        extra = [row for row in screen if row not in plain]
+        raise TruthError(
+            f"final screen differs from Plain: missing {missing[:3]}, extra {extra[:3]}"
+            f" ({len(screen)} screen rows, {len(plain)} Plain rows)"
+        )
+    for index, (got, want) in enumerate(zip(screen, plain)):
+        if got != want:
+            raise TruthError(
+                f"final screen order differs from Plain at row {index}: "
+                f"screen {got!r}, Plain {want!r}"
+            )

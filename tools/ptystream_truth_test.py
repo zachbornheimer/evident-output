@@ -43,13 +43,32 @@ class MonotonicFramesTest(unittest.TestCase):
 
 
 class FinalMatchesPlainTest(unittest.TestCase):
-    PLAIN = ("◐ units  unit 3  holding", "✓ unit 2", "✓ unit 1", "✓ unit 3")
+    PLAIN = ("◐ units  unit 3  holding", "✓ unit 1", "✓ unit 2", "✓ unit 3")
 
-    def test_accepts_the_same_rows_in_any_order(self) -> None:
+    def test_accepts_identical_rows_in_the_same_order(self) -> None:
         truth.check_final_matches_plain(SETTLED, 0, self.PLAIN, 0)
 
-    def test_ignores_plain_progress_lines(self) -> None:
-        truth.check_final_matches_plain(SETTLED, 0, self.PLAIN, 0)
+    def test_rejects_a_reordered_pair_naming_the_index(self) -> None:
+        reordered = frame("✓ unit 1", "✓ unit 3", "✓ unit 2")
+        with self.assertRaisesRegex(truth.TruthError, r"row 1.*unit 3.*unit 2"):
+            truth.check_final_matches_plain(reordered, 0, self.PLAIN, 0)
+
+    def test_accepts_a_streamed_block_against_its_settled_form(self) -> None:
+        streamed = (
+            "◐ units  unit 2  holding",
+            "◐ units  unit 1  holding",
+            "✓ units",
+            "   ✓ unit 1",
+            "   ✓ unit 2",
+        )
+        settled = frame("✓ units", "   ✓ unit 1", "   ✓ unit 2")
+        truth.check_final_matches_plain(settled, 0, streamed, 0)
+
+    def test_container_row_compares_at_its_closing_position(self) -> None:
+        settled = frame("   ✓ unit 1", "✓ units", "   ✓ unit 2")
+        streamed = ("✓ units", "   ✓ unit 1", "   ✓ unit 2")
+        with self.assertRaisesRegex(truth.TruthError, "row 0"):
+            truth.check_final_matches_plain(settled, 0, streamed, 0)
 
     def test_ignores_timing_suffixes(self) -> None:
         timed = frame("✓ unit 1   12ms", "✓ unit 2", "✓ unit 3")
