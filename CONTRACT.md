@@ -229,7 +229,7 @@ re-executes; it never reports Satisfied.
 | ---------------------- | ----- | --------------------------------------------------------------------------------------------------- |
 | `File`                 | func  | `File(ctx context.Context, spec FileSpec) error`; desired state of one file                         |
 | `FileSpec`             | type  |                                                                                                     |
-| `FileSpec.Path`        | field |                                                                                                     |
+| `FileSpec.Path`        | field | relative paths resolve against the workspace                                                        |
 | `FileSpec.Contents`    | field | nil leaves contents unmanaged                                                                       |
 | `FileSpec.Mode`        | field | zero leaves mode unmanaged                                                                          |
 | `FileSpec.Inputs`      | field | paths whose content decides freshness                                                               |
@@ -237,7 +237,7 @@ re-executes; it never reports Satisfied.
 | `Exec`                 | func  | `Exec(ctx context.Context, spec ExecSpec) (ExecResult, error)`                                      |
 | `ExecSpec`             | type  |                                                                                                     |
 | `ExecSpec.Argv`        | field | executable and arguments, no shell                                                                  |
-| `ExecSpec.Dir`         | field |                                                                                                     |
+| `ExecSpec.Dir`         | field | working directory; relative `Outputs` resolve against it, relative `Inputs` against the workspace   |
 | `ExecSpec.Env`         | field | explicit entries only; they enter freshness                                                         |
 | `ExecSpec.Inputs`      | field | paths whose content decides freshness                                                               |
 | `ExecSpec.Values`      | field | named values that decide freshness                                                                  |
