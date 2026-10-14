@@ -59,22 +59,15 @@ func (s *Stream) compose(snap record.Snapshot, linesFrom int, entities bool) str
 }
 
 // writeEntities writes every root row not already streamed, then every
-// collection, as human output shows them (project.HumanProjection).
+// collection, then the root rows held for a collection, as human output
+// shows them (project.HumanProjection).
 func (s *Stream) writeEntities(b *strings.Builder, snap record.Snapshot) {
 	human := project.HumanProjection(snap, s.cfg.Style.Verbose)
 	shown := make(map[string]bool, len(human.Tasks))
 	for _, t := range human.Tasks {
 		shown[t.ID] = true
 	}
-	for _, r := range s.roots {
-		if r.emitted {
-			continue
-		}
-		if shown[string(r.ID)] {
-			project.WriteTaskAligned(b, s.cfg.Source.Snapshot(r.ID), s.column.nameWidth(), s.cfg.Style)
-		}
-		r.emitted, r.emittedAs = true, r.Rec.State()
-	}
+	s.writeRoots(b, shown, false)
 	for _, col := range human.Collections {
 		switch blk := s.blocks[col.ID]; {
 		case blk != nil && blk.mode == modeStream:
@@ -82,6 +75,22 @@ func (s *Stream) writeEntities(b *strings.Builder, snap record.Snapshot) {
 		case !s.blockStreamed(col.ID):
 			WriteCollection(b, col, s.cfg.Style)
 		}
+	}
+	s.writeRoots(b, shown, true)
+}
+
+// writeRoots writes the root rows not yet streamed, as human output shows
+// them, whose wait on a collection is over (held) or not. The rows that ran
+// After a collection go below it, as they do where Plain streams.
+func (s *Stream) writeRoots(b *strings.Builder, shown map[string]bool, held bool) {
+	for _, r := range s.roots {
+		if r.emitted || r.held != held {
+			continue
+		}
+		if shown[string(r.ID)] {
+			project.WriteTaskAligned(b, s.cfg.Source.Snapshot(r.ID), s.column.nameWidth(), s.cfg.Style)
+		}
+		r.emitted, r.emittedAs = true, r.Rec.State()
 	}
 }
 

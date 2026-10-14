@@ -263,8 +263,13 @@ func (s *Stream) mustWait(r *row) bool {
 
 // unwritten reports that root has rows still to reach scrollback: it has
 // members unresolved, or settled ones it has not written, or a streamed
-// block it has not closed.
+// block it has not closed. On a live terminal every collection has, until
+// Finish writes it.
 func (s *Stream) unwritten(root *block) bool {
+	if s.cfg.Region.Interactive() {
+		// A live terminal keeps collections in its region until Finish.
+		return true
+	}
 	if root.mode == modeBuffered || root.mode == modeStream {
 		return !root.closed
 	}
