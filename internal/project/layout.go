@@ -62,38 +62,53 @@ const (
 	GroupChildIndent = "   "
 )
 
+// verifiedDetail is the muted suffix a satisfied attribute carries: the
+// attribute was checked and holds, which says nothing about whether this run
+// or an earlier one made it so. "already satisfied" is the Satisfied
+// outcome's own wording and never appears here.
+const verifiedDetail = "verified"
+
+// verificationFactsGap separates a failed attribute's connector column from
+// its Facts, so the Facts sit under the attribute's name.
+const verificationFactsGap = "    "
+
 // WriteVerificationDetails renders a Task's per-attribute reconciliation
 // outcomes (spec §2, §8.2, §20-21) — evo.File/evo.Exec's third
 // evidence layer, which subconditions were satisfied or failed, not just
-// that the operation as a whole did. A satisfied attribute is a muted "-
-// <name>  already satisfied" line; a failed one keeps its own glyph and
-// nests whatever Facts explain it one level deeper. Every attribute
-// renders once the task itself failed — an isolated failure must never
-// look like every attribute is suspect — and, mirroring Fact/Warning's own
-// visibility rule, the same full list renders under Verbose even when the
-// task succeeded; a clean run says nothing extra by default. indent is the
-// row's own nesting indent (matches the value writeNestedTaskFacts/
-// writeNestedTaskWarnings already use at this call site — "  " for a
-// standalone task, problemTreeIndent for a collection child).
-func WriteVerificationDetails(b *strings.Builder, details []record.VerificationDetail, indent string, taskFailed bool, s Style) {
+// that the operation as a whole did. Each attribute is a branch of its
+// Task's row, one level deeper than the row: a satisfied one reads
+// "<name>  verified" in muted text; a failed one keeps its own glyph and
+// nests whatever Facts explain it. Every attribute renders once the task
+// itself failed — an isolated failure must never look like every attribute
+// is suspect — and, mirroring Fact/Warning's own visibility rule, the same
+// full list renders under Verbose even when the task succeeded; a clean run
+// says nothing extra by default. prefix is the Task row's own prefix (the
+// Group-child indent, or "" at the root), the column the row's Problems
+// branch from too.
+func WriteVerificationDetails(b *strings.Builder, details []record.VerificationDetail, prefix string, taskFailed bool, s Style) {
 	if len(details) == 0 || (!taskFailed && !s.Verbose) {
 		return
 	}
-	for _, d := range details {
+	for i, d := range details {
+		last := i == len(details)-1
+		branch, continuation := s.BranchGlyph(), s.Dim("│")
+		if last {
+			branch, continuation = s.EvidenceGlyph(), " "
+		}
 		if d.Status == record.VerificationSatisfied {
-			fmt.Fprintf(b, "%s%s %s\n", indent, s.StateGlyph(record.NotStarted), s.Dim(d.Name+"  already satisfied"))
+			fmt.Fprintf(b, "%s%s%s %s\n", prefix, ProblemTreeIndent, branch, s.Dim(d.Name+"  "+verifiedDetail))
 			continue
 		}
-		fmt.Fprintf(b, "%s%s %s\n", indent, s.StateGlyph(record.Failed), d.Name)
-		writeVerificationFacts(b, d.Facts, indent+"  ")
+		fmt.Fprintf(b, "%s%s%s %s %s\n", prefix, ProblemTreeIndent, branch, s.StateGlyph(record.Failed), d.Name)
+		writeVerificationFacts(b, d.Facts, prefix+ProblemTreeIndent+continuation+verificationFactsGap)
 	}
 }
 
 // writeVerificationFacts renders one failed VerificationDetail's own Facts
-// (error, path, mode, ...) one level deeper than its "✗ <name>" row, each
-// name padded to the widest name in this detail alone so the values line
-// up in one column (the same PadRight alignment convention taxonomy/effect
-// columns already use).
+// (error, path, mode, ...) beneath its attribute row, each name padded to
+// the widest name in this detail alone so the values line up in one column
+// (the same PadRight alignment convention taxonomy/effect columns already
+// use).
 func writeVerificationFacts(b *strings.Builder, facts []record.Fact, indent string) {
 	width := 0
 	for _, f := range facts {

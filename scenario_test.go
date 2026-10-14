@@ -177,11 +177,11 @@ func TestScenario_PartialFailure(t *testing.T) {
 	}
 
 	want := "✗ write launch agent  failed: permissions\n" +
-		"  - contents  already satisfied\n" +
-		"  ✗ permissions\n" +
-		"    error  operation not permitted\n" +
-		"    path   " + displayPath + "\n" +
-		"    mode   0644\n" +
+		"   ├─ contents  verified\n" +
+		"   └─ ✗ permissions\n" +
+		"        error  operation not permitted\n" +
+		"        path   " + displayPath + "\n" +
+		"        mode   0644\n" +
 		"\n[failed]  " + testProgramName + "\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
@@ -230,11 +230,11 @@ func TestScenario_Stress(t *testing.T) {
 		"   ✓ discover\n" +
 		"   ✓ services  already satisfied\n" +
 		"✗ write launch agent  failed: permissions\n" +
-		"  - contents  already satisfied\n" +
-		"  ✗ permissions\n" +
-		"    error  operation not permitted\n" +
-		"    path   " + displayPath + "\n" +
-		"    mode   0644\n" +
+		"   ├─ contents  verified\n" +
+		"   └─ ✗ permissions\n" +
+		"        error  operation not permitted\n" +
+		"        path   " + displayPath + "\n" +
+		"        mode   0644\n" +
 		"\n" +
 		"[changed] remote-tracking  deleted 4 stale origin/*\n" +
 		"\n" +
@@ -436,7 +436,7 @@ func TestScenario_StressLive(t *testing.T) {
 	//     elapsed after 5s (spec §24); the HTML shows elapsed only.
 	//   - empty bar cells are spaces (spec §23).
 	//   - File verification Facts nest one level under the failed attribute
-	//     (writeVerificationDetails), so path/mode appear under permissions
+	//     (WriteVerificationDetails), so path/mode appear under permissions
 	//     rather than sharing the HTML's i2 indent with "error".
 	//   - both Effects land in [changed]: Config.DryRun is run-wide, and a
 	//     dry run would skip the chmod failure this golden needs. LiveRegion
@@ -450,11 +450,11 @@ func TestScenario_StressLive(t *testing.T) {
 		"      " + glyph + " payments-api\n" +
 		"      ! audit-stream rollout slower than baseline\n" +
 		"   ✗ write launch agent  failed: permissions\n" +
-		"      - contents  already satisfied\n" +
-		"      ✗ permissions\n" +
-		"        error  operation not permitted\n" +
-		"        path   " + displayPath + "\n" +
-		"        mode   0644\n" +
+		"      ├─ contents  verified\n" +
+		"      └─ ✗ permissions\n" +
+		"           error  operation not permitted\n" +
+		"           path   " + displayPath + "\n" +
+		"           mode   0644\n" +
 		"   " + glyph + " cleanup    [████        ]  7/18 — 8s\n" +
 		"      " + glyph + " feat/cleanup…\n" +
 		"\n" +

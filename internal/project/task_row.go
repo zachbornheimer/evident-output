@@ -182,7 +182,7 @@ func (r TaskRow) writeNested(b *strings.Builder, inlined inlineAnnotation, taxon
 		facts = nil
 	}
 	WriteDispositions(b, r.nested, taskDispositions(t), taxonomyVerb, s)
-	WriteVerificationDetails(b, t.Verification, r.nested, t.State == record.Failed, s)
+	WriteVerificationDetails(b, t.Verification, r.prefix, t.State == record.Failed, s)
 	WriteNestedTaskWarnings(b, warnings, r.nested, s)
 	writeNestedTaskFacts(b, facts, r.nested, s)
 }

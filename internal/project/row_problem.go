@@ -24,7 +24,7 @@ func writeProblem(b *strings.Builder, p record.Problem, indent string, emphasize
 		if p.Count != 0 {
 			extra = fmt.Sprintf("%s (%d)", p.Summary, p.Count)
 		}
-		branch := s.Dim("├─")
+		branch := s.BranchGlyph()
 		if last {
 			branch = s.EvidenceGlyph()
 		}

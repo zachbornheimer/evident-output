@@ -191,7 +191,7 @@ func writeLiveTaskLine(b *strings.Builder, t record.TaskSnapshot, indent, nameWi
 		project.WriteNestedTaskWarnings(b, t.Warnings, pad+"   ", st.Style)
 	}
 	if t.State == record.Failed {
-		project.WriteVerificationDetails(b, t.Verification, pad+"   ", true, st.Style)
+		project.WriteVerificationDetails(b, t.Verification, pad, true, st.Style)
 	}
 	return rowsSince(b, start)
 }

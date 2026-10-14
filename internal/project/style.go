@@ -29,6 +29,10 @@ func (s Style) WarningGlyph() string {
 	return StyleGlyph(GlyphWarningState.Render(s.Profile), SGRYellow, s.Color)
 }
 
+// BranchGlyph is the dim connector of a tree row that has siblings after it
+// ("├─"); the last row closes with EvidenceGlyph.
+func (s Style) BranchGlyph() string { return s.Dim("├─") }
+
 // EvidenceGlyph is the dim evidence connector ("└─").
 func (s Style) EvidenceGlyph() string { return s.Dim(GlyphEvidence.Render(s.Profile)) }
 
