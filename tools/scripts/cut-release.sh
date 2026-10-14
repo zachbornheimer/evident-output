@@ -7,7 +7,9 @@
 #   mise run test && mise run cut-release
 #   mise run test && VERSION=v0.2.12 mise run cut-release
 #
-# Never moves an existing tag. Never force-pushes.
+# Never moves an existing tag. Never force-pushes. Tags the root module, then
+# the mcp module one commit later with its local replace dropped (see
+# "Release order" below).
 #
 # CHANGELOG hygiene: the in-flight section is headed "## X.Y.Z (unreleased)".
 # This script rewrites it to "## [X.Y.Z] - YYYY-MM-DD" (CUT_RELEASE_DATE
@@ -120,15 +122,45 @@ else
 	echo "cut-release: no pin-file changes to commit (Release already ${next}?)"
 fi
 
-git tag -a "$next" -m "$next"
-# The mcp module lives in mcp/, so Go resolves its versions from mcp/-prefixed tags.
-git tag -a "mcp/${next}" -m "mcp/${next}"
-echo "cut-release: tagged ${next} and mcp/${next} at $(git rev-parse --short HEAD)"
+# --- Release order -----------------------------------------------------------
+# 1. Tag the root module and publish it: the mcp module cannot resolve its
+#    dependency on the root until the Go proxy can fetch that tag.
+# 2. In a following commit, drop mcp/go.mod's local replace and tidy it against
+#    the published root. `go install <mcp>@version` refuses any module whose
+#    go.mod holds a replace, so mcp/<version> points at this commit, not the
+#    root's. The mcp module lives in mcp/, so Go resolves its versions from
+#    mcp/-prefixed tags. Local development keeps working through go.work.
+root_module="github.com/zachbornheimer/evident-output/v2"
+push="${CUT_RELEASE_PUSH:-1}"
 
-if [[ "${CUT_RELEASE_PUSH:-1}" == "1" ]]; then
+git tag -a "$next" -m "$next"
+echo "cut-release: tagged ${next} at $(git rev-parse --short HEAD)"
+if [[ "$push" == "1" ]]; then
 	git push origin HEAD
-	git push origin "refs/tags/${next}" "refs/tags/mcp/${next}"
-	echo "cut-release: pushed HEAD, ${next} and mcp/${next}"
+	git push origin "refs/tags/${next}"
+	echo "cut-release: pushed HEAD and ${next}"
+fi
+
+if ! (cd mcp && go mod edit -dropreplace="$root_module" && go mod tidy); then
+	echo "cut-release: could not resolve ${root_module}@${next} for mcp/go.mod." >&2
+	echo "cut-release: ${next} is tagged (pushed: ${push}). Once the Go proxy serves it, run in mcp/:" >&2
+	echo "cut-release:   go mod edit -dropreplace=${root_module} && go mod tidy" >&2
+	echo "cut-release: then commit mcp/go.mod and mcp/go.sum and tag mcp/${next}." >&2
+	exit 1
+fi
+if command grep -Eq '^replace[[:space:]]|=>' mcp/go.mod; then
+	echo "cut-release: mcp/go.mod still holds a replace directive; refusing to tag mcp/${next}" >&2
+	exit 1
+fi
+git add mcp/go.mod mcp/go.sum
+git commit -m "chore(mcp/${next}): resolve the published root module"
+git tag -a "mcp/${next}" -m "mcp/${next}"
+echo "cut-release: tagged mcp/${next} at $(git rev-parse --short HEAD)"
+
+if [[ "$push" == "1" ]]; then
+	git push origin HEAD
+	git push origin "refs/tags/mcp/${next}"
+	echo "cut-release: pushed HEAD and mcp/${next}"
 else
 	echo "cut-release: skip push (CUT_RELEASE_PUSH=0)"
 fi
