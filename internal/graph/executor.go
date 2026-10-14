@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"fmt"
 	"runtime"
 	"sync/atomic"
 
@@ -195,7 +194,7 @@ func (g *Graph) releaseLocked(c *claim) {
 // panic text.
 func (g *Graph) recordPanic(c *claim, recovered any) {
 	if c.work.Panicked != nil {
-		c.work.Panicked(fmt.Sprintf("panic: %v", recovered))
+		c.work.Panicked(panicError(recovered).Error())
 	}
 }
 

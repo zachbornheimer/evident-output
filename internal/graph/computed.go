@@ -1,6 +1,8 @@
 package graph
 
 import (
+	"errors"
+
 	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
@@ -14,6 +16,12 @@ var (
 	// a Task or container builder that is not ordered after the producing Task.
 	ErrComputedUnordered = misuse.ErrComputedUnordered
 )
+
+// IsRefusedRead reports whether err is the graph refusing a Computed read. Such an error unwinds a callback
+// on purpose; it is the read being refused, not a crash.
+func IsRefusedRead(err error) bool {
+	return errors.Is(err, ErrComputedUnsettled) || errors.Is(err, ErrComputedUnordered)
+}
 
 // Computed is the value one Task produces for the Tasks and containers
 // ordered after it. The graph owns the rule for when it may be read: the

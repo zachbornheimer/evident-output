@@ -53,9 +53,13 @@ func runBuilder(work func() error) (panicked error) {
 	return nil
 }
 
-// panicError is a recovered panic value as the error it describes.
+// panicError is a recovered panic value as the error it describes. A refused Computed read stays itself:
+// it is the graph's refusal, not a panic the caller wrote.
 func panicError(recovered any) error {
 	if err, ok := recovered.(error); ok {
+		if IsRefusedRead(err) {
+			return err
+		}
 		return fmt.Errorf("panic: %w", err)
 	}
 	return fmt.Errorf("panic: %v", recovered)
