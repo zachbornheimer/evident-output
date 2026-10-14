@@ -1,9 +1,13 @@
 package graph
 
 import (
+	"fmt"
+	"runtime"
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // lineageTree is a parent goroutine and the child it started, both alive until
@@ -16,15 +20,21 @@ type lineageTree struct {
 }
 
 func startLineageTree(l *lineage) lineageTree {
+	return startLineageTreeVia(l, func(f func()) { go f() })
+}
+
+// startLineageTreeVia is startLineageTree with the child started by start, as
+// a pooled worker is started by its ledger.
+func startLineageTreeVia(l *lineage, start func(func())) lineageTree {
 	tr := lineageTree{exitParent: make(chan struct{}), exitChild: make(chan struct{})}
 	ids := make(chan [2]GoroutineID)
 	go func() {
 		parent := CurrentGoroutine()
-		go func() {
+		start(func() {
 			l.chain(CurrentGoroutine(), nil)
 			ids <- [2]GoroutineID{parent, CurrentGoroutine()}
 			<-tr.exitChild
-		}()
+		})
 		<-tr.exitParent
 	}()
 	got := <-ids
@@ -53,7 +63,8 @@ func dumpFromANewGoroutine(l *lineage) {
 func goneFromDumps(t *testing.T, id GoroutineID) {
 	t.Helper()
 	for range 1000 {
-		if _, alive := goroutineCreators(allGoroutineTraces())[id]; !alive {
+		creators, _ := goroutineOrigins(allGoroutineTraces())
+		if _, alive := creators[id]; !alive {
 			return
 		}
 		time.Sleep(time.Millisecond)
@@ -158,29 +169,123 @@ func TestLineageAnswersAnExitedUnseenCreatorFromMemory(t *testing.T) {
 	}
 }
 
-// A chain ends at a noted worker: its creator is not named, however the
+// A chain ends at a pooled worker: its creator is not named, however the
 // worker's own creator is known.
-func TestChainEndsAtANotedWorker(t *testing.T) {
+func TestChainEndsAtAPooledWorker(t *testing.T) {
 	var l lineage
-	tr := startLineageTree(&l)
+	var ledger spawnLedger
+	tr := startLineageTreeVia(&l, ledger.start)
 	defer close(tr.exitParent)
 	defer close(tr.exitChild)
-	l.noteWorker(tr.child)
 	if got := l.chain(tr.child, nil); !slices.Equal(got, []GoroutineID{tr.child}) {
 		t.Fatalf("chain = %v, want only the worker %d", got, tr.child)
 	}
 }
 
-// A worker no goroutine names any more is forgotten at the next dump, and one
-// noted after the dump began is kept.
-func TestDumpForgetsWorkersNothingNames(t *testing.T) {
+// Only a goroutine the ledger started is a pooled worker; one started any
+// other way is a creator the chain goes through.
+func TestChainPassesThroughAGoroutineTheLedgerDidNotStart(t *testing.T) {
 	var l lineage
-	l.noteWorker(GoroutineID(1 << 40))
-	mark := l.notedBefore()
-	l.noteWorker(GoroutineID(1<<40 + 1))
-	l.forgetWorkersNotUsedBy(map[GoroutineID]GoroutineID{}, mark)
-	if l.isWorker(GoroutineID(1<<40)) || !l.isWorker(GoroutineID(1<<40+1)) {
-		t.Fatalf("forgotten = %v, kept = %v; want the worker noted before the mark forgotten, the later one kept",
-			!l.isWorker(GoroutineID(1<<40)), l.isWorker(GoroutineID(1<<40+1)))
+	tr := startLineageTree(&l)
+	defer close(tr.exitParent)
+	defer close(tr.exitChild)
+	if got := l.chain(tr.child, nil); len(got) < 2 || got[1] != tr.parent {
+		t.Fatalf("chain = %v, want the child, then the parent %d", got, tr.parent)
+	}
+}
+
+// A worker keeps ending the chain after it exits, while a live goroutine still
+// names it as its creator and later dumps run.
+func TestExitedPooledWorkerStillEndsAChain(t *testing.T) {
+	var l lineage
+	var ledger spawnLedger
+	tr := startLineageTree(&l)
+	defer close(tr.exitChild)
+	grandchild := make(chan GoroutineID)
+	exitWorker := make(chan struct{})
+	ledger.start(func() {
+		go func() {
+			grandchild <- CurrentGoroutine()
+			<-tr.exitParent
+		}()
+		<-exitWorker
+	})
+	g := <-grandchild
+	want := l.chain(g, nil)
+	if len(want) != 2 {
+		t.Fatalf("chain(grandchild) = %v, want the grandchild and its worker", want)
+	}
+	worker := want[1]
+	close(exitWorker)
+	goneFromDumps(t, worker)
+	dumpFromANewGoroutine(&l)
+	defer close(tr.exitParent)
+
+	if got := l.chain(g, nil); !slices.Equal(got, want) {
+		t.Fatalf("chain(grandchild) after its worker exited = %v, want %v", got, want)
+	}
+}
+
+// What marks a worker is the ledger's own frame in the traceback, so that the
+// name the dump is read for is the function that starts workers.
+func TestPooledWorkerCreatorNamesTheLedgerStart(t *testing.T) {
+	var ledger spawnLedger
+	found := make(chan bool)
+	ledger.start(func() {
+		_, workers := goroutineOrigins(allGoroutineTraces())
+		_, ok := workers[CurrentGoroutine()]
+		found <- ok
+	})
+	if !<-found {
+		t.Fatal("a goroutine started through spawnLedger.start is not read as a pooled worker")
+	}
+}
+
+// A pooled worker nobody names any more is forgotten at the next dump, along
+// with the goroutines.
+func TestLineageForgetsPooledWorkersWithTheirGoroutines(t *testing.T) {
+	var l lineage
+	var ledger spawnLedger
+	tr := startLineageTreeVia(&l, ledger.start)
+	close(tr.exitChild)
+	close(tr.exitParent)
+	goneFromDumps(t, tr.child)
+	goneFromDumps(t, tr.parent)
+
+	dumpFromANewGoroutine(&l)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.isWorkerLocked(tr.child) {
+		t.Fatalf("exited worker %d is still remembered after a fresh dump", tr.child)
+	}
+}
+
+// retained is how many goroutine ids the lineage holds knowledge about.
+func (l *lineage) retained() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return len(l.creators) + len(l.workers)
+}
+
+// What the lineage holds follows the goroutines alive, not the workers ever
+// started: graphs whose workers are never reused, and whose callbacks never
+// read a Computed from a goroutine they started (so no dump ever replaces what
+// is held), leave it no larger than the goroutines alive after them.
+func TestLineageIsBoundedByLiveGoroutines(t *testing.T) {
+	noReuse := &spawnLedger{created: func() (uint64, bool) { return 0, false }}
+	const graphs, claims = 4, 2500
+	for range graphs {
+		g := New(record.NewRun(), WithMaxConcurrency(4), withSpawnLedger(noReuse))
+		for i := range claims {
+			task := declare(g, fmt.Sprintf("t%d", i))
+			submitWork(g, task, settlingWork(g, task, func() error { return nil }))
+		}
+		g.Drain()
+		g.Close()
+	}
+	retained, alive := processLineage.retained(), runtime.NumGoroutine()
+	if limit := 4*alive + 64; retained > limit {
+		t.Fatalf("the lineage holds %d goroutine ids after %d claims on %d live goroutines (limit %d)",
+			retained, graphs*claims, alive, limit)
 	}
 }

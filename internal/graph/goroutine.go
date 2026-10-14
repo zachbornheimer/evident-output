@@ -24,6 +24,10 @@ const goroutineTraceBytes = 2048
 var (
 	goroutinePrefix = []byte("goroutine ")
 	creatorMarker   = []byte(" in goroutine ")
+	createdByMarker = []byte("created by ")
+	// pooledWorkerCreator is the function that starts every pooled worker, as
+	// a traceback names it on a worker's "created by" line.
+	pooledWorkerCreator = []byte("(*spawnLedger).start")
 	// goroutineSeparator is the blank line between two goroutines' tracebacks.
 	goroutineSeparator = []byte("\n\n")
 )
@@ -63,16 +67,36 @@ func goroutinesCreated() (uint64, bool) {
 	return sample[0].Value.Uint64(), true
 }
 
-// goroutineCreators maps every goroutine in a dump of all tracebacks to the
-// goroutine that started it (zero for one the runtime started).
-func goroutineCreators(dump []byte) map[GoroutineID]GoroutineID {
-	creators := make(map[GoroutineID]GoroutineID)
+// goroutineOrigins reads a dump of all tracebacks: the goroutine that started
+// each goroutine in it (zero for one the runtime started), and which of them
+// are pooled workers. The worker is told by the traceback itself, so what is
+// known about workers is exactly as large as what is known about goroutines.
+func goroutineOrigins(dump []byte) (creators map[GoroutineID]GoroutineID, workers map[GoroutineID]struct{}) {
+	creators = make(map[GoroutineID]GoroutineID)
+	workers = make(map[GoroutineID]struct{})
 	for trace := range bytes.SplitSeq(dump, goroutineSeparator) {
-		if id := parseGoroutineHeader(trace); id != 0 {
-			creators[id] = parseGoroutineCreator(trace)
+		id := parseGoroutineHeader(trace)
+		if id == 0 {
+			continue
+		}
+		creators[id] = parseGoroutineCreator(trace)
+		if startedAsPooledWorker(trace) {
+			workers[id] = struct{}{}
 		}
 	}
-	return creators
+	return creators, workers
+}
+
+// startedAsPooledWorker reports whether a traceback's closing "created by"
+// line names the pooled workers' creator (see spawnLedger.start).
+func startedAsPooledWorker(trace []byte) bool {
+	at := bytes.LastIndex(trace, creatorMarker)
+	if at < 0 {
+		return false
+	}
+	line := trace[:at]
+	from := bytes.LastIndex(line, createdByMarker)
+	return from >= 0 && bytes.HasSuffix(line[from+len(createdByMarker):], pooledWorkerCreator)
 }
 
 // allGoroutineTraces is every goroutine's traceback, the calling goroutine's

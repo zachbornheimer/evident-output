@@ -26,66 +26,19 @@ type lineage struct {
 	// started inverts creators as of the last dump: the goroutines each
 	// goroutine started.
 	started map[GoroutineID][]GoroutineID
+	// workers is the goroutines among creators that serve pooled claims. A
+	// chain ends at one: the goroutine that started a worker never authored
+	// the work the worker runs, so what that creator is running says nothing
+	// about a goroutine the worker's work started, whether the worker is still
+	// there or has gone. The dump names them, so they are kept exactly as long
+	// as creators keeps them.
+	workers map[GoroutineID]struct{}
 	// created is how many goroutines the process had started when the last
 	// dump began; counted is false where the toolchain keeps no such count.
 	created uint64
 	counted bool
 	// dumps counts the stops of the world this lineage took.
 	dumps atomic.Int64
-	// workers is the pooled workers noted (see noteWorker), each with the
-	// order it was noted in. It has its own lock, beneath mu, so a worker
-	// starting never queues behind a dump.
-	workersMu sync.Mutex
-	workers   map[GoroutineID]uint64
-	noted     uint64
-}
-
-// noteWorker records id as a goroutine that serves pooled claims. A chain
-// ends at it: the goroutine that started a worker never authored the work the
-// worker runs, so what that creator is running says nothing about a goroutine
-// the worker's work started, whether the worker is still there or has gone.
-func (l *lineage) noteWorker(id GoroutineID) {
-	l.workersMu.Lock()
-	defer l.workersMu.Unlock()
-	if l.workers == nil {
-		l.workers = make(map[GoroutineID]uint64)
-	}
-	l.noted++
-	l.workers[id] = l.noted
-}
-
-// isWorker reports whether id was noted as a pooled worker.
-func (l *lineage) isWorker(id GoroutineID) bool {
-	l.workersMu.Lock()
-	defer l.workersMu.Unlock()
-	_, ok := l.workers[id]
-	return ok
-}
-
-// notedBefore is how many workers have been noted so far, the mark a dump
-// takes before it starts (see forgetWorkersNotUsedBy).
-func (l *lineage) notedBefore() uint64 {
-	l.workersMu.Lock()
-	defer l.workersMu.Unlock()
-	return l.noted
-}
-
-// forgetWorkersNotUsedBy drops the workers noted up to mark that the chains in
-// creators no longer name, as a goroutine or as a creator: a worker that has
-// exited and started nothing still alive can never end a chain again. A worker
-// noted after mark may start goroutines the dump did not see, so it stays.
-func (l *lineage) forgetWorkersNotUsedBy(creators map[GoroutineID]GoroutineID, mark uint64) {
-	l.workersMu.Lock()
-	defer l.workersMu.Unlock()
-	named := make(map[GoroutineID]struct{}, len(creators))
-	for id, creator := range creators {
-		named[id], named[creator] = struct{}{}, struct{}{}
-	}
-	for id, order := range l.workers {
-		if _, used := named[id]; !used && order <= mark {
-			delete(l.workers, id)
-		}
-	}
 }
 
 // completeLocked reports whether no goroutine started since the last dump
@@ -144,7 +97,7 @@ func (b *refreshBudget) take() bool {
 // chain lists from, then the goroutines that started it, nearest first, as
 // far as the runtime named them: a creator that exited before anything saw it
 // ends the chain, and so does one still unknown once budget has no dump left.
-// A pooled worker is the last of its chain (see noteWorker).
+// A pooled worker is the last of its chain (see lineage.workers).
 // Only a goroutine the lineage has never seen costs a dump, so every goroutine
 // one creator started pays nothing once the creator is known. A nil budget has
 // no limit.
@@ -170,10 +123,17 @@ func (l *lineage) chain(from GoroutineID, budget *refreshBudget) []GoroutineID {
 		}
 	}
 	chain := []GoroutineID{from}
-	for id := l.creators[from]; id != 0 && len(chain) <= len(l.creators) && !l.isWorker(chain[len(chain)-1]); id = l.creators[id] {
+	for id := l.creators[from]; id != 0 && len(chain) <= len(l.creators) && !l.isWorkerLocked(chain[len(chain)-1]); id = l.creators[id] {
 		chain = append(chain, id)
 	}
 	return chain
+}
+
+// isWorkerLocked reports whether the last dump that named id showed it to be a
+// pooled worker.
+func (l *lineage) isWorkerLocked(id GoroutineID) bool {
+	_, ok := l.workers[id]
+	return ok
 }
 
 // learnLocked replaces what is remembered with one dump of every goroutine
@@ -182,9 +142,8 @@ func (l *lineage) chain(from GoroutineID, budget *refreshBudget) []GoroutineID {
 // and the memory follows the live goroutines rather than every goroutine ever.
 func (l *lineage) learnLocked() {
 	l.dumps.Add(1)
-	mark := l.notedBefore()
 	l.created, l.counted = goroutinesCreated()
-	live := goroutineCreators(allGoroutineTraces())
+	live, workers := goroutineOrigins(allGoroutineTraces())
 	for _, creator := range slices.Collect(maps.Values(live)) {
 		for id := creator; id != 0; {
 			if _, seen := live[id]; seen {
@@ -195,11 +154,13 @@ func (l *lineage) learnLocked() {
 				break
 			}
 			live[id] = older
+			if l.isWorkerLocked(id) {
+				workers[id] = struct{}{}
+			}
 			id = older
 		}
 	}
-	l.creators = live
-	l.forgetWorkersNotUsedBy(live, mark)
+	l.creators, l.workers = live, workers
 	l.started = make(map[GoroutineID][]GoroutineID, len(live))
 	for id, creator := range live {
 		l.started[creator] = append(l.started[creator], id)
