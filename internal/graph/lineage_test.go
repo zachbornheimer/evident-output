@@ -267,11 +267,41 @@ func (l *lineage) retained() int {
 	return len(l.creators) + len(l.workers)
 }
 
-// What the lineage holds follows the goroutines alive, not the workers ever
-// started: graphs whose workers are never reused, and whose callbacks never
-// read a Computed from a goroutine they started (so no dump ever replaces what
-// is held), leave it no larger than the goroutines alive after them.
+// leaveABurstBehind makes the process lineage hold ids for burst goroutines
+// that have since exited, as any earlier test that dumped during a fan-out
+// does. The lineage replaces what it holds only at its next dump, which a
+// toolchain that counts spawned goroutines takes often and the fallback
+// almost never, so the leftover is what a later reader of processLineage
+// finds whatever the run it measures does.
+func leaveABurstBehind(t *testing.T, burst int) {
+	t.Helper()
+	exit := make(chan struct{})
+	for range burst {
+		go func() { <-exit }()
+	}
+	dumpFromANewGoroutine(&processLineage)
+	close(exit)
+	for range 1000 {
+		if runtime.NumGoroutine() < burst/2 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if left := processLineage.retained(); left < burst {
+		t.Fatalf("the burst left %d ids in the lineage, want at least %d", left, burst)
+	}
+}
+
+// What a run adds to the lineage follows the goroutines alive after it, not
+// the workers it started: graphs whose workers are never reused, and whose
+// callbacks never read a Computed from a goroutine they started (so no dump
+// ever replaces what is held), leave it no larger than it was plus the
+// goroutines alive after them. What an earlier burst left in it is not the
+// run's to answer for, so it is measured from, not against.
 func TestLineageIsBoundedByLiveGoroutines(t *testing.T) {
+	const burst = 3000
+	leaveABurstBehind(t, burst)
+	before := processLineage.retained()
 	noReuse := &spawnLedger{created: func() (uint64, bool) { return 0, false }}
 	const graphs, claims = 4, 2500
 	for range graphs {
@@ -283,9 +313,9 @@ func TestLineageIsBoundedByLiveGoroutines(t *testing.T) {
 		g.Drain()
 		g.Close()
 	}
-	retained, alive := processLineage.retained(), runtime.NumGoroutine()
-	if limit := 4*alive + 64; retained > limit {
-		t.Fatalf("the lineage holds %d goroutine ids after %d claims on %d live goroutines (limit %d)",
-			retained, graphs*claims, alive, limit)
+	added, alive := processLineage.retained()-before, runtime.NumGoroutine()
+	if limit := 4*alive + 64; added > limit {
+		t.Fatalf("the run added %d goroutine ids to the lineage after %d claims on %d live goroutines (limit %d)",
+			added, graphs*claims, alive, limit)
 	}
 }
