@@ -1,5 +1,10 @@
 package wire
 
+import (
+	"encoding/base64"
+	"unicode/utf8"
+)
+
 // Each EventPayload below is its doc's §38 "evo.event" payload: the same
 // fields evo.run carries for that doc, built directly (no JSON round-trip
 // that could fail), with an unset optional field omitted exactly as the
@@ -47,4 +52,29 @@ func putNonZero[T comparable](p map[string]any, key string, v T) {
 	if v != zero {
 		p[key] = v
 	}
+}
+
+// Payload keys of a result.written event: the bytes written, as text when they are valid UTF-8 and as
+// base64 otherwise.
+const (
+	PayloadKeyText   = "text"
+	PayloadKeyBase64 = "base64"
+)
+
+// ResultWrittenPayload is b as a result.written payload.
+func ResultWrittenPayload(b []byte) map[string]any {
+	text, encoded := TextOrBase64(string(b))
+	if encoded != "" {
+		return map[string]any{PayloadKeyBase64: encoded}
+	}
+	return map[string]any{PayloadKeyText: text}
+}
+
+// TextOrBase64 splits payload into the text that carries it exactly, or its base64 when the bytes are not
+// valid UTF-8; exactly one result is non-empty, unless payload is empty.
+func TextOrBase64(payload string) (text, encoded string) {
+	if utf8.ValidString(payload) {
+		return payload, ""
+	}
+	return "", base64.StdEncoding.EncodeToString([]byte(payload))
 }

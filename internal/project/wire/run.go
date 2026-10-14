@@ -51,9 +51,12 @@ type RunDocument struct {
 	Outcome       string    `json:"outcome"`
 	ExitCode      int       `json:"exit_code"`
 	Explanation   string    `json:"explanation,omitempty"`
-	// Result is what the run wrote to Run.ResultWriter; absent when it wrote nothing.
-	Result string  `json:"result,omitempty"`
-	Data   RunData `json:"data"`
+	// Result is what the run wrote to Run.ResultWriter; absent when it wrote nothing or wrote bytes that are
+	// not valid UTF-8.
+	Result string `json:"result,omitempty"`
+	// ResultBase64 is those bytes, base64-encoded, in place of Result when they are not valid UTF-8.
+	ResultBase64 string  `json:"result_base64,omitempty"`
+	Data         RunData `json:"data"`
 }
 
 // RunData is the "evo.run" envelope's "data" payload (spec §35).
@@ -214,7 +217,6 @@ func ToRunDocument(result record.Result, evoVersion string) RunDocument {
 		Outcome:       string(c.Outcome),
 		ExitCode:      c.ExitCode,
 		Explanation:   c.Explanation,
-		Result:        result.Payload,
 		Data: RunData{
 			Collections: make([]CollectionDoc, 0, len(c.Collections)),
 			Tasks:       make([]TaskDoc, 0, len(c.Tasks)),
@@ -224,6 +226,7 @@ func ToRunDocument(result record.Result, evoVersion string) RunDocument {
 			Actions:     make([]ActionDoc, 0, len(c.Actions)),
 		},
 	}
+	doc.Result, doc.ResultBase64 = TextOrBase64(result.Payload)
 	for _, col := range c.Collections {
 		appendCollectionDoc(&doc.Data, "", col)
 	}

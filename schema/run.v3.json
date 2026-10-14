@@ -528,6 +528,9 @@
     "result": {
       "type": "string"
     },
+    "result_base64": {
+      "type": "string"
+    },
     "run_id": {
       "type": "string"
     },

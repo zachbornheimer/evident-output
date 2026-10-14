@@ -59,57 +59,57 @@ func (o *Run) writer() io.Writer {
 }
 
 // ResultWriter returns the stdout data payload; presentation never writes to it. Human and Plain runs
-// reserve stdout for it. A JSON run embeds what it receives as the evo.run document's result, and a JSONL
-// run streams each write as a result.written event, so stdout stays machine-readable. Writing after the run
-// finished is misuse and returns an error. A run with no payload stream returns io.Discard.
+// reserve stdout for it and pass the bytes through unchanged. A JSON run embeds what it receives as the
+// evo.run document's result, and a JSONL run streams each write as a result.written event, so stdout stays
+// machine-readable; both carry bytes that are not valid UTF-8 as base64. Writing after the run finished is
+// misuse in every mode and returns an error. A run with no payload stream returns io.Discard.
 func (o *Run) ResultWriter() io.Writer {
 	if o == nil {
 		return io.Discard
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	switch {
-	case o.cfg.result != nil && o.cfg.resultSharesTerminal:
-		return sharedTerminalResultWriter{o}
-	case o.cfg.result != nil:
-		return o.cfg.result
-	case o.cfg.wireFormat == formatJSON, o.cfg.wireFormat == formatJSONL:
-		return wireResultWriter{o}
+	if o.cfg.result != nil || o.cfg.wireFormat == formatJSON || o.cfg.wireFormat == formatJSONL {
+		return resultWriter{o}
 	}
 	return io.Discard
 }
 
-// sharedTerminalResultWriter writes the payload through the live region when stdout and the region are one
-// terminal, so a payload line lands above the region and a repaint never paints over it.
-type sharedTerminalResultWriter struct{ o *Run }
+// resultWriter is the payload stream of a run: it folds a write into the machine document or event stream
+// that owns stdout, routes it through the live region when stdout shares the region's terminal, and
+// otherwise passes it to stdout as it is.
+type resultWriter struct{ o *Run }
 
-func (w sharedTerminalResultWriter) Write(b []byte) (int, error) {
-	o := w.o
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if o.ensureOpen() == nil && o.show.Stream.WritePayload(string(b)) {
+func (w resultWriter) Write(b []byte) (int, error) {
+	sink, err := w.o.routeResult(b)
+	if err != nil {
+		return 0, err
+	}
+	if sink == nil {
 		return len(b), nil
 	}
-	return o.cfg.result.Write(b)
+	return sink.Write(b)
 }
 
-// wireResultWriter folds the payload into the machine document or event stream that owns stdout.
-type wireResultWriter struct{ o *Run }
-
-func (w wireResultWriter) Write(b []byte) (int, error) {
-	o := w.o
+// routeResult delivers b when the run itself owns the destination, and otherwise returns the raw payload
+// stream for the caller to write after the run lock is released, so a slow reader never stalls the run.
+func (o *Run) routeResult(b []byte) (io.Writer, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
-		return 0, fmt.Errorf("write result: %w", err)
+		return nil, fmt.Errorf("write result: %w", err)
 	}
-	if o.cfg.wireFormat == formatJSONL {
-		o.emitWireEventLocked(wire.EventResultWritten, "", map[string]any{"text": string(b)})
-	} else {
+	switch {
+	case o.cfg.wireFormat == formatJSONL:
+		o.emitWireEventLocked(wire.EventResultWritten, "", wire.ResultWrittenPayload(b))
+	case o.cfg.wireFormat == formatJSON:
 		o.resultText.Write(b)
+	case o.cfg.resultSharesTerminal && o.show.Stream.WritePayload(string(b)):
+	default:
+		return o.cfg.result, nil
 	}
-	return len(b), nil
+	return nil, nil
 }
 
 func (p *printer) writer() io.Writer {

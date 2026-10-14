@@ -336,7 +336,9 @@ if !r.Confirm("delete 40 branches?", evo.Destructive(), evo.NonInteractive("--ye
 bands and `Run.Text` go to `Facades.Stderr`, so a pipe on stdout receives
 exactly the payload. In JSON the payload is the string `result` of the `evo.run`
 document, and in JSONL each write is one `result.written` event whose
-`payload.text` is the bytes written.
+`payload.text` is the bytes written. Bytes that are not valid UTF-8 travel as
+`result_base64` and `payload.base64` instead of text, and Human and Plain pass
+every byte through unchanged.
 
 Environment, applied only where `Config` is zero: `EVO_OUTPUT=human|plain|json|jsonl`,
 `EVO_VERBOSE=1`, `EVO_DEBUG=debug|info|warn|error` (the lowest `slog.Level`
