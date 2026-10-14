@@ -6,6 +6,8 @@ import (
 	"io"
 	"path/filepath"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/change"
 )
 
 // TestEveryOperationRefusesACancelledContextTheSameWay proves the five
@@ -20,7 +22,7 @@ func TestEveryOperationRefusesACancelledContextTheSameWay(t *testing.T) {
 			return Effect(ctx, EffectSpec{Verb: Delete, Object: "branch", Quantity: 1}, func(context.Context) error { return nil })
 		},
 		"File":  func(ctx context.Context) error { return File(ctx, FileSpec{Path: path, Contents: []byte("x")}) },
-		"Files": func(ctx context.Context) error { return files(ctx, fileSet{}) },
+		"Files": func(ctx context.Context) error { return files(ctx, change.FileSet{}) },
 		"Exec": func(ctx context.Context) error {
 			_, err := Exec(ctx, ExecSpec{executable: "true"})
 			return err

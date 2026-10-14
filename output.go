@@ -14,6 +14,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/clock"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
+	"github.com/zachbornheimer/evident-output/internal/fs"
 	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/misuse"
 	"github.com/zachbornheimer/evident-output/internal/process"
@@ -113,13 +114,10 @@ type Run struct {
 	pendingPrint strings.Builder
 	pendingVis   visibility // visibility of the current pending fragment
 
-	// manifest is this Run's lazily opened reconciliation manifest (spec
-	// §11.3): the first evo.File call opens it, and a Run that never uses one
-	// never creates a manifest file.
-	manifest *freshness.ManifestSession
-	// taskFreshness remembers each Task's declared inputs, observed Basis,
-	// pending operation records and Verify checks.
-	taskFreshness *freshness.TaskTable
+	// freshness is this Run's lazily opened reconciliation manifest (spec
+	// §11.3) and what it remembers about each Task: declared inputs,
+	// observed Basis, pending operation records and Verify checks.
+	freshness *freshness.Run
 	// cleanStops tracks running Tasks that end Succeeded on a named signal.
 	cleanStops cleanStopRegistry
 }
@@ -136,7 +134,7 @@ func newOutput(subject string, options ...option) *Run {
 		maxEntities:     defaultMaxEntities,
 		verbosity:       verbosityNormal,
 		processRunner:   process.System(),
-		fileFS:          osFileFS{},
+		fileFS:          fs.Disk{},
 	}
 	for _, opt := range options {
 		if opt != nil {
@@ -207,10 +205,9 @@ func newOutput(subject string, options ...option) *Run {
 		taskStates:      make(map[string]*taskState),
 		containerStates: make(map[string]*tasksState),
 	}
-	o.manifest = freshness.NewManifestSession(o.manifestConfig)
-	o.taskFreshness = freshness.NewTaskTable()
 	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(o.misuse))
-	o.changes = change.NewRun(changeHost{out: o}, o.graph)
+	o.freshness = freshness.NewRun(o.graph, freshness.RunConfig{Where: o.manifestConfig, Closed: errClosed})
+	o.changes = change.NewRun(o.newChangeHost(), o.graph)
 	o.mu.Bind(run)
 	run.SetListener(outputListener{o: o})
 	// Stable-enough id for a process-local output instance.
@@ -231,6 +228,12 @@ func newOutput(subject string, options ...option) *Run {
 	return o
 }
 
+// manifestConfig names the manifest this Run reads: the configured
+// application id and state directory, scoped to the Run's workspace.
+func (o *Run) manifestConfig() freshness.ManifestConfig {
+	return freshness.ManifestConfig{AppID: o.cfg.appID, StateDir: o.cfg.stateDir, Workspace: o.changes.Workspace()}
+}
+
 // emitPlannedHeaderLocked writes the planned run's opening announcement
 // immediately, once, through the same durable-write path
 // (writeDurableTextLocked) every other library-owned line uses.
@@ -238,25 +241,6 @@ func (o *Run) emitPlannedHeaderLocked() {
 	var b strings.Builder
 	renderplain.WritePlannedHeader(&b, !o.cfg.noColor, o.cfg.preview, o.cfg.dryRunHeaderText)
 	o.writeDurableTextLocked(b.String())
-}
-
-// attachVerificationLocked appends details onto taskID's own running
-// record — evo.File/evo.Exec's per-attribute reconciliation evidence
-// (spec §2/§8.2), recorded before the task resolves so it is already
-// present by the time Fail's terminal verb reads the task's state
-// (the same "annotate before terminal" timing Fact and warning-severity Problem require). A no-op
-// once the task has already resolved or does not exist.
-func (o *Run) attachVerificationLocked(taskID string, details []record.VerificationDetail) {
-	st := o.taskStates[taskID]
-	if st == nil || record.IsTerminalTask(st.node.Rec.State()) {
-		return
-	}
-	stored := st.node.Rec.AttachVerification(details)
-	st.markFiling()
-	// Emit the sanitized copy evo.run projects, so JSONL and JSON agree.
-	for _, d := range stored {
-		o.emitWireEventLocked(wire.EventVerificationObserved, taskID, wire.ToVerificationDoc(d).EventPayload())
-	}
 }
 
 // promoteRunningLocked transitions a Pending task to Running on its first
@@ -833,65 +817,6 @@ func (o *Run) writeStreamJSONLocked(e recEvent) {
 	}
 }
 
-// --- folded from ledger_entry.go ---
-
-// ledgerTarget is where a Task's ledger rows go: the Task that owns the
-// section, and the tense the run records in.
-type ledgerTarget struct {
-	owner *taskState
-	tense ledgerTense
-}
-
-// resolveLedgerTarget resolves the task named by taskID to its ledger
-// target — the shared guard (open, not yet resolved) behind every change a
-// Task records. err is non-nil (already recorded as misuse where the
-// cause is not simply "the task no longer exists") when the caller should
-// record nothing further.
-func (o *Run) resolveLedgerTarget(taskID string) (ledgerTarget, error) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	st := o.taskStates[taskID]
-	if st == nil {
-		return ledgerTarget{}, errClosed
-	}
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		return ledgerTarget{}, err
-	}
-	if record.IsTerminalTask(st.node.Rec.State()) {
-		o.recordMisuseFor(st.name, errAlreadyResolved)
-		return ledgerTarget{}, errAlreadyResolved
-	}
-	return ledgerTarget{owner: st, tense: record.TenseFor(o.cfg.dryRun)}, nil
-}
-
-// recordResolvedEntry records e into target's section, conjugating the verb
-// to past tense for the applied ledger only. It takes an already-resolved
-// target: Effect resolves once, before running its callback, because
-// re-resolving afterward would re-open the terminal-task check to a state a
-// concurrent resolution may have legitimately changed, dropping a real
-// effect as spurious misuse. The imperative verb is kept as the section's
-// intended verb, so a section that ends up with zero rows renders "nothing
-// to <verb> <subject>" (evo-rec.md Problem 18).
-func (o *Run) recordResolvedEntry(taskID string, target ledgerTarget, e record.LedgerEntry) {
-	verb, event := e.Verb(), wire.EventEffectPlanned
-	if target.tense == tenseChanged {
-		verb, event = txt.ConjugatePast(e.Verb()), wire.EventEffectCommitted
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		return
-	}
-	sectionID := o.ledgerSectionIDLocked(target.owner, target.tense)
-	if o.rec.RecordEntry(target.owner.id, target.tense, verb, e) {
-		o.bumpLocked()
-		o.appendEventLocked(recEvent{Type: target.tense.RecordedEvent(), EntityID: sectionID})
-	}
-	o.emitWireEventLocked(event, taskID, e.Payload(verb))
-}
-
 // --- folded from ledger_order.go ---
 
 // appendTaskLocked adds st to the run's Tasks in declaration order. Caller
@@ -926,24 +851,6 @@ const (
 	tenseChanged = record.TenseChanged
 	tensePlanned = record.TensePlanned
 )
-
-// ledgerOwner is st as the ledger knows its Task: placed by declaration,
-// found by id, shown by name, qualified by container path.
-func (st *taskState) ledgerOwner() record.LedgerOwner {
-	return record.LedgerOwner{ID: st.id, Name: st.name, Declaration: st.node.Declaration, Containers: st.containerPath()}
-}
-
-// ledgerSectionIDLocked returns the id of owner's section in tense, opening
-// it on first use. Caller must hold o.mu.
-func (o *Run) ledgerSectionIDLocked(owner *taskState, tense ledgerTense) string {
-	if id, ok := o.rec.SectionID(owner.id, tense); ok {
-		return id
-	}
-	id := o.rec.OpenSection(owner.ledgerOwner(), tense, o.graph.NextID(tense.String()))
-	o.bumpLocked()
-	o.appendEventLocked(recEvent{Type: tense.DeclaredEvent(), EntityID: id})
-	return id
-}
 
 // hasRecordedEffectLocked reports whether the Task taskID's sections carry
 // at least one row — see the unresolved-task amnesty in Finish (beginner-1,
@@ -1993,7 +1900,7 @@ const phaseWriterMaxPendingBytes = 4 * 1024 // 4 KiB
 // grow it without bound.
 type phaseWriter struct {
 	task     *Task
-	evidence *evidence
+	evidence *record.Capture
 
 	mu  sync.Mutex
 	buf []byte
@@ -2003,7 +1910,7 @@ func (w *phaseWriter) Write(p []byte) (int, error) {
 	if w.evidence != nil {
 		_, _ = w.evidence.Write(p)
 	}
-	retained := w.evidence.retainedLineCount()
+	retained := w.evidence.RetainedLines()
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -2045,16 +1952,6 @@ func lineEnding(rest []byte) (completed bool, width int) {
 		return true, 2
 	}
 	return false, 1
-}
-
-// retainedLineCount is how many lines c's ring holds right now. It takes
-// only c's own lock, so callers read it before taking the Output's.
-func (c *evidence) retainedLineCount() int {
-	root := c.root()
-	if root == nil || root.ring == nil {
-		return 0
-	}
-	return root.ring.Len()
 }
 
 // appendLiveTail records one completed Writer line: it enters the live tail
@@ -2902,7 +2799,7 @@ func (t *taskState) snapshot() taskSnapshot {
 	s.Skipped = cloneTaxonomy(s.Skipped)
 	s.Kept = cloneTaxonomy(s.Kept)
 	if t.handle != nil {
-		s.Tracked = t.handle.out.taskFreshness.Tracked(t.TaskID())
+		s.Tracked = t.handle.out.freshness.Tasks().Tracked(t.TaskID())
 	}
 	tail := record.LiveTailOf(s)
 	tail.Lines = slices.Clone(tail.Lines)

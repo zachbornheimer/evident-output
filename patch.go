@@ -17,6 +17,9 @@ func Patch(ctx context.Context, diff []byte) error {
 }
 
 // derivePatch derives the desired file states without committing them.
-func derivePatch(ctx context.Context, diff []byte) (fileSet, error) {
+func derivePatch(ctx context.Context, diff []byte) (change.FileSet, error) {
 	return change.Patch(ctx, diff)
 }
+
+// files commits each desired state a Patch derived; see change.Files.
+func files(ctx context.Context, set change.FileSet) error { return change.Files(ctx, set) }

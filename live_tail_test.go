@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/internal/process"
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
@@ -47,10 +48,10 @@ func TestWriter_LiveTailStaysBoundedWhileCaptureKeepsTheStream(t *testing.T) {
 		t.Fatalf("tail = %q, want the newest %d lines %q", tail.Lines, liveTailLines, want)
 	}
 	retained := strings.Split(task.capture().Text(), "\n")
-	if want := numberedLines(tailTestLines-defaultCaptureLines+1, tailTestLines); !slices.Equal(retained[len(retained)-len(want):], want) {
+	if want := numberedLines(tailTestLines-process.DefaultCaptureLines+1, tailTestLines); !slices.Equal(retained[len(retained)-len(want):], want) {
 		t.Fatalf("Capture lost the stream: retained %d lines ending %q", len(retained), retained[len(retained)-1])
 	}
-	if want := defaultCaptureLines; tail.Evidence != want {
+	if want := process.DefaultCaptureLines; tail.Evidence != want {
 		t.Fatalf("tail.Evidence = %d, want %d lines in the ring", tail.Evidence, want)
 	}
 	out.mu.Lock()

@@ -51,8 +51,8 @@ type processRunner = process.Runner
 // Capture-flush failure is wrapped with the resolved executable path here
 // (rather than left bare) since the caller's own wrap only knows
 // ExecSpec.Executable, not the path Evo actually resolved and tried to run.
-func (h changeHost) Spawn(ctx context.Context, id record.TaskID, cmd change.SpawnCommand) (change.ExecResult, error) {
-	o := h.out
+func (e changeEngine) Spawn(ctx context.Context, id record.TaskID, cmd change.SpawnCommand) (change.ExecResult, error) {
+	o := e.out
 	task := &Task{out: o, id: string(id)}
 	ev := task.capture(activityFeed(func(line string) { task.Doing(line) }))
 
@@ -67,10 +67,57 @@ func (h changeHost) Spawn(ctx context.Context, id record.TaskID, cmd change.Spaw
 	return change.ExecResult{
 		Ran:       true,
 		ExitCode:  exitCode,
-		Stdout:    ev.streamText(captureStreamStdout),
-		Stderr:    ev.streamText(captureStreamStderr),
-		Truncated: ev.wasTruncated(),
+		Stdout:    ev.StreamText(process.StreamStdout),
+		Stderr:    ev.StreamText(process.StreamStderr),
+		Truncated: ev.Truncated(),
 	}, nil
+}
+
+// captureOption configures the Capture a Task's first capture call creates.
+type captureOption func(o *Run, taskName string, cfg *record.CaptureConfig)
+
+// activityFeed makes each kept line also become the Task's activity.
+func activityFeed(fn func(text string)) captureOption {
+	return func(_ *Run, _ string, cfg *record.CaptureConfig) { cfg.OnLine = fn }
+}
+
+// capture is the Task's Capture, created on first use with opts: Exec's
+// spawns and the phase writer share it, so the tail a failure shows holds
+// every line either wrote.
+func (t *Task) capture(opts ...captureOption) *record.Capture {
+	if t == nil || t.out == nil {
+		return newCapture(nil, "", opts)
+	}
+	o := t.out
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	st := o.taskStates[t.id]
+	if st == nil {
+		return newCapture(o, "", opts)
+	}
+	if st.evidence == nil {
+		st.evidence = newCapture(o, st.name, opts)
+	}
+	return st.evidence
+}
+
+// newCapture is a Capture that redacts through o's Redactor.
+func newCapture(o *Run, taskName string, opts []captureOption) *record.Capture {
+	var cfg record.CaptureConfig
+	if o != nil {
+		cfg.Redact = o.redactString
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(o, taskName, &cfg)
+		}
+	}
+	return record.NewCapture(cfg)
+}
+
+// detailTail is the Problem option that attaches c's tail to a failure.
+func detailTail(c *record.Capture) ProblemOption {
+	return problemOption{record.WithEvidenceTail(c.DetailText)}
 }
 
 // Clock is the time source a Run reads: Now is the current time.

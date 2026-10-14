@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/project"
 	"github.com/zachbornheimer/evident-output/internal/project/live"
@@ -1144,7 +1145,7 @@ func (t *Task) Fact(name, value string) *Task {
 func (st *taskState) resolveProblems(state entityState, extra []problem) {
 	tail := ""
 	if st.node.Rec.NeedsEvidenceTail(state, extra) && st.evidence != nil && !st.evidence.Empty() {
-		tail = st.evidence.detailText()
+		tail = st.evidence.DetailText()
 	}
 	st.node.Rec.ResolveProblems(state, extra, tail)
 }
@@ -1165,7 +1166,23 @@ func (o *Run) commitSettledLocked(st *taskState) {
 	if !st.node.Rec.State().Succeeded() {
 		return
 	}
-	o.commitManifestTaskLocked(o.graph.Context(), st.id)
+	o.commitManifestLocked(st)
+}
+
+// commitManifestLocked persists st's accumulated operations as this Run's
+// truth (spec §11.3) once it settled Done, and narrates the commit; see
+// freshness.Run.Commit. Callers hold o.mu.
+func (o *Run) commitManifestLocked(st *taskState) {
+	commit := o.freshness.Commit(o.graph.Context(), record.TaskID(st.id), freshness.ModeFor(o.cfg.dryRun))
+	if commit.Err != nil {
+		o.warnManifestUnsavedLocked(commit.Err)
+		return
+	}
+	if commit.Written {
+		o.emitWireEventLocked(wire.EventManifestTaskCommitted, st.id, map[string]any{
+			"operations": commit.Operations,
+		})
+	}
 }
 
 // --- folded from task_next.go ---
@@ -1369,12 +1386,8 @@ func taskFinishedPayload(st *taskState) map[string]any {
 // key is the Task's §3.1 stable key, empty for a Task the graph never declared.
 func (st *taskState) key() string { return st.node.Key() }
 
-// TaskID is the Task's id in the run record; with ManifestKey it makes
-// taskState the freshness.TaskView freshness judges the Task through.
+// TaskID is the Task's id in the run record.
 func (st *taskState) TaskID() record.TaskID { return record.TaskID(st.id) }
-
-// ManifestKey is the Task's stable key in the manifest.
-func (st *taskState) ManifestKey() string { return st.key() }
 
 // isGate reports whether st is a container builder's gate, no row and in no
 // collection.
@@ -1426,7 +1439,7 @@ type taskState struct {
 	// capture is the get-or-create sink shared by Task.Capture and PhaseWriter
 	// so child-process evidence recorded via either path lands in one ring and
 	// DetailTail sees it after Fail.
-	evidence *evidence
+	evidence *record.Capture
 	// tail is the bounded window of Writer lines a live frame draws beneath
 	// this row; evidence above stays the full record.
 	tail liveTail
@@ -1467,34 +1480,11 @@ type tasksState struct {
 	// "one Running child" check never rescans every step.
 	runningSteps []*taskState
 
-	// path caches containerPath: a container's place in the tree is fixed at
-	// declaration, and every child's ledger section shares the one slice.
-	path record.ContainerPath
 	// census counts its descendant Tasks for the live frame (liveCensus).
 	census liveCensus
 	// hasNamesake records that a child Task carries this container's own
 	// name, the only way it can render as its own Task (liveOwnRow).
 	hasNamesake bool
-}
-
-// containerPath is the chain of containers enclosing st, nearest first;
-// nil for a root Task.
-func (st *taskState) containerPath() record.ContainerPath {
-	if st.collection() == nil {
-		return nil
-	}
-	return st.collection().containerPath()
-}
-
-// containerPath is c then every container above it.
-func (c *tasksState) containerPath() record.ContainerPath {
-	if c.path == nil {
-		c.path = record.ContainerPath{{ID: c.id, Name: c.name}}
-		if c.parent() != nil {
-			c.path = append(c.path, c.parent().containerPath()...)
-		}
-	}
-	return c.path
 }
 
 // --- folded from task_taxonomy.go ---

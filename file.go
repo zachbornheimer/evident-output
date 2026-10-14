@@ -2,44 +2,14 @@ package evo
 
 import (
 	"context"
-	"maps"
-	"slices"
-
 	iofs "io/fs"
 
 	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/fs"
-)
-
-// File and FileSpec live with the other change aliases until the slice-9 LAYOUT split.
-
-// --- folded from change_aliases.go ---
-
-// The changes a Task's callback performs live in internal/change. Engine
-// aliases them so the root package keeps compiling through its own aliases
-// until it speaks internal/change directly.
-
-type (
-	// FileSet is the desired file states a Patch derived, each bound to the
-	// Basis it was derived from.
-	fileSet = change.FileSet
-
-	// FileFS is the facade evo.File performs every filesystem inspection and
-	// mutation through, instead of the os package directly (facade rule): the
-	// real filesystem backs every production Output; a test injects a fake to
-	// script a filesystem outcome (e.g. a chmod failure) deterministically,
-	// without depending on a real disk's permission behavior.
-	fileFS = fs.FS
-	// osFileFS is FileFS's real implementation, backing every production Output.
-	osFileFS = fs.Disk
 )
 
 // File declares/reconciles one managed-state file resource; see change.File.
 func File(ctx context.Context, spec FileSpec) error { return change.File(ctx, spec.toChange()) }
-
-// Files commits each desired state a Patch derived; see change.Files.
-func files(ctx context.Context, files fileSet) error { return change.Files(ctx, files) }
 
 // Exec declares/reconciles one managed-state subprocess invocation; see
 // change.Exec.
@@ -77,19 +47,5 @@ type FileSpec struct {
 }
 
 func (s FileSpec) toChange() change.FileSpec {
-	return change.FileSpec{Path: s.Path, Contents: s.Contents, Mode: s.Mode, Basis: specBasis(s.Inputs, s.Values, s.basis)}
-}
-
-// specBasis is the Basis a spec declares: its explicit fingerprints, then one
-// content fingerprint per Input path and one per Value (in key order), so a
-// changed input byte or Value makes the next run re-execute.
-func specBasis(inputs []string, values map[string]string, explicit []freshness.Fingerprint) []freshness.Fingerprint {
-	basis := slices.Clone(explicit)
-	for _, path := range inputs {
-		basis = append(basis, freshness.FSPath(path))
-	}
-	for _, name := range slices.Sorted(maps.Keys(values)) {
-		basis = append(basis, freshness.Value(name, values[name]))
-	}
-	return basis
+	return change.FileSpec{Path: s.Path, Contents: s.Contents, Mode: s.Mode, Basis: freshness.SpecBasis(s.Inputs, s.Values, s.basis)}
 }

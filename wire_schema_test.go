@@ -61,7 +61,7 @@ func TestWireSchema_RichProblemStaysWithinFrozenOutputV1(t *testing.T) {
 	capture := lint.capture()
 	_, _ = io.WriteString(capture.Stderr(), "main.go:12:3: undefined: x\n")
 	_ = capture.Close()
-	lint.fail("lint failed", capture.DetailTail(),
+	lint.fail("lint failed", detailTail(capture),
 		location("main.go", 12, 3), nextCommand("go", "vet", "./..."))
 	_ = out.finish()
 

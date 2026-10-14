@@ -66,7 +66,7 @@ func ExampleFileSet() {
 	out := initRun(Config{stdout: io.Discard, stderr: io.Discard})
 	task := out.Task("derive notes")
 	task.Define(func(ctx context.Context) error {
-		var set fileSet
+		var set change.FileSet
 		set, err := derivePatch(ctx, []byte(createNotesDiff))
 		_ = set // opaque: no field or method unpacks it
 		fmt.Println("derived:", err == nil)

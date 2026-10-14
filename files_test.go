@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
@@ -233,7 +234,7 @@ func TestFilesClaimsEachPathWithoutCallerLocks(t *testing.T) {
 }
 
 func TestFilesRequiresTaskContext(t *testing.T) {
-	if err := files(context.Background(), fileSet{}); !errors.Is(err, graph.ErrNoTaskContext) {
+	if err := files(context.Background(), change.FileSet{}); !errors.Is(err, graph.ErrNoTaskContext) {
 		t.Fatalf("err = %v, want ErrNoTaskContext", err)
 	}
 }

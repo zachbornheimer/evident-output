@@ -57,6 +57,29 @@ func (o *Run) finish() error {
 	return joinErrors(misuse, writeResidual(cfg, residual, interactive))
 }
 
+// saveManifest waits until every record this Run committed or staged is on
+// disk (see freshness.ManifestSession.Save) and warns on the run when it
+// could not be: the next run re-executes work this one did, and the reader
+// must know why.
+func (o *Run) saveManifest() {
+	if err := o.freshness.Session().Save(); err != nil {
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		if !o.finished {
+			o.warnManifestUnsavedLocked(err)
+		}
+	}
+}
+
+// warnManifestUnsavedLocked states once per run that the manifest could not
+// be saved. Callers hold o.mu.
+func (o *Run) warnManifestUnsavedLocked(err error) {
+	if !o.freshness.Session().FirstUnsavedWarning() {
+		return
+	}
+	o.warnLocked(record.ApplyProblemOptions(txt.Text("manifest not saved: "+err.Error()), nil))
+}
+
 // settleUnresolvedTasksLocked gives every Task still unresolved at Finish
 // its honest outcome.
 //

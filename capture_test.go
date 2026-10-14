@@ -44,7 +44,7 @@ func TestTaskCapture_DetailTail_OnFail(t *testing.T) {
 	_, _ = fmt.Fprintln(output, "Error: formula foo conflict")
 	_ = output.Close()
 
-	upgrade.fail("brew upgrade failed", output.DetailTail())
+	upgrade.fail("brew upgrade failed", detailTail(output))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestDetailTailIncludesUnterminatedStderr(t *testing.T) {
 	// No trailing newline — the usual subprocess final message shape.
 	_, _ = io.WriteString(output.Stderr(), "fatal: authentication failed")
 
-	task.fail("git fetch failed", output.DetailTail())
+	task.fail("git fetch failed", detailTail(output))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +300,7 @@ func TestCapture_StderrOnlyFeedsDetailTail(t *testing.T) {
 	_, _ = io.WriteString(cap.Stderr(), "* gofmt: 1\n")
 	_ = cap.Close()
 
-	task.fail("golangci-lint exited 1", cap.DetailTail())
+	task.fail("golangci-lint exited 1", detailTail(cap))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}

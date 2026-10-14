@@ -43,7 +43,7 @@ func (h *Task) verifyOn() (name string, verified bool) {
 	if st == nil {
 		return "", false
 	}
-	return st.name, len(o.taskFreshness.Verifiers(st.TaskID())) > 0
+	return st.name, len(o.freshness.Tasks().Verifiers(st.TaskID())) > 0
 }
 
 // Compute defines task as the producer of a value: fn's result becomes

@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
+
 	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/record"
@@ -61,7 +63,7 @@ func awaitWaitingActivity(o *Run, taskID string, deadline time.Duration) bool {
 // them — the widest window a concurrent observer could ever race into.
 // Every other path passes straight through to the real filesystem.
 type tornWriteFS struct {
-	osFileFS
+	sysfs.Disk
 	target    string
 	midCommit chan struct{}
 	// resume blocks the second half until it returns.
@@ -70,7 +72,7 @@ type tornWriteFS struct {
 
 func (f *tornWriteFS) WriteAtomic(path string, contents []byte, mode fs.FileMode) error {
 	if path != f.target {
-		return f.osFileFS.WriteAtomic(path, contents, mode)
+		return f.Disk.WriteAtomic(path, contents, mode)
 	}
 	if err := os.WriteFile(path, contents[:len(contents)/2], mode); err != nil {
 		return err
@@ -128,7 +130,7 @@ func TestBasisObservationCannotRaceFileCommit(t *testing.T) {
 		t.Fatalf("reader: %v", err)
 	}
 
-	ops := out.taskFreshness.Operations(record.TaskID(reader.id))
+	ops := out.freshness.Tasks().Operations(record.TaskID(reader.id))
 	if len(ops) != 1 || len(ops[0].Basis) != 1 {
 		t.Fatalf("reader recorded %d ops, want 1 with one Basis entry: %+v", len(ops), ops)
 	}

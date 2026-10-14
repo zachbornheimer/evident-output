@@ -10,6 +10,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 // taskManifestKey declares a Task named name on out and returns its stable
@@ -21,7 +22,7 @@ func taskManifestKey(t *testing.T, out *Run, name string) (*Task, string) {
 	t.Helper()
 	task := out.Task(name)
 	out.mu.Lock()
-	key, _, ok := out.taskManifestKeyLocked(task.id)
+	key, _, ok := out.freshness.TaskManifest(record.TaskID(task.id))
 	out.mu.Unlock()
 	if !ok {
 		t.Fatalf("task %q was not declared", name)
@@ -200,7 +201,7 @@ func TestOpaqueTasksDoNotRewriteTheManifestPerSettle(t *testing.T) {
 	}
 	// The File Task's commit is written in the background; wait for it so
 	// the file on disk is the baseline the opaque settles must not touch.
-	if err := out.manifest.Opened().Flush(t.Context()); err != nil {
+	if err := out.freshness.Session().Opened().Flush(t.Context()); err != nil {
 		t.Fatalf("flush file task record: %v", err)
 	}
 	group := out.Group("opaque")

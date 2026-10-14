@@ -255,6 +255,10 @@ func (g *Graph) AddContainer(parent *Container, name string, sequential bool) *C
 		Rec: g.run.NewContainer(),
 		key: StableKey(ContainerKind(sequential), KeyOf(parent), name),
 	}
+	c.path = record.ContainerPath{{ID: c.ID, Name: c.Name}}
+	if parent != nil {
+		c.path = append(c.path, parent.path...)
+	}
 	g.lock()
 	defer g.unlock()
 	c.Declaration = g.nextDeclarationLocked()

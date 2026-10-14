@@ -8,6 +8,7 @@ import (
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 // runFileTask runs one Task named name whose Define calls evo.File(spec)
@@ -163,7 +164,7 @@ func TestFileManifestDryRunNeverCommitsAndRecordsPlannedEffect(t *testing.T) {
 
 	applied := initRun(Config{stateDir: state})
 	t.Cleanup(func() { _ = applied.close() })
-	store, err := applied.manifestFor(context.Background())
+	store, err := applied.freshness.Store(context.Background())
 	if err != nil {
 		t.Fatalf("open manifest: %v", err)
 	}
@@ -234,7 +235,7 @@ func TestFileManifestPartialFailurePreservesEarlierCommits(t *testing.T) {
 		t.Fatal("File targeting a directory must fail")
 	}
 
-	store, err := out.manifestFor(context.Background())
+	store, err := out.freshness.Store(context.Background())
 	if err != nil {
 		t.Fatalf("open manifest: %v", err)
 	}
@@ -323,13 +324,13 @@ func TestFileModeOnlySpecConsultsManifestOnSecondRun(t *testing.T) {
 
 	second := initRun(Config{stateDir: state})
 	t.Cleanup(func() { _ = second.close() })
-	store, err := second.manifestFor(context.Background())
+	store, err := second.freshness.Store(context.Background())
 	if err != nil {
 		t.Fatalf("open manifest: %v", err)
 	}
 	task := second.Task("chmod")
 	second.mu.Lock()
-	key, _, ok := second.taskManifestKeyLocked(task.id)
+	key, _, ok := second.freshness.TaskManifest(record.TaskID(task.id))
 	second.mu.Unlock()
 	if !ok {
 		t.Fatal("expected a declared task")

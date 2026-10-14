@@ -138,7 +138,7 @@ func renderPlain_1(s snapshot, opts plainOptions) ([]byte, error) {
 
 func fSPath(path string) fingerprint { return freshness.FSPath(path) }
 
-func (t *Task) captureForTest(opts ...captureOption) *evidence {
+func (t *Task) captureForTest(opts ...captureOption) *record.Capture {
 	return t.capture(opts...)
 }
 
@@ -274,19 +274,63 @@ func pluralize(quantity int64, singular string) string {
 }
 
 func keepLastLines(n int) captureOption {
-	return captureOptionFunc(func(c *evidence) {
+	return func(_ *Run, _ string, cfg *record.CaptureConfig) {
 		if n > 0 {
-			c.maxLines = n
+			cfg.MaxLines = n
 		}
-	})
+	}
 }
 
-func mirrorToDiagnostics() captureOption {
-	return captureOptionFunc(func(c *evidence) { c.mirrorDiag = true })
+func mirrorToDiagnostics() captureOption { return mirrorCapture(true, false) }
+
+func mirrorToDebug() captureOption { return mirrorCapture(false, true) }
+
+// mirrorCapture also writes each kept line to Diagnostics, to the debug
+// journal, or both.
+func mirrorCapture(diag, debug bool) captureOption {
+	return func(o *Run, taskName string, cfg *record.CaptureConfig) {
+		if o == nil {
+			return
+		}
+		prior := cfg.OnLine
+		cfg.OnLine = func(line string) {
+			if prior != nil {
+				prior(line)
+			}
+			o.mirrorCaptureLine(diag, debug, taskName, line)
+		}
+	}
 }
 
-func mirrorToDebug() captureOption {
-	return captureOptionFunc(func(c *evidence) { c.mirrorDebug = true })
+func (o *Run) mirrorCaptureLine(mirrorDiag, mirrorDebug bool, taskName, line string) {
+	if o == nil {
+		return
+	}
+	if mirrorDiag {
+		o.writeDiagnosticText(line + "\n")
+	}
+	if !mirrorDebug {
+		return
+	}
+	o.mu.Lock()
+	allowDebug := o.cfg.debugLevel <= levelDebug
+	hasDiag := o.cfg.diagnostic != nil
+	interactive := false
+	if live := o.liveLocked(); live != nil {
+		interactive = live.IsInteractive() && !o.cfg.plain
+	}
+	o.mu.Unlock()
+	if !allowDebug {
+		return
+	}
+	if !hasDiag && !interactive {
+		return
+	}
+	if taskName != "" {
+		o.debug(line, field{Key: "task", Value: taskName})
+	} else {
+		o.debug(line)
+	}
 }
 
 // Err returns the first recorded misuse error, if any.
@@ -308,7 +352,7 @@ type (
 
 	attachment = record.Attachment
 
-	capture = evidence
+	capture = record.Capture
 
 	systemClock_1 = systemClock
 
@@ -538,7 +582,7 @@ func (t *Task) basis(inputs ...fingerprint) *Task {
 			sources = append(sources, fingerprintBasis(in))
 		}
 	}
-	o.taskFreshness.AddInputs(st.TaskID(), sources...)
+	o.freshness.Tasks().AddInputs(st.TaskID(), sources...)
 	return t
 }
 

@@ -35,9 +35,9 @@ func patchWorkspace(t *testing.T, files map[string]string) (string, *Run) {
 }
 
 // runPatchTask calls Patch from one Task's Define callback.
-func runPatchTask(t *testing.T, out *Run, diff string) (fileSet, error) {
+func runPatchTask(t *testing.T, out *Run, diff string) (change.FileSet, error) {
 	t.Helper()
-	var set fileSet
+	var set change.FileSet
 	var patchErr error
 	task := out.Task("derive patch")
 	task.Define(func(ctx context.Context) error {
@@ -144,7 +144,7 @@ func TestPatchUnsupportedFormsFailExplicitly(t *testing.T) {
 			if !errors.Is(err, tc.want) || !errors.Is(err, change.ErrPatchUnsupported) {
 				t.Fatalf("err = %v, want %v", err, tc.want)
 			}
-			if !reflect.DeepEqual(set, fileSet{}) {
+			if !reflect.DeepEqual(set, change.FileSet{}) {
 				t.Fatal("a failed Patch returned desired files")
 			}
 		})

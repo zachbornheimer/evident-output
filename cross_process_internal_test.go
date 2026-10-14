@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 // Environment the cross-process helper reads its assignment from. The
@@ -164,7 +165,7 @@ func TestCrossProcessSameManifestNeverRacesTrackedState(t *testing.T) {
 	for _, role := range roles {
 		task := keys.Task(crossProcessTask(role))
 		keys.mu.Lock()
-		key, _, ok := keys.taskManifestKeyLocked(task.id)
+		key, _, ok := keys.freshness.TaskManifest(record.TaskID(task.id))
 		keys.mu.Unlock()
 		if !ok {
 			t.Fatalf("no manifest key for %s", role)

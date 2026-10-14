@@ -39,7 +39,7 @@ func TestCapture_RedactsOnRetention(t *testing.T) {
 		t.Fatalf("expected redaction marker: %q", cap.Text())
 	}
 
-	task.fail("denied", cap.DetailTail())
+	task.fail("denied", detailTail(cap))
 	_ = out.finish()
 	if strings.Contains(primary.String(), "SECRET_TOKEN") {
 		t.Fatalf("token leaked into presentation:\n%s", primary.String())
@@ -141,7 +141,7 @@ func TestItem_CaptureBindsEvidence(t *testing.T) {
 	docker := out.Task("docker daemon")
 	cap := docker.capture()
 	_, _ = cap.Stderr().Write([]byte("Cannot connect to the Docker daemon"))
-	docker.fail("could not inspect the daemon", cap.DetailTail())
+	docker.fail("could not inspect the daemon", detailTail(cap))
 	_ = out.finish()
 	if !strings.Contains(buf.String(), "Cannot connect") {
 		t.Fatalf("item capture detail missing:\n%s", buf.String())

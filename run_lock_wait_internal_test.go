@@ -89,7 +89,7 @@ func TestManifestFor_AfterCloseReleasesTheStateLock(t *testing.T) {
 	state := t.TempDir()
 	closed := initRun(Config{plain: true, stateDir: state, stdout: io.Discard, stderr: io.Discard})
 	_ = closed.close()
-	if store, err := closed.manifestFor(context.Background()); store != nil || !errors.Is(err, errClosed) {
+	if store, err := closed.freshness.Store(context.Background()); store != nil || !errors.Is(err, errClosed) {
 		t.Fatalf("manifestFor after Close = (%v, %v), want (nil, ErrClosed)", store, err)
 	}
 
@@ -97,7 +97,7 @@ func TestManifestFor_AfterCloseReleasesTheStateLock(t *testing.T) {
 	defer func() { _ = next.close() }()
 	ctx, cancel := context.WithTimeout(context.Background(), interruptBudget)
 	defer cancel()
-	if _, err := next.manifestFor(ctx); err != nil {
+	if _, err := next.freshness.Store(ctx); err != nil {
 		t.Fatalf("the next run could not take the state lock a closed Output left behind: %v", err)
 	}
 }

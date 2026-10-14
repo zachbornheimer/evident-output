@@ -1,7 +1,6 @@
 package evo
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -14,7 +13,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unicode/utf8"
 
 	"github.com/zachbornheimer/evident-output/internal/change"
 	"github.com/zachbornheimer/evident-output/internal/freshness"
@@ -468,7 +466,7 @@ type Config struct {
 	// FileFS overrides the facade evo.File performs filesystem I/O through
 	// (spec §8.2). Nil uses the real OS filesystem; tests inject a fake to
 	// script a reconciliation outcome (e.g. a chmod failure) deterministically.
-	fileFS fileFS
+	fileFS fs.FS
 }
 
 // Delay returns a non-nil *time.Duration for Config fields where zero is meaningful.
@@ -589,7 +587,7 @@ func resolveConfig(c Config) Config {
 		c.processRunner = process.System()
 	}
 	if c.fileFS == nil {
-		c.fileFS = osFileFS{}
+		c.fileFS = fs.Disk{}
 	}
 	return c
 }
@@ -1213,7 +1211,7 @@ func (o *Run) close() error {
 	// releases the Run's exclusive manifest lock (spec §11.3) and returns
 	// any write or release failure. Already committed Task records on disk
 	// are unaffected — Close never rolls anything back.
-	return o.manifest.Close()
+	return o.freshness.Session().Close()
 }
 
 // beginRunContext installs ctx (Run/evo.Run's own ctx parameter) as the
@@ -1378,7 +1376,7 @@ type config struct {
 	processRunner processRunner
 	// fileFS is the facade evo.File performs filesystem I/O through (spec
 	// §8.2). Defaults to osFileFS{} in newOutput.
-	fileFS fileFS
+	fileFS fs.FS
 	// stdin is the facade Confirm reads one answer line from (default os.Stdin,
 	// resolved lazily so NewWithOptions callers that skip Stdin still work).
 	stdin io.Reader
@@ -1674,130 +1672,86 @@ func withProcessRunner(r processRunner) option {
 // withFileFS injects the facade evo.File performs filesystem I/O through
 // (spec §8.2) — testkit installs a fake so a reconciliation outcome (e.g.
 // a chmod failure) is provable without a real disk permission.
-func withFileFS(fsys fileFS) option {
+func withFileFS(fsys fs.FS) option {
 	return optionFunc(func(c *config) { c.fileFS = fsys })
 }
 
 // Test helpers reachable through the evo type alias (root export_test.go
 // cannot attach methods to engine types).
 
-// --- folded from basis.go ---
-
 // --- folded from capability.go ---
 
-// --- folded from change_host.go ---
-
-// This file is the engine's side of the interfaces change declares (Host):
-// what the Output writes, remembers and shows on behalf of the changes a
-// Task performs.
+// changeEngine is the Run as change borrows it: its lock, its settings, its
+// live rows and its edge to the reader. change builds its Host over it (see
+// change.NewHost) and makes every record write a change owes itself.
+type changeEngine struct{ out *Run }
 
 // resourceWaitingPrefix opens the live activity a Task shows while one of its
 // claims waits on a conflicting holder.
 const resourceWaitingPrefix = "waiting for "
 
-// changeHost is the Output, as change asks for it.
-type changeHost struct{ out *Run }
-
-// DryRun reports whether this Output is configured for dry-run/preview
-// tense — the same flag evo.Effect and evo.File render by.
-func (o *Run) dryRun() bool {
-	if o == nil {
-		return false
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.cfg.dryRun
+// newChangeHost is the Host this Run's changes report through.
+func (o *Run) newChangeHost() change.Host {
+	return change.NewHost(change.HostParts{Engine: changeEngine{out: o}, Record: o.rec, Graph: o.graph, Freshness: o.freshness})
 }
+
+func (e changeEngine) Lock()   { e.out.mu.Lock() }
+func (e changeEngine) Unlock() { e.out.mu.Unlock() }
 
 // DryRun reports whether the Run plans its changes instead of making them.
-func (h changeHost) DryRun() bool { return h.out.dryRun() }
-
-// FS is the filesystem File performs I/O through — real os calls in
-// ordinary use, a scripted fake under test (facade rule).
-func (h changeHost) FS() fs.FS {
-	h.out.mu.Lock()
-	defer h.out.mu.Unlock()
-	return h.out.cfg.fileFS
+func (e changeEngine) DryRun() bool {
+	e.out.mu.Lock()
+	defer e.out.mu.Unlock()
+	return e.out.cfg.dryRun
 }
 
-// taskLedger is one Task's ledger section, resolved once.
-type taskLedger struct {
-	out    *Run
-	taskID string
-	target ledgerTarget
+// FS is the filesystem File performs I/O through.
+func (e changeEngine) FS() fs.FS {
+	e.out.mu.Lock()
+	defer e.out.mu.Unlock()
+	return e.out.cfg.fileFS
 }
 
-// Applies reports whether the ledger records changes made, not planned.
-func (l taskLedger) Applies() bool { return l.target.tense == tenseChanged }
-
-// Record adds e to the Task's section.
-func (l taskLedger) Record(e record.LedgerEntry) {
-	l.out.recordResolvedEntry(l.taskID, l.target, e)
+// LedgerTense is the tense id's rows take: the shared guard (open, not yet
+// resolved) behind every change a Task records. A Task the Run does not
+// know fails without misuse.
+func (e changeEngine) LedgerTense(id record.TaskID) (record.LedgerTense, error) {
+	o := e.out
+	st := o.taskStates[string(id)]
+	if st == nil {
+		return 0, errClosed
+	}
+	if err := e.CheckOpen(); err != nil {
+		return 0, err
+	}
+	if record.IsTerminalTask(st.node.Rec.State()) {
+		o.recordMisuseFor(st.name, errAlreadyResolved)
+		return 0, errAlreadyResolved
+	}
+	return record.TenseFor(o.cfg.dryRun), nil
 }
 
-// Ledger resolves id's ledger section; see Output.resolveLedgerTarget.
-func (h changeHost) Ledger(id record.TaskID) (change.Ledger, error) {
-	target, err := h.out.resolveLedgerTarget(string(id))
+// CheckOpen refuses a write once the Run is closing.
+func (e changeEngine) CheckOpen() error {
+	err := e.out.ensureOpen()
 	if err != nil {
-		return nil, err
+		e.out.recordMisuse(err)
 	}
-	return taskLedger{out: h.out, taskID: string(id), target: target}, nil
+	return err
 }
 
-// AttachVerification adds the per-attribute evidence a reconcile produced to
-// id's record; see Output.attachVerificationLocked.
-func (h changeHost) AttachVerification(id record.TaskID, details []record.VerificationDetail) {
-	h.out.mu.Lock()
-	defer h.out.mu.Unlock()
-	h.out.attachVerificationLocked(string(id), details)
-}
+// RecordMisuse fails the Run with err.
+func (e changeEngine) RecordMisuse(err error) { e.out.recordMisuse(err) }
 
-// TaskName is the name id's row shows, or id itself when it is unknown.
-func (h changeHost) TaskName(id record.TaskID) string {
-	h.out.mu.Lock()
-	defer h.out.mu.Unlock()
-	if st := h.out.taskStates[string(id)]; st != nil {
-		return st.name
-	}
-	return string(id)
-}
-
-// RecordMisuse fails the Run with err; see Output.recordMisuse.
-func (h changeHost) RecordMisuse(err error) { h.out.recordMisuse(err) }
-
-// Manifest opens this Run's manifest on first use; see Output.manifestFor.
-func (h changeHost) Manifest(ctx context.Context) (*freshness.ManifestStore, error) {
-	return h.out.manifestFor(ctx)
-}
-
-// NoteManifestWarning surfaces a safe cache-miss warning once per Run.
-func (h changeHost) NoteManifestWarning(warning error) { h.out.emitManifestWarningOnce(warning) }
-
-// TaskManifest is id's stable manifest key and its next operation's ordinal.
-func (h changeHost) TaskManifest(id record.TaskID) (key string, ordinal int, ok bool) {
-	h.out.mu.Lock()
-	defer h.out.mu.Unlock()
-	return h.out.taskManifestKeyLocked(string(id))
-}
-
-// AppendOperation records rec as id's next pending operation.
-func (h changeHost) AppendOperation(id record.TaskID, rec freshness.OperationRecord) {
-	h.out.mu.Lock()
-	defer h.out.mu.Unlock()
-	h.out.appendManifestOperationLocked(string(id), rec)
-}
-
-// PlanOperation holds id's next operation's place without a record.
-func (h changeHost) PlanOperation(id record.TaskID) {
-	h.out.mu.Lock()
-	defer h.out.mu.Unlock()
-	h.out.planManifestOperationLocked(string(id))
-}
+// NoteManifestWarning surfaces a manifest's safe cache-miss warning
+// (corrupt or unknown prior manifest, spec §11.3) as a run-scoped Fact,
+// never as an error: a miss is always safe to continue past.
+func (e changeEngine) NoteManifestWarning(warning error) { e.out.Fact("manifest", warning.Error()) }
 
 // ShowWaiting makes id's row read "waiting for <label>" and returns the
 // function that restores what it showed before.
-func (h changeHost) ShowWaiting(id record.TaskID, label string) (restore func()) {
-	o, taskID := h.out, string(id)
+func (e changeEngine) ShowWaiting(id record.TaskID, label string) (restore func()) {
+	o, taskID := e.out, string(id)
 	text := txt.Text(resourceWaitingPrefix + label)
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -1818,15 +1772,44 @@ func (h changeHost) ShowWaiting(id record.TaskID, label string) (restore func())
 	}
 }
 
-// --- folded from change_observe.go ---
+// SectionOpened journals a ledger section a change opened.
+func (e changeEngine) SectionOpened(_ record.TaskID, section string, tense record.LedgerTense) {
+	e.out.bumpLocked()
+	e.out.appendEventLocked(recEvent{Type: tense.DeclaredEvent(), EntityID: section})
+}
+
+// EntryRecorded journals a ledger row a change recorded and narrates it as
+// the §38 effect line: planned in a planned run, committed otherwise.
+func (e changeEngine) EntryRecorded(task record.TaskID, row change.LedgerRow) {
+	o := e.out
+	if row.Added {
+		o.bumpLocked()
+		o.appendEventLocked(recEvent{Type: row.Tense.RecordedEvent(), EntityID: row.Section})
+	}
+	event := wire.EventEffectPlanned
+	if row.Tense == record.TenseChanged {
+		event = wire.EventEffectCommitted
+	}
+	o.emitWireEventLocked(event, string(task), row.Entry.Payload(row.Verb))
+}
+
+// VerificationRecorded files the Task's row again and narrates each detail
+// as the sanitized copy evo.run projects, so JSONL and JSON agree.
+func (e changeEngine) VerificationRecorded(task record.TaskID, details []record.VerificationDetail) {
+	o := e.out
+	if st := o.taskStates[string(task)]; st != nil {
+		st.markFiling()
+	}
+	for _, d := range details {
+		o.emitWireEventLocked(wire.EventVerificationObserved, string(task), wire.ToVerificationDoc(d).EventPayload())
+	}
+}
 
 // Observe narrates one step of a tracked operation as the §38 "evo.event"
 // line it has always been: change speaks of subjects and steps, the wire
-// vocabulary stays here.
-func (h changeHost) Observe(ob change.Observation) {
-	h.out.mu.Lock()
-	defer h.out.mu.Unlock()
-	h.out.emitWireEventLocked(observationEvent(ob.Kind), string(ob.Task), observationPayload(ob))
+// vocabulary stays at this edge.
+func (e changeEngine) Observe(ob change.Observation) {
+	e.out.emitWireEventLocked(observationEvent(ob.Kind), string(ob.Task), observationPayload(ob))
 }
 
 // observationEvent is the §38 event type for a step of a tracked operation.
@@ -1877,269 +1860,6 @@ func observationPayload(ob change.Observation) map[string]any {
 }
 
 // --- folded from conjugate.go ---
-
-// --- folded from evidence.go ---
-
-const (
-	defaultCaptureLines = process.DefaultCaptureLines
-	defaultCaptureBytes = process.DefaultCaptureBytes
-	maxCaptureLineLen   = 4096
-	maxCaptureChunk     = process.MaxCaptureChunk
-	truncationMarker    = process.TruncationMarker
-)
-
-// CaptureStream identifies which process stream a line came from.
-type captureStream = process.Stream
-
-const (
-	captureStreamCombined = process.StreamCombined
-	captureStreamStdout   = process.StreamStdout
-	captureStreamStderr   = process.StreamStderr
-)
-
-// evidence is the retained/redacted process-output sink owned by a Task
-// (preferred) or Output. The bounded ring lives in process; this type owns
-// sanitization, redaction, mirroring, and Task attachment.
-type evidence struct {
-	out      *Run
-	taskID   string
-	taskName string
-	ring     *process.Ring
-	maxLines int
-	maxBytes int
-
-	mirrorDiag  bool
-	mirrorDebug bool
-	stream      captureStream
-	parent      *evidence
-	onLine      func(text string)
-}
-
-// CaptureOption configures Capture.
-type captureOption interface {
-	applyCapture(*evidence)
-}
-
-type captureOptionFunc func(*evidence)
-
-func (f captureOptionFunc) applyCapture(c *evidence) { f(c) }
-
-func activityFeed(fn func(text string)) captureOption {
-	return captureOptionFunc(func(c *evidence) { c.onLine = fn })
-}
-
-func (t *Task) capture(opts ...captureOption) *evidence {
-	if t == nil || t.out == nil {
-		return newCapture(nil, "", "", opts...)
-	}
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskStates[t.id]
-	if st == nil {
-		return newCapture(t.out, t.id, "", opts...)
-	}
-	if st.evidence == nil {
-		st.evidence = newCapture(t.out, t.id, st.name, opts...)
-	}
-	return st.evidence
-}
-
-func newCapture(out *Run, taskID, taskName string, opts ...captureOption) *evidence {
-	c := &evidence{
-		out:         out,
-		taskID:      taskID,
-		taskName:    taskName,
-		maxLines:    defaultCaptureLines,
-		maxBytes:    defaultCaptureBytes,
-		mirrorDiag:  false,
-		mirrorDebug: false,
-		stream:      captureStreamCombined,
-	}
-	for _, opt := range opts {
-		if opt != nil {
-			opt.applyCapture(c)
-		}
-	}
-	c.ring = process.NewRing(c.maxLines, c.maxBytes)
-	c.ring.SetOnAppend(func(line string) {
-		if c.onLine != nil {
-			c.onLine(line)
-		}
-		if c.out != nil && (c.mirrorDiag || c.mirrorDebug) {
-			c.out.mirrorCaptureLine(c.mirrorDiag, c.mirrorDebug, c.taskName, line)
-		}
-	})
-	return c
-}
-
-func (c *evidence) Stdout() io.Writer {
-	if c == nil {
-		return io.Discard
-	}
-	return &evidence{out: c.out, parent: c, stream: captureStreamStdout, ring: c.ring}
-}
-
-func (c *evidence) Stderr() io.Writer {
-	if c == nil {
-		return io.Discard
-	}
-	return &evidence{out: c.out, parent: c, stream: captureStreamStderr, ring: c.ring}
-}
-
-func (c *evidence) Write(p []byte) (int, error) {
-	root := c.root()
-	if root == nil || root.ring == nil {
-		return len(p), nil
-	}
-	stream := captureStreamCombined
-	if c.parent != nil {
-		stream = c.stream
-	}
-	return root.ring.Write(p, stream, root.normalizeCaptureLine)
-}
-
-func (c *evidence) Close() error {
-	root := c.root()
-	if root == nil || root.ring == nil {
-		return nil
-	}
-	if c.parent != nil {
-		return root.ring.Close([]process.Stream{c.stream}, root.normalizeCaptureLine)
-	}
-	return root.ring.Close([]process.Stream{
-		captureStreamCombined, captureStreamStdout, captureStreamStderr,
-	}, root.normalizeCaptureLine)
-}
-
-func (c *evidence) root() *evidence {
-	if c == nil {
-		return nil
-	}
-	if c.parent != nil {
-		return c.parent
-	}
-	return c
-}
-
-func (c *evidence) Text() string {
-	lines, truncated := c.snapshotTexts(captureStreamCombined, 0)
-	return process.JoinLines(lines, truncated)
-}
-
-func (c *evidence) streamText(stream captureStream) string {
-	lines, _ := c.snapshotTexts(stream, 0)
-	return strings.Join(lines, "\n")
-}
-
-func (c *evidence) wasTruncated() bool {
-	root := c.root()
-	if root == nil || root.ring == nil {
-		return false
-	}
-	return root.ring.Truncated()
-}
-
-func (c *evidence) Empty() bool {
-	root := c.root()
-	if root == nil || root.ring == nil {
-		return true
-	}
-	return root.ring.Empty()
-}
-
-func (c *evidence) DetailTail() ProblemOption {
-	return problemOption{record.WithEvidenceTail(c.detailText)}
-}
-
-func (c *evidence) detailText() string {
-	root := c.root()
-	if root == nil || root.ring == nil {
-		return ""
-	}
-	prefer := captureStreamCombined
-	if c.parent != nil {
-		prefer = c.stream
-	} else if root.ring.PreferStderr() || root.ring.HasStream(captureStreamStderr) {
-		prefer = captureStreamStderr
-	}
-	texts, truncated := root.ring.Texts(prefer, 0, root.normalizeCaptureLine)
-	if len(texts) == 0 {
-		texts, truncated = root.ring.Texts(captureStreamCombined, 0, root.normalizeCaptureLine)
-	}
-	if len(texts) == 0 {
-		return ""
-	}
-	var b strings.Builder
-	if truncated {
-		b.WriteString(truncationMarker)
-		b.WriteByte('\n')
-	}
-	if len(texts) > 1 {
-		fmt.Fprintf(&b, "Last %d lines:\n", len(texts))
-	}
-	b.WriteString(strings.Join(texts, "\n"))
-	return b.String()
-}
-
-func (c *evidence) snapshotTexts(stream captureStream, limit int) ([]string, bool) {
-	root := c.root()
-	if root == nil || root.ring == nil {
-		return nil, false
-	}
-	return root.ring.Texts(stream, limit, root.normalizeCaptureLine)
-}
-
-func (c *evidence) normalizeCaptureLine(line string) string {
-	cut := len(line) > maxCaptureChunk
-	if cut {
-		line = line[:maxCaptureChunk]
-	}
-	if !utf8.ValidString(line) {
-		line = string(bytes.ToValidUTF8([]byte(line), []byte("\uFFFD")))
-	}
-	line = record.SanitizeText(line)
-	if c.out != nil {
-		line = c.out.redactString(line)
-	}
-	line = record.TruncateUTF8(line, maxCaptureLineLen, "…")
-	if cut && !strings.HasSuffix(line, "…") {
-		line += "…"
-	}
-	return line
-}
-
-func (o *Run) mirrorCaptureLine(mirrorDiag, mirrorDebug bool, taskName, line string) {
-	if o == nil {
-		return
-	}
-	if mirrorDiag {
-		o.writeDiagnosticText(line + "\n")
-	}
-	if !mirrorDebug {
-		return
-	}
-	o.mu.Lock()
-	allowDebug := o.cfg.debugLevel <= levelDebug
-	hasDiag := o.cfg.diagnostic != nil
-	interactive := false
-	if live := o.liveLocked(); live != nil {
-		interactive = live.IsInteractive() && !o.cfg.plain
-	}
-	o.mu.Unlock()
-	if !allowDebug {
-		return
-	}
-	if !hasDiag && !interactive {
-		return
-	}
-	if taskName != "" {
-		o.debug(line, field{Key: "task", Value: taskName})
-	} else {
-		o.debug(line)
-	}
-}
-
-var _ io.WriteCloser = (*evidence)(nil)
 
 // --- folded from execution.go ---
 
@@ -2241,147 +1961,6 @@ func (o *Run) resolveObserved(st *taskState, err error) {
 
 // drainScheduler runs the queue to empty.
 func (o *Run) drainScheduler() { o.graph.Drain() }
-
-// --- folded from file_manifest.go ---
-
-// emitManifestWarningOnce surfaces a manifest Store's safe cache-miss
-// warning (corrupt/unknown prior manifest, spec §11.3) as a run-scoped Fact
-// exactly once per Run — never as an error, since a miss is always safe to
-// continue past.
-func (o *Run) emitManifestWarningOnce(w error) {
-	if w == nil || !o.manifest.FirstMissWarning() {
-		return
-	}
-	o.Fact("manifest", w.Error())
-}
-
-// taskManifestKeyLocked returns taskID's stable manifest Task key (§3.1's
-// stableKey, already computed at declaration) and the next pending
-// operation ordinal within it. Callers must already hold o.mu.
-func (o *Run) taskManifestKeyLocked(taskID string) (key string, ordinal int, ok bool) {
-	st := o.taskStates[taskID]
-	if st == nil {
-		return "", 0, false
-	}
-	return st.ManifestKey(), o.taskFreshness.OperationCount(st.TaskID()), true
-}
-
-// appendManifestOperationLocked records rec as taskID's next pending
-// operation, committed only if/when the Task itself settles Done (spec
-// §8.2/§11.3). Callers must already hold o.mu.
-func (o *Run) appendManifestOperationLocked(taskID string, rec freshness.OperationRecord) {
-	if st := o.taskStates[taskID]; st != nil {
-		o.taskFreshness.AppendOperation(st.TaskID(), rec)
-	}
-}
-
-// planManifestOperationLocked notes that taskID's next operation was found
-// stale and, in a planned Run, left unapplied; it holds its place in the
-// Task's order without a record. Callers must already hold o.mu.
-func (o *Run) planManifestOperationLocked(taskID string) {
-	if st := o.taskStates[taskID]; st != nil {
-		o.taskFreshness.PlanOperation(st.TaskID())
-	}
-}
-
-// commitManifestTaskLocked persists taskID's accumulated operations as this
-// Run's truth (spec §11.3) once the Task has settled Done; see
-// freshness.TaskTable.Commit. Callers must already hold o.mu.
-func (o *Run) commitManifestTaskLocked(ctx context.Context, taskID string) {
-	st := o.taskStates[taskID]
-	if st == nil {
-		return
-	}
-	commit := o.taskFreshness.Commit(ctx, o.manifest, st, o.runModeLocked())
-	if commit.Err != nil {
-		o.warnManifestUnsavedLocked(commit.Err)
-		return
-	}
-	if commit.Written {
-		o.emitWireEventLocked(wire.EventManifestTaskCommitted, taskID, map[string]any{
-			"operations": commit.Operations,
-		})
-	}
-}
-
-// saveManifest waits until every record this Run committed or staged is
-// on disk (see freshness.ManifestSession.Save) and warns on the run when it
-// could not be: the next run re-executes work this one did, and the reader
-// must know why.
-func (o *Run) saveManifest() {
-	if err := o.manifest.Save(); err != nil {
-		o.mu.Lock()
-		defer o.mu.Unlock()
-		if !o.finished {
-			o.warnManifestUnsavedLocked(err)
-		}
-	}
-}
-
-// warnManifestUnsavedLocked states once per run that the manifest could
-// not be saved. Callers must already hold o.mu.
-func (o *Run) warnManifestUnsavedLocked(err error) {
-	if !o.manifest.FirstUnsavedWarning() {
-		return
-	}
-	o.warnLocked(record.ApplyProblemOptions(txt.Text("manifest not saved: "+err.Error()), nil))
-}
-
-// --- folded from freshness_bridge.go ---
-
-// This file is the engine's side of the interfaces freshness declares: the
-// manifest session's location and the manifest it opens.
-
-// manifestConfig names the manifest this Run reads: the configured
-// application id and state directory, scoped to the Run's workspace.
-func (o *Run) manifestConfig() freshness.ManifestConfig {
-	return freshness.ManifestConfig{AppID: o.cfg.appID, StateDir: o.cfg.stateDir, Workspace: o.changes.Workspace()}
-}
-
-// manifestFor returns this Run's manifest Store, opening it on first use
-// (spec §11.3). A manifest miss or open failure degrades this Run to
-// live-filesystem-only File behavior; see freshness.ManifestSession.Store.
-func (o *Run) manifestFor(ctx context.Context) (*freshness.ManifestStore, error) {
-	store, err := o.manifest.Store(ctx)
-	if errors.Is(err, freshness.ErrManifestSessionClosed) {
-		return nil, errClosed
-	}
-	return store, err
-}
-
-// runModeLocked is whether this Run applies its work or only plans it, as
-// freshness asks. Callers must already hold o.mu.
-func (o *Run) runModeLocked() freshness.RunMode {
-	if o.cfg.dryRun {
-		return freshness.RunPlans
-	}
-	return freshness.RunApplies
-}
-
-// --- folded from freshness_task.go ---
-
-// basisIsCurrent judges this Task's Basis as it starts (see
-// freshness.TaskTable.JudgeBasis) and narrates the verdict. A Task with no
-// Basis is never current.
-func (t *Task) basisIsCurrent(ctx context.Context) (bool, error) {
-	o := t.out
-	o.mu.Lock()
-	st, mode := o.taskStates[t.id], o.runModeLocked()
-	o.mu.Unlock()
-	if st == nil {
-		return false, nil
-	}
-	judgement, err := o.taskFreshness.JudgeBasis(ctx, o.manifestFor, st, mode)
-	if err != nil || !judgement.Declared {
-		return false, err
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.emitWireEventLocked(wire.EventBasisFingerprinted, t.id, map[string]any{
-		"count": len(judgement.Observed), "current": judgement.Current,
-	})
-	return judgement.Current, nil
-}
 
 // --- folded from interrupt.go ---
 
@@ -2777,7 +2356,7 @@ func (t *Task) Verify(fn func(context.Context) (bool, error)) *Task {
 		o.recordMisuseFor(st.name, errInvalidConfig)
 		return t
 	}
-	o.taskFreshness.AddVerifier(st.TaskID(), freshness.Verifier(fn))
+	o.freshness.Tasks().AddVerifier(st.TaskID(), freshness.Verifier(fn))
 	return t
 }
 
@@ -2811,7 +2390,7 @@ func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Tas
 		o.mu.Unlock()
 		return t
 	}
-	verifiers := o.taskFreshness.Verifiers(st.TaskID())
+	verifiers := o.freshness.Tasks().Verifiers(st.TaskID())
 	o.mu.Unlock()
 
 	var cfg defineConfig
@@ -2884,7 +2463,7 @@ func (o *Run) ranOnlyCurrentOperations(taskID string) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	st := o.taskStates[taskID]
-	return st != nil && o.taskFreshness.AllCurrent(st.TaskID()) && !o.hasRecordedEffectLocked(taskID)
+	return st != nil && o.freshness.Tasks().AllCurrent(st.TaskID()) && !o.hasRecordedEffectLocked(taskID)
 }
 
 // checkAfterDefine is runDefine's post-callback evidence step: every
@@ -2957,7 +2536,7 @@ func (o *Run) recordOperationsEvidence(taskID string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	st := o.taskStates[taskID]
-	if st == nil || o.taskFreshness.OperationCount(st.TaskID()) == 0 {
+	if st == nil || o.freshness.Tasks().OperationCount(st.TaskID()) == 0 {
 		return
 	}
 	st.node.Rec.RecordAfterEvidence(evidencePhase{Evaluated: true, Satisfied: true, Source: operationsEvidenceSource})
@@ -3198,4 +2777,24 @@ func commandOf(argv []string) *commandSpec {
 		return nil
 	}
 	return &commandSpec{Executable: argv[0], Args: slices.Clone(argv[1:])}
+}
+
+// basisIsCurrent judges this Task's Basis as it starts (see
+// freshness.Run.JudgeBasis) and narrates the verdict. A Task with no Basis
+// is never current.
+func (t *Task) basisIsCurrent(ctx context.Context) (bool, error) {
+	o := t.out
+	o.mu.Lock()
+	mode := freshness.ModeFor(o.cfg.dryRun)
+	o.mu.Unlock()
+	judgement, err := o.freshness.JudgeBasis(ctx, record.TaskID(t.id), mode)
+	if err != nil || !judgement.Declared {
+		return false, err
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.emitWireEventLocked(wire.EventBasisFingerprinted, t.id, map[string]any{
+		"count": len(judgement.Observed), "current": judgement.Current,
+	})
+	return judgement.Current, nil
 }

@@ -9,7 +9,7 @@ import (
 
 // TestFail_ExplicitDetailAndDetailTail_BothRender pins the precedence bug
 // surfaced by the consumer re-syncs: an explicit Detail and an explicit
-// output.DetailTail() passed to the same Fail/Block call used to silently
+// detailTail(output) passed to the same Fail/Block call used to silently
 // overwrite one another (last ProblemOption applied wins) instead of both
 // surviving. An explicit Detail is never silently discarded — it renders
 // first, with the evidence tail as an additional evidence line underneath.
@@ -20,7 +20,7 @@ func TestFail_ExplicitDetailAndDetailTail_BothRender(t *testing.T) {
 	task := out.Task("deploy")
 	output := task.capture()
 	_, _ = fmt.Fprintln(output, "raw evidence: connection refused")
-	task.fail("deploy failed", Detail("friendly summary"), output.DetailTail())
+	task.fail("deploy failed", Detail("friendly summary"), detailTail(output))
 
 	_ = out.finish()
 
@@ -46,7 +46,7 @@ func TestFail_ExplicitDetailTailThenDetail_BothRender(t *testing.T) {
 	task := out.Task("deploy")
 	output := task.capture()
 	_, _ = fmt.Fprintln(output, "raw evidence: connection refused")
-	task.fail("deploy failed", output.DetailTail(), Detail("friendly summary"))
+	task.fail("deploy failed", detailTail(output), Detail("friendly summary"))
 
 	_ = out.finish()
 

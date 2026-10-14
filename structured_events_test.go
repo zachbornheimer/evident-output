@@ -518,7 +518,7 @@ func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
 	task := out.Task("build")
 	tail := task.captureForTest()
 	_, _ = fmt.Fprintln(tail, "error: undefined symbol foo")
-	task.Problem("finding one", tail.DetailTail())
+	task.Problem("finding one", detailTail(tail))
 	task.Define(func(context.Context) error { return nil })
 	_ = task.wait()
 	if err := out.finish(); err != nil {
@@ -546,7 +546,7 @@ func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
 	task := out.Task("build")
 	tail := task.captureForTest()
 	_, _ = fmt.Fprintln(tail, "warning: deprecated flag used")
-	task.Problem("non-blocking finding", severity(severityWarning), tail.DetailTail())
+	task.Problem("non-blocking finding", severity(severityWarning), detailTail(tail))
 	task.Define(func(context.Context) error { return nil })
 	_ = task.wait()
 	if err := out.finish(); err != nil {
@@ -587,7 +587,7 @@ func TestWireEvents_RunWarningCarriesItsProblemOptions(t *testing.T) {
 }
 
 // TestWireEvents_VerificationObservedCarriesFacts is ZYS-823 gap 8:
-// attachVerificationLocked (output.go) recorded a Task's per-attribute
+// change.Host.AttachVerification recorded a Task's per-attribute
 // File/Patch VerificationDetails for Snapshot/JSON but emitted no
 // "verification.observed" JSONL line, so a FormatJSONL consumer never saw
 // the same per-attribute Facts (error/path/mode) FormatJSON's evo.run
@@ -599,8 +599,7 @@ func TestWireEvents_VerificationObservedCarriesFacts(t *testing.T) {
 	task := out.Task("write launch agent")
 	task.Define(func(context.Context) error { return nil })
 
-	out.mu.Lock()
-	out.attachVerificationLocked(task.id, []record.VerificationDetail{
+	out.newChangeHost().AttachVerification(record.TaskID(task.id), []record.VerificationDetail{
 		{Name: "contents", Status: record.VerificationSatisfied},
 		{
 			Name: "permissions", Status: record.VerificationError,
@@ -610,7 +609,6 @@ func TestWireEvents_VerificationObservedCarriesFacts(t *testing.T) {
 			},
 		},
 	})
-	out.mu.Unlock()
 
 	_ = task.wait()
 	if err := out.finish(); err != nil {
@@ -641,7 +639,7 @@ func TestWireEvents_VerificationObservedCarriesFacts(t *testing.T) {
 }
 
 // TestWireEvents_VerificationObservedUsesSanitizedFacts is ZYS-823 review
-// gap: attachVerificationLocked stores a sanitized+cloned copy of details
+// gap: change.Host.AttachVerification stores a sanitized+cloned copy of details
 // onto st.verification (record.StoreVerificationDetails, which runs
 // text.Text over every Fact value) but built the "verification.observed"
 // JSONL payload from the raw `details` argument instead — a Fact value
@@ -657,13 +655,13 @@ func TestWireEvents_VerificationObservedUsesSanitizedFacts(t *testing.T) {
 	task := out.Task("write file")
 	task.Define(func(context.Context) error { return nil })
 
-	out.mu.Lock()
-	out.attachVerificationLocked(task.id, []record.VerificationDetail{
+	out.newChangeHost().AttachVerification(record.TaskID(task.id), []record.VerificationDetail{
 		{
 			Name: "contents", Status: record.VerificationError,
 			Facts: []record.Fact{{Name: "error", Value: rawErr}},
 		},
 	})
+	out.mu.Lock()
 	sanitized := out.taskStates[task.id].node.Rec.Verification()
 	out.mu.Unlock()
 

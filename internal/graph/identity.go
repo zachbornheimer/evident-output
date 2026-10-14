@@ -111,6 +111,7 @@ type Container struct {
 	Rec *record.Container
 
 	key   string // fixed at declaration
+	path  record.ContainerPath
 	names siblings
 
 	// The rest is scheduling state, guarded by graph.mu.
@@ -138,6 +139,27 @@ type Container struct {
 
 // Key is the container's §3.1 stable key.
 func (c *Container) Key() string { return c.key }
+
+// Path is c, then every container above it, nearest first. It is fixed at
+// declaration.
+func (c *Container) Path() record.ContainerPath { return c.path }
+
+// TaskID is the Task's id in the run record.
+func (t *Task) TaskID() record.TaskID { return record.TaskID(t.ID) }
+
+// ManifestKey is the Task's stable key in the manifest; with TaskID it makes
+// a Task the view freshness judges it through.
+func (t *Task) ManifestKey() string { return t.Key() }
+
+// LedgerOwner is the Task as the ledger knows it: placed by declaration,
+// found by id, shown by name, qualified by its containers.
+func (t *Task) LedgerOwner() record.LedgerOwner {
+	var containers record.ContainerPath
+	if t.Parent != nil {
+		containers = t.Parent.Path()
+	}
+	return record.LedgerOwner{ID: t.ID, Name: t.Name, Declaration: t.Declaration, Containers: containers}
+}
 
 // KeyOf is c's stable key, or "" for the root (nil).
 func KeyOf(c *Container) string {
