@@ -201,11 +201,11 @@ func (b *Board) PushTail(id record.TaskID, line string, retained int, at time.Ti
 
 // States counts the collection id's direct Tasks by the states its
 // verdict folds.
-func (b *Board) States(id string) StateCounts {
+func (b *Board) States(id string) project.StateCounts {
 	if g := b.nodes[id]; g != nil {
 		return g.settled().states
 	}
-	return StateCounts{}
+	return project.StateCounts{}
 }
 
 // Arm promises a paint before any entity exists, and reports whether this

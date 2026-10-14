@@ -396,7 +396,7 @@ func (o *Run) debugWriter() io.WriteCloser {
 // the embedding application's own concern; Evo's outcome/exit semantics
 // stay in the body (Conclusion.State/ExitCode).
 func writeJSON(w io.Writer, result Result) error {
-	body, err := wire.EncodeRun(asRecordResult(result), publishedRelease)
+	body, err := wire.EncodeRun(asRecordResult(result), wire.Release)
 	if err != nil {
 		return fmt.Errorf("evo: encode evo.run document: %w", err)
 	}
@@ -497,11 +497,10 @@ func (t *Task) snapshot() taskSnapshot {
 	}
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
-	st := t.out.taskStates[t.id]
-	if st == nil {
+	if t.out.rows.Task(record.TaskID(t.id)) == nil {
 		return taskSnapshot{ID: t.id, State: pending, Progress: progress{Kind: indeterminate}}
 	}
-	return st.snapshot()
+	return t.out.rows.Snapshot(record.TaskID(t.id))
 }
 
 // Snapshot returns the collection snapshot with derived state.
@@ -511,11 +510,10 @@ func (g *Group) snapshot() tasksSnapshot {
 	}
 	g.out.mu.Lock()
 	defer g.out.mu.Unlock()
-	col := g.out.containerStates[g.id]
-	if col == nil {
+	if g.out.rows.Group(g.id) == nil {
 		return tasksSnapshot{ID: g.id, State: empty}
 	}
-	return col.snapshot()
+	return g.out.rows.Collection(g.id)
 }
 
 // DefaultVisibleNames is how many names TruncateNames keeps before summarizing.

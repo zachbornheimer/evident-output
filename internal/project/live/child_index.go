@@ -27,7 +27,7 @@ type childIndex struct {
 	byRank      [AttentionRanks]positionSet
 
 	all, workCounts childCounters
-	states          StateCounts
+	states          project.StateCounts
 	seenAll         seenHeap
 	seenWork        seenHeap
 	owns, peers     int
@@ -113,7 +113,7 @@ func (f filing) sameFiling(o filing) bool {
 func (x *childIndex) file(r *row, view *record.TaskSnapshot) {
 	f := &r.filing
 	x.all.add(f)
-	x.states.add(f)
+	countStates(&x.states, f, 1)
 	if f.kind.OwnTask {
 		x.owns++
 	}
@@ -147,7 +147,7 @@ func (x *childIndex) file(r *row, view *record.TaskSnapshot) {
 func (x *childIndex) unfile(r *row) {
 	f := &r.filing
 	x.all.remove(f)
-	x.states.remove(f)
+	countStates(&x.states, f, -1)
 	if f.kind.OwnTask {
 		x.owns--
 	}

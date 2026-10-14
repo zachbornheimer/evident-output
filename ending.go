@@ -49,7 +49,10 @@ func (o *Run) finish() error {
 		}
 		writer, projection := o.cfg.primary, o.cfg.projection
 		o.mu.Unlock()
-		return writeMachinePresentation(writer, snap, events, projection, misuse)
+		if projection != projectionJSON && projection != projectionJSONL {
+			return misuse
+		}
+		return joinErrors(misuse, rendererError(wire.WriteMachine(writer, snap, events, projection == projectionJSONL)))
 	}
 	residual, interactive := o.finishHumanLocked(snap)
 	cfg := o.cfg
@@ -121,7 +124,7 @@ func (o *Run) settleUnresolvedTasksLocked() {
 			t.node.Summarize(unresolvedTaskIncompleteSummary)
 			o.graph.Settle(t.node, incomplete)
 			o.followRecordLocked()
-			attachUnresolvedTaskHintLocked(t)
+			o.attachUnresolvedTaskHintLocked(t)
 			continue
 		}
 		o.resolveUnstartedTaskLocked(t)
@@ -131,7 +134,7 @@ func (o *Run) settleUnresolvedTasksLocked() {
 			continue
 		}
 		o.recordMisuseFor(t.name, errUnresolvedTask)
-		attachUnresolvedTaskHintLocked(t)
+		o.attachUnresolvedTaskHintLocked(t)
 	}
 	if misuse := o.firstMisuse(); misuse != nil && !errors.Is(misuse, errUnresolvedTask) {
 		o.appendMisuseLineLocked()
@@ -180,9 +183,9 @@ func (o *Run) concludeLocked() snapshot {
 func (o *Run) runErrorLocked(conc Conclusion) error {
 	misuse := o.firstMisuse()
 	if o.cfg.wireFormat == formatJSON {
-		misuse = joinErrors(misuse, writeWireRunLocked(o.cfg.wireStream, conc))
+		misuse = joinErrors(misuse, rendererError(wire.WriteRun(o.cfg.wireStream, record.Result{Conclusion: asRecordConclusion(conc)})))
 	}
-	return joinErrors(misuse, o.wireEventErr)
+	return joinErrors(misuse, rendererError(o.wireEvents.Err()))
 }
 
 // finishHumanLocked renders the human stream's end: only the residual,
@@ -307,9 +310,9 @@ func (o *Run) abnormalFinishLocked() bool {
 // A Problem cannot carry it: Finish's unresolved-task sweep runs after
 // o.finishing is set, when Task.Problem refuses new records, and the
 // task has no caller-authored diagnostic to own the hint.
-func attachUnresolvedTaskHintLocked(t *taskState) {
+func (o *Run) attachUnresolvedTaskHintLocked(t *taskState) {
 	t.node.Recommend(asRecordAction(label(unresolvedTaskHint)))
-	t.board.Changed(t.node.TaskID())
+	o.board.Changed(t.node.TaskID())
 }
 
 // autoResolveGroupsLocked stops each group from implying "still might run"

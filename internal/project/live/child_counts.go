@@ -68,16 +68,8 @@ func (c *childCounters) counts(earliest time.Time) project.ChildCounts {
 	}
 }
 
-// StateCounts counts a collection's direct Tasks by the states the
-// collection's verdict folds.
-type StateCounts struct {
-	Running, Failed, Refused, Cancelled, NotStarted, Unresolved, Warned int
-}
-
-func (s *StateCounts) add(f *filing)    { s.move(f, 1) }
-func (s *StateCounts) remove(f *filing) { s.move(f, -1) }
-
-func (s *StateCounts) move(f *filing, delta int) {
+// countStates moves f's Task by delta in the verdict counts s.
+func countStates(s *project.StateCounts, f *filing, delta int) {
 	switch f.state {
 	case record.Running:
 		s.Running += delta

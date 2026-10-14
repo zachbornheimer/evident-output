@@ -33,14 +33,14 @@ type Run struct {
 	// changes logs the Tasks written since a projection last pulled them
 	// (see TakeChanged).
 	changes changeLog
-	// settledTasks counts the Tasks settled so far (see SettledTasks).
+	// settledTasks counts the Tasks settled so far (see CountSettled).
 	settledTasks atomic.Uint64
 }
 
-// SettledTasks counts the Tasks settled so far, each once, however often it
+// CountSettled counts the Tasks settled so far, each once, however often it
 // was settled. It moves before the listener hears the settle, so a
 // projection that has answered this many settles owes the listener nothing.
-func (r *Run) SettledTasks() uint64 { return r.settledTasks.Load() }
+func (r *Run) CountSettled() uint64 { return r.settledTasks.Load() }
 
 // NewRun is an empty record of a run that has not started.
 func NewRun() *Run { return &Run{} }

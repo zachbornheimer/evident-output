@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/zachbornheimer/evident-output/internal/project/wire"
 )
 
 // Portable surfaces: install guidance must stay on PublishedRelease.
@@ -41,14 +43,14 @@ var proseReleasePin = regexp.MustCompile(
 var configCommandLatest = regexp.MustCompile(`(?m)^command\s*=\s*.*@latest`)
 
 func TestPublishedRelease_IsSemverTag(t *testing.T) {
-	if !regexp.MustCompile(`^v\d+\.\d+\.\d+$`).MatchString(publishedRelease) {
-		t.Fatalf("PublishedRelease = %q, want vMAJOR.MINOR.PATCH", publishedRelease)
+	if !regexp.MustCompile(`^v\d+\.\d+\.\d+$`).MatchString(wire.Release) {
+		t.Fatalf("PublishedRelease = %q, want vMAJOR.MINOR.PATCH", wire.Release)
 	}
 }
 
 func TestVersionDrift_PortableSurface(t *testing.T) {
 	root := moduleRoot(t)
-	want := publishedRelease
+	want := wire.Release
 	files := collectPortableMarkdown(t, root)
 	if len(files) < 5 {
 		t.Fatalf("expected several portable markdown files, found %d", len(files))
@@ -73,8 +75,8 @@ func TestVersionDrift_ConfigClientUsesPublishedRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(body)
-	if !strings.Contains(text, publishedRelease) {
-		t.Fatalf("config_client.go must fall back to the library pin %s", publishedRelease)
+	if !strings.Contains(text, wire.Release) {
+		t.Fatalf("config_client.go must fall back to the library pin %s", wire.Release)
 	}
 }
 

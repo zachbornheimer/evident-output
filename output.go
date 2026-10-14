@@ -1,11 +1,9 @@
 package evo
 
 import (
-	"fmt"
 	"io"
 	"slices"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/internal/change"
@@ -35,17 +33,6 @@ type Run struct {
 	// read back (never re-derived) at Finish.
 	startedAt time.Time
 	version   uint64
-	// pulled and settles are followRecordLocked's scratch: the Tasks the
-	// record reported changed, and the ones among them that settled.
-	pulled  []record.TaskID
-	settles []settleReaction
-	// answeredSettles counts the settles reactToSettlesLocked answered. It
-	// is atomic so the listener can see, without o.mu, that a settle it
-	// hears was already answered (see outputListener.TaskSettled).
-	answeredSettles atomic.Uint64
-	// following is set while followRecordLocked runs, so an event it appends
-	// does not follow the record again.
-	following bool
 	closed    bool
 	// closing is non-nil once a Close call claimed the teardown; it closes
 	// when that teardown ends, so a concurrent Close waits instead of
@@ -67,6 +54,12 @@ type Run struct {
 	// stream is the run's human durable text: every library-owned line,
 	// streamed rows, heartbeats and Finish's residual.
 	stream *renderplain.Stream
+	// rows are the declared Tasks and collections as every projection
+	// shows them; follow keeps the projections up to date with the record;
+	// events is the evo.event stream.
+	rows       *txt.Rows
+	follow     *txt.Follower
+	wireEvents *wire.Events
 
 	// changes performs the File, Exec, Patch and Effect operations of this
 	// Run, and owns the workspace relative paths resolve against.
@@ -80,14 +73,6 @@ type Run struct {
 	// rec holds the run's truth: its event journal, ledger, history lines,
 	// messages, diagnostics, run-scoped facts and warnings, and Conclusion.
 	rec *record.Run
-
-	// wireEventErr latches the first §38 "evo.event" JSONL write failure
-	// (structured_events.go's emitWireEventLocked).
-	wireEventErr error
-	// wireSeq is the last seq the evo.event stream numbered: the stream's own
-	// counter, so its lines run 1, 2, 3 ... with no gap a consumer could
-	// mistake for a lost line.
-	wireSeq uint64
 
 	// graph is the declared shape of the run: identity, keys and numbering.
 	graph *graph.Graph
@@ -195,6 +180,7 @@ func newOutput(subject string, options ...option) *Run {
 	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(o.misuse), graph.WithHost(host))
 	o.freshness = freshness.NewRun(o.graph, freshness.RunConfig{Where: o.manifestConfig, Closed: errClosed, DryRun: host.DryRun, Narration: host})
 	o.changes = change.NewRun(o.newChangeHost(), o.graph)
+	o.rows = txt.NewRows(rowLens{o})
 	o.board = live.NewBoard(run, boardSource{o})
 	if surface := liveSurfaceOf(cfg); surface != nil {
 		o.live = live.NewEngine(live.Config{
@@ -204,14 +190,16 @@ func newOutput(subject string, options ...option) *Run {
 		})
 	}
 	o.stream = renderplain.NewStream(renderplain.Config{
-		Run: run, Region: o.live, Source: boardSource{o}, Sinks: humanSinks{o}, Scene: liveScene{o},
+		Run: run, Region: o.live, Source: o.rows, Sinks: humanSinks{o}, Scene: liveScene{o},
 		Lock: &o.mu, Clock: cfg.clock, Style: o.humanStyle(),
 		SuppressHuman: cfg.projection.suppressesHuman(), Pane: cfg.debugPanePresentation(),
 	})
+	o.follow = txt.NewFollower(run, &o.mu, settleReactions{o})
 	o.mu.Bind(run)
-	run.SetListener(outputListener{o: o})
+	run.SetListener(o.follow)
 	// Stable-enough id for a process-local output instance.
 	o.outputID = o.graph.NextID("out")
+	o.wireEvents = wire.NewEvents(cfg.eventStream(), o.outputID, cfg.clock)
 	o.startedAt = o.cfg.clock.Now()
 	o.appendEventLocked(recEvent{Type: "output.started", OutputID: o.outputID})
 	o.emitWireEventLocked(wire.EventRunStarted, "", runStartedPayload(o.cfg.subject))
@@ -266,7 +254,9 @@ func (o *Run) announceRunningLocked(st *taskState) {
 		return
 	}
 	st.runningAnnounced = true
-	st.timing.Started = o.cfg.clock.Now()
+	if row := o.rows.Task(st.node.TaskID()); row != nil {
+		row.Timing.Started = o.cfg.clock.Now()
+	}
 	if col := st.collection(); col != nil && col.node.Sequential {
 		col.runningSteps = slices.DeleteFunc(col.runningSteps, func(s *taskState) bool { return s.node.Rec.State() != running })
 		if len(col.runningSteps) > 0 {
@@ -283,28 +273,6 @@ func (o *Run) bumpLocked() {
 	o.version++
 }
 
-// --- folded from format.go ---
-
-func init() {
-	// Single source of truth: PublishedRelease, pinned once into the
-	// v2 wire encoder path (spec §32.1/§35's evo_version).
-	setWireEvoVersion(publishedRelease)
-}
-
-// PublishedRelease is the single source of truth for the current published
-// module and MCP pin used in install guidance.
-//
-// When cutting a release:
-//  1. Promote CHANGELOG ## Unreleased → ## [X.Y.Z] (Keep a Changelog).
-//  2. Set publishedRelease to the new tag (e.g. "v1.0.1").
-//  3. Prefer: mise run test && mise run cut-release
-//  4. Tag that commit; do not move prior tags.
-//
-// version_drift_test.go enforces the portable surface stays synchronized.
-const publishedRelease = "v2.0.0"
-
-// --- folded from journal.go ---
-
 // appendEventLocked journals e. The journal is in the order things happened,
 // so the record is followed first: a settle a graph goroutine made on its own
 // is journaled before an event this section writes after it, however late the
@@ -318,132 +286,57 @@ func (o *Run) appendEventLocked(e recEvent) {
 	}
 	e = o.graph.Root().Journal(e, o.cfg.maxEvents)
 	if o.cfg.projection == projectionStreamJSON {
-		o.writeStreamJSONLocked(e)
+		wire.WriteJournalLine(o.cfg.primary, e)
 	}
 }
 
-func (o *Run) writeStreamJSONLocked(e recEvent) {
-	w := o.cfg.primary
-	if w == nil {
-		return
+// settleReactions are what this run's projections owe a change to a
+// Task, as the follower (project.Follower) asks for them.
+type settleReactions struct{ o *Run }
+
+// Changed follows one write to the Task id on the live board and reports
+// whether its settle is owed an answer, once per Task.
+func (r settleReactions) Changed(id record.TaskID) (record.State, bool) {
+	st := r.o.taskStates[string(id)]
+	if st == nil {
+		return "", false
 	}
-	row, err := wire.EncodeEventJSON(e)
-	if err != nil {
-		return
+	to, followed := r.o.board.Follow(id)
+	if !followed {
+		to = st.node.Rec.State()
 	}
-	_, _ = w.Write(row)
-	_, _ = w.Write([]byte{'\n'})
-	if f, ok := w.(flusher); ok {
-		_ = f.Flush()
+	if !st.node.Rec.IsSettled() || st.settleAnswered {
+		return to, false
 	}
+	st.settleAnswered = true
+	return to, true
 }
 
-// --- folded from listener.go ---
-
-// The engine's render state follows the record by pulling, never by being
-// pushed. A write to the record logs its Task while the record's lock is
-// held (record.Run.TakeChanged), so anything that reads the live index first
-// pulls that log and finds every write the record has seen, whichever
-// goroutine made it and whether or not the record has told its listener yet.
-// The listener is only a prompt to pull: the engine hears a change made
-// outside Output.mu, takes the mutex itself, and follows the record. No
-// handler needs to run inside a writer's lock.
-
-// outputListener is how the engine hears a change made by any writer.
-type outputListener struct{ o *Run }
-
-// TaskChanged has nothing to do: a change waits in the log for the next
-// read of the index.
-func (outputListener) TaskChanged(record.TaskID, record.State, record.State) {}
-
-// TaskSettled follows the record, so the settle is answered promptly even
-// when nothing reads the index. The record names the settle itself, so the
-// engine cannot disagree with the writer about which states end a Task.
-//
-// Most settles happen inside a section of o.mu that already followed the
-// record, so the settle the listener hears is answered by then: the counts
-// prove it without taking the mutex. The record's count is read first, so
-// an answer that catches up to it covers every settle written before.
-func (l outputListener) TaskSettled(record.TaskID, record.State, record.State) {
-	if written := l.o.rec.SettledTasks(); l.o.answeredSettles.Load() >= written {
-		return
+// Settled is the work a settle owes, whichever code settled the Task: its
+// timing, the live filing, the plain heartbeat, the snapshot version and
+// the task.<state> event.
+func (r settleReactions) Settled(id record.TaskID, to record.State) {
+	o := r.o
+	st := o.taskStates[string(id)]
+	if row := o.rows.Task(id); row != nil {
+		row.Timing.Settled = o.cfg.clock.Now()
 	}
-	l.o.mu.Lock()
-	defer l.o.mu.Unlock()
-	l.o.followRecordLocked()
-}
-
-// settleReaction is a Task that settled and the state it settled into.
-type settleReaction struct {
-	st *taskState
-	to entityState
-}
-
-// followRecordLocked brings the render state up to date with the record:
-// the live index first, then what each terminal transition owes. A call made while
-// it is already running does nothing. Callers hold o.mu.
-func (o *Run) followRecordLocked() {
-	if o.following {
-		return
-	}
-	o.following = true
-	defer func() { o.following = false }()
-	o.pullRecordLocked()
-	o.reactToSettlesLocked()
-}
-
-// pullRecordLocked brings the live index (census and filing) up to date with
-// every write the record has seen, and notes the Tasks that settled so
-// reactToSettlesLocked can answer each once. It changes nothing else, so a
-// read of the index may pull in the middle of building a frame. Callers hold
-// o.mu.
-func (o *Run) pullRecordLocked() {
-	o.pulled = o.rec.TakeChanged(o.pulled[:0])
-	for _, id := range o.pulled {
-		st := o.taskStates[string(id)]
-		if st == nil {
-			continue
-		}
-		to, followed := o.board.Follow(id)
-		if !followed {
-			to = st.node.Rec.State()
-		}
-		if st.node.Rec.IsSettled() && !st.settleAnswered {
-			st.settleAnswered = true
-			o.settles = append(o.settles, settleReaction{st: st, to: to})
-		}
-	}
-}
-
-// reactToSettlesLocked answers each Task pullRecordLocked saw settle. Callers
-// hold o.mu.
-func (o *Run) reactToSettlesLocked() {
-	for i := range o.settles {
-		o.taskSettledLocked(o.settles[i].st, o.settles[i].to)
-		o.settles[i] = settleReaction{}
-		o.answeredSettles.Add(1)
-	}
-	o.settles = o.settles[:0]
-}
-
-// taskSettledLocked is the render state a terminal transition owes, whichever
-// code settled the Task: the live filing, the plain heartbeat, the snapshot
-// version and the task.<state> event. The live census moved when the record
-// was pulled. Callers hold o.mu.
-func (o *Run) taskSettledLocked(st *taskState, to entityState) {
-	st.timing.Settled = o.cfg.clock.Now()
-	if o.narratesEvents() {
-		o.emitWireEventLocked(wire.EventTaskFinished, st.id, taskFinishedPayload(st))
+	if o.wireEvents.On() {
+		o.wireEvents.Emit(wire.EventTaskFinished, st.id, taskFinishedPayload(st))
 	}
 	if st.node.IsGate() {
 		o.bumpLocked()
 		return
 	}
-	o.board.Changed(st.node.TaskID())
-	o.stream.Settled(st.node.TaskID())
+	o.board.Changed(id)
+	o.stream.Settled(id)
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "task." + string(to), EntityID: st.id})
 }
+
+// followRecordLocked brings every projection up to date with the record.
+// Callers hold o.mu.
+func (o *Run) followRecordLocked() { o.follow.Follow() }
 
 type taskState struct {
 	id string
@@ -453,24 +346,12 @@ type taskState struct {
 	node   *graph.Task
 	name   string
 	handle *Task
-	// board holds the Task's live row: its first paint and live tail.
-	board *live.Board
 
 	// settleAnswered is set once the render work a settle owes was queued.
 	settleAnswered bool
 	// runningAnnounced is set once the render work becoming Running owes was
 	// done, so task.started fires once however the row reached Running.
 	runningAnnounced bool
-	// timing is when the Task was declared, began running and settled.
-	timing record.TaskTiming
-
-	// synthetic marks a task the library invented to carry an output-level
-	// outcome (Output.Fail/Cancel's synthetic "command" task) rather than
-	// one the caller declared. shouldSuppressRepeatedCondition (I2) must
-	// never drop the standalone conclusion band for one of these: it is the
-	// only place the run's outcome is ever stated, unlike a caller-declared
-	// Task whose own row already says the same thing.
-	synthetic bool
 }
 
 type tasksState struct {
@@ -495,9 +376,6 @@ type tasksState struct {
 // in the Output's tables keyed by the member's id, and reads the membership
 // through the node.
 
-// taskCount is how many Tasks g declared directly.
-func (g *tasksState) taskCount() int { return g.node.TaskCount() }
-
 // taskStates are the render states of the Tasks g declared directly, in
 // declaration order.
 func (g *tasksState) taskStates() []*taskState {
@@ -505,17 +383,6 @@ func (g *tasksState) taskStates() []*taskState {
 	states := make([]*taskState, len(nodes))
 	for i, node := range nodes {
 		states[i] = g.out.taskStates[node.ID]
-	}
-	return states
-}
-
-// childStates are the render states of the Groups and Sequences g declared
-// directly, in declaration order.
-func (g *tasksState) childStates() []*tasksState {
-	nodes := g.node.Children()
-	states := make([]*tasksState, len(nodes))
-	for i, node := range nodes {
-		states[i] = g.out.containerStates[node.ID]
 	}
 	return states
 }
@@ -528,34 +395,26 @@ func (st *taskState) collection() *tasksState {
 	return st.handle.out.containerStates[st.node.Parent.ID]
 }
 
-// appendTaskLocked adds st to the run's Tasks in declaration order. Caller
-// must hold o.mu.
-func (o *Run) appendTaskLocked(st *taskState) {
+// appendTaskLocked gives st a row in every projection, in declaration
+// order: synthetic for the Task the library invented to carry the run's
+// own ending. Callers hold o.mu.
+func (o *Run) appendTaskLocked(st *taskState, synthetic bool) {
 	in, groupName := "", ""
 	if col := st.collection(); col != nil {
 		in, groupName = col.id, col.name
 	}
-	o.board.DeclareTask(st.node.TaskID(), st.name, st.node.Rec, in)
-	o.stream.Declare(renderplain.Declared{ID: st.node.TaskID(), Name: st.name, Rec: st.node.Rec, Group: groupName, InGroup: in != ""})
+	id := st.node.TaskID()
+	row := txt.DeclaredTask{ID: id, Node: st.node, Name: st.name, Declaration: st.node.Declaration, Rec: st.node.Rec, Synthetic: synthetic}
+	if !synthetic {
+		row.Timing.Declared = o.cfg.clock.Now()
+	}
+	o.rows.DeclareTask(row, in)
+	o.board.DeclareTask(id, st.name, st.node.Rec, in)
+	o.stream.Declare(renderplain.Declared{ID: id, Name: st.name, Rec: st.node.Rec, Group: groupName, InGroup: in != ""})
 	o.tasks = append(o.tasks, st)
 	if in == "" {
 		o.rootTasks = append(o.rootTasks, st)
 	}
-}
-
-// rowOf is the Task id that has a row: a declared Task, or the synthetic
-// Task carrying the run's ending, which the graph never declared and so
-// has no entry in taskStates.
-func (o *Run) rowOf(id record.TaskID) *taskState {
-	if st := o.taskStates[string(id)]; st != nil {
-		return st
-	}
-	for _, st := range slices.Backward(o.rootTasks) {
-		if st.id == string(id) {
-			return st
-		}
-	}
-	return nil
 }
 
 // Writer returns a line-buffered io.Writer for narrating a talkative child
@@ -601,23 +460,30 @@ func (s liveScene) Pane(width, height int) (string, int) {
 	return pane.String(), min(o.cfg.debugPane.ReservedRows(recorded), height-1)
 }
 
+// rowLens is what the row model reads of the live board and of freshness.
+type rowLens struct{ o *Run }
+
+func (l rowLens) FirstSeen(id record.TaskID) time.Time { return l.o.board.FirstSeen(id) }
+
+func (l rowLens) Tail(id record.TaskID) record.LiveTail { return l.o.board.Tail(id) }
+
+func (l rowLens) States(group string) txt.StateCounts { return l.o.board.States(group) }
+
+func (l rowLens) Tracked(id record.TaskID) record.TaskOperations {
+	return l.o.freshness.Tasks().Tracked(id)
+}
+
 // boardSource is what the live board reads of this run's Tasks and
 // collections.
 type boardSource struct{ o *Run }
 
-func (s boardSource) Pull() { s.o.pullRecordLocked() }
+func (s boardSource) Pull() { s.o.follow.Pull() }
 
-func (s boardSource) View(id record.TaskID) record.TaskSnapshot {
-	return s.o.rowOf(id).view()
-}
+func (s boardSource) View(id record.TaskID) record.TaskSnapshot { return s.o.rows.View(id) }
 
-func (s boardSource) Snapshot(id record.TaskID) record.TaskSnapshot {
-	return s.o.rowOf(id).snapshot()
-}
+func (s boardSource) Snapshot(id record.TaskID) record.TaskSnapshot { return s.o.rows.Snapshot(id) }
 
-func (s boardSource) Header(id string) record.TasksSnapshot {
-	return s.o.containerStates[id].header()
-}
+func (s boardSource) Header(id string) record.TasksSnapshot { return s.o.rows.Header(id) }
 
 func (s boardSource) Emitted(id record.TaskID) bool {
 	return s.o.stream.Emitted(id)
@@ -641,32 +507,23 @@ func (o *Run) arm() {
 	}
 }
 
-// --- folded from snapshot.go ---
-
+// snapshotLocked is the run as every projection shows it now. Callers
+// hold o.mu.
 func (o *Run) snapshotLocked() snapshot {
 	o.followRecordLocked()
-	s := snapshot{
+	s := o.rows.Into(snapshot{
 		Version:       o.version,
 		OutputID:      o.outputID,
 		Subject:       o.cfg.subject,
 		Lines:         o.rec.Lines(),
-		Actions:       record.CloneActions(asRecordActions(o.collectActionsLocked())),
+		Actions:       o.rows.Actions(),
 		Timestamp:     o.cfg.clock.Now(),
 		DryRun:        o.cfg.dryRun,
 		Preview:       o.cfg.preview,
 		DryRunSubject: o.cfg.dryRunHeaderText,
 		Warnings:      o.rec.RunWarnings(),
 		Facts:         o.rec.RunFacts(),
-	}
-	for _, col := range o.collections {
-		s.Collections = append(s.Collections, col.snapshot())
-	}
-	// Root tasks not in a collection
-	for _, t := range o.tasks {
-		if t.collection() == nil {
-			s.Tasks = append(s.Tasks, t.snapshot())
-		}
-	}
+	})
 	s.Changes = o.rec.ChangeSnapshots()
 	s.Plans = o.rec.PlanSnapshots()
 	s.Messages = o.rec.Messages()
@@ -676,291 +533,14 @@ func (o *Run) snapshotLocked() snapshot {
 	return s
 }
 
-func (t *taskState) snapshot() taskSnapshot {
-	s := t.view()
-	s.Problems = record.CloneProblems(s.Problems)
-	s.Warnings = record.CloneProblems(s.Warnings)
-	s.Facts = record.CloneFacts(s.Facts)
-	s.Verification = record.CloneVerificationDetails(s.Verification)
-	s.Actions = record.CloneActions(s.Actions)
-	s.Skipped = cloneTaxonomy(s.Skipped)
-	s.Kept = cloneTaxonomy(s.Kept)
-	if t.handle != nil {
-		s.Tracked = t.handle.out.freshness.Tasks().Tracked(t.node.TaskID())
-	}
-	tail := record.LiveTailOf(s)
-	tail.Lines = slices.Clone(tail.Lines)
-	return record.WithLiveTail(s, tail)
-}
-
-// view is t's snapshot sharing t's slices: read it under o.mu and never
-// let it escape, since the next mutation of t can change what it shows.
-// It costs no allocation, so a live frame can classify every Task by its
-// view and snapshot only the ones it shows.
-func (t *taskState) view() taskSnapshot {
-	colID := ""
-	if t.collection() != nil {
-		colID = t.collection().id
-	}
-	truth := t.node.Rec.Truth()
-	base := taskSnapshot{
-		ID:           t.id,
-		Key:          t.node.Key(),
-		Name:         t.name,
-		State:        truth.State,
-		Phase:        truth.Phase,
-		ActivityAt:   truth.ActivityAt,
-		Progress:     truth.Progress,
-		Summary:      truth.Summary,
-		Problems:     truth.Problems,
-		Warnings:     truth.Warnings,
-		Facts:        truth.Facts,
-		Verification: truth.Verification,
-		Actions:      truth.Actions,
-		Skipped:      truth.Skipped,
-		Kept:         truth.Kept,
-		Collection:   colID,
-		Declaration:  t.node.Declaration,
-		DefineRan:    truth.DefineRan,
-		Evidence:     truth.VerifyEvidence,
-
-		Timing: t.timing,
-	}
-	return record.WithLiveTail(record.NewTaskSnapshot(base, t.board.FirstSeen(t.node.TaskID()), t.synthetic), t.board.Tail(t.node.TaskID()))
-}
-
-func cloneTaxonomy(in []taxonomyRecord) []taxonomyRecord {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]taxonomyRecord, len(in))
-	copy(out, in)
-	for i := range out {
-		if len(out[i].Causes) > 0 {
-			out[i].Causes = append([]string(nil), out[i].Causes...)
-		}
-	}
-	return out
-}
-
-// derivedState folds both this container's own tasks and its nested
-// children (P3's recursive nesting) into one verdict: a nested Sequence or
-// Group contributes exactly like one more task would, so a failure
-// three levels deep still surfaces at the root header.
-func (g *tasksState) derivedState() entityState {
-	if g.node.BuilderFailed() {
-		return failed
-	}
-	tasks, children := g.taskCount(), g.childStates()
-	if tasks == 0 && len(children) == 0 {
-		if g.node.BuilderNotStarted() {
-			return notStarted
-		}
-		return empty
-	}
-	// A NotStarted child normally borrows its group's verdict from the
-	// sibling that failed first, so it contributes nothing of its own. When
-	// every child is NotStarted there is no such sibling — whatever stopped
-	// the run was another subject entirely — and folding to Done rendered a
-	// check over a subject that never ran.
-	if len(children) == 0 && g.allTasksNotStarted(tasks) {
-		return notStarted
-	}
-	v := foldStates(g.out.board.States(g.id))
-	for _, child := range children {
-		switch s := child.derivedState(); s {
-		case empty:
-		case notStarted:
-			v.unresolved = true
-		default:
-			v.add(s)
-		}
-	}
-	return v.state()
-}
-
-func (g *tasksState) allTasksNotStarted(tasks int) bool {
-	return tasks > 0 && g.out.board.States(g.id).NotStarted == tasks
-}
-
-// foldStates is the verdict of a collection's direct Tasks alone.
-func foldStates(s live.StateCounts) verdictFold {
-	return verdictFold{
-		running: s.Running > 0, failed: s.Failed > 0, refused: s.Refused > 0,
-		cancelled: s.Cancelled > 0, unresolved: s.Unresolved > 0,
-	}
-}
-
-// verdictFold accumulates member states into one container verdict. A
-// Refused member counts like a Failed one does for the Tasks After the
-// container (see stateOutcome): the container finished and did not
-// succeed, so its header never reads Incomplete for it.
-type verdictFold struct {
-	running, failed, refused, cancelled, unresolved bool
-}
-
-func (v *verdictFold) add(s entityState) {
-	switch s {
-	case running:
-		v.running = true
-	case failed:
-		v.failed = true
-	case refused:
-		v.refused = true
-	case cancelled:
-		v.cancelled = true
-	case succeeded, record.Satisfied, excluded, notStarted:
-	default:
-		v.unresolved = true
-	}
-}
-
-func (v verdictFold) state() entityState {
-	switch {
-	case v.running:
-		return running
-	case v.failed:
-		return failed
-	case v.refused:
-		return refused
-	case v.cancelled:
-		return cancelled
-	case v.unresolved:
-		return incomplete
-	default:
-		return succeeded
-	}
-}
-
-// displaySummary is g's Summary as its row shows it, given its derived
-// state st: only when all children done/skipped successfully.
-func (g *tasksState) displaySummary(st entityState) string {
-	if st.Succeeded() && g.node.Rec.Summary() != "" && !g.hasWarnedOrFailedDescendant() {
-		return g.node.Rec.Summary()
-	}
-	return ""
-}
-
-// hasWarnedOrFailedDescendant reports whether g or any nested child
-// container carries a Failed/Cancelled task or a task with a Warn annotation
-// (E2.5 finding 1): the group's own success summary must not paper over a
-// warning or failure living several containers deep — the same suppression
-// this method already gave Failed/Cancelled, restored and extended to
-// Warnings.
-func (g *tasksState) hasWarnedOrFailedDescendant() bool {
-	if s := g.out.board.States(g.id); s.Failed > 0 || s.Cancelled > 0 || s.Warned > 0 {
-		return true
-	}
-	for _, child := range g.childStates() {
-		if child.hasWarnedOrFailedDescendant() {
-			return true
-		}
-	}
-	return false
-}
-
-func (o *Run) collectActionsLocked() []Action {
-	seen := map[string]struct{}{}
-	var out []Action
-	add := func(list []Action) {
-		for _, a := range list {
-			k := record.ActionKey(asRecordAction(a))
-			if _, ok := seen[k]; ok {
-				continue
-			}
-			seen[k] = struct{}{}
-			out = append(out, a)
-		}
-	}
-	for _, t := range o.tasks {
-		add(asEvoActions(t.node.Rec.Actions()))
-		// ZYS-848: a remedy attached via evo.Next(...) to an individual
-		// Problem/warning (task.Problem(msg, evo.Next(...)),
-		// task.Fail(msg, evo.Next(...))) must reach the run's own Next
-		// steps the same way a task-level Next(...) call already does —
-		// otherwise a remedy on one of several accumulated Problems is
-		// invisible everywhere: writeProblem never renders p.Actions
-		// inline (it is evidence, not a decision), and without this loop
-		// it was silently dropped from the Conclusion's Next list too.
-		truth := t.node.Rec.Truth()
-		for _, p := range truth.Problems {
-			add(asEvoActions(p.Actions))
-		}
-		for _, w := range truth.Warnings {
-			add(asEvoActions(w.Actions))
-		}
-	}
-	return out
-}
-
-func (g *tasksState) snapshot() tasksSnapshot {
-	ts := g.header()
-	for _, t := range g.taskStates() {
-		ts.Tasks = append(ts.Tasks, t.snapshot())
-	}
-	for _, child := range g.childStates() {
-		ts.Collections = append(ts.Collections, child.snapshot())
-	}
-	return ts
-}
-
-// header is g's snapshot without its children.
-func (g *tasksState) header() tasksSnapshot {
-	state := g.derivedState()
-	return tasksSnapshot{
-		ID:          g.id,
-		Key:         g.node.Key(),
-		Name:        g.name,
-		State:       state,
-		Summary:     g.displaySummary(state),
-		Declaration: g.node.Declaration,
-		Sequential:  g.node.Sequential,
-	}
-}
-
-// --- folded from structured_events.go ---
-
-// narratesEvents reports whether this Run streams §38 events (FormatJSONL).
-// The Format is fixed at construction, so a caller reads it without o.mu:
-// narration nobody reads costs neither a payload nor a trip through the
-// Run's lock.
-func (o *Run) narratesEvents() bool { return o.cfg.wireFormat == formatJSONL }
-
-// emitWireEventLocked appends one §38 "evo.event" JSONL line for eventType,
-// scoped to entityID (empty for a run-level recEvent) with payload as its
-// domain fields. It is a no-op unless this Output is configured for
-// FormatJSONL (spec §32.1: the event stream exists only in that Format) —
-// a call site whose payload costs anything checks narratesEvents first.
-//
-// seq comes from the stream's own counter (wireSeq), not the journal's: the
-// journal numbers events no line announces, which would leave gaps.
-//
-// A write failure is recorded rather than surfaced here (first one wins):
-// this often runs deep inside the runtime's own lock, before any Task can
-// meaningfully react. Finish folds wireEventErr into the misuse error it
-// already returns, so "a later write fails; the Run then fails" without
-// discarding the lines already written (see Finish's use of wireEventErr).
+// emitWireEventLocked writes one §38 "evo.event" line for eventType about
+// entityID ("" for the run); a run that streams no events writes nothing.
 func (o *Run) emitWireEventLocked(eventType, entityID string, payload map[string]any) {
-	if !o.narratesEvents() {
-		return
-	}
-	o.wireSeq++
-	ev := recEvent{
-		Type:      eventType,
-		Sequence:  o.wireSeq,
-		Timestamp: o.cfg.clock.Now(),
-		OutputID:  o.outputID,
-		EntityID:  entityID,
-		Payload:   payload,
-	}
-	if err := writeWireEventLocked(o.cfg.wireStream, ev); err != nil && o.wireEventErr == nil {
-		o.wireEventErr = err
-	}
+	o.wireEvents.Emit(eventType, entityID, payload)
 }
 
-// emitCollectionDeclaredLocked emits collection.declared (spec §38) for a
-// newly declared Group/Sequence container, at top level or nested — the one
-// call site Group, Sequence, and declareChildContainerLocked all share.
+// emitCollectionDeclaredLocked emits collection.declared (§38) for a newly
+// declared Group or Sequence, at the root or nested.
 func (o *Run) emitCollectionDeclaredLocked(st *tasksState, parentID string) {
 	kind := wire.CollectionKindGroup
 	if st.node.Sequential {
@@ -971,72 +551,6 @@ func (o *Run) emitCollectionDeclaredLocked(st *tasksState, parentID string) {
 		"kind":      kind,
 		"parent_id": parentID,
 	})
-}
-
-// --- folded from wireformat.go ---
-
-// wireEvoVersion is the evo_version literal internal/wire's v2 encoder
-// stamps onto every "evo.run" document. The engine package owns no version
-// string of its own (root's PublishedRelease is the single source of
-// truth, release.go) — SetWireEvoVersion lets the root package's package
-// init pin it once, so there is exactly one place a release bump has to
-// touch.
-var wireEvoVersion = "dev"
-
-// SetWireEvoVersion pins the evo_version literal FormatJSON/FormatJSONL
-// stamp onto the v2 wire documents they emit. Called once, by the root
-// package's init(), from evo.PublishedRelease.
-func setWireEvoVersion(v string) { wireEvoVersion = v }
-
-// writeWireRunLocked encodes conc as the final "evo.run" document and
-// writes it plus a trailing newline to w (spec §53: "plus one trailing
-// newline"). A nil w or nil conc is a no-op. Encode/write failures are
-// wrapped in ErrRenderer, matching writeMachinePresentation's legacy-wire
-// contract (spec §32.2: "a genuine Run failure, not an ignored logging
-// error").
-func writeWireRunLocked(w io.Writer, conc Conclusion) error {
-	if w == nil {
-		return nil
-	}
-	body, err := wire.EncodeRun(record.Result{Conclusion: asRecordConclusion(conc)}, wireEvoVersion)
-	if err != nil {
-		return fmt.Errorf("%w: %v", errRenderer, err)
-	}
-	body = append(body, '\n')
-	if _, err := w.Write(body); err != nil {
-		return fmt.Errorf("%w: %v", errRenderer, err)
-	}
-	if f, ok := w.(flusher); ok {
-		_ = f.Flush()
-	}
-	return nil
-}
-
-// writeWireEventLocked encodes e as one "evo.event" JSONL line and writes
-// it to w — the FormatJSONL counterpart of writeStreamJSONLocked's legacy
-// "0.3" streamed-JSON line, called from emitWireEventLocked
-// (structured_events.go). A write failure here does not stop the stream —
-// earlier lines already written stay valid (spec §32.2: "Earlier valid
-// lines remain valid if a later write fails") — but it is returned so the
-// caller can latch it as this Run's first wire-write failure and fail the
-// Run at Finish (spec §32.2: "... the Run then fails"), instead of the
-// error silently vanishing.
-func writeWireEventLocked(w io.Writer, e recEvent) error {
-	if w == nil {
-		return nil
-	}
-	row, err := wire.EncodeEvent(e)
-	if err != nil {
-		return fmt.Errorf("%w: %v", errRenderer, err)
-	}
-	row = append(row, '\n')
-	if _, err := w.Write(row); err != nil {
-		return fmt.Errorf("%w: %v", errRenderer, err)
-	}
-	if f, ok := w.(flusher); ok {
-		_ = f.Flush()
-	}
-	return nil
 }
 
 // Output selects the presentation encoding (CONTRACT §6).

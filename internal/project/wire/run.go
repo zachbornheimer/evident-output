@@ -196,8 +196,7 @@ type EffectDoc struct {
 // ToRunDocument builds the "evo.run" wire document from a finished Result
 // (spec §53: WriteJSON's whole contract is Result, so every field below
 // must be derivable from Conclusion alone). evoVersion is the caller's
-// evo_version literal (root package owns PublishedRelease; this package
-// never imports it, to avoid an internal/wire → root → internal/wire cycle).
+// evo_version literal: Release for every document this build writes.
 func ToRunDocument(result record.Result, evoVersion string) RunDocument {
 	c := result.Conclusion
 	doc := RunDocument{

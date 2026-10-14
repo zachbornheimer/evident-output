@@ -1127,39 +1127,22 @@ func localeAdvertisesUTF8() bool {
 	return true
 }
 
-// --- folded from machine.go ---
+// rendererError is err as the Run reports a renderer failure: a genuine
+// Run failure, not an ignored logging error (§32.2). nil stays nil.
+func rendererError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %v", errRenderer, err)
+}
 
-func writeMachinePresentation(w io.Writer, snap snapshot, events []recEvent, proj projection, misuse error) error {
-	var body []byte
-	var err error
-	switch proj {
-	case projectionJSON:
-		body, err = wire.EncodeJSON(snap)
-	case projectionJSONL:
-		body, err = wire.EncodeJSONL(events)
-	default:
-		return misuse
+// eventStream is where the evo.event stream writes: Config.Stdout in Format
+// JSONL, nowhere otherwise (§32.1).
+func (c *config) eventStream() io.Writer {
+	if c.wireFormat != formatJSONL {
+		return nil
 	}
-	if err != nil {
-		err = fmt.Errorf("%w: %v", errRenderer, err)
-		if misuse == nil {
-			return err
-		}
-		return errors.Join(misuse, err)
-	}
-	if w != nil && len(body) > 0 {
-		if _, werr := w.Write(body); werr != nil {
-			werr = fmt.Errorf("%w: %v", errRenderer, werr)
-			if misuse == nil {
-				return werr
-			}
-			return errors.Join(misuse, werr)
-		}
-		if f, ok := w.(flusher); ok {
-			_ = f.Flush()
-		}
-	}
-	return misuse
+	return c.wireStream
 }
 
 // --- folded from output_lifecycle.go ---
@@ -1299,7 +1282,6 @@ const eventSchemaVersion = record.EventSchemaVersion
 type (
 	snapshot        = record.Snapshot
 	taskSnapshot    = record.TaskSnapshot
-	taxonomyRecord  = record.TaxonomyRecord
 	tasksSnapshot   = record.TasksSnapshot
 	changesSnapshot = record.ChangesSnapshot
 	planSnapshot    = record.PlanSnapshot
@@ -1912,19 +1894,13 @@ func (e runHost) EndingName() string { return e.out.endingName() }
 // declaration events, and a forced paint.
 func (e runHost) TaskDeclared(t *graph.Task) {
 	o := e.out
-	st := &taskState{
-		id:     t.ID,
-		node:   t,
-		name:   t.Name,
-		board:  o.board,
-		timing: record.TaskTiming{Declared: o.cfg.clock.Now()},
-	}
+	st := &taskState{id: t.ID, node: t, name: t.Name}
 	st.handle = &Task{out: o, id: st.id, state: st}
 	o.taskStates[st.id] = st
-	o.appendTaskLocked(st)
+	o.appendTaskLocked(st, false)
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "task.declared", EntityID: st.id})
-	if o.narratesEvents() {
+	if o.wireEvents.On() {
 		o.emitWireEventLocked(wire.EventTaskDeclared, st.id, map[string]any{"name": t.Name})
 	}
 	o.live.Signal(true)
@@ -1934,7 +1910,7 @@ func (e runHost) TaskDeclared(t *graph.Task) {
 // collection, but followed like any Task.
 func (e runHost) GateDeclared(t *graph.Task) {
 	o := e.out
-	gate := &taskState{id: t.ID, node: t, name: t.Name, board: o.board}
+	gate := &taskState{id: t.ID, node: t, name: t.Name}
 	gate.handle = &Task{out: o, id: gate.id}
 	o.taskStates[gate.id] = gate
 }
@@ -1950,6 +1926,9 @@ func (e runHost) ContainerDeclared(c *graph.Container) {
 		parentID = c.Parent.ID
 	}
 	o.containerStates[st.id] = st
+	o.rows.DeclareGroup(txt.DeclaredGroup{
+		ID: c.ID, Name: c.Name, Declaration: c.Declaration, Sequential: c.Sequential, Rec: c.Rec, Node: c,
+	}, parentID)
 	o.board.DeclareGroup(st.id, st.name, parentID)
 	st.handle = &Group{out: o, id: st.id}
 	o.bumpLocked()
@@ -2050,7 +2029,7 @@ func (o *Run) commitManifestLocked(st *taskState) {
 // one the caller never declared, already settled.
 func (e runHost) RunEnded(t *graph.Task) {
 	o := e.out
-	o.appendTaskLocked(&taskState{id: t.ID, node: t, name: t.Name, board: o.board, synthetic: true})
+	o.appendTaskLocked(&taskState{id: t.ID, node: t, name: t.Name}, true)
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "output." + string(t.Rec.State())})
 }
@@ -2060,7 +2039,7 @@ func (e runHost) RunEnded(t *graph.Task) {
 // so narration costs a callback nothing when nobody reads it.
 func (e runHost) narrate(event, entityID string, payload func() map[string]any) {
 	o := e.out
-	if !o.narratesEvents() {
+	if !o.wireEvents.On() {
 		return
 	}
 	o.mu.Lock()

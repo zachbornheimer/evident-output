@@ -1,5 +1,5 @@
 // Command sync-release-pins rewrites install pins on portable surfaces to
-// match evo.PublishedRelease. Run after changing publishedRelease in output.go.
+// match wire.Release. Run after changing Release in internal/project/wire/stream.go.
 //
 //	go run ./tools/scripts/sync-release-pins
 package main
@@ -83,15 +83,18 @@ func fail(err error) {
 	os.Exit(1)
 }
 
+// releaseFile declares the release this build reports (wire.Release).
+const releaseFile = "internal/project/wire/stream.go"
+
 func publishedReleaseFrom(root string) (string, error) {
-	// Literal name: this command already required cwd to be the module root.
-	body, err := os.ReadFile("output.go")
+	// Relative path: this command already required cwd to be the module root.
+	body, err := os.ReadFile(releaseFile)
 	if err != nil {
-		return "", fmt.Errorf("read output.go in %s: %w", root, err)
+		return "", fmt.Errorf("read %s in %s: %w", releaseFile, root, err)
 	}
-	m := regexp.MustCompile(`(?m)^const publishedRelease = "([^"]+)"`).FindSubmatch(body)
+	m := regexp.MustCompile(`(?m)^const Release = "([^"]+)"`).FindSubmatch(body)
 	if m == nil {
-		return "", fmt.Errorf("publishedRelease const not found in output.go")
+		return "", fmt.Errorf("const Release not found in %s", releaseFile)
 	}
 	return string(m[1]), nil
 }
