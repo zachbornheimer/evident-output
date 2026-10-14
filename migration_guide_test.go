@@ -15,10 +15,15 @@ const (
 	// alphaExportsPath lists what v1.2.0-alpha.1 exported: its consumers
 	// upgrade to 2.0 too, and CHANGELOG.md's removed bullets stop at 1.1.
 	alphaExportsPath = "testdata/v1.2.0-alpha.1_exports.txt"
+	// configFieldsPath lists the fields of the v1.0.0 Config struct.
+	configFieldsPath = "testdata/v1.0.0_config_fields.txt"
 )
 
 // backtickedName matches a bare exported name in code ticks: `Name`.
 var backtickedName = regexp.MustCompile("`([A-Z][A-Za-z0-9]*)`")
+
+// qualifiedConfigField matches Config.Field in a table cell.
+var qualifiedConfigField = regexp.MustCompile(`\bConfig\.[A-Za-z][A-Za-z0-9]*`)
 
 // identifier matches one Go identifier inside a table cell.
 var identifier = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
@@ -27,7 +32,9 @@ var identifier = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
 // -- listed as removed by CHANGELOG.md, or exported by v1.2.0-alpha.1 and
 // absent from CONTRACT.md -- never appears in the first (1.x) cell of a row of
 // docs/migration/2.0.md, so a consumer who searches the guide for a 1.x name
-// always finds its replacement.
+// always finds its replacement. Every field of the v1.0.0 Config struct also
+// needs a Config.<Field> cell, since a field is not an export and neither list
+// above names it.
 func TestMigrationGuideMapsEveryRemovedName(t *testing.T) {
 	removed := changelogRemovedNames(t)
 	for name := range alphaExportsAbsentFromContract(t) {
@@ -45,6 +52,18 @@ func TestMigrationGuideMapsEveryRemovedName(t *testing.T) {
 	if len(missing) > 0 {
 		t.Errorf("%s has no row for %d removed names (%s's removed bullets, or %s minus CONTRACT.md):\n  %s",
 			migrationGuidePath, len(missing), changelogPath, alphaExportsPath, strings.Join(missing, "\n  "))
+	}
+
+	mappedFields := migrationGuideConfigFields(t)
+	var unmappedFields []string
+	for _, field := range v1ConfigFields(t) {
+		if !mappedFields["Config."+field] {
+			unmappedFields = append(unmappedFields, "Config."+field)
+		}
+	}
+	if len(unmappedFields) > 0 {
+		t.Errorf("%s has no row for %d fields of the v1.0.0 Config (%s):\n  %s",
+			migrationGuidePath, len(unmappedFields), configFieldsPath, strings.Join(unmappedFields, "\n  "))
 	}
 }
 
@@ -136,4 +155,44 @@ func migrationGuideNames(t *testing.T) map[string]bool {
 		}
 	}
 	return names
+}
+
+// v1ConfigFields is every field of the v1.0.0 Config struct.
+func v1ConfigFields(t *testing.T) []string {
+	t.Helper()
+	body, err := os.ReadFile(configFieldsPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", configFieldsPath, err)
+	}
+	var fields []string
+	for line := range strings.SplitSeq(string(body), "\n") {
+		if name := strings.TrimSpace(line); name != "" && !strings.HasPrefix(name, "#") {
+			fields = append(fields, name)
+		}
+	}
+	if len(fields) == 0 {
+		t.Fatalf("%s: no fields", configFieldsPath)
+	}
+	return fields
+}
+
+// migrationGuideConfigFields is every Config.<Field> in the first cell of a
+// table row of the migration guide.
+func migrationGuideConfigFields(t *testing.T) map[string]bool {
+	t.Helper()
+	body, err := os.ReadFile(migrationGuidePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", migrationGuidePath, err)
+	}
+	fields := map[string]bool{}
+	for line := range strings.SplitSeq(string(body), "\n") {
+		if !strings.HasPrefix(line, "|") {
+			continue
+		}
+		firstCell, _, _ := strings.Cut(strings.TrimPrefix(line, "|"), "|")
+		for _, field := range qualifiedConfigField.FindAllString(firstCell, -1) {
+			fields[field] = true
+		}
+	}
+	return fields
 }
