@@ -122,3 +122,27 @@ func TestEverySymbolHasAReleaseAndReplacement(t *testing.T) {
 		}
 	}
 }
+
+// A retired 2.0 name is taught by prose and bare calls as much as by a
+// receiver-prefixed call, so the match must not depend on an evo. or task.
+// prefix.
+func TestTaught2_0NamesWithoutReceiverPrefix(t *testing.T) {
+	hits := map[string]string{
+		"Init":    "see Init for the defaults",
+		"Block":   "call Define, Fail, Block, or Skipped on this task",
+		"Wait":    "so `return task.Define(fn).Wait()` works",
+		"Println": "\tPrintln(\"hello\")",
+	}
+	for contract, text := range hits {
+		if !slices.ContainsFunc(TaughtRetired(text), func(h RetiredHit) bool { return h.Symbol.Contract == contract }) {
+			t.Errorf("TaughtRetired(%q) missed retired %s", text, contract)
+		}
+	}
+	for _, text := range []string{"fmt.Println(x)", "cmd.Wait()", "sync.WaitGroup.Wait", "Initialize the cache"} {
+		for _, h := range TaughtRetired(text) {
+			if h.Symbol.RemovedIn == RetiredRelease2_0 {
+				t.Errorf("TaughtRetired(%q) matched %q (%s); unrelated code must stay", text, h.Match, h.Symbol.Contract)
+			}
+		}
+	}
+}

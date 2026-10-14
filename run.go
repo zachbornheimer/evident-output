@@ -29,9 +29,15 @@ import (
 
 var errRunExitedWithoutReturn = errors.New("run callback exited without returning (runtime.Goexit)")
 
-// Execute runs a CLI presentation lifecycle against the instance Init installs
-// and returns its Result. It never calls os.Exit (API-018), so the caller owns
-// process termination. Callers that only need the exit code use Main.
+// Execute runs run to completion and returns its Result. It installs no signal
+// handlers and never exits the process: the caller owns the context and the exit,
+// which makes Execute the entry point for embedding and for tests. A nil ctx is
+// context.Background.
+//
+// ctx governs the whole run, including declared work still running after run
+// returned. Once ctx is done, every running callback's context is done and the
+// run ends Cancelled with exit code 130. Use Main for a program that should end
+// on SIGINT or SIGTERM.
 func Execute(ctx context.Context, cfg Config, run RunFunc) Result {
 	out := initRun(cfg)
 	if ctx == nil {
@@ -41,7 +47,9 @@ func Execute(ctx context.Context, cfg Config, run RunFunc) Result {
 }
 
 // Main runs run under SIGINT and SIGTERM and returns the process exit code; it
-// never exits. Only the first cfg is used.
+// never exits. A signal cancels the run's context and ends the run Cancelled with
+// exit code 130, including while declared work still runs after run returned.
+// Only the first cfg is used; without one, Config is zero.
 func Main(run RunFunc, cfg ...Config) int {
 	c := Config{}
 	if len(cfg) > 0 {
@@ -241,8 +249,13 @@ type debugConfig struct {
 	addSource bool
 }
 
-// Config is the sole application-facing construction surface. Zero values mean
-// automatic defaults; DefaultConfig() is a mutable baseline.
+// Config holds a run's settings, passed to Main or Execute. The zero Config is
+// complete: Name defaults to the binary name, and Output to Human on a terminal
+// and Plain otherwise. Name titles the run and is the name in the evo.run
+// document; Verbose shows hidden Facts, as EVO_VERBOSE=1 does; DryRun plans every
+// change and runs no mutation; MaxConcurrency bounds executing callbacks (zero
+// means GOMAXPROCS); State says where recorded status lives; Facades replaces the
+// system boundaries, which is how a test runs Evo without a terminal.
 type Config struct {
 	Name string
 	// Title is the 1.x subject shown in the conclusion.
@@ -253,7 +266,7 @@ type Config struct {
 	Facades Facades
 
 	// Subject is an optional durable line rendered once under the title (a repo path, a target host).
-	// If unknown until after Init, call Output.subject(text) instead.
+	// If unknown until the run has started, call Run.subject(text) instead.
 	subject string
 
 	// Facts are run-scoped name/value lines painted with the header, before any Task. Discovery
@@ -551,8 +564,8 @@ func (cfg *config) modes(c Config) {
 	cfg.preview = c.preview
 }
 
-// Init is the sole Output constructor: it installs the default Output built from cfg
-// and arms first paint. Call once, in main, before any I/O. It fills still-zero Config fields
+// initRun is the sole Run constructor: it builds a Run from cfg and arms first paint.
+// It fills still-zero Config fields
 // from EVO_OUTPUT, EVO_VERBOSE, EVO_DEBUG, NO_COLOR, and FORCE_COLOR. Explicit Config wins over
 // env; env wins over TTY.
 func initRun(configs ...Config) *Run {
@@ -582,7 +595,7 @@ func resolveInitConfig(configs []Config) Config {
 	return configs[0]
 }
 
-// Environment keys honored at Init when the matching Config field is unset.
+// Environment keys honored at run start when the matching Config field is unset.
 const (
 	envKeyOutput     = "EVO_OUTPUT"
 	envKeyVerbose    = "EVO_VERBOSE"
@@ -788,7 +801,7 @@ func (o *Run) close() error {
 	return o.freshness.Session().Close()
 }
 
-// beginRunContext installs ctx as the parent of this run's task scopes, replacing Init's placeholder.
+// beginRunContext installs ctx as the parent of this run's task scopes, replacing the placeholder from construction.
 func (o *Run) beginRunContext(ctx context.Context) context.Context {
 	return o.graph.BeginRunContext(ctx)
 }
@@ -933,7 +946,7 @@ type config struct {
 	// projectDebugRecordLocked then clears live, writes durable, repaints, so raw bytes never land mid-spinner-row.
 	diagnosticSharesTerminal bool
 	// dryRunHeaderText is Config.Subject's text so a dry-run's announcement merges onto one "[dry-run] <subject>"
-	// line. Only Init's synchronous path sets it; DeclareDryRun's later switch keeps the marker alone.
+	// line. Only the synchronous run-start path sets it; a later switch to dry run keeps the marker alone.
 	dryRunHeaderText string
 	// wireFormat is non-zero only for FormatJSON/FormatJSONL (spec §32.1). wireStream receives the v2
 	// document/event lines (Config.Stdout); presentation still goes to primary/diagnostic.
@@ -1418,13 +1431,13 @@ var (
 // signalChannelCapacity holds one signal during cancelActive plus one so a second Ctrl-C is never dropped.
 const signalChannelCapacity = 2
 
-// Verify registers a current-state observation check (§9.1), ANDed with any earlier check on this Task.
+// Verify registers a read-only check of the world's current state, ANDed with any earlier Verify on this Task.
 // Call it before Define, which freezes configuration; a later call is ignored and recorded as misuse.
 //
-// Define runs every Verify twice. Before the callback, all true skips it and settles the Task Satisfied, any
-// false enters it, and an error fails the Task. After a successful callback, any false fails the Task with
-// ProblemCodeVerificationUnsatisfied. The after-check is skipped when Define resolved the Task itself, or a
-// dry run or preview skipped an Effect Define planned.
+// Evo runs every Verify twice. Before the callback, all true skips it and settles the Task Satisfied, any
+// false runs it, and an error fails the Task. After a callback that returned nil, any false fails the Task,
+// because the work did not produce the state it promised. The second check is skipped when the callback
+// ended the Task with an error, or when a dry run planned its changes without making them.
 func (t *Task) Verify(fn func(context.Context) (bool, error)) *Task {
 	if t == nil || t.out == nil || fn == nil {
 		return t
@@ -1444,9 +1457,10 @@ func (t *Task) Verify(fn func(context.Context) (bool, error)) *Task {
 	return t
 }
 
-// Define freezes this Task's dependency/verification configuration and submits fn to the scheduler (§7).
-// It returns the same *Task immediately, before fn runs, so `return task.Define(fn).Wait()` works; fn's error
-// becomes the Task's outcome. A second Define on the same Task is misuse.
+// Define freezes this Task's After and Verify configuration and submits fn to the scheduler. It returns the
+// same *Task at once and never runs fn inline; Evo decides when fn runs and owns its goroutine, so callers
+// declare work and return. What fn returns is the Task's outcome: nil Succeeded, Refuse Refused, Exclude
+// Excluded, and Fail or any other error Failed. A second Define on the same Task is misuse.
 func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Task {
 	if t == nil || t.out == nil {
 		return t

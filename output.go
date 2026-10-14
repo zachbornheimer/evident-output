@@ -16,7 +16,10 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
 
-// Run is the aggregate root for one command's presentation lifecycle.
+// Run is the root of one invocation, handed to the application body by Main and Execute. It is a Container:
+// declare root work with Task, Group and Sequence, add run-scoped information with Fact and Summary, ask the
+// user with Confirm, and write free text with Text. Evo decides when declared work runs and how it is shown;
+// the body only declares it and returns.
 type Run struct {
 	// mu guards the render state. Its sections hold the run's notifications,
 	// so the engine's listener hears a section's writes once the mutex is free.

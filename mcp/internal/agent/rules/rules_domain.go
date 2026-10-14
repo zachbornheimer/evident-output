@@ -173,7 +173,7 @@ it.Define(checkDiskSpace)`,
 			Why:             "Hand-building a Problem{} literal duplicates what Block(summary, evo.On(...), evo.Count(...), ...) already does automatically and can drift from the sanitized/anonymous shape Block guarantees.",
 			BadCode:         `task.Block("disk full", evo.Cause(fmt.Errorf("hand-built: %w", err)))`,
 			GoodCode:        `return evo.Refuse("disk full")`,
-			Remediation:     "Use Block(summary, options...) — evo.On/evo.Count/evo.Detail — instead of constructing a Problem by hand",
+			Remediation:     "Return evo.Refuse(summary, options...) — evo.On/evo.Detail/evo.Code — instead of constructing a Problem by hand",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-007"},
 			Since:           "0.1.0",
@@ -327,7 +327,7 @@ t.Define(func(ctx context.Context) error {
 			Category:  "DOM",
 			Severity:  SeverityError,
 			Invariant: "a Task a function declares is Defined, resolved, or handed on before the function returns",
-			Why:       "Wiring a Task's Writer (or adding Facts) does not resolve it: the row stays unresolved, the run concludes partial with 'call Define, Fail, Block, or Skipped on this task', and a child process run off-row never becomes the row's outcome.",
+			Why:       "Wiring a Task's Writer (or adding Facts) does not resolve it: the row stays unresolved, the run concludes partial with 'return from the Define callback of this Task: nil, or evo.Fail, evo.Refuse or evo.Exclude', and a child process run off-row never becomes the row's outcome.",
 			BadCode: `t := evo.Task("fetch")
 cmd.Stdout = t.Writer()
 return cmd.Run()`,
@@ -337,7 +337,7 @@ t.Define(func(ctx context.Context) error {
 	cmd.Stdout = t.Writer()
 	return cmd.Run()
 })`,
-			Remediation:     "Run the work inside the Task's Define, or resolve it with Fail, Block, or Skipped",
+			Remediation:     "Run the work inside the Task's Define and return nil, evo.Fail, evo.Refuse or evo.Exclude",
 			RelatedGuidance: []string{"common-api", "tasks"},
 			VerificationIDs: []string{"DOM-021"},
 			Since:           "1.1.0",

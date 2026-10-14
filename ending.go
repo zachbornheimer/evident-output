@@ -257,7 +257,7 @@ const unresolvedTaskCancelledSummary = "cancelled — run concluded before finis
 const unresolvedTaskIncompleteSummary = "incomplete — run concluded before finish"
 
 // unresolvedTaskHint names the corrective action for a task Finish found with no final state.
-const unresolvedTaskHint = "call Define, Fail, Block, or Skipped on this task"
+const unresolvedTaskHint = "return from the Define callback of this Task: nil, or evo.Fail, evo.Refuse or evo.Exclude"
 
 // rejectedTask is the handle a refused Task declaration (duplicate name or key, entity limit, closed Output)
 // returns, so a chained call never panics. err is never nil: Define on it is misuse, and Wait says the work never ran.

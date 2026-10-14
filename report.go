@@ -41,7 +41,7 @@ func (o *Run) println(args ...any) {
 }
 
 // subject prints one durable line immediately, like Config.Subject, for a caller that learns the subject
-// only after Init but before any other I/O. A no-op on a nil Run or empty text.
+// only after the run starts but before any other I/O. A no-op on a nil Run or empty text.
 func (o *Run) subject(text string) {
 	if o == nil || text == "" {
 		return
@@ -57,9 +57,8 @@ func (o *Run) writer() io.Writer {
 	return o.at(visibilityNormal).writer()
 }
 
-// ResultWriter returns the domain-payload stream; presentation never writes here. In FormatData mode it is
-// Config.Result if set, else Config.Stdout, so machine JSON stays pure while Tasks render on stderr.
-// With no result stream it returns io.Discard.
+// ResultWriter returns the stream for the application's data payload; presentation never writes to it.
+// It returns io.Discard when the run has no payload stream.
 func (o *Run) ResultWriter() io.Writer {
 	if o == nil {
 		return io.Discard
@@ -291,8 +290,11 @@ func writerIsCharDevice(w io.Writer) bool { return terminal.WriterIsCharDevice(w
 // detect Diagnostics sharing the live region's terminal, which writer identity alone misses.
 func sameTerminalDevice(a, b io.Writer) bool { return terminal.SameDevice(a, b) }
 
+// Text returns a writer for free human text, routed with the presentation so it never tears the live region.
 func (o *Run) Text() io.Writer { return o.writer() }
 
+// SlogHandler returns a slog.Handler that writes into the debug journal at or above Config.Debug.
+// See the Run.SlogHandler example.
 func (o *Run) SlogHandler() slog.Handler { return o.slogHandler() }
 
 func (r *Run) Summary(text string) *Run {
@@ -334,11 +336,9 @@ func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind p
 	return true
 }
 
-// Writer returns a line-buffered io.Writer for narrating a talkative child process: each complete line becomes
-// the task's live doing-text, and every byte is also kept in the Capture ring so DetailTail has proof after Fail.
-// Off a TTY mirrored lines never force durable rows. Safe for concurrent use.
-//
-//	cmd.Stdout = evo.Task("push").Writer()
+// Writer returns a line-buffered io.Writer for a talkative child process: each complete line becomes the Task's
+// live current item, and every byte is kept so a failure shows the output that explains it. Off a terminal,
+// lines never become durable rows. Safe for concurrent use. See the Task.Writer example.
 func (t *Task) Writer() io.Writer {
 	if t == nil || t.out == nil {
 		return io.Discard

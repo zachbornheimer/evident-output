@@ -118,7 +118,7 @@ func TestFinish_UnresolvedTask_HintReplacesRawMisuseLine(t *testing.T) {
 	if strings.Contains(rendered, "evo: task has no final state") {
 		t.Fatalf("raw sentinel jargon leaked into the user stream:\n%s", rendered)
 	}
-	if !strings.Contains(rendered, "call Define, Fail, Block, or Skipped on this task") {
+	if !strings.Contains(rendered, "return from the Define callback of this Task: nil, or evo.Fail, evo.Refuse or evo.Exclude") {
 		t.Fatalf("want the corrective hint rendered instead, got:\n%s", rendered)
 	}
 }

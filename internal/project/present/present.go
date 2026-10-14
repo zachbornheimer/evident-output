@@ -217,7 +217,7 @@ func (p *Presenter) PlannedHeader(preview bool, subject string) {
 	p.Stream.Write(b.String())
 }
 
-// Arm promises a paint before any entity exists, so Init honors the first
+// Arm promises a paint before any entity exists, so a run honors the first
 // paint rule even when the caller works before its first Task.
 func (p *Presenter) Arm() {
 	if p.Board.Arm() {

@@ -141,7 +141,7 @@ func (s *ManifestSession) FirstUnsavedWarning() bool {
 }
 
 // Save waits until every record this Run committed or staged is on disk, so
-// an Init+Finish caller that never calls Close still persists its history.
+// a caller that starts and finishes a run but never calls Close still persists its history.
 // Once the write succeeded it releases the Run's manifest lock, so a later
 // Run on this workspace never waits for a Close this caller may not make; a
 // later File reopens it. When the write failed it keeps the store and its

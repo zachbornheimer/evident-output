@@ -88,7 +88,7 @@ func scanBlockForFailfReturn(filename string, block *ast.BlockStmt, fset *token.
 				continue
 			}
 			if failAddsDiagnostics(call) {
-				continue // Fail or Block(summary, options...) then return err: the returned error stays the failure Wait() reports
+				continue // Fail or Block (removed in 2.0) with options, then return err: the returned error stays the failure Wait() reports
 			}
 			if i+1 >= len(stmts) {
 				continue

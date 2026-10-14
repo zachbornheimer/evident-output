@@ -167,10 +167,10 @@ var retiredSymbols = []RetiredSymbol{
 
 	// 2.0 (CONTRACT.md): the surface is exactly the contract tables. These
 	// 1.x names are gone.
-	{Contract: "Init", RemovedIn: RetiredRelease2_0, Replacement: "evo.Main(run) or evo.Execute(ctx, cfg, run)", Taught: regexp.MustCompile(`\bevo\.Init\b`)},
-	{Contract: "Println", RemovedIn: RetiredRelease2_0, Replacement: "fmt.Fprintln(r.Text(), ...)", Taught: regexp.MustCompile(`\b(?:evo|out|Output)\.Print(?:f|ln)?\b`)},
-	{Contract: "Block", RemovedIn: RetiredRelease2_0, Replacement: "return evo.Refuse(summary, opts...) from Define", Taught: regexp.MustCompile(`\b(?:[Tt]ask\w*|it|item)\.Block\(|\bTask\.Block\b`)},
-	{Contract: "Wait", RemovedIn: RetiredRelease2_0, Replacement: "return from run; Evo owns the waiting", Taught: regexp.MustCompile(`\b(?:[Tt]ask\w*|[Gg]roup|[Ss]equence|seq)\.Wait\b`)},
+	{Contract: "Init", RemovedIn: RetiredRelease2_0, Replacement: "evo.Main(run) or evo.Execute(ctx, cfg, run)", Taught: regexp.MustCompile(`\bevo\.Init\b|\bInit\(|\bsee Init\b|\bInit(?:'s)? (?:installs|is the sole)|\b(?:after|until|at|with|reach) Init\b`)},
+	{Contract: "Println", RemovedIn: RetiredRelease2_0, Replacement: "fmt.Fprintln(r.Text(), ...)", Taught: regexp.MustCompile(`\b(?:evo|out|Output)\.Print(?:f|ln)?\b|(?:^|[^.\w|])Print(?:f|ln)?\(`)},
+	{Contract: "Block", RemovedIn: RetiredRelease2_0, Replacement: "return evo.Refuse(summary, opts...) from Define", Taught: regexp.MustCompile(`(?:^|[^.\w|])Block\(|\.Block\(|\bTask\.Block\b|\bBlock,\s+or\s+Skipped\b`)},
+	{Contract: "Wait", RemovedIn: RetiredRelease2_0, Replacement: "return from run; Evo owns the waiting", Taught: regexp.MustCompile(`\b(?:[Tt]ask\w*|[Gg]roup|[Ss]equence|seq)\.Wait\b|\)\.Wait\(\)`)},
 	{Contract: "Key", RemovedIn: RetiredRelease2_0, Replacement: "the Task name is its identity", Taught: regexp.MustCompile(`\b(?:[Tt]ask\w*)\.Key\b`)},
 	{Contract: "TaskHandle", RemovedIn: RetiredRelease2_0, Replacement: "Task", Taught: regexp.MustCompile(`\b(?:Task|Group|Sequence)Handle\b`)},
 	{Contract: "Files", RemovedIn: RetiredRelease2_0, Replacement: "evo.File per file"},

@@ -36,7 +36,7 @@ func hintFor(err error, subject, rejectedSummary string) string {
 	case errors.Is(err, ErrRenderer):
 		return "the configured writer failed; check the output destination"
 	case errors.Is(err, ErrLimitExceeded):
-		return "raise Config.MaxEntities or declare fewer tasks in this run"
+		return "declare fewer Tasks in this run"
 	case errors.Is(err, ErrReasonSkipOnly):
 		return "a Reason built with ForSkip only attaches to Skip, not Kept"
 	case errors.Is(err, ErrReasonWrongTask):
@@ -48,13 +48,13 @@ func hintFor(err error, subject, rejectedSummary string) string {
 	case errors.Is(err, ErrComputedUnordered):
 		return fmt.Sprintf("nothing orders this reader after %s; declare it .After(the Computed), or put it later in the same Sequence", subject)
 	case errors.Is(err, ErrWaitInBuilder):
-		return fmt.Sprintf("a container builder cannot Wait on %s; the builder settles only when it returns, so declare the work in it and Wait outside", subject)
+		return fmt.Sprintf("a Build callback cannot wait on %s; Build only declares topology, so declare the work in it and order it with After", subject)
 	case errors.Is(err, ErrDeclaredInCallback):
-		return "declare Tasks and containers before the run or inside Group.Define; a Task's Define callback only does work"
+		return "declare Tasks and containers in the run body or inside Group.Build or Sequence.Build; a Task's Define callback only does work"
 	case errors.Is(err, ErrDryRunDeclaredLate):
-		return "call DeclareDryRun before any Task/Print/Confirm row streams"
+		return "set Config.DryRun when starting the run, before any Task, Fact or Confirm row streams"
 	case errors.Is(err, ErrWaitDeadlock):
-		return fmt.Sprintf("nothing left in the run can resolve %s; a task cannot wait on itself or on a task waiting on it", subject)
+		return fmt.Sprintf("nothing left in the run can settle %s; a Task cannot depend on itself or on a Task that depends on it", subject)
 	case errors.Is(err, ErrDependencyCycle):
 		return fmt.Sprintf("After forms a cycle (%s); a task cannot run after itself, directly or through a Group it belongs to", subject)
 	case errors.Is(err, ErrTerminalWithoutSink):

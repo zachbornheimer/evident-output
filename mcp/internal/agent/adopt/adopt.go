@@ -1,5 +1,5 @@
 // Package adopt inventories non-evo CLI output in an existing codebase and
-// proposes a migration plan keyed to the adoption ladder (Init/Main →
+// proposes a migration plan keyed to the adoption ladder (Main →
 // Task/Define → effects → facts/warnings → confirm/dry-run). Detection is
 // static and AST-based — every finding is a call site or import the
 // compiler itself would resolve the same way, never a guess about intent;

@@ -42,7 +42,7 @@ func detectBlockedAsError(filename, src string) []Finding {
 	if kind == noBlockedReturn {
 		return nil
 	}
-	// Block(summary, Detail/Next/NextCommand...) then `return err` keeps the
+	// Block (removed in 2.0) with options, then `return err`, keeps the
 	// row blocked and Wait() returns that err: it records diagnostics, it does
 	// not turn the outcome into a different error.
 	if kind == returnsErr && blockCarriesOptions(lines[blockLine:line]) {

@@ -343,7 +343,8 @@ type Sequence struct {
 	tasks *Group
 }
 
-// Task declares a child task in declaration order.
+// Task declares a child Task that runs after the Sequence's earlier children settle. Sibling names are unique
+// per parent: declaring a name the Sequence already holds is misuse and returns a Task that never runs.
 func (g *Sequence) Task(name string) *Task {
 	if g == nil || g.tasks == nil {
 		return &Task{}

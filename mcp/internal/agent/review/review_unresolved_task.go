@@ -42,7 +42,7 @@ func detectUnresolvedTask(filename string, file *ast.File, fset *token.FileSet) 
 				Message:    "Task " + bound.Name + " is declared but never Defined, resolved, or handed on; its row stays unresolved and the run concludes partial",
 				File:       filename,
 				Line:       fset.Position(bound.Pos()).Line,
-				Suggestion: "run the work inside " + bound.Name + ".Define(func(ctx context.Context) error { ... }), or resolve it with Fail, Block, or Skipped",
+				Suggestion: "run the work inside " + bound.Name + ".Define(func(ctx context.Context) error { ... }) and return nil, evo.Fail, evo.Refuse or evo.Exclude",
 			})
 		}
 	}
