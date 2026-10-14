@@ -17,7 +17,7 @@ var contractTeachingOrder = []string{
 	"2. Group / Sequence",
 	"3. evo.File",
 	"4. evo.Exec",
-	"5. FileSpec.Basis",
+	"5. FileSpec.Inputs",
 	"6. After for exceptional",
 	"7. Facts / warnings / Effects",
 	"8. Task.Verify",

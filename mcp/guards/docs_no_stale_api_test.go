@@ -63,7 +63,7 @@ func TestDocsCarryNoStaleAPI(t *testing.T) {
 var unimplementedClaim = regexp.MustCompile(`(?i)not yet implemented|\(planned[;)]`)
 
 // phantomAPI is prose describing API that never existed: freshness inputs
-// are FileSpec.Basis / ExecSpec.Basis, never a Task-level Basis.
+// are FileSpec.Inputs/Values and ExecSpec.Inputs/Values, never a Task-level Basis.
 var phantomAPI = regexp.MustCompile(`(?i)\bTask-level Basis\b|\bTask's Basis\b`)
 
 // TestDocsNeverCallLiveAPIUnimplemented fails when current docs call an
@@ -76,7 +76,7 @@ func TestDocsNeverCallLiveAPIUnimplemented(t *testing.T) {
 		lines := strings.Split(body, "\n")
 		for i, line := range lines {
 			if m := phantomAPI.FindString(line); m != "" {
-				t.Errorf("%s:%d: %q describes API that does not exist (FileSpec.Basis / ExecSpec.Basis):\n%s", rel, i+1, m, line)
+				t.Errorf("%s:%d: %q describes API that does not exist (freshness inputs are FileSpec/ExecSpec Inputs and Values):\n%s", rel, i+1, m, line)
 			}
 			if !unimplementedClaim.MatchString(line) {
 				continue
