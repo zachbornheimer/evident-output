@@ -154,6 +154,16 @@ func (s *Stream) Write(text string) {
 	s.Emit(text)
 }
 
+// WritePayload emits data-payload text that shares the live region's terminal: held while a window owns
+// the terminal, else written above the region. It is not a durable row. It reports false when the live
+// surface did not take the text, and the caller writes it to its own stream.
+func (s *Stream) WritePayload(text string) bool {
+	if text == "" || s.cfg.Region.Hold(text) {
+		return true
+	}
+	return s.cfg.Region.Durable(text)
+}
+
 // WriteOwner emits text the owner of an open window writes inside it
 // (Confirm's prompt and its answer row): the window exists to show exactly
 // this, so it is never held.

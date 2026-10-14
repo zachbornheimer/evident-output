@@ -510,6 +510,7 @@ func (cfg *config) callerTerminal(c Config) {
 		}
 	}
 	cfg.diagnosticSharesTerminal = sameTerminalDevice(sr.Sink(), c.stderr)
+	cfg.resultSharesTerminal = sameTerminalDevice(sr.Sink(), cfg.result)
 }
 
 const liveTerminalHeight = 24
@@ -531,6 +532,7 @@ func (cfg *config) liveTerminal(c Config, liveWriter io.Writer) {
 	cfg.width = width
 	cfg.samePrimaryAsTerminal = true
 	cfg.diagnosticSharesTerminal = sameTerminalDevice(liveWriter, c.stderr)
+	cfg.resultSharesTerminal = sameTerminalDevice(liveWriter, cfg.result)
 }
 
 func (cfg *config) runtime(c Config) {
@@ -971,6 +973,9 @@ type config struct {
 	// diagnosticSharesTerminal: Diagnostics is the same physical terminal as the live driver (fd 1 and 2 on one tty).
 	// projectDebugRecordLocked then clears live, writes durable, repaints, so raw bytes never land mid-spinner-row.
 	diagnosticSharesTerminal bool
+	// resultSharesTerminal: the payload stream is the same physical terminal as the live driver, so payload
+	// text goes through the live region instead of landing inside it.
+	resultSharesTerminal bool
 	// dryRunHeaderText is Config.Subject's text so a dry-run's announcement merges onto one "[dry-run] <subject>"
 	// line. Only the synchronous run-start path sets it; a later switch to dry run keeps the marker alone.
 	dryRunHeaderText string

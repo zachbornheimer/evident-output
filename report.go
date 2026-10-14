@@ -69,12 +69,28 @@ func (o *Run) ResultWriter() io.Writer {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	switch {
+	case o.cfg.result != nil && o.cfg.resultSharesTerminal:
+		return sharedTerminalResultWriter{o}
 	case o.cfg.result != nil:
 		return o.cfg.result
 	case o.cfg.wireFormat == formatJSON, o.cfg.wireFormat == formatJSONL:
 		return wireResultWriter{o}
 	}
 	return io.Discard
+}
+
+// sharedTerminalResultWriter writes the payload through the live region when stdout and the region are one
+// terminal, so a payload line lands above the region and a repaint never paints over it.
+type sharedTerminalResultWriter struct{ o *Run }
+
+func (w sharedTerminalResultWriter) Write(b []byte) (int, error) {
+	o := w.o
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ensureOpen() == nil && o.show.Stream.WritePayload(string(b)) {
+		return len(b), nil
+	}
+	return o.cfg.result.Write(b)
 }
 
 // wireResultWriter folds the payload into the machine document or event stream that owns stdout.
