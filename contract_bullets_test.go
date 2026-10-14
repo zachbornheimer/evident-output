@@ -15,9 +15,15 @@ import (
 // After-hold rule scored above 0.75.
 const maxBulletOverlap = 0.6
 
-// minBulletWords keeps a short bullet from tripping the guard on a few shared
-// connectives; a rule stated in fewer words cannot be restated at length.
-const minBulletWords = 12
+// shortBulletWords is the size up to which a bullet is a short rule. Adding
+// words to a short rule drops its Jaccard overlap with the original below
+// maxBulletOverlap, so a short bullet is judged by containment instead: the
+// share of its own words that the other bullet repeats.
+const shortBulletWords = 10
+
+// maxShortContainment is the largest share of a short bullet's words another
+// bullet in the section may repeat. No two real bullets come near it.
+const maxShortContainment = 0.9
 
 var contractSectionHeading = regexp.MustCompile(`^## `)
 
@@ -80,31 +86,48 @@ func contractWords(text string) map[string]bool {
 	return words
 }
 
-// contractOverlap is the Jaccard overlap of two bullets' distinct words.
-func contractOverlap(a, b contractBullet) float64 {
+func sharedWords(a, b contractBullet) int {
 	shared := 0
 	for w := range a.words {
 		if b.words[w] {
 			shared++
 		}
 	}
-	return float64(shared) / float64(len(a.words)+len(b.words)-shared)
+	return shared
+}
+
+// contractOverlap is the Jaccard overlap of two bullets' distinct words.
+func contractOverlap(a, b contractBullet) float64 {
+	return float64(sharedWords(a, b)) / float64(len(a.words)+len(b.words)-sharedWords(a, b))
+}
+
+// contractContainment is the share of the shorter bullet's distinct words that
+// the other bullet repeats.
+func contractContainment(a, b contractBullet) float64 {
+	return float64(sharedWords(a, b)) / float64(min(len(a.words), len(b.words)))
+}
+
+// restatesRule reports whether two bullets state one rule twice: they overlap
+// past maxBulletOverlap, or the shorter one is a short rule the other repeats.
+func restatesRule(a, b contractBullet) bool {
+	if contractOverlap(a, b) > maxBulletOverlap {
+		return true
+	}
+	return min(len(a.words), len(b.words)) <= shortBulletWords && contractContainment(a, b) > maxShortContainment
 }
 
 // TestContractBulletsStateEachRuleOnce fails when two bullets in one CONTRACT.md
-// section share more than maxBulletOverlap of their words: a rule written
+// section share more than maxBulletOverlap of their words, or one restates a
+// short rule in full (restatesRule): a rule written
 // twice drifts into two rules that contradict each other (the §8 After-hold
 // bullet once did). Merge the pair into one bullet.
 func TestContractBulletsStateEachRuleOnce(t *testing.T) {
 	for heading, bullets := range contractBullets(t, "CONTRACT.md") {
 		for i, a := range bullets {
 			for _, b := range bullets[i+1:] {
-				if len(a.words) < minBulletWords || len(b.words) < minBulletWords {
-					continue
-				}
-				if o := contractOverlap(a, b); o > maxBulletOverlap {
-					t.Errorf("CONTRACT.md lines %d and %d (%s) share %.0f%% of their words (limit %.0f%%); state the rule once",
-						a.line, b.line, heading, o*100, maxBulletOverlap*100)
+				if restatesRule(a, b) {
+					t.Errorf("CONTRACT.md lines %d and %d (%s) state one rule twice (%.0f%% of their words shared, %.0f%% of the shorter bullet repeated); state the rule once",
+						a.line, b.line, heading, contractOverlap(a, b)*100, contractContainment(a, b)*100)
 				}
 			}
 		}
@@ -123,5 +146,24 @@ func TestContractBulletOverlapFlagsARestatedRule(t *testing.T) {
 	}
 	if o := contractOverlap(bullets[0], bullets[1]); o <= maxBulletOverlap {
 		t.Fatalf("restated rule scores %.2f, not above %.2f", o, maxBulletOverlap)
+	}
+}
+
+// TestContractBulletGuardFlagsARestatedShortRule proves the guard fails on a
+// short rule restated beside its original: the longer wording scores under
+// maxBulletOverlap on Jaccard alone, but repeats every word of the short one.
+func TestContractBulletGuardFlagsARestatedShortRule(t *testing.T) {
+	restated := "## 8. X\n\n" +
+		"- Cancellation preserves committed truth and never implies rollback.\n" +
+		"- Cancellation preserves committed truth and never implies rollback of any committed change, whatever the output.\n"
+	bullets := parseContractBullets(restated)["## 8. X"]
+	if len(bullets) != 2 {
+		t.Fatalf("parsed %d bullets, want 2", len(bullets))
+	}
+	if o := contractOverlap(bullets[0], bullets[1]); o > maxBulletOverlap {
+		t.Fatalf("fixture scores %.2f on Jaccard, so it no longer proves the containment path", o)
+	}
+	if !restatesRule(bullets[0], bullets[1]) {
+		t.Fatal("a short rule restated in a longer bullet was not flagged")
 	}
 }
