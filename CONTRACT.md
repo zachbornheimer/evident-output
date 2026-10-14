@@ -282,8 +282,10 @@ t.Problem("protected ref", evo.On("origin/main"), evo.Code("protected"))  // non
 
 A Task ends exactly once, by returning. Problems never end a Task: a Task
 that records Problems keeps the Outcome its return gives, and the Problems
-stay attached, so a Problem and a nil return are Succeeded with exit 0. The
-value a Define callback or the run body returns settles its Outcome, wrapped
+stay attached, so a Problem and a nil return are Succeeded with exit 0. A Task with no Define
+never returns, so it ends NotStarted at Finish whatever Facts, Problems,
+Progress or Verify it carries, and a Task After it names it as the one that
+stopped it. The value a Define callback or the run body returns settles its Outcome, wrapped
 or not: nil is Succeeded, `Refuse` Refused, `Exclude` Excluded, and `Fail` or
 any other error Failed. A callback that leaves through `runtime.Goexit`
 never returned, so its Task ends Failed with the reason "callback exited without
