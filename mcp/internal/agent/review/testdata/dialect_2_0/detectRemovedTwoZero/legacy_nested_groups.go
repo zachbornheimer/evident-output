@@ -45,4 +45,8 @@ func run(ctx context.Context) error {
 	return nil
 }
 
-func compile(context.Context) error { return nil }
+func compile(ctx context.Context) error {
+	exe, args := "go", []string{"build", "./..."}
+	_, err := evo.Exec(ctx, evo.ExecSpec{Executable: exe, Args: args, Dir: "."})
+	return err
+}

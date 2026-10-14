@@ -84,6 +84,10 @@ var removedArms = []removedArm{
 		"RecordName write", `func f(task *evo.TaskHandle, p string) { task.RecordName("write", p) }`,
 		`evo.File(ctx, evo.FileSpec{Path: p, Contents: data})`,
 	},
+	{"ExecSpec literal Args", `var _ = evo.ExecSpec{Executable: "go", Args: []string{"build", "./..."}}`, `with Argv: []string{"go", "build", "./..."}`},
+	{"ExecSpec Args variable", `func f(exe string, args []string) { _ = evo.ExecSpec{Executable: exe, Args: args} }`, `with Argv: append([]string{exe}, args...)`},
+	{"ExecSpec without Args", `var _ = evo.ExecSpec{Executable: "go"}`, `with Argv: []string{"go"}`},
+	{"ExecSpec keeps the field between", `func f(exe, d string, args []string) { _ = evo.ExecSpec{Executable: exe, Dir: d, Args: args} }`, `with Argv: append([]string{exe}, args...), Dir: d`},
 	{"Title option", `var _ = evo.Title("tool")`, `Name: "tool"`},
 	{"To option", `func f(w io.Writer) { _ = evo.To(w) }`, `Facades: evo.Facades{Stdout: w}`},
 	{"Plain option", `var _ = evo.Plain()`, `Output: evo.Plain`},
@@ -126,6 +130,21 @@ func TestAPI032_DoneInsideOwnDefineDropsTheCall(t *testing.T) {
 `)
 	if got := joinSuggestions(findAPI032(review.GoSource("p.go", src))); !strings.Contains(got, `replace scan.Done("7 repos") with scan.Summary("7 repos")`) {
 		t.Fatalf("suggestion = %q", got)
+	}
+}
+
+// The Argv rewrite is on the first review of a 1.x program, before its import
+// path is migrated, not only once the program imports 2.0.
+func TestAPI032_ExecSpecArgvRewriteComesWithTheOneXImport(t *testing.T) {
+	src := `package p
+
+import evo "github.com/zachbornheimer/evident-output"
+
+func f(exe string, args []string) { _ = evo.ExecSpec{Executable: exe, Args: args} }
+`
+	got := joinSuggestions(findAPI032(review.GoSource("p.go", src)))
+	if want := `replace Executable: exe, Args: args with Argv: append([]string{exe}, args...)`; !strings.Contains(got, want) {
+		t.Fatalf("want a suggestion containing %q, got %q", want, got)
 	}
 }
 

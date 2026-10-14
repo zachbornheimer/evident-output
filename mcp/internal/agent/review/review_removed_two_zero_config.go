@@ -112,6 +112,9 @@ func (d *removedTwoZeroDetector) inspectComposite(cl *ast.CompositeLit) {
 		d.inspectConfigOptions(cl)
 		return
 	}
+	if d.inspectExecSpec(cl) {
+		return
+	}
 	if !isOptionSliceLit(cl, d.pkg) {
 		return
 	}
