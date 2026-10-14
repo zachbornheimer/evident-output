@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"cmp"
 	"fmt"
 	"sync/atomic"
 
@@ -26,8 +27,8 @@ func (g *Graph) runGate(c *claim) {
 	panicked := runBuilder(c.work.Run)
 	g.lock()
 	defer g.unlock()
-	if panicked != nil || c.task.readRefusal.held() != nil {
-		g.failGateLocked(c.task, "")
+	if cause := cmp.Or(panicked, c.task.readRefusal.held()); cause != nil {
+		g.failGateLocked(c.task, cause.Error())
 		return
 	}
 	g.settleLocked(c.task, record.Succeeded)
