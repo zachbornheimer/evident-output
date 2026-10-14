@@ -365,3 +365,89 @@ func TestHeldRowFollowsItsNestedBlockNotTheRoot(t *testing.T) {
 		}
 	})
 }
+
+// TestPlainReheadsAnInterruptedNestedBlock pins that a streamed member reads
+// as its own collection's: when another collection's lines, or a line outside
+// any block, came since the block last wrote, the headers that attribute the
+// member are written again, outermost first. Indentation alone would hang
+// npm's late "b" under pip's members.
+func TestPlainReheadsAnInterruptedNestedBlock(t *testing.T) {
+	cleanCaches := func(t *testing.T) (b *blockRun, npmClosed, pipClosed *bool) {
+		b = newBlockRun(t)
+		b.collection("clean", false)
+		npmClosed = b.collectionIn("npm", "clean", false)
+		pipClosed = b.collectionIn("pip", "clean", false)
+		for _, id := range []string{"npm.a", "npm.b", "npm.c"} {
+			b.task(id, "npm")
+		}
+		for _, id := range []string{"pip.a", "pip.b"} {
+			b.task(id, "pip")
+		}
+		return b, npmClosed, pipClosed
+	}
+
+	t.Run("a sibling's lines between two members of a block", func(t *testing.T) {
+		b, npmClosed, pipClosed := cleanCaches(t)
+		b.settle("npm.a", record.Succeeded)
+		b.settle("pip.a", record.Succeeded)
+		*pipClosed = true
+		b.settle("pip.b", record.Succeeded)
+		b.settle("npm.b", record.Succeeded)
+		*npmClosed = true
+		b.settle("npm.c", record.Succeeded)
+
+		want := "◐ clean\n" +
+			"   ◐ npm\n" + "      ✓ npm.a\n" +
+			"   ◐ pip\n" + "      ✓ pip.a\n" + "      ✓ pip.b\n" +
+			"   ✓ pip\n" +
+			"   ◐ npm\n" + "      ✓ npm.b\n" + "      ✓ npm.c\n" +
+			"   ✓ npm\n"
+		if got := b.written(); got != want {
+			t.Fatalf("npm's late member is not attributed to npm:\n%s\nwant:\n%s", got, want)
+		}
+	})
+
+	t.Run("the member that settles the block reads under a running header, then the verdict", func(t *testing.T) {
+		b, npmClosed, _ := cleanCaches(t)
+		b.settle("npm.a", record.Succeeded)
+		b.settle("npm.b", record.Succeeded)
+		b.settle("pip.a", record.Succeeded)
+		*npmClosed = true
+		b.settle("npm.c", record.Succeeded)
+
+		want := "◐ clean\n" +
+			"   ◐ npm\n" + "      ✓ npm.a\n" + "      ✓ npm.b\n" +
+			"   ◐ pip\n" + "      ✓ pip.a\n" +
+			"   ◐ npm\n" + "      ✓ npm.c\n" + "   ✓ npm\n"
+		if got := b.written(); got != want {
+			t.Fatalf("the last late member is not attributed to npm:\n%s\nwant:\n%s", got, want)
+		}
+	})
+
+	t.Run("a line outside any block heads the whole chain again", func(t *testing.T) {
+		b, _, _ := cleanCaches(t)
+		b.settle("npm.a", record.Succeeded)
+		b.stream.Write("◐ elsewhere  still running\n")
+		b.settle("npm.b", record.Succeeded)
+
+		want := "◐ clean\n" +
+			"   ◐ npm\n" + "      ✓ npm.a\n" +
+			"◐ elsewhere  still running\n" +
+			"◐ clean\n" + "   ◐ npm\n" + "      ✓ npm.b\n"
+		if got := b.written(); got != want {
+			t.Fatalf("a member after an unrelated line is not attributed to its chain:\n%s\nwant:\n%s", got, want)
+		}
+	})
+
+	t.Run("members that follow their own block's lines are not headed again", func(t *testing.T) {
+		b, npmClosed, _ := cleanCaches(t)
+		b.settle("npm.a", record.Succeeded)
+		b.settle("npm.b", record.Succeeded)
+		*npmClosed = true
+		b.settle("npm.c", record.Succeeded)
+
+		if got := b.written(); strings.Count(got, "npm\n") != 2 || strings.Count(got, "clean\n") != 1 {
+			t.Fatalf("an uninterrupted block wrote a header again:\n%s", got)
+		}
+	})
+}

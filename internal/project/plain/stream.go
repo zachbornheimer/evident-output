@@ -46,6 +46,10 @@ type Stream struct {
 	// held are the root rows waiting on a block they ran After (see
 	// block_stream.go).
 	held []*row
+	// tail is the block the last line written belonged to, nil when it was
+	// a root row, a heartbeat or any other line outside a block's body; the
+	// closing row of a nested block belongs to the block above it.
+	tail *block
 }
 
 // Config is what a Stream writes and how.
@@ -176,6 +180,12 @@ func (s *Stream) Declare(t Declared) {
 // is held and prints in arrival order once the last window closes, so a
 // sibling's row never lands inside a Confirm prompt.
 func (s *Stream) Write(text string) {
+	s.tail = nil
+	s.write(text)
+}
+
+// write is Write for lines of a streamed block, which track s.tail themselves.
+func (s *Stream) write(text string) {
 	if !s.count(text) || s.cfg.Region.Hold(text) {
 		return
 	}
@@ -196,6 +206,7 @@ func (s *Stream) WritePayload(text string) bool {
 // (Confirm's prompt and its answer row): the window exists to show exactly
 // this, so it is never held.
 func (s *Stream) WriteOwner(text string) {
+	s.tail = nil
 	if s.count(text) {
 		s.Emit(text)
 	}

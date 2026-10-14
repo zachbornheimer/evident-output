@@ -133,21 +133,56 @@ func (s *Stream) reopen(b *block) {
 	}
 }
 
-// openChain writes the headers of b and the collections above it that have
-// none yet, outermost first.
+// openChain writes the headers a line of b needs to read as b's: the chain
+// of collections above it, outermost first, from the first one the last
+// line written does not already sit under. A block whose lines another
+// block's, a root row's or a heartbeat's interrupted heads again, so
+// indentation never attributes a member to the wrong collection.
 func (s *Stream) openChain(out *strings.Builder, b *block) {
-	if b.headed {
-		return
+	var chain []*block
+	for c := b; c != nil; c = c.parent {
+		chain = append(chain, c)
 	}
-	if b.parent != nil {
-		s.openChain(out, b.parent)
+	slices.Reverse(chain)
+	diverged := false
+	for _, c := range chain {
+		if !diverged && c.headed && s.tailIsUnder(c) {
+			continue
+		}
+		diverged = true
+		s.writeHeader(out, c)
 	}
+}
+
+// tailIsUnder reports that the last line written belongs to b or to a
+// collection inside it, so b's next member needs no header above it.
+func (s *Stream) tailIsUnder(b *block) bool {
+	for c := s.tail; c != nil; c = c.parent {
+		if c == b {
+			return true
+		}
+	}
+	return false
+}
+
+// writeHeader writes b's header at its depth. The first one registers b to
+// be closed. A repeat after an interruption only restates where b is, so it
+// reads as running: the closing row, not a header above its members, says
+// the verdict.
+func (s *Stream) writeHeader(out *strings.Builder, b *block) {
 	header := s.cfg.Source.Header(b.id)
 	header.Summary = ""
+	if b.headed {
+		header.State = record.Running
+	}
 	var line strings.Builder
 	writeCollectionHeader(&line, header, s.cfg.Style)
 	b.opening = line.String()
 	indentInto(out, b.opening, b.depth)
+	s.tail = b
+	if b.headed {
+		return
+	}
 	b.headed = true
 	b.root.unclosed = append(b.root.unclosed, b)
 	s.enqueue(b.root)
@@ -158,6 +193,7 @@ func (s *Stream) writeMember(out *strings.Builder, r *row) {
 	var line strings.Builder
 	project.ChildRow(s.cfg.Source.Snapshot(r.ID), 0).Write(&line, s.cfg.Style)
 	indentInto(out, line.String(), r.block.depth)
+	s.tail = r.block
 	r.emitted, r.emittedAs = true, r.Rec.State()
 }
 
@@ -215,6 +251,7 @@ func (s *Stream) writeClose(out *strings.Builder, b *block) {
 		line.Reset()
 	}
 	indentInto(out, line.String(), b.depth)
+	s.tail = b.parent
 	b.closed, b.root.written = true, true
 }
 
@@ -303,12 +340,13 @@ func (s *Stream) releaseHeld() {
 	}
 }
 
-// emit writes the text out holds as durable rows.
+// emit writes the text out holds as durable rows. It already moved s.tail
+// along the lines it appended, so it writes without resetting it.
 func (s *Stream) emit(out *strings.Builder) {
 	if out.Len() == 0 {
 		return
 	}
-	s.Write(out.String())
+	s.write(out.String())
 	s.cfg.Region.Refresh()
 }
 

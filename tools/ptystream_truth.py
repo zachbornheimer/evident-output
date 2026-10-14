@@ -108,75 +108,59 @@ def _rows(raw: Iterable[str]) -> list[Row]:
     return rows
 
 
-def _closings(rows: Sequence[Row]) -> dict[int, int]:
-    """Index of each ``◐`` header to the row that closes its block, in one pass.
-
-    A block's closing row has the header's depth and name and a final glyph, and
-    every row between them is a member (deeper). A ``◐`` row with no such row is a
-    heartbeat for a long Task, not a block, and is absent from the result.
-    """
-    closing: dict[int, int] = {}
-    open_headers: list[int] = []
-    for index, row in enumerate(rows):
-        while open_headers and (
-            rows[open_headers[-1]].depth > row.depth
-            or (
-                rows[open_headers[-1]].depth == row.depth
-                and rows[open_headers[-1]].name != row.name
-            )
-        ):
-            open_headers.pop()
-        if row.text[:1] == PROGRESS:
-            open_headers.append(index)
-        elif row.text[:1] in FINAL:
-            while open_headers and rows[open_headers[-1]].depth == row.depth:
-                closing[open_headers.pop()] = index
-    return closing
-
-
-def _settle_blocks(rows: Sequence[Row]) -> list[Row]:
-    """Rows with each streamed block in its settled form: the closing verdict, then the members.
-
-    Plain streams a block that outlasts its grace as ``◐ name``, its members as
-    they settle, then the verdict. The Human final screen shows the verdict first.
-    Heartbeat ``◐`` rows are dropped.
-    """
-    closing = _closings(rows)
-    settled: list[Row] = []
-    index = 0
-    while index < len(rows):
-        row = rows[index]
-        if row.text[:1] != PROGRESS:
-            settled.append(row)
-            index += 1
-            continue
-        close = closing.get(index)
-        if close is None:
-            index += 1
-            continue
-        settled.append(rows[close]._replace(streamed=True))
-        settled.extend(_settle_blocks(rows[index + 1 : close]))
-        index = close + 1
-    return settled
-
-
 class _Node:
     def __init__(self, row: Row, path: tuple[str, ...]) -> None:
         self.row, self.path = row, path
         self.children: list[_Node] = []
+        self.open = False
 
 
 def _tree(rows: Sequence[Row]) -> list[_Node]:
-    """Rows nested by depth; each node knows its path of names from the root."""
+    """Rows nested by depth, each streamed block in its settled form.
+
+    Plain streams a block that outlasts its grace as ``◐ name``, its members as
+    they settle, then the closing verdict; the Human final screen shows the
+    verdict first. A block whose members another block's lines interrupted heads
+    again (``◐ name`` at the same depth under the same parent), so every header
+    of one name under one parent is one block: it takes the place of its first
+    header, the members of all its stretches, and the closing verdict as its row.
+    A ``◐`` row no verdict closes is a heartbeat for a long Task and is dropped,
+    its members, if any, staying where they were. Each node knows its path of
+    names from the root, so a member's parent is part of what a row is.
+    """
     roots: list[_Node] = []
     stack: list[_Node] = []
+    blocks: dict[tuple[tuple[str, ...], str], _Node] = {}
     for row in rows:
         del stack[row.depth :]
         parent = stack[-1] if stack else None
-        node = _Node(row, (parent.path if parent else ()) + (row.name,))
-        (parent.children if parent else roots).append(node)
+        path = parent.path if parent else ()
+        key = (path, row.name)
+        glyph = row.text[:1]
+        node = blocks.get(key) if glyph == PROGRESS or glyph in FINAL else None
+        if node is None:
+            node = _Node(row, path + (row.name,))
+            node.open = glyph == PROGRESS
+            (parent.children if parent else roots).append(node)
+            if node.open:
+                blocks[key] = node
+        elif glyph in FINAL:
+            node.row, node.open = row._replace(streamed=True), False
+            del blocks[key]
         stack.append(node)
-    return roots
+    return _without_heartbeats(roots)
+
+
+def _without_heartbeats(nodes: Iterable[_Node]) -> list[_Node]:
+    """The nodes without the ``◐`` rows no verdict closed, their members kept in place."""
+    kept: list[_Node] = []
+    for node in nodes:
+        node.children = _without_heartbeats(node.children)
+        if node.open:
+            kept.extend(node.children)
+        else:
+            kept.append(node)
+    return kept
 
 
 def _paths(nodes: Iterable[_Node]) -> set[tuple[str, ...]]:
@@ -202,7 +186,7 @@ def _flatten(nodes: Iterable[_Node], streamed: set[tuple[str, ...]]) -> list[str
 
 def streamed_blocks(plain_rows: Iterable[str]) -> set[tuple[str, ...]]:
     """The paths of the containers Plain wrote as a streamed block."""
-    return _paths(_tree(_settle_blocks(_rows(plain_rows))))
+    return _paths(_tree(_rows(plain_rows)))
 
 
 def normalize_rows(
@@ -216,7 +200,7 @@ def normalize_rows(
     block named in ``streamed`` compare sorted. Rows keep their depth as indentation.
     Everything else compares in order, so a row printed above its cause still fails.
     """
-    nodes = _tree(_settle_blocks(_rows(rows)))
+    nodes = _tree(_rows(rows))
     return _flatten(nodes, streamed if streamed is not None else _paths(nodes))
 
 
@@ -226,7 +210,9 @@ def check_final_matches_plain(
     """The last pty frame holds the Plain run's final rows, in order, and the exit codes agree.
 
     The sorted comparison runs first so a missing or extra row gets its specific
-    diagnostic. Only when the row sets match is the order checked, row by row.
+    diagnostic. Only when the row sets match is the order checked, row by row. The
+    rows are walked as a tree (a block's members sit under their own header), so a
+    late member Plain wrote under another block's lines is a different row order.
     """
     if screen_exit != plain_exit:
         raise TruthError(f"pty run exit {screen_exit}, Plain run exit {plain_exit}")

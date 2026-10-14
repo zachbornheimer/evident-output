@@ -107,6 +107,50 @@ class FinalMatchesPlainTest(unittest.TestCase):
         )
         truth.check_final_matches_plain(screen, 0, plain, 0)
 
+    NEST_SCREEN = (
+        "✓ clean caches",
+        "   ✓ npm",
+        "      ✓ a",
+        "      ✓ b",
+        "   ✓ pip",
+        "      ✓ a",
+        "      ✓ b",
+    )
+
+    def test_a_block_that_heads_again_after_an_interruption_is_one_block(self) -> None:
+        plain = (
+            "◐ clean caches",
+            "   ◐ npm",
+            "      ✓ a",
+            "   ◐ pip",
+            "      ✓ a",
+            "      ✓ b",
+            "   ✓ pip",
+            "   ◐ npm",
+            "      ✓ b",
+            "   ✓ npm",
+            "✓ clean caches",
+        )
+        truth.check_final_matches_plain(frame(*self.NEST_SCREEN), 0, plain, 0)
+
+    def test_rejects_a_late_member_written_under_the_block_before_it(self) -> None:
+        plain = (
+            "◐ clean caches",
+            "   ◐ npm",
+            "      ✓ a",
+            "   ◐ pip",
+            "      ✓ a",
+            "      ✓ b",
+            "   ✓ pip",
+            "      ✓ b",
+            "   ✓ npm",
+            "✓ clean caches",
+        )
+        with self.assertRaisesRegex(
+            truth.TruthError, r"row 3.*screen '      ✓ b'.*Plain '   ✓ pip'"
+        ):
+            truth.check_final_matches_plain(frame(*self.NEST_SCREEN), 0, plain, 0)
+
     def test_an_unstreamed_container_keeps_its_member_order(self) -> None:
         plain = ("✓ seq", "   ✓ one", "   ✓ two")
         screen = frame("✓ seq", "   ✓ two", "   ✓ one")
