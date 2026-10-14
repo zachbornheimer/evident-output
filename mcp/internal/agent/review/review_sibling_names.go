@@ -183,11 +183,18 @@ type taskCallSite struct {
 	pos     token.Pos
 }
 
+// detectRedeclaredTaskLiteral compares Task declarations within one function
+// body only: a nested function literal is a body of its own (forEachFuncBody
+// visits it separately), so the run bodies of a table of RunFuncs, each
+// declaring r.Task("build"), never read as one redeclaration.
 func detectRedeclaredTaskLiteral(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	forEachFuncBody(file, func(body *ast.BlockStmt) {
 		seen := map[string]token.Pos{}
 		ast.Inspect(body, func(n ast.Node) bool {
+			if lit, nested := n.(*ast.FuncLit); nested && lit.Body != body {
+				return false
+			}
 			site, ok := taskCallSiteAt(n)
 			if !ok {
 				return true
