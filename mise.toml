@@ -120,8 +120,39 @@ description = "Build, vet, and test the mcp module so a green ci proves both mod
 dir = "mcp"
 run = "go build ./... && go vet ./... && go test ./..."
 
+[tasks.perf]
+description = "Wall-time and bytes/op bounds recorded on the maintainer's machine (EVO_PERF_BASELINE=1); inside ci it waits for the other gates so their load cannot skew the timing"
+env = { EVO_PERF_BASELINE = "1" }
+wait_for = [
+  "lint",
+  "test",
+  "ci-mcp",
+  "scan",
+  "conformance",
+  "traceability",
+  "api-contract",
+  "spec-ratchet",
+  "red-proof",
+]
+run = "go test . -run '^(TestGroup1kPlainWallTimeWithinTwentyPercentOfV1|TestGroup1kPlainBytesPerOpUnderV1)$' -count=1 -v"
+
 [tasks.ci]
-description = "Full gate: lint + test + scan + conformance + traceability + api-contract + spec-ratchet + red-proof + v0.6/1.0 acceptance (increments 1-3)"
+description = "Full local gate: ci-hosted's checks + perf (machine-specific baselines)"
+depends = [
+  "lint",
+  "test",
+  "ci-mcp",
+  "scan",
+  "conformance",
+  "traceability",
+  "api-contract",
+  "spec-ratchet",
+  "red-proof",
+  "perf",
+]
+
+[tasks.ci-hosted]
+description = "ci without perf: what a CI runner can prove (its hardware is not the baseline's); GitHub Actions runs this"
 depends = [
   "lint",
   "test",

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"testing"
 	"time"
 
@@ -118,12 +119,21 @@ const group1kRunsPerSample = 10
 // burst only ever adds time, so a regression is a bound that none of them meet.
 const group1kMaxSamples = 4 * scaletest.CheapSamples
 
+// perfBaselineEnv names the switch that says the host is the one
+// v1GroupNsPerOp was recorded on, or as fast: `mise run perf` sets it.
+const perfBaselineEnv = "EVO_PERF_BASELINE"
+
 // TestGroup1kPlainWallTimeWithinTwentyPercentOfV1 holds the 1,000-Task Plain
 // Group to the wall time v1.0.0 took for it, v1GroupNsPerOp, plus the
-// margin. The fastest sample is the estimate: host load only adds time. A busy
-// host skips, because the baseline was recorded on a quiet one; the race
-// detector skips, because it slows every Task.
+// margin. An absolute wall time means something only on the host that
+// recorded it, so the test runs only where perfBaselineEnv is set. The fastest
+// sample is the estimate: host load only adds time. A busy host skips,
+// because the baseline was recorded on a quiet one; the race detector skips,
+// because it slows every Task.
 func TestGroup1kPlainWallTimeWithinTwentyPercentOfV1(t *testing.T) {
+	if os.Getenv(perfBaselineEnv) != "1" {
+		t.Skip("machine-specific baseline; run via mise run perf")
+	}
 	if scaletest.RaceDetector {
 		t.Skip("the race detector slows every Task several times over; the plain run enforces the v1.0.0 bound")
 	}

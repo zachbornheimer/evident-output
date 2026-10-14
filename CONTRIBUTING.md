@@ -19,10 +19,13 @@ git commit -s -m "feat: your change"
 
 ## CI
 
-`mise run ci` is the gate. GitHub Actions (`.github/workflows/ci.yml`) runs it
-on `main` pushes and pull requests with the toolchain pinned in `mise.toml`.
+`mise run ci` is the gate. It is `mise run ci-hosted` plus `mise run perf`,
+the wall-time bounds recorded on the maintainer's machine (`EVO_PERF_BASELINE=1`;
+plain `go test ./...` skips them). GitHub Actions (`.github/workflows/ci.yml`)
+runs `ci-hosted` on `main` pushes and pull requests with the toolchain pinned
+in `mise.toml`, because a hosted runner is not the baseline's hardware.
 
-- `gate`: `mise run ci` on the pinned Go, plus the nested `eval/` module tests.
+- `gate`: `mise run ci-hosted` on the pinned Go, plus the nested `eval/` module tests.
 - `min-go`: build, vet, and test on the Go version in `go.mod` (no lint).
 - `cross`: library build for linux, darwin, and windows.
 
