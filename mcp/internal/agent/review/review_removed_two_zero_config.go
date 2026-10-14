@@ -130,6 +130,7 @@ func (d *removedTwoZeroDetector) inspectComposite(cl *ast.CompositeLit) {
 // already set: a partial rewrite would silently drop the rest, and a repeated
 // field does not compile.
 func (d *removedTwoZeroDetector) inspectConfigOptions(cl *ast.CompositeLit) {
+	d.reportConfigFields(cl)
 	set := map[string]bool{}
 	for _, elt := range cl.Elts {
 		if kv, ok := elt.(*ast.KeyValueExpr); ok {

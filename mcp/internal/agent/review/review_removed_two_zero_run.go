@@ -30,12 +30,31 @@ func (d *removedTwoZeroDetector) inspectResultExitCode(sel *ast.SelectorExpr) {
 		"replace "+d.nodeSrc(sel)+" with "+d.nodeSrc(conclusion.X)+".ExitCode()")
 }
 
+// outputRunMethods are the Output methods whose 2.0 spelling is the same
+// method of the *evo.Run (Output is the 1.x hosted form of what Run now is).
+var outputRunMethods = map[string]bool{"Fact": true, "Confirm": true, "ResultWriter": true, "Suspend": true}
+
 // reportRunMethod migrates a package-level call that is a method of the
 // *evo.Run in 2.0, keeping its arguments.
 func (d *removedTwoZeroDetector) reportRunMethod(call *ast.CallExpr, name string) {
-	run := d.runVarAt(call)
 	d.report(call, d.pkg+"."+name+" was removed in 2.0; "+name+" is a method of the *"+d.pkg+".Run that run receives",
-		"replace "+d.nodeSrc(call)+" with "+run+"."+name+"("+d.callArgsSrc(call.Args)+")")
+		"replace "+d.nodeSrc(call)+" with "+d.runMethodSpelling(call, name))
+}
+
+// reportOutputRunMethod is reportRunMethod for a call on an *Output.
+func (d *removedTwoZeroDetector) reportOutputRunMethod(call *ast.CallExpr, name string) {
+	d.report(call, removedPhrase(outputReceiver, name)+"; "+name+" is a method of the *"+d.pkg+".Run that run receives",
+		"replace "+d.nodeSrc(call)+" with "+d.runMethodSpelling(call, name))
+	d.cover(call)
+}
+
+// runMethodSpelling is the call as a method of the run in scope.
+func (d *removedTwoZeroDetector) runMethodSpelling(call *ast.CallExpr, name string) string {
+	run := d.runVarAt(call)
+	if name == "Confirm" {
+		return d.confirmCallSpelling(call, run)
+	}
+	return run + "." + name + "(" + d.callArgsSrc(call.Args) + ")"
 }
 
 // reportNonInteractive migrates PolicyFlag, the option that named the flag

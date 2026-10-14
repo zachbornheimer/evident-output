@@ -51,6 +51,9 @@ func (d *removedTwoZeroDetector) inspectOutputCall(call *ast.CallExpr, sel *ast.
 	case printFuncs[name] != "":
 		d.reportPrint(call, "Output."+name, d.runVarAt(call), name)
 		return
+	case outputRunMethods[name]:
+		d.reportOutputRunMethod(call, name)
+		return
 	case d.isExecutingRun(call):
 		d.reportExecuteCall(call, "Output.Run")
 		return
@@ -87,13 +90,32 @@ func (d *removedTwoZeroDetector) reportRemedyMethod(call *ast.CallExpr, recv rem
 	if len(call.Args) == 0 {
 		return
 	}
-	action := d.callArgsSrc(call.Args)
-	option := d.pkg + ".Next(" + d.pkg + ".Action{Label: " + action + "})"
-	if name == "NextCommand" {
-		option = d.nextAction(call)
+	options := []string{d.nextAction(call)}
+	if name == "Next" {
+		options = options[:0]
+		for _, arg := range call.Args {
+			options = append(options, d.remedyOption(arg))
+		}
 	}
 	d.guide(call, recv, name, "a remedy is an option of the ending it explains",
-		"delete this call and pass "+option+" to the "+d.pkg+".Fail, "+d.pkg+".Refuse or Task.Problem call that explains it")
+		"delete this call and pass "+strings.Join(options, ", ")+" to the "+d.pkg+".Fail, "+d.pkg+".Refuse or Task.Problem call that explains it")
+}
+
+// remedyOption is one argument of a removed Next as the evo.Next option 2.0
+// takes: an Action (evo.Command or evo.Label, or a value the program already
+// holds) or a string literal, which is a label.
+func (d *removedTwoZeroDetector) remedyOption(arg ast.Expr) string {
+	for _, constructor := range []string{"Command", "Label"} {
+		if call, ok := d.isEvoCall(arg, constructor); ok {
+			if action, ok := d.valueCallSpelling(call, constructor); ok {
+				return d.pkg + ".Next(" + action + ")"
+			}
+		}
+	}
+	if _, ok := stringLit(arg); ok {
+		return d.pkg + ".Next(" + d.pkg + ".Action{Label: " + d.nodeSrc(arg) + "})"
+	}
+	return d.pkg + ".Next(" + d.nodeSrc(arg) + ")"
 }
 
 func (d *removedTwoZeroDetector) guide(call *ast.CallExpr, recv removedReceiver, name, instead, guidance string) {
@@ -155,7 +177,8 @@ func (d *removedTwoZeroDetector) allEvoCalls(args []ast.Expr) bool {
 }
 
 // problemOption is a 1.x option as the 2.0 Problem takes it: NextCommand
-// becomes Next, Cause becomes Detail, and Severity (2.0 has none) is dropped.
+// becomes Next, Cause becomes Detail, Location becomes On, Count becomes
+// Detail, and Severity (2.0 has none) is dropped.
 func (d *removedTwoZeroDetector) problemOption(e ast.Expr) (string, bool) {
 	if call, ok := d.isEvoCall(e, "NextCommand"); ok {
 		return d.nextAction(call), true
@@ -166,14 +189,23 @@ func (d *removedTwoZeroDetector) problemOption(e ast.Expr) (string, bool) {
 	if _, ok := d.isEvoCall(e, "Severity"); ok {
 		return "", false
 	}
+	for name := range removedValueCalls {
+		if call, ok := d.isEvoCall(e, name); ok && name != "Command" && name != "Label" {
+			if spelling, ok := d.valueCallSpelling(call, name); ok {
+				return spelling, true
+			}
+		}
+	}
 	return d.nodeSrc(e), true
 }
 
 // reportKept is guidance, not an edit: work already in place is a Verify the
-// Task declares before Define, which the call's position cannot supply.
+// Task declares before Define, which the call's position cannot supply, and a
+// Define that does the work when the Verify sees it is not in place.
 func (d *removedTwoZeroDetector) reportKept(call *ast.CallExpr, sel *ast.SelectorExpr) {
 	d.guide(call, taskReceiver, "Kept", "work already in place is Task.Verify, which resolves the Task Satisfied without running Define",
-		"delete this call and declare "+d.recvSrc(sel.X)+".Verify(func(ctx context.Context) (bool, error) { return <already in place>, nil }) before Define")
+		"delete this call and declare "+d.recvSrc(sel.X)+".Verify(func(ctx context.Context) (bool, error) { return <already in place>, nil }) "+
+			"and "+d.recvSrc(sel.X)+".Define(func(ctx context.Context) error { <do the work when it is not in place> }), Verify first")
 }
 
 // excludeArgs is the arguments of a Skipped call as evo.Exclude takes them:

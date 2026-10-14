@@ -107,33 +107,47 @@ func (d *removedTwoZeroDetector) noteRunCallback(arg ast.Expr) {
 }
 
 // configFromLiteral is a 1.x Config literal as 2.0 spells it: Title becomes
-// Name and Options become the fields they stand for.
+// Name, Options become the fields they stand for, the stream and state fields
+// join the Facades and State structs, and a field with no 2.0 field is left
+// out (reportDroppedConfigFields words where it goes).
 func (d *removedTwoZeroDetector) configFromLiteral(cl *ast.CompositeLit) string {
-	set := map[string]bool{}
-	for _, elt := range cl.Elts {
-		if kv, ok := elt.(*ast.KeyValueExpr); ok {
-			set[identName(kv.Key)] = true
-		}
-	}
+	set := configKeys(cl)
 	var fields []string
 	for _, elt := range cl.Elts {
 		kv, ok := elt.(*ast.KeyValueExpr)
-		switch {
-		case !ok:
+		if !ok {
 			fields = append(fields, d.nodeSrc(elt))
-		case identName(kv.Key) == "Title":
-			fields = append(fields, "Name: "+d.nodeSrc(kv.Value))
-		case identName(kv.Key) == "Options":
+			continue
+		}
+		key := identName(kv.Key)
+		_, moved := configKeyMoves[key]
+		_, gone := configKeyGone[key]
+		switch {
+		case moved || gone:
+		case key == "Options":
 			if slice, ok := kv.Value.(*ast.CompositeLit); ok {
-				if mapped, ok := d.optionSliceFields(slice, set); ok {
+				if mapped, ok := d.optionSliceFields(slice, setNames(set)); ok {
 					fields = append(fields, mapped)
 				}
 			}
+		case configKeyRenames[key] != "" && (key == "Title" || set[configKeyRenames[key]] == nil):
+			fields = append(fields, configKeyRenames[key]+": "+d.nodeSrc(kv.Value))
+		case configKeyRenames[key] != "":
 		default:
 			fields = append(fields, d.nodeSrc(elt))
 		}
 	}
+	fields = append(fields, d.groupedConfigFields(cl)...)
 	return d.pkg + ".Config{" + strings.Join(fields, ", ") + "}"
+}
+
+// setNames is the set of keys of a Config literal's fields.
+func setNames(keys map[string]*ast.KeyValueExpr) map[string]bool {
+	set := make(map[string]bool, len(keys))
+	for key := range keys {
+		set[key] = true
+	}
+	return set
 }
 
 // configFromOptions is the Config the one-to-one Options stand for; an
@@ -225,6 +239,7 @@ func (d *removedTwoZeroDetector) recvSrc(x ast.Expr) string {
 func (d *removedTwoZeroDetector) inspectEntryCall(call *ast.CallExpr, name string) {
 	switch {
 	case name == "Init":
+		d.reportHostConfig(call)
 		stmt := d.entry.hostStmts[call]
 		if stmt == nil {
 			stmt = d.stmtOf(call)
@@ -243,6 +258,16 @@ func (d *removedTwoZeroDetector) inspectEntryCall(call *ast.CallExpr, name strin
 		d.cover(call)
 	case printFuncs[name] != "":
 		d.reportPrint(call, "evo."+name, d.runVarAt(call), name)
+	}
+}
+
+// reportHostConfig words the Config fields 2.0 has no field for in the
+// literal a removed Init call (removed in 2.0) is given.
+func (d *removedTwoZeroDetector) reportHostConfig(call *ast.CallExpr) {
+	if len(call.Args) == 1 {
+		if cl, ok := call.Args[0].(*ast.CompositeLit); ok {
+			d.reportDroppedConfigFields(cl)
+		}
 	}
 }
 

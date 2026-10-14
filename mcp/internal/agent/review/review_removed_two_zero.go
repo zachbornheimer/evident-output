@@ -132,6 +132,8 @@ func (d *removedTwoZeroDetector) inspectPackageCall(call *ast.CallExpr, name str
 		d.reportRunMethod(call, name)
 	case name == "PolicyFlag" && len(call.Args) == 1:
 		d.reportNonInteractive(call)
+	case removedValueCalls[name]:
+		d.inspectRemovedValueCall(call, name)
 	case supersededOptionFuncs[name]:
 		d.inspectOptionCall(call, name)
 	}
@@ -139,11 +141,7 @@ func (d *removedTwoZeroDetector) inspectPackageCall(call *ast.CallExpr, name str
 
 // nextAction is the 2.0 spelling of an evo.NextCommand(exe, args...) call.
 func (d *removedTwoZeroDetector) nextAction(call *ast.CallExpr) string {
-	command := "[]string{" + d.callArgsSrc(call.Args) + "}"
-	if call.Ellipsis.IsValid() && len(call.Args) > 1 {
-		command = "append([]string{" + d.nodeSrc(call.Args[0]) + "}, " + d.nodeSrc(call.Args[len(call.Args)-1]) + "...)"
-	}
-	return d.pkg + ".Next(" + d.pkg + ".Action{Command: " + command + "})"
+	return d.pkg + ".Next(" + d.actionLiteral(call) + ")"
 }
 
 func (d *removedTwoZeroDetector) isEvoCall(e ast.Expr, name string) (*ast.CallExpr, bool) {
