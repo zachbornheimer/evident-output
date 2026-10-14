@@ -82,7 +82,7 @@ func TestMigrations_Covers1_1Removals(t *testing.T) {
 		{"Failf", "Fail"},
 		{"Warn", "Problem"},
 		{"Step", "Progress"},
-		{"Kept", "Exclude"},
+		{"Kept", "Verify"},
 		{"Evidence", "Writer"},
 	}
 	rows := rules.Migrations()

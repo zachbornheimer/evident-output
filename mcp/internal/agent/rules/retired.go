@@ -91,7 +91,7 @@ var retiredSymbols = []RetiredSymbol{
 	{Contract: "Output.Next(", RemovedIn: RetiredRelease1_1, Replacement: "Task.Problem(summary, evo.Next(action)) on the Task the remedy explains"},
 	{Contract: "Output.NextCommand(", RemovedIn: RetiredRelease1_1, Replacement: "Task.Problem(summary, evo.Next(evo.Action{Command: []string{...}})) on the Task the remedy explains"},
 	{Contract: "TaskHandle.Step(", RemovedIn: RetiredRelease1_1, Replacement: "Task.Progress(completed, total).Doing(item)", Taught: apiSpelling("Step")},
-	{Contract: "TaskHandle.Kept(", RemovedIn: RetiredRelease1_1, Replacement: "return evo.Exclude(reason) for a policy exclusion; Task.Fact or Task.Summary for kept counts", Taught: apiSpelling("Kept")},
+	{Contract: "TaskHandle.Kept(", RemovedIn: RetiredRelease1_1, Replacement: "Task.Verify, which resolves the Task Satisfied without running it; Task.Fact or Task.Summary for kept counts", Taught: apiSpelling("Kept")},
 
 	// ZYS-1185: capture-meaning Evidence* names. Satisfaction-meaning
 	// EvidencePhase / TaskEvidence stay: Taught never uses a bare

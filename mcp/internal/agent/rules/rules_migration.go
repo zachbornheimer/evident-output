@@ -115,11 +115,11 @@ func Migrations() []MigrationRow {
 		},
 		{
 			From:    "task.Kept(reason)",
-			To:      "return evo.Exclude(reason) for a policy-excluded candidate; Fact/Summary for a kept count",
+			To:      "task.Verify(func(ctx context.Context) (bool, error) { ... }), which resolves the Task Satisfied without running it; Fact/Summary for a kept count",
 			RuleID:  "API-032",
 			Since:   "1.1.0",
 			Removed: true,
-			Notes:   "Kept was removed in 1.1; policy exclusion is evo.Exclude. Renderer copy like \"! kept N\" is not a live method",
+			Notes:   "Kept was removed in 1.1; work already in place is Task.Verify (Satisfied), and a policy exclusion is evo.Exclude. Renderer copy like \"! kept N\" is not a live method",
 		},
 		{
 			From:    "task.Evidence() / EvidenceOption / EvidenceStream* / MaxEvidenceBytes",

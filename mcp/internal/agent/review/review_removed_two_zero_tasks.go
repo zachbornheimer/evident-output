@@ -16,8 +16,10 @@ func (d *removedTwoZeroDetector) inspectTaskCall(call *ast.CallExpr, sel *ast.Se
 		d.reportReturnedEnding(call, name, "Refuse", "a precondition that stopped the work is evo.Refuse", d.endingArgs(call.Args, name == "Blockf"))
 	case "Fail", "Failf":
 		d.reportReturnedEnding(call, name, "Fail", "a failure is evo.Fail, returned from Define", d.endingArgs(call.Args, name == "Failf"))
-	case "Skipped", "Kept":
+	case "Skipped":
 		d.reportReturnedEnding(call, name, "Exclude", "a policy exclusion is evo.Exclude", d.excludeArgs(call.Args))
+	case "Kept":
+		d.reportKept(call, sel)
 	case "Warn":
 		d.reportWarn(call, sel)
 	case "Step":
@@ -140,8 +142,15 @@ func (d *removedTwoZeroDetector) problemOption(e ast.Expr) (string, bool) {
 	return d.nodeSrc(e), true
 }
 
-// excludeArgs is the arguments of a Skipped or Kept call as evo.Exclude
-// takes them: the reason text, unwrapped from evo.Reason.
+// reportKept is guidance, not an edit: work already in place is a Verify the
+// Task declares before Define, which the call's position cannot supply.
+func (d *removedTwoZeroDetector) reportKept(call *ast.CallExpr, sel *ast.SelectorExpr) {
+	d.guide(call, taskReceiver, "Kept", "work already in place is Task.Verify, which resolves the Task Satisfied without running Define",
+		"delete this call and declare "+d.nodeSrc(sel.X)+".Verify(func(ctx context.Context) (bool, error) { return <already in place>, nil }) before Define")
+}
+
+// excludeArgs is the arguments of a Skipped call as evo.Exclude takes them:
+// the reason text, unwrapped from evo.Reason.
 func (d *removedTwoZeroDetector) excludeArgs(args []ast.Expr) string {
 	if len(args) == 0 {
 		return `"reason"`

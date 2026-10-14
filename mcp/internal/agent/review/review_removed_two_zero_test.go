@@ -38,7 +38,7 @@ var removedArms = []removedArm{
 	},
 	{
 		"Kept", `func f(task *evo.TaskHandle, reason string) { task.Kept(reason) }`,
-		`return evo.Exclude(reason)`,
+		`task.Verify(func(ctx context.Context) (bool, error) { return <already in place>, nil })`,
 	},
 	{
 		"Warn drops Severity", `func f(task *evo.TaskHandle) { task.Warn("stale", evo.Severity(evo.SeverityWarning)) }`,

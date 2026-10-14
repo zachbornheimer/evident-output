@@ -107,7 +107,7 @@ func removedNameFixtures() map[string]removedName {
 		"TaskHandle.Step":   {evoBody("func f(task *evo.TaskHandle) {\n\ttask.Step(1, 3, \"file.go\")\n}\n"), `task.Progress(1, 3).Doing("file.go")`},
 		"TaskHandle.Kept": {
 			evoBody("func f(task *evo.TaskHandle, reason string) {\n\ttask.Kept(reason)\n}\n"),
-			`return evo.Exclude(reason)`,
+			`task.Verify(func(ctx context.Context) (bool, error) { return <already in place>, nil })`,
 		},
 		"Evidence":               {evoBody("func f(task *evo.TaskHandle) {\n\t_ = task.Evidence()\n}\n"), `task.Writer()`},
 		"Failure.Next":           {evoBody("func f(fail *evo.Failure) {\n\tfail.Next(evo.Label(\"retry\"))\n}\n"), "evo.Next(evo.Action{Label:"},
