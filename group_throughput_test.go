@@ -96,6 +96,27 @@ func TestGroup1kPlainBytesPerOpUnderV1(t *testing.T) {
 	}
 }
 
+// group1kAllocsPerOpBound is the allocation count 1,000 trivial Tasks in one
+// Plain Group may cost: round 6 measured 32.45k allocs/op, and 33.46k once a
+// per-Task closure crept in. The 250 of margin is a quarter of one allocation
+// per Task, so a single added per-Task allocation fails this bound.
+const group1kAllocsPerOpBound = 32_700
+
+// TestGroup1kPlainAllocsPerTaskUnderBound holds the 1,000-Task Plain Group to
+// its allocation count. Allocations per op do not depend on host load, so
+// this never skips for load; the race detector instruments allocations, so a
+// -race build skips and the plain run enforces the bound.
+func TestGroup1kPlainAllocsPerTaskUnderBound(t *testing.T) {
+	if scaletest.RaceDetector {
+		t.Skip("the race detector instruments allocations and inflates allocs/op; the plain run enforces the bound")
+	}
+	result := testing.Benchmark(BenchmarkGroup1kPlain)
+	if got := result.AllocsPerOp(); got > group1kAllocsPerOpBound {
+		t.Fatalf("1,000 trivial Tasks in one Plain Group made %d allocs/op (%.2f per Task), want <= %d",
+			got, float64(got)/group1kSize, int64(group1kAllocsPerOpBound))
+	}
+}
+
 // v1GroupNsPerOp is v1.0.0's BenchmarkGroup1kPlain wall time: 8.97 ms/op, the
 // median of twelve runs (8.76 to 9.54 ms) on an Apple M1 Max, ten cores,
 // Go 1.27.2, with the host's one-minute load average between 4.9 and 6.1.

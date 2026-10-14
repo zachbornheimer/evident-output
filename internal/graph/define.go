@@ -49,12 +49,15 @@ func Define[O any](g *Graph, t *Task, d Definition[O]) {
 // claimed, the callback with its checks, and the scheduler's settlement of
 // what it returned or how it panicked.
 func WorkOf[O any](g *Graph, t *Task, d Definition[O]) Work {
+	// A callback that panicked and one that left through Goexit end the same
+	// way, so they share one closure instead of costing a Task two.
+	failed := func(summary string) { g.fail(t, summary, "") }
 	return Work{
 		Started:  func() bool { return g.host.Started(t) },
 		Run:      func() error { return runDefinition(g, t, d) },
 		Observed: func(err error) { g.observed(t, err) },
-		Panicked: func(summary string) { g.fail(t, summary, "") },
-		Exited:   func(summary string) { g.fail(t, summary, "") },
+		Panicked: failed,
+		Exited:   failed,
 	}
 }
 
