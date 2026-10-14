@@ -1,6 +1,10 @@
 package project
 
-import "github.com/zachbornheimer/evident-output/v2/internal/record"
+import (
+	"slices"
+
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+)
 
 // A Group's own Task is its child Task named for the Group itself: the
 // Group's own work — classify, summarize, and Effect — as opposed to one
@@ -35,6 +39,29 @@ func hasOnlyChild(col record.TasksSnapshot) bool {
 // RendersAsOwnTask reports whether col renders as its own Task's row.
 func RendersAsOwnTask(col record.TasksSnapshot) bool {
 	return hasOnlyChild(col) && IsOwnTask(col.Name, &col.Tasks[0])
+}
+
+// SplitOwnTask folds col's own Task into col's row: it returns the Task and
+// col without it, so the Group prints its name once, carrying the Task's
+// outcome and summary, and its other items nest beneath that row. A Group
+// with a Summary of its own keeps it as its answer, and a Sequence keeps
+// its plain header, so neither folds.
+func SplitOwnTask(col record.TasksSnapshot) (own record.TaskSnapshot, rest record.TasksSnapshot, ok bool) {
+	if col.Sequential || col.Summary != "" {
+		return own, col, false
+	}
+	i := slices.IndexFunc(col.Tasks, func(t record.TaskSnapshot) bool { return IsOwnTask(col.Name, &t) })
+	if i < 0 {
+		return own, col, false
+	}
+	own, rest = col.Tasks[i], col
+	rest.Tasks = slices.Delete(slices.Clone(col.Tasks), i, i+1)
+	if tally, partial := ChildTallyOf(col); partial {
+		tally.All.Total--
+		tally.Rest.Total--
+		rest = WithChildTally(rest, tally)
+	}
+	return own, rest, true
 }
 
 // OwnTaskRowName reports the name a child collection renders its one row

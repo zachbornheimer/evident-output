@@ -416,7 +416,7 @@ and an `ExecSpec` with no `Argv`. The refused call's callback never runs. Other 
 - The live frame changes within 100ms of entering Running and at least every 100ms after, with a stable parent row and the current item beneath it.
 - One runtime truth drives Human, Plain, `evo.run` and `evo.event`; no projection invents state another lacks.
 - `evo.run` states only what happened: `definition_executed` is true for every Define callback that ran, including one that failed; `timing`, when present, is measured; `operations` and `basis` list what a Task's File and Exec calls did and read.
-- Facts are hidden at normal verbosity and always in machine output; collapse folds routine detail away but never a container's own row: a Group or Sequence whose members all succeed keeps its row with the members indented beneath it, in Human and Plain as `evo.run` nests them; passing verification is silent, failing verification is shown.
+- Facts are hidden at normal verbosity and always in machine output; collapse folds routine detail away but never a container's own row: a Group or Sequence whose members all succeed keeps its row with the members indented beneath it, in Human and Plain as `evo.run` nests them, and a container's own Task (the Task named for its Group) folds into that row rather than printing the name twice; passing verification is silent, failing verification is shown.
 - Per-item Excluded Tasks fold into one tally; per-item Effects with one Verb and Object fold into one counted row; JSON keeps every item.
 - Cancellation preserves committed truth and never implies rollback.
 - Misuse is recorded with a remedy, appears in `Result` as `Result.Err` and `Conclusion.Explanation`, and never crashes the program.

@@ -125,6 +125,6 @@ func TestLedgerFoldOwnTaskAndItemsShareOneSubject(t *testing.T) {
 			g.Task(fmt.Sprintf("b%d", i)).Define(effectOf(Delete, "branch", 1))
 		}
 	})
-	assertFrame(t, got, "✓ clean\n   ✓ branches\n      ✓ branches\n      ✓ b0\n      ✓ b1\n      ✓ b2\n\n"+
+	assertFrame(t, got, "✓ clean\n   ✓ branches\n      ✓ b0\n      ✓ b1\n      ✓ b2\n\n"+
 		"[changed] branches  deleted 1 worktree\n[changed] branches  deleted 3 branches\n\n[changed]  "+testProgramName+"\n")
 }

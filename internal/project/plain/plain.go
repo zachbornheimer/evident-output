@@ -98,9 +98,15 @@ func writeCollectionAligned(b *strings.Builder, col record.TasksSnapshot, nameWi
 		project.WriteTaskAligned(b, col.Tasks[0], nameWidth, s)
 		project.WriteDispositions(b, project.TaskAnnotationIndent, items, project.NoDisposition, s)
 	default:
-		writeCollectionHeader(b, col, s)
-		project.WriteDispositions(b, project.HeaderTallyIndent(col), items, project.NoDisposition, s)
-		writeCollectionBody(b, col, s)
+		body := col
+		if own, rest, folded := project.SplitOwnTask(col); folded {
+			project.FoldedGroupRow(own, col.State).Write(b, s)
+			body = rest
+		} else {
+			writeCollectionHeader(b, col, s)
+		}
+		project.WriteDispositions(b, project.HeaderTallyIndent(body), items, project.NoDisposition, s)
+		writeCollectionBody(b, body, s)
 	}
 }
 

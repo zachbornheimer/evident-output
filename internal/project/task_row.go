@@ -16,6 +16,9 @@ type TaskRow struct {
 	nameWidth int
 	prefix    string
 	nested    string
+	// glyphState, when set, is the state the row's glyph shows instead of
+	// the Task's: a Group's row that carries its own Task shows the Group's.
+	glyphState record.State
 }
 
 // RootRow is t as a row at the run's root (or flattened up to it).
@@ -26,6 +29,12 @@ func RootRow(t record.TaskSnapshot, nameWidth int) TaskRow {
 // ChildRow is t as a row under its Group's header.
 func ChildRow(t record.TaskSnapshot, nameWidth int) TaskRow {
 	return TaskRow{t: t, nameWidth: nameWidth, prefix: GroupChildIndent, nested: ProblemTreeIndent}
+}
+
+// FoldedGroupRow is a Group's row carrying its own Task: the Group's glyph
+// and name with the Task's outcome, summary and evidence.
+func FoldedGroupRow(own record.TaskSnapshot, group record.State) TaskRow {
+	return TaskRow{t: own, glyphState: group, nested: TaskAnnotationIndent}
 }
 
 // rowHead is what a row's own line settled on: its detail text, the
@@ -118,7 +127,11 @@ func (r TaskRow) writeLine(b *strings.Builder, head rowHead, s Style) {
 	if head.annotated {
 		width += taskNameColumnMargin
 	}
-	unit := DisplayUnit{Glyph: s.StateGlyph(r.t.State), Name: PadRight(r.t.Name, width), Detail: head.detail}
+	state := r.t.State
+	if r.glyphState != "" {
+		state = r.glyphState
+	}
+	unit := DisplayUnit{Glyph: s.StateGlyph(state), Name: PadRight(r.t.Name, width), Detail: head.detail}
 	b.WriteString(unit.Render(r.prefix))
 	b.WriteByte('\n')
 }

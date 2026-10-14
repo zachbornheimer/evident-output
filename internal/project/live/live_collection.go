@@ -77,12 +77,32 @@ func writeAlignedLiveCollection(b *strings.Builder, col record.TasksSnapshot, he
 		writeLiveDispositions(b, project.TaskAnnotationIndent, items, height-headerRows, st.Style)
 	default:
 		done, total = liveHeaderProgress(col, done, total)
-		b.WriteString(liveGroupHeader(col, done, total, st).Render(""))
-		b.WriteByte('\n')
-		tallyRows := writeLiveDispositions(b, project.HeaderTallyIndent(col), items, height-liveHeaderRows-minLiveChildRows, st.Style)
-		writeLiveBody(b, col, max(height-headerRows-tallyRows, minLiveChildRows+omissionRows), underHeader, st)
+		headRows, body := writeLiveGroupHead(b, col, done, total, st)
+		tallyRows := writeLiveDispositions(b, project.HeaderTallyIndent(body), items, height-headRows-omissionRows-minLiveChildRows, st.Style)
+		writeLiveBody(b, body, max(height-headRows-tallyRows, minLiveChildRows+omissionRows), underHeader, st)
 	}
 	return rowsSince(b, start)
+}
+
+// writeLiveGroupHead writes a Group's row, folding its own Task into it, and
+// reports the rows written and the Group's remaining body. While the own
+// Task runs or has failed its row is the Group's row, since its progress or
+// failure is what the reader needs; otherwise the Group's header carries the
+// Task's settled summary once no child is unresolved.
+func writeLiveGroupHead(b *strings.Builder, col record.TasksSnapshot, done, total int, st liveStyle) (rows int, body record.TasksSnapshot) {
+	unit := liveGroupHeader(col, done, total, st)
+	own, body, folded := project.SplitOwnTask(col)
+	switch {
+	case !folded:
+		body = col
+	case own.State == record.Running || own.State == record.Failed:
+		return writeLiveTaskLine(b, own, 0, 0, st), body
+	case unit.Detail == "":
+		unit.Detail = liveTaskUnit(own, 0, st).Detail
+	}
+	b.WriteString(unit.Render(""))
+	b.WriteByte('\n')
+	return headerRows, body
 }
 
 // writeLiveBody writes col's child Tasks, then its nested Groups, within
