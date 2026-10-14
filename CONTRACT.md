@@ -339,10 +339,10 @@ if !r.Confirm("delete 40 branches?", evo.Destructive(), evo.NonInteractive("--ye
 `Confirm` asks whenever stdin is a terminal, whatever the `Output`. When stdin
 is not a terminal nobody can answer, and the row is Refused
 "no terminal to answer" (never "blocked by policy", which is `Exclude`'s word).
-
-`Confirm` asks whenever stdin is a terminal, whatever the `Output`. When stdin
-is not a terminal nobody can answer, and the row is Refused
-"no terminal to answer" (never "blocked by policy", which is `Exclude`'s word).
+A character device that is not a terminal, such as `/dev/null`, is not a
+terminal. `NonInteractive` does not change the wording; it only names the
+flag the Next step points at. A test that must not depend on the process's
+stdin sets `Facades.Stdin` to a reader that is not a terminal.
 
 `Confirm` may be asked from the run body or from inside a `Define` callback.
 Either way it settles a row of its own named by the question: Succeeded on

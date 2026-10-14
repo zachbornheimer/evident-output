@@ -4,6 +4,8 @@ import (
 	"io"
 	"os"
 	"sync"
+
+	"golang.org/x/term"
 )
 
 // Driver is the exclusive owner of terminal control sequences. ANSI and
@@ -58,12 +60,12 @@ func IsCharDevice(w io.Writer) bool {
 	return ok && fileIsCharDevice(f)
 }
 
-// ReaderIsCharDevice reports whether r is an *os.File backed by a character
-// device: standard input a person types at. Pipes, files, and non-file
-// readers return false.
-func ReaderIsCharDevice(r io.Reader) bool {
+// ReaderIsTerminal reports whether r is an *os.File the OS reports as a
+// terminal: input a person types at. /dev/null is a character device but not
+// a terminal, so it, pipes, files, and non-file readers return false.
+func ReaderIsTerminal(r io.Reader) bool {
 	f, ok := r.(*os.File)
-	return ok && fileIsCharDevice(f)
+	return ok && term.IsTerminal(int(f.Fd()))
 }
 
 func fileIsCharDevice(f *os.File) bool {

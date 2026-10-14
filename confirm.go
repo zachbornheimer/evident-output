@@ -142,7 +142,7 @@ func (o *Run) ownWindow(id string, owns bool) {
 // personCanAnswer reports whether a person can type an answer: stdin is a terminal whatever the Output, or
 // the caller's Terminal facade is an interactive surface, whose keyboard is the Stdin facade (CONTRACT §5).
 func (o *Run) personCanAnswer() bool {
-	if terminal.ReaderIsCharDevice(o.confirmReader()) {
+	if terminal.ReaderIsTerminal(o.confirmReader()) {
 		return true
 	}
 	surface := live.SurfaceOf(o.cfg.terminal)

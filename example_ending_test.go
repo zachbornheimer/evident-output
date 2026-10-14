@@ -124,11 +124,14 @@ func ExampleDestructive() {
 	// confirmed: false
 }
 
-// NonInteractive names the flag that answers yes unattended; with no one to
-// ask, a declined Confirm is Refused and points the user at it.
+// NonInteractive names the flag that answers yes unattended; with no terminal
+// to answer, Confirm is Refused and points the user at it. Stdin is a reader
+// that is not a terminal, so the output is the same in CI and at a keyboard.
 func ExampleNonInteractive() {
 	var out bytes.Buffer
-	result := evo.Execute(context.Background(), quietRun(&out), func(ctx context.Context, r *evo.Run) error {
+	cfg := quietRun(&out)
+	cfg.Facades.Stdin = strings.NewReader("")
+	result := evo.Execute(context.Background(), cfg, func(ctx context.Context, r *evo.Run) error {
 		r.Confirm("delete 40 branches?", evo.NonInteractive("--yes"))
 		return nil
 	})
@@ -136,7 +139,7 @@ func ExampleNonInteractive() {
 	fmt.Print(out.String())
 	// Output:
 	// refused
-	// ⊘ delete 40 branches?  blocked by policy
+	// ⊘ delete 40 branches?  no terminal to answer
 	//
 	// [refused]  demo
 	// →  demo --yes

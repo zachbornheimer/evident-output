@@ -72,3 +72,28 @@ func TestConfirmWithoutATerminalRefusesWithNoTerminalToAnswer(t *testing.T) {
 		})
 	}
 }
+
+// TestConfirmTreatsANullDeviceAsNoTerminal pins CONTRACT section 5 against the CI shape: stdin redirected from
+// /dev/null is a character device but not a terminal, so nobody can answer and the gate refuses at once with
+// the no-terminal wording, never prompting and never reporting a closed stdin.
+func TestConfirmTreatsANullDeviceAsNoTerminal(t *testing.T) {
+	null, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatalf("open %s: %v", os.DevNull, err)
+	}
+	t.Cleanup(func() { _ = null.Close() })
+	var stderr bytes.Buffer
+	cfg := Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &stderr, Stdin: null}}
+	out := initRun(cfg, tuning{color: colorNever})
+
+	if out.Confirm("proceed?") {
+		t.Fatal("Confirm with /dev/null on stdin = true, want false")
+	}
+	item := out.snapshot().Tasks[0]
+	if len(item.Problems) == 0 || item.Problems[0].Summary != "no terminal to answer" {
+		t.Fatalf("problems = %+v, want summary %q", item.Problems, "no terminal to answer")
+	}
+	if strings.Contains(stderr.String(), "[y/N]") {
+		t.Fatalf("Confirm prompted with no one to answer:\n%s", stderr.String())
+	}
+}

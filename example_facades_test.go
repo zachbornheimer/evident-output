@@ -75,6 +75,8 @@ func ExampleFacades() {
 	fmt.Print(out.String())
 	// Output:
 	// ✓ check
+	//
+	// [succeeded]  tool
 }
 
 // A Clock is the time source. A test hands Evo one it can advance.
