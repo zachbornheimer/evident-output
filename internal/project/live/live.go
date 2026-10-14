@@ -279,11 +279,11 @@ func splitsActivityChild(t record.TaskSnapshot) bool {
 // promoting its only Running child) reuse the whole policy and re-label
 // just the name slot.
 func liveTaskUnit(t record.TaskSnapshot, indent int, st liveStyle) project.DisplayUnit {
-	glyph := project.TaskGlyph(t.State, st.Profile)
+	glyph := project.RowGlyph(t.State, t.Problems, st.Profile)
 	if t.State == record.Running {
 		glyph = st.spin
 	}
-	unit := project.DisplayUnit{Glyph: project.StyleGlyph(glyph, project.StateColor(t.State), st.Color), Name: t.Name}
+	unit := project.DisplayUnit{Glyph: project.StyleGlyph(glyph, project.RowColor(t.State, t.Problems), st.Color), Name: t.Name}
 	// Child rows pad their name to 9 for stable columns ("react" and
 	// "sharp" share alignment; "esbuild" fills the field); a standalone
 	// row keeps the bare name.

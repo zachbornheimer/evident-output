@@ -4,6 +4,29 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
+// carriesProblem reports a row that succeeded with a Problem recorded: its
+// "✓" would read as plain success beside its own Problem.
+func carriesProblem(state record.State, problems []record.Problem) bool {
+	return state.Succeeded() && len(problems) > 0
+}
+
+// RowGlyph is the glyph of a Task's row: its state's, except that a success
+// carrying a Problem draws the attention bang.
+func RowGlyph(state record.State, problems []record.Problem, profile GlyphProfile) string {
+	if carriesProblem(state, problems) {
+		return GlyphWarningState.Render(profile)
+	}
+	return TaskGlyph(state, profile)
+}
+
+// RowColor is the SGR code of RowGlyph's glyph.
+func RowColor(state record.State, problems []record.Problem) string {
+	if carriesProblem(state, problems) {
+		return SGRYellow
+	}
+	return StateColor(state)
+}
+
 // TaskGlyph maps a Task's state to its glyph in the given profile. Cancelled
 // gets its own face (GlyphCancelled) per the tightened vocabulary table —
 // it must be visually distinct from a task that never got attention.

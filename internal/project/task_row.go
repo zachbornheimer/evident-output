@@ -131,7 +131,7 @@ func (r TaskRow) writeLine(b *strings.Builder, head rowHead, s Style) {
 	if r.glyphState != "" {
 		state = r.glyphState
 	}
-	unit := DisplayUnit{Glyph: s.StateGlyph(state), Name: PadRight(r.t.Name, width), Detail: head.detail}
+	unit := DisplayUnit{Glyph: s.RowGlyph(state, r.t.Problems), Name: PadRight(r.t.Name, width), Detail: head.detail}
 	b.WriteString(unit.Render(r.prefix))
 	b.WriteByte('\n')
 }

@@ -16,7 +16,7 @@ func TestProblemWithSubjectPrintsHeadlineOnce(t *testing.T) {
 	}{
 		{"advisory Problem on a Done Task", func(r *Run) {
 			r.Task("audit").Problem("audit is advisory", On("audit.ok"), Code("advisory"))
-		}, "✓ audit  audit is advisory\n   └─ audit.ok\n"},
+		}, "! audit  audit is advisory\n   └─ audit.ok\n"},
 		{"failure", func(r *Run) {
 			r.Task("clean workspace").fail("permission denied", On("/var/cache"))
 		}, "✗ clean workspace  permission denied\n   └─ /var/cache\n"},

@@ -24,6 +24,11 @@ func (s Style) StateGlyph(state record.State) string {
 	return StyleGlyph(TaskGlyph(state, s.Profile), StateColor(state), s.Color)
 }
 
+// RowGlyph is a Task row's glyph in its color; see the package RowGlyph.
+func (s Style) RowGlyph(state record.State, problems []record.Problem) string {
+	return StyleGlyph(RowGlyph(state, problems, s.Profile), RowColor(state, problems), s.Color)
+}
+
 // WarningGlyph is the yellow attention bang ("!").
 func (s Style) WarningGlyph() string {
 	return StyleGlyph(GlyphWarningState.Render(s.Profile), SGRYellow, s.Color)

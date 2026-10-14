@@ -332,6 +332,20 @@ run that committed a mutation adds one line under the band,
 | `Failed`         | const | `Failed Outcome`; ran and failed; exit 2                                                         |
 | `Cancelled`      | const | `Cancelled Outcome`; interrupted; exit 130                                                       |
 
+A Task row leads with the glyph of its Outcome, in Human and Plain. ASCII
+locales draw the bracketed forms.
+
+| Glyph | Row                                                                     |
+| ----- | ----------------------------------------------------------------------- |
+| `✓`   | Succeeded or Satisfied, with no Problem recorded                        |
+| `!`   | Succeeded or Satisfied with a Problem recorded: attention, still exit 0 |
+| `✗`   | Failed                                                                  |
+| `⊘`   | Refused                                                                 |
+| `■`   | Cancelled                                                               |
+| `-`   | NotStarted                                                              |
+| `○`   | Excluded, or not yet running                                            |
+| `◐`   | running                                                                 |
+
 ## 5. Confirm
 
 ```go
