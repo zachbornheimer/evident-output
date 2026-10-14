@@ -13,7 +13,7 @@ import (
 // not consume stream numbers.
 func TestJSONLSeqIsContiguous(t *testing.T) {
 	var stream, human bytes.Buffer
-	o := newOutput("job", to(&human), maxConcurrency(2), wireFormatOption(formatJSONL), wireStreamOption(&stream))
+	o := newOutput("job", to(&human), maxConcurrency(2), wireFormatOption(JSONL), wireStreamOption(&stream))
 	o.debug("journal-only record")
 	for _, name := range []string{"a", "b", "c"} {
 		o.Task(name).succeed("")

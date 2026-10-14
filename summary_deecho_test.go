@@ -12,7 +12,7 @@ import (
 // nothing they didn't already see.
 func TestFail_NoDetail_DropsRedundantProblemRow(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	out.Task("build").fail("compile failed")
 	_ = out.finish()
@@ -31,7 +31,7 @@ func TestFail_NoDetail_DropsRedundantProblemRow(t *testing.T) {
 // carries it), with the same de-echo dropping the redundant problem row.
 func TestWarn_MessagePlacement_MatchesFailBlock(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	out.Task("optional tool").Problem("shellcheck not found", severity(severityWarning))
 	_ = out.finish()

@@ -11,7 +11,7 @@ import (
 
 func TestOUT021_DataProjectionOption(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := initRun(Config{stdout: &primary, stderr: &diag, color: colorNever, plain: true, format: formatData})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: &primary, Stderr: &diag}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("scan").Doing("walk"), "ok")
 	_ = out.finish()
@@ -27,11 +27,7 @@ func TestOUT021_DataProjectionOption(t *testing.T) {
 // surviving accessor); FormatExternal's "snapshots only" promise still
 // holds via that path.
 func TestAPI016_ExternalProjectionSnapshots(t *testing.T) {
-	out := initRun(Config{
-		format: formatExternal,
-		stdout: io.Discard,
-		stderr: io.Discard,
-	})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("x"))
 	_ = out.finish()
@@ -49,7 +45,7 @@ func TestAPI016_ExternalProjectionSnapshots(t *testing.T) {
 func TestProjection_StandaloneTaskPlainLiveParity(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	build := out.Task("build")

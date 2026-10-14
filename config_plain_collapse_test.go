@@ -13,7 +13,7 @@ import (
 // unified field) is most of the proof; it also checks the behavior holds.
 func TestConfig_Plain_DisablesLiveFrames(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, stderr: &buf, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}})
 
 	succeed(out.Task("build"))
 	if err := out.finish(); err != nil {

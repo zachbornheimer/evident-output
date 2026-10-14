@@ -19,7 +19,7 @@ const (
 // behind.
 func TestResultWriterPayloadSurvivesSharedTerminal(t *testing.T) {
 	pty := newPtyScreen(t)
-	out := initHostRun(Config{stdout: pty.Stdout, stderr: pty.Stderr, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: pty.Stdout, Stderr: pty.Stderr}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	var work []*Task

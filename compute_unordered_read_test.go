@@ -55,19 +55,19 @@ func TestCompute_UnorderedGetFailsRunInDefaultMode(t *testing.T) {
 // waited for it ever yields a value the callback can carry on with.
 func TestUnorderedGetIsRefusedInEveryMode(t *testing.T) {
 	const attempts = 20
-	modes := map[string]Config{
+	modes := map[string]runMode{
 		"default": {},
-		"strict":  {strict: true},
-		"dry run": {DryRun: true},
+		"strict":  {tune: tuning{strict: true}},
+		"dry run": {cfg: Config{DryRun: true}},
 	}
-	reads := map[string]func(*testing.T, Config){
+	reads := map[string]func(*testing.T, runMode){
 		"before the producer settles": assertUnorderedGetBeforeSettleUnwinds,
 		"after the producer settled":  assertUnorderedGetAfterSettleUnwinds,
 	}
 	for name, mode := range modes {
 		for when, assert := range reads {
 			t.Run(name+"/"+when, func(t *testing.T) {
-				mode.stdout, mode.plain = io.Discard, true
+				mode.cfg.Output, mode.cfg.Facades.Stderr = Plain, io.Discard
 				for range attempts {
 					assert(t, mode)
 				}
@@ -76,9 +76,15 @@ func TestUnorderedGetIsRefusedInEveryMode(t *testing.T) {
 	}
 }
 
-func assertUnorderedGetBeforeSettleUnwinds(t *testing.T, mode Config) {
+// runMode is one way to run: the Config and tuning a test builds the Run with.
+type runMode struct {
+	cfg  Config
+	tune tuning
+}
+
+func assertUnorderedGetBeforeSettleUnwinds(t *testing.T, mode runMode) {
 	t.Helper()
-	out := initRun(mode)
+	out := initRun(mode.cfg, mode.tune)
 	defer func() { _ = out.close() }()
 	release := make(chan struct{})
 	producer := Compute(out.Group("producers").Task("make"), func(context.Context) (int, error) {
@@ -98,9 +104,9 @@ func assertUnorderedGetBeforeSettleUnwinds(t *testing.T, mode Config) {
 
 // assertUnorderedGetAfterSettleUnwinds reads after the producer settled: the
 // callback proved settledness, not order, so Get still fails.
-func assertUnorderedGetAfterSettleUnwinds(t *testing.T, mode Config) {
+func assertUnorderedGetAfterSettleUnwinds(t *testing.T, mode runMode) {
 	t.Helper()
-	out := initRun(mode)
+	out := initRun(mode.cfg, mode.tune)
 	defer func() { _ = out.close() }()
 	made := out.Group("producers").Task("make")
 	producer := Compute(made, func(context.Context) (int, error) { return 1, nil })
@@ -208,7 +214,7 @@ func TestComputedGet_UnorderedCallbackReadingThroughAGrandchildGoroutineIsRefuse
 // ErrComputedUnordered instead of the whole process ending.
 func TestStrictSpawnedUnorderedReadFailsTheTaskInsteadOfEndingTheProcess(t *testing.T) {
 	if os.Getenv("EVO_STRICT_SPAWNED_CHILD") == "1" {
-		out := initRun(Config{stdout: io.Discard, plain: true, strict: true})
+		out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard}}, tuning{strict: true})
 		made := out.Group("producers").Task("make")
 		producer := Compute(made, func(context.Context) (int, error) { return 1, nil })
 		_ = made.wait()

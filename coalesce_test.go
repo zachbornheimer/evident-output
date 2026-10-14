@@ -11,7 +11,7 @@ import (
 
 func TestCoalesce_SingleMatchingChanges_SuppressesTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "librarian", color: colorNever, plain: true})
+	out := initRun(Config{Name: "librarian", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("librarian").Define(effectOf(Verb(change.EffectAdd), "file", 1))
@@ -34,7 +34,7 @@ func TestCoalesce_SingleMatchingChanges_SuppressesTrailingConclusion(t *testing.
 
 func TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "librarian", color: colorNever, plain: true, DryRun: true})
+	out := initRun(Config{Name: "librarian", DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("librarian").Define(effectOf(Update, "file", 1))
@@ -57,7 +57,7 @@ func TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion(t *testing.T) 
 // the per-section ledger rows already told the whole story.
 func TestCoalesce_DryRunPlannedWithHeader_SuppressesTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{DryRun: true, subject: "repo  /demo", stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{subtitle: "repo  /demo", color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	branches := out.Task("branches")
@@ -82,7 +82,7 @@ func TestCoalesce_DryRunPlannedWithHeader_SuppressesTrailingConclusion(t *testin
 // per-section ledger rows never show it.
 func TestCoalesce_DryRunWarned_KeepsTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{DryRun: true, subject: "repo  /demo", stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{subtitle: "repo  /demo", color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	branches := out.Task("branches")
@@ -101,7 +101,7 @@ func TestCoalesce_DryRunWarned_KeepsTrailingConclusion(t *testing.T) {
 
 func TestCoalesce_ChangedPlusFailure_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "librarian", color: colorNever, plain: true})
+	out := initRun(Config{Name: "librarian", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("librarian").Define(effectOf(Verb(change.EffectAdd), "file", 7))
@@ -120,7 +120,7 @@ func TestCoalesce_ChangedPlusFailure_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_MultipleChanges_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "tool", color: colorNever, plain: true})
+	out := initRun(Config{Name: "tool", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("files").Define(effectOf(Verb(change.EffectAdd), "file", 1))
@@ -136,7 +136,7 @@ func TestCoalesce_MultipleChanges_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_SubjectMismatch_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "tool", color: colorNever, plain: true})
+	out := initRun(Config{Name: "tool", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("other-subject").Define(effectOf(Verb(change.EffectAdd), "x", 1))
@@ -150,7 +150,7 @@ func TestCoalesce_SubjectMismatch_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "tool", color: colorNever, plain: true})
+	out := initRun(Config{Name: "tool", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	tool := out.Task("tool")
@@ -167,7 +167,7 @@ func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 }
 
 func TestCoalesce_JSONStillHasConclusion(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard, title: "tool"})
+	out := initRun(Config{Name: "tool", Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("tool").Define(effectOf(Verb(change.EffectAdd), "x", 1))
 	if err := out.finish(); err != nil {
@@ -185,7 +185,7 @@ func TestCoalesce_JSONStillHasConclusion(t *testing.T) {
 
 func TestCoalesce_TitleWithoutSemanticReport_OmitsHumanConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "zq", color: colorNever, plain: true})
+	out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.println("zq v0.2.14")
@@ -203,7 +203,7 @@ func TestCoalesce_TitleWithoutSemanticReport_OmitsHumanConclusion(t *testing.T) 
 
 func TestCoalesce_SingleMatchingItem_OmitsRepeatedConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "database", color: colorNever, plain: true})
+	out := initRun(Config{Name: "database", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	succeed(out.Task("database"))
@@ -221,7 +221,7 @@ func TestCoalesce_SingleMatchingItem_OmitsRepeatedConclusion(t *testing.T) {
 
 func TestCoalesce_SingleItemForBroaderSubject_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "release v1.4", color: colorNever, plain: true})
+	out := initRun(Config{Name: "release v1.4", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("release signature").block("signature is missing")
@@ -236,7 +236,7 @@ func TestCoalesce_SingleItemForBroaderSubject_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_MultipleItems_KeepsAggregateConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "repository", color: colorNever, plain: true})
+	out := initRun(Config{Name: "repository", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	succeed(out.Task("working tree"))

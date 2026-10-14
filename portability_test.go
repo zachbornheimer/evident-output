@@ -12,14 +12,14 @@ import (
 
 func TestPORT010_GoVersionBuilds(t *testing.T) {
 	// This test running on Go 1.25+ is the proof.
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("a"))
 	_ = out.finish()
 }
 
 func TestPORT015_ReproducibleSchemaVersion(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	succeed(out.Task("a"))
 	_ = out.finish()
 	b := out.runDocument(t)
@@ -31,7 +31,7 @@ func TestPORT015_ReproducibleSchemaVersion(t *testing.T) {
 
 func TestPORT013_PublicAPIStableShape(t *testing.T) {
 	// Stable public surface: Init/Task/Tasks/Finish/Snapshot/evo.run.
-	out := initRun(Config{stdout: io.Discard, title: "s", plain: true})
+	out := initRun(Config{Name: "s", Output: Plain, Facades: Facades{Stderr: io.Discard}})
 	succeed(out.Task("i"))
 	succeed(out.Task("t"))
 	if err := out.finish(); err != nil {
@@ -51,7 +51,7 @@ func TestPORT014_JSONDocumentHasRequiredFields(t *testing.T) {
 	// Schema 0.3 (CHANGELOG "Unreleased"): the item/task fold removed the
 	// separate "items" wire kind — every entity, including a fact-check
 	// resolved without ever running, is a "tasks" row.
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	succeed(out.Task("a"))
 	_ = out.finish()
 	b := out.runDocument(t)
@@ -67,7 +67,7 @@ func TestPORT014_JSONDocumentHasRequiredFields(t *testing.T) {
 func TestPORT006_TermDumbLikeNonInteractive(t *testing.T) {
 	// Simulate TERM=dumb by NonInteractive + Plain (no cursor).
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("t").Doing("x"), "ok")
 	_ = out.finish()
@@ -81,7 +81,7 @@ func TestPORT_NO_COLOREnvHonoredViaOption(t *testing.T) {
 	_ = os.Setenv("NO_COLOR", "1")
 	t.Cleanup(func() { _ = os.Unsetenv("NO_COLOR") })
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("x"))
 	_ = out.finish()

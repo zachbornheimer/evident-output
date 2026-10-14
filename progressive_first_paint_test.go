@@ -33,13 +33,7 @@ func (b *syncBuffer) String() string {
 func TestDoing_PlainModeEmitsTheFirstBeatBeforeTheTaskResolves(t *testing.T) {
 	var out syncBuffer
 	var payload syncBuffer
-	o := initRun(Config{
-		title:           "zq",
-		format:          formatData,
-		stdout:          &payload,
-		stderr:          &out,
-		visibilityDelay: DelayForTest(0),
-	})
+	o := initRun(Config{Name: "zq", Facades: Facades{Stdout: &payload, Stderr: &out}}, tuning{visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = o.close() })
 
 	o.Task("zq ci resolve").Doing("resolving repository root")

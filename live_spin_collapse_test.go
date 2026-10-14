@@ -32,7 +32,7 @@ func hasSpinnerGlyph(s string) bool {
 func TestLive_DeclaredToolTaskSpinsBeforeCheck(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("go@1.25.11")
@@ -80,7 +80,7 @@ func TestLive_DeclaredToolTaskSpinsBeforeCheck(t *testing.T) {
 
 func TestLive_OneChildDisplayGroupIsSingleLine(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	g := out.Group("run")
@@ -101,7 +101,7 @@ func TestLive_OneChildDisplayGroupIsSingleLine(t *testing.T) {
 
 func TestLive_FastBindSpinnerVisibleOnWallClock(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("go@1.25.11")

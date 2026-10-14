@@ -11,7 +11,7 @@ import (
 func TestVisibilityDelay_WithholdsLiveUntilElapsed(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, clock: clock, terminal: screen, visibilityDelay: DelayForTest(150 * time.Millisecond), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(150 * time.Millisecond), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	armed := screen.LiveFrameCount()
@@ -40,7 +40,7 @@ func TestVisibilityDelay_WithholdsLiveUntilElapsed(t *testing.T) {
 
 func TestVisibilityDelay_ZeroIsImmediate(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("work")
@@ -54,7 +54,7 @@ func TestVisibilityDelay_ZeroIsImmediate(t *testing.T) {
 
 func TestTask_AlonePaintsLiveWithZeroDelay(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("work")
@@ -65,12 +65,9 @@ func TestTask_AlonePaintsLiveWithZeroDelay(t *testing.T) {
 }
 
 func TestDefaultVisibilityDelay_WithinUserSLA(t *testing.T) {
-	cfg := defaultConfig()
-	if cfg.visibilityDelay == nil {
-		t.Fatal("DefaultConfig VisibilityDelay must be set")
-	}
+	got := resolveConfig(Config{Output: Plain}, tuning{}).visibilityDelay
 	const sla = 80 * time.Millisecond
-	if *cfg.visibilityDelay > sla {
-		t.Fatalf("default VisibilityDelay = %v, want ≤ %v", *cfg.visibilityDelay, sla)
+	if got == 0 || got > sla {
+		t.Fatalf("default visibility delay = %v, want in (0, %v]", got, sla)
 	}
 }

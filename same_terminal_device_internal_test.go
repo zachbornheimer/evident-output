@@ -66,8 +66,7 @@ func (writerStub) Write(p []byte) (int, error) { return len(p), nil }
 func TestConfigToOptions_DiagnosticSharingTerminalIsDetected(t *testing.T) {
 	stdout, stderr := openCharDevice(t)
 
-	cfg := resolveConfig(Config{stdout: stdout, stderr: stderr})
-	built := configOf(cfg)
+	built := resolveConfig(Config{Facades: Facades{Stdout: stderr, Stderr: stdout}}, tuning{})
 	if !built.diagnosticSharesTerminal {
 		t.Fatal("expected diagnosticSharesTerminal to be detected when Stdout and Stderr share one device")
 	}

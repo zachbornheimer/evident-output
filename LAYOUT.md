@@ -31,6 +31,9 @@ mise.toml
 .grok/
 evo.go
 run.go
+config.go
+result.go
+host.go
 facades.go
 task.go
 compute.go
@@ -67,30 +70,35 @@ docs/decisions/
 ## Root package `evo`
 
 One file per contract section; the file holds that section's exported
-surface plus the composition root, and nothing else. The composition root
-is the `Run` aggregate in `run.go` (handles to graph, record, change,
-freshness, misuse and project), the `Config` -> option wiring, the env seam
-and the signal seam, also in `run.go`; Finish sequencing in `ending.go`;
-and facade wiring in `facades.go`. Root writes no record truth and imports
-no system package, except `os` for the `os.Signal` type `CleanStop` names.
+surface plus the composition root, and nothing else. The composition root is
+the `Run` aggregate (handles to graph, record, change, freshness, misuse and
+project), its one constructor `openRun` and the signal seam in `run.go`;
+`Config` resolved once into the private `config` in `config.go`; the env
+seam in `output.go`; the `graph.Host`, `freshness.Narration` and
+`change.Engine` adapter in `host.go`; Finish sequencing in `ending.go`; and
+facade wiring in `facades.go`. Root writes no record truth and imports no
+system package, except `os` for the `os.Signal` type `CleanStop` names.
 
-| File         | Contract | Owns                                                                            |
-| ------------ | -------- | ------------------------------------------------------------------------------- |
-| `evo.go`     | thesis   | package doc only                                                                |
-| `run.go`     | §1       | `Main`, `Run`, `RunFunc`, `Config`, `State`, `Run` type, `Result`, `Conclusion` |
-| `facades.go` | §1       | `Facades`, `Clock`, `Terminal`, `Redactor`, `Process`, `FS`                     |
-| `task.go`    | §2       | `Task`, `Group`, `Sequence`, `Container`, `DefineOption`, `CleanStop`           |
-| `compute.go` | §2       | `Compute`, `Computed`                                                           |
-| `file.go`    | §3       | `File`, `FileSpec`                                                              |
-| `exec.go`    | §3       | `Exec`, `ExecSpec`, `ExecResult`                                                |
-| `patch.go`   | §3       | `Patch`                                                                         |
-| `effect.go`  | §3       | `Effect`, `EffectSpec`, `Verb`, `Create`, `Update`, `Delete`, `PartialEffect`   |
-| `report.go`  | §2       | `Doing`, `Progress`, `Writer`, `Fact`, `Summary` methods                        |
-| `problem.go` | §4       | `Problem` method, `ProblemOption`, `Detail`, `Code`, `On`, `Next`, `Action`     |
-| `ending.go`  | §4       | `Fail`, `Refuse`, `Exclude`, `Outcome` and its constants                        |
-| `confirm.go` | §5       | `Confirm`, `Suspend`, `ConfirmOption`, `Destructive`, `NonInteractive`          |
-| `output.go`  | §6       | `Output` and its constants, environment                                         |
-| `errors.go`  | §7       | the five sentinels                                                              |
+| File         | Contract | Owns                                                                          |
+| ------------ | -------- | ----------------------------------------------------------------------------- |
+| `evo.go`     | thesis   | package doc only                                                              |
+| `run.go`     | §1       | `Main`, `Execute`, `RunFunc`, the one constructor `openRun`, the signal seam  |
+| `config.go`  | §1       | `Config`, `State`, and their resolution into the private `config`             |
+| `result.go`  | §1       | `Result`, `Conclusion`                                                        |
+| `host.go`    | §1       | the adapter graph, freshness and change call the `Run` through                |
+| `facades.go` | §1       | `Facades`, `Clock`, `Terminal`, `Redactor`, `Process`, `FS`                   |
+| `task.go`    | §2       | `Task`, `Group`, `Sequence`, `Container`, `DefineOption`, `CleanStop`         |
+| `compute.go` | §2       | `Compute`, `Computed`                                                         |
+| `file.go`    | §3       | `File`, `FileSpec`                                                            |
+| `exec.go`    | §3       | `Exec`, `ExecSpec`, `ExecResult`                                              |
+| `patch.go`   | §3       | `Patch`                                                                       |
+| `effect.go`  | §3       | `Effect`, `EffectSpec`, `Verb`, `Create`, `Update`, `Delete`, `PartialEffect` |
+| `report.go`  | §2       | `Doing`, `Progress`, `Writer`, `Fact`, `Summary` methods                      |
+| `problem.go` | §4       | `Problem` method, `ProblemOption`, `Detail`, `Code`, `On`, `Next`, `Action`   |
+| `ending.go`  | §4       | `Fail`, `Refuse`, `Exclude`, `Outcome` and its constants                      |
+| `confirm.go` | §5       | `Confirm`, `Suspend`, `ConfirmOption`, `Destructive`, `NonInteractive`        |
+| `output.go`  | §6       | `Output` and its constants, environment                                       |
+| `errors.go`  | §7       | the five sentinels                                                            |
 
 ## Internal packages
 

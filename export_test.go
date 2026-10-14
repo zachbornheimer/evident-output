@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/clock"
@@ -92,25 +91,13 @@ func (o *Run) run(ctx context.Context, run RunFunc) Result {
 	return runInterruptible(ctx, o, run)
 }
 
-// ParseFormat parses one of "human", "data", "external", "json", "jsonl"
-// (case-insensitive, surrounding whitespace ignored) into a Format — the
-// public entry point a host CLI's own --format/--json flag binds to (spec
-// §32.1). Evo does not parse os.Args itself.
-func parseFormat(s string) (format, error) {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "human":
-		return formatHuman, nil
-	case "data":
-		return formatData, nil
-	case "external":
-		return formatExternal, nil
-	case "json":
-		return formatJSON, nil
-	case "jsonl":
-		return formatJSONL, nil
-	default:
-		return 0, fmt.Errorf("%w: unknown format %q", ErrInvalidConfig, s)
+// initRun builds a Run through the one constructor Execute and Main use, with t's settings when given.
+func initRun(cfg Config, t ...tuning) *Run {
+	var tune tuning
+	if len(t) > 0 {
+		tune = t[0]
 	}
+	return openRun(cfg, tune)
 }
 
 // SwapLookupEnv replaces the process-environment facade. Tests inject a
@@ -219,15 +206,14 @@ type capabilityProfile struct {
 // environment in the core package without injection; callers pass
 // NoColor/Width/Plain options instead.
 func detectCapabilities(opts ...option) capabilityProfile {
-	cfg := config{
-		width:      defaultWidth,
-		debugLevel: levelInfo,
-	}
+	var c Config
+	var t tuning
 	for _, o := range opts {
 		if o != nil {
-			o.apply(&cfg)
+			o(&c, &t)
 		}
 	}
+	cfg := resolveConfig(c, t)
 	p := capabilityProfile{
 		Interactive: !cfg.plain,
 		Unicode:     true,
@@ -803,4 +789,16 @@ func (o *Run) awaitSettled(tasks []*graph.Task) error {
 	}
 	o.followRecordAfterWait()
 	return errors.Join(failures...)
+}
+
+// delay is a non-nil *time.Duration for a tuning field where zero is meaningful.
+func delay(d time.Duration) *time.Duration { return &d }
+
+// readFrom is the Facades that send what a test reads for output to w: the document or event stream on stdout
+// for JSON and JSONL, rows on stderr otherwise. The other stream is discarded.
+func readFrom(output Output, w io.Writer) Facades {
+	if output == JSON || output == JSONL {
+		return Facades{Stdout: w, Stderr: io.Discard}
+	}
+	return Facades{Stdout: io.Discard, Stderr: w}
 }

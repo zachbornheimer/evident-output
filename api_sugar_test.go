@@ -10,7 +10,7 @@ import (
 // --- Item 1: printf-variadic entity names ---
 
 func TestAPISugar_TaskNameIsPrintfWhenArgsPresent(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task(fmt.Sprintf("build %s #%d", "worker", 3))
@@ -20,7 +20,7 @@ func TestAPISugar_TaskNameIsPrintfWhenArgsPresent(t *testing.T) {
 }
 
 func TestAPISugar_TaskNameUnchangedWithoutArgs(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("100% done")
@@ -30,7 +30,7 @@ func TestAPISugar_TaskNameUnchangedWithoutArgs(t *testing.T) {
 }
 
 func TestAPISugar_ItemOptionSurvivesAmongFormatArgs(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	item := out.Task(fmt.Sprintf("probe %s", "docker"))
@@ -40,7 +40,7 @@ func TestAPISugar_ItemOptionSurvivesAmongFormatArgs(t *testing.T) {
 }
 
 func TestAPISugar_GroupNameIsPrintfWhenArgsPresent(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	g := out.Sequence(fmt.Sprintf("stage %d", 2))
@@ -50,7 +50,7 @@ func TestAPISugar_GroupNameIsPrintfWhenArgsPresent(t *testing.T) {
 }
 
 func TestAPISugar_GroupTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	group := out.Sequence("stages")
@@ -63,7 +63,7 @@ func TestAPISugar_GroupTaskNameIsPrintfWhenArgsPresent(t *testing.T) {
 // --- Item 0: Fail/Block are statement-form ---
 
 func TestAPISugar_TaskFailIsStatementForm(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("validate")
@@ -77,7 +77,7 @@ func TestAPISugar_TaskFailIsStatementForm(t *testing.T) {
 }
 
 func TestAPISugar_TaskFailAttachesDetail(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("validate")
@@ -92,7 +92,7 @@ func TestAPISugar_TaskFailAttachesDetail(t *testing.T) {
 }
 
 func TestAPISugar_TaskFailNextAttachesRemedy(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("validate")
@@ -105,7 +105,7 @@ func TestAPISugar_TaskFailNextAttachesRemedy(t *testing.T) {
 }
 
 func TestAPISugar_TaskBlockNextCommandAttachesRemedy(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("apply")
@@ -120,7 +120,7 @@ func TestAPISugar_TaskBlockNextCommandAttachesRemedy(t *testing.T) {
 // declares with the first phase set in one chained call (StartPhase,
 // removed in 1.1, was the old spelling).
 func TestAPISugar_DoingDeclaresWithPhaseSet(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("download base image").Doing("resolving tag")
@@ -136,7 +136,7 @@ func TestAPISugar_DoingDeclaresWithPhaseSet(t *testing.T) {
 // TestAPISugar_ProgressDoingSetsCountAndCurrentItem pins the 1.1 form:
 // Progress(completed, total).Doing(item) sets count and current item.
 func TestAPISugar_ProgressDoingSetsCountAndCurrentItem(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("sync")
@@ -152,7 +152,7 @@ func TestAPISugar_ProgressDoingSetsCountAndCurrentItem(t *testing.T) {
 }
 
 func TestAPISugar_TaskFailTakesWholeSummary(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("validate")
@@ -163,7 +163,7 @@ func TestAPISugar_TaskFailTakesWholeSummary(t *testing.T) {
 }
 
 func TestAPISugar_ItemBlockSetsBlockedState(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	item := out.Task("policy gate")

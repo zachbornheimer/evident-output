@@ -51,11 +51,7 @@ func TestFileRow_ChangesOmitsQuantityInPlain(t *testing.T) {
 func writeFooThroughFile(t *testing.T, w io.Writer, dryRun bool) *Run {
 	t.Helper()
 	dir := t.TempDir()
-	out := initRun(Config{
-		stdout: w, stderr: io.Discard, title: "cleanup",
-		color: colorNever, plain: true, DryRun: dryRun,
-		fileFS: testkit.NewFileFS(), stateDir: dir,
-	})
+	out := initRun(Config{Name: "cleanup", DryRun: dryRun, Output: Plain, State: State{Dir: dir}, Facades: Facades{Stdout: io.Discard, Stderr: w, FS: testkit.NewFileFS()}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("cleanup").Define(func(ctx context.Context) error {
 		return File(ctx, FileSpec{Path: filepath.Join(dir, "foo.txt"), Contents: []byte("foo")})

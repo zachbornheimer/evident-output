@@ -16,7 +16,7 @@ import (
 func TestWriteCollection_DoneChildrenSurviveWithSummaries(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "pipeline", color: colorNever, plain: true})
+	out := initRun(Config{Name: "pipeline", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	g := out.Group("pipeline")
 	succeed(g.Task("branches"), "14 deleted")
 	succeed(g.Task("worktrees"), "2 removed")
@@ -41,7 +41,7 @@ func TestWriteCollection_DoneChildrenSurviveWithSummaries(t *testing.T) {
 func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "repo-retire", color: colorNever, plain: true})
+	out := initRun(Config{Name: "repo-retire", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	succeed(out.Task("clean"))
 	out.Task("kept").Fact("kept", "1")
 	if err := out.finish(); err != nil {
@@ -65,7 +65,7 @@ func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 // Conclusion.Warned still true so the warning stays visible.
 func TestConclusion_WarnOnlyAutoResolvesDoneAndStaysWarned(t *testing.T) {
 	t.Parallel()
-	out := initRun(Config{title: "t", color: colorNever})
+	out := initRun(Config{Name: "t"}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("i").Problem("careful", severity(severityWarning))
 	if err := out.finish(); err != nil {
@@ -88,7 +88,7 @@ func TestConclusion_WarnOnlyAutoResolvesDoneAndStaysWarned(t *testing.T) {
 // killed that dead enum member (it was never assigned by inferConclusion)
 // rather than keep two competing models of the same fact.
 func TestConclusion_LoneIncompleteTaskIsNotPartialHeadline(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	out.Task("install") // declared, never resolved
 
 	_ = out.finish()
@@ -111,7 +111,7 @@ func TestConclusion_LoneIncompleteTaskIsNotPartialHeadline(t *testing.T) {
 // suppressed rather than papering over the warning underneath it.
 func TestConclusion_WarnedGroupChildReachesConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	group := out.Group("dependencies")
@@ -138,7 +138,7 @@ func TestConclusion_WarnedGroupChildReachesConclusion(t *testing.T) {
 }
 
 func TestConclusion_PlanOnlyIsPlanned(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard, title: "acct", DryRun: true})
+	out := initRun(Config{Name: "acct", DryRun: true, Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("delete").Define(effectOf(Delete, "thing", 1))
 	_ = out.finish()

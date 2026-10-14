@@ -127,7 +127,7 @@ func (o *Run) concludeLocked() snapshot {
 // a write failure there, or a mid-run "evo.event" JSONL failure (§32.2), is a real Run failure.
 func (o *Run) runErrorLocked(conc Conclusion) error {
 	misuse := o.firstMisuse()
-	if o.cfg.wireFormat == formatJSON {
+	if o.cfg.wireFormat == JSON {
 		misuse = joinErrors(misuse, rendererError(wire.WriteRun(o.cfg.wireStream, record.Result{Conclusion: asRecordConclusion(conc), Payload: o.resultText.String()})))
 	}
 	return joinErrors(misuse, rendererError(o.show.Events.Err()))

@@ -9,7 +9,7 @@ import (
 // ExampleCompute defines a Task that produces a value. A later Sequence
 // step reads the value with Get once the earlier step has settled.
 func ExampleCompute() {
-	out := initRun(Config{plain: true, stdout: io.Discard})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard}})
 	steps := out.Sequence("prune")
 	branches := Compute(steps.Task("prune landed branches"), func(context.Context) ([]string, error) {
 		return []string{"feat/a", "feat/b"}, nil
@@ -26,7 +26,7 @@ func ExampleCompute() {
 // ExampleComputed reads an earlier Sequence step's value without After: the
 // Sequence proves the earlier step settled before the later one starts.
 func ExampleComputed() {
-	out := initRun(Config{plain: true, stdout: io.Discard})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard}})
 	steps := out.Sequence("consolidate packages")
 	managers := Compute(steps.Task("detect package managers"), func(context.Context) ([]string, error) {
 		return []string{"npm", "composer"}, nil

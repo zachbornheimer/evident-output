@@ -10,7 +10,7 @@ import (
 // as Confirm's PolicyFlag (Config.Title, or the executable-basename
 // fallback).
 func TestTaskHandle_NextSelf_UsesOwnIdentity(t *testing.T) {
-	out := initRun(Config{title: "clean-repo"})
+	out := initRun(Config{Name: "clean-repo"})
 
 	task := out.Task("dry run")
 	task.Problem("rerun with --apply", severity(severityWarning), out.nextSelfForTest("--apply"))

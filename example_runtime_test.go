@@ -13,12 +13,7 @@ import (
 // GlyphsAuto are the other two values.
 func ExampleGlyphProfile() {
 	var buf bytes.Buffer
-	out := initRun(Config{
-		stdout: &buf,
-		stderr: io.Discard,
-		plain:  true,
-		glyphs: glyphsASCII,
-	})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{glyphs: glyphsASCII})
 	out.Task("scan").Define(func(context.Context) error { return nil })
 	_ = out.finish()
 	fmt.Print(buf.String())
@@ -31,7 +26,7 @@ func ExampleGlyphProfile() {
 // package-level default.
 func ExampleOutput() {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, stderr: io.Discard, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}})
 	out.Task("build").Define(func(context.Context) error { return nil })
 	_ = out.finish()
 	fmt.Print(buf.String())

@@ -13,7 +13,7 @@ import (
 // detection by differing only in a control character stripped before the
 // key is computed.
 func TestGroup_ControlCharacterVariants_AreDuplicateSiblings(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.Group("deploy\x01")
@@ -27,7 +27,7 @@ func TestGroup_ControlCharacterVariants_AreDuplicateSiblings(t *testing.T) {
 // TestSequence_ControlCharacterVariants_AreDuplicateSiblings is Group's
 // counterpart for Sequence.
 func TestSequence_ControlCharacterVariants_AreDuplicateSiblings(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.Sequence("release\x01")
@@ -42,7 +42,7 @@ func TestSequence_ControlCharacterVariants_AreDuplicateSiblings(t *testing.T) {
 // container nested under another Group (Group.Group), which shares
 // declareChildContainerLocked with Group.Sequence.
 func TestNestedGroup_ControlCharacterVariants_AreDuplicateSiblings(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	parent := out.Group("phase")
@@ -57,7 +57,7 @@ func TestNestedGroup_ControlCharacterVariants_AreDuplicateSiblings(t *testing.T)
 // TestGroupTask_ControlCharacterVariants_AreDuplicateSiblings covers a Task
 // declared under a Group (Group.Task / graph.Graph.DeclareTask).
 func TestGroupTask_ControlCharacterVariants_AreDuplicateSiblings(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	group := out.Group("phase")

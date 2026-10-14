@@ -12,7 +12,7 @@ import (
 // with explicit Options got [changed] rows instead of [planned].
 func TestInit_OptionsPath_HonorsDryRun(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{DryRun: true, stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	out.Task("cleanup").Define(effectOf(Delete, "stale local branch", 2))
 	_ = out.finish()
@@ -30,7 +30,7 @@ func TestInit_OptionsPath_HonorsDryRun(t *testing.T) {
 // dropped on the Config.Options escape hatch.
 func TestInit_OptionsPath_HonorsSubject(t *testing.T) {
 	var buf bytes.Buffer
-	initRun(Config{subject: "bpp-csharp", stdout: &buf, color: colorNever})
+	initRun(Config{Facades: Facades{Stderr: &buf}}, tuning{subtitle: "bpp-csharp", color: colorNever})
 
 	if !strings.Contains(buf.String(), "bpp-csharp") {
 		t.Fatalf("Subject not printed on the Options path, got:\n%s", buf.String())
@@ -44,13 +44,7 @@ func TestInit_OptionsPath_HonorsSubject(t *testing.T) {
 func TestInit_OptionsPath_HonorsPreview(t *testing.T) {
 	called := false
 	var buf bytes.Buffer
-	out := initRun(Config{
-		preview: true,
-		subject: "repo  /tmp/flight",
-		stdout:  &buf,
-		plain:   true,
-		color:   colorNever,
-	})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{preview: true, subtitle: "repo  /tmp/flight", color: colorNever})
 
 	out.Task("cleanup").Define(func(ctx context.Context) error {
 		return Effect(ctx, EffectSpec{Verb: Delete, Object: "stale local branch", Quantity: 2}, func(context.Context) error {

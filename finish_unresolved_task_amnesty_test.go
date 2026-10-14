@@ -15,7 +15,7 @@ import (
 // effect — so it must not read as misuse.
 func TestFinish_ReadmeQuickstart_EachLoopAutoResolvesDone(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	succeed(out.Task("working tree"))
 	out.Task("branches").block(
@@ -49,7 +49,7 @@ func TestFinish_ReadmeQuickstart_EachLoopAutoResolvesDone(t *testing.T) {
 // process.
 func TestFinish_TeachingLadder_EachThenReturnNil_NeverCancels(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	scan := out.Group("scan")
 	for _, name := range []string{"one", "two"} {
@@ -81,7 +81,7 @@ func TestFinish_TeachingLadder_EachThenReturnNil_NeverCancels(t *testing.T) {
 // the run actually printed.
 func TestRun_BlockedWithLeftoverMisuse_NeverEscalatesToFailed(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		task := out.Task("branches")

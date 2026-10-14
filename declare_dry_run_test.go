@@ -12,7 +12,7 @@ import (
 // [planned] exactly as if Config.DryRun had been set at construction.
 func TestDeclareDryRun_BeforeAnyRow_SwitchesMode(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	out.declareDryRunForTest()
 	out.Task("cleanup").Define(effectOf(Delete, "stale local branch", 2))
@@ -32,7 +32,7 @@ func TestDeclareDryRun_BeforeAnyRow_SwitchesMode(t *testing.T) {
 // earlier row cannot retroactively reflect the switch.
 func TestDeclareDryRun_AfterADurableRow_IsMisuse(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	out.println("Reading configuration")
 	out.declareDryRunForTest()

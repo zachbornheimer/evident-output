@@ -15,7 +15,7 @@ const packageDocFile = "evo.go"
 // conceptFile is the root file that owns each vocabulary concept: one per
 // contract section, named for the file stem.
 var conceptFile = map[string]string{
-	"Run": "run.go", "Facades": "facades.go", "Task": "task.go",
+	"Run": "run.go", "Config": "config.go", "Result": "result.go", "Facades": "facades.go", "Task": "task.go",
 	"Compute": "compute.go", "File": "file.go", "Exec": "exec.go",
 	"Effect": "effect.go", "Patch": "patch.go", "Report": "report.go",
 	"Problem": "problem.go", "Ending": "ending.go", "Confirm": "confirm.go",
@@ -39,10 +39,17 @@ func Home(entry Entry) string {
 	return conceptFile[entry.Concept]
 }
 
+// compositionFiles are root files of the composition root that declare no
+// exported identifier.
+var compositionFiles = []string{"host.go"}
+
 // ExpectedRootFiles is the sorted set of non-test root files: one per
-// concept family, plus doc.go.
+// concept family, plus the package doc and the composition files.
 func ExpectedRootFiles() []string {
 	set := map[string]bool{packageDocFile: true}
+	for _, file := range compositionFiles {
+		set[file] = true
+	}
 	for _, file := range conceptFile {
 		set[file] = true
 	}

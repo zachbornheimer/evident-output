@@ -28,9 +28,7 @@ func TestGroup_LargePlainGroupAggregatesWithoutEach(t *testing.T) {
 		testkit.Height(20),
 		testkit.NoColor(),
 	)
-	out := initRun(Config{
-		stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0),
-	})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 
 	packages := out.Group("packages")
@@ -75,9 +73,7 @@ func TestGroup_SmallGroupStillShowsEveryChild(t *testing.T) {
 		testkit.Height(20),
 		testkit.NoColor(),
 	)
-	out := initRun(Config{
-		stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0),
-	})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 
 	agent := out.Group("launch agent")

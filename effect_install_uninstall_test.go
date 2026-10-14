@@ -18,7 +18,7 @@ func TestEffectInstall_PlannedAndChangedTense(t *testing.T) {
 	t.Run("planned keeps the imperative", func(t *testing.T) {
 		t.Parallel()
 		var buf bytes.Buffer
-		out := initRun(Config{stdout: &buf, color: colorNever, plain: true, DryRun: true})
+		out := initRun(Config{DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 		out.Task("packages").Define(effectOf(Verb(change.EffectInstall), "package", 3))
 		if err := out.finish(); err != nil {
 			t.Fatal(err)
@@ -32,7 +32,7 @@ func TestEffectInstall_PlannedAndChangedTense(t *testing.T) {
 	t.Run("changed conjugates past tense", func(t *testing.T) {
 		t.Parallel()
 		var buf bytes.Buffer
-		out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+		out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 		out.Task("packages").Define(effectOf(Verb(change.EffectInstall), "package", 3))
 		if err := out.finish(); err != nil {
 			t.Fatal(err)
@@ -46,7 +46,7 @@ func TestEffectInstall_PlannedAndChangedTense(t *testing.T) {
 	t.Run("uninstall changed conjugates past tense", func(t *testing.T) {
 		t.Parallel()
 		var buf bytes.Buffer
-		out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+		out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 		out.Task("packages").Define(effectOf(Verb(change.EffectUninstall), "package", 1))
 		if err := out.finish(); err != nil {
 			t.Fatal(err)
@@ -59,7 +59,7 @@ func TestEffectInstall_PlannedAndChangedTense(t *testing.T) {
 
 	t.Run("JSON structured verb data carries the same tense", func(t *testing.T) {
 		t.Parallel()
-		out := initRun(Config{plain: true})
+		out := initRun(Config{Output: Plain})
 		out.Task("packages").Define(effectOf(Verb(change.EffectInstall), "package", 3))
 		if err := out.finish(); err != nil {
 			t.Fatal(err)

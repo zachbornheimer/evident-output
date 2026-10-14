@@ -17,7 +17,7 @@ import (
 // misuse line names what got ignored.
 func TestMisuse_AlreadyResolvedCarriesRejectedSummary(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	task := out.Task("build")
 	succeed(task, "compiled")
@@ -41,7 +41,7 @@ func TestMisuse_AlreadyResolvedCarriesRejectedSummary(t *testing.T) {
 // finding 1's fix, and finding 4 governs its content).
 func TestMisuse_AlreadyResolvedCarriesRejectedSummary_Interactive(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("build")

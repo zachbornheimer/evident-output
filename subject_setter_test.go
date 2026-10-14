@@ -11,7 +11,7 @@ import (
 // Config.Subject — same one-shot durable-line semantics.
 func TestOutput_Subject_PostInitSetter(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever})
+	out := initRun(Config{Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	out.subjectForTest("/repos/bpp-csharp")
 

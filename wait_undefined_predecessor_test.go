@@ -28,7 +28,7 @@ func waitWithin(t *testing.T, what string, wait func() error) error {
 
 func isolatedOutput(t *testing.T) *Run {
 	t.Helper()
-	out := initRun(Config{stateDir: t.TempDir(), stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{State: State{Dir: t.TempDir()}, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	return out
 }

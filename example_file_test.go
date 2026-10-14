@@ -45,14 +45,14 @@ func ExampleFileFS() {
 	path := filepath.Join(dir, "config.json")
 
 	fsys := testkit.NewFileFS()
+	// State.Dir isolates this example's manifest to its own temp
+	// directory (spec §11.3) — without it, File's default manifest
+	// path is derived from the real machine cache dir and can
+	// contend with any other concurrently running File caller.
 	out := initRun(Config{
-		fileFS: fsys, plain: true, color: colorNever,
-		// StateDir isolates this example's manifest to its own temp
-		// directory (spec §11.3) — without it, File's default manifest
-		// path is derived from the real machine cache dir and can
-		// contend with any other concurrently running File caller.
-		stateDir: dir,
-		stdout:   io.Discard, stderr: io.Discard,
+		Output:  Plain,
+		State:   State{Dir: dir},
+		Facades: Facades{FS: fsys, Stdout: io.Discard, Stderr: io.Discard},
 	})
 	agent := out.Task("write config")
 	agent.Define(func(ctx context.Context) error {

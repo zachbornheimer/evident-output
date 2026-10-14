@@ -57,12 +57,7 @@ func (s *flakyLiveSurface) Write(p []byte) (int, error) {
 // spinner line is never cleared and the durable text lands glued to it.
 func TestArmedLine_ClearedBeforeDurableWriteAfterInteractivityLost(t *testing.T) {
 	surface := &flakyLiveSurface{interactive: true}
-	out := initRun(Config{
-		title:           "zq",
-		terminal:        surface,
-		stdout:          surface,
-		visibilityDelay: DelayForTest(0),
-	})
+	out := initRun(Config{Name: "zq", Facades: Facades{Stderr: surface, Terminal: surface}}, tuning{visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 
 	// arm()'s first-paint: title-only live line before any Task/Item exists.

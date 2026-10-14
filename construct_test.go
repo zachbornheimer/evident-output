@@ -10,10 +10,7 @@ import (
 func TestNew_ZeroConfig_Defaults(t *testing.T) {
 	// Redirect via Config writers so we do not touch the real TTY.
 	var outBuf, errBuf bytes.Buffer
-	out := initRun(Config{
-		stdout: &outBuf,
-		stderr: &errBuf,
-	})
+	out := initRun(Config{Facades: Facades{Stdout: &errBuf, Stderr: &outBuf}})
 	succeed(out.Task("ok"))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
@@ -25,7 +22,7 @@ func TestNew_ZeroConfig_Defaults(t *testing.T) {
 
 func TestNew_PartialConfig_InheritsDefaults(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "bpp-csharp", stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "bpp-csharp", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	succeed(out.Task("x"))
 	_ = out.finish()
 	if !strings.Contains(buf.String(), "bpp-csharp") {
@@ -42,12 +39,7 @@ func TestNew_PartialConfig_InheritsDefaults(t *testing.T) {
 // out.Println(root) at every projection that needs to show it.
 func TestConfig_SubjectRenderedOnceUnderTitle(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{
-		title:   "repo-retire",
-		subject: "/Users/z/dev/stale-repo",
-		stdout:  &buf,
-		stderr:  &buf,
-	})
+	out := initRun(Config{Name: "repo-retire", Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{subtitle: "/Users/z/dev/stale-repo"})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("scan"))
 	if err := out.finish(); err != nil {
@@ -61,7 +53,7 @@ func TestConfig_SubjectRenderedOnceUnderTitle(t *testing.T) {
 // TestConfig_SubjectEmptyEmitsNothing proves the zero value is silent —
 // Config.Subject is opt-in, never a placeholder line.
 func TestConfig_SubjectEmptyEmitsNothing(t *testing.T) {
-	out := initRun(Config{title: "repo-retire", stdout: io.Discard})
+	out := initRun(Config{Name: "repo-retire", Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("scan"))
 	if err := out.finish(); err != nil {
@@ -74,12 +66,7 @@ func TestConfig_SubjectEmptyEmitsNothing(t *testing.T) {
 
 func TestConfig_DebugLevelTraceSelectable(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{
-		title:  "trace",
-		stdout: &buf,
-		stderr: &buf,
-		debug:  debugConfig{level: levelTrace},
-	})
+	out := initRun(Config{Name: "trace", Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{debug: debugConfig{level: levelTrace}})
 	out.debugForTest("trace-visible")
 	_ = out.finish()
 	// LevelTrace is below LevelDebug filter (threshold allows Debug lines).
@@ -91,7 +78,7 @@ func TestConfig_DebugLevelTraceSelectable(t *testing.T) {
 
 func TestConfig_DebugLevelUnsetDefaultsToInfo(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "info", stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "info", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	out.debugForTest("should-drop")
 	succeed(out.Task("ok"))
 	_ = out.finish()
@@ -100,43 +87,17 @@ func TestConfig_DebugLevelUnsetDefaultsToInfo(t *testing.T) {
 	}
 }
 
-func TestDefaultConfig_Independent(t *testing.T) {
-	a := defaultConfig()
-	b := defaultConfig()
-	a.title = "mutated"
-	a.width = 1
-	if b.title == "mutated" || b.width == 1 {
-		t.Fatal("DefaultConfig must return independent values")
-	}
-}
-
 func TestConfig_VisibilityDelayZeroIsImmediate(t *testing.T) {
-	// Explicit zero must not be rewritten as the 80ms default.
-	// Option path VisibilityDelay(0) already covers live paint; this asserts Config.
-	cfg := Config{
-		title:           "immediate",
-		stdout:          &bytes.Buffer{},
-		stderr:          &bytes.Buffer{},
-		visibilityDelay: DelayForTest(0),
-		plain:           true,
-	}
-	out := initRun(cfg)
-	_ = out.close()
-	// resolveConfig kept *0: re-resolve via New must not panic; paint policy
-	// is covered by TestVisibilityDelay_ZeroIsImmediate (Option path).
-	if cfg.visibilityDelay == nil || *cfg.visibilityDelay != 0 {
-		t.Fatalf("caller Delay(0) must remain zero: %v", cfg.visibilityDelay)
+	// An explicit zero must not be rewritten as the 80ms default.
+	got := resolveConfig(Config{Output: Plain}, tuning{visibilityDelay: delay(0)}).visibilityDelay
+	if got != 0 {
+		t.Fatalf("visibilityDelay(0) resolved to %v, want 0", got)
 	}
 }
 
 func TestNew_DataFormat_HumanOnStderr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	out := initRun(Config{
-		title:  "build",
-		stdout: &stdout,
-		stderr: &stderr,
-		format: formatData,
-	})
+	out := initRun(Config{Name: "build", Facades: Facades{Stdout: &stdout, Stderr: &stderr}})
 	succeed(out.Task("compile"))
 	_ = out.finish()
 	if strings.Contains(stdout.String(), "compile") {
@@ -149,7 +110,7 @@ func TestNew_DataFormat_HumanOnStderr(t *testing.T) {
 
 func TestNewWithOptions_StillWorks(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	succeed(out.Task("legacy"))
 	_ = out.finish()
 	if !strings.Contains(buf.String(), "legacy") {

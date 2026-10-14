@@ -31,9 +31,9 @@ func hasLiveRegion(s string) bool {
 	return strings.Contains(s, "\x1b[?25") || strings.Contains(s, "\x1b[2K")
 }
 
-func isolatedInit(t *testing.T, cfg Config) *Run {
+func isolatedInit(t *testing.T, cfg Config, tune ...tuning) *Run {
 	t.Helper()
-	out := initRun(cfg)
+	out := initRun(cfg, tune...)
 	t.Cleanup(func() { _ = out.close() })
 	return out
 }
@@ -42,11 +42,7 @@ func TestEVOOutput_Plain_NoLiveRegionOnTTYShapedWriter(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "plain"})
 	var buf bytes.Buffer
 	markTTY(t, &buf)
-	out := isolatedInit(t, Config{
-		stdout:          &buf,
-		stderr:          &buf,
-		visibilityDelay: delay(0),
-	})
+	out := isolatedInit(t, Config{Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{visibilityDelay: delay(0)})
 	succeed(out.Task("scan").Doing("walk"), "ok")
 	_ = out.finish()
 	if hasLiveRegion(buf.String()) {
@@ -60,7 +56,7 @@ func TestEVOOutput_Plain_NoLiveRegionOnTTYShapedWriter(t *testing.T) {
 func TestEVOOutput_JSON_FinishWritesRunDocument(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "json"})
 	var buf bytes.Buffer
-	out := isolatedInit(t, Config{stdout: &buf, stderr: io.Discard})
+	out := isolatedInit(t, Config{Facades: Facades{Stdout: &buf, Stderr: io.Discard}})
 	succeed(out.Task("scan"), "ok")
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
@@ -85,7 +81,7 @@ func TestEVOOutput_JSON_FinishWritesRunDocument(t *testing.T) {
 func TestEVOOutput_JSONL_WritesEventLines(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "jsonl"})
 	var buf bytes.Buffer
-	out := isolatedInit(t, Config{stdout: &buf, stderr: io.Discard})
+	out := isolatedInit(t, Config{Facades: Facades{Stdout: &buf, Stderr: io.Discard}})
 	succeed(out.Task("scan"), "ok")
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
@@ -120,12 +116,7 @@ func TestEVOOutput_HumanDoesNotOverrideExplicitPlain(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "human"})
 	var buf bytes.Buffer
 	markTTY(t, &buf)
-	out := isolatedInit(t, Config{
-		plain:           true,
-		stdout:          &buf,
-		stderr:          &buf,
-		visibilityDelay: delay(0),
-	})
+	out := isolatedInit(t, Config{Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{visibilityDelay: delay(0)})
 	succeed(out.Task("scan").Doing("walk"), "ok")
 	_ = out.finish()
 	if hasLiveRegion(buf.String()) {
@@ -137,11 +128,7 @@ func TestEVOOutput_NoColorStillDisablesColor(t *testing.T) {
 	withLookupEnv(t, map[string]string{"NO_COLOR": "1"})
 	var buf bytes.Buffer
 	markTTY(t, &buf)
-	out := isolatedInit(t, Config{
-		plain:  true,
-		stdout: &buf,
-		stderr: &buf,
-	})
+	out := isolatedInit(t, Config{Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	succeed(out.Task("ok"))
 	out.Task("bad").fail("x")
 	_ = out.finish()
@@ -153,7 +140,7 @@ func TestEVOOutput_NoColorStillDisablesColor(t *testing.T) {
 func TestEVOVerbose_OneProjectsVerboseMessages(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_VERBOSE": "1"})
 	var buf bytes.Buffer
-	out := isolatedInit(t, Config{stdout: &buf, stderr: &buf})
+	out := isolatedInit(t, Config{Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	out.atForTest(visibilityVerbose).println("hidden detail")
 	_ = out.finish()
 	if !strings.Contains(buf.String(), "hidden detail") {
@@ -164,7 +151,7 @@ func TestEVOVerbose_OneProjectsVerboseMessages(t *testing.T) {
 func TestEVODebug_DebugLevelSurfacesJournal(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_DEBUG": "debug"})
 	var buf bytes.Buffer
-	out := isolatedInit(t, Config{stdout: &buf, stderr: &buf})
+	out := isolatedInit(t, Config{Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	out.debugForTest("trace-visible")
 	succeed(out.Task("ok"))
 	_ = out.finish()

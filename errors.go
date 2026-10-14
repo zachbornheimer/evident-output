@@ -24,8 +24,6 @@ var (
 	ErrComputedUnordered = misuse.ErrComputedUnordered
 	// ErrDeclaredInCallback: a Task, Group or Sequence was declared in a Define callback.
 	errDeclaredInCallback = misuse.ErrDeclaredInCallback
-	// ErrTerminalWithoutSink: Config.Terminal has no Stdout and cannot report its own sink.
-	errTerminalWithoutSink = misuse.ErrTerminalWithoutSink
 	// ErrDuplicateSiblingName: a declaration reuses a sibling's name (§3.1).
 	errDuplicateSiblingName = misuse.ErrDuplicateSiblingName
 )

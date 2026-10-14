@@ -15,7 +15,7 @@ func TestFinish_InteractiveWithMultiWriterStdout_MirrorsPlainProjection(t *testi
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	var mirror bytes.Buffer
 
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{color: colorNever})
 	out.alsoWriteForTest(&mirror)
 
 	out.Task("dependencies").fail("dependency graph has a cycle")

@@ -15,10 +15,7 @@ import (
 // and the cancelled run still owes the reader those 2 changed refs.
 func TestPartialEffect_InterruptAfterPartialCommitKeepsTheCommittedSubset(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{
-		plain: true, color: colorNever,
-		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
-	})
+	out := initRun(Config{MaxConcurrency: 1, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	interrupt := sendOneSignal(t)
 
 	committedTwo := make(chan struct{})

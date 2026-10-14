@@ -15,7 +15,7 @@ import (
 // not then render the same text a second time underneath it.
 func TestFail_EvidenceDedupedAgainstSummary(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	task := out.Task("install")
 	output := task.capture()
@@ -36,7 +36,7 @@ func TestFail_EvidenceDedupedAgainstSummary(t *testing.T) {
 // renders underneath.
 func TestFail_EvidenceStillRenders_WhenNotContainedInSummary(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	task := out.Task("build")
 	output := task.capture()

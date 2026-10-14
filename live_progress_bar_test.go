@@ -14,7 +14,7 @@ import (
 // in progressBar (internal/render/live.go) alongside this test.
 func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	g := out.Group("work")
@@ -53,7 +53,7 @@ func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 // Task name, never subordinate.
 func TestLive_DeterminateProgressPhaseIsFullIntensityActivityChild(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24))
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), color: colorAlways})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorAlways})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("scan")

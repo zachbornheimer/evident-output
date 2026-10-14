@@ -12,7 +12,7 @@ func TestResultWriterAfterFinishIsMisuseEveryMode(t *testing.T) {
 	for name, mode := range modes {
 		t.Run(name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			out := initHostRun(Config{Output: mode, stdout: &stdout, stderr: &stderr, color: colorNever})
+			out := initRun(Config{Output: mode, Facades: Facades{Stdout: &stdout, Stderr: &stderr}}, tuning{color: colorNever})
 			payload := out.ResultWriter()
 			succeed(out.Task("work"))
 			if err := out.finish(); err != nil {

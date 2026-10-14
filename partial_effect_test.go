@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"strings"
 	"testing"
@@ -28,10 +27,10 @@ type partialResult struct {
 
 // partialRun runs one Task whose Define returns Effect(refDelete, fn) in
 // the given wire format.
-func partialRun(t *testing.T, format format, fn func(context.Context) error) partialResult {
+func partialRun(t *testing.T, output Output, fn func(context.Context) error) partialResult {
 	t.Helper()
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "prune", color: colorNever, plain: true, format: format, stderr: io.Discard})
+	out := initRun(Config{Name: "prune", Output: output, Facades: readFrom(output, &buf)}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	var effectErr error
 	task := out.Task("refs")
@@ -57,7 +56,7 @@ func changedQuantities(snap snapshot) []int64 {
 func TestPartialEffect_TwoOfThreeRecordsCommittedAndFailsTheTask(t *testing.T) {
 	t.Parallel()
 	cause := errors.New("git push --delete: remote rejected")
-	r := partialRun(t, formatHuman, func(context.Context) error {
+	r := partialRun(t, Plain, func(context.Context) error {
 		return PartialEffect(2, cause)
 	})
 	if !errors.Is(r.effectErr, cause) {
@@ -77,7 +76,7 @@ func TestPartialEffect_TwoOfThreeRecordsCommittedAndFailsTheTask(t *testing.T) {
 func TestPartialEffect_ZeroOfThreeRecordsNothingAndFails(t *testing.T) {
 	t.Parallel()
 	cause := errors.New("auth expired")
-	r := partialRun(t, formatHuman, func(context.Context) error {
+	r := partialRun(t, Plain, func(context.Context) error {
 		return PartialEffect(0, cause)
 	})
 	if !errors.Is(r.effectErr, cause) || errors.Is(r.effectErr, change.ErrInvalidPartialEffect) {
@@ -93,7 +92,7 @@ func TestPartialEffect_ZeroOfThreeRecordsNothingAndFails(t *testing.T) {
 
 func TestPartialEffect_FullSuccessIsUnchanged(t *testing.T) {
 	t.Parallel()
-	r := partialRun(t, formatHuman, func(context.Context) error { return nil })
+	r := partialRun(t, Plain, func(context.Context) error { return nil })
 	if r.effectErr != nil || r.state != succeeded {
 		t.Fatalf("err = %v state = %v, want nil and Done", r.effectErr, r.state)
 	}
@@ -118,7 +117,7 @@ func TestPartialEffect_InvalidDataIsRejectedAndRecordsNothing(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			r := partialRun(t, formatHuman, func(context.Context) error {
+			r := partialRun(t, Plain, func(context.Context) error {
 				return PartialEffect(tc.committed, tc.err)
 			})
 			if !errors.Is(r.effectErr, change.ErrInvalidPartialEffect) {
@@ -140,7 +139,7 @@ func TestPartialEffect_InvalidDataIsRejectedAndRecordsNothing(t *testing.T) {
 func TestPartialEffect_CauseStaysErrorsIsAndAsCompatible(t *testing.T) {
 	t.Parallel()
 	cause := &fs.PathError{Op: "unlink", Path: "refs/heads/old", Err: fs.ErrPermission}
-	r := partialRun(t, formatHuman, func(context.Context) error {
+	r := partialRun(t, Plain, func(context.Context) error {
 		return fmt.Errorf("deleting refs: %w", PartialEffect(1, cause))
 	})
 	var pathErr *fs.PathError
@@ -166,7 +165,7 @@ func TestPartialEffect_MachineProjectionsAgreeOnCommittedCount(t *testing.T) {
 
 	t.Run("final JSON document", func(t *testing.T) {
 		t.Parallel()
-		r := partialRun(t, formatJSON, partial)
+		r := partialRun(t, JSON, partial)
 		var doc struct {
 			Data struct {
 				Effects []struct {
@@ -185,7 +184,7 @@ func TestPartialEffect_MachineProjectionsAgreeOnCommittedCount(t *testing.T) {
 
 	t.Run("JSONL stream", func(t *testing.T) {
 		t.Parallel()
-		r := partialRun(t, formatJSONL, partial)
+		r := partialRun(t, JSONL, partial)
 		committed := 0
 		for line := range strings.SplitSeq(strings.TrimSpace(r.rendered), "\n") {
 			var ev struct {

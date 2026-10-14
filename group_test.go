@@ -10,7 +10,7 @@ import (
 // independent (worker-pool fan-out), so two Running siblings there is a
 // supported pattern, not misuse.
 func TestGroup_ConcurrentIndependentChildrenAreNotMisuse(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	jobs := out.Group("dependencies")

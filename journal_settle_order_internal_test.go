@@ -14,7 +14,7 @@ import (
 func finishSweepEventTypes(t *testing.T, declare func(*Run)) []string {
 	t.Helper()
 	var buf bytes.Buffer
-	o := initRun(Config{format: formatJSONL, stdout: &buf, stderr: &bytes.Buffer{}})
+	o := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &buf, Stderr: &bytes.Buffer{}}})
 	declare(o)
 	_ = o.finish()
 	return wireEventTypes(decodeWireEvents(t, buf.String()))

@@ -16,7 +16,7 @@ import (
 // manifest reconciliation cannot tolerate (a merged identity could later
 // report a false "already satisfied").
 func TestOutputTask_SameNameIsDuplicateSibling(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	first := out.Task("gate.ready")
@@ -40,7 +40,7 @@ func TestOutputTask_SameNameIsDuplicateSibling(t *testing.T) {
 // identity conflict, distinct from §3.1's duplicate sibling name —
 // ErrDuplicateKey must still fire, not ErrDuplicateSiblingName.
 func TestOutputTask_DifferentNameSameKey_StillDuplicateKey(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("a").key("same")

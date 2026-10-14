@@ -26,42 +26,30 @@ func (d *recordingLiveDriver) WriteDurable(s string) {
 }
 func (d *recordingLiveDriver) WriteFinal(string) {}
 
-// TestProjectDebugRecord_DualStreamSameTerminalRoutesThroughLiveSequencing
-// reproduces gate-7 finding 1: Config{Stdout, Stderr} — the realistic
-// default construction — routes to(Stdout) and withDiagnostics(Stderr), two
-// distinct io.Writer values. On an interactive shell without redirection,
-// both fds name the SAME physical tty. Before the fix, projectDebugRecordLocked's
-// dual branch (output.go) wrote the debug line straight to Diagnostics with
-// io.WriteString, bypassing debugLiveLocked's clear-live -> write-durable ->
-// repaint sequence entirely — so the raw bytes landed mid-spinner-row on the
-// one screen both writers share (observed 3/3 under a real pty: "⠏ sync
-// syncing a04:06:07.997 [INFO] synced").
-//
-// withDiagnosticSharesTerminal stands in here for construct.go's real device
-// identity detection (sameTerminalDevice), which a portable unit test cannot
-// exercise without a real tty — see TestSameTerminalDevice and the pty
-// verification captured in the work order report.
-func TestProjectDebugRecord_DualStreamSameTerminalRoutesThroughLiveSequencing(t *testing.T) {
+// TestProjectDebugRecord_SameTerminalRoutesThroughLiveSequencing reproduces
+// gate-7 finding 1: rows and debug records share stderr with the live region.
+// A debug line written raw to stderr would land mid-spinner-row (observed 3/3
+// under a real pty: "⠏ sync syncing a04:06:07.997 [INFO] synced"), so it must
+// go through the clear-live -> write-durable -> repaint sequence, and only there.
+func TestProjectDebugRecord_SameTerminalRoutesThroughLiveSequencing(t *testing.T) {
 	drv := &recordingLiveDriver{interactive: true}
-	var diagnostics, primary bytes.Buffer
+	var stderr bytes.Buffer
 
-	o := newOutput("gate7-finding1",
-		to(&primary), withDiagnostics(&diagnostics), withTerminal(drv),
-		withDiagnosticSharesTerminal(), debugLevel(levelDebug))
+	o := newOutput("gate7-finding1", to(&stderr), withTerminal(drv), debugLevel(levelDebug))
 	t.Cleanup(func() { _ = o.close() })
 
-	o.debug("dual stream debug line")
+	o.debug("same terminal debug line")
 
 	var sawSequencedWrite bool
 	for _, c := range drv.calls {
-		if strings.HasPrefix(c, "durable:") && strings.Contains(c, "dual stream debug line") {
+		if strings.HasPrefix(c, "durable:") && strings.Contains(c, "same terminal debug line") {
 			sawSequencedWrite = true
 		}
 	}
 	if !sawSequencedWrite {
 		t.Fatalf("expected the debug line to reach the live driver via clear-live -> write-durable sequencing, got calls=%v", drv.calls)
 	}
-	if strings.Contains(diagnostics.String(), "dual stream debug line") {
-		t.Fatalf("expected no raw duplicate write to Diagnostics when it shares the live terminal, got diagnostics=%q", diagnostics.String())
+	if strings.Contains(stderr.String(), "same terminal debug line") {
+		t.Fatalf("expected no raw write to stderr beside the live region, got stderr=%q", stderr.String())
 	}
 }

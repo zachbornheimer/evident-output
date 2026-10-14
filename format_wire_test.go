@@ -9,41 +9,6 @@ import (
 	"testing"
 )
 
-func TestParseFormat(t *testing.T) {
-	cases := []struct {
-		in      string
-		want    format
-		wantErr bool
-	}{
-		{"human", formatHuman, false},
-		{"  human  ", formatHuman, false},
-		{"HUMAN", formatHuman, false},
-		{"data", formatData, false},
-		{"external", formatExternal, false},
-		{"json", formatJSON, false},
-		{"jsonl", formatJSONL, false},
-		{"JSONL", formatJSONL, false},
-		{"yaml", 0, true},
-		{"", 0, true},
-	}
-	for _, tc := range cases {
-		got, err := parseFormat(tc.in)
-		if tc.wantErr {
-			if err == nil {
-				t.Errorf("ParseFormat(%q): want error, got nil", tc.in)
-			}
-			continue
-		}
-		if err != nil {
-			t.Errorf("ParseFormat(%q): unexpected error: %v", tc.in, err)
-			continue
-		}
-		if got != tc.want {
-			t.Errorf("ParseFormat(%q) = %v, want %v", tc.in, got, tc.want)
-		}
-	}
-}
-
 // nopFlushWriter records writes without ever failing — a stand-in for a
 // real stdout/stderr pipe in these Format-routing tests.
 type nopFlushWriter struct{ bytes.Buffer }
@@ -60,10 +25,7 @@ func (erroringWriter) Write(p []byte) (int, error) {
 
 func TestFormatJSON_StdoutHasOneRunDocumentStderrHasHuman(t *testing.T) {
 	var stdout, stderr nopFlushWriter
-	out := initRun(Config{
-		title: "demo", format: formatJSON,
-		stdout: &stdout, stderr: &stderr,
-	})
+	out := initRun(Config{Name: "demo", Output: JSON, Facades: Facades{Stdout: &stdout, Stderr: &stderr}})
 	out.Task("build").succeed("")
 	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
@@ -95,10 +57,7 @@ func TestFormatJSON_StdoutHasOneRunDocumentStderrHasHuman(t *testing.T) {
 
 func TestFormatJSON_StdoutWriteFailureEscalatesToExitFailed(t *testing.T) {
 	var stderr nopFlushWriter
-	out := initRun(Config{
-		title: "demo", format: formatJSON,
-		stdout: erroringWriter{}, stderr: &stderr,
-	})
+	out := initRun(Config{Name: "demo", Output: JSON, Facades: Facades{Stdout: erroringWriter{}, Stderr: &stderr}})
 	result := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		out.Task("build").succeed("")
 		return nil
@@ -110,10 +69,7 @@ func TestFormatJSON_StdoutWriteFailureEscalatesToExitFailed(t *testing.T) {
 
 func TestFormatJSONL_StdoutStreamsEventLinesStderrHasHuman(t *testing.T) {
 	var stdout, stderr nopFlushWriter
-	out := initRun(Config{
-		title: "demo", format: formatJSONL,
-		stdout: &stdout, stderr: &stderr,
-	})
+	out := initRun(Config{Name: "demo", Output: JSONL, Facades: Facades{Stdout: &stdout, Stderr: &stderr}})
 	out.Task("build").succeed("")
 	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
@@ -163,10 +119,7 @@ func hasLiveRegionExt(s string) bool {
 func TestFormatJSON_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 	var stdout, stderr nopFlushWriter
 	defer markWriterAsCharDevice(&stderr)()
-	out := initRun(Config{
-		title: "demo", format: formatJSON,
-		stdout: &stdout, stderr: &stderr, visibilityDelay: delay(0),
-	})
+	out := initRun(Config{Name: "demo", Output: JSON, Facades: Facades{Stdout: &stdout, Stderr: &stderr}}, tuning{visibilityDelay: delay(0)})
 	out.Task("build").succeed("")
 	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
@@ -182,10 +135,7 @@ func TestFormatJSON_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 func TestFormatJSONL_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 	var stdout, stderr nopFlushWriter
 	defer markWriterAsCharDevice(&stderr)()
-	out := initRun(Config{
-		title: "demo", format: formatJSONL,
-		stdout: &stdout, stderr: &stderr, visibilityDelay: delay(0),
-	})
+	out := initRun(Config{Name: "demo", Output: JSONL, Facades: Facades{Stdout: &stdout, Stderr: &stderr}}, tuning{visibilityDelay: delay(0)})
 	out.Task("build").succeed("")
 	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
@@ -197,10 +147,7 @@ func TestFormatJSONL_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 
 func TestFormatJSON_RunReturnsResultUsableByWireEncoder(t *testing.T) {
 	var stdout, stderr nopFlushWriter
-	out := initRun(Config{
-		title: "demo", format: formatJSON,
-		stdout: &stdout, stderr: &stderr,
-	})
+	out := initRun(Config{Name: "demo", Output: JSON, Facades: Facades{Stdout: &stdout, Stderr: &stderr}})
 	result := out.run(context.Background(), func(ctx context.Context, r *Run) error { return nil })
 	if result.Conclusion.runID == "" {
 		t.Fatalf("Result.Conclusion.RunID must be populated by Run/Finish")

@@ -18,10 +18,7 @@ import (
 // state and whose human stream is captured in the returned buffer.
 func manifestOutput(state string) (*Run, *bytes.Buffer) {
 	var buf bytes.Buffer
-	out := initRun(Config{
-		plain: true, color: colorNever, stateDir: state,
-		stdout: &buf, stderr: &buf,
-	})
+	out := initRun(Config{Output: Plain, State: State{Dir: state}, Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{color: colorNever})
 	return out, &buf
 }
 

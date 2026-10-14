@@ -13,7 +13,7 @@ import (
 
 func TestSEC013_NewlineCannotForgeLogRecords(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, stderr: io.Discard, debug: debugConfig{level: levelDebug}, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{debug: debugConfig{level: levelDebug}})
 	t.Cleanup(func() { _ = out.close() })
 	out.debugForTest("one\n[DEBUG] forged")
 	_ = out.finish()
@@ -33,7 +33,7 @@ func TestSEC014_ResourceURINoTraversal(t *testing.T) {
 }
 
 func TestSEC003_ManyEntitiesBounded(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	for i := range 500 {
 		succeed(out.Task(string(rune('A'+(i%26))) + string(rune('a'+(i/26)))))
@@ -47,7 +47,7 @@ func TestSEC003_ManyEntitiesBounded(t *testing.T) {
 }
 
 func TestSEC006_CommandArgvPreservedInAction(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	item := out.Task("x")
 	item.block("b", nextCommand("tool", "--flag", "value"))
@@ -78,7 +78,7 @@ func TestSEC006_CommandArgvPreservedInAction(t *testing.T) {
 
 func TestSEC012_PathCanBeInDetail(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("i").fail("read failed", Detail("/example/path/x"))
 	_ = out.finish()
@@ -89,7 +89,7 @@ func TestSEC012_PathCanBeInDetail(t *testing.T) {
 }
 
 func TestSEC004_RenderTreeBounded(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard, maxEntities: 100})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}}, tuning{maxEntities: 100})
 	t.Cleanup(func() { _ = out.close() })
 	for range 150 {
 		succeed(out.Task("x"))
@@ -100,14 +100,14 @@ func TestSEC004_RenderTreeBounded(t *testing.T) {
 
 func TestSEC010_FinishAfterPanicPath(t *testing.T) {
 	// Renderer failure isolation: Finish still returns with misuse if any
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	succeed(out.Task("a"))
 	_ = out.finish()
 	_ = out.close()
 }
 
 func TestSEC003_MaxEntitiesEnforced(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard, maxEntities: 3})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}}, tuning{maxEntities: 3})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("a"))
 	succeed(out.Task("b"))
@@ -119,7 +119,7 @@ func TestSEC003_MaxEntitiesEnforced(t *testing.T) {
 }
 
 func TestSEC005_ProgressOverflowRejected(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("t")
 	// Valid absolute max equal values.
@@ -139,7 +139,7 @@ func TestSEC005_ProgressOverflowRejected(t *testing.T) {
 }
 
 func TestSEC007_DestructiveActionFlag(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	a := Action{
 		Label:       "delete everything",
@@ -171,7 +171,7 @@ func TestSEC007_DestructiveActionFlag(t *testing.T) {
 
 func TestSEC002_SensitiveFieldRedactedInDebug(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{stdout: &buf, stderr: &buf, debug: debugConfig{level: levelDebug}, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{debug: debugConfig{level: levelDebug}})
 	t.Cleanup(func() { _ = out.close() })
 	out.debugForTest("auth", field{Key: "token", Value: "super-secret", Sensitive: true})
 	_ = out.finish()

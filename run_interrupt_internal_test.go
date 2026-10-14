@@ -41,10 +41,7 @@ func sendOneSignal(t *testing.T) (interrupt func()) {
 // dispatching the rest of the run to completion.
 func TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{
-		plain: true, color: colorNever,
-		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
-	})
+	out := initRun(Config{MaxConcurrency: 1, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	interrupt := sendOneSignal(t)
 
 	blocking := make(chan struct{})
@@ -118,10 +115,7 @@ func TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue(t *testing.T) {
 // mutated: ..." line rather than being lost with the run.
 func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{
-		plain: true, color: colorNever,
-		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
-	})
+	out := initRun(Config{MaxConcurrency: 1, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	interrupt := sendOneSignal(t)
 
 	seq := out.Sequence("python")
@@ -173,7 +167,7 @@ func TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects(t *testin
 // hang TestRun_SingleInterrupt_CancelsRunningAndAbandonsTheQueue showed
 // when its run callback was still Defining when the signal landed.
 func TestInterrupt_WorkDefinedAfterTheSignalNeverStrandsTheDrain(t *testing.T) {
-	out := initRun(Config{plain: true, color: colorNever, stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}}, tuning{color: colorNever})
 	out.interrupt("interrupted")
 	late := out.Task("late")
 	late.Define(func(context.Context) error { return nil })

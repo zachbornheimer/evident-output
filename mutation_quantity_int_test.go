@@ -15,7 +15,7 @@ func TestEffectQuantity_AcceptsLenDirectly(t *testing.T) {
 	items := []string{"a", "b", "c"}
 
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	out.Task("cleanup").Define(effectOf(Delete, "stale local branch", len(items)))
 	_ = out.finish()
 

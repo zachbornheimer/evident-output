@@ -17,7 +17,7 @@ import (
 func effectRun(t *testing.T, dryRun bool, spec EffectSpec, fn func(context.Context) error) (*Run, string, error) {
 	t.Helper()
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "prune", color: colorNever, plain: true, DryRun: dryRun})
+	out := initRun(Config{Name: "prune", DryRun: dryRun, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	var effectErr error
 	out.Task("worktrees").Define(func(ctx context.Context) error {
@@ -55,7 +55,7 @@ func TestEffect_DryRunRecordsPlannedAndNeverInvokesFn(t *testing.T) {
 func TestEffect_ApplyRecordsChangedOnlyAfterFnSucceeds(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "prune", color: colorNever, plain: true})
+	out := initRun(Config{Name: "prune", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	changesDuringFn := -1
 	var effectErr error
@@ -95,7 +95,7 @@ func TestEffect_ApplyFailureRecordsNothingAndReturnsFnError(t *testing.T) {
 
 func TestEffect_FnReceivesSchedulerOwnedContext(t *testing.T) {
 	t.Parallel()
-	out := initRun(Config{title: "prune", color: colorNever})
+	out := initRun(Config{Name: "prune"}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	var defineCtx, fnCtx context.Context
 	out.Task("worktrees").Define(func(ctx context.Context) error {
@@ -174,7 +174,7 @@ func TestEffect_OutsideDefineReturnsErrNoTaskContext(t *testing.T) {
 // bounded-rows overflow this test proves needs 500 distinct rows to exercise.
 func TestWriteEffects_BoundedRows_500Records(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true, DryRun: true})
+	out := initRun(Config{DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	const total = 500
 	commit(out.Task("branches"), distinctBranchDeletes(total)...)
 	if err := out.finish(); err != nil {
@@ -198,7 +198,7 @@ func TestWriteEffects_BoundedRows_500Records(t *testing.T) {
 // mutation verb called after the task already resolved (Done) never
 // executes the call and never silently swallows the misuse as a nil error.
 func TestEffect_OnResolvedTaskReturnsErrorNeverNil(t *testing.T) {
-	out := initRun(Config{color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("branches")
@@ -214,7 +214,7 @@ func TestEffect_OnResolvedTaskReturnsErrorNeverNil(t *testing.T) {
 // in-flight call must not cause the effect that call just committed
 // to be silently dropped as spurious misuse.
 func TestEffect_ConcurrentSummaryDuringCallDoesNotDropEffect(t *testing.T) {
-	out := initRun(Config{color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	started := make(chan struct{})

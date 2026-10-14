@@ -12,7 +12,7 @@ import (
 // that promotes to Running so the row can spin. Sequence children stay
 // Pending so later siblings do not all spin at once.
 func TestTask_DeclaresRunningSoTheRowCanSpin(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("install")
@@ -45,7 +45,7 @@ func TestTask_PromotesToRunningOnFirstEvidence(t *testing.T) {
 	}
 	for name, evidence := range cases {
 		t.Run(name, func(t *testing.T) {
-			out := initRun(Config{stdout: io.Discard})
+			out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 			t.Cleanup(func() { _ = out.close() })
 			task := out.Task("install")
 			evidence(task)
@@ -61,7 +61,7 @@ func TestTask_PromotesToRunningOnFirstEvidence(t *testing.T) {
 // different causes render differently, never a collapsed generic failure.
 func TestTask_LifecycleStatesAreDistinct(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	succeed(out.Task("done-task"))
 	out.Task("failed-task").fail("build broke")

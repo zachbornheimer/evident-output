@@ -13,7 +13,7 @@ import (
 
 func TestCaptureSuccessIsSilentByDefault(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := initRun(Config{title: "brew", stdout: &primary, stderr: &diag})
+	out := initRun(Config{Name: "brew", Facades: Facades{Stdout: &diag, Stderr: &primary}})
 	task := out.Task("brew")
 	output := task.capture()
 	_, _ = fmt.Fprintln(output, "Downloading bottle...")
@@ -37,7 +37,7 @@ func TestCaptureSuccessIsSilentByDefault(t *testing.T) {
 
 func TestTaskCapture_DetailTail_OnFail(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := initRun(Config{title: "brew", stdout: &primary, stderr: &diag})
+	out := initRun(Config{Name: "brew", Facades: Facades{Stdout: &diag, Stderr: &primary}})
 	upgrade := out.Task("brew packages")
 	output := upgrade.capture()
 	_, _ = fmt.Fprintln(output, "Error: bottle not found")
@@ -60,22 +60,25 @@ func TestTaskCapture_DetailTail_OnFail(t *testing.T) {
 }
 
 func TestCapture_MirrorToDiagnostics_OptIn(t *testing.T) {
-	var primary, diag bytes.Buffer
-	out := initRun(Config{title: "t", stdout: &primary, stderr: &diag})
+	var stdout, stderr bytes.Buffer
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &stdout, Stderr: &stderr}})
 	task := out.Task("x")
 	output := task.capture(MirrorToDiagnosticsForTest())
 	_, _ = fmt.Fprintln(output, "chatter")
 	_ = output.Close()
 	succeed(task)
 	_ = out.finish()
-	if !strings.Contains(diag.String(), "chatter") {
-		t.Fatalf("opt-in mirror missing: %q", diag.String())
+	if !strings.Contains(stderr.String(), "chatter") {
+		t.Fatalf("opt-in mirror missing from stderr: %q", stderr.String())
+	}
+	if strings.Contains(stdout.String(), "chatter") {
+		t.Fatalf("the mirror reached stdout, which carries only the payload: %q", stdout.String())
 	}
 }
 
 func TestCaptureSeparateStreamsDoNotMergePartialLines(t *testing.T) {
 	var primary bytes.Buffer
-	out := initRun(Config{title: "t", stdout: &primary, stderr: &primary})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &primary, Stderr: &primary}})
 	task := out.Task("cmd")
 	output := task.capture()
 	_, _ = io.WriteString(output.Stdout(), "download")
@@ -99,7 +102,7 @@ func TestCaptureSeparateStreamsDoNotMergePartialLines(t *testing.T) {
 
 func TestCapture_RingBoundsAndTruncation(t *testing.T) {
 	var primary bytes.Buffer
-	out := initRun(Config{title: "t", stdout: &primary, stderr: &primary})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &primary, Stderr: &primary}})
 	task := out.Task("x")
 	output := task.capture(KeepLastLinesForTest(3))
 	for i := range 10 {
@@ -117,7 +120,7 @@ func TestCapture_RingBoundsAndTruncation(t *testing.T) {
 
 func TestRunErrorCannotRenderReady(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "tool", stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "tool", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		return fmt.Errorf("database unavailable")
 	}).ExitCode()
@@ -134,7 +137,7 @@ func TestRunErrorCannotRenderReady(t *testing.T) {
 
 func TestRunErrorOutranksBlockedConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "tool", stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "tool", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		o := out
 		o.Task("policy").block("not permitted")
@@ -156,40 +159,43 @@ func TestConfig_PipeAndDiagnosticsWired(t *testing.T) {
 	defer func() { _ = r.Close() }()
 	defer func() { _ = w.Close() }()
 
-	var diag bytes.Buffer
-	out := initRun(Config{stdout: w, stderr: &diag, title: "tool", debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	var stdout bytes.Buffer
+	out := initRun(Config{Name: "tool", Output: Plain, Facades: Facades{Stdout: &stdout, Stderr: w}}, tuning{debug: debugConfig{level: levelDebug}, color: colorNever})
 	out.debugForTest("diag-line")
 	out.Task("gate").block("dirty")
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	_ = w.Close()
-	var primary bytes.Buffer
-	_, _ = primary.ReadFrom(r)
-	if !strings.Contains(diag.String(), "diag-line") {
-		t.Fatalf("Diagnostics not wired: %q", diag.String())
+	var stderr bytes.Buffer
+	_, _ = stderr.ReadFrom(r)
+	if !strings.Contains(stderr.String(), "diag-line") {
+		t.Fatalf("debug record missing from the stderr pipe: %q", stderr.String())
+	}
+	if strings.Contains(stdout.String(), "diag-line") {
+		t.Fatalf("debug record reached stdout: %q", stdout.String())
 	}
 }
 
-func TestDiagnostics_DualStream_DebugNotOnPrimary(t *testing.T) {
-	var primary, diag bytes.Buffer
-	out := initRun(Config{stdout: &primary, stderr: &diag, debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+func TestDebug_ReachesStderrOnceAndNeverStdout(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: &stdout, Stderr: &stderr}}, tuning{debug: debugConfig{level: levelDebug}, color: colorNever})
 	out.debugForTest("internal only")
 	succeed(out.Task("ok"))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(primary.String(), "internal only") {
-		t.Fatalf("dual-stream Debug must not hit primary:\n%s", primary.String())
+	if n := strings.Count(stderr.String(), "internal only"); n != 1 {
+		t.Fatalf("debug record on stderr %d times, want once:\n%s", n, stderr.String())
 	}
-	if !strings.Contains(diag.String(), "internal only") {
-		t.Fatalf("Debug must hit Diagnostics:\n%q", diag.String())
+	if strings.Contains(stdout.String(), "internal only") {
+		t.Fatalf("debug record reached stdout:\n%q", stdout.String())
 	}
 }
 
 func TestDetailTailIncludesUnterminatedStderr(t *testing.T) {
 	var primary bytes.Buffer
-	out := initRun(Config{title: "git", stdout: &primary, stderr: &primary})
+	out := initRun(Config{Name: "git", Facades: Facades{Stdout: &primary, Stderr: &primary}})
 	task := out.Task("fetch")
 	output := task.capture()
 	// No trailing newline — the usual subprocess final message shape.
@@ -213,7 +219,7 @@ func TestDetailTailIncludesUnterminatedStderr(t *testing.T) {
 
 func TestRootCloseFlushesEveryCaptureStream(t *testing.T) {
 	var primary bytes.Buffer
-	out := initRun(Config{title: "t", stdout: &primary, stderr: &primary})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &primary, Stderr: &primary}})
 	task := out.Task("cmd")
 	output := task.capture()
 	_, _ = io.WriteString(output.Stdout(), "stdout-partial")
@@ -237,7 +243,7 @@ func TestRootCloseFlushesEveryCaptureStream(t *testing.T) {
 
 func TestEmptySeesPendingCaptureContent(t *testing.T) {
 	var primary bytes.Buffer
-	out := initRun(Config{title: "t", stdout: &primary, stderr: &primary})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &primary, Stderr: &primary}})
 	task := out.Task("cmd")
 	output := task.capture()
 	if !output.Empty() {
@@ -259,7 +265,7 @@ func TestCaptureTruncateUTF8Safe(t *testing.T) {
 	line := b.String()
 
 	var primary bytes.Buffer
-	out := initRun(Config{title: "t", stdout: &primary, stderr: &primary})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &primary, Stderr: &primary}})
 	task := out.Task("x")
 	output := task.capture()
 	_, _ = io.WriteString(output, line+"\n")
@@ -282,13 +288,7 @@ func TestCaptureTruncateUTF8Safe(t *testing.T) {
 // still populates DetailTail without a separate writer or Mirror.
 func TestCapture_StderrOnlyFeedsDetailTail(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := initRun(Config{
-		title:  "lint",
-		stdout: &primary,
-		stderr: &diag,
-		plain:  true,
-		color:  colorNever,
-	})
+	out := initRun(Config{Name: "lint", Output: Plain, Facades: Facades{Stdout: &diag, Stderr: &primary}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("golangci-lint")

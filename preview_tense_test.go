@@ -21,11 +21,7 @@ func TestPreview_PlannedTenseWithoutTheDryRunTag(t *testing.T) {
 	t.Parallel()
 	called := false
 	var buf bytes.Buffer
-	out := initRun(Config{
-		plain: true, color: colorNever,
-		title: "zq", subject: "repo  /Users/zach/dev/flight", preview: true,
-		stdout: &buf,
-	})
+	out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever, subtitle: "repo  /Users/zach/dev/flight", preview: true})
 	branches := out.Task("branches")
 	branches.Define(func(ctx context.Context) error {
 		return Effect(ctx, EffectSpec{Verb: Delete, Object: "local tip", Quantity: 8}, func(context.Context) error {
@@ -62,11 +58,7 @@ func TestPreview_PlannedTenseWithoutTheDryRunTag(t *testing.T) {
 func TestDryRun_KeepsItsTag(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{
-		plain: true, color: colorNever,
-		title: "zq", subject: "repo  /Users/zach/dev/flight", DryRun: true,
-		stdout: &buf,
-	})
+	out := initRun(Config{Name: "zq", DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever, subtitle: "repo  /Users/zach/dev/flight"})
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "local tip", 8))
 	if err := out.finish(); err != nil {

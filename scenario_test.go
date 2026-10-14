@@ -43,11 +43,7 @@ import (
 //     inline "! kept" lines are evidence, not a "· warned" outcome marker.
 func TestScenario_DryRunPlanOnly(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{
-		DryRun: true, color: colorNever, plain: true,
-		subject: "zq prune  ~/Developer/Software-Automation-Holdings/.worktrees/eapp-system-style-contract-heading",
-		stdout:  &buf, stderr: io.Discard,
-	})
+	out := initRun(Config{DryRun: true, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever, subtitle: "zq prune  ~/Developer/Software-Automation-Holdings/.worktrees/eapp-system-style-contract-heading"})
 	t.Cleanup(func() { _ = out.close() })
 
 	// All three declared up front, matching the real CLI's three
@@ -99,11 +95,7 @@ func TestScenario_DryRunPlanOnly(t *testing.T) {
 // conclusion band, which the mockup's frame simply did not also transcribe.
 func TestScenario_NothingToClean(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{
-		color: colorNever, plain: true, title: "prune",
-		subject: "zq prune  ~/Developer/Personal/zq",
-		stdout:  &buf, stderr: io.Discard,
-	})
+	out := initRun(Config{Name: "prune", Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever, subtitle: "zq prune  ~/Developer/Personal/zq"})
 	t.Cleanup(func() { _ = out.close() })
 
 	branches := out.Task("branches")
@@ -165,15 +157,15 @@ func TestScenario_PartialFailure(t *testing.T) {
 	spec, fsys := newFailedChmodFile(t, dir, displayPath)
 
 	var buf bytes.Buffer
+	// State.Dir isolates this test's manifest to its own temp
+	// directory (spec §11.3) — without it, File's default
+	// manifest path is derived from the real machine cache dir and
+	// can contend with any other concurrently running File caller.
 	out := initRun(Config{
-		color: colorNever, plain: true, fileFS: fsys,
-		// StateDir isolates this test's manifest to its own temp
-		// directory (spec §11.3) — without it, File's default
-		// manifest path is derived from the real machine cache dir and
-		// can contend with any other concurrently running File caller.
-		stateDir: t.TempDir(),
-		stdout:   &buf, stderr: io.Discard,
-	})
+		Output:  Plain,
+		State:   State{Dir: t.TempDir()},
+		Facades: Facades{FS: fsys, Stdout: io.Discard, Stderr: &buf},
+	}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	agent := out.Task("write launch agent")
@@ -212,11 +204,7 @@ func TestScenario_Stress(t *testing.T) {
 	spec, fsys := newFailedChmodFile(t, dir, displayPath)
 
 	var buf bytes.Buffer
-	out := initRun(Config{
-		color: colorNever, plain: true, fileFS: fsys,
-		stateDir: t.TempDir(),
-		stdout:   &buf, stderr: io.Discard,
-	})
+	out := initRun(Config{Output: Plain, State: State{Dir: t.TempDir()}, Facades: Facades{Stdout: io.Discard, Stderr: &buf, FS: fsys}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	deploy := out.Group("deploy production")
@@ -280,11 +268,7 @@ func TestScenario_Stress(t *testing.T) {
 // use the same glyph for two different states, which the spec resolves.
 func TestScenario_CancelledAfterMutation(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{
-		color: colorNever, plain: true, title: "prune",
-		subject: "zq prune --apply  ~/.../eapp-system-style-contract-heading",
-		stdout:  &buf, stderr: io.Discard,
-	})
+	out := initRun(Config{Name: "prune", Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever, subtitle: "zq prune --apply  ~/.../eapp-system-style-contract-heading"})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.Task("branches") // never touched: still Pending when Cancel hits.
@@ -356,7 +340,7 @@ func TestScenario_AlreadySatisfied(t *testing.T) {
 func renderV8AlreadySatisfied(t *testing.T, verbosity verbosity) string {
 	t.Helper()
 	var buf bytes.Buffer
-	out := initRun(Config{color: colorNever, plain: true, stdout: &buf, stderr: io.Discard, verbosity: verbosity})
+	out := initRun(Config{Output: Plain, Verbose: verbosity == verbosityVerbose, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	// Spec §19's suffix is ResolutionAlreadySatisfied, produced only by a
@@ -402,11 +386,7 @@ func TestScenario_StressLive(t *testing.T) {
 
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := initRun(Config{
-		clock: clock, terminal: screen, fileFS: fsys,
-		stateDir: t.TempDir(), stdout: io.Discard, stderr: io.Discard,
-		visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000,
-	})
+	out := initRun(Config{State: State{Dir: t.TempDir()}, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen, FS: fsys}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000})
 	t.Cleanup(func() { _ = out.close() })
 
 	deploy := out.Group("deploy production")
@@ -487,15 +467,12 @@ func TestScenario_StressLive(t *testing.T) {
 func TestScenario_DependencyInstall(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := initRun(Config{
-		clock: clock, terminal: screen, stdout: io.Discard, stderr: io.Discard,
-		visibilityDelay: DelayForTest(0), color: colorNever,
-		// A high cap disables the interactive redraw frame-rate coalescing
-		// (default 20fps/50ms) that would otherwise drop the second of two
-		// back-to-back Doing/Progress calls made at the same fake-clock
-		// instant, and this golden asserts the frame that follows both.
-		maxFrameRate: 1_000_000,
-	})
+	// A high frame-rate cap disables the interactive redraw coalescing
+	// (default 20fps/50ms) that would otherwise drop the second of two
+	// back-to-back Doing/Progress calls made at the same fake-clock
+	// instant, and this golden asserts the frame that follows both.
+	out := initRun(Config{Facades: Facades{Clock: clock, Terminal: screen, Stdout: io.Discard, Stderr: io.Discard}},
+		tuning{visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000})
 	t.Cleanup(func() { _ = out.close() })
 
 	install := out.Task("install dependencies")
@@ -547,10 +524,7 @@ func firstRune(s string) string {
 func TestScenario_LiveParallelPrune(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := initRun(Config{
-		clock: clock, terminal: screen, stdout: io.Discard, stderr: io.Discard,
-		visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000,
-	})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000})
 	t.Cleanup(func() { _ = out.close() })
 
 	branches := out.Task("branches")
@@ -594,10 +568,7 @@ func TestScenario_LiveParallelPrune(t *testing.T) {
 func TestScenario_GenericSuccessPlusActiveWork(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := initRun(Config{
-		clock: clock, terminal: screen, stdout: io.Discard, stderr: io.Discard,
-		visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000,
-	})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000})
 	t.Cleanup(func() { _ = out.close() })
 
 	agent := out.Group("launch agent")

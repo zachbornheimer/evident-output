@@ -75,7 +75,7 @@ func TestInterrupt_ACancelledClaimedTaskNeverAnnouncesItselfEligibleAfterFinishi
 	late := 0
 	for range claimedTaskTrials / 2 {
 		var buf, stream bytes.Buffer
-		o := newOutput("job", to(&buf), maxConcurrency(1), wireFormatOption(formatJSONL), wireStreamOption(&stream))
+		o := newOutput("job", to(&buf), maxConcurrency(1), wireFormatOption(JSONL), wireStreamOption(&stream))
 		release := claimWithStartedHeld(o, o.Task("B"), 1, nopCallback)
 
 		o.interrupt("x")
@@ -139,7 +139,7 @@ func TestInterrupt_ACallbackNeverRunsWithoutATaskStartedEvent(t *testing.T) {
 	unannounced := 0
 	for range claimedTaskTrials {
 		var buf, stream bytes.Buffer
-		o := newOutput("job", to(&buf), maxConcurrency(4), wireFormatOption(formatJSONL), wireStreamOption(&stream))
+		o := newOutput("job", to(&buf), maxConcurrency(4), wireFormatOption(JSONL), wireStreamOption(&stream))
 		var mu sync.Mutex
 		ran := map[string]bool{}
 		handles := make([]*Task, 0, tasksPerTrial)

@@ -12,7 +12,7 @@ import (
 )
 
 func TestDOM014_DetailOnBlock(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	it := out.Task("i")
 	it.block("b", Detail("user visible"))
@@ -27,7 +27,7 @@ func TestDOM014_DetailOnBlock(t *testing.T) {
 // behavior allowed the total to grow silently; that is now recorded misuse
 // and the first total is kept.
 func TestDOM023_SealedTotalRejectsChange(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("t")
 	task.Progress(1, 2)
@@ -41,7 +41,7 @@ func TestDOM023_SealedTotalRejectsChange(t *testing.T) {
 }
 
 func TestDOM037_FailedConclusion(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("i").fail("no")
 	_ = out.finish()
@@ -59,7 +59,7 @@ func TestDOM037_FailedConclusion(t *testing.T) {
 // Conclusion.Warned carrying the warning forward instead of a StateWarning
 // headline.
 func TestDOM038_WarningOnly(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("i").Problem("careful", severity(severityWarning))
 	_ = out.finish()
@@ -72,7 +72,7 @@ func TestDOM038_WarningOnly(t *testing.T) {
 }
 
 func TestDOM041_ActionsPromoted(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	item := out.Task("i")
 	item.block("b", nextCommand("fix", "it"))
@@ -90,7 +90,7 @@ func TestDOM041_ActionsPromoted(t *testing.T) {
 // one identity, which is unsound once identity drives manifest
 // reconciliation).
 func TestDOM004_SameNameIsDuplicateSibling(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	a := out.Task("same")
 	b := out.Task("same")
@@ -107,7 +107,7 @@ func TestDOM004_SameNameIsDuplicateSibling(t *testing.T) {
 // the retired DuplicateDisplayNamesAllowed test named: two genuinely
 // distinct entities may still share a display name under different parents.
 func TestDOM004_DistinctParentsAllowSameDisplayName(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	a := out.Group("first").Task("same")
 	b := out.Group("second").Task("same")
@@ -119,7 +119,7 @@ func TestDOM004_DistinctParentsAllowSameDisplayName(t *testing.T) {
 }
 
 func TestDOM013_MutationAfterFinishRejected(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	succeed(out.Task("x"))
 	_ = out.finish()
 	succeed(out.Task("y"))
@@ -133,7 +133,7 @@ func TestDOM013_MutationAfterFinishRejected(t *testing.T) {
 }
 
 func TestDOM021_NegativeProgressRejected(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("t")
 	task.Progress(-1, 10)
@@ -148,7 +148,7 @@ func TestDOM021_NegativeProgressRejected(t *testing.T) {
 // Finish, the collection reads Incomplete (one unresolved child), and the
 // warning itself lives on that child's Warnings field.
 func TestDOM030_CollectionWarning(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	g := out.Group("g")
 	succeed(g.Task("a"))
@@ -169,7 +169,7 @@ func TestDOM030_CollectionWarning(t *testing.T) {
 // group summary line.
 func TestDOM030b_CollectionWarningDetailIsRendered(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	g := out.Group("capture")
 	succeed(g.Task("Brewfile"))
 	g.Task("Zen").Problem("skipped — zen-bootstrap not available", severity(severityWarning))
@@ -186,7 +186,7 @@ func TestDOM030b_CollectionWarningDetailIsRendered(t *testing.T) {
 }
 
 func TestDOM031_CollectionAllDone(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	g := out.Group("g")
 	g.Summary("all good")
@@ -204,7 +204,7 @@ func TestDOM031_CollectionAllDone(t *testing.T) {
 // 3: an unresolved child with no problems, on a clean finish, reads as an
 // honest Partial outcome, never misuse — Finish returns nil.
 func TestDOM035_UnresolvedChildInCollection(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	g := out.Group("g")
 	succeed(g.Task("a"))
@@ -218,7 +218,7 @@ func TestDOM035_UnresolvedChildInCollection(t *testing.T) {
 }
 
 func TestDOM049_OutputFail(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	out.fail("stopped", Detail("disk"))
 	_ = out.finish()
@@ -229,7 +229,7 @@ func TestDOM049_OutputFail(t *testing.T) {
 
 func TestDOM048_BlockedWithNilErrorReturn(t *testing.T) {
 	// Pattern from spec: presentation negative, callback returns nil
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	var ret error
 	func() {
@@ -246,7 +246,7 @@ func TestDOM048_BlockedWithNilErrorReturn(t *testing.T) {
 }
 
 func TestDOM005_DuplicateKeyRejected(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("one").key("k")
 	out.Task("two").key("k")
@@ -256,7 +256,7 @@ func TestDOM005_DuplicateKeyRejected(t *testing.T) {
 }
 
 func TestDOM024_TotalDecreaseBelowCompletedRejected(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("t")
 	task.Progress(5, 10)
@@ -270,7 +270,7 @@ func TestDOM024_TotalDecreaseBelowCompletedRejected(t *testing.T) {
 }
 
 func TestDOM006_TaskDoneWithoutPhase(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	item := out.Task("working tree")
 	succeed(item)
@@ -280,7 +280,7 @@ func TestDOM006_TaskDoneWithoutPhase(t *testing.T) {
 }
 
 func TestDOM039_ChangesPlusFailure(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard, title: "deps"})
+	out := initRun(Config{Name: "deps", Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("deps").Define(effectOf(Verb(change.EffectAdd), "package", 1))
 	out.Task("install").fail("disk full")
@@ -304,7 +304,7 @@ func TestDOM039_ChangesPlusFailure(t *testing.T) {
 // untested.
 
 func TestDOM043_FinishTwice(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("x"))
 	if err := out.finish(); err != nil {
@@ -321,7 +321,7 @@ func TestDOM043_FinishTwice(t *testing.T) {
 // since nothing else touched it — and its warning lands on the Warnings
 // field; a later Done still resolves it normally.
 func TestDOM010_WarnAndFailWithStructuredSummary(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	w := out.Task("w")
 	w.Problem("soft", severity(severityWarning))
@@ -343,7 +343,7 @@ func TestDOM010_WarnAndFailWithStructuredSummary(t *testing.T) {
 }
 
 func TestDOM012_NextActionAfterResolve(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	it := out.Task("x")
 	it.block("b", nextCommand("fix", "it"))
@@ -356,7 +356,7 @@ func TestDOM012_NextActionAfterResolve(t *testing.T) {
 // never-touched task with no problems, on a clean finish, reads as an honest
 // Partial outcome (Conclusion.Partial), never misuse — Finish returns nil.
 func TestDOM033_UnresolvedItemAtFinish(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("hanging")
 	if err := out.finish(); err != nil {
@@ -368,7 +368,7 @@ func TestDOM033_UnresolvedItemAtFinish(t *testing.T) {
 }
 
 func TestDOM044_CloseTwice(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	succeed(out.Task("x"))
 	if err := out.close(); err != nil {
 		t.Fatal(err)
@@ -379,7 +379,7 @@ func TestDOM044_CloseTwice(t *testing.T) {
 }
 
 func TestDOM045_EmptyOutput(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	if err := out.finish(); err != nil {
 		t.Fatal(err)

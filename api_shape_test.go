@@ -10,7 +10,7 @@ import (
 )
 
 func TestAPI017_PureProjection(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	succeed(out.Task("a"))
 	_ = out.finish()
 	snap := out.snapshot()
@@ -26,7 +26,7 @@ func TestAPI017_PureProjection(t *testing.T) {
 
 func TestAPI026_NoRunAllSymbol(t *testing.T) {
 	// Behavioral: core package has no execution helpers — we can only call presentation APIs.
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	// If RunAll existed tests might call it; absence is compile-time.
 	succeed(out.Task("x"))
@@ -47,7 +47,7 @@ func TestAPI018_LibraryDoesNotCallOsExit(t *testing.T) {
 	// entrypoints left, and neither calls os.Exit at all
 	// (run_exit_facade_internal_test.go's TestMain_ReturnsCodeWithoutExiting
 	// proves it directly): the caller writes os.Exit(Main(Config{}, run)).
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	out.Task("x")
 	if err := out.finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (clean finish, no amnesty-defeating problems)", err)
@@ -55,7 +55,7 @@ func TestAPI018_LibraryDoesNotCallOsExit(t *testing.T) {
 }
 
 func TestAPI010_DonefFormatting(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("t"), "n=3")
 	s := out.snapshot()
@@ -78,7 +78,7 @@ func TestAPI010_DonefFormatting(t *testing.T) {
 }
 
 func TestAPI028_AbsoluteProgress(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("t").Progress(3, 10).bytes(100, 200)
 	// last wins as absolute
@@ -95,14 +95,14 @@ func TestAPI025_PackageNameEvo(t *testing.T) {
 
 func TestAPI005_NoPublicIntentEnum(t *testing.T) {
 	// Construction uses For(subject) without IntentReport ceremony.
-	out := initRun(Config{stdout: io.Discard, title: "s"})
+	out := initRun(Config{Name: "s", Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("a"))
 	_ = out.finish()
 }
 
 func TestAPI004_CommonPathReadsAsFacts(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard, title: "repo"})
+	out := initRun(Config{Name: "repo", Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("working tree"))
 	out.Task("branches").block("local-only")
@@ -111,10 +111,10 @@ func TestAPI004_CommonPathReadsAsFacts(t *testing.T) {
 
 func TestAPI008_CommonAdvancedParity(t *testing.T) {
 	// Item with and without stable ID → same conclusion shape for simple OK.
-	a := initRun(Config{stdout: io.Discard})
+	a := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	succeed(a.Task("x"))
 	_ = a.finish()
-	b := initRun(Config{stdout: io.Discard})
+	b := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	succeed(b.Task("x"))
 	_ = b.finish()
 	if a.conclusion().headline() != b.conclusion().headline() {
@@ -126,7 +126,7 @@ func TestAPI008_CommonAdvancedParity(t *testing.T) {
 
 func TestAPI012_StandardFlagStyleEmbed(t *testing.T) {
 	// Ordinary Go main can embed Output — no base class required.
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("flag-demo"))
 	_ = out.finish()
@@ -136,7 +136,7 @@ func TestAPI030_CompatMatrixSmoke(t *testing.T) {
 	// pipe + plain + json + slog-ish debug + terminal surface
 	var buf bytes.Buffer
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := initRun(Config{stdout: &buf, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("a"))
 	out.debugForTest("d")
@@ -146,7 +146,7 @@ func TestAPI030_CompatMatrixSmoke(t *testing.T) {
 
 func TestAPI011_CobraNotRequired(t *testing.T) {
 	// Library embeds without Cobra base class
-	out := initRun(Config{stdout: io.Discard, title: "cmd"})
+	out := initRun(Config{Name: "cmd", Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("a"))
 	_ = out.finish()
@@ -155,7 +155,7 @@ func TestAPI011_CobraNotRequired(t *testing.T) {
 func TestAPI022_DiscoverabilityNames(t *testing.T) {
 	// User discovers Item/Task/Tasks and can implement three parallel facts without config.
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "repo", color: colorNever, plain: true})
+	out := initRun(Config{Name: "repo", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	succeed(out.Task("working tree"))
 	succeed(out.Task("scan").Doing("walk"), "done")
 	g := out.Group("deps")
@@ -177,7 +177,7 @@ func TestAPI022_DiscoverabilityNames(t *testing.T) {
 func TestAPI024_ComplexSmallerThanAdHoc(t *testing.T) {
 	// Multi-progress + debug is a short common-path program (not ad-hoc ANSI).
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, stderr: io.Discard, debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{debug: debugConfig{level: levelDebug}, color: colorNever})
 	g := out.Group("deps")
 	succeed(g.Task("a").bytes(10, 10))
 	succeed(g.Task("b").Doing("verifying"))
@@ -192,7 +192,7 @@ func TestAPI024_ComplexSmallerThanAdHoc(t *testing.T) {
 }
 
 func TestAPI001_MinimalItemExample(t *testing.T) {
-	out := initRun(Config{title: "repo"})
+	out := initRun(Config{Name: "repo"})
 	defer func() { _ = out.close() }()
 	succeed(out.Task("working tree"))
 	out.Task("branches").block("local-only")

@@ -86,7 +86,7 @@ func assertTypesEqual(t *testing.T, got []string, want ...string) {
 // still contains.
 func TestWireEvents_SuccessOrdering(t *testing.T) {
 	var stdout nopFlushWriter
-	out := initRun(Config{format: formatJSONL, stdout: &stdout})
+	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout}})
 	task := out.Task("build")
 	task.Define(func(context.Context) error { return nil })
 	_ = task.wait()
@@ -114,7 +114,7 @@ func TestWireEvents_SuccessOrdering(t *testing.T) {
 // task.finished carries resolution=already_satisfied.
 func TestWireEvents_AlreadySatisfiedSkipsDefinition(t *testing.T) {
 	var stdout nopFlushWriter
-	out := initRun(Config{format: formatJSONL, stdout: &stdout})
+	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout}})
 	task := out.Task("build")
 	task.Verify(func(context.Context) (bool, error) { return true, nil })
 	task.Define(func(context.Context) error {
@@ -159,14 +159,14 @@ func TestWireEvents_FileOperationSkippedCurrent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "managed.txt")
 	spec := FileSpec{Path: path, Contents: []byte("desired")}
 
-	first := initRun(Config{stateDir: state})
+	first := initRun(Config{State: State{Dir: state}})
 	if err := runFileTask(t, first, "file", spec); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
 	_ = first.close()
 
 	var stdout nopFlushWriter
-	second := initRun(Config{stateDir: state, format: formatJSONL, stdout: &stdout})
+	second := initRun(Config{Output: JSONL, State: State{Dir: state}, Facades: Facades{Stdout: &stdout}})
 	if err := runFileTask(t, second, "file", spec); err != nil {
 		t.Fatalf("second run: %v", err)
 	}
@@ -201,7 +201,7 @@ func TestWireEvents_FileOperationSkippedCurrent(t *testing.T) {
 // changed=true.
 func TestWireEvents_FileOperationStartedAndFinished(t *testing.T) {
 	var stdout nopFlushWriter
-	out := initRun(Config{stateDir: t.TempDir(), format: formatJSONL, stdout: &stdout})
+	out := initRun(Config{Output: JSONL, State: State{Dir: t.TempDir()}, Facades: Facades{Stdout: &stdout}})
 	path := filepath.Join(t.TempDir(), "managed.txt")
 	spec := FileSpec{Path: path, Contents: []byte("desired")}
 	if err := runFileTask(t, out, "file", spec); err != nil {
@@ -250,10 +250,7 @@ func TestWireEvents_ExecOperationStartedAndFinished(t *testing.T) {
 	runner := &scriptedRunner{exitCode: 0}
 
 	var stdout nopFlushWriter
-	out := initRun(Config{
-		stateDir: t.TempDir(), processRunner: runner,
-		format: formatJSONL, stdout: &stdout,
-	})
+	out := initRun(Config{Output: JSONL, State: State{Dir: t.TempDir()}, Facades: Facades{Stdout: &stdout, Process: runner}})
 	spec := ExecSpec{executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
 	runner.onRun = func() {
 		if err := os.WriteFile(outPath, []byte("built"), 0o644); err != nil {
@@ -299,7 +296,7 @@ func TestWireEvents_ExecOperationSkippedCurrent(t *testing.T) {
 	outPath := filepath.Join(dir, "out.txt")
 	spec := ExecSpec{executable: tool, Outputs: []string{"out.txt"}, Dir: dir}
 
-	first := initRun(Config{stateDir: state, processRunner: &scriptedRunner{exitCode: 0}})
+	first := initRun(Config{State: State{Dir: state}, Facades: Facades{Process: &scriptedRunner{exitCode: 0}}})
 	if err := os.WriteFile(outPath, []byte("built"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -309,10 +306,7 @@ func TestWireEvents_ExecOperationSkippedCurrent(t *testing.T) {
 	_ = first.close()
 
 	var stdout nopFlushWriter
-	second := initRun(Config{
-		stateDir: state, processRunner: &scriptedRunner{exitCode: 0},
-		format: formatJSONL, stdout: &stdout,
-	})
+	second := initRun(Config{Output: JSONL, State: State{Dir: state}, Facades: Facades{Stdout: &stdout, Process: &scriptedRunner{exitCode: 0}}})
 	if err := runExecTask(t, second, "build", spec); err != nil {
 		t.Fatalf("second run: %v", err)
 	}
@@ -346,7 +340,7 @@ func TestWireEvents_ExecOperationSkippedCurrent(t *testing.T) {
 
 func TestWireEvents_RunFinishedOnFailure(t *testing.T) {
 	var stdout nopFlushWriter
-	out := initRun(Config{format: formatJSONL, stdout: &stdout})
+	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout}})
 	out.Task("build").fail("broken")
 	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
@@ -366,7 +360,7 @@ func TestWireEvents_RunFinishedOnFailure(t *testing.T) {
 
 func TestWireEvents_RunFinishedOnCancel(t *testing.T) {
 	var stdout nopFlushWriter
-	out := initRun(Config{format: formatJSONL, stdout: &stdout})
+	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout}})
 	task := out.Task("build")
 	out.cancel("interrupted")
 	_ = task
@@ -389,7 +383,7 @@ func TestWireEvents_RunFinishedOnCancel(t *testing.T) {
 func TestWireEvents_SeqStrictlyMonotonic_UnderConcurrentTasks(t *testing.T) {
 	const taskCount = 40
 	var stdout nopFlushWriter
-	out := initRun(Config{format: formatJSONL, stdout: &stdout, MaxConcurrency: 8})
+	out := initRun(Config{MaxConcurrency: 8, Output: JSONL, Facades: Facades{Stdout: &stdout}})
 
 	var wg sync.WaitGroup
 	for i := range taskCount {
@@ -429,7 +423,7 @@ func TestWireEvents_SeqStrictlyMonotonic_UnderConcurrentTasks(t *testing.T) {
 // Output's own outputID, set once at Init and never reassigned).
 func TestWireEvents_RunIDStableAcrossAllLines(t *testing.T) {
 	var stdout nopFlushWriter
-	out := initRun(Config{format: formatJSONL, stdout: &stdout})
+	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout}})
 	task := out.Task("build")
 	task.Define(func(context.Context) error { return nil })
 	_ = task.wait()
@@ -491,7 +485,7 @@ func decodeWireEventsWithRunID(t *testing.T, body string) []wireEventLineWithRun
 // plain/TTY reader can see. A JSONL consumer must get the same evidence.
 func TestWireEvents_ProblemRecordedCarriesDetailAndEvidenceTail(t *testing.T) {
 	var stdout nopFlushWriter
-	out := initRun(Config{format: formatJSONL, stdout: &stdout})
+	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout}})
 	task := out.Task("build")
 	task.Problem("finding one", Detail("full detail text"))
 	task.Define(func(context.Context) error { return nil })
@@ -514,7 +508,7 @@ func TestWireEvents_ProblemRecordedCarriesDetailAndEvidenceTail(t *testing.T) {
 // the problem.recorded JSONL line, not just detail.
 func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
 	var stdout nopFlushWriter
-	out := initRun(Config{format: formatJSONL, stdout: &stdout})
+	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout}})
 	task := out.Task("build")
 	tail := task.captureForTest()
 	_, _ = fmt.Fprintln(tail, "error: undefined symbol foo")
@@ -542,7 +536,7 @@ func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
 // untested).
 func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
 	var stdout nopFlushWriter
-	out := initRun(Config{format: formatJSONL, stdout: &stdout})
+	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout}})
 	task := out.Task("build")
 	tail := task.captureForTest()
 	_, _ = fmt.Fprintln(tail, "warning: deprecated flag used")
@@ -569,7 +563,7 @@ func TestWireEvents_WarningRecordedCarriesEvidenceTail(t *testing.T) {
 // a Task warning's does, not just its summary.
 func TestWireEvents_RunWarningCarriesItsProblemOptions(t *testing.T) {
 	var stdout nopFlushWriter
-	out := initRun(Config{format: formatJSONL, stdout: &stdout})
+	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout}})
 	out.Task("disk").Problem("disk nearly full", severity(severityWarning), Code("W_DISK"), Detail("92% used"), location("/var", 0, 0))
 	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
@@ -595,7 +589,7 @@ func TestWireEvents_RunWarningCarriesItsProblemOptions(t *testing.T) {
 // projections.
 func TestWireEvents_VerificationObservedCarriesFacts(t *testing.T) {
 	var stdout nopFlushWriter
-	out := initRun(Config{format: formatJSONL, stdout: &stdout})
+	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout}})
 	task := out.Task("write launch agent")
 	task.Define(func(context.Context) error { return nil })
 
@@ -651,7 +645,7 @@ func TestWireEvents_VerificationObservedCarriesFacts(t *testing.T) {
 func TestWireEvents_VerificationObservedUsesSanitizedFacts(t *testing.T) {
 	const rawErr = "permission denied\x1b[31m\x07 (control bytes)"
 	var stdout nopFlushWriter
-	out := initRun(Config{format: formatJSONL, stdout: &stdout})
+	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout}})
 	task := out.Task("write file")
 	task.Define(func(context.Context) error { return nil })
 
@@ -720,7 +714,7 @@ func (w *failAfterNWriter) Write(p []byte) (int, error) {
 // whether an accumulated finding was blocking or a warning.
 func TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning(t *testing.T) {
 	var stdout nopFlushWriter
-	out := initRun(Config{format: formatJSONL, stdout: &stdout})
+	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout}})
 	task := out.Task("audit")
 	task.Problem("finding one", Code("A1"))
 	task.Problem("finding two", Code("A2"))
@@ -761,7 +755,7 @@ func TestWireEvents_ProblemAccumulationStreamsDistinctFromWarning(t *testing.T) 
 // reports a non-nil error escalating the run's exit code.
 func TestWireEvents_WriteFailureMidStream_FailsRunButKeepsEarlierLines(t *testing.T) {
 	w := &failAfterNWriter{n: 2}
-	out := initRun(Config{format: formatJSONL, stdout: w})
+	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: w}})
 	task := out.Task("build")
 	task.Define(func(context.Context) error { return nil })
 	_ = task.wait()

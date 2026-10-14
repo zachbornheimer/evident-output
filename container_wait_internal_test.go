@@ -17,10 +17,7 @@ import (
 // children itself.
 func TestGroupHandle_Wait_AllSucceed(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{
-		plain: true, color: colorNever,
-		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
-	})
+	out := initRun(Config{MaxConcurrency: 4, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 
 	res := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		jobs := out.Group("check")
@@ -41,10 +38,7 @@ func TestGroupHandle_Wait_AllSucceed(t *testing.T) {
 // one child at a time before the next child's callback even starts.
 func TestGroupHandle_Wait_DoesNotSerializeSiblings(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{
-		plain: true, color: colorNever,
-		MaxConcurrency: 3, stdout: &buf, stderr: io.Discard,
-	})
+	out := initRun(Config{MaxConcurrency: 3, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 
 	const n = 3
 	arrived := make(chan struct{}, n)
@@ -93,10 +87,7 @@ func TestGroupHandle_Wait_DoesNotSerializeSiblings(t *testing.T) {
 // the container Wait fail deterministically, exactly like a Failed child.
 func TestGroupHandle_Wait_BlockedChildSurfacesFailure(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{
-		plain: true, color: colorNever,
-		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
-	})
+	out := initRun(Config{MaxConcurrency: 4, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 
 	res := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		jobs := out.Group("check")
@@ -138,10 +129,7 @@ func TestGroupHandle_Wait_BlockedChildSurfacesFailure(t *testing.T) {
 // completes), proven by an atomic step counter each callback checks.
 func TestSequenceHandle_Wait_PreservesOrdering(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{
-		plain: true, color: colorNever,
-		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
-	})
+	out := initRun(Config{MaxConcurrency: 4, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 
 	var step atomic.Int32
 	res := out.run(context.Background(), func(ctx context.Context, r *Run) error {
@@ -178,10 +166,7 @@ func TestSequenceHandle_Wait_PreservesOrdering(t *testing.T) {
 // scheduler, not inline).
 func TestTaskHandle_Define_ReturnsHandleForChaining(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{
-		plain: true, color: colorNever,
-		MaxConcurrency: 4, stdout: &buf, stderr: io.Discard,
-	})
+	out := initRun(Config{MaxConcurrency: 4, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 
 	res := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		task := out.Task("solo")

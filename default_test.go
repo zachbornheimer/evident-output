@@ -10,13 +10,7 @@ import (
 
 func TestInit_ArmsFirstPaintBeforeAnyEntity(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{
-		stdout: io.Discard, stderr: io.Discard,
-		title:           "demo",
-		terminal:        screen,
-		color:           colorNever,
-		visibilityDelay: DelayForTest(0),
-	})
+	out := initRun(Config{Name: "demo", Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{color: colorNever, visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 
 	if got := screen.LiveFrameCount(); got == 0 {
@@ -32,17 +26,7 @@ func TestInit_ArmsFirstPaintBeforeAnyEntity(t *testing.T) {
 // freeze while Inventory ran — Isolated must still arm.
 func TestInit_IsolatedDryRunArmsAndEmitsConstructionFacts(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{
-		title:           "zq",
-		subject:         "zq purge",
-		DryRun:          true,
-		facts:           []factRecord{{Name: "scan roots", Value: "~/Developer"}},
-		stdout:          io.Discard,
-		stderr:          io.Discard,
-		terminal:        screen,
-		color:           colorNever,
-		visibilityDelay: DelayForTest(0),
-	})
+	out := initRun(Config{Name: "zq", DryRun: true, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{subtitle: "zq purge", facts: []factRecord{{Name: "scan roots", Value: "~/Developer"}}, color: colorNever, visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 
 	if got := screen.LiveFrameCount(); got == 0 {

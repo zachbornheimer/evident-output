@@ -15,7 +15,7 @@ import (
 func TestEffect_CallbackThatFailedItsOwnTaskRecordsNoEffect(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{title: "setup", stdout: &buf, plain: true, color: colorNever})
+	out := initRun(Config{Name: "setup", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	broken := out.Task("broken")
 	broken.Define(func(ctx context.Context) error {
@@ -42,7 +42,7 @@ func TestEffect_CallbackThatFailedItsOwnTaskRecordsNoEffect(t *testing.T) {
 func TestEffect_CallbackThatSummarizesItsOwnTaskKeepsTheEffect(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{title: "setup", stdout: &buf, plain: true, color: colorNever})
+	out := initRun(Config{Name: "setup", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	pkg := out.Task("numpy")
 	pkg.Define(func(ctx context.Context) error {
@@ -71,7 +71,7 @@ var createModule = EffectSpec{Verb: Create, Object: "module", Quantity: 1}
 func TestEffect_ConcurrentEffectsBothHonorTheRowsDenial(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{title: "setup", stdout: &buf, plain: true, color: colorNever})
+	out := initRun(Config{Name: "setup", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	broken := out.Task("broken")
 	broken.Define(func(ctx context.Context) error {
@@ -109,7 +109,7 @@ func TestEffect_ConcurrentEffectsBothHonorTheRowsDenial(t *testing.T) {
 // ledger — evo derives StateChanged, the caller never chose it.
 func TestEffect_SuccessCommitsChangedEffect(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "stale local branch", 2))
@@ -130,7 +130,7 @@ func TestEffect_SuccessCommitsChangedEffect(t *testing.T) {
 // fail) on a normal run.
 func TestEffect_NilCallRecordsWithoutExecuting(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "stale local branch", 2))
@@ -147,7 +147,7 @@ func TestEffect_NilCallRecordsWithoutExecuting(t *testing.T) {
 // commits no effect and returns the error verbatim — the caller decides
 // Fail/Block from there, evo never guesses.
 func TestEffect_CallErrorCommitsNothing(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard}}, tuning{color: colorNever})
 
 	branches := out.Task("branches")
 	wantErr := errors.New("permission denied")
@@ -172,7 +172,7 @@ func TestEffect_CallErrorCommitsNothing(t *testing.T) {
 // planned, never changed.
 func TestEffect_DryRunNeverExecutesCallAndPlansEffect(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true, DryRun: true})
+	out := initRun(Config{DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	branches := out.Task("branches")
 	called := false

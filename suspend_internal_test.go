@@ -25,7 +25,7 @@ func startsInsideWindow(t *testing.T, started <-chan struct{}) {
 }
 
 func TestSuspend_StartsAnEligibleSiblingBeforeTheWindowCloses(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	started := make(chan struct{})
 
@@ -43,7 +43,7 @@ func TestConfirm_StartsAnEligibleSiblingWhileTheQuestionIsOpen(t *testing.T) {
 	}
 	defer func() { _ = r.Close() }()
 	defer func() { _ = w.Close() }()
-	out := newOutput("", to(io.Discard), withNoColor(), stdin(r))
+	out := newOutput("", to(io.Discard), withTerminal(&recordingLiveDriver{interactive: true}), withNoColor(), stdin(r))
 	answered := make(chan bool)
 	go func() { answered <- out.Confirm("proceed?") }()
 	for out.graph.PendingAborts() == 0 {

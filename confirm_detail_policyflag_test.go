@@ -14,7 +14,7 @@ func TestConfirm_Detail_RendersContextLines(t *testing.T) {
 	var buf bytes.Buffer
 	restore := markWriterAsCharDevice(&buf)
 	t.Cleanup(restore)
-	out := initRun(Config{stdout: &buf, stderr: &buf, stdin: strings.NewReader("y\n"), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf, Stdin: strings.NewReader("y\n")}}, tuning{color: colorNever})
 
 	out.Confirm("delete origin/production-hotfix?",
 		Detail("host: prod-db-1"), Detail("affects: 3 downstream services"))
@@ -31,7 +31,7 @@ func TestConfirm_Detail_RendersContextLines(t *testing.T) {
 // PolicyHint(os.Args[0], flag).
 func TestConfirm_PolicyFlag_FillsExecutableFromTitle(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "clean-repo", color: colorNever, plain: true})
+	out := initRun(Config{Name: "clean-repo", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	out.Confirm("delete 8 stale local branches?", NonInteractive("--apply"))
 

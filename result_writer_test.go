@@ -13,12 +13,7 @@ import (
 // os.Stdout write and spliced its own task rows into its JSON.
 func TestResultWriter_FormatDataHandsTheCallerItsPayloadStream(t *testing.T) {
 	var payload, human bytes.Buffer
-	out := initRun(Config{
-		title:  "zq",
-		format: formatData,
-		stdout: &payload,
-		stderr: &human,
-	})
+	out := initRun(Config{Name: "zq", Facades: Facades{Stdout: &payload, Stderr: &human}})
 
 	succeed(out.Task("gitleaks"))
 	if _, err := out.ResultWriter().Write([]byte(`{"findings":[]}`)); err != nil {

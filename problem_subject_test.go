@@ -12,7 +12,7 @@ import (
 func warnSubjectRun(t *testing.T, count int) (human string, doc map[string]any) {
 	t.Helper()
 	var buf bytes.Buffer
-	out := initRun(Config{stateDir: t.TempDir(), stdout: &buf, title: "warn", color: colorNever, plain: true})
+	out := initRun(Config{Name: "warn", Output: Plain, State: State{Dir: t.TempDir()}, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	task := out.Task("check jobs")
 	task.Define(func(context.Context) error {
 		for range count {

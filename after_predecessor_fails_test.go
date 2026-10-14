@@ -16,11 +16,7 @@ const waitOutcomeTimeout = 2 * time.Second
 
 func newAfterFailTestOutput(t *testing.T, maxConcurrency int) *Run {
 	t.Helper()
-	out := initRun(Config{
-		stdout:         io.Discard,
-		stderr:         io.Discard,
-		MaxConcurrency: maxConcurrency,
-	})
+	out := initRun(Config{MaxConcurrency: maxConcurrency, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	return out
 }

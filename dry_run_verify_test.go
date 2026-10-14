@@ -13,13 +13,10 @@ import (
 // post-Define re-check observed state the skipped Effect never changed.
 // A planned run concludes planned, exit 0.
 func TestDryRun_UnsatisfiedVerifyPlansInsteadOfFailing(t *testing.T) {
-	for name, cfg := range map[string]Config{
-		"dry run": {DryRun: true},
-		"preview": {preview: true},
-	} {
+	for name, preview := range map[string]bool{"dry run": false, "preview": true} {
 		var buf bytes.Buffer
-		cfg.stateDir, cfg.stdout, cfg.title, cfg.color, cfg.plain = t.TempDir(), &buf, "dry", colorNever, true
-		out := initRun(cfg)
+		cfg := Config{Name: "dry", DryRun: !preview, Output: Plain, State: State{Dir: t.TempDir()}, Facades: Facades{Stderr: &buf}}
+		out := initRun(cfg, tuning{color: colorNever, preview: preview})
 		out.Task("converge").
 			Verify(func(context.Context) (bool, error) { return false, nil }).
 			Define(func(ctx context.Context) error {
@@ -44,14 +41,14 @@ func TestDryRun_UnsatisfiedVerifyPlansInsteadOfFailing(t *testing.T) {
 // a dry run that concludes planned exit 0 here predicts success for a run
 // certain to fail.
 func TestDryRun_UnsatisfiedVerifyWithNothingPlannedFails(t *testing.T) {
-	for name, cfg := range map[string]Config{
+	for name, mode := range map[string]struct{ dryRun, preview bool }{
 		"real":    {},
-		"dry run": {DryRun: true},
+		"dry run": {dryRun: true},
 		"preview": {preview: true},
 	} {
 		var buf bytes.Buffer
-		cfg.stateDir, cfg.stdout, cfg.title, cfg.color, cfg.plain = t.TempDir(), &buf, "dry", colorNever, true
-		out := initRun(cfg)
+		cfg := Config{Name: "dry", DryRun: mode.dryRun, Output: Plain, State: State{Dir: t.TempDir()}, Facades: Facades{Stderr: &buf}}
+		out := initRun(cfg, tuning{color: colorNever, preview: mode.preview})
 		out.Task("converge").
 			Verify(func(context.Context) (bool, error) { return false, nil }).
 			Define(func(context.Context) error { return nil })

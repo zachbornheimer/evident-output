@@ -22,7 +22,7 @@ func TestScheduledFail_AutoAttachedEvidenceDoesNotDeadlock(t *testing.T) {
 	go func() {
 		defer close(done)
 		var buf bytes.Buffer
-		out := initRun(Config{title: "zq", plain: true, stdout: &buf, stderr: &buf})
+		out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}})
 		group := out.Group("fix")
 		task := group.Task("gofmt")
 		task.Define(func(ctx context.Context) error {

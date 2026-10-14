@@ -18,7 +18,7 @@ func TestPORT_RedirectedStdout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := initRun(Config{stdout: w, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: w}}, tuning{color: colorNever})
 	succeed(out.Task("pipe"))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
@@ -40,7 +40,7 @@ func TestPORT_RedirectedStdout(t *testing.T) {
 func TestPORT001_ANSIOnPipe(t *testing.T) {
 	var buf bytes.Buffer
 	drv := terminal.NewANSI(&buf, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: drv, debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: drv}}, tuning{debug: debugConfig{level: levelDebug}})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("work").Doing("run"), "ok")
 	if err := out.finish(); err != nil {

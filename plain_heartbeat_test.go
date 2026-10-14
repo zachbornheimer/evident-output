@@ -78,10 +78,7 @@ func (c *heartbeatFakeClock) Advance(d time.Duration) {
 func TestPlainHeartbeat_SilentRunningTaskEmitsEvery30s(t *testing.T) {
 	clock := newHeartbeatFakeClock()
 	var buf strings.Builder
-	out := initRun(Config{
-		title: "demo", plain: true,
-		stdout: &buf, stderr: &buf, clock: clock,
-	})
+	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf, Clock: clock}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("generate schema")
@@ -121,10 +118,7 @@ func TestPlainHeartbeat_SilentRunningTaskEmitsEvery30s(t *testing.T) {
 func TestPlainHeartbeat_RealMilestoneDefersIt(t *testing.T) {
 	clock := newHeartbeatFakeClock()
 	var buf strings.Builder
-	out := initRun(Config{
-		title: "demo", plain: true,
-		stdout: &buf, stderr: &buf, clock: clock,
-	})
+	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf, Clock: clock}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("install dependencies")
@@ -150,10 +144,7 @@ func TestPlainHeartbeat_InteractiveLiveNeverEmitsOne(t *testing.T) {
 	clock := newHeartbeatFakeClock()
 	var stdout, stderr nopFlushWriter
 	defer markWriterAsCharDevice(&stdout)()
-	out := initRun(Config{
-		title:  "demo",
-		stdout: &stdout, stderr: &stderr, clock: clock, visibilityDelay: delay(0),
-	})
+	out := initRun(Config{Name: "demo", Facades: Facades{Stdout: &stderr, Stderr: &stdout, Clock: clock}}, tuning{visibilityDelay: delay(0)})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("scan")

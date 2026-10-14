@@ -20,6 +20,16 @@ func (s *promptWriteSpy) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// The spy is also the interactive terminal a Confirm prompts on, so the prompt reaches it either way.
+func (s *promptWriteSpy) ID() string            { return "prompt-write-spy" }
+func (s *promptWriteSpy) Columns() int          { return 80 }
+func (s *promptWriteSpy) Rows() int             { return 24 }
+func (s *promptWriteSpy) IsInteractive() bool   { return true }
+func (s *promptWriteSpy) WriteLive(string)      {}
+func (s *promptWriteSpy) ClearLive()            {}
+func (s *promptWriteSpy) WriteFinal(string)     {}
+func (s *promptWriteSpy) WriteDurable(t string) { _, _ = s.Write([]byte(t)) }
+
 // TestConfirm_AbortChannelRegisteredBeforePromptWrite proves the abort
 // channel for a Confirm gate is registered at gate creation, before the
 // durable "[y/N]" prompt is written and Suspend takes over the live region
@@ -37,7 +47,7 @@ func TestConfirm_AbortChannelRegisteredBeforePromptWrite(t *testing.T) {
 	defer func() { _ = r.Close() }()
 	defer func() { _ = w.Close() }()
 
-	o := newOutput("", to(spy), withNoColor(), stdin(r))
+	o := newOutput("", to(spy), withTerminal(spy), withNoColor(), stdin(r))
 	spy.out = o
 
 	done := make(chan struct{})

@@ -9,7 +9,7 @@ import (
 
 // The same read from a callback ordered after the producer is fine.
 func TestComputedGet_OrderedCallbackReadingThroughASpawnedGoroutineGetsTheValue(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard}})
 	defer func() { _ = out.close() }()
 	producer := Compute(out.Task("make"), func(context.Context) (int, error) { return 1, nil })
 	var got atomic.Int64

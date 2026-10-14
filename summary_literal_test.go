@@ -11,7 +11,7 @@ import (
 // through fmt.Sprintf, so a literal "%" (e.g. "50% cached") survives.
 func TestSummary_LiteralPercentSurvives(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	succeed(out.Task("cache"), "50% cached")
 	_ = out.finish()

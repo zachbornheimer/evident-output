@@ -10,7 +10,7 @@ import (
 // Block then return nil concludes the run Blocked with exit 1.
 func TestDefine_BlockThenNilRefuses(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stateDir: t.TempDir(), stdout: &buf, title: "refuse", color: colorNever, plain: true})
+	out := initRun(Config{Name: "refuse", Output: Plain, State: State{Dir: t.TempDir()}, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	task := out.Task("converge")
 	task.Define(func(context.Context) error {
 		task.block("needs review", Detail("ambiguous"))

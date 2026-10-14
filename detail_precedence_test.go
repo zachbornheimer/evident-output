@@ -15,7 +15,7 @@ import (
 // first, with the evidence tail as an additional evidence line underneath.
 func TestFail_ExplicitDetailAndDetailTail_BothRender(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	task := out.Task("deploy")
 	output := task.capture()
@@ -41,7 +41,7 @@ func TestFail_ExplicitDetailAndDetailTail_BothRender(t *testing.T) {
 // evidence tail either, and Detail still renders first.
 func TestFail_ExplicitDetailTailThenDetail_BothRender(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	task := out.Task("deploy")
 	output := task.capture()

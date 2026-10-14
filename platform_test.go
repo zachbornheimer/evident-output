@@ -19,12 +19,7 @@ func (platformSecretRedactor) RedactString(s string) string {
 
 func TestCapture_RedactsOnRetention(t *testing.T) {
 	var primary bytes.Buffer
-	out := initRun(Config{
-		title:    "sec",
-		stdout:   &primary,
-		stderr:   &primary,
-		redactor: platformSecretRedactor{},
-	})
+	out := initRun(Config{Name: "sec", Facades: Facades{Stdout: &primary, Stderr: &primary, Redactor: platformSecretRedactor{}}})
 	task := out.Task("fetch")
 	cap := task.capture()
 	_, _ = fmt.Fprintln(cap, "Authorization: Bearer SECRET_TOKEN")
@@ -46,7 +41,7 @@ func TestCapture_RedactsOnRetention(t *testing.T) {
 
 func TestEntityID_StableKeyInSnapshotAndJSON(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "id", stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "id", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	succeed(out.Task("working tree").key("gate.working-tree"))
 	succeed(out.Task("download base").key("build.base.download"))
 	_ = out.finish()
@@ -70,7 +65,7 @@ func TestEntityID_StableKeyInSnapshotAndJSON(t *testing.T) {
 
 func TestEntityID_DuplicateIsMisuse(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "dup", stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "dup", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	succeed(out.Task("a").key("same"))
 	succeed(out.Task("b").key("same"))
 	if !errors.Is(out.err(), misuse.ErrDuplicateKey) {
@@ -80,12 +75,7 @@ func TestEntityID_DuplicateIsMisuse(t *testing.T) {
 
 func TestResultWriter_FormatDataPurity(t *testing.T) {
 	var human, result bytes.Buffer
-	out := initRun(Config{
-		title:  "build",
-		format: formatData,
-		stdout: &result,
-		stderr: &human,
-	})
+	out := initRun(Config{Name: "build", Facades: Facades{Stdout: &result, Stderr: &human}})
 	succeed(out.Task("compile"))
 	succeed(out.Task("link"), "bin/app")
 	if _, err := io.WriteString(out.ResultWriter(), `{"artifact":"bin/app"}`+"\n"); err != nil {
@@ -107,25 +97,28 @@ func TestResultWriter_FormatDataPurity(t *testing.T) {
 	}
 }
 
-func TestResultWriter_UnsetIsDiscard(t *testing.T) {
-	var buf bytes.Buffer
-	out := initRun(Config{title: "h", stdout: &buf, stderr: &buf})
-	n, err := out.ResultWriter().Write([]byte("should-not-appear"))
+func TestResultWriter_WritesStdoutOnly(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	out := initRun(Config{Name: "h", Facades: Facades{Stdout: &stdout, Stderr: &stderr}})
+	n, err := out.ResultWriter().Write([]byte("payload"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != len("should-not-appear") {
+	if n != len("payload") {
 		t.Fatalf("write n=%d", n)
 	}
 	_ = out.finish()
-	if strings.Contains(buf.String(), "should-not-appear") {
-		t.Fatalf("discard failed: %q", buf.String())
+	if stdout.String() != "payload" {
+		t.Fatalf("stdout = %q, want the payload alone", stdout.String())
+	}
+	if strings.Contains(stderr.String(), "payload") {
+		t.Fatalf("the payload reached stderr: %q", stderr.String())
 	}
 }
 
 func TestItem_CaptureBindsEvidence(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "gate", stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "gate", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	docker := out.Task("docker daemon")
 	cap := docker.capture()
 	_, _ = cap.Stderr().Write([]byte("Cannot connect to the Docker daemon"))

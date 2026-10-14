@@ -22,9 +22,7 @@ import (
 func TestPlain_CollectionChildStreamsMilestones(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{
-		plain: true, color: colorNever, title: "zq", stdout: &buf,
-	})
+	out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	classify := out.Group("worktrees").Task("classify")
 	const total = 111

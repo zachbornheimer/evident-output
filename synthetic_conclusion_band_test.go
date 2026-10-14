@@ -16,7 +16,7 @@ import (
 // was ever stated.
 func TestFail_EmptyTitle_StillRendersFailedBand(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	out.fail("boom", Detail("underlying"))
 	_ = out.finish()

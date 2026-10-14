@@ -35,8 +35,7 @@ func TestConfigToOptions_CallerTerminalSharingPrimaryIsDetected(t *testing.T) {
 	var buf bytes.Buffer
 	term := &fakeSinkTerminal{w: &buf}
 
-	cfg := resolveConfig(Config{stdout: &buf, stderr: &bytes.Buffer{}, terminal: term})
-	built := configOf(cfg)
+	built := resolveConfig(Config{Facades: Facades{Stdout: &bytes.Buffer{}, Stderr: &buf, Terminal: term}}, tuning{})
 	if !built.samePrimaryAsTerminal {
 		t.Fatal("expected samePrimaryAsTerminal to be detected via the driver's Sink() matching primary")
 	}

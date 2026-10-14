@@ -42,7 +42,7 @@ func TestOpaqueTaskDefinitionFallsBackToAppFingerprintWhenRunHasManifestActivity
 	state := t.TempDir()
 	path := filepath.Join(t.TempDir(), "managed.txt")
 
-	out := initRun(Config{stateDir: state})
+	out := initRun(Config{State: State{Dir: state}})
 	t.Cleanup(func() { _ = out.close() })
 
 	if err := runFileTask(t, out, "file", FileSpec{Path: path, Contents: []byte("desired")}); err != nil {
@@ -84,7 +84,7 @@ func TestPreciseFileTaskLeavesTaskLevelDefinitionFingerprintEmpty(t *testing.T) 
 	state := t.TempDir()
 	path := filepath.Join(t.TempDir(), "managed.txt")
 
-	out := initRun(Config{stateDir: state})
+	out := initRun(Config{State: State{Dir: state}})
 	t.Cleanup(func() { _ = out.close() })
 	fileTask, fileKey := taskManifestKey(t, out, "file")
 	fileTask.Define(func(ctx context.Context) error {
@@ -124,7 +124,7 @@ func TestPreciseFileTaskLeavesTaskLevelDefinitionFingerprintEmpty(t *testing.T) 
 // consumer sees zero new filesystem side effects from this fallback.
 func TestOpaqueOnlyRunNeverOpensManifest(t *testing.T) {
 	state := t.TempDir()
-	out := initRun(Config{stateDir: state})
+	out := initRun(Config{State: State{Dir: state}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("opaque-only")
@@ -150,7 +150,7 @@ func TestOpaqueTaskDefinitionRunsEveryRun(t *testing.T) {
 	managed := filepath.Join(t.TempDir(), "managed.txt")
 
 	runOnce := func(run int) int {
-		out := initRun(Config{stateDir: stateDir})
+		out := initRun(Config{State: State{Dir: stateDir}})
 		defer func() { _ = out.close() }()
 		if err := runFileTask(t, out, "file", FileSpec{Path: managed, Contents: []byte("desired")}); err != nil {
 			t.Fatalf("run %d file task: %v", run, err)
@@ -193,7 +193,7 @@ func TestOpaqueTasksDoNotRewriteTheManifestPerSettle(t *testing.T) {
 	const opaqueTasks = 50
 	state := t.TempDir()
 	path := filepath.Join(t.TempDir(), "managed.txt")
-	out := initRun(Config{stateDir: state})
+	out := initRun(Config{State: State{Dir: state}})
 	t.Cleanup(func() { _ = out.close() })
 
 	if err := runFileTask(t, out, "file", FileSpec{Path: path, Contents: []byte("desired")}); err != nil {

@@ -39,7 +39,7 @@ func ExamplePatch() {
 	}
 	defer restore()
 
-	out := initRun(Config{stateDir: dir, stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{State: State{Dir: dir}, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	task := out.Task("apply notes")
 	task.Define(func(ctx context.Context) error {
 		err := Patch(ctx, []byte(createNotesDiff))
@@ -63,7 +63,7 @@ func ExamplePatch() {
 // bound to the Basis it was derived from, with no accessor that could
 // separate the contents from that Basis.
 func ExampleFileSet() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	task := out.Task("derive notes")
 	task.Define(func(ctx context.Context) error {
 		var set change.FileSet
@@ -100,7 +100,7 @@ func ExampleFiles() {
 	}
 	const diff = "--- a/notes.txt\n+++ b/notes.txt\n@@ -1 +1 @@\n-draft\n+final\n"
 
-	out := initRun(Config{stateDir: dir, stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{State: State{Dir: dir}, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	task := out.Task("finalize notes")
 	task.Define(func(ctx context.Context) error {
 		set, err := derivePatch(ctx, []byte(diff))

@@ -17,7 +17,7 @@ import (
 // no nested container, collapses into that Task's single row.
 func TestContainerVisibility_CollapsesLoneSameNameTask(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	g := out.Group("same")
 	succeed(g.Task("same"))
 	if err := out.finish(); err != nil {
@@ -36,7 +36,7 @@ func TestContainerVisibility_CollapsesLoneSameNameTask(t *testing.T) {
 // (contract §3/§18) and the nested Group's content still shows.
 func TestContainerVisibility_HidesHeaderOfGroupWithoutOwnInformation(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	outer := out.Group("outer")
 	inner := outer.Group("inner")
 	succeed(inner.Task("inner"))

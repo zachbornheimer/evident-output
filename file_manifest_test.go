@@ -46,14 +46,14 @@ func TestFileManifestFreshnessSkipsUnchangedOperation(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "managed.txt")
 	spec := FileSpec{Path: path, Contents: []byte("desired")}
 
-	first := initRun(Config{stateDir: state})
+	first := initRun(Config{State: State{Dir: state}})
 	if err := runFileTask(t, first, "file", spec); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
 	_ = first.close()
 	before := statOrFatal(t, path)
 
-	second := initRun(Config{stateDir: state})
+	second := initRun(Config{State: State{Dir: state}})
 	t.Cleanup(func() { _ = second.close() })
 	if err := runFileTask(t, second, "file", spec); err != nil {
 		t.Fatalf("second run: %v", err)
@@ -72,7 +72,7 @@ func TestFileManifestBasisDriftForcesReconciliation(t *testing.T) {
 	state := t.TempDir()
 	path := filepath.Join(t.TempDir(), "managed.txt")
 
-	first := initRun(Config{stateDir: state})
+	first := initRun(Config{State: State{Dir: state}})
 	spec1 := FileSpec{Path: path, Contents: []byte("desired"), basis: []freshness.Fingerprint{freshness.Value("input", 1)}}
 	if err := runFileTask(t, first, "file", spec1); err != nil {
 		t.Fatalf("first run: %v", err)
@@ -80,7 +80,7 @@ func TestFileManifestBasisDriftForcesReconciliation(t *testing.T) {
 	_ = first.close()
 
 	var stdout nopFlushWriter
-	second := initRun(Config{stateDir: state, format: formatJSONL, stdout: &stdout})
+	second := initRun(Config{Output: JSONL, State: State{Dir: state}, Facades: Facades{Stdout: &stdout}})
 	spec2 := FileSpec{Path: path, Contents: []byte("desired"), basis: []freshness.Fingerprint{freshness.Value("input", 2)}}
 	if err := runFileTask(t, second, "file", spec2); err != nil {
 		t.Fatalf("second run: %v", err)
@@ -111,7 +111,7 @@ func TestFileManifestOutputDriftForcesReconciliation(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "managed.txt")
 	spec := FileSpec{Path: path, Contents: []byte("desired")}
 
-	first := initRun(Config{stateDir: state})
+	first := initRun(Config{State: State{Dir: state}})
 	if err := runFileTask(t, first, "file", spec); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestFileManifestOutputDriftForcesReconciliation(t *testing.T) {
 		t.Fatalf("simulate external edit: %v", err)
 	}
 
-	second := initRun(Config{stateDir: state})
+	second := initRun(Config{State: State{Dir: state}})
 	t.Cleanup(func() { _ = second.close() })
 	if err := runFileTask(t, second, "file", spec); err != nil {
 		t.Fatalf("second run: %v", err)
@@ -141,7 +141,7 @@ func TestFileManifestDryRunNeverCommitsAndRecordsPlannedEffect(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "managed.txt")
 	spec := FileSpec{Path: path, Contents: []byte("desired")}
 
-	dry := initRun(Config{DryRun: true, stateDir: state})
+	dry := initRun(Config{DryRun: true, State: State{Dir: state}})
 	if err := runFileTask(t, dry, "file", spec); err != nil {
 		t.Fatalf("dry run: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestFileManifestDryRunNeverCommitsAndRecordsPlannedEffect(t *testing.T) {
 		t.Fatalf("dry-run must record a planned Effect for %q, plans=%+v", path, snap.Plans)
 	}
 
-	applied := initRun(Config{stateDir: state})
+	applied := initRun(Config{State: State{Dir: state}})
 	t.Cleanup(func() { _ = applied.close() })
 	store, err := applied.freshness.Store(context.Background())
 	if err != nil {
@@ -177,7 +177,7 @@ func TestFileManifestDryRunNeverCommitsAndRecordsPlannedEffect(t *testing.T) {
 // non-dry-run File call that actually writes records a committed Effect in
 // the Task's own Changes ledger.
 func TestFileManifestCommittedEffectRecordedOnMutation(t *testing.T) {
-	out := initRun(Config{stateDir: t.TempDir()})
+	out := initRun(Config{State: State{Dir: t.TempDir()}})
 	t.Cleanup(func() { _ = out.close() })
 	path := filepath.Join(t.TempDir(), "managed.txt")
 	if err := runFileTask(t, out, "file", FileSpec{Path: path, Contents: []byte("desired")}); err != nil {
@@ -201,7 +201,7 @@ func TestFileManifestCommittedEffectRecordedOnMutation(t *testing.T) {
 // Tasks in one Run both claiming the same canonical output path is a
 // conflict, detected as soon as the second claim is observed.
 func TestFileManifestConflictingProducersFailTask(t *testing.T) {
-	out := initRun(Config{stateDir: t.TempDir()})
+	out := initRun(Config{State: State{Dir: t.TempDir()}})
 	t.Cleanup(func() { _ = out.close() })
 	path := filepath.Join(t.TempDir(), "shared.txt")
 
@@ -226,7 +226,7 @@ func TestFileManifestPartialFailurePreservesEarlierCommits(t *testing.T) {
 		t.Fatalf("setup dir: %v", err)
 	}
 
-	out := initRun(Config{stateDir: state})
+	out := initRun(Config{State: State{Dir: state}})
 	t.Cleanup(func() { _ = out.close() })
 	if err := runFileTask(t, out, "ok-task", FileSpec{Path: okPath, Contents: []byte("fine")}); err != nil {
 		t.Fatalf("ok task: %v", err)
@@ -258,7 +258,7 @@ func TestManifestCorruptFileIsSafeMissWithWarning(t *testing.T) {
 	}
 	path := filepath.Join(t.TempDir(), "managed.txt")
 
-	out := initRun(Config{stateDir: state})
+	out := initRun(Config{State: State{Dir: state}})
 	t.Cleanup(func() { _ = out.close() })
 	if err := runFileTask(t, out, "file", FileSpec{Path: path, Contents: []byte("desired")}); err != nil {
 		t.Fatalf("run: %v", err)
@@ -285,7 +285,7 @@ func TestManifestCorruptFileIsSafeMissWithWarning(t *testing.T) {
 // "operations" — never left unevaluated the way an opaque callback with no
 // modeled proof would be.
 func TestFileManifestPostDefineEvidenceSourcesFromOperations(t *testing.T) {
-	out := initRun(Config{stateDir: t.TempDir()})
+	out := initRun(Config{State: State{Dir: t.TempDir()}})
 	t.Cleanup(func() { _ = out.close() })
 	path := filepath.Join(t.TempDir(), "managed.txt")
 	task := out.Task("file")
@@ -316,13 +316,13 @@ func TestFileModeOnlySpecConsultsManifestOnSecondRun(t *testing.T) {
 	}
 	spec := FileSpec{Path: path, Mode: 0o755}
 
-	first := initRun(Config{stateDir: state})
+	first := initRun(Config{State: State{Dir: state}})
 	if err := runFileTask(t, first, "chmod", spec); err != nil {
 		t.Fatalf("first run: %v", err)
 	}
 	_ = first.close()
 
-	second := initRun(Config{stateDir: state})
+	second := initRun(Config{State: State{Dir: state}})
 	t.Cleanup(func() { _ = second.close() })
 	store, err := second.freshness.Store(context.Background())
 	if err != nil {
@@ -361,7 +361,7 @@ func TestFileSkipsChmodWhenModeAlreadyMatches(t *testing.T) {
 	// No prior manifest record (fresh StateDir): File falls through to the
 	// live inspection path, where modeDiffers must evaluate false since the
 	// file is already 0o755.
-	out := initRun(Config{stateDir: t.TempDir()})
+	out := initRun(Config{State: State{Dir: t.TempDir()}})
 	t.Cleanup(func() { _ = out.close() })
 	if err := runFileTask(t, out, "chmod", FileSpec{Path: path, Mode: 0o755}); err != nil {
 		t.Fatalf("run: %v", err)

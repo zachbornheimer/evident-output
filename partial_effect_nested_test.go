@@ -22,7 +22,7 @@ func TestPartialEffect_BindsToTheEffectWhoseCallbackReturnedIt(t *testing.T) {
 	cause := errors.New("ref 3 locked")
 	push := EffectSpec{Verb: Verb(change.EffectPush), Object: "branch", Quantity: 5}
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "sync", color: colorNever, plain: true, stderr: io.Discard})
+	out := initRun(Config{Name: "sync", Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	var effectErr error
 	task := out.Task("sync")
@@ -59,7 +59,7 @@ func TestPartialEffect_JoinedAfterAnInnerOneStillCounts(t *testing.T) {
 	t.Parallel()
 	push := EffectSpec{Verb: Verb(change.EffectPush), Object: "branch", Quantity: 5}
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "sync", color: colorNever, plain: true, stderr: io.Discard})
+	out := initRun(Config{Name: "sync", Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("sync")
 	task.Define(func(ctx context.Context) error {

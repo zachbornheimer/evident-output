@@ -13,7 +13,7 @@ import (
 // the preview package is outside the root module's reach.
 func TestMCP025_DebugInterleavesWithItem(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, stderr: io.Discard, title: "demo", debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{debug: debugConfig{level: levelDebug}, color: colorNever})
 	succeed(out.Task("status"))
 	out.debugForTest("index ok")
 	_ = out.finish()

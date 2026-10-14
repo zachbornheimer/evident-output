@@ -15,7 +15,7 @@ import (
 // one level up.
 func TestTask_SummaryRendersOnTheSuccessfulTerminalRow(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "zq", plain: true, stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	branches := out.Task("check branches")
 	branches.Define(func(context.Context) error {
 		branches.Summary("459 checked")
@@ -39,7 +39,7 @@ func TestTask_SummaryRendersOnTheSuccessfulTerminalRow(t *testing.T) {
 // same contract Warn documents).
 func TestTask_SummaryDoesNotResolveTheTask(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "zq", plain: true, stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	task := out.Task("scan")
 	task.Summary("not done yet")
 	snap := task.snapshot()
@@ -55,7 +55,7 @@ func TestTask_SummaryDoesNotResolveTheTask(t *testing.T) {
 // Last call wins; an empty call clears the field.
 func TestTask_SummaryLastCallWinsAndEmptyClears(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "zq", plain: true, stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	task := out.Task("scan")
 	task.Define(func(context.Context) error {
 		task.Summary("first")
@@ -71,7 +71,7 @@ func TestTask_SummaryLastCallWinsAndEmptyClears(t *testing.T) {
 	}
 
 	var buf2 bytes.Buffer
-	out2 := initRun(Config{title: "zq", plain: true, stdout: &buf2, stderr: &buf2})
+	out2 := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stdout: &buf2, Stderr: &buf2}})
 	task2 := out2.Task("scan")
 	task2.Define(func(context.Context) error {
 		task2.Summary("set then cleared")
@@ -91,7 +91,7 @@ func TestTask_SummaryLastCallWinsAndEmptyClears(t *testing.T) {
 // "summary" field Group.Summary projects.
 func TestTask_SummarySurvivesJSONSnapshot(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "zq", plain: true, stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	task := out.Task("scan")
 	task.Define(func(context.Context) error {
 		task.Summary("4 stale refs")
@@ -115,7 +115,7 @@ func TestTask_SummarySurvivesJSONSnapshot(t *testing.T) {
 // Doing/Progress/Step/Bytes own the live row, not the result Summary.
 func TestTask_SummaryDoesNotReplaceDoingWhileRunning(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "zq", plain: true, stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	task := out.Task("scan")
 	task.Doing("scanning refs")
 	task.Summary("would-be result")

@@ -14,7 +14,7 @@ import (
 // over its own `- classify  not started` row.
 func TestGroup_EveryChildNotStartedIsNotStartedNotDone(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "clean", plain: true, stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "clean", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}})
 
 	failing := out.Group("branches")
 	failing.Task("classify").fail("not a git work tree")

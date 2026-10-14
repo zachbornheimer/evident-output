@@ -17,7 +17,7 @@ import (
 // rules).
 func TestFinishResolvesRunningTaskAsCancelled(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	running := out.Task("download")
 	running.Doing("fetching")

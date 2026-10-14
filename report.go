@@ -69,7 +69,7 @@ func (o *Run) ResultWriter() io.Writer {
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if o.cfg.result != nil || o.cfg.wireFormat == formatJSON || o.cfg.wireFormat == formatJSONL {
+	if o.cfg.result != nil || o.cfg.wireFormat == JSON || o.cfg.wireFormat == JSONL {
 		return resultWriter{o}
 	}
 	return io.Discard
@@ -101,9 +101,9 @@ func (o *Run) routeResult(b []byte) (io.Writer, error) {
 		return nil, fmt.Errorf("write result: %w", err)
 	}
 	switch {
-	case o.cfg.wireFormat == formatJSONL:
+	case o.cfg.wireFormat == JSONL:
 		o.emitWireEventLocked(wire.EventResultWritten, "", wire.ResultWrittenPayload(b))
-	case o.cfg.wireFormat == formatJSON:
+	case o.cfg.wireFormat == JSON:
 		o.resultText.Write(b)
 	case o.cfg.resultSharesTerminal && o.show.Stream.WritePayload(string(b)):
 	default:

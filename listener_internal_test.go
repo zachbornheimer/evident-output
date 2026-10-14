@@ -40,7 +40,7 @@ func (l lockTakingListener) TaskSettled(id record.TaskID, from, to record.State)
 
 func newListenerTestOutput(t *testing.T) *Run {
 	t.Helper()
-	o := initRun(Config{stdout: io.Discard, stderr: io.Discard})
+	o := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	t.Cleanup(func() { _ = o.close() })
 	return o
 }

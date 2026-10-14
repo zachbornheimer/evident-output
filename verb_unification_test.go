@@ -18,7 +18,7 @@ import (
 // separate types.
 func TestVerbVocabulary_UnifiedAcrossMutationVerbsAndRunModes(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	cleanup := out.Task("cleanup")
 	cleanup.Define(effectOf(Verb(change.EffectAdd), "worktree", 2))
@@ -44,7 +44,7 @@ func TestVerbVocabulary_UnifiedAcrossMutationVerbsAndRunModes(t *testing.T) {
 // ("push"), never conjugated, under Config.DryRun.
 func TestVerbVocabulary_PlanKeepsImperativeUnderDryRun(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true, DryRun: true})
+	out := initRun(Config{DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	plan := out.Task("plan-section")
 	plan.Define(effectOf(Verb(change.EffectPush), "commit", 3))

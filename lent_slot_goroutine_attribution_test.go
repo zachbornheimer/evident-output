@@ -24,7 +24,7 @@ type lentSlotOutcome struct {
 // (unordered).
 func lentSlotRead(t *testing.T, ceiling int) lentSlotOutcome {
 	t.Helper()
-	out := initRun(Config{stdout: io.Discard, plain: true, MaxConcurrency: ceiling})
+	out := initRun(Config{MaxConcurrency: ceiling, Output: Plain, Facades: Facades{Stderr: io.Discard}})
 	defer func() { _ = out.close() }()
 	made := out.Group("producers").Task("make")
 	producer := Compute(made, func(context.Context) (int, error) { return 7, nil })
@@ -69,7 +69,7 @@ func TestComputedGet_GoroutineStartedBeforeARunIsTheLendersReaderAtAnyCeiling(t 
 // the callback's goroutine). The goroutine's Wait on a settled Task is the
 // callback's, not the builder's, and must not be refused as inside it.
 func TestWait_GoroutineStartedBeforeALentBuilderRunIsNotInsideIt(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard, plain: true, MaxConcurrency: 1})
+	out := initRun(Config{MaxConcurrency: 1, Output: Plain, Facades: Facades{Stderr: io.Discard}})
 	defer func() { _ = out.close() }()
 	made := out.Group("producers").Task("make").Define(func(context.Context) error { return nil })
 	if err := made.wait(); err != nil {

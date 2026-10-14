@@ -62,7 +62,7 @@ func ExampleProblemSeverity() {
 // Task.Fail.
 func ExampleDetail() {
 	var buf bytes.Buffer
-	out := initRun(Config{plain: true, stdout: &buf, stderr: io.Discard})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}})
 	out.Task("read config").fail("parse error", Detail("unexpected token at line 4"))
 	_ = out.finish()
 	fmt.Print(buf.String())
@@ -77,7 +77,7 @@ func ExampleDetail() {
 // match on instead of parsing Summary text.
 func ExampleCode() {
 	var buf bytes.Buffer
-	out := initRun(Config{plain: true, stdout: &buf, stderr: io.Discard})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}})
 	out.Task("apply migration").fail("schema mismatch", Code("E_SCHEMA"))
 	_ = out.finish()
 	fmt.Print(buf.String())
@@ -90,7 +90,7 @@ func ExampleCode() {
 // ExampleOn sets the problem subject.
 func ExampleOn() {
 	var buf bytes.Buffer
-	out := initRun(Config{plain: true, stdout: &buf, stderr: io.Discard})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}})
 	out.Task("clean workspace").fail("permission denied", On("/var/cache"))
 	_ = out.finish()
 	fmt.Print(buf.String())
@@ -104,7 +104,7 @@ func ExampleOn() {
 // ExampleCount sets a quantity and optional unit on a Problem.
 func ExampleCount() {
 	var buf bytes.Buffer
-	out := initRun(Config{plain: true, stdout: &buf, stderr: io.Discard})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}})
 	out.Task("upload artifacts").fail("upload failed", count(3, "files"))
 	_ = out.finish()
 	fmt.Print(buf.String())
@@ -117,7 +117,7 @@ func ExampleCount() {
 // ExampleLocation sets a source location on a Problem.
 func ExampleLocation() {
 	var buf bytes.Buffer
-	out := initRun(Config{plain: true, stdout: &buf, stderr: io.Discard})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}})
 	out.Task("validate manifest").fail("unknown field", location("manifest.yaml", 4, 1))
 	_ = out.finish()
 	fmt.Print(buf.String())
@@ -133,7 +133,7 @@ func ExampleLocation() {
 // Task.Next call already did) — not just decoration on the row.
 func ExampleNext() {
 	var buf bytes.Buffer
-	out := initRun(Config{plain: true, stdout: &buf, stderr: io.Discard})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}})
 	out.Task("push branch").fail("rejected: non-fast-forward", Next(label("pull --rebase first")))
 	_ = out.finish()
 	fmt.Print(buf.String())
@@ -147,7 +147,7 @@ func ExampleNext() {
 // ExampleFailure shows Failure's error text. Failf/Blockf were removed in
 // 1.1; Fail is a statement, and a wrapped error is returned separately.
 func ExampleFailure() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	task := out.Task("clone repository")
 	task.fail("clone failed", Detail("connection refused"))
 	err := fmt.Errorf("clone failed: %w", fmt.Errorf("connection refused"))

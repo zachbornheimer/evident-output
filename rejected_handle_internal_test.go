@@ -10,8 +10,8 @@ import (
 )
 
 func quietOutput(cfg Config) *Run {
-	cfg.plain, cfg.color = true, colorNever
-	cfg.stdout, cfg.stderr = io.Discard, io.Discard
+	cfg.Output = Plain
+	cfg.Facades.Stdout, cfg.Facades.Stderr = io.Discard, io.Discard
 	return initRun(cfg)
 }
 

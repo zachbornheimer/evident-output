@@ -13,7 +13,7 @@ import (
 // Spec §1 defining interaction + §17.5 "render immediately for terminal outcomes".
 func TestProgressive_ItemResolutionsStreamBeforeFinish(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	a := out.Task("working tree")
@@ -70,7 +70,7 @@ func TestProgressive_ItemResolutionsStreamBeforeFinish(t *testing.T) {
 
 func TestProgressive_LineStreamsImmediately(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.println("Dry-run: no changes will be made.")
@@ -82,7 +82,7 @@ func TestProgressive_LineStreamsImmediately(t *testing.T) {
 
 func TestProgressive_NoDoublePrintOnFinish(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("once"))
 	_ = out.finish()
@@ -106,7 +106,7 @@ func TestProgressive_NoDoublePrintOnFinish(t *testing.T) {
 func TestProgressive_InteractiveNoDoublePrint(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	var primary bytes.Buffer
-	out := initRun(Config{stdout: &primary, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stderr: &primary, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	succeed(out.Task("working tree"))
@@ -143,7 +143,7 @@ func TestProgressive_InteractiveNoDoublePrint(t *testing.T) {
 
 func TestProgressive_DebugStreamsOnce(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, stderr: io.Discard, debug: debugConfig{level: levelDebug}, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{debug: debugConfig{level: levelDebug}, color: colorNever})
 	out.dropDiagnosticForTest()
 	t.Cleanup(func() { _ = out.close() })
 	out.debugForTest("cache warm", field{Key: "dir", Value: "/tmp/x"})
@@ -159,7 +159,7 @@ func TestProgressive_DebugStreamsOnce(t *testing.T) {
 
 func TestProgressive_ColorOnImmediateResolve(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, plain: true, color: colorAlways})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorAlways})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("working tree"))
 	if !strings.Contains(buf.String(), "\x1b[32m") {
@@ -177,7 +177,7 @@ func TestProgressive_FlushesBufferedWriters(t *testing.T) {
 	// bytes.Buffer has no Flush; use a thin flusher wrapper.
 	var inner bytes.Buffer
 	w := &flushBuffer{Buffer: &inner}
-	out := initRun(Config{stdout: w, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: w}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	succeed(out.Task("a"))

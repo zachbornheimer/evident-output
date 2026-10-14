@@ -11,7 +11,7 @@ import (
 // Done — the handle Task returns.
 func ExampleTask_handle() {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, stderr: io.Discard, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}})
 	handle := out.Task("fetch")
 	handle.Define(func(ctx context.Context) error { return nil })
 	_ = out.finish()
@@ -25,7 +25,7 @@ func ExampleTask_handle() {
 // — Define still submits fn to the scheduler asynchronously, and Wait is
 // what actually blocks for its outcome.
 func ExampleTask_Define_wait() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	task := out.Task("fetch")
 	err := task.Define(func(ctx context.Context) error { return nil }).wait()
 	_ = out.finish()
@@ -36,7 +36,7 @@ func ExampleTask_Define_wait() {
 
 // ExampleTaskSnapshot reads a Task's immutable view after it resolves.
 func ExampleTaskSnapshot() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	task := out.Task("apply patch")
 	task.Define(func(context.Context) error { return nil })
 	_ = out.finish()
@@ -59,7 +59,7 @@ func ExampleEvidencePhase() {
 // record: a before-false/after-true transition is never collapsed into one
 // final boolean.
 func ExampleTaskEvidence() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	task := out.Task("ensure directory")
 	first := true
 	task.Verify(func(ctx context.Context) (bool, error) {

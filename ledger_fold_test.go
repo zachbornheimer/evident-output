@@ -36,8 +36,8 @@ func declareCentralize(out *Run, perManager int, work func(manager string, i int
 func runPlain(t *testing.T, cfg Config, declare func(*Run)) (string, *Run) {
 	t.Helper()
 	var buf strings.Builder
-	cfg.plain, cfg.color, cfg.stdout, cfg.stderr = true, colorNever, &buf, io.Discard
-	out := initRun(cfg)
+	cfg.Output, cfg.Facades.Stdout, cfg.Facades.Stderr = Plain, io.Discard, &buf
+	out := initRun(cfg, tuning{color: colorNever})
 	declare(out)
 	_ = out.close()
 	return buf.String(), out
@@ -112,7 +112,7 @@ func TestLedgerFoldCountsOnlyCommittedItemsAndKeepsFailuresVisible(t *testing.T)
 
 func TestLedgerFoldLeavesJSONLEveryPerItemEffect(t *testing.T) {
 	var stdout strings.Builder
-	out := initRun(Config{format: formatJSONL, stdout: &stdout, stderr: io.Discard})
+	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout, Stderr: io.Discard}})
 	declareCentralize(out, 3, func(string, int) func(context.Context) error { return centralizeEffect(change.EffectUpdate, "package") })
 	_ = out.close()
 	if got := strings.Count(stdout.String(), `"effect.committed"`); got != 6 {

@@ -36,7 +36,7 @@ const (
 
 func newScaleOutput(t *testing.T) *Run {
 	t.Helper()
-	out := initRun(Config{stdout: io.Discard, plain: true, maxEntities: scaleMaxEntities})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard}}, tuning{maxEntities: scaleMaxEntities})
 	t.Cleanup(func() { _ = out.close() })
 	return out
 }

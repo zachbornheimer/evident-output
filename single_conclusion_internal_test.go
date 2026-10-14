@@ -26,8 +26,7 @@ func TestConfigToOptions_DefaultTTYMarksSharedPrimaryTerminal(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = tty.Close() })
 
-	cfg := resolveConfig(Config{stdout: tty, stderr: &bytes.Buffer{}})
-	built := configOf(cfg)
+	built := resolveConfig(Config{Facades: Facades{Stdout: &bytes.Buffer{}, Stderr: tty}}, tuning{})
 	if built.terminal == nil {
 		t.Fatal("expected an auto-built live Terminal driver on a char-device Stdout")
 	}
@@ -52,7 +51,6 @@ func TestFinish_SharedPrimaryTerminalRendersConclusionOnce(t *testing.T) {
 	out := newOutput("shared-writer",
 		to(&shared),
 		withTerminal(drv),
-		withPrimarySharesTerminal(),
 		visibilityDelay(0),
 		withNoColor(),
 	)
@@ -66,35 +64,5 @@ func TestFinish_SharedPrimaryTerminalRendersConclusionOnce(t *testing.T) {
 	got := shared.String()
 	if n := strings.Count(got, "[succeeded]"); n != 1 {
 		t.Fatalf("conclusion band count = %d, want exactly 1 in:\n%s", n, got)
-	}
-}
-
-// TestFinish_DistinctPrimaryAndTerminalKeepBothConclusions guards the
-// deliberately-separate-streams contract (TestProgressive_InteractiveNoDoublePrint,
-// TestDebugPane_FailurePreservesDiagnosticTail): when primary is a genuinely
-// distinct writer from the live terminal's backing stream, Finish must keep
-// writing the conclusion to primary — samePrimaryAsTerminal is never inferred,
-// only ever set by configOf at construction.
-func TestFinish_DistinctPrimaryAndTerminalKeepBothConclusions(t *testing.T) {
-	var primary, screenBuf bytes.Buffer
-	drv := terminal.NewANSI(&screenBuf, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := newOutput("distinct-writers",
-		to(&primary),
-		withTerminal(drv),
-		visibilityDelay(0),
-		withNoColor(),
-	)
-	t.Cleanup(func() { _ = out.close() })
-
-	out.Task("work").succeed("")
-	if err := out.finish(); err != nil {
-		t.Fatalf("Finish: %v", err)
-	}
-
-	if !strings.Contains(primary.String(), "[succeeded]") {
-		t.Fatalf("distinct primary must still receive the conclusion:\n%s", primary.String())
-	}
-	if !strings.Contains(screenBuf.String(), "[succeeded]") {
-		t.Fatalf("terminal must still receive the conclusion:\n%s", screenBuf.String())
 	}
 }

@@ -16,7 +16,7 @@ import (
 func renderFactTask(t *testing.T, verbosity verbosity, resolve func(*Task)) (string, *Run) {
 	t.Helper()
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true, verbosity: verbosity})
+	out := initRun(Config{Output: Plain, Verbose: verbosity == verbosityVerbose, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("worktrees")
 	task.Fact("on disk", "508.8 MB")

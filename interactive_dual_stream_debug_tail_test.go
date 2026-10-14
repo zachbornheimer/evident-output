@@ -2,38 +2,33 @@ package evo
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
+// sinkScreen is an interactive testkit.Screen whose driver reports sink as its destination, so the run's rows
+// reach sink while stderr stays a distinct diagnostic stream.
+type sinkScreen struct {
+	*testkit.Screen
+	sink io.Writer
+}
+
+func (s sinkScreen) Sink() io.Writer { return s.sink }
+
 // TestInteractive_DualStreamDebugTailReachesLiveTerminal reproduces the gate-5
-// gap: TestInteractive_DebugTailReachesLiveTerminal (interactive_debug_tail_test.go)
-// only exercises single-stream construction, where Diagnostics is never
-// configured (or is configured to the same writer as primary) and
-// projectDebugRecordLocked's dual early-return in output.go never fires.
-//
-// Ordinary Config-based construction — initRun(Config{...}) with the
-// realistic default Stdout/Stderr split — always sets Diagnostics to a
-// different writer than primary (construct.go: To(c.Stdout), Diagnostics(
-// c.Stderr)). Under that dual-stream shape, projectDebugRecordLocked wrote
-// the record to Diagnostics and returned before ever setting
-// debugPaneActive, so shouldPreserveDebugTailLocked's default preserveOnBad
-// path (gated on debugPaneActive) could never fire — the failure tail
-// promised by DebugPane was unreachable on the live terminal whenever the
-// caller used two real, distinct streams instead of one.
-//
-// This harness gives Diagnostics and primary genuinely distinct writers (two
-// real buffers, not testkit.Screen.Sink() which always returns nil) so the
-// dual branch is actually exercised, while still using an interactive
-// testkit.Screen as the live terminal driver.
+// gap: with a terminal whose sink is a stream other than stderr, debug records
+// go to stderr alone, and the record that went there must still set the pane
+// active, or the failure tail DebugPane promises never reaches the live terminal.
 func TestInteractive_DualStreamDebugTailReachesLiveTerminal(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	var primary, diagnostics bytes.Buffer
 
 	newest := true
-	out := initRun(Config{stdout: &primary, stderr: &diagnostics, terminal: screen, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug, view: debugPresentationPane, paneHeight: 5, newestFirst: &newest}, color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: &diagnostics, Terminal: sinkScreen{screen, &primary}}},
+		tuning{visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug, view: debugPresentationPane, paneHeight: 5, newestFirst: &newest}, color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	out.debugForTest("diagnostic detail line")
@@ -41,7 +36,7 @@ func TestInteractive_DualStreamDebugTailReachesLiveTerminal(t *testing.T) {
 	_ = out.finish()
 
 	if !strings.Contains(diagnostics.String(), "diagnostic detail line") {
-		t.Fatalf("Diagnostics stream missing the debug record; got:\n%q", diagnostics.String())
+		t.Fatalf("stderr missing the debug record; got:\n%q", diagnostics.String())
 	}
 
 	final := screen.FinalText()

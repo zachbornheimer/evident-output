@@ -10,7 +10,7 @@ import (
 
 func TestDebugWriter_SplitsLinesAndSanitizes(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}, color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}, color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	w := out.debugWriterForTest()

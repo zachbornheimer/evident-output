@@ -11,7 +11,7 @@ import (
 
 func TestMainWith_SuccessExitZero(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "demo", color: colorNever, plain: true})
+	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		succeed(out.Task("working tree"))
 		return nil
@@ -26,7 +26,7 @@ func TestMainWith_SuccessExitZero(t *testing.T) {
 
 func TestMainWith_BlockedExitOne(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "demo", color: colorNever, plain: true})
+	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		out.Task("working tree").block("dirty")
 		return nil
@@ -38,7 +38,7 @@ func TestMainWith_BlockedExitOne(t *testing.T) {
 
 func TestMainWith_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "demo", color: colorNever, plain: true})
+	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		succeed(out.Task("x"))
 		return errors.New("app boom")
@@ -57,7 +57,7 @@ func TestMainWith_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 
 func TestMainWith_RunErrorDoesNotDuplicateWhenAlreadyFailed(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "demo", stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "demo", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		out.Task("fetch").fail("network down", Detail("connection refused"))
 		return errors.New("network down")
@@ -93,7 +93,7 @@ func TestConfig_PipeWriterIsNoColor(t *testing.T) {
 	if isCharDevice(w) {
 		t.Fatal("pipe write end must not be a char device")
 	}
-	out := initRun(Config{title: "pipe", stdout: w, stderr: w})
+	out := initRun(Config{Name: "pipe", Facades: Facades{Stdout: w, Stderr: w}})
 	out.Task("x").fail("boom")
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
@@ -114,14 +114,7 @@ func TestConfig_PipeWriterIsNoColor(t *testing.T) {
 // overrides the default ExitFailed (2) when the conclusion is failed.
 func TestRun_FailedExitCodeConfigurable(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{
-		title:          "zq",
-		stdout:         &buf,
-		stderr:         &buf,
-		plain:          true,
-		color:          colorNever,
-		failedExitCode: 1,
-	})
+	out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{color: colorNever, failedExitCode: 1})
 	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		o := out
 		o.Task("gofmt check").fail("gofmt check exited 1")
@@ -132,13 +125,7 @@ func TestRun_FailedExitCodeConfigurable(t *testing.T) {
 	}
 	// Default remains 2 when FailedExitCode is unset.
 	var buf2 bytes.Buffer
-	out2 := initRun(Config{
-		title:  "zq",
-		stdout: &buf2,
-		stderr: &buf2,
-		plain:  true,
-		color:  colorNever,
-	})
+	out2 := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stdout: &buf2, Stderr: &buf2}}, tuning{color: colorNever})
 	code2 := out2.run(context.Background(), func(ctx context.Context, r *Run) error {
 		o := out2
 		o.Task("x").fail("boom")

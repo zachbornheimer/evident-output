@@ -34,7 +34,7 @@ func TestEveryOperationRefusesACancelledContextTheSameWay(t *testing.T) {
 	}
 	for name, op := range ops {
 		t.Run(name, func(t *testing.T) {
-			out := initRun(Config{stateDir: t.TempDir(), stdout: io.Discard, stderr: io.Discard})
+			out := initRun(Config{State: State{Dir: t.TempDir()}, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 			t.Cleanup(func() { _ = out.close() })
 			var opErr error
 			task := out.Task("op")

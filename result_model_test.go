@@ -12,7 +12,7 @@ import (
 // warned Task Finish settles Done — carries ResolutionNoWork and an
 // unevaluated (zero-value) Evidence.
 func TestTaskSnapshot_ResolutionNoWorkByDefault(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("no-define")
@@ -36,7 +36,7 @@ func TestTaskSnapshot_ResolutionNoWorkByDefault(t *testing.T) {
 // Verify-less Define reaches the same success it always has, just now with
 // a Resolution recorded.
 func TestTaskSnapshot_ResolutionExecutedWithoutVerify(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("plain-define")
@@ -58,7 +58,7 @@ func TestTaskSnapshot_ResolutionExecutedWithoutVerify(t *testing.T) {
 // "verify"} and resolution ResolutionAlreadySatisfied, with After left
 // unevaluated since Define never ran.
 func TestTaskSnapshot_ResolutionAlreadySatisfiedPreservesBeforeEvidence(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("already-satisfied")
@@ -86,7 +86,7 @@ func TestTaskSnapshot_ResolutionAlreadySatisfiedPreservesBeforeEvidence(t *testi
 // final boolean." Before is recorded false, then After true, and both
 // survive on the snapshot simultaneously.
 func TestTaskSnapshot_BeforeFalseAfterTruePreservesBothPhases(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("before-false-after-true")
@@ -136,7 +136,7 @@ func TestResult_ExitCodeMapping(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			out := initRun(Config{stdout: io.Discard})
+			out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 			t.Cleanup(func() { _ = out.close() })
 			result := out.run(context.Background(), c.run(out))
 			if result.ExitCode() != c.want {

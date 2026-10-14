@@ -9,7 +9,7 @@ import (
 
 // WS-6: predeclared Tasks keep declaration order under concurrent updates.
 func TestConcurrent_PredeclaredTaskOrderStable(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard, title: "batch"})
+	out := initRun(Config{Name: "batch", Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	jobs := out.Group("placement")
@@ -64,7 +64,7 @@ func TestConcurrent_PredeclaredTaskOrderStable(t *testing.T) {
 }
 
 func TestConcurrent_AggregateProgress_NotPerFile(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard, title: "huge"})
+	out := initRun(Config{Name: "huge", Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	// Model-by-scale: one aggregate Task for huge batches.

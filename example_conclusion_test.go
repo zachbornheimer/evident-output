@@ -10,7 +10,7 @@ import (
 // ExampleConclusion shows the multidimensional meaning of a finished
 // command, read from a real run.
 func ExampleConclusion() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	out.Task("apply patch").Define(func(context.Context) error { return nil })
 	_ = out.finish()
 	c := out.conclusion()
@@ -21,7 +21,7 @@ func ExampleConclusion() {
 
 // ExampleResolution shows that a Task whose Define ran records it.
 func ExampleResolution() {
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	task := out.Task("apply patch")
 	task.Define(func(context.Context) error { return nil })
 	_ = out.finish()

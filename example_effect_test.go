@@ -16,7 +16,7 @@ import (
 func ExampleEffect() {
 	for _, dryRun := range []bool{true, false} {
 		var buf strings.Builder
-		out := initRun(Config{title: "prune", plain: true, color: colorNever, DryRun: dryRun, stdout: &buf})
+		out := initRun(Config{Name: "prune", DryRun: dryRun, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 		removed := 0
 		out.Task("worktrees").Define(func(ctx context.Context) error {
 			return Effect(ctx, EffectSpec{Verb: Verb(change.EffectRemove), Object: "stale worktree", Quantity: 2},
@@ -69,7 +69,7 @@ func ExampleEffectSpec_noResource() {
 // that really happened and the Task still fails with the cause.
 func ExamplePartialEffect() {
 	var buf strings.Builder
-	out := initRun(Config{title: "prune", plain: true, color: colorNever, stdout: &buf})
+	out := initRun(Config{Name: "prune", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	rejected := errors.New("remote rejected refs/heads/old")
 	var effectErr error
 	out.Task("remote refs").Define(func(ctx context.Context) error {

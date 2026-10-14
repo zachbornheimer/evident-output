@@ -15,7 +15,7 @@ import (
 // gate" default (evo-rec.md): "y" answers OK the gate and return true.
 func TestConfirm_Yes_ResolvesOKAndReturnsTrue(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{terminal: screen, stdout: io.Discard, stderr: io.Discard, stdin: strings.NewReader("y\n"), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, Stdin: strings.NewReader("y\n")}}, tuning{color: colorNever})
 
 	if ok := out.Confirm("delete origin/production-hotfix?"); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
@@ -37,7 +37,7 @@ func TestConfirm_Yes_ResolvesOKAndReturnsTrue(t *testing.T) {
 // decline (Blocked, exit 1) — never a Failed row, never exit 2.
 func TestConfirm_No_ResolvesBlockedDeclinedAndExitsOne(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{terminal: screen, stdout: io.Discard, stderr: io.Discard, stdin: strings.NewReader("n\n"), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, Stdin: strings.NewReader("n\n")}}, tuning{color: colorNever})
 
 	if ok := out.Confirm("delete origin/production-hotfix?"); ok {
 		t.Fatal("Confirm(\"n\") = true, want false")
@@ -65,7 +65,7 @@ func TestConfirm_No_ResolvesBlockedDeclinedAndExitsOne(t *testing.T) {
 // exactly like an explicit "n" — never blocks, never succeeds.
 func TestConfirm_EmptyAnswer_Declines(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{terminal: screen, stdout: io.Discard, stderr: io.Discard, stdin: strings.NewReader("\n"), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, Stdin: strings.NewReader("\n")}}, tuning{color: colorNever})
 
 	if ok := out.Confirm("proceed?"); ok {
 		t.Fatal("Confirm(\"\") = true, want false")
@@ -98,7 +98,7 @@ func policyBlockActions(t *testing.T, item taskSnapshot) []record.Action {
 
 func TestConfirm_ZeroByteEOF_BlocksByPolicyNotDecline(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{terminal: screen, stdout: io.Discard, stderr: io.Discard, stdin: strings.NewReader(""), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, Stdin: strings.NewReader("")}}, tuning{color: colorNever})
 
 	if ok := out.Confirm("proceed?"); ok {
 		t.Fatal("Confirm(EOF) = true, want false")
@@ -121,7 +121,7 @@ func TestConfirm_ZeroByteEOF_BlocksByPolicyNotDecline(t *testing.T) {
 // non-interactive run without --yes never blocks waiting on stdin: the gate
 // resolves Blocked "blocked by policy" with a Next hint, immediately.
 func TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard, stdin: testkit.UnreadableStdin(t), plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard, Stdin: testkit.UnreadableStdin(t)}})
 
 	if ok := out.Confirm("delete origin/production-hotfix?"); ok {
 		t.Fatal("Confirm on non-interactive without AssumeYes = true, want false")
@@ -144,7 +144,7 @@ func TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin(t *testing.T) 
 // hardcoded "--yes" hint: without PolicyHint, the policy block still points
 // at --yes (today's behavior, unchanged by the strict-widening option).
 func TestConfirm_NonInteractive_DefaultPolicyHint_IsYesFlag(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard, stdin: testkit.UnreadableStdin(t), plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard, Stdin: testkit.UnreadableStdin(t)}})
 
 	out.Confirm("delete origin/production-hotfix?")
 
@@ -160,7 +160,7 @@ func TestConfirm_NonInteractive_DefaultPolicyHint_IsYesFlag(t *testing.T) {
 // waiting on a human").
 func TestConfirm_QuiescesLiveRegion_NoFramesBetweenPromptAndAnswer(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, stdin: strings.NewReader("y\n"), visibilityDelay: DelayForTest(0)})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, Stdin: strings.NewReader("y\n")}}, tuning{visibilityDelay: DelayForTest(0)})
 
 	task := out.Task("branches")
 	task.Doing("scanning")
@@ -206,7 +206,7 @@ func TestConfirm_QuiescesLiveRegion_NoFramesBetweenPromptAndAnswer(t *testing.T)
 // glyph vocabulary.
 func TestConfirm_Blocked_RendersBlockedGlyph(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{stdout: &buf, stdin: strings.NewReader("n\n")})
+	out := initRun(Config{Facades: Facades{Stderr: &buf, Stdin: strings.NewReader("n\n")}})
 
 	out.Confirm("delete origin/production-hotfix?")
 	if err := out.finish(); err != nil {
@@ -227,7 +227,7 @@ func TestConfirm_Blocked_RendersBlockedGlyph(t *testing.T) {
 // process-level exit code is 1 (ExitBlocked), not 2 (ExitFailed).
 func TestConfirm_Declined_ResolvesBlockedWithExitOne(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	// Plain/non-interactive mode without AssumeYes blocks by policy rather
 	// than reading stdin — the same declined-by-policy path a real TTY

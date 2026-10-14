@@ -2,11 +2,11 @@ package evo
 
 import (
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/change"
 	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
-	"github.com/zachbornheimer/evident-output/v2/internal/fs"
 	"github.com/zachbornheimer/evident-output/v2/internal/graph"
 	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
 	"github.com/zachbornheimer/evident-output/v2/internal/process"
@@ -70,59 +70,8 @@ type Run struct {
 	cleanStops graph.CleanStops
 }
 
-// baseConfig is the config a run starts from before Config resolves into it.
-func baseConfig(subject string) config {
-	return config{
-		subject:         subject,
-		clock:           systemClock{},
-		visibilityDelay: defaultVisibilityDelay,
-		maxFrameRate:    defaultMaxFrameRate,
-		width:           defaultWidth,
-		debugLevel:      levelInfo,
-		redactor:        process.NoopRedactor{},
-		maxEntities:     defaultMaxEntities,
-		verbosity:       verbosityNormal,
-		processRunner:   process.System(),
-		fileFS:          fs.Disk{},
-	}
-}
-
 // newRun builds the run cfg describes: its graph, freshness, changes and every projection.
 func newRun(cfg config) *Run {
-	// A Terminal driver supplied without to() must still land its residual projection: default primary to the
-	// driver's Sink(). A nil Sink means "no fixed sink" and is left alone; a driver that cannot answer is misuse,
-	// recorded below once o exists. When the driver's sink IS the primary writer, the driver already rendered
-	// the conclusion there once, so Finish must not render it again.
-	terminalWithoutSink := false
-	if cfg.terminal != nil {
-		sr, ok := cfg.terminal.(sinkReporter)
-		switch {
-		case !ok:
-			terminalWithoutSink = cfg.primary == nil
-		case sr.Sink() == nil:
-		case cfg.primary == nil:
-			cfg.primary = sr.Sink()
-			cfg.samePrimaryAsTerminal = true
-		case sr.Sink() == cfg.primary:
-			cfg.samePrimaryAsTerminal = true
-		case sr.Sink() == cfg.diagnostic:
-			// The driver owns the diagnostic stream; primary is a distinct stream with its own copy.
-		}
-	}
-	// An Options build with neither to() nor a Terminal sink defaults to os.Stdout and infers color as the
-	// non-Options path does, only ever strengthening an explicit withNoColor() so a piped file never leaks ANSI.
-	if cfg.terminal == nil && cfg.primary == nil {
-		cfg.primary = terminal.Stdout()
-		if !cfg.noColor && (lookupEnv(envKeyNoColor) != "" || !writerIsCharDevice(cfg.primary)) {
-			cfg.noColor = true
-		}
-	}
-	if cfg.maxEntities <= 0 {
-		cfg.maxEntities = defaultMaxEntities
-	}
-	if cfg.maxEvents <= 0 {
-		cfg.maxEvents = defaultMaxEvents
-	}
 	resolveGlyphProfileLocked(&cfg)
 	run := record.NewRun()
 	o := &Run{
@@ -151,9 +100,6 @@ func newRun(cfg config) *Run {
 	o.startedAt = o.cfg.clock.Now()
 	o.appendEventLocked(recEvent{Type: "output.started", OutputID: o.outputID})
 	o.emitWireEventLocked(wire.EventRunStarted, "", runStartedPayload(o.cfg.subject))
-	if terminalWithoutSink {
-		o.recordMisuse(errTerminalWithoutSink)
-	}
 	if cfg.dryRun {
 		// Announce before any task can reach the durable stream; unlocked is safe, o has not been returned yet.
 		o.show.PlannedHeader(o.cfg.preview, o.cfg.dryRunHeaderText)
@@ -308,4 +254,57 @@ func runStartedPayload(title string) map[string]any {
 		return nil
 	}
 	return map[string]any{"name": title}
+}
+
+// Environment keys honored at run start when the matching Config field is unset.
+const (
+	envKeyOutput     = "EVO_OUTPUT"
+	envKeyVerbose    = "EVO_VERBOSE"
+	envKeyDebug      = "EVO_DEBUG"
+	envKeyNoColor    = "NO_COLOR"
+	envKeyForceColor = "FORCE_COLOR"
+)
+
+const (
+	envForceColorOff = "0"
+	envVerboseOn     = "1"
+)
+
+// envOutputs are EVO_OUTPUT's values; any other value leaves Output to terminal inference.
+var envOutputs = map[string]Output{"human": Human, "plain": Plain, "json": JSON, "jsonl": JSONL}
+
+// envDebugLevels are EVO_DEBUG's values.
+var envDebugLevels = map[string]logLevel{"info": levelInfo, "debug": levelDebug, "warn": levelWarn, "error": levelError}
+
+var (
+	lookupEnvMu sync.RWMutex
+	lookupEnvFn = process.Env
+)
+
+func lookupEnv(key string) string {
+	lookupEnvMu.RLock()
+	fn := lookupEnvFn
+	lookupEnvMu.RUnlock()
+	if fn == nil {
+		return process.Env(key)
+	}
+	return fn(key)
+}
+
+// outputFromEnv is the Output EVO_OUTPUT's value v names, zero when it names none.
+func outputFromEnv(v string) Output { return envOutputs[strings.TrimSpace(v)] }
+
+// forceColorRequested reports whether FORCE_COLOR asks for color; NO_COLOR wins, so it is checked first.
+func forceColorRequested() bool {
+	if lookupEnv(envKeyNoColor) != "" {
+		return false
+	}
+	force := strings.TrimSpace(lookupEnv(envKeyForceColor))
+	return force != "" && force != envForceColorOff
+}
+
+// parseDebugEnv is the journal level EVO_DEBUG's value v names.
+func parseDebugEnv(v string) (logLevel, bool) {
+	lvl, ok := envDebugLevels[strings.TrimSpace(v)]
+	return lvl, ok
 }

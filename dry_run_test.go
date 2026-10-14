@@ -14,7 +14,7 @@ import (
 func TestDryRun_TrueRendersPlannedImperative(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "retire", color: colorNever, plain: true, DryRun: true})
+	out := initRun(Config{Name: "retire", DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "local branch", 12))
 	if err := out.finish(); err != nil {
@@ -41,7 +41,7 @@ func TestDryRun_TrueRendersPlannedImperative(t *testing.T) {
 func TestDryRun_FalseRendersChangedPastTense(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "retire", color: colorNever, plain: true})
+	out := initRun(Config{Name: "retire", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "local branch", 12))
 	if err := out.finish(); err != nil {
@@ -65,7 +65,7 @@ func TestDryRun_FalseRendersChangedPastTense(t *testing.T) {
 // therefore appears in the snapshot and FinalPlain.
 func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 	t.Parallel()
-	out := initRun(Config{title: "retire", color: colorNever})
+	out := initRun(Config{Name: "retire"}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "local branch", 3))
@@ -98,7 +98,7 @@ func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 // Define accumulate into one section instead of one per call.
 func TestTaskHandle_MultipleMutationsAccumulateOnOneSubject(t *testing.T) {
 	t.Parallel()
-	out := initRun(Config{title: "retire", color: colorNever})
+	out := initRun(Config{Name: "retire"}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	commit(out.Task("branches"),
 		EffectSpec{Verb: Delete, Object: "local branch", Quantity: 3},
@@ -135,7 +135,7 @@ func TestConjugatePast_TableIncludingIrregulars(t *testing.T) {
 		t.Run(string(imperative), func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			out := initRun(Config{stdout: &buf, title: "t", color: colorNever, plain: true})
+			out := initRun(Config{Name: "t", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 			commit(out.Task("subject"), EffectSpec{Verb: Verb(imperative), Object: "object", Quantity: 1})
 			if err := out.finish(); err != nil {
 				t.Fatal(err)
@@ -152,7 +152,7 @@ func TestConjugatePast_TableIncludingIrregulars(t *testing.T) {
 // the "resolved tasks record misuse, never panic" contract.
 func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 	t.Parallel()
-	out := initRun(Config{title: "t", color: colorNever})
+	out := initRun(Config{Name: "t"}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("branches")
 	succeed(task)
@@ -175,7 +175,7 @@ func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 func TestDryRun_MarkerAnnouncesRunAsFirstLine(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "retire", color: colorNever, plain: true, DryRun: true})
+	out := initRun(Config{Name: "retire", DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "local branch", 12))
 	if err := out.finish(); err != nil {
@@ -196,7 +196,7 @@ func TestDryRun_MarkerAnnouncesRunAsFirstLine(t *testing.T) {
 func TestDryRun_MarkerAbsentWhenNotDryRun(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "retire", color: colorNever, plain: true})
+	out := initRun(Config{Name: "retire", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "local branch", 12))
 	if err := out.finish(); err != nil {
@@ -213,7 +213,7 @@ func TestDryRun_MarkerAbsentWhenNotDryRun(t *testing.T) {
 // own (inferConclusion must not fall through to Ready/Changed for DryRun).
 func TestDryRun_ConclusionReadsPlannedNotDone(t *testing.T) {
 	t.Parallel()
-	out := initRun(Config{title: "retire", color: colorNever, DryRun: true})
+	out := initRun(Config{Name: "retire", DryRun: true}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	branches := out.Task("branches")
 	branches.Define(effectOf(Delete, "local branch", 12))
@@ -236,7 +236,7 @@ func TestDryRun_ConclusionReadsPlannedNotDone(t *testing.T) {
 // headline planned-not-done.
 func TestDryRun_ConclusionReadsPlannedEvenWithoutAPlanSection(t *testing.T) {
 	t.Parallel()
-	out := initRun(Config{title: "retire", color: colorNever, DryRun: true})
+	out := initRun(Config{Name: "retire", DryRun: true}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("scan"))
 	if err := out.finish(); err != nil {

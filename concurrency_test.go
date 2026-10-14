@@ -14,7 +14,7 @@ import (
 )
 
 func TestCON002_DisplayOrderStable(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	a, b, c := out.Task("a"), out.Task("b"), out.Task("c")
 	var wg sync.WaitGroup
@@ -30,7 +30,7 @@ func TestCON002_DisplayOrderStable(t *testing.T) {
 }
 
 func TestCON011_SequenceIncreasing(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	var wg sync.WaitGroup
 	for range 50 {
@@ -50,7 +50,7 @@ func TestCON011_SequenceIncreasing(t *testing.T) {
 }
 
 func TestCON013_SnapshotConsistentUnderLoad(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
@@ -73,7 +73,7 @@ func TestCON013_SnapshotConsistentUnderLoad(t *testing.T) {
 }
 
 func TestCON005_CloseDuringUpdates(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	var wg sync.WaitGroup
 	for range 20 {
 		wg.Go(func() {
@@ -86,7 +86,7 @@ func TestCON005_CloseDuringUpdates(t *testing.T) {
 }
 
 func TestCON016_ChildOrderPreserved(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	g := out.Group("g")
 	t1, t2, t3 := g.Task("a"), g.Task("b"), g.Task("c")
@@ -106,7 +106,7 @@ func TestCON016_ChildOrderPreserved(t *testing.T) {
 // get-or-create — the second call reports a distinct, Failed handle instead
 // of silently merging into the first.
 func TestCON018_DuplicateChildNames(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	g := out.Group("g")
 	a := g.Task("same")
@@ -121,7 +121,7 @@ func TestCON018_DuplicateChildNames(t *testing.T) {
 }
 
 func TestCON010_CancelVsDoneRace(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("t")
 	var wg sync.WaitGroup
@@ -137,7 +137,7 @@ func TestCON010_CancelVsDoneRace(t *testing.T) {
 
 func TestCON006_NoDeadlockOnRecursiveLog(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("t").Doing("p")
 	// Debug during live (recursive-ish path)
@@ -150,7 +150,7 @@ func TestCON007_DirtyCoalesce(t *testing.T) {
 	// H.22 already covers; assert pending doesn't grow unbounded
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0)})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("t")
 	for i := range 100 {
@@ -162,7 +162,7 @@ func TestCON007_DirtyCoalesce(t *testing.T) {
 }
 
 func TestCON015_NoLeakAfterClose(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	succeed(out.Task("a"))
 	_ = out.close()
 	// second close idempotent
@@ -170,7 +170,7 @@ func TestCON015_NoLeakAfterClose(t *testing.T) {
 }
 
 func TestCON017_ConcurrentDeclareSafe(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	done := make(chan struct{})
 	go func() {
@@ -185,7 +185,7 @@ func TestCON017_ConcurrentDeclareSafe(t *testing.T) {
 
 func TestCON019_HighFrequencyChildProgress(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0)})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 	g := out.Group("g")
 	t1 := g.Task("a")
@@ -199,7 +199,7 @@ func TestCON019_HighFrequencyChildProgress(t *testing.T) {
 }
 
 func TestCON008_JournalBackpressureDropsNonCritical(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard, maxEvents: 8})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}}, tuning{maxEvents: 8})
 	t.Cleanup(func() { _ = out.close() })
 	// Flood with line events (non-critical).
 	for range 40 {
@@ -228,7 +228,7 @@ func TestCON008_JournalBackpressureDropsNonCritical(t *testing.T) {
 func TestCON009_MultiRendererOneFailure(t *testing.T) {
 	var good bytes.Buffer
 	bad := &failWriter{}
-	out := initRun(Config{stdout: bad, title: "s", color: colorNever, plain: true})
+	out := initRun(Config{Name: "s", Output: Plain, Facades: Facades{Stderr: bad}}, tuning{color: colorNever})
 	out.alsoWriteForTest(&good)
 	succeed(out.Task("a"))
 	err := out.finish()
@@ -250,7 +250,7 @@ func TestCON009_MultiRendererOneFailure(t *testing.T) {
 func TestCON004_ResizeWhileLive(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0)})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("work")
 	task.Doing("start")
@@ -266,7 +266,7 @@ func TestCON004_ResizeWhileLive(t *testing.T) {
 
 func TestCON003_LogWhileLiveNoSplit(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("t")
 	task.Doing("running")
@@ -282,7 +282,7 @@ func TestCON003_LogWhileLiveNoSplit(t *testing.T) {
 
 func TestCON003_ConcurrentDebugAndProgress(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), debug: debugConfig{level: levelDebug}})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("t")
 	var wg sync.WaitGroup
@@ -307,7 +307,7 @@ func TestCON003_ConcurrentDebugAndProgress(t *testing.T) {
 }
 
 func TestCON001_ConcurrentTaskUpdates(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	tasks := out.Group("batch")
 	const n = 50
@@ -334,7 +334,7 @@ func TestCON001_ConcurrentTaskUpdates(t *testing.T) {
 }
 
 func TestCON012_ConcurrentItemOK(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	items := make([]*Task, 20)
 	for i := range items {

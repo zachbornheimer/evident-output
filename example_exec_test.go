@@ -51,10 +51,7 @@ func ExampleExec() {
 	}
 
 	var buf bytes.Buffer
-	out := initRun(Config{
-		stdout: &buf, stderr: io.Discard, plain: true, stateDir: dir,
-		processRunner: runner,
-	})
+	out := initRun(Config{Output: Plain, State: State{Dir: dir}, Facades: Facades{Stdout: io.Discard, Stderr: &buf, Process: runner}})
 	task := out.Task("generate")
 	task.Define(func(ctx context.Context) error {
 		_, err := Exec(ctx, ExecSpec{
@@ -102,10 +99,7 @@ func ExampleExecResult() {
 	defer func() { _ = os.RemoveAll(dir) }()
 
 	var buf bytes.Buffer
-	out := initRun(Config{
-		stdout: &buf, stderr: io.Discard, plain: true, stateDir: dir,
-		processRunner: runner,
-	})
+	out := initRun(Config{Output: Plain, State: State{Dir: dir}, Facades: Facades{Stdout: io.Discard, Stderr: &buf, Process: runner}})
 	task := out.Task("lint")
 	task.Define(func(ctx context.Context) error {
 		result, err := Exec(ctx, ExecSpec{executable: "/usr/bin/lint"})
@@ -150,10 +144,7 @@ func ExampleConfig_runner() {
 	runner.Script("/usr/bin/tool", testkit.ScriptedProcess{ExitCode: 0})
 
 	var buf bytes.Buffer
-	out := initRun(Config{
-		stdout: &buf, stderr: io.Discard, plain: true,
-		processRunner: runner,
-	})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf, Process: runner}})
 	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.finish()
 	fmt.Print(buf.String())

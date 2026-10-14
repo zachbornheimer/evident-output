@@ -45,10 +45,7 @@ func TestNamedRow_StreamsAtTaskResolution_PlainProfile(t *testing.T) {
 	// dry run suppress its trailing conclusion band, so the only "[planned]"
 	// occurrences left to count are the two per-task ledger rows this test is
 	// actually about.
-	out := initRun(Config{
-		DryRun: true, subject: "repo  /demo", stdout: &buf, color: colorNever, plain: true,
-		fileFS: testkit.NewFileFS(), stateDir: dir,
-	})
+	out := initRun(Config{DryRun: true, Output: Plain, State: State{Dir: dir}, Facades: Facades{Stderr: &buf, FS: testkit.NewFileFS()}}, tuning{subtitle: "repo  /demo", color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	planFiles(out.Task("go-task"), dir, "build.out")
@@ -88,10 +85,7 @@ func TestNamedRow_StreamsAtTaskResolution_InteractiveProfile(t *testing.T) {
 	// Title matches the task's own name so the single-matching-item
 	// conclusion-suppression rule (TestCoalesce_SingleMatchingPlan) applies —
 	// the only "[planned]" left to count is this task's own streamed row.
-	out := initRun(Config{
-		stdout: io.Discard, stderr: io.Discard, terminal: screen, title: "go-task", DryRun: true,
-		fileFS: testkit.NewFileFS(), stateDir: dir,
-	})
+	out := initRun(Config{Name: "go-task", DryRun: true, State: State{Dir: dir}, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, FS: testkit.NewFileFS()}})
 	t.Cleanup(func() { _ = out.close() })
 
 	planFiles(out.Task("go-task"), dir, "build.out")
@@ -115,10 +109,7 @@ func TestNamedRow_StreamsAtTaskResolution_InteractiveProfile(t *testing.T) {
 func TestNamedRow_CapsPerTaskRowsWithExactOverflow(t *testing.T) {
 	var buf bytes.Buffer
 	dir := t.TempDir()
-	out := initRun(Config{
-		stdout: &buf, color: colorNever, plain: true, DryRun: true,
-		fileFS: testkit.NewFileFS(), stateDir: dir,
-	})
+	out := initRun(Config{DryRun: true, Output: Plain, State: State{Dir: dir}, Facades: Facades{Stderr: &buf, FS: testkit.NewFileFS()}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	const total = 500

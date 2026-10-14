@@ -16,7 +16,7 @@ func nopWork(context.Context) error { return nil }
 
 func newGraphTestOutput(t *testing.T) *Run {
 	t.Helper()
-	return initRun(Config{stateDir: t.TempDir(), stdout: io.Discard, stderr: io.Discard})
+	return initRun(Config{State: State{Dir: t.TempDir()}, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 }
 
 // closeWithin runs Finish and Close and fails the test, instead of hanging

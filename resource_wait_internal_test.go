@@ -31,7 +31,7 @@ func runWithin(t *testing.T, out *Run, fn RunFunc) Result {
 // too broad: the same shape with no Resource on the Effect completes.
 func TestTaskHandle_Wait_WithoutClaimStillSucceeds(t *testing.T) {
 	dir := t.TempDir()
-	out := initRun(Config{plain: true, color: colorNever, MaxConcurrency: 4, stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{MaxConcurrency: 4, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}}, tuning{color: colorNever})
 	res := runWithin(t, out, func(ctx context.Context, r *Run) error {
 		b := out.Task("write file")
 		b.Define(func(ctx context.Context) error {

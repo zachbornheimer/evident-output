@@ -12,7 +12,7 @@ import (
 
 func TestWriter_SplitsOnLF_AcrossWrites(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "t", stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	task := out.Task("push")
 	w := task.Writer()
 
@@ -35,7 +35,7 @@ func TestWriter_SplitsOnLF_AcrossWrites(t *testing.T) {
 
 func TestWriter_UnterminatedWriteBecomesDoing(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "t", stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("build")
 	w := task.Writer()
@@ -50,7 +50,7 @@ func TestWriter_UnterminatedWriteBecomesDoing(t *testing.T) {
 
 func TestWriter_CRDelimitsProgressFrames(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "t", stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	task := out.Task("download")
 	w := task.Writer()
 
@@ -70,7 +70,7 @@ func TestWriter_CRDelimitsProgressFrames(t *testing.T) {
 
 func TestWriter_BlankLinesIgnored(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "t", stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	task := out.Task("sync")
 	w := task.Writer()
 
@@ -89,7 +89,7 @@ func TestWriter_BlankLinesIgnored(t *testing.T) {
 
 func TestWriter_BytesLandInCapture_DetailTailAfterFail(t *testing.T) {
 	var primary bytes.Buffer
-	out := initRun(Config{title: "t", stdout: &primary, stderr: &primary})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &primary, Stderr: &primary}})
 	task := out.Task("push")
 	w := task.Writer()
 
@@ -115,7 +115,7 @@ func TestWriter_BytesLandInCapture_DetailTailAfterFail(t *testing.T) {
 // fragment flushes as a phase line on its own.
 func TestWriter_UnboundedPendingFragmentIsCapped(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{title: "t", stdout: &buf, stderr: &buf})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	task := out.Task("build")
 	w := task.Writer()
 
@@ -144,7 +144,7 @@ func TestWriter_UnboundedPendingFragmentIsCapped(t *testing.T) {
 
 func TestWriter_SanitizesHostileLines(t *testing.T) {
 	var primary bytes.Buffer
-	out := initRun(Config{title: "t", stdout: &primary, stderr: &primary})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &primary, Stderr: &primary}})
 	task := out.Task("push")
 	w := task.Writer()
 
@@ -182,7 +182,7 @@ func countPhaseChanged(events []recEvent) int {
 // updates both.
 func TestWriter_IdenticalLiveOnlyPhaseIsNoOp(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := initRun(Config{clock: TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, stdout: io.Discard, stderr: io.Discard, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("push")

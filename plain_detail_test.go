@@ -9,13 +9,7 @@ import (
 // nonTTYConfig builds a Plain/NoColor Config that writes into buf.
 // Buffers are never TTYs, so this is the flat/CI path zq pilots use.
 func nonTTYConfig(title string, buf *bytes.Buffer) Config {
-	return Config{
-		title:  title,
-		stdout: buf,
-		stderr: buf,
-		plain:  true,
-		color:  colorNever,
-	}
+	return Config{Name: title, Output: Plain, Facades: Facades{Stdout: buf, Stderr: buf}}
 }
 
 // TestPlain_MultiLineDetailPreservedAsBlock is the P3 contract: multi-line

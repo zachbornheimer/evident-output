@@ -12,7 +12,7 @@ import (
 
 func newQuietOutput(t *testing.T, strict bool) *Run {
 	t.Helper()
-	out := initRun(Config{stdout: io.Discard, plain: true, strict: strict})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard}}, tuning{strict: strict})
 	t.Cleanup(func() { _ = out.close() })
 	return out
 }

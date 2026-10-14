@@ -164,7 +164,7 @@ func TestBeginRunContext_SecondRunStartsFresh(t *testing.T) {
 
 func newTestOutput(t *testing.T) *Run {
 	t.Helper()
-	out := initRun(Config{stdout: discardWriter{}})
+	out := initRun(Config{Facades: Facades{Stderr: discardWriter{}}})
 	t.Cleanup(func() { _ = out.close() })
 	return out
 }

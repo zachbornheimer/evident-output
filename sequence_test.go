@@ -13,7 +13,7 @@ import (
 // with no caller code.
 func TestSequence_FailureAutoResolvesLaterSiblingsToNotStarted(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	setup := out.Sequence("python")
@@ -42,7 +42,7 @@ func TestSequence_FailureAutoResolvesLaterSiblingsToNotStarted(t *testing.T) {
 // TestSequence_EarlierCompletedSiblingKeepsItsResolvedState covers "earlier
 // Done rows are never erased" once a later sibling fails.
 func TestSequence_EarlierCompletedSiblingKeepsItsResolvedState(t *testing.T) {
-	out := initRun(Config{stdout: &bytes.Buffer{}, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &bytes.Buffer{}}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	setup := out.Sequence("python")
@@ -62,7 +62,7 @@ func TestSequence_EarlierCompletedSiblingKeepsItsResolvedState(t *testing.T) {
 // a later sibling itself before Finish keeps that resolution — the library
 // never overwrites a caller's explicit disposition.
 func TestSequence_ExplicitResolutionWinsOverAutoResolution(t *testing.T) {
-	out := initRun(Config{stdout: &bytes.Buffer{}, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &bytes.Buffer{}}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	setup := out.Sequence("python")
@@ -86,7 +86,7 @@ func TestSequence_ExplicitResolutionWinsOverAutoResolution(t *testing.T) {
 // pending siblings still render "- not started".
 func TestSequence_CancelAutoResolvesLaterSiblings(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	setup := out.Sequence("python")
@@ -111,7 +111,7 @@ func TestSequence_CancelAutoResolvesLaterSiblings(t *testing.T) {
 // NotStarted rows never count as failure in the Conclusion — the verdict and
 // exit code come from the failed child alone.
 func TestSequence_ConclusionAndExitCodeComeFromFailedChildNotFromNotStarted(t *testing.T) {
-	out := initRun(Config{stdout: &bytes.Buffer{}, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &bytes.Buffer{}}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	setup := out.Sequence("python")
@@ -134,7 +134,7 @@ func TestSequence_ConclusionAndExitCodeComeFromFailedChildNotFromNotStarted(t *t
 // group with no failure/cancellation renders exactly as before this change.
 func TestSequence_AllChildrenDoneRendersAsToday(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	setup := out.Sequence("python")
@@ -164,7 +164,7 @@ func TestSequence_AllChildrenDoneRendersAsToday(t *testing.T) {
 // ErrConcurrentRunning and exiting 2 despite printing "[succeeded]".
 func TestSequence_SequentialBytesProgressFinishesClean(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	jobs := out.Sequence("dependencies")
@@ -192,7 +192,7 @@ func TestSequence_SequentialBytesProgressFinishesClean(t *testing.T) {
 // "one Running child" heart contract on a Sequence: promoting a
 // second sibling to Running while the first is still Running is misuse.
 func TestSequence_TwoRunningChildrenRecordsMisuse(t *testing.T) {
-	out := initRun(Config{stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	setup := out.Sequence("python")
@@ -214,7 +214,7 @@ func TestSequence_TwoRunningChildrenRecordsMisuse(t *testing.T) {
 // now under its P3 name.
 func TestSequence_CascadeFailureNotStartsLaterSiblings(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	setup := out.Sequence("python")
@@ -241,7 +241,7 @@ func TestSequence_CascadeFailureNotStartsLaterSiblings(t *testing.T) {
 // Sequence via .Sequence(name) still cascades within itself, and its
 // failure surfaces at the root container's own derived header state.
 func TestSequence_CascadeNestedSequenceFailurePropagatesToRootHeader(t *testing.T) {
-	out := initRun(Config{stdout: &bytes.Buffer{}, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &bytes.Buffer{}}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	root := out.Sequence("release")

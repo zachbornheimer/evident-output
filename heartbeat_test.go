@@ -23,7 +23,7 @@ func forceRender(ticker *Task, n int) {
 func TestHeartbeat_AppearsAfterElapsedThreshold(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	push := out.Task("push")
@@ -54,7 +54,7 @@ func TestHeartbeat_AppearsAfterElapsedThreshold(t *testing.T) {
 func TestHeartbeat_NeverResetsOnPhaseUpdate(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	push := out.Task("push")
@@ -86,7 +86,7 @@ func TestHeartbeat_NeverResetsOnPhaseUpdate(t *testing.T) {
 func TestHeartbeat_AppearsRegardlessOfProgressActivity(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	install := out.Task("install")
@@ -121,7 +121,7 @@ func TestHeartbeat_AppearsRegardlessOfProgressActivity(t *testing.T) {
 func TestHeartbeat_AbsentInPlainProjection(t *testing.T) {
 	var buf strings.Builder
 	clock := testkit.NewClock()
-	out := initRun(Config{stdout: &buf, clock: clock, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf, Clock: clock}})
 
 	push := out.Task("push")
 	push.Doing("pushing feat/a")
@@ -142,7 +142,7 @@ func TestHeartbeat_AbsentInPlainProjection(t *testing.T) {
 func TestHeartbeat_FiveSecondTimerContainerHeaderAgesPastThreshold(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, clock: clock, terminal: screen, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	jobs := out.Group("dependencies")

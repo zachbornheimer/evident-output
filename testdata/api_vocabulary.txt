@@ -7,9 +7,9 @@
 # method with no declaration of its own takes its type's file).
 # The vocabulary guard (vocabulary_guard_test.go) fails when an exported
 # identifier is missing here or classed removed.
-Action	helper	Run
-Action.Command	helper	Run
-Action.Label	helper	Run
+Action	helper	Problem
+Action.Command	helper	Problem
+Action.Label	helper	Problem
 AlsoWrite	removed	Run
 Cancelled	helper	Ending
 Checksum	removed	Checksum
@@ -20,21 +20,21 @@ Code	helper	Problem
 Compute	canonical	Compute
 Computed	canonical	Compute
 Computed.Get	helper	Compute
-Conclusion	canonical	Run
-Conclusion.Changed	helper	Run
-Conclusion.DryRun	helper	Run
-Conclusion.Explanation	helper	Run
-Conclusion.Outcome	helper	Run
+Conclusion	canonical	Result
+Conclusion.Changed	helper	Result
+Conclusion.DryRun	helper	Result
+Conclusion.Explanation	helper	Result
+Conclusion.Outcome	helper	Result
 ConclusionJSON	removed	Machine output
-Config	canonical	Run
-Config.Debug	helper	Run
-Config.DryRun	helper	Run
-Config.Facades	helper	Run
-Config.MaxConcurrency	helper	Run
-Config.Name	helper	Run
-Config.Output	helper	Run
-Config.State	helper	Run
-Config.Verbose	helper	Run
+Config	canonical	Config
+Config.Debug	helper	Config
+Config.DryRun	helper	Config
+Config.Facades	helper	Config
+Config.MaxConcurrency	helper	Config
+Config.Name	helper	Config
+Config.Output	helper	Config
+Config.State	helper	Config
+Config.Verbose	helper	Config
 ConfirmOption	helper	Confirm
 Container	helper	Task
 Create	helper	Effect
@@ -170,10 +170,10 @@ Redact	removed	Run
 Redactor	helper	Facades
 Refuse	canonical	Ending
 Refused	helper	Ending
-Result	canonical	Run
-Result.Conclusion	helper	Run
-Result.Err	helper	Run
-Result.ExitCode	helper	Run
+Result	canonical	Result
+Result.Conclusion	helper	Result
+Result.Err	helper	Result
+Result.ExitCode	helper	Result
 ResultStream	removed	Run
 Run	canonical	Output
 Run.Confirm	helper	Confirm
@@ -196,9 +196,9 @@ Sequence.Group	helper	Task
 Sequence.Sequence	helper	Task
 Sequence.Summary	helper	Task
 Sequence.Task	helper	Task
-State	helper	Run
-State.AppID	helper	Run
-State.Dir	helper	Run
+State	helper	Config
+State.AppID	helper	Config
+State.Dir	helper	Config
 Stdin	removed	Run
 Strict	removed	Run
 Succeeded	helper	Ending

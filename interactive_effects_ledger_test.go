@@ -20,7 +20,7 @@ import (
 func TestInteractive_DryRunDeleteReachesLiveTerminalLedger(t *testing.T) {
 	var screen bytes.Buffer
 	drv := terminal.NewANSI(&screen, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: drv, visibilityDelay: DelayForTest(0), color: colorNever, DryRun: true})
+	out := initRun(Config{DryRun: true, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: drv}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("branches")
@@ -45,7 +45,7 @@ func TestInteractive_DryRunDeleteReachesLiveTerminalLedger(t *testing.T) {
 func TestInteractive_ChangesDeleteReachesLiveTerminalLedger(t *testing.T) {
 	var screen bytes.Buffer
 	drv := terminal.NewANSI(&screen, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := initRun(Config{stdout: io.Discard, stderr: io.Discard, terminal: drv, visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: drv}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("branches")

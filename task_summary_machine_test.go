@@ -14,7 +14,7 @@ import (
 // or JSONL consumer lost every Task Summary.
 func TestSummary_ReachesRunDocumentAndEventStream(t *testing.T) {
 	var events bytes.Buffer
-	out := initRun(Config{stateDir: t.TempDir(), stdout: &events, title: "sum", format: formatJSONL})
+	out := initRun(Config{Name: "sum", Output: JSONL, State: State{Dir: t.TempDir()}, Facades: Facades{Stdout: &events}})
 	task := out.Task("check branches")
 	task.Define(func(context.Context) error { task.Summary("459 checked"); return nil })
 	_ = out.finish()

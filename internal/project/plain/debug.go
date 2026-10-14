@@ -26,10 +26,8 @@ func (s *Stream) Debug(rec record.DebugRecord) {
 	sameTerminal := separate && interactive && sinks.SharesTerminal()
 	defer s.SkipLines()
 
-	if !sameTerminal {
-		sinks.Diagnostic(project.FormatHistoryLine(rec, false) + "\n")
-	}
 	if separate && !sameTerminal {
+		sinks.Diagnostic(project.FormatHistoryLine(rec, false) + "\n")
 		// The record went to the diagnostic stream alone. Pane mode still
 		// counts as presenting it, or a failing Finish could never
 		// preserve the tail on the live terminal (§21.3.2).

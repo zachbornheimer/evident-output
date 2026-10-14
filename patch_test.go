@@ -28,7 +28,7 @@ func patchWorkspace(t *testing.T, files map[string]string) (string, *Run) {
 			t.Fatal(err)
 		}
 	}
-	out := initRun(Config{stateDir: t.TempDir()})
+	out := initRun(Config{State: State{Dir: t.TempDir()}})
 	t.Cleanup(func() { _ = out.close() })
 	out.changes.PinWorkspace(dir)
 	return dir, out

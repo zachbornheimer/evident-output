@@ -13,7 +13,7 @@ import (
 // scheduling examined.
 func scheduleContainer(tb testing.TB, n int, sequential bool) int {
 	tb.Helper()
-	out := initRun(Config{stateDir: tb.TempDir(), stdout: io.Discard, stderr: io.Discard})
+	out := initRun(Config{State: State{Dir: tb.TempDir()}, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	defer func() { _ = out.close() }()
 	var task func(string) *Task
 	var wait func() error
@@ -77,7 +77,7 @@ const scheduleVisitsPerTask = 4
 // queued when it does. It returns the queue entries the cascade examined.
 func drainContainer(tb testing.TB, n int) int {
 	tb.Helper()
-	out := initRun(Config{stateDir: tb.TempDir(), stdout: io.Discard, stderr: io.Discard, MaxConcurrency: 1})
+	out := initRun(Config{MaxConcurrency: 1, State: State{Dir: tb.TempDir()}, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	release := make(chan struct{})
 	g := out.Group("items")
 	g.Task("gate").Define(func(context.Context) error {
@@ -123,7 +123,7 @@ const drainVisitsPerTask = 4
 // After(t1…tn) shape. It returns the predecessor outcomes scheduling read.
 func fanInTasks(tb testing.TB, n int) int {
 	tb.Helper()
-	out := initRun(Config{stateDir: tb.TempDir(), stdout: io.Discard, stderr: io.Discard, MaxConcurrency: 1})
+	out := initRun(Config{MaxConcurrency: 1, State: State{Dir: tb.TempDir()}, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	defer func() { _ = out.close() }()
 	preds := make([]Predecessor, n)
 	for i := range preds {

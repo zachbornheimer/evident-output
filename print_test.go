@@ -9,7 +9,7 @@ import (
 
 func TestPrint_MatchesFmtConstruction(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, stderr: &buf})
+	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	out.printf("Found %d packages\n", 18)
 	out.println("done")
 	_ = out.finish()
@@ -25,7 +25,7 @@ func TestPrint_MatchesFmtConstruction(t *testing.T) {
 
 func TestPrint_FragmentsCombine(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, stderr: &buf})
+	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	out.print("down")
 	out.print("loading")
 	out.print("...\n")
@@ -40,7 +40,7 @@ func TestPrint_FragmentsCombine(t *testing.T) {
 
 func TestPrint_TrailingFragmentFlushedAtFinish(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, stderr: &buf})
+	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	out.print("partial-no-nl")
 	_ = out.finish()
 	if !strings.Contains(buf.String(), "partial-no-nl") {
@@ -50,7 +50,7 @@ func TestPrint_TrailingFragmentFlushedAtFinish(t *testing.T) {
 
 func TestVerbose_HiddenAtNormal(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, stderr: &buf})
+	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	out.println("visible")
 	out.atForTest(visibilityVerbose).println("hidden detail")
 	_ = out.finish()
@@ -74,11 +74,7 @@ func TestVerbose_HiddenAtNormal(t *testing.T) {
 
 func TestVerbose_ShownWhenConfigured(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{
-		stdout:    &buf,
-		stderr:    &buf,
-		verbosity: verbosityVerbose,
-	})
+	out := initRun(Config{Verbose: true, Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	out.atForTest(visibilityVerbose).printf("Cache: %s\n", "/tmp/x")
 	_ = out.finish()
 	if !strings.Contains(buf.String(), "Cache: /tmp/x") {
@@ -88,7 +84,7 @@ func TestVerbose_ShownWhenConfigured(t *testing.T) {
 
 func TestPrint_CRLFAndSanitize(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, stderr: &buf})
+	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	out.print("a\r\nb\x1b[31mx\n")
 	_ = out.finish()
 	s := buf.String()
@@ -102,7 +98,7 @@ func TestPrint_CRLFAndSanitize(t *testing.T) {
 
 func TestPrint_WriterAdapter(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, stderr: &buf})
+	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	w := out.writer()
 	_, _ = w.Write([]byte("from-writer\n"))
 	_ = out.finish()
@@ -115,7 +111,7 @@ func TestPrint_WriterAdapter(t *testing.T) {
 // deleted; Item folded into Task).
 func TestTask_PrintfNames(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, stderr: &buf})
+	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	succeed(out.Task(fmt.Sprintf("repo %s", "x")))
 	succeed(out.Task(fmt.Sprintf("check %d", 1)), "ok")
 	_ = out.finish()
@@ -127,7 +123,7 @@ func TestTask_PrintfNames(t *testing.T) {
 // TestRunDocument_ContainsTasks is C8: the evo.run document is the one JSON
 // encoding of a finished run, and it carries the run's tasks.
 func TestRunDocument_ContainsTasks(t *testing.T) {
-	out := initRun(Config{stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}})
+	out := initRun(Config{Facades: Facades{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}})
 	succeed(out.Task("a"))
 	_ = out.finish()
 	b := out.runDocument(t)
@@ -139,7 +135,7 @@ func TestRunDocument_ContainsTasks(t *testing.T) {
 func TestAbout_DeclareDryRun_MergesRepoPath(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 	out.aboutForTest("repo  /Users/zbornheimer/Developer/Zysys/flight")
 	out.declareDryRunForTest()

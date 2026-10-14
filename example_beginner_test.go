@@ -15,7 +15,7 @@ import (
 // collapses an all-success aggregate into a single summary line.
 func Example_beginnerAPI() {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, stderr: io.Discard, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}})
 	check := func(string) error { return nil }
 	worktrees := out.Sequence("worktrees")
 	for _, path := range []string{"repo-a", "repo-b"} {

@@ -16,7 +16,7 @@ import (
 // decides which rows deserve a line.
 
 func newPlainOutput(buf *bytes.Buffer, dryRun bool) *Run {
-	return initRun(Config{stdout: buf, title: "prune", color: colorNever, plain: true, DryRun: dryRun})
+	return initRun(Config{Name: "prune", DryRun: dryRun, Output: Plain, Facades: Facades{Stderr: buf}}, tuning{color: colorNever})
 }
 
 func machineDocument(t *testing.T, out *Run) string {
@@ -89,7 +89,7 @@ func TestPruneContract_ZeroInformationNoWorkRowIsHiddenFromHumanOutputOnly(t *te
 
 func TestPruneContract_JSONLStreamKeepsEveryTaskAndTheGroup(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, title: "prune", format: formatJSONL})
+	out := initRun(Config{Name: "prune", Output: JSONL, Facades: Facades{Stdout: &buf}})
 	t.Cleanup(func() { _ = out.close() })
 
 	group := out.Group("categories")

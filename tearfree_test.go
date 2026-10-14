@@ -18,7 +18,7 @@ import (
 // stress test depends on.
 func TestDurableWrite_ClearedAndRedrawnAroundEveryPrintln(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive())
-	out := initRun(Config{terminal: screen, title: "demo", visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Name: "demo", Facades: Facades{Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	out.dropDiagnosticForTest()
 	task := out.Task("install")
 	task.Doing("working")
@@ -66,7 +66,7 @@ func TestDurableWrite_ClearedAndRedrawnAroundEveryPrintln(t *testing.T) {
 // land between a complete clear and a full redraw — never mid-frame.
 func TestDurableWrite_TearFreeUnderConcurrentProgress(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive())
-	out := initRun(Config{terminal: screen, title: "demo", visibilityDelay: DelayForTest(0), color: colorNever})
+	out := initRun(Config{Name: "demo", Facades: Facades{Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	out.dropDiagnosticForTest()
 	task := out.Task("install")
 	task.Progress(0, 1000)

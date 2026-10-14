@@ -13,10 +13,7 @@ import (
 func runInterruptedPrune(t *testing.T, committed bool) (string, int) {
 	t.Helper()
 	var buf strings.Builder
-	out := initRun(Config{
-		plain: true, color: colorNever, title: "prune",
-		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
-	})
+	out := initRun(Config{Name: "prune", MaxConcurrency: 1, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	interrupt := sendOneSignal(t)
 
 	group := out.Group("categories")
@@ -60,10 +57,7 @@ func TestCancellation_ExitsWithCancelledCode(t *testing.T) {
 
 func TestCancellation_RenderedBandMatchesContract(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{
-		plain: true, color: colorNever, title: "prune",
-		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
-	})
+	out := initRun(Config{Name: "prune", MaxConcurrency: 1, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	interrupt := sendOneSignal(t)
 	group := out.Group("categories")
 	remote := group.Task("remote-tracking")

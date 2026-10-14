@@ -22,10 +22,7 @@ import (
 // queued task and a declared one: it never started.
 func TestRun_Interrupt_DeclaredButNeverDefinedTaskIsNotMisuse(t *testing.T) {
 	var buf strings.Builder
-	out := initRun(Config{
-		plain: true, color: colorNever,
-		MaxConcurrency: 1, stdout: &buf, stderr: io.Discard,
-	})
+	out := initRun(Config{MaxConcurrency: 1, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{color: colorNever})
 	interrupt := sendOneSignal(t)
 
 	running := out.Group("worktrees").Task("classify")

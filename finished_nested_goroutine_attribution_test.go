@@ -19,7 +19,7 @@ type nestedOutcome struct {
 // nor anyone else did anything unordered. n2 never reads anything.
 func runFinishedNested(t *testing.T, ceiling int) nestedOutcome {
 	t.Helper()
-	out := initRun(Config{stdout: io.Discard, plain: true, MaxConcurrency: ceiling})
+	out := initRun(Config{MaxConcurrency: ceiling, Output: Plain, Facades: Facades{Stderr: io.Discard}})
 	defer func() { _ = out.close() }()
 	made := out.Group("producers").Task("make")
 	producer := Compute(made, func(context.Context) (int, error) { return 7, nil })

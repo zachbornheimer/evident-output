@@ -16,7 +16,7 @@ import (
 // following Done.
 func TestFinish_UnresolvedTaskWithRecordedEffect_AutoResolvesDone(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	out.Task("cleanup").Define(effectOf(Delete, "stale local branch", 2))
 
@@ -45,7 +45,7 @@ func TestFinish_UnresolvedTaskWithRecordedEffect_AutoResolvesDone(t *testing.T) 
 // honest, sentinel-specific hint — this pins the new line instead.
 func TestFinish_RemainingMisuse_RendersTaskLine(t *testing.T) {
 	var buf bytes.Buffer
-	out := initRun(Config{stdout: &buf, color: colorNever, plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	task := out.Task("branches")
 	task.block("local-only branch")
