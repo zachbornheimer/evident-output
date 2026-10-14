@@ -68,6 +68,9 @@ func (o *Run) Confirm(question string, opts ...ConfirmOption) bool {
 		}
 	}
 	gate := o.confirmGate(question)
+	o.mu.Lock()
+	o.show.Stream.Ask(record.TaskID(gate.id))
+	o.mu.Unlock()
 	if !o.personCanAnswer() {
 		return o.settleGate(gate, graph.AnswerNoTerminal, cfg)
 	}

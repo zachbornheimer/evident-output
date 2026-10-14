@@ -150,8 +150,11 @@ type row struct {
 	// ownsWindow is set on a Confirm gate while its window is open: the
 	// window shows this row, so it is not held back like a sibling's.
 	ownsWindow bool
-	mark       mark
-	beat       beat
+	// asked is set on a Confirm question: not a sibling, so outside the name
+	// column.
+	asked bool
+	mark  mark
+	beat  beat
 	// block is the root collection the Task sits under, nil at the root;
 	// counted is set once its settling was taken off the block's open count.
 	block   *block
@@ -278,5 +281,14 @@ func (s *Stream) Emitted(id record.TaskID) bool {
 func (s *Stream) OwnWindow(id record.TaskID, owns bool) {
 	if r := s.rows[id]; r != nil {
 		r.ownsWindow = owns
+	}
+}
+
+// Ask marks the root Task id as a Confirm question: a prompt with its own
+// answer, not a sibling, so its name no longer sets the name column.
+func (s *Stream) Ask(id record.TaskID) {
+	if r := s.rows[id]; r != nil && !r.asked && !r.InGroup {
+		r.asked = true
+		s.column.withdraw(r.Name)
 	}
 }
