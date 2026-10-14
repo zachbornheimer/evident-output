@@ -3,8 +3,8 @@ package review
 import "go/ast"
 
 // taskBindings is which names in one file certainly hold an evo Task:
-// parameters, fields, and vars typed *<evo>.TaskHandle (or a bare
-// *TaskHandle), and variables assigned from a Task(...) chain. Detectors
+// parameters, fields, and vars typed *<evo>.Task (2.0) or *<evo>.TaskHandle
+// (1.x, or a bare *TaskHandle), and variables assigned from a Task(...) chain. Detectors
 // that must prove a receiver is a Task, not merely look like one (API-032's
 // removed Done and Record*), ask IsTask.
 type taskBindings struct {
@@ -19,14 +19,14 @@ func newTaskBindings(file *ast.File, evoPkg string) taskBindings {
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch n := n.(type) {
 		case *ast.Field:
-			if isTaskHandleType(n.Type, evoPkg) {
+			if isTaskType(n.Type, evoPkg) {
 				for _, name := range n.Names {
 					bind(name)
 				}
 			}
 		case *ast.ValueSpec:
 			for i, name := range n.Names {
-				if n.Type != nil && isTaskHandleType(n.Type, evoPkg) || i < len(n.Values) && isTaskChain(n.Values[i]) {
+				if n.Type != nil && isTaskType(n.Type, evoPkg) || i < len(n.Values) && isTaskChain(n.Values[i]) {
 					bind(name)
 				}
 			}
@@ -77,16 +77,17 @@ func isTaskChain(e ast.Expr) bool {
 	}
 }
 
-// isTaskHandleType reports whether t spells *evoPkg.TaskHandle, or a bare
-// *TaskHandle (a dot import, or evo's own package).
-func isTaskHandleType(t ast.Expr, evoPkg string) bool {
+// isTaskType reports whether t spells *evoPkg.Task or *evoPkg.TaskHandle, or
+// a bare *TaskHandle (a dot import, or evo's own package). A bare *Task is
+// not proof: it is as likely a file's own type as evo's.
+func isTaskType(t ast.Expr, evoPkg string) bool {
 	star, ok := t.(*ast.StarExpr)
 	if !ok {
 		return false
 	}
 	switch x := star.X.(type) {
 	case *ast.SelectorExpr:
-		return x.Sel.Name == "TaskHandle" && isEvoIdent(x.X, evoPkg)
+		return (x.Sel.Name == "Task" || x.Sel.Name == "TaskHandle") && isEvoIdent(x.X, evoPkg)
 	case *ast.Ident:
 		return x.Name == "TaskHandle"
 	}
