@@ -16,6 +16,7 @@ import (
 var bareRetiredNames = []string{
 	"Block", "Basis", "Record", "RecordLabel", "RecordName", "Reason",
 	"Width", "Title", "NextCommand", "Skipped", "FSPath", "Executable", "Args",
+	"Bytes", "DebugHistory", "DebugPane", "TerminalDriver",
 }
 
 // bareRetiredName matches a bareRetiredNames word, case-sensitive and whole.
