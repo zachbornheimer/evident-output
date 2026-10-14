@@ -200,6 +200,7 @@ name still cancels the run.
 ```go
 evo.File(ctx, evo.FileSpec{Path: p, Contents: b, Mode: 0o644, Inputs: []string{"gen.py"}})
 res, err := evo.Exec(ctx, evo.ExecSpec{Argv: []string{"go", "build"}, Outputs: []string{"bin/x"}})
+evo.Exec(ctx, evo.ExecSpec{Argv: []string{"cp", "bin/x", "dist/x"}, Inputs: []string{"bin/x"}, Outputs: []string{"dist/x"}})
 evo.Patch(ctx, unifiedDiff)
 evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "branch", Quantity: 40}, del)
 return evo.PartialEffect(committed, err)
@@ -218,7 +219,7 @@ Run, even when a File's Contents is unchanged. An Output whose bytes no
 longer match what the last Run recorded has drifted, and its producer runs
 again to restore it. Cascade is by content: a step whose Input is another
 step's Output runs again only when those bytes changed, not because its
-producer ran. Dry run runs every Define callback, plans every mutation, and runs no Effect callback. Each mutation
+producer ran. Dry run runs every Define callback, plans every mutation, and runs no Effect callback and no Exec, so a Define callback that opens a planned Exec's Output finds no file: a later Exec or File that names that Output in `Inputs` is planned instead (the `cp` line above), and opaque code skips the read under its own `Config.DryRun`. Each mutation
 appears once in the ledger as `[planned]` or `[changed]`; per-item mutations
 with one Verb and Object fold into one counted row. `EffectSpec.Path` claims
 that path for the Effect's callback, so Effects whose Paths are equal or one
