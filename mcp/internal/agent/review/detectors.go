@@ -45,6 +45,9 @@ var fileDetectors = []detector{
 	// API-018/EVO-EXIT-001, PROG-001: one pass over every selector call.
 	// API-006 fires without an evo import, so this entry gates per rule.
 	{run: detectSelectorCallRules},
+	// API-032: the module path, Task.Block, Task.Skipped and evo.NextCommand
+	// that 2.0 removed.
+	{needsEvo: true, run: detectRemovedTwoZero},
 	// LAYOUT-001/LAYOUT-002: cobra command naming and folder ownership.
 	// These fire without an evo import — the fixtures are cobra command files.
 	{run: astRule(detectDualCommandNaming)},

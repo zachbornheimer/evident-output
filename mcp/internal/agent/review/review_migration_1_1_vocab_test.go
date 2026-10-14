@@ -57,7 +57,7 @@ func TestMigration1_1EveryRemovedNameHasDirtyRewriteCleanFixture(t *testing.T) {
 func checkRemovedNameFixture(t *testing.T, name string, fx migrationFixture) {
 	t.Helper()
 	t.Run(name, func(t *testing.T) {
-		res := review.GoSource(name+".go", fx.dirty)
+		res := goSourceOneOne(name+".go", fx.dirty)
 		found := migrationFindings(res)
 		if len(found) == 0 {
 			t.Fatalf("dirty %s: want 1.1 migration finding, got %+v", name, res.Findings)
@@ -73,12 +73,12 @@ func checkRemovedNameFixture(t *testing.T, name string, fx migrationFixture) {
 		if hasRetiredSpelling(fx.clean, name) {
 			t.Fatalf("canonical rewrite for %s still names the retired spelling:\n%s", name, fx.clean)
 		}
-		clean := review.GoSource(name+".go", fx.clean)
+		clean := goSourceOneOne(name+".go", fx.clean)
 		if n := migrationFindings(clean); len(n) != 0 || clean.RecheckRequired {
 			t.Fatalf("canonical rewrite is dirty: recheck=%v findings=%+v\n%s",
 				clean.RecheckRequired, clean.Findings, fx.clean)
 		}
-		if leftover := review.GoSource(name+".go", canonical); len(migrationFindings(leftover)) != 0 || leftover.RecheckRequired {
+		if leftover := goSourceOneOne(name+".go", canonical); len(migrationFindings(leftover)) != 0 || leftover.RecheckRequired {
 			t.Fatalf("rewritten source still dirty: recheck=%v findings=%+v\n%s",
 				leftover.RecheckRequired, leftover.Findings, canonical)
 		}
@@ -111,7 +111,7 @@ func appliedSuggestion(t *testing.T, name string, fx migrationFixture, hit revie
 		if !strings.Contains(applied, remedyPlaceholder) {
 			t.Fatalf("%s: fixture expects the placeholder fallback; applied:\n%s", name, applied)
 		}
-		if !review.GoSource(name+".go", applied).RecheckRequired {
+		if !goSourceOneOne(name+".go", applied).RecheckRequired {
 			t.Fatalf("%s: placeholder summary shipped with recheck closed:\n%s", name, applied)
 		}
 		applied = strings.Replace(applied, remedyPlaceholder, fx.fill, 1)

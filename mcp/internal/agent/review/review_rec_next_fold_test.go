@@ -17,7 +17,7 @@ func remedySource(imports, body string) string {
 func onlyRemedyFinding(t *testing.T, body string) (review.Finding, string) {
 	t.Helper()
 	src := remedySource("", body)
-	found := migrationFindings(review.GoSource("remedy.go", src))
+	found := migrationFindings(goSourceOneOne("remedy.go", src))
 	if len(found) != 1 {
 		t.Fatalf("findings = %+v, want exactly one", found)
 	}
@@ -74,7 +74,7 @@ func TestRemovedRemedy_MultilineDiagnosticFoldsAsOneLineEdit(t *testing.T) {
 	if !ok {
 		t.Fatalf("suggestion does not apply: %q", f.Suggestion)
 	}
-	if res := review.GoSource("remedy.go", applied); len(migrationFindings(res)) != 0 || res.RecheckRequired {
+	if res := goSourceOneOne("remedy.go", applied); len(migrationFindings(res)) != 0 || res.RecheckRequired {
 		t.Fatalf("applied fold is still dirty: %+v\n%s", res, applied)
 	}
 }

@@ -9,7 +9,7 @@ import (
 
 func remedyFindings(t *testing.T, src string) []review.Finding {
 	t.Helper()
-	return migrationFindings(review.GoSource("remedy.go", evoBody(src)))
+	return migrationFindings(goSourceOneOne("remedy.go", evoBody(src)))
 }
 
 func TestRemovedRemedy_FoldsIntoFollowingDiagnostic(t *testing.T) {
@@ -35,7 +35,7 @@ func TestRemovedRemedy_OutputFoldsIntoItsOwnDiagnostic(t *testing.T) {
 
 func TestRemovedRemedy_FallbackKeepsReviewOpenUntilPlaceholderReplaced(t *testing.T) {
 	src := evoBody("func f(task *evo.TaskHandle) {\n\ttask.NextCommand(\"git\", \"status\")\n}\n")
-	found := migrationFindings(review.GoSource("remedy.go", src))
+	found := migrationFindings(goSourceOneOne("remedy.go", src))
 	if len(found) != 1 || !strings.Contains(found[0].Suggestion, "next step suggested; the reason is not yet stated") {
 		t.Fatalf("findings = %+v, want the placeholder fallback", found)
 	}
@@ -43,12 +43,12 @@ func TestRemovedRemedy_FallbackKeepsReviewOpenUntilPlaceholderReplaced(t *testin
 	if !ok {
 		t.Fatalf("fallback suggestion is not a replace: %q", found[0].Suggestion)
 	}
-	again := review.GoSource("remedy.go", applied)
+	again := goSourceOneOne("remedy.go", applied)
 	if !again.RecheckRequired || len(migrationFindings(again)) == 0 {
 		t.Fatalf("placeholder shipped without a finding: %+v", again)
 	}
 	edited := strings.Replace(applied, "next step suggested; the reason is not yet stated", "working tree not checked", 1)
-	if done := review.GoSource("remedy.go", edited); done.RecheckRequired {
+	if done := goSourceOneOne("remedy.go", edited); done.RecheckRequired {
 		t.Fatalf("edited rewrite is still dirty: %+v", done.Findings)
 	}
 }

@@ -55,6 +55,9 @@ type recSurfaceDetector struct {
 	outputs outputBindings
 	// declaredTypes proves a Next receiver has a known, non-evo type.
 	declaredTypes declaredReceiverTypes
+	// twoZero is set when the target dialect is 2.0+, where an Option maps
+	// onto the 2.0 Config (Name, DryRun, Output, Facades) or onto nothing.
+	twoZero bool
 }
 
 func detectSupersededRecSurface(in fileInput) []Finding {
@@ -74,6 +77,7 @@ func detectSupersededRecSurface(in fileInput) []Finding {
 		d.declaredTypes = newDeclaredReceiverTypes(f, pkg)
 	}
 	d.fileTreeDialect = dialectAtLeast(in.desiredVersion, dialectOneTwo)
+	d.twoZero = dialectAtLeast(in.desiredVersion, dialectTwoZero)
 	ast.Inspect(f, d.inspect)
 	ast.Inspect(f, d.inspectLeftover)
 	return d.findings
@@ -197,10 +201,18 @@ func (d *recSurfaceDetector) inspectLeftover(n ast.Node) bool {
 	switch {
 	case supersededOptionFuncs[name]:
 		field, ok := d.optionCallToField(call)
+		if !ok && d.twoZero {
+			d.reportDroppedOption(call, name, old)
+			return true
+		}
 		if !ok {
 			return true
 		}
-		d.report(call, "evo."+name+" was removed in 1.1; use the Config field",
+		release := "1.1"
+		if d.twoZero {
+			release = "2.0"
+		}
+		d.report(call, "evo."+name+" was removed in "+release+"; use the Config field",
 			"replace "+old+" with "+field)
 		d.cover(call)
 	case name == "ID":
@@ -348,6 +360,9 @@ func (d *recSurfaceDetector) optionCallToField(call *ast.CallExpr) (string, bool
 	name, args, ok := d.evoCall(call)
 	if !ok {
 		return "", false
+	}
+	if d.twoZero {
+		return d.twoZeroOptionField(name, args)
 	}
 	if field, ok := optionFieldByArg[name]; ok && len(args) == 1 {
 		return field + ": " + d.nodeSrc(args[0]), true

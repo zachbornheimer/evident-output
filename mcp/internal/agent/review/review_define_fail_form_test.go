@@ -24,7 +24,7 @@ func TestAPI040_FailCarryingInformationThenReturnErrIsClean(t *testing.T) {
 		"detail only":       `task.Fail("lint failed", evo.Detail(err.Error()))`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			res := review.GoSource("a.go", remedySource("", defineCallback("\t\t\t"+fail+"\n\t\t\treturn err\n")))
+			res := goSourceOneOne("a.go", remedySource("", defineCallback("\t\t\t"+fail+"\n\t\t\treturn err\n")))
 			if len(res.Findings) != 0 || res.RecheckRequired {
 				t.Fatalf("recheck=%v findings=%+v, want clean", res.RecheckRequired, res.Findings)
 			}
@@ -75,7 +75,7 @@ func TestRemovedRemedy_DefineRewriteKeepsReturningTheError(t *testing.T) {
 			if !ok {
 				t.Fatalf("suggestion does not apply: %q", f.Suggestion)
 			}
-			if res := review.GoSource("remedy.go", applied); len(res.Findings) != 0 || res.RecheckRequired {
+			if res := goSourceOneOne("remedy.go", applied); len(res.Findings) != 0 || res.RecheckRequired {
 				t.Fatalf("applied rewrite does not converge: recheck=%v findings=%+v\n%s", res.RecheckRequired, res.Findings, applied)
 			}
 		})
@@ -128,7 +128,7 @@ func TestRemovedRemedy_OneLineRendererLeavesStringLiteralsAlone(t *testing.T) {
 func TestRemovedRemedy_MultilineRawStringDeclinesTheRewrite(t *testing.T) {
 	body := "func f(task *evo.TaskHandle) {\n\ttask.Block(`two\nlines`)\n\ttask.NextCommand(\"zq\", \"fix\")\n}\n"
 	src := remedySource("", body)
-	res := review.GoSource("remedy.go", src)
+	res := goSourceOneOne("remedy.go", src)
 	found := migrationFindings(res)
 	if len(found) != 1 || strings.HasPrefix(found[0].Suggestion, "replace ") || !res.RecheckRequired {
 		t.Fatalf("recheck=%v findings=%+v, want one open guidance-only finding", res.RecheckRequired, found)
@@ -138,7 +138,7 @@ func TestRemovedRemedy_MultilineRawStringDeclinesTheRewrite(t *testing.T) {
 func TestRemovedRemedy_CommentInsideMultilineDiagnosticIsNeverFlattened(t *testing.T) {
 	body := "func f(task *evo.TaskHandle) {\n\ttask.Block(\n\t\t\"boom\", // why it blocks\n\t\tevo.Severity(evo.SeverityError),\n\t)\n\ttask.NextCommand(\"zq\", \"fix\")\n}\n"
 	src := remedySource("", body)
-	res := review.GoSource("remedy.go", src)
+	res := goSourceOneOne("remedy.go", src)
 	found := migrationFindings(res)
 	if len(found) != 1 || !res.RecheckRequired {
 		t.Fatalf("recheck=%v findings=%+v, want one open finding", res.RecheckRequired, found)
@@ -163,7 +163,7 @@ func TestRemovedRemedy_NoArgNextIsReportedOnlyForProvenEvoReceivers(t *testing.T
 
 func TestRemovedRemedy_FindingLineIsWhereTheEditStarts(t *testing.T) {
 	src := remedySource("", "func f(task *evo.TaskHandle) {\n\ttask.Block(\n\t\t\"boom\",\n\t\tevo.Severity(evo.SeverityError),\n\t)\n\ttask.NextCommand(\"zq\", \"fix\")\n}\n")
-	found := migrationFindings(review.GoSource("remedy.go", src))
+	found := migrationFindings(goSourceOneOne("remedy.go", src))
 	if len(found) != 1 {
 		t.Fatalf("findings = %+v", found)
 	}
@@ -194,7 +194,7 @@ func TestAPI040_BlockCarryingInformationThenReturnErrIsClean(t *testing.T) {
 		"remedy only":       `task.Block("dirty working tree", evo.NextCommand("git", "status"))`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			res := review.GoSource("a.go", remedySource("", defineCallback("\t\t\t"+block+"\n\t\t\treturn err\n")))
+			res := goSourceOneOne("a.go", remedySource("", defineCallback("\t\t\t"+block+"\n\t\t\treturn err\n")))
 			if len(res.Findings) != 0 || res.RecheckRequired {
 				t.Fatalf("recheck=%v findings=%+v, want clean", res.RecheckRequired, res.Findings)
 			}

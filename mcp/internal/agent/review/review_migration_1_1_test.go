@@ -117,7 +117,7 @@ func f(task *evo.TaskHandle) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			res := review.GoSource(tc.name+".go", tc.dirty)
+			res := goSourceOneOne(tc.name+".go", tc.dirty)
 			found := findAPI032(res)
 			if len(found) == 0 {
 				t.Fatalf("dirty %s: want API-032, got %+v", tc.name, res.Findings)
@@ -137,12 +137,12 @@ func f(task *evo.TaskHandle) {
 				t.Fatalf("rules.Explain(%q) failed", hit.RuleID)
 			}
 			fixed := applyReplace(t, tc.dirty, hit.Suggestion)
-			again := review.GoSource(tc.name+".go", fixed)
+			again := goSourceOneOne(tc.name+".go", fixed)
 			if again.RecheckRequired || len(again.Findings) != 0 {
 				t.Fatalf("applied rewrite still dirty: recheck=%v findings=%+v\nfixed:\n%s",
 					again.RecheckRequired, again.Findings, fixed)
 			}
-			clean := review.GoSource(tc.name+".go", tc.clean)
+			clean := goSourceOneOne(tc.name+".go", tc.clean)
 			if clean.RecheckRequired || len(clean.Findings) != 0 {
 				t.Fatalf("canonical rewrite is dirty: recheck=%v findings=%+v",
 					clean.RecheckRequired, clean.Findings)
@@ -163,7 +163,7 @@ func f(task *evo.TaskHandle) {
 	_ = task.Capture()
 }
 `
-	res := review.GoSource("capture.go", src)
+	res := goSourceOneOne("capture.go", src)
 	for _, f := range findAPI032(res) {
 		t.Fatalf("Capture is live 1.1 API and must not fire API-032: %+v", f)
 	}

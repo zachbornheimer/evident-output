@@ -3,8 +3,6 @@ package review_test
 import (
 	"strings"
 	"testing"
-
-	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
 // supersededOptionsSource is development_3 as mcp/docs/development.md taught
@@ -63,7 +61,7 @@ func TestAPI032_OptionsRewriteKeepsEveryOptionAndCompiles(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the rewritten source")
 	}
-	found := findAPI032(review.GoSource("main.go", supersededOptionsSource))
+	found := findAPI032(goSourceOneOne("main.go", supersededOptionsSource))
 	if len(found) != 1 {
 		t.Fatalf("want one API-032 finding for Config.Options, got %d: %q", len(found), joinSuggestions(found))
 	}
@@ -79,7 +77,7 @@ func TestAPI032_OptionsRewriteKeepsEveryOptionAndCompiles(t *testing.T) {
 	if strings.Contains(fixed, "&150") {
 		t.Errorf("rewrite emitted an address-of literal that cannot compile:\n%s", fixed)
 	}
-	if again := findAPI032(review.GoSource("main.go", fixed)); len(again) != 0 {
+	if again := findAPI032(goSourceOneOne("main.go", fixed)); len(again) != 0 {
 		t.Errorf("rewritten source still has API-032: %q", joinSuggestions(again))
 	}
 }
@@ -94,7 +92,7 @@ func f(drv evo.TerminalDriver, extra interface{}) {
 	_ = evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(drv), extra}})
 }
 `
-	found := findAPI032(review.GoSource("p.go", src))
+	found := findAPI032(goSourceOneOne("p.go", src))
 	if len(found) != 1 {
 		t.Fatalf("want one API-032 finding, got %d: %q", len(found), joinSuggestions(found))
 	}
@@ -113,7 +111,7 @@ func TestAPI032_OptionsCollidingWithSetFieldsOfferNoRewrite(t *testing.T) {
 		"repeated":    `evo.Config{Options: []evo.Option{evo.Title("t"), evo.Title("u")}}`,
 	} {
 		src := "package p\nimport (\n\t\"os\"\n\tevo \"github.com/zachbornheimer/evident-output/v2\"\n)\nvar _ = os.Stdout\nfunc f() { _ = evo.Init(" + cfg + ") }\n"
-		found := findAPI032(review.GoSource("p.go", src))
+		found := findAPI032(goSourceOneOne("p.go", src))
 		if len(found) != 1 {
 			t.Fatalf("%s: want one API-032 finding, got %d: %q", name, len(found), joinSuggestions(found))
 		}

@@ -22,7 +22,7 @@ func f(task *evo.TaskHandle, n int) {
 	task.Delete(n, "local tip")
 }
 `
-	res := review.GoSource("clean.go", src)
+	res := goSourceOneOne("clean.go", src)
 	found := findAPI032(res)
 	if len(found) == 0 {
 		t.Fatalf("want API-032 for Options/To/Plain/quantity-first Delete, got no findings")
@@ -59,7 +59,7 @@ func run(out *evo.Output) error {
 	return nil
 }
 `
-	res := review.GoSource("extra.go", src)
+	res := goSourceOneOne("extra.go", src)
 	found := findAPI032(res)
 	joined := joinSuggestions(found)
 	cases := []string{
@@ -91,7 +91,7 @@ func f(r io.Reader, w io.Writer, d time.Duration) {
 	_ = evo.Diagnostics(w)
 }
 `
-	res := review.GoSource("opts.go", src)
+	res := goSourceOneOne("opts.go", src)
 	joined := joinSuggestions(findAPI032(res))
 	for _, want := range []string{
 		"Color: evo.ColorNever",
@@ -117,7 +117,7 @@ func TestX(t *testing.T) {
 	t.Skip("not in this environment")
 }
 `
-	res := review.GoSource("p_test.go", src)
+	res := goSourceOneOne("p_test.go", src)
 	for _, f := range findAPI032(res) {
 		if strings.Contains(f.Suggestion, "Skip") || strings.Contains(f.Message, "Skip") {
 			t.Fatalf("testing.T.Skip must not be API-032: %+v", f)
@@ -142,7 +142,7 @@ func f(task *evo.TaskHandle, n int, reason evo.TaxonomyReason) {
 	evo.Task("branches")
 }
 `
-	res := review.GoSource("current.go", src)
+	res := goSourceOneOne("current.go", src)
 	if found := findAPI032(res); len(found) != 0 {
 		t.Fatalf("current rec surface must not be API-032: %+v", found)
 	}
@@ -159,7 +159,7 @@ func stamp(path string, task *evo.TaskHandle, n int) {
 	task.Write(n, "dst")
 }
 `
-	res := review.GoSource("stamp.go", src)
+	res := goSourceOneOne("stamp.go", src)
 	for _, f := range findAPI032(res) {
 		if strings.Contains(f.Suggestion, "cache.Write") || strings.Contains(f.Message, "cache.Write") {
 			t.Fatalf("package Write must not be API-032: %+v", f)
@@ -179,7 +179,7 @@ func f(task *evo.TaskHandle, n int) {
 	task.Delete(n, "worktree")
 }
 `
-	res := review.GoSource("old.go", src)
+	res := goSourceOneOne("old.go", src)
 	found := findAPI032(res)
 	if len(found) < 2 {
 		t.Fatalf("want API-032 on both quantity-first Delete calls, got %+v", found)
@@ -202,7 +202,7 @@ func f(task *evo.TaskHandle, n int) {
 	task.Push("remote ref", nil)
 }
 `
-	res := review.GoSource("legacy.go", src)
+	res := goSourceOneOne("legacy.go", src)
 	joined := joinSuggestions(findAPI032(res))
 	want := `with task.Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "local tip", Quantity: n}, func(context.Context) error { return removeTip() }) })`
 	if !strings.Contains(joined, want) {
@@ -222,7 +222,7 @@ func f(task *evo.TaskHandle) {
 	task.Write("config.toml", func() error { return save() })
 }
 `
-	res := review.GoSource("write.go", src)
+	res := goSourceOneOne("write.go", src)
 	joined := joinSuggestions(findAPI032(res))
 	if !strings.Contains(joined, `evo.File(ctx, evo.FileSpec{Path: "config.toml", Contents: data})`) {
 		t.Fatalf("legacy Write must rewrite to evo.File, got %q", joined)
@@ -247,7 +247,7 @@ func f(h http.Header, m map[string]int, ct string, _ *evo.TaskHandle) {
 	delete(m, "k")
 }
 `
-	res := review.GoSource("lookalike.go", src)
+	res := goSourceOneOne("lookalike.go", src)
 	if found := findAPI032(res); len(found) != 0 {
 		t.Fatalf("non-evo lookalikes must not be API-032: %+v", found)
 	}
@@ -256,7 +256,7 @@ func f(h http.Header, m map[string]int, ct string, _ *evo.TaskHandle) {
 func TestAPI032_RetiredCollectionConstructorIsSuperseded(t *testing.T) {
 	ctor := "Display" + "Group"
 	src := "package p\nimport evo \"github.com/zachbornheimer/evident-output/v2\"\nfunc f(out *evo.Output) {\n\t_ = out." + ctor + "(\"run\")\n\t_ = evo." + ctor + "(\"worktrees\")\n}\n"
-	res := review.GoSource("group.go", src)
+	res := goSourceOneOne("group.go", src)
 	found := findAPI032(res)
 	if len(found) == 0 {
 		t.Fatalf("want API-032 for retired collection constructor, got none")
