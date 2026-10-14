@@ -107,7 +107,7 @@ func ExampleGroup_Build() {
 		inv := evo.Compute(seq.Task("discover packages"), func(context.Context) ([]string, error) {
 			return []string{"core", "render"}, nil
 		})
-		seq.Group("centralize packages").After(inv).Build(func(g *evo.Group) {
+		seq.Group("centralize packages").Build(func(g *evo.Group) {
 			for _, name := range inv.Get() {
 				g.Task("centralize " + name).Define(func(context.Context) error { return nil })
 			}

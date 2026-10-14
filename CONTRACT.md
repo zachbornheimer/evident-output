@@ -116,11 +116,12 @@ Succeeded, Satisfied and Excluded.
 repo := r.Group("repository")                // children may overlap
 seq  := r.Sequence("consolidate packages")   // children run in declaration order
 t    := repo.Task("prune landed branches")   // one atomic promise; never a container
+tags := repo.Task("prune stale tags")        // a sibling; a Group of one child is just a Task
 
-t.After(other).Verify(isDone).Define(func(ctx context.Context) error { ... })
+t.After(tags).Verify(isDone).Define(func(ctx context.Context) error { ... })
 
 inv := evo.Compute(seq.Task("discover packages"), discover)   // a Task with a value
-seq.Group("centralize packages").After(inv).Build(func(g *evo.Group) {
+seq.Group("centralize packages").Build(func(g *evo.Group) {
     for _, p := range inv.Get().Packages {
         g.Task("centralize " + p.Name).Define(p.Centralize)
     }
@@ -270,7 +271,7 @@ re-executes; it never reports Satisfied.
 
 ```go
 return err                                              // Failed
-return evo.Fail("lint failed", evo.Detail(out))         // Failed, with structure
+return evo.Fail("lint failed", evo.Detail(lintOutput))         // Failed, with structure
 return evo.Refuse("no remote configured", evo.Next(evo.Action{Label: "add a remote"}))
 return evo.Exclude("protected")                         // Excluded, folds into the tally
 t.Problem("protected ref", evo.On("origin/main"), evo.Code("protected"))  // non-fatal
