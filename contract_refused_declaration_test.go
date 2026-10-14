@@ -92,6 +92,9 @@ func TestDefineNilSettlesItsRowNotStartedWithTheRefusal(t *testing.T) {
 	}
 	if !strings.Contains(text, `nil Define callback for task "nil"`) {
 		t.Errorf("the output does not state the Define(nil) refusal:\n%s", text)
+	}
+}
+
 // TestResultErrJoinsEveryRefusal pins CONTRACT section 7: every refusal a run records is joined into Result.Err
 // in the order recorded, while Conclusion.Explanation names the first. The two refusals the run body makes have
 // a fixed order; the one a Task callback makes lands whenever that callback runs, so only its presence is pinned.
