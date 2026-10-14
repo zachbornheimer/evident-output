@@ -218,7 +218,10 @@ that path for the Effect's callback, so Effects whose Paths are equal or one
 contains the other wait for each other; two Resources overlap only by equal
 name; an `EffectSpec` that sets both `Path` and `Resource` is
 `ErrInvalidConfig` and its callback never runs; holding two claims at once is
-misuse. A Patch whose source changed since it was read fails with
+misuse. Two Tasks that declare the same Output both fail, but the conflict
+is found at the second claim of that Output path, so the first Task's command
+may already have run and rewritten it; the next Run restores it. A Patch whose
+source changed since it was read fails with
 `ErrStaleBasis` instead of overwriting. Uncertain or missing recorded status
 re-executes; it never reports Satisfied.
 
