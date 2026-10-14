@@ -183,3 +183,16 @@ func TestLAYOUT001_FindingNamesLeftover(t *testing.T) {
 	}
 	t.Fatalf("expected LAYOUT-001: %+v", res.Findings)
 }
+
+// A review of source with no directory still knows the folder from the
+// package name: the catch-all package is app.
+func TestLAYOUT002_PackageAppIsTheFolderWhenThePathIsBare(t *testing.T) {
+	res := review.GoSource("purge.go", layout002Dirty)
+	if !hasRuleID(res, layoutWrongFolder) {
+		t.Fatalf("expected LAYOUT-002 for a purge RunE in package app with no path: %+v", res.Findings)
+	}
+	res = review.GoSource("purge.go", layout002CleanOwner)
+	if hasRuleID(res, layoutWrongFolder) {
+		t.Fatalf("package purge owning the RunE must not be LAYOUT-002: %+v", res.Findings)
+	}
+}

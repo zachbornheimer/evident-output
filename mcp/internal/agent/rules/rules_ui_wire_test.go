@@ -14,7 +14,7 @@ func TestExplainEvoUIWireFamily(t *testing.T) {
 	guidanceOnly := map[string]bool{}
 	for _, id := range []string{
 		"EVO-UI-001", "EVO-UI-002", "EVO-UI-003", "EVO-UI-004",
-		"EVO-WIRE-001", "EVO-WIRE-002", "EVO-WIRE-003",
+		"EVO-WIRE-002", "EVO-WIRE-003",
 		"EVO-EXIT-001", "EVO-LIVE-001",
 	} {
 		r, ok := rules.Explain(id)

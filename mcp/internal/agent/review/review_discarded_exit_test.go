@@ -7,9 +7,10 @@ import (
 )
 
 // TestDiscardedMainCode pins E-114/EVO-EXIT-002: evo.Main returns the exit
-// code and never exits itself, so a bare `evo.Main(run)` statement (or
-// `_ = evo.Main(run)`) exits 0 on a failed or blocked run. Review must flag
-// it and suggest os.Exit(evo.Main(run)); the wrapped form stays clean.
+// code and never exits itself, so a bare `evo.Main(cfg, run)` statement (or
+// `_ = evo.Main(cfg, run)`) exits 0 on a failed or refused run. Review must
+// flag it and suggest os.Exit(evo.Main(cfg, run)); the wrapped form stays
+// clean.
 func TestDiscardedMainCode(t *testing.T) {
 	const head = `package main
 import (
@@ -18,21 +19,20 @@ import (
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 var _ = os.Exit
-func run(ctx context.Context) error {
-	evo.Task("refuse").Block("disk 100% full")
+func run(ctx context.Context, r *evo.Run) error {
+	r.Task("check disk").Define(func(ctx context.Context) error { return evo.Refuse("disk 100% full") })
 	return nil
 }
 func main() {
-	evo.Init(evo.Config{Title: "tool"})
 `
 	for name, tc := range map[string]struct {
 		body string
 		want bool
 	}{
-		"bare statement":  {"\tevo.Main(run)\n}\n", true},
-		"blank assign":    {"\t_ = evo.Main(run)\n}\n", true},
-		"os.Exit wrapped": {"\tos.Exit(evo.Main(run))\n}\n", false},
-		"code variable":   {"\tcode := evo.Main(run)\n\tos.Exit(code)\n}\n", false},
+		"bare statement":  {"\tevo.Main(evo.Config{}, run)\n}\n", true},
+		"blank assign":    {"\t_ = evo.Main(evo.Config{}, run)\n}\n", true},
+		"os.Exit wrapped": {"\tos.Exit(evo.Main(evo.Config{}, run))\n}\n", false},
+		"code variable":   {"\tcode := evo.Main(evo.Config{}, run)\n\tos.Exit(code)\n}\n", false},
 	} {
 		res := review.GoSource("main.go", head+tc.body)
 		var got *review.Finding
@@ -46,8 +46,8 @@ func main() {
 			continue
 		}
 		if got != nil {
-			if got.Suggestion == "" || got.Line != 14 {
-				t.Errorf("%s: finding = %+v, want line 14 with a suggestion", name, *got)
+			if got.Suggestion == "" || got.Line != 13 {
+				t.Errorf("%s: finding = %+v, want line 13 with a suggestion", name, *got)
 			}
 			if !res.RecheckRequired {
 				t.Errorf("%s: recheck_required=false on a discarded exit code", name)

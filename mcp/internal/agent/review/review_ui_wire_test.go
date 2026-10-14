@@ -18,11 +18,12 @@ func hasFinding(res review.Result, ruleID string) bool {
 
 func TestGoSource_EvoUI001_FactPrintedManually(t *testing.T) {
 	bad := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f() {
-  out := evo.Init(evo.Config{})
-  t := out.Task("env")
-  t.Printf("go version: %s\n", "1.23.0")
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func f(r *evo.Run) {
+  fmt.Fprintf(r.Text(), "go version: %s\n", "1.23.0")
 }
 `
 	res := review.GoSource("x.go", bad)
@@ -32,10 +33,8 @@ func f() {
 
 	good := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f() {
-  out := evo.Init(evo.Config{})
-  t := out.Task("env")
-  t.Fact("go version", "1.23.0")
+func f(r *evo.Run) {
+  r.Task("env").Fact("go version", "1.23.0")
 }
 `
 	res = review.GoSource("x.go", good)
@@ -47,14 +46,15 @@ func f() {
 func TestGoSource_EvoUI002_PassingVerificationPrinted(t *testing.T) {
 	bad := `package p
 import (
+  "context"
   "fmt"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f() {
-  out := evo.Init(evo.Config{})
-  t := out.Task("check")
-  fmt.Println("✓ verified")
-  t.Done()
+func f(r *evo.Run) {
+  r.Task("check").Define(func(ctx context.Context) error {
+    fmt.Fprintln(r.Text(), "✓ verified")
+    return nil
+  })
 }
 `
 	res := review.GoSource("x.go", bad)
@@ -63,34 +63,32 @@ func f() {
 	}
 
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f() {
-  out := evo.Init(evo.Config{})
-  t := out.Task("check")
-  t.Done()
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func f(r *evo.Run) {
+  r.Task("check").Define(func(ctx context.Context) error { return nil })
 }
 `
 	res = review.GoSource("x.go", good)
 	if hasFinding(res, "EVO-UI-002") {
-		t.Fatalf("false positive EVO-UI-002 on plain task.Done: %+v", res.Findings)
+		t.Fatalf("false positive EVO-UI-002 on a plain Define: %+v", res.Findings)
 	}
 }
 
 // TestGoSource_EvoUI002_UnrelatedTextNotFlagged covers ordinary informational
 // text that merely contains the substring "verified"/"passed" — not a
-// completion confirmation duplicating task.Done's glyph.
+// completion confirmation duplicating the Task's success row.
 func TestGoSource_EvoUI002_UnrelatedTextNotFlagged(t *testing.T) {
 	src := `package p
 import (
   "fmt"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f() {
-  out := evo.Init(evo.Config{})
-  t := out.Task("check")
-  fmt.Println("license verified against upstream, expires in 30 days")
-  fmt.Println("2 hours passed since the last successful run")
-  t.Done()
+func f(r *evo.Run) {
+  fmt.Fprintln(r.Text(), "license verified against upstream, expires in 30 days")
+  fmt.Fprintln(r.Text(), "2 hours passed since the last successful run")
 }
 `
 	res := review.GoSource("x.go", src)
@@ -105,11 +103,8 @@ import (
   "fmt"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f() {
-  out := evo.Init(evo.Config{})
-  t := out.Task("copy")
-  fmt.Printf("%d/%d done\n", 3, 10)
-  t.Done()
+func f(r *evo.Run) {
+  fmt.Fprintf(r.Text(), "%d/%d done\n", 3, 10)
 }
 `
 	res := review.GoSource("x.go", bad)
@@ -119,10 +114,8 @@ func f() {
 
 	good := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f() {
-  out := evo.Init(evo.Config{})
-  t := out.Task("copy")
-  t.Progress(3, 10)
+func f(r *evo.Run) {
+  r.Task("copy").Progress(3, 10)
 }
 `
 	res = review.GoSource("x.go", good)
@@ -141,12 +134,9 @@ import (
   "fmt"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f() {
-  out := evo.Init(evo.Config{})
-  t := out.Task("report")
-  fmt.Printf("score: %d/%d\n", 7, 10)
-  fmt.Printf("date: %d/%d/%d\n", 2024, 1, 15)
-  t.Done()
+func f(r *evo.Run) {
+  fmt.Fprintf(r.Text(), "score: %d/%d\n", 7, 10)
+  fmt.Fprintf(r.Text(), "date: %d/%d/%d\n", 2024, 1, 15)
 }
 `
 	res := review.GoSource("x.go", src)
@@ -155,75 +145,15 @@ func f() {
 	}
 }
 
-func TestGoSource_EvoWire001_MarshalOfInternalSnapshot(t *testing.T) {
-	bad := `package p
-import (
-  "encoding/json"
-  evo "github.com/zachbornheimer/evident-output/v2"
-)
-func f() {
-  out := evo.Init(evo.Config{})
-  b, _ := json.Marshal(out.Snapshot())
-  _ = b
-}
-`
-	res := review.GoSource("x.go", bad)
-	if !hasFinding(res, "EVO-WIRE-001") {
-		t.Fatalf("expected EVO-WIRE-001 on json.Marshal(out.Snapshot()): %+v", res.Findings)
-	}
-
-	good := `package p
-import (
-  evo "github.com/zachbornheimer/evident-output/v2"
-)
-func f() {
-  out := evo.Init(evo.Config{})
-  b, _ := wire.EncodeJSON(out.Snapshot())
-  _ = b
-}
-`
-	res = review.GoSource("x.go", good)
-	if hasFinding(res, "EVO-WIRE-001") {
-		t.Fatalf("false positive EVO-WIRE-001 on wire.EncodeJSON: %+v", res.Findings)
-	}
-}
-
-// TestGoSource_EvoWire001_UnrelatedResultReceiverNotFlagged covers a file
-// that imports evo (so hasEvo is true) but marshals an unrelated type's own
-// .Result() accessor — evo's public API has no .Result() method (Run/
-// Output.Run return a Result value directly), so this must never fire.
-func TestGoSource_EvoWire001_UnrelatedResultReceiverNotFlagged(t *testing.T) {
-	src := `package p
-import (
-  "encoding/json"
-  evo "github.com/zachbornheimer/evident-output/v2"
-)
-type testRun struct{}
-func (r *testRun) Result() string { return "ok" }
-func f(r *testRun) {
-  _ = evo.Init(evo.Config{})
-  b, _ := json.Marshal(r.Result())
-  _ = b
-}
-`
-	res := review.GoSource("x.go", src)
-	if hasFinding(res, "EVO-WIRE-001") {
-		t.Fatalf("false positive EVO-WIRE-001 on an unrelated type's own .Result(): %+v", res.Findings)
-	}
-}
-
 func TestGoSource_EvoWire003_JSONStdoutMixedWithHumanText(t *testing.T) {
 	bad := `package p
 import (
   "encoding/json"
   "fmt"
-  "os"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f() {
-  out := evo.Init(evo.Config{})
-  doc := out.Snapshot()
-  json.NewEncoder(os.Stdout).Encode(doc)
+func f(r *evo.Run, doc map[string]string) {
+  json.NewEncoder(r.ResultWriter()).Encode(doc)
   fmt.Println("done")
 }
 `
@@ -235,18 +165,17 @@ func f() {
 	good := `package p
 import (
   "encoding/json"
-  "os"
+  "fmt"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f() {
-  out := evo.Init(evo.Config{})
-  doc := out.Snapshot()
-  json.NewEncoder(os.Stdout).Encode(doc)
+func f(r *evo.Run, doc map[string]string) {
+  json.NewEncoder(r.ResultWriter()).Encode(doc)
+  fmt.Fprintln(r.Text(), "done")
 }
 `
 	res = review.GoSource("x.go", good)
 	if hasFinding(res, "EVO-WIRE-003") {
-		t.Fatalf("false positive EVO-WIRE-003 on JSON-only stdout: %+v", res.Findings)
+		t.Fatalf("false positive EVO-WIRE-003 on payload to ResultWriter and text to Text: %+v", res.Findings)
 	}
 }
 
@@ -257,7 +186,8 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f() {
-  _ = evo.Init(evo.Config{})
+  code := evo.Main(evo.Config{}, run)
+  _ = code
   os.Exit(1)
 }
 `
@@ -268,12 +198,11 @@ func f() {
 
 	good := `package p
 import (
-  "context"
   "os"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f() {
-  os.Exit(evo.Main(func(ctx context.Context) error { return nil }))
+  os.Exit(evo.Main(evo.Config{}, run))
 }
 `
 	res = review.GoSource("x.go", good)
@@ -285,12 +214,13 @@ func f() {
 func TestGoSource_EvoLive001_PrintCompetesWithLiveRendering(t *testing.T) {
 	bad := `package p
 import (
+  "context"
   "fmt"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f() {
-  _ = evo.Init(evo.Config{})
+func run(ctx context.Context, r *evo.Run) error {
   fmt.Println("still going...")
+  return nil
 }
 `
 	res := review.GoSource("x.go", bad)
@@ -299,32 +229,36 @@ func f() {
 	}
 
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f() {
-  out := evo.Init(evo.Config{})
-  out.Println("still going...")
+import (
+  "context"
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func run(ctx context.Context, r *evo.Run) error {
+  fmt.Fprintln(r.Text(), "still going...")
+  return nil
 }
 `
 	res = review.GoSource("x.go", good)
 	if hasFinding(res, "EVO-LIVE-001") {
-		t.Fatalf("false positive EVO-LIVE-001 on out.Println: %+v", res.Findings)
+		t.Fatalf("false positive EVO-LIVE-001 on fmt.Fprintln(r.Text(), ...): %+v", res.Findings)
 	}
 }
 
 // TestGoSource_EvoUI00x_UnrelatedReceiverNotFlagged covers a file that
-// imports evo (so hasEvo is true) but also calls Print/Printf/Println on
-// receivers unrelated to evo's own Task/Output presentation — a stdlib
-// log.Printf and a cobra *cobra.Command's cmd.Println/cmd.Printf. None of
-// these duplicate an evo Fact/Done/Progress call, so EVO-UI-001/002/003
-// must not fire on them merely because their literal text pattern-matches.
+// imports evo (so hasEvo is true) but also prints through writers unrelated
+// to Run.Text(): a stdlib log.Printf and a cobra *cobra.Command's
+// cmd.Println/cmd.Printf. None of these duplicate an evo Fact or Progress
+// call, so EVO-UI-001/002/003 must not fire on them merely because their
+// literal text pattern-matches.
 func TestGoSource_EvoUI00x_UnrelatedReceiverNotFlagged(t *testing.T) {
 	src := `package p
 import (
   "log"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f(cmd *cobra.Command) {
-  _ = evo.Init(evo.Config{})
+func f(cmd *cobra.Command, r *evo.Run) {
+  _ = r
   log.Printf("go version: %s\n", "1.23.0")
   cmd.Println("✓ verified")
   cmd.Printf("%d/%d done\n", 3, 10)
@@ -335,5 +269,23 @@ func f(cmd *cobra.Command) {
 		if hasFinding(res, id) {
 			t.Fatalf("false positive %s on unrelated (log/cmd) receiver: %+v", id, res.Findings)
 		}
+	}
+}
+
+// A line printed straight to stdout is not a Fact: EVO-UI-001 only judges
+// text written to Run.Text().
+func TestGoSource_EvoUI001_StdoutPayloadLineNotFlagged(t *testing.T) {
+	src := `package p
+import (
+  "fmt"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func f(r *evo.Run) {
+  _ = r
+  fmt.Printf("go version: %s\n", "1.23.0")
+}
+`
+	if res := review.GoSource("x.go", src); hasFinding(res, "EVO-UI-001") {
+		t.Fatalf("false positive EVO-UI-001 on a stdout payload line: %+v", res.Findings)
 	}
 }

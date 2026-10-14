@@ -1,8 +1,8 @@
-// Package review — EVO-DAG-003's Sequence-membership signal: spec §5 says
-// Sequence "simply creates predecessor dependencies automatically", so two
-// Tasks declared off the same *evo.SequenceHandle, in declaration order,
-// are already ordered with no explicit .After needed (spec §11.6 treats
-// Sequence and After as equally authoritative for first-run ordering).
+// Package review — EVO-DAG-003's Sequence-membership signal: a Sequence
+// runs its children in declaration order, so two Tasks declared off the same
+// *evo.Sequence, in declaration order, are already ordered with no explicit
+// .After needed (Sequence and After are equally authoritative for first-run
+// ordering).
 package review
 
 import "go/ast"
@@ -15,8 +15,8 @@ type sequenceTaskOrder struct {
 }
 
 // evoSequenceHandleNames returns the identifiers that name an
-// *evoPkg.SequenceHandle in file: function parameters typed
-// *evoPkg.SequenceHandle, and variables assigned from evoPkg.Sequence(...).
+// *evoPkg.Sequence in file: function parameters typed *evoPkg.Sequence, and
+// variables assigned from container.Sequence(name).
 func evoSequenceHandleNames(file *ast.File, evoPkg string) map[string]bool {
 	names := map[string]bool{}
 	for _, decl := range file.Decls {
@@ -30,7 +30,7 @@ func evoSequenceHandleNames(file *ast.File, evoPkg string) map[string]bool {
 				continue
 			}
 			sel, ok := star.X.(*ast.SelectorExpr)
-			if !ok || sel.Sel.Name != "SequenceHandle" || exprDottedName(sel.X) != evoPkg {
+			if !ok || sel.Sel.Name != "Sequence" || exprDottedName(sel.X) != evoPkg {
 				continue
 			}
 			for _, name := range field.Names {
@@ -45,13 +45,19 @@ func evoSequenceHandleNames(file *ast.File, evoPkg string) map[string]bool {
 		}
 		lhs, ok := assign.Lhs[0].(*ast.Ident)
 		call, ok2 := assign.Rhs[0].(*ast.CallExpr)
-		if !ok || !ok2 || calledFuncDotted(call) != evoPkg+".Sequence" {
+		if !ok || !ok2 || !isContainerCall(call, "Sequence") {
 			return true
 		}
 		names[lhs.Name] = true
 		return true
 	})
 	return names
+}
+
+// isContainerCall is container.<kind>(name): a one-argument method call.
+func isContainerCall(call *ast.CallExpr, kind string) bool {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	return ok && sel.Sel.Name == kind && len(call.Args) == 1
 }
 
 // collectSequenceTaskOrder maps each Task variable declared as

@@ -1,6 +1,5 @@
 // Package review — source scanning shared by the MCP teachability rule families
-// (review_callback_resolution.go, review_fanout_wait.go, ...): callback
-// discovery, call naming, substring signals, and lexeme masking.
+// (review_fanout_wait.go, ...): call naming, substring signals, and lexeme masking.
 package review
 
 import (
@@ -9,30 +8,6 @@ import (
 	"go/token"
 	"strings"
 )
-
-// evoSettlingCallbacks collects every FuncLit passed directly as a
-// Define callback — the shape whose return value resolves the task through
-// evo's own scheduler (API-040/FP-006's scope).
-func evoSettlingCallbacks(file *ast.File) []*ast.FuncLit {
-	var out []*ast.FuncLit
-	ast.Inspect(file, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		if sel.Sel.Name == "Define" && len(call.Args) >= 1 {
-			if fl, ok := call.Args[0].(*ast.FuncLit); ok {
-				out = append(out, fl)
-			}
-		}
-		return true
-	})
-	return out
-}
 
 // calledFuncName extracts the bare or method name a CallExpr invokes, for
 // same-file call-graph lookups that stay honest about their limits (no

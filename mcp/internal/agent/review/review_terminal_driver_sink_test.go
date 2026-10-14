@@ -28,7 +28,7 @@ type report struct{ w io.Writer }
 
 func (r *report) Emit(line string) { _, _ = fmt.Fprintln(r.w, line) }
 
-func main() { evo.Init(evo.Config{}) }
+func main() { _ = evo.Main(evo.Config{}, nil) }
 `
 	res := review.GoSource("driver.go", src)
 	var lines []int

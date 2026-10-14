@@ -10,7 +10,8 @@
 //
 // Detection is structural, on the exec argv itself, not on any object
 // string that merely looks patch-related: only exec.Command("patch", ...)
-// or exec.Command("git", "apply"|"am", ...) (matched by the executable's
+// or exec.Command("git", "apply"|"am", ...) — or the same argv after the
+// context of exec.CommandContext — (matched by the executable's
 // base name, so a full path like "/usr/bin/patch" still matches) counts as
 // a direct workspace mutation. Domain code that only parses or derives a
 // patch — evo.Patch itself, or a caller that reads hunks without shelling
@@ -26,12 +27,12 @@ import (
 
 // detectDirectWorkspacePatchApply is API-058: an os/exec.Command call whose
 // argv applies a patch to the real workspace (`patch ...`, `git apply
-// ...`, `git am ...`) instead of routing through evo.Patch/evo.Files.
+// ...`, `git am ...`) instead of routing through evo.Patch.
 func detectDirectWorkspacePatchApply(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
-		if !ok || calledFuncDotted(call) != "exec.Command" || len(call.Args) == 0 {
+		if !ok {
 			return true
 		}
 		argv := execCommandArgv(call)
@@ -45,11 +46,22 @@ func detectDirectWorkspacePatchApply(filename string, file *ast.File, fset *toke
 	return findings
 }
 
-// execCommandArgv renders exec.Command's own argument list as literal
-// strings, one entry per argument.
+// execCommandArgv renders the argv of an exec.Command or
+// exec.CommandContext call as literal strings, one entry per argument, or nil
+// when call starts no process.
 func execCommandArgv(call *ast.CallExpr) []string {
-	argv := make([]string, len(call.Args))
-	for i, arg := range call.Args {
+	args := call.Args
+	switch calledFuncDotted(call) {
+	case "exec.Command":
+	case "exec.CommandContext":
+		if len(args) > 0 {
+			args = args[1:]
+		}
+	default:
+		return nil
+	}
+	argv := make([]string, len(args))
+	for i, arg := range args {
 		argv[i] = literalStringArgOrEmpty(arg)
 	}
 	return argv
@@ -99,7 +111,7 @@ func argvAppliesPatch(argv []string) bool {
 func directWorkspacePatchApplyFinding(filename string, pos token.Position, program string) Finding {
 	return Finding{
 		RuleID:     "API-058",
-		Message:    "exec.Command(" + goQuote(program) + ", ...) applies a patch straight to the real workspace, bypassing evo.Patch's Basis derivation and evo.File's stale-write guard, dry-run planning, and already-satisfied resolution",
+		Message:    "exec.Command(" + goQuote(program) + ", ...) applies a patch straight to the real workspace, bypassing evo.Patch's stale-source guard (ErrStaleBasis), dry-run planning, and already-satisfied resolution",
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,

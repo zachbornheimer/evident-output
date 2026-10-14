@@ -1,9 +1,8 @@
-// Package review — API-055 (ZYS-931, ZYS-831): a caller-managed lock held
-// around an evo.File/Files/Patch/Effect call. The lock is a sync.Mutex or
-// RWMutex, a flock(2) on a file descriptor, an O_EXCL lock file removed
-// afterwards, or a gofrs/flock value. File claims its own path for writing
-// automatically (ZYS-840), so a lock that guards only the Evo call is
-// redundant. A lock that also guards other shared state is real and must
+// Package review — API-055: a caller-managed lock held around an
+// evo.File/Patch/Effect call. The lock is a sync.Mutex or RWMutex, a
+// flock(2) on a file descriptor, an O_EXCL lock file removed afterwards, or
+// a gofrs/flock value. File claims its own path for writing automatically,
+// so a lock that guards only the Evo call is redundant. A lock that also guards other shared state is real and must
 // stay; holding it across the call is still worth a warning, because the call
 // can wait on a resource claim while the caller's lock is held, a wait Evo
 // cannot see or project.
@@ -23,7 +22,7 @@ import (
 )
 
 // evoManagedCalls are the evo functions that own a path or a resource claim.
-var evoManagedCalls = []string{"File", "Files", "Patch", "Effect"}
+var evoManagedCalls = []string{"File", "Patch", "Effect"}
 
 // lockRegion is one acquire…release critical section around an evo call.
 type lockRegion struct {
@@ -177,8 +176,8 @@ func isEvoManagedCall(n ast.Node, evoPkg string) bool {
 	return ok && evoManagedCallName(call, evoPkg) != ""
 }
 
-// evoManagedCallName is "File", "Files", "Patch" or "Effect" when call is
-// that function on the file's evo import, else "".
+// evoManagedCallName is "File", "Patch" or "Effect" when call is that
+// function on the file's evo import, else "".
 func evoManagedCallName(call *ast.CallExpr, evoPkg string) string {
 	name, ok := strings.CutPrefix(calledFuncDotted(call), evoPkg+".")
 	if !ok {

@@ -1,6 +1,5 @@
 // Package review — API-068 (ZYS-1368): a Task's Define callback declares
-// child Tasks, Groups or Sequences. A Task is never a container (contract
-// §31); structure belongs to a Group or Sequence whose own Define builder
+// child Tasks, Groups or Sequences. A Task is never a container (CONTRACT.md section 2); structure belongs to a Group or Sequence whose own Define builder
 // declares the children.
 package review
 

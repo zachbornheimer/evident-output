@@ -168,7 +168,7 @@ func phaseTaskDefineFinding(filename string, pos token.Position, word string, fl
 		Line:   pos.Line,
 		Column: pos.Column,
 		Suggestion: "replace Task(" + strconv.Quote(word) + ") with Group(" + strconv.Quote(word) +
-			") and give each independently erroring step its own verb+object child Task, e.g. group := out.Group(" + strconv.Quote(word) +
+			") and give each independently erroring step its own verb+object child Task, e.g. group := r.Group(" + strconv.Quote(word) +
 			"); group.Task(\"...\").Define(func(ctx context.Context) error { ... })",
 	}
 }

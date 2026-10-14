@@ -1,13 +1,25 @@
-// Package review — API-041, API-044, and API-052: caller goroutines, channel waits, and Wait loops that rebuild what the scheduler and container Wait already own.
+// Package review — API-041 and API-044: caller goroutines and channel waits that rebuild what the scheduler already owns.
 package review
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
-// ===== API-041: a goroutine/.Go(func( closure resolves a predeclared Task
-// (Doing/Fail/Progress) with no Define inside it — the scheduler never
-// received the work (zq axis-11 P1).
+// ===== API-041: a goroutine/.Go(func( closure reports on a Task nobody ever
+// gave Define (Doing/Progress/Problem on it). The scheduler never received
+// the work, so the Task never runs and the run ends partial (zq axis-11 P1).
 
-var fanOutSettleVerbMarkers = []string{".Doing(", ".Done(", ".Fail(", ".Progress("}
+// taskReportCallRe matches a status call on a named Task inside a closure.
+var taskReportCallRe = regexp.MustCompile(`\b(\w+)\.(?:Doing|Progress|Problem)\(`)
+
+// taskDefinedRe returns the pattern that proves name is given Define
+// somewhere in src: a direct name.Define call, or a declaration whose chain
+// already ends in Define.
+func taskDefinedRe(name string) *regexp.Regexp {
+	quoted := regexp.QuoteMeta(name)
+	return regexp.MustCompile(`\b` + quoted + `\.Define\(|\b` + quoted + `\s*:?=[^\n]*\.Define\(`)
+}
 
 func detectGoroutineResolvesPredeclaredTask(filename, src string) []Finding {
 	var findings []Finding
@@ -22,13 +34,13 @@ func detectGoroutineResolvesPredeclaredTask(filename, src string) []Finding {
 			if !ok {
 				break
 			}
-			if !strings.Contains(body, ".Define(") && containsAny(body, fanOutSettleVerbMarkers) {
+			if !strings.Contains(body, ".Define(") && reportsOnUndefinedTask(body, src) {
 				findings = append(findings, Finding{
 					RuleID:     "API-041",
-					Message:    "goroutine/fan-out closure resolves a predeclared Task (Doing/Fail/Progress) with no Define; evo never received this work to schedule",
+					Message:    "goroutine/fan-out closure reports on a Task that is never given Define; the scheduler never received this work, so the Task does not run",
 					File:       filename,
 					Line:       lineAt(src, start),
-					Suggestion: "predeclare with Group.Task(...) (one named Task per item), then call task.Define(func() error { ... }) instead of a bare goroutine",
+					Suggestion: "declare the work with Group.Task(...) (one named Task per item) and call task.Define(func(ctx context.Context) error { ... }) instead of a bare goroutine",
 				})
 			}
 			i = start + len(body)
@@ -37,126 +49,47 @@ func detectGoroutineResolvesPredeclaredTask(filename, src string) []Finding {
 	return findings
 }
 
-// ===== API-044: a hand-rolled channel wrapper around Define reimplements
-// TaskHandle.Wait() and hangs when the task is already terminal before
-// Define runs (zq setup_python.go:190-210's defineAndWait; axis-3/15
-// P15/P16 confirmed hang/deadlock). Wait is pre-approved here though it is
-// landing in parallel and not yet in this module's public API — its
-// spelling is fixed and it is the correct fix for this shape.
+// reportsOnUndefinedTask reports whether closure calls Doing, Progress or
+// Problem on a Task that src never gives Define.
+func reportsOnUndefinedTask(closure, src string) bool {
+	for _, m := range taskReportCallRe.FindAllStringSubmatch(closure, -1) {
+		if !taskDefinedRe(m[1]).MatchString(src) {
+			return true
+		}
+	}
+	return false
+}
+
+// ===== API-044: a function that declares work with Define and then blocks
+// on a channel the callback feeds has turned the declaring stack into a
+// waiter. Everything declared after the wait is invisible to the scheduler
+// and the dry-run plan until the callback has finished, and under
+// MaxConcurrency 1 a waiter that itself runs inside a callback deadlocks.
+// Ordering belongs to After; a produced value belongs to Computed.Get.
+
+// channelDeclRe matches the channel a function makes for its callback to feed.
+var channelDeclRe = regexp.MustCompile(`(\w+)\s*:?=\s*make\(chan\b`)
 
 func detectChannelWaitWrapperAroundDefine(filename, src string) []Finding {
 	var findings []Finding
 	for _, fn := range allFuncBodies(src) {
-		chanIdx := strings.Index(fn.body, "make(chan error")
-		if chanIdx < 0 {
-			continue
-		}
 		if !strings.Contains(fn.body, ".Define(") {
 			continue
 		}
-		if !strings.Contains(fn.body, "<-") {
-			continue
+		for _, m := range channelDeclRe.FindAllStringSubmatchIndex(fn.body, -1) {
+			ch := fn.body[m[2]:m[3]]
+			if !strings.Contains(fn.body, "<-"+ch) {
+				continue
+			}
+			findings = append(findings, Finding{
+				RuleID:     "API-044",
+				Message:    "this function declares work with Define and then blocks on a channel the callback feeds, so nothing declared after it is visible to the scheduler until the callback has finished",
+				File:       filename,
+				Line:       lineAt(src, fn.offset+m[0]),
+				Suggestion: "delete the " + ch + " channel and the receive: keep task.Define(fn), order later work with After(task), and read a produced value with evo.Compute and Computed.Get",
+			})
+			break
 		}
-		findings = append(findings, Finding{
-			RuleID:     "API-044",
-			Message:    "a channel-wait wrapper around Define reimplements what Evo already does and hangs when the task is already terminal before Define runs",
-			File:       filename,
-			Line:       lineAt(src, fn.offset+chanIdx),
-			Suggestion: "replace the make(chan error)/Define/<-done wrapper with task.Define(fn) and return from run; Evo owns the waiting",
-		})
 	}
 	return findings
-}
-
-// ===== API-052: a caller stores Group/Sequence child Task handles solely to
-// loop Wait, filter ErrNotStarted, Snapshot the container, and hand-count
-// failed children into its own aggregate error — GroupHandle.Wait/
-// SequenceHandle.Wait (ZYS-849) now owns exactly this bookkeeping. zq
-// evidence: internal/app/app.go::runParallel (slice of handles, Wait loop,
-// Snapshot, failed-child count, "N of N failed" error) and
-// internal/app/run_execute.go::waitDefinedRunOperations (Wait loop
-// special-casing evo.ErrNotStarted, first-remaining-error return).
-
-// callerWaitLoopSignals are the tokens that, alongside a for-loop calling
-// .Wait() on a *TaskHandle, corroborate the container-boilerplate shape
-// this rule targets rather than an unrelated Wait() loop (e.g. os/exec's
-// Cmd.Wait()) — the rule requires the loop's function reference TaskHandle
-// at all, plus at least one of these signals anywhere in the same function.
-var callerWaitLoopSignals = []string{"ErrNotStarted", "Snapshot("}
-
-func detectCallerWaitLoopOverContainerChildren(filename, src string) []Finding {
-	var findings []Finding
-	for _, fn := range allFuncBodies(src) {
-		// The signature (parameter/receiver types, e.g. "tasks
-		// []*evo.TaskHandle") sits before fn.body's opening brace, so the
-		// TaskHandle/signal check reads the whole declaration, not only
-		// the body statements.
-		funcStart := strings.LastIndex(src[:fn.offset], "func ")
-		if funcStart < 0 {
-			funcStart = fn.offset
-		}
-		wholeFunc := src[funcStart : fn.offset+len(fn.body)]
-		if !strings.Contains(wholeFunc, "TaskHandle") {
-			continue
-		}
-		if !containsAny(wholeFunc, callerWaitLoopSignals) {
-			continue
-		}
-		loop, waitIdx, ok := firstForLoopCallingWait(fn.body)
-		if !ok {
-			continue
-		}
-		findings = append(findings, Finding{
-			RuleID:     "API-052",
-			Message:    "a caller-owned loop waits on individually stored Task handles, filters ErrNotStarted, snapshots the container, and hand-counts failed children instead of using the container's own Wait",
-			File:       filename,
-			Line:       lineAt(src, fn.offset+loop.offset+waitIdx),
-			Suggestion: "replace the stored-handle Wait loop and hand-counted aggregate error with evo.Compute and Computed.Get, or a Group/Sequence the later work names in After",
-		})
-	}
-	return findings
-}
-
-// firstForLoopCallingWait finds the first brace-balanced "for" loop in body
-// whose block calls .Wait() directly, best-effort via textual scan (mirrors
-// allFuncBodies' brace-balanced scan for "func"). It returns the loop's own
-// funcBody, the byte offset of ".Wait()" within that loop body, and whether
-// a match was found.
-func firstForLoopCallingWait(body string) (loop funcBody, waitIdx int, ok bool) {
-	scanFrom := 0
-	for {
-		rel := strings.Index(body[scanFrom:], "for ")
-		if rel < 0 {
-			return funcBody{}, 0, false
-		}
-		idx := scanFrom + rel
-		if !precededByStatementBoundary(body, idx) {
-			scanFrom = idx + len("for ")
-			continue
-		}
-		block, start, balanced := balancedBraceBody(body, idx)
-		if !balanced {
-			scanFrom = idx + len("for ")
-			continue
-		}
-		if waitIdx := strings.Index(block, ".Wait()"); waitIdx >= 0 {
-			return funcBody{body: block, offset: start}, waitIdx, true
-		}
-		scanFrom = start + len(block)
-	}
-}
-
-// precededByStatementBoundary reports whether the byte immediately before
-// idx starts a new statement (newline, tab, space, or an opening brace) —
-// filtering an identifier substring like "before " from matching "for ".
-func precededByStatementBoundary(body string, idx int) bool {
-	if idx == 0 {
-		return true
-	}
-	switch body[idx-1] {
-	case '\n', '\t', ' ', '{':
-		return true
-	default:
-		return false
-	}
 }

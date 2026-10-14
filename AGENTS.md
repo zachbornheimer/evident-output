@@ -189,14 +189,13 @@ anyway; add detectors when they recur:
   iteration (duplicate sibling declaration, not a get-or-create — §3.1)
 
 Caught as of this MCP build (do not re-add to this list): `errgroup`/`go func`
-driving predeclared evo Tasks (API-041), `Fail` inside a
-Define callback whose result is returned (API-040), a nil or no-op
+driving predeclared evo Tasks (API-041), an `evo.Fail`, `evo.Refuse` or
+`evo.Exclude` ending built and then discarded (API-040), a nil or no-op
 `evo.Effect` callback (API-042), a plural `EffectSpec.Object` literal
 (API-043), a removed 1.1 mutation verb or `evo.Affected` (API-032), a hand-rolled channel wrapper around Define (API-044),
-`Doing(...).Done(...)` with no real work between them (FP-006), an
-inline `evo.Reason(...)` literal or one that restates its own verb (TAX-003),
+an inline `evo.Reason(...)` literal or one that restates its own verb (TAX-003),
 and a Task declared (say, only given a `Writer`) that its function never
-Defines, resolves, or hands on (DOM-021).
+Defines or hands on (DOM-021).
 
 `defineAndWait` in zq is not an exception: it is the API-044 channel-wait
 shape (it hangs when the task is already terminal before Define runs) and
@@ -216,7 +215,7 @@ changes `Exec` and
 
 Every breaking release carries a migration guide under `docs/migration/`
 listing each removed or changed symbol with before/after code, and the MCP
-review rules steer each old call site to its replacement (API-032, API-061).
+review rules steer each old call site to its replacement (API-032).
 
 The module path is `github.com/zachbornheimer/evident-output/v2`. Consumers
 import and `go get` the `/v2` path, so a 1.x consumer stays on the old path

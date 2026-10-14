@@ -2,7 +2,7 @@
 // Define callback assigns and a different Define callback reads. That is a
 // Task result handed over through mutable outer state, with no compiler
 // check and no statement of order; evo.Compute returns the value typed and
-// After(computed) states the order (contract §31).
+// After(computed) states the order (CONTRACT.md section 2).
 package review
 
 import (

@@ -86,7 +86,7 @@ go run ./examples/debug-pane/ --fail          # failure preserves diagnostics ta
 ```bash
 go run ./mcp/cmd/evident-output review path/to/file.go   # JSON findings (exit 1 if recheck_required)
 go run ./mcp/cmd/evident-output preview --item=status --state=ok
-go run ./mcp/cmd/evident-output explain API-006
+go run ./mcp/cmd/evident-output explain STREAM-003
 go run ./mcp/cmd/evident-output version
 ```
 

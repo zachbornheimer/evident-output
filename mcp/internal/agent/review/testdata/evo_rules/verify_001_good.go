@@ -7,7 +7,7 @@ import (
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
-func registerAgent(task *evo.TaskHandle, label string) {
+func registerAgent(task *evo.Task, label string) {
 	task.Verify(func(ctx context.Context) (bool, error) {
 		return launchAgentRegistered(ctx, label)
 	})

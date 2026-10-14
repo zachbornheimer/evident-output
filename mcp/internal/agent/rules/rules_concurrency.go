@@ -28,14 +28,14 @@ if partial {
 			Category:  "CON",
 			Severity:  SeverityWarning,
 			Invariant: "a failure summary is printed once, from Conclusion, not hand-assembled from a collected list",
-			Why:       "fmt/out.Print(strings.Join(failures, ...)) duplicates the exact summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows.",
-			BadCode:   `out.Println(strings.Join(failures, "\n")) // duplicates Conclusion`,
+			Why:       "Printing strings.Join(failures, ...), directly or to Run.Text, duplicates the summary Conclusion already owns and can drift from the outcomes and exit code the ledger shows.",
+			BadCode:   `fmt.Fprintln(r.Text(), strings.Join(failures, "\n")) // duplicates Conclusion`,
 			GoodCode: `for _, f := range failures {
   f := f
   r.Task(f.Name).Define(func(context.Context) error { return evo.Fail(f.Message) })
 }
 // Conclusion renders the one summary; add evo.Next(evo.Action{Label: ...}) for guidance`,
-			Remediation:     "Resolve each failure on its own Item/Task and let Conclusion summarize; use Next for follow-up guidance",
+			Remediation:     "Resolve each failure on its own Task and let Conclusion summarize; use Next for follow-up guidance",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"CON-002"},
 			Since:           "0.7.0",
@@ -70,7 +70,7 @@ if partial {
 			Category:   "EVO",
 			Severity:   SeverityWarning,
 			Invariant:  "a hand-chained sequence of .After(...) calls is expressed as an evo.Sequence instead",
-			Why:        "After is the exceptional explicit DAG edge (spec §6); a chain of two or more .After(...) calls reproduces exactly the linear ordering Sequence already gives its children automatically, with no exceptional edge left to justify hand-wiring it.",
+			Why:        "After is the exceptional explicit DAG edge; a chain of two or more .After(...) calls reproduces exactly the linear ordering Sequence already gives its children automatically, with no exceptional edge left to justify hand-wiring it.",
 			BadCode: `register := seq.Task("register")
 register.After(write)
 start := seq.Task("start")
@@ -91,7 +91,7 @@ start := seq.Task("start")`,
 			Category:   "EVO",
 			Severity:   SeverityWarning,
 			Invariant:  "a visible producer/consumer resource relationship between two Tasks has an explicit first-run scheduler edge (Sequence or After)",
-			Why:        "known-producer freshness barriers only delay Evidence evaluation once a manifest already exists; on a first run there is no prior manifest to consult, so an unordered producer/consumer pair can race (spec §11.5, §47's \"first-run producer/consumer ordering still requires Sequence/After\").",
+			Why:        "Group children may overlap, and a first run has no recorded status to wait on, so a Task that reads a path another Task writes can start before the writer. Only Sequence position or After orders them.",
 			BadCode: `producer.Define(func(ctx context.Context) error {
   return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
 })

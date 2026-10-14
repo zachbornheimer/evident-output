@@ -8,14 +8,6 @@ import (
 	"strings"
 )
 
-// isFormatMethod is the *f-without-% check (API-028). Failf/Blockf were
-// removed in 1.1; API-032 rewrites those call sites to Fail/Block. No *f
-// method remains.
-func isFormatMethod(name string) bool {
-	_ = name
-	return false
-}
-
 func strconvUnquote(s string) (string, error) {
 	return strconv.Unquote(s)
 }
@@ -56,9 +48,7 @@ func isOSStdStreamExpr(expr ast.Expr) bool {
 // evoOwnedWriterNames are evo's own writer-returning members; a Write call
 // through one of these does not contaminate a managed stream because evo
 // owns the destination (evo-rec.md "B": "except evo-owned writers").
-var evoOwnedWriterNames = map[string]bool{
-	"Capture": true, "Evidence": true, "Writer": true, "ResultWriter": true, "DebugWriter": true,
-}
+var evoOwnedWriterNames = map[string]bool{"Writer": true, "ResultWriter": true}
 
 // isEvoOwnedWriterExpr reports whether expr's final selector segment names
 // one of evo's own writer accessors.
@@ -203,17 +193,7 @@ func isSafeWriterArg(expr ast.Expr, safeVars map[string]bool) bool {
 	}
 }
 
-// isForbiddenExecutionHelper names APIs evo deliberately does not provide.
-func isForbiddenExecutionHelper(name string) bool {
-	switch name {
-	case "RunAll", "Map", "Retry", "Parallel", "Timeout":
-		return true
-	default:
-		return false
-	}
-}
-
-// knownNonEvoPackages are import idents that must never trigger API-026.
+// knownNonEvoPackages are import idents that are never an evo receiver.
 var knownNonEvoPackages = map[string]bool{
 	"strings": true, "bytes": true, "regexp": true, "time": true,
 	"context": true, "sync": true, "fmt": true, "os": true, "io": true,
@@ -226,46 +206,8 @@ var knownNonEvoPackages = map[string]bool{
 	"exec": true, "signal": true, "atomic": true, "rand": true,
 }
 
-// isEvoExecutionReceiver reports whether a method call's receiver is an evo
-// presentation value (or package), not an unrelated package helper.
-func isEvoExecutionReceiver(x ast.Expr) bool {
-	switch v := x.(type) {
-	case *ast.Ident:
-		if knownNonEvoPackages[v.Name] {
-			return false
-		}
-		// Package or handle commonly named for evo.
-		switch v.Name {
-		case "evo", "out", "o", "output":
-			return true
-		}
-		// Bare unknown.Map(...) — prefer miss over false positive (trust in review).
-		return false
-	case *ast.CallExpr:
-		// out.Group("x").Map / out.Task("x").Retry
-		if s, ok := v.Fun.(*ast.SelectorExpr); ok {
-			switch s.Sel.Name {
-			case "Group", "Sequence", "Task", "Item", "Changes", "Plan", "For", "New", "Main", "MainWith" /* removed in 1.0; still recognized so old call sites are still caught */, "Init":
-				return true
-			}
-			return isEvoExecutionReceiver(s.X)
-		}
-		return false
-	case *ast.SelectorExpr:
-		// evo.Something or chained handle
-		if id, ok := v.X.(*ast.Ident); ok && (id.Name == "evo" || id.Name == "out") {
-			return true
-		}
-		return isEvoExecutionReceiver(v.X)
-	case *ast.ParenExpr:
-		return isEvoExecutionReceiver(v.X)
-	default:
-		return false
-	}
-}
-
-// isLikelyEvoReceiver is a softer check for Start (API-006): flag method calls
-// that look like presentation handles, skip known stdlib packages.
+// isLikelyEvoReceiver is a soft receiver check: it accepts anything that
+// looks like a presentation handle and skips known stdlib packages.
 func isLikelyEvoReceiver(x ast.Expr) bool {
 	switch v := x.(type) {
 	case *ast.Ident:
@@ -288,15 +230,13 @@ func isLikelyEvoReceiver(x ast.Expr) bool {
 	}
 }
 
-// isPresentationExitArg is true for os.Exit(evo.Main(...)) (v0.6: the
-// canonical entrypoint — Main derives the code but does not exit itself),
-// os.Exit(evo.Run(...)) and os.Exit(out.Run(...)) (both removed in 2.0, still
-// recognized in older code), os.Exit(...ExitCode), and
-// os.Exit(xe) where xe is a runCodeVars identifier — the latter three also
-// cover the exit-code-fidelity pattern (mcp/docs/exit-code-fidelity.md)
-// that captures evo.Run's code, branches to override it with a child
-// process's own exit code, and only then calls os.Exit. All of these return
-// a code rather than exit themselves. Pre-1.0, evo.MainWith alone exited via its own facade (P6) and was never wrapped in os.Exit; MainWith was removed in 1.0.
+// isPresentationExitArg is true for os.Exit(evo.Main(...)) (Main derives the
+// code but does not exit itself), os.Exit(...ExitCode()), os.Exit(x.ExitCode),
+// and os.Exit(xe) where xe is a runExitCodeVars identifier. The last three
+// also cover the exit-code-fidelity pattern (mcp/docs/exit-code-fidelity.md)
+// that captures the run's code, branches to override it with a child
+// process's own exit code, and only then calls os.Exit. All of these pass a
+// code rather than invent one.
 func isPresentationExitArg(call *ast.CallExpr, runCodeVars map[string]bool) bool {
 	if len(call.Args) != 1 {
 		return false
@@ -316,11 +256,11 @@ func isPresentationExitArg(call *ast.CallExpr, runCodeVars map[string]bool) bool
 }
 
 // runExitCodeVars collects every identifier ever assigned the result of an
-// evo.Run(...)/out.Run(...) (removed in 2.0)/....ExitCode call — the variable the exit-code-
-// fidelity pattern captures before optionally overriding it with a child
-// process's own exit code. Tracking is file-wide, not scope-precise,
-// matching localSafeWriterVars's existing tradeoff: a false pass here is a
-// missed warning, not a wrong fix applied.
+// evo.Main(...) or ....ExitCode() call: the variable the exit-code-fidelity
+// pattern captures before optionally overriding it with a child process's
+// own exit code. Tracking is file-wide, not scope-precise, matching
+// localSafeWriterVars's tradeoff: a false pass here is a missed warning, not
+// a wrong fix applied.
 func runExitCodeVars(f *ast.File) map[string]bool {
 	vars := map[string]bool{}
 	ast.Inspect(f, func(n ast.Node) bool {
@@ -341,11 +281,10 @@ func runExitCodeVars(f *ast.File) map[string]bool {
 	return vars
 }
 
-// isRunExitCodeCall is true for evo.Run(...), out.Run(...) (removed in 2.0), evo.Main(...)
-// (v0.6: Main itself returns the derived code — os.Exit(evo.Main(cfg, run)) is
-// the canonical entrypoint, not a wrapper flagged as double-exiting), and
-// any ....ExitCode() call — the call shapes runExitCodeVars looks for on an
-// assignment's right-hand side.
+// isRunExitCodeCall is true for evo.Main(...), which returns the derived
+// code (os.Exit(evo.Main(cfg, run)) is the canonical entrypoint, not a
+// wrapper flagged as double-exiting), and any ....ExitCode() call: the call
+// shapes runExitCodeVars looks for on an assignment's right-hand side.
 func isRunExitCodeCall(expr ast.Expr) bool {
 	call, ok := expr.(*ast.CallExpr)
 	if !ok {
@@ -353,11 +292,11 @@ func isRunExitCodeCall(expr ast.Expr) bool {
 	}
 	if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
 		switch sel.Sel.Name {
-		case "Run", "Main", "ExitCode":
+		case "Main", "ExitCode":
 			return true
 		}
 	}
-	if id, ok := call.Fun.(*ast.Ident); ok && (id.Name == "Run" || id.Name == "Main") {
+	if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "Main" {
 		return true
 	}
 	return false

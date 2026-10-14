@@ -9,9 +9,8 @@ import (
 )
 
 // ===== API-042: an evo.Effect callback is nil, or a no-op — the work
-// already happened elsewhere and the callback is theater over it (zq
-// README.md:39's nil callback, setup_python.go:172-181's callback that only
-// returns installedPythonModuleCount(...)).
+// already happened elsewhere and the callback is theater over it (a nil
+// callback, or one that only validates a count computed by the caller).
 
 // effectCallbackArg is evo.Effect's callback argument index:
 // Effect(ctx, spec, fn).
@@ -139,7 +138,7 @@ func noOpEffectFinding(filename string, pos token.Position, shape string) Findin
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,
-		Suggestion: "move the mutation itself inside the Effect callback (or an Evo-native File/Patch); do not report it after the fact with Record/RecordLabel/RecordName (removed in 1.1) — those have no record-only replacement (ZYS-974)",
+		Suggestion: "move the mutation itself inside the Effect callback, or use evo.File/evo.Patch for file state; when the work already ran elsewhere and only information remains, report it with task.Fact",
 	}
 }
 

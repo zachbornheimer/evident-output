@@ -59,43 +59,36 @@ func TestConformance_UsesRequestedTargetVersionOverDesired(t *testing.T) {
 }
 
 // TestConformance_LegacyAPIExampleGetsVersionedMigrationGuidance is spec
-// §62's "legacy API example → versioned migration guidance" fixture: a
-// pre-1.0 call site (`evo.MainWith`, removed in 1.0) reviewed against the
-// 1.0.0 target must carry migration guidance naming the specific
-// replacement (`os.Exit(evo.Main(...))`) — not a generic "this API changed"
-// notice — proving the conformance report's advice is version-specific to
-// the exact removed shape it matched, per rules.Migrations()'s own
-// MainWith row (see TestMigrations_CoversMainWithAndEachRemoval).
+// §62's "legacy API example → versioned migration guidance" fixture: a 1.x
+// call site (`task.Block`, removed in 2.0) reviewed against the 2.0.0 target
+// must carry migration guidance naming the specific replacement
+// (`evo.Refuse`) — not a generic "this API changed" notice — proving the
+// conformance report's advice is version-specific to the exact removed shape
+// it matched.
 func TestConformance_LegacyAPIExampleGetsVersionedMigrationGuidance(t *testing.T) {
 	src := `package main
 import evo "github.com/zachbornheimer/evident-output/v2"
-func main() {
-	out := evo.Init(evo.Config{Title: "t", Isolated: true})
-	evo.MainWith(out, run)
-}
-func run(out *evo.Output) error {
-	return nil
+func f(task *evo.TaskHandle) {
+	task.Block("no remote", evo.NextCommand("git", "remote", "add"))
 }
 `
-	res := review.GoSourceAt("legacy.go", src, "0.5.0")
-	report := review.Conformance(res, "1.0.0")
-	if report.TargetVersion != "1.0.0" {
-		t.Fatalf("target_version = %q, want 1.0.0", report.TargetVersion)
+	res := review.GoSource("legacy.go", src)
+	report := review.Conformance(res, "2.0.0")
+	if report.TargetVersion != "2.0.0" {
+		t.Fatalf("target_version = %q, want 2.0.0", report.TargetVersion)
 	}
 	var found *review.ConformanceFinding
 	for i, f := range report.Findings {
-		if strings.Contains(f.Migration, "MainWith") {
+		if strings.Contains(f.Migration, "evo.Refuse") {
 			found = &report.Findings[i]
 			break
 		}
 	}
 	if found == nil {
-		t.Fatalf("expected a finding whose migration guidance names MainWith, got: %+v", report.Findings)
+		t.Fatalf("expected a finding whose migration guidance names evo.Refuse, got: %+v", report.Findings)
 	}
-	// The concrete per-call-site replacement is evo.Execute(ctx, cfg, run), not
-	// the generic os.Exit(evo.Main(...)) row, which only fits an ordinary main().
-	if !strings.Contains(found.Migration, "evo.Execute") {
-		t.Fatalf("migration guidance = %q, want the specific evo.Execute replacement, not a generic notice", found.Migration)
+	if !strings.Contains(found.Migration, "evo.Next(evo.Action{") {
+		t.Fatalf("migration guidance = %q, want the specific evo.Next(evo.Action{...}) option, not a generic notice", found.Migration)
 	}
 }
 

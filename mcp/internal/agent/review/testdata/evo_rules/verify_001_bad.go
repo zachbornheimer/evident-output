@@ -9,7 +9,7 @@ import (
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
-func registerAgent(task *evo.TaskHandle, staleDir string) {
+func registerAgent(task *evo.Task, staleDir string) {
 	task.Verify(func(ctx context.Context) (bool, error) {
 		os.RemoveAll(staleDir)
 		return true, nil

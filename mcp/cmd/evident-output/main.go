@@ -166,11 +166,13 @@ func cmdExplain(args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(map[string]any{"guides": catalog.All()})
 	}
-	r, ok := rules.Explain(args[0])
-	if !ok {
-		return fmt.Errorf("unknown rule %q", args[0])
-	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	return enc.Encode(r)
+	if r, ok := rules.Explain(args[0]); ok {
+		return enc.Encode(r)
+	}
+	if r, ok := rules.RetiredRuleByID(args[0]); ok {
+		return enc.Encode(map[string]any{"retired": r})
+	}
+	return fmt.Errorf("unknown rule %q", args[0])
 }

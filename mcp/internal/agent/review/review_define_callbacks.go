@@ -1,22 +1,19 @@
-// Package review — the two kinds of Define callback the composition rules
-// tell apart (contract §31): a Task's work callback, which receives a
-// context, and a Group/Sequence topology builder, which receives its
-// handle and declares structure only.
+// Package review — the two kinds of callback the composition rules tell
+// apart (CONTRACT.md section 2): a Task's work callback (Define), which
+// receives a context, and a Group/Sequence topology builder (Build), which
+// receives its container and declares structure only.
 package review
 
-import (
-	"go/ast"
-	"strings"
-)
+import "go/ast"
 
-// defineCallback is one function literal passed to Define (or as the work
-// of evo.Compute).
+// defineCallback is one function literal passed to Define or Build (or as
+// the work of evo.Compute).
 type defineCallback struct {
 	lit     *ast.FuncLit
-	builder bool // receives a *GroupHandle/*SequenceHandle, not a context
+	builder bool // a Build callback receiving a *evo.Group/*evo.Sequence, not a context
 }
 
-// defineCallbacks lists every Define/Compute callback in file.
+// defineCallbacks lists every Define, Build and Compute callback in file.
 func defineCallbacks(file *ast.File, evoPkg string) []defineCallback {
 	var out []defineCallback
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -36,23 +33,24 @@ func defineCallbacks(file *ast.File, evoPkg string) []defineCallback {
 	return out
 }
 
-// callbackLiteral is the function literal a Define(fn) or
+// callbackLiteral is the function literal a Define(fn), Build(fn) or
 // evo.Compute(task, fn) call carries, or nil.
 func callbackLiteral(call *ast.CallExpr, evoPkg string) *ast.FuncLit {
 	var arg ast.Expr
 	switch {
 	case calledFuncDotted(call) == evoPkg+".Compute" && len(call.Args) == 2:
 		arg = call.Args[1]
-	case isDefineCall(call):
+	case isCallbackCall(call):
 		arg = call.Args[0]
 	}
 	lit, _ := arg.(*ast.FuncLit)
 	return lit
 }
 
-func isDefineCall(call *ast.CallExpr) bool {
+// isCallbackCall is x.Define(fn) or x.Build(fn).
+func isCallbackCall(call *ast.CallExpr) bool {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
-	return ok && sel.Sel.Name == "Define" && len(call.Args) == 1
+	return ok && (sel.Sel.Name == "Define" || sel.Sel.Name == "Build") && len(call.Args) == 1
 }
 
 func classifyCallback(lit *ast.FuncLit) (defineCallback, bool) {
@@ -65,7 +63,7 @@ func classifyCallback(lit *ast.FuncLit) (defineCallback, bool) {
 	return defineCallback{}, false
 }
 
-// isBuilderSignature is func(*evo.GroupHandle) or func(*evo.SequenceHandle).
+// isBuilderSignature is func(*evo.Group) or func(*evo.Sequence).
 func isBuilderSignature(ft *ast.FuncType) bool {
 	if ft.Params == nil || len(ft.Params.List) != 1 {
 		return false
@@ -75,7 +73,7 @@ func isBuilderSignature(ft *ast.FuncType) bool {
 		return false
 	}
 	name := typeExprName(star.X)
-	return strings.HasSuffix(name, "GroupHandle") || strings.HasSuffix(name, "SequenceHandle")
+	return name == "Group" || name == "Sequence"
 }
 
 func typeExprName(e ast.Expr) string {

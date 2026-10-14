@@ -1,7 +1,7 @@
 package rules
 
 // defineRules is the Define-body family (1.1): already-true state resolves
-// through Verify, not Skipped (API-046); Define uses the scheduler's
+// through Verify, not Excluded (API-046); Define uses the scheduler's
 // context (API-049); subprocess capture goes through evo.Exec (API-054).
 func defineRules() []Rule {
 	return []Rule{
@@ -10,8 +10,8 @@ func defineRules() []Rule {
 			MinDialect: "1.0.0",
 			Category:   "API",
 			Severity:   SeverityWarning,
-			Invariant:  "Excluded means a check never applied; Satisfied means the check applied and was already true — a reason naming a checked-and-already-true condition belongs to the latter",
-			Why:        "return evo.Exclude(\"already up to date\") reports \"did not apply\" for a precondition that was in fact checked and found already true; Verify (run before Define) or evo.File/evo.Exec's own tracked comparison settle Satisfied for exactly this case, and collapsing it into Excluded hides a real checked precondition behind the wrong glyph. True inapplicability (no project config, no Go module) stays Excluded.",
+			Invariant:  "Excluded means policy chose not to run the Task; Satisfied means the requested state was already true — a reason naming a checked-and-already-true condition belongs to the latter",
+			Why:        "return evo.Exclude(\"already up to date\") reports that policy chose not to run the Task for a state that was in fact checked and found already true; Verify (run before Define) or evo.File/evo.Exec's own tracked comparison settle Satisfied for exactly this case, so collapsing it into Excluded hides a real checked precondition behind the wrong outcome word. A genuine policy choice (a protected branch, an opt-out) stays Excluded.",
 			BadCode: `task.Define(func(ctx context.Context) error {
   if installedVersion == latestVersion {
     return evo.Exclude("already up to date")
@@ -22,7 +22,7 @@ func defineRules() []Rule {
   return installedVersion == latestVersion, nil
 })
 task.Define(func(ctx context.Context) error { return install(ctx) })`,
-			Remediation:     "Move the already-true check into task.Verify(...) before Define, or rely on evo.File/evo.Exec's own tracked comparison, so evo settles Satisfied instead of Excluded; keep evo.Exclude only for true inapplicability",
+			Remediation:     "Move the already-true check into task.Verify(...) before Define, or rely on evo.File/evo.Exec's own tracked comparison, so Evo settles Satisfied instead of Excluded; keep evo.Exclude for a policy choice not to run the Task",
 			RelatedGuidance: []string{"tasks", "evidence-provenance"},
 			VerificationIDs: []string{"API-046"},
 			Since:           "1.1.0",
@@ -34,7 +34,7 @@ task.Define(func(ctx context.Context) error { return install(ctx) })`,
 			Category:   "API",
 			Severity:   SeverityError,
 			Invariant:  "a Define callback's context.Context parameter is the scheduler's authoritative cancellation context; a callback that discards it and calls cancellable work with a captured outer ctx never observes the scheduler's cancellation",
-			Why:        "`task.Define(func(context.Context) error { return run(ctx) })` compiles and runs — the captured outer ctx is a real context — but it is not the Define callback's own context, so cancelling this task through the scheduler (timeout, second SIGINT, a sibling failure under a Group) never reaches run's cancellable work.",
+			Why:        "`task.Define(func(context.Context) error { return run(ctx) })` compiles and runs — the captured outer ctx is a real context — but it is not the Define callback's own context, so cancelling this Task through the scheduler (a signal named in CleanStop, which cancels only that Task's context, or the run's own cancellation reaching a running callback) never reaches run's cancellable work.",
 			BadCode: `task.Define(func(context.Context) error {
   return run(ctx) // captured outer ctx
 })`,

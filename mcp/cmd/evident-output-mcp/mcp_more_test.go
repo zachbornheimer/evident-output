@@ -42,7 +42,7 @@ func f() {
 		t.Fatalf("%v stderr=%s", err, stderr.String())
 	}
 	out := stdout.String()
-	if !strings.Contains(out, "API-006") && !strings.Contains(out, "STREAM-003") {
+	if !strings.Contains(out, "STREAM-003") {
 		t.Fatalf("review findings missing: %s", out)
 	}
 	if !strings.Contains(out, "profiles") && !strings.Contains(out, "wide") {

@@ -126,7 +126,6 @@ upgrade.Define(func(ctx context.Context) error {
 Run the child inside the Task's `Define`: a Task given a `Writer` but never
 Defined stays unresolved and the run concludes `partial`.
 
-Do **not** use `DebugWriter` for child tools (API-029).
 Secrets: set `Facades.Redactor`.
 
 ## Platform contracts
@@ -152,4 +151,4 @@ Secrets: set `Facades.Redactor`.
 go run github.com/zachbornheimer/evident-output/mcp/v2/cmd/evident-output@v2.0.0 review ./path.go
 ```
 
-Until `recheck_required=false`. Rules include API-006 (Start), API-026 (caller RunAll/Map/Retry — not Group/Sequence/Define/After), API-028 (Donef without %), API-029 (Capture), STREAM-003 (fmt.Print).
+Until `recheck_required=false`. Rules include STREAM-003 (fmt.Print) and API-018 (os.Exit bypassing the conclusion).

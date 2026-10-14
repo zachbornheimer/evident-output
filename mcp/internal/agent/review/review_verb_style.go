@@ -7,29 +7,38 @@ import (
 	"strings"
 )
 
-// nameEqualsVerbArgPattern matches an entity declared and immediately
-// resolved with the identical expression as both its name and its
-// skip/verb argument, e.g. out.Item(note).Skip(note) — the owner's
-// complaint that the second occurrence carries zero new information.
-var nameEqualsVerbArgPattern = regexp.MustCompile(`\.(?:Item|Task)\(([^(),]+)\)\.(Skip|Fail|Warn|Block|Done|Cancel)\(([^(),]+)\)`)
+// taskDefineCallbackPattern matches a Task declared and given its Define
+// callback in one expression, capturing the Task's name argument. The match
+// ends at the callback's opening brace.
+var taskDefineCallbackPattern = regexp.MustCompile(`\.Task\(([^(),]+)\)\.Define\(\s*func\([^)]*\)\s*error\s*\{`)
 
-// detectNameEqualsVerbArgument is API-033.
+// endingReasonPattern matches the ending a callback returns, capturing the
+// ending's verb and the expression it passes as its summary or reason.
+var endingReasonPattern = regexp.MustCompile(`evo\.(Exclude|Fail|Refuse)\(\s*([^(),]+?)\s*[,)]`)
+
+// detectNameEqualsVerbArgument is API-033: a Task whose Define callback
+// returns an ending built from the identical expression that names the Task.
 func detectNameEqualsVerbArgument(filename, src string) []Finding {
 	var findings []Finding
-	for _, m := range nameEqualsVerbArgPattern.FindAllStringSubmatchIndex(src, -1) {
+	for _, m := range taskDefineCallbackPattern.FindAllStringSubmatchIndex(src, -1) {
 		nameArg := strings.TrimSpace(src[m[2]:m[3]])
-		verb := src[m[4]:m[5]]
-		verbArg := strings.TrimSpace(src[m[6]:m[7]])
-		if nameArg == "" || nameArg != verbArg {
+		body, _, ok := balancedBraceBody(src, m[1]-1)
+		if !ok || nameArg == "" {
 			continue
 		}
-		findings = append(findings, Finding{
-			RuleID:     "API-033",
-			Message:    "the same expression (" + nameArg + ") is used as both the entity name and the ." + verb + "(...) argument — the second carries no new information",
-			File:       filename,
-			Line:       lineAt(src, m[0]),
-			Suggestion: `give the entity a distinct label, e.g. .Item("<what this checks>").` + verb + "(" + verbArg + ")",
-		})
+		for _, e := range endingReasonPattern.FindAllStringSubmatch(body, -1) {
+			if strings.TrimSpace(e[2]) != nameArg {
+				continue
+			}
+			findings = append(findings, Finding{
+				RuleID:     "API-033",
+				Message:    "the same expression (" + nameArg + ") is used as both the Task name and the evo." + e[1] + "(...) argument — the second carries no new information",
+				File:       filename,
+				Line:       lineAt(src, m[0]),
+				Suggestion: `give the Task a distinct name, e.g. .Task("<what this checks>"), and make the evo.` + e[1] + ` text say why`,
+			})
+			break
+		}
 	}
 	return findings
 }
@@ -39,8 +48,7 @@ func detectNameEqualsVerbArgument(filename, src string) []Finding {
 var placeholderDoingPattern = regexp.MustCompile(`\.Doing\(\s*"([^"]*)"\s*\)`)
 
 // placeholderDoingWords are Doing strings that name no domain object — the
-// user cannot tell this frame from the last one (evo-rec.md "Doing carries
-// the current object").
+// user cannot tell this frame from the last one.
 var placeholderDoingWords = map[string]bool{
 	"starting": true, "working": true, "running": true, "please wait": true,
 }
@@ -59,95 +67,14 @@ func detectPlaceholderDoing(filename, src string) []Finding {
 			Message:    `Doing("` + lit + `") names no domain object; the user can't tell this frame from the last one`,
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: `name the object in motion, e.g. Doing("scanning " + name)`,
+			Suggestion: `name the object in motion, e.g. Doing("scanning %s", name)`,
 		})
 	}
 	return findings
 }
 
-// failBlockStmtPattern matches a statement-form Fail/Block call. Failf/Blockf
-// were removed in 1.1; the pattern requires "(" immediately after the verb
-// name, so it matches Fail/Block statements.
-var failBlockStmtPattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(`)
-
-// returnTheErrorSuggestion is how a Fail site hands its error back: the
-// callback's returned ending is `return evo.Fail(...)`, which concludes the
-// row Failed and makes Wait() report the error. A bare `return err` is the
-// answer when there is nothing to add; never return nil.
-func returnTheErrorSuggestion(errVar string) string {
-	return "return the error: return evo.Fail(\"<context>\", evo.Detail(" + errVar + ".Error()))" +
-		" (inside a Define/mutation callback with nothing to add, just `return " + errVar + "`)"
-}
-
-// handBackSuggestion is how a Fail or Block site returns errVar: the same
-// call with Detail, then the error itself, so Wait() keeps its identity.
-func handBackSuggestion(recv, verb, errVar string) string {
-	return recv + "." + verb + "(\"<context>\", evo.Detail(" + errVar + ".Error())); return " + errVar +
-		": the row concludes " + verb + "ed and Wait() returns " + errVar + " with its identity (errors.Is holds); returning nil would lose it"
-}
-
-// detectFailBlockThenReturnNil is API-034: a statement-form Fail/Block
-// followed immediately by a bare `return nil` discards the error the caller
-// needed to propagate — the most common shape of "the remedy has nowhere to
-// attach" (49 dotfiles + 41 zq sites).
-func detectFailBlockThenReturnNil(filename, src string) []Finding {
-	var findings []Finding
-	lines := strings.Split(src, "\n")
-	for i, line := range lines {
-		m := failBlockStmtPattern.FindStringSubmatch(line)
-		if m == nil {
-			continue
-		}
-		recv, verb := m[1], m[2]
-		if strings.HasPrefix(strings.TrimSpace(line), "return ") {
-			continue // `return evo.Fail(...)` is the callback's returned ending, not a statement-form Fail
-		}
-		if verb == "Block" {
-			continue // Block then return nil is a refusal with no error to carry; with a real err, Block(...); return err keeps its identity
-		}
-		suggestion := returnTheErrorSuggestion("err")
-		if rest, ok := sameLineReturn(line); ok {
-			if rest == "return nil" {
-				findings = append(findings, failThenReturnNilFinding(filename, recv, verb, i+1, suggestion))
-			}
-			continue
-		}
-		for j := i + 1; j < len(lines) && j < i+4; j++ {
-			trimmed := strings.TrimSpace(lines[j])
-			if trimmed == "" || trimmed == "}" {
-				continue
-			}
-			if trimmed == "return nil" {
-				findings = append(findings, failThenReturnNilFinding(filename, recv, verb, j+1, suggestion))
-			}
-			break
-		}
-	}
-	return findings
-}
-
-// sameLineReturn is the statement after the last "; " when a Fail line also
-// holds its own return (the one-line form rewrites emit).
-func sameLineReturn(line string) (string, bool) {
-	i := strings.LastIndex(line, "; return")
-	if i < 0 {
-		return "", false
-	}
-	return strings.TrimSpace(line[i+2:]), true
-}
-
-func failThenReturnNilFinding(filename, recv, verb string, line int, suggestion string) Finding {
-	return Finding{
-		RuleID:     "API-034",
-		Message:    recv + "." + verb + "(...) followed by return nil discards the error the caller needed to propagate",
-		File:       filename,
-		Line:       line,
-		Suggestion: suggestion,
-	}
-}
-
 // detectDiscardSinkInFailingBlock is API-035: io.Discard wired as a sink
-// inside a function that also Fails/Blocks is an evidence-free security-gate
+// inside a function that also Fails/Refuses is an evidence-free security-gate
 // shape — the verdict has nothing to show for itself.
 func detectDiscardSinkInFailingBlock(filename, src string) []Finding {
 	var findings []Finding
@@ -155,7 +82,7 @@ func detectDiscardSinkInFailingBlock(filename, src string) []Finding {
 		if !strings.Contains(fb.body, "io.Discard") {
 			continue
 		}
-		if !strings.Contains(fb.body, ".Block(") && !strings.Contains(fb.body, ".Fail(") {
+		if !strings.Contains(fb.body, ".Refuse(") && !strings.Contains(fb.body, ".Fail(") {
 			continue
 		}
 		idx := strings.Index(fb.body, "io.Discard")
@@ -164,24 +91,14 @@ func detectDiscardSinkInFailingBlock(filename, src string) []Finding {
 			Message:    "io.Discard sink in a function that also Fails/Refuses discards the evidence a security gate needs to explain its own verdict",
 			File:       filename,
 			Line:       lineAt(src, fb.offset+idx),
-			Suggestion: "wire the checked command's output through task.Writer() (on cmd.Stdout/Stderr) or evo.Exec instead of io.Discard, so Refuse/Fail can attach DetailTail",
+			Suggestion: "wire the checked command's output through task.Writer() (on cmd.Stdout/Stderr) or evo.Exec instead of io.Discard, so the ending can carry the output as evo.Detail",
 		})
 	}
 	return findings
 }
 
-// detectSprintfInVerb is API-036: Fail/Block take a summary string, so
-// Fail(fmt.Sprintf(...)) is already the 1.1 form. The removed-in-1.1
-// printf verbs are rewritten by API-032; this detector stays silent.
-func detectSprintfInVerb(filename, src string) []Finding {
-	_ = filename
-	_ = src
-	return nil
-}
-
-// printfVariadicVerbPattern matches a call to a printf-variadic TaskHandle
-// method (Doing) with fmt.Sprintf as (the start of) its argument list.
-// Failf/Blockf/Warn were removed in 1.1.
+// printfVariadicVerbPattern matches a call to a printf-variadic Task method
+// (Doing) with fmt.Sprintf as (the start of) its argument list.
 var printfVariadicVerbPattern = regexp.MustCompile(`(\w+)\.(Doing)\(\s*fmt\.Sprintf\(`)
 
 // detectSprintfIntoVariadicVerb is API-038: fmt.Sprintf(...) passed to a
@@ -230,12 +147,13 @@ func detectSprintfIntoVariadicVerb(filename, src string) []Finding {
 var methodDeclPattern = regexp.MustCompile(`func\s*\(\s*\w+\s+\*?\w+\s*\)\s+(\w+)\s*\(`)
 
 // wrapperMethodBodyPattern matches a single statement that is (optionally
-// `return`-ing) exactly one call ending in a known Task-verb method name.
-var wrapperMethodBodyPattern = regexp.MustCompile(`^(?:return\s+)?[\w.]+\.(Doing|Done|Fail|Warn|Block|Cancel|Skip|Kept|Progress|Advance|Step|Evidence|Writer)\([^{}]*\)\s*;?$`)
+// `return`-ing) exactly one call of a Task method: one of the narration
+// verbs with an argument (group 1), or the argument-free Writer (group 2).
+var wrapperMethodBodyPattern = regexp.MustCompile(`^(?:return\s+)?[\w.]+\.(?:(Doing|Progress|Fact|Summary|Problem)\([^{}]+\)|(Writer)\(\))\s*;?$`)
 
 // detectWrapperMethod is API-037: a method whose entire body is one call on
-// a Task/Item handle adds a name and a stack frame over calling the verb
-// directly (zq's resolutionPhase wrapper).
+// a Task adds a name and a stack frame over calling the verb directly (zq's
+// resolutionPhase wrapper).
 func detectWrapperMethod(filename, src string) []Finding {
 	var findings []Finding
 	for _, m := range methodDeclPattern.FindAllStringSubmatchIndex(src, -1) {
@@ -253,15 +171,16 @@ func detectWrapperMethod(filename, src string) []Finding {
 		if call == nil {
 			continue
 		}
+		verb := call[1] + call[2]
 		if composesItsArgument(stmt) {
 			continue
 		}
 		findings = append(findings, Finding{
 			RuleID:     "API-037",
-			Message:    "method " + name + " wraps a single call (." + call[1] + "(...)) on a Task/Item handle with no added behavior",
+			Message:    "method " + name + " wraps a single call (." + verb + "(...)) on a Task with no added behavior",
 			File:       filename,
 			Line:       lineAt(src, start),
-			Suggestion: "inline ." + call[1] + "(...) at each caller and delete " + name,
+			Suggestion: "inline ." + verb + "(...) at each caller and delete " + name,
 		})
 	}
 	return findings
@@ -299,45 +218,41 @@ func singleStatementBody(inner string) string {
 	return stmt
 }
 
-// errTwicePattern matches `recv.Fail(errVar.Error(), evo.Cause(errVar))` (or
-// Block) — the same error surfacing twice, once as bare summary text, once
-// as the (now inert) Cause option.
-var errTwicePattern = regexp.MustCompile(`(\w+)\.(Fail|Block)\(\s*(\w+)\.Error\(\)\s*,\s*evo\.Cause\(\s*(\w+)\s*\)\s*\)`)
+// errTwicePattern matches `evo.Fail(errVar.Error(), evo.Detail(errVar.Error()))`
+// (or Refuse, or Problem, with any options between) — the same error
+// surfacing twice, once as the summary and once as the Detail.
+var errTwicePattern = regexp.MustCompile(`(\w+)\.(Fail|Refuse|Problem)\(\s*(\w+)\.Error\(\)\s*,\s*(?:evo\.\w+\([^()]*\)\s*,\s*)*evo\.Detail\(\s*(\w+)\.Error\(\)\s*\)`)
 
 // detectErrTwice is DOM-018: err.Error() as the summary alongside
-// evo.Cause(err) surfaces the same error twice — and since Fail/Block are
-// statement-form, evo.Cause no longer affects the returned error at all, so
-// the summary text and the (dead) cause option are now the identical string.
+// evo.Detail(err.Error()) shows the same error twice.
 func detectErrTwice(filename, src string) []Finding {
 	var findings []Finding
 	for _, m := range errTwicePattern.FindAllStringSubmatchIndex(src, -1) {
 		recv, verb := src[m[2]:m[3]], src[m[4]:m[5]]
-		errVar, causeVar := src[m[6]:m[7]], src[m[8]:m[9]]
-		if errVar != causeVar {
+		errVar, detailVar := src[m[6]:m[7]], src[m[8]:m[9]]
+		if errVar != detailVar {
 			continue
 		}
 		findings = append(findings, Finding{
-			RuleID: "DOM-018",
-			Message: errVar + ".Error() as the summary and evo.Cause(" + errVar + ") as an option surface the same error twice; " +
-				"evo.Cause no longer affects the returned error since Fail/Block are statement-form",
+			RuleID:     "DOM-018",
+			Message:    errVar + ".Error() as the summary and again in evo.Detail surfaces the same error twice",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: handBackSuggestion(recv, verb, errVar),
+			Suggestion: "give the summary a short context and keep the error text only in the Detail: " + recv + "." + verb + "(\"<what failed>\", evo.Detail(" + errVar + ".Error()))",
 		})
 	}
 	return findings
 }
 
-// dynamicReasonCallPattern matches a plain evo.Reason( call (not Reasonf,
-// which is always format-built by design).
-var dynamicReasonCallPattern = regexp.MustCompile(`evo\.Reason\(`)
+// dynamicReasonCallPattern matches an evo.Exclude( call.
+var dynamicReasonCallPattern = regexp.MustCompile(`evo\.Exclude\(`)
 
-// simpleReasonArgPattern matches the two shapes that keep evo.Reason's
+// simpleReasonArgPattern matches the two shapes that keep evo.Exclude's
 // cardinality bounded: a string literal, or a bare (optionally
 // package-qualified) identifier — a const or package-level var.
 var simpleReasonArgPattern = regexp.MustCompile(`^(?:"[^"]*"|[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)?)$`)
 
-// detectDynamicReason is TAX-002: evo.Reason built from a computed
+// detectDynamicReason is TAX-002: evo.Exclude built from a computed
 // expression (concatenation, Sprintf, a Join over per-item data) opens one
 // taxonomy bucket per distinct rendered value instead of one per
 // classification — the live instance this closes: rr scan.go:60 joining
@@ -360,7 +275,7 @@ func detectDynamicReason(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID: "TAX-002",
-			Message: "evo.Reason built from a computed expression (" + firstArg +
+			Message: "evo.Exclude reason built from a computed expression (" + firstArg +
 				") is a cardinality bug — each distinct rendered value opens a new taxonomy bucket",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
@@ -370,9 +285,9 @@ func detectDynamicReason(filename, src string) []Finding {
 	return findings
 }
 
-// entityNameLiteralPattern matches a Task/Item declaration's literal name
-// argument.
-var entityNameLiteralPattern = regexp.MustCompile(`\.(?:Task|Item)\(\s*"([^"]*)"`)
+// entityNameLiteralPattern matches a Task, Group or Sequence declaration's
+// literal name argument.
+var entityNameLiteralPattern = regexp.MustCompile(`\.(?:Task|Group|Sequence)\(\s*"([^"]*)"`)
 
 // longNameTransitionPattern flags an entity name narrating a transition
 // (into/->) instead of naming a noun. "to" alone is deliberately excluded —
@@ -410,42 +325,9 @@ func detectLongEntityName(filename, src string) []Finding {
 	return findings
 }
 
-// handleAssignPattern matches `name := recv.Task(...)` (or Item), capturing
-// the variable name a live handle is bound to.
-var handleAssignPattern = regexp.MustCompile(`\b(\w+)\s*:=\s*\w+\.(?:Task|Item)\(`)
-
-// detectShadowedHandle is DOM-019: a Task/Item handle variable reassigned
-// from a new declaration before the previous one was resolved orphans the
-// earlier row Running forever — a double row hiding under one variable name.
-func detectShadowedHandle(filename, src string) []Finding {
-	var findings []Finding
-	for _, fb := range allFuncBodies(src) {
-		matches := handleAssignPattern.FindAllStringSubmatchIndex(fb.body, -1)
-		lastDeclEnd := map[string]int{}
-		for _, m := range matches {
-			name := fb.body[m[2]:m[3]]
-			if prevEnd, ok := lastDeclEnd[name]; ok {
-				between := fb.body[prevEnd:m[0]]
-				resolved := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\.(Done|Fail|Warn|Block|Cancel|Skip)\(`).MatchString(between)
-				if !resolved {
-					findings = append(findings, Finding{
-						RuleID: "DOM-019",
-						Message: "variable " + name + " is reassigned from a new Task/Item declaration before the previous one was resolved; " +
-							"the earlier row is orphaned Running forever",
-						File:       filename,
-						Line:       lineAt(src, fb.offset+m[0]),
-						Suggestion: "resolve " + name + " (Define, returning evo.Fail, evo.Refuse or evo.Exclude) before reassigning it, or give the second declaration its own variable name",
-					})
-				}
-			}
-			lastDeclEnd[name] = m[1]
-		}
-	}
-	return findings
-}
-
-// crammedSummaryPattern matches a Fail/Warn/Block string literal summary.
-var crammedSummaryPattern = regexp.MustCompile(`\.(Fail|Warn|Block)\(\s*"([^"]*)"`)
+// crammedSummaryPattern matches the string literal summary of an evo.Fail,
+// evo.Refuse, evo.Exclude or Task.Problem call.
+var crammedSummaryPattern = regexp.MustCompile(`\.(Fail|Refuse|Exclude|Problem)\(\s*"([^"]*)"`)
 
 // detectCrammedSummary is TXT-021: a summary that hand-assembles a
 // " — cause:"/" — action:" fragment reimplements Detail/Next inside plain text.

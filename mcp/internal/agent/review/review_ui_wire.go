@@ -1,3 +1,6 @@
+// Package review — EVO-UI-001/002/003 and EVO-WIRE-003: presentation the
+// caller hand-prints when Evo already models the same information, and human
+// text written to the stream that carries the data payload.
 package review
 
 import (
@@ -8,45 +11,70 @@ import (
 	"strings"
 )
 
-// isFmtOrEvoPrintReceiver reports whether a Print/Printf/Println call's
-// receiver is either the fmt package or an evo Task/Output presentation
-// handle — the two surfaces EVO-UI-00x cares about. A receiver-agnostic
-// match would also fire on log.Printf, a cobra *cobra.Command's
-// cmd.Println, an http.ResponseWriter, or any other unrelated type that
-// happens to expose a like-named method.
-func isFmtOrEvoPrintReceiver(x ast.Expr) bool {
-	if id, ok := x.(*ast.Ident); ok && id.Name == "fmt" {
-		return true
-	}
-	return isLikelyEvoReceiver(x)
+// printedLine is one hand-printed line: the call that prints it and the
+// literal format or message it prints.
+type printedLine struct {
+	call    *ast.CallExpr
+	literal string
+	// toRunText is true when the line goes to Run.Text(), the writer for
+	// free human text.
+	toRunText bool
 }
 
-// isPrintFamilyMethod reports whether name is one of the plain (non-Fprint)
-// Print-family method names EVO-UI-002/003 care about.
-func isPrintFamilyMethod(name string) bool {
-	switch name {
+// printedLineOf reads n as fmt.Print/Printf/Println (stdout) or
+// fmt.Fprint/Fprintf/Fprintln to a Run.Text() writer. It reports false for
+// any other call, and for a message that is not a compile-time literal (a
+// computed value cannot be pattern-matched honestly).
+func printedLineOf(n ast.Node) (printedLine, bool) {
+	call, ok := n.(*ast.CallExpr)
+	if !ok {
+		return printedLine{}, false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || !isIdentNamed(sel.X, "fmt") {
+		return printedLine{}, false
+	}
+	switch sel.Sel.Name {
 	case "Print", "Printf", "Println":
-		return true
-	default:
+		return literalPrinted(call, 0, false)
+	case "Fprint", "Fprintf", "Fprintln":
+		if len(call.Args) > 0 && isRunTextWriter(call.Args[0]) {
+			return literalPrinted(call, 1, true)
+		}
+	}
+	return printedLine{}, false
+}
+
+func literalPrinted(call *ast.CallExpr, msgArg int, toRunText bool) (printedLine, bool) {
+	if len(call.Args) <= msgArg {
+		return printedLine{}, false
+	}
+	literal, ok := printLiteral(call.Args[msgArg])
+	return printedLine{call: call, literal: literal, toRunText: toRunText}, ok
+}
+
+// isRunTextWriter reports whether e is a call of a method named Text with
+// no arguments, Run.Text()'s shape.
+func isRunTextWriter(e ast.Expr) bool {
+	call, ok := e.(*ast.CallExpr)
+	if !ok || len(call.Args) != 0 {
 		return false
 	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	return ok && sel.Sel.Name == "Text"
 }
 
-// printLiteralArg returns the literal format/message string passed as a
-// Print/Printf/Println call's first argument, unwrapping one level of
-// fmt.Sprintf(...) nesting. It reports false when the first argument is not
-// a compile-time string literal (a computed value can't be pattern-matched
-// honestly).
-func printLiteralArg(call *ast.CallExpr) (string, bool) {
-	if len(call.Args) == 0 {
-		return "", false
-	}
-	arg := call.Args[0]
+func isIdentNamed(e ast.Expr, name string) bool {
+	id, ok := e.(*ast.Ident)
+	return ok && id.Name == name
+}
+
+// printLiteral returns the string literal arg is, unwrapping one level of
+// fmt.Sprintf(...).
+func printLiteral(arg ast.Expr) (string, bool) {
 	if inner, ok := arg.(*ast.CallExpr); ok {
-		if sel, ok := inner.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Sprintf" {
-			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "fmt" && len(inner.Args) > 0 {
-				arg = inner.Args[0]
-			}
+		if sel, ok := inner.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Sprintf" && isIdentNamed(sel.X, "fmt") && len(inner.Args) > 0 {
+			arg = inner.Args[0]
 		}
 	}
 	lit, ok := arg.(*ast.BasicLit)
@@ -54,10 +82,22 @@ func printLiteralArg(call *ast.CallExpr) (string, bool) {
 		return "", false
 	}
 	s, err := strconv.Unquote(lit.Value)
-	if err != nil {
-		return "", false
-	}
-	return s, true
+	return s, err == nil
+}
+
+// forEachPrintedLine calls visit for every hand-printed line in f.
+func forEachPrintedLine(f *ast.File, visit func(printedLine)) {
+	ast.Inspect(f, func(n ast.Node) bool {
+		if line, ok := printedLineOf(n); ok {
+			visit(line)
+		}
+		return true
+	})
+}
+
+func printedLineFinding(filename string, fset *token.FileSet, line printedLine, ruleID, message, suggestion string) Finding {
+	pos := fset.Position(line.call.Pos())
+	return Finding{RuleID: ruleID, Message: message, File: filename, Line: pos.Line, Column: pos.Column, Suggestion: suggestion}
 }
 
 // factLineLiteralPattern matches a "Label: %verb" literal — the shape of a
@@ -65,49 +105,28 @@ func printLiteralArg(call *ast.CallExpr) (string, bool) {
 // (EVO-UI-001).
 var factLineLiteralPattern = regexp.MustCompile(`^([A-Za-z][\w ./-]{0,60}):\s*%[a-zA-Z]`)
 
-// detectFactPrintedAsUIText flags a manually printed "label: value" line on
-// an evo Task/Output handle — the renderer/JSON both already derive from
-// Facts, and a hand-printed line is unstructured text neither can rely on.
+// detectFactPrintedAsUIText is EVO-UI-001: a "label: value" line written to
+// Run.Text() duplicates Fact, which the renderer and the JSON projection
+// both derive from.
 func detectFactPrintedAsUIText(filename string, f *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
-	ast.Inspect(f, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
+	forEachPrintedLine(f, func(line printedLine) {
+		m := factLineLiteralPattern.FindStringSubmatch(line.literal)
+		if !line.toRunText || m == nil {
+			return
 		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || sel.Sel.Name != "Printf" || !isLikelyEvoReceiver(sel.X) {
-			return true
-		}
-		literal, ok := printLiteralArg(call)
-		if !ok {
-			return true
-		}
-		m := factLineLiteralPattern.FindStringSubmatch(literal)
-		if m == nil {
-			return true
-		}
-		label := m[1]
-		pos := fset.Position(n.Pos())
-		findings = append(findings, Finding{
-			RuleID:     "EVO-UI-001",
-			Message:    `manually printed "` + label + `: ..." line duplicates task.Fact; a Fact is derived and projected consistently across renderer and JSON`,
-			File:       filename,
-			Line:       pos.Line,
-			Column:     pos.Column,
-			Suggestion: `replace with task.Fact("` + label + `", value)`,
-		})
-		return true
+		findings = append(findings, printedLineFinding(filename, fset, line, "EVO-UI-001",
+			`manually printed "`+m[1]+`: ..." line duplicates task.Fact; a Fact is derived and projected consistently across renderer and JSON`,
+			`replace with task.Fact("`+m[1]+`", value)`))
 	})
 	return findings
 }
 
 // isSuccessConfirmationLine reports whether literal reads as a hand-printed
 // completion confirmation — the checkmark glyph, or "verified"/"passed" as
-// the line's leading or trailing word (EVO-UI-002) — rather than ordinary
-// text that merely contains one of those words in passing, e.g. "license
-// verified against upstream, expires in 30 days" or "2 hours passed since
-// the last run".
+// the line's leading or trailing word — rather than ordinary text that
+// merely contains one of those words in passing, e.g. "license verified
+// against upstream, expires in 30 days".
 func isSuccessConfirmationLine(literal string) bool {
 	if strings.Contains(literal, "✓") {
 		return true
@@ -121,35 +140,18 @@ func isSuccessConfirmationLine(literal string) bool {
 	return first == "verified" || first == "passed" || last == "verified" || last == "passed"
 }
 
-// detectPassingVerificationPrinted flags a hand-printed success/verified
-// line on fmt or an evo Task/Output handle, which duplicates the glyph
-// Task.Done already renders on the passing path and drifts from it under
-// Plain/JSON/verbosity modes.
+// detectPassingVerificationPrinted is EVO-UI-002: a hand-printed success
+// line duplicates the success row Evo already renders, and drifts from it
+// under Plain, JSON and verbosity modes.
 func detectPassingVerificationPrinted(filename string, f *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
-	ast.Inspect(f, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
+	forEachPrintedLine(f, func(line printedLine) {
+		if !isSuccessConfirmationLine(line.literal) {
+			return
 		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || !isPrintFamilyMethod(sel.Sel.Name) || !isFmtOrEvoPrintReceiver(sel.X) {
-			return true
-		}
-		literal, ok := printLiteralArg(call)
-		if !ok || !isSuccessConfirmationLine(literal) {
-			return true
-		}
-		pos := fset.Position(n.Pos())
-		findings = append(findings, Finding{
-			RuleID:     "EVO-UI-002",
-			Message:    "manually printed success/verified line duplicates the glyph the Task's success row already renders on the passing path",
-			File:       filename,
-			Line:       pos.Line,
-			Column:     pos.Column,
-			Suggestion: "delete the manual success line; let the Task's Define outcome render the passing state",
-		})
-		return true
+		findings = append(findings, printedLineFinding(filename, fset, line, "EVO-UI-002",
+			"manually printed success/verified line duplicates the success row the Task already renders when its Define callback returns nil",
+			"delete the manual success line; a Task whose Define returns nil already shows as succeeded"))
 	})
 	return findings
 }
@@ -166,106 +168,35 @@ var uiProgressKeywordPattern = regexp.MustCompile(`(?i)\b(done|complete(?:d)?|re
 
 // isHandBuiltProgressLine reports whether literal reads as a hand-assembled
 // "N/M done" progress line: exactly two %d verbs in the N/M shape, plus a
-// completion word — not a bare "%d/%d" that could be a ratio, a score, or
-// one pair of a three-%d date format.
+// completion word.
 func isHandBuiltProgressLine(literal string) bool {
-	if !uiHandBuiltProgressPattern.MatchString(literal) {
-		return false
-	}
-	if strings.Count(literal, "%d") != 2 {
-		return false
-	}
-	return uiProgressKeywordPattern.MatchString(literal)
+	return uiHandBuiltProgressPattern.MatchString(literal) &&
+		strings.Count(literal, "%d") == 2 &&
+		uiProgressKeywordPattern.MatchString(literal)
 }
 
-// detectHandBuiltProgressText flags hand-assembled "N/M done" text on fmt
-// or an evo Task/Output handle, which duplicates counts evo already
-// derives from Task/Group/Sequence state and can silently disagree with
-// them.
+// detectHandBuiltProgressText is EVO-UI-003: hand-assembled "N/M done" text
+// duplicates counts Evo already derives from Task, Group and Sequence state
+// and can silently disagree with them.
 func detectHandBuiltProgressText(filename string, f *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
-	ast.Inspect(f, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
+	forEachPrintedLine(f, func(line printedLine) {
+		if !isHandBuiltProgressLine(line.literal) {
+			return
 		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || !isPrintFamilyMethod(sel.Sel.Name) || !isFmtOrEvoPrintReceiver(sel.X) {
-			return true
-		}
-		literal, ok := printLiteralArg(call)
-		if !ok || !isHandBuiltProgressLine(literal) {
-			return true
-		}
-		pos := fset.Position(n.Pos())
-		findings = append(findings, Finding{
-			RuleID:     "EVO-UI-003",
-			Message:    "hand-built \"N/M\" progress text duplicates counts evo already derives from Task/Group state",
-			File:       filename,
-			Line:       pos.Line,
-			Column:     pos.Column,
-			Suggestion: "replace with task.Progress(completed, total) or the owning Group/Sequence summary",
-		})
-		return true
+		findings = append(findings, printedLineFinding(filename, fset, line, "EVO-UI-003",
+			"hand-built \"N/M\" progress text duplicates counts Evo already derives from Task and Group state",
+			"replace with task.Progress(completed, total) or the owning Group/Sequence summary"))
 	})
 	return findings
 }
 
-// detectMarshalOfInternalSnapshot flags json.Marshal(x.Snapshot()) (or
-// MarshalIndent), where x is an evo Task/Output/Group/Sequence handle —
-// this bypasses the sanctioned, versioned JSON encoder and leaks
-// undocumented internal field names/shape to consumers. evo has no
-// .Result() accessor (Execute returns a Result value directly), so
-// only .Snapshot() is a real evo misuse shape; the receiver check keeps
-// this from firing on an unrelated type's own Snapshot() method.
-func detectMarshalOfInternalSnapshot(filename string, f *ast.File, fset *token.FileSet) []Finding {
-	var findings []Finding
-	ast.Inspect(f, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		pkg, ok := sel.X.(*ast.Ident)
-		if !ok || pkg.Name != "json" || len(call.Args) == 0 {
-			return true
-		}
-		fn := sel.Sel.Name
-		if fn != "Marshal" && fn != "MarshalIndent" {
-			return true
-		}
-		inner, ok := call.Args[0].(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		innerSel, ok := inner.Fun.(*ast.SelectorExpr)
-		if !ok || innerSel.Sel.Name != "Snapshot" || !isLikelyEvoReceiver(innerSel.X) {
-			return true
-		}
-		recv := exprDottedName(innerSel.X)
-		snapshotCall := recv + ".Snapshot()"
-		pos := fset.Position(n.Pos())
-		findings = append(findings, Finding{
-			RuleID:     "EVO-WIRE-001",
-			Message:    "json." + fn + " marshals the internal Snapshot directly; use the sanctioned JSON encoder instead",
-			File:       filename,
-			Line:       pos.Line,
-			Column:     pos.Column,
-			Suggestion: "replace json." + fn + "(" + snapshotCall + ") with wire.EncodeJSON(" + snapshotCall + ")",
-		})
-		return true
-	})
-	return findings
-}
-
-// jsonEncoderToStdoutPattern matches the canonical JSON/JSONL-to-stdout
-// idiom; jsonStdoutHumanTextPattern matches an ordinary human print
+// jsonPayloadToStdoutPattern matches a JSON/JSONL encoder writing to stdout:
+// os.Stdout itself, or Run.ResultWriter(), which is stdout in Human and
+// Plain output. jsonStdoutHumanTextPattern matches an ordinary human print
 // reaching stdout in the same file (EVO-WIRE-003).
 var (
-	jsonEncoderToStdoutPattern = regexp.MustCompile(`json\.NewEncoder\(\s*os\.Stdout\s*\)\.Encode\(`)
+	jsonPayloadToStdoutPattern = regexp.MustCompile(`json\.NewEncoder\(\s*(?:os\.Stdout|[\w.]+\.ResultWriter\(\))\s*\)\.Encode\(`)
 	jsonStdoutHumanTextPattern = regexp.MustCompile(`\bfmt\.(?:Print|Printf|Println)\(|fmt\.Fprint(?:f|ln)?\(\s*os\.Stdout\s*,`)
 )
 
@@ -273,7 +204,7 @@ var (
 // to stdout and also writes ordinary human text to stdout — a JSON/JSONL
 // consumer cannot parse a stream with a human line spliced into it.
 func detectJSONStdoutMixedWithHumanText(filename, src string) []Finding {
-	if !jsonEncoderToStdoutPattern.MatchString(src) {
+	if !jsonPayloadToStdoutPattern.MatchString(src) {
 		return nil
 	}
 	loc := jsonStdoutHumanTextPattern.FindStringIndex(src)
@@ -285,6 +216,6 @@ func detectJSONStdoutMixedWithHumanText(filename, src string) []Finding {
 		Message:    "human text written to stdout in a file that also encodes JSON/JSONL to stdout; a machine consumer cannot parse the mixed stream",
 		File:       filename,
 		Line:       lineAt(src, loc[0]),
-		Suggestion: "route human presentation to Stderr (set Config.Output to evo.JSON or evo.JSONL) so stdout carries only the JSON/JSONL payload",
+		Suggestion: "write human text with fmt.Fprintln(r.Text(), ...), which goes to stderr, and the data payload through r.ResultWriter(), so stdout carries only the payload",
 	}}
 }

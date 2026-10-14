@@ -1,52 +1,18 @@
 package rules
 
-// waitRules is the Wait and Resource family (1.1): wait on containers, not
-// hand-rolled loops (API-052); hold one resource at a time (API-053); let
-// resource claims, not manual locks or After edges, serialize conflicting
-// work (API-055, API-056).
+// waitRules is the Resource family (1.1): hold one resource at a time
+// (API-053); let resource claims, not manual locks or After edges,
+// serialize conflicting work (API-055, API-056).
 func waitRules() []Rule {
 	return []Rule{
-		{
-			ID:         "API-052",
-			MinDialect: "1.1.0",
-			Category:   "API",
-			Severity:   SeverityError,
-			Invariant:  "the container that owns child Task scheduling also owns deriving their aggregate outcome; a caller does not store child handles merely to loop over them and hand-count failures",
-			Why:        "zq's runParallel (internal/app/app.go) keeps a []*evo.Task, checks each child, counts failed children, and builds its own \"N of N failed\" error; waitDefinedRunOperations (internal/app/run_execute.go) loops Tasks, special-cases a Task that never started, and returns the first remaining error. Both reimplement what a Group already does: its outcome folds its members', and work declared After(group) runs only once the members succeeded or were Excluded.",
-			BadCode: `var handles []*evo.Task
-for _, item := range items {
-  t := jobs.Task(item.Name)
-  t.Define(func(ctx context.Context) error { return run(item) })
-  handles = append(handles, t)
-}
-failed := 0
-for _, h := range handles {
-  if err := h.Wait(); err != nil {
-    failed++
-  }
-}
-if failed > 0 {
-  return fmt.Errorf("%d of %d failed", failed, len(handles))
-}`,
-			GoodCode: `jobs := r.Group("jobs")
-for _, item := range items {
-  jobs.Task(item.Name).Define(func(ctx context.Context) error { return run(item) })
-}
-r.Task("report").After(jobs).Define(report)`,
-			Remediation:     "Delete the stored-handle slice, the loop and the hand-counted aggregate error; declare each child under a Group and order later work with After(group), or read a result with evo.Compute and Computed.Get, once every child is declared",
-			RelatedGuidance: []string{"tasks", "common-api"},
-			VerificationIDs: []string{"API-052"},
-			Since:           "1.1.0",
-			Certainty:       CertaintyHeuristic,
-		},
 		{
 			ID:         "API-053",
 			MinDialect: "1.1.0",
 			Category:   "API",
 			Severity:   SeverityError,
-			Invariant:  "generic resource access holds at most one Resource at a time (ZYS-840); code that already holds a Resource — directly, or through any helper it hands its context to — never asks for a second one",
-			Why:        "evo.Effect only claims EffectSpec.Resource for its fn callback's duration when it is set; a second evo.File or Resource-claiming evo.Effect call made with that same held context — moving a worktree's Effect whose fn also writes a marker File at the destination, say — is misuse (CONTRACT.md: holding two claims at once) and fails at apply time, even when the second resource is free, because holding at most one claim at a time is what makes deadlock impossible by construction. Catching it in review turns a runtime failure into a review finding before it ships.",
-			BadCode: `spec := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Path: from}
+			Invariant:  "code holds at most one claim at a time (ZYS-840); code that already holds a claim — directly, or through any helper it hands its context to — never asks for a second one",
+			Why:        "evo.Effect only claims EffectSpec.Path or EffectSpec.Resource for its fn callback's duration when one is set; a second evo.File, evo.Patch, or claim-taking evo.Effect call made with that same held context — moving a worktree's Effect whose fn also writes a marker File at the destination, say — is misuse (CONTRACT.md: holding two claims at once) and fails at apply time, even when the second resource is free, because holding at most one claim at a time is what makes deadlock impossible by construction. Catching it in review turns a runtime failure into a review finding before it ships.",
+			BadCode: `spec := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Quantity: 1, Path: from}
 return evo.Effect(ctx, spec, func(ctx context.Context) error {
   return evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}) // nested: ctx already holds "from"
 })`,

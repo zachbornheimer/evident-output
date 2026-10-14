@@ -6,8 +6,8 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
-// API-060 (1.1/ZYS-971): TaskHandle.Summary/GroupHandle.Summary is
-// non-terminal result metadata, not a replacement success-stamp channel —
+// API-060 (1.1/ZYS-971): Task.Summary/Group.Summary is the
+// settled row's headline for the caller's own result, not a place to restate —
 // a Summary whose text narrates a mutation ("wrote ..."), a dry-run
 // hypothetical ("would add ..."), a no-op ("nothing to write"), or an
 // already-satisfied precondition ("already ...") belongs to
@@ -15,7 +15,7 @@ import (
 
 const summaryStampWroteSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(ctx context.Context, task *evo.TaskHandle, path string, contents []byte) error {
+func run(ctx context.Context, task *evo.Task, path string, contents []byte) error {
   if err := evo.File(ctx, evo.FileSpec{Path: path, Contents: contents}); err != nil {
     return err
   }
@@ -34,7 +34,7 @@ func TestAPI060_SummaryWroteNarration_Fires(t *testing.T) {
 
 const summaryStampWouldAddSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(task *evo.TaskHandle) {
+func run(task *evo.Task) {
   task.Summary("would add 3 refs")
 }
 `
@@ -46,7 +46,7 @@ func TestAPI060_SummaryWouldAddNarration_Fires(t *testing.T) {
 
 const summaryStampNothingToWriteSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(task *evo.TaskHandle) {
+func run(task *evo.Task) {
   task.Summary("nothing to write")
 }
 `
@@ -58,7 +58,7 @@ func TestAPI060_SummaryNothingToWriteNarration_Fires(t *testing.T) {
 
 const summaryStampAlreadySrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(task *evo.TaskHandle) {
+func run(task *evo.Task) {
   task.Summary("already up to date")
 }
 `
@@ -76,7 +76,7 @@ import (
   "fmt"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(branches *evo.TaskHandle, n int) {
+func run(branches *evo.Task, n int) {
   branches.Summary(fmt.Sprintf("%d checked", n))
 }
 `
@@ -93,11 +93,11 @@ func TestAPI060_SummaryResultMetadataGoodCode_StaysSilent(t *testing.T) {
 // A literal that merely uses "already" mid-sentence in an unrelated way is
 // still flagged (Decisions names "already ..." as an unqualified example),
 // but a Group.Summary carrying the same stamp text is caught by the same
-// rule as TaskHandle.Summary (Decisions: same sanitization/projection).
+// rule as Task.Summary.
 
 const groupSummaryStampSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(group *evo.GroupHandle) {
+func run(group *evo.Group) {
   group.Summary("already installed")
 }
 `
@@ -111,7 +111,7 @@ func TestAPI060_PreOneOneOnePin_StaysSilent(t *testing.T) {
 	res := review.GoSourceAt("stamp_wrote.go", summaryStampWroteSrc, "1.0.0")
 	for _, f := range res.Findings {
 		if f.RuleID == "API-060" {
-			t.Fatalf("API-060 fired for a pin older than 1.1.0 (TaskHandle.Summary did not exist yet): %+v", f)
+			t.Fatalf("API-060 fired for a pin older than 1.1.0 (the rule starts at 1.1.0): %+v", f)
 		}
 	}
 }
@@ -124,6 +124,25 @@ func TestAPI060_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
 	for _, f := range after.Findings {
 		if f.RuleID == "API-060" {
 			t.Fatalf("API-060 still fires after remediation to result metadata: %+v", f)
+		}
+	}
+}
+
+// Summary on a type that is not an evo Run, Task, Group or Sequence is that
+// type's own method, not the row headline.
+func TestAPI060_SummaryOnUnrelatedReceiver_StaysSilent(t *testing.T) {
+	src := `package p
+import evo "github.com/zachbornheimer/evident-output/v2"
+type report struct{}
+func (report) Summary(string) {}
+func run(r *evo.Run, rep report) {
+  _ = r
+  rep.Summary("wrote 3 rows")
+}
+`
+	for _, f := range review.GoSource("unrelated.go", src).Findings {
+		if f.RuleID == "API-060" {
+			t.Fatalf("API-060 fired on a non-evo Summary method: %+v", f)
 		}
 	}
 }

@@ -29,9 +29,9 @@ func All() []Guide {
 			UseCases: []string{"items", "finish", "block", "ok", "main", "entity", "severity"},
 			Concepts: []string{"Output", "Task", "Conclusion", "Main", "Run", "Sequence", "Group"},
 			Rules: []string{
-				"API-001", "API-006", "API-026", "API-028", "API-029", "DOM-006", "DOM-007", "DOM-011", "CON-002",
-				"API-034", "API-035", "API-036", "API-037", "API-038", "DOM-018", "DOM-019", "DOM-020", "TAX-002", "TXT-020", "TXT-021",
-				"API-057", "API-059", "API-060", "API-061",
+				"API-001", "DOM-006", "DOM-007", "DOM-011", "CON-002",
+				"API-035", "API-037", "API-038", "DOM-018", "DOM-019", "DOM-020", "TAX-002", "TXT-020", "TXT-021",
+				"API-057", "API-060",
 			},
 			Body: `Adoption ladder (guess-driven defaults — the naive spelling is the correct one):
   1) os.Exit(evo.Main(evo.Config{Name, DryRun}, run)) in main; run is func(ctx, r *evo.Run) error —
@@ -77,7 +77,7 @@ Exit-code honesty (DOM-020): evo.Refuse and evo.Fail carry different exit codes 
 something wrong" from "something broke while checking". A usage or user mistake (missing flag, declined confirm,
 protected-branch policy) returns evo.Refuse, never evo.Fail — routing it through Fail reports a user error as a system
 failure.
-Do not Start (API-006); no caller RunAll/Map/Retry on evo receivers (API-026 — Group/Sequence/Define/After are the scheduler; Group.Each/Sequence.Each were removed in 1.0); evo.Fail/evo.Refuse are returned endings (the printf verbs were removed in 1.1); Doing is printf-variadic; Summary takes one literal string; Writer/Capture not DebugWriter (API-029).
+evo.Fail/evo.Refuse are returned endings; Doing is printf-variadic; Summary takes one literal string; task.Writer() carries a child's output.
 Never print a joined failure list yourself (CON-002): fmt.Fprintln(r.Text(), strings.Join(failures, "\n")) duplicates the
 one summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows. Resolve each
 failure on its own Task and use evo.Next(evo.Action{Label: ...}) for follow-up guidance instead.`,
@@ -88,7 +88,7 @@ failure on its own Task and use evo.Next(evo.Action{Label: ...}) for follow-up g
 			Title:    "Tasks and progress",
 			UseCases: []string{"progress", "collections", "phase", "bytes", "heartbeat", "loop", "retry", "skip"},
 			Concepts: []string{"Task", "Group", "Sequence", "Progress", "Define", "Exclude"},
-			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030", "API-039", "API-045", "API-051", "API-062"},
+			Rules:    []string{"DOM-016", "DOM-017", "BOUND-001", "API-030", "API-039", "API-045", "API-051"},
 			Body: `Task is one independently schedulable promise whose outcome is independently meaningful to the user (ZYS-838) —
 not a display row, not a subject label, not a container. A good Task name answers "what will this unit of work
 accomplish or determine?" and usually reads as an action, verb + concrete object ("check file integrity", "format
@@ -111,7 +111,7 @@ other content shows, [planned]/[changed] rows follow Task declaration order, and
 
 Task is one atomic operation with optional Doing/Progress. Group/Sequence are collections that organize work — they
 are never themselves fake work created just to earn a success row; state is
-derived from children — never call Done/Fail/Progress on the collection itself (API-027). A Group of
+derived from children, so only a Task resolves or reports Progress; a Group or Sequence only settles. A Group of
 exactly one explicit child is a lone Task (API-039): the live renderer collapses it to one line, and review flags the
 Go shape so agents do not write a Group named run plus a single child. Group's children
 are independent (the scheduler may overlap eligible work; concurrent Running children
@@ -144,15 +144,15 @@ Bounded narration (BOUND-001): a slice joined with strings.Join and handed strai
 reproduces the terminal flood the bounded ledger rows already fix — cap it (the first 8 names plus a count)
 before it reaches either call.
 
-Predeclare before fan-out (API-030): call out.Task/Group.Task for every child before starting any goroutine
-or g.Go closure, then pass the handle in. Declaring the Task inside the closure races task creation with rendering
-and produces the unordered multi-spinner defect Sequence's "one Running child" heart contract forbids.
+Predeclare before fan-out (API-030): call Group.Task/Sequence.Task for every child in the
+enclosing function, never inside a goroutine or g.Go closure. Declaration order is topology, so a Task
+declared in a closure takes its row position and After edges from goroutine scheduling.
 Prefer one named Task per item under Group/Sequence, submitted with Define, over caller
 goroutines (Group.Each/Sequence.Each were removed in 1.0) — Evo's scheduler owns overlap.
 
 One Task, many Problems (API-051, 1.1.0): a check that finds several independent issues owns one Task and
-calls task.Problem(summary, opts...) once per finding — never one Task per finding (Task(file).Fail(...) in a
-loop) and never every finding flattened into one errors.New(strings.Join(...)) string. Problem appends a
+calls task.Problem(summary, opts...) once per finding — never one Task per finding (a Task(file) in a loop whose
+callback only returns evo.Fail) and never every finding flattened into one errors.New(strings.Join(...)) string. Problem appends a
 non-fatal finding without ending the Task; the Task still ends exactly once, by what Define returns (a check
 that must fail returns evo.Fail). Every accumulated Problem survives in Snapshot/JSON/JSONL even when
 human output bounds how many render inline.
@@ -199,7 +199,7 @@ Never invent an Input the source code does not actually read (EVO-PROVENANCE-001
 			Title:    "Stdout and stderr contracts",
 			UseCases: []string{"json", "data-command", "progress-stderr", "pipe", "color", "child", "exit-code", "signal"},
 			Concepts: []string{"Output", "Plain", "JSON", "Config", "ResultWriter", "Main", "Writer"},
-			Rules:    []string{"STREAM-003", "STREAM-004", "OUT-001", "OUT-003", "OUT-004", "API-031", "EV-001", "SIG-001", "SIG-002"},
+			Rules:    []string{"STREAM-003", "STREAM-004", "OUT-001", "OUT-003", "OUT-004", "API-031", "SIG-001", "SIG-002"},
 			Body: `Human UI and logs must not contaminate structured stdout.
 Ordinary dual-stream: os.Exit(evo.Main(evo.Config{}, run)) — a zero Config picks Plain off-TTY and honours NO_COLOR.
 Run.ResultWriter carries the stdout domain payload; human presentation stays on stderr; a failed
@@ -207,12 +207,12 @@ data command emits no partial payload by default.
 
 Exit codes come only from evo.Main's returned code (os.Exit(evo.Main(evo.Config{}, run))), or evo.Execute's returned Result.ExitCode() for a caller that needs the Conclusion and application error, not just the code (evo.MainWith was removed in 1.0): run(ctx) returns error, nothing else picks the code. Never hand-map an int
 to os.Exit — that is exactly how a Blocked run (1) gets silently read as success, or a real
-failure reads as blocked. SIGINT/SIGTERM already route through Main into Cancel on the active task, so the
-ledger's ■ and the process exit code (130) can never disagree; a caller-written signal.Notify handler that
-calls os.Exit itself bypasses that reconciliation. A host that wraps evo.Main/evo.Run in its own
-signal.NotifyContext/signal.Notify for SIGINT/SIGTERM/os.Interrupt (as of 1.0.0) duplicates that same
-lifecycle and can let the ledger and the process's real exit path diverge; delete the duplicate layer and
-read cancellation from the ctx Main/Run already passes into the run callback. Signal handling for anything
+failure reads as blocked. SIGINT/SIGTERM already cancel the run's context through Main, so the
+ledger shows the run Cancelled and the process exit code (130) can never disagree; a caller-written
+signal.Notify handler that calls os.Exit itself bypasses that reconciliation (SIG-001). A host that wraps
+evo.Main in its own signal.NotifyContext/signal.Notify for SIGINT/SIGTERM/os.Interrupt duplicates that same
+lifecycle and can let the ledger and the process's real exit path diverge (SIG-002); delete the duplicate layer and
+read cancellation from the ctx Main already passes into the run callback. Signal handling for anything
 else (SIGHUP, SIGUSR1, ...) is unrelated application behavior and stays untouched.
 
 Child processes: cmd.Stdout = task.Writer(); cmd.Stderr = task.Writer(); on error
@@ -220,9 +220,6 @@ inside Define return fmt.Errorf("...: %w", err), or return evo.Fail(summary, evo
 user-facing text.
 Never implement your own io.Writer whose Write method calls Task.Doing (API-031): that
 reimplements the exact adapter Writer already owns.
-Capture is deduplicated for you: never embed capture text into a Fail/Refuse summary
-(evo.Fail("install failed", evo.Detail(capture.Text())) — EV-001) — auto-attach already renders that same
-retained tail as its own evidence line underneath; embedding it in the summary too just repeats it.
 Capture is task-owned. Ring always retains proof; Config.Debug.Level gates journal display.
 Do not hand-thread DebugWriter for brew/git.
 WriteJSON or FormatJSON/FormatJSONL for machines. Avoid fmt.Print during live UI — write to r.Text() (see interactive guide).`,
@@ -275,7 +272,7 @@ File claims its own path automatically; no caller manages a mutex, lock file, or
 lifecycle. For state Evo cannot model as desired file contents (a Git ref deletion, a worktree move, a remote
 push), evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity, Path, Resource}, fn) performs one opaque mutation and,
 when Path or Resource is set, holds that claim for fn's duration. Generic
-resource access holds at most one claim at a time: a second evo.File or claim-holding evo.Effect call
+resource access holds at most one claim at a time: a second evo.File, evo.Patch, or claim-holding evo.Effect call
 made with fn's own held ctx — directly, or through a helper fn hands that ctx to — is misuse and fails
 instead of risking deadlock (API-053). Finish and return from the first
 Effect/File before starting a second, or claim one coarser Path or Resource both mutations share.
@@ -332,7 +329,8 @@ live rather than leaving a wrapped remnant.
 Use evo.Terminal with testkit.Screen.
 
 Child processes go through cmd.Stdout = task.Writer() so the live row keeps moving.
-Do not inherit os.Stdout, and do not clear the spinner around a child.`,
+Do not inherit os.Stdout (TERM-015). A child that must own the terminal, such as an interactive login, runs inside
+r.Suspend(func() error { ... }), which pauses the live region around it.`,
 			TokenEstimate: 260,
 		},
 		{
@@ -340,14 +338,14 @@ Do not inherit os.Stdout, and do not clear the spinner around a child.`,
 			Title:    "First paint and the heart contract",
 			UseCases: []string{"startup", "latency", "blank", "streaming"},
 			Concepts: []string{"Config", "Doing", "Progress"},
-			Rules:    []string{"FP-001", "FP-002", "FP-003", "FP-004", "FP-005"},
+			Rules:    []string{"FP-001", "FP-002", "FP-003", "FP-004"},
 			Body: `The user is always waiting for input, watching work, or reading a verdict — a blank terminal for the first
 one to three seconds of a run is none of those, and reads as a hang.
 
 evo.Main arms first paint before any I/O: declare the first Task as the first statement of run, before
 config parsing, git walks, or a network dial. Main + the first declared entity must produce something honest on
 screen within 100ms of process start (FP-001). Declaring a Task paints it running (a spinner) immediately —
-nothing may hide that first running frame, so a fast bind cannot popup-complete (FP-005).
+nothing may hide that first running frame, so a fast bind cannot popup-complete.
 
 Declare before you compute (FP-002): the first Task/Group/Sequence declaration comes before the first read/open/dial
 in main or run — a config load or repo walk that happens first, with the first evo.Task only after, is the exact

@@ -7,23 +7,22 @@ import (
 
 const ruleInlineConstruct = "CALL-001"
 
-var evoConstructMethods = map[string]bool{
-	"Init":  true,
-	"Task":  true,
-	"Group": true,
-}
+// evoRunEntrypoints are the package-level calls that take a Config.
+var evoRunEntrypoints = []string{"Main", "Execute"}
 
-// detectInlineConstructAtEvoCall flags make() or new() constructed inside
-// an evo.Init/Task/Group argument. A named local bound before the call is
-// the clean form — the builtin is then outside the call's argument tree.
+// detectInlineConstructAtEvoCall flags make() or new() constructed inside an
+// evo.Main or evo.Execute argument. A value built inline cannot be read back
+// after the run (a buffer behind Facades.Stdout, a LevelVar behind
+// Config.Debug); a named local bound before the call is the clean form.
 func detectInlineConstructAtEvoCall(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	pkg := evoImportName(file)
+	if pkg == "" {
+		return nil
+	}
 	var findings []Finding
 	ast.Inspect(file, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		if !isEvoConstructCall(call) {
+		if !ok || !isEvoEntrypointCall(call, pkg) {
 			return true
 		}
 		builtin, pos := firstMakeOrNewInArgs(call.Args)
@@ -32,25 +31,23 @@ func detectInlineConstructAtEvoCall(filename string, file *ast.File, fset *token
 		}
 		findings = append(findings, Finding{
 			RuleID:     ruleInlineConstruct,
-			Message:    "inline " + builtin + "() inside evo.Main/Task/Group argument; extract a named local before the call",
+			Message:    "inline " + builtin + "() inside an " + pkg + ".Main/" + pkg + ".Execute argument; extract a named local before the call",
 			File:       filename,
 			Line:       fset.Position(pos).Line,
-			Suggestion: "extract " + builtin + "(...) to a named local, then pass that local into the evo.Main/Task/Group call",
+			Suggestion: "extract " + builtin + "(...) to a named local, then pass that local in the Config",
 		})
 		return true
 	})
 	return findings
 }
 
-func isEvoConstructCall(call *ast.CallExpr) bool {
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return false
+func isEvoEntrypointCall(call *ast.CallExpr, pkg string) bool {
+	for _, name := range evoRunEntrypoints {
+		if isEvoPackageCall(call, pkg, name) {
+			return true
+		}
 	}
-	if !evoConstructMethods[sel.Sel.Name] {
-		return false
-	}
-	return isLikelyEvoReceiver(sel.X)
+	return false
 }
 
 func firstMakeOrNewInArgs(args []ast.Expr) (string, token.Pos) {

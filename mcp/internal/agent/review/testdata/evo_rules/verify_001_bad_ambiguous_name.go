@@ -1,4 +1,4 @@
-// Fixture: EVO-VERIFY-001 must still fire when the real *evo.TaskHandle
+// Fixture: EVO-VERIFY-001 must still fire when the real *evo.Task
 // parameter happens to be named "process" — a name isLikelyEvoReceiver's
 // Start-only exclusion list would otherwise treat as definitely non-Evo.
 package verify001ambiguous
@@ -10,7 +10,7 @@ import (
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
-func registerAgent(process *evo.TaskHandle, staleDir string) {
+func registerAgent(process *evo.Task, staleDir string) {
 	process.Verify(func(ctx context.Context) (bool, error) {
 		os.RemoveAll(staleDir)
 		return true, nil

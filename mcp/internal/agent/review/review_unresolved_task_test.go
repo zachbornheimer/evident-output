@@ -6,8 +6,8 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
-// DOM-021: a Task declared in a function that never resolves it or hands
-// it on stays unresolved, and the run concludes partial.
+// DOM-021: a Task declared in a function that never Defines it or hands
+// it on never runs, and the run concludes partial.
 
 const writerOnlyTaskSrc = `package main
 
@@ -18,8 +18,8 @@ import (
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
-func run(ctx context.Context) error {
-	t := evo.Task("fetch")
+func run(ctx context.Context, r *evo.Run) error {
+	t := r.Task("fetch")
 	cmd := exec.Command("git", "fetch")
 	cmd.Stdout = t.Writer()
 	cmd.Stderr = t.Writer()
@@ -47,38 +47,34 @@ import (
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
-func run(ctx context.Context) error {
-	status := evo.Task("status")
+func run(ctx context.Context, r *evo.Run) error {
+	status := r.Task("status")
 	status.Define(func(ctx context.Context) error {
 		cmd := exec.CommandContext(ctx, "git", "status")
 		cmd.Stdout = status.Writer()
 		return cmd.Run()
 	})
-	gate := evo.Task("gate")
-	gate.Block("dirty tree")
-	later := evo.Task("later")
+	later := r.Task("later")
 	schedule(later)
-	fetched := evo.Task("fetched").Define(fetch)
+	fetched := r.Task("fetched").Define(fetch)
 	fetched.Fact("remote", "origin")
-	legacy := evo.Task("legacy") // pinned to a pre-1.1 release
-	legacy.Delete("worktree", remove)
-	ordered := evo.Task("ordered")
+	ordered := r.Task("ordered")
 	ordered.After(fetched).Define(fetch)
-	keyed := evo.Task("keyed")
-	keyed.Key("build:main").Define(fetch)
-	chained := evo.Task("chained")
-	schedule(chained.Key("push"))
+	chained := r.Task("chained")
+	schedule(chained.Summary("push"))
+	produced := r.Task("produced")
+	_ = evo.Compute(produced, produce)
 	return nil
 }
 
-func declare() *evo.TaskHandle {
-	t := evo.Task("returned")
+func declare(r *evo.Run) *evo.Task {
+	t := r.Task("returned")
 	return t
 }
 
-func schedule(*evo.TaskHandle)            {}
+func schedule(*evo.Task)                 {}
 func fetch(context.Context) error        { return nil }
-func remove() error                      { return nil }
+func produce(context.Context) (int, error) { return 0, nil }
 `
 
 func TestDOM021_ResolvedOrHandedOnTask_StaysSilent(t *testing.T) {
@@ -94,15 +90,15 @@ const chainedButUnresolvedTaskSrc = `package main
 
 import evo "github.com/zachbornheimer/evident-output/v2"
 
-func run() {
-	t := evo.Task("fetch")
-	t.Key("fetch:origin").Fact("remote", "origin")
+func run(r *evo.Run) {
+	t := r.Task("fetch")
+	t.Summary("fetch origin").Fact("remote", "origin")
 }
 `
 
 // TestDOM021_ChainWithoutResolvingLink_Fires proves the chain walk that
 // accepts t.After(x).Define(fn) still reports a chain none of whose links
-// resolve the Task or hand it on.
+// Define the Task or hand it on.
 func TestDOM021_ChainWithoutResolvingLink_Fires(t *testing.T) {
 	res := review.GoSource("main.go", chainedButUnresolvedTaskSrc)
 	if f := findingByID(t, res, "DOM-021"); f.Line != 6 {

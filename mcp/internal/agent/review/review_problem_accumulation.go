@@ -1,4 +1,4 @@
-// Package review — API-051: findings flattened into one error or faked as one Task each instead of accumulated with TaskHandle.Problem.
+// Package review — API-051: findings flattened into one error or faked as one Task each instead of accumulated with Task.Problem.
 package review
 
 import (
@@ -9,19 +9,18 @@ import (
 )
 
 // ===== API-051: a loop flattens structured findings into one joined error
-// string, or creates one fake Task per finding and fails it, because the
+// string, or creates one fake Task per finding that only fails, because the
 // caller has no ergonomic way to retain many structured findings on one Task
 // (zq hook_findings.go's blockStagedGolangciFindings ->
-// errors.New(strings.Join(...)), hook.go's reportFileIntegrityIssues ->
-// Task(file).Fail per finding — the two shapes ZYS-848's Contract names).
-// TaskHandle.Problem (ZYS-848 Decisions 2026-09-23; docs/migration/1.1.md)
-// lets one owning Task accumulate every finding as a structured Problem
-// instead, so this rule cannot recommend its fix for a pin older than 1.1.0.
+// errors.New(strings.Join(...)), hook.go's reportFileIntegrityIssues -> one
+// failing Task per finding). Task.Problem lets one owning Task accumulate
+// every finding as a structured Problem instead, so this rule cannot
+// recommend its fix for a pin older than 1.1.0.
 
-// detectPerFindingFakeTask flags `<expr>.Task(<x>).Fail(...)` inside a
-// for/range loop body — a fake Task created only to display one finding,
-// never independently schedulable or awaited. Failf was removed in 1.1 and
-// remains dirty input.
+// detectPerFindingFakeTask flags `<expr>.Task(<x>).Define(func... { return
+// evo.Fail(...) })` inside a for/range loop body: a Task declared only to
+// display one finding, whose whole callback is the failure, never
+// independently schedulable work.
 func detectPerFindingFakeTask(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -39,37 +38,52 @@ func detectPerFindingFakeTask(filename string, file *ast.File, fset *token.FileS
 		}
 		ast.Inspect(body, func(n2 ast.Node) bool {
 			call, ok := n2.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || (sel.Sel.Name != "Fail" && sel.Sel.Name != "Failf") {
-				return true
-			}
-			inner, ok := sel.X.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-			innerSel, ok := inner.Fun.(*ast.SelectorExpr)
-			if !ok || innerSel.Sel.Name != "Task" {
+			if !ok || !isFailOnlyTaskDefine(call) {
 				return true
 			}
 			pos := fset.Position(call.Pos())
 			findings = append(findings, Finding{
 				RuleID:  "API-051",
-				Message: "loop creates one Task per finding and immediately fails it; a Task should own its independent lifecycle, not stand in for one finding",
+				Message: "loop declares one Task per finding whose callback only returns evo.Fail; a Task should own real work, not stand in for one finding",
 				File:    filename,
 				Line:    pos.Line,
 				Column:  pos.Column,
-				Suggestion: "replace the per-item .Task(...).Fail(...) with one owning Task that calls " +
-					"task.Problem(summary, evo.On(location), evo.Code(code)) once per finding inside the loop, " +
-					"then Define resolves the Task Failed once if any Problem was accumulated",
+				Suggestion: "replace the per-item Task with one owning Task that calls " +
+					"task.Problem(summary, evo.On(location), evo.Code(code)) once per finding inside its Define callback, " +
+					"then returns evo.Fail once if any Problem was recorded",
 			})
 			return true
 		})
 		return true
 	})
 	return findings
+}
+
+// isFailOnlyTaskDefine reports whether call is <recv>.Task(x).Define(fn)
+// where fn is a function literal whose body is the single statement
+// `return <pkg>.Fail(...)`.
+func isFailOnlyTaskDefine(call *ast.CallExpr) bool {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Define" || len(call.Args) < 1 {
+		return false
+	}
+	if !isTaskChain(sel.X) {
+		return false
+	}
+	fl, ok := call.Args[0].(*ast.FuncLit)
+	if !ok || len(fl.Body.List) != 1 {
+		return false
+	}
+	ret, ok := fl.Body.List[0].(*ast.ReturnStmt)
+	if !ok || len(ret.Results) != 1 {
+		return false
+	}
+	failCall, ok := ret.Results[0].(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	failSel, ok := failCall.Fun.(*ast.SelectorExpr)
+	return ok && failSel.Sel.Name == "Fail"
 }
 
 // flattenedDiagnosticsAppend matches `name = append(name, ...)` so the
@@ -80,13 +94,13 @@ var flattenedDiagnosticsAppend = regexp.MustCompile(`(\w+)\s*=\s*append\(\s*(\w+
 
 // flattenedDiagnosticsWrap reports whether rest (the function body's text
 // after the accumulating loop) later wraps strings.Join(name, ...) directly
-// inside errors.New(...), fmt.Errorf(...), or a .Fail(...) call — the
-// shapes that discard every finding's own location/code/detail down to one
-// flattened string. Failf was removed in 1.1 and remains dirty input.
+// inside errors.New(...), fmt.Errorf(...), or an evo.Fail or evo.Refuse
+// call: the shapes that discard every finding's own location/code/detail
+// down to one flattened string.
 func flattenedDiagnosticsWrap(rest, name string) bool {
 	quoted := regexp.QuoteMeta(name)
 	wrap := regexp.MustCompile(
-		`(?:errors\.New|fmt\.Errorf|\.Fail(?:f)?)\(\s*(?:"[^"]*",\s*)?strings\.Join\(\s*` + quoted + `\s*,`,
+		`(?:errors\.New|fmt\.Errorf|\.Fail|\.Refuse)\(\s*(?:"[^"]*",\s*)?strings\.Join\(\s*` + quoted + `\s*,`,
 	)
 	return wrap.MatchString(rest)
 }

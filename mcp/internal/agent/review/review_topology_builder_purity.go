@@ -1,9 +1,9 @@
 // Package review — API-069 (ZYS-1368): a topology builder
-// (`Define(func(*evo.GroupHandle))`) that does more than declare structure.
-// A builder runs on the scheduler after its predecessor is ready; I/O,
-// mutation, context use, goroutines, Wait, or an error return inside it
-// start a second scheduler or hide work Evo cannot render (contract §31).
-// Work callbacks nested in the builder are not the builder and are skipped.
+// (`Build(func(*evo.Group))`) that does more than declare structure. A
+// builder runs once on the scheduler after its container is eligible; I/O,
+// mutation, context use or a goroutine inside it starts a second scheduler
+// or hides work Evo cannot render (CONTRACT.md section 2). Work callbacks
+// nested in the builder are not the builder and are skipped.
 package review
 
 import (
@@ -34,7 +34,7 @@ func detectImpureTopologyBuilder(filename string, file *ast.File, fset *token.Fi
 				File:       filename,
 				Line:       pos.Line,
 				Column:     pos.Column,
-				Message:    v.what + " inside a topology builder: a builder declares structure only and must not do work or wait",
+				Message:    v.what + " inside a Build callback: a builder declares structure only and must not do work",
 				Suggestion: "move the work into a predecessor Task exposed with evo.Compute, then read its Get() in the builder after After(computed); the builder only declares children",
 			})
 		}
@@ -49,9 +49,6 @@ type builderViolation struct {
 
 func builderViolations(lit *ast.FuncLit, evoPkg string, ioNames map[string]bool, filepathName string) []builderViolation {
 	var out []builderViolation
-	if lit.Type.Results != nil && len(lit.Type.Results.List) > 0 {
-		out = append(out, builderViolation{lit.Pos(), "a returned error"})
-	}
 	inspectOwnBody(lit.Body, func(n ast.Node) {
 		if what := builderViolationOf(n, evoPkg, ioNames, filepathName); what != "" {
 			out = append(out, builderViolation{n.Pos(), what})
@@ -81,8 +78,6 @@ func builderCallViolation(call *ast.CallExpr, evoPkg string, ioNames map[string]
 	}
 	pkg := exprDottedName(sel.X)
 	switch {
-	case sel.Sel.Name == "Wait" && len(call.Args) == 0:
-		return "a Wait"
 	case pkg == "context":
 		return "context use"
 	case pkg == evoPkg && (evoManagedCallName(call, evoPkg) != "" || sel.Sel.Name == "Exec"):

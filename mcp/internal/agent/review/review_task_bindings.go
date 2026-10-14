@@ -6,7 +6,7 @@ import "go/ast"
 // parameters, fields, and vars typed *<evo>.TaskHandle (or a bare
 // *TaskHandle), and variables assigned from a Task(...) chain. Detectors
 // that must prove a receiver is a Task, not merely look like one (API-032's
-// removed Done, API-061's removed Record*), ask IsTask.
+// removed Done and Record*), ask IsTask.
 type taskBindings struct {
 	names map[string]bool
 }

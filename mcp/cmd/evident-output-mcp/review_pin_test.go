@@ -44,7 +44,7 @@ func TestWriteReviewResult_UpdateNeededTrueOnReplaceMismatch(t *testing.T) {
 			DesiredVersion:  "v0.4.6",
 			ModuleVersion:   "v0.4.6",
 			ReplacePath:     "/src/evo",
-			Findings:        []review.Finding{{RuleID: "API-032", Message: "evo.New"}},
+			Findings:        []review.Finding{{RuleID: "API-032", Message: "Task.Block"}},
 			RecheckRequired: true,
 		})
 	})
@@ -80,14 +80,14 @@ func TestWriteReviewResult_DevVersionAloneDoesNotNeedUpdate(t *testing.T) {
 	}
 }
 
-func TestReview_DesiredVersionV029DoesNotFlagNew(t *testing.T) {
+func TestReview_DesiredVersionV110DoesNotFlagTwoZeroRemovals(t *testing.T) {
 	src := `package main
 import evo "github.com/zachbornheimer/evident-output/v2"
-func main() {
-  _ = evo.New(evo.Config{Title: "t"})
+func f(task *evo.TaskHandle) {
+  task.Block("no remote")
 }
 `
-	args := map[string]any{"source": src, "file": "main.go", "desired_version": "v0.2.9"}
+	args := map[string]any{"source": src, "file": "main.go", "desired_version": "v1.1.0"}
 	msg := captureRPC(t, func() {
 		handleToolCall(1, map[string]any{
 			"params": map[string]any{
@@ -98,7 +98,7 @@ func main() {
 	})
 	raw, _ := json.Marshal(msg)
 	if strings.Contains(string(raw), "API-032") {
-		t.Fatalf("evo.New must not be API-032 at pre-0.4 desired_version: %s", raw)
+		t.Fatalf("Task.Block must not be API-032 at a 1.1 desired_version: %s", raw)
 	}
 	current := captureRPC(t, func() {
 		handleToolCall(2, map[string]any{
@@ -110,7 +110,7 @@ func main() {
 	})
 	curRaw, _ := json.Marshal(current)
 	if !strings.Contains(string(curRaw), "API-032") {
-		t.Fatalf("evo.New must be API-032 at the current dialect: %s", curRaw)
+		t.Fatalf("Task.Block must be API-032 at the current dialect: %s", curRaw)
 	}
 }
 

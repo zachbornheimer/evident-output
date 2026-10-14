@@ -30,7 +30,7 @@ func detectCategoryTaskLoopingOverItems(filename string, file *ast.File, fset *t
 				Line:       pos.Line,
 				Column:     pos.Column,
 				Message:    "one Task loops over items and does work for each item: each item deserves its own outcome, and a category Task hides which item failed or was skipped",
-				Suggestion: "declare a Group for the category and one Task per item: group := out.Group(category); for _, item := range items { group.Task(verb + \" \" + item).Define(work) }",
+				Suggestion: "declare a Group for the category and one Task per item: group := r.Group(category); for _, item := range items { group.Task(verb + \" \" + item).Define(work) }",
 			})
 		}
 	}

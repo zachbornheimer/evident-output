@@ -18,28 +18,28 @@ var freshnessCheckNameHints = []string{"stale", "fresh", "outdated", "rebuild", 
 
 // detectManualFileReconciliation is EVO-FILE-001: os.WriteFile and
 // os.Chmod on the same path within one function — the write/chmod
-// boilerplate evo.File's Path/Contents/Mode/Basis fields already cover.
+// boilerplate evo.File's Path/Contents/Mode fields already cover.
 func detectManualFileReconciliation(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	forEachFuncBody(file, func(body *ast.BlockStmt) {
 		writes := map[string]token.Pos{}
 		chmods := map[string]bool{}
-		ast.Inspect(body, func(n ast.Node) bool {
+		walkOwnBody(body, func(n ast.Node) {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
-				return true
+				return
 			}
 			sel, ok := call.Fun.(*ast.SelectorExpr)
 			if !ok {
-				return true
+				return
 			}
 			id, ok := sel.X.(*ast.Ident)
 			if !ok || id.Name != "os" || len(call.Args) == 0 {
-				return true
+				return
 			}
 			key := exprKey(call.Args[0])
 			if key == "" {
-				return true
+				return
 			}
 			switch sel.Sel.Name {
 			case "WriteFile":
@@ -47,7 +47,6 @@ func detectManualFileReconciliation(filename string, file *ast.File, fset *token
 			case "Chmod":
 				chmods[key] = true
 			}
-			return true
 		})
 		for key, pos := range writes {
 			if !chmods[key] {
@@ -76,13 +75,14 @@ func detectManualFileReconciliation(filename string, file *ast.File, fset *token
 // can plausibly be expensive enough to matter here — a cheap pure helper
 // (formatting a key, deriving a path) never needs one and is not flagged.
 func detectExpensiveWorkBeforeFileOp(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	pkg := evoImportName(file)
 	var findings []Finding
 	forEachFuncBody(file, func(body *ast.BlockStmt) {
 		if len(body.List) < 2 {
 			return
 		}
 		last, ok := body.List[len(body.List)-1].(*ast.ReturnStmt)
-		if !ok || len(last.Results) != 1 || !isEvoOperationCall(last.Results[0]) {
+		if !ok || len(last.Results) != 1 || !isEvoOperationCall(last.Results[0], pkg) {
 			return
 		}
 		for _, stmt := range body.List[:len(body.List)-1] {
@@ -110,7 +110,7 @@ func detectExpensiveWorkBeforeFileOp(filename string, file *ast.File, fset *toke
 					File:       filename,
 					Line:       pos.Line,
 					Column:     pos.Column,
-					Suggestion: "move the expensive work itself behind an Evo-native operation (evo.Exec) or a lazy/semantic adapter Evo can skip before it runs",
+					Suggestion: "run the expensive work as an evo.Exec that declares its Inputs and Outputs, so Evo skips it while they are current, or guard it with the Task's Verify",
 				})
 			}
 		}
@@ -135,27 +135,21 @@ func callThreadsContext(call *ast.CallExpr) bool {
 	return false
 }
 
-// isEvoOperationCall reports whether expr is a call to evo.File or evo.Exec.
-func isEvoOperationCall(expr ast.Expr) bool {
+// isEvoOperationCall reports whether expr is a call to File or Exec on the
+// evo import named pkg.
+func isEvoOperationCall(expr ast.Expr, pkg string) bool {
 	call, ok := expr.(*ast.CallExpr)
-	if !ok {
+	if !ok || pkg == "" {
 		return false
 	}
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-	id, ok := sel.X.(*ast.Ident)
-	if !ok || id.Name != "evo" {
-		return false
-	}
-	return sel.Sel.Name == "File" || sel.Sel.Name == "Exec"
+	name := calledFuncDotted(call)
+	return name == pkg+".File" || name == pkg+".Exec"
 }
 
 // detectRawExecWithManualFreshness is EVO-EXEC-001: os/exec.Command run
 // inside an if-guard whose condition calls an obviously freshness-named
 // helper ("outputIsStale", ...) — the raw exec plus hand-rolled staleness
-// check evo.Exec's Basis/Outputs contract already covers.
+// check evo.Exec's Inputs/Outputs contract already covers.
 func detectRawExecWithManualFreshness(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -168,12 +162,7 @@ func detectRawExecWithManualFreshness(filename string, file *ast.File, fset *tok
 			if !ok {
 				return true
 			}
-			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok {
-				return true
-			}
-			id, ok := sel.X.(*ast.Ident)
-			if !ok || id.Name != "exec" || sel.Sel.Name != "Command" {
+			if name := calledFuncDotted(call); name != "exec.Command" && name != "exec.CommandContext" {
 				return true
 			}
 			pos := fset.Position(call.Pos())

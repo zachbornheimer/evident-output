@@ -9,8 +9,7 @@ import (
 
 // API-058 (ZYS-934): a patch is applied straight to the real workspace
 // through os/exec ("patch", "git apply", "git am") instead of deriving
-// desired file states with evo.Patch and committing them through
-// evo.Files/evo.File.
+// desired file states with evo.Patch, which commits them through evo.File.
 
 const execPatchCommandSrc = `package p
 import (
@@ -70,6 +69,24 @@ func run(mboxPath string) error {
 
 func TestAPI058_ExecGitAmCommand_Fires(t *testing.T) {
 	res := review.GoSource("apply_am.go", execGitAmCommandSrc)
+	findingByID(t, res, "API-058")
+}
+
+const execGitAmContextSrc = `package p
+import (
+  "context"
+  "os/exec"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func run(r *evo.Run, mboxPath string) {
+  r.Task("apply patch").Define(func(ctx context.Context) error {
+    return exec.CommandContext(ctx, "git", "am", mboxPath).Run()
+  })
+}
+`
+
+func TestAPI058_ExecCommandContextGitAm_Fires(t *testing.T) {
+	res := review.GoSource("apply_am_ctx.go", execGitAmContextSrc)
 	findingByID(t, res, "API-058")
 }
 
@@ -155,7 +172,7 @@ func TestAPI058_PreOneOneOnePin_StaysSilent(t *testing.T) {
 	res := review.GoSourceAt("apply.go", execPatchCommandSrc, "1.0.0")
 	for _, f := range res.Findings {
 		if f.RuleID == "API-058" {
-			t.Fatalf("API-058 fired for a pin older than 1.1.0 (evo.Patch/evo.Files did not exist yet): %+v", f)
+			t.Fatalf("API-058 fired for a pin older than 1.1.0 (evo.Patch did not exist yet): %+v", f)
 		}
 	}
 }
@@ -167,7 +184,7 @@ func TestAPI058_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
 	after := review.GoSource("apply_good.go", domainPatchParseOnlySrc)
 	for _, f := range after.Findings {
 		if f.RuleID == "API-058" {
-			t.Fatalf("API-058 still fires after remediation to evo.Patch/evo.Files: %+v", f)
+			t.Fatalf("API-058 still fires after remediation to evo.Patch: %+v", f)
 		}
 	}
 }

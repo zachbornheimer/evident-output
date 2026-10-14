@@ -1,7 +1,6 @@
-// Package review — spec §57 EVO-EVIDENCE-001/EVO-VERIFY-001/EVO-DRYRUN-001:
-// the three shapes where a callback that promises read-only observation or
-// dry-run safety instead raw-calls a side effect Evo's runtime cannot see
-// or intercept.
+// Package review — spec §57 EVO-VERIFY-001/EVO-DRYRUN-001: the shapes where a
+// callback that promises read-only observation or dry-run safety instead
+// raw-calls a side effect Evo's runtime cannot see or intercept.
 package review
 
 import (
@@ -12,7 +11,7 @@ import (
 )
 
 // evoRawMutationCallNames are side effects Evo's runtime cannot intercept —
-// a Define/Verify/Evidence callback that promises dry-run safety or
+// a Define/Verify callback that promises dry-run safety or
 // read-only observation must route mutation through evo.File, evo.Exec, or
 // (for a database change neither models) evo.Effect instead of calling one
 // of these directly (spec §32.2, §57 EVO-DRYRUN-001).
@@ -43,8 +42,7 @@ type rawMutationCall struct {
 // rawMutationCalls lists every evoRawMutationCallNames call, and every
 // Exec/ExecContext call on an evoSQLMutationReceivers handle, reachable
 // anywhere inside node (including nested closures) — the "obvious
-// mutation" shape spec §57 asks EVO-EVIDENCE-001/EVO-VERIFY-001/
-// EVO-DRYRUN-001 to flag.
+// mutation" shape spec §57 asks EVO-VERIFY-001/EVO-DRYRUN-001 to flag.
 func rawMutationCalls(node ast.Node) []rawMutationCall {
 	var calls []rawMutationCall
 	ast.Inspect(node, func(n ast.Node) bool {
@@ -136,9 +134,9 @@ func funcLitArgAt(call *ast.CallExpr, method string, argCount, argN int, disprov
 
 // isLikelyEvoTaskReceiver is isLikelyEvoReceiver's known-package check
 // without the Start-only ambiguous-name exclusion (see isLikelyEvoReceiver's
-// doc comment) — used by the deterministic EVO-EVIDENCE-001/VERIFY-001/
-// DRYRUN-001/DAG-002/DAG-003 detectors. Their gating method names (Evidence,
-// Verify, Define, After) are Evo-specific enough that excluding a variable
+// doc comment) — used by the deterministic EVO-VERIFY-001/
+// DRYRUN-001/DAG-002/DAG-003 detectors. Their gating method names (Verify,
+// Define, After) are Evo-specific enough that excluding a variable
 // by name alone (e.g. "process", "child") would silently miss a real
 // *evo.TaskHandle sharing that name; disproven instead names identifiers
 // this file can structurally prove are not Evo (spec §57).
@@ -223,41 +221,6 @@ func isLocalStructLiteral(e ast.Expr, localStructs map[string]bool) bool {
 	}
 	id, ok := cl.Type.(*ast.Ident)
 	return ok && localStructs[id.Name]
-}
-
-// ===== EVO-EVIDENCE-001: a legacy named mutating callback performs a raw
-// mutation. Capture-meaning Evidence* was removed in 1.1 (Capture is the
-// retained sink); mutation belongs in Define via evo.File / evo.Effect
-// (spec §2, §56, §57).
-
-func detectMutatingLegacyEvidence(filename string, file *ast.File, fset *token.FileSet) []Finding {
-	var findings []Finding
-	disproven := evoDisprovenVars(file)
-	ast.Inspect(file, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		sel, fl, ok := funcLitArgAt(call, "Evidence", 2, 1, disproven)
-		if !ok {
-			return true
-		}
-		pos, name, mutates := firstRawMutationCall(fl.Body)
-		if !mutates {
-			return true
-		}
-		recv := exprDottedNameOrDefault(sel.X, "task")
-		findings = append(findings, Finding{
-			RuleID:     "EVO-EVIDENCE-001",
-			Message:    recv + ".Evidence's callback calls " + name + "; the legacy named-Evidence shape is superseded and was never the place mutation belongs",
-			File:       filename,
-			Line:       fset.Position(pos).Line,
-			Column:     fset.Position(pos).Column,
-			Suggestion: "move " + name + " into " + recv + ".Define(func(ctx context.Context) error { ... }); add " + recv + ".Verify(func(ctx context.Context) (bool, error) { ... }) only if the resulting state can be observed directly",
-		})
-		return true
-	})
-	return findings
 }
 
 // ===== EVO-VERIFY-001: a task.Verify(func(ctx) (bool, error) { ... })

@@ -31,55 +31,55 @@ func reviewGoFileViaMCP(t *testing.T, src string) string {
 	return out
 }
 
-func TestReview_IsolatedInitThenInventoryReturnsFP002(t *testing.T) {
+func TestReview_InventoryBeforeFirstTaskReturnsFP002(t *testing.T) {
 	src := `package app
-import evo "github.com/zachbornheimer/evident-output/v2"
-func previewPurge() error {
-  planning := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "zq purge"})
-  defer planning.Close()
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func previewPurge(ctx context.Context, r *evo.Run) error {
   rep, err := purge.Inventory(ctx, opt)
   _ = rep
-  return err
+  r.Task("inventory").Define(func(ctx context.Context) error { return err })
+  return nil
 }
 `
 	out := reviewGoFileViaMCP(t, src)
 	if !strings.Contains(out, "FP-002") {
-		t.Fatalf("expected FP-002 on Isolated Init then Inventory: %s", out)
+		t.Fatalf("expected FP-002 on Inventory before the first Task: %s", out)
 	}
 }
 
-func TestReview_IsolatedInitThenWalkDirLoopReturnsLOOP001(t *testing.T) {
+func TestReview_WalkDirLoopBeforeFirstTaskReturnsLOOP001(t *testing.T) {
 	src := `package app
 import (
+  "context"
   "path/filepath"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func previewPurge(roots []string) error {
-  out := evo.Init(evo.Config{Isolated: true, DryRun: true})
-  defer out.Close()
+func previewPurge(ctx context.Context, r *evo.Run, roots []string) error {
   for _, root := range roots {
     _ = filepath.WalkDir(root, func(string, fs.DirEntry, error) error { return nil })
   }
-  out.Task("inventory").Done()
+  r.Task("inventory").Define(func(ctx context.Context) error { return nil })
   return nil
 }
 `
 	out := reviewGoFileViaMCP(t, src)
 	if !strings.Contains(out, "LOOP-001") {
-		t.Fatalf("expected LOOP-001 on Isolated Init then for/range WalkDir (FP-002 is not a substitute): %s", out)
+		t.Fatalf("expected LOOP-001 on a for/range WalkDir before the first Task (FP-002 is not a substitute): %s", out)
 	}
 }
 
 func TestReview_TaskDefineBeforeWorkDoesNotReturnFP002OrLOOP001(t *testing.T) {
 	src := `package app
 import (
+  "context"
   "path/filepath"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func previewPurge(roots []string) error {
-  out := evo.Init(evo.Config{Isolated: true, DryRun: true})
-  defer out.Close()
-  inv := out.Task("inventory")
+func previewPurge(ctx context.Context, r *evo.Run, roots []string) error {
+  inv := r.Task("inventory")
   inv.Doing("walking worktrees")
   inv.Define(func(ctx context.Context) error {
     for _, root := range roots {
@@ -99,47 +99,38 @@ func previewPurge(roots []string) error {
 	}
 }
 
-func TestReview_MultiArgCallSoupAtEvoSiteIsDirty(t *testing.T) {
-	src := `package app
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run() {
-  out := evo.Init(evo.Config{Title: "t"})
-  _ = out.Task("scan", "extra")
-}
-`
-	out := reviewGoFileViaMCP(t, src)
-	if !strings.Contains(out, "API-032") {
-		t.Fatalf("expected a DIRTY finding (API-032) on multi-arg evo.Task call soup: %s", out)
-	}
-}
-
 func TestReview_InlineMakeOrNewInEvoArgIsDirty(t *testing.T) {
 	src := `package app
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run() {
-  out := evo.Init(evo.Config{Title: "t", Facts: make([]evo.Fact, 0)})
-  _ = out.Group("jobs")
+import (
+  "bytes"
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func capture(ctx context.Context) int {
+  return evo.Execute(ctx, evo.Config{Facades: evo.Facades{Stdout: new(bytes.Buffer)}}, run).ExitCode()
 }
 `
 	out := reviewGoFileViaMCP(t, src)
 	if !strings.Contains(out, "CALL-001") {
-		t.Fatalf("expected CALL-001 on inline make inside evo.Init argument: %s", out)
+		t.Fatalf("expected CALL-001 on inline new inside evo.Execute argument: %s", out)
 	}
 }
 
 func TestReview_NamedLocalBeforeEvoCallIsClean(t *testing.T) {
 	src := `package app
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run() {
-  facts := make([]evo.Fact, 0)
-  cfg := evo.Config{Title: "t", Facts: facts}
-  out := evo.Init(cfg)
-  _ = out.Task("scan")
-  _ = out.Group("jobs")
+import (
+  "bytes"
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func capture(ctx context.Context) int {
+  stdout := new(bytes.Buffer)
+  cfg := evo.Config{Facades: evo.Facades{Stdout: stdout}}
+  return evo.Execute(ctx, cfg, run).ExitCode()
 }
 `
 	out := reviewGoFileViaMCP(t, src)
-	if strings.Contains(out, "CALL-001") || strings.Contains(out, "API-032") {
-		t.Fatalf("extracted named locals before evo.Init/Task/Group must be clean: %s", out)
+	if strings.Contains(out, "CALL-001") {
+		t.Fatalf("an extracted named local before evo.Execute must be clean: %s", out)
 	}
 }

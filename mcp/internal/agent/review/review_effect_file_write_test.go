@@ -139,8 +139,8 @@ func TestAPI057_WriteDerivedFromRead_SuggestsEvoFile(t *testing.T) {
 	if !strings.Contains(f.Suggestion, "evo.File") {
 		t.Fatalf("API-057 suggestion does not name evo.File for a derived write: %q", f.Suggestion)
 	}
-	if strings.Contains(f.Suggestion, "evo.Patch") || strings.Contains(f.Suggestion, "evo.Files(") {
-		t.Fatalf("API-057 suggestion names the nonexistent evo.Patch/evo.Files API: %q", f.Suggestion)
+	if strings.Contains(f.Suggestion, "evo.Patch") {
+		t.Fatalf("API-057 suggestion names evo.Patch for a write derived from an existing file's contents, not a diff: %q", f.Suggestion)
 	}
 }
 

@@ -10,7 +10,7 @@ import (
 
 type Package struct{ Name string }
 
-func installAll(group *evo.GroupHandle, pkgs []Package) {
+func installAll(group *evo.Group, pkgs []Package) {
 	for _, pkg := range pkgs {
 		pkg := pkg
 		task := group.Task(pkg.Name)

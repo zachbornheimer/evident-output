@@ -6,9 +6,13 @@ import (
 	"strings"
 )
 
-// detectStaleDoingBeforeSubprocess flags a task whose only Doing call sits
-// ahead of a subprocess run with no further Doing/Progress/Writer — the
-// spinner keeps animating over a silent child (evo-rec.md "FP-003").
+// subprocessRunMarkers are the calls that start an os/exec child a Task
+// callback then waits on.
+var subprocessRunMarkers = []string{"exec.Command(", "exec.CommandContext(", ".Run()"}
+
+// detectStaleDoingBeforeSubprocess flags a function whose only Doing call
+// sits ahead of an os/exec child with no further Doing/Progress/Writer — the
+// spinner keeps animating over a silent child (FP-003).
 func detectStaleDoingBeforeSubprocess(filename, src string) []Finding {
 	var findings []Finding
 	for _, fn := range allFuncBodies(src) {
@@ -22,7 +26,7 @@ func detectStaleDoingBeforeSubprocess(filename, src string) []Finding {
 		if strings.Contains(fn.body, ".Writer(") {
 			continue // child output wired to the live Doing; not stale
 		}
-		runIdx := earliestIndex(fn.body, []string{".Run(", "exec.Command("})
+		runIdx := earliestIndex(fn.body, subprocessRunMarkers)
 		if runIdx < 0 || runIdx < doingIdx {
 			continue
 		}
@@ -47,8 +51,7 @@ func detectStaleDoingBeforeSubprocess(filename, src string) []Finding {
 }
 
 // taxonomyReasonPattern matches the reason words a hand-assembled skip/keep
-// count string typically carries (evo-rec.md "Taxonomy... derived, never
-// assembled").
+// count string typically carries.
 var taxonomyReasonPattern = regexp.MustCompile(`(?i)skipped|kept|retained`)
 
 // sprintfLiteralPattern captures the format-string literal argument of an
@@ -57,8 +60,8 @@ var sprintfLiteralPattern = regexp.MustCompile(`fmt\.Sprintf\(\s*"([^"]*)"`)
 
 // detectHandAssembledTaxonomyCount flags fmt.Sprintf strings that bake a
 // count into skip/keep/retain narration (e.g. "%d skipped") instead of
-// recording reason + name via task.Skipped/Kept and letting evo derive and
-// sum the partition.
+// declaring one Task per item that returns evo.Exclude(reason) and letting
+// evo derive and sum the partition.
 func detectHandAssembledTaxonomyCount(filename, src string) []Finding {
 	if !strings.Contains(src, "fmt.Sprintf(") {
 		return nil
@@ -71,7 +74,7 @@ func detectHandAssembledTaxonomyCount(filename, src string) []Finding {
 		}
 		findings = append(findings, Finding{
 			RuleID:     "TAX-001",
-			Message:    "hand-assembled skip/keep count string; record reason via task.Skipped and let evo derive and sum the partition",
+			Message:    "hand-assembled skip/keep count string; return evo.Exclude(reason) from one Task per item and let evo derive and sum the partition",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
 			Suggestion: `replace with one Task per item, each returning evo.Exclude("..."); evo derives and sums the count`,
@@ -86,7 +89,7 @@ var doingLiteralPattern = regexp.MustCompile(`\.Doing\(\s*(?:fmt\.Sprintf\()?\s*
 
 // detectProgressInDoingString flags a Doing string smuggling "%d/%d" —
 // progress hidden in narration text instead of a real Progress call
-// (evo-rec.md "Additions" / PROG-001).
+// (PROG-001).
 func detectProgressInDoingString(filename, src string) []Finding {
 	var findings []Finding
 	for _, m := range doingLiteralPattern.FindAllStringSubmatchIndex(src, -1) {
@@ -115,35 +118,46 @@ func detectProgressInDoingString(filename, src string) []Finding {
 var sliceIntoNarrationPattern = regexp.MustCompile(`\.(Detail|Doing)\(\s*strings\.Join\(`)
 
 // detectUnboundedSliceIntoNarration flags a strings.Join(slice, ...) passed
-// directly to Detail/Doing without evo.TruncateNames — the same
-// terminal flood evo-rec.md's bounded-rows fix already closed for
-// Plan/Changes, one call site removed.
+// directly to Detail/Doing with the whole slice: Evo folds an Effect's names
+// itself, but it cannot bound text the caller joined by hand.
 func detectUnboundedSliceIntoNarration(filename, src string) []Finding {
-	if strings.Contains(src, "TruncateNames(") {
-		return nil
-	}
 	var findings []Finding
 	for _, m := range sliceIntoNarrationPattern.FindAllStringSubmatchIndex(src, -1) {
 		method := src[m[2]:m[3]]
+		if joinsBoundedSlice(src, m[1]-1) {
+			continue
+		}
 		findings = append(findings, Finding{
 			RuleID:     "BOUND-001",
 			Message:    "strings.Join of an unbounded slice passed to " + method + "; bound the list before rendering",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: "join only the first few names and report the rest as a count inside ." + method + "(...)",
+			Suggestion: "join only the first few names, e.g. names[:min(len(names), 8)], and report the rest as a count inside ." + method + "(...)",
 		})
 	}
 	return findings
+}
+
+// joinsBoundedSlice reports whether the strings.Join call whose opening
+// parenthesis sits at openIdx joins a slice expression (names[:n]), which
+// is already bounded by the caller.
+func joinsBoundedSlice(src string, openIdx int) bool {
+	args, _, ok := balancedArgs(src, openIdx)
+	if !ok {
+		return false
+	}
+	return strings.Contains(splitTopLevelArgs(args)[0], "[:")
 }
 
 // fanOutClosureMarkers are the two shapes a fan-out worker closure takes:
 // a bare goroutine, or a closure handed to an errgroup-style .Go(func...).
 var fanOutClosureMarkers = []string{"go func(", ".Go(func("}
 
-// detectTaskDeclaredInsideFanOut flags out.Task/Group.Task called inside a
-// goroutine or g.Go closure — declaring the Task there races task creation
-// with rendering and produces the unordered multi-spinner defect evo-rec.md
-// "predeclare children; present one Running" forbids.
+// detectTaskDeclaredInsideFanOut flags a Task declared inside a goroutine
+// or g.Go closure. Declaration order is topology: it fixes the order of the
+// rows and which siblings a later After can name. Declaring in a worker
+// closure hands that order to goroutine scheduling, and inside a Define
+// callback the declaration is refused outright.
 func detectTaskDeclaredInsideFanOut(filename, src string) []Finding {
 	var findings []Finding
 	for _, marker := range fanOutClosureMarkers {
@@ -160,10 +174,10 @@ func detectTaskDeclaredInsideFanOut(filename, src string) []Finding {
 			if strings.Contains(body, ".Task(") {
 				findings = append(findings, Finding{
 					RuleID:     "API-030",
-					Message:    "Task declared inside a goroutine/fan-out closure; predeclare all children before starting any goroutine",
+					Message:    "Task declared inside a goroutine/fan-out closure; the order of the run's rows and After edges now follows goroutine scheduling",
 					File:       filename,
 					Line:       lineAt(src, start),
-					Suggestion: "move the .Task(...) call above the goroutine/g.Go and pass the handle into the closure",
+					Suggestion: "declare each Task in the enclosing function, in order, and give it Define there; Group already runs independent Tasks concurrently, so no goroutine is needed",
 				})
 			}
 			i = start + len(body)
@@ -177,8 +191,8 @@ func detectTaskDeclaredInsideFanOut(filename, src string) []Finding {
 var writeMethodDeclPattern = regexp.MustCompile(`func \([^)]*\)\s*Write\(`)
 
 // detectHandRolledWriter flags a caller-defined io.Writer whose Write
-// method calls TaskHandle.Doing — reimplementing the exact line-splitting
-// adapter Task.Writer already owns (evo-rec.md "#6").
+// method calls Task.Doing — reimplementing the exact line-splitting
+// adapter Task.Writer already owns.
 func detectHandRolledWriter(filename, src string) []Finding {
 	var findings []Finding
 	for _, loc := range writeMethodDeclPattern.FindAllStringIndex(src, -1) {

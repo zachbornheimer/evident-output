@@ -7,173 +7,61 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
-// PROG-001: the Advance suggestion must never prescribe <task>.Each(...) — it no longer exists (removed in 1.0; evo-dialect-axes-report.md axis 6/12).
+// API-040: an ending built by evo.Fail/Refuse/Exclude and then discarded.
 
-func TestPROG001_AdvanceSuggestion_NeverNamesTaskEach(t *testing.T) {
-	src := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle) {
-  task.Advance(1)
-}
-`
-	res := review.GoSource("x.go", src)
-	f := findingByID(t, res, "PROG-001")
-	if strings.Contains(f.Suggestion, "task.Each") {
-		t.Fatalf("PROG-001 suggestion invents task.Each: %q", f.Suggestion)
-	}
-	if !strings.Contains(f.Suggestion, "Group(") && !strings.Contains(f.Suggestion, "Sequence(") {
-		t.Fatalf("PROG-001 suggestion does not name Group/Sequence.Each: %q", f.Suggestion)
-	}
-}
+const discardedEndingSrc = `package p
 
-// FP-006: Doing(...).Done(...) with no Define between is theater.
+import (
+	"context"
 
-const doingDoneChainSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(a *evo.Output, fixed int) {
-  a.Task("file integrity").Doing("fixing").Done("%d files changed", fixed)
-}
-`
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
 
-const doingDoneChainFixedSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(a *evo.Output) {
-  t := a.Task("file integrity")
-  t.Define(func(ctx context.Context) error {
-    return nil
-  })
-}
-`
-
-func TestFP006_DoingDoneChain_Fires(t *testing.T) {
-	res := review.GoSource("fix.go", doingDoneChainSrc)
-	f := findingByID(t, res, "FP-006")
-	if f.Severity != "error" {
-		t.Fatalf("FP-006 severity = %q, want error", f.Severity)
-	}
-	if !strings.Contains(f.Suggestion, "Define") {
-		t.Fatalf("FP-006 suggestion does not name Define: %q", f.Suggestion)
-	}
-}
-
-func TestFP006_DefineInstead_StaysSilent(t *testing.T) {
-	res := review.GoSource("fixed.go", doingDoneChainFixedSrc)
-	for _, f := range res.Findings {
-		if f.RuleID == "FP-006" {
-			t.Fatalf("false positive FP-006 on Define: %+v", f)
+func run(r *evo.Run, doWork func() error) {
+	r.Task("resolve").Define(func(ctx context.Context) error {
+		if err := doWork(); err != nil {
+			evo.Fail("resolve failed")
+			return err
 		}
-	}
-}
-
-const doingDoneAdjacentSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(t *evo.TaskHandle) {
-  t.Doing("rechecking")
-  applyFix()
-  t.Done("deterministic fix applied")
-}
-func applyFix() {}
-`
-
-func TestFP006_DoingDoneAdjacentStatements_Fires(t *testing.T) {
-	res := review.GoSource("fix.go", doingDoneAdjacentSrc)
-	findingByID(t, res, "FP-006")
-}
-
-const doingProgressDoneSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(t *evo.TaskHandle) {
-  t.Doing("scanning")
-  t.Define(func(ctx context.Context) error {
-    return nil
-  })
-  t.Done()
+		return nil
+	})
 }
 `
 
-func TestFP006_DefineBetween_StaysSilent(t *testing.T) {
-	res := review.GoSource("good.go", doingProgressDoneSrc)
-	for _, f := range res.Findings {
-		if f.RuleID == "FP-006" {
-			t.Fatalf("false positive FP-006 when Define runs between Doing and Done: %+v", f)
-		}
-	}
-}
-
-// API-040: Failf/Fail inside a Define callback whose result is
-// returned double-resolves the task (zq app.go:155-176 -> executeCommand).
-
-const failfInDefineSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run(task *evo.TaskHandle) {
-  task.Define(func(ctx context.Context) error {
-    if err := doWork(task); err != nil {
-      return err
-    }
-    return nil
-  })
-}
-func doWork(task *evo.TaskHandle) error {
-  if err := resolve(); err != nil {
-    return task.Failf("resolve: %w", err)
-  }
-  return nil
-}
-func resolve() error { return nil }
-`
-
-func TestAPI040_FailfReachableFromDefine_Fires(t *testing.T) {
-	res := review.GoSource("app.go", failfInDefineSrc)
+func TestAPI040_DiscardedEnding_Fires(t *testing.T) {
+	res := review.GoSource("app.go", discardedEndingSrc)
 	f := findingByID(t, res, "API-040")
 	if f.Severity != "error" {
 		t.Fatalf("API-040 severity = %q, want error", f.Severity)
 	}
-	if !strings.Contains(f.Suggestion, "return err") {
-		t.Fatalf("API-040 suggestion does not say return err: %q", f.Suggestion)
+	if !strings.Contains(f.Suggestion, "return evo.Fail(") {
+		t.Fatalf("API-040 suggestion does not say to return the ending: %q", f.Suggestion)
 	}
 }
 
-const failThenReturnErrSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run(task *evo.TaskHandle) {
-  task.Define(func(ctx context.Context) error {
-    err := doWork()
-    if err != nil {
-      task.Fail("resolve failed")
-      return err
-    }
-    return nil
-  })
+const returnedEndingSrc = `package p
+
+import (
+	"context"
+
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+
+func run(r *evo.Run, doWork func() error) {
+	r.Task("resolve").Define(func(ctx context.Context) error {
+		if err := doWork(); err != nil {
+			return evo.Fail("resolve failed", evo.Detail(err.Error()))
+		}
+		return nil
+	})
 }
-func doWork() error { return nil }
 `
 
-func TestAPI040_FailThenReturnErr_Fires(t *testing.T) {
-	res := review.GoSource("app.go", failThenReturnErrSrc)
-	findingByID(t, res, "API-040")
-}
-
-const returnErrOnlySrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run(task *evo.TaskHandle) {
-  task.Define(func(ctx context.Context) error {
-    if err := doWork(task); err != nil {
-      return err
-    }
-    return nil
-  })
-}
-func doWork(task *evo.TaskHandle) error {
-  return resolve()
-}
-func resolve() error { return nil }
-`
-
-func TestAPI040_PlainReturnErr_StaysSilent(t *testing.T) {
-	res := review.GoSource("good.go", returnErrOnlySrc)
+func TestAPI040_ReturnedEnding_StaysSilent(t *testing.T) {
+	res := review.GoSource("good.go", returnedEndingSrc)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-040" {
-			t.Fatalf("false positive API-040 on plain return err: %+v", f)
+			t.Fatalf("false positive API-040 on a returned ending: %+v", f)
 		}
 	}
 }
@@ -182,12 +70,13 @@ func TestAPI040_PlainReturnErr_StaysSilent(t *testing.T) {
 
 const goroutinePredeclaredSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(out *evo.Output) {
-  t := out.Task("a")
+func run(ctx context.Context, r *evo.Run) error {
+  t := r.Task("a")
   go func() {
     t.Doing("working")
-    t.Done()
+    t.Progress(1, 2)
   }()
+  return nil
 }
 `
 
@@ -204,13 +93,34 @@ func TestAPI041_GoroutineResolvesPredeclaredTask_Fires(t *testing.T) {
 
 const goroutineWithDefineSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(out *evo.Output) {
-  t := out.Task("a")
+func run(ctx context.Context, r *evo.Run) error {
+  t := r.Task("a")
   go func() {
     t.Define(func(ctx context.Context) error { return nil })
   }()
+  return nil
 }
 `
+
+const goroutineProgressOnDefinedTaskSrc = `package p
+import evo "github.com/zachbornheimer/evident-output/v2"
+func run(ctx context.Context, r *evo.Run) error {
+  t := r.Task("a").Define(func(ctx context.Context) error { return nil })
+  go func() {
+    t.Progress(1, 2)
+  }()
+  return nil
+}
+`
+
+func TestAPI041_ProgressOnDefinedTask_StaysSilent(t *testing.T) {
+	res := review.GoSource("good.go", goroutineProgressOnDefinedTaskSrc)
+	for _, f := range res.Findings {
+		if f.RuleID == "API-041" {
+			t.Fatalf("false positive API-041 when the Task was given Define: %+v", f)
+		}
+	}
+}
 
 func TestAPI041_GoroutineWithDefine_StaysSilent(t *testing.T) {
 	res := review.GoSource("good.go", goroutineWithDefineSrc)
@@ -224,7 +134,10 @@ func TestAPI041_GoroutineWithDefine_StaysSilent(t *testing.T) {
 // API-042: an evo.Effect with a nil or no-op callback.
 
 const nilEffectCallbackSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
 func run(ctx context.Context) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, Object: "module", Quantity: 2}, nil)
 }
@@ -236,8 +149,8 @@ func TestAPI042_NilEffectCallback_Fires(t *testing.T) {
 	if f.Severity != "error" {
 		t.Fatalf("API-042 severity = %q, want error", f.Severity)
 	}
-	if !strings.Contains(f.Suggestion, "Record") {
-		t.Fatalf("API-042 suggestion does not name Record: %q", f.Suggestion)
+	if !strings.Contains(f.Suggestion, "task.Fact") {
+		t.Fatalf("API-042 suggestion does not name task.Fact for information-only work: %q", f.Suggestion)
 	}
 }
 
@@ -337,7 +250,7 @@ func TestAPI043_SingularEffectObjectLiteral_StaysSilent(t *testing.T) {
 const pluralNonEvoObjectFieldSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
 type Row struct{ Object string }
-func run(_ *evo.TaskHandle) Row { return Row{Object: "worktrees"} }
+func run(_ *evo.Task) Row { return Row{Object: "worktrees"} }
 `
 
 func TestAPI043_PluralNonEffectSpecObjectField_StaysSilent(t *testing.T) {
@@ -349,14 +262,18 @@ func TestAPI043_PluralNonEffectSpecObjectField_StaysSilent(t *testing.T) {
 	}
 }
 
-// API-044: a hand-rolled channel wrapper around Define reimplements Wait.
+// API-044: declaring work with Define and then blocking on a channel the
+// callback feeds turns the declaring stack into a waiter.
 
 const channelWaitAroundDefineSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func defineAndWait(task *evo.TaskHandle, fn func() error) error {
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func defineAndWait(task *evo.Task, fn func(context.Context) error) error {
   done := make(chan error, 1)
   task.Define(func(ctx context.Context) error {
-    err := fn()
+    err := fn(ctx)
     done <- err
     return err
   })
@@ -370,104 +287,96 @@ func TestAPI044_ChannelWaitWrapper_Fires(t *testing.T) {
 	if f.Severity != "error" {
 		t.Fatalf("API-044 severity = %q, want error", f.Severity)
 	}
-	if !strings.Contains(f.Suggestion, "task.Define(fn)") {
-		t.Fatalf("API-044 suggestion does not name task.Define(fn): %q", f.Suggestion)
+	if !strings.Contains(f.Suggestion, "After") || !strings.Contains(f.Suggestion, "Computed.Get") {
+		t.Fatalf("API-044 suggestion does not name After and Computed.Get: %q", f.Suggestion)
 	}
 }
 
 const plainDefineNoChannelSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run(task *evo.TaskHandle, fn func() error) {
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func run(task *evo.Task, fn func(context.Context) error) {
   task.Define(fn)
 }
 `
 
-func TestAPI044_PlainDefine_StaysSilent(t *testing.T) {
-	res := review.GoSource("good.go", plainDefineNoChannelSrc)
-	for _, f := range res.Findings {
-		if f.RuleID == "API-044" {
-			t.Fatalf("false positive API-044 on a plain Define: %+v", f)
+// A channel the function never receives from is not a wait.
+const sendOnlyChannelSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func run(task *evo.Task, events chan<- string, fn func(context.Context) error) {
+  progress := make(chan string, 1)
+  task.Define(func(ctx context.Context) error {
+    progress <- "started"
+    return fn(ctx)
+  })
+  events <- "declared"
+}
+`
+
+func TestAPI044_NoWait_StaysSilent(t *testing.T) {
+	for name, src := range map[string]string{"plain define": plainDefineNoChannelSrc, "send only": sendOnlyChannelSrc} {
+		res := review.GoSource("good.go", src)
+		for _, f := range res.Findings {
+			if f.RuleID == "API-044" {
+				t.Fatalf("false positive API-044 on %s: %+v", name, f)
+			}
 		}
 	}
 }
 
-// TAX-003: inline evo.Reason literal, and a reason that restates its verb.
+// TAX-003: an Exclude reason that restates its verb.
 
-const inlineReasonSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run(task *evo.TaskHandle) {
-  task.Skipped(evo.Reason("timeout"))
-}
-`
-
-func TestTAX003_InlineReason_FiresConstantsSuggestion(t *testing.T) {
-	res := review.GoSource("run.go", inlineReasonSrc)
+func TestTAX003_ReasonRestatesVerb_Fires(t *testing.T) {
+	res := review.GoSource("run.go", excludeSrc("skipped"))
 	f := findingByID(t, res, "TAX-003")
 	if f.Severity != "warning" {
 		t.Fatalf("TAX-003 severity = %q, want warning", f.Severity)
 	}
-	if !strings.Contains(f.Suggestion, "var reason") {
-		t.Fatalf("TAX-003 suggestion does not offer a package-level var: %q", f.Suggestion)
-	}
-}
-
-const reasonRestatesVerbSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run(task *evo.TaskHandle) {
-  task.Skipped(evo.Reason("skipped"))
-}
-`
-
-func TestTAX003_ReasonRestatesVerb_Fires(t *testing.T) {
-	res := review.GoSource("run.go", reasonRestatesVerbSrc)
-	f := findingByID(t, res, "TAX-003")
-	if !strings.Contains(f.Message, "restates") {
+	if !strings.Contains(f.Message, "restates Exclude") {
 		t.Fatalf("TAX-003 message does not call out the restated verb: %q", f.Message)
 	}
-}
-
-const reasonVarBlockSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-var reasonProtected = evo.Reason("protected")
-func run(task *evo.TaskHandle) {
-  task.Skipped(reasonProtected)
-}
-`
-
-func TestTAX003_VarBlockDeclaration_StaysSilent(t *testing.T) {
-	res := review.GoSource("run.go", reasonVarBlockSrc)
-	for _, f := range res.Findings {
-		if f.RuleID == "TAX-003" {
-			t.Fatalf("false positive TAX-003 on a var-block Reason declaration: %+v", f)
-		}
+	if !strings.Contains(f.Suggestion, "evo.Exclude(") {
+		t.Fatalf("TAX-003 suggestion does not name evo.Exclude: %q", f.Suggestion)
 	}
+}
+
+func TestTAX003_ReasonNamingWhy_StaysSilent(t *testing.T) {
+	assertNoRule(t, review.GoSource("run.go", excludeSrc("protected branch")), "TAX-003")
 }
 
 func TestTAX003_TestFile_StaysSilent(t *testing.T) {
-	res := review.GoSource("run_test.go", inlineReasonSrc)
-	for _, f := range res.Findings {
-		if f.RuleID == "TAX-003" {
-			t.Fatalf("false positive TAX-003 in a _test.go file: %+v", f)
-		}
-	}
+	assertNoRule(t, review.GoSource("run_test.go", excludeSrc("skipped")), "TAX-003")
 }
 
-// API-046: task.Skipped(evo.Reason("...")) whose reason names an
-// already-satisfied condition instead of true inapplicability.
+// API-046: evo.Exclude("...") whose reason names an already-satisfied
+// condition instead of a policy choice.
 
-const skippedAlreadyUpToDateSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run(task *evo.TaskHandle, installed, latest string) {
-  if installed == latest {
-    task.Skipped(evo.Reason("already up to date"))
-    return
-  }
-  task.Define(func(ctx context.Context) error { return nil })
+func excludeSrc(reason string) string {
+	return `package p
+
+import (
+	"context"
+
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+
+func run(r *evo.Run) {
+	r.Task("install").Define(func(ctx context.Context) error {
+		return evo.Exclude("` + reason + `")
+	})
 }
 `
+}
 
-func TestAPI046_SkippedAlreadyUpToDate_Fires(t *testing.T) {
-	res := review.GoSource("adopt.go", skippedAlreadyUpToDateSrc)
+var excludeAlreadyUpToDateSrc = excludeSrc("already up to date")
+
+func TestAPI046_ExcludeAlreadyUpToDate_Fires(t *testing.T) {
+	res := review.GoSource("adopt.go", excludeAlreadyUpToDateSrc)
 	f := findingByID(t, res, "API-046")
 	if f.Severity != "warning" {
 		t.Fatalf("API-046 severity = %q, want warning", f.Severity)
@@ -480,56 +389,29 @@ func TestAPI046_SkippedAlreadyUpToDate_Fires(t *testing.T) {
 	}
 }
 
-func TestAPI046_SkippedBareWordReasons_Fire(t *testing.T) {
+func TestAPI046_ExcludeBareWordReasons_Fire(t *testing.T) {
 	cases := []string{"already latest", "unchanged", "current", "latest", "up to date"}
 	for _, reason := range cases {
-		src := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run(task *evo.TaskHandle) {
-  task.Skipped(evo.Reason("` + reason + `"))
-}
-`
 		t.Run(reason, func(t *testing.T) {
-			res := review.GoSource("adopt.go", src)
-			findingByID(t, res, "API-046")
+			findingByID(t, review.GoSource("adopt.go", excludeSrc(reason)), "API-046")
 		})
 	}
 }
 
-const skippedNoGoModuleSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run(task *evo.TaskHandle) {
-  task.Skipped(evo.Reason("no Go module"))
-}
-`
-
-func TestAPI046_TrueInapplicability_StaysSilent(t *testing.T) {
-	res := review.GoSource("adopt.go", skippedNoGoModuleSrc)
-	for _, f := range res.Findings {
-		if f.RuleID == "API-046" {
-			t.Fatalf("false positive API-046 on true inapplicability: %+v", f)
-		}
-	}
-}
-
-const skippedUnrelatedReasonSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run(task *evo.TaskHandle) {
-  task.Skipped(evo.Reason("protected"))
-}
-`
-
-func TestAPI046_UnrelatedReason_StaysSilent(t *testing.T) {
-	res := review.GoSource("adopt.go", skippedUnrelatedReasonSrc)
-	for _, f := range res.Findings {
-		if f.RuleID == "API-046" {
-			t.Fatalf("false positive API-046 on an unrelated skip reason: %+v", f)
-		}
+func TestAPI046_ReasonThatIsNotAlreadySatisfied_StaysSilent(t *testing.T) {
+	for _, reason := range []string{"no Go module", "protected"} {
+		t.Run(reason, func(t *testing.T) {
+			for _, f := range review.GoSource("adopt.go", excludeSrc(reason)).Findings {
+				if f.RuleID == "API-046" {
+					t.Fatalf("false positive API-046 on %q: %+v", reason, f)
+				}
+			}
+		})
 	}
 }
 
 func TestAPI046_PreOneZeroPin_StaysSilent(t *testing.T) {
-	res := review.GoSourceAt("adopt.go", skippedAlreadyUpToDateSrc, "0.6.0")
+	res := review.GoSourceAt("adopt.go", excludeAlreadyUpToDateSrc, "0.6.0")
 	for _, f := range res.Findings {
 		if f.RuleID == "API-046" {
 			t.Fatalf("false positive API-046 for a pre-1.0.0 pin: %+v", f)
@@ -538,20 +420,23 @@ func TestAPI046_PreOneZeroPin_StaysSilent(t *testing.T) {
 }
 
 func TestAPI046_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
-	res := review.GoSource("adopt.go", skippedAlreadyUpToDateSrc)
-	findingByID(t, res, "API-046")
+	findingByID(t, review.GoSource("adopt.go", excludeAlreadyUpToDateSrc), "API-046")
 
 	const remediated = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run(task *evo.TaskHandle, installed, latest string) {
-  task.Verify(func(ctx context.Context) (bool, error) {
-    return installed == latest, nil
-  })
-  task.Define(func(ctx context.Context) error { return nil })
+
+import (
+	"context"
+
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+
+func run(r *evo.Run, installed, latest string) {
+	r.Task("install").Verify(func(ctx context.Context) (bool, error) {
+		return installed == latest, nil
+	}).Define(func(ctx context.Context) error { return nil })
 }
 `
-	after := review.GoSource("adopt.go", remediated)
-	for _, f := range after.Findings {
+	for _, f := range review.GoSource("adopt.go", remediated).Findings {
 		if f.RuleID == "API-046" {
 			t.Fatalf("API-046 still fires after remediation: %+v", f)
 		}
@@ -565,8 +450,8 @@ func run(task *evo.TaskHandle, installed, latest string) {
 
 const subjectOnlyTaskNameSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(out *evo.Output) {
-  out.Task("file integrity").Done()
+func run(r *evo.Run) {
+  r.Task("file integrity").Define(checkIntegrity)
 }
 `
 
@@ -586,8 +471,8 @@ func TestAPI045_SubjectOnlyTaskName_Fires(t *testing.T) {
 
 const containerTaskNameSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(out *evo.Output) {
-  out.Task("fix").Done()
+func run(r *evo.Run) {
+  r.Task("fix").Define(fixAll)
 }
 `
 
@@ -604,13 +489,13 @@ func TestAPI045_ContainerTaskName_Fires(t *testing.T) {
 
 const verbObjectTaskNameSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(out *evo.Output, g *evo.GroupHandle) {
-  out.Task("check file integrity").Done()
-  g.Task("format Python").Done()
-  g.Task("stabilize Go source").Done()
-  g.Task("lint Go").Done()
-  g.Task("check Python").Done()
-  g.Task("build application icons").Done()
+func run(r *evo.Run, g *evo.Group) {
+  r.Task("check file integrity").Define(checkIntegrity)
+  g.Task("format Python").Define(checkIntegrity)
+  g.Task("stabilize Go source").Define(checkIntegrity)
+  g.Task("lint Go").Define(checkIntegrity)
+  g.Task("check Python").Define(checkIntegrity)
+  g.Task("build application icons").Define(checkIntegrity)
 }
 `
 
@@ -629,10 +514,10 @@ func TestAPI045_ObservationsUnderOneTask_StaySilent(t *testing.T) {
 	// Facts/problems under one Task, never sibling Tasks.
 	const src = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(task *evo.TaskHandle) {
+func run(task *evo.Task) {
   task.Fact("merge markers", "none found")
   task.Fact("symlinks", "valid")
-  task.Problem("generated file looks stale", evo.Severity(evo.SeverityWarning))
+  task.Problem("generated file looks stale", evo.Code("stale"))
 }
 `
 	res := review.GoSource("integrity.go", src)
@@ -652,8 +537,8 @@ func run(task *evo.TaskHandle) {
 
 const phaseTaskOwningChildWorkSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(out *evo.Output) {
-  out.Task("fix").Define(func(ctx context.Context) error {
+func run(r *evo.Run) {
+  r.Task("fix").Define(func(ctx context.Context) error {
     if err := fixGoImports(); err != nil {
       return err
     }
@@ -686,8 +571,8 @@ func TestAPI049_PhaseTaskOwningChildWork_Fires(t *testing.T) {
 // through a local variable, not only a single chained expression.
 const phaseTaskOwningChildWorkViaVarSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(out *evo.Output) {
-  t := out.Task("check")
+func run(r *evo.Run) {
+  t := r.Task("check")
   t.Define(func(ctx context.Context) error {
     if err := checkMergeMarkers(); err != nil {
       return err
@@ -709,8 +594,8 @@ func TestAPI049_PhaseTaskOwningChildWorkViaVar_Fires(t *testing.T) {
 
 const phaseTaskSingleStepSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(out *evo.Output) {
-  out.Task("check").Define(func(ctx context.Context) error {
+func run(r *evo.Run) {
+  r.Task("check").Define(func(ctx context.Context) error {
     if err := verify(); err != nil {
       return err
     }
@@ -733,8 +618,8 @@ func TestAPI049_PhaseTaskSingleStep_StaysSilent(t *testing.T) {
 
 const verbObjectTaskMultiStepSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(out *evo.Output) {
-  out.Task("stabilize Go source").Define(func(ctx context.Context) error {
+func run(r *evo.Run) {
+  r.Task("stabilize Go source").Define(func(ctx context.Context) error {
     if err := fixGoImports(); err != nil {
       return err
     }
@@ -761,8 +646,8 @@ func TestAPI049_VerbObjectTaskMultiStep_StaysSilent(t *testing.T) {
 
 const phaseTaskRemediatedSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(out *evo.Output) {
-  fixGroup := out.Group("fix")
+func run(r *evo.Run) {
+  fixGroup := r.Group("fix")
   fixGroup.Task("fix Go imports").Define(func(ctx context.Context) error { return fixGoImports() })
   fixGroup.Task("fix Go formatting").Define(func(ctx context.Context) error { return fixGoFormatting() })
 }
@@ -782,44 +667,43 @@ func TestAPI049_Remediated_StaysSilent(t *testing.T) {
 	}
 }
 
-// API-047: a Task/Group/Sequence declaration reuses a sibling literal name
-// already used by a different entity kind under the same parent (ZYS-944).
-// Same-kind reuse already fails fast at runtime
-// (engine.ProblemCodeDuplicateSiblingName); this rule closes the cross-kind
-// gap statically.
+// API-047: a Group and a Sequence declared under one parent with the same
+// literal name. They share one name space, so the second declaration is
+// refused (ErrInvalidConfig). A Task has a name space of its own and may
+// share a name with a Group.
 
 const crossKindDuplicateSiblingSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(out *evo.Output) {
-  out.Task("build")
-  out.Group("build")
+func run(r *evo.Run) {
+  r.Group("build")
+  r.Sequence("build")
 }
 `
 
-func TestAPI047_CrossKindDuplicateSiblingName_Fires(t *testing.T) {
+func TestAPI047_GroupAndSequenceSharingName_Fires(t *testing.T) {
 	res := review.GoSource("run.go", crossKindDuplicateSiblingSrc)
 	f := findingByID(t, res, "API-047")
 	if f.Severity != "error" {
 		t.Fatalf("API-047 severity = %q, want error", f.Severity)
 	}
-	if !strings.Contains(f.Suggestion, "out.Group(") {
-		t.Fatalf("API-047 suggestion does not name the corrected out.Group(...) call: %q", f.Suggestion)
+	if !strings.Contains(f.Suggestion, "r.Sequence(") {
+		t.Fatalf("API-047 suggestion does not name the corrected r.Sequence(...) call: %q", f.Suggestion)
 	}
-	if !strings.Contains(f.Message, "task") || !strings.Contains(f.Message, "group") {
-		t.Fatalf("API-047 message does not name both conflicting kinds: %q", f.Message)
+	if !strings.Contains(f.Message, "group") || !strings.Contains(f.Message, "ErrInvalidConfig") {
+		t.Fatalf("API-047 message does not name the colliding kind and the refusal: %q", f.Message)
 	}
 }
 
 const crossKindDuplicateSiblingNestedSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(out *evo.Output) {
-  work := out.Group("work")
-  work.Task("build")
+func run(r *evo.Run) {
+  work := r.Group("work")
+  work.Group("build")
   work.Sequence("build")
 }
 `
 
-func TestAPI047_CrossKindDuplicateSiblingName_FiresUnderNestedParent(t *testing.T) {
+func TestAPI047_GroupAndSequenceSharingName_FiresUnderNestedParent(t *testing.T) {
 	res := review.GoSource("run.go", crossKindDuplicateSiblingNestedSrc)
 	f := findingByID(t, res, "API-047")
 	if !strings.Contains(f.Suggestion, "work.Sequence(") {
@@ -827,28 +711,29 @@ func TestAPI047_CrossKindDuplicateSiblingName_FiresUnderNestedParent(t *testing.
 	}
 }
 
-const sameKindDuplicateSiblingSrc = `package p
+const taskAndGroupSharingNameSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(out *evo.Output) {
-  out.Task("build")
-  out.Task("build")
+func run(r *evo.Run) {
+  r.Task("build")
+  r.Group("build")
 }
 `
 
-func TestAPI047_SameKindDuplicate_StaysSilent(t *testing.T) {
-	res := review.GoSource("run.go", sameKindDuplicateSiblingSrc)
+func TestAPI047_TaskAndGroupSharingName_StaysSilent(t *testing.T) {
+	// Tasks and containers have separate name spaces: this pair is accepted.
+	res := review.GoSource("run.go", taskAndGroupSharingNameSrc)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-047" {
-			t.Fatalf("API-047 fired for a same-kind duplicate; the runtime's own duplicate-sibling-name failure already covers this: %+v", f)
+			t.Fatalf("API-047 fired for a Task and a Group, which do not collide: %+v", f)
 		}
 	}
 }
 
 const distinctSiblingNamesSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(out *evo.Output) {
-  out.Task("build")
-  out.Group("test")
+func run(r *evo.Run) {
+  r.Group("build")
+  r.Sequence("test")
 }
 `
 
@@ -863,15 +748,15 @@ func TestAPI047_DistinctNames_StaysSilent(t *testing.T) {
 
 const crossKindDifferentParentsSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(out *evo.Output) {
-  a := out.Group("a")
-  b := out.Group("b")
-  a.Task("build")
-  b.Group("build")
+func run(r *evo.Run) {
+  a := r.Group("a")
+  b := r.Group("b")
+  a.Group("build")
+  b.Sequence("build")
 }
 `
 
-func TestAPI047_CrossKindDifferentParents_StaysSilent(t *testing.T) {
+func TestAPI047_DifferentParents_StaysSilent(t *testing.T) {
 	res := review.GoSource("run.go", crossKindDifferentParentsSrc)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-047" {
@@ -882,11 +767,11 @@ func TestAPI047_CrossKindDifferentParents_StaysSilent(t *testing.T) {
 
 const crossKindDuplicateSiblingBranchesSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(out *evo.Output, cond bool) {
+func run(r *evo.Run, cond bool) {
   if cond {
-    out.Task("build")
+    r.Group("build")
   } else {
-    out.Group("build")
+    r.Sequence("build")
   }
 }
 `
@@ -900,25 +785,23 @@ func TestAPI047_MutuallyExclusiveBranches_StaysSilent(t *testing.T) {
 	}
 }
 
-func TestAPI047_PreOneZeroPin_StaysSilent(t *testing.T) {
-	res := review.GoSourceAt("run.go", crossKindDuplicateSiblingSrc, "0.6.0")
+func TestAPI047_PreTwoZeroPin_StaysSilent(t *testing.T) {
+	res := review.GoSourceAt("run.go", crossKindDuplicateSiblingSrc, "1.1.0")
 	for _, f := range res.Findings {
 		if f.RuleID == "API-047" {
-			t.Fatalf("API-047 fired for a pin older than 1.0.0: %+v", f)
+			t.Fatalf("API-047 fired for a pin older than 2.0.0, where Group and Sequence names did not collide: %+v", f)
 		}
 	}
 }
 
-// API-048: a Group/Sequence Task re-declared by the same string literal to
-// obtain a later dependency reference — declareGroupTask fails the second
-// call as a duplicate sibling rather than returning the first handle (§3.1;
-// internal/engine/group.go's GroupHandle.Task doc comment), so the fix is a
-// typed variable (or var (...) block) holding the one handle, per the
-// product contract's own zq prune example.
+// API-048: a Task re-declared by the same string literal to obtain a later
+// dependency reference. The second call is refused as a duplicate sibling
+// rather than returning the first handle (CONTRACT.md section 2), so the fix
+// is a typed variable (or var (...) block) holding the one handle.
 
 const redeclaredTaskForAfterSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(prune *evo.GroupHandle) {
+func run(prune *evo.Group) {
   prune.Task("branches").Define(func(ctx context.Context) error { return nil })
   prune.Task("remote-tracking").After(prune.Task("branches")).Define(func(ctx context.Context) error { return nil })
 }
@@ -937,7 +820,7 @@ func TestAPI048_RedeclaredTaskLiteralForAfter_Fires(t *testing.T) {
 
 const typedTaskVarSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(prune *evo.GroupHandle) {
+func run(prune *evo.Group) {
   var (
     branches = prune.Task("branches")
     remote   = prune.Task("remote-tracking")
@@ -958,7 +841,7 @@ func TestAPI048_TypedTaskVar_StaysSilent(t *testing.T) {
 
 const oneOffTaskSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(prune *evo.GroupHandle) {
+func run(prune *evo.Group) {
   prune.Task("branches").Define(func(ctx context.Context) error { return nil })
 }
 `
@@ -974,7 +857,7 @@ func TestAPI048_TrivialOneOffTask_StaysSilent(t *testing.T) {
 
 const differentGroupsSameLabelSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(a, b *evo.GroupHandle) {
+func run(a, b *evo.Group) {
   a.Task("branches").Define(func(ctx context.Context) error { return nil })
   b.Task("branches").Define(func(ctx context.Context) error { return nil })
 }
@@ -997,7 +880,7 @@ import (
   "context"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(ctx context.Context, task *evo.TaskHandle) {
+func run(ctx context.Context, task *evo.Task) {
   task.Define(func(context.Context) error {
     return doWork(ctx)
   })
@@ -1021,7 +904,7 @@ import (
   "context"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(ctx context.Context, task *evo.TaskHandle) {
+func run(ctx context.Context, task *evo.Task) {
   task.Define(func(ctx context.Context) error {
     return doWork(ctx)
   })
@@ -1043,7 +926,7 @@ import (
   "context"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(ctx context.Context, task *evo.TaskHandle) {
+func run(ctx context.Context, task *evo.Task) {
   task.Define(func(context.Context) error {
     return doWork()
   })
@@ -1071,7 +954,7 @@ func TestAPI049_PreOneZeroPin_StaysSilent(t *testing.T) {
 
 // A non-evo type that happens to declare its own Define(func(context.Context)
 // error) method in the same file as evo usage must not be mistaken for evo's
-// TaskHandle.Define — ZYS-938's proven false positive.
+// Task.Define — a proven false positive.
 const defineOnUnrelatedTypeSrc = `package p
 import (
   "context"
@@ -1084,7 +967,7 @@ func (v *Validator) Define(fn func(context.Context) error) {
   _ = fn
 }
 
-func run(ctx context.Context, task *evo.TaskHandle) {
+func run(ctx context.Context, task *evo.Task) {
   v := &Validator{}
   v.Define(func(context.Context) error {
     return doWork(ctx)
@@ -1111,7 +994,7 @@ import (
   "context"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(ctx context.Context, task *evo.TaskHandle) {
+func run(ctx context.Context, task *evo.Task) {
   task.Define(func(context.Context) error {
     ctx := context.Background()
     return doWork(ctx)
@@ -1131,22 +1014,20 @@ func TestAPI049_LocalCtxShadow_StaysSilent(t *testing.T) {
 
 // API-051: a loop that flattens structured findings into one joined error
 // string, or spawns one fake Task per finding, instead of accumulating them
-// with TaskHandle.Problem (ZYS-848/ZYS-943, docs/migration/1.1.md
-// "TaskHandle.Problem — a Task can now own many blocking findings").
+// with Task.Problem.
 
 const flattenedDiagnosticsLoopSrc = `package p
 import (
-  "errors"
   "strings"
 
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func blockStagedGolangciFindings(task *evo.TaskHandle, findings []finding) error {
+func blockStagedGolangciFindings(task *evo.Task, findings []finding) error {
   var lines []string
   for _, f := range findings {
     lines = append(lines, formatFinding(f))
   }
-  return errors.New(strings.Join(lines, "\n"))
+  return evo.Fail(strings.Join(lines, "\n"))
 }
 type finding struct{}
 func formatFinding(f finding) string { return "" }
@@ -1165,9 +1046,9 @@ func TestAPI051_FlattenedDiagnosticsLoop_Fires(t *testing.T) {
 
 const fakeTaskPerFindingSrc = `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func reportFileIntegrityIssues(group *evo.GroupHandle, findings []finding) {
+func reportFileIntegrityIssues(group *evo.Group, findings []finding) {
   for _, f := range findings {
-    group.Task(f.File).Fail(f.Message)
+    group.Task(f.File).Define(func(context.Context) error { return evo.Fail(f.Message) })
   }
 }
 type finding struct {
@@ -1192,8 +1073,8 @@ import (
   "context"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(out *evo.Output, issues []issue) {
-  task := out.Task("file integrity")
+func run(r *evo.Run, issues []issue) {
+  task := r.Task("file integrity")
   for _, issue := range issues {
     task.Problem(issue.Summary,
       evo.On(issue.Path),
@@ -1247,139 +1128,13 @@ func TestAPI051_PreOneOnePin_StaysSilent(t *testing.T) {
 	res := review.GoSourceAt("hook_findings.go", flattenedDiagnosticsLoopSrc, "1.0.0")
 	for _, f := range res.Findings {
 		if f.RuleID == "API-051" {
-			t.Fatalf("API-051 fired for a pin older than 1.1.0 (TaskHandle.Problem accumulation did not exist yet): %+v", f)
+			t.Fatalf("API-051 fired for a pin older than 1.1.0 (Task.Problem accumulation did not exist yet): %+v", f)
 		}
 	}
 	res = review.GoSourceAt("hook.go", fakeTaskPerFindingSrc, "1.0.0")
 	for _, f := range res.Findings {
 		if f.RuleID == "API-051" {
-			t.Fatalf("API-051 fired for a pin older than 1.1.0 (TaskHandle.Problem accumulation did not exist yet): %+v", f)
-		}
-	}
-}
-
-// API-052: a caller stores Group/Sequence child Task handles solely to loop
-// Wait, filter ErrNotStarted, Snapshot the container, count failed children,
-// and synthesize its own aggregate error — GroupHandle.Wait/SequenceHandle.Wait
-// (ZYS-849) now owns exactly this (ZYS-941, zq runParallel/
-// waitDefinedRunOperations evidence).
-
-const callerWaitLoopSnapshotCountSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func runParallel(jobs *evo.GroupHandle, items []string) error {
-  var handles []*evo.TaskHandle
-  for _, item := range items {
-    t := jobs.Task(item)
-    t.Define(func(ctx context.Context) error { return nil })
-    handles = append(handles, t)
-  }
-  failed := 0
-  for _, h := range handles {
-    if err := h.Wait(); err != nil {
-      failed++
-    }
-  }
-  snap := jobs.Snapshot()
-  _ = snap
-  if failed > 0 {
-    return fmt.Errorf("%d of %d failed", failed, len(handles))
-  }
-  return nil
-}
-`
-
-func TestAPI052_CallerWaitLoopSnapshotCount_Fires(t *testing.T) {
-	res := review.GoSource("run_parallel.go", callerWaitLoopSnapshotCountSrc)
-	f := findingByID(t, res, "API-052")
-	if f.Severity != "error" {
-		t.Fatalf("API-052 severity = %q, want error", f.Severity)
-	}
-	if !strings.Contains(f.Suggestion, "evo.Compute") {
-		t.Fatalf("API-052 suggestion does not name the Compute/After fix: %q", f.Suggestion)
-	}
-}
-
-const callerWaitLoopErrNotStartedSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func waitDefinedRunOperations(tasks []*evo.TaskHandle) error {
-  for _, task := range tasks {
-    err := task.Wait()
-    if errors.Is(err, evo.ErrNotStarted) {
-      continue
-    }
-    if err != nil {
-      return err
-    }
-  }
-  return nil
-}
-`
-
-func TestAPI052_CallerWaitLoopErrNotStartedFilter_Fires(t *testing.T) {
-	res := review.GoSource("run_execute.go", callerWaitLoopErrNotStartedSrc)
-	f := findingByID(t, res, "API-052")
-	if !strings.Contains(f.Suggestion, "After") {
-		t.Fatalf("API-052 suggestion does not name the After surface: %q", f.Suggestion)
-	}
-}
-
-const containerWaitDirectSrc = `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func runParallel(jobs *evo.GroupHandle, items []string) error {
-  for _, item := range items {
-    jobs.Task(item).Define(func(ctx context.Context) error { return nil })
-  }
-  return jobs.Wait()
-}
-`
-
-func TestAPI052_ContainerWaitDirectly_StaysSilent(t *testing.T) {
-	res := review.GoSource("run_parallel.go", containerWaitDirectSrc)
-	for _, f := range res.Findings {
-		if f.RuleID == "API-052" {
-			t.Fatalf("false positive API-052 when the caller already uses container.Wait(): %+v", f)
-		}
-	}
-}
-
-const unrelatedForLoopWaitSrc = `package p
-import "os/exec"
-func runAll(cmds []*exec.Cmd) error {
-  for _, c := range cmds {
-    if err := c.Wait(); err != nil {
-      return err
-    }
-  }
-  return nil
-}
-`
-
-func TestAPI052_UnrelatedExecCmdWaitLoop_StaysSilent(t *testing.T) {
-	res := review.GoSource("run_cmds.go", unrelatedForLoopWaitSrc)
-	for _, f := range res.Findings {
-		if f.RuleID == "API-052" {
-			t.Fatalf("false positive API-052 on an unrelated os/exec Cmd.Wait() loop: %+v", f)
-		}
-	}
-}
-
-func TestAPI052_PreOneOneOnePin_StaysSilent(t *testing.T) {
-	res := review.GoSourceAt("run_parallel.go", callerWaitLoopSnapshotCountSrc, "1.0.0")
-	for _, f := range res.Findings {
-		if f.RuleID == "API-052" {
-			t.Fatalf("API-052 fired for a pin older than 1.1.0 (container Wait did not exist yet): %+v", f)
-		}
-	}
-}
-
-func TestAPI052_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
-	res := review.GoSource("run_parallel.go", callerWaitLoopSnapshotCountSrc)
-	findingByID(t, res, "API-052")
-
-	after := review.GoSource("run_parallel.go", containerWaitDirectSrc)
-	for _, f := range after.Findings {
-		if f.RuleID == "API-052" {
-			t.Fatalf("API-052 still fires after remediation to container.Wait(): %+v", f)
+			t.Fatalf("API-051 fired for a pin older than 1.1.0 (Task.Problem accumulation did not exist yet): %+v", f)
 		}
 	}
 }
@@ -1392,7 +1147,7 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func moveWorktree(ctx context.Context, from, to string, marker []byte) error {
-  spec := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Resource: evo.FSResource(from)}
+  spec := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Quantity: 1, Path: from}
   return evo.Effect(ctx, spec, func(ctx context.Context) error {
     return evo.File(ctx, evo.FileSpec{Path: to, Contents: marker})
   })
@@ -1416,7 +1171,7 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func moveWorktree(ctx context.Context, from, to string, marker []byte) error {
-  spec := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Resource: evo.FSResource(from)}
+  spec := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Quantity: 1, Path: from}
   return evo.Effect(ctx, spec, func(ctx context.Context) error {
     return writeMarker(ctx, to, marker)
   })
@@ -1437,9 +1192,9 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func moveTwoWorktrees(ctx context.Context, a, b string) error {
-  outer := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Resource: evo.FSResource(a)}
+  outer := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Quantity: 1, Path: a}
   return evo.Effect(ctx, outer, func(ctx context.Context) error {
-    inner := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Resource: evo.FSResource(b)}
+    inner := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Quantity: 1, Resource: b}
     return evo.Effect(ctx, inner, func(ctx context.Context) error { return nil })
   })
 }
@@ -1459,7 +1214,7 @@ func moveWorktree(ctx context.Context, from, to string, marker []byte) error {
   if err := evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}); err != nil {
     return err
   }
-  spec := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Resource: evo.FSResource(from)}
+  spec := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Quantity: 1, Path: from}
   return evo.Effect(ctx, spec, func(ctx context.Context) error {
     return removeDir(from)
   })
@@ -1481,7 +1236,7 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func cleanCache(ctx context.Context, path string, marker []byte) error {
-  spec := evo.EffectSpec{Object: "cache entry", Verb: evo.Delete}
+  spec := evo.EffectSpec{Object: "cache entry", Verb: evo.Delete, Quantity: 1}
   return evo.Effect(ctx, spec, func(ctx context.Context) error {
     return evo.File(ctx, evo.FileSpec{Path: path, Contents: marker})
   })
@@ -1532,7 +1287,7 @@ import (
   "os/exec"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func runCapturedTask(task *evo.TaskHandle, cmd *exec.Cmd) error {
+func runCapturedTask(task *evo.Task, cmd *exec.Cmd) error {
   var buf bytes.Buffer
   cmd.Stdout = io.MultiWriter(task.Writer(), &buf)
   cmd.Stderr = io.MultiWriter(task.Writer(), &buf)
@@ -1560,7 +1315,7 @@ import (
   "strings"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func runChecked(task *evo.TaskHandle, cmd *exec.Cmd) error {
+func runChecked(task *evo.Task, cmd *exec.Cmd) error {
   cmd.Stdout = task.Writer()
   out, err := cmd.CombinedOutput()
   if err != nil {
@@ -1649,7 +1404,7 @@ import (
   "bytes"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func inspectExecResult(task *evo.TaskHandle, res evo.ExecResult) error {
+func inspectExecResult(task *evo.Task, res evo.ExecResult) error {
   // note: not the same as hand-rolling cmd.Run( capture ourselves
   var buf bytes.Buffer
   buf.WriteString("cmd.Run( appears only in this comment and string, never as real Go syntax")
@@ -1768,7 +1523,7 @@ func (w *Writer) read(ctx context.Context) ([]byte, error) {
   w.mu.RLock()
   defer w.mu.RUnlock()
   var out []byte
-  err := evo.File(ctx, evo.FileSpec{Path: w.path, Into: &out})
+  err := evo.File(ctx, evo.FileSpec{Path: w.path, Contents: out})
   return out, err
 }
 `
@@ -1800,7 +1555,7 @@ type Writer struct {
 func (w *Writer) read(ctx context.Context) ([]byte, error) {
   w.mu.RLock()
   var out []byte
-  err := evo.File(ctx, evo.FileSpec{Path: w.path, Into: &out})
+  err := evo.File(ctx, evo.FileSpec{Path: w.path, Contents: out})
   w.mu.RUnlock()
   if err != nil {
     return nil, err
@@ -1840,7 +1595,7 @@ func TestAPI055_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
 
 // API-056: a .After(...) edge kept only to avoid a race on shared/same-file
 // state — both Tasks already claim that same resource (evo.File's own
-// Path, or an explicit evo.FSResource/evo.LogicalResource claim), so Evo's
+// Path, or an EffectSpec Path/Resource claim), so Evo's
 // automatic resource coordination (ZYS-840) already serializes them without
 // the edge (ZYS-936).
 
@@ -1849,7 +1604,7 @@ import (
   "context"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(configTask, cacheTask *evo.TaskHandle) {
+func run(configTask, cacheTask *evo.Task) {
   configTask.Define(func(ctx context.Context) error {
     return evo.File(ctx, evo.FileSpec{Path: "config.json"})
   })
@@ -1875,21 +1630,21 @@ func TestAPI056_AfterOnlyForSameFileContention_Fires(t *testing.T) {
 	}
 }
 
-// afterResourceContentionFSResourceSrc: sweepTask and gcTask both DELETE
-// the identical FSResource. Deleting an already-deleted path is idempotent,
+// afterResourceContentionEffectPathSrc: sweepTask and gcTask both DELETE
+// the identical Path. Deleting an already-deleted path is idempotent,
 // so which Task runs first never changes the outcome — a genuine
 // order-invariant overlap, safe to report.
-const afterResourceContentionFSResourceSrc = `package p
+const afterResourceContentionEffectPathSrc = `package p
 import (
   "context"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(sweepTask, gcTask *evo.TaskHandle) {
+func run(sweepTask, gcTask *evo.Task) {
   sweepTask.Define(func(ctx context.Context) error {
-    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "repo cache", Resource: evo.FSResource("/repo/cache")}, removeRepoCache)
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "repo cache", Path: "/repo/cache"}, removeRepoCache)
   })
   gcTask.Define(func(ctx context.Context) error {
-    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "repo cache", Resource: evo.FSResource("/repo/cache")}, removeRepoCache)
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "repo cache", Path: "/repo/cache"}, removeRepoCache)
   })
   // shared resource, exclusive access only
   gcTask.After(sweepTask)
@@ -1897,13 +1652,13 @@ func run(sweepTask, gcTask *evo.TaskHandle) {
 func removeRepoCache(context.Context) error { return nil }
 `
 
-func TestAPI056_AfterOnlyForFSResourceContention_Fires(t *testing.T) {
-	res := review.GoSource("run.go", afterResourceContentionFSResourceSrc)
+func TestAPI056_AfterOnlyForEffectPathContention_Fires(t *testing.T) {
+	res := review.GoSource("run.go", afterResourceContentionEffectPathSrc)
 	findingByID(t, res, "API-056")
 }
 
 // afterResourceConflictingVerbsSrc: lockTask UPDATEs and sweepTask DELETEs
-// the identical FSResource. Delete-then-update recreates the resource;
+// the identical Path. Delete-then-update recreates the resource;
 // update-then-delete removes it — the outcome genuinely depends on order,
 // so this is a real dependency the rule must not tell the caller to delete.
 const afterResourceConflictingVerbsSrc = `package p
@@ -1911,12 +1666,12 @@ import (
   "context"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(lockTask, sweepTask *evo.TaskHandle) {
+func run(lockTask, sweepTask *evo.Task) {
   lockTask.Define(func(ctx context.Context) error {
-    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Update, Object: "repo", Resource: evo.FSResource("/repo")}, refreshRepo)
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Update, Object: "repo", Path: "/repo"}, refreshRepo)
   })
   sweepTask.Define(func(ctx context.Context) error {
-    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "repo", Resource: evo.FSResource("/repo")}, removeRepo)
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "repo", Path: "/repo"}, removeRepo)
   })
   // shared resource, exclusive access only
   sweepTask.After(lockTask)
@@ -1925,7 +1680,7 @@ func refreshRepo(context.Context) error { return nil }
 func removeRepo(context.Context) error  { return nil }
 `
 
-func TestAPI056_ConflictingVerbsFSResource_StaysSilent(t *testing.T) {
+func TestAPI056_ConflictingVerbsEffectPath_StaysSilent(t *testing.T) {
 	res := review.GoSource("run.go", afterResourceConflictingVerbsSrc)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-056" {
@@ -1944,7 +1699,7 @@ import (
   "context"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(configTask, cacheTask *evo.TaskHandle) {
+func run(configTask, cacheTask *evo.Task) {
   configTask.Define(func(ctx context.Context) error {
     return evo.File(ctx, evo.FileSpec{Path: "config.json", Contents: cfg})
   })
@@ -1971,7 +1726,7 @@ import (
   "os"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(prepareTask, buildTask *evo.TaskHandle) {
+func run(prepareTask, buildTask *evo.Task) {
   prepareTask.Define(func(ctx context.Context) error {
     return evo.File(ctx, evo.FileSpec{Path: "config.json"})
   })
@@ -1998,7 +1753,7 @@ import (
   "context"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(configTask, cacheTask *evo.TaskHandle) {
+func run(configTask, cacheTask *evo.Task) {
   configTask.Define(func(ctx context.Context) error {
     return evo.File(ctx, evo.FileSpec{Path: "config.json"})
   })
@@ -2035,7 +1790,7 @@ import (
   "context"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(configTask, cacheTask *evo.TaskHandle) {
+func run(configTask, cacheTask *evo.Task) {
   configTask.Define(func(ctx context.Context) error {
     return evo.File(ctx, evo.FileSpec{Path: "config.json"})
   })
@@ -2124,4 +1879,44 @@ func TestAPI055_FileOnlyRegion_DoesNotSuggestDeletingField(t *testing.T) {
 	if !strings.Contains(f.Suggestion, "w.mu.Lock()/w.mu.Unlock()") {
 		t.Fatalf("API-055 suggestion does not name the lock pair: %q", f.Suggestion)
 	}
+}
+
+// A logical Resource name and a filesystem Path never overlap, even when
+// their text is equal, so the edge between them is not redundant.
+const afterPathVersusResourceNameSrc = `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func run(sweepTask, gcTask *evo.Task) {
+  sweepTask.Define(func(ctx context.Context) error {
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "cache", Quantity: 1, Path: "cache"}, removeCache)
+  })
+  gcTask.Define(func(ctx context.Context) error {
+    return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "cache", Quantity: 1, Resource: "cache"}, removeCache)
+  })
+  // shared resource, exclusive access only
+  gcTask.After(sweepTask)
+}
+func removeCache(context.Context) error { return nil }
+`
+
+func TestAPI056_PathVersusResourceName_StaysSilent(t *testing.T) {
+	assertNoRule(t, review.GoSource("run.go", afterPathVersusResourceNameSrc), "API-056")
+}
+
+func TestAPI053_NestedPatchInsideEffectClaim_Fires(t *testing.T) {
+	src := `package p
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func moveTree(ctx context.Context, root string, diff []byte) error {
+  spec := evo.EffectSpec{Object: "tree", Verb: evo.Update, Quantity: 1, Resource: "tree"}
+  return evo.Effect(ctx, spec, func(ctx context.Context) error {
+    return evo.Patch(ctx, diff)
+  })
+}
+`
+	findingByID(t, review.GoSource("tree.go", src), "API-053")
 }

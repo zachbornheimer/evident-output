@@ -119,11 +119,11 @@ func TestReview_KindDirectoryMergesFiles(t *testing.T) {
 	dir := t.TempDir()
 	a := `package a
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(out *evo.Output) { out.Plan("a") }
+func f(task *evo.TaskHandle) { task.Warn("a") }
 `
 	b := `package b
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(out *evo.Output) { out.Changes("b") }
+func f(task *evo.TaskHandle) { task.Warn("b") }
 `
 	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte(a), 0o600); err != nil {
 		t.Fatal(err)

@@ -1,143 +1,263 @@
 package review
 
-import "strings"
+import (
+	"go/ast"
+	"go/token"
+	"strings"
+)
 
-// firstPaintIOMarkers are calls heavy enough to blank the terminal for a
-// visible interval when run ahead of the first paint. Domain inventory
-// (purge.Inventory) is the canary that stdlib-only markers missed.
-var firstPaintIOMarkers = []string{
-	"os.ReadFile(", "os.ReadDir(", "os.Open(", "filepath.Walk(",
-	"filepath.WalkDir(", "exec.Command(", "http.Get(", "net.Dial(",
-	".Inventory(",
+// heavyIOCalls are calls heavy enough to blank the terminal for a visible
+// interval when they run ahead of the first paint.
+var heavyIOCalls = map[string]bool{
+	"os.ReadFile": true, "os.ReadDir": true, "os.Open": true, "filepath.Walk": true,
+	"filepath.WalkDir": true, "exec.Command": true, "http.Get": true, "net.Dial": true,
 }
 
-// firstPaintInitMarkers arm the display (evo-rec.md "First paint").
-var firstPaintInitMarkers = []string{"evo.Init("}
+// heavyIOMethods are domain methods that do heavy I/O. Domain inventory
+// (purge.Inventory) is the canary that stdlib-only names missed.
+var heavyIOMethods = map[string]bool{"Inventory": true}
 
-// firstPaintFallbackInitMarkers arm the display when no Init call exists.
-var firstPaintFallbackInitMarkers = []string{"evo.New("}
-
-// firstPaintEntityMarkers declare the first presentation entity.
-var firstPaintEntityMarkers = []string{".Task(", ".Group(", ".Sequence(", ".Item("}
-
-// loopWalkMarkers are domain walk helpers that count as loop work even
+// loopWalkPrefixes are domain walk helpers that count as loop work even
 // without a stdlib I/O spelling.
-var loopWalkMarkers = []string{"FindWorktree", "FindCache", "ListWorktree", "WalkDir", "Walk("}
+var loopWalkPrefixes = []string{"FindWorktree", "FindCache", "ListWorktree", "WalkDir", "Walk"}
 
-// paintWindow is the span of a function body that is armed but still blank:
-// from the evo.Init/New call to the first entity declared after it (or the
-// end of the body when none follows). Entities declared before the init call
-// — closures defined ahead of it — never close the window.
-type paintWindow struct {
-	start, end int
+// entityMethods declare a presentation entity on the run or a container.
+var entityMethods = map[string]bool{"Task": true, "Group": true, "Sequence": true}
+
+// heavyIOName names the heavy I/O call n makes, or "".
+func heavyIOName(n ast.Node) string {
+	call, ok := n.(*ast.CallExpr)
+	if !ok {
+		return ""
+	}
+	name := exprDottedName(call.Fun)
+	if heavyIOCalls[name] {
+		return name
+	}
+	if sel, ok := call.Fun.(*ast.SelectorExpr); ok && heavyIOMethods[sel.Sel.Name] {
+		return "." + sel.Sel.Name
+	}
+	return ""
 }
 
-// armedWindow locates body's paint window; ok is false when body never arms
-// the display.
-func armedWindow(body string) (w paintWindow, ok bool) {
-	start := earliestIndex(body, firstPaintInitMarkers)
-	if start < 0 {
-		start = earliestIndex(body, firstPaintFallbackInitMarkers)
+// loopWorkName names the I/O or walk call n makes, or "".
+func loopWorkName(n ast.Node) string {
+	if name := heavyIOName(n); name != "" {
+		return name
 	}
-	if start < 0 {
-		return paintWindow{}, false
+	call, ok := n.(*ast.CallExpr)
+	if !ok {
+		return ""
 	}
-	w = paintWindow{start: start, end: len(body)}
-	if rel := earliestIndex(body[start:], firstPaintEntityMarkers); rel >= 0 {
-		w.end = start + rel
+	callee := exprDottedName(call.Fun)
+	if i := strings.LastIndex(callee, "."); i >= 0 {
+		callee = callee[i+1:]
 	}
-	return w, true
+	for _, prefix := range loopWalkPrefixes {
+		if strings.HasPrefix(callee, prefix) {
+			return callee
+		}
+	}
+	return ""
 }
 
-// contains reports whether idx lies strictly after the arm call and before
-// the first entity.
-func (w paintWindow) contains(idx int) bool { return idx > w.start && idx < w.end }
+// inspectOutsideClosures visits root's nodes except those inside a function
+// literal, which does not run where it is written.
+func inspectOutsideClosures(root ast.Node, visit func(ast.Node)) {
+	ast.Inspect(root, func(n ast.Node) bool {
+		if _, ok := n.(*ast.FuncLit); ok && n != root {
+			return false
+		}
+		visit(n)
+		return true
+	})
+}
 
-// text returns the window's slice of body.
-func (w paintWindow) text(body string) string { return body[w.start:w.end] }
+// forEachFunc calls fn for every function declaration and literal body.
+func forEachFunc(file *ast.File, fn func(*ast.FuncType, *ast.BlockStmt)) {
+	ast.Inspect(file, func(n ast.Node) bool {
+		switch f := n.(type) {
+		case *ast.FuncDecl:
+			if f.Body != nil {
+				fn(f.Type, f.Body)
+			}
+		case *ast.FuncLit:
+			fn(f.Type, f.Body)
+		}
+		return true
+	})
+}
 
-// detectFirstPaintGaps flags heavy I/O that runs ahead of evo's init call
-// (FP-001: nothing is armed yet, so nothing can paint) or between init and
-// the first declared Task/Group/Sequence (FP-002: armed but still blank).
-// Every function that calls evo.Init is in scope — Isolated nested inits
-// (previewPurge) are the pit-of-success miss, not only main/run.
-func detectFirstPaintGaps(filename, src string) []Finding {
+// runParamName is the name of the *evo.Run parameter of ft, or "".
+func runParamName(ft *ast.FuncType, pkg string) string {
+	for _, field := range ft.Params.List {
+		star, ok := field.Type.(*ast.StarExpr)
+		if !ok || len(field.Names) == 0 {
+			continue
+		}
+		if sel, ok := star.X.(*ast.SelectorExpr); ok && sel.Sel.Name == "Run" && isEvoIdent(sel.X, pkg) {
+			return field.Names[0].Name
+		}
+	}
+	return ""
+}
+
+// firstEntityPos is where body first declares a Task, Group or Sequence on
+// the run named run, outside any closure, or token.NoPos.
+func firstEntityPos(body *ast.BlockStmt, run string) token.Pos {
+	first := token.NoPos
+	inspectOutsideClosures(body, func(n ast.Node) {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if ok && entityMethods[sel.Sel.Name] && rootIdentName(sel.X) == run && (!first.IsValid() || call.Pos() < first) {
+			first = call.Pos()
+		}
+	})
+	return first
+}
+
+// rootIdentName is the leftmost identifier of a selector or call chain.
+func rootIdentName(e ast.Expr) string {
+	for {
+		switch v := e.(type) {
+		case *ast.Ident:
+			return v.Name
+		case *ast.SelectorExpr:
+			e = v.X
+		case *ast.CallExpr:
+			e = v.Fun
+		default:
+			return ""
+		}
+	}
+}
+
+// detectFirstPaintGaps flags heavy I/O that runs before the run is armed or
+// before the run body declares its first entity. FP-001: in a function that
+// calls evo.Main or evo.Execute, I/O ahead of that call blanks the terminal
+// because nothing paints yet. FP-002: in a run body (a function taking
+// *evo.Run), I/O ahead of the first Task, Group or Sequence leaves the
+// armed run showing nothing.
+func detectFirstPaintGaps(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	pkg := evoImportName(file)
+	if pkg == "" {
+		return nil
+	}
 	var findings []Finding
-	for _, fn := range allFuncBodies(src) {
-		findings = append(findings, firstPaintGapsInBody(filename, src, fn.body, fn.offset)...)
-	}
+	forEachFunc(file, func(ft *ast.FuncType, body *ast.BlockStmt) {
+		if start := runEntrypointPos(body, pkg); start.IsValid() {
+			if io, name := firstHeavyIOBefore(body, start); io.IsValid() {
+				findings = append(findings, firstPaintFinding(filename, fset, "FP-001", io, name,
+					"heavy I/O runs before "+pkg+".Main/"+pkg+".Execute is called; nothing is armed to paint within 100ms of process start",
+					"call "+pkg+".Main first and move "+name+"(...) into the first Task's Define"))
+			}
+		}
+		run := runParamName(ft, pkg)
+		if run == "" {
+			return
+		}
+		if entity := firstEntityPos(body, run); entity.IsValid() {
+			if io, name := firstHeavyIOBefore(body, entity); io.IsValid() {
+				findings = append(findings, firstPaintFinding(filename, fset, "FP-002", io, name,
+					"heavy I/O runs in the run body before its first Task/Group/Sequence; declare the first entity before this I/O",
+					"declare the first Task/Group/Sequence before "+name+"(...)"))
+			}
+		}
+	})
 	return findings
 }
 
-func firstPaintGapsInBody(filename, src, body string, offset int) []Finding {
-	w, armed := armedWindow(body)
-	if !armed {
-		return nil
-	}
-	ioIdx, ioMarker := earliestMarker(body, firstPaintIOMarkers)
-	if ioIdx < 0 {
-		return nil
-	}
-	if ioIdx < w.start {
-		return []Finding{{
-			RuleID:     "FP-001",
-			Message:    "heavy I/O runs before run declares its first Task; nothing is armed to paint within 100ms of process start",
-			File:       filename,
-			Line:       lineAt(src, offset+ioIdx),
-			Suggestion: "declare the first Task before " + ioMarker + "...)",
-		}}
-	}
-	if !w.contains(ioIdx) {
-		return nil
-	}
-	return []Finding{{
-		RuleID:     "FP-002",
-		Message:    "heavy I/O runs between evo.Main and the first Task/Group/Sequence; declare the first entity before this I/O",
-		File:       filename,
-		Line:       lineAt(src, offset+ioIdx),
-		Suggestion: "declare the first Task/Group/Sequence before " + ioMarker + "...)",
-	}}
+// runEntrypointPos is where body calls evo.Main or evo.Execute outside any
+// closure, or token.NoPos.
+func runEntrypointPos(body *ast.BlockStmt, pkg string) token.Pos {
+	pos := token.NoPos
+	inspectOutsideClosures(body, func(n ast.Node) {
+		if call, ok := n.(*ast.CallExpr); ok && isEvoEntrypointCall(call, pkg) && !pos.IsValid() {
+			pos = call.Pos()
+		}
+	})
+	return pos
 }
 
-// detectSilentPreTaskLoops flags a for/range work loop that runs after
-// evo.Init/New but before the first Task/Group/Sequence. That is the
-// purge/prune FAIL class: scanning looks dead because the loop never
+// firstHeavyIOBefore is the earliest heavy I/O call in body, outside
+// closures, positioned before limit.
+func firstHeavyIOBefore(body *ast.BlockStmt, limit token.Pos) (token.Pos, string) {
+	first, name := token.NoPos, ""
+	inspectOutsideClosures(body, func(n ast.Node) {
+		if io := heavyIOName(n); io != "" && n.Pos() < limit && (!first.IsValid() || n.Pos() < first) {
+			first, name = n.Pos(), io
+		}
+	})
+	return first, name
+}
+
+func firstPaintFinding(filename string, fset *token.FileSet, ruleID string, at token.Pos, name, message, suggestion string) Finding {
+	pos := fset.Position(at)
+	return Finding{RuleID: ruleID, Message: message, File: filename, Line: pos.Line, Column: pos.Column, Suggestion: suggestion}
+}
+
+// detectSilentPreTaskLoops flags a range loop that does I/O or walks disk
+// in a run body before its first Task, Group or Sequence. That is the
+// purge/prune silent class: scanning looks dead because the loop never
 // lived inside a task definition.
-func detectSilentPreTaskLoops(filename, src string) []Finding {
-	var findings []Finding
-	for _, fn := range allFuncBodies(src) {
-		findings = append(findings, silentPreTaskLoopsInBody(filename, src, fn.body, fn.offset)...)
+func detectSilentPreTaskLoops(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	pkg := evoImportName(file)
+	if pkg == "" {
+		return nil
 	}
+	var findings []Finding
+	forEachFunc(file, func(ft *ast.FuncType, body *ast.BlockStmt) {
+		run := runParamName(ft, pkg)
+		if run == "" {
+			return
+		}
+		entity := firstEntityPos(body, run)
+		if !entity.IsValid() {
+			return
+		}
+		if loop, work := firstWorkLoopBefore(body, entity); loop != nil {
+			pos := fset.Position(loop.Pos())
+			findings = append(findings, Finding{
+				RuleID:     "LOOP-001",
+				Message:    "work loop runs before any Task/Group/Sequence; silent pre-output loops leave the run blank — put the loop inside Task.Define, or declare a Group first and give each item its own named Task",
+				File:       filename,
+				Line:       pos.Line,
+				Column:     pos.Column,
+				Suggestion: "declare the Task/Group/Sequence first, then run the loop inside task.Define(...) or for _, x := range items { group.Task(x).Define(...) }; move " + work + " into the task body",
+			})
+		}
+	})
 	return findings
 }
 
-func silentPreTaskLoopsInBody(filename, src, body string, offset int) []Finding {
-	w, armed := armedWindow(body)
-	if !armed {
-		return nil
-	}
-	window := w.text(body)
-	loopIdx := strings.Index(window, "for ")
-	if loopIdx < 0 {
-		return nil
-	}
-	// Require range + a work marker so tiny in-memory for-loops are not flagged.
-	loopTail := window[loopIdx:]
-	if !strings.Contains(loopTail, " range ") {
-		return nil
-	}
-	ioIdx, ioMarker := earliestMarker(loopTail, firstPaintIOMarkers)
-	if ioIdx < 0 {
-		ioIdx, ioMarker = earliestMarker(loopTail, loopWalkMarkers)
-	}
-	if ioIdx < 0 {
-		return nil
-	}
-	return []Finding{{
-		RuleID:     "LOOP-001",
-		Message:    "work loop runs before any Task/Group/Sequence; silent pre-output loops are a pit-of-success FAIL — put the loop inside Task.Define, or declare Group/Sequence first and give each item its own named Task",
-		File:       filename,
-		Line:       lineAt(src, offset+w.start+loopIdx),
-		Suggestion: "declare Task/Group/Sequence first, then run the loop inside task.Define(...) or for _, x := range items { group.Task(x).Define(...) }; move " + ioMarker + " into the task body",
-	}}
+// firstWorkLoopBefore is the earliest range loop in body, outside closures,
+// that sits before limit and whose body makes an I/O or walk call.
+func firstWorkLoopBefore(body *ast.BlockStmt, limit token.Pos) (*ast.RangeStmt, string) {
+	var first *ast.RangeStmt
+	work := ""
+	inspectOutsideClosures(body, func(n ast.Node) {
+		loop, ok := n.(*ast.RangeStmt)
+		if !ok || loop.Pos() >= limit || (first != nil && loop.Pos() > first.Pos()) {
+			return
+		}
+		if name := loopBodyWork(loop); name != "" {
+			first, work = loop, name
+		}
+	})
+	return first, work
+}
+
+// loopBodyWork names the first I/O or walk call inside loop's body.
+func loopBodyWork(loop *ast.RangeStmt) string {
+	name := ""
+	ast.Inspect(loop.Body, func(n ast.Node) bool {
+		if name == "" {
+			name = loopWorkName(n)
+		}
+		return name == ""
+	})
+	return name
 }

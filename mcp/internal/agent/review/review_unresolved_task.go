@@ -7,21 +7,22 @@ import (
 	"strings"
 )
 
-// taskResolvingMethods are the TaskHandle methods that give a Task its
-// outcome (or its work): after any of them the row resolves on its own.
-// The removed pre-1.1 spellings (Done, the mutation verbs, Run, Each)
-// resolved a Task too; a program pinned to an older release still uses
-// them, and API-032 already reports them against the current one.
+// taskResolvingMethods are the Task methods after which DOM-021 stays quiet.
+// Define is the only one that gives a Task work: Verify, Problem, Fact and
+// Writer decorate a Task that still has nothing to run. The rest are removed
+// spellings that resolved a Task in older releases; dirty input that still
+// uses them is reported by API-032, and DOM-021 does not pile a second
+// finding on the same line.
 var taskResolvingMethods = map[string]bool{
-	"Define": true, "Verify": true, "Fail": true, "Failf": true, "Block": true, "Blockf": true,
-	"Skipped": true, "Kept": true, "Cancel": true, "Problem": true,
-	"Done": true, "Add": true, "Create": true, "Delete": true, "Push": true, "Remove": true,
-	"Update": true, "Write": true, "Run": true, "Each": true, "Go": true,
+	"Define": true,
+	"Done":   true, "Fail": true, "Failf": true, "Block": true, "Blockf": true, "Skipped": true,
+	"Kept": true, "Cancel": true, "Add": true, "Create": true, "Delete": true, "Push": true,
+	"Remove": true, "Update": true, "Write": true, "Run": true, "Each": true, "Go": true,
 }
 
 // detectUnresolvedTask is DOM-021: a Task declared in a function that
-// neither resolves it nor hands it on. Wiring its Writer or adding Facts
-// does not resolve it, so the row stays unresolved and the run concludes
+// neither Defines it nor hands it on. Wiring its Writer or adding Facts
+// gives it no work, so the Task ends NotStarted and the run concludes
 // partial with a misuse hint. Test files are skipped.
 func detectUnresolvedTask(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	if strings.HasSuffix(filename, "_test.go") {
@@ -39,7 +40,7 @@ func detectUnresolvedTask(filename string, file *ast.File, fset *token.FileSet) 
 			}
 			findings = append(findings, Finding{
 				RuleID:     "DOM-021",
-				Message:    "Task " + bound.Name + " is declared but never Defined, resolved, or handed on; its row stays unresolved and the run concludes partial",
+				Message:    "Task " + bound.Name + " is declared but never Defined or handed on; it never runs and the run concludes partial",
 				File:       filename,
 				Line:       fset.Position(bound.Pos()).Line,
 				Suggestion: "run the work inside " + bound.Name + ".Define(func(ctx context.Context) error { ... }) and return nil, evo.Fail, evo.Refuse or evo.Exclude",
@@ -50,7 +51,7 @@ func detectUnresolvedTask(filename string, file *ast.File, fset *token.FileSet) 
 }
 
 // declaredTasks is every identifier body binds with := to a Task(...)
-// chain that does not already resolve the Task itself.
+// chain that does not already Define the Task itself.
 func declaredTasks(body *ast.BlockStmt) []*ast.Ident {
 	var bound []*ast.Ident
 	ast.Inspect(body, func(n ast.Node) bool {
@@ -69,8 +70,8 @@ func declaredTasks(body *ast.BlockStmt) []*ast.Ident {
 	return bound
 }
 
-// chainResolvesTask reports whether a Task(...) chain already calls a
-// resolving method, as in evo.Task("x").Define(fn).
+// chainResolvesTask reports whether a Task(...) chain already calls Define,
+// as in r.Task("x").Define(fn).
 func chainResolvesTask(e ast.Expr) bool {
 	for {
 		call, ok := e.(*ast.CallExpr)
@@ -88,19 +89,20 @@ func chainResolvesTask(e ast.Expr) bool {
 	}
 }
 
-// taskHandleBuilders are the TaskHandle methods that return the same
-// handle, so a chain of them used as a value (passed, returned, stored)
-// hands the Task on just as the bare variable would.
+// taskHandleBuilders are the Task methods that return the same Task, so a
+// chain of them used as a value (passed, returned, stored) hands the Task on
+// just as the bare variable would. Bytes, Key, Next, NextCommand, Step and
+// Warn are removed spellings that dirty input still chains.
 var taskHandleBuilders = map[string]bool{
-	"After": true, "Bytes": true, "Define": true, "Doing": true, "Fact": true, "Key": true,
-	"Next": true, "NextCommand": true, "Problem": true, "Progress": true, "Step": true,
-	"Summary": true, "Verify": true, "Warn": true,
+	"After": true, "Define": true, "Doing": true, "Fact": true, "Problem": true,
+	"Progress": true, "Summary": true, "Verify": true,
+	"Bytes": true, "Key": true, "Next": true, "NextCommand": true, "Step": true, "Warn": true,
 }
 
-// taskSettledIn reports whether body resolves the Task bound to name or
+// taskSettledIn reports whether body Defines the Task bound to name or
 // lets it escape. Each use of name is read as the whole method chain it
-// roots, so fetch.After(x).Define(fn) resolves fetch. A chain settles the
-// Task when any link resolves it, or when the bare variable or a chain of
+// roots, so fetch.After(x).Define(fn) Defines fetch. A chain settles the
+// Task when any link is Define, or when the bare variable or a chain of
 // handle-returning builders is used as a value (returned, passed, stored,
 // sent) and so handed to code this function cannot see.
 func taskSettledIn(body *ast.BlockStmt, name string) bool {

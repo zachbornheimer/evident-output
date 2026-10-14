@@ -84,5 +84,20 @@ func handleExplain(id any, args map[string]any, cancelled *atomic.Bool) {
 		})
 		return
 	}
+	if r, ok := rules.RetiredRuleByID(ruleID); ok {
+		writeRPC(id, map[string]any{
+			"content": []map[string]any{{"type": "text", "text": retiredRuleText(r)}},
+			"structuredContent": map[string]any{
+				"schema":  "evident_output.rule_retired.v1",
+				"retired": r,
+			},
+		})
+		return
+	}
 	writeRPC(id, toolError("unknown rule"))
+}
+
+// retiredRuleText is the one line explain answers for a retired rule.
+func retiredRuleText(r rules.RetiredRule) string {
+	return fmt.Sprintf("%s was retired in %s: %s %s", r.ID, r.RetiredIn, r.Why, r.Instead)
 }

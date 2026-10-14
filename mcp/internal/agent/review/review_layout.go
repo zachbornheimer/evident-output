@@ -15,6 +15,7 @@ const (
 	leftoverCommandFileStem = "clean_repo"
 	leftoverCommandAlias    = "clean-repo"
 	appCommandDir           = "internal/app"
+	appCommandPackage       = "app"
 )
 
 var (
@@ -64,8 +65,10 @@ func detectDualCommandNaming(filename string, file *ast.File, fset *token.FileSe
 
 // detectCommandInWrongFolder flags cobra Use prune/purge whose RunE body
 // lives under internal/app/. A one-return *.Command() delegate there is clean.
+// The folder is known from the file path when the review has one, and from
+// the package name (app) when the source arrives without a path.
 func detectCommandInWrongFolder(filename string, file *ast.File, fset *token.FileSet) []Finding {
-	if !pathHasDir(filename, appCommandDir) {
+	if !pathHasDir(filename, appCommandDir) && file.Name.Name != appCommandPackage {
 		return nil
 	}
 	consts := fileStringConsts(file)

@@ -5,190 +5,6 @@ import (
 	"go/token"
 )
 
-var taskWindowMethods = map[string]bool{
-	"Doing": true, "Progress": true, "Writer": true, "Bytes": true,
-	"Define": true,
-}
-
-func detectInstantDone(filename string, file *ast.File, fset *token.FileSet) []Finding {
-	var findings []Finding
-	ast.Inspect(file, func(n ast.Node) bool {
-		fn, ok := n.(*ast.FuncDecl)
-		if !ok || fn.Body == nil {
-			return true
-		}
-		findings = append(findings, instantDoneInFunc(filename, fn.Body, fset)...)
-		return false
-	})
-	return findings
-}
-
-func instantDoneInFunc(filename string, body *ast.BlockStmt, fset *token.FileSet) []Finding {
-	var findings []Finding
-	windowed := map[string]bool{}
-
-	ast.Inspect(body, func(n ast.Node) bool {
-		if assign, ok := n.(*ast.AssignStmt); ok {
-			for i, rhs := range assign.Rhs {
-				if !isTaskCall(rhs) {
-					continue
-				}
-				if i < len(assign.Lhs) {
-					if id, ok := assign.Lhs[i].(*ast.Ident); ok {
-						windowed[id.Name] = false
-					}
-				}
-			}
-		}
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		switch sel.Sel.Name {
-		case "Done":
-			if isTaskCall(sel.X) {
-				pos := fset.Position(call.Pos())
-				findings = append(findings, instantDoneFinding(filename, pos, chainedTaskName(sel.X)))
-				return true
-			}
-			if id, ok := sel.X.(*ast.Ident); ok {
-				if seen, ok := windowed[id.Name]; ok && !seen {
-					pos := fset.Position(call.Pos())
-					findings = append(findings, instantDoneFinding(filename, pos, id.Name))
-				}
-			}
-		default:
-			if taskWindowMethods[sel.Sel.Name] {
-				if id, ok := sel.X.(*ast.Ident); ok {
-					if _, ok := windowed[id.Name]; ok {
-						windowed[id.Name] = true
-					}
-				}
-			}
-		}
-		return true
-	})
-	return findings
-}
-
-func instantDoneFinding(filename string, pos token.Position, recv string) Finding {
-	suggestion := "call Define(func(ctx context.Context) error { ... }) instead of resolving with Done alone"
-	if recv != "" {
-		suggestion = "call " + recv + ".Define(func(ctx context.Context) error { ... }) instead of resolving with " + recv + ".Done(...) alone"
-	}
-	return Finding{
-		RuleID:     "FP-005",
-		Message:    "Task is Done with no Define submitting work; the row first appears already complete",
-		File:       filename,
-		Line:       pos.Line,
-		Column:     pos.Column,
-		Suggestion: suggestion,
-	}
-}
-
-func isTaskCall(e ast.Expr) bool {
-	call, ok := e.(*ast.CallExpr)
-	if !ok {
-		return false
-	}
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-	return sel.Sel.Name == "Task" || sel.Sel.Name == "Item"
-}
-
-func chainedTaskName(e ast.Expr) string {
-	call, ok := e.(*ast.CallExpr)
-	if !ok {
-		return ""
-	}
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return ""
-	}
-	return exprDottedName(sel.X) + ".Task"
-}
-
-func detectCollectionLeafMisuse(filename string, file *ast.File, fset *token.FileSet) []Finding {
-	var findings []Finding
-	collections := map[string]bool{}
-	ast.Inspect(file, func(n ast.Node) bool {
-		assign, ok := n.(*ast.AssignStmt)
-		if !ok {
-			return true
-		}
-		for i, rhs := range assign.Rhs {
-			if !isCollectionCall(rhs) {
-				continue
-			}
-			if i >= len(assign.Lhs) {
-				continue
-			}
-			id, ok := assign.Lhs[i].(*ast.Ident)
-			if !ok {
-				continue
-			}
-			collections[id.Name] = true
-		}
-		return true
-	})
-	ast.Inspect(file, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		switch sel.Sel.Name {
-		case "Done", "Fail", "Progress":
-		default:
-			return true
-		}
-		if isCollectionCall(sel.X) || identIn(sel.X, collections) {
-			pos := fset.Position(call.Pos())
-			findings = append(findings, Finding{
-				RuleID:     "API-027",
-				Message:    "Done/Fail/Progress on Group/Sequence is forbidden; resolve child Tasks instead",
-				File:       filename,
-				Line:       pos.Line,
-				Column:     pos.Column,
-				Suggestion: "call Task(\"name\")." + sel.Sel.Name + "(...) on a child, never on the collection",
-			})
-		}
-		return true
-	})
-	return findings
-}
-
-func isCollectionCall(e ast.Expr) bool {
-	call, ok := e.(*ast.CallExpr)
-	if !ok {
-		return false
-	}
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-	switch sel.Sel.Name {
-	case "Group", "Sequence", retiredIndependentCollection:
-		return true
-	default:
-		return false
-	}
-}
-
-func identIn(e ast.Expr, names map[string]bool) bool {
-	id, ok := e.(*ast.Ident)
-	return ok && names[id.Name]
-}
-
 func detectSingletonGroup(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -278,7 +94,7 @@ func singletonGroupsInFunc(filename string, body *ast.BlockStmt, fset *token.Fil
 	})
 
 	for name, g := range groups {
-		if g.inLoop || g.tasks != 1 || groupEscapes(body, name) {
+		if g.inLoop || g.tasks != 1 || groupEscapes(body, name) || groupFilledBeyondTasks(body, name) {
 			continue
 		}
 		findings = append(findings, singletonGroupFindingAt(filename, g.line, g.col, name))
@@ -320,7 +136,7 @@ func isGroupCall(e ast.Expr) bool {
 	if !ok {
 		return false
 	}
-	return sel.Sel.Name == retiredIndependentCollection || sel.Sel.Name == "Group"
+	return sel.Sel.Name == "Group" && len(call.Args) == 1
 }
 
 func callInsideLoop(body *ast.BlockStmt, target *ast.CallExpr) bool {
@@ -378,8 +194,8 @@ func singletonGroupFinding(filename string, pos token.Position, recv string) Fin
 
 func singletonGroupFindingAt(filename string, line, col int, recv string) Finding {
 	suggestion := "use a lone Task instead of a 1-child Group"
-	if recv != "" && recv != retiredIndependentCollection && recv != "Group" {
-		suggestion = "replace " + recv + " with out.Task(...) — a Group of one child is a single line"
+	if recv != "" && recv != "Group" {
+		suggestion = "replace " + recv + " with a lone Task declared on the same parent (r.Task(...)); a Group of one child is a single row"
 	}
 	return Finding{
 		RuleID:     "API-039",

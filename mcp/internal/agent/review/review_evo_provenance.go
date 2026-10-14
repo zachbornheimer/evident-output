@@ -58,9 +58,10 @@ type inputClaims struct {
 // finding only names a path this exact source already spells out (see
 // rules_provenance.go).
 func detectOmittedInputPath(filename string, file *ast.File, fset *token.FileSet) []Finding {
+	pkg := evoImportName(file)
 	var findings []Finding
 	forEachFuncBody(file, func(body *ast.BlockStmt) {
-		claims := collectInputClaims(body)
+		claims := collectInputClaims(body, pkg)
 		if !claims.hasClaims {
 			return
 		}
@@ -99,11 +100,11 @@ func walkOwnBody(body *ast.BlockStmt, visit func(ast.Node)) {
 // collectInputClaims gathers the freshness claims of the evo.File and
 // evo.Exec calls in body. An evo.Exec that declares no Outputs, Inputs or
 // Values makes no claim: with no Outputs it always runs.
-func collectInputClaims(body *ast.BlockStmt) inputClaims {
+func collectInputClaims(body *ast.BlockStmt, pkg string) inputClaims {
 	claims := inputClaims{inputs: map[string]bool{}, notInputs: map[string]bool{}}
 	walkOwnBody(body, func(n ast.Node) {
 		call, ok := n.(*ast.CallExpr)
-		if !ok || !isEvoOperationCall(call) {
+		if !ok || !isEvoOperationCall(call, pkg) {
 			return
 		}
 		spec := evoSpecCompositeLit(call)

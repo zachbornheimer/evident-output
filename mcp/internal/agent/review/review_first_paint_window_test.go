@@ -8,42 +8,46 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
 )
 
-// entityBeforeInit declares a Task inside a closure that textually precedes
-// the function's evo.Init call — the shape that sliced body[init:entity]
-// with entity < init and panicked.
-const entityBeforeInit = `package app
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run(roots []string) {
-  step := func(out *evo.Output) { out.Task("opaque") }
-  out := evo.Init(evo.Config{Isolated: true})
-  step(out)
+// entityBeforeRun declares a Task inside a closure that textually precedes
+// the run body's own first entity.
+const entityBeforeRun = `package app
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func run(ctx context.Context, r *evo.Run) error {
+  step := func(g *evo.Group) { g.Task("opaque") }
+  step(r.Group("steps"))
+  return nil
 }
 `
 
-func TestGoSource_EntityBeforeInitDoesNotPanic(t *testing.T) {
+func TestGoSource_EntityBeforeRunBodyDoesNotPanic(t *testing.T) {
 	defer func() {
 		if r := recover(); r != nil {
-			t.Fatalf("GoSource panicked on a Task declared before evo.Init: %v", r)
+			t.Fatalf("GoSource panicked on a Task declared in a closure: %v", r)
 		}
 	}()
-	review.GoSource("entity_before_init.go", entityBeforeInit)
+	review.GoSource("entity_before_run.go", entityBeforeRun)
 }
 
-// The first-paint window runs from evo.Init to the first entity declared
-// after it. A Task that precedes Init must not close the window early.
-func TestFirstPaint_WindowStartsAtInitNotAtEarlierEntity(t *testing.T) {
+// The first-paint window runs from the top of the run body to its first
+// entity. A Task declared inside an earlier closure must not close the
+// window early, because the closure does not run where it is written.
+func TestFirstPaint_ClosureDeclaredTaskDoesNotCloseTheWindow(t *testing.T) {
 	src := `package app
 import (
+  "context"
   "os"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(path string) {
-  step := func(out *evo.Output) { out.Task("early") }
-  out := evo.Init(evo.Config{Title: "x"})
+func run(ctx context.Context, r *evo.Run, path string) error {
+  step := func(g *evo.Group) { g.Task("early") }
   data, _ := os.ReadFile(path)
   _ = data
-  out.Task("late")
-  step(out)
+  r.Task("late")
+  step(r.Group("steps"))
+  return nil
 }
 `
 	res := review.GoSource("window.go", src)
@@ -52,7 +56,7 @@ func run(path string) {
 			return
 		}
 	}
-	t.Fatalf("expected FP-002 for os.ReadFile between Init and the first later Task: %+v", res.Findings)
+	t.Fatalf("expected FP-002 for os.ReadFile before the run body's first entity: %+v", res.Findings)
 }
 
 // TestGoDirectory_ReviewsThisRepoWithoutPanic is the guard: directory review

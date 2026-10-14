@@ -34,22 +34,6 @@ func TestMCP027_ExplainFullPayload(t *testing.T) {
 	}
 }
 
-func TestMCP027_ExplainAPI006Examples(t *testing.T) {
-	r, ok := rules.Explain("API-006")
-	if !ok {
-		t.Fatal("API-006")
-	}
-	if r.BadCode == "" || r.GoodCode == "" || r.Why == "" {
-		t.Fatalf("%+v", r)
-	}
-	for _, id := range r.VerificationIDs {
-		if id == "MCP-012" || id == "API-006" {
-			return
-		}
-	}
-	t.Fatalf("verification_ids missing MCP-012/API-006: %v", r.VerificationIDs)
-}
-
 func TestExplainLAYOUT001AndLAYOUT002(t *testing.T) {
 	for _, id := range []string{"LAYOUT-001", "LAYOUT-002"} {
 		r, ok := rules.Explain(id)
@@ -87,16 +71,16 @@ func TestExplainCALL001(t *testing.T) {
 	if r.Invariant == "" || r.Why == "" || r.BadCode == "" || r.GoodCode == "" || r.Remediation == "" {
 		t.Fatalf("CALL-001 incomplete payload: %+v", r)
 	}
-	if !strings.Contains(r.BadCode, "make(") {
-		t.Fatalf("CALL-001 BadCode must show inline make, got %q", r.BadCode)
+	if !strings.Contains(r.BadCode, "new(") {
+		t.Fatalf("CALL-001 BadCode must show an inline new, got %q", r.BadCode)
 	}
-	if strings.Contains(r.GoodCode, "make([]evo.Fact, 0)}") || strings.Contains(r.GoodCode, "Facts: make(") {
-		t.Fatalf("CALL-001 GoodCode must extract make to a named local, got %q", r.GoodCode)
+	if strings.Contains(r.GoodCode, "Stdout: new(") {
+		t.Fatalf("CALL-001 GoodCode must extract new to a named local, got %q", r.GoodCode)
 	}
 }
 
 func TestExplainFirstPaintRules(t *testing.T) {
-	for _, id := range []string{"FP-001", "FP-002", "FP-003", "FP-005"} {
+	for _, id := range []string{"FP-001", "FP-002", "FP-003"} {
 		r, ok := rules.Explain(id)
 		if !ok {
 			t.Fatalf("%s missing", id)
@@ -131,8 +115,8 @@ func TestAPI032_EffectIsGoodCode(t *testing.T) {
 	if !ok {
 		t.Fatal("API-032 missing")
 	}
-	if !strings.Contains(r.BadCode, "Delete(n,") {
-		t.Fatalf("API-032 BadCode must show the removed quantity-first Delete, got %q", r.BadCode)
+	if !strings.Contains(r.BadCode, `Delete("local tip", remove, evo.Affected(n))`) {
+		t.Fatalf("API-032 BadCode must show the removed object-first Delete, got %q", r.BadCode)
 	}
 	if !strings.Contains(r.GoodCode, "evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete") {
 		t.Fatalf("API-032 GoodCode must teach Define + evo.Effect, got %q", r.GoodCode)
@@ -159,44 +143,12 @@ func TestRules_NeverTeachRemovedMutationVerbs(t *testing.T) {
 	}
 }
 
-func TestAPI026_DoesNotBanEvoScheduler(t *testing.T) {
-	r, ok := rules.Explain("API-026")
-	if !ok {
-		t.Fatal("API-026 missing")
-	}
-	for _, blob := range []string{r.Invariant, r.Why, r.GoodCode, r.Remediation} {
-		if strings.Contains(blob, "must not grow schedulers") {
-			t.Fatalf("API-026 must not ban Evo's scheduler: %q", blob)
-		}
-	}
-	if !strings.Contains(r.GoodCode, "Group") || !strings.Contains(r.GoodCode, "Task") || !strings.Contains(r.GoodCode, "Define") {
-		t.Fatalf("API-026 GoodCode must teach Group.Task+Define, got %q", r.GoodCode)
-	}
-	if !strings.Contains(r.BadCode, "Map") && !strings.Contains(r.BadCode, "Retry") {
-		t.Fatalf("API-026 BadCode must still show Map/Retry, got %q", r.BadCode)
-	}
-}
-
-func TestAPI027_TeachingNamesGroup(t *testing.T) {
-	r, ok := rules.Explain("API-027")
-	if !ok {
-		t.Fatal("API-027 missing")
-	}
-	retired := "Display" + "Group"
-	if strings.Contains(r.Invariant, retired) || strings.Contains(r.Remediation, retired) {
-		t.Fatalf("API-027 teaching must name Group, not the retired constructor: %+v", r)
-	}
-	if !strings.Contains(r.GoodCode, "Group") {
-		t.Fatalf("API-027 GoodCode must name Group, got %q", r.GoodCode)
-	}
-}
-
-// TestExplainEvidenceDAGRules proves the six 1.0-era rules (spec §57) have a
+// TestExplainEvidenceDAGRules proves the 1.0-era rules (spec §57) have a
 // complete payload and are pinned to the release whose API their Suggestion
 // requires (Verify/evo.File/evo.Exec/Sequence).
 func TestExplainEvidenceDAGRules(t *testing.T) {
 	for _, id := range []string{
-		"EVO-EVIDENCE-001", "EVO-VERIFY-001", "EVO-DRYRUN-001",
+		"EVO-VERIFY-001", "EVO-DRYRUN-001",
 		"EVO-DAG-001", "EVO-DAG-002", "EVO-DAG-003",
 	} {
 		r, ok := rules.Explain(id)
@@ -239,7 +191,7 @@ func TestMCP028_RuleStabilityVersionPolicy(t *testing.T) {
 		}
 	}
 	// Stable core IDs required by agent loop docs.
-	for _, need := range []string{"API-006", "STREAM-003", "DOM-011", "MCP-021"} {
+	for _, need := range []string{"API-018", "STREAM-003", "DOM-011", "MCP-021"} {
 		if !seen[need] {
 			t.Fatalf("missing stable id %s", need)
 		}

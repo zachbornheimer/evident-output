@@ -5,23 +5,6 @@ import (
 	"strings"
 )
 
-// retiredIndependentCollection is the pre-Group constructor name. Concatenated
-// so teaching-surface search does not treat detector source as current API.
-const retiredIndependentCollection = "Display" + "Group"
-
-// dialectFold is the first release that removed New/Item/Plan/Changes/OK/Because/Cause/Capture.
-const dialectFold = "0.4.0"
-
-// dialectRec is the first release whose public surface is the rec dialect
-// (Task(name string), object-first mutation callbacks, Config fields not
-// Options). Those callbacks were removed in 1.1 in favor of evo.Effect.
-const dialectRec = "0.4.7"
-
-// dialectOneOne is the first release without TaskHandle.Done, so API-032
-// names Done as superseded only for a pin at or after it. Which release a
-// whole rule needs is its catalog MinDialect, not a constant here.
-const dialectOneOne = "1.1.0"
-
 // dialectAtLeast reports whether desired is the current dialect (empty) or
 // a pin at/after cutoff. Pre-cutoff pins do not fire that dialect's findings.
 func dialectAtLeast(desired, cutoff string) bool {

@@ -3,7 +3,7 @@ package rules
 // provenanceRules is EVO-PROVENANCE-001 and EVO-PROVENANCE-002 (spec §57):
 // the two rules guarding Inputs honesty and manifest-skip honesty.
 // EVO-PROVENANCE-001 has a narrow, literal-only static detector
-// (review.detectOmittedBasisPath): a string-literal path visibly read or
+// (review.detectOmittedInputPath): a string-literal path visibly read or
 // passed as a literal Exec Arg in the same function that builds the
 // Inputs, checked against that Inputs' own string literals — no
 // variable is ever traced and no Inputs entry is ever invented, so it stays
@@ -18,15 +18,15 @@ func init() { registerFamily(provenanceRules()) }
 
 func provenanceRules() []Rule {
 	return []Rule{
-		omittedBasisRule(),
+		omittedInputRule(),
 		opaqueManifestSkipRule(),
 	}
 }
 
-// omittedBasisRule is EVO-PROVENANCE-001: a generated artifact visibly
+// omittedInputRule is EVO-PROVENANCE-001: a generated artifact visibly
 // reads a file or value that its own Inputs omit, so the tracked freshness
 // no-ops even when that unlisted input has actually changed.
-func omittedBasisRule() Rule {
+func omittedInputRule() Rule {
 	return Rule{
 		ID:        "EVO-PROVENANCE-001",
 		Category:  "EVO",

@@ -8,7 +8,7 @@ import (
 )
 
 // API-055 (ZYS-831): the detector must catch lock files and flock regions
-// around evo.File/Files/Patch/Effect, not only sync.Mutex.
+// around evo.File/Patch/Effect, not only sync.Mutex.
 
 const lockFileSrcHeader = `package p
 import (
@@ -80,24 +80,24 @@ func f(ctx context.Context, f *os.File) error {
 }
 `, "unix.Flock(int(f.Fd()), unix.LOCK_EX)", "unix.Flock"},
 		{"O_EXCL lock file removed around Patch", `
-func f(ctx context.Context, p string) error {
+func f(ctx context.Context, p string, diff []byte) error {
   lf, err := os.OpenFile(p+".lock", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
   if err != nil {
     return err
   }
   defer lf.Close()
   defer os.Remove(p + ".lock")
-  return evo.Patch(ctx, evo.PatchSpec{Path: p})
+  return evo.Patch(ctx, diff)
 }
 `, "os.OpenFile(p+\".lock\"", "os.Remove(p + \".lock\")"},
-		{"O_EXCL lock file bare remove around Files", `
-func f(ctx context.Context, p string) error {
+		{"O_EXCL lock file bare remove around Patch", `
+func f(ctx context.Context, p string, diff []byte) error {
   lf, err := os.OpenFile(p+".lock", os.O_CREATE|os.O_EXCL, 0o600)
   if err != nil {
     return err
   }
   lf.Close()
-  err = evo.Files(ctx, nil)
+  err = evo.Patch(ctx, diff)
   os.Remove(p + ".lock")
   return err
 }

@@ -1,7 +1,11 @@
-// Package review — API-032 for what a 1.x program still calls: the module
-// path without /v2, and Task.Block, Task.Skipped and evo.NextCommand, which
-// were removed in 2.0. Each is mapped to the spelling docs/migration/2.0.md
-// gives.
+// Package review — API-032 for what a 1.x program still calls. This is the
+// migration layer: dirty 1.x input is the point, and every finding lands
+// directly on the 2.0 surface docs/migration/2.0.md names, never on a 1.x
+// intermediate. The arms are split by what they migrate: the module path and
+// package calls (here), Task and Output methods (review_removed_two_zero_tasks.go),
+// mutation and record verbs (…_effects.go), Option funcs and Config.Options
+// (…_config.go), and every other removed export by its retired-table
+// replacement (…_exports.go).
 package review
 
 import (
@@ -23,8 +27,15 @@ type removedTwoZeroDetector struct {
 	src      string
 	pkg      string
 	fset     *token.FileSet
+	file     *ast.File
 	tasks    taskBindings
-	findings []Finding
+	outputs  outputBindings
+	failures failureBindings
+	// defineBodies are the Define callbacks, so Done inside its own Task's
+	// callback is rewritten differently from Done outside it.
+	defineBodies []defineBody
+	covered      []srcSpan
+	findings     []Finding
 }
 
 func detectRemovedTwoZero(in fileInput) []Finding {
@@ -33,11 +44,15 @@ func detectRemovedTwoZero(in fileInput) []Finding {
 		return nil
 	}
 	d := &removedTwoZeroDetector{
-		filename: in.filename, src: in.src, pkg: pkg, fset: in.fset,
-		tasks: newTaskBindings(in.file, pkg),
+		filename: in.filename, src: in.src, pkg: pkg, fset: in.fset, file: in.file,
+		tasks:        newTaskBindings(in.file, pkg),
+		outputs:      newOutputBindings(in.file, pkg),
+		failures:     newFailureBindings(in.file, pkg),
+		defineBodies: collectDefineBodies(in.file, in.fset),
 	}
 	d.reportLegacyImport(in.file)
 	ast.Inspect(in.file, d.inspect)
+	ast.Inspect(in.file, d.inspectRemovedExport)
 	return d.findings
 }
 
@@ -54,80 +69,112 @@ func (d *removedTwoZeroDetector) reportLegacyImport(file *ast.File) {
 }
 
 func (d *removedTwoZeroDetector) inspect(n ast.Node) bool {
-	call, ok := n.(*ast.CallExpr)
-	if !ok {
-		return true
-	}
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return true
-	}
-	switch {
-	case sel.Sel.Name == "NextCommand" && isEvoIdent(sel.X, d.pkg):
-		d.report(call, "evo.NextCommand was removed in 2.0; a next step is evo.Next(evo.Action{Command: ...})",
-			"replace "+d.nodeSrc(call)+" with "+d.nextAction(call))
-	case sel.Sel.Name == "Block" && d.tasks.IsTask(sel.X):
-		d.report(call, "Task.Block was removed in 2.0; a precondition that stopped the work is evo.Refuse",
-			"replace "+d.nodeSrc(call)+" with `return "+d.pkg+".Refuse("+d.argsSrc(call.Args)+")` in this Task's Define callback")
-	case sel.Sel.Name == "Skipped" && d.tasks.IsTask(sel.X):
-		d.report(call, "Task.Skipped was removed in 2.0; a policy exclusion is evo.Exclude",
-			"replace "+d.nodeSrc(call)+" with `return "+d.pkg+".Exclude("+d.excludeArgs(call.Args)+")` in this Task's Define callback")
+	switch n := n.(type) {
+	case *ast.CallExpr:
+		d.inspectCall(n)
+	case *ast.CompositeLit:
+		d.inspectComposite(n)
 	}
 	return true
 }
 
+func (d *removedTwoZeroDetector) inspectCall(call *ast.CallExpr) {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || d.isCovered(call) {
+		return
+	}
+	if isEvoIdent(sel.X, d.pkg) {
+		d.inspectPackageCall(call, sel.Sel.Name)
+		return
+	}
+	switch d.receiverOf(sel.X) {
+	case taskReceiver:
+		d.inspectTaskCall(call, sel)
+	case outputReceiver:
+		d.inspectOutputCall(call, sel)
+	case failureReceiver:
+		d.inspectFailureCall(call, sel)
+	}
+}
+
+// inspectPackageCall migrates a removed package-level call: NextCommand and
+// the Option funcs.
+func (d *removedTwoZeroDetector) inspectPackageCall(call *ast.CallExpr, name string) {
+	switch {
+	case name == "NextCommand":
+		d.report(call, "evo.NextCommand was removed in 2.0; a next step is evo.Next(evo.Action{Command: ...})",
+			"replace "+d.nodeSrc(call)+" with "+d.nextAction(call))
+	case supersededOptionFuncs[name]:
+		d.inspectOptionCall(call, name)
+	}
+}
+
 // nextAction is the 2.0 spelling of an evo.NextCommand(exe, args...) call.
 func (d *removedTwoZeroDetector) nextAction(call *ast.CallExpr) string {
-	command := "[]string{" + d.argsSrc(call.Args) + "}"
+	command := "[]string{" + d.callArgsSrc(call.Args) + "}"
 	if call.Ellipsis.IsValid() && len(call.Args) > 1 {
 		command = "append([]string{" + d.nodeSrc(call.Args[0]) + "}, " + d.nodeSrc(call.Args[len(call.Args)-1]) + "...)"
 	}
 	return d.pkg + ".Next(" + d.pkg + ".Action{Command: " + command + "})"
 }
 
-// argsSrc is args as written, with each evo.NextCommand option rewritten
-// to its 2.0 spelling.
-func (d *removedTwoZeroDetector) argsSrc(args []ast.Expr) string {
+func (d *removedTwoZeroDetector) isEvoCall(e ast.Expr, name string) (*ast.CallExpr, bool) {
+	call, ok := e.(*ast.CallExpr)
+	if !ok {
+		return nil, false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	return call, ok && sel.Sel.Name == name && isEvoIdent(sel.X, d.pkg)
+}
+
+// callArgsSrc is args as written, joined by commas.
+func (d *removedTwoZeroDetector) callArgsSrc(args []ast.Expr) string {
 	parts := make([]string, len(args))
-	for i, arg := range args {
-		parts[i] = d.nodeSrc(arg)
-		if call, ok := arg.(*ast.CallExpr); ok && d.isEvoCall(call, "NextCommand") {
-			parts[i] = d.nextAction(call)
-		}
+	for i, a := range args {
+		parts[i] = d.nodeSrc(a)
 	}
 	return strings.Join(parts, ", ")
 }
 
-// excludeArgs is the arguments of a Skipped call as evo.Exclude takes them:
-// the reason text, unwrapped from evo.Reason, then any options.
-func (d *removedTwoZeroDetector) excludeArgs(args []ast.Expr) string {
-	if len(args) == 0 {
-		return `"reason"`
-	}
-	reason := d.nodeSrc(args[0])
-	if call, ok := args[0].(*ast.CallExpr); ok && d.isEvoCall(call, "Reason") && len(call.Args) == 1 {
-		reason = d.nodeSrc(call.Args[0])
-	}
-	return reason
-}
-
-func (d *removedTwoZeroDetector) isEvoCall(call *ast.CallExpr, name string) bool {
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	return ok && sel.Sel.Name == name && isEvoIdent(sel.X, d.pkg)
-}
-
 func (d *removedTwoZeroDetector) report(n ast.Node, message, suggestion string) {
-	f := d.fset.File(n.Pos())
 	d.findings = append(d.findings, Finding{
 		RuleID:     "API-032",
 		Message:    message,
 		File:       d.filename,
-		Line:       lineAt(d.src, f.Offset(n.Pos())),
+		Line:       lineAt(d.src, d.offset(n)),
 		Suggestion: suggestion,
 	})
 }
 
+func (d *removedTwoZeroDetector) cover(n ast.Node) { d.covered = append(d.covered, d.nodeSpan(n)) }
+
+func (d *removedTwoZeroDetector) isCovered(n ast.Node) bool {
+	off := d.offset(n)
+	for _, s := range d.covered {
+		if s.contains(off) {
+			return true
+		}
+	}
+	return false
+}
+
+type srcSpan struct{ start, end int }
+
+func (s srcSpan) contains(offset int) bool { return offset >= s.start && offset < s.end }
+
 func (d *removedTwoZeroDetector) nodeSrc(n ast.Node) string {
+	s := d.nodeSpan(n)
+	if s.start < 0 || s.end > len(d.src) || s.start >= s.end {
+		return ""
+	}
+	return d.src[s.start:s.end]
+}
+
+func (d *removedTwoZeroDetector) nodeSpan(n ast.Node) srcSpan {
 	f := d.fset.File(n.Pos())
-	return d.src[f.Offset(n.Pos()):f.Offset(n.End())]
+	return srcSpan{start: f.Offset(n.Pos()), end: f.Offset(n.End())}
+}
+
+func (d *removedTwoZeroDetector) offset(n ast.Node) int {
+	return d.fset.File(n.Pos()).Offset(n.Pos())
 }

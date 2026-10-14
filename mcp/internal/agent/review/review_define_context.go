@@ -10,9 +10,8 @@ import (
 // its scheduler-provided context parameter (unnamed, or named something other
 // than the outer "ctx" it shadows) while the body still calls cancellable
 // work with the captured outer "ctx" — the row cancels correctly but the
-// work it names never observes that cancellation (ZYS-938 / evo-1.x Decisions
-// 2026-09-23: "the Define context is authoritative for task
-// cancellation/lifecycle").
+// work it names never observes that cancellation. CleanStop, for one, cancels
+// only the Task's own context, never the run's.
 
 // defineCallbackContextParamName reports the Define callback's single
 // context.Context parameter name ("" for an unnamed or blank-identifier
@@ -222,9 +221,9 @@ func stmtLeafCallsWithIdent(stmt ast.Stmt, ident string) bool {
 // has its own Define(fn func(context.Context) error) method — a shape a
 // consumer file may legitimately declare for reasons unrelated to evo (a
 // validator, a config builder, a test helper). A call to one of these
-// types' Define is not evo's TaskHandle.Define and must not be attributed
-// to the scheduler (ZYS-938: proven false positive on such a type sharing a
-// file with real evo usage).
+// types' Define is not evo's Task.Define and must not be attributed
+// to the scheduler (proven false positive on such a type sharing a file with
+// real evo usage).
 func localDefineReceiverTypes(file *ast.File) map[string]bool {
 	types := map[string]bool{}
 	for _, decl := range file.Decls {
@@ -278,7 +277,7 @@ func typeNameOf(e ast.Expr) string {
 // declaration's or a parameter's type for name. It is not scoped to the
 // enclosing function — a coarse approximation — but is enough to keep a
 // receiver known to be one of localDefineReceiverTypes' non-evo types from
-// being mistaken for evo's TaskHandle; it returns "" (no exclusion) for
+// being mistaken for evo's Task; it returns "" (no exclusion) for
 // anything it cannot resolve, so it only ever narrows this rule, never
 // widens it.
 func identDeclaredTypeName(file *ast.File, name string) string {
@@ -342,7 +341,7 @@ func detectDefineDiscardsSchedulerContext(filename string, file *ast.File, fset 
 			return true
 		}
 		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || sel.Sel.Name != "Define" || len(call.Args) != 1 {
+		if !ok || sel.Sel.Name != "Define" || len(call.Args) < 1 {
 			return true
 		}
 		if len(localTypes) > 0 {

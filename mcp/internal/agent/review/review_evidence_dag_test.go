@@ -41,25 +41,6 @@ func assertNoFinding(t *testing.T, res review.Result, ruleID string) {
 	}
 }
 
-func TestEVOEVIDENCE001_MutatingLegacyEvidence_Fires(t *testing.T) {
-	res := review.GoSource("evidence_001_bad.go", readFixture(t, "evidence_001_bad.go"))
-	f := assertFinding(t, res, "EVO-EVIDENCE-001")
-	if f.Severity != "error" {
-		t.Fatalf("severity = %q, want error", f.Severity)
-	}
-	if f.RequiredVersion != "1.0.0" {
-		t.Fatalf("required_version = %q, want 1.0.0", f.RequiredVersion)
-	}
-	if !strings.Contains(f.Suggestion, "Define") {
-		t.Fatalf("suggestion does not name Define: %q", f.Suggestion)
-	}
-}
-
-func TestEVOEVIDENCE001_MutationMovedToDefine_StaysSilent(t *testing.T) {
-	res := review.GoSource("evidence_001_good.go", readFixture(t, "evidence_001_good.go"))
-	assertNoFinding(t, res, "EVO-EVIDENCE-001")
-}
-
 func TestEVOVERIFY001_MutatingVerify_Fires(t *testing.T) {
 	res := review.GoSource("verify_001_bad.go", readFixture(t, "verify_001_bad.go"))
 	f := assertFinding(t, res, "EVO-VERIFY-001")
@@ -82,7 +63,7 @@ func TestEVOVERIFY001_AmbiguouslyNamedHandle_StillFires(t *testing.T) {
 }
 
 func TestEVODRYRUN001_RawMutationInDefine_Fires(t *testing.T) {
-	res := review.GoSource("dryrun_001_bad.go", readFixture(t, "dryrun_001_bad.go"))
+	res := review.GoSource("bad.go", readDialectFixture(t, "detectRawMutationInDefine", "bad.go"))
 	f := assertFinding(t, res, "EVO-DRYRUN-001")
 	if f.Severity != "error" {
 		t.Fatalf("severity = %q, want error", f.Severity)
@@ -93,7 +74,7 @@ func TestEVODRYRUN001_RawMutationInDefine_Fires(t *testing.T) {
 }
 
 func TestEVODRYRUN001_MutationRoutedThroughEvoFile_StaysSilent(t *testing.T) {
-	res := review.GoSource("dryrun_001_good.go", readFixture(t, "dryrun_001_good.go"))
+	res := review.GoSource("good.go", readDialectFixture(t, "detectRawMutationInDefine", "good.go"))
 	assertNoFinding(t, res, "EVO-DRYRUN-001")
 }
 
@@ -111,7 +92,7 @@ import (
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
-func addColumn(task *evo.TaskHandle, db *sql.DB) {
+func addColumn(task *evo.Task, db *sql.DB) {
 	task.Define(func(ctx context.Context) error {
 		_, err := db.ExecContext(ctx, "ALTER TABLE users ADD COLUMN email_verified boolean")
 		return err
@@ -130,7 +111,7 @@ import (
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
-func addColumn(task *evo.TaskHandle, db *sql.DB) {
+func addColumn(task *evo.Task, db *sql.DB) {
 	task.Define(func(ctx context.Context) error {
 		spec := evo.EffectSpec{Verb: evo.Create, Object: "column", Quantity: 1}
 		return evo.Effect(ctx, spec, func(ctx context.Context) error {
@@ -153,7 +134,7 @@ import (
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
-func writeConfig(task *evo.TaskHandle, path string, data []byte) {
+func writeConfig(task *evo.Task, path string, data []byte) {
 	task.Define(func(ctx context.Context) error {
 		spec := evo.EffectSpec{Verb: evo.Update, Object: "config", Quantity: 1}
 		return evo.Effect(ctx, spec, func(context.Context) error {
@@ -200,57 +181,6 @@ func TestEVODAG001_NoGoroutine_StaysSilent(t *testing.T) {
 	assertNoFinding(t, res, "EVO-DAG-001")
 }
 
-func TestEVODAG002_AfterChainDuplicatesSequence_Fires(t *testing.T) {
-	res := review.GoSource("dag_002_bad.go", readFixture(t, "dag_002_bad.go"))
-	f := assertFinding(t, res, "EVO-DAG-002")
-	if !strings.Contains(f.Suggestion, "Sequence") {
-		t.Fatalf("suggestion does not name Sequence: %q", f.Suggestion)
-	}
-}
-
-func TestEVODAG002_SequenceWithNoAfter_StaysSilent(t *testing.T) {
-	res := review.GoSource("dag_002_good.go", readFixture(t, "dag_002_good.go"))
-	assertNoFinding(t, res, "EVO-DAG-002")
-}
-
-func TestEVODAG002_SingleExceptionalAfterEdge_StaysSilent(t *testing.T) {
-	res := review.GoSource("after_exceptional_edge.go", readFixture(t, "after_exceptional_edge.go"))
-	assertNoFinding(t, res, "EVO-DAG-002")
-}
-
-func TestEVODAG002_UnrelatedNonEvoAfterChain_StaysSilent(t *testing.T) {
-	res := review.GoSource("dag_002_unrelated_after_chain.go", readFixture(t, "dag_002_unrelated_after_chain.go"))
-	assertNoFinding(t, res, "EVO-DAG-002")
-}
-
-func TestEVODAG002_AmbiguouslyNamedHandles_StillFires(t *testing.T) {
-	res := review.GoSource("dag_002_bad_ambiguous_name.go", readFixture(t, "dag_002_bad_ambiguous_name.go"))
-	assertFinding(t, res, "EVO-DAG-002")
-}
-
-func TestEVODAG003_ProducerConsumerWithNoOrdering_Fires(t *testing.T) {
-	res := review.GoSource("dag_003_bad.go", readFixture(t, "dag_003_bad.go"))
-	f := assertFinding(t, res, "EVO-DAG-003")
-	if !strings.Contains(f.Suggestion, "After") && !strings.Contains(f.Suggestion, "Sequence") {
-		t.Fatalf("suggestion does not name After/Sequence: %q", f.Suggestion)
-	}
-}
-
-func TestEVODAG003_ProducerConsumerWithAfter_StaysSilent(t *testing.T) {
-	res := review.GoSource("dag_003_good.go", readFixture(t, "dag_003_good.go"))
-	assertNoFinding(t, res, "EVO-DAG-003")
-}
-
-func TestEVODAG003_ProducerConsumerOrderedBySequence_StaysSilent(t *testing.T) {
-	res := review.GoSource("dag_003_sequence_good.go", readFixture(t, "dag_003_sequence_good.go"))
-	assertNoFinding(t, res, "EVO-DAG-003")
-}
-
-func TestEVODAG003_ConsumerBeforeProducerInSequence_Fires(t *testing.T) {
-	res := review.GoSource("dag_003_sequence_wrong_order_bad.go", readFixture(t, "dag_003_sequence_wrong_order_bad.go"))
-	assertFinding(t, res, "EVO-DAG-003")
-}
-
 // §62 baselines: no EVO-* finding on ordinary, current usage.
 
 func evoFindings(res review.Result) []review.Finding {
@@ -277,13 +207,6 @@ func TestEVORules_GroupIndependentSequenceOrdered_NoFinding(t *testing.T) {
 	}
 }
 
-func TestEVORules_AfterExceptionalEdge_NoFinding(t *testing.T) {
-	res := review.GoSource("after_exceptional_edge.go", readFixture(t, "after_exceptional_edge.go"))
-	if got := evoFindings(res); len(got) != 0 {
-		t.Fatalf("exceptional After edge produced EVO-* findings: %+v", got)
-	}
-}
-
 // §57/§62: every EVO-EVIDENCE/VERIFY/DRYRUN/DAG rule's Suggestion requires
 // 1.0.0-only API (Verify, evo.File, evo.Exec, Sequence/After) and carries
 // RequiredVersion "1.0.0" — so none of them may fire for a pin older than
@@ -294,12 +217,8 @@ func TestEVORules_PreOneZeroPin_StaySilent(t *testing.T) {
 		ruleID  string
 		fixture string
 	}{
-		{"EVO-EVIDENCE-001", "evidence_001_bad.go"},
 		{"EVO-VERIFY-001", "verify_001_bad.go"},
-		{"EVO-DRYRUN-001", "dryrun_001_bad.go"},
 		{"EVO-DAG-001", "dag_001_bad.go"},
-		{"EVO-DAG-002", "dag_002_bad.go"},
-		{"EVO-DAG-003", "dag_003_bad.go"},
 	}
 	for _, c := range cases {
 		t.Run(c.ruleID, func(t *testing.T) {
@@ -308,4 +227,8 @@ func TestEVORules_PreOneZeroPin_StaySilent(t *testing.T) {
 			assertNoFinding(t, res, c.ruleID)
 		})
 	}
+	t.Run("EVO-DRYRUN-001", func(t *testing.T) {
+		src := readDialectFixture(t, "detectRawMutationInDefine", "bad.go")
+		assertNoFinding(t, review.GoSourceAt("bad.go", src, preOneZero), "EVO-DRYRUN-001")
+	})
 }

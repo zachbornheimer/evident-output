@@ -59,14 +59,14 @@ fmt.Println("still going...") // tears the live frame`,
 			MinDialect: "1.0.0",
 			Category:   "SIG",
 			Severity:   SeverityWarning,
-			Invariant:  "evo.Main/evo.Run own SIGINT/SIGTERM/os.Interrupt cancellation; a host does not build a second interrupt layer around them",
-			Why:        "evo.Main/evo.Run cancel RunFunc's context.Context on SIGINT/SIGTERM/os.Interrupt as of 1.0.0; a host-built signal.NotifyContext/signal.Notify wired for the same signals solely to wrap that call duplicates the lifecycle and can let the ledger's ■ glyph and the process's real exit path diverge.",
+			Invariant:  "evo.Main owns SIGINT/SIGTERM/os.Interrupt cancellation; a host does not build a second interrupt layer around it",
+			Why:        "evo.Main cancels the run's context on SIGINT/SIGTERM/os.Interrupt and keeps honouring both until the run has finished; a host-built signal.NotifyContext/signal.Notify wired for the same signals solely to wrap that call duplicates the lifecycle and can let the ledger's ■ glyph and the process's real exit path diverge.",
 			BadCode: `ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 defer stop()
-os.Exit(evo.Main(evo.Config{}, func(context.Context) error { return run(ctx) }))`,
-			GoodCode: `os.Exit(evo.Main(evo.Config{}, run)) // run(ctx context.Context) error — Main cancels ctx on SIGINT/SIGTERM itself
+os.Exit(evo.Main(evo.Config{}, func(_ context.Context, r *evo.Run) error { return run(ctx, r) }))`,
+			GoodCode: `os.Exit(evo.Main(evo.Config{}, run)) // run(ctx, r) — Main cancels ctx on SIGINT/SIGTERM itself
 // signal.Notify for anything unrelated to Evo's own lifecycle (e.g. SIGHUP) is unaffected`,
-			Remediation:     "Delete the duplicate signal.NotifyContext/signal.Notify wiring and read cancellation from the ctx evo.Main/evo.Run already pass into the run callback; keep signal.Notify only for signals Evo does not own (SIGHUP, SIGUSR1, ...)",
+			Remediation:     "Delete the duplicate signal.NotifyContext/signal.Notify wiring and read cancellation from the ctx evo.Main already passes into the run callback; keep signal.Notify only for signals Evo does not own (SIGHUP, SIGUSR1, ...)",
 			Exceptions:      []string{"signal.Notify/NotifyContext for a signal other than SIGINT/SIGTERM/os.Interrupt"},
 			RelatedGuidance: []string{"streams", "interactive"},
 			VerificationIDs: []string{"SIG-002"},

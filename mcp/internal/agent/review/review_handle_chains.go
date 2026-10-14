@@ -168,14 +168,15 @@ func (s handleScan) containerAfters(root string) []string {
 	return afters
 }
 
-// consumer is a callback that runs as the work or builder of one handle.
+// consumer is a Define or Build callback, or an evo.Compute function: the
+// work or builder of one handle.
 type consumer struct {
 	chain handleChain
 	lit   *ast.FuncLit
 }
 
-// consumers lists every Define callback and evo.Compute callback whose
-// owning handle resolves to a declaration chain.
+// consumers lists every Define, Build and evo.Compute callback whose owning
+// handle resolves to a declaration chain.
 func (s handleScan) consumers(file *ast.File) []consumer {
 	var out []consumer
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -198,7 +199,7 @@ func (s handleScan) consumerOf(call *ast.CallExpr) (consumer, bool) {
 		return consumer{chain: chain, lit: lit}, isLit && parsed
 	}
 	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok || sel.Sel.Name != "Define" || len(call.Args) != 1 {
+	if !ok || !isCallbackCall(call) {
 		return consumer{}, false
 	}
 	lit, ok := call.Args[0].(*ast.FuncLit)

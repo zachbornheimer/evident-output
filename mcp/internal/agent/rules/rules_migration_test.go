@@ -74,15 +74,16 @@ func TestMigrations_CoversNamedEvidenceForCommonFileState(t *testing.T) {
 	t.Fatal("missing §59 migration row: named Evidence used only for common file state → evo.File")
 }
 
-// The six 1.1 removals an upgrade assistant must rewrite mechanically.
+// The six 1.1 removals an upgrade assistant must rewrite mechanically, each
+// to its 2.0 form.
 func TestMigrations_Covers1_1Removals(t *testing.T) {
 	want := []struct{ from, to string }{
 		{"Blockf", "Refuse"},
 		{"Failf", "Fail"},
 		{"Warn", "Problem"},
 		{"Step", "Progress"},
-		{"Kept", "Skipped"},
-		{"Evidence", "Capture"},
+		{"Kept", "Exclude"},
+		{"Evidence", "Writer"},
 	}
 	rows := rules.Migrations()
 	for _, w := range want {

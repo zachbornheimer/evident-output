@@ -23,7 +23,7 @@ import (
 	"os"
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
-func writeConfig(out *evo.Output, path string, data []byte) error {
+func writeConfig(r *evo.Run, path string, data []byte) error {
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("write config: %w", err)
 	}
@@ -49,9 +49,10 @@ func TestEVOFILE001_DeclarativeEvoFile_NoFinding(t *testing.T) {
 	src := `package p
 import (
 	"context"
+	"io/fs"
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
-func writeConfig(ctx context.Context, path string, data []byte, mode int, inputs []string) error {
+func writeConfig(ctx context.Context, path string, data []byte, mode fs.FileMode, inputs []string) error {
 	return evo.File(ctx, evo.FileSpec{Path: path, Contents: data, Mode: mode, Inputs: inputs})
 }
 `
@@ -122,7 +123,7 @@ import (
 	"os/exec"
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
-func generate(out *evo.Output, inputPath, outPath string) error {
+func generate(r *evo.Run, inputPath, outPath string) error {
 	if outputIsStale(inputPath, outPath) {
 		cmd := exec.Command("python3", "generate.py", inputPath, outPath)
 		return cmd.Run()
@@ -147,11 +148,12 @@ import (
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func generate(ctx context.Context, inputPath, outPath string) error {
-	return evo.Exec(ctx, evo.ExecSpec{
+	_, err := evo.Exec(ctx, evo.ExecSpec{
 		Argv:    []string{"python3", "generate.py", inputPath, outPath},
 		Inputs:  []string{"generate.py", inputPath},
 		Outputs: []string{outPath},
 	})
+	return err
 }
 `
 	res := review.GoSource("generate.go", src)

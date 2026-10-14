@@ -23,7 +23,7 @@ func TestMCP_InitializeAndToolsListStdoutPurity(t *testing.T) {
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
 		`{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}`,
 		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"evident_output_list_guides","arguments":{}}}`,
-		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"evident_output_explain","arguments":{"rule_id":"API-006"}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"evident_output_explain","arguments":{"rule_id":"STREAM-003"}}}`,
 	}, "\n") + "\n"
 
 	cmd := exec.Command(bin)
@@ -61,8 +61,8 @@ func TestMCP_InitializeAndToolsListStdoutPurity(t *testing.T) {
 	if _, ok := listed["evident_output_list_guides"]; ok {
 		t.Fatal("tools/list must not advertise list_guides (call alias only)")
 	}
-	if !strings.Contains(stdout.String(), "API-006") && !strings.Contains(stdout.String(), "explicit Start") {
-		t.Fatalf("explain missing API-006: %s", stdout.String())
+	if !strings.Contains(stdout.String(), "STREAM-003") {
+		t.Fatalf("explain missing STREAM-003: %s", stdout.String())
 	}
 }
 

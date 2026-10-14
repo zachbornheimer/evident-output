@@ -8,30 +8,25 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
 )
 
-func TestGoSource_DetectsStartPrintfExitAndDetailMisuse(t *testing.T) {
+func TestGoSource_DetectsPrintfAndExitMisuse(t *testing.T) {
 	src := `package p
 import (
+  "context"
   "fmt"
   "os"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f() {
-  out := evo.Init(evo.Config{})
-  t := out.Task("x")
-  t.Start()
+func run(ctx context.Context, r *evo.Run) error {
   fmt.Printf("hi")
-  out.Task("i").Block("b", evo.Detail(err))
   os.Exit(1)
+  return nil
 }
 `
 	res := review.GoSource("x.go", src)
-	want := map[string]bool{"API-006": false, "STREAM-003": false, "DOM-014": false, "API-018": false}
+	want := map[string]bool{"STREAM-003": false, "API-018": false}
 	for _, f := range res.Findings {
 		if _, ok := want[f.RuleID]; ok {
 			want[f.RuleID] = true
-			if f.Line == 0 && f.RuleID == "API-006" {
-				t.Errorf("API-006 missing line")
-			}
 		}
 	}
 	for id, ok := range want {
@@ -58,17 +53,18 @@ func TestStructuredDocument_RequiresSchema(t *testing.T) {
 	}
 }
 
-func TestMCP014_BlockedItemAsApplicationError(t *testing.T) {
+func TestDOM011_DeclinedConfirmAsApplicationError(t *testing.T) {
 	bad := `package p
 import (
+  "context"
   "errors"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func check() error {
-  out := evo.Init(evo.Config{Title: "repo"})
-  defer out.Close()
-  out.Task("working tree").Block("dirty")
-  return errors.New("dirty")
+func run(ctx context.Context, r *evo.Run) error {
+  if !r.Confirm("delete 40 branches?", evo.Destructive()) {
+    return errors.New("declined")
+  }
+  return nil
 }
 `
 	res := review.GoSource("bad.go", bad)
@@ -82,222 +78,59 @@ func check() error {
 		}
 	}
 	if !found {
-		t.Fatalf("expected DOM-011 on blocked-as-error: %+v", res.Findings)
+		t.Fatalf("expected DOM-011 on a declined Confirm returned as an error: %+v", res.Findings)
 	}
 	if !res.RecheckRequired {
 		t.Fatal("expected recheck_required")
 	}
 }
 
-func TestMCP014_NoFalsePositiveOnRealAppError(t *testing.T) {
-	// Real evaluation failure uses Fail, not Block — must not flag DOM-011.
+func TestDOM011_NoFalsePositiveOnRefuseOrRealError(t *testing.T) {
 	good := `package p
 import (
+  "context"
   "errors"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func check() error {
-  out := evo.Init(evo.Config{Title: "repo"})
-  defer out.Close()
+func run(ctx context.Context, r *evo.Run) error {
+  if !r.Confirm("delete 40 branches?", evo.Destructive()) {
+    return evo.Refuse("declined")
+  }
   if err := load(); err != nil {
-    out.Task("data").Fail("load failed")
-    _ = out.Finish()
     return err
   }
-  out.Task("data").Done()
-  return out.Finish()
+  return nil
 }
 func load() error { return errors.New("io") }
 `
 	res := review.GoSource("good.go", good)
 	for _, f := range res.Findings {
 		if f.RuleID == "DOM-011" {
-			t.Fatalf("false positive DOM-011 on Fail path: %+v", res.Findings)
+			t.Fatalf("false positive DOM-011: %+v", res.Findings)
 		}
 	}
 }
 
-func TestMCP014_BlockThenFinishOK(t *testing.T) {
-	// Correct blocked path: Block + Finish, no application error return.
-	ok := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func check() error {
-  out := evo.Init(evo.Config{Title: "repo"})
-  defer out.Close()
-  out.Task("working tree").Block("dirty")
-  return out.Finish()
-}
-`
-	res := review.GoSource("ok.go", ok)
-	for _, f := range res.Findings {
-		if f.RuleID == "DOM-011" {
-			t.Fatalf("false positive on Finish after Block: %+v", res.Findings)
-		}
-	}
-}
-
-// TestAPI028_FailfWithoutFormat: Failf was removed in 1.1. API-032 rewrites
-// it; API-028 no longer owns a printf-verb family.
-func TestAPI028_FailfWithoutFormat(t *testing.T) {
-	src := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle) {
-  task.Failf("modules cached")
-  task.Failf("%d ok", 1)
-}
-`
-	res := review.GoSource("x.go", src)
-	var api028, api032 int
-	for _, f := range res.Findings {
-		switch f.RuleID {
-		case "API-028":
-			api028++
-		case "API-032":
-			api032++
-		}
-	}
-	if api028 != 0 {
-		t.Fatalf("API-028 must not fire on Failf (API-032 owns the 1.1 rewrite): %+v", res.Findings)
-	}
-	if api032 == 0 {
-		t.Fatalf("want API-032 on Failf, got %+v", res.Findings)
-	}
-}
-
-func TestAPI029_DebugWriterWarning(t *testing.T) {
-	src := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f() {
-  out := evo.New()
-  _ = out.DebugWriter()
-}
-`
-	res := review.GoSource("x.go", src)
-	var found bool
-	for _, f := range res.Findings {
-		if f.RuleID == "API-029" {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("expected API-029: %+v", res.Findings)
-	}
-}
-
-func TestAPI026_NoFalsePositiveOnStringsMap(t *testing.T) {
-	// Consumer feedback: substring ".Map(" fired on strings.Map and comments.
+func TestDOM011_ConfirmOnNonEvoReceiverIsNotFlagged(t *testing.T) {
 	src := `package p
 import (
-  "strings"
+  "errors"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f() {
-  // example: tasks.Map() is not real — do not flag this comment either
-  slug := strings.Map(func(r rune) rune { return r }, "ABC")
-  out := evo.Init(evo.Config{Title: "x"})
-  t := out.Task(slug)
-  t.Define(func(ctx context.Context) error {
-    return nil
-  })
-  _ = out.Finish()
-}
-`
-	res := review.GoSource("slug.go", src)
-	for _, f := range res.Findings {
-		if f.RuleID == "API-026" {
-			t.Fatalf("false positive API-026 on strings.Map: %+v", res.Findings)
-		}
-	}
-	if res.Partial {
-		t.Fatal("clean single-file review must not set partial=true")
-	}
-	if res.RecheckRequired {
-		t.Fatalf("unexpected recheck: %+v", res.Findings)
-	}
-}
-
-func TestAPI026_DetectsEvoExecutionHelper(t *testing.T) {
-	src := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f() {
-  out := evo.Init(evo.Config{})
-  out.Tasks("jobs").Map(func() {})
-  out.Group("jobs").Retry(3)
-  evo.Task("x").RunAll()
-}
-`
-	res := review.GoSource("bad.go", src)
-	var found bool
-	var sawMap, sawRetry, sawRunAll bool
-	for _, f := range res.Findings {
-		if f.RuleID == "API-026" {
-			found = true
-			if f.Line == 0 {
-				t.Error("API-026 missing line")
-			}
-			if strings.Contains(f.Message, "Map") {
-				sawMap = true
-			}
-			if strings.Contains(f.Message, "Retry") {
-				sawRetry = true
-			}
-			if strings.Contains(f.Message, "RunAll") {
-				sawRunAll = true
-			}
-		}
-	}
-	if !found {
-		t.Fatalf("expected API-026 on Tasks.Map: %+v", res.Findings)
-	}
-	if !sawMap || !sawRetry || !sawRunAll {
-		t.Fatalf("expected API-026 on Map/Retry/RunAll, got %+v", res.Findings)
-	}
-}
-
-func TestAPI026_DoesNotFlagGroupTaskDefineAfter(t *testing.T) {
-	src := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(paths []string, worktrees, branches *evo.GroupHandle) {
-  work := evo.Group("worktrees")
-  for _, path := range paths {
-    path := path
-    work.Task(path).Define(func(ctx context.Context) error { return nil })
+type prompter struct{}
+func (prompter) Confirm(string) bool { return false }
+func run(r *evo.Run, p prompter) error {
+  _ = r
+  if !p.Confirm("go on?") {
+    return errors.New("declined")
   }
-  setup := evo.Sequence("setup")
-  for _, path := range paths {
-    path := path
-    setup.Task(path).Define(func(ctx context.Context) error { return nil })
-  }
-  evo.Task("fetch").After(worktrees, branches).Define(func(ctx context.Context) error { return nil })
+  return nil
 }
 `
-	res := review.GoSource("ok.go", src)
-	for _, f := range res.Findings {
-		if f.RuleID == "API-026" {
-			t.Fatalf("API-026 must not flag Group/Sequence/Task/Define/After: %+v", res.Findings)
+	for _, f := range review.GoSource("other.go", src).Findings {
+		if f.RuleID == "DOM-011" {
+			t.Fatalf("DOM-011 fired on a non-evo Confirm: %+v", f)
 		}
-	}
-}
-
-func TestAPI027_CollectionDoneFail(t *testing.T) {
-	src := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(out *evo.Output) {
-  g := out.Group("deps")
-  g.Done()
-  out.Sequence("setup").Fail("no")
-  out.Group("run").Progress(1, 2)
-}
-`
-	res := review.GoSource("col.go", src)
-	var found bool
-	for _, f := range res.Findings {
-		if f.RuleID == "API-027" {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("expected API-027 on collection Done/Fail/Progress: %+v", res.Findings)
 	}
 }
 
@@ -325,7 +158,7 @@ func check(path string) error { return nil }
 	}
 	for _, f := range res.Findings {
 		switch f.RuleID {
-		case "API-026", "API-027", "API-032", "API-039":
+		case "API-032", "API-039":
 			t.Fatalf("beginner file has dialect finding %s: %+v", f.RuleID, f)
 		}
 	}
@@ -338,11 +171,7 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func main() {
-  out := evo.Init(evo.Config{Title: "t"})
-  os.Exit(out.Run(func(o *evo.Output) error {
-    o.Task("x").Done()
-    return nil
-  }))
+  os.Exit(evo.Main(evo.Config{Name: "t"}, run))
 }
 `
 	res := review.GoSource("main.go", src)
@@ -353,12 +182,6 @@ func main() {
 	}
 }
 
-// TestAPI018_AllowsExitCodeFidelityPattern pins the sanctioned pattern for
-// CLIs (like go-task) that must propagate a child process's own exit code:
-// capture evo.Run's code, override it when a child exits non-zero for its
-// own reason, then os.Exit the resulting variable. This must not warn —
-// it's a documented GoodCode shape, not something the maintainer can't
-// clear (mcp/docs/exit-code-fidelity.md).
 func TestAPI018_AllowsExitCodeFidelityPattern(t *testing.T) {
 	src := `package main
 import (
@@ -367,12 +190,8 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func main() {
-  out := evo.Init(evo.Config{Title: "t"})
   var childErr *exec.ExitError
-  code := evo.Run(func(o *evo.Output) error {
-    o.Task("x").Done()
-    return nil
-  })
+  code := evo.Main(evo.Config{Name: "t"}, run)
   if childErr != nil {
     code = childErr.ExitCode()
   }
@@ -397,8 +216,8 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func main() {
-  out := evo.Init(evo.Config{Title: "t"})
-  out.Task("x").Done()
+  code := evo.Main(evo.Config{Name: "t"}, run)
+  _ = code
   os.Exit(1)
 }
 `
@@ -423,7 +242,6 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func main() {
-  out := evo.Init(evo.Config{Title: "t"})
   c := make(chan os.Signal, 1)
   signal.Notify(c, syscall.SIGINT)
   go func() {
@@ -431,7 +249,7 @@ func main() {
     println("interrupted")
     os.Exit(1)
   }()
-  _ = out.Finish()
+  os.Exit(evo.Main(evo.Config{Name: "t"}, run))
 }
 `
 	res := review.GoSource("bad.go", src)
@@ -445,34 +263,34 @@ func main() {
 		}
 	}
 	if !found {
-		t.Fatalf("expected SIG-001 on signal.Notify without Cancel: %+v", res.Findings)
+		t.Fatalf("expected SIG-001 on a signal handler that calls os.Exit: %+v", res.Findings)
 	}
 }
 
-func TestSIG001_NoFalsePositiveWhenCancelCalled(t *testing.T) {
+func TestSIG001_NoFalsePositiveWhenHandlerCancelsTheContext(t *testing.T) {
 	src := `package main
 import (
+  "context"
   "os"
   "os/signal"
   "syscall"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func main() {
-  out := evo.Init(evo.Config{Title: "t"})
-  t := out.Task("scan")
+  ctx, cancel := context.WithCancel(context.Background())
   c := make(chan os.Signal, 1)
   signal.Notify(c, syscall.SIGINT)
   go func() {
     <-c
-    t.Cancel("interrupted")
+    cancel()
   }()
-  _ = out.Finish()
+  os.Exit(evo.Execute(ctx, evo.Config{Name: "t"}, run).ExitCode())
 }
 `
 	res := review.GoSource("good.go", src)
 	for _, f := range res.Findings {
 		if f.RuleID == "SIG-001" {
-			t.Fatalf("false positive SIG-001 when Cancel is called: %+v", res.Findings)
+			t.Fatalf("false positive SIG-001 when the handler cancels the context: %+v", res.Findings)
 		}
 	}
 }
@@ -486,12 +304,12 @@ import (
   "syscall"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(ctx context.Context) error { return nil }
+func run(ctx context.Context, r *evo.Run) error { return nil }
 func main() {
   ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
   defer stop()
-  os.Exit(evo.Main(func(context.Context) error {
-    return run(ctx)
+  os.Exit(evo.Main(evo.Config{}, func(_ context.Context, r *evo.Run) error {
+    return run(ctx, r)
   }))
 }
 `
@@ -522,12 +340,12 @@ import (
   "syscall"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(ctx context.Context) error { return nil }
+func run(ctx context.Context, r *evo.Run) error { return nil }
 func main() {
   ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
   defer stop()
-  os.Exit(evo.Main(func(context.Context) error {
-    return run(ctx)
+  os.Exit(evo.Main(evo.Config{}, func(_ context.Context, r *evo.Run) error {
+    return run(ctx, r)
   }))
 }
 `
@@ -537,12 +355,13 @@ func main() {
 	}
 	fixed := `package main
 import (
+  "context"
   "os"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(_ interface{}) error { return nil }
+func run(ctx context.Context, r *evo.Run) error { return nil }
 func main() {
-  os.Exit(evo.Main(run))
+  os.Exit(evo.Main(evo.Config{}, run))
 }
 `
 	after := review.GoSource("fixed.go", fixed)
@@ -568,7 +387,7 @@ func main() {
 	res := review.GoSource("good_no_evo.go", src)
 	for _, f := range res.Findings {
 		if f.RuleID == "SIG-002" {
-			t.Fatalf("false positive SIG-002 with no evo.Main/Run call: %+v", res.Findings)
+			t.Fatalf("false positive SIG-002 with no evo.Main call: %+v", res.Findings)
 		}
 	}
 }
@@ -580,9 +399,9 @@ import (
   "os"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(ctx context.Context) error { return nil }
+func run(ctx context.Context, r *evo.Run) error { return nil }
 func main() {
-  os.Exit(evo.Main(run))
+  os.Exit(evo.Main(evo.Config{}, run))
 }
 `
 	res := review.GoSource("good.go", src)
@@ -596,18 +415,19 @@ func main() {
 func TestSIG002_NoFalsePositiveOnUnrelatedSignal(t *testing.T) {
 	src := `package main
 import (
+  "context"
   "os"
   "os/signal"
   "syscall"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run() error { return nil }
+func run(ctx context.Context, r *evo.Run) error { return nil }
 func watchReload(c chan os.Signal) {}
 func main() {
   reload := make(chan os.Signal, 1)
   signal.Notify(reload, syscall.SIGHUP)
   go watchReload(reload)
-  os.Exit(evo.Main(func(_ interface{}) error { return run() }))
+  os.Exit(evo.Main(evo.Config{}, run))
 }
 `
 	res := review.GoSource("good_sighup.go", src)
@@ -627,12 +447,12 @@ import (
   "syscall"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(ctx context.Context) error { return nil }
+func run(ctx context.Context, r *evo.Run) error { return nil }
 func main() {
   ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
   defer stop()
-  os.Exit(evo.Main(func(context.Context) error {
-    return run(ctx)
+  os.Exit(evo.Main(evo.Config{}, func(_ context.Context, r *evo.Run) error {
+    return run(ctx, r)
   }))
 }
 `
@@ -651,7 +471,7 @@ import (
   "os/exec"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(out *evo.Output) error {
+func run(r *evo.Run) error {
   cmd := exec.Command("zq", "setup")
   cmd.Stdout = os.Stdout
   cmd.Stderr = os.Stderr
@@ -673,26 +493,53 @@ func run(out *evo.Output) error {
 	}
 }
 
-func TestTERM015_NoFalsePositiveWithTaskRun(t *testing.T) {
+func TestTERM015_NoFalsePositiveWithTaskWriter(t *testing.T) {
 	good := `package p
 import (
+  "context"
   "os/exec"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(out *evo.Output) error {
-  task := out.Task("build")
-  cmd := exec.Command("go", "build", "./...")
-  if err := task.Run(cmd); err != nil {
-    return task.Failf("build failed: %w", err)
-  }
-  task.Done()
+func run(r *evo.Run) error {
+  task := r.Task("build")
+  task.Define(func(ctx context.Context) error {
+    cmd := exec.CommandContext(ctx, "go", "build", "./...")
+    cmd.Stdout = task.Writer()
+    cmd.Stderr = task.Writer()
+    return cmd.Run()
+  })
   return nil
 }
 `
 	res := review.GoSource("good.go", good)
 	for _, f := range res.Findings {
 		if f.RuleID == "TERM-015" {
-			t.Fatalf("false positive TERM-015 when Task.Run captures the child: %+v", res.Findings)
+			t.Fatalf("false positive TERM-015 when Task.Writer captures the child: %+v", res.Findings)
+		}
+	}
+}
+
+func TestTERM015_NoFalsePositiveInsideSuspend(t *testing.T) {
+	good := `package p
+import (
+  "os"
+  "os/exec"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func run(r *evo.Run) error {
+  return r.Suspend(func() error {
+    cmd := exec.Command("zq", "login")
+    cmd.Stdin = os.Stdin
+    cmd.Stdout = os.Stdout
+    cmd.Stderr = os.Stderr
+    return cmd.Run()
+  })
+}
+`
+	res := review.GoSource("good.go", good)
+	for _, f := range res.Findings {
+		if f.RuleID == "TERM-015" {
+			t.Fatalf("false positive TERM-015 for a child that owns the terminal inside Suspend: %+v", res.Findings)
 		}
 	}
 }
@@ -705,7 +552,7 @@ import (
   "os"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func run(out *evo.Output) error {
+func run(r *evo.Run) error {
   reader := bufio.NewReader(os.Stdin)
   fmt.Print("delete origin/production-hotfix? [y/N] ")
   _, _ = reader.ReadString('\n')
@@ -734,7 +581,7 @@ import (
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 type services struct{ Err *os.File }
-func f(out *evo.Output, s services) {
+func f(r *evo.Run, s services) {
   s.Err.Write([]byte("duplicate"))
 }
 `
@@ -759,7 +606,7 @@ import (
   "bytes"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f(out *evo.Output) {
+func f(r *evo.Run) {
   var buf bytes.Buffer
   buf.Write([]byte("fine"))
 }
@@ -775,14 +622,14 @@ func f(out *evo.Output) {
 func TestSTREAM003_NoFalsePositiveOnEvoOwnedWriter(t *testing.T) {
 	good := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle) {
-  task.Capture().Write([]byte("fine"))
+func f(task *evo.Task) {
+  task.Writer().Write([]byte("fine"))
 }
 `
 	res := review.GoSource("good.go", good)
 	for _, f := range res.Findings {
 		if f.RuleID == "STREAM-003" {
-			t.Fatalf("false positive STREAM-003 on evo-owned Capture writer: %+v", res.Findings)
+			t.Fatalf("false positive STREAM-003 on evo-owned Writer: %+v", res.Findings)
 		}
 	}
 }
@@ -794,7 +641,7 @@ import (
   "strings"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f(out *evo.Output) {
+func f(r *evo.Run) {
   var sb strings.Builder
   fmt.Fprintf(&sb, "fine %d", 1)
 }
@@ -814,7 +661,7 @@ import (
   "fmt"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f(out *evo.Output) {
+func f(r *evo.Run) {
   var buf bytes.Buffer
   fmt.Fprintf(&buf, "fine %d", 1)
 }
@@ -834,7 +681,7 @@ import (
   "os"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f(out *evo.Output) {
+func f(r *evo.Run) {
   fmt.Fprintf(os.Stdout, "still contaminating %d", 1)
 }
 `
@@ -856,8 +703,8 @@ import (
   "strings"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f(task *evo.TaskHandle, names []string) {
-  task.Fail("cannot delete", evo.Detail(strings.Join(names, ", ")))
+func f(names []string) error {
+  return evo.Fail("cannot delete", evo.Detail(strings.Join(names, ", ")))
 }
 `
 	res := review.GoSource("bad.go", bad)
@@ -875,17 +722,20 @@ func f(task *evo.TaskHandle, names []string) {
 	}
 }
 
-func TestBOUND001_NoFalsePositiveWithTruncateNames(t *testing.T) {
+func TestBOUND001_NoFalsePositiveOnBoundedSlice(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle, names []string) {
-  task.Fail("cannot delete", evo.Detail(evo.TruncateNames(names, 8)))
+import (
+  "strings"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func f(names []string) error {
+  return evo.Fail("cannot delete", evo.Detail(strings.Join(names[:min(len(names), 8)], ", ")))
 }
 `
 	res := review.GoSource("good.go", good)
 	for _, f := range res.Findings {
 		if f.RuleID == "BOUND-001" {
-			t.Fatalf("false positive BOUND-001 when TruncateNames bounds the text: %+v", res.Findings)
+			t.Fatalf("false positive BOUND-001 when the joined slice is bounded: %+v", res.Findings)
 		}
 	}
 }
@@ -943,7 +793,7 @@ func f(out *evo.Output, jobs []string) {
 func TestAPI031_HandRolledPhaseWriter(t *testing.T) {
 	bad := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-type livePhase struct{ task *evo.TaskHandle }
+type livePhase struct{ task *evo.Task }
 func lastLine(p []byte) string { return string(p) }
 func (w *livePhase) Write(p []byte) (int, error) {
   w.task.Doing(lastLine(p))
@@ -973,7 +823,7 @@ func (b *buf) Write(p []byte) (int, error) {
   b.data = append(b.data, p...)
   return len(p), nil
 }
-func use(out *evo.Output) { _ = out }
+func use(r *evo.Run) { _ = r }
 `
 	res := review.GoSource("good.go", good)
 	for _, f := range res.Findings {
@@ -986,8 +836,8 @@ func use(out *evo.Output) { _ = out }
 func TestCONFIRM002_DestructiveQuestionMissingOption(t *testing.T) {
 	bad := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(flagYes bool) bool {
-  return evo.Confirm("delete origin/production-hotfix?", evo.AssumeYes(flagYes))
+func f(r *evo.Run) bool {
+  return r.Confirm("delete origin/production-hotfix?", evo.NonInteractive("--yes"))
 }
 `
 	res := review.GoSource("bad.go", bad)
@@ -1008,8 +858,8 @@ func f(flagYes bool) bool {
 func TestCONFIRM002_NoFalsePositiveWithDestructive(t *testing.T) {
 	good := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f() bool {
-  return evo.Confirm("delete origin/production-hotfix?", evo.Destructive())
+func f(r *evo.Run) bool {
+  return r.Confirm("delete origin/production-hotfix?", evo.Destructive())
 }
 `
 	res := review.GoSource("good.go", good)
@@ -1023,8 +873,8 @@ func f() bool {
 func TestCONFIRM002_NoFalsePositiveOnNonDestructiveQuestion(t *testing.T) {
 	good := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f() bool {
-  return evo.Confirm("proceed?")
+func f(r *evo.Run) bool {
+  return r.Confirm("proceed?")
 }
 `
 	res := review.GoSource("good.go", good)
@@ -1038,11 +888,12 @@ func f() bool {
 func TestCON002_PrintedJoinedFailureList(t *testing.T) {
 	bad := `package p
 import (
+  "fmt"
   "strings"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f(out *evo.Output, failures []string) {
-  out.Println(strings.Join(failures, "\n"))
+func f(r *evo.Run, failures []string) {
+  fmt.Fprintln(r.Text(), strings.Join(failures, "\n"))
 }
 `
 	res := review.GoSource("bad.go", bad)
@@ -1060,57 +911,15 @@ func f(out *evo.Output, failures []string) {
 	}
 }
 
-// TestEV001_FailfEmbedsCaptureText is red-first for P7's MCP detector
-// (user-13-problems.md Problem 7's named anti-pattern):
-// task.Failf("install failed: %s", capture.Text()) folds the retained
-// evidence ring straight into the summary, duplicating what auto-attach
-// already renders as its own evidence line.
-func TestEV001_FailfEmbedsCaptureText(t *testing.T) {
-	bad := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle, capture *evo.Capture) {
-  task.Failf("install failed: %s", capture.Text())
-}
-`
-	res := review.GoSource("bad.go", bad)
-	var found bool
-	for _, f := range res.Findings {
-		if f.RuleID == "EV-001" {
-			found = true
-			if f.Suggestion == "" {
-				t.Error("EV-001 missing suggestion")
-			}
-		}
-	}
-	if !found {
-		t.Fatalf("expected EV-001 on Failf embedding capture.Text(): %+v", res.Findings)
-	}
-}
-
-// TestEV001_NoFalsePositiveOnPavedPath proves the paved-path Fail+return
-// shape — which lets auto-attach do its one job — never triggers EV-001.
-func TestEV001_NoFalsePositiveOnPavedPath(t *testing.T) {
-	good := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle, err error) error {
-  task.Fail("install dependencies")
-  return err
-}
-`
-	res := review.GoSource("good.go", good)
-	for _, f := range res.Findings {
-		if f.RuleID == "EV-001" {
-			t.Fatalf("false positive EV-001 on the paved-path %%w shape: %+v", res.Findings)
-		}
-	}
-}
-
 func TestCON002_NoFalsePositiveOnPerItemResolution(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(out *evo.Output, failures []string) {
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func f(r *evo.Run, failures []string) {
   for _, name := range failures {
-    out.Task(name).Fail("failed")
+    r.Task(name).Define(func(context.Context) error { return evo.Fail("failed") })
   }
 }
 `
@@ -1122,10 +931,10 @@ func f(out *evo.Output, failures []string) {
 	}
 }
 
-func TestFP004_PlaceholderPhaseText(t *testing.T) {
+func TestFP004_PlaceholderDoingText(t *testing.T) {
 	bad := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle) {
+func f(task *evo.Task) {
   task.Doing("working")
 }
 `
@@ -1140,26 +949,26 @@ func f(task *evo.TaskHandle) {
 		}
 	}
 	if !found {
-		t.Fatalf("expected FP-004 on placeholder Phase text: %+v", res.Findings)
+		t.Fatalf("expected FP-004 on placeholder Doing text: %+v", res.Findings)
 	}
 }
 
-func TestFP004_NoFalsePositiveOnDomainObjectPhase(t *testing.T) {
+func TestFP004_NoFalsePositiveOnDomainObjectDoing(t *testing.T) {
 	good := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle) {
+func f(task *evo.Task) {
   task.Doing("scanning ~/Developer/Personal/zq")
 }
 `
 	res := review.GoSource("good.go", good)
 	for _, f := range res.Findings {
 		if f.RuleID == "FP-004" {
-			t.Fatalf("false positive FP-004 on domain-object Phase text: %+v", res.Findings)
+			t.Fatalf("false positive FP-004 on domain-object Doing text: %+v", res.Findings)
 		}
 	}
 }
 
-func TestFP001_HeavyIOBeforeEvoInit(t *testing.T) {
+func TestFP001_HeavyIOBeforeEvoMain(t *testing.T) {
 	bad := `package main
 import (
   "os"
@@ -1167,8 +976,8 @@ import (
 )
 func main() {
   data, _ := os.ReadFile("config.toml")
-  out := evo.Init(evo.Config{Title: "t"})
-  out.Task("scan").Doing(string(data))
+  _ = data
+  os.Exit(evo.Main(evo.Config{Name: "t"}, run))
 }
 `
 	res := review.GoSource("bad.go", bad)
@@ -1182,41 +991,49 @@ func main() {
 		}
 	}
 	if !found {
-		t.Fatalf("expected FP-001 on I/O before evo.Init/New: %+v", res.Findings)
+		t.Fatalf("expected FP-001 on I/O before evo.Main: %+v", res.Findings)
 	}
 }
 
-func TestFP001_NoFalsePositiveWhenInitFirst(t *testing.T) {
+func TestFP001_NoFalsePositiveWhenMainFirst(t *testing.T) {
 	good := `package main
 import (
+  "context"
   "os"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
 func main() {
-  evo.Init(evo.Config{Title: "t"})
-  scan := evo.Task("scan")
+  os.Exit(evo.Main(evo.Config{Name: "t"}, run))
+}
+func run(ctx context.Context, r *evo.Run) error {
+  scan := r.Task("scan")
   scan.Doing("reading config")
-  data, _ := os.ReadFile("config.toml")
-  _ = data
+  scan.Define(func(ctx context.Context) error {
+    _, err := os.ReadFile("config.toml")
+    return err
+  })
+  return nil
 }
 `
 	res := review.GoSource("good.go", good)
 	for _, f := range res.Findings {
 		if f.RuleID == "FP-001" || f.RuleID == "FP-002" {
-			t.Fatalf("false positive %s when Init runs first: %+v", f.RuleID, res.Findings)
+			t.Fatalf("false positive %s when Main runs first: %+v", f.RuleID, res.Findings)
 		}
 	}
 }
 
-func TestFP002_InventoryBetweenIsolatedInitAndTask(t *testing.T) {
+func TestFP002_InventoryBeforeFirstTask(t *testing.T) {
 	bad := `package app
-import evo "github.com/zachbornheimer/evident-output/v2"
-func previewPurge() error {
-  planning := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "zq purge"})
-  defer planning.Close()
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func previewPurge(ctx context.Context, r *evo.Run) error {
   rep, err := purge.Inventory(ctx, opt)
   _ = rep
-  return err
+  r.Task("inventory").Define(func(ctx context.Context) error { return err })
+  return nil
 }
 `
 	res := review.GoSource("purge.go", bad)
@@ -1236,21 +1053,24 @@ func previewPurge() error {
 		}
 	}
 	if !found {
-		t.Fatalf("expected FP-002 on Isolated Init then Inventory (zq purge canary): %+v", res.Findings)
+		t.Fatalf("expected FP-002 on Inventory before the first Task (zq purge canary): %+v", res.Findings)
 	}
 }
 
 func TestFP002_NoFalsePositiveWhenTaskBeforeInventory(t *testing.T) {
 	good := `package app
-import evo "github.com/zachbornheimer/evident-output/v2"
-func previewPurge() error {
-  planning := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "zq purge"})
-  defer planning.Close()
-  inv := planning.Task("inventory")
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func previewPurge(ctx context.Context, r *evo.Run) error {
+  inv := r.Task("inventory")
   inv.Doing("walking worktrees")
-  rep, err := purge.Inventory(ctx, opt)
-  _ = rep
-  return err
+  inv.Define(func(ctx context.Context) error {
+    _, err := purge.Inventory(ctx, opt)
+    return err
+  })
+  return nil
 }
 `
 	res := review.GoSource("purge.go", good)
@@ -1261,16 +1081,17 @@ func previewPurge() error {
 	}
 }
 
-func TestFP002_HeavyIOBetweenInitAndFirstEntity(t *testing.T) {
+func TestFP002_HeavyIOBeforeFirstEntity(t *testing.T) {
 	bad := `package main
 import (
+  "context"
   "os"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func main() {
-  evo.Init(evo.Config{Title: "t"})
+func run(ctx context.Context, r *evo.Run) error {
   data, _ := os.ReadFile("config.toml")
-  evo.Task("scan").Doing(string(data))
+  r.Task("scan").Doing(string(data))
+  return nil
 }
 `
 	res := review.GoSource("bad.go", bad)
@@ -1284,14 +1105,17 @@ func main() {
 		}
 	}
 	if !found {
-		t.Fatalf("expected FP-002 on I/O between Init and first entity: %+v", res.Findings)
+		t.Fatalf("expected FP-002 on I/O before the first entity: %+v", res.Findings)
 	}
 }
 
-func TestFP003_PhaseSetOnceBeforeSilentSubprocess(t *testing.T) {
+func TestFP003_DoingSetOnceBeforeSilentSubprocess(t *testing.T) {
 	bad := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run(t *evo.TaskHandle) {
+import (
+  "os/exec"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func run(t *evo.Task, cmd *exec.Cmd) {
   t.Doing("uploading")
   cmd.Run()
 }
@@ -1307,14 +1131,17 @@ func run(t *evo.TaskHandle) {
 		}
 	}
 	if !found {
-		t.Fatalf("expected FP-003 on stale Phase before subprocess: %+v", res.Findings)
+		t.Fatalf("expected FP-003 on stale Doing before subprocess: %+v", res.Findings)
 	}
 }
 
-func TestFP003_NoFalsePositiveWithPhaseWriter(t *testing.T) {
+func TestFP003_NoFalsePositiveWithTaskWriter(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func run(t *evo.TaskHandle) {
+import (
+  "os/exec"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func run(t *evo.Task, cmd *exec.Cmd) {
   t.Doing("uploading")
   cmd.Stdout = t.Writer()
   cmd.Run()
@@ -1323,7 +1150,7 @@ func run(t *evo.TaskHandle) {
 	res := review.GoSource("good.go", good)
 	for _, f := range res.Findings {
 		if f.RuleID == "FP-003" {
-			t.Fatalf("false positive FP-003 when PhaseWriter wires the child: %+v", res.Findings)
+			t.Fatalf("false positive FP-003 when Task.Writer wires the child: %+v", res.Findings)
 		}
 	}
 }
@@ -1334,8 +1161,8 @@ import (
   "fmt"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f(p *evo.TaskHandle, n int) {
-  p.Skipped(evo.Reason(fmt.Sprintf("%d skipped (dirty/unpushed/main)")))
+func f(r *evo.Run, n int) {
+  r.Summary(fmt.Sprintf("%d skipped (dirty/unpushed/main)", n))
 }
 `
 	res := review.GoSource("bad.go", bad)
@@ -1355,9 +1182,12 @@ func f(p *evo.TaskHandle, n int) {
 
 func TestTAX001_NoFalsePositiveOnStructuredReason(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle) {
-  task.Skipped(evo.Reason("protected"))
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func f(r *evo.Run) {
+  r.Task("main").Define(func(context.Context) error { return evo.Exclude("protected") })
 }
 `
 	res := review.GoSource("good.go", good)
@@ -1368,33 +1198,14 @@ func f(task *evo.TaskHandle) {
 	}
 }
 
-func TestPROG001_AdvanceUsage(t *testing.T) {
-	src := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle) {
-  task.Advance(1)
-}
-`
-	res := review.GoSource("x.go", src)
-	var found bool
-	for _, f := range res.Findings {
-		if f.RuleID == "PROG-001" {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("expected PROG-001 on Advance usage: %+v", res.Findings)
-	}
-}
-
-func TestPROG001_PhaseStringSmugglesProgress(t *testing.T) {
+func TestPROG001_DoingStringSmugglesProgress(t *testing.T) {
 	bad := `package p
 import (
   "fmt"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f(task *evo.TaskHandle, done, total int) {
-  task.Doing(fmt.Sprintf("scanning %d/%d", done, total))
+func f(task *evo.Task, done, total int) {
+  task.Doing("scanning %d/%d", done, total)
 }
 `
 	res := review.GoSource("bad.go", bad)
@@ -1408,14 +1219,14 @@ func f(task *evo.TaskHandle, done, total int) {
 		}
 	}
 	if !found {
-		t.Fatalf("expected PROG-001 on Phase string smuggling %%d/%%d: %+v", res.Findings)
+		t.Fatalf("expected PROG-001 on Doing string smuggling %%d/%%d: %+v", res.Findings)
 	}
 }
 
-func TestPROG001_NoFalsePositiveOnPlainPhase(t *testing.T) {
+func TestPROG001_NoFalsePositiveOnPlainDoing(t *testing.T) {
 	good := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle) {
+func f(task *evo.Task) {
   task.Doing("scanning")
   task.Progress(4, 10)
 }
@@ -1423,22 +1234,22 @@ func f(task *evo.TaskHandle) {
 	res := review.GoSource("good.go", good)
 	for _, f := range res.Findings {
 		if f.RuleID == "PROG-001" {
-			t.Fatalf("false positive PROG-001 on plain Phase + absolute Progress: %+v", res.Findings)
+			t.Fatalf("false positive PROG-001 on plain Doing + absolute Progress: %+v", res.Findings)
 		}
 	}
 }
 
-func TestCONFIRM001_NoFalsePositiveOnEvoConfirm(t *testing.T) {
+func TestCONFIRM001_NoFalsePositiveOnRunConfirm(t *testing.T) {
 	good := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func run(flagYes bool) bool {
-  return evo.Confirm("delete origin/production-hotfix?", evo.AssumeYes(flagYes))
+func run(r *evo.Run) bool {
+  return r.Confirm("delete origin/production-hotfix?", evo.Destructive(), evo.NonInteractive("--yes"))
 }
 `
 	res := review.GoSource("good.go", good)
 	for _, f := range res.Findings {
-		if f.RuleID == "CONFIRM-001" {
-			t.Fatalf("false positive CONFIRM-001 on evo.Confirm: %+v", res.Findings)
+		if f.RuleID == "CONFIRM-001" || f.RuleID == "CONFIRM-002" {
+			t.Fatalf("false positive %s on r.Confirm: %+v", f.RuleID, res.Findings)
 		}
 	}
 }
@@ -1534,7 +1345,7 @@ func use() { _ = makeOutt() }
 func TestCallSiteFindingsCarrySuggestion(t *testing.T) {
 	structural := map[string]bool{
 		"API-000": true, "SCHEMA-001": true, "TERM-008": true,
-		"TERM-014": true, "MCP-017": true, "API-027": true,
+		"TERM-014": true, "MCP-017": true,
 	}
 	src := `package p
 import (
@@ -1598,30 +1409,22 @@ func TestGoPackage_CrossFileTypes(t *testing.T) {
 	files := map[string]string{
 		"a.go": `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func makeOut() *evo.Output { return evo.Init(evo.Config{}) }
+func declare(r *evo.Run) *evo.Task { return r.Task("t") }
 `,
 		"b.go": `package p
 import "fmt"
 func use() {
-  out := makeOut()
-  out.Task("t").Start()
   fmt.Println("x")
 }
 `,
 	}
 	res := review.GoPackage(files)
-	// Cross-file: Start and fmt from b.go must surface even though evo import is in a.go.
-	var hasStart, hasStream bool
+	// Cross-file: fmt from b.go must surface even though the evo import is in a.go.
+	var hasStream bool
 	for _, f := range res.Findings {
-		if f.RuleID == "API-006" {
-			hasStart = true
-		}
 		if f.RuleID == "STREAM-003" {
 			hasStream = true
 		}
-	}
-	if !hasStart {
-		t.Fatalf("expected API-006 from cross-file Start: %+v", res.Findings)
 	}
 	if !hasStream {
 		t.Fatalf("expected STREAM-003 from cross-file fmt: %+v", res.Findings)
@@ -1641,37 +1444,6 @@ func findAPI032(res review.Result) []review.Finding {
 	return found
 }
 
-func TestAPI032_NewInMain(t *testing.T) {
-	// evo.New and evo.MainWith are both superseded (both removed in 1.0): Init is the constructor, Main/Output.Run are the lifecycle. Flagging a MainWith call site is required.
-	src := `package main
-import evo "github.com/zachbornheimer/evident-output/v2"
-func main() {
-  out := evo.New(evo.Config{Title: "t"})
-  evo.MainWith(out, run) // removed in 1.0 — fixture pins the detector still catches it
-}
-`
-	res := review.GoSource("main.go", src)
-	found := findAPI032(res)
-	var sawNew, sawMainWith bool // sawMainWith: MainWith was removed in 1.0
-	for _, f := range found {
-		if strings.Contains(f.Message, "evo.New") || strings.Contains(f.Suggestion, "evo.New") {
-			sawNew = true
-		}
-		if strings.Contains(f.Message, "MainWith") || strings.Contains(f.Suggestion, "MainWith") { // removed in 1.0
-			sawMainWith = true // MainWith: removed in 1.0
-			if !strings.Contains(f.Suggestion, "evo.Execute(") {
-				t.Errorf("MainWith (removed in 1.0) suggestion must name evo.Execute, got %q", f.Suggestion)
-			}
-		}
-	}
-	if !sawNew {
-		t.Fatalf("expected API-032 finding for evo.New in main, got %+v", found)
-	}
-	if !sawMainWith { // MainWith: removed in 1.0
-		t.Fatalf("expected API-032 finding for evo.MainWith (removed in 1.0), got %+v", found)
-	}
-}
-
 func TestAPI032_NoFalsePositiveOnHostedInstanceOutsideMain(t *testing.T) {
 	// New outside main() is the documented advanced pattern (a
 	// hosted-instance test harness or framework entrypoint wrapper) — must
@@ -1689,29 +1461,14 @@ func run() int {
 	}
 }
 
-func TestAPI032_CauseDerivesDetailSuggestion(t *testing.T) {
+func TestAPI033_NameEqualsExcludeArgument(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle, err error) {
-  task.Fail("validate policy manifest", evo.Cause(err))
-}
-`
-	res := review.GoSource("cause.go", src)
-	found := findAPI032(res)
-	if len(found) != 1 {
-		t.Fatalf("expected one API-032 finding for evo.Cause, got %+v", found)
-	}
-	want := `task.Fail("validate policy manifest", evo.Detail(err.Error()))`
-	if found[0].Suggestion != want {
-		t.Fatalf("suggestion = %q, want %q", found[0].Suggestion, want)
-	}
-}
-
-func TestAPI033_NameEqualsSkipArgument(t *testing.T) {
-	src := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(out *evo.Output, note string) {
-  out.Task(note).Skip(note)
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func f(r *evo.Run, note string) {
+  r.Task(note).Define(func(context.Context) error { return evo.Exclude(note) })
 }
 `
 	res := review.GoSource("dup.go", src)
@@ -1722,68 +1479,24 @@ func f(out *evo.Output, note string) {
 		}
 	}
 	if !found {
-		t.Fatalf("expected API-033 for out.Task(note).Skip(note): %+v", res.Findings)
+		t.Fatalf("expected API-033 for Task(note) returning Exclude(note): %+v", res.Findings)
 	}
 }
 
 func TestAPI033_NoFalsePositiveOnDistinctNameAndReason(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(out *evo.Output, reason string) {
-  out.Task("branch check").Skip(reason)
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func f(r *evo.Run, reason string) {
+  r.Task("branch check").Define(func(context.Context) error { return evo.Exclude(reason) })
 }
 `
 	res := review.GoSource("distinct.go", src)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-033" {
 			t.Fatalf("false positive API-033 on distinct name/reason: %+v", res.Findings)
-		}
-	}
-}
-
-func TestAPI034_FailThenReturnNilDiscardsError(t *testing.T) {
-	src := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(out *evo.Output) error {
-  task := out.Task("validate")
-  if err := check(); err != nil {
-    task.Fail("validate failed")
-    return nil
-  }
-  return nil
-}
-`
-	res := review.GoSource("failnil.go", src)
-	var found bool
-	for _, f := range res.Findings {
-		if f.RuleID == "API-034" {
-			found = true
-			if f.Suggestion == "" {
-				t.Fatal("expected a Suggestion")
-			}
-		}
-	}
-	if !found {
-		t.Fatalf("expected API-034: %+v", res.Findings)
-	}
-}
-
-func TestAPI034_NoFalsePositiveWhenErrorReturned(t *testing.T) {
-	src := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(out *evo.Output) error {
-  task := out.Task("validate")
-  if err := check(); err != nil {
-    task.Fail("validate failed", evo.Detail(err.Error()))
-    return err
-  }
-  return nil
-}
-`
-	res := review.GoSource("failreturn.go", src)
-	for _, f := range res.Findings {
-		if f.RuleID == "API-034" {
-			t.Fatalf("false positive API-034 when the error is actually returned: %+v", res.Findings)
 		}
 	}
 }
@@ -1795,12 +1508,12 @@ import (
   "os/exec"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f(out *evo.Output, cmd *exec.Cmd) {
-  task := out.Task("gate")
+func f(cmd *exec.Cmd) error {
   cmd.Stdout = io.Discard
   if err := cmd.Run(); err != nil {
-    task.Block("policy check failed")
+    return evo.Refuse("policy check failed")
   }
+  return nil
 }
 `
 	res := review.GoSource("discard.go", src)
@@ -1815,7 +1528,7 @@ func f(out *evo.Output, cmd *exec.Cmd) {
 	}
 }
 
-func TestAPI035_NoFalsePositiveWithoutFailBlock(t *testing.T) {
+func TestAPI035_NoFalsePositiveWithoutFailRefuse(t *testing.T) {
 	src := `package p
 import (
   "io"
@@ -1829,71 +1542,7 @@ func f(cmd *exec.Cmd) {
 	res := review.GoSource("discardclean.go", src)
 	for _, f := range res.Findings {
 		if f.RuleID == "API-035" {
-			t.Fatalf("false positive API-035 with no Fail/Block in the function: %+v", res.Findings)
-		}
-	}
-}
-
-// TestAPI036_SprintfInVerb: Fail(fmt.Sprintf(...)) is already the 1.1
-// form. API-036 stays silent; API-034 still flags Fail then return nil.
-func TestAPI036_SprintfInVerb(t *testing.T) {
-	src := `package p
-import (
-  "fmt"
-  evo "github.com/zachbornheimer/evident-output/v2"
-)
-func f(task *evo.TaskHandle, branch string) error {
-  task.Fail(fmt.Sprintf("delete failed on %s", branch))
-  return nil
-}
-`
-	res := review.GoSource("sprintfverb.go", src)
-	for _, f := range res.Findings {
-		if f.RuleID == "API-036" {
-			t.Fatalf("API-036 must stay silent on Fail(fmt.Sprintf(...)): %+v", f)
-		}
-		if strings.Contains(f.Suggestion, "Failf") || strings.Contains(f.Suggestion, "Blockf") {
-			t.Fatalf("suggestion teaches a removed printf verb: %q", f.Suggestion)
-		}
-	}
-}
-
-// TestAPI036_BareStatementKeepsBlock pins E-102: a bare Block/Fail
-// statement with a Sprintf summary was rewritten to Blockf/Failf, whose
-// *Failure is then discarded and fails errcheck. A bare statement is
-// already the right form, so review says nothing; so does a Sprintf
-// followed by ProblemOptions, which Failf/Blockf cannot take.
-func TestAPI036_BareStatementKeepsBlock(t *testing.T) {
-	src := `package p
-import (
-  "fmt"
-  evo "github.com/zachbornheimer/evident-output/v2"
-)
-func f(task *evo.TaskHandle, name string, n int) {
-  task.Block(fmt.Sprintf("refused %s", name))
-  task.Fail(fmt.Sprintf("lost %d", n), evo.Detail("x"))
-  n++
-}
-`
-	res := review.GoSource("sprintfbare.go", src)
-	for _, f := range res.Findings {
-		if f.RuleID == "API-036" {
-			t.Fatalf("API-036 rewrites a bare statement into a discarded *Failure: %+v", f)
-		}
-	}
-}
-
-func TestAPI036_NoFalsePositiveWithFailf(t *testing.T) {
-	src := `package p
-import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle, branch string) {
-  task.Failf("delete failed on %s", branch)
-}
-`
-	res := review.GoSource("failfclean.go", src)
-	for _, f := range res.Findings {
-		if f.RuleID == "API-036" {
-			t.Fatalf("false positive API-036 on Failf: %+v", res.Findings)
+			t.Fatalf("false positive API-035 with no Fail/Refuse in the function: %+v", res.Findings)
 		}
 	}
 }
@@ -1907,7 +1556,7 @@ import (
   "fmt"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f(task *evo.TaskHandle, path string) {
+func f(task *evo.Task, path string) {
   task.Doing(fmt.Sprintf("scanning %s", path))
 }
 `
@@ -1927,7 +1576,7 @@ func f(task *evo.TaskHandle, path string) {
 }
 
 // TestAPI038_WarnMigratesToProblem proves dirty task.Warn(fmt.Sprintf(...))
-// rewrites through API-032 to Problem at SeverityWarning. Warn is removed
+// rewrites through API-032 to Task.Problem. Warn is removed
 // in 1.1: do not flatten the Sprintf into task.Warn, and do not invent Warnf.
 func TestAPI038_WarnMigratesToProblem(t *testing.T) {
 	src := `package p
@@ -1942,9 +1591,6 @@ func f(task *evo.TaskHandle, n int) {
 	res := review.GoSource("sprintfwarn.go", src)
 	var api032 review.Finding
 	for _, f := range res.Findings {
-		if f.RuleID == "API-036" {
-			t.Fatalf("API-036 must not fire on Warn: %+v", f)
-		}
 		if f.RuleID == "API-038" {
 			t.Fatalf("API-038 must not flatten Warn; migrate to Problem: %+v", f)
 		}
@@ -1955,7 +1601,7 @@ func f(task *evo.TaskHandle, n int) {
 	if api032.Suggestion == "" {
 		t.Fatalf("expected API-032 Problem rewrite, got %+v", res.Findings)
 	}
-	if !strings.Contains(api032.Suggestion, `task.Problem(fmt.Sprintf("kept %d", n), evo.Severity(evo.SeverityWarning))`) {
+	if !strings.Contains(api032.Suggestion, `task.Problem(fmt.Sprintf("kept %d", n))`) {
 		t.Fatalf("suggestion = %q", api032.Suggestion)
 	}
 }
@@ -1963,7 +1609,7 @@ func f(task *evo.TaskHandle, n int) {
 func TestAPI038_NoFalsePositiveWithoutSprintf(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle, done, total int) {
+func f(task *evo.Task, done, total int) {
   task.Doing("scanning %d/%d", done, total)
 }
 `
@@ -1978,7 +1624,7 @@ func f(task *evo.TaskHandle, done, total int) {
 func TestAPI037_WrapperMethodOverTaskVerb(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-type runner struct{ task *evo.TaskHandle }
+type runner struct{ task *evo.Task }
 func (r *runner) resolutionPhase(text string) {
   r.task.Doing(text)
 }
@@ -1998,7 +1644,7 @@ func (r *runner) resolutionPhase(text string) {
 func TestAPI037_NoFalsePositiveOnMultiStatementMethod(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-type runner struct{ task *evo.TaskHandle }
+type runner struct{ task *evo.Task }
 func (r *runner) resolutionPhase(text string) {
   r.task.Doing(text)
   r.task.Progress(1, 2)
@@ -2021,9 +1667,9 @@ import (
   "fmt"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-type subject struct{ classify *evo.TaskHandle }
-func (s subject) Warn(summary string, cause error) {
-  s.classify.Warn(fmt.Sprintf("%s: %s", summary, cause))
+type subject struct{ classify *evo.Task }
+func (s subject) Problem(summary string, cause error) {
+  s.classify.Problem(fmt.Sprintf("%s: %s", summary, cause))
 }
 `
 	res := review.GoSource("composed.go", src)
@@ -2034,11 +1680,11 @@ func (s subject) Warn(summary string, cause error) {
 	}
 }
 
-func TestDOM018_ErrTwiceViaCause(t *testing.T) {
+func TestDOM018_ErrTwiceViaDetail(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle, err error) {
-  task.Fail(err.Error(), evo.Cause(err))
+func f(err error) error {
+  return evo.Fail(err.Error(), evo.Detail(err.Error()))
 }
 `
 	res := review.GoSource("errtwice.go", src)
@@ -2056,8 +1702,8 @@ func f(task *evo.TaskHandle, err error) {
 func TestDOM018_NoFalsePositiveOnDistinctErrorVars(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle, err, other error) {
-  task.Fail(err.Error(), evo.Cause(other))
+func f(err, other error) error {
+  return evo.Fail(err.Error(), evo.Detail(other.Error()))
 }
 `
 	res := review.GoSource("errdistinct.go", src)
@@ -2074,8 +1720,8 @@ import (
   "strings"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func f(task *evo.TaskHandle, names []string) {
-  task.Skipped(evo.Reason(strings.Join(names)), "x")
+func f(names []string) error {
+  return evo.Exclude(strings.Join(names, ", "))
 }
 `
 	res := review.GoSource("dynreason.go", src)
@@ -2093,10 +1739,12 @@ func f(task *evo.TaskHandle, names []string) {
 func TestTAX002_NoFalsePositiveOnLiteralOrPackageVar(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-var reasonProtected = evo.Reason("protected")
-func f(task *evo.TaskHandle) {
-  task.Skipped(evo.Reason("protected"))
-  task.Skipped(reasonProtected)
+const reasonProtected = "protected"
+func f(literal bool) error {
+  if literal {
+    return evo.Exclude("protected")
+  }
+  return evo.Exclude(reasonProtected)
 }
 `
 	res := review.GoSource("reasonclean.go", src)
@@ -2110,8 +1758,8 @@ func f(task *evo.TaskHandle) {
 func TestTXT020_LongEntityName(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(out *evo.Output) {
-  out.Task("copying build artifacts into the production release bucket now")
+func f(r *evo.Run) {
+  r.Task("copying build artifacts into the production release bucket now")
 }
 `
 	res := review.GoSource("longname.go", src)
@@ -2129,8 +1777,8 @@ func f(out *evo.Output) {
 func TestTXT020_NoFalsePositiveOnShortNoun(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(out *evo.Output) {
-  out.Task("release artifacts")
+func f(r *evo.Run) {
+  r.Task("release artifacts")
 }
 `
 	res := review.GoSource("shortname.go", src)
@@ -2144,13 +1792,11 @@ func f(out *evo.Output) {
 func TestDOM019_ShadowedHandleBeforeResolution(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(out *evo.Output, flag bool) {
-  t := out.Task("scan")
+func f(r *evo.Run) {
+  t := r.Task("scan")
   t.Doing("walking")
-  if flag {
-    t := out.Task("build")
-    t.Done()
-  }
+  t = r.Task("build")
+  t.Define(build)
 }
 `
 	res := review.GoSource("shadow.go", src)
@@ -2165,23 +1811,25 @@ func f(out *evo.Output, flag bool) {
 	}
 }
 
-func TestDOM019_NoFalsePositiveWhenResolvedFirst(t *testing.T) {
+func TestDOM019_NoFalsePositiveWhenDefinedFirst(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(out *evo.Output, flag bool) {
-  t := out.Task("scan")
+func f(r *evo.Run, flag bool) {
+  t := r.Task("scan")
   t.Doing("walking")
-  t.Done()
+  t.Define(scan)
+  t = r.Task("build")
+  t.Define(build)
   if flag {
-    t := out.Task("build")
-    t.Done()
+    t := r.Task("publish")
+    t.Define(publish)
   }
 }
 `
 	res := review.GoSource("shadowclean.go", src)
 	for _, f := range res.Findings {
 		if f.RuleID == "DOM-019" {
-			t.Fatalf("false positive DOM-019 when the first handle was resolved before reassignment: %+v", res.Findings)
+			t.Fatalf("false positive DOM-019 when the first Task was Defined before reassignment: %+v", res.Findings)
 		}
 	}
 }
@@ -2189,8 +1837,10 @@ func f(out *evo.Output, flag bool) {
 func TestTXT021_CrammedSummary(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle) {
-  task.Fail("policy check failed — cause: manifest missing — action: run zq init")
+func f(r *evo.Run) {
+  r.Task("policy").Define(func(ctx context.Context) error {
+    return evo.Fail("policy check failed — cause: manifest missing — action: run zq init")
+  })
 }
 `
 	res := review.GoSource("crammed.go", src)
@@ -2208,8 +1858,10 @@ func f(task *evo.TaskHandle) {
 func TestTXT021_NoFalsePositiveOnPlainSummary(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(task *evo.TaskHandle) {
-  task.Fail("policy check failed")
+func f(r *evo.Run) {
+  r.Task("policy").Define(func(ctx context.Context) error {
+    return evo.Fail("policy check failed", evo.Detail("manifest missing"))
+  })
 }
 `
 	res := review.GoSource("plainsummary.go", src)
@@ -2238,16 +1890,15 @@ func TestDOM020_GuidanceOnlyResolvesButIsNeverEmitted(t *testing.T) {
 func TestLOOP001_SilentForRangeBeforeTask(t *testing.T) {
 	bad := `package app
 import (
+  "context"
   "path/filepath"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func previewPurge(roots []string) error {
-  out := evo.Init(evo.Config{Isolated: true, DryRun: true})
-  defer out.Close()
+func previewPurge(ctx context.Context, r *evo.Run, roots []string) error {
   for _, root := range roots {
     _ = filepath.WalkDir(root, func(string, fs.DirEntry, error) error { return nil })
   }
-  out.Task("inventory").Done()
+  r.Task("inventory").Define(func(ctx context.Context) error { return nil })
   return nil
 }
 `
@@ -2259,8 +1910,8 @@ func previewPurge(roots []string) error {
 			if f.Line == 0 {
 				t.Error("LOOP-001 missing line")
 			}
-			if !strings.Contains(f.Suggestion, "Define") && !strings.Contains(f.Suggestion, "Each") {
-				t.Fatalf("LOOP-001 suggestion must name Define/Each, got %q", f.Suggestion)
+			if !strings.Contains(f.Suggestion, "Define") {
+				t.Fatalf("LOOP-001 suggestion must name Define, got %q", f.Suggestion)
 			}
 		}
 	}
@@ -2272,13 +1923,12 @@ func previewPurge(roots []string) error {
 func TestLOOP001_NoFalsePositiveWhenLoopInsideDefine(t *testing.T) {
 	good := `package app
 import (
+  "context"
   "path/filepath"
   evo "github.com/zachbornheimer/evident-output/v2"
 )
-func previewPurge(roots []string) error {
-  out := evo.Init(evo.Config{Isolated: true, DryRun: true})
-  defer out.Close()
-  inv := out.Task("inventory")
+func previewPurge(ctx context.Context, r *evo.Run, roots []string) error {
+  inv := r.Task("inventory")
   inv.Doing("walking worktrees")
   inv.Define(func(ctx context.Context) error {
     for _, root := range roots {
@@ -2301,10 +1951,12 @@ func previewPurge(roots []string) error {
 
 func TestLOOP001_NoFalsePositiveOnGroupTaskPerItem(t *testing.T) {
 	good := `package app
-import evo "github.com/zachbornheimer/evident-output/v2"
-func scan(paths []string) {
-  out := evo.Init(evo.Config{Title: "zq"})
-  worktrees := out.Group("worktrees")
+import (
+  "context"
+  evo "github.com/zachbornheimer/evident-output/v2"
+)
+func scan(ctx context.Context, r *evo.Run, paths []string) {
+  worktrees := r.Group("worktrees")
   for _, path := range paths {
     path := path
     worktrees.Task(path).Define(func(ctx context.Context) error { return filepath.WalkDir(path, nil) })

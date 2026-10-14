@@ -18,7 +18,8 @@ import (
 	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func main() {
-	evo.Init(evo.Config{Title: "t"})
+	code := evo.Main(evo.Config{Name: "t"}, run)
+	_ = code
 	os.Exit(3)
 }
 `

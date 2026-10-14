@@ -184,7 +184,7 @@ func (s *server) handle(msg []byte, mode framingMode) {
 		writeRPC(id, map[string]any{
 			"resources": []map[string]any{
 				{"uri": "evident-output://guides/common-api", "name": "common-api", "mimeType": "text/plain"},
-				{"uri": "evident-output://rules/API-006", "name": "API-006", "mimeType": "application/json"},
+				{"uri": "evident-output://rules/STREAM-003", "name": "STREAM-003", "mimeType": "application/json"},
 				{"uri": "evident-output://meta/catalog-checksum", "name": "catalog-checksum", "mimeType": "text/plain"},
 			},
 		})
@@ -278,6 +278,13 @@ func handleResourceRead(id any, req map[string]any) {
 		}
 		if r, ok := rules.Explain(rid); ok {
 			b, _ := json.Marshal(r)
+			writeRPC(id, map[string]any{
+				"contents": []map[string]any{{"uri": uri, "mimeType": "application/json", "text": string(b)}},
+			})
+			return
+		}
+		if r, ok := rules.RetiredRuleByID(rid); ok {
+			b, _ := json.Marshal(map[string]any{"retired": r})
 			writeRPC(id, map[string]any{
 				"contents": []map[string]any{{"uri": uri, "mimeType": "application/json", "text": string(b)}},
 			})

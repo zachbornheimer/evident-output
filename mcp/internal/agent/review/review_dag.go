@@ -103,7 +103,7 @@ func hasAfterEdge(edges []afterEdge, child, parent string) bool {
 }
 
 func detectAfterChainDuplicatesSequence(filename string, file *ast.File, fset *token.FileSet) []Finding {
-	pos, ok := findAfterChain(collectAfterEdges(file))
+	pos, ok := findAfterChain(append(collectAfterEdges(file), declaredAfterEdges(file)...))
 	if !ok {
 		return nil
 	}
@@ -113,7 +113,7 @@ func detectAfterChainDuplicatesSequence(filename string, file *ast.File, fset *t
 		File:       filename,
 		Line:       fset.Position(pos).Line,
 		Column:     fset.Position(pos).Column,
-		Suggestion: "replace the chained .After(...) calls with one evo.Sequence(name) and declare each Task as seq.Task(...) in order",
+		Suggestion: "replace the chained .After(...) calls with one Sequence (seq := r.Sequence(name)) and declare each Task as seq.Task(...) in order",
 	}}
 }
 
@@ -221,7 +221,7 @@ func detectMissingProducerConsumerOrdering(filename string, file *ast.File, fset
 				File:       filename,
 				Line:       fset.Position(c.pos).Line,
 				Column:     fset.Position(c.pos).Column,
-				Suggestion: c.taskVar + ".After(" + p.taskVar + "), or declare both under one evo.Sequence so " + p.taskVar + " always runs first",
+				Suggestion: c.taskVar + ".After(" + p.taskVar + "), or declare both under one Sequence so " + p.taskVar + " always runs first",
 			})
 		}
 	}

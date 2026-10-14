@@ -14,7 +14,7 @@ func TestMCP043_UnknownFieldsRejected(t *testing.T) {
 	bin := buildMCP(t)
 	in := strings.Join([]string{
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}`,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output_explain","arguments":{"rule_id":"API-006","evil":true}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output_explain","arguments":{"rule_id":"STREAM-003","evil":true}}}`,
 	}, "\n") + "\n"
 	stdout := runMCP(t, bin, in)
 	if !strings.Contains(stdout, "unknown argument field") {
@@ -206,7 +206,7 @@ func TestMCP034_PanicContainedContinues(t *testing.T) {
 	req2 := map[string]any{
 		"params": map[string]any{
 			"name":      "evident_output_explain",
-			"arguments": map[string]any{"rule_id": "API-006"},
+			"arguments": map[string]any{"rule_id": "STREAM-003"},
 		},
 	}
 	r2, w2, err := os.Pipe()
@@ -225,7 +225,7 @@ func TestMCP034_PanicContainedContinues(t *testing.T) {
 	outMu.Unlock()
 	b, _ := io.ReadAll(r2)
 	_ = r2.Close()
-	if !strings.Contains(string(b), "API-006") && !strings.Contains(string(b), "explicit Start") {
+	if !strings.Contains(string(b), "STREAM-003") {
 		t.Fatalf("post-panic call failed: %s", b)
 	}
 }

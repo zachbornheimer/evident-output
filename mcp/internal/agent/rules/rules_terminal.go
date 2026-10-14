@@ -21,13 +21,13 @@ func terminalRules() []Rule {
 			ID:        "SIG-001",
 			Category:  "SIG",
 			Severity:  SeverityWarning,
-			Invariant: "signal handling reconciles through Cancel, not a bespoke exit path",
-			Why:       "evo.Main (or evo.Execute with a cancellable context) already wires SIGINT/SIGTERM into Cancel so the ledger's ■ glyph and the 130 exit code agree; a hand-rolled signal.Notify without Cancel reopens that gap.",
+			Invariant: "an interrupt reaches the run through its context; a signal handler never ends the process itself",
+			Why:       "evo.Main cancels the run's context on SIGINT and SIGTERM, so the ledger shows the run Cancelled and the exit code is 130. A signal.Notify handler that calls os.Exit skips both, and the report and the exit code can disagree.",
 			BadCode: `c := make(chan os.Signal, 1)
-signal.Notify(c, syscall.SIGINT)
+signal.Notify(c, os.Interrupt)
 go func() { <-c; os.Exit(1) }()`,
 			GoodCode:        `os.Exit(evo.Main(evo.Config{}, run)) // wires SIGINT and SIGTERM to the context run and every Define callback receive`,
-			Remediation:     "Call Cancel on the active task/handle from the signal goroutine, or use evo.Main (or evo.Execute with a cancellable context)",
+			Remediation:     "Delete the handler and use evo.Main; with evo.Execute, cancel the context you pass it instead of calling os.Exit",
 			RelatedGuidance: []string{"streams", "interactive"},
 			VerificationIDs: []string{"SIG-001"},
 			Since:           "0.4.0",
@@ -65,8 +65,8 @@ go func() { <-c; os.Exit(1) }()`,
 			ID:        "TERM-015",
 			Category:  "TERM",
 			Severity:  SeverityWarning,
-			Invariant: "child processes run through Task.Writer, never inherited stdout",
-			Why:       "A child that inherits os.Stdout paints on the same TTY as the live row. Capture it so the spinner keeps moving and the child's lines become Doing. Turning the spinner off is not a product state.",
+			Invariant: "a child process either runs through Task.Writer or inside Run.Suspend, never on the inherited terminal while the live frame is up",
+			Why:       "A child that inherits os.Stdout paints on the same TTY as the live row. Capture it with Task.Writer so the spinner keeps moving and the child's lines become the live tail; a child that must own the terminal (an interactive login) runs inside Run.Suspend, which pauses the live region around it.",
 			BadCode: `cmd := exec.Command("zq", "setup")
 cmd.Stdout = os.Stdout
 cmd.Stderr = os.Stderr
@@ -77,7 +77,7 @@ cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
     return evo.Fail("build failed")
 }`,
-			Remediation:     "Use cmd.Stdout = task.Writer(); do not inherit os.Stdout and do not clear the live region",
+			Remediation:     "Use cmd.Stdout = task.Writer(); for an interactive child run it inside r.Suspend; do not inherit os.Stdout while the live region is up",
 			RelatedGuidance: []string{"interactive"},
 			VerificationIDs: []string{"TERM-015"},
 			Since:           "0.6.0",

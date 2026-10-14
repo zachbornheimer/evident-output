@@ -1,6 +1,6 @@
 // Package review — API-064 (ZYS-1368): Computed.Get() read by work that
 // nothing orders after the producing Task. Get is valid only once the
-// producer has succeeded (contract §31), and After(computed) is the one
+// producer has succeeded (CONTRACT.md section 2), and After(computed) is the one
 // edge that states both the order and the data dependency. A later step of
 // the producer's own Sequence is already ordered, and so is a reader nested
 // inside an ordered builder, so neither is flagged.

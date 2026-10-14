@@ -4,25 +4,6 @@ package rules
 func verifyRules() []Rule {
 	return []Rule{
 		{
-			ID:         "EVO-EVIDENCE-001",
-			MinDialect: "1.0.0",
-			Category:   "EVO",
-			Severity:   SeverityError,
-			Invariant:  "a legacy named Evidence callback never performs mutation; Evidence is a boolean current-state conclusion, not a place to do work",
-			Why:        "task.Evidence(\"write\", func() error { return os.WriteFile(...) }) is the pre-1.0 collection-of-named-callbacks shape (spec §2), removed in 1.1; it is superseded, and naming a mutating callback \"Evidence\" hides a side effect behind a word that now means a read conclusion.",
-			BadCode: `task.Evidence("write", func() error {
-  return os.WriteFile(path, data, 0o644)
-})`,
-			GoodCode: `task.Define(func(ctx context.Context) error {
-  return evo.File(ctx, evo.FileSpec{Path: path, Contents: data})
-})`,
-			Remediation:     "Move the mutation into Define; add Verify only when the resulting state can be observed directly",
-			RelatedGuidance: []string{"common-api", "evidence-provenance"},
-			VerificationIDs: []string{"EVO-EVIDENCE-001"},
-			Since:           "1.0.0",
-			Certainty:       CertaintyDeterministic,
-		},
-		{
 			ID:         "EVO-VERIFY-001",
 			MinDialect: "1.0.0",
 			Category:   "EVO",

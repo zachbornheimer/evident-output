@@ -32,7 +32,7 @@ func f() {
 	// review
 	out, err := exec.Command(bin, "review", src).CombinedOutput()
 	// exit 1 when findings require recheck is OK
-	if !strings.Contains(string(out), "API-006") && !strings.Contains(string(out), "STREAM-003") {
+	if !strings.Contains(string(out), "STREAM-003") {
 		t.Fatalf("review: %v\n%s", err, out)
 	}
 	var rev map[string]any
@@ -61,11 +61,11 @@ func f() {
 	}
 
 	// explain
-	eout, err := exec.Command(bin, "explain", "API-006").Output()
+	eout, err := exec.Command(bin, "explain", "STREAM-003").Output()
 	if err != nil {
 		t.Fatalf("explain: %v %s", err, eout)
 	}
-	if !strings.Contains(string(eout), "API-006") {
+	if !strings.Contains(string(eout), "STREAM-003") {
 		t.Fatalf("explain: %s", eout)
 	}
 }
@@ -75,11 +75,11 @@ func TestCLI_ReviewDirectoryMergesFiles(t *testing.T) {
 	dir := t.TempDir()
 	a := `package a
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(out *evo.Output) { out.Plan("a") }
+func f(task *evo.TaskHandle) { task.Warn("a") }
 `
 	b := `package b
 import evo "github.com/zachbornheimer/evident-output/v2"
-func f(out *evo.Output) { out.Changes("b") }
+func f(task *evo.TaskHandle) { task.Warn("b") }
 `
 	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte(a), 0o600); err != nil {
 		t.Fatal(err)
