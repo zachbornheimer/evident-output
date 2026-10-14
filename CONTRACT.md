@@ -205,7 +205,9 @@ evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "branch", Quantity: 40}
 return evo.PartialEffect(committed, err)
 ```
 
-Every call takes the Define `ctx`. File and Exec are Satisfied when their
+Every call takes the Define `ctx`.
+The workspace is the process's working directory at the moment the Run starts; every relative path in `FileSpec`, `ExecSpec` and `Patch` resolves against it, and a later `chdir` does not move it.
+File and Exec are Satisfied when their
 Inputs, Values and recorded outputs are current; opaque Define work runs
 every Run. An Exec with no Outputs runs every Run and is recorded as ran in
 `operations`, never as a change: it leaves `Conclusion.Changed` and the band
@@ -234,7 +236,7 @@ re-executes; it never reports Satisfied.
 | ---------------------- | ----- | ----------------------------------------------------------------------------------------------------------- |
 | `File`                 | func  | `File(ctx context.Context, spec FileSpec) error`; desired state of one file                                 |
 | `FileSpec`             | type  |                                                                                                             |
-| `FileSpec.Path`        | field | `string`; relative paths resolve against the workspace                                                      |
+| `FileSpec.Path`        | field | `string`; relative paths resolve against the [workspace](#3-change)                                         |
 | `FileSpec.Contents`    | field | `[]byte`; nil leaves contents unmanaged                                                                     |
 | `FileSpec.Mode`        | field | `fs.FileMode`; zero leaves mode unmanaged                                                                   |
 | `FileSpec.Inputs`      | field | `[]string`; paths whose content decides freshness                                                           |
