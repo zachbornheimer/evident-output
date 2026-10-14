@@ -72,13 +72,12 @@ Stale if any of these are true:
 - `evident_output_review` schema has no `directory`
 - `evident_output_update` is missing from `tools/list`
 - `evident-output-mcp --version` prints an older commit/tag than the
-  consumer's go.mod pin (or than `evo.PublishedRelease`) — never trust a
+  consumer's go.mod pin — never trust a
   section count as a freshness signal; a fresh server's section count
   changes every time a doc is added and is not a stable number to check
   against.
-- review suggests `Delete(object, fn)` / `evo.Affected(n)` as a _fix_, or
-  stays silent on them — those verbs were removed in 1.1 and a current
-  server rewrites them to `Define` + `evo.Effect`
+- review suggests the verbs removed in 1.1 (`Delete(object, fn)`, `evo.Affected(n)`) as a _fix_, or
+  stays silent on them; a current server rewrites them to `Define` + `evo.Effect`
 
 That last one is a pre-1.1 autofixer. Applying its suggestions **reverts**
 the dialect. Do not apply. Reinstall, then start a **fresh** Grok process.
@@ -100,7 +99,7 @@ in tmux (below).
 
 ## Live TTY — tmux (required for canaries)
 
-Grok’s in-session shell is not a TTY. Live evo (spinners, `Each` aggregates,
+Grok’s in-session shell is not a TTY. Live evo (spinners, grouped aggregates,
 in-place progress) will dump a line per tick there. That is **not** how a user
 sees zq.
 
@@ -125,21 +124,26 @@ classifying — it serializes on the same git dirs.
 ## Dialect the MCP enforces (current rec)
 
 ```go
-os.Exit(evo.Main(evo.Config{}, run)) // Main returns the exit code; it never exits itself
+func main() { os.Exit(evo.Main(evo.Config{}, run)) } // Main returns the exit code; it never exits itself
 
-evo.Task("check config").Define(checkConfig)
+func run(ctx context.Context, r *evo.Run) error {
+    r.Task("check config").Define(checkConfig)
 
-worktrees := evo.Group("worktrees")
-for _, path := range paths {
-    path := path
-    worktrees.Task(path).Define(func(ctx context.Context) error {
-        spec := evo.EffectSpec{Verb: evo.Delete, Object: "worktree", Quantity: 1}
-        return evo.Effect(ctx, spec, func(ctx context.Context) error { return remove(ctx, path) })
-    })
+    worktrees := r.Group("worktrees")
+    for _, path := range paths {
+        worktrees.Task(path).Define(func(ctx context.Context) error {
+            spec := evo.EffectSpec{Verb: evo.Delete, Object: "worktree", Quantity: 1}
+            return evo.Effect(ctx, spec, func(ctx context.Context) error { return remove(ctx, path) })
+        })
+    }
+
+    r.Task("fetch").After(worktrees, branches).Define(fetchPrune)
+    return nil
 }
-
-evo.Task("fetch").After(worktrees, branches).Define(fetchPrune)
 ```
+
+Declare work on the `*evo.Run` the body receives (`r.Task`, `r.Group`,
+`r.Sequence`); no package-level constructor declares work.
 
 - **Task** is atomic. Use `task.Writer()` on `cmd.Stdout`/`Stderr`. Parallel work is a `Group`; ordered work is a `Sequence`.
 - **Group** = independent children (scheduler may overlap). **Sequence** =
@@ -148,7 +152,7 @@ evo.Task("fetch").After(worktrees, branches).Define(fetchPrune)
   now.” Inside it, **`evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn)`**
   performs an opaque mutation (git ref, worktree, API change) and
   **`evo.File`** owns file state. The seven Task mutation verbs
-  (`Delete(object, fn)`, `Write`, …) and `evo.Affected` are gone.
+  (`Delete(object, fn)`, `Write`, …) and `evo.Affected` were removed in 1.1.
 - **Done** and **Record/RecordLabel/RecordName** were removed in 1.1. Success
   is a `Define` callback returning `nil`; result text is `task.Summary(text)`
   (non-terminal). Information is `task.Fact`, never a ledger row.
@@ -186,14 +190,14 @@ These are real dialect defects MCP currently misses. Fix them in the consumer
 anyway; add detectors when they recur:
 
 - a per-item `Group`/`Sequence` loop that reuses one `Task` name for every
-  iteration (duplicate sibling declaration, not a get-or-create — §3.1)
+  iteration (duplicate sibling declaration, not a get-or-create — CONTRACT §2)
 
 Caught as of this MCP build (do not re-add to this list): `errgroup`/`go func`
 driving predeclared evo Tasks (API-041), an `evo.Fail`, `evo.Refuse` or
 `evo.Exclude` ending built and then discarded (API-040), a nil or no-op
 `evo.Effect` callback (API-042), a plural `EffectSpec.Object` literal
-(API-043), a removed 1.1 mutation verb or `evo.Affected` (API-032), a hand-rolled channel wrapper around Define (API-044),
-an inline `evo.Reason(...)` literal or one that restates its own verb (TAX-003),
+(API-043), a mutation verb or `evo.Affected` removed in 1.1 (API-032), a hand-rolled channel wrapper around Define (API-044),
+an `evo.Exclude` reason that restates its own verb (TAX-003),
 and a Task declared (say, only given a `Writer`) that its function never
 Defines or hands on (DOM-021).
 
@@ -204,11 +208,13 @@ review flags it. Return the result from `Define` instead.
 ## Release policy
 
 Evident Output 1.x ships breaking changes in minor releases when the owner's
-API-freeze decisions call for them, with no compatibility shims. 1.0 dropped extra constructors and per-item helpers. Removed in 1.1: the Task mutation verbs, `Done`,
-`Record*`, `Affected`/`MutationOption`, `Warn`, `Step`,
-`Kept`, and capture-meaning `Evidence*` (`Capture` is the retained sink);
-the printf Fail and Block verbs are in docs/migration/1.1.md. 1.1 also
-changes `Exec` and
+API-freeze decisions call for them, with no compatibility shims. 1.0 dropped extra constructors and per-item helpers.
+
+- Removed in 1.1: the Task mutation verbs, `Done`, `Warn`, `Step`, `Kept` and `Affected`/`MutationOption`.
+- Removed in 1.1: `Record*` and capture-meaning `Evidence*` (`Capture` is the retained sink).
+- Also removed in 1.1: the printf `Fail` and `Block` verbs. docs/migration/1.1.md lists each.
+
+1.1 also changes `Exec` and
 `Define`, per the
 "Decisions (2026-09-23) — 1.1 API freeze" section of the Linear contract doc
 "Evident Output 1.x — Product + Implementation Contract" (project P-ZYS-23).

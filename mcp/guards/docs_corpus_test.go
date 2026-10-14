@@ -16,8 +16,12 @@ import (
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
 )
 
+// agentsGuide is the operating contract AGENTS.md hands every agent that
+// uses the MCP; it teaches the dialect, so the guards read it like any doc.
+const agentsGuide = "AGENTS.md"
+
 // docCorpus is every text the MCP serves or ships as guidance, keyed by a
-// readable origin: docs, skills, the embedded sections, the catalog guides,
+// readable origin: AGENTS.md, docs, skills, the embedded sections, the catalog guides,
 // the rule texts (BadCode and Replacement included: a mistake the rule
 // shows is still written in 2.0 names), the retired table's replacement
 // targets, and the review and adopt suggestions. A rule's BadOutput is left
@@ -25,6 +29,11 @@ import (
 func docCorpus(t *testing.T, root string) map[string]string {
 	t.Helper()
 	corpus := map[string]string{}
+	agents, err := os.ReadFile(filepath.Join(root, agentsGuide))
+	if err != nil {
+		t.Fatalf("read %s: %v", agentsGuide, err)
+	}
+	corpus[agentsGuide] = string(agents)
 	for _, dir := range []string{"mcp/docs", "mcp/skills", "mcp/internal/agent/sections/embedded"} {
 		walkFiles(t, filepath.Join(root, dir), ".md", func(rel, body string) { corpus[filepath.ToSlash(rel)] = body })
 	}
