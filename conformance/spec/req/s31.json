@@ -209,16 +209,7 @@
     "section": "31",
     "quote": "Attempts: retry a unit until Verify passes; a failed attempt does not fail the parent",
     "tier": "1.2",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/pending/attempts",
-        "run": "TestC31_021_FailedAttemptDoesNotFailParentAndRetriesUntilVerifyPasses"
-      },
-      {
-        "pkg": "./conformance/contract/pending/attempts",
-        "run": "TestC31_021_FailedAfterCallbackVerifyIsVerificationUnproven"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -227,12 +218,7 @@
     "section": "31",
     "quote": "yaegi symbols package shipped by Evo",
     "tier": "1.2",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/pending/symbols",
-        "run": "TestSymbolsCoverEveryExportedPackageFunction"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },

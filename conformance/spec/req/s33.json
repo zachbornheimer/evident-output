@@ -2,7 +2,7 @@
   {
     "id": "C33-001",
     "section": "33",
-    "quote": "A `Writer()`-backed Running Task shows a bounded live tail of 6 lines under its row, with the footer `\u2026 N lines in evidence`.",
+    "quote": "A `Writer()`-backed Running Task shows a bounded live tail of 6 lines under its row, with the footer `… N lines in evidence`.",
     "tier": "1.1",
     "tests": [
       {
@@ -24,7 +24,7 @@
   {
     "id": "C33-002",
     "section": "33",
-    "quote": "After 60 seconds without output the row carries a `\u00b7 quiet <elapsed>` suffix in the one elapsed format of section 32.",
+    "quote": "After 60 seconds without output the row carries a `· quiet <elapsed>` suffix in the one elapsed format of section 32.",
     "tier": "1.1",
     "tests": [
       {
@@ -72,12 +72,7 @@
     "section": "33",
     "quote": "`task.Ready(detail)` marks readiness.",
     "tier": "1.2",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/pending/daemon",
-        "run": "TestDaemonReadyAndRestartedRenderTheirDetail"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -86,12 +81,7 @@
     "section": "33",
     "quote": "`task.Restarted(reason, attempt, nextBackoff)` renders a restart.",
     "tier": "1.2",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/pending/daemon",
-        "run": "TestDaemonReadyAndRestartedRenderTheirDetail"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -100,12 +90,7 @@
     "section": "33",
     "quote": "`task.StoppedBy(signals...)` reclassifies the listed signals as a clean stop.",
     "tier": "1.2",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/pending/daemon",
-        "run": "TestDaemonStoppedBySignalConcludesStoppedBand"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -123,12 +108,7 @@
     "section": "33",
     "quote": "A clean stop concludes with exit code 0 and the `[stopped]` band.",
     "tier": "1.2",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/pending/daemon",
-        "run": "TestDaemonStoppedBySignalConcludesStoppedBand"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -137,12 +117,7 @@
     "section": "33",
     "quote": "Plain (non-TTY) output streams start, ready, log lines, and stop one line per event, without glyphs.",
     "tier": "1.2",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/pending/daemon",
-        "run": "TestDaemonPlainNonTTYStreamsLinesAsTheyArrive"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -151,12 +126,7 @@
     "section": "33",
     "quote": "JSONL carries every log line as an event.",
     "tier": "1.2",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/pending/daemon",
-        "run": "TestDaemonJSONLCarriesLifecycleLineEvents"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -165,12 +135,7 @@
     "section": "33",
     "quote": "Log lines classified INFO and above appear in the tail; DEBUG lines appear only under `EVO_VERBOSE=1`.",
     "tier": "1.2",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/pending/daemon",
-        "run": "TestDaemonLogLevelsSurviveInTheTail"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   }

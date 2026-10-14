@@ -16,7 +16,7 @@
   {
     "id": "C30-002",
     "section": "30",
-    "quote": "An After cycle settles each member Blocked with one `dependency cycle: a \u2192 b \u2192 a` line.",
+    "quote": "An After cycle settles each member Blocked with one `dependency cycle: a → b → a` line.",
     "tier": "1.1",
     "tests": [
       {
@@ -179,7 +179,7 @@
   {
     "id": "C30-013",
     "section": "30",
-    "quote": "It renders after the Task name on the settled row (`\u2713 branches  459 checked`).",
+    "quote": "It renders after the Task name on the settled row (`✓ branches  459 checked`).",
     "tier": "1.1",
     "tests": [
       {
@@ -891,7 +891,7 @@
   {
     "id": "C30-057",
     "section": "30",
-    "quote": "The \u00a718 plain fixture is normative.",
+    "quote": "The §18 plain fixture is normative.",
     "tier": "1.1",
     "tests": [
       {
@@ -911,10 +911,6 @@
       {
         "pkg": "./conformance/contract/prune",
         "run": "TestC30_058_SubjectsPadToTheWidestSubjectThenTwoSpaces"
-      },
-      {
-        "pkg": "./conformance/contract/pending/prune",
-        "run": "TestC30_058_SubjectsPadToTheWidestDisplayCellWidth"
       }
     ],
     "default": false,

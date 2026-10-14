@@ -4,12 +4,7 @@
     "section": "34",
     "quote": "Sibling per-item mutating Tasks under one Group whose Effects share a verb and object fold into one aggregated human row, counted per item (for example `deleted 3 branches`).",
     "tier": "1.2",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/pending/ledger",
-        "run": "TestPerItemEffectsUnderOneGroupFoldIntoOneHumanRow"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -36,12 +31,7 @@
     "section": "34",
     "quote": "A failed item stays visible under the aggregated row.",
     "tier": "1.2",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/pending/ledger",
-        "run": "TestFoldKeepsFailedItemsVisible"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   },
@@ -50,12 +40,7 @@
     "section": "34",
     "quote": "JSON and JSONL keep every per-item Effect.",
     "tier": "1.2",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/pending/ledger",
-        "run": "TestFoldKeepsEveryEffectInTheSnapshot"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "superseded: 1.x wording that CONTRACT.md 2.0 does not carry; any promise it still makes is registered under C40 through C48 (docs/migration/2.0.md)"
   }

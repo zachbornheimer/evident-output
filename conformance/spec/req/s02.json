@@ -11,7 +11,7 @@
   {
     "id": "C02-002",
     "section": "2",
-    "quote": "The run-level **Conclusion** is only: **OK** \u00b7 **Blocked** \u00b7 **Failed** \u00b7 **Cancelled**.",
+    "quote": "The run-level **Conclusion** is only: **OK** · **Blocked** · **Failed** · **Cancelled**.",
     "tier": "1.1",
     "tests": [
       {
@@ -118,12 +118,7 @@
     "section": "2",
     "quote": "`Skipped(evo.Reason(...))` for a policy-excluded per-candidate Task; a Fact or part of the Summary for counts such as \"kept 383\"",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/pending/surface",
-        "run": "TestC02_040_KeptResidueIsRemoved"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: Skipped (now Exclude); see docs/migration/2.0.md"
   },
@@ -132,12 +127,7 @@
     "section": "2",
     "quote": "Actions attach to Block and Fail through one path only: `evo.Next(action)` or `evo.NextCommand(executable, args...)` passed as ProblemOptions to `Problem`, `Block`, or `Fail`.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/pending/surface",
-        "run": "TestC02_041_ActionsAttachThroughOnlyTheProblemOptionPath"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: Block (now Refuse); see docs/migration/2.0.md"
   },
@@ -146,12 +136,7 @@
     "section": "2",
     "quote": "a recommended next step, attached only by the `Next` and `NextCommand` ProblemOptions.",
     "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./conformance/contract/pending/surface",
-        "run": "TestC02_041_ActionsAttachThroughOnlyTheProblemOptionPath"
-      }
-    ],
+    "tests": [],
     "default": false,
     "waiver": "removed in 2.0: NextCommand (now Next(Action{Command})); see docs/migration/2.0.md"
   },
@@ -275,7 +260,7 @@
   {
     "id": "C02-027",
     "section": "2",
-    "quote": "block until settled and return the aggregate error (\u00a730).",
+    "quote": "block until settled and return the aggregate error (§30).",
     "tier": "1.1",
     "tests": [],
     "default": false,
@@ -375,7 +360,7 @@
   {
     "id": "C02-037",
     "section": "2",
-    "quote": "Hidden in normal human output, always in machine output (\u00a711).",
+    "quote": "Hidden in normal human output, always in machine output (§11).",
     "tier": "1.1",
     "tests": [],
     "default": false,
@@ -460,7 +445,7 @@
   {
     "id": "C02-046",
     "section": "2",
-    "quote": "`Patch(ctx, diff) (FileSet, error)`: derive desired file states from a unified text diff; mutates nothing (\u00a727).",
+    "quote": "`Patch(ctx, diff) (FileSet, error)`: derive desired file states from a unified text diff; mutates nothing (§27).",
     "tier": "1.1",
     "tests": [
       {
@@ -524,7 +509,7 @@
   {
     "id": "C02-052",
     "section": "2",
-    "quote": "`\u2713` done, `\u2717` failed, `\u2298` blocked, `!` warning",
+    "quote": "`✓` done, `✗` failed, `⊘` blocked, `!` warning",
     "tier": "1.1",
     "tests": [],
     "default": false,
@@ -533,7 +518,7 @@
   {
     "id": "C02-053",
     "section": "2",
-    "quote": "`\u25a0` cancelled",
+    "quote": "`■` cancelled",
     "tier": "1.1",
     "tests": [
       {
@@ -556,7 +541,7 @@
   {
     "id": "C02-055",
     "section": "2",
-    "quote": "`\u2192` next action",
+    "quote": "`→` next action",
     "tier": "1.1",
     "tests": [
       {
@@ -570,7 +555,7 @@
   {
     "id": "C02-056",
     "section": "2",
-    "quote": "`\u25d0` running (a spinner on a live TTY)",
+    "quote": "`◐` running (a spinner on a live TTY)",
     "tier": "1.1",
     "tests": [
       {
@@ -584,7 +569,7 @@
   {
     "id": "C02-057",
     "section": "2",
-    "quote": "`\u25cb` pending",
+    "quote": "`○` pending",
     "tier": "1.1",
     "tests": [],
     "waiver": "UNCLASSIFIED: no Go test observes the pending glyph or the `?` waiting-for-input glyph in the Unicode profile; needs a live-TTY harness seam (WP2).",
@@ -602,7 +587,7 @@
   {
     "id": "C02-059",
     "section": "2",
-    "quote": "Environment, applied only when the matching Config field is zero: `EVO_OUTPUT`, `EVO_COLOR`, `EVO_VERBOSE`, `EVO_DEBUG` (\u00a716).",
+    "quote": "Environment, applied only when the matching Config field is zero: `EVO_OUTPUT`, `EVO_COLOR`, `EVO_VERBOSE`, `EVO_DEBUG` (§16).",
     "tier": "1.1",
     "tests": [],
     "default": false,
