@@ -102,24 +102,38 @@ func TestGroup1kPlainBytesPerOpUnderV1(t *testing.T) {
 // per Task, so a single added per-Task allocation fails this bound.
 const group1kAllocsPerOpBound = 32_700
 
+// fallbackAllocsPerOp is the ceiling where worker reuse is unavailable (Go
+// 1.25 and 1.26): every Task then starts a goroutine of its own, which costs
+// more allocations than a pooled worker. The count differs by host, 38.3k
+// allocs/op on GitHub's runners and 40.4k locally, so no tighter number holds
+// on both; 41,000 sits about 600 above the highest measurement, under one
+// allocation per Task of room, so a regression on that toolchain still fails.
+const fallbackAllocsPerOp = 41_000
+
+// group1kAllocsCeiling is the allocs/op ceiling this toolchain is held to:
+// the pooled-worker bound where workers are reused, fallbackAllocsPerOp where
+// every Task runs on its own goroutine.
+func group1kAllocsCeiling() int64 {
+	if graph.WorkerReuseAvailable() {
+		return group1kAllocsPerOpBound
+	}
+	return fallbackAllocsPerOp
+}
+
 // TestGroup1kPlainAllocsPerTaskUnderBound holds the 1,000-Task Plain Group to
 // its allocation count. Allocations per op do not depend on host load, so
 // this never skips for load; the race detector instruments allocations, so a
-// -race build skips and the plain run enforces the bound. The bound describes
-// pooled workers. Where worker reuse is unavailable every Task starts a
-// goroutine of its own and the count lands between 38.3k (CI) and 40.4k
-// (local) allocs/op on Go 1.25, so no one number holds there and it skips.
+// -race build skips and the plain run enforces the bound. The ceiling follows
+// the toolchain: group1kAllocsCeiling.
 func TestGroup1kPlainAllocsPerTaskUnderBound(t *testing.T) {
-	if !graph.WorkerReuseAvailable() {
-		t.Skip("worker reuse needs the /sched/goroutines-created runtime metric (Go 1.27); this toolchain runs every Task on its own goroutine, which costs more allocs/op than the pooled-worker bound allows")
-	}
 	if scaletest.RaceDetector {
 		t.Skip("the race detector instruments allocations and inflates allocs/op; the plain run enforces the bound")
 	}
+	ceiling := group1kAllocsCeiling()
 	result := testing.Benchmark(BenchmarkGroup1kPlain)
-	if got := result.AllocsPerOp(); got > group1kAllocsPerOpBound {
+	if got := result.AllocsPerOp(); got > ceiling {
 		t.Fatalf("1,000 trivial Tasks in one Plain Group made %d allocs/op (%.2f per Task), want <= %d",
-			got, float64(got)/group1kSize, int64(group1kAllocsPerOpBound))
+			got, float64(got)/group1kSize, ceiling)
 	}
 }
 
