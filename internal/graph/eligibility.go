@@ -122,7 +122,7 @@ func (g *Graph) taskOutcomeLocked(t *Task) predOutcome {
 // c's entry, so the members succeed only once the entry has.
 func (g *Graph) collectionOutcomeLocked(p Predecessor) (predOutcome, Predecessor) {
 	t := &p.col.tally
-	if t.builderFailed {
+	if t.stoppedBuilder != nil {
 		return predFailed, p
 	}
 	cursor, open := g.edgeCursorLocked(p)

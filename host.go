@@ -157,7 +157,7 @@ func (e runHost) GateDeclared(t *graph.Task) {
 	gate := &taskState{id: t.ID, node: t, name: t.Name}
 	gate.handle = &Task{out: o, id: gate.id}
 	o.taskStates[gate.id] = gate
-	o.show.DeclareGate(t.TaskID(), t.Rec)
+	o.show.DeclareGate(t.TaskID(), t.Rec, t.GateFor().ID)
 }
 
 func (e runHost) ContainerDeclared(c *graph.Container) {

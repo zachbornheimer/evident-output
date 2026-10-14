@@ -80,8 +80,8 @@ func (g *Graph) stopperLocked(p Predecessor) string {
 		return stoppedBy(p.task.Name, p.task.Rec.State())
 	case p.col == nil:
 		return NotStartedSummary
-	case p.col.tally.builderFailed:
-		return stoppedBy(p.col.Name, record.Failed)
+	case p.col.tally.stoppedBuilder != nil:
+		return p.col.tally.stoppedBuilder.summary(p.col.Name)
 	}
 	if m := p.col.tally.firstFailedMember(); m != nil {
 		return stoppedBy(m.Name, m.Rec.State())

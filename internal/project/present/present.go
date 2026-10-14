@@ -40,6 +40,8 @@ type Presenter struct {
 type task struct {
 	rec  *record.Task
 	gate bool
+	// group is the id of the collection a gate defers the children of.
+	group string
 	// started is set once becoming Running was answered, however the row got
 	// there. answered is how many of the record's settlements were answered.
 	started  bool
@@ -156,10 +158,10 @@ func (p *Presenter) DeclareTask(t project.DeclaredTask, in string) {
 	p.Live.Signal(true)
 }
 
-// DeclareGate follows a container builder's gate: no row, in no
-// collection, but its settle is answered like any Task's.
-func (p *Presenter) DeclareGate(id record.TaskID, rec *record.Task) {
-	p.tasks[id] = &task{rec: rec, gate: true}
+// DeclareGate follows the gate of the builder of collection group: no row,
+// in no collection, but its settle is answered like any Task's.
+func (p *Presenter) DeclareGate(id record.TaskID, rec *record.Task, group string) {
+	p.tasks[id] = &task{rec: rec, gate: true, group: group}
 }
 
 // DeclareGroup gives g a row under the collection parent, or at the root

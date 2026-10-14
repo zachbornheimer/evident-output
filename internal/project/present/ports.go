@@ -59,13 +59,14 @@ func (r reactions) Changed(id record.TaskID) (record.State, bool) {
 }
 
 // Settled is the work a settle owes, whichever code settled the Task: for a
-// builder's gate only a new version, since a gate is no declared Task and
-// never reaches evo.event; for a Task, its timing, task.finished, its live
+// builder's gate only a new version and the Stream's word that the builder
+// concluded, since a gate is no declared Task and never reaches evo.event; for a Task, its timing, task.finished, its live
 // filing, its heartbeat and the task.<state> journal event.
 func (r reactions) Settled(id record.TaskID, to record.State) {
 	p, t := r.p, r.p.tasks[id]
 	p.version++
 	if t.gate {
+		p.Stream.BuilderConcluded(t.group)
 		return
 	}
 	if row := p.Rows.Task(id); row != nil {

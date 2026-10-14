@@ -159,6 +159,31 @@ func (s *Stream) commitMember(r *row) {
 	s.CommitSettledBlocks()
 }
 
+// BuilderConcluded answers the builder of collection id concluding. A
+// collection whose builder never declared a member (it never ran, or it
+// failed) has no Task whose settling would give its block a place, yet its
+// row explains the Tasks after it: it takes its place now, so those Tasks
+// do not land above it.
+func (s *Stream) BuilderConcluded(id string) {
+	b := s.blocks[id]
+	if b == nil || len(b.root.rows) > 0 {
+		return
+	}
+	root := b.root
+	switch s.cfg.Source.Header(root.id).State {
+	case record.NotStarted, record.Failed:
+	default:
+		return
+	}
+	s.takePlace(root)
+	if s.cfg.Region.Interactive() {
+		return
+	}
+	root.mode, root.dirty = modeAtomic, true
+	s.queue(root)
+	s.CommitSettledBlocks()
+}
+
 // markSettled gives the root block its place among the rows that became
 // durable, when no Task at or beneath it is unresolved. A block that began
 // streaming took its place already.

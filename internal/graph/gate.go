@@ -138,12 +138,34 @@ func (g *Graph) concludeGateLocked(gate *Task) {
 	if gate.sched.awaitingStart() {
 		g.abandonLocked(gate)
 	}
+	stop, stopped := builderStopOf(gate)
+	if stopped && !stop.failed {
+		c.Rec.SetSummary(stop.cause)
+	}
 	var woken []*Task
 	for p := c; p != nil; p = p.Parent {
-		if state != record.Succeeded {
-			woken = append(woken, p.tally.failBuilder()...)
+		if stopped {
+			woken = append(woken, p.tally.stopBuilder(stop)...)
 		}
 		woken = append(woken, p.tally.release(p == c, g.declSeq)...)
 	}
 	g.wakeLocked(woken)
+}
+
+// builderStopOf is why gate's builder never finished declaring, false when
+// it did. A gate that never ran says what stopped it, as the Task after it
+// would; one that ran and did not succeed failed.
+func builderStopOf(gate *Task) (builderStop, bool) {
+	switch gate.Rec.State() {
+	case record.Succeeded:
+		return builderStop{}, false
+	case record.NotStarted:
+		cause := gate.Rec.Summary()
+		if cause == "" {
+			cause = NotStartedSummary
+		}
+		return builderStop{cause: cause}, true
+	default:
+		return builderStop{failed: true}, true
+	}
 }

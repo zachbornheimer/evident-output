@@ -41,9 +41,31 @@ type tally struct {
 	// or beneath it. While any is, the membership is not final, so no edge
 	// on it is sealed or closed.
 	holds int
-	// builderFailed records that a builder under this container never
-	// declared its children, so the container can never fully succeed.
-	builderFailed bool
+	// stoppedBuilder records that a builder under this container never
+	// declared its children, so the container can never fully succeed; nil
+	// while none stopped.
+	stoppedBuilder *builderStop
+}
+
+// builderStop is why a builder under a collection never declared its
+// children: it failed, or it never ran because a predecessor can never
+// succeed. The two stay apart so a dependent names the Task that really
+// stopped it.
+type builderStop struct {
+	// failed is set when the builder ran and did not finish declaring.
+	failed bool
+	// cause is the summary of a builder that never ran: what its
+	// predecessor's state says. Unused when failed.
+	cause string
+}
+
+// summary is the summary of a Task kept from running by the collection
+// named name, whose builder stopped this way.
+func (b builderStop) summary(name string) string {
+	if b.failed {
+		return stoppedBy(name, record.Failed)
+	}
+	return b.cause
 }
 
 // parkedTask is a Task parked on a collection edge that reads members
@@ -175,10 +197,13 @@ func (t *tally) release(seal bool, cursor int) (woken []*Task) {
 	return woken
 }
 
-// failBuilder records that a builder under this container never declared its
-// children, and returns every Task waiting on the container.
-func (t *tally) failBuilder() (woken []*Task) {
-	t.builderFailed = true
+// stopBuilder records that a builder under this container never declared its
+// children, and returns every Task waiting on the container. The first stop
+// recorded is the one dependents name.
+func (t *tally) stopBuilder(stop builderStop) (woken []*Task) {
+	if t.stoppedBuilder == nil {
+		t.stoppedBuilder = &stop
+	}
 	woken, t.open = t.open, nil
 	for _, p := range t.parked {
 		woken = append(woken, p.t)
