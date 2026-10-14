@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // EventSchemaVersion is the "evo.event" JSONL line's schema_version

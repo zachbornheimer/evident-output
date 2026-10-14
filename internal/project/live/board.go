@@ -4,8 +4,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/zachbornheimer/evident-output/internal/project"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // Board is what a live frame and a collection's verdict read of one run's

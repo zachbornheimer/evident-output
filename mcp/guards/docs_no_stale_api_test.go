@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/catalog"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
 )
 
 // Every rules.RetiredSymbol with a Taught pattern is checked (spec §46's public

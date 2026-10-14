@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/project"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 var quietT0 = time.Date(2026, 9, 29, 16, 0, 0, 0, time.UTC)

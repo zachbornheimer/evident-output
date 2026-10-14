@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // TestDefine_SubmitsAndNeverRunsInline pins CONTRACT.md §2: Define submits

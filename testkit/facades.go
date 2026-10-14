@@ -1,10 +1,10 @@
 package testkit
 
 import (
-	"github.com/zachbornheimer/evident-output/internal/clock"
-	"github.com/zachbornheimer/evident-output/internal/fs"
-	"github.com/zachbornheimer/evident-output/internal/process"
-	"github.com/zachbornheimer/evident-output/internal/terminal"
+	"github.com/zachbornheimer/evident-output/v2/internal/clock"
+	"github.com/zachbornheimer/evident-output/v2/internal/fs"
+	"github.com/zachbornheimer/evident-output/v2/internal/process"
+	"github.com/zachbornheimer/evident-output/v2/internal/terminal"
 )
 
 // Every fake in this package implements the interface of the facade package

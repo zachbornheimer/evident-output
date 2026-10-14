@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/zachbornheimer/evident-output/internal/process"
+	"github.com/zachbornheimer/evident-output/v2/internal/process"
 )
 
 // maxCaptureLineLen is the most runes one retained line keeps after

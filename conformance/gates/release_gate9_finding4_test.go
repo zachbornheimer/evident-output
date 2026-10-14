@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // TestTaskRun_PlainMode_NoPerLineDurableRows is release-gate round 9 finding

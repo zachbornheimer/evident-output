@@ -8,11 +8,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	txt "github.com/zachbornheimer/evident-output/internal/project"
-	renderplain "github.com/zachbornheimer/evident-output/internal/project/plain"
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
-	"github.com/zachbornheimer/evident-output/internal/record"
-	"github.com/zachbornheimer/evident-output/internal/terminal"
+	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
+	renderplain "github.com/zachbornheimer/evident-output/v2/internal/project/plain"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/terminal"
 )
 
 // visibility selects whether a message is ordinary or verbose user detail; zero is visibilityNormal.

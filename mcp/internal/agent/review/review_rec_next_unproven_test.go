@@ -4,10 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
-const remedyPkgHeader = "package p\n\nimport evo \"github.com/zachbornheimer/evident-output\"\n\n"
+const remedyPkgHeader = "package p\n\nimport evo \"github.com/zachbornheimer/evident-output/v2\"\n\n"
 
 // Receivers the review cannot prove are non-evo must still be reported (and
 // keep the review open) rather than pass silently.
@@ -51,7 +51,7 @@ func TestRemovedRemedy_KnownNonEvoReceiverTypesAreNotReported(t *testing.T) {
 		"struct field of known type":     "type s struct{ w *bytes.Buffer }\nfunc (r s) f() {\n\tr.w.Next(3)\n}\n",
 	} {
 		t.Run(name, func(t *testing.T) {
-			src = "package p\n\nimport (\n\t\"bytes\"\n\n\tevo \"github.com/zachbornheimer/evident-output\"\n)\n\nvar _ = evo.Init\nvar _ bytes.Buffer\n\n" + src
+			src = "package p\n\nimport (\n\t\"bytes\"\n\n\tevo \"github.com/zachbornheimer/evident-output/v2\"\n)\n\nvar _ = evo.Init\nvar _ bytes.Buffer\n\n" + src
 			if found := migrationFindings(review.GoSource("p.go", src)); len(found) != 0 {
 				t.Fatalf("findings = %+v, want none", found)
 			}

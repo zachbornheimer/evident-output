@@ -4,7 +4,7 @@ import (
 	"io/fs"
 	"sync"
 
-	evfs "github.com/zachbornheimer/evident-output/internal/fs"
+	evfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // FileFS is a deterministic evo.FileFS fake: Lstat/ReadFile/WriteAtomic

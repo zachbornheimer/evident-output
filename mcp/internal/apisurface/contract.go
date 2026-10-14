@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
 )
 
 // GoldenRelPath and RequiredRelPath are the module-root-relative contract files.

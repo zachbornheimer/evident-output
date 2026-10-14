@@ -1,6 +1,6 @@
 package graph
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 // AddAfter declares predecessors: t starts only once every one of them
 // succeeded, and never starts once one of them cannot. It reports false,

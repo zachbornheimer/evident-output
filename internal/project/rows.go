@@ -4,7 +4,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // Rows is the shared row model: every declared Task and collection as each

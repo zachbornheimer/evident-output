@@ -6,7 +6,7 @@ import (
 	"context"
 	"slices"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // operationsToCommitLocked is id's operations plus, when it declared a Basis, the

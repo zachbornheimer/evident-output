@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // Positional quantity-first Delete is a removed mutation shape. API-032 must
@@ -14,7 +14,7 @@ func TestAPI032_RepoRetireConfigAndDeleteShape(t *testing.T) {
 	src := `package p
 import (
 	"bytes"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(task *evo.TaskHandle, n int) {
 	var buf bytes.Buffer
@@ -45,7 +45,7 @@ func f(task *evo.TaskHandle, n int) {
 
 func TestAPI032_OldRemoveSkipStartPhaseMainWith(t *testing.T) { // MainWith: removed in 1.0, still detected as a fixture of old code
 	src := `package main
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func main() {
 	out := evo.Init(evo.Config{Title: "t", Isolated: true})
 	evo.MainWith(out, run) // MainWith: removed in 1.0, fixture pins the detector still catches old call sites
@@ -82,7 +82,7 @@ func run(out *evo.Output) error {
 
 func TestAPI032_StandaloneOptionFuncs(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(r io.Reader, w io.Writer, d time.Duration) {
 	_ = evo.NoColor()
 	_ = evo.Stdin(r)
@@ -110,7 +110,7 @@ func TestAPI032_TestingTSkipNotFlagged(t *testing.T) {
 	src := `package p_test
 import (
 	"testing"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func TestX(t *testing.T) {
 	evo.Init(evo.Config{Title: "t"})
@@ -129,7 +129,7 @@ func TestAPI032_CurrentRecSurfaceNotFlagged(t *testing.T) {
 	src := `package p
 import (
 	"bytes"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(task *evo.TaskHandle, n int, reason evo.TaxonomyReason) {
 	var buf bytes.Buffer
@@ -151,7 +151,7 @@ func f(task *evo.TaskHandle, n int, reason evo.TaxonomyReason) {
 func TestAPI032_NonEvoWriteWithThreeArgsNotFlagged(t *testing.T) {
 	src := `package p
 import (
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 	"example.com/cache"
 )
 func stamp(path string, task *evo.TaskHandle, n int) {
@@ -173,7 +173,7 @@ func stamp(path string, task *evo.TaskHandle, n int) {
 
 func TestAPI032_PositionalQuantityIsOldShape(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle, n int) {
 	task.Delete(1, "local tip")
 	task.Delete(n, "worktree")
@@ -196,7 +196,7 @@ func f(task *evo.TaskHandle, n int) {
 // body over with the context-taking signature Effect requires.
 func TestAPI032_LegacyObjectFirstMutationVerbIsRemoved(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle, n int) {
 	task.Delete("local tip", func() error { return removeTip() }, evo.Affected(n))
 	task.Push("remote ref", nil)
@@ -217,7 +217,7 @@ func f(task *evo.TaskHandle, n int) {
 // no EffectWrite, so the removed Task.Write routes to evo.File.
 func TestAPI032_LegacyWriteRewritesToFile(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
 	task.Write("config.toml", func() error { return save() })
 }
@@ -239,7 +239,7 @@ func TestAPI032_NonEvoVerbLookalikesNotFlagged(t *testing.T) {
 	src := `package p
 import (
 	"net/http"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(h http.Header, m map[string]int, ct string, _ *evo.TaskHandle) {
 	h.Add("Content-Type", ct)
@@ -255,7 +255,7 @@ func f(h http.Header, m map[string]int, ct string, _ *evo.TaskHandle) {
 
 func TestAPI032_RetiredCollectionConstructorIsSuperseded(t *testing.T) {
 	ctor := "Display" + "Group"
-	src := "package p\nimport evo \"github.com/zachbornheimer/evident-output\"\nfunc f(out *evo.Output) {\n\t_ = out." + ctor + "(\"run\")\n\t_ = evo." + ctor + "(\"worktrees\")\n}\n"
+	src := "package p\nimport evo \"github.com/zachbornheimer/evident-output/v2\"\nfunc f(out *evo.Output) {\n\t_ = out." + ctor + "(\"run\")\n\t_ = evo." + ctor + "(\"worktrees\")\n}\n"
 	res := review.GoSource("group.go", src)
 	found := findAPI032(res)
 	if len(found) == 0 {
@@ -284,7 +284,7 @@ func joinSuggestions(fs []review.Finding) string {
 // shape rewritten to them, never to a 1.1 API.
 func TestAPI032_MutationVerbsAtPinnedV1_0(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle, n int) {
 	task.Delete("worktree", func() error { return remove() })
 	task.Write("config.toml", func() error { return save() }, evo.Affected(2))
@@ -309,7 +309,7 @@ func f(task *evo.TaskHandle, n int) {
 // the object-first verbs are removed and rewrite to evo.Effect.
 func TestAPI032_MutationVerbsAtPinnedV1_1(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
 	task.Delete("worktree", func() error { return remove() })
 }

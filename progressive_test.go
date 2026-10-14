@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 // Terminal outcomes must stream as they resolve — not sit in a buffer until Finish.

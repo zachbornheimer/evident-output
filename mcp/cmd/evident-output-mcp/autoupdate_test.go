@@ -10,7 +10,7 @@ func TestAutoUpdate_NewerPinRecordsInstallAndExec(t *testing.T) {
 	home := t.TempDir()
 	gopath := t.TempDir()
 	app := t.TempDir()
-	mod := "module app\n\nrequire github.com/zachbornheimer/evident-output v9.9.9\n"
+	mod := "module app\n\nrequire github.com/zachbornheimer/evident-output/v2 v9.9.9\n"
 	if err := os.WriteFile(filepath.Join(app, "go.mod"), []byte(mod), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestAutoUpdate_SkipWhenEnvSet(t *testing.T) {
 	home := t.TempDir()
 	gopath := t.TempDir()
 	app := t.TempDir()
-	mod := "module app\n\nrequire github.com/zachbornheimer/evident-output v9.9.9\n"
+	mod := "module app\n\nrequire github.com/zachbornheimer/evident-output/v2 v9.9.9\n"
 	if err := os.WriteFile(filepath.Join(app, "go.mod"), []byte(mod), 0o644); err != nil {
 		t.Fatal(err)
 	}

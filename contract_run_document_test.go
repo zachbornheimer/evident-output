@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // measuredTask is how long the timed Task works, so its timing is

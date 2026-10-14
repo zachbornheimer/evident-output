@@ -7,7 +7,7 @@ package graph
 import (
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // startOnActivity moves a pending Task to Running on its first evidence of

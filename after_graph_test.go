@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/misuse"
+	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
 )
 
 func nopWork(context.Context) error { return nil }

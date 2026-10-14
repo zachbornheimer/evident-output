@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/project"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // TestAlreadySatisfiedRowDetail_IgnoresSummary is the renderer-level red

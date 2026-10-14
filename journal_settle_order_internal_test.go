@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
 )
 
 // finishSweepEventTypes is the evo.event types a run streams when Finish

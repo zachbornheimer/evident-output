@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/vocabulary"
-	"github.com/zachbornheimer/evident-output/mcp/internal/apisurface"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/vocabulary"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/apisurface"
 )
 
 // freezeRemoved is the ZYS-1180 names classed removed. Reclassifying one

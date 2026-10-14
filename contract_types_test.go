@@ -10,7 +10,7 @@ import (
 )
 
 // evoModulePath is the import path of package evo.
-const evoModulePath = "github.com/zachbornheimer/evident-output"
+const evoModulePath = "github.com/zachbornheimer/evident-output/v2"
 
 // loadContractTypes type-checks package evo from source once per process, so
 // contract tests can compare CONTRACT.md's types with the package's own.

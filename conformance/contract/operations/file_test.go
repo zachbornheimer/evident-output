@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/conformance/contract/harness"
+	evo "github.com/zachbornheimer/evident-output/v2"
+	"github.com/zachbornheimer/evident-output/v2/conformance/contract/harness"
 )
 
 // applyFile runs one File spec inside a fresh run and returns the run text

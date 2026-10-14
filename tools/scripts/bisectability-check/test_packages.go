@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/internal/process"
+	"github.com/zachbornheimer/evident-output/v2/internal/process"
 )
 
 const (

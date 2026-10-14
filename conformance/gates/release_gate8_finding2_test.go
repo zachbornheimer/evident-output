@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // sinkTerminal is a minimal, non-live TerminalDriver that reports its own

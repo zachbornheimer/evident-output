@@ -1,4 +1,4 @@
-module github.com/zachbornheimer/evident-output
+module github.com/zachbornheimer/evident-output/v2
 
 go 1.25.0
 

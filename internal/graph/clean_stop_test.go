@@ -6,7 +6,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/process"
+	"github.com/zachbornheimer/evident-output/v2/internal/process"
 )
 
 func TestCleanStopEndsANamedCallbackSucceeded(t *testing.T) {

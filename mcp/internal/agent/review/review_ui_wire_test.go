@@ -3,7 +3,7 @@ package review_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // hasFinding reports whether res contains a finding for ruleID.
@@ -18,7 +18,7 @@ func hasFinding(res review.Result, ruleID string) bool {
 
 func TestGoSource_EvoUI001_FactPrintedManually(t *testing.T) {
 	bad := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f() {
   out := evo.Init(evo.Config{})
   t := out.Task("env")
@@ -31,7 +31,7 @@ func f() {
 	}
 
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f() {
   out := evo.Init(evo.Config{})
   t := out.Task("env")
@@ -48,7 +48,7 @@ func TestGoSource_EvoUI002_PassingVerificationPrinted(t *testing.T) {
 	bad := `package p
 import (
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f() {
   out := evo.Init(evo.Config{})
@@ -63,7 +63,7 @@ func f() {
 	}
 
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f() {
   out := evo.Init(evo.Config{})
   t := out.Task("check")
@@ -83,7 +83,7 @@ func TestGoSource_EvoUI002_UnrelatedTextNotFlagged(t *testing.T) {
 	src := `package p
 import (
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f() {
   out := evo.Init(evo.Config{})
@@ -103,7 +103,7 @@ func TestGoSource_EvoUI003_HandBuiltProgressText(t *testing.T) {
 	bad := `package p
 import (
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f() {
   out := evo.Init(evo.Config{})
@@ -118,7 +118,7 @@ func f() {
 	}
 
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f() {
   out := evo.Init(evo.Config{})
   t := out.Task("copy")
@@ -139,7 +139,7 @@ func TestGoSource_EvoUI003_UnrelatedNOfMShapeNotFlagged(t *testing.T) {
 	src := `package p
 import (
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f() {
   out := evo.Init(evo.Config{})
@@ -159,7 +159,7 @@ func TestGoSource_EvoWire001_MarshalOfInternalSnapshot(t *testing.T) {
 	bad := `package p
 import (
   "encoding/json"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f() {
   out := evo.Init(evo.Config{})
@@ -174,8 +174,8 @@ func f() {
 
 	good := `package p
 import (
-  evo "github.com/zachbornheimer/evident-output"
-  "github.com/zachbornheimer/evident-output/internal/project"
+  evo "github.com/zachbornheimer/evident-output/v2"
+  "github.com/zachbornheimer/evident-output/v2/internal/project"
 )
 func f() {
   out := evo.Init(evo.Config{})
@@ -197,7 +197,7 @@ func TestGoSource_EvoWire001_UnrelatedResultReceiverNotFlagged(t *testing.T) {
 	src := `package p
 import (
   "encoding/json"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 type testRun struct{}
 func (r *testRun) Result() string { return "ok" }
@@ -219,7 +219,7 @@ import (
   "encoding/json"
   "fmt"
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f() {
   out := evo.Init(evo.Config{})
@@ -237,7 +237,7 @@ func f() {
 import (
   "encoding/json"
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f() {
   out := evo.Init(evo.Config{})
@@ -255,7 +255,7 @@ func TestGoSource_EvoExit001_OsExitBypassesConclusion(t *testing.T) {
 	bad := `package p
 import (
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f() {
   _ = evo.Init(evo.Config{})
@@ -271,7 +271,7 @@ func f() {
 import (
   "context"
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f() {
   os.Exit(evo.Main(func(ctx context.Context) error { return nil }))
@@ -287,7 +287,7 @@ func TestGoSource_EvoLive001_PrintCompetesWithLiveRendering(t *testing.T) {
 	bad := `package p
 import (
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f() {
   _ = evo.Init(evo.Config{})
@@ -300,7 +300,7 @@ func f() {
 	}
 
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f() {
   out := evo.Init(evo.Config{})
   out.Println("still going...")
@@ -322,7 +322,7 @@ func TestGoSource_EvoUI00x_UnrelatedReceiverNotFlagged(t *testing.T) {
 	src := `package p
 import (
   "log"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(cmd *cobra.Command) {
   _ = evo.Init(evo.Config{})

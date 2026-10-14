@@ -7,7 +7,7 @@ import (
 	"context"
 	"slices"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // Verifier is one Verify observation check (§9.1): true means the desired

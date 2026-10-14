@@ -4,17 +4,17 @@
 
 ## Paths
 
-| What       | Path                                                                  |
-| ---------- | --------------------------------------------------------------------- |
-| GitHub     | `https://github.com/zachbornheimer/evident-output`                    |
-| MCP module | `github.com/zachbornheimer/evident-output/mcp/cmd/evident-output-mcp` |
-| Binary     | `$HOME/.local/bin/evident-output-mcp`                                 |
+| What       | Path                                                                     |
+| ---------- | ------------------------------------------------------------------------ |
+| GitHub     | `https://github.com/zachbornheimer/evident-output`                       |
+| MCP module | `github.com/zachbornheimer/evident-output/v2/mcp/cmd/evident-output-mcp` |
+| Binary     | `$HOME/.local/bin/evident-output-mcp`                                    |
 
 ## Install + register
 
 ```bash
 mkdir -p "$HOME/.local/bin"
-go install github.com/zachbornheimer/evident-output/mcp/cmd/evident-output-mcp@v2.0.0
+go install github.com/zachbornheimer/evident-output/v2/mcp/cmd/evident-output-mcp@v2.0.0
 ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
 # After bumping evo: evident-output-mcp update --directory <repo> then restart the host.
 

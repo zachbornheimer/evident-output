@@ -3,7 +3,7 @@ package graph
 import (
 	"slices"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // StepStarted notes t, declared directly in the Sequence c, becoming Running,

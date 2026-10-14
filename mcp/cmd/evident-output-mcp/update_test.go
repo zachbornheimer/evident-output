@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/modpin"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/modpin"
 )
 
 func TestUpdateCLI_NeitherVersionNorDirectoryErrors(t *testing.T) {
@@ -43,7 +43,7 @@ func TestPlanInstall_ReplacePathUsesTreeAsCwd(t *testing.T) {
 	if err := os.Mkdir(evoTree, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	mod := "module app\n\nrequire github.com/zachbornheimer/evident-output v0.4.6\nreplace github.com/zachbornheimer/evident-output => ./evo\n"
+	mod := "module app\n\nrequire github.com/zachbornheimer/evident-output/v2 v0.4.6\nreplace github.com/zachbornheimer/evident-output/v2 => ./evo\n"
 	if err := os.WriteFile(filepath.Join(app, "go.mod"), []byte(mod), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestPlanInstall_SelfModuleUsesLocalTree(t *testing.T) {
 	home := t.TempDir()
 	gopath := t.TempDir()
 	tree := t.TempDir()
-	mod := "module github.com/zachbornheimer/evident-output\n\ngo 1.25.0\n"
+	mod := "module github.com/zachbornheimer/evident-output/v2\n\ngo 1.25.0\n"
 	if err := os.WriteFile(filepath.Join(tree, "go.mod"), []byte(mod), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func TestPlanInstall_IgnoresGOBINWhenItIsLocalBin(t *testing.T) {
 func TestPlanInstall_NonPathReplaceErrors(t *testing.T) {
 	home := t.TempDir()
 	dir := t.TempDir()
-	mod := "module app\nreplace github.com/zachbornheimer/evident-output => github.com/other/evident-output v1.2.3\n"
+	mod := "module app\nreplace github.com/zachbornheimer/evident-output/v2 => github.com/other/evident-output v1.2.3\n"
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
 		t.Fatal(err)
 	}

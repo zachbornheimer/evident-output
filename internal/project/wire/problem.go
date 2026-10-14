@@ -1,6 +1,6 @@
 package wire
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 // ProblemDoc is a wire-format Problem: stable code plus a human message a
 // machine consumer must not parse (spec §37). It carries every

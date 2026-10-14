@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // Environment the cross-process helper reads its assignment from. The

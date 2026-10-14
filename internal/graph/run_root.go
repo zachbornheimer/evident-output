@@ -3,7 +3,7 @@
 
 package graph
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 // RunRoot is the run's own node: its Facts and warnings, the messages and
 // history lines it printed, its debug records and journal, and the

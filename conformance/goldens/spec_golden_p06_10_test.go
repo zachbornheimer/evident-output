@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/testkit"
+	evo "github.com/zachbornheimer/evident-output/v2"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 // collapseFields joins on single spaces so column-padding whitespace never

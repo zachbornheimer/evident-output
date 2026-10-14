@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
-	"github.com/zachbornheimer/evident-output/testkit/wireschema"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/testkit/wireschema"
 )
 
 func TestToEventDocument_ValidatesAgainstSchema(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
 )
 
 // spec §59: the version-transition table must be machine-readable — every

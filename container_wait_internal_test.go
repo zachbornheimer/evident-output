@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // TestGroupHandle_Wait_AllSucceed pins ZYS-849's baseline: a Group can be

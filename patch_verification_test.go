@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/testkit/wireschema"
+	"github.com/zachbornheimer/evident-output/v2/testkit/wireschema"
 )
 
 // repoRoot is the read-only fs.FS this file reads schema/run.v2.json

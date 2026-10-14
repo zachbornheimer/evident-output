@@ -5,7 +5,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
 // renderDefine runs one Task whose Define body is body and returns the

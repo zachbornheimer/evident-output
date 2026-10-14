@@ -6,17 +6,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 func TestGoDirectory_MergesTwoFiles(t *testing.T) {
 	dir := t.TempDir()
 	a := `package a
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output) { out.Plan("a") }
 `
 	b := `package b
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output) { out.Changes("b") }
 `
 	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte(a), 0o644); err != nil {
@@ -48,7 +48,7 @@ func f(out *evo.Output) { out.Changes("b") }
 
 func TestGoDirectory_FillsPinFromGoMod(t *testing.T) {
 	dir := t.TempDir()
-	mod := "module app\n\nrequire github.com/zachbornheimer/evident-output v0.4.6\nreplace github.com/zachbornheimer/evident-output => ./evo\n"
+	mod := "module app\n\nrequire github.com/zachbornheimer/evident-output/v2 v0.4.6\nreplace github.com/zachbornheimer/evident-output/v2 => ./evo\n"
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
 		t.Fatal(err)
 	}

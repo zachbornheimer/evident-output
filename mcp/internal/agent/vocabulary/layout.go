@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/apisurface"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/apisurface"
 )
 
 // packageDocFile holds package documentation only; it declares no exported

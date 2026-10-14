@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // API-059 (ZYS-935): a Patch-derived FileSet is never passed to evo.Files —
@@ -19,7 +19,7 @@ const patchFileSetPin = "1.9.0"
 const patchFileSetDiscardedNamedVarSrc = `package p
 import (
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, diff []byte, path string) error {
   fileSet, err := evo.Patch(ctx, diff)
@@ -56,7 +56,7 @@ func TestAPI059_PatchFileSetDiscardedNamedVar_Fires(t *testing.T) {
 const patchFileSetDiscardedBlankSrc = `package p
 import (
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, diff []byte, path string, contents []byte) error {
   _, err := evo.Patch(ctx, diff)
@@ -75,7 +75,7 @@ func TestAPI059_PatchFileSetDiscardedBlank_Fires(t *testing.T) {
 // evo.Files(ctx, fileSet) is the remediated shape and must stay silent.
 
 const patchFilesGoodCodeSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context, diff []byte) error {
   fileSet, err := evo.Patch(ctx, diff)
   if err != nil {
@@ -98,7 +98,7 @@ func TestAPI059_EvoFilesGoodCode_StaysSilent(t *testing.T) {
 // file-state usage and must stay silent.
 
 const evoFileNoPatchInScopeSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context, path string, contents []byte) error {
   return evo.File(ctx, evo.FileSpec{Path: path, Contents: contents})
 }

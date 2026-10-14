@@ -5,7 +5,7 @@ import (
 	"context"
 	"os"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func main() { os.Exit(evo.Main(evo.Config{}, run)) } // Main wires SIGINT/SIGTERM and returns the exit code

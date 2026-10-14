@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // supersededOptionsSource is development_3 as mcp/docs/development.md taught
@@ -15,8 +15,8 @@ const supersededOptionsSource = `package main
 import (
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/testkit"
+	evo "github.com/zachbornheimer/evident-output/v2"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 func main() {
@@ -89,7 +89,7 @@ func TestAPI032_OptionsRewriteKeepsEveryOptionAndCompiles(t *testing.T) {
 // rewrite (the old fallback swapped in "Stdout: w, Plain: true").
 func TestAPI032_OptionsWithoutFieldOffersNoRewrite(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(drv evo.TerminalDriver, extra interface{}) {
 	_ = evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(drv), extra}})
 }
@@ -112,7 +112,7 @@ func TestAPI032_OptionsCollidingWithSetFieldsOfferNoRewrite(t *testing.T) {
 		"already set": `evo.Config{Stdout: os.Stdout, Title: "t", Options: []evo.Option{evo.To(os.Stderr), evo.Title("u")}}`,
 		"repeated":    `evo.Config{Options: []evo.Option{evo.Title("t"), evo.Title("u")}}`,
 	} {
-		src := "package p\nimport (\n\t\"os\"\n\tevo \"github.com/zachbornheimer/evident-output\"\n)\nvar _ = os.Stdout\nfunc f() { _ = evo.Init(" + cfg + ") }\n"
+		src := "package p\nimport (\n\t\"os\"\n\tevo \"github.com/zachbornheimer/evident-output/v2\"\n)\nvar _ = os.Stdout\nfunc f() { _ = evo.Init(" + cfg + ") }\n"
 		found := findAPI032(review.GoSource("p.go", src))
 		if len(found) != 1 {
 			t.Fatalf("%s: want one API-032 finding, got %d: %q", name, len(found), joinSuggestions(found))

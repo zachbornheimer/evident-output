@@ -3,7 +3,7 @@
 
 package graph
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 // Resolve is the one path behind every terminal verb. Admit decides what r
 // does to t; Resolve then writes what the reader sees of it (the Summary,

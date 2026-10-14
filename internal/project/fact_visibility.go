@@ -3,7 +3,7 @@ package project
 import (
 	"slices"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // A Task's own Facts (Task.Fact) are routine context, not results

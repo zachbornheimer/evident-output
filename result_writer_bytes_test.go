@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // binaryPayload is not valid UTF-8, so a JSON string or a text field cannot carry it.

@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 type fileIssue struct {

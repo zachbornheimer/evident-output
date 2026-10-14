@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
-	"github.com/zachbornheimer/evident-output/internal/freshness"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
 )
 
 // scriptedRunner is a minimal in-package ProcessRunner fake — testkit's own

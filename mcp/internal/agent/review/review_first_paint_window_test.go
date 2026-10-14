@@ -5,14 +5,14 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // entityBeforeInit declares a Task inside a closure that textually precedes
 // the function's evo.Init call — the conformance/future/behavior/file shape
 // that sliced body[init:entity] with entity < init and panicked.
 const entityBeforeInit = `package app
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(roots []string) {
   step := func(out *evo.Output) { out.Task("opaque") }
   out := evo.Init(evo.Config{Isolated: true})
@@ -35,7 +35,7 @@ func TestFirstPaint_WindowStartsAtInitNotAtEarlierEntity(t *testing.T) {
 	src := `package app
 import (
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(path string) {
   step := func(out *evo.Output) { out.Task("early") }

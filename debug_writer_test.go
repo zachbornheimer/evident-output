@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 func TestDebugWriter_SplitsLinesAndSanitizes(t *testing.T) {

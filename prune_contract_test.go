@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
 // The presentation contracts zq's prune needs from the renderer (Evident

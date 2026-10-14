@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // runDocument is the finished run's "evo.run" document, built from its

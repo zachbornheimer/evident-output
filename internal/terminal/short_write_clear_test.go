@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/terminal"
+	"github.com/zachbornheimer/evident-output/v2/internal/terminal"
 )
 
 // shortWriteAfterN is an io.Writer that fully records every write (so the

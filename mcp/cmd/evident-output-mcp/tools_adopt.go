@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/adopt"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/adopt"
 )
 
 // handleAdoptPlan serves evident_output_adopt_plan.

@@ -14,7 +14,7 @@ import (
 	"os"
 	"path/filepath"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // agent is the domain data the real launchd integration would derive from

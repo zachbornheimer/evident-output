@@ -1,7 +1,7 @@
 package project
 
 import (
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // Style is how one human render paints: whether it may color, whether it

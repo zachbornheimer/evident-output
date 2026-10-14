@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
 )
 
 func TestGoSource_DetectsStartPrintfExitAndDetailMisuse(t *testing.T) {
@@ -13,7 +13,7 @@ func TestGoSource_DetectsStartPrintfExitAndDetailMisuse(t *testing.T) {
 import (
   "fmt"
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f() {
   out := evo.Init(evo.Config{})
@@ -62,7 +62,7 @@ func TestMCP014_BlockedItemAsApplicationError(t *testing.T) {
 	bad := `package p
 import (
   "errors"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func check() error {
   out := evo.Init(evo.Config{Title: "repo"})
@@ -94,7 +94,7 @@ func TestMCP014_NoFalsePositiveOnRealAppError(t *testing.T) {
 	good := `package p
 import (
   "errors"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func check() error {
   out := evo.Init(evo.Config{Title: "repo"})
@@ -120,7 +120,7 @@ func load() error { return errors.New("io") }
 func TestMCP014_BlockThenFinishOK(t *testing.T) {
 	// Correct blocked path: Block + Finish, no application error return.
 	ok := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func check() error {
   out := evo.Init(evo.Config{Title: "repo"})
   defer out.Close()
@@ -140,7 +140,7 @@ func check() error {
 // it; API-028 no longer owns a printf-verb family.
 func TestAPI028_FailfWithoutFormat(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
   task.Failf("modules cached")
   task.Failf("%d ok", 1)
@@ -166,7 +166,7 @@ func f(task *evo.TaskHandle) {
 
 func TestAPI029_DebugWriterWarning(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f() {
   out := evo.New()
   _ = out.DebugWriter()
@@ -189,7 +189,7 @@ func TestAPI026_NoFalsePositiveOnStringsMap(t *testing.T) {
 	src := `package p
 import (
   "strings"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f() {
   // example: tasks.Map() is not real — do not flag this comment either
@@ -218,7 +218,7 @@ func f() {
 
 func TestAPI026_DetectsEvoExecutionHelper(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f() {
   out := evo.Init(evo.Config{})
   out.Tasks("jobs").Map(func() {})
@@ -256,7 +256,7 @@ func f() {
 
 func TestAPI026_DoesNotFlagGroupTaskDefineAfter(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(paths []string, worktrees, branches *evo.GroupHandle) {
   work := evo.Group("worktrees")
   for _, path := range paths {
@@ -281,7 +281,7 @@ func f(paths []string, worktrees, branches *evo.GroupHandle) {
 
 func TestAPI027_CollectionDoneFail(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output) {
   g := out.Group("deps")
   g.Done()
@@ -303,7 +303,7 @@ func f(out *evo.Output) {
 
 func TestBeginnerGroupTaskDefine_NoDialectFindings(t *testing.T) {
 	src := `package main
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func main() {
   evo.Init(evo.Config{Title: "tool"})
   os.Exit(evo.Main(run))
@@ -335,7 +335,7 @@ func TestAPI018_AllowsMainAndExitCode(t *testing.T) {
 	src := `package main
 import (
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func main() {
   out := evo.Init(evo.Config{Title: "t"})
@@ -364,7 +364,7 @@ func TestAPI018_AllowsExitCodeFidelityPattern(t *testing.T) {
 import (
   "os"
   "os/exec"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func main() {
   out := evo.Init(evo.Config{Title: "t"})
@@ -394,7 +394,7 @@ func TestAPI018_StillFlagsNakedExit(t *testing.T) {
 	src := `package main
 import (
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func main() {
   out := evo.Init(evo.Config{Title: "t"})
@@ -420,7 +420,7 @@ import (
   "os"
   "os/signal"
   "syscall"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func main() {
   out := evo.Init(evo.Config{Title: "t"})
@@ -455,7 +455,7 @@ import (
   "os"
   "os/signal"
   "syscall"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func main() {
   out := evo.Init(evo.Config{Title: "t"})
@@ -484,7 +484,7 @@ import (
   "os"
   "os/signal"
   "syscall"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context) error { return nil }
 func main() {
@@ -520,7 +520,7 @@ import (
   "os"
   "os/signal"
   "syscall"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context) error { return nil }
 func main() {
@@ -538,7 +538,7 @@ func main() {
 	fixed := `package main
 import (
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(_ interface{}) error { return nil }
 func main() {
@@ -578,7 +578,7 @@ func TestSIG002_NoFalsePositiveWhenMainOwnsLifecycle(t *testing.T) {
 import (
   "context"
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context) error { return nil }
 func main() {
@@ -599,7 +599,7 @@ import (
   "os"
   "os/signal"
   "syscall"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run() error { return nil }
 func watchReload(c chan os.Signal) {}
@@ -625,7 +625,7 @@ import (
   "os"
   "os/signal"
   "syscall"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context) error { return nil }
 func main() {
@@ -649,7 +649,7 @@ func TestTERM015_TTYPassthroughWithoutSuspend(t *testing.T) {
 import (
   "os"
   "os/exec"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(out *evo.Output) error {
   cmd := exec.Command("zq", "setup")
@@ -677,7 +677,7 @@ func TestTERM015_NoFalsePositiveWithTaskRun(t *testing.T) {
 	good := `package p
 import (
   "os/exec"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(out *evo.Output) error {
   task := out.Task("build")
@@ -703,7 +703,7 @@ import (
   "bufio"
   "fmt"
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(out *evo.Output) error {
   reader := bufio.NewReader(os.Stdin)
@@ -731,7 +731,7 @@ func TestSTREAM003_IndirectWriteToStreamNamedField(t *testing.T) {
 	bad := `package p
 import (
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 type services struct{ Err *os.File }
 func f(out *evo.Output, s services) {
@@ -757,7 +757,7 @@ func TestSTREAM003_NoFalsePositiveOnOrdinaryBuffer(t *testing.T) {
 	good := `package p
 import (
   "bytes"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(out *evo.Output) {
   var buf bytes.Buffer
@@ -774,7 +774,7 @@ func f(out *evo.Output) {
 
 func TestSTREAM003_NoFalsePositiveOnEvoOwnedWriter(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
   task.Capture().Write([]byte("fine"))
 }
@@ -792,7 +792,7 @@ func TestSTREAM003_NoFalsePositiveOnFprintfToBuilder(t *testing.T) {
 import (
   "fmt"
   "strings"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(out *evo.Output) {
   var sb strings.Builder
@@ -812,7 +812,7 @@ func TestSTREAM003_NoFalsePositiveOnFprintfToBuffer(t *testing.T) {
 import (
   "bytes"
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(out *evo.Output) {
   var buf bytes.Buffer
@@ -832,7 +832,7 @@ func TestSTREAM003_FprintfToStdoutStillFlagged(t *testing.T) {
 import (
   "fmt"
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(out *evo.Output) {
   fmt.Fprintf(os.Stdout, "still contaminating %d", 1)
@@ -854,7 +854,7 @@ func TestBOUND001_UnboundedSliceJoinIntoDetail(t *testing.T) {
 	bad := `package p
 import (
   "strings"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(task *evo.TaskHandle, names []string) {
   task.Fail("cannot delete", evo.Detail(strings.Join(names, ", ")))
@@ -877,7 +877,7 @@ func f(task *evo.TaskHandle, names []string) {
 
 func TestBOUND001_NoFalsePositiveWithTruncateNames(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle, names []string) {
   task.Fail("cannot delete", evo.Detail(evo.TruncateNames(names, 8)))
 }
@@ -892,7 +892,7 @@ func f(task *evo.TaskHandle, names []string) {
 
 func TestAPI030_TaskDeclaredInsideGoroutine(t *testing.T) {
 	bad := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output, jobs []string) {
   for _, j := range jobs {
     go func(j string) {
@@ -919,7 +919,7 @@ func f(out *evo.Output, jobs []string) {
 
 func TestAPI030_NoFalsePositiveWhenPredeclared(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output, jobs []string) {
   tasks := make([]*evo.TaskHandle, len(jobs))
   for i, j := range jobs {
@@ -942,7 +942,7 @@ func f(out *evo.Output, jobs []string) {
 
 func TestAPI031_HandRolledPhaseWriter(t *testing.T) {
 	bad := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 type livePhase struct{ task *evo.TaskHandle }
 func lastLine(p []byte) string { return string(p) }
 func (w *livePhase) Write(p []byte) (int, error) {
@@ -967,7 +967,7 @@ func (w *livePhase) Write(p []byte) (int, error) {
 
 func TestAPI031_NoFalsePositiveOnOrdinaryWrite(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 type buf struct{ data []byte }
 func (b *buf) Write(p []byte) (int, error) {
   b.data = append(b.data, p...)
@@ -985,7 +985,7 @@ func use(out *evo.Output) { _ = out }
 
 func TestCONFIRM002_DestructiveQuestionMissingOption(t *testing.T) {
 	bad := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(flagYes bool) bool {
   return evo.Confirm("delete origin/production-hotfix?", evo.AssumeYes(flagYes))
 }
@@ -1007,7 +1007,7 @@ func f(flagYes bool) bool {
 
 func TestCONFIRM002_NoFalsePositiveWithDestructive(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f() bool {
   return evo.Confirm("delete origin/production-hotfix?", evo.Destructive())
 }
@@ -1022,7 +1022,7 @@ func f() bool {
 
 func TestCONFIRM002_NoFalsePositiveOnNonDestructiveQuestion(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f() bool {
   return evo.Confirm("proceed?")
 }
@@ -1039,7 +1039,7 @@ func TestCON002_PrintedJoinedFailureList(t *testing.T) {
 	bad := `package p
 import (
   "strings"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(out *evo.Output, failures []string) {
   out.Println(strings.Join(failures, "\n"))
@@ -1067,7 +1067,7 @@ func f(out *evo.Output, failures []string) {
 // already renders as its own evidence line.
 func TestEV001_FailfEmbedsCaptureText(t *testing.T) {
 	bad := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle, capture *evo.Capture) {
   task.Failf("install failed: %s", capture.Text())
 }
@@ -1091,7 +1091,7 @@ func f(task *evo.TaskHandle, capture *evo.Capture) {
 // shape — which lets auto-attach do its one job — never triggers EV-001.
 func TestEV001_NoFalsePositiveOnPavedPath(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle, err error) error {
   task.Fail("install dependencies")
   return err
@@ -1107,7 +1107,7 @@ func f(task *evo.TaskHandle, err error) error {
 
 func TestCON002_NoFalsePositiveOnPerItemResolution(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output, failures []string) {
   for _, name := range failures {
     out.Task(name).Fail("failed")
@@ -1124,7 +1124,7 @@ func f(out *evo.Output, failures []string) {
 
 func TestFP004_PlaceholderPhaseText(t *testing.T) {
 	bad := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
   task.Doing("working")
 }
@@ -1146,7 +1146,7 @@ func f(task *evo.TaskHandle) {
 
 func TestFP004_NoFalsePositiveOnDomainObjectPhase(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
   task.Doing("scanning ~/Developer/Personal/zq")
 }
@@ -1163,7 +1163,7 @@ func TestFP001_HeavyIOBeforeEvoInit(t *testing.T) {
 	bad := `package main
 import (
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func main() {
   data, _ := os.ReadFile("config.toml")
@@ -1190,7 +1190,7 @@ func TestFP001_NoFalsePositiveWhenInitFirst(t *testing.T) {
 	good := `package main
 import (
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func main() {
   evo.Init(evo.Config{Title: "t"})
@@ -1210,7 +1210,7 @@ func main() {
 
 func TestFP002_InventoryBetweenIsolatedInitAndTask(t *testing.T) {
 	bad := `package app
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func previewPurge() error {
   planning := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "zq purge"})
   defer planning.Close()
@@ -1242,7 +1242,7 @@ func previewPurge() error {
 
 func TestFP002_NoFalsePositiveWhenTaskBeforeInventory(t *testing.T) {
 	good := `package app
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func previewPurge() error {
   planning := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "zq purge"})
   defer planning.Close()
@@ -1265,7 +1265,7 @@ func TestFP002_HeavyIOBetweenInitAndFirstEntity(t *testing.T) {
 	bad := `package main
 import (
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func main() {
   evo.Init(evo.Config{Title: "t"})
@@ -1290,7 +1290,7 @@ func main() {
 
 func TestFP003_PhaseSetOnceBeforeSilentSubprocess(t *testing.T) {
 	bad := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(t *evo.TaskHandle) {
   t.Doing("uploading")
   cmd.Run()
@@ -1313,7 +1313,7 @@ func run(t *evo.TaskHandle) {
 
 func TestFP003_NoFalsePositiveWithPhaseWriter(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(t *evo.TaskHandle) {
   t.Doing("uploading")
   cmd.Stdout = t.Writer()
@@ -1332,7 +1332,7 @@ func TestTAX001_HandAssembledSkipCount(t *testing.T) {
 	bad := `package p
 import (
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(p *evo.TaskHandle, n int) {
   p.Skipped(evo.Reason(fmt.Sprintf("%d skipped (dirty/unpushed/main)")))
@@ -1355,7 +1355,7 @@ func f(p *evo.TaskHandle, n int) {
 
 func TestTAX001_NoFalsePositiveOnStructuredReason(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
   task.Skipped(evo.Reason("protected"))
 }
@@ -1370,7 +1370,7 @@ func f(task *evo.TaskHandle) {
 
 func TestPROG001_AdvanceUsage(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
   task.Advance(1)
 }
@@ -1391,7 +1391,7 @@ func TestPROG001_PhaseStringSmugglesProgress(t *testing.T) {
 	bad := `package p
 import (
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(task *evo.TaskHandle, done, total int) {
   task.Doing(fmt.Sprintf("scanning %d/%d", done, total))
@@ -1414,7 +1414,7 @@ func f(task *evo.TaskHandle, done, total int) {
 
 func TestPROG001_NoFalsePositiveOnPlainPhase(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
   task.Doing("scanning")
   task.Progress(4, 10)
@@ -1430,7 +1430,7 @@ func f(task *evo.TaskHandle) {
 
 func TestCONFIRM001_NoFalsePositiveOnEvoConfirm(t *testing.T) {
 	good := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(flagYes bool) bool {
   return evo.Confirm("delete origin/production-hotfix?", evo.AssumeYes(flagYes))
 }
@@ -1469,7 +1469,7 @@ import (
   "os/exec"
   "os/signal"
   "syscall"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(out *evo.Output) error {
   t := out.Task("x")
@@ -1505,7 +1505,7 @@ func run(out *evo.Output) error {
 	// MCP-017: cross-file typecheck with an unresolved local symbol.
 	collect(review.GoPackage(map[string]string{
 		"a.go": `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func makeOut() *evo.Output { return evo.Init(evo.Config{}) }
 `,
 		"b.go": `package p
@@ -1545,7 +1545,7 @@ import (
   "os/exec"
   "os/signal"
   "syscall"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 type services struct{ Err *os.File }
 func run(out *evo.Output, svc services, task *evo.TaskHandle, done, total int) error {
@@ -1597,7 +1597,7 @@ func TestGoPackage_CrossFileTypes(t *testing.T) {
 	// MCP-017: two files, shared package — review resolves across files.
 	files := map[string]string{
 		"a.go": `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func makeOut() *evo.Output { return evo.Init(evo.Config{}) }
 `,
 		"b.go": `package p
@@ -1644,7 +1644,7 @@ func findAPI032(res review.Result) []review.Finding {
 func TestAPI032_NewInMain(t *testing.T) {
 	// evo.New and evo.MainWith are both superseded (both removed in 1.0): Init is the constructor, Main/Output.Run are the lifecycle. Flagging a MainWith call site is required.
 	src := `package main
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func main() {
   out := evo.New(evo.Config{Title: "t"})
   evo.MainWith(out, run) // removed in 1.0 — fixture pins the detector still catches it
@@ -1677,7 +1677,7 @@ func TestAPI032_NoFalsePositiveOnHostedInstanceOutsideMain(t *testing.T) {
 	// hosted-instance test harness or framework entrypoint wrapper) — must
 	// not be flagged.
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run() int {
   out := evo.New(evo.Config{Title: "t"})
   return out.Run(nil)
@@ -1691,7 +1691,7 @@ func run() int {
 
 func TestAPI032_CauseDerivesDetailSuggestion(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle, err error) {
   task.Fail("validate policy manifest", evo.Cause(err))
 }
@@ -1709,7 +1709,7 @@ func f(task *evo.TaskHandle, err error) {
 
 func TestAPI033_NameEqualsSkipArgument(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output, note string) {
   out.Task(note).Skip(note)
 }
@@ -1728,7 +1728,7 @@ func f(out *evo.Output, note string) {
 
 func TestAPI033_NoFalsePositiveOnDistinctNameAndReason(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output, reason string) {
   out.Task("branch check").Skip(reason)
 }
@@ -1743,7 +1743,7 @@ func f(out *evo.Output, reason string) {
 
 func TestAPI034_FailThenReturnNilDiscardsError(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output) error {
   task := out.Task("validate")
   if err := check(); err != nil {
@@ -1770,7 +1770,7 @@ func f(out *evo.Output) error {
 
 func TestAPI034_NoFalsePositiveWhenErrorReturned(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output) error {
   task := out.Task("validate")
   if err := check(); err != nil {
@@ -1793,7 +1793,7 @@ func TestAPI035_DiscardSinkInFailingBlock(t *testing.T) {
 import (
   "io"
   "os/exec"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(out *evo.Output, cmd *exec.Cmd) {
   task := out.Task("gate")
@@ -1840,7 +1840,7 @@ func TestAPI036_SprintfInVerb(t *testing.T) {
 	src := `package p
 import (
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(task *evo.TaskHandle, branch string) error {
   task.Fail(fmt.Sprintf("delete failed on %s", branch))
@@ -1867,7 +1867,7 @@ func TestAPI036_BareStatementKeepsBlock(t *testing.T) {
 	src := `package p
 import (
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(task *evo.TaskHandle, name string, n int) {
   task.Block(fmt.Sprintf("refused %s", name))
@@ -1885,7 +1885,7 @@ func f(task *evo.TaskHandle, name string, n int) {
 
 func TestAPI036_NoFalsePositiveWithFailf(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle, branch string) {
   task.Failf("delete failed on %s", branch)
 }
@@ -1905,7 +1905,7 @@ func TestAPI038_SprintfIntoVariadicVerb(t *testing.T) {
 	src := `package p
 import (
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(task *evo.TaskHandle, path string) {
   task.Doing(fmt.Sprintf("scanning %s", path))
@@ -1933,7 +1933,7 @@ func TestAPI038_WarnMigratesToProblem(t *testing.T) {
 	src := `package p
 import (
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(task *evo.TaskHandle, n int) {
   task.Warn(fmt.Sprintf("kept %d", n))
@@ -1962,7 +1962,7 @@ func f(task *evo.TaskHandle, n int) {
 
 func TestAPI038_NoFalsePositiveWithoutSprintf(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle, done, total int) {
   task.Doing("scanning %d/%d", done, total)
 }
@@ -1977,7 +1977,7 @@ func f(task *evo.TaskHandle, done, total int) {
 
 func TestAPI037_WrapperMethodOverTaskVerb(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 type runner struct{ task *evo.TaskHandle }
 func (r *runner) resolutionPhase(text string) {
   r.task.Doing(text)
@@ -1997,7 +1997,7 @@ func (r *runner) resolutionPhase(text string) {
 
 func TestAPI037_NoFalsePositiveOnMultiStatementMethod(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 type runner struct{ task *evo.TaskHandle }
 func (r *runner) resolutionPhase(text string) {
   r.task.Doing(text)
@@ -2019,7 +2019,7 @@ func TestAPI037_NoFalsePositiveOnComposedArgument(t *testing.T) {
 	src := `package p
 import (
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 type subject struct{ classify *evo.TaskHandle }
 func (s subject) Warn(summary string, cause error) {
@@ -2036,7 +2036,7 @@ func (s subject) Warn(summary string, cause error) {
 
 func TestDOM018_ErrTwiceViaCause(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle, err error) {
   task.Fail(err.Error(), evo.Cause(err))
 }
@@ -2055,7 +2055,7 @@ func f(task *evo.TaskHandle, err error) {
 
 func TestDOM018_NoFalsePositiveOnDistinctErrorVars(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle, err, other error) {
   task.Fail(err.Error(), evo.Cause(other))
 }
@@ -2072,7 +2072,7 @@ func TestTAX002_DynamicReasonFromJoin(t *testing.T) {
 	src := `package p
 import (
   "strings"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f(task *evo.TaskHandle, names []string) {
   task.Skipped(evo.Reason(strings.Join(names)), "x")
@@ -2092,7 +2092,7 @@ func f(task *evo.TaskHandle, names []string) {
 
 func TestTAX002_NoFalsePositiveOnLiteralOrPackageVar(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 var reasonProtected = evo.Reason("protected")
 func f(task *evo.TaskHandle) {
   task.Skipped(evo.Reason("protected"))
@@ -2109,7 +2109,7 @@ func f(task *evo.TaskHandle) {
 
 func TestTXT020_LongEntityName(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output) {
   out.Task("copying build artifacts into the production release bucket now")
 }
@@ -2128,7 +2128,7 @@ func f(out *evo.Output) {
 
 func TestTXT020_NoFalsePositiveOnShortNoun(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output) {
   out.Task("release artifacts")
 }
@@ -2143,7 +2143,7 @@ func f(out *evo.Output) {
 
 func TestDOM019_ShadowedHandleBeforeResolution(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output, flag bool) {
   t := out.Task("scan")
   t.Doing("walking")
@@ -2167,7 +2167,7 @@ func f(out *evo.Output, flag bool) {
 
 func TestDOM019_NoFalsePositiveWhenResolvedFirst(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output, flag bool) {
   t := out.Task("scan")
   t.Doing("walking")
@@ -2188,7 +2188,7 @@ func f(out *evo.Output, flag bool) {
 
 func TestTXT021_CrammedSummary(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
   task.Fail("policy check failed — cause: manifest missing — action: run zq init")
 }
@@ -2207,7 +2207,7 @@ func f(task *evo.TaskHandle) {
 
 func TestTXT021_NoFalsePositiveOnPlainSummary(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
   task.Fail("policy check failed")
 }
@@ -2239,7 +2239,7 @@ func TestLOOP001_SilentForRangeBeforeTask(t *testing.T) {
 	bad := `package app
 import (
   "path/filepath"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func previewPurge(roots []string) error {
   out := evo.Init(evo.Config{Isolated: true, DryRun: true})
@@ -2273,7 +2273,7 @@ func TestLOOP001_NoFalsePositiveWhenLoopInsideDefine(t *testing.T) {
 	good := `package app
 import (
   "path/filepath"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func previewPurge(roots []string) error {
   out := evo.Init(evo.Config{Isolated: true, DryRun: true})
@@ -2301,7 +2301,7 @@ func previewPurge(roots []string) error {
 
 func TestLOOP001_NoFalsePositiveOnGroupTaskPerItem(t *testing.T) {
 	good := `package app
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func scan(paths []string) {
   out := evo.Init(evo.Config{Title: "zq"})
   worktrees := out.Group("worktrees")

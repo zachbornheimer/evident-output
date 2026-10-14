@@ -6,10 +6,10 @@ package change
 import (
 	"sync"
 
-	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/fs"
-	"github.com/zachbornheimer/evident-output/internal/graph"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
+	"github.com/zachbornheimer/evident-output/v2/internal/fs"
+	"github.com/zachbornheimer/evident-output/v2/internal/graph"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // workspaceFallback is the workspace of a Run whose working directory cannot

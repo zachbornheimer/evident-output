@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // TestOutput_PipedStdoutNeverInfersMachineOutput pins CONTRACT.md §6: a

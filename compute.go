@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/zachbornheimer/evident-output/internal/graph"
+	"github.com/zachbornheimer/evident-output/v2/internal/graph"
 )
 
 // Computed is the value a Task produces for the Tasks declared After it (see

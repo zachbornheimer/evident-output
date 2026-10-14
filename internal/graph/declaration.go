@@ -1,6 +1,6 @@
 package graph
 
-import "github.com/zachbornheimer/evident-output/internal/misuse"
+import "github.com/zachbornheimer/evident-output/v2/internal/misuse"
 
 // ErrDeclaredInCallback is why a declaration was refused: a Task, Group, or
 // Sequence was declared from inside a Task's Define callback. Declare it

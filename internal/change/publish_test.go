@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 func writeString(body string) func(io.Writer) error {

@@ -30,7 +30,7 @@ func main() {
 
 	// Any previous semver pin on this module → want.
 	modulePin := regexp.MustCompile(
-		`github\.com/zachbornheimer/evident-output((?:/mcp/cmd/[a-z0-9-]+)?)@(?:v\d+\.\d+\.\d+|latest)`,
+		`github\.com/zachbornheimer/evident-output(?:/v2)?((?:/mcp/cmd/[a-z0-9-]+)?)@(?:v\d+\.\d+\.\d+|latest)`,
 	)
 	// Prose chrome pins.
 	prosePin := regexp.MustCompile(
@@ -60,7 +60,7 @@ func main() {
 			fail(err)
 		}
 		orig := string(body)
-		next := modulePin.ReplaceAllString(orig, "github.com/zachbornheimer/evident-output$1@"+want)
+		next := modulePin.ReplaceAllString(orig, "github.com/zachbornheimer/evident-output/v2$1@"+want)
 		next = prosePin.ReplaceAllString(next, "${1}"+want)
 		// Common alternate prose forms.
 		next = regexp.MustCompile("`v\\d+\\.\\d+\\.\\d+` \\(never").ReplaceAllString(next, "`"+want+"` (never")

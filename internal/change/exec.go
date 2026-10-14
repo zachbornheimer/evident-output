@@ -9,9 +9,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/graph"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
+	"github.com/zachbornheimer/evident-output/v2/internal/graph"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // ExecSpec declares one managed-state subprocess invocation (spec §8.4).

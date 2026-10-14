@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/zachbornheimer/evident-output/internal/graph"
-	txt "github.com/zachbornheimer/evident-output/internal/project"
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/graph"
+	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // finish validates, computes the conclusion and emits the final projections; projection I/O runs outside the domain lock (§17.1).

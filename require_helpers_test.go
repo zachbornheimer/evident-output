@@ -3,7 +3,7 @@ package evo
 import (
 	"testing"
 
-	txt "github.com/zachbornheimer/evident-output/internal/project"
+	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
 )
 
 // The words a conclusion band names a run by (see txt.ConclusionHeadline).

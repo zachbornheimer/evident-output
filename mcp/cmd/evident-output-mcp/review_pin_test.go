@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 func TestWriteReviewResult_UpdateNeededFalseWhenServerNewer(t *testing.T) {
@@ -82,7 +82,7 @@ func TestWriteReviewResult_DevVersionAloneDoesNotNeedUpdate(t *testing.T) {
 
 func TestReview_DesiredVersionV029DoesNotFlagNew(t *testing.T) {
 	src := `package main
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func main() {
   _ = evo.New(evo.Config{Title: "t"})
 }
@@ -116,7 +116,7 @@ func main() {
 
 func TestReviewDirectory_FillsPinFields(t *testing.T) {
 	dir := t.TempDir()
-	mod := "module app\n\nrequire github.com/zachbornheimer/evident-output v0.4.6\nreplace github.com/zachbornheimer/evident-output => ./evo\n"
+	mod := "module app\n\nrequire github.com/zachbornheimer/evident-output/v2 v0.4.6\nreplace github.com/zachbornheimer/evident-output/v2 => ./evo\n"
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestReviewDirectory_FillsPinFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	src := `package a
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f() { _ = evo.Init(evo.Config{}) }
 `
 	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte(src), 0o644); err != nil {

@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
 // createNotesDiff creates a file that does not exist in the workspace, so

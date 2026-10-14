@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
 )
 
 func TestPORT010_GoVersionBuilds(t *testing.T) {

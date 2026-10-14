@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/conformance/contract/harness"
+	evo "github.com/zachbornheimer/evident-output/v2"
+	"github.com/zachbornheimer/evident-output/v2/conformance/contract/harness"
 )
 
 // wire builds an isolated Output whose two streams are captured separately.

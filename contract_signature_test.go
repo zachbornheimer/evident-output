@@ -116,7 +116,7 @@ func instantiation(t *testing.T, pkg *types.Package, typeName string) string {
 const probeHeader = `package contractprobe
 
 import (
-	. "github.com/zachbornheimer/evident-output"
+	. "github.com/zachbornheimer/evident-output/v2"
 	"context"
 	"io"
 	"log/slog"

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 // advancingClock is a TimeSource that steps on each Now() for spinner tests.

@@ -3,7 +3,7 @@ package graph
 import (
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // NotStartedSummary is the fixed detail a Task that never ran carries: the

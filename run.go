@@ -14,17 +14,17 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
-	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/fs"
-	"github.com/zachbornheimer/evident-output/internal/graph"
-	"github.com/zachbornheimer/evident-output/internal/misuse"
-	"github.com/zachbornheimer/evident-output/internal/process"
-	txt "github.com/zachbornheimer/evident-output/internal/project"
-	"github.com/zachbornheimer/evident-output/internal/project/live"
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
-	"github.com/zachbornheimer/evident-output/internal/record"
-	"github.com/zachbornheimer/evident-output/internal/terminal"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
+	"github.com/zachbornheimer/evident-output/v2/internal/fs"
+	"github.com/zachbornheimer/evident-output/v2/internal/graph"
+	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
+	"github.com/zachbornheimer/evident-output/v2/internal/process"
+	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/live"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/terminal"
 )
 
 var errRunExitedWithoutReturn = errors.New("run callback exited without returning (runtime.Goexit)")

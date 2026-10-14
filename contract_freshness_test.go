@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // freshnessWorld is one directory of inputs and outputs plus the state dir

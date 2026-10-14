@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
 )
 
 // Appendix H normative red tests (v0.1-alpha subset).

@@ -1,8 +1,8 @@
 package live
 
 import (
-	"github.com/zachbornheimer/evident-output/internal/project"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // LiveChildren projects one collection's child Tasks for a live frame of

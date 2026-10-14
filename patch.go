@@ -3,7 +3,7 @@ package evo
 import (
 	"context"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
 // Patch derives the desired file states a unified text diff describes and

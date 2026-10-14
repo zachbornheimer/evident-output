@@ -3,7 +3,7 @@ package project
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // TestTaskGlyph_ASCIITable pins the full task-state → ASCII face mapping —

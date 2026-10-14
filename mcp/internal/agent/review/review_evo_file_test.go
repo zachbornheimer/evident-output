@@ -4,10 +4,10 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/catalog"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/rules"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/sections"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/sections"
 )
 
 // EVO-FILE-001: manual os.WriteFile + os.Chmod on the same path is exactly
@@ -18,7 +18,7 @@ func TestEVOFILE001_ManualWriteAndChmod_EmitsSimplificationFinding(t *testing.T)
 import (
 	"fmt"
 	"os"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func writeConfig(out *evo.Output, path string, data []byte) error {
 	if err := os.WriteFile(path, data, 0o644); err != nil {
@@ -46,7 +46,7 @@ func TestEVOFILE001_DeclarativeEvoFile_NoFinding(t *testing.T) {
 	src := `package p
 import (
 	"context"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func writeConfig(ctx context.Context, path string, data []byte, mode int, basis []evo.Fingerprint) error {
 	return evo.File(ctx, evo.FileSpec{Path: path, Contents: data, Mode: mode, Basis: basis})
@@ -68,7 +68,7 @@ func TestEVOFILE001_ExpensiveWorkBeforeTrailingFile_EmitsWarning(t *testing.T) {
 	src := `package p
 import (
 	"context"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func writeReport(ctx context.Context, output string, basis []evo.Fingerprint) error {
 	data, err := generate(ctx)
@@ -94,7 +94,7 @@ func TestEVOFILE001_CheapHelperBeforeTrailingFile_NoWarning(t *testing.T) {
 	src := `package p
 import (
 	"context"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func writeConfig(ctx context.Context, path string, data []byte, basis []evo.Fingerprint) error {
 	key := sanitizeKey(path)
@@ -117,7 +117,7 @@ func TestEVOEXEC001_RawExecWithManualFreshness_EmitsSuggestion(t *testing.T) {
 	src := `package p
 import (
 	"os/exec"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func generate(out *evo.Output, inputPath, outPath string) error {
 	if outputIsStale(inputPath, outPath) {
@@ -141,7 +141,7 @@ func TestEVOEXEC001_DeclarativeEvoExec_NoFinding(t *testing.T) {
 	src := `package p
 import (
 	"context"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func generate(ctx context.Context, inputPath, outPath string) error {
 	return evo.Exec(ctx, evo.ExecSpec{
@@ -180,7 +180,7 @@ func TestEVOPROVENANCE001_VisibleReadOmittedFromBasis_EmitsFindingAtReadLine(t *
 import (
 	"context"
 	"os"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func generate(ctx context.Context, out string) error {
 	data, _ := os.ReadFile("template.txt")
@@ -208,7 +208,7 @@ func TestEVOPROVENANCE001_VisibleReadListedInBasis_NoFinding(t *testing.T) {
 import (
 	"context"
 	"os"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func generate(ctx context.Context, out string) error {
 	data, _ := os.ReadFile("template.txt")
@@ -238,7 +238,7 @@ func TestEVOPROVENANCE001_ReadOutsideAnyBasisCallback_NoFinding(t *testing.T) {
 import (
 	"context"
 	"os"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func loadTemplate() ([]byte, error) {
 	return os.ReadFile("template.txt")
@@ -265,7 +265,7 @@ func TestEVOPROVENANCE001_VariablePathRead_NoFinding(t *testing.T) {
 import (
 	"context"
 	"os"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func generate(ctx context.Context, out, templatePath string) error {
 	data, _ := os.ReadFile(templatePath)
@@ -289,7 +289,7 @@ func TestEVOPROVENANCE001_LiteralExecArgOmittedFromBasis_EmitsFinding(t *testing
 	src := `package p
 import (
 	"context"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func generate(ctx context.Context) error {
 	return evo.Exec(ctx, evo.ExecSpec{
@@ -314,7 +314,7 @@ func TestEVOPROVENANCE001_LiteralExecArgListedInBasis_NoFinding(t *testing.T) {
 	src := `package p
 import (
 	"context"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func generate(ctx context.Context) error {
 	return evo.Exec(ctx, evo.ExecSpec{
@@ -337,7 +337,7 @@ func TestEVOPROVENANCE001_LiteralExecArgListedInOutputs_NoFinding(t *testing.T) 
 	src := `package p
 import (
 	"context"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func generate(ctx context.Context) error {
 	return evo.Exec(ctx, evo.ExecSpec{
@@ -361,7 +361,7 @@ func TestEVOPROVENANCE001_LiteralExecArgEqualsExecutable_NoFinding(t *testing.T)
 	src := `package p
 import (
 	"context"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func generate(ctx context.Context) error {
 	return evo.Exec(ctx, evo.ExecSpec{

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // pipeline is the two-step Exec pipeline CONTRACT.md §3's cascade rule

@@ -5,7 +5,7 @@ package goldens_test
 import (
 	"context"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // effectOf is a Define callback performing one opaque Effect whose own work

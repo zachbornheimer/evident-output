@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // callbackPatience bounds how long a callback waits for a cancellation the

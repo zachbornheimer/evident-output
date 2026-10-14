@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func mustMethod(t *testing.T, typ reflect.Type, name string) reflect.Method {

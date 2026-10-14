@@ -1,6 +1,6 @@
 package project
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 // IsZeroInformationTask reports whether t alone, ignoring its ledger and its
 // neighbours, would add nothing to a human reader: a Succeeded Task that changed

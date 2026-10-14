@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 const newSrc = `package main
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func main() {
 	_ = evo.New(evo.Config{Title: "t"})
 }
@@ -55,7 +55,7 @@ func TestGoSource_ApplyMainSuggestionClearsAPI032(t *testing.T) {
 
 func TestGoSource_PolicyPlanAndRunnerCaptureAreNotAPI032(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(policy struct{ Plan func() }, runner struct{ Capture func() string }, out *evo.Output) {
 	_ = policy.Plan()
 	_ = runner.Capture()

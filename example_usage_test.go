@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"strings"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // quietRun is the Config an example uses to print its run as durable text:

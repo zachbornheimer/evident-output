@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // API-055 (ZYS-831): the detector must catch lock files and flock regions
@@ -17,7 +17,7 @@ import (
   "syscall"
   "golang.org/x/sys/unix"
   "github.com/gofrs/flock"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 var _ = os.Getpid
 var _ = syscall.Getpid

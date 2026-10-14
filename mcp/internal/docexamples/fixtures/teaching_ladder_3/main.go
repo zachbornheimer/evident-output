@@ -6,7 +6,7 @@ import (
 	"context"
 	"os/exec"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func doWork(task *evo.Task) {

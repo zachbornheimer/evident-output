@@ -5,7 +5,7 @@
 package main
 
 // docexamples:snippet start
-import "github.com/zachbornheimer/evident-output/internal/terminal"
+import "github.com/zachbornheimer/evident-output/v2/internal/terminal"
 
 // docexamples:snippet end
 

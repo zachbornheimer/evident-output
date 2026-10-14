@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/testkit/manifesttest"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
+	"github.com/zachbornheimer/evident-output/v2/testkit/manifesttest"
 )
 
 // reportEnv names the file a child test binary writes its redirected cache

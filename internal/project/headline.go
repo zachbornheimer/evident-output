@@ -1,6 +1,6 @@
 package project
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 // The words a Succeeded run's band uses for its tense instead of naming the
 // Outcome: what changed, or what a dry run or a plan would change.

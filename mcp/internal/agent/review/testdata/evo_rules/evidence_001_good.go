@@ -5,7 +5,7 @@ package evidence001
 import (
 	"context"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func writePlist(task *evo.TaskHandle, path string, data []byte) {

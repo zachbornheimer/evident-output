@@ -3,7 +3,7 @@ package project
 import (
 	"fmt"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // AlreadySatisfiedDetail is spec §19's muted done-row suffix. It is the

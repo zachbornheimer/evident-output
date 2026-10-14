@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/clock"
+	"github.com/zachbornheimer/evident-output/v2/internal/clock"
 )
 
 // Compile-time proof of which capabilities each clock has.

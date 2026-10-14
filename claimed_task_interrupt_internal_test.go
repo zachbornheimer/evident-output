@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/graph"
+	"github.com/zachbornheimer/evident-output/v2/internal/graph"
 )
 
 // claimedTaskTrials repeats a race until a window a few instructions wide has

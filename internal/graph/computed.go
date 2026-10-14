@@ -1,8 +1,8 @@
 package graph
 
 import (
-	"github.com/zachbornheimer/evident-output/internal/misuse"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 var (

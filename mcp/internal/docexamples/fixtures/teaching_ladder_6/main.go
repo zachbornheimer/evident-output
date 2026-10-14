@@ -6,7 +6,7 @@ import (
 	"context"
 	"encoding/json"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 type payloadT struct{ OK bool }

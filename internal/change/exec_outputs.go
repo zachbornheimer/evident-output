@@ -11,10 +11,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/internal/freshness"
-	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
-	"github.com/zachbornheimer/evident-output/internal/process"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
+	"github.com/zachbornheimer/evident-output/v2/internal/process"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // SpawnCommand is one resolved command Exec asks its Host to spawn.

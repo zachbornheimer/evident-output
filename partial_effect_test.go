@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
 // refDelete is the aggregate every PartialEffect test requests: delete 3

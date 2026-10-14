@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
 // TestSameOutputConflictFailsBothTasks pins that two Tasks writing one File

@@ -1,6 +1,6 @@
 package project
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 // Text, Block and TruncateUTF8 forward to internal/record, which owns
 // sanitization because a Problem or Fact is sanitized as it is stored.

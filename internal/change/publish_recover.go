@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // ErrPublishUnrecoverable is a Recover that could prove neither planned tree at

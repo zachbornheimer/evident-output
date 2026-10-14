@@ -450,7 +450,7 @@ func (d *recSurfaceDetector) offset(n ast.Node) int {
 func evoImportName(f *ast.File) string {
 	for _, imp := range f.Imports {
 		path := strings.Trim(imp.Path.Value, `"`)
-		if !strings.HasSuffix(path, "evident-output") && path != "github.com/zachbornheimer/evident-output" {
+		if !strings.HasSuffix(path, "evident-output") && path != "github.com/zachbornheimer/evident-output/v2" {
 			continue
 		}
 		if imp.Name != nil && imp.Name.Name != "." && imp.Name.Name != "_" {

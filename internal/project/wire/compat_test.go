@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
-	"github.com/zachbornheimer/evident-output/testkit/wireschema"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/testkit/wireschema"
 )
 
 // schemaDir is the read-only fs.FS this file's compat tests read

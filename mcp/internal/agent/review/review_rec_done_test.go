@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // API-032 (ZYS-812): TaskHandle.Done was removed in 1.1. Every call site
@@ -16,7 +16,7 @@ import (
 	"context"
 	"sync"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func run(ctx context.Context, wg *sync.WaitGroup, n int) {
@@ -62,7 +62,7 @@ func TestAPI032_RemovedDoneInsideOwnDefineIsDeleted(t *testing.T) {
 import (
 	"context"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func run() {

@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/graph"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
+	"github.com/zachbornheimer/evident-output/v2/internal/graph"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // execBasisRecords fingerprints spec.Basis for one Exec call (spec §11.1,

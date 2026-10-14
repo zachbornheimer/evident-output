@@ -4,12 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 func TestAPI032_PlanAndChanges(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output) {
   out.Plan("x")
   out.Changes("x")
@@ -41,7 +41,7 @@ func f(out *evo.Output) {
 
 func TestAPI032_LibrarianSnippetReportsItemPlanChanges(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output) {
   out.Item("note")
   out.Plan("x")
@@ -93,7 +93,7 @@ func suggestsCurrentReplacement(s string) bool {
 
 func TestAPI032_OKAndBecauseSteerAwayFromRemovedDone(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output) {
   t := out.Task("x")
   t.OK().Because("why")

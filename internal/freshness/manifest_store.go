@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // ManifestStore is one Run's exclusive handle on a single manifest file.

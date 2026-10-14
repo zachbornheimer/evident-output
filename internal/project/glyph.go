@@ -1,7 +1,7 @@
 package project
 
 import (
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // TaskGlyph maps a Task's state to its glyph in the given profile. Cancelled

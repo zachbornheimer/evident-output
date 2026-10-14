@@ -3,7 +3,7 @@ package project
 import (
 	"slices"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // verdict folds g's own Tasks and its nested collections (P3's recursive

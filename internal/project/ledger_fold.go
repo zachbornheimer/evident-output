@@ -1,7 +1,7 @@
 package project
 
 import (
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // The human ledger states a category once. A Group whose per-item Tasks

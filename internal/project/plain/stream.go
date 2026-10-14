@@ -5,9 +5,9 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/zachbornheimer/evident-output/internal/clock"
-	"github.com/zachbornheimer/evident-output/internal/project"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/clock"
+	"github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // Stream is a run's human durable text: every line the library writes goes

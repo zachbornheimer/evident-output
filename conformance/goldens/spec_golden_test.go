@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // This file proves the "Recommended UI" blocks from ~/Desktop/evo-rec.md

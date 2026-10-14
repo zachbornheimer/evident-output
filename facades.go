@@ -7,10 +7,10 @@ import (
 	iofs "io/fs"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
-	"github.com/zachbornheimer/evident-output/internal/clock"
-	"github.com/zachbornheimer/evident-output/internal/process"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/clock"
+	"github.com/zachbornheimer/evident-output/v2/internal/process"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // The root package keeps compiling through these aliases until it speaks internal/clock directly.

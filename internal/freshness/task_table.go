@@ -8,7 +8,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // TaskView is the part of a Task freshness reads. The caller's Task type

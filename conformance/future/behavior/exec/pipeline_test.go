@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // pipelineRunner routes each spawn to a per-executable-path scripted

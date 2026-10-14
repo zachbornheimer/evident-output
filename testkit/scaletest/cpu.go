@@ -3,7 +3,7 @@ package scaletest
 import (
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/process"
+	"github.com/zachbornheimer/evident-output/v2/internal/process"
 )
 
 // CPUElapsed returns the process CPU time run consumed. Unlike Elapsed it

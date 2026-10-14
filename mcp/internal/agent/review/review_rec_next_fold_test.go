@@ -4,13 +4,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 const remedyPlaceholder = "next step suggested; the reason is not yet stated"
 
 func remedySource(imports, body string) string {
-	return "package p\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"testing\"\n\n\tevo \"github.com/zachbornheimer/evident-output\"\n)\n\n" +
+	return "package p\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"testing\"\n\n\tevo \"github.com/zachbornheimer/evident-output/v2\"\n)\n\n" +
 		"var _ = context.Background\nvar _ = errors.New\nvar _ = fmt.Sprint\nvar _ testing.T\n\nfunc run() error { return nil }\n" + imports + "\n" + body
 }
 

@@ -9,7 +9,7 @@ import (
 )
 
 // ModulePath is the Go module path for evident-output.
-const ModulePath = "github.com/zachbornheimer/evident-output"
+const ModulePath = "github.com/zachbornheimer/evident-output/v2"
 
 // ErrNonPathReplace is returned when a replace points at another module
 // instead of a filesystem path.

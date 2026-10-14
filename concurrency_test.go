@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 func TestCON002_DisplayOrderStable(t *testing.T) {

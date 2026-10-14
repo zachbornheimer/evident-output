@@ -1,6 +1,6 @@
 package graph
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 // Phase is where a Task stands with the scheduler. The phases are closed:
 // every scheduling predicate reads one of them instead of re-deriving it

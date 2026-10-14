@@ -3,7 +3,7 @@ package mcp_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // GUESSED SIGNATURES (ZYS-1369; none are settled):
@@ -22,7 +22,7 @@ const inexpressibleShapeSrc = `package p
 import (
 	"context"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func run(out *evo.Output) {

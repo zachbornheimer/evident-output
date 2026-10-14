@@ -10,9 +10,9 @@ import (
 	"io"
 	"io/fs"
 
-	"github.com/zachbornheimer/evident-output/internal/freshness"
-	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // patchWrite is one planned file write on its way to disk: the desired

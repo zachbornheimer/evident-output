@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
-	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 // TestScenario_DryRunPlanOnly is the golden for the "Dry-run (plan-only)" tab: a

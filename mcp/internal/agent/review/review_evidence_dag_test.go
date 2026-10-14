@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // readFixture loads a §62 fixture from testdata/evo_rules by name.
@@ -108,7 +108,7 @@ import (
 	"context"
 	"database/sql"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func addColumn(task *evo.TaskHandle, db *sql.DB) {
@@ -127,7 +127,7 @@ import (
 	"context"
 	"database/sql"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func addColumn(task *evo.TaskHandle, db *sql.DB) {
@@ -150,7 +150,7 @@ import (
 	"context"
 	"os"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func writeConfig(task *evo.TaskHandle, path string, data []byte) {

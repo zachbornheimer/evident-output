@@ -9,7 +9,7 @@ import (
 	"context"
 	"os"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // The fenced block below assumes ctx and run are already in scope (it is a

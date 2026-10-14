@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/fs"
+	"github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // TestFileHidesTheOperatingSystemHandle proves a holder cannot type-assert a

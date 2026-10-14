@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/zachbornheimer/evident-output/internal/process"
+	"github.com/zachbornheimer/evident-output/v2/internal/process"
 )
 
 // HostIsBusy reports whether the host is too loaded for a wall-clock bound

@@ -4,7 +4,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/fs"
+	"github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // To sets the primary human writer.

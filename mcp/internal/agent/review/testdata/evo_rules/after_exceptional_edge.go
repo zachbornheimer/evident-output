@@ -5,7 +5,7 @@ package afteredge
 import (
 	"context"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func setupInfra(setup *evo.SequenceHandle, network, database *evo.TaskHandle) {

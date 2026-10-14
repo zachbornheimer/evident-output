@@ -4,13 +4,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // objectFirstDeleteSrc is the 1.0 object-first mutation verb: current at a
 // v1.0.0 pin, rewritten to evo.Effect only from the 1.1 dialect.
 const objectFirstDeleteSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(g *evo.GroupHandle, p string) {
 	g.Task(p).Delete("worktree", func() error { return remove(p) })
 }

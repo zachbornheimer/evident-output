@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // workspaceFile is a patch target: the workspace root it was resolved

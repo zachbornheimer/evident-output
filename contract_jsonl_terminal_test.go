@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // TestJSONLEmitsTerminalEventForEveryTask pins CONTRACT.md §6: a JSONL run

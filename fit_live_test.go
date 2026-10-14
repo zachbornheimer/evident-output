@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	txt "github.com/zachbornheimer/evident-output/internal/project"
-	"github.com/zachbornheimer/evident-output/internal/project/live"
+	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/live"
 )
 
 // TestFitLiveRegion_UnderWidthReturnsInputUnchanged is the root-package

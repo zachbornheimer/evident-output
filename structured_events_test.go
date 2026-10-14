@@ -12,10 +12,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/freshness"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
 
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // wireEventLine is one decoded "evo.event" JSONL row, for test assertions.

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // overturnWorld is the two Tasks of a same-output conflict and the state

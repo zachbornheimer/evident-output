@@ -1,6 +1,6 @@
 package project
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 // A Group's own Task is its child Task named for the Group itself: the
 // Group's own work — classify, summarize, and Effect — as opposed to one

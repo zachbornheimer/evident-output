@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/project"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // frame is a live region as the run's lock saw it: everything render needs,

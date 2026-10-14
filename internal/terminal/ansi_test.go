@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/terminal"
+	evo "github.com/zachbornheimer/evident-output/v2"
+	"github.com/zachbornheimer/evident-output/v2/internal/terminal"
 )
 
 func TestANSI_LiveRegionUsesCursorControl(t *testing.T) {

@@ -60,7 +60,7 @@ from this module / a path replace). Never `GOBIN=$HOME/.local/bin` — install l
 ## Install the binary (pinned)
 
 ```bash
-go install github.com/zachbornheimer/evident-output/mcp/cmd/evident-output-mcp@v2.0.0
+go install github.com/zachbornheimer/evident-output/v2/mcp/cmd/evident-output-mcp@v2.0.0
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
 "$HOME/.local/bin/evident-output-mcp" --version

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // API-057 (ZYS-932): a filesystem mutator call hidden inside an
@@ -13,7 +13,7 @@ import (
 const rawWriteFileInEffectLiteralSrc = `package p
 import (
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, path string, contents []byte) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "config file", Quantity: 1}, func(context.Context) error {
@@ -45,7 +45,7 @@ func TestAPI057_RawWriteFileInEffectLiteral_Fires(t *testing.T) {
 const rawWriteFileInEffectNamedFuncSrc = `package p
 import (
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, path string, contents []byte) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "manifest", Quantity: 1}, writeManifest)
@@ -67,7 +67,7 @@ func TestAPI057_RawWriteFileInEffectNamedFunc_Fires(t *testing.T) {
 const writeModeOpenFileInEffectSrc = `package p
 import (
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, path string) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "log file", Quantity: 1}, func(context.Context) error {
@@ -90,7 +90,7 @@ func TestAPI057_WriteModeOpenFileInEffect_Fires(t *testing.T) {
 const readOnlyOpenFileInEffectSrc = `package p
 import (
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, path string) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "remote ref", Quantity: 1}, func(context.Context) error {
@@ -120,7 +120,7 @@ func TestAPI057_ReadOnlyOpenFileInEffect_StaysSilent(t *testing.T) {
 const rawWriteDerivedFromReadInEffectSrc = `package p
 import (
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, path string) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "config file", Quantity: 1}, func(context.Context) error {
@@ -149,7 +149,7 @@ func TestAPI057_WriteDerivedFromRead_SuggestsEvoFile(t *testing.T) {
 // stay silent.
 
 const realOpaqueEffectCallbackSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context, ref string) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "remote ref", Quantity: 1}, func(context.Context) error {
     return deleteRemoteRef(ctx, ref)
@@ -169,7 +169,7 @@ func TestAPI057_RealOpaqueEffectCallback_StaysSilent(t *testing.T) {
 // evo.File is the remediated shape and must never itself trigger API-057.
 
 const evoFileGoodCodeSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context, path string, contents []byte) error {
   return evo.File(ctx, evo.FileSpec{Path: path, Contents: contents, Mode: 0o644})
 }

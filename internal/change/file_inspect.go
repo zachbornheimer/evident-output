@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 
-	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // inheritedModeBits are the mode bits an unmanaged rewrite carries over:

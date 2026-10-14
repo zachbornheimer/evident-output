@@ -13,7 +13,7 @@ import (
 	"os"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 var _ = func() func(context.Context, evo.FileSpec) error { return evo.File }

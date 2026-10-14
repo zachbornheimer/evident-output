@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/clock"
+	"github.com/zachbornheimer/evident-output/v2/internal/clock"
 )
 
 // Lock polling bounds: a held lock covers one commit, so waits are short;

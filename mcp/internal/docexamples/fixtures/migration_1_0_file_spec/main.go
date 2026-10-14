@@ -8,7 +8,7 @@ package main
 import (
 	"context"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // The fenced block below references task, path, and contents without

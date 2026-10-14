@@ -3,7 +3,7 @@ package project
 import (
 	"slices"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // A Group that renders without its header (flattensHeader) puts its rows

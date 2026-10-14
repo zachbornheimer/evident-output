@@ -10,7 +10,7 @@ package gitenv
 import (
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/internal/process"
+	"github.com/zachbornheimer/evident-output/v2/internal/process"
 )
 
 // repositoryLocationVars are the variables that redirect git to a repository

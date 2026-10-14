@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
 // TestPartialEffect_BindsToTheEffectWhoseCallbackReturnedIt proves an

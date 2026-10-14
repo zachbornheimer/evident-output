@@ -63,7 +63,7 @@ func requiredExampleNames(t *testing.T, rootDir string) map[string]bool {
 		}
 		files = append(files, f)
 	}
-	docPkg, err := doc.NewFromFiles(fset, files, "github.com/zachbornheimer/evident-output", doc.AllDecls)
+	docPkg, err := doc.NewFromFiles(fset, files, "github.com/zachbornheimer/evident-output/v2", doc.AllDecls)
 	if err != nil {
 		t.Fatalf("NewFromFiles(%s): %v", rootDir, err)
 	}

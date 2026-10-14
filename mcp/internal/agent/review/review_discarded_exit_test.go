@@ -3,7 +3,7 @@ package review_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // TestDiscardedMainCode pins E-114/EVO-EXIT-002: evo.Main returns the exit
@@ -15,7 +15,7 @@ func TestDiscardedMainCode(t *testing.T) {
 import (
 	"context"
 	"os"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 var _ = os.Exit
 func run(ctx context.Context) error {

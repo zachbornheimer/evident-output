@@ -4,14 +4,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
 )
 
 // evoDefineBody wraps body as the Define callback of one Task, with ctx,
 // errors, and a diff in scope: where 1.2 retired-noun call sites live.
 func evoDefineBody(body string) string {
-	return "package p\nimport (\n\t\"context\"\n\t\"errors\"\n\tevo \"github.com/zachbornheimer/evident-output\"\n)\n" +
+	return "package p\nimport (\n\t\"context\"\n\t\"errors\"\n\tevo \"github.com/zachbornheimer/evident-output/v2\"\n)\n" +
 		"var _ = errors.Is\n" +
 		"func f(task *evo.TaskHandle, diff []byte) {\n\ttask.Define(func(ctx context.Context) error {\n" +
 		indentBody(body) + "\t})\n}\n"

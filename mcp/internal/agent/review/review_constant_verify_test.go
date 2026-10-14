@@ -3,7 +3,7 @@ package review_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 const constantVerifySrc = `package p
@@ -11,7 +11,7 @@ const constantVerifySrc = `package p
 import (
 	"context"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func run(out *evo.Output) {
@@ -43,7 +43,7 @@ import (
 	"context"
 	"os"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func run(out *evo.Output, path string) {
@@ -68,7 +68,7 @@ import (
 	"context"
 	"os"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func real(out *evo.Output, path string) {

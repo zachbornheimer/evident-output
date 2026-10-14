@@ -3,8 +3,8 @@ package graph
 import (
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/internal/misuse"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // ErrDependencyCycle is what the MisuseSink hears when After edges close a

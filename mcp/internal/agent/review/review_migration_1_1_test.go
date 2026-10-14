@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
 )
 
 // TestMigration1_1_DirtyFiresAndRewriteIsClean proves each 1.1 removal:
@@ -19,13 +19,13 @@ func TestMigration1_1_DirtyFiresAndRewriteIsClean(t *testing.T) {
 		{
 			name: "Failf",
 			dirty: `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
 	task.Failf("boom")
 }
 `,
 			clean: `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
 	task.Fail("boom")
 }
@@ -35,13 +35,13 @@ func f(task *evo.TaskHandle) {
 		{
 			name: "Blockf",
 			dirty: `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
 	task.Blockf("refused")
 }
 `,
 			clean: `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
 	task.Block("refused")
 }
@@ -51,13 +51,13 @@ func f(task *evo.TaskHandle) {
 		{
 			name: "Warn",
 			dirty: `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
 	task.Warn("stale entry ignored")
 }
 `,
 			clean: `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
 	task.Problem("stale entry ignored", evo.Severity(evo.SeverityWarning))
 }
@@ -67,13 +67,13 @@ func f(task *evo.TaskHandle) {
 		{
 			name: "Step",
 			dirty: `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
 	task.Step(1, 3, "file.go")
 }
 `,
 			clean: `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
 	task.Progress(1, 3).Doing("file.go")
 }
@@ -83,14 +83,14 @@ func f(task *evo.TaskHandle) {
 		{
 			name: "Kept",
 			dirty: `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 var reasonProtected = evo.Reason("protected")
 func f(task *evo.TaskHandle) {
 	task.Kept(reasonProtected)
 }
 `,
 			clean: `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 var reasonProtected = evo.Reason("protected")
 func f(task *evo.TaskHandle) {
 	task.Skipped(reasonProtected)
@@ -101,13 +101,13 @@ func f(task *evo.TaskHandle) {
 		{
 			name: "Evidence",
 			dirty: `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
 	_ = task.Evidence()
 }
 `,
 			clean: `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
 	_ = task.Capture()
 }
@@ -158,7 +158,7 @@ func f(task *evo.TaskHandle) {
 
 func TestAPI032_CaptureStaysSilent(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
 	_ = task.Capture()
 }

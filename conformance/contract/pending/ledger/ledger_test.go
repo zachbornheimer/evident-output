@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func deleteBranch(out *evo.Run, group *evo.Group, name string, fail bool) {

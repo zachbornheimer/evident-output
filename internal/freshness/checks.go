@@ -7,8 +7,8 @@ package freshness
 import (
 	"context"
 
-	"github.com/zachbornheimer/evident-output/internal/graph"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/graph"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // Narration hears what freshness judged about a Task, for the reader.

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // misuseLog is a MisuseSink that keeps what it heard.

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	evoModulePath   = "github.com/zachbornheimer/evident-output"
+	evoModulePath   = "github.com/zachbornheimer/evident-output/v2"
 	mcpInstallPkg   = evoModulePath + "/mcp/cmd/evident-output-mcp"
 	mcpLocalPkg     = "./mcp/cmd/evident-output-mcp"
 	mcpBinaryName   = "evident-output-mcp"

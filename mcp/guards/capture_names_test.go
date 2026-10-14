@@ -5,7 +5,7 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/apisurface"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/apisurface"
 )
 
 // TestNoExportedEvidenceNames pins ZYS-1185 through 2.0: capture is spelled

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // findingTeaching returns the first finding whose message plus suggestion
@@ -54,7 +54,7 @@ import (
 	"context"
 	"os"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 var _ = os.ReadDir

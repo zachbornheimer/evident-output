@@ -3,7 +3,7 @@ package review_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // cleanPackage is a correct two-file evo main package. Every symbol it
@@ -14,7 +14,7 @@ var cleanPackage = map[string]string{
 import (
 	"os"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func main() {
@@ -27,7 +27,7 @@ func main() {
 import (
 	"context"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func run(ctx context.Context) error {
@@ -63,13 +63,13 @@ func TestGoPackageReportsLocalTypeError(t *testing.T) {
 // that merely mentions the module.
 func TestGoPackageEvoImportIsReadFromImports(t *testing.T) {
 	files := map[string]string{
-		"a.go": "package p\n\n// Not evo: github.com/zachbornheimer/evident-output is only named here.\nimport \"fmt\"\n\nfunc f() { fmt.Println(\"x\") }\n",
+		"a.go": "package p\n\n// Not evo: github.com/zachbornheimer/evident-output/v2 is only named here.\nimport \"fmt\"\n\nfunc f() { fmt.Println(\"x\") }\n",
 		"b.go": "package p\n\nfunc g() string { return \"evo\" }\n",
 	}
 	if res := review.GoPackageAt(files, ""); hasRule(res, "STREAM-003") {
 		t.Fatalf("no file imports evo, so STREAM-003 must not fire: %+v", res.Findings)
 	}
-	files["c.go"] = "package p\n\nimport evo \"github.com/zachbornheimer/evident-output\"\n\nfunc h() { evo.Task(\"t\").Define(func() error { return nil }) }\n"
+	files["c.go"] = "package p\n\nimport evo \"github.com/zachbornheimer/evident-output/v2\"\n\nfunc h() { evo.Task(\"t\").Define(func() error { return nil }) }\n"
 	if res := review.GoPackageAt(files, ""); !hasRule(res, "STREAM-003") {
 		t.Fatalf("c.go imports evo, so a.go's fmt.Println is STREAM-003: %+v", res.Findings)
 	}
@@ -94,7 +94,7 @@ import (
 	"os"
 	` + imp + `
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func main() {
@@ -129,7 +129,7 @@ func run(ctx context.Context) error {
 // import in its file is aliased: then no import can supply the name.
 func TestGoPackageUndefinedQualifierWithAliasedImports(t *testing.T) {
 	files := map[string]string{
-		"a.go": "package p\n\nimport evo \"github.com/zachbornheimer/evident-output\"\n\nvar _ = evo.Init\n\nfunc use() { _ = cfgg.Name }\n",
+		"a.go": "package p\n\nimport evo \"github.com/zachbornheimer/evident-output/v2\"\n\nvar _ = evo.Init\n\nfunc use() { _ = cfgg.Name }\n",
 	}
 	res := review.GoPackageAt(files, "")
 	if !hasRule(res, "MCP-017") || !res.Partial {

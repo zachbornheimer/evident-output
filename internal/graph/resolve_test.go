@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // blockedWork is submitted work that stays unstarted: nothing kicks it.

@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func TestC31_001_ComputeDefinesExactlyOneTask(t *testing.T) {

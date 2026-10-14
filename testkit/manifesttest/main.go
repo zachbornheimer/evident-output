@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/freshness"
-	"github.com/zachbornheimer/evident-output/internal/fs"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
+	"github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // Main runs m with every default-located manifest redirected to a fresh

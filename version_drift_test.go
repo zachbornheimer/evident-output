@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
 )
 
 // Portable surfaces: install guidance must stay on PublishedRelease.
@@ -31,7 +31,7 @@ var forbiddenPathFragments = []string{
 
 // go get|install|run of this module at a version.
 var moduleVersionPin = regexp.MustCompile(
-	`github\.com/zachbornheimer/evident-output(?:/mcp/cmd/[a-z0-9-]+)?@(v\d+\.\d+\.\d+|latest)`,
+	`github\.com/zachbornheimer/evident-output(?:/v2(?:/mcp/cmd/[a-z0-9-]+)?)?@(v\d+\.\d+\.\d+|latest)`,
 )
 
 // Status / pin chrome in prose.

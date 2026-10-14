@@ -8,11 +8,11 @@ import (
 
 func TestRequireVersion_LineAndBlock(t *testing.T) {
 	t.Parallel()
-	line := "module app\n\nrequire github.com/zachbornheimer/evident-output v0.4.6\n"
+	line := "module app\n\nrequire github.com/zachbornheimer/evident-output/v2 v0.4.6\n"
 	if got := RequireVersion(line, ModulePath); got != "v0.4.6" {
 		t.Fatalf("line form: got %q", got)
 	}
-	block := "module app\nrequire (\n\tgithub.com/zachbornheimer/evident-output v0.4.2 // indirect\n)\n"
+	block := "module app\nrequire (\n\tgithub.com/zachbornheimer/evident-output/v2 v0.4.2 // indirect\n)\n"
 	if got := RequireVersion(block, ModulePath); got != "v0.4.2" {
 		t.Fatalf("block form: got %q", got)
 	}
@@ -23,7 +23,7 @@ func TestRequireVersion_LineAndBlock(t *testing.T) {
 
 func TestParse_SelfModule(t *testing.T) {
 	t.Parallel()
-	src := "module github.com/zachbornheimer/evident-output\n\ngo 1.25.0\n"
+	src := "module github.com/zachbornheimer/evident-output/v2\n\ngo 1.25.0\n"
 	pin, err := Parse(src, "/src/evident-output")
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +39,7 @@ func TestParse_SelfModule(t *testing.T) {
 func TestParse_RelativeReplaceResolved(t *testing.T) {
 	t.Parallel()
 	dir := filepath.Join(t.TempDir(), "app")
-	src := "module app\n\nrequire github.com/zachbornheimer/evident-output v0.4.6\nreplace github.com/zachbornheimer/evident-output => ../evo\n"
+	src := "module app\n\nrequire github.com/zachbornheimer/evident-output/v2 v0.4.6\nreplace github.com/zachbornheimer/evident-output/v2 => ../evo\n"
 	pin, err := Parse(src, dir)
 	if err != nil {
 		t.Fatal(err)
@@ -55,7 +55,7 @@ func TestParse_RelativeReplaceResolved(t *testing.T) {
 
 func TestParse_NonPathReplaceRejected(t *testing.T) {
 	t.Parallel()
-	src := "module app\nreplace github.com/zachbornheimer/evident-output => github.com/other/evident-output v1.2.3\n"
+	src := "module app\nreplace github.com/zachbornheimer/evident-output/v2 => github.com/other/evident-output v1.2.3\n"
 	_, err := Parse(src, "/tmp/app")
 	if !errors.Is(err, ErrNonPathReplace) {
 		t.Fatalf("got %v, want ErrNonPathReplace", err)

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // TestExitBypass_OneFixThatCompiles pins API-018/EVO-EXIT-001: the one
@@ -15,7 +15,7 @@ func TestExitBypass_OneFixThatCompiles(t *testing.T) {
 	src := `package main
 import (
 	"os"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func main() {
 	evo.Init(evo.Config{Title: "t"})

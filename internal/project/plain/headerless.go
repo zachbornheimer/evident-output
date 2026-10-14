@@ -3,9 +3,9 @@ package plain
 import (
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/project"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // writeHeaderlessGroup renders a Group's children as siblings of the

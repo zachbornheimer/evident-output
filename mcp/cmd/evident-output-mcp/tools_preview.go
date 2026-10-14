@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/record"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/preview"
+	evo "github.com/zachbornheimer/evident-output/v2"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/preview"
 )
 
 // handlePreview serves evident_output_preview.

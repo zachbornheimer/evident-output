@@ -3,7 +3,7 @@ package live
 import (
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // tailLines is how many completed Writer lines a frame shows under a

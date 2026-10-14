@@ -4,7 +4,7 @@
 
 package graph
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 // Overturn fails t with err, wherever t stands. A Task that already settled
 // Done settles again as Failed, through the one settle path; a Task that has

@@ -3,10 +3,10 @@ package evo
 import (
 	"io"
 
-	"github.com/zachbornheimer/evident-output/internal/graph"
-	txt "github.com/zachbornheimer/evident-output/internal/project"
-	"github.com/zachbornheimer/evident-output/internal/record"
-	"github.com/zachbornheimer/evident-output/internal/terminal"
+	"github.com/zachbornheimer/evident-output/v2/internal/graph"
+	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/terminal"
 )
 
 // confirmPolicyHint is the Next step a Confirm nobody answered points at when the caller named no flag.

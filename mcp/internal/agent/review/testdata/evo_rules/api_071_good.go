@@ -4,7 +4,7 @@ package api071
 import (
 	"context"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func run(out *evo.Output) {

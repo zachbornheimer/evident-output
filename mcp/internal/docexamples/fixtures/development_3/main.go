@@ -6,8 +6,8 @@ package main
 import (
 	"context"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/testkit"
+	evo "github.com/zachbornheimer/evident-output/v2"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 func doWork(ctx context.Context) {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/sections"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/sections"
 )
 
 // handleListSections serves evident_output_list_sections.

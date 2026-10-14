@@ -6,7 +6,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/misuse"
+	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
 )
 
 // TestTaskHandle_KeyBeforeDefineOverridesDefaultIdentity proves §3.1's

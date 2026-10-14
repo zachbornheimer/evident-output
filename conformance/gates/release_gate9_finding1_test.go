@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/terminal"
+	evo "github.com/zachbornheimer/evident-output/v2"
+	"github.com/zachbornheimer/evident-output/v2/internal/terminal"
 )
 
 // TestTerminalOption_ReadmeShapeRendersConclusionOnce is release-gate round 9

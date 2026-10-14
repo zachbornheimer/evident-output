@@ -4,7 +4,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/project"
 )
 
 // renderBudget bounds the render work forced paints may spend in one

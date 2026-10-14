@@ -13,15 +13,15 @@ import (
 	"strconv"
 	"strings"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
-	"github.com/zachbornheimer/evident-output/internal/record"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/adopt"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/catalog"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/preview"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/rules"
-	"github.com/zachbornheimer/evident-output/mcp/internal/buildversion"
+	evo "github.com/zachbornheimer/evident-output/v2"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/adopt"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/preview"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/buildversion"
 )
 
 // Version is injected at build time via -ldflags "-X main.Version=...".

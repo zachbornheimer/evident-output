@@ -4,10 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/catalog"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/preview"
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/preview"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 func TestMCP016_PartialOnlyWhenAnalysisIncomplete(t *testing.T) {
@@ -15,7 +15,7 @@ func TestMCP016_PartialOnlyWhenAnalysisIncomplete(t *testing.T) {
 	// GoSource fully implements its AST rules — Partial is false when analysis completes.
 	// Partial remains for GoPackage typecheck failure / empty input.
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f() { evo.Init(evo.Config{Isolated: true}) }
 `
 	res := review.GoSource("p.go", src)

@@ -7,7 +7,7 @@ import (
 	"runtime/debug"
 	"sync/atomic"
 
-	"github.com/zachbornheimer/evident-output/internal/fs"
+	"github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // cacheDirRedirect, when set, replaces the user cache directory the

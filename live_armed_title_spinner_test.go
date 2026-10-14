@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	txt "github.com/zachbornheimer/evident-output/internal/project"
+	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
 )
 
 // TestLive_ArmedTitleKeepsAnimatorAndAdvancesGlyph is the red-first proof that

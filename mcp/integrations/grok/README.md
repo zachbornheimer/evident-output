@@ -6,13 +6,13 @@ Local **stdio** MCP only (no hosted URL).
 
 ## Canonical paths
 
-| What                  | Path                                                                  |
-| --------------------- | --------------------------------------------------------------------- |
-| GitHub                | `https://github.com/zachbornheimer/evident-output`                    |
-| Module / MCP cmd      | `github.com/zachbornheimer/evident-output/mcp/cmd/evident-output-mcp` |
-| Binary install target | `$HOME/.local/bin/evident-output-mcp`                                 |
-| Grok user config      | `$HOME/.grok/config.toml`                                             |
-| Skill                 | `mcp/skills/cli-output/SKILL.md` in the repo                          |
+| What                  | Path                                                                     |
+| --------------------- | ------------------------------------------------------------------------ |
+| GitHub                | `https://github.com/zachbornheimer/evident-output`                       |
+| Module / MCP cmd      | `github.com/zachbornheimer/evident-output/v2/mcp/cmd/evident-output-mcp` |
+| Binary install target | `$HOME/.local/bin/evident-output-mcp`                                    |
+| Grok user config      | `$HOME/.grok/config.toml`                                                |
+| Skill                 | `mcp/skills/cli-output/SKILL.md` in the repo                             |
 
 ## 1. Install the server binary
 
@@ -20,7 +20,7 @@ Local **stdio** MCP only (no hosted URL).
 mkdir -p "$HOME/.local/bin"
 
 # Module install — pin a release (never @latest; never GOBIN=$HOME/.local/bin):
-go install github.com/zachbornheimer/evident-output/mcp/cmd/evident-output-mcp@v2.0.0
+go install github.com/zachbornheimer/evident-output/v2/mcp/cmd/evident-output-mcp@v2.0.0
 ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
 # After bumping evo: evident-output-mcp update --directory <repo> then restart the host.
 

@@ -1,6 +1,6 @@
 package graph
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 // Authority names who is resolving a Task: the program that wrote a terminal
 // verb, or the scheduler reporting what the Task's callback returned.

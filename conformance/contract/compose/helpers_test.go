@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func newQuietOutput(t *testing.T, strict bool) *evo.Run {

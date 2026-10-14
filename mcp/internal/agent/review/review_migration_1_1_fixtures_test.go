@@ -47,11 +47,11 @@ var guidanceOnlySuggestions = map[string]string{
 }
 
 func evoBody(body string) string {
-	return "package p\nimport evo \"github.com/zachbornheimer/evident-output\"\n" + body
+	return "package p\nimport evo \"github.com/zachbornheimer/evident-output/v2\"\n" + body
 }
 
 func evoIOBody(body string) string {
-	return "package p\nimport (\n\t\"io\"\n\t\"os\"\n\tevo \"github.com/zachbornheimer/evident-output\"\n)\n" + body
+	return "package p\nimport (\n\t\"io\"\n\t\"os\"\n\tevo \"github.com/zachbornheimer/evident-output/v2\"\n)\n" + body
 }
 
 func migration1_1Fixtures() map[string]migrationFixture {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/testkit/wireschema"
+	"github.com/zachbornheimer/evident-output/v2/testkit/wireschema"
 )
 
 const minimalSchema = `{

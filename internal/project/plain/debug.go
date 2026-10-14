@@ -1,8 +1,8 @@
 package plain
 
 import (
-	"github.com/zachbornheimer/evident-output/internal/project"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // Debug presents a debug record the run just recorded (§4.6, §21.3).

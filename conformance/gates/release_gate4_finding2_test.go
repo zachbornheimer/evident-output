@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // TestFinish_MisuseSentinel_RendersHintNotRawSentinelText is the red-first

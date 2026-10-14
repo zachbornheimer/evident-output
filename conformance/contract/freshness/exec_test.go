@@ -10,8 +10,8 @@ import (
 	"slices"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/conformance/contract/harness"
+	evo "github.com/zachbornheimer/evident-output/v2"
+	"github.com/zachbornheimer/evident-output/v2/conformance/contract/harness"
 )
 
 // stage is one shell-command Exec whose freshness the manifest decides.

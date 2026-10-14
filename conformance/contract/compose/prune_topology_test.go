@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // fakeMachine is the in-memory I/O behind the prune topology: what the

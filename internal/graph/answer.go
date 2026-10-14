@@ -1,8 +1,8 @@
 package graph
 
 import (
-	"github.com/zachbornheimer/evident-output/internal/record"
-	input "github.com/zachbornheimer/evident-output/internal/terminal"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+	input "github.com/zachbornheimer/evident-output/v2/internal/terminal"
 )
 
 // Answer is what a Confirm gate received. The answer alone decides which

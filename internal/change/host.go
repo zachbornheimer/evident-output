@@ -6,9 +6,9 @@ package change
 import (
 	"context"
 
-	"github.com/zachbornheimer/evident-output/internal/freshness"
-	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // Host is the run around one Run's changes: how it was configured, where the

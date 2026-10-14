@@ -5,11 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/project/plain"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/plain"
 
-	"github.com/zachbornheimer/evident-output/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/project"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // keptItemCount is the benchmark's per-item children: zq prune holds about

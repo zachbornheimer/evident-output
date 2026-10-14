@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/zachbornheimer/evident-output/internal/graph"
-	"github.com/zachbornheimer/evident-output/internal/project"
-	renderplain "github.com/zachbornheimer/evident-output/internal/project/plain"
-	"github.com/zachbornheimer/evident-output/internal/project/wire"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/graph"
+	"github.com/zachbornheimer/evident-output/v2/internal/project"
+	renderplain "github.com/zachbornheimer/evident-output/v2/internal/project/plain"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // Task is a handle for one operation with phases or progress.

@@ -4,7 +4,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // Tally is the counted partition of disposition records (record.Skipped

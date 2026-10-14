@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"runtime/debug"
 
-	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // ErrAppFingerprintUnavailable is returned by App's Fingerprint when neither

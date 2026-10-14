@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/freshness"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
 )
 
 const modifyGreetingDiff = `diff --git a/greeting.txt b/greeting.txt

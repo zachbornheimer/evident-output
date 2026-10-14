@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func pingDocker() error { return errors.New("daemon unreachable") }

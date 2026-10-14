@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // TestRunDocumentListsOperationsAndBasis pins CONTRACT.md §8: a Task that

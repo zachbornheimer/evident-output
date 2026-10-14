@@ -404,7 +404,7 @@ func TestOnlyProducersWriteRecord(t *testing.T) {
 func TestRecordWriteScanRecognisesRecordValues(t *testing.T) {
 	const source = `package probe
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 type holder struct {
 	journal *record.Run

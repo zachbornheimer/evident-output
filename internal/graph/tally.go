@@ -4,7 +4,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // tally tracks a Group/Sequence's descendant Tasks for the Tasks that start

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/process"
+	"github.com/zachbornheimer/evident-output/v2/internal/process"
 )
 
 // deliveryBudget bounds how long a test waits for a signal it just sent.

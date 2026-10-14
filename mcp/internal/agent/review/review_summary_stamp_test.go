@@ -3,7 +3,7 @@ package review_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // API-060 (1.1/ZYS-971): TaskHandle.Summary/GroupHandle.Summary is
@@ -14,7 +14,7 @@ import (
 // evo.File/evo.Effect/the Satisfied outcome/evo.Fact instead.
 
 const summaryStampWroteSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context, task *evo.TaskHandle, path string, contents []byte) error {
   if err := evo.File(ctx, evo.FileSpec{Path: path, Contents: contents}); err != nil {
     return err
@@ -33,7 +33,7 @@ func TestAPI060_SummaryWroteNarration_Fires(t *testing.T) {
 }
 
 const summaryStampWouldAddSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(task *evo.TaskHandle) {
   task.Summary("would add 3 refs")
 }
@@ -45,7 +45,7 @@ func TestAPI060_SummaryWouldAddNarration_Fires(t *testing.T) {
 }
 
 const summaryStampNothingToWriteSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(task *evo.TaskHandle) {
   task.Summary("nothing to write")
 }
@@ -57,7 +57,7 @@ func TestAPI060_SummaryNothingToWriteNarration_Fires(t *testing.T) {
 }
 
 const summaryStampAlreadySrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(task *evo.TaskHandle) {
   task.Summary("already up to date")
 }
@@ -74,7 +74,7 @@ func TestAPI060_SummaryAlreadyNarration_Fires(t *testing.T) {
 const summaryResultMetadataGoodSrc = `package p
 import (
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(branches *evo.TaskHandle, n int) {
   branches.Summary(fmt.Sprintf("%d checked", n))
@@ -96,7 +96,7 @@ func TestAPI060_SummaryResultMetadataGoodCode_StaysSilent(t *testing.T) {
 // rule as TaskHandle.Summary (Decisions: same sanitization/projection).
 
 const groupSummaryStampSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(group *evo.GroupHandle) {
   group.Summary("already installed")
 }

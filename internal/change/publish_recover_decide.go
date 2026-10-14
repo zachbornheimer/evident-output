@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"io/fs"
 
-	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // leftover is a staging entry beside dest. tree is its digest, "" when it

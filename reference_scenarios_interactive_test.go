@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	txt "github.com/zachbornheimer/evident-output/internal/project"
-	"github.com/zachbornheimer/evident-output/testkit"
+	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 // Appendix H interactive cases (v0.2) — written red-first against live terminal.

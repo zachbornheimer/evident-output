@@ -8,8 +8,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/zachbornheimer/evident-output/internal/misuse"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // DeclareTask declares a Task named name under parent (nil: at the root).

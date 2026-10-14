@@ -10,7 +10,7 @@ import (
 	"io/fs"
 	"path/filepath"
 
-	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // ErrPublishSatisfied is what a Guard's Revalidate returns when the destination

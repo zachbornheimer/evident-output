@@ -34,7 +34,7 @@ var (
 var snippetImports = []string{
 	"context", "encoding/json", "errors", "fmt", "os", "os/exec",
 	"os/signal", "path/filepath", "strconv", "strings", "syscall",
-	"github.com/zachbornheimer/evident-output",
+	"github.com/zachbornheimer/evident-output/v2",
 }
 
 // snippetReceivers declares the conventional names rule snippets use for

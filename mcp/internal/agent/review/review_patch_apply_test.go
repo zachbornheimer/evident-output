@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // API-058 (ZYS-934): a patch is applied straight to the real workspace
@@ -15,7 +15,7 @@ import (
 const execPatchCommandSrc = `package p
 import (
   "os/exec"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, diffPath string) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "workspace", Quantity: 1}, func(context.Context) error {
@@ -42,7 +42,7 @@ func TestAPI058_ExecPatchCommand_Fires(t *testing.T) {
 const execGitApplyCommandSrc = `package p
 import (
   "os/exec"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(diffPath string) error {
   _ = evo.Config{}
@@ -59,7 +59,7 @@ func TestAPI058_ExecGitApplyCommand_Fires(t *testing.T) {
 const execGitAmCommandSrc = `package p
 import (
   "os/exec"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(mboxPath string) error {
   _ = evo.Config{}
@@ -79,7 +79,7 @@ func TestAPI058_ExecGitAmCommand_Fires(t *testing.T) {
 const execPatchFullPathSrc = `package p
 import (
   "os/exec"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(diffPath string) error {
   _ = evo.Config{}
@@ -97,7 +97,7 @@ func TestAPI058_ExecPatchFullPath_Fires(t *testing.T) {
 // mutation — must stay silent; evo.Patch itself is exactly this shape.
 
 const domainPatchParseOnlySrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context, diff []byte) error {
   return evo.Patch(ctx, diff)
 }

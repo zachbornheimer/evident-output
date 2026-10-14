@@ -1,7 +1,7 @@
 package project
 
 import (
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // A Group's per-item children that did nothing but resolve Kept or Skipped

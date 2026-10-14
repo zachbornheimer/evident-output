@@ -8,7 +8,7 @@ import (
 	"context"
 	"strings"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func declarePrune(out *evo.Output, m *fakeMachine) {

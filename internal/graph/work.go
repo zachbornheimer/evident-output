@@ -1,6 +1,6 @@
 package graph
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 // Work is what a caller submits for a Task: the callback, and the steps the
 // caller takes around it. The graph runs them in a fixed order on the

@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func runDaemon(t *testing.T, format evo.Output, body func(task *evo.Task)) string {

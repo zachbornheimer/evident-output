@@ -4,8 +4,8 @@ import (
 	"container/heap"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/project"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // childCounters counts a set of child Tasks by what a live tally reports

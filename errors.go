@@ -1,7 +1,7 @@
 package evo
 
 import (
-	"github.com/zachbornheimer/evident-output/internal/misuse"
+	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
 )
 
 // Sentinel misuse and lifecycle errors recorded by the run, aliased from

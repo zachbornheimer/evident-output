@@ -10,7 +10,7 @@
 // half of this fixture package. Never run, never compiled.
 package main
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 // snippet wraps the marked region in a function purely so gofmt (which
 // parses every staged .go file regardless of build tags, in the

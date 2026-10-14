@@ -3,7 +3,7 @@ package plain
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/project"
 )
 
 // TestConclusionColor_PlannedIsBlue reproduces gate-7 finding 3: StatePlanned

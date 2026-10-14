@@ -13,7 +13,7 @@ import (
 	"context"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // These assignments are the compile contract for §1.1 and §7/§9.1's public

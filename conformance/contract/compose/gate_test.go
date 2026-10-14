@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // The Blocked-gate idiom (ZYS-1345): a plain Task Blocks and returns nil.

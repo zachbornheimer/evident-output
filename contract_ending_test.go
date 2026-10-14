@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // endingCase is one way a run ends and the verdict CONTRACT.md §4 gives it.

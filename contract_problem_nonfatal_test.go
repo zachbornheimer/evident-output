@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // TestProblemNeverEndsATask pins CONTRACT.md §4: Task.Problem records a

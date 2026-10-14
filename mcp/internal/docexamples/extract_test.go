@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/docexamples"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/docexamples"
 )
 
 func TestExtractGoFences(t *testing.T) {

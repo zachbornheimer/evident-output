@@ -12,7 +12,7 @@ import (
 // for a v1.0.0 pin, rewritten only from the 1.1 dialect (API-032).
 const pinnedDeleteSrc = `package main
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func prune(g *evo.GroupHandle, p string) {
 	g.Task(p).Delete("worktree", func() error { return nil })
@@ -24,7 +24,7 @@ func prune(g *evo.GroupHandle, p string) {
 func v100Module(t *testing.T) (string, string) {
 	t.Helper()
 	dir := t.TempDir()
-	gomod := "module example.com/consumer\n\ngo 1.24\n\nrequire github.com/zachbornheimer/evident-output v1.0.0\n"
+	gomod := "module example.com/consumer\n\ngo 1.24\n\nrequire github.com/zachbornheimer/evident-output/v2 v1.0.0\n"
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(gomod), 0o600); err != nil {
 		t.Fatal(err)
 	}

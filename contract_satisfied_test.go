@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // TestAllCurrentOperationsSettleSatisfied pins CONTRACT.md §3: a Task whose

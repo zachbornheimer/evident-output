@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // API-061 (ZYS-974): Record/RecordLabel/RecordName have no record-only
@@ -17,7 +17,7 @@ import (
 const recordInstallShapedSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(task *evo.TaskHandle, n int) {
   task.Record("install", n, "module")
@@ -49,7 +49,7 @@ func TestAPI061_RecordInstallShaped_Fires(t *testing.T) {
 const recordUninstallShapedSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(task *evo.TaskHandle, n int) {
   task.Record("uninstall", n, "module")
@@ -66,7 +66,7 @@ func TestAPI061_RecordUninstallShaped_Fires(t *testing.T) {
 const recordLabelInformationShapedSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(task *evo.TaskHandle, n int) {
   task.RecordLabel("ready", n, "worker")
@@ -88,7 +88,7 @@ func TestAPI061_RecordLabelInformationShaped_Fires(t *testing.T) {
 const recordNameFileWriteShapedSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(task *evo.TaskHandle, path string) {
   task.RecordName("write", path)
@@ -108,7 +108,7 @@ func TestAPI061_RecordNameFileWriteShaped_Fires(t *testing.T) {
 const recordMigratedGoodCodeSrc = `package p
 import (
   "strconv"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, task *evo.TaskHandle, n int, path string, contents []byte) error {
   if err := evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectInstall, Quantity: n, Object: "module"}, func(ctx context.Context) error {
@@ -178,7 +178,7 @@ func TestAPI061_SuggestsExactRewrite(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			src := "package p\nimport evo \"github.com/zachbornheimer/evident-output\"\nfunc run(task *evo.TaskHandle, n int, path string) {\n  " + tc.call + "\n}\n"
+			src := "package p\nimport evo \"github.com/zachbornheimer/evident-output/v2\"\nfunc run(task *evo.TaskHandle, n int, path string) {\n  " + tc.call + "\n}\n"
 			f := findingByID(t, review.GoSource("p.go", src), "API-061")
 			if !strings.Contains(f.Suggestion, tc.want) {
 				t.Fatalf("suggestion missing exact rewrite:\nwant %s\ngot  %s", tc.want, f.Suggestion)
@@ -208,7 +208,7 @@ func TestAPI061_WithoutEvoImport_Silent(t *testing.T) {
 const recordOTelHistogramSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
   "go.opentelemetry.io/otel/metric"
 )
 func run(ctx context.Context, histogram metric.Int64Histogram, task *evo.TaskHandle, attrs metric.RecordOption) {

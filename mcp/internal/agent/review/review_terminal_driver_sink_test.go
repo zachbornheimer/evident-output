@@ -3,7 +3,7 @@ package review_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // A TerminalDriver is the renderer's sink: its own Write* methods writing
@@ -16,7 +16,7 @@ import (
 	"fmt"
 	"io"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 type frameLog struct{ w io.Writer }

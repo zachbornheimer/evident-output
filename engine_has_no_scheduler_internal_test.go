@@ -291,7 +291,7 @@ func schedulingConstructsIn(t *testing.T, sources map[string][]byte) []schedulin
 }
 
 // modulePathOfEngine is the import path the checked engine sources compile as.
-const modulePathOfEngine = "github.com/zachbornheimer/evident-output"
+const modulePathOfEngine = "github.com/zachbornheimer/evident-output/v2"
 
 // schedulingClassifier names the scheduling construct a node is, from the
 // types the checker resolved.

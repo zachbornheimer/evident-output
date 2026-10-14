@@ -3,7 +3,7 @@ package evo
 import (
 	"fmt"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
 // ExampleFSResource names a whole module directory: a coarse claim that

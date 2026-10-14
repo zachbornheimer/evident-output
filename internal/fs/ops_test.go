@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/fs"
+	"github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // Abs joins a relative path to the working directory and cleans an absolute one.

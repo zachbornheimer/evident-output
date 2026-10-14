@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
 )
 
 // pinBelow is a desired_version one minor release older than minDialect.
@@ -22,7 +22,7 @@ func pinBelow(t *testing.T, minDialect string) string {
 
 // evoFile wraps a rule's BadCode in a file that imports evo.
 func evoFile(body string) string {
-	return "package main\n\nimport (\n\t\"context\"\n\tevo \"github.com/zachbornheimer/evident-output\"\n)\n\nvar _ = context.Background\nvar _ = evo.Init\n\nfunc example(ctx context.Context, task *evo.TaskHandle) {\n" + body + "\n}\n"
+	return "package main\n\nimport (\n\t\"context\"\n\tevo \"github.com/zachbornheimer/evident-output/v2\"\n)\n\nvar _ = context.Background\nvar _ = evo.Init\n\nfunc example(ctx context.Context, task *evo.TaskHandle) {\n" + body + "\n}\n"
 }
 
 // TestRuleMinDialectGovernsFiring proves a rule's catalog MinDialect alone

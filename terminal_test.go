@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
-	"github.com/zachbornheimer/evident-output/internal/terminal"
-	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/terminal"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 func TestTERM020_CompletedCollapseUnderPressure(t *testing.T) {

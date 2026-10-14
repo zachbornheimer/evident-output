@@ -4,14 +4,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // PROG-001: the Advance suggestion must never prescribe <task>.Each(...) — it no longer exists (removed in 1.0; evo-dialect-axes-report.md axis 6/12).
 
 func TestPROG001_AdvanceSuggestion_NeverNamesTaskEach(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(task *evo.TaskHandle) {
   task.Advance(1)
 }
@@ -29,14 +29,14 @@ func f(task *evo.TaskHandle) {
 // FP-006: Doing(...).Done(...) with no Define between is theater.
 
 const doingDoneChainSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(a *evo.Output, fixed int) {
   a.Task("file integrity").Doing("fixing").Done("%d files changed", fixed)
 }
 `
 
 const doingDoneChainFixedSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(a *evo.Output) {
   t := a.Task("file integrity")
   t.Define(func(ctx context.Context) error {
@@ -66,7 +66,7 @@ func TestFP006_DefineInstead_StaysSilent(t *testing.T) {
 }
 
 const doingDoneAdjacentSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(t *evo.TaskHandle) {
   t.Doing("rechecking")
   applyFix()
@@ -81,7 +81,7 @@ func TestFP006_DoingDoneAdjacentStatements_Fires(t *testing.T) {
 }
 
 const doingProgressDoneSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(t *evo.TaskHandle) {
   t.Doing("scanning")
   t.Define(func(ctx context.Context) error {
@@ -104,7 +104,7 @@ func TestFP006_DefineBetween_StaysSilent(t *testing.T) {
 // returned double-resolves the task (zq app.go:155-176 -> executeCommand).
 
 const failfInDefineSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(task *evo.TaskHandle) {
   task.Define(func(ctx context.Context) error {
     if err := doWork(task); err != nil {
@@ -134,7 +134,7 @@ func TestAPI040_FailfReachableFromDefine_Fires(t *testing.T) {
 }
 
 const failThenReturnErrSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(task *evo.TaskHandle) {
   task.Define(func(ctx context.Context) error {
     err := doWork()
@@ -154,7 +154,7 @@ func TestAPI040_FailThenReturnErr_Fires(t *testing.T) {
 }
 
 const returnErrOnlySrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(task *evo.TaskHandle) {
   task.Define(func(ctx context.Context) error {
     if err := doWork(task); err != nil {
@@ -181,7 +181,7 @@ func TestAPI040_PlainReturnErr_StaysSilent(t *testing.T) {
 // API-041: a goroutine resolving a predeclared Task with no Define inside.
 
 const goroutinePredeclaredSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output) {
   t := out.Task("a")
   go func() {
@@ -203,7 +203,7 @@ func TestAPI041_GoroutineResolvesPredeclaredTask_Fires(t *testing.T) {
 }
 
 const goroutineWithDefineSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output) {
   t := out.Task("a")
   go func() {
@@ -224,7 +224,7 @@ func TestAPI041_GoroutineWithDefine_StaysSilent(t *testing.T) {
 // API-042: an evo.Effect with a nil or no-op callback.
 
 const nilEffectCallbackSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: 2}, nil)
 }
@@ -242,7 +242,7 @@ func TestAPI042_NilEffectCallback_Fires(t *testing.T) {
 }
 
 const noOpLiteralEffectCallbackSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktree", Quantity: 1}, func(context.Context) error { return nil })
 }
@@ -256,7 +256,7 @@ func TestAPI042_NoOpLiteralEffectCallback_Fires(t *testing.T) {
 const noOpNamedEffectCallbackSrc = `package p
 import (
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, name string, n int) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: n}, func(context.Context) error {
@@ -277,7 +277,7 @@ func TestAPI042_NoOpDelegatedEffectCallback_Fires(t *testing.T) {
 }
 
 const realEffectCallbackSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: 2}, func(ctx context.Context) error {
     return installPackages(ctx)
@@ -298,7 +298,7 @@ func TestAPI042_RealWorkEffectCallback_StaysSilent(t *testing.T) {
 // API-043: a plural EffectSpec.Object literal.
 
 const pluralEffectObjectSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktrees", Quantity: 1}, removeWorktree)
 }
@@ -319,7 +319,7 @@ func TestAPI043_PluralEffectObjectLiteral_Fires(t *testing.T) {
 }
 
 const singularEffectObjectSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(ctx context.Context) error {
   return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktree", Quantity: 1}, removeWorktree)
 }
@@ -335,7 +335,7 @@ func TestAPI043_SingularEffectObjectLiteral_StaysSilent(t *testing.T) {
 }
 
 const pluralNonEvoObjectFieldSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 type Row struct{ Object string }
 func run(_ *evo.TaskHandle) Row { return Row{Object: "worktrees"} }
 `
@@ -352,7 +352,7 @@ func TestAPI043_PluralNonEffectSpecObjectField_StaysSilent(t *testing.T) {
 // API-044: a hand-rolled channel wrapper around Define reimplements Wait.
 
 const channelWaitAroundDefineSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func defineAndWait(task *evo.TaskHandle, fn func() error) error {
   done := make(chan error, 1)
   task.Define(func(ctx context.Context) error {
@@ -376,7 +376,7 @@ func TestAPI044_ChannelWaitWrapper_Fires(t *testing.T) {
 }
 
 const plainDefineNoChannelSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(task *evo.TaskHandle, fn func() error) {
   task.Define(fn)
 }
@@ -394,7 +394,7 @@ func TestAPI044_PlainDefine_StaysSilent(t *testing.T) {
 // TAX-003: inline evo.Reason literal, and a reason that restates its verb.
 
 const inlineReasonSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(task *evo.TaskHandle) {
   task.Skipped(evo.Reason("timeout"))
 }
@@ -412,7 +412,7 @@ func TestTAX003_InlineReason_FiresConstantsSuggestion(t *testing.T) {
 }
 
 const reasonRestatesVerbSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(task *evo.TaskHandle) {
   task.Skipped(evo.Reason("skipped"))
 }
@@ -427,7 +427,7 @@ func TestTAX003_ReasonRestatesVerb_Fires(t *testing.T) {
 }
 
 const reasonVarBlockSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 var reasonProtected = evo.Reason("protected")
 func run(task *evo.TaskHandle) {
   task.Skipped(reasonProtected)
@@ -456,7 +456,7 @@ func TestTAX003_TestFile_StaysSilent(t *testing.T) {
 // already-satisfied condition instead of true inapplicability.
 
 const skippedAlreadyUpToDateSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(task *evo.TaskHandle, installed, latest string) {
   if installed == latest {
     task.Skipped(evo.Reason("already up to date"))
@@ -484,7 +484,7 @@ func TestAPI046_SkippedBareWordReasons_Fire(t *testing.T) {
 	cases := []string{"already latest", "unchanged", "current", "latest", "up to date"}
 	for _, reason := range cases {
 		src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(task *evo.TaskHandle) {
   task.Skipped(evo.Reason("` + reason + `"))
 }
@@ -497,7 +497,7 @@ func run(task *evo.TaskHandle) {
 }
 
 const skippedNoGoModuleSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(task *evo.TaskHandle) {
   task.Skipped(evo.Reason("no Go module"))
 }
@@ -513,7 +513,7 @@ func TestAPI046_TrueInapplicability_StaysSilent(t *testing.T) {
 }
 
 const skippedUnrelatedReasonSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(task *evo.TaskHandle) {
   task.Skipped(evo.Reason("protected"))
 }
@@ -542,7 +542,7 @@ func TestAPI046_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
 	findingByID(t, res, "API-046")
 
 	const remediated = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(task *evo.TaskHandle, installed, latest string) {
   task.Verify(func(ctx context.Context) (bool, error) {
     return installed == latest, nil
@@ -564,7 +564,7 @@ func run(task *evo.TaskHandle, installed, latest string) {
 // the exact corrected verb+object spelling.
 
 const subjectOnlyTaskNameSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output) {
   out.Task("file integrity").Done()
 }
@@ -585,7 +585,7 @@ func TestAPI045_SubjectOnlyTaskName_Fires(t *testing.T) {
 }
 
 const containerTaskNameSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output) {
   out.Task("fix").Done()
 }
@@ -603,7 +603,7 @@ func TestAPI045_ContainerTaskName_Fires(t *testing.T) {
 }
 
 const verbObjectTaskNameSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output, g *evo.GroupHandle) {
   out.Task("check file integrity").Done()
   g.Task("format Python").Done()
@@ -628,7 +628,7 @@ func TestAPI045_ObservationsUnderOneTask_StaySilent(t *testing.T) {
 	// internal observations answer one user-meaningful question and stay
 	// Facts/problems under one Task, never sibling Tasks.
 	const src = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(task *evo.TaskHandle) {
   task.Fact("merge markers", "none found")
   task.Fact("symlinks", "valid")
@@ -651,7 +651,7 @@ func run(task *evo.TaskHandle) {
 // internal/app/app.go:80's a.task("fix", ...)).
 
 const phaseTaskOwningChildWorkSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output) {
   out.Task("fix").Define(func(ctx context.Context) error {
     if err := fixGoImports(); err != nil {
@@ -685,7 +685,7 @@ func TestAPI049_PhaseTaskOwningChildWork_Fires(t *testing.T) {
 // fire identically — API-050 tracks the Task("word")/.Define(...) pairing
 // through a local variable, not only a single chained expression.
 const phaseTaskOwningChildWorkViaVarSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output) {
   t := out.Task("check")
   t.Define(func(ctx context.Context) error {
@@ -708,7 +708,7 @@ func TestAPI049_PhaseTaskOwningChildWorkViaVar_Fires(t *testing.T) {
 }
 
 const phaseTaskSingleStepSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output) {
   out.Task("check").Define(func(ctx context.Context) error {
     if err := verify(); err != nil {
@@ -732,7 +732,7 @@ func TestAPI049_PhaseTaskSingleStep_StaysSilent(t *testing.T) {
 }
 
 const verbObjectTaskMultiStepSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output) {
   out.Task("stabilize Go source").Define(func(ctx context.Context) error {
     if err := fixGoImports(); err != nil {
@@ -760,7 +760,7 @@ func TestAPI049_VerbObjectTaskMultiStep_StaysSilent(t *testing.T) {
 }
 
 const phaseTaskRemediatedSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output) {
   fixGroup := out.Group("fix")
   fixGroup.Task("fix Go imports").Define(func(ctx context.Context) error { return fixGoImports() })
@@ -789,7 +789,7 @@ func TestAPI049_Remediated_StaysSilent(t *testing.T) {
 // gap statically.
 
 const crossKindDuplicateSiblingSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output) {
   out.Task("build")
   out.Group("build")
@@ -811,7 +811,7 @@ func TestAPI047_CrossKindDuplicateSiblingName_Fires(t *testing.T) {
 }
 
 const crossKindDuplicateSiblingNestedSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output) {
   work := out.Group("work")
   work.Task("build")
@@ -828,7 +828,7 @@ func TestAPI047_CrossKindDuplicateSiblingName_FiresUnderNestedParent(t *testing.
 }
 
 const sameKindDuplicateSiblingSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output) {
   out.Task("build")
   out.Task("build")
@@ -845,7 +845,7 @@ func TestAPI047_SameKindDuplicate_StaysSilent(t *testing.T) {
 }
 
 const distinctSiblingNamesSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output) {
   out.Task("build")
   out.Group("test")
@@ -862,7 +862,7 @@ func TestAPI047_DistinctNames_StaysSilent(t *testing.T) {
 }
 
 const crossKindDifferentParentsSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output) {
   a := out.Group("a")
   b := out.Group("b")
@@ -881,7 +881,7 @@ func TestAPI047_CrossKindDifferentParents_StaysSilent(t *testing.T) {
 }
 
 const crossKindDuplicateSiblingBranchesSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output, cond bool) {
   if cond {
     out.Task("build")
@@ -917,7 +917,7 @@ func TestAPI047_PreOneZeroPin_StaysSilent(t *testing.T) {
 // product contract's own zq prune example.
 
 const redeclaredTaskForAfterSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(prune *evo.GroupHandle) {
   prune.Task("branches").Define(func(ctx context.Context) error { return nil })
   prune.Task("remote-tracking").After(prune.Task("branches")).Define(func(ctx context.Context) error { return nil })
@@ -936,7 +936,7 @@ func TestAPI048_RedeclaredTaskLiteralForAfter_Fires(t *testing.T) {
 }
 
 const typedTaskVarSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(prune *evo.GroupHandle) {
   var (
     branches = prune.Task("branches")
@@ -957,7 +957,7 @@ func TestAPI048_TypedTaskVar_StaysSilent(t *testing.T) {
 }
 
 const oneOffTaskSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(prune *evo.GroupHandle) {
   prune.Task("branches").Define(func(ctx context.Context) error { return nil })
 }
@@ -973,7 +973,7 @@ func TestAPI048_TrivialOneOffTask_StaysSilent(t *testing.T) {
 }
 
 const differentGroupsSameLabelSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(a, b *evo.GroupHandle) {
   a.Task("branches").Define(func(ctx context.Context) error { return nil })
   b.Task("branches").Define(func(ctx context.Context) error { return nil })
@@ -995,7 +995,7 @@ func TestAPI048_SameLabelDifferentGroups_StaysSilent(t *testing.T) {
 const defineDiscardsSchedulerCtxSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, task *evo.TaskHandle) {
   task.Define(func(context.Context) error {
@@ -1019,7 +1019,7 @@ func TestAPI049_DefineDiscardsSchedulerCtx_Fires(t *testing.T) {
 const defineUsesOwnCtxSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, task *evo.TaskHandle) {
   task.Define(func(ctx context.Context) error {
@@ -1041,7 +1041,7 @@ func TestAPI049_DefineUsesOwnCtx_StaysSilent(t *testing.T) {
 const defineNoCancellableWorkSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, task *evo.TaskHandle) {
   task.Define(func(context.Context) error {
@@ -1075,7 +1075,7 @@ func TestAPI049_PreOneZeroPin_StaysSilent(t *testing.T) {
 const defineOnUnrelatedTypeSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 type Validator struct{}
@@ -1109,7 +1109,7 @@ func TestAPI049_UnrelatedTypeWithOwnDefineMethod_StaysSilent(t *testing.T) {
 const defineShadowsCtxLocallySrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(ctx context.Context, task *evo.TaskHandle) {
   task.Define(func(context.Context) error {
@@ -1139,7 +1139,7 @@ import (
   "errors"
   "strings"
 
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func blockStagedGolangciFindings(task *evo.TaskHandle, findings []finding) error {
   var lines []string
@@ -1164,7 +1164,7 @@ func TestAPI051_FlattenedDiagnosticsLoop_Fires(t *testing.T) {
 }
 
 const fakeTaskPerFindingSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func reportFileIntegrityIssues(group *evo.GroupHandle, findings []finding) {
   for _, f := range findings {
     group.Task(f.File).Fail(f.Message)
@@ -1190,7 +1190,7 @@ func TestAPI051_FakeTaskPerFinding_Fires(t *testing.T) {
 const problemAccumulationSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(out *evo.Output, issues []issue) {
   task := out.Task("file integrity")
@@ -1265,7 +1265,7 @@ func TestAPI051_PreOneOnePin_StaysSilent(t *testing.T) {
 // waitDefinedRunOperations evidence).
 
 const callerWaitLoopSnapshotCountSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func runParallel(jobs *evo.GroupHandle, items []string) error {
   var handles []*evo.TaskHandle
   for _, item := range items {
@@ -1300,7 +1300,7 @@ func TestAPI052_CallerWaitLoopSnapshotCount_Fires(t *testing.T) {
 }
 
 const callerWaitLoopErrNotStartedSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func waitDefinedRunOperations(tasks []*evo.TaskHandle) error {
   for _, task := range tasks {
     err := task.Wait()
@@ -1324,7 +1324,7 @@ func TestAPI052_CallerWaitLoopErrNotStartedFilter_Fires(t *testing.T) {
 }
 
 const containerWaitDirectSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func runParallel(jobs *evo.GroupHandle, items []string) error {
   for _, item := range items {
     jobs.Task(item).Define(func(ctx context.Context) error { return nil })
@@ -1389,7 +1389,7 @@ func TestAPI052_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
 const nestedResourceDirectSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func moveWorktree(ctx context.Context, from, to string, marker []byte) error {
   spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
@@ -1413,7 +1413,7 @@ func TestAPI053_NestedFileInsideEffectResourceHold_Fires(t *testing.T) {
 const nestedResourceIndirectSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func moveWorktree(ctx context.Context, from, to string, marker []byte) error {
   spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
@@ -1434,7 +1434,7 @@ func TestAPI053_NestedFileThroughHelperOneCallAway_Fires(t *testing.T) {
 const nestedResourceEffectInEffectSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func moveTwoWorktrees(ctx context.Context, a, b string) error {
   outer := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(a)}
@@ -1453,7 +1453,7 @@ func TestAPI053_NestedEffectInsideEffectResourceHold_Fires(t *testing.T) {
 const sequentialResourceNotNestedSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func moveWorktree(ctx context.Context, from, to string, marker []byte) error {
   if err := evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}); err != nil {
@@ -1478,7 +1478,7 @@ func TestAPI053_SequentialFileThenEffect_StaysSilent(t *testing.T) {
 const effectWithoutResourceSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func cleanCache(ctx context.Context, path string, marker []byte) error {
   spec := evo.EffectSpec{Object: "cache entry", Verb: evo.EffectDelete}
@@ -1530,7 +1530,7 @@ import (
   "bytes"
   "io"
   "os/exec"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func runCapturedTask(task *evo.TaskHandle, cmd *exec.Cmd) error {
   var buf bytes.Buffer
@@ -1558,7 +1558,7 @@ const manualCancellationStringMatchSrc = `package p
 import (
   "os/exec"
   "strings"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func runChecked(task *evo.TaskHandle, cmd *exec.Cmd) error {
   cmd.Stdout = task.Writer()
@@ -1582,7 +1582,7 @@ func TestAPI054_StringMatchCancellationAroundTaskWriter_Fires(t *testing.T) {
 }
 
 const evoExecResultInspectionSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func runChecked(ctx context.Context, spec evo.ExecSpec) error {
   res, err := evo.Exec(ctx, spec)
   if errors.Is(err, evo.ErrExecNonzeroExit) {
@@ -1647,7 +1647,7 @@ func TestAPI054_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
 const stringLiteralMentionsCmdRunNoRealExecSrc = `package p
 import (
   "bytes"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func inspectExecResult(task *evo.TaskHandle, res evo.ExecResult) error {
   // note: not the same as hand-rolling cmd.Run( capture ourselves
@@ -1679,7 +1679,7 @@ const manualMutexAroundFileWriteSrc = `package p
 import (
   "context"
   "sync"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 type Writer struct {
   mu   sync.Mutex
@@ -1706,7 +1706,7 @@ func TestAPI055_ManualMutexAroundFileWrite_Fires(t *testing.T) {
 const noManualMutexAroundFileWriteSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 type Writer struct {
   path string
@@ -1729,7 +1729,7 @@ const mutexUnrelatedToEvoFileSrc = `package p
 import (
   "context"
   "sync"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 type Service struct {
   mu    sync.Mutex
@@ -1758,7 +1758,7 @@ const rwMutexRLockAroundFileReadSrc = `package p
 import (
   "context"
   "sync"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 type Writer struct {
   mu   sync.RWMutex
@@ -1791,7 +1791,7 @@ const rwMutexRLockScopeNarrowsAtRealRUnlockSrc = `package p
 import (
   "context"
   "sync"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 type Writer struct {
   mu   sync.RWMutex
@@ -1847,7 +1847,7 @@ func TestAPI055_RecheckAfterRemediation_FindingDisappears(t *testing.T) {
 const afterResourceContentionSameFileSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(configTask, cacheTask *evo.TaskHandle) {
   configTask.Define(func(ctx context.Context) error {
@@ -1882,7 +1882,7 @@ func TestAPI056_AfterOnlyForSameFileContention_Fires(t *testing.T) {
 const afterResourceContentionFSResourceSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(sweepTask, gcTask *evo.TaskHandle) {
   sweepTask.Define(func(ctx context.Context) error {
@@ -1909,7 +1909,7 @@ func TestAPI056_AfterOnlyForFSResourceContention_Fires(t *testing.T) {
 const afterResourceConflictingVerbsSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(lockTask, sweepTask *evo.TaskHandle) {
   lockTask.Define(func(ctx context.Context) error {
@@ -1942,7 +1942,7 @@ func TestAPI056_ConflictingVerbsFSResource_StaysSilent(t *testing.T) {
 const afterResourceDifferingContentsSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(configTask, cacheTask *evo.TaskHandle) {
   configTask.Define(func(ctx context.Context) error {
@@ -1969,7 +1969,7 @@ const afterRealDependencySrc = `package p
 import (
   "context"
   "os"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(prepareTask, buildTask *evo.TaskHandle) {
   prepareTask.Define(func(ctx context.Context) error {
@@ -1996,7 +1996,7 @@ func TestAPI056_RealSemanticDependency_StaysSilent(t *testing.T) {
 const afterNoCommentSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(configTask, cacheTask *evo.TaskHandle) {
   configTask.Define(func(ctx context.Context) error {
@@ -2033,7 +2033,7 @@ func TestAPI056_PreOneOneOnePin_StaysSilent(t *testing.T) {
 const afterResourceContentionRemediatedSrc = `package p
 import (
   "context"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(configTask, cacheTask *evo.TaskHandle) {
   configTask.Define(func(ctx context.Context) error {
@@ -2064,7 +2064,7 @@ const mutexGuardingMapAndFileSrc = `package p
 import (
   "context"
   "sync"
-  eo "github.com/zachbornheimer/evident-output"
+  eo "github.com/zachbornheimer/evident-output/v2"
 )
 type Cache struct {
   mu   sync.Mutex
@@ -2099,7 +2099,7 @@ const lockAndFileOnlyInTextSrc = `package p
 import (
   "context"
   "sync"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 type Doc struct {
   mu sync.Mutex

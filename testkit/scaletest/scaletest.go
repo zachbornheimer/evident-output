@@ -5,7 +5,7 @@ package scaletest
 import (
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/clock"
+	"github.com/zachbornheimer/evident-output/v2/internal/clock"
 )
 
 // Samples is how many timed runs one estimate takes. Host load only ever

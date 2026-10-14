@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/testkit"
-	"github.com/zachbornheimer/evident-output/testkit/wireschema"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
+	"github.com/zachbornheimer/evident-output/v2/testkit/wireschema"
 )
 
 // TestWireSchema_RenderedDocumentValidates is the gate the published schema

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // BasisSource is one Task Basis input: something whose content identity is

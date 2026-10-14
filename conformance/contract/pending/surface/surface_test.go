@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func hasMethod(v any, name string) bool {

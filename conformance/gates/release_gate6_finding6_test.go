@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // TestFinish_MisuseHint_UsesWarnGlyphStyling is release-gate round 6 finding

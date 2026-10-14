@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func TestC31_009_OnlyOutputGroupAndSequenceSatisfyContainer(t *testing.T) {

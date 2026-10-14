@@ -3,7 +3,7 @@ package graph
 import (
 	"slices"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // builderPhase is where a container's topology builder stands.

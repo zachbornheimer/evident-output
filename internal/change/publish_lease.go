@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sync"
 
-	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // stageLease marks a staging entry as owned by a live writer, from the

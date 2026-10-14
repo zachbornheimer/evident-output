@@ -16,7 +16,7 @@ func TestCLI_ReviewPreviewExplainParity(t *testing.T) {
 	code := `package p
 import (
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f() {
   out := evo.Init(evo.Config{})
@@ -74,11 +74,11 @@ func TestCLI_ReviewDirectoryMergesFiles(t *testing.T) {
 	bin := buildCLI(t)
 	dir := t.TempDir()
 	a := `package a
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output) { out.Plan("a") }
 `
 	b := `package b
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func f(out *evo.Output) { out.Changes("b") }
 `
 	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte(a), 0o600); err != nil {

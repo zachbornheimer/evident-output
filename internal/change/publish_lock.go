@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // DestinationHold is a held destination claim. Claims on overlapping destinations

@@ -8,7 +8,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // Host is what the run around the graph lends each Task's callback and each

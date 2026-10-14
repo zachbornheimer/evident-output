@@ -1,6 +1,6 @@
 package wire
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 // VerificationDoc is one diagnostic sub-result (spec §36): a managed
 // attribute an evo.File/Patch/Exec operation reconciled, satisfied or not.

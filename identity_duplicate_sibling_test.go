@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/misuse"
+	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
 )
 
 // TestOutputTask_SameNameIsDuplicateSibling pins §3.1: Output.Task (the

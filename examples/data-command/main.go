@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"os"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // errUndefinedSymbol is the simulated link failure.

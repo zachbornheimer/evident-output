@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/testkit/scaletest"
+	evo "github.com/zachbornheimer/evident-output/v2"
+	"github.com/zachbornheimer/evident-output/v2/testkit/scaletest"
 )
 
 // group1kSize is the throughput workload's width: enough trivial Tasks that

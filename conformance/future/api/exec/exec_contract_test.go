@@ -12,7 +12,7 @@ import (
 	"context"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 var _ = func() func(context.Context, evo.ExecSpec) (evo.ExecResult, error) { return evo.Exec }

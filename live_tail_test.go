@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/process"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/process"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // tailTestLines is far more Writer output than the live tail can show.

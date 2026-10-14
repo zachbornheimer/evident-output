@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"runtime"
 
-	_ "github.com/zachbornheimer/evident-output"
+	_ "github.com/zachbornheimer/evident-output/v2"
 )
 
 func main() {

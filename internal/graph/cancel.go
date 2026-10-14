@@ -4,7 +4,7 @@
 
 package graph
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 // CancelActive cancels what the run is doing, so an interrupt always leaves
 // a typed Cancelled state. A pending Confirm gate goes first: it holds sole

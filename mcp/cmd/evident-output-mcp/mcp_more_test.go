@@ -15,7 +15,7 @@ func TestMCP_ReviewAndPreviewTools(t *testing.T) {
 	src := `package p
 import (
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func f() {
   out := evo.Init(evo.Config{})

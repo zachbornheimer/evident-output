@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/freshness"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
 )
 
 // lockCheckingGates is the graph's gate table as a Run sees it, failing the

@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/modpin"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/modpin"
 )
 
 func maybeAutoUpdate(cwd string, argv []string, env Env, files Files, run Runner, execer Execer, id Identity) {

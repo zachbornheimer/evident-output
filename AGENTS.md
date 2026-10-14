@@ -9,7 +9,7 @@ zq is the canary consumer. If MCP cannot take zq from dirty dialect to
 ## When you MUST use it
 
 Whenever you write or change CLI output / presentation in a repo that uses
-`github.com/zachbornheimer/evident-output` (or is adopting it). Do not guess
+`github.com/zachbornheimer/evident-output/v2` (or is adopting it). Do not guess
 spellings from memory. Do not treat a compile as “the output is done.”
 
 Call the tools. A passing `go test` is not a review.
@@ -163,7 +163,7 @@ evo.Task("fetch").After(worktrees, branches).Define(fetchPrune)
 
 ## zq canary (MCP must survive this)
 
-1. Consumer `go.mod` has `replace github.com/zachbornheimer/evident-output => ../evident-output`.
+1. Consumer `go.mod` has `replace github.com/zachbornheimer/evident-output/v2 => ../evident-output`.
 2. Fresh Grok (tmux `mcp` window) calls `evident_output_review` with
    `kind=directory`, `directory=<abs zq>`. **Not** this long-lived TUI if its
    schema is stale.
@@ -218,10 +218,9 @@ Every breaking release carries a migration guide under `docs/migration/`
 listing each removed or changed symbol with before/after code, and the MCP
 review rules steer each old call site to its replacement (API-032, API-061).
 
-The module path stays `github.com/zachbornheimer/evident-output` (no `/vN`
-suffix). Go's minimal version selection therefore upgrades a consumer to a
-new minor as soon as any dependency requires it. Consumers pin the exact
-release in `go.mod` and migrate with the guide before bumping.
+The module path is `github.com/zachbornheimer/evident-output/v2`. Consumers
+import and `go get` the `/v2` path, so a 1.x consumer stays on the old path
+until it migrates with the guide. Consumers pin the exact release in `go.mod`.
 
 ## Install / pin
 

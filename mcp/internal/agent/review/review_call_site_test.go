@@ -4,12 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 func TestCallSoup_ExtraPositionalArgsAtTaskIsDirty(t *testing.T) {
 	src := `package app
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run() {
   out := evo.Init(evo.Config{Title: "t"})
   _ = out.Task("scan", "extra")
@@ -33,7 +33,7 @@ func run() {
 
 func TestCALL001_InlineMakeInsideInitArgIsDirty(t *testing.T) {
 	src := `package app
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run() {
   out := evo.Init(evo.Config{Title: "t", Facts: make([]evo.Fact, 0)})
   _ = out.Task("scan")
@@ -60,7 +60,7 @@ func run() {
 
 func TestCALL001_InlineNewInsideInitArgIsDirty(t *testing.T) {
 	src := `package app
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run() {
   out := evo.Init(evo.Config{Title: "t", Clock: new(int)})
   _ = out.Group("jobs")
@@ -81,7 +81,7 @@ func run() {
 
 func TestCALL001_NamedLocalsExtractedBeforeCallAreClean(t *testing.T) {
 	src := `package app
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run() {
   facts := make([]evo.Fact, 0)
   n := new(int)

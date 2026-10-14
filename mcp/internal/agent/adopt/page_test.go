@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/adopt"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/adopt"
 )
 
 // TestInventoryPage_MixedIsPagedPlan proves testdata/mixed still finds

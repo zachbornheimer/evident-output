@@ -3,7 +3,7 @@ package review_test
 import (
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // DOM-021: a Task declared in a function that never resolves it or hands
@@ -15,7 +15,7 @@ import (
 	"context"
 	"os/exec"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func run(ctx context.Context) error {
@@ -44,7 +44,7 @@ import (
 	"context"
 	"os/exec"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func run(ctx context.Context) error {
@@ -92,7 +92,7 @@ func TestDOM021_ResolvedOrHandedOnTask_StaysSilent(t *testing.T) {
 
 const chainedButUnresolvedTaskSrc = `package main
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func run() {
 	t := evo.Task("fetch")

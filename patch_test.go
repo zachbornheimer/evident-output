@@ -10,8 +10,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
-	"github.com/zachbornheimer/evident-output/internal/graph"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/graph"
 )
 
 // patchWorkspace is a temp workspace and an Output whose relative paths

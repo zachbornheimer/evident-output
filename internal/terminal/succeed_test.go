@@ -5,7 +5,7 @@ package terminal_test
 import (
 	"context"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // succeed resolves task through the 1.1 success path — an empty Define,

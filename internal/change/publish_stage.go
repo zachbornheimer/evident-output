@@ -13,7 +13,7 @@ import (
 	"slices"
 	"strings"
 
-	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // Staging entries are private siblings of the destination (see

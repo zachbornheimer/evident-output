@@ -14,7 +14,7 @@ import (
 	"os"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func isolated(t *testing.T) *evo.Run {

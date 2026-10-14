@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/rules"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/rules"
 )
 
 // TestEveryEmittedRuleIDIsInTheCatalog is what lets finalize own severity:

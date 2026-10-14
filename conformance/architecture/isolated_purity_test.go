@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // TestIsolatedConfigLeavesPackageDefaultUntouched proves Config.Isolated

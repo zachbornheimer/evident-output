@@ -104,7 +104,7 @@ Schemas: `../schema/run.v3.json`, `../schema/event.v2.json`.
 ## Production ANSI driver
 
 ```go
-import "github.com/zachbornheimer/evident-output/internal/terminal"
+import "github.com/zachbornheimer/evident-output/v2/internal/terminal"
 
 drv := terminal.NewANSI(os.Stderr, terminal.WithInteractive(true), terminal.WithSize(80, 24))
 _ = evo.Execute(ctx, evo.Config{Name: "deploy", Facades: evo.Facades{Terminal: drv}}, run)

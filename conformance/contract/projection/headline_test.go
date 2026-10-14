@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/conformance/contract/harness"
+	"github.com/zachbornheimer/evident-output/v2/conformance/contract/harness"
 )
 
 func TestC13_011_SettledRowShowsSummaryElseFirstProblem(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // TestInit_WithOptionsInstallsDefault is release-gate round 8 finding 1:

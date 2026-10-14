@@ -5,7 +5,7 @@ package dag002
 import (
 	"context"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func launchAgent(seq *evo.SequenceHandle) {

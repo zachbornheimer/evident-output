@@ -33,7 +33,7 @@ func reviewGoFileViaMCP(t *testing.T, src string) string {
 
 func TestReview_IsolatedInitThenInventoryReturnsFP002(t *testing.T) {
 	src := `package app
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func previewPurge() error {
   planning := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "zq purge"})
   defer planning.Close()
@@ -52,7 +52,7 @@ func TestReview_IsolatedInitThenWalkDirLoopReturnsLOOP001(t *testing.T) {
 	src := `package app
 import (
   "path/filepath"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func previewPurge(roots []string) error {
   out := evo.Init(evo.Config{Isolated: true, DryRun: true})
@@ -74,7 +74,7 @@ func TestReview_TaskDefineBeforeWorkDoesNotReturnFP002OrLOOP001(t *testing.T) {
 	src := `package app
 import (
   "path/filepath"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func previewPurge(roots []string) error {
   out := evo.Init(evo.Config{Isolated: true, DryRun: true})
@@ -101,7 +101,7 @@ func previewPurge(roots []string) error {
 
 func TestReview_MultiArgCallSoupAtEvoSiteIsDirty(t *testing.T) {
 	src := `package app
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run() {
   out := evo.Init(evo.Config{Title: "t"})
   _ = out.Task("scan", "extra")
@@ -115,7 +115,7 @@ func run() {
 
 func TestReview_InlineMakeOrNewInEvoArgIsDirty(t *testing.T) {
 	src := `package app
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run() {
   out := evo.Init(evo.Config{Title: "t", Facts: make([]evo.Fact, 0)})
   _ = out.Group("jobs")
@@ -129,7 +129,7 @@ func run() {
 
 func TestReview_NamedLocalBeforeEvoCallIsClean(t *testing.T) {
 	src := `package app
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run() {
   facts := make([]evo.Fact, 0)
   cfg := evo.Config{Title: "t", Facts: facts}

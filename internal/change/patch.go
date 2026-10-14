@@ -11,10 +11,10 @@ import (
 	"io/fs"
 	"slices"
 
-	"github.com/zachbornheimer/evident-output/internal/freshness"
-	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
-	"github.com/zachbornheimer/evident-output/internal/graph"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
+	"github.com/zachbornheimer/evident-output/v2/internal/graph"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // patchEditBasisKind is the manifest Basis kind that records which edit a

@@ -1,6 +1,6 @@
 package live
 
-import "github.com/zachbornheimer/evident-output/internal/terminal"
+import "github.com/zachbornheimer/evident-output/v2/internal/terminal"
 
 // Surface is an interactive terminal a live region paints on. testkit.Screen
 // and terminal.ANSI implement it.

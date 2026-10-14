@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/catalog"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/catalog"
 )
 
 //go:generate go run -C ../../../.. ./tools/gensections

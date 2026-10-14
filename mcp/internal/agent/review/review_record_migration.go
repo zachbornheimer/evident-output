@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
 // recordVerbArgCount is the exact argument count each deprecated verb

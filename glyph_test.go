@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	txt "github.com/zachbornheimer/evident-output/internal/project"
-	"github.com/zachbornheimer/evident-output/testkit"
+	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 // TestGlyphsASCII_StateRowsUseTightenedVocabulary pins evo-rec.md's 1:1

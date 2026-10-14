@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 // TestDurableWrite_ClearedAndRedrawnAroundEveryPrintln is the red-first case

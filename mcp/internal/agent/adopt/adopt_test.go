@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/adopt"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/adopt"
 )
 
 // TestInventoryMixedFixtureGolden pins adopt.Inventory's output against

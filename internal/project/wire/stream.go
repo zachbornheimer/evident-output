@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/zachbornheimer/evident-output/internal/clock"
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/clock"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // Release is the release this build reports: the "evo.run" document's

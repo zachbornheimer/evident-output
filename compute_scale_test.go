@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/testkit/scaletest"
+	"github.com/zachbornheimer/evident-output/v2/testkit/scaletest"
 )
 
 const (

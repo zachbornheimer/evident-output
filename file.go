@@ -4,8 +4,8 @@ import (
 	"context"
 	iofs "io/fs"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
-	"github.com/zachbornheimer/evident-output/internal/freshness"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
 )
 
 // File declares/reconciles one managed-state file resource; see change.File.

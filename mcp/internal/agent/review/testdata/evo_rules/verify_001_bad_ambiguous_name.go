@@ -7,7 +7,7 @@ import (
 	"context"
 	"os"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func registerAgent(process *evo.TaskHandle, staleDir string) {

@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/conformance/contract/harness"
+	"github.com/zachbornheimer/evident-output/v2/conformance/contract/harness"
 )
 
 func TestC02_038_EvidenceHoldsBeforeAndAfterPhases(t *testing.T) {

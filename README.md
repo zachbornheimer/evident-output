@@ -8,7 +8,7 @@ log file, and the exit code always matches what the screen just said.
 ## Install
 
 ```bash
-go get github.com/zachbornheimer/evident-output@v2.0.0
+go get github.com/zachbornheimer/evident-output/v2@v2.0.0
 ```
 
 Requires **Go 1.25+**. License: **Apache-2.0**.
@@ -22,7 +22,7 @@ import (
  "context"
  "os"
 
- evo "github.com/zachbornheimer/evident-output"
+ evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func main() { os.Exit(evo.Main(evo.Config{}, run)) } // Main wires SIGINT/SIGTERM and returns the exit code

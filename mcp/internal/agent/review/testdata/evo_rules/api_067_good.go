@@ -2,7 +2,7 @@
 // Task handle chain (a decoder) is not result plumbing.
 package api067
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func run(out *evo.Output, d decoder) {
 	var inventory Inventory

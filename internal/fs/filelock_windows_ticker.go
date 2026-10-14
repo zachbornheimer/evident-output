@@ -5,7 +5,7 @@ package fs
 import (
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/clock"
+	"github.com/zachbornheimer/evident-output/v2/internal/clock"
 )
 
 // windowsLockPollInterval bounds how often AcquireFileLock retries exclusive

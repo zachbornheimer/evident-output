@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 // A sibling task's Progress call forces a fresh live render at the current

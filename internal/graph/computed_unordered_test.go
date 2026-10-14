@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // Order is declared, not observed: a callback the declared order does not put

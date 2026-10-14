@@ -26,7 +26,7 @@ var facadePackages = []string{
 const clockPackage = "internal/clock"
 
 // modulePath prefixes every in-module import path.
-const modulePath = "github.com/zachbornheimer/evident-output"
+const modulePath = "github.com/zachbornheimer/evident-output/v2"
 
 // scanProductionFiles runs inspect on every non-test Go file under root,
 // except beneath a directory skip reports true for. It returns the sorted

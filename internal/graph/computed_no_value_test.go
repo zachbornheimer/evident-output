@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 // A producer's Task can settle Done without anything setting the value, so

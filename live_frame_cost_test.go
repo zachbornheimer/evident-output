@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/internal/project/live"
-	"github.com/zachbornheimer/evident-output/testkit/scaletest"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/live"
+	"github.com/zachbornheimer/evident-output/v2/testkit/scaletest"
 )
 
 // liveFrameOutput is an interactive Output over n Tasks under one Group,

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // API-062: Skipped records the Task's own disposition (the item is the
@@ -15,7 +15,7 @@ import (
 // zq prune's pre-fix shape: Kept once per kept branch, on the category Task.
 const keptInLoopSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func define(task *evo.TaskHandle, locals []decision) {
 	for _, d := range locals {
@@ -35,7 +35,7 @@ func TestAPI062_KeptInLoopOnOneTask_Fires(t *testing.T) {
 
 const skippedTwiceSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func run(out *evo.Output) {
 	task := out.Task("branches")
@@ -51,7 +51,7 @@ func TestAPI062_SkippedTwiceInSequence_Fires(t *testing.T) {
 // The fix: one child Task per item, each resolving its own disposition.
 const perItemKeptSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func define(branches *evo.GroupHandle, locals []decision) {
 	for _, d := range locals {
@@ -74,7 +74,7 @@ func TestAPI062_PerItemKept_Silent(t *testing.T) {
 // branches, record once each.
 const distinctOrExclusiveSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func run(out *evo.Output, skip bool) {
 	a, b := out.Task("a"), out.Task("b")
@@ -97,7 +97,7 @@ func TestAPI062_DistinctTasksOrExclusiveBranches_Silent(t *testing.T) {
 // per loop iteration, or again before a second call in one statement list.
 const reboundPerItemSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func define(branches *evo.GroupHandle, locals []decision) {
 	var item *evo.TaskHandle
@@ -121,7 +121,7 @@ func TestAPI062_ReceiverReboundPerItem_Silent(t *testing.T) {
 // not read the inner binding as missing.
 const nestedPerItemSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func define(groups map[string][]string, reason evo.ReasonValue) {
 	for name, items := range groups {
@@ -146,7 +146,7 @@ func TestAPI062_NestedLoopPerItem_Silent(t *testing.T) {
 // iteration still repeats.
 const nestedRepeatSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func define(groups map[string][]string, reason evo.ReasonValue) {
 	for name, items := range groups {
@@ -167,7 +167,7 @@ func TestAPI062_NestedLoopOneTask_Fires(t *testing.T) {
 // loop visits.
 const dispositionThenLeaveLoopSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func define(task *evo.TaskHandle, repos []repo) error {
 	for _, r := range repos {
@@ -203,7 +203,7 @@ func TestAPI062_DispositionThenLeaveLoop_Silent(t *testing.T) {
 // the disposition once per item.
 const dispositionThenBreakSwitchSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func define(task *evo.TaskHandle, repos []repo) {
 	for _, r := range repos {
@@ -224,7 +224,7 @@ func TestAPI062_DispositionThenBreakSwitch_Fires(t *testing.T) {
 // evo, is someone else's method.
 const nonTaskDispositionSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 type tally struct{ kept, skipped int }
 
@@ -251,7 +251,7 @@ func TestAPI062_NonTaskReceiver_Silent(t *testing.T) {
 // a fresh Task each time.
 const continueOuterFreshTaskSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func define(groups []group) {
 outer:
@@ -275,7 +275,7 @@ func TestAPI062_ContinueOuterOnFreshTask_Silent(t *testing.T) {
 // once per outer iteration.
 const continueOuterOneTaskSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func define(task *evo.TaskHandle, groups []group) {
 outer:
@@ -298,7 +298,7 @@ func TestAPI062_ContinueOuterOnOneTask_Fires(t *testing.T) {
 // one Task.
 const breakInnerOneTaskSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func define(task *evo.TaskHandle, groups []group) {
 	for _, g := range groups {
@@ -320,7 +320,7 @@ func TestAPI062_BreakInnerOnOneTask_Fires(t *testing.T) {
 // loop's own label, are told apart from each other.
 const labeledTransfersSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func define(task *evo.TaskHandle, groups []group) {
 all:
@@ -341,7 +341,7 @@ func TestAPI062_BreakOutermostLabel_Silent(t *testing.T) {
 
 const continueOwnLabelSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func define(task *evo.TaskHandle, repos []repo) {
 repos:
@@ -362,7 +362,7 @@ func TestAPI062_ContinueOwnLabel_Fires(t *testing.T) {
 // switch.
 const breakInnerSwitchLabelSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func define(task *evo.TaskHandle, repos []repo) {
 	for _, r := range repos {
@@ -384,7 +384,7 @@ func TestAPI062_BreakInnerSwitchLabel_Fires(t *testing.T) {
 // iteration reruns the call.
 const gotoInsideLoopSrc = `package p
 
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 
 func define(task *evo.TaskHandle, repos []repo) {
 	for _, r := range repos {

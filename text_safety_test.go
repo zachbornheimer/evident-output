@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/change"
-	txt "github.com/zachbornheimer/evident-output/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
+	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
 )
 
 func TestTXT008_OSCNeutralized(t *testing.T) {

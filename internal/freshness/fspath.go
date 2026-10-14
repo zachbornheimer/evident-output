@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	sysfs "github.com/zachbornheimer/evident-output/internal/fs"
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // Type markers distinguish otherwise-identical byte preimages (a symlink

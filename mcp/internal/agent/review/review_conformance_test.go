@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // spec §60: {target_version, findings[{rule,severity,file,line,summary,migration}]}.
@@ -13,7 +13,7 @@ func TestConformance_ReshapesFindingToSpecShape(t *testing.T) {
 import (
 	"fmt"
 	"os"
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 func writeConfig(out *evo.Output, path string, data []byte) error {
 	if err := os.WriteFile(path, data, 0o644); err != nil {
@@ -68,7 +68,7 @@ func TestConformance_UsesRequestedTargetVersionOverDesired(t *testing.T) {
 // MainWith row (see TestMigrations_CoversMainWithAndEachRemoval).
 func TestConformance_LegacyAPIExampleGetsVersionedMigrationGuidance(t *testing.T) {
 	src := `package main
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func main() {
 	out := evo.Init(evo.Config{Title: "t", Isolated: true})
 	evo.MainWith(out, run)

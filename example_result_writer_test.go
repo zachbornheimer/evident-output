@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // ExampleRun_ResultWriter writes the data payload to stdout while the

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/process"
+	"github.com/zachbornheimer/evident-output/v2/internal/process"
 )
 
 func TestEnvReadsTheNamedVariableAndNothingElse(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 // blockRefusalRules are the rules that used to rewrite a Block site into a
@@ -18,7 +18,7 @@ func blockRefusalSrc(body string) string {
 import (
   "context"
   "fmt"
-  evo "github.com/zachbornheimer/evident-output"
+  evo "github.com/zachbornheimer/evident-output/v2"
 )
 func run(task *evo.TaskHandle, name string, err error) {
   task.Define(func(ctx context.Context) error {

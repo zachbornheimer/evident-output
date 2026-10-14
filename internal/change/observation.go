@@ -4,7 +4,7 @@
 
 package change
 
-import "github.com/zachbornheimer/evident-output/internal/record"
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
 
 // SubjectKind is what a tracked operation acts on.
 type SubjectKind uint8

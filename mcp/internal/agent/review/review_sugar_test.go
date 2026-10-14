@@ -4,18 +4,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/mcp/internal/agent/review"
+	"github.com/zachbornheimer/evident-output/v2/mcp/internal/agent/review"
 )
 
 const instantDoneToolSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func bind(out *evo.Output, path string) {
   out.Task("go@1.25.11").Done(path)
 }
 `
 
 const instantDoneToolFixedSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func bind(out *evo.Output, path string) {
   t := out.Task("go@1.25.11")
   t.Define(func(ctx context.Context) error {
@@ -25,7 +25,7 @@ func bind(out *evo.Output, path string) {
 `
 
 const singletonGroupSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output) {
   jobs := out.Group("run")
   jobs.Task("install:fresh-start")
@@ -33,7 +33,7 @@ func run(out *evo.Output) {
 `
 
 const singletonGroupFixedSrc = `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output) {
   t := out.Task("install:fresh-start")
   t.Doing("running install:fresh-start")
@@ -105,7 +105,7 @@ func TestGoSource_AppliedSugarSuggestions_AreClean(t *testing.T) {
 
 func TestGoSource_GroupLoop_IsNotSingleton(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 func run(out *evo.Output, names []string) {
   jobs := out.Group("run")
   for _, name := range names {
@@ -127,7 +127,7 @@ func run(out *evo.Output, names []string) {
 // subject factory as a one-child group.
 func TestGoSource_GroupReturnedToCaller_IsNotSingleton(t *testing.T) {
 	src := `package p
-import evo "github.com/zachbornheimer/evident-output"
+import evo "github.com/zachbornheimer/evident-output/v2"
 type subject struct {
   group *evo.GroupHandle
   classify *evo.TaskHandle
