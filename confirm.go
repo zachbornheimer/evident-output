@@ -44,12 +44,8 @@ func Destructive() ConfirmOption {
 }
 
 // NonInteractive names the flag of the caller's own executable that confirms without a prompt
-// (default "--yes"), shown in the hint a refusal nobody answered gives.
-func NonInteractive(argv ...string) ConfirmOption {
-	flag := "--yes"
-	if len(argv) > 0 {
-		flag = argv[0]
-	}
+// (for example "--yes"), shown in the hint a refusal nobody answered gives. An empty flag keeps the default hint.
+func NonInteractive(flag string) ConfirmOption {
 	return confirmOption(func(c *confirmConfig) { c.policyFlag = flag })
 }
 

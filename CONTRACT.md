@@ -326,11 +326,11 @@ if !r.Confirm("delete 40 branches?", evo.Destructive(), evo.NonInteractive("--ye
 }
 ```
 
-| Symbol           | Kind | Meaning                                                                |
-| ---------------- | ---- | ---------------------------------------------------------------------- |
-| `ConfirmOption`  | type | sealed interface                                                       |
-| `Destructive`    | func | `Destructive() ConfirmOption`; default answer is no                    |
-| `NonInteractive` | func | `NonInteractive(argv ...string) ConfirmOption`; how to pass unattended |
+| Symbol           | Kind | Meaning                                                             |
+| ---------------- | ---- | ------------------------------------------------------------------- |
+| `ConfirmOption`  | type | sealed interface                                                    |
+| `Destructive`    | func | `Destructive() ConfirmOption`; default answer is no                 |
+| `NonInteractive` | func | `NonInteractive(flag string) ConfirmOption`; how to pass unattended |
 
 `Confirm` may be asked from the run body or from inside a `Define` callback.
 Either way it settles a row of its own named by the question: Succeeded on

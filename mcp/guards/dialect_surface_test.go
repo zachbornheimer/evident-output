@@ -37,7 +37,7 @@ var dialectSurface = map[string][]string{
 		"File(ctx context.Context, spec FileSpec)",
 		"Main(cfg Config, run RunFunc)",
 		"Next(action Action)",
-		"NonInteractive(argv ...string)",
+		"NonInteractive(flag string)",
 		"On(subject string)",
 		"PartialEffect(committed int, err error)",
 		"Patch(ctx context.Context, diff []byte)",

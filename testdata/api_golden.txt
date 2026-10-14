@@ -44,7 +44,7 @@ func Fail(summary string, opts ...ProblemOption)  error
 func File(ctx context.Context, spec FileSpec)  error
 func Main(cfg Config, run RunFunc)  int
 func Next(action Action)  ProblemOption
-func NonInteractive(argv ...string)  ConfirmOption
+func NonInteractive(flag string)  ConfirmOption
 func On(subject string)  ProblemOption
 func PartialEffect(committed int, err error)  error
 func Patch(ctx context.Context, diff []byte)  error

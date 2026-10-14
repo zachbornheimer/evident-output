@@ -154,6 +154,19 @@ func TestConfirm_NonInteractive_DefaultPolicyHint_IsYesFlag(t *testing.T) {
 	}
 }
 
+// TestConfirm_NonInteractive_EmptyFlagKeepsDefaultHint pins the one-string
+// signature: a zero flag names nothing, so the refusal keeps pointing at --yes.
+func TestConfirm_NonInteractive_EmptyFlagKeepsDefaultHint(t *testing.T) {
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard, Stdin: testkit.UnreadableStdin(t)}})
+
+	out.Confirm("delete origin/production-hotfix?", NonInteractive(""))
+
+	item := out.snapshot().Tasks[0]
+	if actions := policyBlockActions(t, item); len(actions) == 0 || !strings.Contains(actions[0].Label, "--yes") {
+		t.Fatalf("actions = %+v, want default --yes hint", actions)
+	}
+}
+
 // TestConfirm_QuiescesLiveRegion_NoFramesBetweenPromptAndAnswer proves the
 // live region is cleared before the prompt and produces no further live
 // frames while Confirm waits on the answer (evo-rec.md: "no spinner while
