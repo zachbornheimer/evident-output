@@ -1,6 +1,8 @@
 // Fixture: a 1.x program with nested Groups, Delete, Skipped/Reason, Warn,
-// Failf, Blockf and Done. Every rewrite review offers is applied, and the
-// result may leave only the findings that came with advice, not a rewrite.
+// Failf, Blockf and Done, plus an Exec whose ExecSpec{Executable, Args} review
+// rewrites to ExecSpec{Argv: append([]string{exe}, args...)}. Every rewrite
+// review offers is applied, and the result may leave only the findings that
+// came with advice, not a rewrite.
 package main
 
 import (
