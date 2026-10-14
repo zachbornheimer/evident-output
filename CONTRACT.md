@@ -379,6 +379,21 @@ document, and in JSONL each write is one `result.written` event whose
 `result_base64` and `payload.base64` instead of text, and Human and Plain pass
 every byte through unchanged.
 
+The payload is written as-is, whatever the outcome: Evo does not hold it back,
+blank it or change the exit code when the run Failed, so a write made before a
+failure reaches stdout beside exit 2. The payload that describes finished work
+is therefore written by a Task ordered After that work, which does not start
+when the work failed:
+
+```go
+link := r.Task("link")
+link.Define(func(ctx context.Context) error { ... })
+r.Task("report").After(link).Define(func(ctx context.Context) error {
+ _, err := r.ResultWriter().Write([]byte(`{"artifact":"bin/app"}`))
+ return err
+})
+```
+
 Environment, applied only where `Config` is zero:
 
 | Variable    | Values                            | Effect                                                                                          |
