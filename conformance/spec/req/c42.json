@@ -137,7 +137,7 @@
   {
     "id": "C42-008",
     "section": "2.0 \u00a72 Work",
-    "quote": "A goroutine a callback started is the callback's hands: its `Get` and `Wait` are judged as the callback's, as far as the runtime names who started it.",
+    "quote": "A goroutine a callback started is the callback's hands: its `Get` is judged as the callback's, as far as the runtime names who started it.",
     "tier": "1.2",
     "tests": [
       {

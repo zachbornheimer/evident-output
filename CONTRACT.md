@@ -137,11 +137,11 @@ fails the Task. A Failed, Refused, Excluded or Cancelled predecessor leaves
 its dependents NotStarted. `Get` is valid only from work ordered after the
 producer by Sequence position or `After`; an unordered `Get` fails the run
 with `ErrComputedUnordered` in every mode. A goroutine a callback started is
-the callback's hands: its `Get` and `Wait` are judged as the callback's, as
+the callback's hands: its `Get` is judged as the callback's, as
 far as the runtime names who started it. Attribution ends at a goroutine
 that exited before anything asked about it, and at one first seen after the
 run's bounded allowance of lookups (eight for each callback or container builder
-running, shared by those running together), so a `Get` or `Wait` through such a
+running, shared by those running together), so a `Get` through such a
 goroutine is not caught. A goroutine that a finished nested Task left running
 is found by a change in the count of the process's running goroutines, so it
 can be missed when as many other goroutines end in the same moment.
