@@ -125,6 +125,10 @@ run = "go run ./tools/scripts/spec-score --lint"
 description = "Lint the registry and fail if any ratcheted requirement is not passing"
 run = "go run ./tools/scripts/spec-score --lint --gate"
 
+[tasks.red-proof]
+description = "Release gate (not in ci): each ledgered concurrency fix's guarding tests fail with the fix reverted"
+run = "nice -n 10 go run ./tools/scripts/red-proof"
+
 [tasks.ci-mcp]
 description = "Build, vet, and test the mcp module so a green ci proves both modules"
 dir = "mcp"

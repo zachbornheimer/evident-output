@@ -131,7 +131,7 @@ or a terminal library.
 | `examples/`       | 15 runnable demo programs, one directory each (`examples/<name>/main.go`), plus `examples/internal/` shared demo helpers and `examples/examples_test.go`, which builds and runs every program               |
 | `schema/`         | `run.v3.json`, `event.v2.json`                                                                                                                                                                              |
 | `testkit/`        | clock, screen, fake fs and process for consumers' tests; scale and wire-schema helpers                                                                                                                      |
-| `tools/`          | gate tooling: spec-score, spec-guard, traceability, bisectability, gitenv                                                                                                                                   |
+| `tools/`          | gate tooling: spec-score, spec-guard, traceability, bisectability, red-proof, gitenv                                                                                                                        |
 | `docs/migration/` | one file per breaking release                                                                                                                                                                               |
 | `docs/decisions/` | dated rulings; never normative                                                                                                                                                                              |
 
