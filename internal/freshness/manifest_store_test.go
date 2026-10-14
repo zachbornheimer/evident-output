@@ -467,3 +467,46 @@ func TestStoreConsultAndCommitAreSafeConcurrently(t *testing.T) {
 		}
 	}
 }
+
+// TestManifestWriteSyncsDirectory pins the durability half of the
+// temp+fsync+rename contract: after the rename, the manifest's directory is
+// fsynced so the new name survives a crash, and a failed directory sync is
+// reported, not swallowed.
+func TestManifestWriteSyncsDirectory(t *testing.T) {
+	dir := t.TempDir()
+	s, err := OpenManifest(context.Background(), ManifestConfig{StateDir: dir}, fakeEnvironment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var synced []string
+	var renamedBeforeSync bool
+	s.syncDir = func(path string) error {
+		synced = append(synced, path)
+		_, statErr := os.Stat(s.path)
+		renamedBeforeSync = statErr == nil
+		return nil
+	}
+	if err := s.CommitTask(context.Background(), ApplicationRecord{ID: "app"}, TaskRecord{Key: "t1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Flush(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(synced) != 1 || synced[0] != filepath.Dir(s.path) {
+		t.Fatalf("directory syncs = %v, want exactly [%q]", synced, filepath.Dir(s.path))
+	}
+	if !renamedBeforeSync {
+		t.Fatal("directory was synced before the manifest was renamed into place")
+	}
+
+	boom := errors.New("dir fsync refused")
+	s.syncDir = func(string) error { return boom }
+	if err := s.CommitTask(context.Background(), ApplicationRecord{ID: "app"}, TaskRecord{Key: "t2"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Flush(context.Background()); !errors.Is(err, boom) {
+		t.Fatalf("Flush error = %v, want the directory sync failure", err)
+	}
+	s.syncDir = func(string) error { return nil }
+	_ = s.Close()
+}

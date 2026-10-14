@@ -33,6 +33,9 @@ type ManifestStore struct {
 	// write persists one encoded document; writeAtomic unless a test
 	// substitutes it.
 	write func(raw []byte) error
+	// syncDir makes the manifest's name durable after the rename; sysfs.SyncDir
+	// unless a test substitutes it.
+	syncDir func(dir string) error
 
 	mu      sync.Mutex
 	settled *sync.Cond
@@ -88,7 +91,7 @@ func OpenManifest(ctx context.Context, cfg ManifestConfig, env ManifestEnvironme
 }
 
 func newManifestStore(path string, lock *sysfs.FileLock) *ManifestStore {
-	s := &ManifestStore{path: path, lock: lock}
+	s := &ManifestStore{path: path, lock: lock, syncDir: sysfs.SyncDir}
 	s.write = s.writeAtomic
 	s.settled = sync.NewCond(&s.mu)
 	return s
@@ -254,7 +257,8 @@ func (s *ManifestStore) writeLoop() {
 // writeAtomic writes raw, an encoded document, to a temp file in the same
 // directory, fsyncs it, and renames it over the manifest path — the
 // temp+fsync+rename contract spec §11.3 requires so a crash mid-write never
-// leaves a half-written manifest.
+// leaves a half-written manifest, then fsyncs the directory so the rename
+// itself survives a crash.
 func (s *ManifestStore) writeAtomic(raw []byte) error {
 	dir := filepath.Dir(s.path)
 	tmp, err := sysfs.CreateTemp(dir, ".manifest-*.tmp")
@@ -283,6 +287,9 @@ func (s *ManifestStore) writeAtomic(raw []byte) error {
 	if err := sysfs.Rename(tmpPath, s.path); err != nil {
 		_ = sysfs.Remove(tmpPath)
 		return fmt.Errorf("manifest: rename %q to %q: %w", tmpPath, s.path, err)
+	}
+	if err := s.syncDir(dir); err != nil {
+		return fmt.Errorf("manifest: fsync directory %q after renaming %q: %w", dir, s.path, err)
 	}
 	return nil
 }
