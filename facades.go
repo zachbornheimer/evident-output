@@ -51,7 +51,7 @@ type processRunner = process.Runner
 // Capture-flush failure is wrapped with the resolved executable path here
 // (rather than left bare) since the caller's own wrap only knows
 // ExecSpec.Executable, not the path Evo actually resolved and tried to run.
-func (e changeEngine) Spawn(ctx context.Context, id record.TaskID, cmd change.SpawnCommand) (change.ExecResult, error) {
+func (e runHost) Spawn(ctx context.Context, id record.TaskID, cmd change.SpawnCommand) (change.ExecResult, error) {
 	o := e.out
 	task := &Task{out: o, id: string(id)}
 	ev := task.capture(activityFeed(func(line string) { task.Doing(line) }))
@@ -95,10 +95,7 @@ func (t *Task) capture(opts ...captureOption) *record.Capture {
 	if st == nil {
 		return newCapture(o, "", opts)
 	}
-	if st.evidence == nil {
-		st.evidence = newCapture(o, st.name, opts)
-	}
-	return st.evidence
+	return st.node.Rec.CaptureOr(func() *record.Capture { return newCapture(o, st.name, opts) })
 }
 
 // newCapture is a Capture that redacts through o's Redactor.

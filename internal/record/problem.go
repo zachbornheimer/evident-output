@@ -90,6 +90,11 @@ func SplitWrappedMessage(format string, err error) (summary, evidence string) {
 	return full, evidence
 }
 
+// CodeVerificationUnsatisfied marks a Task whose Verify still failed after
+// its callback succeeded (§9.1): the callback ran, but its intended effect
+// could not be confirmed.
+const CodeVerificationUnsatisfied = "verification-unsatisfied"
+
 // SanitizeProblem neutralizes CSI/control sequences in all human-visible
 // fields. Item, Task, and any future entity store problems only through
 // this helper so presentation paths cannot diverge on terminal safety

@@ -30,6 +30,9 @@ type Task struct {
 	verifyEvidence TaskEvidence
 	skipped        []TaxonomyRecord
 	kept           []TaxonomyRecord
+	// capture is the output the Task's child processes wrote, once any
+	// writer asked for it.
+	capture *Capture
 
 	// settled is set by Settle and never cleared.
 	settled bool
@@ -511,4 +514,24 @@ func CloneTaxonomy(in []TaxonomyRecord) []TaxonomyRecord {
 		}
 	}
 	return out
+}
+
+// CaptureOr is the Task's retained process output, made by newCapture on
+// first use: every writer the Task hands out shares the one Capture, so the
+// tail a failure shows holds every line any of them wrote.
+func (t *Task) CaptureOr(newCapture func() *Capture) *Capture {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	if t.capture == nil {
+		t.capture = newCapture()
+	}
+	return t.capture
+}
+
+// Captured is the Task's retained process output, nil when nothing asked for
+// it.
+func (t *Task) Captured() *Capture {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return t.capture
 }

@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
 // claimedTaskTrials repeats a race until a window a few instructions wide has
@@ -26,7 +28,7 @@ func claimWithStartedHeld(o *Run, b *Task, executing int, run func() error) (rel
 	gate := make(chan struct{})
 	o.mu.Lock()
 	st := o.taskStates[b.id]
-	work := o.workOf(st, run)
+	work := graph.WorkOf(o.graph, st.node, o.definition(st, func(context.Context) error { return run() }))
 	started := work.Started
 	work.Started = func() bool { <-gate; return started() }
 	o.graph.Submit(st.node, work)

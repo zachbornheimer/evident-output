@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/freshness"
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 // manifestOutput is an isolated plain Output whose manifest lives in
@@ -95,13 +96,13 @@ func TestManifestSaveFailureIsReported(t *testing.T) {
 
 // TestBasisJudgedAfterCloseIsErrClosed: judging a Task's Basis once the
 // Output closed reports ErrClosed, the one "closed" sentinel File and Exec
-// report through manifestFor.
+// report through the manifest store.
 func TestBasisJudgedAfterCloseIsErrClosed(t *testing.T) {
 	out, _ := manifestOutput(t.TempDir())
 	task := out.Task("late")
 	task.basis(freshness.Value("v", "x"))
 	_ = out.close()
-	if _, err := task.basisIsCurrent(context.Background()); !errors.Is(err, errClosed) {
-		t.Fatalf("basisIsCurrent after Close = %v, want errors.Is ErrClosed", err)
+	if _, err := out.freshness.Checks(record.TaskID(task.id)).Current(context.Background()); !errors.Is(err, errClosed) {
+		t.Fatalf("Basis check after Close = %v, want errors.Is ErrClosed", err)
 	}
 }

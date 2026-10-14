@@ -54,6 +54,7 @@ type Graph struct {
 	idSeq  atomic.Uint64
 	limit  int
 	misuse MisuseSink
+	host   Host
 
 	mu         record.Mutex
 	closed     bool

@@ -21,25 +21,40 @@ type RunConfig struct {
 	// closed: the caller's own sentinel, so a call after Close fails the
 	// way every other call after Close does.
 	Closed error
+	// DryRun reports whether the run only plans its work.
+	DryRun func() bool
+	// Narration hears what the Run judged about each Task.
+	Narration Narration
 }
 
 // Run decides, for one Run, whether each Task's work is needed. It finds a
 // Task by its id in the graph, so the caller keeps no freshness state of its
 // own. It is safe for concurrent use and takes no lock of the caller's.
 type Run struct {
-	graph   *graph.Graph
-	session *ManifestSession
-	tasks   *TaskTable
-	closed  error
+	graph     *graph.Graph
+	session   *ManifestSession
+	tasks     *TaskTable
+	closed    error
+	dryRun    func() bool
+	narration Narration
 }
 
 // NewRun is the freshness side of the Run whose Tasks g declares.
 func NewRun(g *graph.Graph, cfg RunConfig) *Run {
-	closed := cfg.Closed
-	if closed == nil {
-		closed = ErrManifestSessionClosed
+	r := &Run{
+		graph: g, session: NewManifestSession(cfg.Where), tasks: NewTaskTable(),
+		closed: cfg.Closed, dryRun: cfg.DryRun, narration: cfg.Narration,
 	}
-	return &Run{graph: g, session: NewManifestSession(cfg.Where), tasks: NewTaskTable(), closed: closed}
+	if r.closed == nil {
+		r.closed = ErrManifestSessionClosed
+	}
+	if r.dryRun == nil {
+		r.dryRun = func() bool { return false }
+	}
+	if r.narration == nil {
+		r.narration = silence{}
+	}
+	return r
 }
 
 // ModeFor is the mode of a Run that only plans its work when dryRun is set.
@@ -130,3 +145,9 @@ func SpecBasis(inputs []string, values map[string]string, explicit []Fingerprint
 	}
 	return basis
 }
+
+// silence is the Narration of a Run nobody reads.
+type silence struct{}
+
+func (silence) BasisJudged(record.TaskID, BasisJudgement)            {}
+func (silence) VerifierObserved(record.TaskID, int, VerifierOutcome) {}

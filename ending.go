@@ -18,7 +18,7 @@ import (
 // Finish validates, computes conclusion, emits final projections.
 // Projection I/O runs outside the domain lock (§17.1).
 func (o *Run) finish() error {
-	o.drainScheduler()
+	o.graph.Drain()
 	o.saveManifest()
 	o.mu.Lock()
 	if o.finished {
@@ -102,7 +102,8 @@ func (o *Run) settleUnresolvedTasksLocked() {
 			continue
 		}
 		if t.node.Rec.ProblemCount() > 0 || o.hasRecordedEffectLocked(t.id) || hasSealedProgress(t) || hasRecordedTaxonomy(t) || t.node.Rec.WarningCount() > 0 {
-			o.settleLocked(t, succeeded)
+			o.graph.Settle(t.node, succeeded)
+			o.followRecordLocked()
 			continue
 		}
 		if !abnormal {
@@ -118,7 +119,8 @@ func (o *Run) settleUnresolvedTasksLocked() {
 			// into Conclusion.Partial), not bookkeeping the caller must fix.
 			// The hint still names the corrective action either way.
 			t.node.Rec.SetSummary(unresolvedTaskIncompleteSummary)
-			o.settleLocked(t, incomplete)
+			o.graph.Settle(t.node, incomplete)
+			o.followRecordLocked()
 			attachUnresolvedTaskHintLocked(t)
 			continue
 		}
@@ -281,11 +283,13 @@ func hasRecordedTaxonomy(t *taskState) bool {
 func (o *Run) resolveUnstartedTaskLocked(t *taskState) {
 	if t.node.Rec.State() == running {
 		t.node.Rec.SetSummary(unresolvedTaskCancelledSummary)
-		o.settleLocked(t, cancelled)
+		o.graph.Settle(t.node, cancelled)
+		o.followRecordLocked()
 		return
 	}
 	t.node.Rec.SetSummary(notStartedSummary)
-	o.settleLocked(t, notStarted)
+	o.graph.Settle(t.node, notStarted)
+	o.followRecordLocked()
 }
 
 // abnormalFinishLocked reports whether the run already carries a real Failed
@@ -335,7 +339,8 @@ func (o *Run) autoResolveGroupsLocked() {
 				continue
 			}
 			t.node.Rec.SetSummary(notStartedSummary)
-			o.settleLocked(t, notStarted)
+			o.graph.Settle(t.node, notStarted)
+			o.followRecordLocked()
 		}
 	}
 }
@@ -389,79 +394,32 @@ func (o *Run) rejectedGroup(err error) *Group {
 	return &Group{out: o, id: o.graph.NextID("tasks"), rejected: err}
 }
 
-// --- folded from run_outcome.go ---
-
 // end records the ending the run body returned (see endingOf).
 func (o *Run) end(err error) {
 	o.endWith(endingOf(err))
 }
 
-// endWith settles a synthetic Task that carries the run's own ending: state
-// and the Problem that says why.
+// endWith settles the run's own ending, state and the Problem that says why,
+// on the Task the graph invents for it.
 func (o *Run) endWith(state entityState, p problem) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		return
-	}
-	// Synthetic task for conclusion.
-	name := txt.Text(o.cfg.subject)
-	if name == "" {
-		name = identityFallbackName()
-	}
-	o.appendSyntheticTaskLocked(name, record.TaskInit{State: state, Problems: []problem{p}})
-	o.bumpLocked()
-	o.appendEventLocked(recEvent{Type: "output." + string(state)})
+	o.graph.EndRun(o.endingName(), record.TaskInit{State: state, Problems: []problem{p}})
 }
 
-// Cancel records output-level cancellation via a synthetic cancelled task.
+// cancel records output-level cancellation.
 func (o *Run) cancel(reason string) {
+	o.graph.EndRun(o.endingName(), record.TaskInit{State: cancelled, Summary: txt.Text(reason)})
+}
+
+// endingName names the Task that carries the run's own ending: the
+// configured subject, else the executable's name.
+func (o *Run) endingName() string {
 	o.mu.Lock()
-	defer o.mu.Unlock()
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		return
-	}
 	name := txt.Text(o.cfg.subject)
-	if name == "" {
-		name = identityFallbackName()
+	o.mu.Unlock()
+	if name != "" {
+		return name
 	}
-	o.appendSyntheticTaskLocked(name, record.TaskInit{State: cancelled, Summary: txt.Text(reason)})
-	o.bumpLocked()
-	o.appendEventLocked(recEvent{Type: "output.cancelled"})
-}
-
-// appendSyntheticTaskLocked adds the Task the library invents to carry an
-// output-level outcome: one the caller never declared, already settled.
-func (o *Run) appendSyntheticTaskLocked(name string, init record.TaskInit) {
-	node := o.graph.AddTerminalTask(name, init)
-	o.appendTaskLocked(&taskState{
-		id:        node.ID,
-		node:      node,
-		name:      node.Name,
-		synthetic: true,
-	})
-}
-
-// --- folded from settle.go ---
-
-// settleLocked is the one way a Task reaches a terminal state: it hands the
-// Task to the graph (see graph.Graph.Settle), which owns the scheduling
-// bookkeeping a terminal transition owes. What the render state owes it (the
-// snapshot version, the task.<state> recEvent, the live census and filing, the
-// plain heartbeat) is the engine listener's job: it hears the transition
-// once the lock is free (see outputListener).
-//
-// The render work is answered here, at the transition, so a journal read
-// later in the same section sees the task.<state> event in order; the
-// listener answers a settle made anywhere else.
-//
-// Callers own only what differs between paths: the summary, the Problems,
-// and where the settled row is committed. Callers must already hold o.mu.
-func (o *Run) settleLocked(st *taskState, state entityState) {
-	o.graph.Settle(st.node, state)
-	o.followRecordLocked()
+	return identityFallbackName()
 }
 
 type Outcome string
@@ -510,10 +468,4 @@ func endingOf(err error) (entityState, problem) {
 		return failed, record.ApplyProblemOptions(txt.Text(err.Error()), nil)
 	}
 	return entityState(ending.outcome), applyProblemOptions(txt.Text(ending.summary), ending.opts)
-}
-
-// settleEnding settles the Task with the ending its callback returned.
-func (t *Task) settleEnding(err error) {
-	state, p := endingOf(err)
-	t.resolveScheduled(state, p.Summary, []problem{p})
 }

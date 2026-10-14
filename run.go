@@ -1094,10 +1094,6 @@ const (
 	// reconciliation, so declaration fails instead of returning an
 	// ambiguous handle.
 	problemCodeDuplicateSiblingName = "duplicate-sibling-name"
-	// ProblemCodeVerificationUnsatisfied marks a Task whose post-Define
-	// Verify observed that the desired state was not reached (§9.1): the
-	// callback ran but its intended effect could not be confirmed.
-	problemCodeVerificationUnsatisfied = "verification-unsatisfied"
 )
 
 // containerNode is col's declaration in the graph, nil for the root (col == nil).
@@ -1128,7 +1124,8 @@ func (o *Run) failDuplicateSiblingLocked(col *tasksState, kind graph.EntityKind,
 		Code:    problemCodeDuplicateSiblingName,
 		Summary: fmt.Sprintf("duplicate %s name", kind),
 	})
-	o.settleLocked(st, failed)
+	o.graph.Settle(st.node, failed)
+	o.followRecordLocked()
 	o.recordMisuseFor(name, errDuplicateSiblingName)
 	return rejected
 }
@@ -1681,10 +1678,11 @@ func withFileFS(fsys fs.FS) option {
 
 // --- folded from capability.go ---
 
-// changeEngine is the Run as change borrows it: its lock, its settings, its
-// live rows and its edge to the reader. change builds its Host over it (see
-// change.NewHost) and makes every record write a change owes itself.
-type changeEngine struct{ out *Run }
+// runHost is the Run as graph, freshness and change borrow it: its lock,
+// its settings, its live rows and its edge to the reader. It implements
+// graph.Host, freshness.Narration and change.Engine; the packages make every
+// record write they owe themselves.
+type runHost struct{ out *Run }
 
 // resourceWaitingPrefix opens the live activity a Task shows while one of its
 // claims waits on a conflicting holder.
@@ -1692,21 +1690,21 @@ const resourceWaitingPrefix = "waiting for "
 
 // newChangeHost is the Host this Run's changes report through.
 func (o *Run) newChangeHost() change.Host {
-	return change.NewHost(change.HostParts{Engine: changeEngine{out: o}, Record: o.rec, Graph: o.graph, Freshness: o.freshness})
+	return change.NewHost(change.HostParts{Engine: runHost{out: o}, Record: o.rec, Graph: o.graph, Freshness: o.freshness})
 }
 
-func (e changeEngine) Lock()   { e.out.mu.Lock() }
-func (e changeEngine) Unlock() { e.out.mu.Unlock() }
+func (e runHost) Lock()   { e.out.mu.Lock() }
+func (e runHost) Unlock() { e.out.mu.Unlock() }
 
 // DryRun reports whether the Run plans its changes instead of making them.
-func (e changeEngine) DryRun() bool {
+func (e runHost) DryRun() bool {
 	e.out.mu.Lock()
 	defer e.out.mu.Unlock()
 	return e.out.cfg.dryRun
 }
 
 // FS is the filesystem File performs I/O through.
-func (e changeEngine) FS() fs.FS {
+func (e runHost) FS() fs.FS {
 	e.out.mu.Lock()
 	defer e.out.mu.Unlock()
 	return e.out.cfg.fileFS
@@ -1715,7 +1713,7 @@ func (e changeEngine) FS() fs.FS {
 // LedgerTense is the tense id's rows take: the shared guard (open, not yet
 // resolved) behind every change a Task records. A Task the Run does not
 // know fails without misuse.
-func (e changeEngine) LedgerTense(id record.TaskID) (record.LedgerTense, error) {
+func (e runHost) LedgerTense(id record.TaskID) (record.LedgerTense, error) {
 	o := e.out
 	st := o.taskStates[string(id)]
 	if st == nil {
@@ -1732,7 +1730,7 @@ func (e changeEngine) LedgerTense(id record.TaskID) (record.LedgerTense, error) 
 }
 
 // CheckOpen refuses a write once the Run is closing.
-func (e changeEngine) CheckOpen() error {
+func (e runHost) CheckOpen() error {
 	err := e.out.ensureOpen()
 	if err != nil {
 		e.out.recordMisuse(err)
@@ -1741,16 +1739,16 @@ func (e changeEngine) CheckOpen() error {
 }
 
 // RecordMisuse fails the Run with err.
-func (e changeEngine) RecordMisuse(err error) { e.out.recordMisuse(err) }
+func (e runHost) RecordMisuse(err error) { e.out.recordMisuse(err) }
 
 // NoteManifestWarning surfaces a manifest's safe cache-miss warning
 // (corrupt or unknown prior manifest, spec §11.3) as a run-scoped Fact,
 // never as an error: a miss is always safe to continue past.
-func (e changeEngine) NoteManifestWarning(warning error) { e.out.Fact("manifest", warning.Error()) }
+func (e runHost) NoteManifestWarning(warning error) { e.out.Fact("manifest", warning.Error()) }
 
 // ShowWaiting makes id's row read "waiting for <label>" and returns the
 // function that restores what it showed before.
-func (e changeEngine) ShowWaiting(id record.TaskID, label string) (restore func()) {
+func (e runHost) ShowWaiting(id record.TaskID, label string) (restore func()) {
 	o, taskID := e.out, string(id)
 	text := txt.Text(resourceWaitingPrefix + label)
 	o.mu.Lock()
@@ -1773,14 +1771,14 @@ func (e changeEngine) ShowWaiting(id record.TaskID, label string) (restore func(
 }
 
 // SectionOpened journals a ledger section a change opened.
-func (e changeEngine) SectionOpened(_ record.TaskID, section string, tense record.LedgerTense) {
+func (e runHost) SectionOpened(_ record.TaskID, section string, tense record.LedgerTense) {
 	e.out.bumpLocked()
 	e.out.appendEventLocked(recEvent{Type: tense.DeclaredEvent(), EntityID: section})
 }
 
 // EntryRecorded journals a ledger row a change recorded and narrates it as
 // the §38 effect line: planned in a planned run, committed otherwise.
-func (e changeEngine) EntryRecorded(task record.TaskID, row change.LedgerRow) {
+func (e runHost) EntryRecorded(task record.TaskID, row change.LedgerRow) {
 	o := e.out
 	if row.Added {
 		o.bumpLocked()
@@ -1795,7 +1793,7 @@ func (e changeEngine) EntryRecorded(task record.TaskID, row change.LedgerRow) {
 
 // VerificationRecorded files the Task's row again and narrates each detail
 // as the sanitized copy evo.run projects, so JSONL and JSON agree.
-func (e changeEngine) VerificationRecorded(task record.TaskID, details []record.VerificationDetail) {
+func (e runHost) VerificationRecorded(task record.TaskID, details []record.VerificationDetail) {
 	o := e.out
 	if st := o.taskStates[string(task)]; st != nil {
 		st.markFiling()
@@ -1805,10 +1803,184 @@ func (e changeEngine) VerificationRecorded(task record.TaskID, details []record.
 	}
 }
 
+// stateOf is the render state of the graph's Task t. Callers hold o.mu.
+func (o *Run) stateOf(t *graph.Task) *taskState { return o.taskStates[t.ID] }
+
+// Ending is the state and Problem a callback's returned error settles.
+func (runHost) Ending(err error) (record.State, record.Problem) { return endingOf(err) }
+
+// Submitted follows the record once work was submitted.
+func (e runHost) Submitted(*graph.Task) { e.out.followRecordLocked() }
+
+// Started is the render work a claimed Task owes: the eligibility event, the
+// move to Running, the snapshot version and a forced paint, within the live
+// render budget, since a start is the spinner FP-005 requires before the
+// check. It reports whether the Task began: false when an interrupt settled
+// it between its claim and this step, so the scheduler skips its callback.
+func (e runHost) Started(t *graph.Task) bool {
+	if t.IsGate() {
+		return true
+	}
+	o := e.out
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.followRecordLocked()
+	st := o.stateOf(t)
+	if st == nil || record.IsTerminalTask(t.Rec.State()) {
+		// An interrupt settled the Task between its claim and this step: it
+		// never started, so it is neither eligible nor started.
+		return false
+	}
+	o.emitWireEventLocked(wire.EventTaskEligible, st.id, nil)
+	if t.Rec.State() == pending {
+		o.promoteRunningLocked(st)
+	} else {
+		o.announceRunningLocked(st)
+	}
+	o.bumpLocked()
+	o.signalLiveLocked(true)
+	return true
+}
+
+// Resolving lets a running row finish its spinner frame before it resolves.
+func (e runHost) Resolving(t *graph.Task) { e.out.holdRunningPaint(t.ID) }
+
+// AlreadyResolved records a second terminal verb on t as misuse, keeping
+// the rejected call's own summary so the misuse line can show what got
+// dropped (release-gate round 5 finding 4).
+func (e runHost) AlreadyResolved(t *graph.Task, summary string) {
+	e.out.recordAlreadyResolvedLocked(t.Name, summary)
+}
+
+// Disowned disowns every Effect in flight for t: an Effect whose callback
+// resolved its own Task as anything but Done and then returned nil handled
+// the failure itself, and its work must not reach the ledger.
+func (e runHost) Disowned(t *graph.Task) {
+	if id := t.TaskID(); e.out.changes.EffectInFlight(id) {
+		e.out.changes.DenyEffect(id)
+	}
+}
+
+// Settled follows the record and writes the settled Task where its readers
+// find it. A Group or Sequence child repaints the live ledger; a standalone
+// Task commits its row and its own File/Exec ledger rows to scrollback at
+// once, so later Printf/Confirm output can never land above finished work.
+// A Done Task commits its manifest record; Failed, Blocked, and Cancelled
+// never do (spec §8.2/§11.3).
+func (e runHost) Settled(t *graph.Task) {
+	o := e.out
+	o.followRecordLocked()
+	st := o.stateOf(t)
+	if st == nil {
+		return
+	}
+	if st.collection() != nil {
+		o.signalLiveLocked(true)
+	} else {
+		o.commitResolvedTaskLocked(st.id)
+		o.commitNamedEffectsLocked(st.id)
+	}
+	if t.Rec.State().Succeeded() {
+		o.commitManifestLocked(st)
+	}
+}
+
+// commitManifestLocked persists st's accumulated operations as this Run's
+// truth (spec §11.3) once it settled Done, and narrates the commit; see
+// freshness.Run.Commit. Callers hold o.mu.
+func (o *Run) commitManifestLocked(st *taskState) {
+	commit := o.freshness.Commit(o.graph.Context(), record.TaskID(st.id), freshness.ModeFor(o.cfg.dryRun))
+	if commit.Err != nil {
+		o.warnManifestUnsavedLocked(commit.Err)
+		return
+	}
+	if commit.Written {
+		o.emitWireEventLocked(wire.EventManifestTaskCommitted, st.id, map[string]any{
+			"operations": commit.Operations,
+		})
+	}
+}
+
+// RunEnded registers the synthetic Task that carries the run's own ending:
+// one the caller never declared, already settled.
+func (e runHost) RunEnded(t *graph.Task) {
+	o := e.out
+	o.appendTaskLocked(&taskState{id: t.ID, node: t, name: t.Name, synthetic: true})
+	o.bumpLocked()
+	o.appendEventLocked(recEvent{Type: "output." + string(t.Rec.State())})
+}
+
+// DefinitionStarted narrates that t's callback was entered and files its
+// row again.
+func (e runHost) DefinitionStarted(t *graph.Task) {
+	o := e.out
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.emitWireEventLocked(wire.EventDefinitionStarted, t.ID, nil)
+	if st := o.stateOf(t); st != nil {
+		st.markFiling()
+	}
+}
+
+// DefinitionFinished narrates that t's callback returned.
+func (e runHost) DefinitionFinished(t *graph.Task, failed bool) {
+	o := e.out
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.emitWireEventLocked(wire.EventDefinitionFinished, t.ID, map[string]any{"failed": failed})
+}
+
+// EvidenceEvaluated narrates one evidence phase (§30) as evidence.evaluated.
+func (e runHost) EvidenceEvaluated(t *graph.Task, phase graph.EvidencePhase, evidence record.EvidencePhase) {
+	name := "before_definition"
+	if phase == graph.EvidenceAfter {
+		name = "after_definition"
+	}
+	o := e.out
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.emitWireEventLocked(wire.EventEvidenceEvaluated, t.ID, map[string]any{
+		"phase":     name,
+		"evaluated": evidence.Evaluated,
+		"satisfied": evidence.Satisfied,
+		"source":    evidence.Source,
+	})
+}
+
+// BasisJudged narrates the verdict on a Task's Basis as basis.fingerprinted.
+func (e runHost) BasisJudged(id record.TaskID, judgement freshness.BasisJudgement) {
+	o := e.out
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.emitWireEventLocked(wire.EventBasisFingerprinted, string(id), map[string]any{
+		"count": len(judgement.Observed), "current": judgement.Current,
+	})
+}
+
+// VerifierObserved narrates one Verify check's outcome as
+// verification.observed (spec §38), named by its registration order since
+// Verify registers anonymous funcs.
+func (e runHost) VerifierObserved(id record.TaskID, index int, outcome freshness.VerifierOutcome) {
+	status := wire.VerificationUnsatisfied
+	switch outcome {
+	case freshness.VerifierErrored:
+		status = wire.VerificationError
+	case freshness.VerifierSatisfied:
+		status = wire.VerificationSatisfied
+	}
+	o := e.out
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.emitWireEventLocked(wire.EventVerificationObserved, string(id), wire.VerificationDoc{
+		Name:   fmt.Sprintf("verify_%d", index),
+		Status: status,
+	}.EventPayload())
+}
+
 // Observe narrates one step of a tracked operation as the §38 "evo.event"
 // line it has always been: change speaks of subjects and steps, the wire
 // vocabulary stays at this edge.
-func (e changeEngine) Observe(ob change.Observation) {
+func (e runHost) Observe(ob change.Observation) {
 	e.out.emitWireEventLocked(observationEvent(ob.Kind), string(ob.Task), observationPayload(ob))
 }
 
@@ -1860,107 +2032,6 @@ func observationPayload(ob change.Observation) map[string]any {
 }
 
 // --- folded from conjugate.go ---
-
-// --- folded from execution.go ---
-
-// Define lives in verify.go, alongside its Verify-aware execution wiring
-// (runDefine) — both are one concern (§7, §9.1). The graph owns the executor:
-// when a callback starts, how many run at once, and what a stall or an
-// interrupt does to the Tasks behind it (see graph.Graph.Kick).
-
-func (t *Task) submitWork(run func() error) {
-	if t == nil || t.out == nil {
-		return
-	}
-	o := t.out
-	o.mu.Lock()
-	st := o.taskStates[t.id]
-	if st == nil {
-		o.mu.Unlock()
-		return
-	}
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		o.mu.Unlock()
-		return
-	}
-	// §48: a predecessor that already failed settles this Task NotStarted
-	// right here, under the same lock, and so does an interrupt.
-	switch o.graph.Submit(st.node, o.workOf(st, run)) {
-	case graph.AlreadySettled:
-		o.recordMisuseFor(st.name, errAlreadyResolved)
-		o.mu.Unlock()
-		return
-	case graph.AlreadySubmitted:
-		o.recordMisuse(errInvalidConfig)
-		o.mu.Unlock()
-		return
-	}
-	o.followRecordLocked()
-	o.mu.Unlock()
-	o.graph.Kick()
-}
-
-// workOf is what the graph runs for st: the callback, and the engine's own
-// steps around it.
-func (o *Run) workOf(st *taskState, run func() error) graph.Work {
-	return graph.Work{
-		Started:  func() bool { return o.taskStarted(st) },
-		Run:      run,
-		Observed: func(err error) { o.resolveObserved(st, err) },
-		Panicked: st.handle.failScheduled,
-	}
-}
-
-// taskStarted is the render work a claimed Task owes: the eligibility recEvent,
-// the move to Running, the snapshot version and a forced paint, within the
-// live render budget, since a start is the spinner FP-005 requires before the
-// check. It reports whether the Task began: false when an interrupt settled
-// it between its claim and this step, so the scheduler skips its callback.
-func (o *Run) taskStarted(st *taskState) bool {
-	if st.isGate() {
-		return true
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.followRecordLocked()
-	if record.IsTerminalTask(st.node.Rec.State()) {
-		// An interrupt settled the Task between its claim and this step: it
-		// never started, so it is neither eligible nor started.
-		return false
-	}
-	o.emitWireEventLocked(wire.EventTaskEligible, st.id, nil)
-	if st.node.Rec.State() == pending {
-		o.promoteRunningLocked(st)
-	} else {
-		o.announceRunningLocked(st)
-	}
-	o.bumpLocked()
-	o.signalLiveLocked(true)
-	return true
-}
-
-// resolveObserved commits the task's outcome from what the callback actually
-// returned, ratifying or discarding the caller's proposal (see
-// Task.finish). A ratified proposal supplies the row's summary — the
-// caller's own words, now backed by an observation. A returned error
-// replaces the proposal: it was never a resolution, so it earns no
-// "resolve each task once" misuse line (E-113).
-func (o *Run) resolveObserved(st *taskState, err error) {
-	observation := o.graph.Observe(st.node, err)
-	switch observation.Kind {
-	case graph.ObservedFailure:
-		st.handle.settleEnding(err)
-	case graph.ObservedProposal:
-		proposal := observation.Proposal
-		st.handle.resolveScheduled(proposal.State, proposal.Summary, proposal.Problems)
-	default:
-		st.handle.succeedScheduled()
-	}
-}
-
-// drainScheduler runs the queue to empty.
-func (o *Run) drainScheduler() { o.graph.Drain() }
 
 // --- folded from interrupt.go ---
 
@@ -2035,7 +2106,8 @@ func (o *Run) cancelPendingConfirmLocked(reason string) bool {
 	}
 	if st := o.taskStates[id]; st != nil && !record.IsTerminalTask(st.node.Rec.State()) {
 		st.node.Rec.SetSummary(reason)
-		o.settleLocked(st, cancelled)
+		o.graph.Settle(st.node, cancelled)
+		o.followRecordLocked()
 		o.commitResolvedTaskLocked(id)
 	}
 	return true
@@ -2301,33 +2373,12 @@ var (
 // one more so a second Ctrl-C arriving during cleanup is never dropped.
 const signalChannelCapacity = 2
 
-// --- folded from verify.go ---
-
-// verifyEvidenceSource names Verify as the evidence source recorded on a
-// TaskSnapshot's Evidence phases (§30).
-const verifyEvidenceSource = "verify"
-
-// operationsEvidenceSource names Evo-native tracked operations (evo.File,
-// evo.Exec in a later increment) as the after-Define evidence source (§9.2:
-// "derive post-definition Evidence when modeled proof exists") — used only
-// when the Task registered no explicit Verify, so the two sources never
-// compete for the same phase.
-const operationsEvidenceSource = "operations"
-
-// errVerificationUnsatisfied is runDefine's internal signal that a
-// post-Define Verify observed the desired state was not reached — the task
-// is already failed (with ProblemCodeVerificationUnsatisfied) by the time
-// this is returned; its only remaining job is to read non-nil to
-// executeWork's generic "already resolved by the callback" branch (see
-// Task.finish/resolveScheduled) so sequence followers still cascade.
-var errVerificationUnsatisfied = errors.New("evo: postcondition not satisfied")
-
 // Verify registers an advanced current-state observation check (§9.1),
 // ANDed with any previously registered check on this Task. Must be called
 // before Define — dependency/verification/execution configuration freezes
 // at Define — a call after Define is ignored and recorded as misuse.
 //
-// Define's own execution wiring (see runDefine) runs every registered
+// Define's own execution wiring (see graph.Define) runs every registered
 // Verify twice: once before the callback (with the Task already Running) —
 // all true skips the callback entirely and settles the Task Satisfied;
 // any false enters the callback; an
@@ -2336,11 +2387,10 @@ var errVerificationUnsatisfied = errors.New("evo: postcondition not satisfied")
 // ProblemCodeVerificationUnsatisfied and an observation error fails it
 // plainly. Neither check commits a success record on its own; only a fully
 // satisfied pass (pre- or post-) does. The after-check is skipped in two
-// cases only (hasPostStateToVerify): Define resolved the Task itself
-// (Block, or Kept/Skipped with no Effect committed first), or a dry run or
-// preview skipped an Effect Define planned, so the observed state is the
-// one before the plan. A planned run whose Define planned nothing is
-// checked like a real one.
+// cases only: Define resolved the Task itself (Block, or Kept/Skipped with
+// no Effect committed first), or a dry run or preview skipped an Effect
+// Define planned, so the observed state is the one before the plan. A
+// planned run whose Define planned nothing is checked like a real one.
 func (t *Task) Verify(fn func(context.Context) (bool, error)) *Task {
 	if t == nil || t.out == nil || fn == nil {
 		return t
@@ -2363,17 +2413,16 @@ func (t *Task) Verify(fn func(context.Context) (bool, error)) *Task {
 // Define freezes this Task's dependency/verification configuration and
 // submits fn to the scheduler (§7): Define itself returns immediately after
 // submission, before fn ever runs; the scheduler starts fn as soon as the
-// Task is eligible; fn's error becomes the Task's outcome (see runDefine for
-// the Verify-aware resolution wiring); evo.Run/evo.Main wait for every
-// submitted Task before returning their Result.
+// Task is eligible; fn's error becomes the Task's outcome (see graph.Define
+// for the Verify-aware wiring); evo.Run/evo.Main wait for every submitted
+// Task before returning their Result.
 //
 // Define returns the same *Task (ZYS-849 Decisions) so the common
 // single-Task shape can be written `return task.Define(fn).Wait()`. This is
 // fluent sugar only — it does not change Define's asynchronous submission:
 // fn still runs on the scheduler, not inline before Define returns.
 //
-// A second Define on the same Task is misuse (submitWork's own
-// already-submitted guard) — configuration freezes once.
+// A second Define on the same Task is misuse — configuration freezes once.
 func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Task {
 	if t == nil || t.out == nil {
 		return t
@@ -2385,276 +2434,23 @@ func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Tas
 	}
 	o.mu.Lock()
 	st := o.taskStates[t.id]
+	o.mu.Unlock()
 	if st == nil {
 		o.recordMisuse(t.rejected)
-		o.mu.Unlock()
 		return t
 	}
-	verifiers := o.freshness.Tasks().Verifiers(st.TaskID())
-	o.mu.Unlock()
-
 	var cfg defineConfig
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	fn = o.cleanStops.wrap(cfg.cleanStopSignals, fn)
-	t.submitWork(func() error { return t.runDefine(verifiers, fn) })
+	graph.Define(o.graph, st.node, o.definition(st, o.cleanStops.wrap(cfg.cleanStopSignals, fn)))
 	return t
 }
 
-// runDefine is Define's Verify-aware execution wiring (§7, §9.1, §29/§30).
-// It resolves the Task itself on every path except "callback returned an
-// error" and "callback returned success with nothing left to check" — those
-// two fall through to the scheduler's own generic resolution
-// (executeWork/resolveObserved) via passthroughCallbackOutcome, exactly as a
-// Verify-less Define always has.
-func (t *Task) runDefine(verifiers []freshness.Verifier, fn func(context.Context) error) error {
-	o := t.out
-	scope := graph.NewScope(o.graph, record.TaskID(t.id), o.changes)
-
-	if current, basisErr := t.basisIsCurrent(o.context()); basisErr != nil {
-		t.failScheduled(basisErr.Error())
-		return passthroughCallbackOutcome(basisErr)
-	} else if current {
-		t.satisfyScheduled()
-		return nil
-	}
-
-	if len(verifiers) > 0 {
-		allSatisfied, obsErr := evaluateVerifiers(graph.WithScope(o.context(), scope), o, t.id, verifiers)
-		if obsErr != nil {
-			o.recordEvidencePhase(t.id, evidencePhaseBefore, true, false)
-			t.failScheduled(obsErr.Error())
-			return passthroughCallbackOutcome(obsErr)
-		}
-		o.recordEvidencePhase(t.id, evidencePhaseBefore, true, allSatisfied)
-		if allSatisfied {
-			t.satisfyScheduled()
-			return nil
-		}
-	}
-
-	o.mu.Lock()
-	o.emitWireEventLocked(wire.EventDefinitionStarted, t.id, nil)
-	o.mu.Unlock()
-	o.markDefineRan(t.id)
-	callbackErr := fn(graph.WithScope(o.context(), scope))
-	o.mu.Lock()
-	scope.Close()
-	o.emitWireEventLocked(wire.EventDefinitionFinished, t.id, map[string]any{"failed": callbackErr != nil})
-	o.mu.Unlock()
-	if callbackErr != nil {
-		return passthroughCallbackOutcome(callbackErr)
-	}
-
-	if err := t.checkAfterDefine(verifiers, scope); err != nil {
-		return err
-	}
-	if o.ranOnlyCurrentOperations(t.id) {
-		t.satisfyScheduled()
-	}
-	return nil
-}
-
-// ranOnlyCurrentOperations reports whether taskID's Define found every File
-// and Exec it called already current and committed no Effect: the Task
-// settles Satisfied, though its callback ran (CONTRACT §3).
-func (o *Run) ranOnlyCurrentOperations(taskID string) bool {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	st := o.taskStates[taskID]
-	return st != nil && o.freshness.Tasks().AllCurrent(st.TaskID()) && !o.hasRecordedEffectLocked(taskID)
-}
-
-// checkAfterDefine is runDefine's post-callback evidence step: every
-// registered Verify must now hold, or, with none, tracked operations
-// supply the After phase. It returns the carrier error when the Task
-// already failed.
-func (t *Task) checkAfterDefine(verifiers []freshness.Verifier, scope *graph.Scope[*change.Run]) error {
-	o := t.out
-	switch {
-	case !t.hasPostStateToVerify():
-		// The After phase stays unevaluated.
-	case len(verifiers) > 0:
-		allSatisfied, obsErr := evaluateVerifiers(graph.WithScope(o.context(), scope), o, t.id, verifiers)
-		if obsErr != nil {
-			o.recordEvidencePhase(t.id, evidencePhaseAfter, true, false)
-			t.failScheduled(obsErr.Error())
-			return passthroughCallbackOutcome(obsErr)
-		}
-		o.recordEvidencePhase(t.id, evidencePhaseAfter, true, allSatisfied)
-		if !allSatisfied {
-			t.failScheduledWithCode(problemCodeVerificationUnsatisfied, "postcondition not satisfied")
-			return passthroughCallbackOutcome(errVerificationUnsatisfied)
-		}
-	default:
-		// No explicit Verify: derive post-Define Evidence from Evo-native
-		// tracked operations when Define recorded any (§9.2). Every
-		// operation evo.File appended to operation records already re-inspected
-		// and confirmed its own managed attributes before returning success
-		// (§8.2's "re-inspect / verify every managed attribute" step) — a
-		// mismatch there would have made callbackErr non-nil, so reaching
-		// here with a non-empty set of operation records means every tracked
-		// operation this Define touched is already known current.
-		o.recordOperationsEvidence(t.id)
-	}
-	return nil
-}
-
-// hasPostStateToVerify reports whether the state after this Task's
-// Define is one its postcondition can judge. It is not when Define
-// resolved the Task itself without committing a change (Kept, Skipped,
-// Block: it chose not to converge, so there is no change to verify,
-// E-110, E-112), nor when a dry run
-// or preview skipped a mutation Define planned (the observed state is
-// the state before the plan, E-097). A planned run whose Define planned
-// nothing left the real post-state and is checked as a real run is
-// (E-106).
-func (t *Task) hasPostStateToVerify() bool {
-	o := t.out
-	o.mu.Lock()
-	st := o.taskStates[t.id]
-	// Block resolves at once, so its terminal Task is never re-checked. A
-	// Kept or Skipped inside Define is held as an unratified proposal
-	// until the callback's return confirms it; it claims "no change" only
-	// while Define committed no Effect (E-112): a Kept after a real
-	// mutation still owes its postcondition.
-	blocked := st != nil && record.IsTerminalTask(st.node.Rec.State())
-	keptUnchanged := st != nil && st.node.HasProposal() && !o.hasRecordedEffectLocked(t.id)
-	o.mu.Unlock()
-	if blocked || keptUnchanged {
-		return false
-	}
-	return !o.cfg.dryRun || !o.hasPlannedEffect(t.id)
-}
-
-// recordOperationsEvidence records the after-Define Evidence phase
-// from tracked operations (§9.2/§30) when taskID recorded at least one —
-// a Task with no Verify and no tracked operation leaves Evidence
-// unevaluated rather than manufacturing a claim (§9.2's closing rule).
-func (o *Run) recordOperationsEvidence(taskID string) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	st := o.taskStates[taskID]
-	if st == nil || o.freshness.Tasks().OperationCount(st.TaskID()) == 0 {
-		return
-	}
-	st.node.Rec.RecordAfterEvidence(evidencePhase{Evaluated: true, Satisfied: true, Source: operationsEvidenceSource})
-	o.emitWireEventLocked(wire.EventEvidenceEvaluated, taskID, map[string]any{
-		"phase":     "after_definition",
-		"evaluated": true,
-		"satisfied": true,
-		"source":    operationsEvidenceSource,
-	})
-}
-
-// passthroughCallbackOutcome hands a Define callback's (or a Verify
-// observation's) own error back to the scheduler's generic resolution path
-// (executeWork/resolveObserved) completely unchanged — that path renders
-// err.Error() verbatim as the Task's Fail summary, so wrapping it here would
-// prepend internal plumbing text ("runDefine: ...") onto what the reader
-// sees, the same reason Fail/Block keep the caller's own wording intact.
-// The task itself may already be resolved by the time this runs (a
-// pre/post-Verify failure calls failScheduled/failScheduledWithCode before
-// returning); this is only ever err's carrier back to executeWork's
-// already-terminal branch (see Task.finish).
-func passthroughCallbackOutcome(err error) error {
-	return err
-}
-
-// evaluateVerifiers runs taskID's verifiers (see
-// freshness.EvaluateVerifiers) and emits each one's outcome as
-// verification.observed (spec §38), named by its registration order since
-// Verify registers anonymous funcs.
-func evaluateVerifiers(ctx context.Context, o *Run, taskID string, verifiers []freshness.Verifier) (allSatisfied bool, err error) {
-	return freshness.EvaluateVerifiers(ctx, verifiers, func(index int, outcome freshness.VerifierOutcome) {
-		o.mu.Lock()
-		defer o.mu.Unlock()
-		o.emitWireEventLocked(wire.EventVerificationObserved, taskID, wire.VerificationDoc{
-			Name:   fmt.Sprintf("verify_%d", index),
-			Status: verificationStatus(outcome),
-		}.EventPayload())
-	})
-}
-
-// verificationStatus maps one verifier's outcome to the §36 verification
-// status vocabulary (wire.VerificationSatisfied/Unsatisfied/Error).
-func verificationStatus(outcome freshness.VerifierOutcome) string {
-	switch outcome {
-	case freshness.VerifierErrored:
-		return wire.VerificationError
-	case freshness.VerifierSatisfied:
-		return wire.VerificationSatisfied
-	default:
-		return wire.VerificationUnsatisfied
-	}
-}
-
-// evidencePhaseName selects which of a Task's two Verify observation phases
-// (§30) a call updates.
-type evidencePhaseName int
-
-const (
-	evidencePhaseBefore evidencePhaseName = iota
-	evidencePhaseAfter
-)
-
-// recordEvidencePhase stores one Verify observation phase (§30). satisfied
-// is meaningful only when evaluated is true, matching EvidencePhase's own
-// documented contract.
-func (o *Run) recordEvidencePhase(taskID string, phase evidencePhaseName, evaluated, satisfied bool) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	st := o.taskStates[taskID]
-	if st == nil {
-		return
-	}
-	recorded := evidencePhase{Evaluated: evaluated}
-	if evaluated {
-		recorded.Satisfied = satisfied
-		recorded.Source = verifyEvidenceSource
-	}
-	switch phase {
-	case evidencePhaseBefore:
-		st.node.Rec.RecordBeforeEvidence(recorded)
-	case evidencePhaseAfter:
-		st.node.Rec.RecordAfterEvidence(recorded)
-	}
-	o.emitWireEventLocked(wire.EventEvidenceEvaluated, taskID, map[string]any{
-		"phase":     evidencePhaseWireName(phase),
-		"evaluated": evaluated,
-		"satisfied": satisfied,
-		"source":    recorded.Source,
-	})
-}
-
-// evidencePhaseWireName maps an evidencePhaseName to the §38 payload's
-// "phase" literal (spec §38 example: "phase": "after_definition").
-func evidencePhaseWireName(phase evidencePhaseName) string {
-	if phase == evidencePhaseAfter {
-		return "after_definition"
-	}
-	return "before_definition"
-}
-
-// markDefineRan records that a Task's Define callback was entered, whatever
-// it then returned (§29/§30).
-func (o *Run) markDefineRan(taskID string) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if st := o.taskStates[taskID]; st != nil {
-		st.node.Rec.MarkDefineRan()
-		st.markFiling()
-	}
-}
-
-// failScheduledWithCode is failScheduled with a stable Problem.Code
-// attached — the scheduler's own resolution authority (see
-// Task.resolveScheduled), used for outcomes that need a
-// machine-matchable code rather than only a rendered summary.
-func (t *Task) failScheduledWithCode(code, summary string) {
-	p := record.SanitizeProblem(problem{Code: code, Summary: txt.Text(summary)})
-	t.resolveScheduled(failed, txt.Text(summary), []problem{p})
+// definition is st's Define with fn as its callback: the operations inside
+// it act through the Run's changes, and freshness checks it.
+func (o *Run) definition(st *taskState, fn func(context.Context) error) graph.Definition[*change.Run] {
+	return graph.Definition[*change.Run]{Owner: o.changes, Checks: o.freshness.Checks(st.TaskID()), Callback: fn}
 }
 
 type State struct {
@@ -2777,24 +2573,4 @@ func commandOf(argv []string) *commandSpec {
 		return nil
 	}
 	return &commandSpec{Executable: argv[0], Args: slices.Clone(argv[1:])}
-}
-
-// basisIsCurrent judges this Task's Basis as it starts (see
-// freshness.Run.JudgeBasis) and narrates the verdict. A Task with no Basis
-// is never current.
-func (t *Task) basisIsCurrent(ctx context.Context) (bool, error) {
-	o := t.out
-	o.mu.Lock()
-	mode := freshness.ModeFor(o.cfg.dryRun)
-	o.mu.Unlock()
-	judgement, err := o.freshness.JudgeBasis(ctx, record.TaskID(t.id), mode)
-	if err != nil || !judgement.Declared {
-		return false, err
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.emitWireEventLocked(wire.EventBasisFingerprinted, t.id, map[string]any{
-		"count": len(judgement.Observed), "current": judgement.Current,
-	})
-	return judgement.Current, nil
 }

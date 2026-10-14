@@ -205,8 +205,9 @@ func newOutput(subject string, options ...option) *Run {
 		taskStates:      make(map[string]*taskState),
 		containerStates: make(map[string]*tasksState),
 	}
-	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(o.misuse))
-	o.freshness = freshness.NewRun(o.graph, freshness.RunConfig{Where: o.manifestConfig, Closed: errClosed})
+	host := runHost{out: o}
+	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(o.misuse), graph.WithHost(host))
+	o.freshness = freshness.NewRun(o.graph, freshness.RunConfig{Where: o.manifestConfig, Closed: errClosed, DryRun: host.DryRun, Narration: host})
 	o.changes = change.NewRun(o.newChangeHost(), o.graph)
 	o.mu.Bind(run)
 	run.SetListener(outputListener{o: o})
@@ -857,14 +858,6 @@ const (
 // I1). Caller must hold o.mu.
 func (o *Run) hasRecordedEffectLocked(taskID string) bool {
 	return o.rec.HasRecordedEffect(taskID)
-}
-
-// hasPlannedEffect reports whether the Task taskID recorded at least one
-// [planned] row: a mutation a dry run or preview skipped.
-func (o *Run) hasPlannedEffect(taskID string) bool {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.rec.HasPlannedEffect(taskID)
 }
 
 // --- folded from listener.go ---

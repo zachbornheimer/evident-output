@@ -12,7 +12,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/zachbornheimer/evident-output/internal/freshness"
 	"github.com/zachbornheimer/evident-output/internal/graph"
 	"github.com/zachbornheimer/evident-output/internal/project"
 	"github.com/zachbornheimer/evident-output/internal/project/live"
@@ -27,6 +26,51 @@ type Task struct {
 	// rejected is why the declaration was refused (see rejectedTask); nil
 	// for a declared Task.
 	rejected error
+}
+
+// succeed resolves the task Done with summary: the engine's synchronous
+// success verb for library-owned rows (Confirm's gate) and engine tests.
+// The public Task has no equivalent since 1.1: callers resolve through
+// Define, and Summary carries their result.
+func (t *Task) succeed(summary string) {
+	t.finish(succeeded, project.Text(summary), nil)
+}
+
+// resolveWithProblem is Fail and Block: resolve as state with one Problem
+// built from summary and options.
+func (t *Task) resolveWithProblem(state entityState, summary string, options []ProblemOption) {
+	p := applyProblemOptions(project.Text(summary), options)
+	t.finish(state, project.Text(summary), []problem{p})
+}
+
+// block resolves the task as refused. A nil *Task is safe and resolves
+// nothing.
+func (t *Task) block(summary string, options ...ProblemOption) {
+	t.resolveWithProblem(refused, summary, options)
+}
+
+// cancel resolves the task as cancelled. A nil *Task is safe and resolves
+// nothing.
+func (t *Task) cancel(reason string) {
+	t.finish(cancelled, project.Text(reason), nil)
+}
+
+// finish is the caller-facing resolution path behind every terminal verb a
+// program writes by hand; see graph.Graph.Resolve and graph.Graph.Admit.
+// Once a task is submitted, a success the caller asks for is a proposal the
+// callback's return ratifies; bad news resolves at once.
+func (t *Task) finish(state entityState, summary string, problems []problem) *Task {
+	if t == nil || t.out == nil {
+		return t
+	}
+	o := t.out
+	o.mu.Lock()
+	st := o.taskStates[t.id]
+	o.mu.Unlock()
+	if st != nil {
+		o.graph.Resolve(st.node, graph.Resolution{State: state, Summary: summary, Problems: problems, By: graph.ByCaller})
+	}
+	return t
 }
 
 // --- folded from after.go ---
@@ -1134,57 +1178,6 @@ func (t *Task) Fact(name, value string) *Task {
 	})
 }
 
-// --- folded from task_commit.go ---
-
-// resolveProblems folds extra into st's Problems as it settles into state.
-// A Failed or Blocked row's Problems gain the capture tail the Task already
-// gathered, so the detail a caller collected through evidence()/PhaseWriter()
-// needs no opt-in (beginner-2). The capture is read only when some Problem
-// lacks its own detail, which also avoids re-entering the redactor lock this
-// resolution already holds for a pending tail.
-func (st *taskState) resolveProblems(state entityState, extra []problem) {
-	tail := ""
-	if st.node.Rec.NeedsEvidenceTail(state, extra) && st.evidence != nil && !st.evidence.Empty() {
-		tail = st.evidence.DetailText()
-	}
-	st.node.Rec.ResolveProblems(state, extra, tail)
-}
-
-// commitSettledLocked writes a settled Task where its readers find it. A
-// Group or Sequence child repaints the live ledger; a standalone Task
-// commits its row and its own File/Exec ledger rows to scrollback at once,
-// so later Printf/Confirm output can never land above finished work. A
-// Done Task commits its manifest record; Failed, Blocked, and Cancelled
-// never do (spec §8.2/§11.3).
-func (o *Run) commitSettledLocked(st *taskState) {
-	if st.collection() != nil {
-		o.signalLiveLocked(true)
-	} else {
-		o.commitResolvedTaskLocked(st.id)
-		o.commitNamedEffectsLocked(st.id)
-	}
-	if !st.node.Rec.State().Succeeded() {
-		return
-	}
-	o.commitManifestLocked(st)
-}
-
-// commitManifestLocked persists st's accumulated operations as this Run's
-// truth (spec §11.3) once it settled Done, and narrates the commit; see
-// freshness.Run.Commit. Callers hold o.mu.
-func (o *Run) commitManifestLocked(st *taskState) {
-	commit := o.freshness.Commit(o.graph.Context(), record.TaskID(st.id), freshness.ModeFor(o.cfg.dryRun))
-	if commit.Err != nil {
-		o.warnManifestUnsavedLocked(commit.Err)
-		return
-	}
-	if commit.Written {
-		o.emitWireEventLocked(wire.EventManifestTaskCommitted, st.id, map[string]any{
-			"operations": commit.Operations,
-		})
-	}
-}
-
 // --- folded from task_next.go ---
 
 // --- folded from task_progress.go ---
@@ -1224,147 +1217,6 @@ func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind p
 	t.out.signalLiveLocked(false)
 	t.out.emitTaskRunningProgressiveLocked(st, triggerProgress)
 	return true
-}
-
-// --- folded from task_resolve.go ---
-
-// succeed resolves the task Done with summary: the engine's synchronous
-// success verb for library-owned rows (Confirm's gate) and engine tests.
-// The public Task has no equivalent since 1.1: callers resolve
-// through Define, and Summary carries their result project.
-func (t *Task) succeed(summary string) {
-	t.finish(succeeded, project.Text(summary), nil)
-}
-
-// resolveWithProblem is Fail and Block: resolve as state with one Problem
-// built from summary and options.
-func (t *Task) resolveWithProblem(state entityState, summary string, options []ProblemOption) {
-	p := applyProblemOptions(project.Text(summary), options)
-	t.finish(state, project.Text(summary), []problem{p})
-}
-
-// Block resolves the task as blocked. This is a statement, not a fluent
-// chain — Block returns nothing, so a bare `task.Block("summary")` (removed in 2.0) is
-// errcheck-clean. A nil *Task is safe and resolves nothing. Inside
-// Define, Block then return nil: Wait still reports failure from the
-// Blocked row.
-func (t *Task) block(summary string, options ...ProblemOption) {
-	t.resolveWithProblem(refused, summary, options)
-}
-
-// Cancel resolves the task as cancelled. A nil *Task is safe and
-// resolves nothing.
-func (t *Task) cancel(reason string) {
-	t.finish(cancelled, project.Text(reason), nil)
-}
-
-// failScheduled resolves the task Failed on the scheduler's authority,
-// carrying the callback's error text as the row summary — Fail's shape,
-// without Fail's caller-side submitted-task guard.
-func (t *Task) failScheduled(summary string) {
-	p := record.ApplyProblemOptions(project.Text(summary), nil)
-	t.resolveScheduled(failed, project.Text(summary), []problem{p})
-}
-
-// succeedScheduled resolves the task Succeeded on the scheduler's authority:
-// the one path that may declare a submitted task successful (see finish).
-func (t *Task) succeedScheduled() {
-	t.resolveScheduled(succeeded, "", nil)
-}
-
-// satisfyScheduled resolves the task Satisfied on the scheduler's authority:
-// its requested state was already true, so its callback never ran.
-func (t *Task) satisfyScheduled() {
-	t.resolveScheduled(record.Satisfied, "", nil)
-}
-
-// finish is the caller-facing resolution path — every terminal verb
-// (Fail/Block/Cancel/Skipped) a program writes by hand.
-//
-// Once a task is submitted, the scheduler owns the verdict on its work: only
-// the callback's own return value says whether the work succeeded. So a
-// hand-written Skipped on a submitted task is a *proposal*, not a
-// resolution — it is held until the callback returns and then either
-// ratified (the work did succeed; the caller's own summary is what renders,
-// which is how a callback declares "✓ branches  8 deleted") or rejected as
-// ErrAlreadyResolved misuse, with the observed failure taking the row (P2:
-// an engine-side success resolution can no longer launder an error into a
-// green row). Nothing ratifies its own completion.
-//
-// Bad news needs no ratification: Fail/Block/Cancel state an outcome the
-// caller already knows and can only make the row worse, so they resolve
-// immediately — that is how a callback reports its own failure (P13, where
-// the scheduler must then not resolve it a second time) and how an interrupt
-// cancels a running row.
-func (t *Task) finish(state entityState, summary string, problems []problem) *Task {
-	return t.resolve(state, summary, problems, graph.ByCaller)
-}
-
-// resolveScheduled is the scheduler's own resolution path, called only from
-// executeWork once the callback has returned. It is the sole authority that
-// may declare a submitted task successful.
-func (t *Task) resolveScheduled(state entityState, summary string, problems []problem) {
-	t.resolve(state, summary, problems, graph.ByScheduler)
-}
-
-// deniesItsOwnEffect reports whether this resolution is an evo.Effect
-// callback disowning the work it was given: an Effect creating "module"
-// whose fn calls Skipped or Fail and then returns nil rendered both `! skipped 1
-// (install failed)` and `[changed] broken  created 1 module` — the ledger
-// counting the package the installer had just rejected. A nil return after
-// the row said "skipped" means "I handled it", not "I did it".
-//
-// Only the callback's own verdict counts. A later Fail from the program
-// (an Effect in Define, then `task.Fail(...)`) and an interrupt that
-// cancels a running Effect both describe work that really happened,
-// and both still owe the reader `! already mutated: …`. The separator is
-// the resolving goroutine's own stack: callbackDepth is non-zero only
-// inside a task callback, which is precisely "the row resolved itself".
-func (o *Run) deniesItsOwnEffect(st *taskState, state entityState, authority graph.Authority) bool {
-	if !o.changes.EffectInFlight(record.TaskID(st.id)) || st.node.Phase() != graph.PhaseRunning || authority != graph.ByCaller || state.Succeeded() {
-		return false
-	}
-	return graph.CallbackDepth() > 0
-}
-
-// resolve is the one path behind every terminal verb. The graph decides what
-// the resolution does to the Task (see graph.Graph.Admit); this writes what
-// the reader sees of it: the Summary, the Problems and the committed row.
-
-func (t *Task) resolve(state entityState, summary string, problems []problem, authority graph.Authority) *Task {
-	if t == nil || t.out == nil {
-		return t
-	}
-	t.out.holdRunningPaint(t.id)
-	t.out.mu.Lock()
-	defer t.out.mu.Unlock()
-	st := t.out.taskStates[t.id]
-	if st == nil {
-		return t
-	}
-	if err := t.out.ensureOpen(); err != nil {
-		t.out.recordMisuse(err)
-		return t
-	}
-	admission := t.out.graph.Admit(st.node, graph.Resolution{State: state, Summary: summary, Problems: problems, By: authority})
-	if admission.Verdict == graph.AlreadyResolved {
-		t.out.recordAlreadyResolvedLocked(st.name, summary)
-		return t
-	}
-	if t.out.deniesItsOwnEffect(st, state, authority) {
-		t.out.changes.DenyEffect(record.TaskID(st.id))
-	}
-	if admission.Verdict == graph.Proposed {
-		return t
-	}
-	if summary != "" {
-		st.node.Rec.SetSummary(summary)
-	}
-	st.resolveProblems(admission.State, problems)
-	t.out.graph.Conclude(st.node, admission)
-	t.out.followRecordLocked()
-	t.out.commitSettledLocked(st)
-	return t
 }
 
 // taskFinishedPayload is the task.finished event's payload: the Outcome
@@ -1436,10 +1288,6 @@ type taskState struct {
 	// heartbeat is the §40 plain-mode durable heartbeat's state.
 	heartbeat plainHeartbeat
 
-	// capture is the get-or-create sink shared by Task.Capture and PhaseWriter
-	// so child-process evidence recorded via either path lands in one ring and
-	// DetailTail sees it after Fail.
-	evidence *record.Capture
 	// tail is the bounded window of Writer lines a live frame draws beneath
 	// this row; evidence above stays the full record.
 	tail liveTail
