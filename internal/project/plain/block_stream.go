@@ -253,14 +253,24 @@ func (s *Stream) mustWait(r *row) bool {
 	tasks, groups := r.Awaits()
 	for _, id := range tasks {
 		p := s.rows[id]
-		if p != nil && (p.held || (p.block != nil && s.unwritten(p.block.root))) {
+		if p != nil && (p.held || (p.block != nil && !s.blockWritten(p.block))) {
 			return true
 		}
 	}
 	return slices.ContainsFunc(groups, func(id string) bool {
 		b := s.blocks[id]
-		return b != nil && s.unwritten(b.root)
+		return b != nil && !s.blockWritten(b)
 	})
+}
+
+// blockWritten reports that every row at or beneath b is in scrollback. A block
+// that streams is written once its own closing row is, whatever the blocks
+// around it still hold; any other writes with its root, whole.
+func (s *Stream) blockWritten(b *block) bool {
+	if b.root.mode != modeStream || s.cfg.Region.Interactive() {
+		return !s.unwritten(b.root)
+	}
+	return b.closed
 }
 
 // unwritten reports that root has rows still to reach scrollback: it has

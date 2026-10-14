@@ -146,9 +146,8 @@ func TestPlainWritesAGroupThatSettlesInsideTheGraceWhole(t *testing.T) {
 }
 
 // TestPlainWritesNestedGroupBeforeItsDependent: a Task wired After a Group
-// nested in another prints below the block that explains it, though that
-// block is not written until the outer Group settles. A Task wired to
-// nothing in a block never waits for one.
+// nested in another prints below the block that explains it, once that block
+// closes. A Task wired to nothing in a block never waits for one.
 func TestPlainWritesNestedGroupBeforeItsDependent(t *testing.T) {
 	setup := func(t *testing.T) (*blockRun, *bool) {
 		b := newBlockRun(t)
@@ -163,17 +162,15 @@ func TestPlainWritesNestedGroupBeforeItsDependent(t *testing.T) {
 	}
 
 	t.Run("the dependent waits for the block holding its predecessor", func(t *testing.T) {
-		b, closed := setup(t)
-		b.settle("i1", record.Succeeded)
+		b, _ := setup(t)
 		b.settle("dep", record.Succeeded)
 		if got := b.written(); strings.Contains(got, "dep") {
 			t.Fatalf("the dependent printed above the block that explains it:\n%s", got)
 		}
 
-		*closed = true
-		b.settle("slow", record.Succeeded)
+		b.settle("i1", record.Succeeded)
 
-		if got := b.written(); !inOrder(got, "inner", "i1", "slow", "dep") {
+		if got := b.written(); !inOrder(got, "inner", "i1", "dep") {
 			t.Fatalf("want the block, then its dependent, got:\n%s", got)
 		}
 	})
@@ -189,15 +186,16 @@ func TestPlainWritesNestedGroupBeforeItsDependent(t *testing.T) {
 	})
 
 	t.Run("a row After a held row waits for it too", func(t *testing.T) {
-		b, closed := setup(t)
+		b, _ := setup(t)
 		b.after("alone", []record.TaskID{"dep"})
-		b.settle("i1", record.Succeeded)
 		b.settle("dep", record.Succeeded)
 		b.settle("alone", record.Succeeded)
-		*closed = true
-		b.settle("slow", record.Succeeded)
+		if got := b.written(); strings.Contains(got, "alone") || strings.Contains(got, "dep") {
+			t.Fatalf("a dependent printed before the block that explains it:\n%s", got)
+		}
+		b.settle("i1", record.Succeeded)
 
-		if got := b.written(); !inOrder(got, "slow", "dep", "alone") {
+		if got := b.written(); !inOrder(got, "i1", "dep", "alone") {
 			t.Fatalf("want the dependent's own dependent after it, got:\n%s", got)
 		}
 	})
@@ -279,6 +277,91 @@ func TestOwnTaskFailureStreamsImmediately(t *testing.T) {
 
 		if got := b.written(); got != "✓ pkg\n   ✓ slow\n" {
 			t.Fatalf("want the own Task folded into the Group's row, got:\n%s", got)
+		}
+	})
+}
+
+// TestHeldRowFollowsItsNestedBlockNotTheRoot: a root row that ran After a
+// block nested in another is written when that nested block closes, not when
+// the root block does, so a kill -9 while a slow sibling runs loses no verdict
+// that already existed. It still never prints above the block that explains it.
+func TestHeldRowFollowsItsNestedBlockNotTheRoot(t *testing.T) {
+	setup := func(t *testing.T) (b *blockRun, innerClosed, outerClosed *bool) {
+		b = newBlockRun(t)
+		outerClosed = b.collection("outer", false)
+		innerClosed = b.collectionIn("inner", "outer", false)
+		b.task("i1", "inner")
+		b.task("i2", "inner")
+		b.task("slow", "outer")
+		b.task("dep", "")
+		b.after("dep", nil, "inner")
+		b.task("taskDep", "")
+		b.after("taskDep", []record.TaskID{"i1"})
+		return b, innerClosed, outerClosed
+	}
+
+	t.Run("the nested block closing releases the row while the root stays open", func(t *testing.T) {
+		b, innerClosed, outerClosed := setup(t)
+		b.settle("dep", record.Succeeded)
+		b.settle("i1", record.Succeeded)
+		if got := b.written(); strings.Contains(got, "dep") {
+			t.Fatalf("the row printed before its nested block closed:\n%s", got)
+		}
+
+		*innerClosed = true
+		b.settle("i2", record.Succeeded)
+
+		got := b.written()
+		if !inOrder(got, "outer", "inner", "i1", "i2", "dep") || strings.Contains(got, "slow") {
+			t.Fatalf("want the nested block, then the row, with the root still open; got:\n%s", got)
+		}
+
+		*outerClosed = true
+		b.settle("slow", record.Succeeded)
+		if got := b.written(); strings.Count(got, "dep") != 1 || !inOrder(got, "dep", "slow") {
+			t.Fatalf("the root closing wrote the row again or out of order:\n%s", got)
+		}
+	})
+
+	t.Run("a row After a Task waits for the block holding that Task", func(t *testing.T) {
+		b, innerClosed, _ := setup(t)
+		b.settle("taskDep", record.Succeeded)
+		b.settle("i1", record.Succeeded)
+		if got := b.written(); strings.Contains(got, "taskDep") {
+			t.Fatalf("the row printed while its Task's block was open:\n%s", got)
+		}
+
+		*innerClosed = true
+		b.settle("i2", record.Succeeded)
+
+		if got := b.written(); !inOrder(got, "i2", "taskDep") || strings.Contains(got, "slow") {
+			t.Fatalf("want the row once the Task's block closed; got:\n%s", got)
+		}
+	})
+
+	t.Run("a root that writes whole still holds the row until it is written", func(t *testing.T) {
+		b := newBlockRun(t)
+		clk := &graceClock{}
+		b.stream.cfg.Clock, b.stream.cfg.Lock = clk, &sync.Mutex{}
+		outerClosed := b.collection("outer", false)
+		innerClosed := b.collectionIn("inner", "outer", false)
+		b.task("i1", "inner")
+		b.task("slow", "outer")
+		b.task("dep", "")
+		b.after("dep", nil, "inner")
+
+		*innerClosed = true
+		b.settle("i1", record.Succeeded)
+		b.settle("dep", record.Succeeded)
+		if got := b.written(); got != "" {
+			t.Fatalf("a block inside its grace wrote %q", got)
+		}
+
+		*outerClosed = true
+		b.settle("slow", record.Succeeded)
+
+		if got := b.written(); !inOrder(got, "outer", "slow", "inner", "i1", "dep") {
+			t.Fatalf("want the block whole, then the row; got:\n%s", got)
 		}
 	})
 }
