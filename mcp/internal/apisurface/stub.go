@@ -266,7 +266,6 @@ func (p *stubPackage) render() ([]byte, error) {
 	if err := printer.Fprint(&buf, token.NewFileSet(), file); err != nil {
 		return nil, fmt.Errorf("apisurface: print stub: %w", err)
 	}
-	buf.WriteByte('\n')
 	return buf.Bytes(), nil
 }
 
