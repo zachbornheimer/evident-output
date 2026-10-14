@@ -83,8 +83,10 @@ func (r *Run) reportClash(id record.TaskID, err error) error {
 	if r.conflicts == nil {
 		r.conflicts = make(map[record.TaskID]error)
 	}
-	r.conflicts[clash.owner] = &ConflictingProducerError{Path: clash.path, Other: claimant}
+	ownerConflict := &ConflictingProducerError{Path: clash.path, Other: claimant}
+	r.conflicts[clash.owner] = ownerConflict
 	r.outputsMu.Unlock()
+	r.host.OverturnTask(clash.owner, ownerConflict)
 	r.host.RecordMisuse(fmt.Errorf("%w: %s is written by both Task %q and Task %q", ErrFileConflictingProducer, clash.path, owner, claimant))
 	return &ConflictingProducerError{Path: clash.path, Other: owner}
 }

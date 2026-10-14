@@ -41,6 +41,7 @@ func (g *Graph) Resolve(t *Task, r Resolution) {
 func (g *Graph) decide(t *Task, r Resolution, tail string) Verdict {
 	g.lock()
 	defer g.unlock()
+	r = g.overturnedLocked(t, r)
 	admission := g.admitLocked(t, r)
 	if admission.Verdict != Settling {
 		return admission.Verdict

@@ -87,6 +87,9 @@ type Task struct {
 	// Task's callback started. That goroutine cannot unwind the callback, so
 	// the Task fails with it when the callback returns (see Reader).
 	readRefusal refusal
+	// overturn is the error another Task's act kept against this one before
+	// it settled Done (see Overturn). It turns that Done into the Failure.
+	overturn refusal
 }
 
 // Key is the Task's §3.1 stable key; see Graph.Rekey.

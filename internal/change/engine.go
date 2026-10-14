@@ -165,6 +165,14 @@ func (h *engineHost) TaskName(id record.TaskID) string {
 	return string(id)
 }
 
+// OverturnTask fails id with err, settled or not (see graph.Graph.Overturn).
+// It takes the run's lock itself.
+func (h *engineHost) OverturnTask(id record.TaskID, err error) {
+	if t := h.graph.Task(string(id)); t != nil {
+		h.graph.Overturn(t, err)
+	}
+}
+
 // Manifest opens the run's manifest on first use.
 func (h *engineHost) Manifest(ctx context.Context) (*freshness.ManifestStore, error) {
 	return h.freshness.Store(ctx)

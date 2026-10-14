@@ -26,13 +26,21 @@ type fakeHost struct {
 	observed []Observation
 	attached []record.VerificationDetail
 	misuse   []error
-	appended []freshness.OperationRecord
-	planned  int
-	spawned  []SpawnCommand
-	spawn    func(SpawnCommand) (ExecResult, error)
+	// overturned is each Task OverturnTask failed, with the error it named.
+	overturned []overturn
+	appended   []freshness.OperationRecord
+	planned    int
+	spawned    []SpawnCommand
+	spawn      func(SpawnCommand) (ExecResult, error)
 
 	fsys     sysfs.FS
 	manifest *freshness.ManifestSession
+}
+
+// overturn is one OverturnTask call.
+type overturn struct {
+	task record.TaskID
+	err  error
 }
 
 // newFakeHost is an applying host over the real disk, with a manifest kept in
@@ -76,6 +84,12 @@ func (h *fakeHost) Observe(ob Observation) {
 }
 
 func (h *fakeHost) TaskName(id record.TaskID) string { return string(id) }
+
+func (h *fakeHost) OverturnTask(id record.TaskID, err error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.overturned = append(h.overturned, overturn{task: id, err: err})
+}
 
 func (h *fakeHost) RecordMisuse(err error) {
 	h.mu.Lock()

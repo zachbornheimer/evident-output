@@ -48,6 +48,10 @@ type Journal interface {
 	// TaskName is the name id's row shows, or id itself when the Task is
 	// unknown.
 	TaskName(id record.TaskID) string
+	// OverturnTask fails id with err even when id already settled Done, or
+	// settles Done after this call: a Task found, by another Task's act, to
+	// have broken a Run-wide rule is not left reading as a success.
+	OverturnTask(id record.TaskID, err error)
 	// RecordMisuse reports a program error that belongs to the Run rather
 	// than to one Task, so the Run fails even when every Task it names has
 	// already settled.

@@ -16,11 +16,25 @@ import (
 // Task claimed the path first.
 func TestSameOutputConflictFailsBothTasks(t *testing.T) {
 	out := newGraphTestOutput(t)
+	assertSameOutputConflictFailsBoth(t, out, out.Group("writers").Task)
+}
+
+// TestSameOutputConflictFailsEarlierSettledTask pins the same rule when the
+// producers cannot overlap: a Sequence settles the first Task Done before the
+// second claims the path, so the first Task fails after it settled.
+func TestSameOutputConflictFailsEarlierSettledTask(t *testing.T) {
+	out := newGraphTestOutput(t)
+	assertSameOutputConflictFailsBoth(t, out, out.Sequence("writers").Task)
+}
+
+// assertSameOutputConflictFailsBoth declares Tasks "a" and "b" through
+// declare, both writing one File path, and checks the rule on both.
+func assertSameOutputConflictFailsBoth(t *testing.T, out *Run, declare func(string) *Task) {
+	t.Helper()
 	shared := filepath.Join(t.TempDir(), "shared.txt")
-	writers := out.Group("writers")
 	tasks := map[string]*Task{}
 	for _, name := range []string{"a", "b"} {
-		tasks[name] = writers.Task(name)
+		tasks[name] = declare(name)
 		tasks[name].Define(func(ctx context.Context) error {
 			return File(ctx, FileSpec{Path: shared, Contents: []byte(name)})
 		})
