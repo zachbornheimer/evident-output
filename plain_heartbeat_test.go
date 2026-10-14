@@ -1,6 +1,7 @@
 package evo
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -111,7 +112,7 @@ func TestPlainHeartbeat_SilentRunningTaskEmitsEvery30s(t *testing.T) {
 
 // TestPlainHeartbeat_RealMilestoneDefersIt proves "stops on any real
 // milestone" resets the idle window rather than permanently disabling it: a
-// task's first Doing call both promotes it to Running and streams a real
+// task's first Progress call both promotes it to Running and streams a real
 // line, so a permanent one-shot disable would silence every task that ever
 // narrates at all. A later real update at t=20s must defer the naive t=30s
 // heartbeat and start a fresh count from that update instead.
@@ -122,10 +123,10 @@ func TestPlainHeartbeat_RealMilestoneDefersIt(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("install dependencies")
-	task.Doing("working")
+	task.Progress(0, 100)
 
 	clock.Advance(20 * time.Second)
-	task.Doing("urllib3") // real narration at t=20s; defers heartbeat to t=50s.
+	task.Progress(50, 100) // a milestone at t=20s; defers heartbeat to t=50s.
 	clock.Advance(10 * time.Second)
 	if strings.Contains(buf.String(), "— 30s") {
 		t.Fatalf("a real milestone at t=20s must defer the naive t=30s heartbeat:\n%s", buf.String())
@@ -153,5 +154,33 @@ func TestPlainHeartbeat_InteractiveLiveNeverEmitsOne(t *testing.T) {
 	clock.Advance(90 * time.Second)
 	if strings.Contains(stdout.String(), "— 30s") || strings.Contains(stderr.String(), "— 30s") {
 		t.Fatalf("an interactive live task must never get a plain heartbeat line, stdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
+	}
+}
+
+// TestPlain_DoingWritesNoDurableLinePerCall is CONTRACT §2 end to end: a loop
+// naming each item with Doing writes no durable line per call off a terminal
+// (Progress thins to milestones), and the heartbeat row shows the latest item
+// and count of a Task that is still running.
+func TestPlain_DoingWritesNoDurableLinePerCall(t *testing.T) {
+	const items = 1000
+	clock := newHeartbeatFakeClock()
+	var buf strings.Builder
+	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf, Clock: clock}})
+	t.Cleanup(func() { _ = out.close() })
+
+	task := out.Task("copy")
+	for i := range items {
+		task.Progress(i, items).Doing(fmt.Sprintf("f%04d", i))
+	}
+	if lines, limit := strings.Count(buf.String(), "\n"), 11; lines > limit {
+		t.Fatalf("%d Progress+Doing calls wrote %d lines, want at most %d:\n%s", items, lines, limit, buf.String())
+	}
+	if strings.Contains(buf.String(), "f0500") {
+		t.Fatalf("an item name between milestones was written durably:\n%s", buf.String())
+	}
+
+	clock.Advance(30 * time.Second)
+	if want := "999/1000  f0999  — 30s"; !strings.Contains(buf.String(), want) {
+		t.Fatalf("want the heartbeat to carry %q, got:\n%s", want, buf.String())
 	}
 }

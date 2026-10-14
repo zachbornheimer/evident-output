@@ -96,7 +96,7 @@ func (r TaskRow) head(s Style) (rowHead, Disposition) {
 		return rowHead{detail: inlineFactText(f, s), annotated: true, inlined: inlineFact}, NoDisposition
 	}
 	if t.State == record.Running {
-		return rowHead{detail: runningTaskDetail(t)}, NoDisposition
+		return rowHead{detail: RunningDetail(t.Phase, t.Progress)}, NoDisposition
 	}
 	return rowHead{}, NoDisposition
 }

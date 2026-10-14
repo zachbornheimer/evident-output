@@ -146,6 +146,12 @@ spelling to its 2.0 replacement.
 
 ### Fixed
 
+- Plain output writes no durable line per `Task.Doing` call, as CONTRACT
+  says (`Doing` is live only). Before, a loop naming each item wrote one
+  line per call (1,000 `Progress(i, n).Doing(name)` calls wrote 1,015
+  lines). `Progress` still streams once per milestone, and the 30-second
+  heartbeat row now shows the Task's latest count and `Doing` text
+  (`• copy  499/1000  f0499  — 30s`).
 - `schema/event.v2.json` binds every event type's `payload` and closes
   `type` to an enum of the 23 event types the runtime writes. Before, only
   `definition.finished` and `verification.observed` payloads were bound, and

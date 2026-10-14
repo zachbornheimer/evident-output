@@ -113,8 +113,6 @@ func ExampleExecResult() {
 	_ = out.finish()
 	fmt.Print(buf.String())
 	// Output:
-	// ◐ lint  file.go:10: unused variable
-	// ◐ lint  file.go:22: missing return
 	// ✗ lint  2 lint finding(s) (exit 1)
 	//    └─ Last 2 lines:
 	//       file.go:10: unused variable

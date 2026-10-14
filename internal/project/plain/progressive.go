@@ -9,28 +9,15 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
-// Trigger names the evidence call streaming a Running Task's line, so each
-// kind thins on its own: a phase change always streams, a progress tick
-// once per milestone.
-type Trigger int
-
-const (
-	TriggerPhase Trigger = iota
-	TriggerProgress
-)
-
 // progressMilestones is how many roughly even steps a determinate total is
 // cut into for plain streaming (beginner-8): a line per increment would
 // flood a CI log, one line and then silence until Done would say nothing.
 const progressMilestones = 10
 
-// mark is what plain streaming already wrote for a Running Task.
+// mark is what plain streaming already wrote for a Running Task's progress.
+// progressStarted is false until the first progress tick streamed;
+// progressEmitted is the last completed value streamed.
 type mark struct {
-	// phase is the last phase streamed, so a repeated phase does not
-	// stream again.
-	phase string
-	// progressStarted is false until the first progress tick streamed;
-	// progressEmitted is the last completed value streamed.
 	progressStarted bool
 	progressEmitted int64
 }
@@ -87,12 +74,13 @@ func (r *row) containerNames() []string {
 	return path
 }
 
-// Running streams the Task id's current phase or progress as a durable
-// line when no live region shows it (evo-rec.md Problem 10): a phase every
-// time its text changes, progress at each milestone. A Task inside a
+// Progressed streams the Task id's progress as a durable line when no live
+// region shows it (evo-rec.md Problem 10), once per milestone. A Task's
+// current item (Doing) is live only and never streams: the heartbeat row
+// carries the latest item for a Task that stays running. A Task inside a
 // collection streams too: "never silent between the first line and Done"
 // does not depend on where the Running Task sits in the tree.
-func (s *Stream) Running(id record.TaskID, trigger Trigger, now time.Time) {
+func (s *Stream) Progressed(id record.TaskID, now time.Time) {
 	r := s.rows[id]
 	if r == nil || s.cfg.Region.Interactive() {
 		return
@@ -101,19 +89,11 @@ func (s *Stream) Running(id record.TaskID, trigger Trigger, now time.Time) {
 	if truth.State != record.Running {
 		return
 	}
-	switch trigger {
-	case TriggerPhase:
-		if truth.Phase == r.mark.phase {
-			return
-		}
-		r.mark.phase = truth.Phase
-	case TriggerProgress:
-		if !r.mark.crossesMilestone(truth.Progress.Completed, truth.Progress.Total) {
-			return
-		}
-		r.mark.progressStarted = true
-		r.mark.progressEmitted = truth.Progress.Completed
+	if !r.mark.crossesMilestone(truth.Progress.Completed, truth.Progress.Total) {
+		return
 	}
+	r.mark.progressStarted = true
+	r.mark.progressEmitted = truth.Progress.Completed
 	snap := s.cfg.Source.Snapshot(id)
 	snap.Name = r.streamName()
 	var b strings.Builder

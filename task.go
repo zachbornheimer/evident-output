@@ -9,7 +9,6 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
 	"github.com/zachbornheimer/evident-output/v2/internal/graph"
 	"github.com/zachbornheimer/evident-output/v2/internal/project"
-	renderplain "github.com/zachbornheimer/evident-output/v2/internal/project/plain"
 	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
@@ -146,7 +145,8 @@ func (o *Run) nodeOfContainer(id string) *graph.Container {
 }
 
 // Doing sets the live step text and starts the task if pending; text is a printf format when
-// args are present. Chained right after Task, it sets the first step. Off a TTY each call is a durable line.
+// args are present. Chained right after Task, it sets the first step. Live only: off a TTY Doing writes no
+// durable line per call, and the periodic heartbeat row carries the latest text.
 func (t *Task) Doing(text string, args ...any) *Task {
 	if len(args) > 0 {
 		text = fmt.Sprintf(text, args...)
@@ -193,7 +193,7 @@ func (t *Task) withTask(apply func(st *taskState)) *Task {
 }
 
 // setLiveOnlyPhase sets phase text for non-narrated sources such as Writer's per-line mirror;
-// unlike Doing it never forces a durable row off-TTY (the evidence ring holds the output).
+// unlike Doing, repeating the current text is a no-op (the evidence ring holds the output).
 func (t *Task) setLiveOnlyPhase(text string) {
 	t.annotate(func(st *taskState) { t.out.setLiveOnlyPhaseLocked(st, text) })
 }
@@ -205,10 +205,9 @@ func (o *Run) setPhaseLocked(st *taskState, text string) {
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
 	o.show.Live.Signal(true)
-	o.show.Stream.Running(st.node.TaskID(), renderplain.TriggerPhase, o.cfg.clock.Now())
 }
 
-// setLiveOnlyPhaseLocked is setPhaseLocked without the forced plain-mode durable line.
+// setLiveOnlyPhaseLocked is setPhaseLocked for non-narrated sources.
 func (o *Run) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	// An identical live-only phase is a no-op: repeated Writer lines must not bump, emit or repaint.
 	changed, started := st.node.Mirror(text, o.cfg.clock.Now())

@@ -10,7 +10,6 @@ import (
 	"unicode/utf8"
 
 	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
-	renderplain "github.com/zachbornheimer/evident-output/v2/internal/project/plain"
 	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 	"github.com/zachbornheimer/evident-output/v2/internal/terminal"
@@ -346,7 +345,7 @@ func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind p
 	t.out.appendEventLocked(recEvent{Type: "task.progress_changed", EntityID: t.id})
 	// Progress is high-frequency: coalesce unless first frame.
 	t.out.show.Live.Signal(false)
-	t.out.show.Stream.Running(st.node.TaskID(), renderplain.TriggerProgress, t.out.cfg.clock.Now())
+	t.out.show.Stream.Progressed(st.node.TaskID(), t.out.cfg.clock.Now())
 	return true
 }
 

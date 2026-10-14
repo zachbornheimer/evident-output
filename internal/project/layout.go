@@ -164,28 +164,28 @@ func WriteTaskAligned(b *strings.Builder, t record.TaskSnapshot, nameWidth int, 
 	RootRow(t, nameWidth).Write(b, s)
 }
 
-// runningTaskDetail composes a record.Running task's plain-mode detail text: its
+// RunningDetail composes a record.Running task's plain-mode detail text: its
 // progress count (or Bytes fraction), its phase, or both together
 // ("14/40  requests") — the durable-line counterpart of writeLiveTaskLine's
 // interactive combination, without the live-only bar/heartbeat decoration.
 // Returns "" for a record.Running task with neither (never happens through the
 // public API, since every path that promotes record.Pending to record.Running sets one).
-func runningTaskDetail(t record.TaskSnapshot) string {
-	count := ProgressCountText(t.Progress)
+func RunningDetail(phase string, progress record.Progress) string {
+	count := ProgressCountText(progress)
 	switch {
-	case count != "" && t.Phase != "":
-		return count + "  " + t.Phase
+	case count != "" && phase != "":
+		return count + "  " + phase
 	case count != "":
 		return count
 	default:
-		return t.Phase
+		return phase
 	}
 }
 
 // ProgressCountText renders p as the fixed "C/T" (Determinate) or
 // byte-fraction (BytesKind) count text a record.Running row shows, or "" when p
 // carries neither — the one place that decides "does this progress have a
-// displayable count," shared by runningTaskDetail (record.Running) and writeTask's
+// displayable count," shared by RunningDetail (record.Running) and writeTask's
 // record.Failed row (release-gate round 8 finding 4) so both projections agree on
 // where and how the count reads.
 func ProgressCountText(p record.Progress) string {
