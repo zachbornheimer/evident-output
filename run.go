@@ -8,9 +8,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/v2/internal/change"
-	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
-	"github.com/zachbornheimer/evident-output/v2/internal/graph"
 	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
 	"github.com/zachbornheimer/evident-output/v2/internal/process"
 	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
@@ -443,60 +440,3 @@ var (
 
 // signalChannelCapacity holds one signal during cancelActive plus one so a second Ctrl-C is never dropped.
 const signalChannelCapacity = 2
-
-// Verify registers a read-only check of the world's current state, ANDed with any earlier Verify on this Task.
-// Call it before Define, which freezes configuration; a later call is ignored and recorded as misuse.
-//
-// Evo runs every Verify twice. Before the callback, all true skips it and settles the Task Satisfied, any
-// false runs it, and an error fails the Task. After a callback that returned nil, any false fails the Task,
-// because the work did not produce the state it promised. The second check is skipped when the callback
-// ended the Task with an error, or when a dry run planned its changes without making them.
-func (t *Task) Verify(fn func(context.Context) (bool, error)) *Task {
-	if t == nil || t.out == nil || fn == nil {
-		return t
-	}
-	o := t.out
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	st := o.taskStates[t.id]
-	if st == nil {
-		return t
-	}
-	if st.node.Submitted() {
-		o.recordMisuseFor(st.name, ErrInvalidConfig)
-		return t
-	}
-	o.freshness.Tasks().AddVerifier(st.node.TaskID(), freshness.Verifier(fn))
-	return t
-}
-
-// Define freezes this Task's After and Verify configuration and submits fn to the scheduler. It returns the
-// same *Task at once and never runs fn inline; Evo decides when fn runs and owns its goroutine, so callers
-// declare work and return. What fn returns is the Task's outcome: nil Succeeded, Refuse Refused, Exclude
-// Excluded, and Fail or any other error Failed. A second Define on the same Task is misuse.
-func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Task {
-	if t == nil || t.out == nil {
-		return t
-	}
-	o := t.out
-	if fn == nil {
-		o.recordMisuse(ErrInvalidConfig)
-		return t
-	}
-	st := t.declared()
-	if st == nil {
-		o.recordMisuse(t.rejected)
-		return t
-	}
-	var cfg defineConfig
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-	graph.Define(o.graph, st.node, o.definition(st, o.cleanStops.Wrap(cfg.cleanStopSignals, fn)))
-	return t
-}
-
-// definition is st's Define with fn as its callback; freshness checks it.
-func (o *Run) definition(st *taskState, fn func(context.Context) error) graph.Definition[*change.Run] {
-	return graph.Definition[*change.Run]{Owner: o.changes, Checks: o.freshness.Checks(st.node.TaskID()), Callback: fn}
-}

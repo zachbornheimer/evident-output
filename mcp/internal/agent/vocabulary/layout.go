@@ -15,7 +15,7 @@ const packageDocFile = "evo.go"
 // conceptFile is the root file that owns each vocabulary concept: one per
 // contract section, named for the file stem.
 var conceptFile = map[string]string{
-	"Run": "run.go", "Config": "config.go", "Result": "result.go", "Facades": "facades.go", "Task": "task.go",
+	"Run": "run.go", "Config": "config.go", "Result": "result.go", "Facades": "facades.go", "Task": "task.go", "Container": "container.go",
 	"Compute": "compute.go", "File": "file.go", "Exec": "exec.go",
 	"Effect": "effect.go", "Patch": "patch.go", "Report": "report.go",
 	"Problem": "problem.go", "Ending": "ending.go", "Confirm": "confirm.go",
