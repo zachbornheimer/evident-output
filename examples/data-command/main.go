@@ -29,7 +29,7 @@ func main() {
 	pretty := flag.Bool("pretty", true, "indent domain JSON")
 	flag.Parse()
 
-	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+	os.Exit(evo.Main(evo.Config{Name: "build", Facades: evo.Facades{Stdout: os.Stderr}}, func(ctx context.Context, r *evo.Run) error {
 		r.Task("compile").Define(func(context.Context) error { return nil })
 		r.Task("tests").Define(func(context.Context) error { return nil })
 		link := r.Task("link")
@@ -53,5 +53,5 @@ func main() {
 			return err
 		}
 		return nil
-	}, evo.Config{Name: "build", Facades: evo.Facades{Stdout: os.Stderr}}))
+	}))
 }

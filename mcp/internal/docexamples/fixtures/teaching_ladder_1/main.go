@@ -16,7 +16,7 @@ import (
 
 // docexamples:snippet start
 func main() {
-	os.Exit(evo.Main(run))
+	os.Exit(evo.Main(evo.Config{}, run))
 }
 
 func run(ctx context.Context, r *evo.Run) error {

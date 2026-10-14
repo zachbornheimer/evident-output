@@ -167,7 +167,7 @@ var retiredSymbols = []RetiredSymbol{
 
 	// 2.0 (CONTRACT.md): the surface is exactly the contract tables. These
 	// 1.x names are gone.
-	{Contract: "Init", RemovedIn: RetiredRelease2_0, Replacement: "evo.Main(run) or evo.Execute(ctx, cfg, run)", Taught: regexp.MustCompile(`\bInit\b`)},
+	{Contract: "Init", RemovedIn: RetiredRelease2_0, Replacement: "evo.Main(cfg, run) or evo.Execute(ctx, cfg, run)", Taught: regexp.MustCompile(`\bInit\b`)},
 	{Contract: "Output.Run", RemovedIn: RetiredRelease2_0, Replacement: "evo.Execute(ctx, cfg, run)", Taught: regexp.MustCompile(`\b(?:out|output|Output)\.Run\b`)},
 	{Contract: "Isolated", RemovedIn: RetiredRelease2_0, Replacement: "evo.Execute(ctx, cfg, run) with its own Config", Taught: regexp.MustCompile(`\bIsolated\b`)},
 	{Contract: "Output.Finish", RemovedIn: RetiredRelease2_0, Replacement: "return from run; Main and Execute finish the run", Taught: regexp.MustCompile(`\b(?:out|output|Output)\.Finish\b|\bFinish \+ Close\b|` + "`Finish`")},

@@ -40,7 +40,7 @@ func main() {
 	registeredMarker := filepath.Join(*stateDir, "registered.marker")
 	runningMarker := filepath.Join(*stateDir, "running.marker")
 
-	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+	os.Exit(evo.Main(evo.Config{}, func(ctx context.Context, r *evo.Run) error {
 		return launchAgent(ctx, r, a, registeredMarker, runningMarker)
 	}))
 }

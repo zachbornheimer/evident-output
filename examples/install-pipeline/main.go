@@ -28,7 +28,7 @@ func main() {
 		step = 20 * time.Millisecond
 	}
 
-	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+	os.Exit(evo.Main(evo.Config{Name: "install"}, func(ctx context.Context, r *evo.Run) error {
 		pipeline := r.Sequence("pipeline")
 
 		modules := pipeline.Task("go mod download")
@@ -60,5 +60,5 @@ func main() {
 			return nil
 		})
 		return nil
-	}, evo.Config{Name: "install"}))
+	}))
 }

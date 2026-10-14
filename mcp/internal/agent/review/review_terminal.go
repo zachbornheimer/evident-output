@@ -29,7 +29,7 @@ func detectSignalNotifyWithoutCancel(filename, src string) []Finding {
 		Message:    "signal.Notify without a Cancel call in this file; prefer evo.Main/evo.Execute, which already wire SIGINT/SIGTERM into Cancel so the ledger and exit code agree",
 		File:       filename,
 		Line:       line,
-		Suggestion: "replace the signal-handling goroutine with os.Exit(evo.Main(run)) or evo.Execute(ctx, cfg, run), or call task.Cancel(reason) from it",
+		Suggestion: "replace the signal-handling goroutine with os.Exit(evo.Main(cfg, run)) or evo.Execute(ctx, cfg, run), or call task.Cancel(reason) from it",
 	}}
 }
 

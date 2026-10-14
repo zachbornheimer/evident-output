@@ -26,7 +26,7 @@ variable; `Type.Name` is a method or a struct field.
 ## 1. Run
 
 ```go
-func main() { os.Exit(evo.Main(run)) }
+func main() { os.Exit(evo.Main(evo.Config{}, run)) }
 
 func run(ctx context.Context, r *evo.Run) error { ... }
 ```
@@ -58,7 +58,7 @@ Succeeded, Satisfied and Excluded.
 
 | Symbol                   | Kind   | Meaning                                                                                     |
 | ------------------------ | ------ | ------------------------------------------------------------------------------------------- |
-| `Main`                   | func   | `Main(run RunFunc, cfg ...Config) int` — run with signals, return exit                      |
+| `Main`                   | func   | `Main(cfg Config, run RunFunc) int` — run with signals, return exit                         |
 | `Execute`                | func   | `Execute(ctx context.Context, cfg Config, run RunFunc) Result` — run without signals        |
 | `RunFunc`                | type   | `func(ctx context.Context, r *Run) error`, the application body                             |
 | `Config`                 | type   | the run's settings; zero value is valid                                                     |
@@ -98,9 +98,9 @@ Succeeded, Satisfied and Excluded.
 | `Run.Text`               | method | `Text() io.Writer`; free human text, routed with the presentation                           |
 | `Run.ResultWriter`       | method | `ResultWriter() io.Writer`; the stdout data payload                                         |
 | `Run.SlogHandler`        | method | `SlogHandler() slog.Handler`; writes into the debug journal                                 |
-| `Result`                 | type   | what `Run` returns                                                                          |
+| `Result`                 | type   | what `Execute` returns                                                                      |
 | `Result.Conclusion`      | field  | the verdict                                                                                 |
-| `Result.Err`             | field  | the error the application body returned                                                     |
+| `Result.Err`             | field  | the error the application body returned, joined with the first misuse                       |
 | `Result.ExitCode`        | method | 0 Succeeded, Satisfied or Excluded · 1 Refused · 2 Failed · 130 Cancelled                   |
 | `Conclusion`             | type   | one verdict for UI and exit                                                                 |
 | `Conclusion.Outcome`     | field  | the worst Task outcome                                                                      |
@@ -355,6 +355,7 @@ no gap, so a missing number means a lost line.
 | `ErrStaleBasis`        | a Patch source changed between read and commit |
 | `ErrPatchDoesNotApply` | the diff does not match the source             |
 | `ErrComputedUnordered` | `Get` from work not ordered after the producer |
+| `ErrInvalidConfig`     | a declaration Evo refuses; misuse wraps it     |
 
 ## 8. What Evo promises
 
@@ -364,5 +365,5 @@ no gap, so a missing number means a lost line.
 - Facts are hidden at normal verbosity and always in machine output; routine rows collapse; passing verification is silent, failing verification is shown.
 - Per-item Excluded Tasks fold into one tally; per-item Effects with one Verb and Object fold into one counted row; JSON keeps every item.
 - Cancellation preserves committed truth and never implies rollback.
-- Misuse is recorded with a remedy, appears in `Result`, and never crashes the program.
+- Misuse is recorded with a remedy, appears in `Result` as `Result.Err` and `Conclusion.Explanation`, and never crashes the program.
 - Recorded status commits atomically; uncertainty re-executes and never reports Satisfied.

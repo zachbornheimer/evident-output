@@ -194,7 +194,7 @@ func exitBypassingConclusion(c selectorCall) []Finding {
 	}
 	return []Finding{
 		c.finding("API-018",
-			"os.Exit in evo-using code; prefer os.Exit(evo.Main(run)) or os.Exit(evo.Execute(ctx, cfg, run).ExitCode()) (evo.MainWith was removed in 1.0)",
+			"os.Exit in evo-using code; prefer os.Exit(evo.Main(cfg, run)) or os.Exit(evo.Execute(ctx, cfg, run).ExitCode()) (evo.MainWith was removed in 1.0)",
 			exitFromConclusionSuggestion),
 		c.finding("EVO-EXIT-001",
 			"os.Exit bypasses the Evo-derived conclusion (evo.MainWith was removed in 1.0)",
@@ -204,7 +204,7 @@ func exitBypassingConclusion(c selectorCall) []Finding {
 
 // exitFromConclusionSuggestion is the one fix API-018 and EVO-EXIT-001
 // share.
-const exitFromConclusionSuggestion = "derive the exit code from the run: os.Exit(evo.Main(run)), or os.Exit(evo.Execute(ctx, cfg, run).ExitCode()), where run(ctx) returns error; never pass a literal or independently computed code to os.Exit"
+const exitFromConclusionSuggestion = "derive the exit code from the run: os.Exit(evo.Main(cfg, run)), or os.Exit(evo.Execute(ctx, cfg, run).ExitCode()), where run(ctx) returns error; never pass a literal or independently computed code to os.Exit"
 
 // advanceDeltaCounter is PROG-001: Advance is a delta counter that
 // double-counts on retries, so any use is flagged in favor of one Task per

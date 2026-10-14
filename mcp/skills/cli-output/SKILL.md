@@ -89,10 +89,10 @@ go get github.com/zachbornheimer/evident-output@v2.0.0
 ## Adoption ladder
 
 ```text
-os.Exit(evo.Main(run)) → fmt.Fprintln(r.Text(), ...)
+os.Exit(evo.Main(evo.Config{}, run)) → fmt.Fprintln(r.Text(), ...)
 → Task.Define / one Task per item under a Group or Sequence → task.Writer()
 → evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) / evo.File inside Define
-→ slog via SlogHandler → os.Exit(evo.Main(run))
+→ slog via SlogHandler → os.Exit(evo.Main(evo.Config{}, run))
 ```
 
 Prefer **contracts over sugar**: plain `Task` labels first. Task is name-only.
@@ -100,7 +100,7 @@ Prefer **contracts over sugar**: plain `Task` labels first. Task is name-only.
 ## Entrypoint
 
 ```go
-os.Exit(evo.Main(run, evo.Config{Name: "tool"})) // Main returns the exit code; it never exits itself
+os.Exit(evo.Main(evo.Config{Name: "tool"}, run)) // Main returns the exit code; it never exits itself
 ```
 
 `evo.Execute(ctx, cfg, run)` is the hosted form of the same lifecycle: it returns the full

@@ -43,7 +43,7 @@ func main() {
 	if *verbose {
 		cfg.Verbose = true
 	}
-	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+	os.Exit(evo.Main(evo.Config{}, func(ctx context.Context, r *evo.Run) error {
 		_, _ = fmt.Fprintf(r.Text(), "Checking repository %s\n", *name)
 
 		// check runs one repository probe as the Task's work; a probe that

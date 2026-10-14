@@ -23,7 +23,7 @@ func main() {
 		step = 20 * time.Millisecond
 	}
 
-	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+	os.Exit(evo.Main(evo.Config{Name: "branch audit"}, func(ctx context.Context, r *evo.Run) error {
 		jobs := r.Sequence("audit")
 		scan := jobs.Task("scan")
 		compare := jobs.Task("compare")
@@ -53,5 +53,5 @@ func main() {
 			branches.Define(func(context.Context) error { return nil })
 		}
 		return nil
-	}, evo.Config{Name: "branch audit"}))
+	}))
 }

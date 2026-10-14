@@ -8,11 +8,11 @@ import (
 )
 
 // discardedExitSuggestion is EVO-EXIT-002's one fix.
-const discardedExitSuggestion = "evo.Main returns the exit code and never exits itself: write os.Exit(evo.Main(run))"
+const discardedExitSuggestion = "evo.Main returns the exit code and never exits itself: write os.Exit(evo.Main(cfg, run))"
 
 // detectDiscardedMainCode is EVO-EXIT-002 (E-114): evo.Main returns the
-// run's exit code and does not call os.Exit, so `evo.Main(run)` as a bare
-// statement, or `_ = evo.Main(run)`, exits 0 after a failed or blocked run.
+// run's exit code and does not call os.Exit, so `evo.Main(cfg, run)` as a bare
+// statement, or `_ = evo.Main(cfg, run)`, exits 0 after a failed or blocked run.
 func detectDiscardedMainCode(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	pkg := evoImportName(file)
 	if pkg == "" {

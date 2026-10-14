@@ -178,7 +178,7 @@ func newInMainFindings(filename, src string) []Finding {
 		Message:    "evo.New was removed with the item/task fold; evo.Main and evo.Execute are the only constructors",
 		File:       filename,
 		Line:       lineAt(src, offset+idx),
-		Suggestion: "replace evo.New(cfg) with os.Exit(evo.Main(run, cfg)) in ordinary main, or evo.Execute(ctx, cfg, run).ExitCode() when the caller owns the context and the exit",
+		Suggestion: "replace evo.New(cfg) with os.Exit(evo.Main(cfg, run)) in ordinary main, or evo.Execute(ctx, cfg, run).ExitCode() when the caller owns the context and the exit",
 	}}
 }
 

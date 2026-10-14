@@ -1,6 +1,6 @@
 # Exit-code fidelity: propagating a child's own exit code
 
-`evo.Main(run)` (`evo.MainWith` was removed in 1.0) computes the Conclusion's exit code
+`evo.Main(evo.Config{}, run)` (`evo.MainWith` was removed in 1.0) computes the Conclusion's exit code
 (0/1/2/130) and returns it for `os.Exit`. That
 contract does not change for a CLI that must also propagate a **child
 process's own exit code** — e.g. a task runner (`go-task`, `make`-alikes)

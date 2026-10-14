@@ -7,7 +7,7 @@
 // log file, or a machine consumer, and the exit code always matches what the
 // screen just said. CONTRACT.md lists the whole exported surface.
 //
-//	func main() { os.Exit(evo.Main(run)) }
+//	func main() { os.Exit(evo.Main(evo.Config{}, run)) }
 //
 //	func run(ctx context.Context, r *evo.Run) error {
 //	    fmt.Fprintln(r.Text(), "Reading configuration")

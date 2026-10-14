@@ -63,6 +63,7 @@ EncodeJSONL	removed	Machine output
 ErrComputedUnordered	helper	Errors
 ErrExecNonzeroExit	helper	File
 ErrExecOutputMissing	helper	File
+ErrInvalidConfig	helper	Errors
 ErrPatchDoesNotApply	helper	File
 ErrReasonSkipOnly	removed	Skipped
 ErrReasonWrongTask	removed	Skipped

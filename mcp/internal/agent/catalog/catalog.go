@@ -34,7 +34,7 @@ func All() []Guide {
 				"API-057", "API-059", "API-060", "API-061",
 			},
 			Body: `Adoption ladder (guess-driven defaults — the naive spelling is the correct one):
-  1) os.Exit(evo.Main(run, evo.Config{Name, DryRun})) in main; run is func(ctx, r *evo.Run) error —
+  1) os.Exit(evo.Main(evo.Config{Name, DryRun}, run)) in main; run is func(ctx, r *evo.Run) error —
      dry-run wording, empty-case, and exit codes are all owned; run takes a context.Context
      (wired to SIGINT/SIGTERM) and returns only error; Main returns the derived exit code and
      does not itself call os.Exit (evo.Execute returns the full Result instead, for a
@@ -202,11 +202,11 @@ Never invent a Basis entry the source code does not actually read (EVO-PROVENANC
 			Concepts: []string{"Projection", "Plain", "JSON", "NoColor", "Config", "ResultWriter", "Main", "Writer"},
 			Rules:    []string{"STREAM-003", "STREAM-004", "OUT-001", "OUT-003", "OUT-004", "API-031", "EV-001", "SIG-001", "SIG-002"},
 			Body: `Human UI and logs must not contaminate structured stdout.
-Ordinary dual-stream: os.Exit(evo.Main(run)) — a zero Config picks Plain off-TTY and honours NO_COLOR.
+Ordinary dual-stream: os.Exit(evo.Main(evo.Config{}, run)) — a zero Config picks Plain off-TTY and honours NO_COLOR.
 Run.ResultWriter carries the stdout domain payload; human presentation stays on stderr; a failed
 data command emits no partial payload by default.
 
-Exit codes come only from evo.Main's returned code (os.Exit(evo.Main(run))), or evo.Execute's returned Result.ExitCode() for a caller that needs the Conclusion and application error, not just the code (evo.MainWith was removed in 1.0): run(ctx) returns error, nothing else picks the code. Never hand-map an int
+Exit codes come only from evo.Main's returned code (os.Exit(evo.Main(evo.Config{}, run))), or evo.Execute's returned Result.ExitCode() for a caller that needs the Conclusion and application error, not just the code (evo.MainWith was removed in 1.0): run(ctx) returns error, nothing else picks the code. Never hand-map an int
 to os.Exit — that is exactly how a Blocked run (1) gets silently read as success, or a real
 failure reads as blocked. SIGINT/SIGTERM already route through Main into Cancel on the active task, so the
 ledger's ■ and the process exit code (130) can never disagree; a caller-written signal.Notify handler that

@@ -58,7 +58,7 @@ func main() {
 		)
 	}
 
-	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+	os.Exit(evo.Main(evo.Config{Name: "install-deps-advanced", Facades: evo.Facades{Stdout: os.Stderr, Stderr: os.Stderr, Terminal: term}}, func(ctx context.Context, r *evo.Run) error {
 		jobs := r.Group("dependencies")
 		discover := jobs.Task("discover")
 		discover.Define(func(context.Context) error {
@@ -82,7 +82,7 @@ func main() {
 		})
 		r.Task("registry").Define(func(context.Context) error { return nil })
 		return nil
-	}, evo.Config{Name: "install-deps-advanced", Facades: evo.Facades{Stdout: os.Stderr, Stderr: os.Stderr, Terminal: term}}))
+	}))
 }
 
 // frameLog prints each redraw as a numbered scrubable frame (no in-place ANSI).

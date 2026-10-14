@@ -99,7 +99,7 @@ func classifyOSCall(s callSite, method string) (Finding, bool) {
 		return Finding{}, false
 	}
 	return s.finding(RungMain,
-		"let evo.Main derive the exit code (0/1/2/130) via os.Exit(evo.Main(run)) — return the error from run(ctx) instead of calling os.Exit directly.",
+		"let evo.Main derive the exit code (0/1/2/130) via os.Exit(evo.Main(cfg, run)) — return the error from run(ctx) instead of calling os.Exit directly.",
 		CertaintyHigh,
 	), true
 }
@@ -108,7 +108,7 @@ func classifyLogCall(s callSite, method string) (Finding, bool) {
 	switch method {
 	case "Fatal", "Fatalf", "Fatalln", "Panic", "Panicf", "Panicln":
 		return s.finding(RungMain,
-			"this exits/panics directly, bypassing evo's exit-code contract — resolve the active Task with Fail or Block and return, then let os.Exit(evo.Main(run)) derive the exit code.",
+			"this exits/panics directly, bypassing evo's exit-code contract — resolve the active Task with Fail or Block and return, then let os.Exit(evo.Main(cfg, run)) derive the exit code.",
 			CertaintyHigh,
 		), true
 	case "Print", "Printf", "Println":

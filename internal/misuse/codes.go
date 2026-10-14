@@ -1,6 +1,9 @@
 package misuse
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // Sentinel misuse codes. Engine and graph alias these so the public evo
 // surface and errors.Is keep working after the move.
@@ -25,6 +28,9 @@ var (
 	// ErrInvalidConfig is recorded when After/Verify land after Define, a
 	// Task is Defined twice, or Define is called with a nil callback.
 	ErrInvalidConfig = errors.New("evo: invalid configuration")
+	// ErrComputeWithVerify is ErrInvalidConfig for Compute on a Task that has
+	// a Verify: a satisfied Verify skips the callback and leaves no value.
+	ErrComputeWithVerify = fmt.Errorf("%w: Compute on a Task with a Verify", ErrInvalidConfig)
 	// ErrRenderer is recorded when the configured writer fails.
 	ErrRenderer = errors.New("evo: renderer failure")
 	// ErrLimitExceeded is recorded when the run declares more entities than

@@ -58,13 +58,9 @@ func payloadOnStdout(cfg Config) Config {
 // Main runs run under SIGINT and SIGTERM and returns the process exit code; it
 // never exits. A signal cancels the run's context and ends the run Cancelled with
 // exit code 130, including while declared work still runs after run returned.
-// Only the first cfg is used; without one, Config is zero.
-func Main(run RunFunc, cfg ...Config) int {
-	c := Config{}
-	if len(cfg) > 0 {
-		c = cfg[0]
-	}
-	out := initHostRun(c)
+// Its arguments are Execute's, without the context Main owns.
+func Main(cfg Config, run RunFunc) int {
+	out := initHostRun(cfg)
 	return runInterruptible(context.Background(), out, run).ExitCode()
 }
 
@@ -167,14 +163,27 @@ func concludeRun(out *Run, runErr error) Result {
 	if conclusion.exitCode == exitOK && (errors.Is(finishErr, errRenderer) || errors.Is(closeErr, errRenderer)) {
 		conclusion.exitCode = exitFailed
 	}
-	return Result{Conclusion: conclusion, Err: runErr}
+	return Result{Conclusion: conclusion, Err: out.resultErr(runErr)}
 }
 
 // concludeCancelled: the recorded Cancel's Conclusion alone yields ExitCancelled; runErr rides as Result.Err.
 func concludeCancelled(out *Run, runErr error) Result {
 	_ = out.finish()
 	_ = out.close()
-	return Result{Conclusion: out.conclusion(), Err: runErr}
+	return Result{Conclusion: out.conclusion(), Err: out.resultErr(runErr)}
+}
+
+// resultErr is Result.Err: what the body returned, joined with the first misuse the run recorded.
+func (o *Run) resultErr(runErr error) error {
+	misused := o.firstMisuse()
+	switch {
+	case misused == nil:
+		return runErr
+	case runErr == nil:
+		return misused
+	default:
+		return errors.Join(runErr, misused)
+	}
 }
 
 func (o *Run) anyFailed() bool {
@@ -1481,7 +1490,7 @@ func (t *Task) Verify(fn func(context.Context) (bool, error)) *Task {
 		return t
 	}
 	if st.node.Submitted() {
-		o.recordMisuseFor(st.name, errInvalidConfig)
+		o.recordMisuseFor(st.name, ErrInvalidConfig)
 		return t
 	}
 	o.freshness.Tasks().AddVerifier(st.node.TaskID(), freshness.Verifier(fn))
@@ -1498,7 +1507,7 @@ func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Tas
 	}
 	o := t.out
 	if fn == nil {
-		o.recordMisuse(errInvalidConfig)
+		o.recordMisuse(ErrInvalidConfig)
 		return t
 	}
 	st := t.declared()

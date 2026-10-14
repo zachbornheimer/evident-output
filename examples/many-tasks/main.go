@@ -22,7 +22,7 @@ func main() {
 	hold := flag.Duration("hold", 5*time.Millisecond, "how long each Task stays Running")
 	flag.Parse()
 
-	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+	os.Exit(evo.Main(evo.Config{}, func(ctx context.Context, r *evo.Run) error {
 		group := r.Group("units")
 		for n := 1; n <= *count; n++ {
 			unit := group.Task("unit " + strconv.Itoa(n))

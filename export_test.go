@@ -109,7 +109,7 @@ func parseFormat(s string) (format, error) {
 	case "jsonl":
 		return formatJSONL, nil
 	default:
-		return 0, fmt.Errorf("%w: unknown format %q", errInvalidConfig, s)
+		return 0, fmt.Errorf("%w: unknown format %q", ErrInvalidConfig, s)
 	}
 }
 

@@ -31,6 +31,8 @@ func hintFor(err error, subject, rejectedSummary string) string {
 		return "each task needs its own Key; this one is already taken"
 	case errors.Is(err, ErrDuplicateSiblingName):
 		return fmt.Sprintf("duplicate sibling name: %s; give each child of one parent its own name", subject)
+	case errors.Is(err, ErrComputeWithVerify):
+		return fmt.Sprintf("Compute needs a Task without Verify: a satisfied Verify skips the callback and %s would have no value; drop the Verify or Compute a separate Task", subject)
 	case errors.Is(err, ErrInvalidConfig):
 		return "configure After and Verify before Define, and Define each task once with a non-nil callback"
 	case errors.Is(err, ErrRenderer):

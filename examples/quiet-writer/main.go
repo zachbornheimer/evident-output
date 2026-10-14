@@ -25,7 +25,7 @@ func main() {
 	quiet := flag.Duration("quiet", 900*time.Millisecond, "how long the task stays Running without output")
 	flag.Parse()
 
-	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+	os.Exit(evo.Main(evo.Config{}, func(ctx context.Context, r *evo.Run) error {
 		build := r.Task("build")
 		build.Define(func(ctx context.Context) error {
 			return buildQuietly(ctx, build, *quiet)

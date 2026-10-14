@@ -342,7 +342,7 @@ func runExitCodeVars(f *ast.File) map[string]bool {
 }
 
 // isRunExitCodeCall is true for evo.Run(...), out.Run(...) (removed in 2.0), evo.Main(...)
-// (v0.6: Main itself returns the derived code — os.Exit(evo.Main(run)) is
+// (v0.6: Main itself returns the derived code — os.Exit(evo.Main(cfg, run)) is
 // the canonical entrypoint, not a wrapper flagged as double-exiting), and
 // any ....ExitCode() call — the call shapes runExitCodeVars looks for on an
 // assignment's right-hand side.

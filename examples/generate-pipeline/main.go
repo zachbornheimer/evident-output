@@ -25,9 +25,9 @@ func main() {
 	workDir := flag.String("work-dir", filepath.Join(os.TempDir(), "evo-generate-pipeline-example-work"), "pipeline working directory (inputs/outputs/stub tools)")
 	flag.Parse()
 
-	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+	os.Exit(evo.Main(evo.Config{State: evo.State{Dir: *stateDir}}, func(ctx context.Context, r *evo.Run) error {
 		return runPipeline(ctx, r, *workDir)
-	}, evo.Config{State: evo.State{Dir: *stateDir}}))
+	}))
 }
 
 // workDirSeeds are the pipeline's inputs and its two stub "tool" scripts.

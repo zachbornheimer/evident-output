@@ -62,7 +62,7 @@ var fileDetectors = []detector{
 	// ledger and the process's actual exit path diverge (Decisions
 	// 2026-09-23, ZYS-939).
 	{needsEvo: true, run: astRule(detectDuplicateSignalWiringAroundMain)},
-	// EVO-EXIT-002: evo.Main returns the exit code; a bare evo.Main(run)
+	// EVO-EXIT-002: evo.Main returns the exit code; a bare evo.Main(cfg, run)
 	// statement discards it and exits 0 after a failed run (E-114).
 	{needsEvo: true, run: astRule(detectDiscardedMainCode)},
 	// TERM-015: a child that owns the terminal (tty passthrough) must run

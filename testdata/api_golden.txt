@@ -42,7 +42,7 @@ func Exec(ctx context.Context, spec ExecSpec)  ExecResult,  error
 func Execute(ctx context.Context, cfg Config, run RunFunc)  Result
 func Fail(summary string, opts ...ProblemOption)  error
 func File(ctx context.Context, spec FileSpec)  error
-func Main(run RunFunc, cfg ...Config)  int
+func Main(cfg Config, run RunFunc)  int
 func Next(action Action)  ProblemOption
 func NonInteractive(argv ...string)  ConfirmOption
 func On(subject string)  ProblemOption
@@ -131,6 +131,7 @@ value Delete Verb
 value ErrComputedUnordered
 value ErrExecNonzeroExit
 value ErrExecOutputMissing
+value ErrInvalidConfig
 value ErrPatchDoesNotApply
 value ErrStaleBasis
 value Excluded Outcome

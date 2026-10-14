@@ -24,9 +24,9 @@ func main() {
 		step = 15 * time.Millisecond
 	}
 
-	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+	os.Exit(evo.Main(evo.Config{Name: "install dependencies"}, func(ctx context.Context, r *evo.Run) error {
 		return runLive(r, step)
-	}, evo.Config{Name: "install dependencies"}))
+	}))
 }
 
 // runLive uses evo.Sequence: dependencies is a sequence of steps that must stop

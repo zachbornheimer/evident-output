@@ -25,7 +25,7 @@ import (
  evo "github.com/zachbornheimer/evident-output"
 )
 
-func main() { os.Exit(evo.Main(run)) } // Main wires SIGINT/SIGTERM and returns the exit code
+func main() { os.Exit(evo.Main(evo.Config{}, run)) } // Main wires SIGINT/SIGTERM and returns the exit code
 
 func run(ctx context.Context, r *evo.Run) error {
  r.Task("check config").Define(checkConfig)

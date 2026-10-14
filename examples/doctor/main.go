@@ -35,7 +35,7 @@ func main() {
 	if *verbose {
 		cfg.Verbose = true
 	}
-	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+	os.Exit(evo.Main(cfg, func(ctx context.Context, r *evo.Run) error {
 		// probe runs one check as the Task's work; a check that finds
 		// nothing wrong leaves the Task to resolve Done on its own.
 		probe := func(name string, check func(*evo.Task)) {
@@ -74,5 +74,5 @@ func main() {
 			)
 		})
 		return nil
-	}, cfg))
+	}))
 }

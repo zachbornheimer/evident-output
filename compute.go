@@ -27,7 +27,7 @@ func Compute[T any](task *Task, fn func(context.Context) (T, error)) *Computed[T
 	c := &Computed[T]{task: task}
 	if task == nil || fn == nil {
 		if task != nil {
-			task.out.recordMisuse(errInvalidConfig)
+			task.out.recordMisuse(ErrInvalidConfig)
 		}
 		return c
 	}
@@ -36,7 +36,7 @@ func Compute[T any](task *Task, fn func(context.Context) (T, error)) *Computed[T
 	st := o.taskStates[task.id]
 	o.mu.Unlock()
 	if st != nil && len(o.freshness.Tasks().Verifiers(st.node.TaskID())) > 0 {
-		o.recordMisuseFor(st.name, fmt.Errorf("%w: Compute on %q, which has a Verify that can skip the callback and leave no value", errInvalidConfig, st.name))
+		o.recordMisuseFor(st.name, fmt.Errorf("%w: %q", errComputeWithVerify, st.name))
 		return c
 	}
 	if st != nil {

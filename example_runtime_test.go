@@ -40,12 +40,13 @@ func ExampleOutput() {
 }
 
 // ExampleMain shows deriving a process exit code from a RunFunc without
-// Main itself calling os.Exit — the caller writes os.Exit(Main(run)).
+// Main itself calling os.Exit — the caller writes os.Exit(Main(Config{}, run)).
 func ExampleMain() {
 	var buf bytes.Buffer
-	code := Main(func(ctx context.Context, r *Run) error {
+	cfg := Config{Output: Plain, Facades: Facades{Stdout: &buf, Stderr: io.Discard}}
+	code := Main(cfg, func(ctx context.Context, r *Run) error {
 		return errors.New("disk full")
-	}, Config{Output: Plain, Facades: Facades{Stdout: &buf, Stderr: io.Discard}})
+	})
 	fmt.Println(code)
 	// Output:
 	// 2

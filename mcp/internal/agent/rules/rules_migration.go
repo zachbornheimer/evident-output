@@ -70,7 +70,7 @@ func Migrations() []MigrationRow {
 		},
 		{
 			From:    "evo.MainWith(...)",
-			To:      "os.Exit(evo.Main(run)) where run(ctx context.Context) error",
+			To:      "os.Exit(evo.Main(evo.Config{}, run)) where run(ctx context.Context) error",
 			RuleID:  "API-018",
 			Since:   "1.0.0",
 			Removed: true,

@@ -27,7 +27,7 @@ func ExampleMain_program() {
 		return nil
 	}
 	var out bytes.Buffer
-	code := evo.Main(run, quietRun(&out)) // main is: os.Exit(evo.Main(run))
+	code := evo.Main(quietRun(&out), run) // main is: os.Exit(evo.Main(evo.Config{}, run))
 	fmt.Print(out.String())
 	fmt.Println("exit", code)
 	// Output:

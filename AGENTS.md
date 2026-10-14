@@ -125,7 +125,7 @@ classifying — it serializes on the same git dirs.
 ## Dialect the MCP enforces (current rec)
 
 ```go
-os.Exit(evo.Main(run)) // Main returns the exit code; it never exits itself
+os.Exit(evo.Main(evo.Config{}, run)) // Main returns the exit code; it never exits itself
 
 evo.Task("check config").Define(checkConfig)
 

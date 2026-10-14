@@ -78,9 +78,13 @@
   {
     "id": "C48-005",
     "section": "2.0 \u00a78 What Evo promises",
-    "quote": "Misuse is recorded with a remedy, appears in `Result`, and never crashes the program.",
+    "quote": "Misuse is recorded with a remedy, appears in `Result` as `Result.Err` and `Conclusion.Explanation`, and never crashes the program.",
     "tier": "1.1",
     "tests": [
+      {
+        "pkg": ".",
+        "run": "TestMisuseAppearsInResult"
+      },
       {
         "pkg": ".",
         "run": "TestRejectedDeclaration_DefineRecordsMisuse"

@@ -30,7 +30,7 @@ const (
 // signalChild is a program under test: Main with a body that declares one
 // long Task and returns at once, so the signal arrives while Evo drains it.
 func signalChild(marker string, opts ...evo.DefineOption) int {
-	return evo.Main(func(_ context.Context, r *evo.Run) error {
+	return evo.Main(evo.Config{}, func(_ context.Context, r *evo.Run) error {
 		r.Task("long").Define(func(ctx context.Context) error {
 			if err := os.WriteFile(marker, nil, 0o600); err != nil {
 				return err

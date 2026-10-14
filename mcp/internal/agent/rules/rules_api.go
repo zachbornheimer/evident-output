@@ -158,14 +158,14 @@ _ = r.Task("scan")`,
 			ID:        "API-018",
 			Category:  "API",
 			Severity:  SeverityWarning,
-			Invariant: "process exit codes come only from os.Exit(evo.Main(run)), or evo.Execute's returned Result.ExitCode() (evo.MainWith was removed in 1.0)",
+			Invariant: "process exit codes come only from os.Exit(evo.Main(evo.Config{}, run)), or evo.Execute's returned Result.ExitCode() (evo.MainWith was removed in 1.0)",
 			Why:       "A hand-mapped os.Exit int bypasses the Outcome→exit-code contract; a Blocked run (1) can silently read as success, or a real failure can read as blocked.",
 			BadCode: `if err != nil {
   fmt.Println(err)
   os.Exit(1) // hand-mapped, not fed by evo
 }`,
-			GoodCode:        `os.Exit(evo.Main(run)) // run(ctx) returns error; Conclusion decides 0/1/2/130; Main derives the code, caller exits`,
-			Remediation:     "Route exit through os.Exit(evo.Main(run)), or evo.Execute's returned Result.ExitCode() for a caller that needs the code without exiting (evo.MainWith was removed in 1.0)",
+			GoodCode:        `os.Exit(evo.Main(evo.Config{}, run)) // run(ctx) returns error; Conclusion decides 0/1/2/130; Main derives the code, caller exits`,
+			Remediation:     "Route exit through os.Exit(evo.Main(evo.Config{}, run)), or evo.Execute's returned Result.ExitCode() for a caller that needs the code without exiting (evo.MainWith was removed in 1.0)",
 			RelatedGuidance: []string{"streams", "common-api"},
 			VerificationIDs: []string{"API-018"},
 			Since:           "0.2.0",
@@ -262,7 +262,7 @@ func run(out *evo.Output) error {
 	return out.Task("z").Fail("failed", evo.Cause(err))
 }`,
 			GoodCode: `func main() {
-	os.Exit(evo.Main(run, evo.Config{Name: "tool", DryRun: dry}))
+	os.Exit(evo.Main(evo.Config{Name: "tool", DryRun: dry}, run))
 }
 func run(ctx context.Context, r *evo.Run) error {
 	task := r.Task("branches")

@@ -26,7 +26,7 @@ license: Apache-2.0
 ## Workflow when MCP is connected
 
 1. `evident_output_list_sections` / `evident_output_get_documentation`
-2. Implement with `Main(run)`, `Task.Define`, one Task per item under a `Group`/`Sequence`, mutation callbacks, `Writer()`
+2. Implement with `Main(cfg, run)`, `Task.Define`, one Task per item under a `Group`/`Sequence`, mutation callbacks, `Writer()`
 3. `evident_output_review` until `recheck_required=false` (loop until its
    `next_action` field says `clean`). If it reports `update_needed`, call
    `evident_output_update` then restart the MCP host first.
@@ -58,7 +58,7 @@ grok mcp doctor evident-output --json
 ## Rules of thumb
 
 - Evo owns scheduling (`Group`/`Sequence`/`Define`/`After`); do not invent `RunAll` / `Map` / `Retry` on evo receivers (API-026, AST-only)
-- Standalone: `os.Exit(evo.Main(run))` (Main returns the exit code; a bare `evo.Main(run)` exits 0 after a failure); hosted or embedded: `os.Exit(evo.Execute(ctx, cfg, run).ExitCode())` (the host owns `os.Exit`)
+- Standalone: `os.Exit(evo.Main(evo.Config{}, run))` (Main returns the exit code; a bare `evo.Main(evo.Config{}, run)` exits 0 after a failure); hosted or embedded: `os.Exit(evo.Execute(ctx, cfg, run).ExitCode())` (the host owns `os.Exit`)
 - Entity: Task = atomic work (`Define`) or a gate resolved directly; one Task per item under a `Group` for independent collections; `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)` (opaque mutations) and `evo.File` (file state) inside `Define` pick `[changed]` vs `[planned]` from `Config.DryRun`
 - Domain effect verbs: use `Record` when stock verbs lie (RULE-001)
 - `Block` = condition found; `Fail` = evaluation failed; a warning is `Problem` + `SeverityWarning`

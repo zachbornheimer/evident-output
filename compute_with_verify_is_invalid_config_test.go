@@ -32,7 +32,7 @@ func TestCompute_OnATaskWithAVerifyIsInvalidWhateverTheVerifyFinds(t *testing.T)
 
 			_ = out.finish()
 
-			if !errors.Is(out.err(), errInvalidConfig) {
+			if !errors.Is(out.err(), ErrInvalidConfig) {
 				t.Errorf("Err() = %v, want ErrInvalidConfig", out.err())
 			}
 			if got.Load() != computedNeverRead {

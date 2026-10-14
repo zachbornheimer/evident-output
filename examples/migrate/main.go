@@ -24,7 +24,7 @@ func main() {
 	fail := flag.Bool("fail", false, "with --apply, simulate backup failure")
 	flag.Parse()
 
-	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+	os.Exit(evo.Main(evo.Config{}, func(ctx context.Context, r *evo.Run) error {
 		migrationsDir, err := os.MkdirTemp("", "evo-migrate-")
 		if err != nil {
 			return evo.Refuse("cannot create the migrations directory", evo.Detail(err.Error()))

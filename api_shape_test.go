@@ -46,7 +46,7 @@ func TestAPI018_LibraryDoesNotCallOsExit(t *testing.T) {
 	// and its exitProcess facade outright — Run/Main are the only
 	// entrypoints left, and neither calls os.Exit at all
 	// (run_exit_facade_internal_test.go's TestMain_ReturnsCodeWithoutExiting
-	// proves it directly): the caller writes os.Exit(Main(run)).
+	// proves it directly): the caller writes os.Exit(Main(Config{}, run)).
 	out := initRun(Config{stdout: io.Discard})
 	out.Task("x")
 	if err := out.finish(); err != nil {

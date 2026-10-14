@@ -12,10 +12,12 @@ var (
 	errUnresolvedTask     = misuse.ErrUnresolvedTask
 	errInvalidProgress    = misuse.ErrInvalidProgress
 	errProgressRegression = misuse.ErrProgressRegression
-	errInvalidConfig      = misuse.ErrInvalidConfig
-	errRenderer           = misuse.ErrRenderer
-	errLimitExceeded      = misuse.ErrLimitExceeded
-	errConcurrentRunning  = misuse.ErrConcurrentRunning
+	// ErrInvalidConfig: a declaration Evo refuses; Result.Err wraps it.
+	ErrInvalidConfig     = misuse.ErrInvalidConfig
+	errComputeWithVerify = misuse.ErrComputeWithVerify
+	errRenderer          = misuse.ErrRenderer
+	errLimitExceeded     = misuse.ErrLimitExceeded
+	errConcurrentRunning = misuse.ErrConcurrentRunning
 	// ErrComputedUnsettled: Computed.Get ran before the producing Task settled.
 	errComputedUnsettled = misuse.ErrComputedUnsettled
 	// ErrComputedUnordered: Computed.Get ran outside an order after the producer.

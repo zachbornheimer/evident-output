@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+	os.Exit(evo.Main(evo.Config{Name: "packages"}, func(ctx context.Context, r *evo.Run) error {
 		// Managed, line-oriented replacement for human-facing fmt.Print*
 		// (not a byte-for-byte fmt drop-in).
 		_, _ = fmt.Fprintln(r.Text(), "Reading configuration")
@@ -22,5 +22,5 @@ func main() {
 		_, _ = fmt.Fprint(r.Text(), "\n")
 		_, _ = fmt.Fprintln(r.Text(), "Ready")
 		return nil
-	}, evo.Config{Name: "packages"}))
+	}))
 }

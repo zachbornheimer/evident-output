@@ -32,7 +32,7 @@ that touches more than one item.
 
 ```go
 func main() {
-    os.Exit(evo.Main(run))
+    os.Exit(evo.Main(evo.Config{}, run))
 }
 
 func run(ctx context.Context, r *evo.Run) error {
@@ -47,7 +47,7 @@ func run(ctx context.Context, r *evo.Run) error {
 ## Hosted (framework owns exit)
 
 `evo.Execute(ctx, cfg, run)` returns a `Result`; `Result.ExitCode()` is the process exit code.
-The host inspects it and exits. `os.Exit(evo.Main(run))` is the process-exit path for an
+The host inspects it and exits. `os.Exit(evo.Main(evo.Config{}, run))` is the process-exit path for an
 ordinary `main()`; `Execute` is the hosted counterpart, and never exits the process itself.
 
 ```go

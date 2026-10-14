@@ -195,7 +195,7 @@ func (s *Sequence) define(build func(*Sequence)) {
 
 func (g *Group) recordInvalid() {
 	if g != nil && g.out != nil {
-		g.out.recordMisuse(errInvalidConfig)
+		g.out.recordMisuse(ErrInvalidConfig)
 	}
 }
 

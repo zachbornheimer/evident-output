@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+	os.Exit(evo.Main(evo.Config{Name: "compose"}, func(ctx context.Context, r *evo.Run) error {
 		r.Task("config").Define(func(context.Context) error { return nil })
 		r.Task("credentials").Define(func(context.Context) error { return nil })
 		pull := r.Task("pull base image")
@@ -21,5 +21,5 @@ func main() {
 			return nil
 		})
 		return nil
-	}, evo.Config{Name: "compose"}))
+	}))
 }

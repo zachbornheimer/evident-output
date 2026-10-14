@@ -257,7 +257,7 @@ func TestCompute_AfterOnBuilderContainerAfterDefineIsInvalidConfig(t *testing.T)
 	g.define(func(g *Group) {})
 	g.After(pre)
 	_ = out.finish()
-	if !errors.Is(out.err(), errInvalidConfig) {
+	if !errors.Is(out.err(), ErrInvalidConfig) {
 		t.Fatalf("Err() = %v, want ErrInvalidConfig", out.err())
 	}
 }

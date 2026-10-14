@@ -22,7 +22,7 @@ func main() {
 	if *verbose {
 		cfg.Verbose = true
 	}
-	os.Exit(evo.Main(func(ctx context.Context, r *evo.Run) error {
+	os.Exit(evo.Main(cfg, func(ctx context.Context, r *evo.Run) error {
 		_, _ = fmt.Fprintln(r.Text(), "Reading configuration")
 		_, _ = fmt.Fprintf(r.Text(), "Found %d packages\n", 18)
 		// Hidden unless --verbose (still present in Snapshot.Messages).
@@ -35,5 +35,5 @@ func main() {
 			return nil
 		})
 		return nil
-	}, cfg))
+	}))
 }

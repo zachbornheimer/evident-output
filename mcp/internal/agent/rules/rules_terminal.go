@@ -26,7 +26,7 @@ func terminalRules() []Rule {
 			BadCode: `c := make(chan os.Signal, 1)
 signal.Notify(c, syscall.SIGINT)
 go func() { <-c; os.Exit(1) }()`,
-			GoodCode:        `os.Exit(evo.Main(run)) // wires SIGINT and SIGTERM to the context run and every Define callback receive`,
+			GoodCode:        `os.Exit(evo.Main(evo.Config{}, run)) // wires SIGINT and SIGTERM to the context run and every Define callback receive`,
 			Remediation:     "Call Cancel on the active task/handle from the signal goroutine, or use evo.Main (or evo.Execute with a cancellable context)",
 			RelatedGuidance: []string{"streams", "interactive"},
 			VerificationIDs: []string{"SIG-001"},
