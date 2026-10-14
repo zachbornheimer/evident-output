@@ -26,14 +26,23 @@ type Host interface {
 	DryRun() bool
 	// Ending is the state and Problem a callback's returned error settles.
 	Ending(err error) (record.State, record.Problem)
+	// EndingName names the Task that carries the run's own ending. It takes
+	// the lock itself.
+	EndingName() string
 	TaskNarration
 }
 
 // TaskNarration is how the reader learns what happened to a Task's work.
 type TaskNarration interface {
-	// Submitted follows the record once work was submitted for t. The
-	// caller holds the lock.
-	Submitted(t *Task)
+	// TaskDeclared registers the row of a Task just declared; GateDeclared
+	// the gate of a container builder, which has no row; ContainerDeclared
+	// a Group or Sequence. The caller holds the lock.
+	TaskDeclared(t *Task)
+	GateDeclared(t *Task)
+	ContainerDeclared(c *Container)
+	// Changed follows the record once t was written outside a resolution:
+	// declared settled, or given work. The caller holds the lock.
+	Changed(t *Task)
 	// Started does the render work a claimed Task owes, and reports whether
 	// it began: false when it settled between its claim and this step. It
 	// takes the lock itself.

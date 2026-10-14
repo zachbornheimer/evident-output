@@ -405,11 +405,6 @@ func (o *Run) endWith(state entityState, p problem) {
 	o.graph.EndRun(o.endingName(), record.TaskInit{State: state, Problems: []problem{p}})
 }
 
-// cancel records output-level cancellation.
-func (o *Run) cancel(reason string) {
-	o.graph.EndRun(o.endingName(), record.TaskInit{State: cancelled, Summary: txt.Text(reason)})
-}
-
 // endingName names the Task that carries the run's own ending: the
 // configured subject, else the executable's name.
 func (o *Run) endingName() string {
@@ -420,6 +415,11 @@ func (o *Run) endingName() string {
 		return name
 	}
 	return identityFallbackName()
+}
+
+// cancel records output-level cancellation.
+func (o *Run) cancel(reason string) {
+	o.graph.EndRun(o.endingName(), record.TaskInit{State: cancelled, Summary: txt.Text(reason)})
 }
 
 type Outcome string

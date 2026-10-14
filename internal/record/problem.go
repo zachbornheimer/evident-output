@@ -90,6 +90,10 @@ func SplitWrappedMessage(format string, err error) (summary, evidence string) {
 	return full, evidence
 }
 
+// CodeDuplicateSiblingName marks the row of a Task, Group or Sequence
+// declared with a name another child of the same parent already uses (§3.1).
+const CodeDuplicateSiblingName = "duplicate-sibling-name"
+
 // CodeVerificationUnsatisfied marks a Task whose Verify still failed after
 // its callback succeeded (§9.1): the callback ran, but its intended effect
 // could not be confirmed.

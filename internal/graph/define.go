@@ -76,7 +76,7 @@ func (g *Graph) submitDefined(t *Task, work Work) {
 		g.misuse.RecordMisuseFor("", misuse.ErrInvalidConfig)
 		return
 	}
-	h.Submitted(t)
+	h.Changed(t)
 	h.Unlock()
 	g.Kick()
 }

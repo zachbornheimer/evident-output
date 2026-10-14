@@ -71,3 +71,19 @@ func (c *Computed[T]) refusalFor(g *Graph, reader *Task) error {
 	}
 	return nil
 }
+
+// RefuseRead records a Computed read the graph refused to reader, naming
+// subject. A read on the goroutine of a callback or container builder
+// unwinds it with err. One from a goroutine the callback started cannot:
+// the graph fails the callback's Task when it returns, and a strict panic on
+// that goroutine, which nothing recovers, would end the process instead.
+func (g *Graph) RefuseRead(subject string, err error, reader Reader) {
+	if reader.Task != nil && !reader.Unwinds() {
+		g.tellContained(misuseNote{subject: subject, err: err})
+		return
+	}
+	g.misuse.RecordMisuseFor(subject, err)
+	if reader.Unwinds() {
+		panic(err)
+	}
+}

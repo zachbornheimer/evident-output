@@ -7,10 +7,6 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/graph"
 )
 
-// Compute and Computed live in computed.go until the slice-9 LAYOUT split.
-
-// --- folded from computed.go ---
-
 // Computed is the value a Task produces for the Tasks and containers
 // declared After it (see Compute). The graph decides when it may be read
 // (graph.Computed); this records the misuse of a read it refused.
@@ -19,31 +15,6 @@ type Computed[T any] struct {
 	// value is nil for a producer the Output holds no Task for (a rejected
 	// declaration), which can never settle.
 	value *graph.Computed[T]
-}
-
-// newGraphComputed is the graph's Computed for the Task behind h, or nil
-// when the Output holds none.
-func newGraphComputed[T any](h *Task) *graph.Computed[T] {
-	o := h.out
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	st := o.taskStates[h.id]
-	if st == nil {
-		return nil
-	}
-	return graph.NewComputed[T](st.node)
-}
-
-// verifyOn is the name of the Task h refers to when it carries a Verify.
-func (h *Task) verifyOn() (name string, verified bool) {
-	o := h.out
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	st := o.taskStates[h.id]
-	if st == nil {
-		return "", false
-	}
-	return st.name, len(o.freshness.Tasks().Verifiers(st.TaskID())) > 0
 }
 
 // Compute defines task as the producer of a value: fn's result becomes
@@ -61,11 +32,17 @@ func Compute[T any](task *Task, fn func(context.Context) (T, error)) *Computed[T
 		}
 		return c
 	}
-	if name, verified := task.verifyOn(); verified {
-		task.out.recordMisuseFor(name, fmt.Errorf("%w: Compute on %q, which has a Verify that can skip the callback and leave no value", errInvalidConfig, name))
+	o := task.out
+	o.mu.Lock()
+	st := o.taskStates[task.id]
+	o.mu.Unlock()
+	if st != nil && len(o.freshness.Tasks().Verifiers(st.node.TaskID())) > 0 {
+		o.recordMisuseFor(st.name, fmt.Errorf("%w: Compute on %q, which has a Verify that can skip the callback and leave no value", errInvalidConfig, st.name))
 		return c
 	}
-	c.value = newGraphComputed[T](task)
+	if st != nil {
+		c.value = graph.NewComputed[T](st.node)
+	}
 	task.Define(func(ctx context.Context) error {
 		v, err := fn(ctx)
 		if err != nil {
@@ -108,34 +85,16 @@ func (c *Computed[T]) Get() T {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if c.value == nil {
-		o.refuseComputedReadLocked("", errComputedUnsettled, reader)
+		o.graph.RefuseRead("", errComputedUnsettled, reader)
 		return zero
 	}
 	v, err := c.value.ReadAs(o.graph, reader)
 	if err == nil {
 		return v
 	}
-	o.refuseComputedReadLocked(c.value.Producer().Name, err, reader)
+	subject := c.value.Producer().Name
+	o.graph.RefuseRead(subject, fmt.Errorf("%w: read of %q", err, subject), reader)
 	return zero
-}
-
-// refuseComputedReadLocked records a refused Computed read by reader naming
-// subject. A read on the goroutine of a callback or container builder unwinds
-// it with err. One from a goroutine the callback started cannot: the graph
-// fails the callback's Task when it returns, and a strict panic on that
-// goroutine, which nothing recovers, would end the process instead.
-func (o *Run) refuseComputedReadLocked(subject string, err error, reader graph.Reader) {
-	if subject != "" {
-		err = fmt.Errorf("%w: read of %q", err, subject)
-	}
-	if reader.Task != nil && !reader.Unwinds() {
-		o.misuse.Keep(err, subject, "")
-		return
-	}
-	o.recordMisuseFor(subject, err)
-	if reader.Unwinds() {
-		panic(err)
-	}
 }
 
 func (*Computed[T]) predecessor() {}

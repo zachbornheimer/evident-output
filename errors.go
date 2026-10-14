@@ -40,6 +40,6 @@ var (
 	// forbids and which would make a false "already satisfied" possible.
 	// The offending declaration still returns a usable (but orphaned)
 	// handle; the real, visible outcome is a Failed task carrying
-	// ProblemCodeDuplicateSiblingName (see failDuplicateSiblingLocked).
+	// ProblemCodeDuplicateSiblingName (see graph.Graph.DeclareTask).
 	errDuplicateSiblingName = misuse.ErrDuplicateSiblingName
 )

@@ -98,8 +98,8 @@ func TestDuplicateSiblingRefusalRowSharesItsSiblingsIdentity(t *testing.T) {
 		if refusal == nil {
 			t.Fatalf("%s: no refusal row recorded", original.name)
 		}
-		if refusal.key() != original.key() {
-			t.Errorf("%s: refusal key %q, original key %q", original.name, refusal.key(), original.key())
+		if refusal.node.Key() != original.node.Key() {
+			t.Errorf("%s: refusal key %q, original key %q", original.name, refusal.node.Key(), original.node.Key())
 		}
 	}
 }

@@ -948,7 +948,7 @@ func (o *Run) reactToSettlesLocked() {
 func (o *Run) taskSettledLocked(st *taskState, to entityState) {
 	st.timing.Settled = o.cfg.clock.Now()
 	o.emitWireEventLocked(wire.EventTaskFinished, st.id, taskFinishedPayload(st))
-	if st.isGate() {
+	if st.node.IsGate() {
 		o.bumpLocked()
 		return
 	}
@@ -959,6 +959,144 @@ func (o *Run) taskSettledLocked(st *taskState, to entityState) {
 }
 
 // --- folded from live.go ---
+
+type taskState struct {
+	id string
+	// node is the graph's declaration of this Task. It owns the Task's stable
+	// key and everything the scheduler knows: its phase, predecessors and
+	// the work Define submitted.
+	node   *graph.Task
+	name   string
+	handle *Task
+
+	// liveFirstSeenAt is the domain-clock time this task was first actually
+	// painted in the live region (see taskState.stampLiveFirstSeen in live.go) —
+	// the one elapsed-time anchor every row's heartbeat suffix reads (P5),
+	// including a Pending task, which never calls Phase/Progress.
+	liveFirstSeenAt time.Time
+
+	// followed is the state the render state last accounted for: the live
+	// census counts the Task under it, and a later difference from the
+	// record's state is what followRecordLocked reacts to. A Task starts
+	// followed as declaredState, so a Task settled before the engine ever
+	// saw it still gets its first reaction.
+	followed entityState
+	// settleAnswered is set once the render work a settle owes was queued.
+	settleAnswered bool
+	// runningAnnounced is set once the render work becoming Running owes was
+	// done, so task.started fires once however the row reached Running.
+	runningAnnounced bool
+	// timing is when the Task was declared, began running and settled.
+	timing record.TaskTiming
+
+	// ownsWindow is set on a Confirm gate while its Suspend window is open
+	// (guarded by Output.mu): the window shows this Task's rows, so they are
+	// not held back like a sibling's.
+	ownsWindow bool
+
+	// filing is where this Task stands in its collection's childIndex.
+	filing filing
+
+	// heartbeat is the §40 plain-mode durable heartbeat's state.
+	heartbeat plainHeartbeat
+
+	// tail is the bounded window of Writer lines a live frame draws beneath
+	// this row; evidence above stays the full record.
+	tail liveTail
+
+	// Emission bookkeeping so terminal standalone tasks stream in plain mode
+	// on resolve (P2).
+	coreEmitted bool
+
+	// synthetic marks a task the library invented to carry an output-level
+	// outcome (Output.Fail/Cancel's synthetic "command" task) rather than
+	// one the caller declared. shouldSuppressRepeatedCondition (I2) must
+	// never drop the standalone conclusion band for one of these: it is the
+	// only place the run's outcome is ever stated, unlike a caller-declared
+	// Task whose own row already says the same thing.
+	synthetic bool
+
+	// plainStream is what plain progressive streaming already emitted for
+	// this still-Running standalone task.
+	plainStream plainStreamMark
+}
+
+type tasksState struct {
+	id string
+	// out is the Output this container belongs to: a read of its live index
+	// first follows the record (see Output.followRecordLocked).
+	out *Run
+	// node is the graph's declaration of this Group/Sequence and owns its
+	// §3.1 stable key.
+	node   *graph.Container
+	name   string
+	handle *Group
+
+	// kids is what a live frame and the verdict read of tasks.
+	kids childIndex
+
+	// runningSteps holds the children promoteRunningLocked moved to
+	// Running that may still be Running (pruned on each promotion), so the
+	// "one Running child" check never rescans every step.
+	runningSteps []*taskState
+
+	// census counts its descendant Tasks for the live frame (liveCensus).
+	census liveCensus
+	// hasNamesake records that a child Task carries this container's own
+	// name, the only way it can render as its own Task (liveOwnRow).
+	hasNamesake bool
+}
+
+// A container's members belong to the graph: it declared them, in order, and
+// owns who contains whom. The engine keeps only each member's render state,
+// in the Output's tables keyed by the member's id, and reads the membership
+// through the node.
+
+// taskCount is how many Tasks g declared directly.
+func (g *tasksState) taskCount() int { return g.node.TaskCount() }
+
+// taskAt is the render state of the Task g declared at position pos.
+func (g *tasksState) taskAt(pos int) *taskState {
+	return g.out.taskStates[g.node.TaskAt(pos).ID]
+}
+
+// taskStates are the render states of the Tasks g declared directly, in
+// declaration order.
+func (g *tasksState) taskStates() []*taskState {
+	nodes := g.node.Tasks()
+	states := make([]*taskState, len(nodes))
+	for i, node := range nodes {
+		states[i] = g.out.taskStates[node.ID]
+	}
+	return states
+}
+
+// childStates are the render states of the Groups and Sequences g declared
+// directly, in declaration order.
+func (g *tasksState) childStates() []*tasksState {
+	nodes := g.node.Children()
+	states := make([]*tasksState, len(nodes))
+	for i, node := range nodes {
+		states[i] = g.out.containerStates[node.ID]
+	}
+	return states
+}
+
+// parent is the container g is nested in, nil at the root.
+func (g *tasksState) parent() *tasksState {
+	if g.node.Parent == nil {
+		return nil
+	}
+	return g.out.containerStates[g.node.Parent.ID]
+}
+
+// collection is the container st was declared under, nil for a root Task.
+func (st *taskState) collection() *tasksState {
+	if st.node.Parent == nil {
+		return nil
+	}
+	return st.handle.out.containerStates[st.node.Parent.ID]
+}
 
 // LiveSurface is an interactive terminal sink for live-region rendering.
 // testkit.Screen implements this; production drivers can as well.
@@ -2792,7 +2930,7 @@ func (t *taskState) snapshot() taskSnapshot {
 	s.Skipped = cloneTaxonomy(s.Skipped)
 	s.Kept = cloneTaxonomy(s.Kept)
 	if t.handle != nil {
-		s.Tracked = t.handle.out.freshness.Tasks().Tracked(t.TaskID())
+		s.Tracked = t.handle.out.freshness.Tasks().Tracked(t.node.TaskID())
 	}
 	tail := record.LiveTailOf(s)
 	tail.Lines = slices.Clone(tail.Lines)
@@ -2811,7 +2949,7 @@ func (t *taskState) view() taskSnapshot {
 	truth := t.node.Rec.Truth()
 	base := taskSnapshot{
 		ID:           t.id,
-		Key:          t.key(),
+		Key:          t.node.Key(),
 		Name:         t.name,
 		State:        truth.State,
 		Phase:        truth.Phase,
@@ -3007,7 +3145,7 @@ func (g *tasksState) header() tasksSnapshot {
 	state := g.derivedState()
 	return tasksSnapshot{
 		ID:          g.id,
-		Key:         g.key(),
+		Key:         g.node.Key(),
 		Name:        g.name,
 		State:       state,
 		Summary:     g.displaySummary(state),

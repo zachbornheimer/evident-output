@@ -1080,56 +1080,6 @@ func parseDebugEnv(v string) (logLevel, bool) {
 	}
 }
 
-// --- folded from identity.go ---
-
-// Problem codes are stable, machine-readable Problem.Code values —
-// consumers match on these instead of parsing Summary text, which is
-// presentation and may be reworded.
-const (
-	// ProblemCodeDuplicateSiblingName marks a Task/Group/Sequence declared
-	// with a name already used by another child of the same parent (§3.1).
-	// get-or-create was removed for exactly this reason in 1.0: letting two
-	// distinct declarations silently merge into one identity would make a
-	// false "already satisfied" possible once identity drives manifest
-	// reconciliation, so declaration fails instead of returning an
-	// ambiguous handle.
-	problemCodeDuplicateSiblingName = "duplicate-sibling-name"
-)
-
-// containerNode is col's declaration in the graph, nil for the root (col == nil).
-func containerNode(col *tasksState) *graph.Container {
-	if col == nil {
-		return nil
-	}
-	return col.node
-}
-
-// failDuplicateSiblingLocked records a real, visible Failed task carrying
-// ProblemCodeDuplicateSiblingName — the truthful conclusion/exit-code path
-// a duplicate declaration now takes instead of a panic or a silently
-// returned existing handle. The row is named for the duplicated name
-// itself, and its one Problem says what is wrong with it, so the reader
-// sees `✗ t  duplicate task name` once. col is the parent container the
-// duplicate was declared under, or nil for a root-level declaration.
-// Callers must already hold o.mu. It returns the refusal the duplicate's
-// rejected handle keeps.
-func (o *Run) failDuplicateSiblingLocked(col *tasksState, kind graph.EntityKind, name string) error {
-	h := o.addTaskLocked(name, col)
-	rejected := fmt.Errorf("%w: %s", errDuplicateSiblingName, name)
-	st := o.taskStates[h.id]
-	if st == nil {
-		return rejected
-	}
-	st.node.Rec.AppendProblems(problem{
-		Code:    problemCodeDuplicateSiblingName,
-		Summary: fmt.Sprintf("duplicate %s name", kind),
-	})
-	o.graph.Settle(st.node, failed)
-	o.followRecordLocked()
-	o.recordMisuseFor(name, errDuplicateSiblingName)
-	return rejected
-}
-
 // --- folded from machine.go ---
 
 func writeMachinePresentation(w io.Writer, snap snapshot, events []recEvent, proj projection, misuse error) error {
@@ -1189,7 +1139,7 @@ func (o *Run) close() error {
 	defer close(o.closing)
 	// A Confirm still waiting for an answer would hold its caller forever
 	// once the run is gone.
-	for o.cancelPendingConfirmLocked(cancelCauseClose) {
+	for o.graph.CancelPendingGate(cancelCauseClose) {
 	}
 	needFinish := !o.finished
 	o.mu.Unlock()
@@ -1809,8 +1759,65 @@ func (o *Run) stateOf(t *graph.Task) *taskState { return o.taskStates[t.ID] }
 // Ending is the state and Problem a callback's returned error settles.
 func (runHost) Ending(err error) (record.State, record.Problem) { return endingOf(err) }
 
-// Submitted follows the record once work was submitted.
-func (e runHost) Submitted(*graph.Task) { e.out.followRecordLocked() }
+// Changed follows the record once t was written outside a resolution.
+func (e runHost) Changed(*graph.Task) { e.out.followRecordLocked() }
+
+// EndingName names the Task that carries the run's own ending: the
+// configured subject, else the executable's name.
+func (e runHost) EndingName() string { return e.out.endingName() }
+
+// TaskDeclared registers the row of a Task the graph just declared: its
+// render state, its place in its collection's live index and census, the
+// declaration events, and a forced paint.
+func (e runHost) TaskDeclared(t *graph.Task) {
+	o := e.out
+	st := &taskState{
+		id:       t.ID,
+		node:     t,
+		name:     t.Name,
+		followed: declaredState,
+		timing:   record.TaskTiming{Declared: o.cfg.clock.Now()},
+	}
+	st.handle = &Task{out: o, id: st.id}
+	o.appendTaskLocked(st)
+	if col := st.collection(); col != nil {
+		st.filing.pos = col.taskCount() - 1
+		st.markFiling()
+		col.hasNamesake = col.hasNamesake || t.Name == col.name
+		st.censusDeclared()
+	}
+	o.taskStates[st.id] = st
+	o.bumpLocked()
+	o.appendEventLocked(recEvent{Type: "task.declared", EntityID: st.id})
+	o.emitWireEventLocked(wire.EventTaskDeclared, st.id, map[string]any{"name": t.Name})
+	o.signalLiveLocked(true)
+}
+
+// GateDeclared registers the gate of a container builder: no row, in no
+// collection, but followed like any Task.
+func (e runHost) GateDeclared(t *graph.Task) {
+	o := e.out
+	gate := &taskState{id: t.ID, node: t, name: t.Name, followed: declaredState}
+	gate.handle = &Task{out: o, id: gate.id}
+	o.taskStates[gate.id] = gate
+}
+
+// ContainerDeclared registers a Group or Sequence the graph just declared.
+func (e runHost) ContainerDeclared(c *graph.Container) {
+	o := e.out
+	st := &tasksState{id: c.ID, out: o, node: c, name: c.Name}
+	parentID := ""
+	if c.Parent == nil {
+		o.collections = append(o.collections, st)
+	} else {
+		parentID = c.Parent.ID
+	}
+	o.containerStates[st.id] = st
+	st.handle = &Group{out: o, id: st.id}
+	o.bumpLocked()
+	o.appendEventLocked(recEvent{Type: "tasks.declared", EntityID: st.id})
+	o.emitCollectionDeclaredLocked(st, parentID)
+}
 
 // Started is the render work a claimed Task owes: the eligibility event, the
 // move to Running, the snapshot version and a forced paint, within the live
@@ -2032,86 +2039,6 @@ func observationPayload(ob change.Observation) map[string]any {
 }
 
 // --- folded from conjugate.go ---
-
-// --- folded from interrupt.go ---
-
-// interrupt stops the run at the first signal. The graph owns the order that
-// leaves the ledger honest (see graph.Graph.Interrupt); the engine's part is
-// putting the active rows into the state the reader must see.
-func (o *Run) interrupt(reason string) {
-	if o == nil {
-		return
-	}
-	o.graph.Interrupt(cancelCauseUser, func() { o.cancelActive(reason) })
-}
-
-// cancelActive cancels the currently running task, or the output itself when
-// no task is running, so an interrupt always leaves a typed Cancelled state.
-//
-// A pending Confirm gate takes priority over the generic task scan below: a
-// gate holds sole control of the run (Confirm suspends the live region and
-// blocks on stdin) and its abort channel — not Task.Cancel — is what
-// unblocks the stdin read. Since a Confirm gate is an ordinary Task while
-// its answer is pending, the generic Pending-task fallback would otherwise
-// resolve it to Cancelled without ever closing that channel, leaving
-// readConfirmLine blocked forever.
-func (o *Run) cancelActive(reason string) {
-	o.mu.Lock()
-	if o.cancelPendingConfirmLocked(reason) {
-		o.mu.Unlock()
-		return
-	}
-	running := make([]*Task, 0, len(o.tasks))
-	for _, t := range o.tasks {
-		if t.node.Rec.State() == record.Running {
-			running = append(running, t.handle)
-		}
-	}
-	if len(running) > 0 {
-		o.mu.Unlock()
-		for _, t := range running {
-			t.cancel(reason)
-		}
-		return
-	}
-	// Nothing has reached Running yet: the earliest-declared Pending task is
-	// the one about to run next (evo-rec.md "one Running child" — pending
-	// siblings are named and idle, waiting their turn), so an interrupt
-	// before any evidence still cancels that task rather than falling
-	// through to Output-level cancel.
-	var active *Task
-	for _, t := range o.tasks {
-		if t.node.Rec.State() == pending {
-			active = t.handle
-			break
-		}
-	}
-	if active != nil {
-		o.mu.Unlock()
-		active.cancel(reason)
-		return
-	}
-	o.mu.Unlock()
-	o.cancel(reason)
-}
-
-// cancelPendingConfirmLocked cancels one pending Confirm gate, if any, so ^C
-// at a "[y/N]" prompt unblocks Confirm's stdin read and resolves the gate as
-// Cancelled — never Blocked "declined" (a human "n" and an interrupt are
-// distinct outcomes). Reports whether a gate was cancelled.
-func (o *Run) cancelPendingConfirmLocked(reason string) bool {
-	id, ok := o.graph.AbortPending()
-	if !ok {
-		return false
-	}
-	if st := o.taskStates[id]; st != nil && !record.IsTerminalTask(st.node.Rec.State()) {
-		st.node.Rec.SetSummary(reason)
-		o.graph.Settle(st.node, cancelled)
-		o.followRecordLocked()
-		o.commitResolvedTaskLocked(id)
-	}
-	return true
-}
 
 // --- folded from misuse.go ---
 
@@ -2351,6 +2278,16 @@ func (o *Run) warnLocked(p problem) {
 
 // --- folded from run_signal.go ---
 
+// interrupt stops the run at the first signal. The graph owns the order that
+// leaves the ledger honest (see graph.Graph.Interrupt) and what it cancels
+// (see graph.Graph.CancelActive).
+func (o *Run) interrupt(reason string) {
+	if o == nil {
+		return
+	}
+	o.graph.Interrupt(cancelCauseUser, func() { o.graph.CancelActive(reason) })
+}
+
 // RunFunc is the shape of application work handed to Run/Main/Output.Run —
 // a context.Context carries cancellation (wired to SIGINT/SIGTERM by those
 // entrypoints) in place of the pre-v0.6 no-context func() error form.
@@ -2406,7 +2343,7 @@ func (t *Task) Verify(fn func(context.Context) (bool, error)) *Task {
 		o.recordMisuseFor(st.name, errInvalidConfig)
 		return t
 	}
-	o.freshness.Tasks().AddVerifier(st.TaskID(), freshness.Verifier(fn))
+	o.freshness.Tasks().AddVerifier(st.node.TaskID(), freshness.Verifier(fn))
 	return t
 }
 
@@ -2450,7 +2387,7 @@ func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Tas
 // definition is st's Define with fn as its callback: the operations inside
 // it act through the Run's changes, and freshness checks it.
 func (o *Run) definition(st *taskState, fn func(context.Context) error) graph.Definition[*change.Run] {
-	return graph.Definition[*change.Run]{Owner: o.changes, Checks: o.freshness.Checks(st.TaskID()), Callback: fn}
+	return graph.Definition[*change.Run]{Owner: o.changes, Checks: o.freshness.Checks(st.node.TaskID()), Callback: fn}
 }
 
 type State struct {

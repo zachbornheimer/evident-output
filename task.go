@@ -3,7 +3,6 @@ package evo
 import (
 	"container/heap"
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -73,8 +72,6 @@ func (t *Task) finish(state entityState, summary string, problems []problem) *Ta
 	return t
 }
 
-// --- folded from after.go ---
-
 // Predecessor is a handle After accepts: a *Task, *Group, *Sequence or
 // *Computed[T]. It is sealed, so nothing else can be passed to After.
 type Predecessor interface {
@@ -98,9 +95,7 @@ func (t *Task) After(preds ...Predecessor) *Task {
 	if st == nil {
 		return t
 	}
-	if !o.graph.AddAfter(st.node, o.predecessorsOfLocked(preds)...) {
-		o.recordMisuse(errInvalidConfig)
-	}
+	o.graph.After(st.node, o.predecessorsOfLocked(preds)...)
 	return t
 }
 
@@ -169,8 +164,6 @@ func (o *Run) nodeOfContainer(id string) *graph.Container {
 	return nil
 }
 
-// --- folded from builder.go ---
-
 // After declares predecessors: this Group declares its children only once
 // every one of them succeeded, and never does once one of them cannot. A
 // predecessor may be a Task, a Computed producer, or a Group or Sequence.
@@ -186,9 +179,7 @@ func (g *Group) After(preds ...Predecessor) *Group {
 	if col == nil {
 		return g
 	}
-	if !o.graph.AddContainerAfter(col.node, o.predecessorsOfLocked(preds)...) {
-		o.recordMisuse(errInvalidConfig)
-	}
+	o.graph.ContainerAfter(col.node, o.predecessorsOfLocked(preds)...)
 	return g
 }
 
@@ -240,29 +231,12 @@ func (g *Group) defineBuilder(run func()) {
 	o := g.out
 	o.mu.Lock()
 	col := o.containerStates[g.id]
-	switch {
-	case col == nil:
-		o.recordMisuse(g.rejected)
-		o.mu.Unlock()
-		return
-	case o.ensureOpen() != nil:
-		o.recordMisuse(errClosed)
-		o.mu.Unlock()
-		return
-	}
-	node := o.graph.AddGate(col.node, func() error { run(); return nil })
-	if node == nil {
-		o.recordMisuse(errInvalidConfig)
-		o.mu.Unlock()
-		return
-	}
-	gate := &taskState{id: node.ID, node: node, name: node.Name, followed: declaredState}
-	gate.handle = &Task{out: o, id: gate.id}
-	o.taskStates[gate.id] = gate
-	o.graph.Submit(node, graph.Work{})
-	o.followRecordLocked()
 	o.mu.Unlock()
-	o.graph.Kick()
+	if col == nil {
+		o.recordMisuse(g.rejected)
+		return
+	}
+	o.graph.DefineBuilder(col.node, run)
 }
 
 // --- folded from child_counts.go ---
@@ -626,233 +600,51 @@ func isFiled(t *taskState) bool { return t.filing.filed }
 
 func isWork(t *taskState) bool { return t.filing.filed && !t.filing.kind.Item }
 
-// --- folded from container_members.go ---
-
-// A container's members belong to the graph: it declared them, in order, and
-// owns who contains whom. The engine keeps only each member's render state,
-// in the Output's tables keyed by the member's id, and reads the membership
-// through the node.
-
-// taskCount is how many Tasks g declared directly.
-func (g *tasksState) taskCount() int { return g.node.TaskCount() }
-
-// taskAt is the render state of the Task g declared at position pos.
-func (g *tasksState) taskAt(pos int) *taskState {
-	return g.out.taskStates[g.node.TaskAt(pos).ID]
-}
-
-// taskStates are the render states of the Tasks g declared directly, in
-// declaration order.
-func (g *tasksState) taskStates() []*taskState {
-	nodes := g.node.Tasks()
-	states := make([]*taskState, len(nodes))
-	for i, node := range nodes {
-		states[i] = g.out.taskStates[node.ID]
-	}
-	return states
-}
-
-// childStates are the render states of the Groups and Sequences g declared
-// directly, in declaration order.
-func (g *tasksState) childStates() []*tasksState {
-	nodes := g.node.Children()
-	states := make([]*tasksState, len(nodes))
-	for i, node := range nodes {
-		states[i] = g.out.containerStates[node.ID]
-	}
-	return states
-}
-
-// parent is the container g is nested in, nil at the root.
-func (g *tasksState) parent() *tasksState {
-	if g.node.Parent == nil {
-		return nil
-	}
-	return g.out.containerStates[g.node.Parent.ID]
-}
-
-// collection is the container st was declared under, nil for a root Task.
-func (st *taskState) collection() *tasksState {
-	if st.node.Parent == nil {
-		return nil
-	}
-	return st.handle.out.containerStates[st.node.Parent.ID]
-}
-
 // --- folded from container_wait.go ---
 
-// --- folded from declare.go ---
-
-// declarationRefusal is the engine's error for a declaration the graph refused.
-func declarationRefusal(err error) error {
-	switch {
-	case errors.Is(err, graph.ErrEntityLimit):
-		return errLimitExceeded
-	case errors.Is(err, graph.ErrClosed):
-		return errClosed
-	default:
-		return fmt.Errorf("declaring a Task: %w", err)
-	}
-}
-
-// Task declares a single root-level operation named name. Identity
-// overrides go through the task key override. A repeated name is a duplicate
-// sibling declaration (§3.1), never a get-or-create: 1.0 removed that idiom
-// because letting two distinct declarations silently merge into one
-// identity would make a false "already satisfied" possible once identity
-// drives manifest reconciliation. The repeat records a Failed task with
-// ProblemCodeDuplicateSiblingName (see failDuplicateSiblingLocked).
+// Task declares a single root-level operation named name. A repeated name
+// is a duplicate sibling declaration (§3.1), never a get-or-create: see
+// graph.Graph.DeclareTask.
 func (o *Run) Task(name string) *Task {
-	clean := graph.DeclaredName(name)
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if o.graph.NameTaken(nil, graph.KindTask, clean) {
-		return o.rejectedTask(o.failDuplicateSiblingLocked(nil, graph.KindTask, clean))
-	}
-	h := o.addTaskLocked(clean, nil)
-	if h.rejected == nil {
-		o.graph.ClaimName(nil, graph.KindTask, clean)
-	}
-	return h
-}
-
-func (o *Run) addTaskLocked(name string, col *tasksState) *Task {
-	h := o.declareTaskLocked(name, col)
-	if _, ok := o.taskStates[h.id]; ok {
-		o.signalLiveLocked(true)
-	}
-	return h
-}
-
-// declareTaskLocked records a child without painting; addTaskLocked
-// paints it.
-//
-// The task's §3.1 stable identity is kind + the declaring parent's key
-// (parentKeyOf) + name, for every declaration, a refused duplicate's row
-// included; the task key override replaces it later.
-func (o *Run) declareTaskLocked(name string, col *tasksState) *Task {
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
-		return o.rejectedTask(err)
-	}
-	if o.graph.DeclaredInCallback() {
-		o.recordMisuse(errDeclaredInCallback)
-		return o.rejectedTask(errDeclaredInCallback)
-	}
-	node, err := o.graph.AddTask(containerNode(col), name, record.TaskInit{
-		State: declaredState, Progress: progress{Kind: indeterminate},
-	})
-	if err != nil {
-		err = declarationRefusal(err)
-		o.recordMisuse(err)
-		return o.rejectedTask(err)
-	}
-	st := &taskState{
-		id:       node.ID,
-		node:     node,
-		name:     node.Name,
-		followed: declaredState,
-		timing:   record.TaskTiming{Declared: o.cfg.clock.Now()},
-	}
-	h := &Task{out: o, id: st.id}
-	st.handle = h
-	o.appendTaskLocked(st)
-	if col != nil {
-		st.filing.pos = col.taskCount() - 1
-		st.markFiling()
-		col.hasNamesake = col.hasNamesake || name == col.name
-		st.censusDeclared()
-	}
-	o.taskStates[st.id] = st
-	o.bumpLocked()
-	o.appendEventLocked(recEvent{Type: "task.declared", EntityID: st.id})
-	o.emitWireEventLocked(wire.EventTaskDeclared, st.id, map[string]any{"name": name})
-	return h
+	return o.taskHandle(o.graph.DeclareTask(nil, name))
 }
 
 // Group declares a collection of independent child tasks. Eligible children
 // may overlap through the scheduler. A repeated name is a duplicate sibling
-// declaration (§3.1), not a get-or-create — see failDuplicateSiblingLocked.
+// declaration (§3.1), not a get-or-create.
 func (o *Run) Group(name string) *Group {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return o.declareContainerLocked(nil, name, false)
+	return o.groupHandle(o.graph.DeclareContainer(nil, name, false))
 }
 
 // Sequence declares a self-managing, ordered container — the front door for
 // a sequence of steps that must stop implying "still might run" once a
 // member has already failed or been cancelled. A repeated name is a
-// duplicate sibling declaration (§3.1), not a get-or-create — see
-// failDuplicateSiblingLocked.
+// duplicate sibling declaration (§3.1), not a get-or-create.
 func (o *Run) Sequence(name string) *Sequence {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return &Sequence{tasks: o.declareContainerLocked(nil, name, true)}
+	return &Sequence{tasks: o.groupHandle(o.graph.DeclareContainer(nil, name, true))}
 }
 
-// declareContainerLocked declares a Group (sequential false) or Sequence
-// under parent, or at the root when parent is nil — the one path every
-// level shares, so one rule decides duplicates everywhere (§3.1). A nested
-// container's identity is its parent's key plus its name, and it starts
-// after the step before it when parent is a Sequence. A refusal comes back
-// as a rejected handle. Callers must already hold o.mu.
-func (o *Run) declareContainerLocked(parent *tasksState, name string, sequential bool) *Group {
-	clean := graph.DeclaredName(name)
-	kind := graph.ContainerKind(sequential)
-	if o.graph.NameTaken(containerNode(parent), kind, clean) {
-		return o.rejectedGroup(o.failDuplicateSiblingLocked(parent, kind, clean))
+// taskHandle is the handle of the Task the graph declared, or a refused
+// handle keeping err. Callers hold o.mu.
+func (o *Run) taskHandle(node *graph.Task, err error) *Task {
+	if err != nil {
+		return o.rejectedTask(err)
 	}
-	if err := o.ensureOpen(); err != nil {
-		o.recordMisuse(err)
+	return o.taskStates[node.ID].handle
+}
+
+// groupHandle is taskHandle for a Group or Sequence. Callers hold o.mu.
+func (o *Run) groupHandle(node *graph.Container, err error) *Group {
+	if err != nil {
 		return o.rejectedGroup(err)
 	}
-	if o.graph.DeclaredInCallback() {
-		o.recordMisuse(errDeclaredInCallback)
-		return o.rejectedGroup(errDeclaredInCallback)
-	}
-	node := o.graph.AddContainer(containerNode(parent), clean, sequential)
-	st := &tasksState{
-		id:   node.ID,
-		out:  o,
-		node: node,
-		name: node.Name,
-	}
-	parentID := ""
-	if parent == nil {
-		o.collections = append(o.collections, st)
-	} else {
-		parentID = parent.id
-	}
-	o.containerStates[st.id] = st
-	o.graph.ClaimName(containerNode(parent), kind, clean)
-	h := &Group{out: o, id: st.id}
-	st.handle = h
-	o.bumpLocked()
-	o.appendEventLocked(recEvent{Type: "tasks.declared", EntityID: st.id})
-	o.emitCollectionDeclaredLocked(st, parentID)
-	return h
-}
-
-// declareGroupTask declares a child task by name in the container g — the
-// identity behind Group.Task/Sequence.Task. A repeated name is a duplicate
-// sibling declaration (§3.1), not a get-or-create. A task declared under a
-// refused container is refused for the same reason.
-func (o *Run) declareGroupTask(g *Group, name string) *Task {
-	clean := graph.DeclaredName(name)
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	col := o.containerStates[g.id]
-	if col == nil {
-		return o.rejectedTask(g.rejected)
-	}
-	if o.graph.NameTaken(col.node, graph.KindTask, clean) {
-		return o.rejectedTask(o.failDuplicateSiblingLocked(col, graph.KindTask, clean))
-	}
-	h := o.addTaskLocked(clean, col)
-	if h.rejected == nil {
-		o.graph.ClaimName(col.node, graph.KindTask, clean)
-	}
-	return h
+	return o.containerStates[node.ID].handle
 }
 
 // --- folded from group.go ---
@@ -896,7 +688,19 @@ func (g *Group) Task(name string) *Task {
 	if g == nil || g.out == nil {
 		return &Task{}
 	}
-	return g.out.declareGroupTask(g, name)
+	return g.out.declareChildTask(g, name)
+}
+
+// declareChildTask declares a Task named name in the container g. A Task
+// declared under a refused container is refused for the same reason.
+func (o *Run) declareChildTask(g *Group, name string) *Task {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	col := o.containerStates[g.id]
+	if col == nil {
+		return o.rejectedTask(g.rejected)
+	}
+	return o.taskHandle(o.graph.DeclareTask(col.node, name))
 }
 
 // Sequence declares (or returns) an ordered child container nested here.
@@ -920,7 +724,7 @@ func (g *Group) declareChild(name string, sequential bool) *Group {
 	if parent == nil {
 		return g.out.rejectedGroup(g.rejected)
 	}
-	return g.out.declareContainerLocked(parent, name, sequential)
+	return g.out.groupHandle(g.out.graph.DeclareContainer(parent.node, name, sequential))
 }
 
 // Summary sets a success-oriented collection summary.
@@ -961,7 +765,7 @@ func (g *Sequence) Task(name string) *Task {
 	if g == nil || g.tasks == nil {
 		return &Task{}
 	}
-	return g.tasks.out.declareGroupTask(g.tasks, name)
+	return g.tasks.out.declareChildTask(g.tasks, name)
 }
 
 // Summary sets a success-oriented sequence summary.
@@ -1232,108 +1036,6 @@ func taskFinishedPayload(st *taskState) map[string]any {
 }
 
 // --- folded from task_run.go ---
-
-// --- folded from task_state.go ---
-
-// key is the Task's §3.1 stable key, empty for a Task the graph never declared.
-func (st *taskState) key() string { return st.node.Key() }
-
-// TaskID is the Task's id in the run record.
-func (st *taskState) TaskID() record.TaskID { return record.TaskID(st.id) }
-
-// isGate reports whether st is a container builder's gate, no row and in no
-// collection.
-func (st *taskState) isGate() bool { return st.node.IsGate() }
-
-// key is the container's §3.1 stable key.
-func (g *tasksState) key() string { return g.node.Key() }
-
-type taskState struct {
-	id string
-	// node is the graph's declaration of this Task. It owns the Task's stable
-	// key and everything the scheduler knows: its phase, predecessors and
-	// the work Define submitted.
-	node   *graph.Task
-	name   string
-	handle *Task
-
-	// liveFirstSeenAt is the domain-clock time this task was first actually
-	// painted in the live region (see taskState.stampLiveFirstSeen in live.go) —
-	// the one elapsed-time anchor every row's heartbeat suffix reads (P5),
-	// including a Pending task, which never calls Phase/Progress.
-	liveFirstSeenAt time.Time
-
-	// followed is the state the render state last accounted for: the live
-	// census counts the Task under it, and a later difference from the
-	// record's state is what followRecordLocked reacts to. A Task starts
-	// followed as declaredState, so a Task settled before the engine ever
-	// saw it still gets its first reaction.
-	followed entityState
-	// settleAnswered is set once the render work a settle owes was queued.
-	settleAnswered bool
-	// runningAnnounced is set once the render work becoming Running owes was
-	// done, so task.started fires once however the row reached Running.
-	runningAnnounced bool
-	// timing is when the Task was declared, began running and settled.
-	timing record.TaskTiming
-
-	// ownsWindow is set on a Confirm gate while its Suspend window is open
-	// (guarded by Output.mu): the window shows this Task's rows, so they are
-	// not held back like a sibling's.
-	ownsWindow bool
-
-	// filing is where this Task stands in its collection's childIndex.
-	filing filing
-
-	// heartbeat is the §40 plain-mode durable heartbeat's state.
-	heartbeat plainHeartbeat
-
-	// tail is the bounded window of Writer lines a live frame draws beneath
-	// this row; evidence above stays the full record.
-	tail liveTail
-
-	// Emission bookkeeping so terminal standalone tasks stream in plain mode
-	// on resolve (P2).
-	coreEmitted bool
-
-	// synthetic marks a task the library invented to carry an output-level
-	// outcome (Output.Fail/Cancel's synthetic "command" task) rather than
-	// one the caller declared. shouldSuppressRepeatedCondition (I2) must
-	// never drop the standalone conclusion band for one of these: it is the
-	// only place the run's outcome is ever stated, unlike a caller-declared
-	// Task whose own row already says the same thing.
-	synthetic bool
-
-	// plainStream is what plain progressive streaming already emitted for
-	// this still-Running standalone task.
-	plainStream plainStreamMark
-}
-
-type tasksState struct {
-	id string
-	// out is the Output this container belongs to: a read of its live index
-	// first follows the record (see Output.followRecordLocked).
-	out *Run
-	// node is the graph's declaration of this Group/Sequence and owns its
-	// §3.1 stable key.
-	node   *graph.Container
-	name   string
-	handle *Group
-
-	// kids is what a live frame and the verdict read of tasks.
-	kids childIndex
-
-	// runningSteps holds the children promoteRunningLocked moved to
-	// Running that may still be Running (pruned on each promotion), so the
-	// "one Running child" check never rescans every step.
-	runningSteps []*taskState
-
-	// census counts its descendant Tasks for the live frame (liveCensus).
-	census liveCensus
-	// hasNamesake records that a child Task carries this container's own
-	// name, the only way it can render as its own Task (liveOwnRow).
-	hasNamesake bool
-}
 
 // --- folded from task_taxonomy.go ---
 

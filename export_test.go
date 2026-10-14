@@ -582,7 +582,7 @@ func (t *Task) basis(inputs ...fingerprint) *Task {
 			sources = append(sources, fingerprintBasis(in))
 		}
 	}
-	o.freshness.Tasks().AddInputs(st.TaskID(), sources...)
+	o.freshness.Tasks().AddInputs(st.node.TaskID(), sources...)
 	return t
 }
 

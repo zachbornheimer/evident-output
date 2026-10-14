@@ -55,7 +55,7 @@ func TestNestedGroup_ControlCharacterVariants_AreDuplicateSiblings(t *testing.T)
 }
 
 // TestGroupTask_ControlCharacterVariants_AreDuplicateSiblings covers a Task
-// declared under a Group (Group.Task / declareGroupTask).
+// declared under a Group (Group.Task / graph.Graph.DeclareTask).
 func TestGroupTask_ControlCharacterVariants_AreDuplicateSiblings(t *testing.T) {
 	out := initRun(Config{stdout: io.Discard})
 	t.Cleanup(func() { _ = out.close() })
