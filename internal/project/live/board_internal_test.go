@@ -75,7 +75,7 @@ func (r *testRun) Header(id string) record.TasksSnapshot {
 	case states.Failed > 0:
 		state = record.Failed
 	case states.Unresolved > 0:
-		state = record.Incomplete
+		state = record.Pending
 	}
 	return record.TasksSnapshot{ID: id, Name: r.group[id], State: state}
 }

@@ -17,8 +17,6 @@ const (
 	Cancelled       = State(OutcomeCancelled)
 	// Empty is a collection that settled with no members.
 	Empty State = "empty"
-	// Incomplete is a Task the run finished without ever settling: misuse.
-	Incomplete State = "incomplete"
 	// NotStarted is a Task that never ran because a predecessor or an earlier
 	// sibling ended Failed, Refused, Excluded or Cancelled (CONTRACT §2).
 	NotStarted State = "not_started"

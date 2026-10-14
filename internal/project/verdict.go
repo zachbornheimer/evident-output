@@ -21,22 +21,24 @@ func (r *Rows) verdict(g *DeclaredGroup) record.State {
 		return record.Empty
 	}
 	counts := r.lens.States(g.ID)
-	// A NotStarted child borrows its collection's verdict from the sibling
-	// that failed first. When every child is NotStarted there is no such
-	// sibling — another subject stopped the run — and folding to Done would
-	// put a check over a subject that never ran.
-	if len(g.Groups) == 0 && counts.NotStarted == len(g.Tasks) {
-		return record.NotStarted
-	}
 	v := foldCounts(counts)
+	started, unstarted := len(g.Tasks)-counts.NotStarted, counts.NotStarted
 	for _, child := range g.Groups {
 		switch s := r.verdict(child); s {
 		case record.Empty:
 		case record.NotStarted:
-			v.unresolved = true
+			unstarted++
 		default:
+			started++
 			v.add(s)
 		}
+	}
+	// A NotStarted child borrows its collection's verdict from the sibling
+	// that failed first. When every child is NotStarted there is no such
+	// sibling — another subject stopped the run — and folding to Done would
+	// put a check over a subject that never ran.
+	if started == 0 && unstarted > 0 {
+		return record.NotStarted
 	}
 	return v.state()
 }
@@ -67,7 +69,7 @@ func (r *Rows) warnedOrFailedBelow(g *DeclaredGroup) bool {
 // verdictFold accumulates member states into one collection verdict. A
 // Refused member counts as a Failed one does for the Tasks after the
 // collection: it finished and did not succeed, so its header never reads
-// Incomplete for it.
+// Pending for it.
 type verdictFold struct {
 	running, failed, refused, cancelled, unresolved bool
 }
@@ -107,7 +109,7 @@ func (v verdictFold) state() record.State {
 	case v.cancelled:
 		return record.Cancelled
 	case v.unresolved:
-		return record.Incomplete
+		return record.Pending
 	default:
 		return record.Succeeded
 	}

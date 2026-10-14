@@ -141,7 +141,7 @@ func InferConclusion(s Snapshot) Conclusion {
 // an Outcome: Partial marks the Outcome incomplete instead of replacing it.
 func unsettled(s State) bool {
 	switch s {
-	case Pending, Running, Incomplete, NotStarted:
+	case Pending, Running, NotStarted:
 		return true
 	}
 	return false

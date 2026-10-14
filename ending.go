@@ -25,7 +25,7 @@ func (o *Run) finish() error {
 	// Answer any notification still in flight before the run's last events are written.
 	o.followRecordLocked()
 	o.printLines.Flush()
-	// A failed or cancelled child must stop its later siblings reading as pending before the unresolved sweep marks them Incomplete.
+	// A failed or cancelled child must stop its later siblings reading as pending before the unresolved sweep marks them NotStarted.
 	o.autoResolveGroupsLocked()
 	o.settleUnresolvedTasksLocked()
 	snap := o.concludeLocked()

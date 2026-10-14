@@ -22,6 +22,7 @@ var (
 func baseConclusion() record.Conclusion {
 	return record.Conclusion{
 		RunID:      "out_1",
+		Outcome:    record.OutcomeSucceeded,
 		StartedAt:  testStart,
 		FinishedAt: testFinish,
 	}

@@ -64,7 +64,7 @@ func StateColor(s record.State) string {
 		return SGRRed
 	case record.Running:
 		return SGRCyan
-	case record.Pending, record.Excluded, record.Cancelled, record.Incomplete, record.NotStarted:
+	case record.Pending, record.Excluded, record.Cancelled, record.NotStarted:
 		return SGRDim
 	default:
 		return ""

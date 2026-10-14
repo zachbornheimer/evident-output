@@ -15,6 +15,35 @@ const RunSchemaVersion = "3.0"
 // RunObject is the "evo.run" envelope's object discriminator (schema/run.v3.json).
 const RunObject = "evo.run"
 
+// Outcome is the value of an "outcome" field in evo.run: one of the six Outcomes (CONTRACT.md §4).
+type Outcome string
+
+// Values are the six Outcomes in the order CONTRACT.md lists them.
+func (Outcome) Values() []string {
+	return []string{
+		string(record.OutcomeSucceeded), string(record.OutcomeSatisfied), string(record.OutcomeExcluded),
+		string(record.OutcomeRefused), string(record.OutcomeFailed), string(record.OutcomeCancelled),
+	}
+}
+
+// TaskState is the value of a Task's "state" field in evo.run: an Outcome, or not_started for a Task that
+// never reached one.
+type TaskState string
+
+// Values are the Outcomes, then not_started.
+func (TaskState) Values() []string {
+	return append(Outcome("").Values(), string(record.NotStarted))
+}
+
+// CollectionState is the value of a collection's "state" field in evo.run: a Task state, or empty for a
+// collection that settled with no members.
+type CollectionState string
+
+// Values are the Task states, then empty.
+func (CollectionState) Values() []string {
+	return append(TaskState("").Values(), string(record.Empty))
+}
+
 // Run modes (schema/run.v3.json: "mode: apply | dry_run").
 const (
 	ModeApply  = "apply"
@@ -47,7 +76,7 @@ type RunDocument struct {
 	FinishedAt    time.Time `json:"finished_at"`
 	DurationMs    int64     `json:"duration_ms"`
 	Mode          string    `json:"mode"`
-	Outcome       string    `json:"outcome"`
+	Outcome       Outcome   `json:"outcome"`
 	ExitCode      int       `json:"exit_code"`
 	Explanation   string    `json:"explanation,omitempty"`
 	// Summary is the one line the application gave Run.Summary; absent when it gave none.
@@ -73,15 +102,15 @@ type RunData struct {
 // CollectionDoc is a Group/Sequence wire record (schema/run.v3.json: kind
 // group|sequence, child IDs, derived progress, and state).
 type CollectionDoc struct {
-	ID       string       `json:"id"`
-	Key      string       `json:"key,omitempty"`
-	ParentID string       `json:"parent_id,omitempty"`
-	Name     string       `json:"name"`
-	Kind     string       `json:"kind"`
-	State    string       `json:"state"`
-	Summary  string       `json:"summary,omitempty"`
-	Progress *ProgressDoc `json:"progress,omitempty"`
-	Children []string     `json:"children"`
+	ID       string          `json:"id"`
+	Key      string          `json:"key,omitempty"`
+	ParentID string          `json:"parent_id,omitempty"`
+	Name     string          `json:"name"`
+	Kind     string          `json:"kind"`
+	State    CollectionState `json:"state"`
+	Summary  string          `json:"summary,omitempty"`
+	Progress *ProgressDoc    `json:"progress,omitempty"`
+	Children []string        `json:"children"`
 }
 
 // Collection kinds (schema/run.v3.json).
@@ -171,8 +200,8 @@ type TaskDoc struct {
 	ParentID           string               `json:"parent_id,omitempty"`
 	Name               string               `json:"name"`
 	Summary            string               `json:"summary,omitempty"`
-	State              string               `json:"state"`
-	Outcome            string               `json:"outcome,omitempty"`
+	State              TaskState            `json:"state"`
+	Outcome            Outcome              `json:"outcome,omitempty"`
 	DefinitionExecuted bool                 `json:"definition_executed"`
 	Evidence           EvidenceDoc          `json:"evidence"`
 	Progress           *ProgressDoc         `json:"progress"`
@@ -215,7 +244,7 @@ func ToRunDocument(result record.Result, evoVersion string) RunDocument {
 		FinishedAt:    c.FinishedAt,
 		DurationMs:    durationMs(c.StartedAt, c.FinishedAt),
 		Mode:          modeFor(c.DryRun),
-		Outcome:       string(c.Outcome),
+		Outcome:       Outcome(c.Outcome),
 		ExitCode:      c.ExitCode,
 		Explanation:   c.Explanation,
 		Summary:       c.Summary,
@@ -289,7 +318,7 @@ func appendCollectionDoc(data *RunData, parentID string, col record.TasksSnapsho
 		ParentID: parentID,
 		Name:     col.Name,
 		Kind:     kind,
-		State:    string(col.State),
+		State:    CollectionState(col.State),
 		Summary:  col.Summary,
 		Children: children,
 	})
@@ -305,8 +334,8 @@ func toTaskDoc(parentID string, t record.TaskSnapshot) TaskDoc {
 		ParentID:           parentID,
 		Name:               t.Name,
 		Summary:            t.Summary,
-		State:              string(t.State),
-		Outcome:            string(t.State.Outcome()),
+		State:              TaskState(t.State),
+		Outcome:            Outcome(t.State.Outcome()),
 		DefinitionExecuted: t.DefineRan,
 		Evidence:           toEvidenceDoc(t.Evidence),
 		Progress:           toProgressDoc(t.Progress),

@@ -45,7 +45,7 @@ func anyChildRunning(col record.TasksSnapshot) bool {
 // never called Phase is the ordinary case (Phase/record.Progress are the only
 // record.Running promoters), so requiring Phase here used to leave an all-record.Pending
 // or record.Pending-tailed collection's header frozen on derivedState's static
-// record.Incomplete glyph (evo-rec.md record.Problem 9). Recurses into nested
+// record.Pending glyph (evo-rec.md record.Problem 9). Recurses into nested
 // containers (P3) so a still-pending grandchild keeps the root header honest.
 func anyChildPendingActive(col record.TasksSnapshot) bool {
 	if counts := project.OwnCounts(col); counts.Running || counts.Pending {

@@ -45,11 +45,7 @@ func TaskGlyph(s record.State, profile GlyphProfile) string {
 		return GlyphPending.Render(profile)
 	case record.Cancelled:
 		return GlyphCancelled.Render(profile)
-	// Incomplete: a task Finish left non-terminal (never ran or never
-	// resolved) has no dedicated row in the vocabulary table; it reads as
-	// "not started" rather than the unclassified "·" no state should ever
-	// need (evo-rec.md "Conclusion algebra").
-	case record.NotStarted, record.Incomplete:
+	case record.NotStarted:
 		return GlyphNotStarted.Render(profile)
 	default:
 		return GlyphUnclassified.Render(profile)

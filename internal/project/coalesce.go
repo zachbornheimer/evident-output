@@ -146,7 +146,7 @@ func hasIndependentConditionRows(s record.Snapshot) bool {
 			return true
 		}
 		switch t.State {
-		case record.Failed, record.Cancelled, record.Incomplete, record.Running, record.Pending:
+		case record.Failed, record.Cancelled, record.Running, record.Pending:
 			return true
 		}
 	}
@@ -164,12 +164,12 @@ func anyCollectionHasIndependentConditionRows(collections []record.TasksSnapshot
 				return true
 			}
 			switch t.State {
-			case record.Failed, record.Cancelled, record.Incomplete, record.Running, record.Pending:
+			case record.Failed, record.Cancelled, record.Running, record.Pending:
 				return true
 			}
 		}
 		switch col.State {
-		case record.Failed, record.Cancelled, record.Incomplete, record.Running, record.Pending:
+		case record.Failed, record.Cancelled, record.Running, record.Pending:
 			return true
 		}
 		if anyCollectionHasIndependentConditionRows(col.Collections) {

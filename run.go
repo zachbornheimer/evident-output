@@ -297,7 +297,6 @@ const (
 	excluded   = record.Excluded
 	cancelled  = record.Cancelled
 	empty      = record.Empty
-	incomplete = record.Incomplete
 	notStarted = record.NotStarted
 )
 

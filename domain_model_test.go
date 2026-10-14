@@ -143,8 +143,8 @@ func TestDOM021_NegativeProgressRejected(t *testing.T) {
 
 // TestDOM030_CollectionWarning is updated for P2: Warn annotates a task
 // instead of resolving it, so a task that only ever calls Warn stays
-// non-terminal (Pending) until Finish's amnesty resolves it — before
-// Finish, the collection reads Incomplete (one unresolved child), and the
+// non-terminal (Pending) until Finish ends it — before
+// Finish, the collection reads Pending (one unresolved child), and the
 // warning itself lives on that child's Warnings field.
 func TestDOM030_CollectionWarning(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
@@ -153,8 +153,8 @@ func TestDOM030_CollectionWarning(t *testing.T) {
 	succeed(g.Task("a"))
 	g.Task("b").Problem("soft", severity(severityWarning))
 	snap := g.snapshot()
-	if snap.State != running && snap.State != incomplete {
-		t.Fatalf("state = %v, want Running or Incomplete (Warn no longer resolves its task)", snap.State)
+	if snap.State != running && snap.State != pending {
+		t.Fatalf("state = %v, want Running or Pending (Warn no longer resolves its task)", snap.State)
 	}
 	if warnings := snap.Tasks[1].Warnings; len(warnings) != 1 || warnings[0].Summary != "soft" {
 		t.Fatalf("child warnings = %+v, want one warning %q", warnings, "soft")

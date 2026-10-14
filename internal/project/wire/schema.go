@@ -205,6 +205,9 @@ func (g *schemaGen) typeSchema(t reflect.Type) any {
 	t = unwrap(t)
 	switch t.Kind() {
 	case reflect.String:
+		if set, closed := reflect.Zero(t).Interface().(closedSet); closed {
+			return map[string]any{"type": "string", "enum": set.Values()}
+		}
 		return map[string]any{"type": "string"}
 	case reflect.Bool:
 		return map[string]any{"type": "boolean"}
@@ -224,6 +227,10 @@ func (g *schemaGen) typeSchema(t reflect.Type) any {
 		return map[string]any{}
 	}
 }
+
+// closedSet is a wire string type that takes one of a fixed set of values; the schema publishes the set as
+// an enum, so a stock validator rejects any other.
+type closedSet interface{ Values() []string }
 
 func (g *schemaGen) elemSchema(t reflect.Type) any {
 	t = unwrap(t)

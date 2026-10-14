@@ -19,7 +19,6 @@ func TestTaskGlyph_ASCIITable(t *testing.T) {
 		record.Cancelled:  "[cancel]", // evo-rec.md: Cancelled gets its own face, no longer Pending's
 		record.Excluded:   "[.]",
 		record.NotStarted: "[-]",
-		record.Incomplete: "[-]", // an unresolved task at Finish reads as "not started"
 	}
 	for state, want := range cases {
 		if got := TaskGlyph(state, GlyphsASCII); got != want {
@@ -38,7 +37,6 @@ func TestTaskGlyph_UnicodeUnchanged(t *testing.T) {
 		record.Cancelled:  "■", // evo-rec.md: Cancelled gets its own face, no longer Pending's
 		record.Excluded:   "○",
 		record.NotStarted: "-",
-		record.Incomplete: "-", // an unresolved task at Finish reads as "not started"
 	}
 	for state, want := range cases {
 		if got := TaskGlyph(state, GlyphsUnicode); got != want {

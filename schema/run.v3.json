@@ -56,6 +56,16 @@
           "$ref": "#/$defs/progress"
         },
         "state": {
+          "enum": [
+            "succeeded",
+            "satisfied",
+            "excluded",
+            "refused",
+            "failed",
+            "cancelled",
+            "not_started",
+            "empty"
+          ],
           "type": "string"
         },
         "summary": {
@@ -372,6 +382,14 @@
           "type": "array"
         },
         "outcome": {
+          "enum": [
+            "succeeded",
+            "satisfied",
+            "excluded",
+            "refused",
+            "failed",
+            "cancelled"
+          ],
           "type": "string"
         },
         "parent_id": {
@@ -394,6 +412,15 @@
           ]
         },
         "state": {
+          "enum": [
+            "succeeded",
+            "satisfied",
+            "excluded",
+            "refused",
+            "failed",
+            "cancelled",
+            "not_started"
+          ],
           "type": "string"
         },
         "summary": {
@@ -533,6 +560,14 @@
       "const": "evo.run"
     },
     "outcome": {
+      "enum": [
+        "succeeded",
+        "satisfied",
+        "excluded",
+        "refused",
+        "failed",
+        "cancelled"
+      ],
       "type": "string"
     },
     "result": {

@@ -3,7 +3,7 @@ package record
 import "testing"
 
 func TestSettleIsHeardAsASettleInAnyEndingState(t *testing.T) {
-	for _, ending := range []State{Succeeded, Failed, Incomplete} {
+	for _, ending := range []State{Succeeded, Failed, NotStarted} {
 		run := NewRun()
 		task := run.NewTask(TaskInit{ID: "task_1", State: Pending})
 		heard := &callbackListener{}

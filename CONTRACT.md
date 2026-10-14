@@ -299,7 +299,7 @@ Problem their ending creates.
 Task's outcome, as `Conclusion.Outcome`, and as `outcome` in `evo.run` and
 `evo.event`; Human and Plain name every Outcome but Succeeded in its own
 word. A NotStarted Task has no Outcome, so both machine projections omit its
-`outcome`. No other verdict spelling exists.
+`outcome`. No other verdict spelling exists. In `evo.run` a Task's `state` is its Outcome's value or `not_started`, and a collection's adds `empty` for one with no members; no other state is written.
 
 Human and Plain end with one band, `[<headline>]  <name>`. The headline is the
 Conclusion's Outcome, except that a Succeeded run reads `changed` when it
