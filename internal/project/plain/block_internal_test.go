@@ -75,18 +75,30 @@ func newBlockRun(t *testing.T) *blockRun {
 func (b *blockRun) sequence(id string) (closed *bool) { return b.collection(id, true) }
 
 func (b *blockRun) collection(id string, sequential bool) (closed *bool) {
+	return b.collectionIn(id, "", sequential)
+}
+
+// collectionIn declares the collection id inside parent, or at the root when "".
+func (b *blockRun) collectionIn(id, parent string, sequential bool) (closed *bool) {
 	closed = new(bool)
 	b.closed[id] = closed
 	b.rows.DeclareGroup(project.DeclaredGroup{
 		ID: id, Name: id, Sequential: sequential, Rec: b.run.NewContainer(), Node: blockNode{key: "group:" + id, closed: closed},
-	}, "")
-	b.stream.DeclareGroup(DeclaredGroup{ID: id})
+	}, parent)
+	b.stream.DeclareGroup(DeclaredGroup{ID: id, Name: id, Parent: parent, Sequential: sequential})
 	return closed
 }
 
-// task declares Task id running, in collection in or at the root when "".
-func (b *blockRun) task(id, in string) {
-	rec := b.run.NewTask(record.TaskInit{ID: record.TaskID(id), State: record.Running})
+// task declares Task id running, in collection in or at the root when "". It
+// has run its Define, so a Succeeded row of it says something.
+func (b *blockRun) task(id, in string) { b.declare(id, in, true) }
+
+// noopTask declares a Task that never ran a Define: settled Satisfied, its row
+// is one human output may hide.
+func (b *blockRun) noopTask(id, in string) { b.declare(id, in, false) }
+
+func (b *blockRun) declare(id, in string, defineRan bool) {
+	rec := b.run.NewTask(record.TaskInit{ID: record.TaskID(id), State: record.Running, DefineRan: defineRan})
 	row := b.rows.DeclareTask(project.DeclaredTask{ID: record.TaskID(id), Node: blockNode{key: "task:" + id}, Name: id, Rec: rec}, in)
 	declared := Declared{ID: row.ID, Name: id, Rec: rec}
 	if row.Group != nil {
@@ -123,9 +135,10 @@ func inOrder(got string, needles ...string) bool {
 }
 
 // TestPlainCommitsContainerRowsWhenSettled pins the order of a plain log: a
-// collection writes as one block, header and members, the moment it
-// settles. Its rows never wait for Finish and never land under a row of a
-// Task that ran After it.
+// collection writes as one block, header and members, and its rows never
+// wait for Finish or land under a row of a Task that ran After it. Members
+// write as they settle (TestPlainStreamsSettledMembersOfAnOpenGroup), so a
+// check that the block is "not yet" written asserts what is still unsettled.
 func TestPlainCommitsContainerRowsWhenSettled(t *testing.T) {
 	t.Run("the block is written before a dependent and before Finish", func(t *testing.T) {
 		b := newBlockRun(t)
@@ -135,8 +148,8 @@ func TestPlainCommitsContainerRowsWhenSettled(t *testing.T) {
 		b.task("after", "")
 
 		b.settle("one", record.Succeeded)
-		if got := b.written(); got != "" {
-			t.Fatalf("a collection with a member still open wrote %q", got)
+		if got := b.written(); !inOrder(got, "steps", "one") || strings.Contains(got, "two") {
+			t.Fatalf("want the header and the settled member only, got %q", got)
 		}
 		b.settle("two", record.Succeeded)
 		if !inOrder(b.written(), "steps", "one", "two") {
@@ -171,13 +184,13 @@ func TestPlainCommitsContainerRowsWhenSettled(t *testing.T) {
 		b.task("after", "")
 
 		b.settle("one", record.Succeeded)
-		if got := b.written(); got != "" {
-			t.Fatalf("a collection still open to new members wrote %q", got)
+		if got := b.written(); strings.Count(got, "steps") != 1 {
+			t.Fatalf("a collection still open to new members closed: %q", got)
 		}
 		*closed = true
 		b.settle("after", record.Succeeded)
 
-		if got := b.written(); !inOrder(got, "one", "after") {
+		if got := b.written(); !inOrder(got, "steps", "one", "after") {
 			t.Fatalf("want the block ahead of the row written next, got:\n%s", got)
 		}
 	})
@@ -202,7 +215,7 @@ func TestPlainCommitsContainerRowsWhenSettled(t *testing.T) {
 func TestPlainLeavesPossiblyHiddenContainerRowsToFinish(t *testing.T) {
 	b := newBlockRun(t)
 	*b.collection("pool", false) = true
-	b.task("noop", "pool")
+	b.noopTask("noop", "pool")
 	b.settle("noop", record.Satisfied)
 
 	if got := b.written(); got != "" {

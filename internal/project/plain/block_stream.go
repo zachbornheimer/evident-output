@@ -1,0 +1,285 @@
+package plain
+
+import (
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+)
+
+// A streamed block writes what it knows when it knows it. The header opens
+// with the first member to settle; every member follows in settlement order,
+// nested collections under headers of their own; the block closes with the
+// container's own verdict row. The scrollback of a run killed halfway holds
+// every verdict that existed.
+//
+// The container's own Task (the Task named for it) is the one member that
+// does not stream: the final output folds it into the container's row, so it
+// is held for the closing row, which then carries it as that row does.
+
+// streamGrace is how long a streamable block keeps its first settled
+// members to itself. A block that settles inside it writes whole, exactly as
+// it ends; one still open when it passes streams. Without a clock that
+// schedules, there is no grace.
+const streamGrace = 500 * time.Millisecond
+
+// decide picks how root writes, from the collection as it stands when its
+// first member settles.
+func (s *Stream) decide(root *block) {
+	root.mode = modeAtomic
+	snap := s.cfg.Source.RootLevel(root.id)
+	col, ok := collectionOf(project.SnapshotAtVerbosity(snap, s.cfg.Style.Verbose), root.id)
+	if !ok || project.MayHideRows(col, s.cfg.Run.HasLedgerSection) || !rowsAreFinal(col) {
+		return
+	}
+	root.mode = modeBuffered
+	sched, ok := s.scheduler()
+	if !ok {
+		s.beginStream(root)
+		return
+	}
+	root.stop = sched.AfterFunc(streamGrace, func() {
+		s.cfg.Lock.Lock()
+		defer s.cfg.Lock.Unlock()
+		if !s.cfg.Scene.Ended() {
+			s.beginStream(root)
+		}
+	})
+}
+
+// endGrace takes root out of its grace into mode, for a block that settled
+// first.
+func (s *Stream) endGrace(root *block, mode blockMode) {
+	if root.mode != modeBuffered {
+		return
+	}
+	root.mode = mode
+	if root.stop != nil {
+		root.stop()
+		root.stop = nil
+	}
+	root.pending = nil
+}
+
+// beginStream turns a buffered block into a streaming one: its header and
+// the members that settled during the grace write now, in settlement order.
+func (s *Stream) beginStream(root *block) {
+	if root.mode != modeBuffered {
+		return
+	}
+	root.mode, root.stop = modeStream, nil
+	s.streaming++
+	s.enqueue(root)
+	var out strings.Builder
+	for _, r := range root.pending {
+		s.streamInto(&out, r)
+	}
+	root.pending = nil
+	s.closeInto(&out, root)
+	s.emit(&out)
+	s.CommitSettledBlocks()
+}
+
+// rowsAreFinal reports that col and every collection beneath it write the
+// rows they settle as: nothing collapses into a tally or a single row.
+func rowsAreFinal(col record.TasksSnapshot) bool {
+	if project.RendersAsOwnTask(col) {
+		return false
+	}
+	if rest, _ := project.WithoutDispositionItems(col); len(rest.Tasks) != len(col.Tasks) {
+		return false
+	}
+	return !slices.ContainsFunc(col.Collections, func(c record.TasksSnapshot) bool { return !rowsAreFinal(c) })
+}
+
+// streamMember writes the member r that just settled, under the headers it
+// needs, and closes whatever that settled.
+func (s *Stream) streamMember(r *row) {
+	var out strings.Builder
+	s.streamInto(&out, r)
+	s.closeInto(&out, r.block.root)
+	s.emit(&out)
+	s.CommitSettledBlocks()
+}
+
+// streamInto appends the member r's row, and the headers above it, to out.
+func (s *Stream) streamInto(out *strings.Builder, r *row) {
+	if r.emitted && r.emittedAs == r.Rec.State() {
+		return
+	}
+	s.reopen(r.block)
+	if r.block.isOwn(r) {
+		r.block.own = r
+		return
+	}
+	s.openChain(out, r.block)
+	s.writeMember(out, r)
+}
+
+// isOwn reports that r is b's own Task, the one its closing row carries.
+func (b *block) isOwn(r *row) bool { return r.Name == b.name && !b.sequential }
+
+// reopen makes a closed block write its header again, for a member that
+// settled again in another state: scrollback tells both.
+func (s *Stream) reopen(b *block) {
+	for ; b != nil; b = b.parent {
+		if !b.closed {
+			continue
+		}
+		b.headed, b.closed = false, false
+		if b.parent == nil {
+			s.streaming++
+		}
+	}
+}
+
+// openChain writes the headers of b and the collections above it that have
+// none yet, outermost first.
+func (s *Stream) openChain(out *strings.Builder, b *block) {
+	if b.headed {
+		return
+	}
+	if b.parent != nil {
+		s.openChain(out, b.parent)
+	}
+	header := s.cfg.Source.Header(b.id)
+	header.Summary = ""
+	var line strings.Builder
+	writeCollectionHeader(&line, header, s.cfg.Style)
+	b.opening = line.String()
+	indentInto(out, b.opening, b.depth)
+	b.headed = true
+	b.root.unclosed = append(b.root.unclosed, b)
+	s.enqueue(b.root)
+}
+
+// writeMember writes the row of the member r under its collection's header.
+func (s *Stream) writeMember(out *strings.Builder, r *row) {
+	var line strings.Builder
+	project.ChildRow(s.cfg.Source.Snapshot(r.ID), 0).Write(&line, s.cfg.Style)
+	indentInto(out, line.String(), r.block.depth)
+	r.emitted, r.emittedAs = true, r.Rec.State()
+}
+
+// settled reports that b has nothing left to write: every Task at or beneath
+// it resolved and nothing more will be declared into it.
+func (s *Stream) settled(b *block) bool { return b.open == 0 && s.cfg.Source.Closed(b.id) }
+
+// closeSettled writes the closing row of every block under root that settled.
+func (s *Stream) closeSettled(root *block) {
+	var out strings.Builder
+	s.closeInto(&out, root)
+	s.emit(&out)
+}
+
+// closeInto writes the closing rows of root's settled blocks: a collection's
+// before the one that holds it, siblings in the order they opened.
+func (s *Stream) closeInto(out *strings.Builder, root *block) {
+	for closing := true; closing; {
+		closing = false
+		for _, b := range root.unclosed {
+			if !b.closed && s.settled(b) && !hasUnclosedChild(root, b) {
+				s.writeClose(out, b)
+				closing = true
+			}
+		}
+	}
+	root.unclosed = slices.DeleteFunc(root.unclosed, func(b *block) bool { return b.closed })
+	if !root.closed && root.own != nil && s.settled(root) {
+		s.writeClose(out, root)
+	}
+}
+
+func hasUnclosedChild(root, b *block) bool {
+	return slices.ContainsFunc(root.unclosed, func(c *block) bool { return c.parent == b && !c.closed })
+}
+
+// writeClose writes b's closing row: the container's own verdict, with its
+// own Task folded in when the final output folds it.
+func (s *Stream) writeClose(out *strings.Builder, b *block) {
+	header := s.cfg.Source.Header(b.id)
+	var line strings.Builder
+	switch own := b.own; {
+	case own != nil && header.Summary == "":
+		project.FoldedGroupRow(s.cfg.Source.Snapshot(own.ID), header.State).Write(&line, s.cfg.Style)
+		own.emitted, own.emittedAs = true, own.Rec.State()
+	default:
+		if own != nil {
+			s.openChain(out, b)
+			s.writeMember(out, own)
+		}
+		writeCollectionHeader(&line, header, s.cfg.Style)
+	}
+	// A header that already says the verdict needs no second row.
+	if b.headed && line.String() == b.opening {
+		line.Reset()
+	}
+	indentInto(out, line.String(), b.depth)
+	b.closed, b.root.written = true, true
+	if b.parent == nil {
+		s.streaming--
+	}
+}
+
+// finishStreamed writes what the run's end still owes the streamed block b,
+// col being the block as the final output shows it: the members that never
+// wrote, and the closing rows of the collections that never closed.
+func (s *Stream) finishStreamed(out *strings.Builder, b *block, col record.TasksSnapshot) {
+	for _, t := range col.Tasks {
+		r := s.rows[record.TaskID(t.ID)]
+		switch {
+		case r == nil || (r.emitted && r.emittedAs == t.State):
+		case b.isOwn(r):
+			b.own = r
+		default:
+			s.openChain(out, b)
+			s.writeMember(out, r)
+		}
+	}
+	for _, child := range col.Collections {
+		if cb := s.blocks[child.ID]; cb != nil {
+			s.finishStreamed(out, cb, child)
+		}
+	}
+	if (b.headed || b.own != nil) && !b.closed {
+		s.writeClose(out, b)
+	}
+}
+
+// releaseHeld writes the root rows that waited on an open block, once none
+// is open.
+func (s *Stream) releaseHeld() {
+	if s.streaming > 0 || len(s.held) == 0 {
+		return
+	}
+	held := s.held
+	s.held = nil
+	for _, r := range held {
+		r.held = false
+		s.writeRoot(r)
+	}
+}
+
+// emit writes the text out holds as durable rows.
+func (s *Stream) emit(out *strings.Builder) {
+	if out.Len() == 0 {
+		return
+	}
+	s.Write(out.String())
+	s.cfg.Region.Refresh()
+}
+
+// indentInto appends text to out with every line nested depth levels deeper.
+func indentInto(out *strings.Builder, text string, depth int) {
+	if depth == 0 {
+		out.WriteString(text)
+		return
+	}
+	pad := strings.Repeat(project.GroupChildIndent, depth)
+	for line := range strings.Lines(text) {
+		out.WriteString(pad)
+		out.WriteString(line)
+	}
+}

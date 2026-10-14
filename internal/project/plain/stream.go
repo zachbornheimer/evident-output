@@ -40,6 +40,10 @@ type Stream struct {
 	// for their membership to close before they stream (see block.go).
 	blocks  map[string]*block
 	waiting []*block
+	// streaming counts the root blocks streaming and not closed; held are
+	// the root rows that settled meanwhile (see block_stream.go).
+	streaming int
+	held      []*row
 }
 
 // Config is what a Stream writes and how.
@@ -81,6 +85,8 @@ type Source interface {
 	// Closed reports that nothing more is expected to be declared into the
 	// collection id.
 	Closed(id string) bool
+	// Header is the collection id's own row, without its members.
+	Header(id string) record.TasksSnapshot
 	// RootLevel is the run's root level as the human projection reads it,
 	// the collection detailed in full.
 	RootLevel(detailed string) record.Snapshot
@@ -136,6 +142,8 @@ type row struct {
 	// counted is set once its settling was taken off the block's open count.
 	block   *block
 	counted bool
+	// held is set while a root row waits on an open block to close.
+	held bool
 }
 
 // NewStream starts a run's durable stream.

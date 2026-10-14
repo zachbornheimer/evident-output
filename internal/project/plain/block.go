@@ -7,64 +7,109 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
-// A Group or Sequence streams as one block: its header and every member,
-// nested collections included, written the moment the collection settles.
-// A root Task's row is written when it resolves; a collection's members
-// resolve one by one, so writing each as it came would put a row under no
-// header and, worse, leave a dependent Task's row above the collection that
-// explains it. Settling means every Task at or beneath it resolved and its
+// A Group or Sequence streams as a block. Its header opens when its first
+// member settles, each member follows as it settles (nested collections
+// recursively, under their own headers), and the block closes with the
+// container's own verdict once every Task at or beneath it resolved and its
 // membership is closed (project.Rows.Closed): until then the caller may
-// still declare more into it.
+// still declare more into it. A root row that settles while a block is open
+// waits for it (block_stream.go), so a dependent never lands above or inside
+// the collection that explains it.
+//
+// A collection the final output folds (disposition items into tallies, an
+// own-Task-only Group) or may hide rows of cannot stream a row at a time:
+// its rows are not the rows it ends as. Such a block still writes whole,
+// the moment it settles. So does a block that settles within streamGrace of
+// its first member: a fast Group is one block, not a header, a trickle and a
+// close.
 
 // DeclaredGroup is one collection a Stream keeps a block for.
 type DeclaredGroup struct {
-	ID string
+	ID, Name   string
+	Sequential bool
 	// Parent is the id of the collection it sits in, "" at the root.
 	Parent string
 }
 
-// block is a collection as the durable stream writes it. Only a root block
-// writes: a nested collection is part of its root's block.
+// blockMode is how a root block writes, decided when its first member
+// settles.
+type blockMode uint8
+
+const (
+	// modeUndecided: no member settled yet.
+	modeUndecided blockMode = iota
+	// modeBuffered is a streamable block inside its grace (streamGrace): it
+	// writes whole if it settles first, else it turns modeStream.
+	modeBuffered
+	// modeStream writes the header, each member and the close as they happen.
+	modeStream
+	// modeAtomic writes the block whole once it settles.
+	modeAtomic
+)
+
+// block is a collection as the durable stream writes it.
 type block struct {
-	id string
-	// root is the root block this one belongs to; a root block is its own.
-	root *block
-	// The fields below are kept on a root block. rows is every Task at or
-	// beneath it, in declaration order; open how many of them have not
-	// resolved yet.
-	rows []*row
+	id, name   string
+	sequential bool
+	// parent is the collection it sits in, nil at the root; root is the root
+	// block it belongs to, itself at the root; depth how many collections
+	// enclose it.
+	parent, root *block
+	depth        int
+	// open is how many Tasks at or beneath it have not resolved yet.
 	open int
-	// dirty is set when a member resolved or changed since the block was
-	// last written; queued when the block waits in Stream.waiting.
+	// headed is set once its header reached scrollback, closed once its
+	// closing verdict did.
+	headed, closed bool
+	// opening is the header row as it was written.
+	opening string
+	// own is its own Task (the Task named for the collection) when it
+	// settled: the closing row carries it instead of printing the name twice.
+	own *row
+	// The fields below are kept on a root block. rows is every Task at or
+	// beneath it, in declaration order; mode how it writes; unclosed the
+	// blocks beneath it, itself included, that wrote a header and not yet a
+	// close, in the order they opened.
+	rows     []*row
+	mode     blockMode
+	unclosed []*block
+	// pending are the members that settled during the grace, in order; stop
+	// cancels the grace timer.
+	pending []*row
+	stop    func()
+	// dirty is set when a member resolved or changed since an atomic block
+	// was last written; queued when the block waits in Stream.waiting.
 	dirty, queued bool
-	// written is set once the block reached scrollback.
+	// written is set once an atomic block reached scrollback.
 	written bool
 }
 
 // DeclareGroup keeps a block for g.
 func (s *Stream) DeclareGroup(g DeclaredGroup) {
-	b := &block{id: g.ID}
+	b := &block{id: g.ID, name: g.Name, sequential: g.Sequential}
 	b.root = b
 	if parent := s.blocks[g.Parent]; parent != nil {
-		b.root = parent.root
+		b.parent, b.root, b.depth = parent, parent.root, parent.depth+1
 	}
 	s.blocks[g.ID] = b
 }
 
-// enter files the declared Task r under its root block.
+// enter files the declared Task r under its block and every one above it.
 func (s *Stream) enter(r *row) {
 	b := s.blocks[r.GroupID]
 	if b == nil {
 		return
 	}
-	r.block = b.root
+	r.block = b
 	b.root.rows = append(b.root.rows, r)
-	b.root.open++
+	for ; b != nil; b = b.parent {
+		b.open++
+	}
 }
 
 // commitMember answers a collection member resolving, or resolving again in
-// another state: the block it sits under writes once it settles. A live
-// terminal keeps collections in its region, so only plain text streams them.
+// another state. A live terminal keeps collections in its region, so only
+// plain text streams them.
 func (s *Stream) commitMember(r *row) {
 	state := r.Rec.State()
 	if r.block == nil || !record.IsTerminalTask(state) || s.cfg.Region.Interactive() {
@@ -72,45 +117,77 @@ func (s *Stream) commitMember(r *row) {
 	}
 	if !r.counted {
 		r.counted = true
-		r.block.open--
+		for b := r.block; b != nil; b = b.parent {
+			b.open--
+		}
 	}
 	if r.emitted && r.emittedAs == state {
 		return
 	}
-	r.block.dirty = true
-	s.queue(r.block)
+	root := r.block.root
+	if root.mode == modeUndecided {
+		s.decide(root)
+	}
+	switch root.mode {
+	case modeStream:
+		s.streamMember(r)
+		return
+	case modeBuffered:
+		root.pending = append(root.pending, r)
+	}
+	root.dirty = true
+	s.queue(root)
 	s.CommitSettledBlocks()
 }
 
-// queue holds b until its membership closes, once it has nothing open.
+// queue holds an atomic b until its membership closes, once it has nothing
+// open.
 func (s *Stream) queue(b *block) {
-	if b.open == 0 && !b.queued {
+	if b.open == 0 {
+		s.enqueue(b)
+	}
+}
+
+// enqueue files b for CommitSettledBlocks to revisit, once.
+func (s *Stream) enqueue(b *block) {
+	if !b.queued {
 		b.queued = true
 		s.waiting = append(s.waiting, b)
 	}
 }
 
-// CommitSettledBlocks writes every block that has settled since the last
-// call, in the order they resolved. A row about to be written calls it
+// CommitSettledBlocks writes what has settled since the last call: the
+// closing row of each streamed block whose membership closed, and every
+// atomic block that settled, in the order they resolved. Then it releases the
+// root rows that waited on an open block. A row about to be written calls it
 // first, so nothing lands above a collection that finished before it.
 func (s *Stream) CommitSettledBlocks() {
-	if len(s.waiting) == 0 || s.cfg.Region.Interactive() {
+	if (len(s.waiting) == 0 && len(s.held) == 0) || s.cfg.Region.Interactive() {
 		return
 	}
 	kept := s.waiting[:0]
 	for _, b := range s.waiting {
 		switch {
+		case b.mode == modeStream:
+			s.closeSettled(b)
+			if !b.closed {
+				kept = append(kept, b)
+				continue
+			}
+			b.queued = false
 		case b.open > 0 || !b.dirty:
 			b.queued = false
 		case !s.cfg.Source.Closed(b.id):
 			kept = append(kept, b)
 		default:
 			b.queued = false
+			s.endGrace(b, modeAtomic)
 			s.commitBlock(b)
 		}
 	}
 	clear(s.waiting[len(kept):])
 	s.waiting = kept
+	s.releaseHeld()
 }
 
 // commitBlock writes b as the final output shows it, and marks every member

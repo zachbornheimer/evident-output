@@ -89,6 +89,12 @@ func (s *Stream) StopHeartbeats() {
 	for _, r := range s.rows {
 		r.stopBeat()
 	}
+	for _, b := range s.blocks {
+		if b.stop != nil {
+			b.stop()
+			b.stop = nil
+		}
+	}
 }
 
 func (r *row) stopBeat() {

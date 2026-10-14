@@ -161,7 +161,7 @@ func (p *Presenter) DeclareGate(id record.TaskID, rec *record.Task) {
 // when parent is "", and announces it.
 func (p *Presenter) DeclareGroup(g project.DeclaredGroup, parent string) {
 	p.Rows.DeclareGroup(g, parent)
-	p.Stream.DeclareGroup(plain.DeclaredGroup{ID: g.ID, Parent: parent})
+	p.Stream.DeclareGroup(plain.DeclaredGroup{ID: g.ID, Name: g.Name, Sequential: g.Sequential, Parent: parent})
 	p.Board.DeclareGroup(g.ID, g.Name, parent)
 	p.version++
 	p.journal("tasks.declared", g.ID)

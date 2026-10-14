@@ -18,6 +18,7 @@ import (
 // primary stream renders them only when no live terminal does, so a run
 // with both never prints them twice.
 func (s *Stream) Residual(snap record.Snapshot) (plain, final string) {
+	s.CommitSettledBlocks()
 	linesFrom := s.linesEmitted
 	interactive := s.cfg.Region.Interactive()
 	plain = s.compose(snap, linesFrom, !interactive)
@@ -72,10 +73,13 @@ func (s *Stream) writeEntities(b *strings.Builder, snap record.Snapshot) {
 		if shown[string(r.ID)] {
 			project.WriteTaskAligned(b, s.cfg.Source.Snapshot(r.ID), s.column.nameWidth(), s.cfg.Style)
 		}
-		r.emitted = true
+		r.emitted, r.emittedAs = true, r.Rec.State()
 	}
 	for _, col := range human.Collections {
-		if !s.blockStreamed(col.ID) {
+		switch blk := s.blocks[col.ID]; {
+		case blk != nil && blk.mode == modeStream:
+			s.finishStreamed(b, blk, col)
+		case !s.blockStreamed(col.ID):
 			WriteCollection(b, col, s.cfg.Style)
 		}
 	}
