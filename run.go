@@ -206,12 +206,9 @@ var processArgv0 = func() string {
 	return args[0]
 }
 
-// selfName is Config.Name, else the binary's basename.
+// selfName is the resolved Config.Name: the binary's basename when none was given.
 func (o *Run) selfName() string {
-	if o.cfg.subject != "" {
-		return o.cfg.subject
-	}
-	return identityFallbackName()
+	return o.cfg.subject
 }
 
 // identityFallbackName is the executable's basename or "command"; never a Subject.

@@ -182,7 +182,7 @@ func resolveConfig(c Config, t tuning) config {
 	stderr := cmp.Or(f.Stderr, terminal.Stderr())
 	output := cmp.Or(c.Output, outputFromEnv(lookupEnv(envKeyOutput)))
 	cfg := config{
-		subject:         c.Name,
+		subject:         cmp.Or(c.Name, identityFallbackName()),
 		primary:         stderr,
 		diagnostic:      stderr,
 		plain:           output == Plain,

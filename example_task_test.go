@@ -18,6 +18,8 @@ func ExampleTask_handle() {
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ fetch
+	//
+	// [succeeded]  tool
 }
 
 // ExampleTask_Define_wait shows Define's fluent Wait sugar (ZYS-849

@@ -29,6 +29,9 @@
     "run_id": {
       "type": "string"
     },
+    "name": {
+      "type": "string"
+    },
     "started_at": {
       "type": "string"
     },

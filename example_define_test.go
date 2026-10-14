@@ -28,6 +28,8 @@ func ExampleTask_Define() {
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ migrate
+	//
+	// [succeeded]  tool
 }
 
 // ExampleTask_Verify registers a boolean, read-only pre-Define check.
@@ -94,4 +96,6 @@ func ExampleTask_Fact() {
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ remote-tracking    stale  1
+	//
+	// [succeeded]  tool
 }

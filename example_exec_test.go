@@ -68,7 +68,7 @@ func ExampleExec() {
 	// ✓ generate
 	// [changed] generate  ran /usr/bin/tool
 	//
-	// [changed]
+	// [changed]  tool
 }
 
 // ExampleExecResult shows a caller parsing a completed Exec attempt's
@@ -120,7 +120,7 @@ func ExampleExecResult() {
 	//       file.go:10: unused variable
 	//       file.go:22: missing return
 	//
-	// [failed]
+	// [failed]  tool
 }
 
 // ExampleProcessRunner is the facade every Exec spawn goes through
@@ -150,4 +150,6 @@ func ExampleConfig_runner() {
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ demo
+	//
+	// [succeeded]  tool
 }

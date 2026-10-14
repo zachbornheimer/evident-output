@@ -50,7 +50,7 @@ func TestLedgerFoldsZqShapeToOneCategoryRow(t *testing.T) {
 	if want := "[changed] centralize packages  updated 6 packages\n"; !strings.Contains(rendered, want) {
 		t.Fatalf("missing %q in:\n%s", want, rendered)
 	}
-	if n := strings.Count(rendered, "[changed] "); n != 1 {
+	if n := strings.Count(rendered, "[changed] centralize"); n != 1 {
 		t.Errorf("%d [changed] rows, want 1:\n%s", n, rendered)
 	}
 	if got := len(out.snapshot().Changes); got != 6 {

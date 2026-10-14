@@ -181,7 +181,7 @@ func TestScenario_PartialFailure(t *testing.T) {
 		"    error  operation not permitted\n" +
 		"    path   " + displayPath + "\n" +
 		"    mode   0644\n" +
-		"\n[failed]\n"
+		"\n[failed]  " + testProgramName + "\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
 	}
@@ -236,7 +236,7 @@ func TestScenario_Stress(t *testing.T) {
 		"\n" +
 		"[changed] remote-tracking  deleted 4 stale origin/*\n" +
 		"\n" +
-		"[failed]\n" +
+		"[failed]  " + testProgramName + "\n" +
 		"!  already mutated: 4 stale origin/* deleted\n"
 	if got := buf.String(); got != want {
 		t.Fatalf("mismatch:\n--- want ---\n%s\n--- got ---\n%s", want, got)
@@ -328,10 +328,10 @@ func TestScenario_AlreadySatisfied(t *testing.T) {
 		verbose bool
 		want    string
 	}{
-		{false, "✓ cleanup  nothing to do\n"},
+		{false, "✓ cleanup  nothing to do\n\n[succeeded]  " + testProgramName + "\n"},
 		{true, "✓ write launch agent  already satisfied\n" +
 			"  path  ~/Library/LaunchAgents/com.acme.prod.agent.plist\n" +
-			"✓ cleanup             nothing to do\n"},
+			"✓ cleanup             nothing to do\n\n[succeeded]  " + testProgramName + "\n"},
 	}
 	for _, tc := range cases {
 		if got := renderV8AlreadySatisfied(t, tc.verbose); got != tc.want {

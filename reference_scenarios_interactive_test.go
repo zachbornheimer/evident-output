@@ -73,7 +73,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	// Declare is Pending (○). Doing starts submitted evidence so the row
 	// spins. Done commits the resolved row durably at resolution time.
 	want := []testkit.Operation{
-		testkit.DrawLive("⠋  starting"),
+		testkit.DrawLive("⠋  " + testProgramName),
 		testkit.DrawLive("○ dependencies"),
 		testkit.DrawLive("⠋ dependencies  resolving packages"),
 		testkit.ClearLive(),
@@ -81,7 +81,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 		testkit.DrawLive("⠋ dependencies  resolving packages"),
 		testkit.ClearLive(),
 		testkit.WriteDurable("✓ dependencies  installed 18 packages\n"),
-		testkit.WriteFinal(""),
+		testkit.WriteFinal("\n[succeeded]  " + testProgramName),
 	}
 
 	if diff := testkit.DiffOperations(want, screen.Operations()); diff != "" {

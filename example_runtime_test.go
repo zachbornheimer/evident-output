@@ -19,6 +19,8 @@ func ExampleGlyphProfile() {
 	fmt.Print(buf.String())
 	// Output:
 	// [ok] scan
+	//
+	// [succeeded]  tool
 }
 
 // ExampleOutput shows the hosted-instance shape: build an isolated Output,
@@ -32,6 +34,8 @@ func ExampleOutput() {
 	fmt.Print(buf.String())
 	// Output:
 	// ✓ build
+	//
+	// [succeeded]  tool
 }
 
 // ExampleMain shows deriving a process exit code from a RunFunc without

@@ -22,14 +22,14 @@ func TestLedgerFoldFrameZqShapeApply(t *testing.T) {
 	got, _ := runPlain(t, Config{}, func(o *Run) {
 		declareCentralize(o, 2, func(string, int) func(context.Context) error { return centralizeEffect(change.EffectUpdate, "package") })
 	})
-	assertFrame(t, got, "✓ npm pkg 0\n✓ npm pkg 1\n✓ composer pkg 0\n✓ composer pkg 1\n\n[changed] centralize packages  updated 4 packages\n\n[changed]\n")
+	assertFrame(t, got, "✓ npm pkg 0\n✓ npm pkg 1\n✓ composer pkg 0\n✓ composer pkg 1\n\n[changed] centralize packages  updated 4 packages\n\n[changed]  "+testProgramName+"\n")
 }
 
 func TestLedgerFoldFrameZqShapeDryRun(t *testing.T) {
 	got, _ := runPlain(t, Config{DryRun: true}, func(o *Run) {
 		declareCentralize(o, 2, func(string, int) func(context.Context) error { return centralizeEffect(change.EffectUpdate, "package") })
 	})
-	assertFrame(t, got, "[dry-run] no changes will be made\n\n✓ npm pkg 0\n✓ npm pkg 1\n✓ composer pkg 0\n✓ composer pkg 1\n\n[planned] centralize packages  update 4 packages\n\n[planned]\n")
+	assertFrame(t, got, "[dry-run] no changes will be made\n\n✓ npm pkg 0\n✓ npm pkg 1\n✓ composer pkg 0\n✓ composer pkg 1\n\n[planned] centralize packages  update 4 packages\n\n[planned]  "+testProgramName+"\n")
 }
 
 func TestLedgerFoldFrameSequence(t *testing.T) {
@@ -39,7 +39,7 @@ func TestLedgerFoldFrameSequence(t *testing.T) {
 			s.Task(name).Define(centralizeEffect(change.EffectDelete, "cache"))
 		}
 	})
-	assertFrame(t, got, "✓ steps\n   ✓ a\n   ✓ b\n\n[changed] steps  deleted 2 caches\n\n[changed]\n")
+	assertFrame(t, got, "✓ steps\n   ✓ a\n   ✓ b\n\n[changed] steps  deleted 2 caches\n\n[changed]  "+testProgramName+"\n")
 }
 
 // TestLedgerFoldCountsCommittedPartOfPartialEffect proves a failed item that
@@ -59,7 +59,7 @@ func TestLedgerFoldCountsCommittedPartOfPartialEffect(t *testing.T) {
 			})
 		}
 	})
-	assertFrame(t, got, "✓ a\n✗ b  context deadline exceeded\n✓ c\n\n[changed] npm  updated 5 packages\n\n[failed]\n!  already mutated: 5 packages updated\n")
+	assertFrame(t, got, "✓ a\n✗ b  context deadline exceeded\n✓ c\n\n[changed] npm  updated 5 packages\n\n[failed]  "+testProgramName+"\n!  already mutated: 5 packages updated\n")
 }
 
 // Probe A: one different sibling must not stop the rest folding.
@@ -126,5 +126,5 @@ func TestLedgerFoldOwnTaskAndItemsShareOneSubject(t *testing.T) {
 		}
 	})
 	assertFrame(t, got, "✓ branches\n✓ b0\n✓ b1\n✓ b2\n\n"+
-		"[changed] branches  deleted 1 worktree\n[changed] branches  deleted 3 branches\n\n[changed]\n")
+		"[changed] branches  deleted 1 worktree\n[changed] branches  deleted 3 branches\n\n[changed]  "+testProgramName+"\n")
 }

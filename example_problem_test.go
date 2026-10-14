@@ -70,7 +70,7 @@ func ExampleDetail() {
 	// ✗ read config  parse error
 	//    └─ unexpected token at line 4
 	//
-	// [failed]
+	// [failed]  tool
 }
 
 // ExampleCode sets a stable, machine-readable Problem code a consumer can
@@ -84,7 +84,7 @@ func ExampleCode() {
 	// Output:
 	// ✗ apply migration  schema mismatch
 	//
-	// [failed]
+	// [failed]  tool
 }
 
 // ExampleOn sets the problem subject.
@@ -98,7 +98,7 @@ func ExampleOn() {
 	// ✗ clean workspace  permission denied
 	//    └─ /var/cache  permission denied
 	//
-	// [failed]
+	// [failed]  tool
 }
 
 // ExampleCount sets a quantity and optional unit on a Problem.
@@ -111,7 +111,7 @@ func ExampleCount() {
 	// Output:
 	// ✗ upload artifacts  upload failed
 	//
-	// [failed]
+	// [failed]  tool
 }
 
 // ExampleLocation sets a source location on a Problem.
@@ -124,7 +124,7 @@ func ExampleLocation() {
 	// Output:
 	// ✗ validate manifest  unknown field
 	//
-	// [failed]
+	// [failed]  tool
 }
 
 // ExampleNext attaches a recommended next step to a Problem. The remedy
@@ -140,7 +140,7 @@ func ExampleNext() {
 	// Output:
 	// ✗ push branch  rejected: non-fast-forward
 	//
-	// [failed]
+	// [failed]  tool
 	// →  pull --rebase first
 }
 

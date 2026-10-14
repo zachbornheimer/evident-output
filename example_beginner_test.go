@@ -30,4 +30,6 @@ func Example_beginnerAPI() {
 	// ✓ worktrees
 	//    ✓ repo-a
 	//    ✓ repo-b
+	//
+	// [succeeded]  tool
 }
