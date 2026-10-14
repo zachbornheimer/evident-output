@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -44,6 +43,9 @@ type Sandbox interface {
 	// after the fix commit survive. A change that cannot be reverted cleanly
 	// yields a *ConflictError.
 	UndoFix(dir string, changes []FileChange) error
+	// ApplyRevert applies a hand-written patch that re-introduces the bug in
+	// dir. A patch that does not apply is an error.
+	ApplyRevert(dir string, patch []byte) error
 	// RunTests runs the named tests of one package in dir and returns the
 	// `go test -json` output, whether or not the tests passed.
 	RunTests(dir, pkg string, names []string) ([]byte, error)
@@ -92,32 +94,19 @@ type Prover struct {
 	Git     Git
 	Sandbox Sandbox
 	Scratch ScratchDir
+	// ReadPatch returns the hand-written revert patch an entry names.
+	ReadPatch func(name string) ([]byte, error)
 }
 
-// Prove reverts the fix's non-test hunks in a scratch copy of HEAD and runs
-// the entry's tests; the entry is Proven only when every test fails there.
-// When later edits make the revert conflict, it falls back to the fix commit's
-// own tree, where the revert is exact, and says so in the result's Basis.
+// Prove removes the fix from a scratch copy of HEAD and runs the entry's
+// tests; the entry is Proven only when every test fails there. The fix comes
+// out by the entry's hand-written revert patch, or else by reversing the
+// commit's own non-test hunks. A revert that does not apply is an error, never
+// a pass.
 func (p Prover) Prove(e Entry) Result {
-	res := p.proveAt(e, headRev)
-	var conflict *ConflictError
-	if !errors.As(res.err, &conflict) {
-		return res.Result
-	}
-	fallback := p.proveAt(e, e.Commit)
-	fallback.Basis = fmt.Sprintf("fix commit %s (HEAD revert conflicts in %s)", e.Commit, conflict.Path)
-	return fallback.Result
-}
-
-type attempt struct {
-	Result
-	err error
-}
-
-func (p Prover) proveAt(e Entry, rev string) attempt {
-	res := attempt{Result: Result{Entry: e, Basis: rev}}
-	fail := func(err error) attempt {
-		res.Status, res.err = Errored, err
+	res := Result{Entry: e, Basis: headRev}
+	fail := func(err error) Result {
+		res.Status = Errored
 		res.Lines = append(res.Lines, err.Error())
 		return res
 	}
@@ -126,18 +115,41 @@ func (p Prover) proveAt(e Entry, rev string) attempt {
 		return fail(fmt.Errorf("make scratch directory: %w", err))
 	}
 	defer remove()
-	if err := p.Git.Export(rev, dir); err != nil {
-		return fail(fmt.Errorf("export %s: %w", rev, err))
+	if err := p.Git.Export(headRev, dir); err != nil {
+		return fail(fmt.Errorf("export %s: %w", headRev, err))
 	}
-	changes, err := p.Git.FixChanges(e.Commit, rev)
+	if e.Revert != "" {
+		res.Basis = headRev + " with " + e.Revert
+		err = p.applyRevertPatch(dir, e)
+	} else {
+		err = p.undoCommit(dir, e)
+	}
 	if err != nil {
-		return fail(fmt.Errorf("read fix %s: %w", e.Commit, err))
+		return fail(err)
+	}
+	return p.replay(dir, res)
+}
+
+func (p Prover) applyRevertPatch(dir string, e Entry) error {
+	patch, err := p.ReadPatch(e.Revert)
+	if err != nil {
+		return fmt.Errorf("read revert patch %s: %w", e.Revert, err)
+	}
+	if err := p.Sandbox.ApplyRevert(dir, patch); err != nil {
+		return fmt.Errorf("apply revert patch %s for fix %s: %w", e.Revert, e.Commit, err)
+	}
+	return nil
+}
+
+func (p Prover) undoCommit(dir string, e Entry) error {
+	changes, err := p.Git.FixChanges(e.Commit, headRev)
+	if err != nil {
+		return fmt.Errorf("read fix %s: %w", e.Commit, err)
 	}
 	if err := p.Sandbox.UndoFix(dir, changes); err != nil {
-		return fail(fmt.Errorf("revert fix %s: %w", e.Commit, err))
+		return fmt.Errorf("revert fix %s: %w", e.Commit, err)
 	}
-	res.Result = p.replay(dir, res.Result)
-	return res
+	return nil
 }
 
 func (p Prover) replay(dir string, res Result) Result {

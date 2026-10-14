@@ -108,6 +108,22 @@ func gitMergeFile(target, fixed, before string) (status int, output []byte, err 
 	return 0, out, err
 }
 
+// gitApply applies patch to the tree in dir, all hunks or none. dir is not a
+// repository, so git works on the files alone.
+func gitApply(dir string, patch []byte) error {
+	work, err := cleanPath(dir)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(gitCommand, "apply", "--whitespace=nowarn", "-")
+	cmd.Dir = work
+	cmd.Stdin = bytes.NewReader(patch)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git apply: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // goTestJSON runs the named top-level tests of pkg in dir with -json. Failing
 // tests are the expected output, so a non-zero exit is not an error here.
 func goTestJSON(dir, pkg string, names []string) ([]byte, error) {

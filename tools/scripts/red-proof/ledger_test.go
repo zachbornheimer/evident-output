@@ -63,6 +63,31 @@ func testExists(t *testing.T, ref TestRef) bool {
 	return false
 }
 
+// The f0d90673 guard cannot reverse the commit's own hunks: later edits
+// rewrote ResultWriter. Its entry must carry a hand-written revert, and the
+// patch must exist, or the replay would have nothing to apply.
+func TestLedgerRevertPatchesExist(t *testing.T) {
+	text, err := readFile("ledger.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ledger, err := ParseLedger(string(text))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range ledger.Entries {
+		if e.Commit == "f0d90673" && e.Revert == "" {
+			t.Errorf("entry %s names no revert patch", e.Commit)
+		}
+		if e.Revert == "" {
+			continue
+		}
+		if _, err := readFile(e.Revert); err != nil {
+			t.Errorf("entry %s: %v", e.Commit, err)
+		}
+	}
+}
+
 func TestParseLedgerReadsEntriesAndTests(t *testing.T) {
 	text := "entries:\n  - commit: abcdef1\n    note: \"a: b\"\n    tests:\n      - pkg: ./x\n        name: TestOne\n      - pkg: .\n        name: TestTwo\n"
 	ledger, err := ParseLedger(text)
@@ -86,6 +111,7 @@ func TestParseLedgerRejectsWhatItCannotReplay(t *testing.T) {
 		"missing name":     head + "      - pkg: .\n",
 		"duplicate commit": head + "      - pkg: .\n        name: TestA\n  - commit: abcdef1\n    tests:\n      - pkg: .\n        name: TestA\n",
 		"stray line":       "entries:\nnonsense\n",
+		"revert outside":   "entries:\n  - commit: abcdef1\n    revert: ../x.patch\n    tests:\n      - pkg: .\n        name: TestA\n",
 	}
 	for name, text := range cases {
 		if _, err := ParseLedger(text); err == nil {

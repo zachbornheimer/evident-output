@@ -66,3 +66,21 @@ func TestReadFileMissingIsAnOSError(t *testing.T) {
 		t.Fatalf("got %v, want os.ErrNotExist", err)
 	}
 }
+
+func TestGitApplyAppliesAPatchOrLeavesTheTreeAlone(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("one\ntwo\nthree\n"), filePerm); err != nil {
+		t.Fatal(err)
+	}
+	patch := []byte("--- a/a.txt\n+++ b/a.txt\n@@ -1,3 +1,2 @@\n one\n-two\n three\n")
+	if err := gitApply(dir, patch); err != nil {
+		t.Fatalf("gitApply: %v", err)
+	}
+	got, _ := readFile(filepath.Join(dir, "a.txt"))
+	if string(got) != "one\nthree\n" {
+		t.Fatalf("a.txt = %q after the patch", got)
+	}
+	if err := gitApply(dir, patch); err == nil {
+		t.Fatal("gitApply accepted a patch whose context is gone")
+	}
+}

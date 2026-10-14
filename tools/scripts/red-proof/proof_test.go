@@ -8,36 +8,47 @@ import (
 
 type fakeGit struct {
 	exportErr, diffErr error
+	diffs              *int // counts FixChanges calls
 }
 
-func (g fakeGit) Export(string, string) error                     { return g.exportErr }
-func (g fakeGit) FixChanges(string, string) ([]FileChange, error) { return nil, g.diffErr }
+func (g fakeGit) Export(string, string) error { return g.exportErr }
+func (g fakeGit) FixChanges(string, string) ([]FileChange, error) {
+	if g.diffs != nil {
+		*g.diffs++
+	}
+	return nil, g.diffErr
+}
 
 type fakeSandbox struct {
-	undoErr    error
-	undoErrors []error // consumed one per UndoFix call, before undoErr
-	out        map[string][]byte
-	calls      *int
+	undoErr, applyErr error
+	out               map[string][]byte
+	applied           *[]byte // receives the patch ApplyRevert was given
 }
 
-func (s fakeSandbox) UndoFix(string, []FileChange) error {
-	if s.calls != nil {
-		defer func() { *s.calls++ }()
-		if *s.calls < len(s.undoErrors) {
-			return s.undoErrors[*s.calls]
-		}
+func (s fakeSandbox) UndoFix(string, []FileChange) error { return s.undoErr }
+
+func (s fakeSandbox) ApplyRevert(_ string, patch []byte) error {
+	if s.applied != nil {
+		*s.applied = patch
 	}
-	return s.undoErr
+	return s.applyErr
 }
 
 func (s fakeSandbox) RunTests(_, pkg string, _ []string) ([]byte, error) {
 	return s.out[pkg], nil
 }
 
+func fakePatch(name string) ([]byte, error) {
+	if name == "patches/missing.patch" {
+		return nil, errors.New("no such patch")
+	}
+	return []byte("patch " + name), nil
+}
+
 func fakeScratch() (string, func(), error) { return "scratch", func() {}, nil }
 
 func proverWith(git Git, sb Sandbox) Prover {
-	return Prover{Git: git, Sandbox: sb, Scratch: fakeScratch}
+	return Prover{Git: git, Sandbox: sb, Scratch: fakeScratch, ReadPatch: fakePatch}
 }
 
 func redGreen(red, green string) []byte {
@@ -102,27 +113,56 @@ func TestMovedPathsNamesRenamesAndCopies(t *testing.T) {
 	}
 }
 
-func TestProveFallsBackToTheFixCommitWhenHeadCannotBeReverted(t *testing.T) {
+func TestProveErrorsWhenTheFixCannotBeReverted(t *testing.T) {
+	conflict := &ConflictError{Path: "report.go", Reason: "2 conflicting hunks"}
 	allRed := events(
 		`{"Action":"run","Test":"TestA"}`, `{"Action":"fail","Test":"TestA"}`,
 		`{"Action":"run","Test":"TestB"}`, `{"Action":"fail","Test":"TestB"}`,
 	)
-	calls := 0
-	conflict := &ConflictError{Path: "report.go", Reason: "2 conflicting hunks"}
-	sb := fakeSandbox{undoErrors: []error{conflict}, out: map[string][]byte{".": allRed}, calls: &calls}
-	res := proverWith(fakeGit{}, sb).Prove(entry)
-	if res.Status != Proven {
-		t.Fatalf("status = %s, want PASS; lines %v", res.Status, res.Lines)
+	res := proverWith(fakeGit{}, fakeSandbox{undoErr: conflict, out: map[string][]byte{".": allRed}}).Prove(entry)
+	if res.Status != Errored {
+		t.Fatalf("status = %s, want ERROR, never PASS; lines %v", res.Status, res.Lines)
 	}
-	if !strings.Contains(res.Basis, "abcdef1") || !strings.Contains(res.Basis, "report.go") {
-		t.Errorf("basis = %q, want the fix commit and the conflicting path named", res.Basis)
+	if !strings.Contains(strings.Join(res.Lines, "\n"), "report.go") {
+		t.Errorf("lines do not name the conflicting path: %v", res.Lines)
 	}
 }
 
-func TestProveDoesNotHideAConflictThatPersistsAtTheFixCommit(t *testing.T) {
-	conflict := &ConflictError{Path: "report.go", Reason: "x"}
-	res := proverWith(fakeGit{}, fakeSandbox{undoErr: conflict}).Prove(entry)
-	if res.Status != Errored {
-		t.Fatalf("status = %s, want ERROR", res.Status)
+func TestProveAppliesTheHandWrittenRevertInPlaceOfTheCommit(t *testing.T) {
+	allRed := events(
+		`{"Action":"run","Test":"TestA"}`, `{"Action":"fail","Test":"TestA"}`,
+		`{"Action":"run","Test":"TestB"}`, `{"Action":"fail","Test":"TestB"}`,
+	)
+	diffs, applied := 0, []byte(nil)
+	reverted := entry
+	reverted.Revert = "patches/abcdef1.patch"
+	// A commit-reversal conflict must not matter: the patch replaces that path.
+	sb := fakeSandbox{undoErr: &ConflictError{Path: "report.go"}, applied: &applied, out: map[string][]byte{".": allRed}}
+	res := proverWith(fakeGit{diffs: &diffs}, sb).Prove(reverted)
+	if res.Status != Proven {
+		t.Fatalf("status = %s, want PASS; lines %v", res.Status, res.Lines)
+	}
+	if diffs != 0 || string(applied) != "patch patches/abcdef1.patch" {
+		t.Errorf("commit read %d times, patch applied %q; want the patch and no commit reversal", diffs, applied)
+	}
+	if !strings.Contains(res.Basis, "patches/abcdef1.patch") {
+		t.Errorf("basis = %q, want the patch named", res.Basis)
+	}
+}
+
+func TestProveErrorsWhenTheRevertPatchIsUnusable(t *testing.T) {
+	cases := map[string]struct {
+		revert string
+		sb     fakeSandbox
+	}{
+		"missing":      {"patches/missing.patch", fakeSandbox{}},
+		"does not fit": {"patches/abcdef1.patch", fakeSandbox{applyErr: errors.New("patch does not apply")}},
+	}
+	for name, c := range cases {
+		e := entry
+		e.Revert = c.revert
+		if res := proverWith(fakeGit{}, c.sb).Prove(e); res.Status != Errored {
+			t.Errorf("%s: status = %s, want ERROR; lines %v", name, res.Status, res.Lines)
+		}
 	}
 }

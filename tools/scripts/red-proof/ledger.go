@@ -18,6 +18,10 @@ type TestRef struct {
 type Entry struct {
 	Commit string
 	Note   string
+	// Revert names a hand-written patch, relative to the ledger, that
+	// re-introduces the bug in HEAD. It stands in for reversing the commit's
+	// own hunks, which later edits can make impossible; "" reverses the commit.
+	Revert string
 	Tests  []TestRef
 }
 
@@ -28,10 +32,12 @@ var (
 	commitPattern = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
 	pkgPattern    = regexp.MustCompile(`^\.(/[A-Za-z0-9_-]+)*$`)
 	testPattern   = regexp.MustCompile(`^Test[A-Za-z0-9_]*$`)
+	revertPattern = regexp.MustCompile(`^patches/[A-Za-z0-9_-]+\.patch$`)
 )
 
 // ParseLedger reads the ledger's fixed YAML subset: an `entries:` list whose
-// items carry `commit`, `note`, and a `tests:` list of `pkg`/`name` pairs.
+// items carry `commit`, `note`, an optional `revert` patch path, and a
+// `tests:` list of `pkg`/`name` pairs.
 // Anything else is an error, so a typo cannot silently drop a guard.
 func ParseLedger(text string) (Ledger, error) {
 	var ledger Ledger
@@ -61,6 +67,8 @@ func (l *Ledger) apply(item bool, key, value string) error {
 		l.Entries = append(l.Entries, Entry{Commit: value})
 	case key == "note" && !item && last >= 0:
 		l.Entries[last].Note = value
+	case key == "revert" && !item && last >= 0:
+		l.Entries[last].Revert = value
 	case key == "tests" && !item && last >= 0 && value == "":
 		return nil
 	case key == "pkg" && item && last >= 0:
@@ -96,6 +104,9 @@ func (l Ledger) Validate() error {
 			return fmt.Errorf("entry %s: listed twice", e.Commit)
 		}
 		seen[e.Commit] = true
+		if e.Revert != "" && !revertPattern.MatchString(e.Revert) {
+			return fmt.Errorf("entry %s: revert %q must be patches/<name>.patch", e.Commit, e.Revert)
+		}
 		if len(e.Tests) == 0 {
 			return fmt.Errorf("entry %s: names no guarding test", e.Commit)
 		}

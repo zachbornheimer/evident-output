@@ -1,7 +1,9 @@
 # Round-1/2 concurrency fixes and the tests that must fail without each one.
 # `go run ./tools/scripts/red-proof` (mise run red-proof) replays every entry:
 # it reverts the commit's non-test hunks in a scratch copy of HEAD and requires
-# every named test to fail there. Fixed YAML subset; see ledger.go.
+# every named test to fail there. An entry whose later edits keep its hunks from
+# reversing names a hand-written `revert:` patch that re-introduces the bug in
+# HEAD instead. Fixed YAML subset; see ledger.go.
 entries:
   - commit: ddbd70f3
     note: ring onAppend runs outside the ring lock (Resolve/ring lock-order deadlock)
@@ -17,6 +19,7 @@ entries:
         name: TestBarrierCallsRunOutsideOutputsLock
   - commit: 852ea4b8
     note: dry run marks the basis of planned changes uncertain (freshness Plan)
+    revert: patches/852ea4b8.patch
     tests:
       - pkg: .
         name: TestDryRunPlansDownstreamOfPlannedOutputs
@@ -29,6 +32,7 @@ entries:
         name: TestNotStartedNamesItsPredecessorWithOneSpelling
   - commit: f0d90673
     note: payload on a shared tty is written above the live region
+    revert: patches/f0d90673.patch
     tests:
       - pkg: .
         name: TestResultWriterPayloadSurvivesSharedTerminal

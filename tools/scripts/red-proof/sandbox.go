@@ -40,6 +40,12 @@ func (s scratchSandbox) UndoFix(dir string, changes []FileChange) error {
 	return nil
 }
 
+// ApplyRevert applies the patch with `git apply`, which refuses a patch whose
+// context no longer matches the tree.
+func (scratchSandbox) ApplyRevert(dir string, patch []byte) error {
+	return gitApply(dir, patch)
+}
+
 func (s scratchSandbox) undo(target string, c FileChange) error {
 	switch c.Kind {
 	case Added:

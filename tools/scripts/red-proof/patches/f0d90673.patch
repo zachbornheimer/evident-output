@@ -1,0 +1,15 @@
+Hand-written revert of f0d90673 against the current tree: routeResult stops sending
+payload text through the live region when stdout shares its terminal, so the payload is
+written straight to stdout again, where the next repaint paints over it. Later commits
+rewrote ResultWriter, so the commit's own hunks no longer reverse-apply.
+
+--- a/report.go
++++ b/report.go
+@@ -106,7 +106,6 @@
+ 		o.emitWireEventLocked(wire.EventResultWritten, "", wire.ResultWrittenPayload(b))
+ 	case o.cfg.wireFormat == JSON:
+ 		o.resultText.Write(b)
+-	case o.cfg.resultSharesTerminal && o.show.Stream.WritePayload(string(b)):
+ 	default:
+ 		return o.cfg.result, nil
+ 	}

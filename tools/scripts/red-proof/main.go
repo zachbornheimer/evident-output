@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -28,7 +29,11 @@ func main() {
 	flag.StringVar(&repo, "repo", ".", "repository root")
 	flag.StringVar(&only, "only", "", "replay only the entry whose commit starts with this")
 	flag.Parse()
-	prover := Prover{Git: repoGit{root: repo}, Sandbox: scratchSandbox{}, Scratch: tempScratch}
+	patchDir := filepath.Dir(ledgerPath)
+	prover := Prover{
+		Git: repoGit{root: repo}, Sandbox: scratchSandbox{}, Scratch: tempScratch,
+		ReadPatch: func(name string) ([]byte, error) { return readFile(filepath.Join(patchDir, name)) },
+	}
 	os.Exit(execute(ledgerPath, only, prover, os.Stdout))
 }
 
@@ -72,7 +77,7 @@ func exitCode(s Status) int {
 }
 
 func report(out io.Writer, res Result) {
-	_, _ = fmt.Fprintf(out, "%s %s: %s\n    fix reverted in: %s\n", res.Status, res.Entry.Commit, res.Entry.Note, res.Basis)
+	_, _ = fmt.Fprintf(out, "%s %s: %s\n    fix removed in: %s\n", res.Status, res.Entry.Commit, res.Entry.Note, res.Basis)
 	for _, line := range res.Lines {
 		_, _ = fmt.Fprintf(out, "    %s\n", line)
 	}
