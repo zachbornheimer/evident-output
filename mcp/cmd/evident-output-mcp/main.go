@@ -45,7 +45,8 @@ var Version = installedVersionUnset
 // — no ldflags needed, this is how `go version -m` reports any installed
 // Go tool's pin); else the VCS revision Go auto-embeds into local
 // go run/go build binaries built inside a git checkout (buildvcs=auto,
-// default since Go 1.18); else wire.Release. A stale-host check ("is this binary older than
+// default since Go 1.18) appended to wire.Release as build metadata; else
+// bare wire.Release. A stale-host check ("is this binary older than
 // the pin?") never has to trust the literal string "dev" (AGENTS.md
 // "Dialect the MCP enforces" / evo-dialect-axes-report.md axis 4/12: a
 // fresh --version printing "dev" cannot tell stale from fresh).

@@ -2,14 +2,17 @@
 // ldflags stamp or the build info Go embeds, so no binary prints a bare "dev".
 package buildversion
 
-import "runtime/debug"
+import (
+	"regexp"
+	"runtime/debug"
+)
 
 // Unset is the ldflags default; a binary still carrying it was not stamped.
 const Unset = "dev"
 
 const (
 	develModule  = "(devel)"
-	develPrefix  = "devel+"
+	buildMetaSep = "+"
 	dirtySuffix  = "-dirty"
 	revisionKey  = "vcs.revision"
 	modifiedKey  = "vcs.modified"
@@ -17,13 +20,17 @@ const (
 	revisionLen  = 12
 )
 
+// pseudoVersion matches the vX.Y.Z-<timestamp>-<revision> versions Go stamps
+// on binaries built from a checkout; they name a commit, not a release.
+var pseudoVersion = regexp.MustCompile(`\d{14}-[0-9a-f]{12}(\+dirty)?$`)
+
 // ReadBuildInfo is the build-info source; pass debug.ReadBuildInfo.
 type ReadBuildInfo func() (*debug.BuildInfo, bool)
 
 // Resolve returns, in priority order: the ldflags-stamped version when set;
-// the module version Go embeds for `go install pkg@vX.Y.Z`; else
-// devel+<vcs revision> (with -dirty) for local builds inside a git checkout;
-// else release, the version this source tree ships as.
+// the tagged module version Go embeds for `go install pkg@vX.Y.Z`; else
+// release+<vcs revision> (with -dirty) for local builds inside a git
+// checkout; else release, the version this source tree ships as.
 func Resolve(stamped, release string, read ReadBuildInfo) string {
 	if stamped != Unset {
 		return stamped
@@ -32,7 +39,7 @@ func Resolve(stamped, release string, read ReadBuildInfo) string {
 	if !ok {
 		return release
 	}
-	if v := info.Main.Version; v != "" && v != develModule {
+	if v := info.Main.Version; v != "" && v != develModule && !pseudoVersion.MatchString(v) {
 		return v
 	}
 	var revision string
@@ -52,7 +59,7 @@ func Resolve(stamped, release string, read ReadBuildInfo) string {
 		revision = revision[:revisionLen]
 	}
 	if modified {
-		return develPrefix + revision + dirtySuffix
+		return release + buildMetaSep + revision + dirtySuffix
 	}
-	return develPrefix + revision
+	return release + buildMetaSep + revision
 }

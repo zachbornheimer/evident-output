@@ -23,8 +23,9 @@ func TestResolve(t *testing.T) {
 	}{
 		{"stamp wins", "v1.2.3", info("v9"), "v1.2.3"},
 		{"module version", Unset, info("v0.4.7"), "v0.4.7"},
-		{"vcs revision", Unset, info("(devel)", rev), "devel+0123456789ab"},
-		{"dirty revision", Unset, info("(devel)", rev, dirty), "devel+0123456789ab-dirty"},
+		{"pseudo version", Unset, info("v0.0.0-20261014065851-8209d26ccbea", rev), release + "+0123456789ab"},
+		{"vcs revision", Unset, info("(devel)", rev), release + "+0123456789ab"},
+		{"dirty revision", Unset, info("(devel)", rev, dirty), release + "+0123456789ab-dirty"},
 		{"nothing known", Unset, info("(devel)"), release},
 		{"no build info", Unset, none, release},
 	}
