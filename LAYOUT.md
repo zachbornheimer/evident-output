@@ -25,8 +25,6 @@ mise.toml
 .gitignore
 .golangci.yml
 .markdownlint.json
-.prettierrc.json
-.prettierignore
 .github/
 .trunk/
 .grok/
