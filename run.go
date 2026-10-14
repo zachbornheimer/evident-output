@@ -1080,8 +1080,8 @@ func (o *Run) close() error {
 		_ = o.finish()
 	}
 	o.mu.Lock()
-	o.live.Stop()
-	o.stream.StopHeartbeats()
+	o.show.Live.Stop()
+	o.show.Stream.StopHeartbeats()
 	o.closed = true
 	o.graph.Close()
 	o.mu.Unlock()
@@ -1490,7 +1490,7 @@ func (e runHost) EntryRecorded(task record.TaskID, row change.LedgerRow) {
 // as the sanitized copy evo.run projects, so JSONL and JSON agree.
 func (e runHost) VerificationRecorded(task record.TaskID, details []record.VerificationDetail) {
 	o := e.out
-	o.board.Changed(task)
+	o.show.Board.Changed(task)
 	for _, d := range details {
 		o.emitWireEventLocked(wire.EventVerificationObserved, string(task), wire.ToVerificationDoc(d).EventPayload())
 	}
@@ -1518,12 +1518,6 @@ func (e runHost) TaskDeclared(t *graph.Task) {
 	st.handle = &Task{out: o, id: st.id, state: st}
 	o.taskStates[st.id] = st
 	o.appendTaskLocked(st, false)
-	o.bumpLocked()
-	o.appendEventLocked(recEvent{Type: "task.declared", EntityID: st.id})
-	if o.wireEvents.On() {
-		o.emitWireEventLocked(wire.EventTaskDeclared, st.id, map[string]any{"name": t.Name})
-	}
-	o.live.Signal(true)
 }
 
 // GateDeclared registers the gate of a container builder: no row, in no
@@ -1533,6 +1527,7 @@ func (e runHost) GateDeclared(t *graph.Task) {
 	gate := &taskState{id: t.ID, node: t, name: t.Name}
 	gate.handle = &Task{out: o, id: gate.id}
 	o.taskStates[gate.id] = gate
+	o.show.DeclareGate(t.TaskID(), t.Rec)
 }
 
 // ContainerDeclared registers a Group or Sequence the graph just declared.
@@ -1546,14 +1541,10 @@ func (e runHost) ContainerDeclared(c *graph.Container) {
 		parentID = c.Parent.ID
 	}
 	o.containerStates[st.id] = st
-	o.rows.DeclareGroup(txt.DeclaredGroup{
+	st.handle = &Group{out: o, id: st.id}
+	o.show.DeclareGroup(txt.DeclaredGroup{
 		ID: c.ID, Name: c.Name, Declaration: c.Declaration, Sequential: c.Sequential, Rec: c.Rec, Node: c,
 	}, parentID)
-	o.board.DeclareGroup(st.id, st.name, parentID)
-	st.handle = &Group{out: o, id: st.id}
-	o.bumpLocked()
-	o.appendEventLocked(recEvent{Type: "tasks.declared", EntityID: st.id})
-	o.emitCollectionDeclaredLocked(st, parentID)
 }
 
 // Started is the render work a claimed Task owes: the eligibility event, the
@@ -1582,12 +1573,12 @@ func (e runHost) Started(t *graph.Task) bool {
 		o.announceRunningLocked(st)
 	}
 	o.bumpLocked()
-	o.live.Signal(true)
+	o.show.Live.Signal(true)
 	return true
 }
 
 // Resolving lets a running row finish its spinner frame before it resolves.
-func (e runHost) Resolving(t *graph.Task) { e.out.live.HoldRunning(record.TaskID(t.ID)) }
+func (e runHost) Resolving(t *graph.Task) { e.out.show.Live.HoldRunning(record.TaskID(t.ID)) }
 
 // AlreadyResolved records a second terminal verb on t as misuse, keeping
 // the rejected call's own summary so the misuse line can show what got
@@ -1619,10 +1610,10 @@ func (e runHost) Settled(t *graph.Task) {
 		return
 	}
 	if st.collection() != nil {
-		o.live.Signal(true)
+		o.show.Live.Signal(true)
 	} else {
-		o.stream.Commit(record.TaskID(st.id))
-		o.stream.CommitEffects(st.id)
+		o.show.Stream.Commit(record.TaskID(st.id))
+		o.show.Stream.CommitEffects(st.id)
 	}
 	if t.Rec.State().Succeeded() {
 		o.commitManifestLocked(st)
@@ -1650,8 +1641,6 @@ func (o *Run) commitManifestLocked(st *taskState) {
 func (e runHost) RunEnded(t *graph.Task) {
 	o := e.out
 	o.appendTaskLocked(&taskState{id: t.ID, node: t, name: t.Name}, true)
-	o.bumpLocked()
-	o.appendEventLocked(recEvent{Type: "output." + string(t.Rec.State())})
 }
 
 // narrate streams one §38 event about a Task's work under the Run's lock.
@@ -1659,7 +1648,7 @@ func (e runHost) RunEnded(t *graph.Task) {
 // so narration costs a callback nothing when nobody reads it.
 func (e runHost) narrate(event, entityID string, payload func() map[string]any) {
 	o := e.out
-	if !o.wireEvents.On() {
+	if !o.show.Events.On() {
 		return
 	}
 	o.mu.Lock()
@@ -1846,7 +1835,7 @@ func (r *Run) Fact(name, value string) *Run {
 	r.graph.Root().Note(f)
 	r.bumpLocked()
 	r.emitWireEventLocked(wire.EventFactRecorded, "", wire.ToFactDoc(f).EventPayload())
-	r.stream.Write(txt.Dim(f.Name+"  "+f.Value, !r.cfg.noColor) + "\n")
+	r.show.Stream.Write(txt.Dim(f.Name+"  "+f.Value, !r.cfg.noColor) + "\n")
 	return r
 }
 
@@ -1861,7 +1850,7 @@ func (o *Run) warnLocked(p problem) {
 	o.appendEventLocked(recEvent{Type: "run.warned", OutputID: o.outputID})
 	o.emitWireEventLocked(wire.EventWarningRecorded, "", wire.ToProblemDoc(p).EventPayload())
 	glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(o.cfg.glyphs), txt.SGRYellow, !o.cfg.noColor)
-	o.stream.Write(glyph + " " + p.Summary + "\n")
+	o.show.Stream.Write(glyph + " " + p.Summary + "\n")
 }
 
 // interrupt stops the run at the first signal. The graph owns the order that

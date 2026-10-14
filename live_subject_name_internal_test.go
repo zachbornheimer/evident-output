@@ -27,7 +27,7 @@ func TestLive_OneExplicitChildKeepsSubjectName(t *testing.T) {
 	classify.Progress(24, 111)
 
 	out.mu.Lock()
-	out.live.Render()
+	out.show.Live.Render()
 	frame := drv.latest()
 	out.mu.Unlock()
 
@@ -58,9 +58,9 @@ func TestLive_PendingRowHasNoTimer(t *testing.T) {
 	clock.Advance(15 * time.Second)
 
 	out.mu.Lock()
-	out.live.Render()
+	out.show.Live.Render()
 	frame := drv.latest()
-	animating := out.board.Animating()
+	animating := out.show.Board.Animating()
 	out.mu.Unlock()
 
 	if !strings.Contains(frame, "waiting") {
@@ -91,7 +91,7 @@ func TestLivePendingClassifyPromotedOntoHeader(t *testing.T) {
 	clock.Advance(15 * time.Second)
 
 	out.mu.Lock()
-	out.live.Render()
+	out.show.Live.Render()
 	frame := drv.latest()
 	out.mu.Unlock()
 

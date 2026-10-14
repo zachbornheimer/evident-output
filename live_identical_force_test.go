@@ -61,7 +61,7 @@ func TestLive_ForcedIdenticalFrameSkipsWriteLive(t *testing.T) {
 	firstText := screen.latestText()
 
 	out.mu.Lock()
-	out.live.Render()
+	out.show.Live.Render()
 	out.mu.Unlock()
 
 	if got := screen.frameCount(); got != framesAfterFirst {
@@ -75,7 +75,7 @@ func TestLive_ForcedIdenticalFrameSkipsWriteLive(t *testing.T) {
 	clock.Advance(txt.SpinnerPeriod + time.Millisecond)
 
 	out.mu.Lock()
-	out.live.Render()
+	out.show.Live.Render()
 	out.mu.Unlock()
 
 	if got := screen.frameCount(); got <= framesAfterFirst {

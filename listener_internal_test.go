@@ -52,7 +52,7 @@ func newListenerTestOutput(t *testing.T) *Run {
 func TestListenerTakingTheOutputLockDoesNotDeadlockInsideDefine(t *testing.T) {
 	o := newListenerTestOutput(t)
 	heard := make(chan struct{}, 1)
-	o.rec.Listen(lockTakingListener{o: o, inner: o.follow, heard: heard})
+	o.rec.Listen(lockTakingListener{o: o, inner: o.show, heard: heard})
 
 	done := make(chan error, 1)
 	go func() {

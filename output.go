@@ -12,8 +12,7 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/misuse"
 	"github.com/zachbornheimer/evident-output/internal/process"
 	txt "github.com/zachbornheimer/evident-output/internal/project"
-	"github.com/zachbornheimer/evident-output/internal/project/live"
-	renderplain "github.com/zachbornheimer/evident-output/internal/project/plain"
+	"github.com/zachbornheimer/evident-output/internal/project/present"
 	"github.com/zachbornheimer/evident-output/internal/project/wire"
 	"github.com/zachbornheimer/evident-output/internal/record"
 	"github.com/zachbornheimer/evident-output/internal/terminal"
@@ -31,7 +30,6 @@ type Run struct {
 	// (spec §35) — captured once at construction through the Clock facade,
 	// read back (never re-derived) at Finish.
 	startedAt time.Time
-	version   uint64
 	closed    bool
 	// closing is non-nil once a Close call claimed the teardown; it closes
 	// when that teardown ends, so a concurrent Close waits instead of
@@ -45,19 +43,9 @@ type Run struct {
 	// without Output.mu; a strict recorder panics after recording, never
 	// under graph.mu.
 	misuse *misuse.Recorder
-	// board is the live model of the declared Tasks and collections; live
-	// paints it on an interactive surface, nil without one.
-	board *live.Board
-	live  *live.Engine
-	// stream is the run's human durable text: every library-owned line,
-	// streamed rows, heartbeats and Finish's residual.
-	stream *renderplain.Stream
-	// rows are the declared Tasks and collections as every projection
-	// shows them; follow keeps the projections up to date with the record;
-	// events is the evo.event stream.
-	rows       *txt.Rows
-	follow     *txt.Follower
-	wireEvents *wire.Events
+	// show is how the run is shown: rows, live region, durable stream and
+	// evo.event stream, kept current with the record.
+	show *present.Presenter
 
 	// changes performs the File, Exec, Patch and Effect operations of this
 	// Run, and owns the workspace relative paths resolve against.
@@ -181,26 +169,16 @@ func newRun(cfg config) *Run {
 	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(o.misuse), graph.WithHost(host))
 	o.freshness = freshness.NewRun(o.graph, freshness.RunConfig{Where: o.manifestConfig, Closed: errClosed, DryRun: host.DryRun, Narration: host})
 	o.changes = change.NewRun(o.newChangeHost(), o.graph)
-	o.rows = txt.NewRows(rowLens{o})
-	o.board = live.NewBoard(run, boardSource{o})
-	if surface := liveSurfaceOf(cfg); surface != nil {
-		o.live = live.NewEngine(live.Config{
-			Surface: surface, Board: o.board, Scene: liveScene{o}, Lock: &o.mu, Clock: cfg.clock,
-			VisibilityDelay: cfg.visibilityDelay, MaxFrameRate: cfg.maxFrameRate,
-			Style: o.humanStyle(), Subject: cfg.subject,
-		})
-	}
-	o.stream = renderplain.NewStream(renderplain.Config{
-		Run: run, Region: o.live, Source: o.rows, Sinks: humanSinks{o}, Scene: liveScene{o},
-		Lock: &o.mu, Clock: cfg.clock, Style: o.humanStyle(),
-		SuppressHuman: cfg.projection.suppressesHuman(), Pane: cfg.debugPanePresentation(),
-	})
-	o.follow = txt.NewFollower(run, &o.mu, settleReactions{o})
-	o.mu.Bind(run)
-	run.Listen(o.follow)
 	// Stable-enough id for a process-local output instance.
 	o.outputID = o.graph.NextID("out")
-	o.wireEvents = wire.NewEvents(cfg.eventStream(), o.outputID, cfg.clock)
+	o.show = present.New(present.Config{
+		Run: run, Lock: &o.mu, Clock: cfg.clock, Host: presentHost{o},
+		RunID: o.outputID, Events: cfg.eventStream(),
+		Surface: liveSurfaceOf(cfg), VisibilityDelay: cfg.visibilityDelay, MaxFrameRate: cfg.maxFrameRate,
+		Style: o.humanStyle(), Subject: cfg.subject,
+		Sinks: humanSinks{o}, SuppressHuman: cfg.projection.suppressesHuman(), Pane: cfg.debugPanePresentation(),
+	})
+	o.mu.Bind(run)
 	o.startedAt = o.cfg.clock.Now()
 	o.appendEventLocked(recEvent{Type: "output.started", OutputID: o.outputID})
 	o.emitWireEventLocked(wire.EventRunStarted, "", runStartedPayload(o.cfg.subject))
@@ -212,7 +190,7 @@ func newRun(cfg config) *Run {
 		// caller path can finish a DryRun-configured Output without this
 		// line having appeared first (evo-rec.md Problem 1). Safe to write
 		// unlocked — o has not yet been returned to the caller.
-		o.emitPlannedHeaderLocked()
+		o.show.PlannedHeader(o.cfg.preview, o.cfg.dryRunHeaderText)
 	}
 	return o
 }
@@ -221,15 +199,6 @@ func newRun(cfg config) *Run {
 // application id and state directory, scoped to the Run's workspace.
 func (o *Run) manifestConfig() freshness.ManifestConfig {
 	return freshness.ManifestConfig{AppID: o.cfg.appID, StateDir: o.cfg.stateDir, Workspace: o.changes.Workspace()}
-}
-
-// emitPlannedHeaderLocked writes the planned run's opening announcement
-// immediately, once, through the same durable-write path
-// (writeDurableTextLocked) every other library-owned line uses.
-func (o *Run) emitPlannedHeaderLocked() {
-	var b strings.Builder
-	renderplain.WritePlannedHeader(&b, !o.cfg.noColor, o.cfg.preview, o.cfg.dryRunHeaderText)
-	o.stream.Write(b.String())
 }
 
 // promoteRunningLocked transitions a Pending task to Running on its first
@@ -251,12 +220,8 @@ func (o *Run) promoteRunningLocked(st *taskState) {
 // whoever moved its row: the Sequence check, the filing, the plain heartbeat
 // and the task.started event. It answers once per Task.
 func (o *Run) announceRunningLocked(st *taskState) {
-	if st.runningAnnounced {
+	if !o.show.Started(st.node.TaskID()) {
 		return
-	}
-	st.runningAnnounced = true
-	if row := o.rows.Task(st.node.TaskID()); row != nil {
-		row.Timing.Started = o.cfg.clock.Now()
 	}
 	if col := st.collection(); col != nil && col.node.Sequential {
 		col.runningSteps = slices.DeleteFunc(col.runningSteps, func(s *taskState) bool { return s.node.Rec.State() != running })
@@ -265,14 +230,9 @@ func (o *Run) announceRunningLocked(st *taskState) {
 		}
 		col.runningSteps = append(col.runningSteps, st)
 	}
-	o.board.Changed(st.node.TaskID())
-	o.stream.Started(st.node.TaskID(), o.cfg.clock.Now())
-	o.emitWireEventLocked(wire.EventTaskStarted, st.id, nil)
 }
 
-func (o *Run) bumpLocked() {
-	o.version++
-}
+func (o *Run) bumpLocked() { o.show.Bump() }
 
 // appendEventLocked journals e. The journal is in the order things happened,
 // so the record is followed first: a settle a graph goroutine made on its own
@@ -291,53 +251,9 @@ func (o *Run) appendEventLocked(e recEvent) {
 	}
 }
 
-// settleReactions are what this run's projections owe a change to a
-// Task, as the follower (project.Follower) asks for them.
-type settleReactions struct{ o *Run }
-
-// Changed follows one write to the Task id on the live board and reports
-// whether its settle is owed an answer, once per Task.
-func (r settleReactions) Changed(id record.TaskID) (record.State, bool) {
-	st := r.o.taskStates[string(id)]
-	if st == nil {
-		return "", false
-	}
-	to, followed := r.o.board.Follow(id)
-	if !followed {
-		to = st.node.Rec.State()
-	}
-	if !st.node.Rec.IsSettled() || st.settleAnswered {
-		return to, false
-	}
-	st.settleAnswered = true
-	return to, true
-}
-
-// Settled is the work a settle owes, whichever code settled the Task: its
-// timing, the live filing, the plain heartbeat, the snapshot version and
-// the task.<state> event.
-func (r settleReactions) Settled(id record.TaskID, to record.State) {
-	o := r.o
-	st := o.taskStates[string(id)]
-	if row := o.rows.Task(id); row != nil {
-		row.Timing.Settled = o.cfg.clock.Now()
-	}
-	if o.wireEvents.On() {
-		o.wireEvents.Emit(wire.EventTaskFinished, st.id, taskFinishedPayload(st))
-	}
-	if st.node.IsGate() {
-		o.bumpLocked()
-		return
-	}
-	o.board.Changed(id)
-	o.stream.Settled(id)
-	o.bumpLocked()
-	o.appendEventLocked(recEvent{Type: "task." + string(to), EntityID: st.id})
-}
-
 // followRecordLocked brings every projection up to date with the record.
 // Callers hold o.mu.
-func (o *Run) followRecordLocked() { o.follow.Follow() }
+func (o *Run) followRecordLocked() { o.show.Follow() }
 
 type taskState struct {
 	id string
@@ -347,12 +263,6 @@ type taskState struct {
 	node   *graph.Task
 	name   string
 	handle *Task
-
-	// settleAnswered is set once the render work a settle owes was queued.
-	settleAnswered bool
-	// runningAnnounced is set once the render work becoming Running owes was
-	// done, so task.started fires once however the row reached Running.
-	runningAnnounced bool
 }
 
 type tasksState struct {
@@ -396,106 +306,55 @@ func (st *taskState) collection() *tasksState {
 	return st.handle.out.containerStates[st.node.Parent.ID]
 }
 
-// appendTaskLocked gives st a row in every projection, in declaration
-// order: synthetic for the Task the library invented to carry the run's
-// own ending. Callers hold o.mu.
+// appendTaskLocked gives st a row in every projection and announces it:
+// synthetic for the Task the library invented to carry the run's own
+// ending. Callers hold o.mu.
 func (o *Run) appendTaskLocked(st *taskState, synthetic bool) {
-	in, groupName := "", ""
+	in := ""
 	if col := st.collection(); col != nil {
-		in, groupName = col.id, col.name
+		in = col.id
 	}
-	id := st.node.TaskID()
-	row := txt.DeclaredTask{ID: id, Node: st.node, Name: st.name, Declaration: st.node.Declaration, Rec: st.node.Rec, Synthetic: synthetic}
+	row := txt.DeclaredTask{ID: st.node.TaskID(), Node: st.node, Name: st.name, Declaration: st.node.Declaration, Rec: st.node.Rec, Synthetic: synthetic}
 	if !synthetic {
 		row.Timing.Declared = o.cfg.clock.Now()
 	}
-	o.rows.DeclareTask(row, in)
-	o.board.DeclareTask(id, st.name, st.node.Rec, in)
-	o.stream.Declare(renderplain.Declared{ID: id, Name: st.name, Rec: st.node.Rec, Group: groupName, InGroup: in != ""})
 	o.tasks = append(o.tasks, st)
 	if in == "" {
 		o.rootTasks = append(o.rootTasks, st)
 	}
+	o.show.DeclareTask(row, in)
 }
 
-// liveScene is what the live engine reads of this run.
-type liveScene struct{ o *Run }
-
-func (s liveScene) Ended() bool { return s.o.closed || s.o.finished }
-
-func (s liveScene) Resized(width int) { s.o.cfg.width = width }
-
-func (s liveScene) Width() int { return s.o.cfg.width }
-
-// Pane is the debug pane (§21.3.2) a frame draws under its rows.
-func (s liveScene) Pane(width, height int) (string, int) {
-	o := s.o
-	recorded := o.rec.DebugRecordCount()
-	if o.cfg.debugPresentation != debugPresentationPane || recorded == 0 {
-		return "", 0
-	}
-	var pane strings.Builder
-	txt.WriteDebugPane(&pane, o.rec.DebugRecordTail(o.cfg.debugPane.Rows()), o.cfg.debugPane, width, o.humanStyle().Color)
-	return pane.String(), min(o.cfg.debugPane.ReservedRows(recorded), height-1)
-}
-
-// rowLens is what the row model reads of the live board and of freshness.
-type rowLens struct{ o *Run }
-
-func (l rowLens) FirstSeen(id record.TaskID) time.Time { return l.o.board.FirstSeen(id) }
-
-func (l rowLens) Tail(id record.TaskID) record.LiveTail { return l.o.board.Tail(id) }
-
-func (l rowLens) States(group string) txt.StateCounts { return l.o.board.States(group) }
-
-func (l rowLens) Tracked(id record.TaskID) record.TaskOperations {
-	return l.o.freshness.Tasks().Tracked(id)
-}
-
-// boardSource is what the live board reads of this run's Tasks and
-// collections.
-type boardSource struct{ o *Run }
-
-func (s boardSource) Pull() { s.o.follow.Pull() }
-
-func (s boardSource) View(id record.TaskID) record.TaskSnapshot { return s.o.rows.View(id) }
-
-func (s boardSource) Snapshot(id record.TaskID) record.TaskSnapshot { return s.o.rows.Snapshot(id) }
-
-func (s boardSource) Header(id string) record.TasksSnapshot { return s.o.rows.Header(id) }
-
-func (s boardSource) Emitted(id record.TaskID) bool {
-	return s.o.stream.Emitted(id)
-}
-
-func (s boardSource) HeldBack(view *record.TaskSnapshot) bool {
-	return s.o.stream.HeldBack(*view)
-}
-
-// arm marks the live surface as ready to paint before any entity is declared,
-// so Init honors the ≤100ms first-paint contract even when the caller does
-// heavy work before the first Task. Idempotent.
+// arm marks the live surface ready to paint before any entity is declared,
+// so Init honors the first-paint rule even when the caller works before its
+// first Task. Idempotent.
 func (o *Run) arm() {
 	if o == nil {
 		return
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if o.board.Arm() {
-		o.live.Signal(false)
-	}
+	o.show.Arm()
+}
+
+// presentHost is what the presenter reads of this run.
+type presentHost struct{ o *Run }
+
+func (h presentHost) Ended() bool        { return h.o.closed || h.o.finished }
+func (h presentHost) Width() int         { return h.o.cfg.width }
+func (h presentHost) Resize(width int)   { h.o.cfg.width = width }
+func (h presentHost) Journal(e recEvent) { h.o.appendEventLocked(e) }
+func (h presentHost) Tracked(id record.TaskID) record.TaskOperations {
+	return h.o.freshness.Tasks().Tracked(id)
 }
 
 // snapshotLocked is the run as every projection shows it now. Callers
 // hold o.mu.
 func (o *Run) snapshotLocked() snapshot {
-	o.followRecordLocked()
-	s := o.rows.Into(snapshot{
-		Version:       o.version,
+	return o.show.Snapshot(snapshot{
 		OutputID:      o.outputID,
 		Subject:       o.cfg.subject,
 		Lines:         o.rec.Lines(),
-		Actions:       o.rows.Actions(),
 		Timestamp:     o.cfg.clock.Now(),
 		DryRun:        o.cfg.dryRun,
 		Preview:       o.cfg.preview,
@@ -503,33 +362,12 @@ func (o *Run) snapshotLocked() snapshot {
 		Warnings:      o.rec.RunWarnings(),
 		Facts:         o.rec.RunFacts(),
 	})
-	s.Changes = o.rec.ChangeSnapshots()
-	s.Plans = o.rec.PlanSnapshots()
-	s.Messages = o.rec.Messages()
-	if c, ok := o.rec.Conclusion(); ok {
-		s.Conclusion = &c
-	}
-	return s
 }
 
 // emitWireEventLocked writes one §38 "evo.event" line for eventType about
 // entityID ("" for the run); a run that streams no events writes nothing.
 func (o *Run) emitWireEventLocked(eventType, entityID string, payload map[string]any) {
-	o.wireEvents.Emit(eventType, entityID, payload)
-}
-
-// emitCollectionDeclaredLocked emits collection.declared (§38) for a newly
-// declared Group or Sequence, at the root or nested.
-func (o *Run) emitCollectionDeclaredLocked(st *tasksState, parentID string) {
-	kind := wire.CollectionKindGroup
-	if st.node.Sequential {
-		kind = wire.CollectionKindSequence
-	}
-	o.emitWireEventLocked(wire.EventCollectionDeclared, st.id, map[string]any{
-		"name":      st.name,
-		"kind":      kind,
-		"parent_id": parentID,
-	})
+	o.show.Events.Emit(eventType, entityID, payload)
 }
 
 // Output selects the presentation encoding (CONTRACT §6).

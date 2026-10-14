@@ -39,7 +39,7 @@ func TestResidualComposition_PlainAndInteractiveSectionParity(t *testing.T) {
 		record.FoldLeftoverMisuse(&conc, out.firstMisuse())
 		record.ApplyFailedExitCode(&conc, out.cfg.failedExitCode)
 		snap.Conclusion = &conc
-		plain, interactive := out.stream.Residual(snap)
+		plain, interactive := out.show.Stream.Residual(snap)
 		out.mu.Unlock()
 
 		gotPlain := strings.TrimRight(plain, "\n")

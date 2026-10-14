@@ -494,7 +494,7 @@ func (t *Task) withTask(apply func(st *taskState)) *Task {
 	defer t.out.mu.Unlock()
 	if st := t.out.taskStates[t.id]; st != nil {
 		apply(st)
-		t.out.board.Changed(st.node.TaskID())
+		t.out.show.Board.Changed(st.node.TaskID())
 	}
 	return t
 }
@@ -520,8 +520,8 @@ func (o *Run) setPhaseLocked(st *taskState, text string) {
 	}
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
-	o.live.Signal(true)
-	o.stream.Running(st.node.TaskID(), renderplain.TriggerPhase, o.cfg.clock.Now())
+	o.show.Live.Signal(true)
+	o.show.Stream.Running(st.node.TaskID(), renderplain.TriggerPhase, o.cfg.clock.Now())
 }
 
 // setLiveOnlyPhaseLocked is the shared locked body behind every phase
@@ -543,7 +543,7 @@ func (o *Run) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	}
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
-	o.live.Signal(true)
+	o.show.Live.Signal(true)
 }
 
 // recordWarning is the warning-severity Problem path: st.warnings,
@@ -551,12 +551,12 @@ func (o *Run) setLiveOnlyPhaseLocked(st *taskState, text string) {
 func (t *Task) recordWarning(p problem) *Task {
 	return t.annotate(func(st *taskState) {
 		if st.node.Warn(p) {
-			t.out.board.Warned(st.node.TaskID())
+			t.out.show.Board.Warned(st.node.TaskID())
 		}
 		t.out.bumpLocked()
 		t.out.appendEventLocked(recEvent{Type: "task.warned", EntityID: t.id})
 		t.out.emitWireEventLocked(wire.EventWarningRecorded, t.id, wire.ToProblemDoc(p).EventPayload())
-		t.out.live.Signal(true)
+		t.out.show.Live.Signal(true)
 	})
 }
 
@@ -572,7 +572,7 @@ func (t *Task) Summary(text string) *Task {
 		st.node.Summarize(text)
 		t.out.bumpLocked()
 		t.out.appendEventLocked(recEvent{Type: "task.summary_set", EntityID: t.id})
-		t.out.live.Signal(true)
+		t.out.show.Live.Signal(true)
 	})
 }
 
@@ -600,7 +600,7 @@ func (t *Task) recordBlockingProblem(p problem) *Task {
 		t.out.bumpLocked()
 		t.out.appendEventLocked(recEvent{Type: "task.problem_recorded", EntityID: t.id})
 		t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, wire.ToProblemDoc(p).EventPayload())
-		t.out.live.Signal(true)
+		t.out.show.Live.Signal(true)
 	})
 }
 
@@ -616,7 +616,7 @@ func (t *Task) Fact(name, value string) *Task {
 		st.node.Note(f)
 		t.out.bumpLocked()
 		t.out.emitWireEventLocked(wire.EventFactRecorded, t.id, wire.ToFactDoc(f).EventPayload())
-		t.out.live.Signal(true)
+		t.out.show.Live.Signal(true)
 	})
 }
 
@@ -625,21 +625,9 @@ func (t *Task) Fact(name, value string) *Task {
 func (t *Task) appendLiveTail(line string, retained int) {
 	t.annotate(func(st *taskState) {
 		line := project.Text(line)
-		t.out.board.PushTail(st.node.TaskID(), line, retained, t.out.cfg.clock.Now())
+		t.out.show.Board.PushTail(st.node.TaskID(), line, retained, t.out.cfg.clock.Now())
 		t.out.setLiveOnlyPhaseLocked(st, line)
 	})
-}
-
-// taskFinishedPayload is the task.finished event's payload: the Outcome
-// the Task settled with, and its Summary when it has one (ZYS-971).
-func taskFinishedPayload(st *taskState) map[string]any {
-	payload := map[string]any{
-		"outcome": string(st.node.Rec.State().Outcome()),
-	}
-	if st.node.Rec.Summary() != "" {
-		payload["summary"] = st.node.Rec.Summary()
-	}
-	return payload
 }
 
 type DefineOption func(*defineConfig)

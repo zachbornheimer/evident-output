@@ -161,7 +161,7 @@ func (o *Run) dropDiagnosticForTest() { o.cfg.diagnostic = nil }
 func (o *Run) forceLiveVisibleForTest() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.live.Show()
+	o.show.Live.Show()
 }
 
 func (o *Run) debugWriterForTest() io.WriteCloser { return o.debugWriter() }
@@ -307,7 +307,7 @@ func (o *Run) mirrorCaptureLine(mirrorDiag, mirrorDebug bool, taskName, line str
 	o.mu.Lock()
 	allowDebug := o.cfg.debugLevel <= levelDebug
 	hasDiag := o.cfg.diagnostic != nil
-	interactive := o.live.Interactive()
+	interactive := o.show.Live.Interactive()
 	o.mu.Unlock()
 	if !allowDebug {
 		return
@@ -369,12 +369,12 @@ func (o *Run) declareDryRun() {
 	if o.cfg.dryRun {
 		return
 	}
-	if o.stream.Written() > 0 {
+	if o.show.Stream.Written() > 0 {
 		o.recordMisuse(misuse.ErrDryRunDeclaredLate)
 		return
 	}
 	o.cfg.dryRun = true
-	o.emitPlannedHeaderLocked()
+	o.show.PlannedHeader(o.cfg.preview, o.cfg.dryRunHeaderText)
 }
 
 // DebugWriter returns a line-oriented writer that emits Debug lines on newline.
@@ -497,10 +497,10 @@ func (t *Task) snapshot() taskSnapshot {
 	}
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
-	if t.out.rows.Task(record.TaskID(t.id)) == nil {
+	if t.out.show.Rows.Task(record.TaskID(t.id)) == nil {
 		return taskSnapshot{ID: t.id, State: pending, Progress: progress{Kind: indeterminate}}
 	}
-	return t.out.rows.Snapshot(record.TaskID(t.id))
+	return t.out.show.Rows.Snapshot(record.TaskID(t.id))
 }
 
 // Snapshot returns the collection snapshot with derived state.
@@ -510,10 +510,10 @@ func (g *Group) snapshot() tasksSnapshot {
 	}
 	g.out.mu.Lock()
 	defer g.out.mu.Unlock()
-	if g.out.rows.Group(g.id) == nil {
+	if g.out.show.Rows.Group(g.id) == nil {
 		return tasksSnapshot{ID: g.id, State: empty}
 	}
-	return g.out.rows.Collection(g.id)
+	return g.out.show.Rows.Collection(g.id)
 }
 
 // DefaultVisibleNames is how many names TruncateNames keeps before summarizing.

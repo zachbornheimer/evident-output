@@ -105,7 +105,7 @@ func (o *Run) settleGate(gate *Task, answer graph.Answer, cfg confirmConfig) boo
 		gate.block(answer.Summary(), next...)
 	}
 	o.mu.Lock()
-	o.stream.Commit(record.TaskID(gate.id))
+	o.show.Stream.Commit(record.TaskID(gate.id))
 	o.mu.Unlock()
 	return answer.Outcome() == succeeded
 }
@@ -129,7 +129,7 @@ func (o *Run) promptConfirm(gate *Task, question string, cfg confirmConfig) bool
 	var yes bool
 	_ = o.Suspend(func() error {
 		o.mu.Lock()
-		o.stream.WriteOwner(txt.ConfirmPrompt(question, cfg.destructive, cfg.detail, o.humanStyle()))
+		o.show.Stream.WriteOwner(txt.ConfirmPrompt(question, cfg.destructive, cfg.detail, o.humanStyle()))
 		o.mu.Unlock()
 		yes = o.settleGate(gate, graph.ReplyAnswer(terminal.ReadReply(o.confirmReader(), abort)), cfg)
 		return nil
@@ -142,7 +142,7 @@ func (o *Run) promptConfirm(gate *Task, question string, cfg confirmConfig) bool
 func (o *Run) ownWindow(id string, owns bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.stream.OwnWindow(record.TaskID(id), owns)
+	o.show.Stream.OwnWindow(record.TaskID(id), owns)
 }
 
 // confirmReader is the Stdin facade, the process's standard input unless
@@ -164,13 +164,13 @@ func (o *Run) Suspend(fn func() error) error {
 		return nil
 	}
 	o.mu.Lock()
-	window := o.live.Open()
+	window := o.show.Live.Open()
 	o.mu.Unlock()
 
 	err := fn()
 
 	o.mu.Lock()
-	o.live.Close(window, o.stream.Emit)
+	o.show.Live.Close(window, o.show.Stream.Emit)
 	o.mu.Unlock()
 	return err
 }

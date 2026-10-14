@@ -39,7 +39,7 @@ func liveFrameFull(out *Run, now time.Time) string {
 // renderLiveRegionWithDebugLocked builds one frame's rows the way the
 // animator does: the board's snapshot, then its text. o.mu is held.
 func (o *Run) renderLiveRegionWithDebugLocked(width, height int, now time.Time) string {
-	return live.FitLiveRegion(live.LiveRegion(o.board.Frame(height, now), height, width, now, o.humanStyle()), width)
+	return live.FitLiveRegion(live.LiveRegion(o.show.Board.Frame(height, now), height, width, now, o.humanStyle()), width)
 }
 
 // liveFrameCost is the fastest of several repaints of an n-Task Group, so

@@ -183,7 +183,7 @@ func (o *Run) runErrorLocked(conc Conclusion) error {
 	if o.cfg.wireFormat == formatJSON {
 		misuse = joinErrors(misuse, rendererError(wire.WriteRun(o.cfg.wireStream, record.Result{Conclusion: asRecordConclusion(conc)})))
 	}
-	return joinErrors(misuse, rendererError(o.wireEvents.Err()))
+	return joinErrors(misuse, rendererError(o.show.Events.Err()))
 }
 
 // finishHumanLocked renders the human stream's end: only the residual,
@@ -192,12 +192,12 @@ func (o *Run) runErrorLocked(conc Conclusion) error {
 // behind a Suspend window still open at Finish prints first: no window close
 // will ever flush it.
 func (o *Run) finishHumanLocked(snap snapshot) (residual string, interactive bool) {
-	o.stream.Flush()
-	residual, final := o.stream.Residual(snap)
-	if o.live.Interactive() {
+	o.show.Stream.Flush()
+	residual, final := o.show.Stream.Residual(snap)
+	if o.show.Live.Interactive() {
 		// Interactive final: conclusion + any unemitted entities (not a
 		// second full dump).
-		o.live.Finish(final)
+		o.show.Live.Finish(final)
 		return residual, true
 	}
 	return residual, false
@@ -310,7 +310,7 @@ func (o *Run) abnormalFinishLocked() bool {
 // task has no caller-authored diagnostic to own the hint.
 func (o *Run) attachUnresolvedTaskHintLocked(t *taskState) {
 	t.node.Recommend(asRecordAction(label(unresolvedTaskHint)))
-	o.board.Changed(t.node.TaskID())
+	o.show.Board.Changed(t.node.TaskID())
 }
 
 // autoResolveGroupsLocked stops each group from implying "still might run"

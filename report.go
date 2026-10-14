@@ -186,10 +186,10 @@ func (o *Run) emitMessageLocked(line string, vis visibility) {
 		// State field reused as visibility tag in JSONL path via Name
 	})
 	if o.projectsVisibilityLocked(vis) {
-		o.stream.Lines()
+		o.show.Stream.Lines()
 	} else {
 		// Hidden verbose: still count as "emitted" for residual bookkeeping of lines.
-		o.stream.SkipLines()
+		o.show.Stream.SkipLines()
 	}
 }
 
@@ -361,7 +361,7 @@ func (o *Run) projectDebugRecordLocked(rec debugRecord) {
 	o.graph.Root().Log(txt.FormatHistoryLine(rec, false))
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "log.emitted"})
-	o.stream.Debug(rec)
+	o.show.Stream.Debug(rec)
 }
 
 // writeDiagnosticText emits text on the Diagnostics writer (thread-safe).
@@ -439,8 +439,8 @@ func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind p
 	t.out.bumpLocked()
 	t.out.appendEventLocked(recEvent{Type: "task.progress_changed", EntityID: t.id})
 	// Progress is high-frequency: coalesce unless first frame.
-	t.out.live.Signal(false)
-	t.out.stream.Running(st.node.TaskID(), renderplain.TriggerProgress, t.out.cfg.clock.Now())
+	t.out.show.Live.Signal(false)
+	t.out.show.Stream.Running(st.node.TaskID(), renderplain.TriggerProgress, t.out.cfg.clock.Now())
 	return true
 }
 
