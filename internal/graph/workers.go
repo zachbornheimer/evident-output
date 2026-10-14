@@ -59,6 +59,9 @@ type workerPool struct {
 	// serving is the workers alive, by the goroutine each runs on, so the
 	// worker a goroutine is can be told when it starts another.
 	serving map[GoroutineID]*worker
+	// alive is len(serving), readable without the lock: a pool with no worker
+	// has nothing for markStarter to look up.
+	alive atomic.Int64
 }
 
 // enroll records w as serving on its goroutine.
@@ -69,6 +72,7 @@ func (p *workerPool) enroll(w *worker) {
 		p.serving = make(map[GoroutineID]*worker)
 	}
 	p.serving[w.id] = w
+	p.alive.Store(int64(len(p.serving)))
 }
 
 // retire forgets w, whose goroutine is ending.
@@ -76,18 +80,17 @@ func (p *workerPool) retire(w *worker) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.serving, w.id)
+	p.alive.Store(int64(len(p.serving)))
 }
 
 // markStarter ends the reuse of the worker the calling goroutine is, if it is
 // one: the worker is about to start a goroutine, and a goroutine started
 // during a callback is that callback's, whatever the worker runs next. The
-// caller is the worker itself, so the mark needs no lock. A pool with no
-// worker alive costs no goroutine id.
+// caller is the worker itself, so the mark needs no lock; finding the worker
+// takes the pool lock once. A pool with no worker alive costs neither the lock
+// nor a goroutine id.
 func (p *workerPool) markStarter() {
-	p.mu.Lock()
-	alive := len(p.serving) > 0
-	p.mu.Unlock()
-	if !alive {
+	if p.alive.Load() == 0 {
 		return
 	}
 	id := CurrentGoroutine()
