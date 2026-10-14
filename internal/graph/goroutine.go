@@ -26,8 +26,9 @@ var (
 	creatorMarker   = []byte(" in goroutine ")
 	createdByMarker = []byte("created by ")
 	// pooledWorkerCreator is the function that starts every pooled worker, as
-	// a traceback names it on a worker's "created by" line.
-	pooledWorkerCreator = []byte("(*spawnLedger).start")
+	// a traceback names it on a worker's "created by" line: package-qualified,
+	// so a same-named method of another package does not pass for it.
+	pooledWorkerCreator = []byte("github.com/zachbornheimer/evident-output/v2/internal/graph.(*spawnLedger).start")
 	// goroutineSeparator is the blank line between two goroutines' tracebacks.
 	goroutineSeparator = []byte("\n\n")
 )
@@ -96,7 +97,7 @@ func startedAsPooledWorker(trace []byte) bool {
 	}
 	line := trace[:at]
 	from := bytes.LastIndex(line, createdByMarker)
-	return from >= 0 && bytes.HasSuffix(line[from+len(createdByMarker):], pooledWorkerCreator)
+	return from >= 0 && bytes.Equal(line[from+len(createdByMarker):], pooledWorkerCreator)
 }
 
 // allGoroutineTraces is every goroutine's traceback, the calling goroutine's

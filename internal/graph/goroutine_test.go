@@ -50,3 +50,30 @@ func TestGoroutineCreatorIgnoresTracebackAncestors(t *testing.T) {
 		t.Fatalf("self, creator = %d, %d, want 19, 18", self, creator)
 	}
 }
+
+// Only the ledger's own start function marks a pooled worker. A method of the
+// same name and receiver in another package starts goroutines that are not
+// evo workers, and reading them as workers would end their chains early.
+func TestPooledWorkerNeedsThePackageQualifiedLedgerFrame(t *testing.T) {
+	const ours = "github.com/zachbornheimer/evident-output/v2/internal/graph.(*spawnLedger).start"
+	for _, tc := range []struct {
+		creator string
+		worker  bool
+	}{
+		{ours, true},
+		{"example.com/other/internal/graph.(*spawnLedger).start", false},
+		{"example.com/other.(*spawnLedger).start", false},
+		{"(*spawnLedger).start", false},
+		{ours + "Other", false},
+	} {
+		dump := []byte("goroutine 9 [chan receive]:\nexample.com/x.run()\n\t/work/x.go:1 +0x1\n" +
+			"created by " + tc.creator + " in goroutine 7\n\t/work/x.go:2 +0x2\n")
+		creators, workers := goroutineOrigins(dump)
+		if _, got := workers[9]; got != tc.worker {
+			t.Errorf("created by %q: worker = %v, want %v", tc.creator, got, tc.worker)
+		}
+		if creators[9] != 7 {
+			t.Errorf("created by %q: creator = %d, want 7", tc.creator, creators[9])
+		}
+	}
+}
