@@ -137,6 +137,9 @@ func (t *Task) IsSettled() bool {
 func (t *Task) swapSettledState(to State) (from State) {
 	t.lockForWrite()
 	defer t.run.mu.Unlock()
+	if !t.settled {
+		t.run.settledTasks.Add(1)
+	}
 	from, t.state, t.settled = t.state, to, true
 	return from
 }

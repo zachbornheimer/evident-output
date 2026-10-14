@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"slices"
+
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 // BasisSource is one Task Basis input: something whose content identity is
@@ -42,6 +44,14 @@ type BasisJudgement struct {
 	// Current is true when the Task's last successful Run recorded the same
 	// identity and its recorded outputs still hold.
 	Current bool
+}
+
+// DeclaresBasis reports whether id declared a Basis to judge.
+func (t *TaskTable) DeclaresBasis(id record.TaskID) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	entry := t.tasks[id]
+	return entry != nil && len(entry.inputs) > 0
 }
 
 // JudgeBasis observes the Task's Basis as the Task starts and reports whether the

@@ -1645,11 +1645,8 @@ func (e runHost) Lock()   { e.out.mu.Lock() }
 func (e runHost) Unlock() { e.out.mu.Unlock() }
 
 // DryRun reports whether the Run plans its changes instead of making them.
-func (e runHost) DryRun() bool {
-	e.out.mu.Lock()
-	defer e.out.mu.Unlock()
-	return e.out.cfg.dryRun
-}
+// It is fixed at construction, so it needs no lock.
+func (e runHost) DryRun() bool { return e.out.cfg.dryRun }
 
 // FS is the filesystem File performs I/O through.
 func (e runHost) FS() fs.FS {
@@ -1774,12 +1771,14 @@ func (e runHost) TaskDeclared(t *graph.Task) {
 		board:  o.board,
 		timing: record.TaskTiming{Declared: o.cfg.clock.Now()},
 	}
-	st.handle = &Task{out: o, id: st.id}
+	st.handle = &Task{out: o, id: st.id, state: st}
 	o.taskStates[st.id] = st
 	o.appendTaskLocked(st)
 	o.bumpLocked()
 	o.appendEventLocked(recEvent{Type: "task.declared", EntityID: st.id})
-	o.emitWireEventLocked(wire.EventTaskDeclared, st.id, map[string]any{"name": t.Name})
+	if o.narratesEvents() {
+		o.emitWireEventLocked(wire.EventTaskDeclared, st.id, map[string]any{"name": t.Name})
+	}
 	o.live.Signal(true)
 }
 
@@ -1887,7 +1886,7 @@ func (e runHost) Settled(t *graph.Task) {
 // truth (spec §11.3) once it settled Done, and narrates the commit; see
 // freshness.Run.Commit. Callers hold o.mu.
 func (o *Run) commitManifestLocked(st *taskState) {
-	commit := o.freshness.Commit(o.graph.Context(), st.node.TaskID(), freshness.ModeFor(o.cfg.dryRun))
+	commit := o.freshness.Commit(o.graph.Context(), st.node, freshness.ModeFor(o.cfg.dryRun))
 	if commit.Err != nil {
 		o.warnManifestUnsavedLocked(commit.Err)
 		return
@@ -1908,48 +1907,55 @@ func (e runHost) RunEnded(t *graph.Task) {
 	o.appendEventLocked(recEvent{Type: "output." + string(t.Rec.State())})
 }
 
-// DefinitionStarted narrates that t's callback was entered and files its
-// row again.
-func (e runHost) DefinitionStarted(t *graph.Task) {
+// narrate streams one §38 event about a Task's work under the Run's lock.
+// A Run that streams no events skips the lock and never builds the payload,
+// so narration costs a callback nothing when nobody reads it.
+func (e runHost) narrate(event, entityID string, payload func() map[string]any) {
 	o := e.out
+	if !o.narratesEvents() {
+		return
+	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.emitWireEventLocked(wire.EventDefinitionStarted, t.ID, nil)
-	o.board.Changed(record.TaskID(t.ID))
+	o.emitWireEventLocked(event, entityID, payload())
+}
+
+// noPayload is an event that carries nothing beyond its entity.
+func noPayload() map[string]any { return nil }
+
+// DefinitionStarted narrates that t's callback was entered. Its row files
+// again from the record write that follows (MarkDefineRan).
+func (e runHost) DefinitionStarted(t *graph.Task) {
+	e.narrate(wire.EventDefinitionStarted, t.ID, noPayload)
 }
 
 // DefinitionFinished narrates that t's callback returned.
 func (e runHost) DefinitionFinished(t *graph.Task, failed bool) {
-	o := e.out
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.emitWireEventLocked(wire.EventDefinitionFinished, t.ID, map[string]any{"failed": failed})
+	e.narrate(wire.EventDefinitionFinished, t.ID, func() map[string]any {
+		return map[string]any{"failed": failed}
+	})
 }
 
 // EvidenceEvaluated narrates one evidence phase (§30) as evidence.evaluated.
 func (e runHost) EvidenceEvaluated(t *graph.Task, phase graph.EvidencePhase, evidence record.EvidencePhase) {
-	name := "before_definition"
-	if phase == graph.EvidenceAfter {
-		name = "after_definition"
-	}
-	o := e.out
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.emitWireEventLocked(wire.EventEvidenceEvaluated, t.ID, map[string]any{
-		"phase":     name,
-		"evaluated": evidence.Evaluated,
-		"satisfied": evidence.Satisfied,
-		"source":    evidence.Source,
+	e.narrate(wire.EventEvidenceEvaluated, t.ID, func() map[string]any {
+		name := "before_definition"
+		if phase == graph.EvidenceAfter {
+			name = "after_definition"
+		}
+		return map[string]any{
+			"phase":     name,
+			"evaluated": evidence.Evaluated,
+			"satisfied": evidence.Satisfied,
+			"source":    evidence.Source,
+		}
 	})
 }
 
 // BasisJudged narrates the verdict on a Task's Basis as basis.fingerprinted.
 func (e runHost) BasisJudged(id record.TaskID, judgement freshness.BasisJudgement) {
-	o := e.out
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.emitWireEventLocked(wire.EventBasisFingerprinted, string(id), map[string]any{
-		"count": len(judgement.Observed), "current": judgement.Current,
+	e.narrate(wire.EventBasisFingerprinted, string(id), func() map[string]any {
+		return map[string]any{"count": len(judgement.Observed), "current": judgement.Current}
 	})
 }
 
@@ -1957,20 +1963,16 @@ func (e runHost) BasisJudged(id record.TaskID, judgement freshness.BasisJudgemen
 // verification.observed (spec §38), named by its registration order since
 // Verify registers anonymous funcs.
 func (e runHost) VerifierObserved(id record.TaskID, index int, outcome freshness.VerifierOutcome) {
-	status := wire.VerificationUnsatisfied
-	switch outcome {
-	case freshness.VerifierErrored:
-		status = wire.VerificationError
-	case freshness.VerifierSatisfied:
-		status = wire.VerificationSatisfied
-	}
-	o := e.out
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.emitWireEventLocked(wire.EventVerificationObserved, string(id), wire.VerificationDoc{
-		Name:   fmt.Sprintf("verify_%d", index),
-		Status: status,
-	}.EventPayload())
+	e.narrate(wire.EventVerificationObserved, string(id), func() map[string]any {
+		status := wire.VerificationUnsatisfied
+		switch outcome {
+		case freshness.VerifierErrored:
+			status = wire.VerificationError
+		case freshness.VerifierSatisfied:
+			status = wire.VerificationSatisfied
+		}
+		return wire.VerificationDoc{Name: fmt.Sprintf("verify_%d", index), Status: status}.EventPayload()
+	})
 }
 
 // Observe narrates one step of a tracked operation as the §38 "evo.event"
@@ -2225,9 +2227,7 @@ func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Tas
 		o.recordMisuse(errInvalidConfig)
 		return t
 	}
-	o.mu.Lock()
-	st := o.taskStates[t.id]
-	o.mu.Unlock()
+	st := t.declared()
 	if st == nil {
 		o.recordMisuse(t.rejected)
 		return t

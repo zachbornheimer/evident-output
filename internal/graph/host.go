@@ -22,7 +22,7 @@ type Host interface {
 	// caller holds the lock.
 	CheckOpen() error
 	// DryRun reports whether the run plans its changes instead of making
-	// them. It takes the lock itself.
+	// them. It is fixed when the run is built, so it takes no lock.
 	DryRun() bool
 	// Ending is the state and Problem a callback's returned error settles.
 	Ending(err error) (record.State, record.Problem)
@@ -48,7 +48,7 @@ type TaskNarration interface {
 	// takes the lock itself.
 	Started(t *Task) bool
 	// Resolving lets a running row finish its paint before it resolves. It
-	// takes the lock itself.
+	// takes the lock itself, and only when the run can paint a live row.
 	Resolving(t *Task)
 	// AlreadyResolved records the misuse of resolving t a second time,
 	// keeping the rejected summary. The caller holds the lock.
@@ -64,11 +64,11 @@ type TaskNarration interface {
 	// caller holds the lock.
 	RunEnded(t *Task)
 	// DefinitionStarted and DefinitionFinished bracket t's callback. They
-	// take the lock themselves.
+	// take the lock themselves, and only when the run streams events.
 	DefinitionStarted(t *Task)
 	DefinitionFinished(t *Task, failed bool)
 	// EvidenceEvaluated reports one evidence phase recorded on t. It takes
-	// the lock itself.
+	// the lock itself, and only when the run streams events.
 	EvidenceEvaluated(t *Task, phase EvidencePhase, evidence record.EvidencePhase)
 }
 

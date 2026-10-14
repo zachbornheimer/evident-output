@@ -47,7 +47,7 @@ func TestJournalRetainsWhatPerEventCompactionWould(t *testing.T) {
 		}
 		var j journal
 		for _, typ := range types {
-			j.append(Event{Type: typ}, limit)
+			j.append(&Event{Type: typ}, limit)
 		}
 		got := sequences(j.snapshot(limit))
 		want := naiveJournal(types, limit)
@@ -66,7 +66,7 @@ func TestJournalAppendIsAmortizedConstant(t *testing.T) {
 	moved := 0
 	for range 20 * limit {
 		before := len(j.events)
-		j.append(Event{Type: "task.done"}, limit)
+		j.append(&Event{Type: "task.done"}, limit)
 		if len(j.events) <= before {
 			moved += before + 1
 		}

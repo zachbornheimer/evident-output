@@ -112,8 +112,12 @@ func (r *Run) notifyEventAppended(e Event) {
 	if box := r.listener.Load(); box == nil || box.events == nil {
 		return
 	}
-	r.post(notification{event: &e})
+	r.postEvent(e)
 }
+
+// postEvent queues e for the listener. It is its own function so that only
+// an event someone hears moves to the heap.
+func (r *Run) postEvent(e Event) { r.post(notification{event: &e}) }
 
 // post queues n and, when no Hold is open, tells the listener at once.
 func (r *Run) post(n notification) {

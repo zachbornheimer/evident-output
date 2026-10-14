@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -41,6 +42,10 @@ type Run struct {
 	// record reported changed, and the ones among them that settled.
 	pulled  []record.TaskID
 	settles []settleReaction
+	// answeredSettles counts the settles reactToSettlesLocked answered. It
+	// is atomic so the listener can see, without o.mu, that a settle it
+	// hears was already answered (see outputListener.TaskSettled).
+	answeredSettles atomic.Uint64
 	// following is set while followRecordLocked runs, so an event it appends
 	// does not follow the record again.
 	following bool
@@ -906,7 +911,15 @@ func (outputListener) TaskChanged(record.TaskID, record.State, record.State) {}
 // TaskSettled follows the record, so the settle is answered promptly even
 // when nothing reads the index. The record names the settle itself, so the
 // engine cannot disagree with the writer about which states end a Task.
+//
+// Most settles happen inside a section of o.mu that already followed the
+// record, so the settle the listener hears is answered by then: the counts
+// prove it without taking the mutex. The record's count is read first, so
+// an answer that catches up to it covers every settle written before.
 func (l outputListener) TaskSettled(record.TaskID, record.State, record.State) {
+	if written := l.o.rec.SettledTasks(); l.o.answeredSettles.Load() >= written {
+		return
+	}
 	l.o.mu.Lock()
 	defer l.o.mu.Unlock()
 	l.o.followRecordLocked()
@@ -960,6 +973,7 @@ func (o *Run) reactToSettlesLocked() {
 	for i := range o.settles {
 		o.taskSettledLocked(o.settles[i].st, o.settles[i].to)
 		o.settles[i] = settleReaction{}
+		o.answeredSettles.Add(1)
 	}
 	o.settles = o.settles[:0]
 }
@@ -970,7 +984,9 @@ func (o *Run) reactToSettlesLocked() {
 // was pulled. Callers hold o.mu.
 func (o *Run) taskSettledLocked(st *taskState, to entityState) {
 	st.timing.Settled = o.cfg.clock.Now()
-	o.emitWireEventLocked(wire.EventTaskFinished, st.id, taskFinishedPayload(st))
+	if o.narratesEvents() {
+		o.emitWireEventLocked(wire.EventTaskFinished, st.id, taskFinishedPayload(st))
+	}
 	if st.node.IsGate() {
 		o.bumpLocked()
 		return
@@ -2236,12 +2252,17 @@ func (g *tasksState) header() tasksSnapshot {
 
 // --- folded from structured_events.go ---
 
+// narratesEvents reports whether this Run streams §38 events (FormatJSONL).
+// The Format is fixed at construction, so a caller reads it without o.mu:
+// narration nobody reads costs neither a payload nor a trip through the
+// Run's lock.
+func (o *Run) narratesEvents() bool { return o.cfg.wireFormat == formatJSONL }
+
 // emitWireEventLocked appends one §38 "evo.event" JSONL line for eventType,
 // scoped to entityID (empty for a run-level recEvent) with payload as its
 // domain fields. It is a no-op unless this Output is configured for
 // FormatJSONL (spec §32.1: the event stream exists only in that Format) —
-// every call site below fires unconditionally regardless of Format; this
-// guard is the one place that decides whether the line is worth building.
+// a call site whose payload costs anything checks narratesEvents first.
 //
 // seq comes from the stream's own counter (wireSeq), not the journal's: the
 // journal numbers events no line announces, which would leave gaps.
@@ -2252,7 +2273,7 @@ func (g *tasksState) header() tasksSnapshot {
 // already returns, so "a later write fails; the Run then fails" without
 // discarding the lines already written (see Finish's use of wireEventErr).
 func (o *Run) emitWireEventLocked(eventType, entityID string, payload map[string]any) {
-	if o.cfg.wireFormat != formatJSONL {
+	if !o.narratesEvents() {
 		return
 	}
 	o.wireSeq++

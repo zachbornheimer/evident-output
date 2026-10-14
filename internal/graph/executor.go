@@ -3,6 +3,7 @@ package graph
 import (
 	"fmt"
 	"runtime"
+	"sync/atomic"
 
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
@@ -12,8 +13,9 @@ import (
 // may start. Guarded by the Graph's mutex. Which Tasks are eligible, and where
 // each stands, is the scheduler's (see scheduler); this is what runs them.
 type executor struct {
-	// ceiling is the configured bound on executing callbacks; zero or less
-	// means the number of processors, at least one.
+	// ceiling is the bound on executing callbacks: the configured one, or
+	// the number of processors when the graph was built, at least one. It
+	// is read once because asking the runtime takes its scheduler's lock.
 	ceiling int
 	// inflight counts pooled worker slots in use, bounded by the ceiling;
 	// maxObserved is its high-water mark.
@@ -21,25 +23,8 @@ type executor struct {
 	maxObserved int
 	// executing counts task callbacks currently running: inflight counts the
 	// pooled slots taken, so it cannot answer "is any callback still moving?".
-	executing int
-	// runningGoroutines counts, per goroutine, the task callbacks and
-	// container builders it is running right now. A parked goroutine that one
-	// of them started may be what that callback is blocked on (see
-	// heldCallbacksLocked), and a Wait from a goroutine a builder started is
-	// refused like one from the builder (see insideBuilder).
-	runningGoroutines map[GoroutineID]goroutineLoad
-	// loaded is how many task callbacks and container builders run right now,
-	// across every goroutine: the sum of runningGoroutines' loads.
-	loaded int
-	// refreshes is how many more dumps asking about unknown creators the run
-	// may take, earned by the work running (see refreshesPerCallback).
-	refreshes refreshBudget
-	// buildersRunning is how many container builders run right now across
-	// every goroutine: zero lets a Wait skip reading its stack for one.
-	buildersRunning int
-	// consumers is, per goroutine, the stack of Tasks and builder gates it
-	// is running (see enterConsumer).
-	consumers map[GoroutineID][]consumerFrame
+	// It moves under the lock but is read without it: every declaration asks.
+	executing atomic.Int64
 	// cancelled stops dispatching anything new: after an interrupt the queue
 	// is abandoned, not drained.
 	cancelled bool
@@ -61,6 +46,11 @@ type claim struct {
 	// began is whether the Task started: set by start, before any goroutine
 	// runs the claim.
 	began bool
+	// frame is the claim's work on the goroutine running it, once entered
+	// (see enter).
+	frame workFrame
+	// next links the claims one scheduling pass made, in claim order.
+	next *claim
 }
 
 // start runs the caller's bookkeeping for a Task that began, and records
@@ -78,32 +68,54 @@ func (c *claim) start() {
 // no lock is held, so a strict sink's panic unwinds into the caller.
 func (g *Graph) Kick() { g.kick(g.tellMisuse) }
 
-// kick is Kick with tell deciding where the misuse it found goes.
-func (g *Graph) kick(tell func([]misuseNote)) {
+// kick is Kick with tell deciding where the misuse it found goes. Each
+// scheduling pass is one critical section (see schedulingPass); the claims
+// it made start once the lock is free, since Started takes the run's lock,
+// which comes first in the lock order.
+func (g *Graph) kick(tell func([]misuseNote)) { g.kickAfter(nil, tell) }
+
+// kickAfter is kick whose first scheduling pass runs release first, in the
+// same critical section: a finishing worker hands its slot back and claims
+// the next Task in one trip through the graph's lock.
+func (g *Graph) kickAfter(release func(), tell func([]misuseNote)) {
 	var found []misuseNote
 	defer func() { tell(found) }()
 	for {
-		for {
-			c := g.takeEligible()
-			if c == nil {
-				break
-			}
+		claims, moved, notes := g.schedulingPass(release)
+		release = nil
+		found = append(found, notes...)
+		for c := claims; c != nil; c = c.next {
 			c.start()
 			go g.runPooled(c)
 		}
-		moved, notes := g.resolveStall()
-		found = append(found, notes...)
 		if !moved {
 			return
 		}
 	}
 }
 
-// takeEligible claims the earliest queued Task that may start now and takes
-// a pooled slot for it, or returns nil.
-func (g *Graph) takeEligible() *claim {
+// schedulingPass claims every Task that may start now, in queue order, then
+// ends a stall if the run can no longer move on its own (see resolveStall).
+// It reports the claims, linked in order, whether the stall step changed
+// anything, and the misuse it found.
+func (g *Graph) schedulingPass(release func()) (claims *claim, moved bool, notes []misuseNote) {
 	g.lock()
 	defer g.unlock()
+	if release != nil {
+		release()
+	}
+	last := &claims
+	for c := g.takeEligibleLocked(); c != nil; c = g.takeEligibleLocked() {
+		*last = c
+		last = &c.next
+	}
+	moved, notes = g.resolveStallLocked()
+	return claims, moved, notes
+}
+
+// takeEligibleLocked claims the earliest queued Task that may start now and
+// takes a pooled slot for it, or returns nil.
+func (g *Graph) takeEligibleLocked() *claim {
 	// After an interrupt the queue is abandoned, not drained: nothing new
 	// starts, so the run stops at the ^C instead of running to completion
 	// behind one cancelled row.
@@ -134,15 +146,18 @@ func (g *Graph) claimLocked(t *Task, pooled bool) *claim {
 	if t.gateFor == nil && t.Rec.State() == record.Pending {
 		t.Rec.Transition(record.Running)
 	}
-	g.exec.executing++
+	g.exec.executing.Add(1)
 	return &claim{task: t, work: t.sched.work, pooled: pooled}
 }
 
-func (g *Graph) ceilingLocked() int {
-	if g.exec.ceiling > 0 {
-		return g.exec.ceiling
+func (g *Graph) ceilingLocked() int { return g.exec.ceiling }
+
+// resolveCeiling fixes an unconfigured ceiling (zero or less) at the number
+// of processors, at least one.
+func (e *executor) resolveCeiling() {
+	if e.ceiling <= 0 {
+		e.ceiling = max(1, runtime.GOMAXPROCS(0))
 	}
-	return max(1, runtime.GOMAXPROCS(0))
 }
 
 // runPooled runs a Task claimed by Kick on a pooled worker.
@@ -152,21 +167,28 @@ func (g *Graph) runPooled(c *claim) {
 }
 
 // finishClaimed is the deferred tail of every claimed callback: a panic
-// fails the row, the slot (pooled only) and the executing count are
-// returned, and the scheduler is kicked. A pooled worker has no caller to take
-// a strict panic, so what its kick finds is told without one.
+// fails the row, the goroutine leaves the claim's work frame, and then, in
+// the critical section of the scheduling pass that follows, the slot
+// (pooled only) and the executing count are returned. A pooled worker has no caller to
+// take a strict panic, so what its pass finds is told without one.
+//
+// The work is done only after that pass: a drain that wakes on it finds the
+// slot already returned and the next Task already claimed.
 func (g *Graph) finishClaimed(c *claim) {
 	if r := recover(); r != nil {
 		g.recordPanic(c, r)
 	}
-	g.lock()
+	defer g.WorkDone()
+	g.frames.leave(c.frame)
+	g.kickAfter(func() { g.releaseLocked(c) }, g.tellMisuseWithoutCaller)
+}
+
+// releaseLocked hands back what c held.
+func (g *Graph) releaseLocked(c *claim) {
 	if c.pooled {
 		g.exec.inflight--
 	}
-	g.exec.executing--
-	g.unlock()
-	g.WorkDone()
-	g.kick(g.tellMisuseWithoutCaller)
+	g.exec.executing.Add(-1)
 }
 
 // recordPanic states a panic that escaped c's callback. The row fails with the
@@ -180,38 +202,31 @@ func (g *Graph) recordPanic(c *claim, recovered any) {
 // execute runs one Task's callback on a pooled worker and settles the Task
 // from what it returned: the scheduler's sole settlement point for submitted
 // work. A pooled worker ran no work before, so every goroutine it starts is
-// the callback's.
+// the callback's. finishClaimed leaves the frame execute enters.
 func (g *Graph) execute(c *claim) {
 	if !c.began {
 		return
 	}
-	defer g.enterConsumer(c.task)()
+	c.frame = g.frames.enter(c.task)
 	if c.task.IsGate() {
 		g.runGate(c)
 		return
 	}
 	var err error
 	if c.work.Run != nil {
-		err = g.failedByRefusedRead(c.task, g.runTrackedCallback(c.work.Run))
+		err = g.failedByRefusedRead(c.task, runCallback(c.work.Run))
 	}
 	// A callback that settled its own Task (a verb inside Run, or an
 	// interrupt that cancelled the row) already stated one outcome. The
 	// scheduler neither restates it nor calls it misuse: returning the same
 	// error it already reported is the documented Fail-then-return-error
 	// shape.
-	if !g.settled(c.task) && c.work.Observed != nil {
+	if !terminal(c.task) && c.work.Observed != nil {
 		c.work.Observed(err)
 	}
 	if err != nil {
 		g.FailSequenceFollowers(c.task)
 	}
-}
-
-// settled reports whether t reached a terminal state.
-func (g *Graph) settled(t *Task) bool {
-	g.lock()
-	defer g.unlock()
-	return terminal(t)
 }
 
 // Drain runs the queue to empty. Once draining, a Task nobody Defined and an
@@ -224,11 +239,7 @@ func (g *Graph) Drain() {
 }
 
 // Executing is how many task callbacks are running now.
-func (g *Graph) Executing() int {
-	g.lock()
-	defer g.unlock()
-	return g.exec.executing
-}
+func (g *Graph) Executing() int { return int(g.exec.executing.Load()) }
 
 // MaxObserved is the most pooled workers that ever ran at once.
 func (g *Graph) MaxObserved() int {

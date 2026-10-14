@@ -26,9 +26,9 @@ type runStop struct {
 	aborts map[string]chan struct{}
 }
 
-func newCancellationScope(parent context.Context) cancellationScope {
+func newCancellationScope(parent context.Context) *cancellationScope {
 	signal, cancel := context.WithCancel(parent)
-	return cancellationScope{cancel: cancel, signalOf: func() context.Context { return signal }}
+	return &cancellationScope{cancel: cancel, signalOf: func() context.Context { return signal }}
 }
 
 // processRoot is the parent of a run's context before any caller supplies
@@ -40,11 +40,7 @@ func processRoot() context.Context { return context.Background() }
 // interrupted and when the graph is cancelled, so work that does I/O can
 // select on it and stop instead of running on past the ^C that was supposed
 // to end it.
-func (g *Graph) Context() context.Context {
-	g.lock()
-	defer g.unlock()
-	return g.scope.signalOf()
-}
+func (g *Graph) Context() context.Context { return g.scope.Load().signalOf() }
 
 // BeginRunContext makes parent (the root when nil) the parent of the run's
 // context from now on, replacing the placeholder the graph started with, so
@@ -56,21 +52,12 @@ func (g *Graph) BeginRunContext(parent context.Context) context.Context {
 		parent = processRoot()
 	}
 	next := newCancellationScope(parent)
-	g.lock()
-	previous := g.scope
-	g.scope = next
-	g.unlock()
-	previous.cancel()
+	g.scope.Swap(next).cancel()
 	return next.signalOf()
 }
 
 // Cancel cancels the run's context.
-func (g *Graph) Cancel() {
-	g.lock()
-	cancel := g.scope.cancel
-	g.unlock()
-	cancel()
-}
+func (g *Graph) Cancel() { g.scope.Load().cancel() }
 
 // CancelCause is who stopped the run, empty when nobody did.
 func (g *Graph) CancelCause() string {

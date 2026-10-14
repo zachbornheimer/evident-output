@@ -111,19 +111,21 @@ func (r *Run) PlanOperation(id record.TaskID) {
 	}
 }
 
-// Commit persists id's accumulated operations once the Task settled Done;
-// see TaskTable.Commit. An unknown Task commits nothing.
-func (r *Run) Commit(ctx context.Context, id record.TaskID, mode RunMode) TaskCommit {
-	t := r.task(id)
-	if t == nil {
-		return TaskCommit{}
-	}
+// Commit persists t's accumulated operations once it settled Done; see
+// TaskTable.Commit. The caller already holds t, so the commit never looks it
+// up under the graph's lock.
+func (r *Run) Commit(ctx context.Context, t *graph.Task, mode RunMode) TaskCommit {
 	return r.tasks.Commit(ctx, r.session, t, mode)
 }
 
 // JudgeBasis judges id's declared Basis as the Task starts; see
 // TaskTable.JudgeBasis. An unknown Task declared none.
 func (r *Run) JudgeBasis(ctx context.Context, id record.TaskID, mode RunMode) (BasisJudgement, error) {
+	if !r.tasks.DeclaresBasis(id) {
+		// Most Tasks declare none: asking first keeps them off the graph's
+		// lock, which every scheduling step takes.
+		return BasisJudgement{}, nil
+	}
 	t := r.task(id)
 	if t == nil {
 		return BasisJudgement{}, nil

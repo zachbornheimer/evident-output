@@ -1,6 +1,6 @@
 package graph
 
-// resolveStall ends a stall: nothing in the run can move on its own while the
+// resolveStallLocked ends a stall: nothing in the run can move on its own while the
 // drain is running. Left alone, the drain would hang the run forever, so each
 // step below turns what is stuck into a stated outcome. It reports whether it
 // changed anything, so Kick schedules again before trying the next step, and
@@ -11,9 +11,7 @@ package graph
 //
 //  1. a Task in an After cycle settles Blocked, naming the cycle;
 //  2. any Task still parked settles NotStarted.
-func (g *Graph) resolveStall() (moved bool, notes []misuseNote) {
-	g.lock()
-	defer g.unlock()
+func (g *Graph) resolveStallLocked() (moved bool, notes []misuseNote) {
 	defer func() { notes = g.takeMisuseNotesLocked() }()
 	if !g.sched.draining || g.progressPossibleLocked() {
 		return false, nil
@@ -47,7 +45,7 @@ func (g *Graph) abandonStrandedLocked() bool {
 // progressPossibleLocked reports whether anything could still move the run: a
 // callback is doing work, or something can start.
 func (g *Graph) progressPossibleLocked() bool {
-	return g.exec.executing > 0 || g.anyStartableLocked()
+	return g.exec.executing.Load() > 0 || g.anyStartableLocked()
 }
 
 // anyStartableLocked reports whether the pool could start queued work now:

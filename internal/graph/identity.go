@@ -2,6 +2,7 @@ package graph
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
@@ -78,12 +79,14 @@ type Task struct {
 	// collection. Fixed at creation.
 	gateFor *Container
 	// proposal holds a caller's unratified success claim on a submitted
-	// Task until the callback's return value confirms or contradicts it.
-	proposal *Proposal
+	// Task until the callback's return value confirms or contradicts it. It
+	// is the Task's own, swapped rather than guarded by the graph's lock:
+	// every callback reads it as it returns.
+	proposal atomic.Pointer[Proposal]
 	// readRefusal is the first Computed read refused to a goroutine the
 	// Task's callback started. That goroutine cannot unwind the callback, so
 	// the Task fails with it when the callback returns (see Reader).
-	readRefusal error
+	readRefusal refusal
 }
 
 // Key is the Task's §3.1 stable key; see Graph.Rekey.

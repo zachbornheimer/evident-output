@@ -2,6 +2,7 @@ package graph
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	"github.com/zachbornheimer/evident-output/internal/record"
 )
@@ -22,14 +23,14 @@ func runCallback(fn func() error) error {
 // runs under builderFrames, not runCallback, so the declarations it makes are
 // not Task-callback declarations.
 func (g *Graph) runGate(c *claim) {
-	panicked := g.runTrackedBuilder(c.work.Run)
+	panicked := runBuilder(c.work.Run)
 	g.lock()
 	defer g.unlock()
 	if panicked != nil {
 		g.settleLocked(c.task, record.Failed)
 		return
 	}
-	if refusal := c.task.readRefusal; refusal != nil {
+	if c.task.readRefusal.held() != nil {
 		g.settleLocked(c.task, record.Failed)
 		return
 	}
@@ -60,36 +61,6 @@ func panicError(recovered any) error {
 	return fmt.Errorf("panic: %v", recovered)
 }
 
-// consumerFrame is one Task or builder gate a goroutine is running.
-type consumerFrame struct {
-	task *Task
-}
-
-// enterConsumer names the Task (or container builder gate) whose callback the
-// calling goroutine is running, so a Computed read can ask whether that
-// consumer is ordered after the producer. Go has no goroutine-local storage
-// and a read takes no context, so the scheduler records it per goroutine.
-// The returned func ends the entry.
-func (g *Graph) enterConsumer(t *Task) (leave func()) {
-	id := CurrentGoroutine()
-	g.lock()
-	if g.exec.consumers == nil {
-		g.exec.consumers = make(map[GoroutineID][]consumerFrame)
-	}
-	g.exec.consumers[id] = append(g.exec.consumers[id], consumerFrame{task: t})
-	g.unlock()
-	return func() {
-		g.lock()
-		defer g.unlock()
-		stack := g.exec.consumers[id]
-		if len(stack) <= 1 {
-			delete(g.exec.consumers, id)
-			return
-		}
-		g.exec.consumers[id] = stack[:len(stack)-1]
-	}
-}
-
 // Reader is who a Computed read speaks for: the Task or builder gate whose
 // callback makes it, nil for a caller outside every callback.
 type Reader struct {
@@ -107,11 +78,8 @@ func (r Reader) Unwinds() bool { return r.Task != nil && !r.Spawned }
 // gate running on it or, failing that, on the goroutine that started it. A
 // run with no callback in flight reads no lineage.
 func (g *Graph) CurrentReader() Reader {
-	id := CurrentGoroutine()
-	g.lockRead()
-	own, active := g.consumerOnLocked(id), len(g.exec.runningGoroutines) > 0
-	g.unlockRead()
-	if own != nil || !active {
+	own := g.frames.on(CurrentGoroutine())
+	if own != nil || !g.frames.anyRunning() {
 		return Reader{Task: own}
 	}
 	_, creator := CurrentGoroutineLineage()
@@ -124,38 +92,30 @@ func (g *Graph) refuseSpawnedRead(r Reader, err error) {
 	if r.Task == nil || !r.Spawned {
 		return
 	}
-	g.lock()
-	defer g.unlock()
-	if r.Task.readRefusal == nil {
-		r.Task.readRefusal = err
-	}
+	r.Task.readRefusal.keep(err)
 }
 
 // failedByRefusedRead is err, or, when the callback returned none, the read
 // refused to a goroutine it started.
 func (g *Graph) failedByRefusedRead(t *Task, err error) error {
-	g.lockRead()
-	defer g.unlockRead()
 	if err == nil {
-		return t.readRefusal
+		return t.readRefusal.held()
 	}
 	return err
 }
 
-// consumerOnLocked is the Task or builder gate running on goroutine id, or nil.
-func (g *Graph) consumerOnLocked(id GoroutineID) *Task {
-	if stack := g.exec.consumers[id]; len(stack) > 0 {
-		return stack[len(stack)-1].task
+// refusal is the first error kept against a Task, the Task's own: kept and
+// read without the graph's lock, since every callback reads it as it
+// returns.
+type refusal struct{ first atomic.Pointer[error] }
+
+// keep holds err unless an earlier one is held.
+func (r *refusal) keep(err error) { r.first.CompareAndSwap(nil, &err) }
+
+// held is the kept error, nil when none was.
+func (r *refusal) held() error {
+	if err := r.first.Load(); err != nil {
+		return *err
 	}
 	return nil
-}
-
-// frameStartedLocked is the Task or builder gate running on goroutine id, or
-// nil: a pooled worker ran no work before its callback began, so every
-// goroutine it starts is that callback's.
-func (g *Graph) frameStartedLocked(id GoroutineID) *Task {
-	if !g.exec.runningGoroutines[id].runsAny() {
-		return nil
-	}
-	return g.consumerOnLocked(id)
 }

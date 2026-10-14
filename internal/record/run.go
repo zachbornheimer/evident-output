@@ -33,7 +33,14 @@ type Run struct {
 	// changes logs the Tasks written since a projection last pulled them
 	// (see TakeChanged).
 	changes changeLog
+	// settledTasks counts the Tasks settled so far (see SettledTasks).
+	settledTasks atomic.Uint64
 }
+
+// SettledTasks counts the Tasks settled so far, each once, however often it
+// was settled. It moves before the listener hears the settle, so a
+// projection that has answered this many settles owes the listener nothing.
+func (r *Run) SettledTasks() uint64 { return r.settledTasks.Load() }
 
 // NewRun is an empty record of a run that has not started.
 func NewRun() *Run { return &Run{} }
@@ -41,15 +48,17 @@ func NewRun() *Run { return &Run{} }
 // AppendEvent stamps e with the next sequence number, records it, and
 // returns the stamped event. limit <= 0 keeps every event.
 func (r *Run) AppendEvent(e Event, limit int) Event {
-	stamped := r.stampEvent(e, limit)
-	r.notifyEventAppended(stamped)
-	return stamped
+	r.stampEvent(&e, limit)
+	r.notifyEventAppended(e)
+	return e
 }
 
-func (r *Run) stampEvent(e Event, limit int) Event {
+// stampEvent numbers e in place and journals it. An Event is large, so it
+// is not copied down the call.
+func (r *Run) stampEvent(e *Event, limit int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.journal.append(e, limit)
+	r.journal.append(e, limit)
 }
 
 // Events is a copy of the events still retained under limit.

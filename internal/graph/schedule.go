@@ -157,20 +157,10 @@ func (t *Task) IsGate() bool { return t.gateFor != nil }
 func (t *Task) GateFor() *Container { return t.gateFor }
 
 // HasProposal reports whether a caller's success claim is being held.
-func (t *Task) HasProposal() bool {
-	t.graph.lock()
-	defer t.graph.unlock()
-	return t.proposal != nil
-}
+func (t *Task) HasProposal() bool { return t.proposal.Load() != nil }
 
 // TakeProposal hands back the held claim, if any, and forgets it.
-func (t *Task) TakeProposal() *Proposal {
-	t.graph.lock()
-	defer t.graph.unlock()
-	p := t.proposal
-	t.proposal = nil
-	return p
-}
+func (t *Task) TakeProposal() *Proposal { return t.proposal.Swap(nil) }
 
 func (t *Task) awaitingStartLocked() bool {
 	return t.sched.awaitingStart() && !record.IsTerminalTask(t.Rec.State())

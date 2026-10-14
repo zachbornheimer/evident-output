@@ -1,31 +1,6 @@
 package graph
 
-// runTrackedCallback runs fn while the scheduler knows which goroutine is
-// running it, so a goroutine fn starts and then parks in a wait can be traced
-// back to the callback it may be holding still.
-func (g *Graph) runTrackedCallback(fn func() error) error {
-	defer g.trackRunning(goroutineLoad{callbacks: 1})()
-	return runCallback(fn)
-}
-
-// runTrackedBuilder is runBuilder while the scheduler knows which goroutine is
-// running the builder, as it does for a callback, so a goroutine the builder
-// starts is traced back to it.
-func (g *Graph) runTrackedBuilder(work func() error) error {
-	defer g.trackRunning(goroutineLoad{builders: 1})()
-	return runBuilder(work)
-}
-
-// goroutineLoad is what one goroutine is running right now: task callbacks
-// and container builders.
-type goroutineLoad struct {
-	callbacks, builders int
-}
-
-func (l goroutineLoad) total() int { return l.callbacks + l.builders }
-
-// runsAny reports whether the goroutine runs a task callback or builder.
-func (l goroutineLoad) runsAny() bool { return l.total() > 0 }
+import "sync"
 
 // starter is the work that started a goroutine: the goroutine running it, and
 // the Task or builder gate it is running for. The zero starter is none.
@@ -46,67 +21,95 @@ func (g *Graph) startingGoroutine(creator GoroutineID) starter {
 	if creator == 0 {
 		return starter{}
 	}
-	g.lockRead()
-	direct, working := g.frameStartedLocked(creator), len(g.exec.runningGoroutines) > 0
-	g.unlockRead()
+	direct, working := g.frames.on(creator), g.frames.anyRunning()
 	if direct != nil {
 		return starter{goroutine: creator, task: direct}
 	}
 	if !working {
 		return starter{}
 	}
-	chain := processLineage.chain(creator, &g.exec.refreshes)
-	g.lockRead()
-	defer g.unlockRead()
-	for _, id := range chain {
-		if task := g.frameStartedLocked(id); task != nil {
+	for _, id := range processLineage.chain(creator, &g.frames.refreshes) {
+		if task := g.frames.on(id); task != nil {
 			return starter{goroutine: id, task: task}
 		}
 	}
 	return starter{}
 }
 
-// trackRunning adds added to the calling goroutine's load, and returns the
-// func that takes it back out. Work beginning also earns the run the dumps
-// asking about unknown creators may cost, and work ending gives back the share
-// it held (see refreshesPerCallback).
-func (g *Graph) trackRunning(added goroutineLoad) (done func()) {
-	id := CurrentGoroutine()
-	g.lock()
-	g.addLoadLocked(id, added)
-	g.exec.refreshes.settle(g.exec.loaded, int64(added.total())*refreshesPerCallback)
-	g.unlock()
-	return func() {
-		g.lock()
-		defer g.unlock()
-		g.removeLoadLocked(id, added)
-		g.exec.refreshes.settle(g.exec.loaded, 0)
-	}
+// workFrame is a claim's work on the goroutine running it: a task callback,
+// or a container builder for a gate. The zero workFrame was never entered.
+type workFrame struct {
+	goroutine GoroutineID
+	task      *Task
 }
 
-// addLoadLocked lists added as running on goroutine id.
-func (g *Graph) addLoadLocked(id GoroutineID, added goroutineLoad) {
-	if g.exec.runningGoroutines == nil {
-		g.exec.runningGoroutines = make(map[GoroutineID]goroutineLoad)
-	}
-	load := g.exec.runningGoroutines[id]
-	load.callbacks += added.callbacks
-	load.builders += added.builders
-	g.exec.buildersRunning += added.builders
-	g.exec.loaded += added.total()
-	g.exec.runningGoroutines[id] = load
+// frames is which work each goroutine runs right now: the Task (or builder
+// gate) a Computed read there speaks for, and that a goroutine it started
+// is traced back to. Go has no goroutine-local storage and a read takes no
+// context, so the scheduler records it per goroutine. It has its own lock,
+// beneath the graph's: a worker entering or leaving work touches nothing
+// else, and must not queue behind scheduling.
+type frames struct {
+	mu sync.Mutex
+	// stacks is, per goroutine, the work it runs, innermost last.
+	stacks map[GoroutineID][]*Task
+	// loaded is how many frames are open across every goroutine.
+	loaded int
+	// refreshes is how many more dumps asking about unknown creators the run
+	// may take, earned by the work running (see refreshesPerCallback).
+	refreshes refreshBudget
 }
 
-// removeLoadLocked takes removed back out of what runs on goroutine id.
-func (g *Graph) removeLoadLocked(id GoroutineID, removed goroutineLoad) {
-	load := g.exec.runningGoroutines[id]
-	load.callbacks -= removed.callbacks
-	load.builders -= removed.builders
-	g.exec.buildersRunning -= removed.builders
-	g.exec.loaded -= removed.total()
-	if load.total() <= 0 {
-		delete(g.exec.runningGoroutines, id)
+// enter makes the calling goroutine t's. Work beginning also earns the run
+// the dumps asking about unknown creators may cost (see
+// refreshesPerCallback). The goroutine's id is read before the lock:
+// reading it costs a traceback under the runtime's process-wide print lock.
+func (f *frames) enter(t *Task) workFrame {
+	frame := workFrame{goroutine: CurrentGoroutine(), task: t}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.stacks == nil {
+		f.stacks = make(map[GoroutineID][]*Task)
+	}
+	f.stacks[frame.goroutine] = append(f.stacks[frame.goroutine], t)
+	f.loaded++
+	f.refreshes.settle(f.loaded, refreshesPerCallback)
+	return frame
+}
+
+// leave ends frame, giving back the share of dumps its work held. A frame
+// never entered leaves nothing.
+func (f *frames) leave(frame workFrame) {
+	if frame.task == nil {
 		return
 	}
-	g.exec.runningGoroutines[id] = load
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	id := frame.goroutine
+	if stack := f.stacks[id]; len(stack) <= 1 {
+		delete(f.stacks, id)
+	} else {
+		f.stacks[id] = stack[:len(stack)-1]
+	}
+	f.loaded--
+	f.refreshes.settle(f.loaded, 0)
+}
+
+// on is the Task or builder gate running on goroutine id, or nil. A pooled
+// worker ran no work before its callback began, so every goroutine it
+// starts is that callback's.
+func (f *frames) on(id GoroutineID) *Task {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if stack := f.stacks[id]; len(stack) > 0 {
+		return stack[len(stack)-1]
+	}
+	return nil
+}
+
+// anyRunning reports whether any goroutine runs a callback or builder.
+func (f *frames) anyRunning() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.loaded > 0
 }

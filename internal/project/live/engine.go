@@ -272,10 +272,14 @@ func (e *Engine) HoldRunning(id record.TaskID) {
 	if e == nil {
 		return
 	}
+	if _, isWall := e.cfg.Clock.(clock.Wall); !isWall {
+		// The clock is fixed when the engine is built: a run that cannot
+		// hold skips the lock every resolution would otherwise take.
+		return
+	}
 	e.cfg.Lock.Lock()
-	_, isWall := e.cfg.Clock.(clock.Wall)
 	seen, running := e.cfg.Board.runningSince(id)
-	hold := isWall && e.Interactive() && running
+	hold := e.Interactive() && running
 	e.cfg.Lock.Unlock()
 	if !hold {
 		return

@@ -20,14 +20,13 @@ type journal struct {
 
 // append stamps e with the next sequence number and records it. limit <= 0
 // means unbounded.
-func (j *journal) append(e Event, limit int) Event {
+func (j *journal) append(e *Event, limit int) {
 	j.seq++
 	e.Sequence = j.seq
-	j.events = append(j.events, e)
+	j.events = append(j.events, *e)
 	if limit > 0 && len(j.events) > 2*limit {
 		j.compact(limit)
 	}
-	return e
 }
 
 // snapshot returns a copy of the retained events.

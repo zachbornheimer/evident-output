@@ -1,7 +1,9 @@
 package graph
 
 import (
+	"maps"
 	"runtime"
+	"sync"
 	"sync/atomic"
 )
 
@@ -58,13 +60,56 @@ func WalkStack(visit func(function string)) {
 		if n == size {
 			continue
 		}
-		frames := runtime.CallersFrames(pcs[:n])
-		for {
-			frame, more := frames.Next()
-			visit(frame.Function)
-			if !more {
-				return
+		for _, pc := range pcs[:n] {
+			for _, function := range callSiteNames.at(pc) {
+				visit(function)
 			}
+		}
+		return
+	}
+}
+
+// callSiteNames remembers, per return PC, the functions it stands for.
+var callSiteNames callSites
+
+// callSites memoizes what each return PC symbolizes to: its function and
+// every caller the compiler inlined into the same frame, innermost first. A
+// program has finitely many call sites and a goroutine's stack repeats
+// them, so a stack read after the first symbolizes nothing. The map is
+// replaced, never changed, so a read takes no lock.
+type callSites struct {
+	mu    sync.Mutex
+	names atomic.Pointer[map[uintptr][]string]
+}
+
+// at is the functions return PC pc stands for.
+func (c *callSites) at(pc uintptr) []string {
+	if known := c.names.Load(); known != nil {
+		if names, ok := (*known)[pc]; ok {
+			return names
+		}
+	}
+	names := symbolize(pc)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	next := make(map[uintptr][]string)
+	if known := c.names.Load(); known != nil {
+		maps.Copy(next, *known)
+	}
+	next[pc] = names
+	c.names.Store(&next)
+	return names
+}
+
+// symbolize is the functions return PC pc stands for, innermost first.
+func symbolize(pc uintptr) []string {
+	var names []string
+	frames := runtime.CallersFrames([]uintptr{pc})
+	for {
+		frame, more := frames.Next()
+		names = append(names, frame.Function)
+		if !more {
+			return names
 		}
 	}
 }

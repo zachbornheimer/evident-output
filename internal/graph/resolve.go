@@ -66,11 +66,15 @@ type Admission struct {
 func (g *Graph) Admit(t *Task, r Resolution) Admission {
 	g.lock()
 	defer g.unlock()
+	return g.admitLocked(t, r)
+}
+
+func (g *Graph) admitLocked(t *Task, r Resolution) Admission {
 	switch {
 	case record.IsTerminalTask(t.Rec.State()):
 		return Admission{Verdict: AlreadyResolved}
 	case t.sched.submitted() && r.By == ByCaller && record.DeclaresSuccess(r.State):
-		t.proposal = &Proposal{State: r.State, Summary: r.Summary, Problems: r.Problems}
+		t.proposal.Store(&Proposal{State: r.State, Summary: r.Summary, Problems: r.Problems})
 		return Admission{Verdict: Proposed}
 	}
 	return Admission{
@@ -91,6 +95,10 @@ func (g *Graph) Conclude(t *Task, a Admission) {
 	}
 	g.lock()
 	defer g.unlock()
+	g.concludeLocked(t, a)
+}
+
+func (g *Graph) concludeLocked(t *Task, a Admission) {
 	if terminal(t) {
 		return
 	}

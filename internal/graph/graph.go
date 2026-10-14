@@ -67,9 +67,12 @@ type Graph struct {
 	roots      siblings
 	sched      scheduler
 	exec       executor
-	scope      cancellationScope
-	stop       runStop
-	barriers   map[string]chan struct{}
+	frames     frames
+	// scope is the run's cancellation scope. It is swapped, not guarded:
+	// every callback reads it, and a read must not queue on the lock.
+	scope    atomic.Pointer[cancellationScope]
+	stop     runStop
+	barriers map[string]chan struct{}
 }
 
 // scheduler is the run's scheduling state: the Tasks ready to start and the
@@ -102,12 +105,13 @@ func New(run *record.Run, options ...Option) *Graph {
 		tasks:      make(map[string]*Task),
 		containers: make(map[string]*Container),
 		keys:       make(map[string]struct{}),
-		scope:      newCancellationScope(processRoot()),
 	}
+	g.scope.Store(newCancellationScope(processRoot()))
 	g.mu.Bind(run)
 	for _, apply := range options {
 		apply(g)
 	}
+	g.exec.resolveCeiling()
 	return g
 }
 

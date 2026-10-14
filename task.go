@@ -18,9 +18,25 @@ import (
 type Task struct {
 	out *Run
 	id  string
+	// state is the Task's render state, set once when the declaration made
+	// this handle; nil for a handle rebuilt from an id (see declared). Its
+	// fields stay guarded by o.mu.
+	state *taskState
 	// rejected is why the declaration was refused (see rejectedTask); nil
 	// for a declared Task.
 	rejected error
+}
+
+// declared is t's render state, nil for a refused declaration. The handle a
+// declaration made carries it, so Define reaches it without o.mu.
+func (t *Task) declared() *taskState {
+	if t.state != nil {
+		return t.state
+	}
+	o := t.out
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.taskStates[t.id]
 }
 
 // succeed resolves the task Done with summary: the engine's synchronous

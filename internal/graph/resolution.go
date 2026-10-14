@@ -10,6 +10,9 @@ import "github.com/zachbornheimer/evident-output/internal/record"
 // the Problems) and settles t, all under the run's lock. A Problem without
 // its own detail gains the tail of the output t's child processes wrote, so
 // the detail a callback captured needs no opt-in (beginner-2).
+//
+// A callback disowning its own work has its Effects denied before the
+// settled row is committed, so the ledger never counts what the row denies.
 func (g *Graph) Resolve(t *Task, r Resolution) {
 	h := g.host
 	h.Resolving(t)
@@ -18,23 +21,36 @@ func (g *Graph) Resolve(t *Task, r Resolution) {
 	if h.CheckOpen() != nil {
 		return
 	}
-	admission := g.Admit(t, r)
-	if admission.Verdict == AlreadyResolved {
+	disown := disowns(t, r)
+	verdict := g.decide(t, r, evidenceTail(t, r.State, r.Problems))
+	if verdict == AlreadyResolved {
 		h.AlreadyResolved(t, r.Summary)
 		return
 	}
-	if disowns(t, r) {
+	if disown {
 		h.Disowned(t)
 	}
-	if admission.Verdict == Proposed {
-		return
+	if verdict == Settling {
+		h.Settled(t)
+	}
+}
+
+// decide admits r and, when it settles t, writes its Summary and Problems
+// and concludes t, in one critical section: every Task resolving takes the
+// graph's lock once.
+func (g *Graph) decide(t *Task, r Resolution, tail string) Verdict {
+	g.lock()
+	defer g.unlock()
+	admission := g.admitLocked(t, r)
+	if admission.Verdict != Settling {
+		return admission.Verdict
 	}
 	if r.Summary != "" {
 		t.Rec.SetSummary(r.Summary)
 	}
-	t.Rec.ResolveProblems(admission.State, r.Problems, evidenceTail(t, admission.State, r.Problems))
-	g.Conclude(t, admission)
-	h.Settled(t)
+	t.Rec.ResolveProblems(admission.State, r.Problems, tail)
+	g.concludeLocked(t, admission)
+	return Settling
 }
 
 // disowns reports whether r is t's callback disowning its own work: a
