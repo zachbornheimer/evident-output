@@ -50,6 +50,47 @@ type workerPool struct {
 	idle      []*worker
 	dismissed bool
 	spawns    *spawnLedger
+	// serving is the workers alive, by the goroutine each runs on, so the
+	// worker a goroutine is can be told when it starts another.
+	serving map[GoroutineID]*worker
+}
+
+// enroll records w as serving on its goroutine.
+func (p *workerPool) enroll(w *worker) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.serving == nil {
+		p.serving = make(map[GoroutineID]*worker)
+	}
+	p.serving[w.id] = w
+}
+
+// retire forgets w, whose goroutine is ending.
+func (p *workerPool) retire(w *worker) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.serving, w.id)
+}
+
+// markStarter ends the reuse of the worker the calling goroutine is, if it is
+// one: the worker is about to start a goroutine, and a goroutine started
+// during a callback is that callback's, whatever the worker runs next. The
+// caller is the worker itself, so the mark needs no lock. A pool with no
+// worker alive costs no goroutine id.
+func (p *workerPool) markStarter() {
+	p.mu.Lock()
+	alive := len(p.serving) > 0
+	p.mu.Unlock()
+	if !alive {
+		return
+	}
+	id := CurrentGoroutine()
+	p.mu.Lock()
+	w := p.serving[id]
+	p.mu.Unlock()
+	if w != nil {
+		w.spawned = true
+	}
 }
 
 // hand gives c to the idle worker that waited least long and reports whether
@@ -96,14 +137,18 @@ func (p *workerPool) dismiss() {
 }
 
 // place sends c to a worker: w itself when it is ending a claim and has none
-// kept, else one that is idle, else a new one. A new worker is a goroutine w
-// started, so it ends w. A nil w is a caller that is not a worker.
+// kept, else one that is idle, else a new one. A new worker is a goroutine its
+// starter started, so it ends the starter: w, or, for a nil w, the worker the
+// calling goroutine is when a callback's own scheduling pass starts it.
 func (g *Graph) place(c *claim, w *worker) {
 	switch {
 	case w != nil && w.kept == nil && !w.spawned:
 		w.kept = c
 	case g.workers.hand(c):
 	default:
+		if w == nil {
+			g.workers.markStarter()
+		}
 		g.workers.spawns.start(func() { g.serve(c) })
 		if w != nil {
 			w.spawned = true
@@ -124,6 +169,8 @@ func (g *Graph) rehome(w *worker) {
 // it, for as long as it may.
 func (g *Graph) serve(first *claim) {
 	w := &worker{next: make(chan *claim, 1), id: CurrentGoroutine()}
+	g.workers.enroll(w)
+	defer g.workers.retire(w)
 	for c := first; c != nil; c = g.nextClaim(w) {
 		w.opened = g.workers.spawns.count()
 		g.runPooled(c, w)
