@@ -1,6 +1,10 @@
 package evo
 
-import "github.com/zachbornheimer/evident-output/internal/change"
+import (
+	"context"
+
+	"github.com/zachbornheimer/evident-output/internal/change"
+)
 
 type Verb string
 
@@ -35,3 +39,14 @@ func (s EffectSpec) toChange() change.EffectSpec {
 	}
 	return change.EffectSpec{Verb: v, Object: s.Object, Quantity: s.Quantity, Path: s.Path, Resource: s.Resource}
 }
+
+// Effect performs one opaque mutation inside a Task's Define callback; see
+// change.Effect.
+func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error) error {
+	return change.Effect(ctx, spec.toChange(), fn)
+}
+
+// PartialEffect reports, from an Effect callback, that committed of the
+// requested EffectSpec.Quantity really happened before err stopped the rest;
+// see change.PartialEffect.
+func PartialEffect(committed int, err error) error { return change.PartialEffect(committed, err) }

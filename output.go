@@ -1,7 +1,6 @@
 package evo
 
 import (
-	"io"
 	"slices"
 	"strings"
 	"time"
@@ -92,8 +91,10 @@ type Run struct {
 	cleanStops cleanStopRegistry
 }
 
-func newOutput(subject string, options ...option) *Run {
-	cfg := config{
+// baseConfig is the config a run starts from before Config resolves
+// into it.
+func baseConfig(subject string) config {
+	return config{
 		subject:         subject,
 		clock:           systemClock{},
 		visibilityDelay: defaultVisibilityDelay,
@@ -106,11 +107,11 @@ func newOutput(subject string, options ...option) *Run {
 		processRunner:   process.System(),
 		fileFS:          fs.Disk{},
 	}
-	for _, opt := range options {
-		if opt != nil {
-			opt.apply(&cfg)
-		}
-	}
+}
+
+// newRun builds the run cfg describes: its graph, freshness and changes, and
+// every projection of it.
+func newRun(cfg config) *Run {
 	// A Terminal driver supplied without to() must still land its
 	// non-interactive/residual projection somewhere (release-gate round 8
 	// finding 2): default primary to the driver's own Sink() when it
@@ -415,28 +416,6 @@ func (o *Run) appendTaskLocked(st *taskState, synthetic bool) {
 	if in == "" {
 		o.rootTasks = append(o.rootTasks, st)
 	}
-}
-
-// Writer returns a line-buffered io.Writer for narrating a talkative child
-// process: each complete line (CR or LF terminated, trimmed, non-empty)
-// becomes the task's live doing-text (see Doing), and every byte is also
-// retained in the task's Capture ring (get-or-create, shared with
-// Task.Capture) so DetailTail has proof after Fail. Lines pass through the
-// same sanitize layer as Task.Doing, so hostile escape sequences never reach
-// the display. Off a TTY, these mirrored lines update the live status only —
-// they never force their own durable row the way an explicit
-// Task.Doing call does, since the Capture ring (and its failure-path
-// DetailTail) is already the child's one durable home (release-gate round 9
-// finding 4). Concurrent-safe. Named Writer, not PhaseWriter (P6/rename):
-// an io.Writer sink whose lines become the live-status text, following
-// logrus's Logger.Writer()/zapio.Writer precedent.
-//
-//	cmd.Stdout = evo.Task("push").Writer()
-func (t *Task) Writer() io.Writer {
-	if t == nil || t.out == nil {
-		return io.Discard
-	}
-	return txt.NewChildWriter(t.capture(), t.appendLiveTail, t.setLiveOnlyPhase)
 }
 
 // liveScene is what the live engine reads of this run.

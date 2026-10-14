@@ -13,8 +13,6 @@ import (
 
 // Fail, Refuse, Exclude and Outcome live on Task.
 
-// --- folded from finish.go ---
-
 // Finish validates, computes conclusion, emits final projections.
 // Projection I/O runs outside the domain lock (§17.1).
 func (o *Run) finish() error {
@@ -371,8 +369,6 @@ const unresolvedTaskIncompleteSummary = "incomplete — run concluded before fin
 // "misuse: <name>: evo: ..." sentinel text that told the reader nothing
 // about what to do next (release-gate finding 3).
 const unresolvedTaskHint = "call Define, Fail, Block, or Skipped on this task"
-
-// --- folded from rejected.go ---
 
 // A refused declaration (a duplicate sibling name or key, the entity
 // limit, a closed Output) still hands the caller a handle, so a chained

@@ -9,13 +9,12 @@ import (
 	"unicode/utf8"
 
 	txt "github.com/zachbornheimer/evident-output/internal/project"
+	renderplain "github.com/zachbornheimer/evident-output/internal/project/plain"
 	"github.com/zachbornheimer/evident-output/internal/record"
 	"github.com/zachbornheimer/evident-output/internal/terminal"
 )
 
 // Doing, Progress, Writer, Fact and Summary live on Task and Output.
-
-// --- folded from print.go ---
 
 // Visibility selects whether a message is ordinary or verbose user detail.
 // Zero is VisibilityNormal.
@@ -211,8 +210,6 @@ func (o *Run) flushPendingPrintLocked() {
 	}
 }
 
-// --- folded from slog.go ---
-
 // SlogHandler returns a slog.Handler that journals every accepted record as
 // structured diagnostics (history or pane), without mutating Output configuration.
 //
@@ -392,8 +389,6 @@ func cloneFields(in []field) []field {
 	return out
 }
 
-// --- folded from writer.go ---
-
 // writerIsCharDevice is the TTY-detection facade construction uses.
 func writerIsCharDevice(w io.Writer) bool { return terminal.WriterIsCharDevice(w) }
 
@@ -410,4 +405,63 @@ func (o *Run) SlogHandler() slog.Handler { return o.slogHandler() }
 func (r *Run) Summary(text string) *Run {
 	r.subject(text)
 	return r
+}
+
+// Progress sets absolute completed/total count progress.
+// Counts use int (collection lengths, indices). For byte quantities use Bytes.
+// Prefer absolute Progress over Advance so retries cannot double-count.
+func (t *Task) Progress(completed, total int) *Task {
+	return t.setProgress(int64(completed), int64(total), determinate)
+}
+
+func (t *Task) setProgress(completed, total int64, kind progressKind) *Task {
+	return t.annotate(func(st *taskState) { t.applyProgressLocked(st, completed, total, kind) })
+}
+
+// applyProgressLocked reports whether the update was applied — false means a
+// guard (invalid values, regression, sealed-total mismatch) rejected it and
+// recorded misuse instead, so a paired live update is not applied for a progress change that never happened
+// (e.g. Phase) that would otherwise describe a progress change that never
+// happened.
+func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind progressKind) bool {
+	verdict, started := st.node.Progress(completed, total, kind, t.out.cfg.clock.Now())
+	switch verdict {
+	case record.ProgressInvalid:
+		t.out.recordMisuse(errInvalidProgress)
+		return false
+	case record.ProgressRegressed:
+		t.out.recordMisuse(errProgressRegression)
+		return false
+	}
+	if started {
+		t.out.announceRunningLocked(st)
+	}
+	t.out.bumpLocked()
+	t.out.appendEventLocked(recEvent{Type: "task.progress_changed", EntityID: t.id})
+	// Progress is high-frequency: coalesce unless first frame.
+	t.out.live.Signal(false)
+	t.out.stream.Running(st.node.TaskID(), renderplain.TriggerProgress, t.out.cfg.clock.Now())
+	return true
+}
+
+// Writer returns a line-buffered io.Writer for narrating a talkative child
+// process: each complete line (CR or LF terminated, trimmed, non-empty)
+// becomes the task's live doing-text (see Doing), and every byte is also
+// retained in the task's Capture ring (get-or-create, shared with
+// Task.Capture) so DetailTail has proof after Fail. Lines pass through the
+// same sanitize layer as Task.Doing, so hostile escape sequences never reach
+// the display. Off a TTY, these mirrored lines update the live status only —
+// they never force their own durable row the way an explicit
+// Task.Doing call does, since the Capture ring (and its failure-path
+// DetailTail) is already the child's one durable home (release-gate round 9
+// finding 4). Concurrent-safe. Named Writer, not PhaseWriter (P6/rename):
+// an io.Writer sink whose lines become the live-status text, following
+// logrus's Logger.Writer()/zapio.Writer precedent.
+//
+//	cmd.Stdout = evo.Task("push").Writer()
+func (t *Task) Writer() io.Writer {
+	if t == nil || t.out == nil {
+		return io.Discard
+	}
+	return txt.NewChildWriter(t.capture(), t.appendLiveTail, t.setLiveOnlyPhase)
 }

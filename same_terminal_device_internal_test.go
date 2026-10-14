@@ -57,7 +57,7 @@ type writerStub struct{}
 
 func (writerStub) Write(p []byte) (int, error) { return len(p), nil }
 
-// TestConfigToOptions_DiagnosticSharingTerminalIsDetected proves configToOptions
+// TestConfigToOptions_DiagnosticSharingTerminalIsDetected proves configOf
 // sets diagnosticSharesTerminal when Config.Stdout (the live terminal's
 // writer) and Config.Stderr (Diagnostics) resolve to the same physical
 // device, even though they are distinct io.Writer values — the realistic
@@ -67,12 +67,7 @@ func TestConfigToOptions_DiagnosticSharingTerminalIsDetected(t *testing.T) {
 	stdout, stderr := openCharDevice(t)
 
 	cfg := resolveConfig(Config{stdout: stdout, stderr: stderr})
-	opts := configToOptions(cfg)
-
-	var built config
-	for _, o := range opts {
-		o.apply(&built)
-	}
+	built := configOf(cfg)
 	if !built.diagnosticSharesTerminal {
 		t.Fatal("expected diagnosticSharesTerminal to be detected when Stdout and Stderr share one device")
 	}

@@ -6,8 +6,6 @@ import (
 
 // Problem, ProblemOption and Action live with the record aliases until the slice-9 LAYOUT split.
 
-// --- folded from record_aliases.go ---
-
 // Everything below forwards to internal/record, which now owns the recording
 // verbs. engine keeps the names so the root package needs no import change
 // yet; slice 8 deletes this file and repoints the root at record directly.

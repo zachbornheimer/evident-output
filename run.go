@@ -219,8 +219,6 @@ func (o *Run) anyFailed() bool {
 	return false
 }
 
-// --- folded from construct.go ---
-
 // processArgv0 is the facade over the program name (facade rule: no direct
 // os.Args read anywhere else) — a var so tests can inject a fixed value
 // instead of depending on the real test binary's path.
@@ -601,40 +599,24 @@ func resolveConfig(c Config) Config {
 	return c
 }
 
-func newFromConfig(c Config) *Run {
-	opts := configToOptions(c)
-	return newOutput(c.title, opts...)
+func newFromConfig(c Config) *Run { return newRun(configOf(c)) }
+
+// configOf resolves Config into the run's private config, one concern at a
+// time. A later concern may refine an earlier one: plain output after a
+// live terminal, for example.
+func configOf(c Config) config {
+	cfg := baseConfig(c.title)
+	cfg.streams(c)
+	cfg.color(c)
+	cfg.terminalOf(c)
+	cfg.runtime(c)
+	cfg.debugOf(c.debug)
+	cfg.modes(c)
+	return cfg
 }
 
-// withVerbosity stores verbosity on the internal config.
-func withVerbosity(v verbosity) option {
-	return optionFunc(func(c *config) { c.verbosity = v })
-}
-
-// withFailedExitCode stores a non-default failed conclusion exit code.
-func withFailedExitCode(code int) option {
-	return optionFunc(func(c *config) { c.failedExitCode = code })
-}
-
-// --- folded from construct_options.go ---
-
-// configToOptions translates Config into the internal Option list, one
-// concern at a time. Options apply in order, so a later concern may refine
-// an earlier one (plain() after a live terminal, for example).
-func configToOptions(c Config) []option {
-	var opts []option
-	opts = append(opts, streamOptions(c)...)
-	opts = append(opts, colorOptions(c)...)
-	opts = append(opts, terminalOptions(c)...)
-	opts = append(opts, runtimeOptions(c)...)
-	opts = append(opts, debugOptions(c.debug)...)
-	opts = append(opts, modeOptions(c)...)
-	return opts
-}
-
-// humanWriter is where a Format routes human presentation: Stderr when
-// machine output owns Stdout (FormatData and the wire formats, spec
-// §32.1), Stdout otherwise.
+// humanWriter is the stream human output goes to: stderr when stdout
+// carries a document, stdout otherwise.
 func humanWriter(c Config) io.Writer {
 	switch c.format {
 	case formatData, formatJSON, formatJSONL:
@@ -644,84 +626,55 @@ func humanWriter(c Config) io.Writer {
 	}
 }
 
-// streamOptions routes each stream by Format.
-func streamOptions(c Config) []option {
+// streams routes each stream: a data command's progress to stderr and its
+// result to stdout, a machine Format's document to stdout, human output to
+// stdout otherwise; diagnostics always to stderr.
+func (cfg *config) streams(c Config) {
+	cfg.primary, cfg.diagnostic, cfg.result = c.stdout, c.stderr, c.result
 	switch c.format {
 	case formatData:
-		// Human presentation on stderr; domain payload on Result (default Stdout).
-		resultW := c.result
-		if resultW == nil {
-			resultW = c.stdout
+		cfg.primary = c.stderr
+		if c.result == nil {
+			cfg.result = c.stdout
 		}
-		return []option{to(c.stderr), withDiagnostics(c.stderr), dataProjection(), resultStream(resultW)}
 	case formatExternal:
-		opts := []option{to(c.stdout), withDiagnostics(c.stderr), externalProjection()}
-		if c.result != nil {
-			opts = append(opts, resultStream(c.result))
-		}
-		return opts
+		cfg.plain = true
 	case formatJSON, formatJSONL:
-		// Human presentation on stderr, exactly like FormatData; the v2
-		// wire document/event stream is Evo's own write (not the app's
-		// domain payload), so it uses wireStream/wireFormat rather than
-		// Result/resultStream (spec §32.1: "stdout: exactly one final JSON
-		// document"/"stdout: JSON event lines only" — never c.Result, which
-		// stays the FormatData-only escape hatch).
-		return []option{to(c.stderr), withDiagnostics(c.stderr), wireFormatOption(c.format), wireStreamOption(c.stdout)}
-	default:
-		opts := []option{to(c.stdout), withDiagnostics(c.stderr)}
-		if c.result != nil {
-			opts = append(opts, resultStream(c.result))
-		}
-		return opts
+		cfg.primary, cfg.result = c.stderr, nil
+		cfg.wireFormat, cfg.wireStream = c.format, c.stdout
 	}
 }
 
-// colorOptions turns color off for ColorNever, and for ColorAuto when
-// NO_COLOR is set or the human writer is not a terminal.
-func colorOptions(c Config) []option {
-	noColor := false
+// color turns color off when asked to, or, in auto mode, when NO_COLOR is
+// set or human output is not a terminal.
+func (cfg *config) color(c Config) {
 	switch c.color {
 	case colorNever:
-		noColor = true
+		cfg.noColor = true
 	case colorAlways:
-	default: // ColorAuto
-		noColor = lookupEnv(envKeyNoColor) != "" || !writerIsCharDevice(humanWriter(c))
+	default:
+		cfg.noColor = lookupEnv(envKeyNoColor) != "" || !writerIsCharDevice(humanWriter(c))
 	}
-	if noColor {
-		return []option{withNoColor()}
-	}
-	return nil
 }
 
-// terminalOptions picks the presentation surface: a caller-supplied
-// driver, an interactive live region on a real TTY, or plain output.
-//
-// FormatData and the v2 wire formats all route human presentation to
-// Stderr alike (spec §32.1), so the live region belongs on Stderr for all
-// three, or a JSON/JSONL CLI run from an interactive terminal would
-// silently regress to the durable plain renderer merely because machine
-// output owns Stdout.
-func terminalOptions(c Config) []option {
-	var opts []option
+// terminalOf picks the terminal: the caller's driver, a live ANSI driver
+// over a terminal human output reaches, or none (plain).
+func (cfg *config) terminalOf(c Config) {
 	liveWriter := humanWriter(c)
-	wantLive := !c.plain && rendersInline(c.format) && writerIsCharDevice(liveWriter)
 	switch {
 	case c.terminal != nil:
-		opts = callerTerminalOptions(c)
-	case wantLive:
-		opts = liveTerminalOptions(c, liveWriter)
+		cfg.callerTerminal(c)
+	case !c.plain && rendersInline(c.format) && writerIsCharDevice(liveWriter):
+		cfg.liveTerminal(c, liveWriter)
 	default:
-		opts = []option{plain()}
+		cfg.plain = true
 	}
 	if c.plain || c.projection.forcesPlain() {
-		opts = append(opts, plain())
+		cfg.plain = true
 	}
-	return append(opts, withProjection(c.projection))
+	cfg.projection = c.projection
 }
 
-// rendersInline reports whether f presents inline at all; FormatExternal
-// is snapshots only.
 func rendersInline(f format) bool {
 	switch f {
 	case formatHuman, formatData, formatJSON, formatJSONL:
@@ -731,157 +684,102 @@ func rendersInline(f format) bool {
 	}
 }
 
-// callerTerminalOptions wires a caller-supplied driver (Config.Terminal).
-//
-// The driver may still write to one of the two streams Config already
-// wired up — DETECT that via the driver's own Sink() rather than requiring
-// the caller to say so, closing the examples/terminal-driver double-band
-// gap (X3). Both configured streams count: a driver aimed at the OTHER
-// configured stream (e.g. Stderr while primary defaults to Stdout — every
-// doc/example) still owns rendering there and must not also be duplicated
-// onto primary (release-gate round 9 finding 1). A driver aimed at a third
-// stream (e.g. a log file) takes primary with it: Config exposes no
-// separate to() a caller could use to request an intentional second copy,
-// and otherwise nothing would ever fan the driver's own conclusion band
-// out to a plain/non-interactive mirror (finding-2 symmetry).
-func callerTerminalOptions(c Config) []option {
-	opts := []option{withTerminal(c.terminal)}
+// callerTerminal installs the caller's driver. A driver that reports its own
+// sink either shares a configured stream — its rendered conclusion must not
+// be written there twice — or becomes the primary stream.
+func (cfg *config) callerTerminal(c Config) {
+	cfg.terminal = c.terminal
 	sr, ok := c.terminal.(sinkReporter)
 	if !ok {
-		return opts
+		return
 	}
 	if sink := sr.Sink(); sink != nil {
 		switch sink {
 		case c.stdout, c.stderr:
-			opts = append(opts, withPrimarySharesTerminal())
+			cfg.samePrimaryAsTerminal = true
 		default:
-			opts = append(opts, to(sink))
+			cfg.primary = sink
 		}
 	}
-	if sameTerminalDevice(sr.Sink(), c.stderr) {
-		opts = append(opts, withDiagnosticSharesTerminal())
-	}
-	return opts
+	cfg.diagnosticSharesTerminal = sameTerminalDevice(sr.Sink(), c.stderr)
 }
 
-// liveTerminalHeight is the live region's height when the terminal cannot
-// report its own.
+// liveTerminalHeight is the live region's height when the terminal does not
+// report one.
 const liveTerminalHeight = 24
 
-// liveTerminalOptions wires the interactive live region onto liveWriter,
-// a real TTY.
-func liveTerminalOptions(c Config, liveWriter io.Writer) []option {
+// liveTerminal builds the ANSI driver over liveWriter, sized from the
+// terminal unless Config.Width says otherwise.
+func (cfg *config) liveTerminal(c Config, liveWriter io.Writer) {
 	width, height := c.width, liveTerminalHeight
 	if width <= 0 {
 		width = defaultWidth
 	}
-	// Prefer real terminal dimensions when liveWriter is a TTY *os.File. A
-	// TTY without ioctl size (pty, ssh, `timeout`) keeps the default
-	// geometry so a spinner still appears.
 	if tw, th, ok := terminal.WriterSize(liveWriter); ok {
-		// Caller Width>0 is a deterministic override; otherwise use real cols.
 		if c.width <= 0 || c.width == defaultWidth {
 			width = tw
 		}
 		height = th
 	}
-	ansiOpts := []terminal.Option{
-		terminal.WithInteractive(true),
-		terminal.WithSize(width, height),
-		// Re-query geometry on each live redraw (resize-aware path).
-		terminal.WithSizeWriter(liveWriter),
-	}
-	opts := []option{
-		withTerminal(terminal.NewANSI(liveWriter, ansiOpts...)),
-		withWidth(width),
-		// liveWriter is the same stream to() was already given (c.Facades.Stdout,
-		// or c.Facades.Stderr when machine output owns Stdout) — the terminal and
-		// primary are one physical destination, so Finish must not
-		// dual-write the conclusion band a second time.
-		withPrimarySharesTerminal(),
-	}
-	// withDiagnostics(c.Facades.Stderr) is a distinct io.Writer from liveWriter in
-	// the realistic default (to(Stdout), withDiagnostics(Stderr)), but on an
-	// interactive shell without redirection both fds name the same
-	// controlling tty — detect that here so Debug routes through live-aware
-	// sequencing instead of a raw dual-stream write (gate-7 finding 1).
-	if sameTerminalDevice(liveWriter, c.stderr) {
-		opts = append(opts, withDiagnosticSharesTerminal())
-	}
-	return opts
+	cfg.terminal = terminal.NewANSI(liveWriter,
+		terminal.WithInteractive(true), terminal.WithSize(width, height), terminal.WithSizeWriter(liveWriter))
+	cfg.width = width
+	cfg.samePrimaryAsTerminal = true
+	cfg.diagnosticSharesTerminal = sameTerminalDevice(liveWriter, c.stderr)
 }
 
-// runtimeOptions carries the run's facades and limits.
-func runtimeOptions(c Config) []option {
-	var opts []option
-	if c.stdin != nil {
-		opts = append(opts, stdin(c.stdin))
-	}
-	visDelay := defaultVisibilityDelay
+// runtime carries the run's facades and bounds.
+func (cfg *config) runtime(c Config) {
+	cfg.stdin = c.stdin
+	cfg.visibilityDelay = defaultVisibilityDelay
 	if c.visibilityDelay != nil {
-		visDelay = *c.visibilityDelay
+		cfg.visibilityDelay = *c.visibilityDelay
 	}
-	return append(opts,
-		withClock(c.clock), redact(c.redactor), withWidth(c.width),
-		visibilityDelay(visDelay), maxFrameRate(c.maxFrameRate),
-		maxEntities(c.maxEntities), maxEvents(c.maxEvents),
-		maxConcurrency(c.MaxConcurrency),
-		withStateDir(c.stateDir), withAppID(c.appID),
-		withProcessRunner(c.processRunner),
-		withFileFS(c.fileFS),
-	)
+	if c.redactor != nil {
+		cfg.redactor = c.redactor
+	}
+	cfg.clock, cfg.width, cfg.maxFrameRate = c.clock, c.width, c.maxFrameRate
+	cfg.maxEntities, cfg.maxEvents, cfg.maxConcurrency = c.maxEntities, c.maxEvents, c.MaxConcurrency
+	cfg.stateDir, cfg.appID = c.stateDir, c.appID
+	cfg.processRunner, cfg.fileFS = c.processRunner, c.fileFS
 }
 
-// debugOptions configures the debug journal and its presentation.
-func debugOptions(d debugConfig) []option {
-	opts := []option{debugLevel(d.level)}
-	if d.addSource {
-		opts = append(opts, debugAddSource())
+// debugOf configures the debug journal and its presentation: durable
+// history above the live region, or a rolling pane inside it.
+func (cfg *config) debugOf(d debugConfig) {
+	cfg.debugLevel = d.level
+	if d.level == levelUnset {
+		cfg.debugLevel = levelInfo
 	}
+	cfg.debugAddSource = d.addSource
 	if d.view != debugPresentationPane {
-		return append(opts, debugHistory())
+		cfg.debugPresentation = debugPresentationHistory
+		return
 	}
-	var paneOpts []debugPaneOption
+	cfg.debugPresentation = debugPresentationPane
+	cfg.debugPane = txt.DebugPane{Height: txt.DefaultDebugPaneHeight, NewestFirst: true, PreserveOnBad: true}
 	if d.paneHeight > 0 {
-		paneOpts = append(paneOpts, paneHeight(d.paneHeight))
+		cfg.debugPane.Height = d.paneHeight
 	}
 	if d.newestFirst != nil {
-		if *d.newestFirst {
-			paneOpts = append(paneOpts, newestFirst())
-		} else {
-			paneOpts = append(paneOpts, oldestFirst())
-		}
+		cfg.debugPane.NewestFirst = *d.newestFirst
 	}
-	if d.preserveAlways {
-		paneOpts = append(paneOpts, preserveDebugTail())
-	}
-	return append(opts, debugPane(paneOpts...))
+	cfg.debugPane.PreserveAlways = d.preserveAlways
 }
 
-// modeOptions carries the run's modes: strictness, verbosity, exit code,
-// dry run and preview, and glyphs.
-func modeOptions(c Config) []option {
-	var opts []option
-	if c.strict {
-		opts = append(opts, strict())
-	}
-	opts = append(opts, withVerbosity(c.verbosity))
+// modes carries the run's modes: strictness, verbosity, exit code, dry run
+// and preview, and glyphs.
+func (cfg *config) modes(c Config) {
+	cfg.strict, cfg.verbosity, cfg.glyphs = c.strict, c.verbosity, c.glyphs
 	if c.failedExitCode != 0 {
-		opts = append(opts, withFailedExitCode(c.failedExitCode))
+		cfg.failedExitCode = c.failedExitCode
 	}
 	if c.DryRun || c.preview {
-		opts = append(opts, dryRun())
-		if c.subject != "" {
-			opts = append(opts, dryRunHeader(c.subject))
-		}
+		cfg.dryRun = true
+		cfg.dryRunHeaderText = c.subject
 	}
-	if c.preview {
-		opts = append(opts, preview())
-	}
-	return append(opts, glyphs(c.glyphs))
+	cfg.preview = c.preview
 }
-
-// --- folded from default.go ---
 
 // Init is the sole Output constructor. It builds an Output from cfg,
 // installs it as the package-level default, and arms first paint — call
@@ -925,8 +823,6 @@ func resolveInitConfig(configs []Config) Config {
 	}
 	return configs[0]
 }
-
-// --- folded from env.go ---
 
 // Environment keys honored at Init when the matching Config field is unset.
 const (
@@ -1154,8 +1050,6 @@ func (c *config) eventStream() io.Writer {
 	return c.wireStream
 }
 
-// --- folded from output_lifecycle.go ---
-
 func (o *Run) ensureOpen() error {
 	if o.closed || o.finishing || o.finished {
 		return errClosed
@@ -1251,8 +1145,6 @@ func (o *Run) explainCancellationLocked(c *record.Conclusion) {
 	}
 }
 
-// --- folded from aliases.go ---
-
 // Domain types live in internal/core / internal/txt. Engine aliases them so
 // implementation files keep unqualified names; the public evo package aliases
 // the same underlying types directly (not through this package).
@@ -1317,13 +1209,6 @@ const (
 	glyphsUnicode = txt.GlyphsUnicode
 	glyphsASCII   = txt.GlyphsASCII
 )
-
-// --- folded from option.go ---
-
-// Option configures an Output.
-type option interface {
-	apply(*config)
-}
 
 type config struct {
 	subject           string
@@ -1419,140 +1304,6 @@ type config struct {
 	wireStream io.Writer
 }
 
-type optionFunc func(*config)
-
-func (f optionFunc) apply(c *config) { f(c) }
-
-// To sets the primary human writer.
-func to(w io.Writer) option {
-	return optionFunc(func(c *config) { c.primary = w })
-}
-
-// Diagnostics sets the diagnostic writer for Debug history and Capture mirrors.
-// When set and distinct from the primary writer (To), Debug lines are not also
-// written to the human primary stream — use dual-stream for LaunchAgent /
-// data-command layouts (human on stdout, diagnostics on stderr).
-func withDiagnostics(w io.Writer) option {
-	return optionFunc(func(c *config) { c.diagnostic = w })
-}
-
-// ResultStream sets the domain-payload writer (see Output.ResultWriter).
-// Presentation never writes here. FormatData defaults this to Config.Stdout.
-func resultStream(w io.Writer) option {
-	return optionFunc(func(c *config) {
-		if w != nil {
-			c.result = w
-		}
-	})
-}
-
-// wireFormatOption selects the v2 machine wire encoder Finish/appendEventLocked
-// write alongside ordinary human presentation (FormatJSON/FormatJSONL only —
-// see configToOptions).
-func wireFormatOption(f format) option {
-	return optionFunc(func(c *config) { c.wireFormat = f })
-}
-
-// wireStreamOption sets where the v2 wire encoder writes (Config.Stdout).
-func wireStreamOption(w io.Writer) option {
-	return optionFunc(func(c *config) { c.wireStream = w })
-}
-
-// Plain forces final-report projection (no live spinner region).
-// Semantic color is still emitted unless NoColor is set.
-func plain() option {
-	return optionFunc(func(c *config) { c.plain = true })
-}
-
-func withProjection(p projection) option {
-	return optionFunc(func(c *config) { c.projection = p })
-}
-
-// NoColor disables color.
-func withNoColor() option {
-	return optionFunc(func(c *config) { c.noColor = true })
-}
-
-// Width sets the terminal width in columns.
-func withWidth(columns int) option {
-	return optionFunc(func(c *config) { c.width = columns })
-}
-
-// Clock injects a time source facade.
-func withClock(ts timeSource) option {
-	return optionFunc(func(c *config) { c.clock = ts })
-}
-
-// VisibilityDelay sets how long live activity must persist before the first
-// interactive paint (default 80ms). Zero paints immediately. Prevents Phase→fast
-// Done spinner flash (H.2). Domain TimeSource is used for the threshold.
-func visibilityDelay(delay time.Duration) option {
-	return optionFunc(func(c *config) { c.visibilityDelay = delay })
-}
-
-// MaxFrameRate caps interactive redraws per second.
-func maxFrameRate(framesPerSecond int) option {
-	return optionFunc(func(c *config) { c.maxFrameRate = framesPerSecond })
-}
-
-// Strict enables panic-on-misuse for tests.
-func strict() option {
-	return optionFunc(func(c *config) { c.strict = true })
-}
-
-// DryRun declares this run a dry run: evo.Effect, evo.File, and
-// evo.Exec render as
-// [planned] rows with imperative verbs instead of [changed] rows with
-// past-tense verbs. Set once via Config.DryRun in ordinary application code;
-// this Option exists for the advanced NewWithOptions surface and tests.
-func dryRun() option {
-	return optionFunc(func(c *config) { c.dryRun = true })
-}
-
-// dryRunHeader is Init's unexported plumbing for Config.Subject: it lets a
-// dry-run's opening marker merge the subject onto its own one-line
-// announcement instead of the two separate durable lines a bare Println
-// would produce. Not part of the public Option surface — Config.Subject and
-// Output.Subject stay the caller's only entry points.
-func dryRunHeader(text string) option {
-	return optionFunc(func(c *config) { c.dryRunHeaderText = text })
-}
-
-// preview declares the planned tense a preview before a confirm gate rather
-// than a dry run — same skipped callbacks and same [planned] ledger, header
-// without the tag. Set via Config.Preview; this Option is construction
-// plumbing only.
-func preview() option {
-	return optionFunc(func(c *config) { c.preview = true })
-}
-
-// Stdin injects the reader Confirm reads answers from (facade rule — no
-// direct os.Stdin read in Confirm's logic). Default os.Stdin.
-func stdin(r io.Reader) option {
-	return optionFunc(func(c *config) { c.stdin = r })
-}
-
-// Terminal injects a terminal driver (interactive projection; v0.2).
-func withTerminal(driver terminalDriver) option {
-	return optionFunc(func(c *config) { c.terminal = driver })
-}
-
-// withPrimarySharesTerminal marks that the just-configured Terminal driver
-// writes to the same stream as primary (To). Only configToOptions calls this
-// — it knows both writers at construction time, so Finish never has to guess
-// stream identity from an fd comparison.
-func withPrimarySharesTerminal() option {
-	return optionFunc(func(c *config) { c.samePrimaryAsTerminal = true })
-}
-
-// withDiagnosticSharesTerminal marks that the Diagnostics writer resolves to
-// the same physical terminal device as the live region, even when it is a
-// distinct io.Writer from primary. Only configToOptions calls this — see
-// config.diagnosticSharesTerminal.
-func withDiagnosticSharesTerminal() option {
-	return optionFunc(func(c *config) { c.diagnosticSharesTerminal = true })
-}
-
 // LogLevel is a diagnostic severity.
 //
 // The zero value is LevelUnset (Config resolves it to LevelInfo). Named levels
@@ -1574,28 +1325,6 @@ const (
 	// LevelError is reserved for future error-threshold filtering.
 	levelError
 )
-
-// DebugLevel sets the minimum debug emission level.
-// Pass LevelTrace or LevelDebug to surface Debug journal lines.
-func debugLevel(level logLevel) option {
-	return optionFunc(func(c *config) {
-		if level == levelUnset {
-			c.debugLevel = levelInfo
-			return
-		}
-		c.debugLevel = level
-	})
-}
-
-// DebugAddSource resolves each debug record's call site to a
-// source=file.go:line field on human/pane/history rendering, matching
-// slog.HandlerOptions.AddSource semantics. Off by default (release-gate
-// round 6 finding 2): a bare pc=<uintptr> field never belongs on a human
-// debug line; the raw PC still lives on LogRecord for machine consumers
-// regardless of this setting.
-func debugAddSource() option {
-	return optionFunc(func(c *config) { c.debugAddSource = true })
-}
 
 // TerminalDriver is the exclusive owner of terminal control sequences.
 type terminalDriver = terminal.Driver
@@ -1620,46 +1349,6 @@ const (
 	defaultMaxEvents = 50_000
 )
 
-// MaxEntities caps total items and tasks for one Output (0 uses default).
-func maxEntities(n int) option {
-	return optionFunc(func(c *config) { c.maxEntities = n })
-}
-
-// MaxEvents caps durable journal events; when exceeded, oldest non-critical
-// events are dropped so critical terminal events are retained (CON-008).
-func maxEvents(n int) option {
-	return optionFunc(func(c *config) { c.maxEvents = n })
-}
-
-func maxConcurrency(n int) option {
-	return optionFunc(func(c *config) { c.maxConcurrency = n })
-}
-
-// withStateDir mirrors Config.StateDir (spec §11.3).
-func withStateDir(dir string) option {
-	return optionFunc(func(c *config) { c.stateDir = dir })
-}
-
-// withAppID mirrors Config.AppID (spec §11.3).
-func withAppID(id string) option {
-	return optionFunc(func(c *config) { c.appID = id })
-}
-
-// withProcessRunner injects the facade evo.Exec spawns every child process
-// through (spec §8.4) — testkit installs a scripted fake so Exec's skip
-// protocol, capture, and cancellation are provable without a real
-// subprocess.
-func withProcessRunner(r processRunner) option {
-	return optionFunc(func(c *config) { c.processRunner = r })
-}
-
-// withFileFS injects the facade evo.File performs filesystem I/O through
-// (spec §8.2) — testkit installs a fake so a reconciliation outcome (e.g.
-// a chmod failure) is provable without a real disk permission.
-func withFileFS(fsys fs.FS) option {
-	return optionFunc(func(c *config) { c.fileFS = fsys })
-}
-
 // Test helpers reachable through the evo type alias (root export_test.go
 // cannot attach methods to engine types).
 
@@ -1672,82 +1361,6 @@ const (
 	// DebugPresentationPane keeps a bounded rolling viewport inside the live region.
 	debugPresentationPane
 )
-
-// DebugPaneOption configures DebugPane presentation.
-type debugPaneOption interface {
-	applyPane(*txt.DebugPane)
-}
-
-type paneOptionFunc func(*txt.DebugPane)
-
-func (f paneOptionFunc) applyPane(c *txt.DebugPane) { f(c) }
-
-// PaneHeight sets how many debug records are visible in the pane (not including heading).
-func paneHeight(lines int) debugPaneOption {
-	return paneOptionFunc(func(c *txt.DebugPane) {
-		if lines > 0 {
-			c.Height = lines
-		}
-	})
-}
-
-// NewestFirst orders the pane with the most recent record first (default).
-func newestFirst() debugPaneOption {
-	return paneOptionFunc(func(c *txt.DebugPane) { c.NewestFirst = true })
-}
-
-// OldestFirst orders the pane chronologically (oldest visible first).
-func oldestFirst() debugPaneOption {
-	return paneOptionFunc(func(c *txt.DebugPane) { c.NewestFirst = false })
-}
-
-// PreserveDebugTail always emits a bounded diagnostic tail under the final report.
-// Without this, pane mode still preserves a tail on failed/blocked/cancelled conclusions.
-func preserveDebugTail() debugPaneOption {
-	return paneOptionFunc(func(c *txt.DebugPane) { c.PreserveAlways = true })
-}
-
-// DebugHistory selects durable append-above-and-redraw presentation (v0.4 default).
-func debugHistory() option {
-	return optionFunc(func(c *config) {
-		c.debugPresentation = debugPresentationHistory
-	})
-}
-
-// DebugPane selects a rolling TTY debug viewport at the bottom of the live region.
-func debugPane(opts ...debugPaneOption) option {
-	return optionFunc(func(c *config) {
-		c.debugPresentation = debugPresentationPane
-		cfg := txt.DebugPane{
-			Height:        txt.DefaultDebugPaneHeight,
-			NewestFirst:   true,
-			PreserveOnBad: true,
-		}
-		for _, o := range opts {
-			if o != nil {
-				o.applyPane(&cfg)
-			}
-		}
-		c.debugPane = cfg
-	})
-}
-
-// Glyphs selects the glyph capability profile (default GlyphsAuto).
-func glyphs(p glyphProfile) option {
-	return optionFunc(func(c *config) { c.glyphs = p })
-}
-
-// DataProjection selects data-command mode (UI/progress on diagnostic
-// stream) — a self-documenting marker at the call site; the routing itself
-// comes from pairing it with to(stderr)/withDiagnostics(stderr) (configToOptions).
-func dataProjection() option {
-	return optionFunc(func(*config) {})
-}
-
-// ExternalProjection selects snapshot-only host rendering.
-func externalProjection() option {
-	return optionFunc(func(c *config) { c.plain = true })
-}
 
 // humanStyle is how this run paints human rows.
 func (o *Run) humanStyle() txt.Style {
@@ -1762,8 +1375,6 @@ func (c *config) debugPanePresentation() *txt.DebugPane {
 	}
 	return &c.debugPane
 }
-
-// --- folded from capability.go ---
 
 // runHost is the Run as graph, freshness and change borrow it: its lock,
 // its settings, its live rows and its edge to the reader. It implements
@@ -2165,10 +1776,6 @@ func observationPayload(ob change.Observation) map[string]any {
 	return payload
 }
 
-// --- folded from conjugate.go ---
-
-// --- folded from misuse.go ---
-
 func (o *Run) recordMisuse(err error) {
 	o.misuse.Record(err)
 }
@@ -2200,17 +1807,6 @@ func (o *Run) recordAlreadyResolvedLocked(name, rejectedSummary string) {
 	o.misuse.Note(misuse.ErrAlreadyResolved, name, rejectedSummary)
 }
 
-// --- folded from redact.go ---
-
-// Redact injects a redactor (Debug fields, Capture lines, problem detail paths).
-func redact(r Redactor) option {
-	return optionFunc(func(c *config) {
-		if r != nil {
-			c.redactor = r
-		}
-	})
-}
-
 // redactString applies the configured redactor.
 //
 // It takes no lock: the redactor is an Option, fixed when the Output is
@@ -2229,8 +1825,6 @@ func (o *Run) redactString(s string) string {
 	}
 	return r.RedactString(s)
 }
-
-// --- folded from run_annotations.go ---
 
 // Fact accumulates a run-scoped discovered name/value annotation (P8
 // symmetry with Task.Fact) — information about the run, fire-and-
@@ -2269,8 +1863,6 @@ func (o *Run) warnLocked(p problem) {
 	glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(o.cfg.glyphs), txt.SGRYellow, !o.cfg.noColor)
 	o.stream.Write(glyph + " " + p.Summary + "\n")
 }
-
-// --- folded from run_signal.go ---
 
 // interrupt stops the run at the first signal. The graph owns the order that
 // leaves the ledger honest (see graph.Graph.Interrupt) and what it cancels

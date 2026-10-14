@@ -16,8 +16,6 @@ import (
 // Facades is the injectable system boundary for a Run: clock, terminal,
 // process, filesystem and redaction. Zero values select production defaults.
 
-// --- folded from clock.go ---
-
 // The root package keeps compiling through these aliases until the root
 // speaks internal/clock directly.
 type (
@@ -26,8 +24,6 @@ type (
 	// systemClock uses the real wall clock.
 	systemClock = clock.Wall
 )
-
-// --- folded from process.go ---
 
 // ProcessRunner is the facade every evo.Exec spawn goes through instead of
 // exec.Cmd/os/exec directly (facade rule): the real runner in ordinary use,

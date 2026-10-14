@@ -13,11 +13,11 @@ import (
 // construction-time plumbing: when Config's ordinary default-wiring builds
 // a live Terminal around the same writer as primary (the real-TTY,
 // no-explicit-to()/alsoWrite() path in (*evo.Run)(nil); _ = evo.Execute(context.Background(), evo.Config{Name: ...}, func(ctx context.Context, r *evo.Run) error { return nil })),
-// configToOptions must record that identity so Finish can skip the
+// configOf must record that identity so Finish can skip the
 // dual-stream write, instead of an fd comparison happening later at Finish.
 func TestConfigToOptions_DefaultTTYMarksSharedPrimaryTerminal(t *testing.T) {
 	// /dev/null is a real *os.File backed by a character device, so
-	// isCharDevice(c.Facades.Stdout) is true and configToOptions takes the same
+	// isCharDevice(c.Facades.Stdout) is true and configOf takes the same
 	// "wantLive" auto-terminal branch a real interactive TTY would —
 	// without requiring a pty in this test environment.
 	tty, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
@@ -27,12 +27,7 @@ func TestConfigToOptions_DefaultTTYMarksSharedPrimaryTerminal(t *testing.T) {
 	t.Cleanup(func() { _ = tty.Close() })
 
 	cfg := resolveConfig(Config{stdout: tty, stderr: &bytes.Buffer{}})
-	opts := configToOptions(cfg)
-
-	var built config
-	for _, o := range opts {
-		o.apply(&built)
-	}
+	built := configOf(cfg)
 	if built.terminal == nil {
 		t.Fatal("expected an auto-built live Terminal driver on a char-device Stdout")
 	}
@@ -46,7 +41,7 @@ func TestConfigToOptions_DefaultTTYMarksSharedPrimaryTerminal(t *testing.T) {
 
 // TestFinish_SharedPrimaryTerminalRendersConclusionOnce is the red-first
 // golden test for the double conclusion band: it reproduces the exact shape
-// configToOptions produces on a real TTY — one io.Writer serving as both
+// configOf produces on a real TTY — one io.Writer serving as both
 // primary (To) and the backing stream of the live terminal driver — and
 // proves Finish renders the conclusion band exactly once through that
 // writer, not once via the terminal's WriteFinal and again via the
@@ -79,7 +74,7 @@ func TestFinish_SharedPrimaryTerminalRendersConclusionOnce(t *testing.T) {
 // TestDebugPane_FailurePreservesDiagnosticTail): when primary is a genuinely
 // distinct writer from the live terminal's backing stream, Finish must keep
 // writing the conclusion to primary — samePrimaryAsTerminal is never inferred,
-// only ever set by configToOptions at construction.
+// only ever set by configOf at construction.
 func TestFinish_DistinctPrimaryAndTerminalKeepBothConclusions(t *testing.T) {
 	var primary, screenBuf bytes.Buffer
 	drv := terminal.NewANSI(&screenBuf, terminal.WithInteractive(true), terminal.WithSize(80, 24))

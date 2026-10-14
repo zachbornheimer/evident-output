@@ -252,8 +252,6 @@ func (g *Group) defineBuilder(run func()) {
 	o.graph.DefineBuilder(col.node, run)
 }
 
-// --- folded from container_wait.go ---
-
 // Task declares a single root-level operation named name. A repeated name
 // is a duplicate sibling declaration (§3.1), never a get-or-create: see
 // graph.Graph.DeclareTask.
@@ -298,8 +296,6 @@ func (o *Run) groupHandle(node *graph.Container, err error) *Group {
 	}
 	return o.containerStates[node.ID].handle
 }
-
-// --- folded from group.go ---
 
 // Container is a node that can declare work beneath it: the run, a Group,
 // or a Sequence. A Task is never a Container.
@@ -400,10 +396,6 @@ func (g *Group) Summary(text string) *Group {
 	return g
 }
 
-// --- folded from names.go ---
-
-// --- folded from sequence.go ---
-
 // Sequence is the front door for ordered child work: the same
 // scheduler as Group with implicit predecessor edges in declaration order.
 // A failed/blocked/cancelled child makes later siblings NotStarted.
@@ -444,8 +436,6 @@ func (g *Sequence) Group(name string) *Group {
 	}
 	return g.tasks.Group(name)
 }
-
-// --- folded from task_annotate.go ---
 
 // Doing sets the active current-step live text and starts the task if
 // pending — replaces the previous text, promotes the task to Running, and
@@ -640,47 +630,6 @@ func (t *Task) appendLiveTail(line string, retained int) {
 	})
 }
 
-// --- folded from task_next.go ---
-
-// --- folded from task_progress.go ---
-
-// Progress sets absolute completed/total count progress.
-// Counts use int (collection lengths, indices). For byte quantities use Bytes.
-// Prefer absolute Progress over Advance so retries cannot double-count.
-func (t *Task) Progress(completed, total int) *Task {
-	return t.setProgress(int64(completed), int64(total), determinate)
-}
-
-func (t *Task) setProgress(completed, total int64, kind progressKind) *Task {
-	return t.annotate(func(st *taskState) { t.applyProgressLocked(st, completed, total, kind) })
-}
-
-// applyProgressLocked reports whether the update was applied — false means a
-// guard (invalid values, regression, sealed-total mismatch) rejected it and
-// recorded misuse instead, so a paired live update is not applied for a progress change that never happened
-// (e.g. Phase) that would otherwise describe a progress change that never
-// happened.
-func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind progressKind) bool {
-	verdict, started := st.node.Progress(completed, total, kind, t.out.cfg.clock.Now())
-	switch verdict {
-	case record.ProgressInvalid:
-		t.out.recordMisuse(errInvalidProgress)
-		return false
-	case record.ProgressRegressed:
-		t.out.recordMisuse(errProgressRegression)
-		return false
-	}
-	if started {
-		t.out.announceRunningLocked(st)
-	}
-	t.out.bumpLocked()
-	t.out.appendEventLocked(recEvent{Type: "task.progress_changed", EntityID: t.id})
-	// Progress is high-frequency: coalesce unless first frame.
-	t.out.live.Signal(false)
-	t.out.stream.Running(st.node.TaskID(), renderplain.TriggerProgress, t.out.cfg.clock.Now())
-	return true
-}
-
 // taskFinishedPayload is the task.finished event's payload: the Outcome
 // the Task settled with, and its Summary when it has one (ZYS-971).
 func taskFinishedPayload(st *taskState) map[string]any {
@@ -692,12 +641,6 @@ func taskFinishedPayload(st *taskState) map[string]any {
 	}
 	return payload
 }
-
-// --- folded from task_run.go ---
-
-// --- folded from task_taxonomy.go ---
-
-// --- folded from wait.go ---
 
 type DefineOption func(*defineConfig)
 
