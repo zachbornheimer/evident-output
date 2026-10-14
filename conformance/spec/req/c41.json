@@ -7,15 +7,15 @@
     "tests": [
       {
         "pkg": ".",
-        "run": "TestMain_SIGINTCancelsActiveTaskAndExits130"
+        "run": "TestSignalDuringDrainExits130"
       },
       {
         "pkg": ".",
-        "run": "TestMain_ReturnsCodeWithoutExiting"
+        "run": "TestAPI018_LibraryDoesNotCallOsExit"
       },
       {
         "pkg": ".",
-        "run": "TestMain_SecondSIGINTExits130WithoutWaitingForRun"
+        "run": "TestMainWith_SuccessExitZero"
       }
     ],
     "default": false
@@ -53,7 +53,7 @@
       },
       {
         "pkg": ".",
-        "run": "TestDefault_LazyInitNeverPanics"
+        "run": "TestConfigNameAndVerboseApply"
       }
     ],
     "default": false
@@ -112,7 +112,7 @@
       },
       {
         "pkg": ".",
-        "run": "TestPruneContract_KeptTallyVerboseListsRealItemNames"
+        "run": "TestVerbose_ShownWhenConfigured"
       }
     ],
     "default": false

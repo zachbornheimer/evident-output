@@ -87,7 +87,7 @@
       },
       {
         "pkg": ".",
-        "run": "TestVerify_SelfResolvedDefineIsNotRechecked"
+        "run": "TestDryRun_UnsatisfiedVerifyPlansInsteadOfFailing"
       }
     ],
     "default": false

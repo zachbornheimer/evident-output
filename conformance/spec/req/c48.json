@@ -28,11 +28,11 @@
       },
       {
         "pkg": ".",
-        "run": "TestEVOOutput_JSONCarriesFactsAndDispositions"
+        "run": "TestRunDocumentStatesOnlyTrueFacts"
       },
       {
         "pkg": ".",
-        "run": "TestEVOOutput_JSONLCarriesFactsAndDispositions"
+        "run": "TestWireEvents_VerificationObservedCarriesFacts"
       }
     ],
     "default": false
@@ -45,15 +45,15 @@
     "tests": [
       {
         "pkg": ".",
-        "run": "TestPruneContract_KeptChildrenStayInMachineOutput"
-      },
-      {
-        "pkg": ".",
         "run": "TestLedgerFoldLeavesJSONLEveryPerItemEffect"
       },
       {
         "pkg": ".",
         "run": "TestLedgerFoldsZqShapeToOneCategoryRow"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPruneContract_JSONLStreamKeepsEveryTaskAndTheGroup"
       }
     ],
     "default": false

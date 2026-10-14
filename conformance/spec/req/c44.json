@@ -24,7 +24,7 @@
     "tests": [
       {
         "pkg": ".",
-        "run": "TestMain_BlockedExitOne"
+        "run": "TestMainWith_BlockedExitOne"
       },
       {
         "pkg": ".",
@@ -41,7 +41,7 @@
     "tests": [
       {
         "pkg": ".",
-        "run": "TestMain_FailedExitTwo"
+        "run": "TestOUT012_ExitCodes"
       },
       {
         "pkg": ".",
@@ -62,7 +62,7 @@
       },
       {
         "pkg": ".",
-        "run": "TestMain_SIGINTCancelsActiveTaskAndExits130"
+        "run": "TestSignalDuringDrainExits130"
       }
     ],
     "default": false
@@ -92,11 +92,11 @@
     "tests": [
       {
         "pkg": ".",
-        "run": "TestGroup_KeptChildrenAggregateUnderGroupRow"
+        "run": "TestExcludedPredecessorLeavesDependentsNotStarted"
       },
       {
         "pkg": ".",
-        "run": "TestSkippedItemFacts_KeepTheFold"
+        "run": "TestReturnedEndingSettlesItsOutcome"
       }
     ],
     "default": false
