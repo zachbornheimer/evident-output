@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -49,6 +50,40 @@ func TestLayoutIsExact(t *testing.T) {
 	if len(stray) > 0 {
 		t.Errorf("%d tracked files live outside LAYOUT.md:\n  %s",
 			len(stray), strings.Join(stray, "\n  "))
+	}
+}
+
+// statedExamples matches the program count LAYOUT.md's examples/ row states.
+var statedExamples = regexp.MustCompile("`examples/`\\s*\\|\\s*(\\d+) runnable demo programs")
+
+// TestLayoutExamplesCountMatches fails when the number of demo programs
+// LAYOUT.md states differs from the directories under examples/ that hold a
+// main.go, so the prose cannot drift from the tree.
+func TestLayoutExamplesCountMatches(t *testing.T) {
+	body, err := os.ReadFile("LAYOUT.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := statedExamples.FindStringSubmatch(string(body))
+	if m == nil {
+		t.Fatal("LAYOUT.md: no `examples/` row stating \"N runnable demo programs\"")
+	}
+	stated, err := strconv.Atoi(m[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir("examples")
+	if err != nil {
+		t.Fatal(err)
+	}
+	programs := 0
+	for _, entry := range entries {
+		if _, err := os.Stat(path.Join("examples", entry.Name(), "main.go")); err == nil {
+			programs++
+		}
+	}
+	if stated != programs {
+		t.Errorf("LAYOUT.md states %d runnable demo programs; examples/ holds %d", stated, programs)
 	}
 }
 
