@@ -1,10 +1,5 @@
 package record
 
-import (
-	"errors"
-	"strings"
-)
-
 // Problem is structured evidence explaining a negative item or task outcome.
 type Problem struct {
 	Code    string
@@ -59,35 +54,6 @@ type Field struct {
 // or projects one — human output, JSON, evo.run, and JSONL alike — so the
 // literal has one owner instead of a copy hard-coded at each call site.
 const RedactedValue = "***"
-
-// SplitWrappedMessage separates a wrapped error into the summary shown
-// as the row's headline and the evidence line rendered underneath it. format
-// is the caller's original fmt.Errorf format string (before substitution);
-// err is fmt.Errorf(format, args...).
-//
-// A trailing ": %w" or ", %w" in format marks the wrapped error as evidence
-// separable from the summary: summary is the text before the separator,
-// evidence is the wrapped error's own text. Without a trailing %w — or when
-// %w appears elsewhere in format — the whole formatted text is the summary
-// and the wrapped error (if any) still feeds evidence.
-func SplitWrappedMessage(format string, err error) (summary, evidence string) {
-	full := err.Error()
-	wrapped := errors.Unwrap(err)
-	if wrapped == nil {
-		return full, ""
-	}
-	evidence = wrapped.Error()
-	for _, sep := range [...]string{": %w", ", %w"} {
-		if !strings.HasSuffix(format, sep) {
-			continue
-		}
-		head := strings.TrimSuffix(sep, "%w")
-		if trimmed, ok := strings.CutSuffix(full, head+evidence); ok {
-			return trimmed, evidence
-		}
-	}
-	return full, evidence
-}
 
 // CodeDuplicateSiblingName marks the row of a Task, Group or Sequence
 // declared with a name another child of the same parent already uses (§3.1).

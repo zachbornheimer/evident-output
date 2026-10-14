@@ -1,6 +1,8 @@
 [tools]
 # First staticcheck build that reads Go 1.27.2 export data; return to a release pin when 2026.3 ships.
 "go:honnef.co/go/tools/cmd/staticcheck" = "v0.7.0-0.dev.0.20261009230814-452d5bb86b45"
+# Pinned like staticcheck: a new release may flag code the last one passed.
+"go:golang.org/x/tools/cmd/deadcode" = "v0.52.0"
 golangci-lint = "2.14.0"
 gitleaks = "8.30.1"
 go = "1.27.2"
@@ -20,7 +22,7 @@ run = [
 ]
 
 [tasks.lint]
-description = "Format check, vet, staticcheck, golangci-lint, gitleaks over the root and mcp modules — every finding is fatal"
+description = "Format check, vet, staticcheck, deadcode, golangci-lint, gitleaks over the root and mcp modules — every finding is fatal"
 # mcp is its own module, so root `./...` never reaches it; the mcp lines run
 # the same linters the pre-push gate runs there (golangci-lint finds the root
 # .golangci.yml from the parent directory).
@@ -32,6 +34,8 @@ run = [
   "cd mcp && staticcheck ./...",
   "staticcheck -tests=false -checks U1000 ./...",
   "cd mcp && staticcheck -tests=false -checks U1000 ./...",
+  "test -z \"$(deadcode -test ./...)\" || { deadcode -test ./...; echo 'deadcode: functions nothing calls, tests included'; exit 1; }",
+  "cd mcp && { test -z \"$(deadcode -test ./...)\" || { deadcode -test ./...; echo 'deadcode: functions nothing calls, tests included'; exit 1; }; }",
   "golangci-lint run ./...",
   "cd mcp && golangci-lint run ./...",
   "gitleaks detect --no-git -v",

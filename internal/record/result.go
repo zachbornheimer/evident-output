@@ -13,7 +13,3 @@ type Result struct {
 	// Payload is the data the run wrote to its result stream, for a format that has no stream of its own.
 	Payload string
 }
-
-// ExitCode returns the process exit code implied by this Result's
-// Conclusion — the same value Main derives to return to its caller.
-func (r Result) ExitCode() int { return r.Conclusion.ExitCode }

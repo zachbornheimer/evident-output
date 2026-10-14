@@ -59,9 +59,6 @@ func (s *Staged) own() error {
 	return nil
 }
 
-// Dest is the absolute destination path.
-func (s *Staged) Dest() string { return s.dest }
-
 // Path is where the staged content lives until Commit: verify or digest
 // it here, before taking the lock.
 func (s *Staged) Path() string { return s.temp }

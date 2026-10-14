@@ -136,16 +136,3 @@ func ExampleNext() {
 	// [failed]  tool
 	// →  pull --rebase first
 }
-
-// ExampleFailure shows Failure's error text. Failf/Blockf were removed in
-// 1.1; Fail is a statement, and a wrapped error is returned separately.
-func ExampleFailure() {
-	out := initRun(Config{Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
-	task := out.Task("clone repository")
-	task.fail("clone failed", Detail("connection refused"))
-	err := fmt.Errorf("clone failed: %w", fmt.Errorf("connection refused"))
-	_ = out.finish()
-	fmt.Println(err.Error())
-	// Output:
-	// clone failed: connection refused
-}

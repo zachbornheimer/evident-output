@@ -681,21 +681,6 @@ func (o *Run) emitDebugLocked(message string, fields []field, force bool) {
 	o.emitDebugRecordLocked("DEBUG", message, fields, time.Time{}, force)
 }
 
-func (o *Run) writeDiagnosticText(text string) {
-	if o == nil || text == "" {
-		return
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.writeDiagnosticTextLocked(text)
-}
-
-func (o *Run) writeDiagnosticTextLocked(text string) {
-	if text != "" {
-		humanSinks{o}.Diagnostic(text)
-	}
-}
-
 func detailTail(c *record.Capture) ProblemOption {
 	return problemOption{record.WithEvidenceTail(c.DetailText)}
 }

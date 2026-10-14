@@ -45,27 +45,6 @@ func LockDestination(ctx context.Context, dest string) (*DestinationHold, error)
 	return &DestinationHold{key: key, os: held}, nil
 }
 
-// TryLockDestination takes dest's claim only if no overlapping claim is held, in this
-// process or another; ok is false when it would have to wait.
-func TryLockDestination(dest string) (hold *DestinationHold, ok bool, err error) {
-	key, err := claimKey(dest)
-	if err != nil {
-		return nil, false, fmt.Errorf("publish: lock %s: %w", dest, err)
-	}
-	if !localClaims.tryClaim(key) {
-		return nil, false, nil
-	}
-	held, ok, err := sysfs.TryPathLock(key)
-	if err != nil || !ok {
-		localClaims.release(key)
-		if err != nil {
-			return nil, false, fmt.Errorf("publish: lock %s: %w", key, err)
-		}
-		return nil, false, nil
-	}
-	return &DestinationHold{key: key, os: held}, true, nil
-}
-
 // Release drops the claim. It is safe to call more than once.
 func (h *DestinationHold) Release() error {
 	if h == nil || h.key == "" {
@@ -104,12 +83,6 @@ type claimTable struct {
 }
 
 var localClaims = claimTable{held: map[string]struct{}{}, changed: make(chan struct{})}
-
-// tryClaim records key unless an overlapping claim is held.
-func (c *claimTable) tryClaim(key string) bool {
-	ok, _ := c.tryClaimOrWait(key)
-	return ok
-}
 
 // tryClaimOrWait records key, or returns the channel that closes when the
 // table next changes.
