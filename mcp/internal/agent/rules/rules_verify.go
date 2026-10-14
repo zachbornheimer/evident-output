@@ -36,7 +36,7 @@ func verifyRules() []Rule {
 			GoodCode: `task.Define(func(ctx context.Context) error {
   return evo.File(ctx, evo.FileSpec{Path: path, Contents: data})
 })`,
-			Remediation:     "Replace the raw os/exec/db call with evo.File or evo.Exec; wrap a mutation neither models (a database or API change) in evo.Effect so dry-run skips it",
+			Remediation:     "Replace the raw os/exec/db call with evo.File or evo.Exec; wrap a mutation neither models (a database or API change, a deletion) in evo.Effect, whose callback dry-run skips; os/exec/db calls inside an evo.Effect callback are the declared mutation and are not flagged",
 			RelatedGuidance: []string{"common-api", "evidence-provenance"},
 			VerificationIDs: []string{"EVO-DRYRUN-001"},
 			Since:           "1.0.0",

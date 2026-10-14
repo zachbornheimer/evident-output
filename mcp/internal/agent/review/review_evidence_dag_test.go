@@ -157,11 +157,73 @@ func TestEVODRYRUN001_DatabaseMutationInsideEffect_StaysSilent(t *testing.T) {
 	assertNoFinding(t, res, "EVO-DRYRUN-001")
 }
 
-func TestEVODRYRUN001_FileWriteInsideEffect_StillFires(t *testing.T) {
+func TestEVODRYRUN001_FileWriteInsideEffect_LeftToAPI057(t *testing.T) {
 	res := review.GoSource("effect_file_bad.go", dryRunFileWriteInEffectSrc)
-	f := assertFinding(t, res, "EVO-DRYRUN-001")
+	assertNoFinding(t, res, "EVO-DRYRUN-001")
+	f := assertFinding(t, res, "API-057")
 	if !strings.Contains(f.Suggestion, "evo.File") {
-		t.Fatalf("a file write's suggestion must name evo.File: %q", f.Suggestion)
+		t.Fatalf("a file write inside Effect must still be steered to evo.File by API-057: %q", f.Suggestion)
+	}
+}
+
+const dryRunEffectMutationsSrc = `// Fixture: filesystem and process mutations inside an evo.Effect callback
+// are the declared opaque mutation (dry run skips the callback); the one
+// os.WriteFile left directly in Define is the only true positive.
+package dryrun001
+
+import (
+	"context"
+	"os"
+	"os/exec"
+
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+
+func prune(r *evo.Run, f string) {
+	r.Task("prune").Define(func(ctx context.Context) error {
+		spec := evo.EffectSpec{Verb: evo.Delete, Object: "stale copy", Quantity: 1, Path: "old/" + f}
+		return evo.Effect(ctx, spec, func(context.Context) error { return os.RemoveAll("old/" + f) })
+	})
+	r.Task("reload").Define(func(ctx context.Context) error {
+		spec := evo.EffectSpec{Verb: evo.Update, Object: "daemon", Quantity: 1}
+		return evo.Effect(ctx, spec, func(context.Context) error { return exec.Command("reload").Run() })
+	})
+	r.Task("audit").Define(func(context.Context) error {
+		return os.WriteFile("audit.ok", nil, 0o644)
+	})
+}
+`
+
+func TestEVODRYRUN001_BareDeletionInDefine_SuggestsEffectWithPath(t *testing.T) {
+	src := `package p
+import (
+	"context"
+	"os"
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+func prune(r *evo.Run, f string) {
+	r.Task("prune").Define(func(context.Context) error { return os.RemoveAll("old/" + f) })
+}
+`
+	f := assertFinding(t, review.GoSource("bare_delete.go", src), "EVO-DRYRUN-001")
+	if !strings.Contains(f.Suggestion, "evo.Effect") || !strings.Contains(f.Suggestion, "Path: path") {
+		t.Fatalf("a bare deletion must be steered to evo.Effect with a Path claim: %q", f.Suggestion)
+	}
+}
+
+func TestDryRunRuleAllowsMutationInsideEffect(t *testing.T) {
+	res := review.GoSource("effect_mutations.go", dryRunEffectMutationsSrc)
+	var hits []review.Finding
+	for _, f := range res.Findings {
+		if f.RuleID == "EVO-DRYRUN-001" {
+			hits = append(hits, f)
+		}
+	}
+	if len(hits) != 1 {
+		t.Fatalf("EVO-DRYRUN-001 fired %d times, want exactly 1 (the bare os.WriteFile in Define): %+v", len(hits), hits)
+	}
+	if !strings.Contains(hits[0].Message, "os.WriteFile") {
+		t.Fatalf("the surviving finding must be the bare os.WriteFile, got %q", hits[0].Message)
 	}
 }
 

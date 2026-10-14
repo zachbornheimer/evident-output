@@ -14,7 +14,8 @@ import (
 // a Define/Verify callback that promises dry-run safety or
 // read-only observation must route mutation through evo.File, evo.Exec, or
 // (for a database change neither models) evo.Effect instead of calling one
-// of these directly (spec §32.2, §57 EVO-DRYRUN-001).
+// of these directly (spec §32.2, §57 EVO-DRYRUN-001). Inside an evo.Effect
+// callback they are the declared mutation and are exempt.
 var evoRawMutationCallNames = map[string]bool{
 	"os.WriteFile": true, "os.Remove": true, "os.RemoveAll": true,
 	"os.Mkdir": true, "os.MkdirAll": true, "os.Rename": true,
@@ -75,14 +76,15 @@ func firstRawMutationCall(node ast.Node) (pos token.Pos, name string, found bool
 	return calls[0].pos, calls[0].name, true
 }
 
-// firstUnwrappedRawMutation is firstRawMutationCall for a Define body: a
-// database mutation inside an evo.Effect callback is the sanctioned opaque
-// mutation path (dry-run never invokes it), so it no longer counts. File
-// and process calls still do there — evo.File and evo.Exec own those.
+// firstUnwrappedRawMutation is firstRawMutationCall for a Define body: any
+// raw mutation (database, filesystem, process) inside an evo.Effect callback
+// is the declared opaque mutation — the EffectSpec names the Verb, Object,
+// and Path claim, and dry-run never invokes the callback — so it does not
+// count. A bare mutation anywhere else in Define still does.
 func firstUnwrappedRawMutation(body ast.Node, pkg string) (pos token.Pos, name string, found bool) {
 	effects := effectCallbacks(body, pkg)
 	for _, c := range rawMutationCalls(body) {
-		if c.sql && withinAny(c.pos, effects) {
+		if withinAny(c.pos, effects) {
 			continue
 		}
 		return c.pos, c.name, true
@@ -259,11 +261,12 @@ func detectMutatingVerify(filename string, file *ast.File, fset *token.FileSet) 
 }
 
 // ===== EVO-DRYRUN-001: a task.Define(func(ctx) error { ... }) callback
-// performs a raw mutation. Evo cannot intercept an arbitrary Go side effect
-// (os.WriteFile, a raw exec.Command, a direct database mutation); code that
-// promises Evo dry-run safety must route file state through evo.File,
-// processes through evo.Exec, and a database change through evo.Effect
-// instead (spec §32.2, §57).
+// performs a raw mutation outside an evo.Effect callback. Evo cannot
+// intercept an arbitrary Go side effect (os.WriteFile, a raw exec.Command, a
+// direct database mutation); code that promises Evo dry-run safety must route
+// file state through evo.File, processes through evo.Exec, and any other
+// mutation (a database change, a deletion) through evo.Effect, whose
+// callback dry-run skips (spec §32.2, §57).
 
 func detectRawMutationInDefine(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
@@ -317,13 +320,21 @@ func stringLit(e ast.Expr) (string, bool) {
 }
 
 // rawMutationRoute names the Evo boundary that owns name's kind of
-// mutation: a database handle's Exec goes through evo.Effect (Evo cannot
-// model it declaratively); files and processes go through File/Exec.
+// mutation: a database handle's Exec or a filesystem deletion goes through
+// evo.Effect (neither File nor Exec can express it as a counted change);
+// writes and processes go through File/Exec.
 func rawMutationRoute(name string) string {
 	if strings.HasSuffix(name, ".Exec") || strings.HasSuffix(name, ".ExecContext") {
 		if !strings.HasPrefix(name, "exec.") {
 			return "wrap " + name + " in evo.Effect(ctx, evo.EffectSpec{Verb: evo.Update, Object: \"row\", Quantity: n}, fn) so dry-run never invokes it"
 		}
 	}
+	if evoFSDeletionCallNames[name] {
+		return "wrap " + name + " in evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: \"file\", Quantity: n, Path: path}, fn) so dry-run never invokes it"
+	}
 	return "route the mutation through evo.File(ctx, evo.FileSpec{...}) or evo.Exec(ctx, evo.ExecSpec{...}) instead of calling " + name + " directly"
 }
+
+// evoFSDeletionCallNames are the raw calls that remove filesystem state —
+// the mutations evo.Effect with EffectSpec.Path (a filesystem claim) owns.
+var evoFSDeletionCallNames = map[string]bool{"os.Remove": true, "os.RemoveAll": true}
