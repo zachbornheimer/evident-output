@@ -108,7 +108,7 @@ func classifyLogCall(s callSite, method string) (Finding, bool) {
 	switch method {
 	case "Fatal", "Fatalf", "Fatalln", "Panic", "Panicf", "Panicln":
 		return s.finding(RungMain,
-			"this exits/panics directly, bypassing evo's exit-code contract — resolve the active Task with Fail or Block and return, then let os.Exit(evo.Main(cfg, run)) derive the exit code.",
+			"this exits/panics directly, bypassing evo's exit-code contract — resolve the active Task by returning evo.Fail or evo.Refuse from its Define and return, then let os.Exit(evo.Main(cfg, run)) derive the exit code.",
 			CertaintyHigh,
 		), true
 	case "Print", "Printf", "Println":

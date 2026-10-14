@@ -14,12 +14,12 @@ func dispositionRules() []Rule {
 			Why:        "Returning evo.Exclude(reason) records that Task's own disposition and ends it (mcp/docs/reference.md: \"the item name is the Task name\"). Calling it once per item on one category Task cannot work, since a Task ends once, and every record would be named for the category: --verbose then lists \"checked out: branches, branches, …\" instead of the items. Declare one Task per item under the category's Group; the renderer folds those children into one tally under the Group's row (contract §25) and --verbose names the real items. Kept was removed in 1.1.",
 			BadCode: `for _, d := range locals {
   if !d.Delete {
-    task.Kept(keepReason(d.Reason))
+    task.Kept(keepReason(d.Note))
   }
 }`,
 			GoodCode: `for _, d := range locals {
   if !d.Delete {
-    group.Task(d.Name).Define(func(context.Context) error { return evo.Exclude(d.Reason) })
+    group.Task(d.Name).Define(func(context.Context) error { return evo.Exclude(d.Note) })
   }
 }`,
 			Remediation:     "Declare one Task per item under the category's Group and record its disposition there: group.Task(item).Define(func(context.Context) error { return evo.Exclude(reason) }); evo aggregates the tally",

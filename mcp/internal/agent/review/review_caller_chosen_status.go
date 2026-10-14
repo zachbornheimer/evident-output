@@ -36,7 +36,7 @@ func detectCallerChosenGlyphColorOrStatus(filename string, file *ast.File, fset 
 				Line:       pos.Line,
 				Column:     pos.Column,
 				Message:    "caller-chosen " + what + " printed directly: evo's renderer owns glyph, color and status wording and adapts them to Plain, NoColor and TTY",
-				Suggestion: "delete the hand-picked text; resolve the work through Define (or Fail/Block/Warn) and let the renderer choose glyph and color",
+				Suggestion: "delete the hand-picked text; resolve the work through Define (returning evo.Fail, evo.Refuse or evo.Exclude) and let the renderer choose glyph and color",
 			})
 		}
 		return true

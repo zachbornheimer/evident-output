@@ -139,7 +139,7 @@ func noOpEffectFinding(filename string, pos token.Position, shape string) Findin
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,
-		Suggestion: "move the mutation itself inside the Effect callback (or an Evo-native File/Patch); do not report it after the fact with Record/RecordLabel/RecordName — those have no record-only replacement (ZYS-974)",
+		Suggestion: "move the mutation itself inside the Effect callback (or an Evo-native File/Patch); do not report it after the fact with Record/RecordLabel/RecordName (removed in 1.1) — those have no record-only replacement (ZYS-974)",
 	}
 }
 

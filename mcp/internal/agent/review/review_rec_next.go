@@ -187,7 +187,7 @@ func detectRemedyPlaceholder(filename, src string) []Finding {
 			Message:    "placeholder Problem summary from the removed-Next rewrite; state why this remedy is suggested",
 			File:       filename,
 			Line:       lineAt(src, m[0]),
-			Suggestion: "replace the placeholder with the reason the remedy is suggested, or fold the option into the Fail/Block call it explains",
+			Suggestion: "replace the placeholder with the reason the remedy is suggested, or fold the option into the evo.Fail or evo.Refuse call it explains",
 		})
 	}
 	return findings

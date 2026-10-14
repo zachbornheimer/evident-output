@@ -9,7 +9,7 @@ func outputRules() []Rule {
 			Severity:  SeverityError,
 			Invariant: "progress must not contaminate structured stdout",
 			Why:       "fmt.Print during live UI corrupts managed streams and breaks machine consumers.",
-			BadCode: `out := evo.Init(evo.Config{})
+			BadCode: `r.Task("scan").Doing("walking")
 fmt.Printf("progress %d\n", n)`,
 			GoodCode: `fmt.Fprintf(r.Text(), "progress %d\n", n)
 // or slog via r.SlogHandler() for implementation diagnostics`,
@@ -34,8 +34,7 @@ fmt.Printf("progress %d\n", n)`,
 cmd.Stdout = proof
 cmd.Stderr = proof
 if err := cmd.Run(); err != nil {
-  task.Fail("build failed")
-    return err
+  return evo.Fail("build failed")
 }`,
 			GoodCode: `cmd.Stdout = task.Writer()
 cmd.Stderr = task.Writer()
@@ -116,12 +115,12 @@ _ = outcome`,
 			ID:        "OUT-003",
 			Category:  "OUT",
 			Severity:  SeverityError,
-			Invariant: "progress and live-UI bytes never reach stdout while a data projection (FormatData) is active",
+			Invariant: "progress and live-UI bytes never reach stdout while a data payload (Run.ResultWriter) is in use",
 			Why:       "A data command's stdout is a machine payload contract; any progress byte on stdout corrupts a JSON/line consumer downstream.",
-			BadCode: `out := evo.Init(evo.Config{Format: evo.FormatData, Stdout: os.Stdout, Stderr: os.Stdout})
+			BadCode: `_ = evo.Execute(ctx, evo.Config{Facades: evo.Facades{Stdout: os.Stdout, Stderr: os.Stdout}}, run)
 // progress/UI share the payload's stream`,
 			GoodCode:        `fmt.Fprintln(r.ResultWriter(), payload) // progress and UI route to stderr; only the payload reaches stdout`,
-			Remediation:     "Configure Stderr alongside Stdout when using FormatData/ResultWriter; never write progress bytes to stdout by hand",
+			Remediation:     "Configure Facades.Stderr alongside Facades.Stdout when using ResultWriter; never write progress bytes to stdout by hand",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"OUT-003"},
 			Since:           "0.3.0",
@@ -177,9 +176,9 @@ t.Doing("copying staging -> production release bucket")`,
 			ID:        "TXT-021",
 			Category:  "TXT",
 			Severity:  SeverityWarning,
-			Invariant: "a Fail/Warn/Block summary is short text; cause and remedy are Detail/Next, never hand-assembled into the summary",
+			Invariant: "a Fail/Refuse summary or Problem is short text; cause and remedy are Detail/Next, never hand-assembled into the summary",
 			Why:       "A summary hand-assembling \" — cause:\"/\" — action:\" fragments reimplements Detail/Next inside plain text, losing their structured rendering and truncation.",
-			BadCode:   `task.Fail("policy check failed — cause: manifest missing — action: run zq init")`,
+			BadCode:   `return evo.Fail("policy check failed — cause: manifest missing — action: run zq init")`,
 			GoodCode: `return evo.Fail("policy check failed",
 	evo.Detail("manifest missing"),
 	evo.Next(evo.Action{Label: "run zq init"}))`,

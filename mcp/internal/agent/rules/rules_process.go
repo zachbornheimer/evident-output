@@ -42,7 +42,7 @@ func processRules() []Rule {
 			Severity:  SeverityError,
 			Invariant: "fmt.Print* never writes while Evo owns the live region",
 			Why:       "Evo's live renderer redraws the terminal in place; an unmanaged fmt.Print* call lands mid-redraw and tears the frame — the same class of corruption STREAM-003 already flags for any managed stream, called out here specifically for the active live-rendering case the spec's migration guidance targets.",
-			BadCode: `out := evo.Init(evo.Config{})
+			BadCode: `r.Task("scan").Doing("walking")
 fmt.Println("still going...") // tears the live frame`,
 			GoodCode:        `fmt.Fprintln(r.Text(), "still going...") // routed through the same writer the live region owns`,
 			BadOutput:       "garbled/duplicated live-region frame with a stray printf line spliced in",

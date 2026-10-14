@@ -216,12 +216,12 @@ read cancellation from the ctx Main/Run already passes into the run callback. Si
 else (SIGHUP, SIGUSR1, ...) is unrelated application behavior and stays untouched.
 
 Child processes: cmd.Stdout = task.Writer(); cmd.Stderr = task.Writer(); on error
-inside Define return fmt.Errorf("...: %w", err) (Fail/Block are statements; attach user-facing
-text with evo.Detail).
+inside Define return fmt.Errorf("...: %w", err), or return evo.Fail(summary, evo.Detail(text)) to attach
+user-facing text.
 Never implement your own io.Writer whose Write method calls Task.Doing (API-031): that
 reimplements the exact adapter Writer already owns.
-Capture is deduplicated for you: never embed capture text into a Fail/Block summary
-(task.Fail("install failed", evo.Detail(capture.Text())) — EV-001) — auto-attach already renders that same
+Capture is deduplicated for you: never embed capture text into a Fail/Refuse summary
+(evo.Fail("install failed", evo.Detail(capture.Text())) — EV-001) — auto-attach already renders that same
 retained tail as its own evidence line underneath; embedding it in the summary too just repeats it.
 Capture is task-owned. Ring always retains proof; Config.Debug.Level gates journal display.
 Do not hand-thread DebugWriter for brew/git.
@@ -234,7 +234,7 @@ WriteJSON or FormatJSON/FormatJSONL for machines. Avoid fmt.Print during live UI
 			UseCases: []string{"sanitize", "esc", "secrets"},
 			Concepts: []string{"sanitize", "Detail", "Fail"},
 			Rules:    []string{"SEC-001", "TXT-007", "SEC-006"},
-			Body: `Untrusted text is sanitized. Detail is stable user-visible guidance text; Fail/Block
+			Body: `Untrusted text is sanitized. Detail is stable user-visible guidance text; Fail/Refuse
 take evo.Detail(err.Error()) for the wrapped error's own text, also sanitized.
 Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 			TokenEstimate: 110,
@@ -260,7 +260,7 @@ evo.Exec(ctx, evo.ExecSpec{Argv, Inputs, Values, Outputs}) is the same declarati
 process: it replaces os/exec.Command paired with a hand-written stat/hash/mtime freshness check, and no-ops
 when the declared Outputs are already current against Inputs and Values (EVO-EXEC-001). Outputs are the paths the process
 itself produces — never add them to Inputs, and never flag a literal Exec Arg that already names a declared
-Output or the call's own Executable as an omitted input (EVO-PROVENANCE-001, see the provenance guide).
+Output or the call's own Argv[0] as an omitted input (EVO-PROVENANCE-001, see the provenance guide).
 
 evo.Exec returns (ExecResult, error): ExecResult carries Ran/ExitCode/Stdout/Stderr/Truncated, the same
 sanitized/redacted, bounded capture Evo already retains as evidence — a linter or check can parse it to build

@@ -12,11 +12,12 @@ func defineRules() []Rule {
 			Severity:   SeverityWarning,
 			Invariant:  "Excluded means a check never applied; Satisfied means the check applied and was already true — a reason naming a checked-and-already-true condition belongs to the latter",
 			Why:        "return evo.Exclude(\"already up to date\") reports \"did not apply\" for a precondition that was in fact checked and found already true; Verify (run before Define) or evo.File/evo.Exec's own tracked comparison settle Satisfied for exactly this case, and collapsing it into Excluded hides a real checked precondition behind the wrong glyph. True inapplicability (no project config, no Go module) stays Excluded.",
-			BadCode: `if installedVersion == latestVersion {
-  task.Skipped(evo.Reason("already up to date"))
-  return
-}
-task.Define(func(ctx context.Context) error { return install(ctx) })`,
+			BadCode: `task.Define(func(ctx context.Context) error {
+  if installedVersion == latestVersion {
+    return evo.Exclude("already up to date")
+  }
+  return install(ctx)
+})`,
 			GoodCode: `task.Verify(func(ctx context.Context) (bool, error) {
   return installedVersion == latestVersion, nil
 })

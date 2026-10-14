@@ -65,7 +65,7 @@ func inlineReasonFinding(filename string, pos token.Position, pkg string, outerS
 				File:       filename,
 				Line:       pos.Line,
 				Column:     pos.Column,
-				Suggestion: "replace " + pkg + ".Reason(" + strconv.Quote(text) + ") with the cause, e.g. " + pkg + ".Reason(\"unchanged\")",
+				Suggestion: "name the cause instead of the verb, e.g. return " + pkg + ".Exclude(\"unchanged\") from Define",
 			}
 		}
 	}
@@ -75,7 +75,7 @@ func inlineReasonFinding(filename string, pos token.Position, pkg string, outerS
 		File:       filename,
 		Line:       pos.Line,
 		Column:     pos.Column,
-		Suggestion: "add `var reason" + exportedReasonName(text) + " = " + pkg + ".Reason(" + strconv.Quote(text) + ")` and use reason" + exportedReasonName(text) + " here",
+		Suggestion: "add `var reason" + exportedReasonName(text) + " = " + strconv.Quote(text) + "` and return " + pkg + ".Exclude(reason" + exportedReasonName(text) + ") here",
 	}
 }
 
@@ -175,7 +175,7 @@ func skippedAlreadySatisfiedFinding(filename string, pos token.Position, recv, t
 		Line:    pos.Line,
 		Column:  pos.Column,
 		Suggestion: "add a precondition check via " + recv + ".Verify(func(ctx context.Context) (bool, error) { ... }) before " + recv +
-			".Define(...) so evo settles Satisfied on its own, or let evo.File/evo.Exec derive it from their own tracked comparison; reserve Skipped for true inapplicability (no project config, no Go module)",
+			".Define(...) so evo settles Satisfied on its own, or let evo.File/evo.Exec derive it from their own tracked comparison; reserve evo.Exclude for true inapplicability (no project config, no Go module)",
 	}
 }
 

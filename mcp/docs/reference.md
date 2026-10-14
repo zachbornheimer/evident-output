@@ -16,7 +16,7 @@ wrong or this doc is; file it either way.
 **Mutations:** `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)` (an opaque mutation Evo cannot model: a git ref, a worktree, an API change), `evo.File` (file state), and `evo.Exec` pick `[planned]` vs `[changed]` from `Config.DryRun` — one spelling, never a call-site tense flip. **Planned tense:** `DryRun: true` is `--dry-run` — every mutation is planned, no mutation callback runs, and the Conclusion reads planned. Quantity records (`evo.Effect` with `EffectSpec.Quantity`) tally and always render when the run ends. A named row (`evo.File`'s `write <path>`, `evo.Exec`'s `run <executable>`) streams the instant its owning task resolves, under that task's own block, bounded by the same viewport cap and `… +N more (not shown)` overflow the run-end ledger uses. `Record`/`RecordLabel`/`RecordName` were removed in 1.1: a classification is a `Fact`, never a ledger row.
 
 **Partial commits:** an `Effect` callback that committed part of its aggregate before failing returns `evo.PartialEffect(committed, err)`. `Effect` records one changed row with the spec's Verb and Object and `Quantity: committed` (none for 0), then returns an error that keeps `err` reachable through `errors.Is`/`errors.As`, so the Task fails while the ledger stays truthful — human rows, JSON, and the JSONL `effect.committed` payload all carry the committed count. A nil `err`, a negative `committed`, or more than `EffectSpec.Quantity` returns `ErrInvalidPartialEffect` and records nothing. Dry runs never call the callback, so they plan the full `Quantity`. `PartialEffect` is not a retry protocol and implies no rollback.
-**Loops and taxonomy:** declare one named child per item under `Group`/`Sequence` (`group.Task(name)`), then `Task.Define` submits that item's atomic work — `Group.Each`/`Sequence.Each` were removed in 1.0; a Task whose `Define` returns `evo.Exclude(reason)` joins the counted, summed skip partition (the item name is the Task name): one per item Task, `group.Task(item).Define(...)`. Human output folds a Group's Skipped item children (two or more; a lone one keeps its named row) into one tally under the Group's row (`! kept N (...)` / `- skipped N (...)` — renderer copy, not a live `Kept` method; Kept was removed in 1.1) when the Group's own row names their subject — its own Task (below) or its own `Summary` — or when no sibling finished work of its own. Beside such a work peer, a Skipped child is a peer category and keeps its named row. `--verbose` lists the items under each reason; JSON/JSONL keep every child. **Own Task:** a Group's child Task named for the Group itself (`items := g.Group("branches"); work := items.Task("branches")`) is the Group's _own Task_ — the category's own work (classify, `Summary`, `Effect`), not one of its items. A Group has no `Define`, and an `Effect`'s ledger subject is its Task's name, so a category's plan (`[planned] branches  delete 87 local tips`) is owned by the Task that shares the category's name. When the own Task is the Group's only row after its items fold (no Group `Summary`, no nested Group/Sequence), the Group renders as that one row plus its tally. The own Task is never folded as an item, even when it only resolved `Skipped`; a child with any other name never stands in for its Group. `Task.Progress(completed, total).Doing(name)` sets the count and the live item name; Plain output does not stream a durable phase line per name. **One category row from per-item Effects:** give each item its own Task and let each call `evo.Effect` with the same `Verb` and `Object` (`EffectSpec{Verb: evo.Update, Object: "package", Quantity: 1}`); never sum the count by hand into one Task. The human ledger folds sibling per-item Effects that share verb and object into one row, attributed to the highest enclosing Group/Sequence whose whole subtree records that same Effect (two manager Groups under "centralize packages" give `[changed] centralize packages  updated 1,663 packages`; `[planned]` under dry run), counted per item, with thousands grouping on every ledger count. A container that also holds a different verb or object, or a `File`/`Exec` row, keeps its uniform sub-Groups as their own rows, and its own direct items still fold per verb and object into a row named for the container (`npm` with five `update package` Tasks and one `delete lockfile` Task prints `updated 5 packages` and the lockfile row); a lone item renders as before. Two folded rows with the same name are qualified by container path (`alpha › branches`, `beta › branches`). A failed item adds nothing to the row except the work a `PartialEffect` reports as committed, and it still surfaces as a Failed Task row with its Problems. JSON/JSONL keep every per-item Effect. Do not pre-aggregate to dodge the row flood — that hides the per-item evidence the machine outputs carry.
+**Loops and taxonomy:** declare one named child per item under `Group`/`Sequence` (`group.Task(name)`), then `Task.Define` submits that item's atomic work — `Group.Each`/`Sequence.Each` were removed in 1.0; a Task whose `Define` returns `evo.Exclude(reason)` joins the counted, summed skip partition (the item name is the Task name): one per item Task, `group.Task(item).Define(...)`. Human output folds a Group's Excluded item children (two or more; a lone one keeps its named row) into one tally under the Group's row (`! kept N (...)` / `- skipped N (...)` — renderer copy, not a live `Kept` method; Kept was removed in 1.1) when the Group's own row names their subject — its own Task (below) or its own `Summary` — or when no sibling finished work of its own. Beside such a work peer, a Excluded child is a peer category and keeps its named row. `--verbose` lists the items under each reason; JSON/JSONL keep every child. **Own Task:** a Group's child Task named for the Group itself (`items := g.Group("branches"); work := items.Task("branches")`) is the Group's _own Task_ — the category's own work (classify, `Summary`, `Effect`), not one of its items. A Group has no `Define`, and an `Effect`'s ledger subject is its Task's name, so a category's plan (`[planned] branches  delete 87 local tips`) is owned by the Task that shares the category's name. When the own Task is the Group's only row after its items fold (no Group `Summary`, no nested Group/Sequence), the Group renders as that one row plus its tally. The own Task is never folded as an item, even when it only resolved `Excluded`; a child with any other name never stands in for its Group. `Task.Progress(completed, total).Doing(name)` sets the count and the live item name; Plain output does not stream a durable phase line per name. **One category row from per-item Effects:** give each item its own Task and let each call `evo.Effect` with the same `Verb` and `Object` (`EffectSpec{Verb: evo.Update, Object: "package", Quantity: 1}`); never sum the count by hand into one Task. The human ledger folds sibling per-item Effects that share verb and object into one row, attributed to the highest enclosing Group/Sequence whose whole subtree records that same Effect (two manager Groups under "centralize packages" give `[changed] centralize packages  updated 1,663 packages`; `[planned]` under dry run), counted per item, with thousands grouping on every ledger count. A container that also holds a different verb or object, or a `File`/`Exec` row, keeps its uniform sub-Groups as their own rows, and its own direct items still fold per verb and object into a row named for the container (`npm` with five `update package` Tasks and one `delete lockfile` Task prints `updated 5 packages` and the lockfile row); a lone item renders as before. Two folded rows with the same name are qualified by container path (`alpha › branches`, `beta › branches`). A failed item adds nothing to the row except the work a `PartialEffect` reports as committed, and it still surfaces as a Failed Task row with its Problems. JSON/JSONL keep every per-item Effect. Do not pre-aggregate to dodge the row flood — that hides the per-item evidence the machine outputs carry.
 **Confirm:** `r.Confirm(question, …)` (`Run.Confirm`) owns the whole ask-decide-resolve gate and returns the answer as a `bool` — a decline is `⊘ declined`, never a Go error. `question` is literal text, not a printf format (Doing is printf-variadic; Task is name-only), so build the string yourself (`fmt.Sprintf`) before calling. Return `evo.Refuse("declined")` on a decline so the run concludes Refused → exit `1` (see the README's exit-code table); check a separate flag before calling Confirm at all if declining should exit `0` instead. `evo.Destructive()` makes the default answer no. `evo.NonInteractive("--yes")` names the flag that passes the gate unattended; without a terminal and without that flag the gate is refused, and the refusal's remedy names the flag.
 **Capture:** `cmd.Stdout = task.Writer()` (and stderr the same way) turns a talkative child's last line into the live doing-text and retains a bounded, redacted ring for Fail evidence. `Facades.Redactor` applies before retention. Do not clear the live region around a child.
 **Platform:** `Run.ResultWriter()` keeps the domain payload on stdout and presentation on stderr.
@@ -40,13 +40,13 @@ work still runs after `run` returned.
 
 ## Pick the entity
 
-| Shape        | Use when                                                                                                                                                                         |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task**     | One atomic unit — its check or work submitted with `Define` (success is the callback returning `nil`); `Problem`/`Block`/`Fail`/`Skipped` state a condition directly             |
-| **Group**    | Independent collection of atomic tasks (state is **derived**); the scheduler may overlap eligible children                                                                       |
-| **Sequence** | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both Group and Sequence nest recursively via `.Sequence`/`.Group` |
+| Shape        | Use when                                                                                                                                                                                            |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task**     | One atomic unit — its check or work submitted with `Define` (success is the callback returning `nil`); `Define` returns `Fail`, `Refuse` or `Exclude` to end it; `Problem` adds a non-fatal finding |
+| **Group**    | Independent collection of atomic tasks (state is **derived**); the scheduler may overlap eligible children                                                                                          |
+| **Sequence** | Ordered dependency of tasks (state is **derived**); a failed child auto-resolves later siblings to NotStarted; both Group and Sequence nest recursively via `.Sequence`/`.Group`                    |
 
-Multi-gate: resolve every Task, tracking a local `blocked` bool at each `Block` call site, then `if blocked { return nil }` before mutation — `Result`/`Conclusion` answer the same question once a run has finished, so no mid-run query is exported; `Main` maps `ExitCode`.
+Multi-gate: give each gate its own Task whose `Define` returns `evo.Refuse(...)` when its precondition fails, and order the mutation `After` every gate; a Refused predecessor leaves the mutation NotStarted. `Result`/`Conclusion` answer the same question once a run has finished, so no mid-run query is exported; `Main` maps `ExitCode`.
 
 ### Task is one independently meaningful promise
 
@@ -65,15 +65,16 @@ If the answers are no, it probably is not a Task.
 
 One Task may still make several internal observations without promoting each predicate to a sibling Task: `check file integrity` can inspect merge markers, path validity, staged/worktree consistency, symlinks, and generated-file corruption, and report them all as `Fact`/`Problem` evidence under the one Task that answers a single user-meaningful question. Only split an observation into its own Task when it has an independently meaningful lifecycle/remediation and can run on its own. `Task` intentionally has no `.Task`/`.Group`/`.Sequence` child constructors — only `Run`, `Group`, and `Sequence` declare children, so a Task cannot structurally grow a container of its own; review (`API-045`) teaches the semantic half of this boundary that a compile-time signature cannot decide.
 
-## Severity dialect
+## Endings dialect
 
-| Outcome     | Meaning                                                                                   |
-| ----------- | ----------------------------------------------------------------------------------------- |
-| **Warning** | Soft concern or **optional** tool missing; command may continue — `task.Problem(summary)` |
-| **Block**   | Policy / precondition failed; **stop before mutation** (evaluation succeeded)             |
-| **Fail**    | Evaluation failed or **required** tool/IO failed                                          |
+| Ending                    | Meaning                                                                                 |
+| ------------------------- | --------------------------------------------------------------------------------------- |
+| `Problem` (non-fatal)     | Soft concern or **optional** tool missing; the Task keeps the Outcome its return gives  |
+| `return evo.Refuse(...)`  | Policy / precondition failed; **stop before mutation** (evaluation succeeded), exit `1` |
+| `return evo.Fail(...)`    | Evaluation failed or **required** tool/IO failed, exit `2`                              |
+| `return evo.Exclude(...)` | Policy chose not to run it; exit `0`                                                    |
 
-`Block` ≠ Go `error`. After Block, return nil from `run` and let `Main` exit `1`.
+A Refused Task is not a Go `error` you wrap: return `evo.Refuse(summary)` from `Define` and let `Main` exit `1`.
 
 ## One check Task, many Problems
 
@@ -82,40 +83,36 @@ per finding, never every finding flattened into a single
 `errors.New(strings.Join(...))` string:
 
 ```go
-task := out.Task("check file integrity")
-for _, issue := range issues {
-    task.Problem(issue.Summary,
-        evo.On(fmt.Sprintf("%s:%d", issue.Path, issue.Line)),
-        evo.Code(issue.Code),
-    )
+func run(ctx context.Context, r *evo.Run) error {
+    task := r.Task("check file integrity")
+    for _, issue := range issues {
+        task.Problem(issue.Summary,
+            evo.On(fmt.Sprintf("%s:%d", issue.Path, issue.Line)),
+            evo.Code(issue.Code),
+        )
+    }
+    task.Define(func(context.Context) error {
+        if len(issues) > 0 {
+            return evo.Fail("file integrity check found problems")
+        }
+        return nil
+    })
+    return nil
 }
-task.Define(func(context.Context) error { return nil })
 ```
 
-`Problem(summary, opts...)` appends one blocking Problem and returns
-`*Task` to chain (`task.Problem(...).Problem(...)`); it does not
-resolve the task. Each Problem is part of the Task as soon as it is
-recorded: `Snapshot`, the live row, and JSON show it while the Task runs.
-A Task holding a Problem never settles Done or Skipped. A `nil` `Define`
-return, a `Skipped` call, or the run ending with a Task left unresolved all
-settle it **Failed** instead: accumulated blocking evidence always
-overrides a claimed clean outcome. The Task still resolves exactly once regardless of
-how many Problems it owns.
+`Problem(summary, opts...)` appends one non-fatal Problem and returns the
+`*Task` to chain (`task.Problem(...).Problem(...)`); it never ends the Task.
+A Task ends exactly once, by returning, and keeps the Outcome its return
+gives with every Problem still attached: a Problem and a `nil` return are
+Succeeded with exit 0, so a check that must fail on its findings returns
+`evo.Fail` itself, as above.
 
-`Task.Problem(summary, opts ...ProblemOption)` takes the
-same `ProblemOption`s (`Detail`, `Code`, `On`, `Next`)
-for a non-fatal finding with the same structured metadata — it never
-ends the Task either. `Warn` was removed in 1.1.
+Policy exclusion is `return evo.Exclude(reason)`; an Excluded Task is not a
+failure and exits `0`. Renderer copy like `- skipped N (...)` is observed
+output, not a live method.
 
-Policy exclusion is `return evo.Exclude(reason)`. Renderer copy like
-`! kept N (...)` is observed output, not a live method (`Kept` was
-removed in 1.1). A Task that left items it was asked to act on still
-sets `Conclusion().Warned`, the `--json` document's `conclusion.warned`,
-and the `· warned` band (`repositories  ! kept 13 (unpushed)` concludes
-`[ready · warned]`). `Skipped(reason)` is skip detail, not a warning: it
-renders `- skipped N (...)` and never sets `warned`.
-
-Every accumulated Problem survives in `Snapshot`/JSON/JSONL even when the
+Every accumulated Problem survives in `Result`/JSON/JSONL even when the
 plain human view bounds how many render inline (5 by default) behind an
 `and N more failures` line — the count is always authoritative, and a
 remedy (`evo.Next(...)`) attached to any Problem
@@ -174,7 +171,7 @@ Avoid inventing parallel APIs (`RunAll`, framework-specific facades in core). Pr
 Evo coordinates shared state for you; there is no lock or unlock call.
 
 - **`File`** claims its own path for writing while it inspects, writes, and records it.
-- **`FSPath` Basis** entries (on `File` and `Exec`) are observed under a read claim, so an observation sees a whole commit or none of it — never a torn write.
+- **`FileSpec.Inputs`** entries (on `File` and `Exec`) are observed under a read claim, so an observation sees a whole commit or none of it — never a torn write.
 - **`Effect`** claims `EffectSpec.Resource` for writing while its callback runs. Name at most one: `FSResource(path)` for a file or a coarse directory (a module, a repository root), `LogicalResource(name)` for state with no truthful path (a package database, a remote).
 
 Reads share. Any overlapping pair that includes a write waits: filesystem claims overlap when the paths are equal or one contains the other; logical claims overlap only when their names match. A claim never creates an `After` dependency and never adds to freshness. A Task waiting on a conflicting claim shows `waiting for <resource>` as its live activity; an uncontended claim renders nothing. Code holding a resource (an `Effect` callback with a `Resource`) that calls `File`, or anything else needing a second resource, fails with `ErrNestedResourceAcquisition` instead of risking deadlock.
@@ -185,7 +182,7 @@ Reads share. Any overlapping pair that includes a write waits: filesystem claims
 
 | Type         | Meaning                                                                                                               |
 | ------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `Task`       | One atomic unit — submitted with Define, or stated directly (Problem/Block/Fail/Skipped)                              |
+| `Task`       | One atomic unit — submitted with Define; it ends by returning (`Fail`, `Refuse`, `Exclude` or `nil`)                  |
 | `Group`      | Independent collection of tasks (state is **derived**); scheduler may overlap eligible children                       |
 | `Sequence`   | Ordered dependency of tasks (state is **derived**); failure cascades to NotStarted                                    |
 | `Problem`    | Structured evidence for warn / block / fail; a Task accumulates many via `Problem(...)` before it resolves once       |

@@ -8,14 +8,15 @@ func domainRules() []Rule {
 			Category:  "DOM",
 			Severity:  SeverityError,
 			Invariant: "expected blocked items are presentation outcomes, not Go application errors",
-			Why:       "Block means evaluation succeeded and found a blocker. Returning errors.New after Block confuses agents and callers about failure vs blocked.",
-			BadCode: `it := out.Task("working tree")
-it.Block("dirty")
-return errors.New("dirty") // wrong: blocked is not an app error`,
+			Why:       "Refuse means evaluation succeeded and found a blocker. Returning errors.New for it confuses agents and callers about failure vs refused.",
+			BadCode: `it := r.Task("working tree")
+it.Define(func(context.Context) error {
+	return errors.New("dirty") // wrong: a blocker is Refused, not a Failed application error
+})`,
 			GoodCode: `it := r.Task("working tree")
 it.Define(func(context.Context) error { return evo.Refuse("dirty") })`,
 			Remediation:     "Return evo.Refuse(summary) for a blocker that successful evaluation found; the Conclusion and Result.ExitCode follow it, and the application error stays nil",
-			Exceptions:      []string{"wrapping Finish misuse errors", "I/O failures unrelated to Block"},
+			Exceptions:      []string{"I/O failures unrelated to the precondition"},
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"MCP-014", "DOM-011", "DOM-048"},
 			Since:           "0.1.0",
@@ -27,10 +28,10 @@ it.Define(func(context.Context) error { return evo.Refuse("dirty") })`,
 			Severity:  SeverityWarning,
 			Invariant: "visible state paints within 100ms of process start",
 			Why:       "A blank terminal for the first seconds of a run is indistinguishable from a hang; the user re-runs or ^C's healthy work.",
-			BadCode: `func main() {
+			BadCode: `func run(ctx context.Context, r *evo.Run) error {
   cfg := loadConfig() // seconds of I/O, nothing on screen yet
-  evo.Init(evo.Config{Title: "tool"}) // too late — loadConfig already ran
-  evo.Task("scan")
+  r.Task("scan")      // declared too late — loadConfig already ran
+  return nil
 }`,
 			GoodCode: `func run(ctx context.Context, r *evo.Run) error {
   r.Task("scan").Doing("reading config") // the live frame appears before any I/O
@@ -49,10 +50,10 @@ it.Define(func(context.Context) error { return evo.Refuse("dirty") })`,
 			Severity:  SeverityWarning,
 			Invariant: "no I/O before the first entity is declared",
 			Why:       "Declare-before-compute is what makes FP-001 achievable; I/O ahead of the first Task/Item/Sequence reintroduces the blank window.",
-			BadCode: `func main() {
-  evo.Init(evo.Config{Title: "tool"})
+			BadCode: `func run(ctx context.Context, r *evo.Run) error {
   data, _ := os.ReadFile("config.toml") // I/O before any Task/Item/Sequence
-  evo.Task("scan")
+  r.Task("scan")
+  return nil
 }`,
 			GoodCode: `func run(ctx context.Context, r *evo.Run) error {
   scan := r.Task("scan")
@@ -90,10 +91,10 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 			Category:        "DOM",
 			Severity:        SeverityError,
 			Invariant:       "Detail is user-visible string; pass err.Error() or return fmt.Errorf inside Define",
-			Why:             "Detail(err) exposes error internals as UI copy; Fail/Block take a summary plus Detail(err.Error()), and inside Define a wrapped error is return fmt.Errorf.",
-			BadCode:         `it.Block("dirty", evo.Detail(err))`,
+			Why:             "Detail(err) exposes error internals as UI copy; Fail/Refuse take a summary plus Detail(err.Error()), and inside Define a wrapped error is return fmt.Errorf.",
+			BadCode:         `return evo.Refuse("dirty", evo.Detail(err))`,
 			GoodCode:        `return evo.Refuse("dirty", evo.Detail(err.Error()))`,
-			Remediation:     `Replace Detail(err) with evo.Detail(err.Error()) on Fail/Block, or return fmt.Errorf("dirty: %w", err) inside Define; reserve Detail for user-visible strings`,
+			Remediation:     `Replace Detail(err) with evo.Detail(err.Error()) on Fail/Refuse, or return fmt.Errorf("dirty: %w", err) inside Define; reserve Detail for user-visible strings`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-014"},
 			Since:           "0.1.0",
@@ -110,7 +111,7 @@ run.Run(ctx, "git", args, t.Writer()) // last child line becomes the live doing-
 branches.Task("main").Define(func(context.Context) error { return evo.Exclude("protected") })
 branches.Task("feature/x").Define(func(context.Context) error { return evo.Exclude("dirty") })
 // the item is the Task; evo derives each tally from its reason`,
-			Remediation:     "Declare one Task per item and record its reason via task.Skipped; let evo count, sum, and print the partition",
+			Remediation:     "Declare one Task per item and record its reason by returning evo.Exclude(reason) from its Define; let evo count, sum, and print the partition",
 			RelatedGuidance: []string{"tasks"},
 			VerificationIDs: []string{"TAX-001"},
 			Since:           "0.6.0",
@@ -135,8 +136,8 @@ branches.Task("feature/x").Define(func(context.Context) error { return evo.Exclu
 			Category:  "EV",
 			Severity:  SeverityWarning,
 			Invariant: "a failure summary does not manually embed the retained evidence text",
-			Why:       "task.Fail(\"install failed\", evo.Detail(capture.Text())) folds the retained output straight into the summary the row already shows; auto-attach then renders the exact same text a second time as evidence underneath it (user-13-problems.md Problem 7: \"execution owns evidence, callers provide context\").",
-			BadCode:   `task.Fail("install failed", evo.Detail(capture.Text()))`,
+			Why:       "evo.Fail(\"install failed\", evo.Detail(capture.Text())) folds the retained output straight into the summary the row already shows; auto-attach then renders the exact same text a second time as evidence underneath it (user-13-problems.md Problem 7: \"execution owns evidence, callers provide context\").",
+			BadCode:   `return evo.Fail("install failed", evo.Detail(capture.Text()))`,
 			GoodCode: `cmd.Stdout = task.Writer() // retained as Capture and auto-attached on failure
 cmd.Stderr = task.Writer()
 if err := cmd.Run(); err != nil {
@@ -152,14 +153,14 @@ if err := cmd.Run(); err != nil {
 			ID:        "DOM-006",
 			Category:  "DOM",
 			Severity:  SeverityWarning,
-			Invariant: "Item.OK/Block is a direct legal terminal transition; explicit Start is not required",
+			Invariant: "returning from Define is a direct legal terminal transition; explicit Start is not required",
 			Why:       "An Item is pending until it resolves; calling Start first is redundant ceremony and risks a spinner flash for a transition that finishes instantly.",
-			BadCode: `it := out.Task("disk space")
+			BadCode: `it := r.Task("disk space")
 it.Start()
 it.Define(checkDiskSpace)`,
-			GoodCode: `it := out.Task("disk space")
+			GoodCode: `it := r.Task("disk space")
 it.Define(checkDiskSpace)`,
-			Remediation:     "Call Define (or Block/Fail/Problem) directly; remove the explicit Start call",
+			Remediation:     "Call Define (returning evo.Fail, evo.Refuse or evo.Exclude where the work ends that way) directly; remove the explicit Start call",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-006"},
 			Since:           "0.1.0",
@@ -171,7 +172,7 @@ it.Define(checkDiskSpace)`,
 			Severity:        SeverityWarning,
 			Invariant:       "returning evo.Refuse(summary, options...) builds exactly one Problem from ProblemOptions; do not hand-build a Problem literal for the common single-blocker case",
 			Why:             "Hand-building a Problem{} literal duplicates what evo.Refuse(summary, evo.On(...), evo.Detail(...), ...) already does automatically and can drift from the sanitized/anonymous shape Refuse guarantees.",
-			BadCode:         `task.Block("disk full", evo.Cause(fmt.Errorf("hand-built: %w", err)))`,
+			BadCode:         `return errors.New("disk full: " + err.Error()) // hand-assembled blocker text`,
 			GoodCode:        `return evo.Refuse("disk full")`,
 			Remediation:     "Return evo.Refuse(summary, options...) — evo.On/evo.Detail/evo.Code — instead of constructing a Problem by hand",
 			RelatedGuidance: []string{"common-api"},
@@ -239,7 +240,7 @@ for _, item := range items {
 			Severity:  SeverityWarning,
 			Invariant: "evo.Exclude's reason is a fixed string literal or a const/package-level var, never a computed expression",
 			Why:       "An evo.Exclude reason built from a computed expression (Sprintf, Join, concatenation) opens one taxonomy bucket per distinct rendered value instead of one per classification (live instance: joining per-item counts into the reason text).",
-			BadCode:   `task.Skipped(evo.Reason(strings.Join(names, ", ")), name)`,
+			BadCode:   `return evo.Exclude(strings.Join(names, ", "))`,
 			GoodCode: `group.Task(name).Define(func(context.Context) error {
   return evo.Exclude("protected") // the per-item detail is the Task's name, not the reason
 })`,
@@ -255,14 +256,14 @@ for _, item := range items {
 			Severity:  SeverityWarning,
 			Invariant: "a live Task/Item handle variable is resolved before it is reassigned to a new declaration",
 			Why:       "Reassigning a variable from a new Task/Item declaration before the previous handle it held was resolved orphans the earlier row Running forever — a double row hiding under one variable name.",
-			BadCode: `t := out.Task("scan")
+			BadCode: `t := r.Task("scan")
 t.Doing("walking")
-t = out.Task("build") // the "scan" row never resolves`,
-			GoodCode: `t := out.Task("scan")
+t = r.Task("build") // the "scan" row never resolves`,
+			GoodCode: `t := r.Task("scan")
 t.Doing("walking")
 t.Define(scan)
-t = out.Task("build")`,
-			Remediation:     "Resolve the handle (Define/Fail/Block/Cancel/Skipped) before reassigning the variable, or give the second declaration its own name",
+t = r.Task("build")`,
+			Remediation:     "Resolve the handle (Define, returning evo.Fail, evo.Refuse or evo.Exclude where the work ends that way) before reassigning the variable, or give the second declaration its own name",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-019"},
 			Since:           "0.2.17",
@@ -308,11 +309,11 @@ t.Define(func(ctx context.Context) error {
 			ID:              "DOM-020",
 			Category:        "DOM",
 			Severity:        SeverityWarning,
-			Invariant:       "usage/user mistakes resolve Block (exit 1); evaluation failures resolve Fail (exit 2)",
-			Why:             "Block and Fail carry different exit codes for a reason: a caller reading the exit code needs \"you did something wrong\" (1) and \"something broke while checking\" (2) to stay distinguishable. Routing a usage mistake through Fail reports a user error as a system failure.",
-			BadCode:         `task.Fail("missing required --repo flag")`,
+			Invariant:       "usage/user mistakes resolve Refused (exit 1); evaluation failures resolve Failed (exit 2)",
+			Why:             "Refuse and Fail carry different exit codes for a reason: a caller reading the exit code needs \"you did something wrong\" (1) and \"something broke while checking\" (2) to stay distinguishable. Routing a usage mistake through Fail reports a user error as a system failure.",
+			BadCode:         `return evo.Fail("missing required --repo flag")`,
 			GoodCode:        `return evo.Refuse("missing required --repo flag")`,
-			Remediation:     "Route usage/user mistakes through Block, not Fail; reserve Fail for evaluation/execution failures",
+			Remediation:     "Route usage/user mistakes through Refuse, not Fail; reserve Fail for evaluation/execution failures",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"DOM-020"},
 			Since:           "0.2.17",
@@ -349,8 +350,8 @@ t.Define(func(ctx context.Context) error {
 			Severity:  SeverityWarning,
 			Invariant: "a reason used more than as a one-off literal is a compile-time name; a reason names why, not the verb it accompanies",
 			Why:       "evo.Exclude(\"x\") is legal inline (duplicate strings merge into one bucket), but an inline literal can typo apart into two buckets across call sites, and a reason that only restates the verb (`evo.Exclude(\"skipped\")`, zq cmd/zq-build/main.go:81) tells the user nothing they didn't already know from the glyph.",
-			BadCode: `task.Skipped(evo.Reason("skipped"))
-task.Skipped(evo.Reason("protected"))`,
+			BadCode: `return evo.Exclude("skipped") // restates the verb
+return evo.Exclude("protected") // inline literal repeated across call sites`,
 			GoodCode: `const reasonProtected = "protected"
 task.Define(func(context.Context) error { return evo.Exclude(reasonProtected) })`,
 			Remediation:     "Lift a repeated reason to a package-level var so it is a compile-time name; name why the item skipped, not the verb itself",

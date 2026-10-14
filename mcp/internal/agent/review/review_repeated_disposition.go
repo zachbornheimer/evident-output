@@ -147,7 +147,7 @@ func (s *repeatedDispositionScan) report(call *ast.CallExpr, recv string) {
 		File:       s.filename,
 		Line:       pos.Line,
 		Column:     pos.Column,
-		Suggestion: "declare one Task per item and record its disposition there: group.Task(item).Skipped(reason) — evo folds the Group's item children into one tally under its row",
+		Suggestion: "declare one Task per item and record its disposition there: group.Task(item).Define(func(context.Context) error { return evo.Exclude(reason) }) — evo folds the Group's item children into one tally under its row",
 	})
 }
 

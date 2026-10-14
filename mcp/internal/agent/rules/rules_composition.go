@@ -143,8 +143,8 @@ func impureTopologyBuilderRule() Rule {
 		Category:   "API",
 		Severity:   SeverityError,
 		Invariant:  "a topology builder declares structure only: no I/O, mutation, context, goroutines, Wait, or error return",
-		Why:        "GroupHandle.Define and SequenceHandle.Define are topology-only builders, not work callbacks. I/O or a goroutine inside one starts a second scheduler or hides work Evo cannot render, and Wait or a returned error turns structure into execution.",
-		BadCode: `group.Define(func(g *evo.GroupHandle) {
+		Why:        "Group.Build and Sequence.Build are topology-only builders, not work callbacks. I/O or a goroutine inside one starts a second scheduler or hides work Evo cannot render, and Wait or a returned error turns structure into execution.",
+		BadCode: `group.Build(func(g *evo.Group) {
   entries, _ := os.ReadDir("/opt/packages")
   for _, e := range entries { g.Task(e.Name()).Define(work) }
 })`,

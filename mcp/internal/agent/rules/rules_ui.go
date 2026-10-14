@@ -10,8 +10,8 @@ func uiRules() []Rule {
 			Severity:  SeverityWarning,
 			Invariant: "a routine key/value observation is a Fact, not a manually printed durable line",
 			Why:       "task.Fact records a name/value the renderer owns and can project consistently (row, JSON field, verbosity rule); a hand-printed \"label: value\" line duplicates that model as unstructured text no consumer can rely on.",
-			BadCode: `out.Printf("go version: %s\n", version)
-task.Println("commit: " + sha)`,
+			BadCode: `fmt.Fprintf(r.Text(), "go version: %s\n", version)
+fmt.Fprintln(r.Text(), "commit: "+sha)`,
 			GoodCode: `task.Fact("go version", version)
 task.Fact("commit", sha)`,
 			BadOutput:       "go version: 1.23.0\ncommit: abc1234",
@@ -73,7 +73,7 @@ task.Fact("commit", sha)`,
 			Why:             "A caller-invented glyph, ANSI color, or free-form status word (\"[OK]\", a hand-picked green, a custom taxonomy word) bypasses the one renderer that already adapts glyph/color to Plain, NoColor, TTY, and GlyphProfile — a hand-picked one survives none of those and drifts from evo's own vocabulary.",
 			BadCode:         `fmt.Print("\x1b[32m[OK]\x1b[0m ", name, "\n")`,
 			GoodCode:        `task.Define(func(ctx context.Context) error { return check(ctx) })`,
-			Remediation:     "Delete the hand-picked glyph/color; resolve the task through Define (or Fail/Block/Warn) and let the renderer choose glyph and color",
+			Remediation:     "Delete the hand-picked glyph/color; resolve the task through Define (returning evo.Fail, evo.Refuse or evo.Exclude) and let the renderer choose glyph and color",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"EVO-UI-004"},
 			Since:           "1.0.0",

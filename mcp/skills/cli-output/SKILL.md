@@ -140,11 +140,11 @@ Secrets: set `Facades.Redactor`.
 
 ## Severity
 
-| Outcome                         | Meaning                               |
-| ------------------------------- | ------------------------------------- |
-| **Problem** at warning severity | Soft / optional                       |
-| **Block**                       | Stop before mutation (not a Go error) |
-| **Fail**                        | Evaluation / required tool failed     |
+| Ending                   | Meaning                               |
+| ------------------------ | ------------------------------------- |
+| **Problem** (non-fatal)  | Soft / optional                       |
+| `return evo.Refuse(...)` | Stop before mutation (not a Go error) |
+| `return evo.Fail(...)`   | Evaluation / required tool failed     |
 
 ## Review
 

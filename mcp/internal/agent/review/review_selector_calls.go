@@ -231,7 +231,7 @@ func detectDetailOfError(filename, src string) []Finding {
 			RuleID:     "DOM-014",
 			Message:    "Detail must be user-visible string; pass err.Error() or return fmt.Errorf inside Define",
 			File:       filename,
-			Suggestion: `replace Detail(err) with evo.Detail(err.Error()) on Fail/Block, or return fmt.Errorf("...: %w", err) inside Define`,
+			Suggestion: `replace Detail(err) with evo.Detail(err.Error()) on evo.Fail/evo.Refuse, or return fmt.Errorf("...: %w", err) inside Define`,
 		}}
 	}
 	return nil

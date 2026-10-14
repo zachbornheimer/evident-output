@@ -60,8 +60,8 @@ grok mcp doctor evident-output --json
 - Evo owns scheduling (`Group`/`Sequence`/`Define`/`After`); do not invent `RunAll` / `Map` / `Retry` on evo receivers (API-026, AST-only)
 - Standalone: `os.Exit(evo.Main(evo.Config{}, run))` (Main returns the exit code; a bare `evo.Main(evo.Config{}, run)` exits 0 after a failure); hosted or embedded: `os.Exit(evo.Execute(ctx, cfg, run).ExitCode())` (the host owns `os.Exit`)
 - Entity: Task = atomic work (`Define`) or a gate resolved directly; one Task per item under a `Group` for independent collections; `evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn)` (opaque mutations) and `evo.File` (file state) inside `Define` pick `[changed]` vs `[planned]` from `Config.DryRun`
-- Domain effect verbs: use `Record` when stock verbs lie (RULE-001)
-- `Block` = condition found; `Fail` = evaluation failed; a warning is `Problem` + `SeverityWarning`
+- Effect verbs are the closed set `Create`, `Update`, `Delete`; pick the closest and name the real object in `EffectSpec.Object` (RULE-001)
+- `Refuse` = a precondition stopped it; `Fail` = evaluation failed; a warning is a non-fatal `Problem`
 - Absolute `Progress`/`Bytes`; `Advance` for deltas
 - Never `fmt.Print` during live UI; never happy-path `Start` (API-006)
 - Child process chatter → `cmd.Stdout = task.Writer()` (and stderr)

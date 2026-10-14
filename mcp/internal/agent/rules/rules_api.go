@@ -61,12 +61,12 @@ g.Task("b").Define(installB)`,
 			ID:        "API-028",
 			Category:  "API",
 			Severity:  SeverityWarning,
-			Invariant: "Fail/Block are statements; the printf verbs were removed in 1.1 (API-032 rewrites them)",
+			Invariant: "Fail/Refuse take a summary and options and return an error; the printf verbs were removed in 1.1 (API-032 rewrites them)",
 			Why: "Fail(\"boom\") is the intent. C6 deleted Donef/Summaryf/Itemf/Taskf/Tasksf/Changesf/Planf/Warnf/Reasonf; " +
-				"the remaining printf verbs were removed in 1.1. Fail/Block take (summary, opts...) and do not return *Failure.",
+				"the remaining printf verbs were removed in 1.1. Fail/Refuse take (summary, opts...) and return the error Define returns.",
 			BadCode:         `task.Failf("boom")`,
 			GoodCode:        `return evo.Fail("boom", evo.Detail(err.Error()))`,
-			Remediation:     "Use Fail/Block (removed in 1.1: the printf verbs are gone); Doing/Reason still take printf args directly",
+			Remediation:     "Use evo.Fail/evo.Refuse (the printf verbs were removed in 1.1); Doing still takes printf args directly",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-028"},
 			Since:           "0.2.0",
@@ -98,12 +98,12 @@ run.Run(ctx, "brew", args, dbg)`,
 			Severity:  SeverityError,
 			Invariant: "real work loops live only inside a task definition — never before Task/Group/Sequence",
 			Why:       "A for/range that walks disk (or otherwise does the job) before any Task leaves the consumer UI blank: the purge/prune silent-pre-output FAIL class. Group.Task(...).Define per item makes the good path the only path.",
-			BadCode: `func previewPurge() {
-  out := evo.Init(evo.Config{Isolated: true, DryRun: true})
+			BadCode: `func previewPurge(ctx context.Context, r *evo.Run) error {
   for _, root := range roots {
     filepath.WalkDir(root, walk) // silent pre-Task loop
   }
-  out.Task("inventory").Define(summarize)
+  r.Task("inventory").Define(summarize)
+  return nil
 }`,
 			GoodCode: `func previewPurge(ctx context.Context, r *evo.Run) error {
   inv := r.Task("inventory")
@@ -130,8 +130,7 @@ run.Run(ctx, "brew", args, dbg)`,
 			Severity:  SeverityWarning,
 			Invariant: "evo.Main/Task/Group arguments are named values, never inline make/new",
 			Why:       "Inline make() or new() inside an evo construct call hides the value the call site is passing. Extract a named local before the call so the argument list stays readable and reviewable.",
-			BadCode: `out := evo.Init(evo.Config{Facts: make([]evo.Fact, 0)})
-_ = out.Task("scan")`,
+			BadCode:   `_ = evo.Execute(ctx, evo.Config{Name: strings.Join(make([]string, 0), " ")}, run)`,
 			GoodCode: `r.Fact("root", root)
 _ = r.Task("scan")`,
 			Remediation:     "Extract make/new to a named local before the evo.Main/Task/Group call",
@@ -194,8 +193,8 @@ task.Progress(14, 40) // sealed once discovery completes; never re-sealed`,
 			Severity:  SeverityWarning,
 			Invariant: "slice-derived text into Detail/Doing is bounded before rendering",
 			Why:       "strings.Join of an unbounded slice dumped into Detail/Doing reproduces the 500-name terminal flood evo-rec.md \"bounded effect rows\" already fixed for Plan/Changes.",
-			BadCode: `task.Fail("cannot delete", evo.Detail(strings.Join(names, ", ")))
-task.Doing(strings.Join(reasons, "; "))`,
+			BadCode: `task.Doing(strings.Join(reasons, "; "))
+return evo.Fail("cannot delete", evo.Detail(strings.Join(names, ", ")))`,
 			GoodCode: `shown := strings.Join(names[:min(len(names), 8)], ", ")
 task.Doing(shown)
 return evo.Fail("cannot delete", evo.Detail(shown))`,
@@ -232,8 +231,8 @@ for _, j := range jobs {
 			Category:  "API",
 			Severity:  SeverityWarning,
 			Invariant: "child-process phase narration uses Task.Writer, never a hand-rolled io.Writer",
-			Why:       "A caller-defined io.Writer whose Write method calls TaskHandle.Doing reimplements the exact 30-line line-splitting adapter Task.Writer already owns (evo-rec.md \"#6\").",
-			BadCode: `type livePhase struct{ task *evo.TaskHandle }
+			Why:       "A caller-defined io.Writer whose Write method calls Task.Doing reimplements the exact 30-line line-splitting adapter Task.Writer already owns (evo-rec.md \"#6\").",
+			BadCode: `type livePhase struct{ task *evo.Task }
 func (w *livePhase) Write(p []byte) (int, error) {
   w.task.Doing(lastLine(p))
   return len(p), nil
@@ -250,7 +249,7 @@ func (w *livePhase) Write(p []byte) (int, error) {
 			Category:  "API",
 			Severity:  SeverityWarning,
 			Invariant: "superseded spellings are rewritten, not taught: evo.New, Item/.OK/.Because, Cause, capture-meaning Evidence (Capture is live), Config.Options / []evo.Option / Option funcs (To/Plain/NoColor/Stdin/DryRun/VisibilityDelay/Diagnostics), the Task mutation verbs (Add/Create/Delete/Push/Remove/Update/Write), evo.Affected, Task.Done, Failf/Blockf/Warn/Step/Kept (removed in 1.1), evo.ID, evo.StartPhase, and evo.EntityOption (removed in 1.1), the retired independent-collection constructor, Skip, evo.MainWith (removed in 1.0)",
-			Why:       "evo.Main(cfg, run) is the sole constructor and ordinary main() lifecycle (evo.Init was removed in 2.0; New and MainWith were removed in 1.0); Config fields replaced Option funcs; the TaskHandle mutation verbs were removed in 1.1 — an opaque mutation is evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) inside Define and file state is evo.File, so neither the 0.x positional Delete(n, object) nor the 1.0 Delete(object, fn, Affected(n)) compiles; the independent collection constructor is Group; Item folded into Task; Cause was removed in 1.1 (Fail/Block are statements; attach error text with Detail, or return fmt.Errorf inside Define); capture-meaning Evidence* was removed in 1.1 (Capture is the retained sink); Skip is Skipped; ID/StartPhase were removed in 1.1 (Task takes only the name; TaskHandle.Key overrides identity; Doing sets the first phase).",
+			Why:       "evo.Main(cfg, run) is the sole constructor and ordinary main() lifecycle (evo.Init was removed in 2.0; New and MainWith were removed in 1.0); Config fields replaced Option funcs; the TaskHandle mutation verbs were removed in 1.1 — an opaque mutation is evo.Effect(ctx, EffectSpec{Verb, Object, Quantity}, fn) inside Define and file state is evo.File, so neither the 0.x positional Delete(n, object) nor the 1.0 Delete(object, fn, Affected(n)) compiles; the independent collection constructor is Group; Item folded into Task; Cause was removed in 1.1 (attach error text with Detail, or return fmt.Errorf inside Define); capture-meaning Evidence* was removed in 1.1 (Capture is the retained sink); Skip is an Exclude return from Define; ID/StartPhase were removed in 1.1 (Task takes only the name; TaskHandle.Key overrides identity; Doing sets the first phase).",
 			BadCode: `func main() {
 	out := evo.New(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain()}})
 	os.Exit(evo.MainWith(out, run)) // MainWith: removed in 1.0
@@ -272,7 +271,7 @@ func run(ctx context.Context, r *evo.Run) error {
 	})
 	return nil
 }`,
-			Remediation:     "Replace evo.New (removed in 1.0) with evo.Main; evo.Main(cfg, run) in ordinary main, evo.Execute when the caller owns the context and exit; replace Config.Options / evo.To/Plain/NoColor (removed in 1.0) with Config fields (Facades.Stdout, Output: evo.Plain); replace every Task mutation verb (removed in 1.1, either shape) with Define + evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn), and Task.Write with evo.File; replace the retired collection constructor with Group; replace Skip with a Define that returns evo.Exclude(reason); drop evo.ID / evo.StartPhase (removed in 1.1; Doing for the first phase); replace Item(...) with Task(...); replace OK() with Define(func(ctx context.Context) error { ... }); fold Because(text) into Summary(text) or the resolving verb's own argument; replace evo.Cause(err) (removed in 1.1) with evo.Detail(err.Error()) on evo.Fail, or return fmt.Errorf inside Define; replace capture-meaning Evidence() with Capture() (removed in 1.1); replace Failf/Blockf with Fail/Block, Warn with Task.Problem(summary), Step with Progress(...).Doing(...), Kept with evo.Exclude (removed in 1.1); replace Task.Done() (removed in 1.1) with Define(func(ctx context.Context) error { ... }) and Done(text) with Summary(text) — inside the Task's own Define callback, Summary alone",
+			Remediation:     "Replace evo.New (removed in 1.0) with evo.Main; evo.Main(cfg, run) in ordinary main, evo.Execute when the caller owns the context and exit; replace Config.Options / evo.To/Plain/NoColor (removed in 1.0) with Config fields (Facades.Stdout, Output: evo.Plain); replace every Task mutation verb (removed in 1.1, either shape) with Define + evo.Effect(ctx, evo.EffectSpec{Verb, Object, Quantity}, fn), and Task.Write with evo.File; replace the retired collection constructor with Group; replace Skip with a Define that returns evo.Exclude(reason); drop evo.ID / evo.StartPhase (removed in 1.1; Doing for the first phase); replace Item(...) with Task(...); replace OK() with Define(func(ctx context.Context) error { ... }); fold Because(text) into Summary(text) or the resolving verb's own argument; replace evo.Cause(err) (removed in 1.1) with evo.Detail(err.Error()) on evo.Fail, or return fmt.Errorf inside Define; replace capture-meaning Evidence() with Capture() (removed in 1.1); replace Failf/Blockf with evo.Fail/evo.Refuse, Warn with Task.Problem(summary), Step with Progress(...).Doing(...), Kept with evo.Exclude (removed in 1.1); replace Task.Done() (removed in 1.1) with Define(func(ctx context.Context) error { ... }) and Done(text) with Summary(text) — inside the Task's own Define callback, Summary alone",
 			RelatedGuidance: []string{"common-api", "tasks", "streams"},
 			VerificationIDs: []string{"API-032"},
 			Since:           "0.3.0",
@@ -283,8 +282,8 @@ func run(ctx context.Context, r *evo.Run) error {
 			Category:  "API",
 			Severity:  SeverityWarning,
 			Invariant: "an entity's name is not also its own skip/verb evidence",
-			Why:       "out.Task(note).Skip(note) tells the reader nothing a bare \"skipped 1 (note)\" wouldn't already — the name and the reason/verb argument are the identical expression, so the second one carries zero new information.",
-			BadCode:   `out.Task(note).Skip(note)`,
+			Why:       "A Task named note that Excludes with note tells the reader nothing a bare \"skipped 1 (note)\" wouldn't already — the name and the reason/verb argument are the identical expression, so the second one carries zero new information.",
+			BadCode:   `r.Task(note).Define(func(context.Context) error { return evo.Exclude(note) })`,
 			GoodCode: `r.Task("branch check").Define(func(context.Context) error {
   return evo.Exclude("protected")
 })`,
@@ -300,8 +299,7 @@ func run(ctx context.Context, r *evo.Run) error {
 			Severity:  SeverityWarning,
 			Invariant: "the minimal Task happy path (Main/Task/Define) compiles with a zero Config",
 			Why:       "Requiring a populated Config struct for the common single-task check adds ceremony that discourages the minimal, correct spelling.",
-			BadCode: `out := evo.Init(evo.Config{Title: "tool"}) // fields filled in for no reason
-out.Task("disk space").Define(checkDiskSpace)`,
+			BadCode:   `os.Exit(evo.Main(evo.Config{Name: "tool", Output: evo.Human}, run)) // fields filled in for no reason`,
 			GoodCode: `func run(ctx context.Context, r *evo.Run) error {
   r.Task("disk space").Define(checkDiskSpace)
   return nil
@@ -317,16 +315,16 @@ out.Task("disk space").Define(checkDiskSpace)`,
 			ID:        "API-034",
 			Category:  "API",
 			Severity:  SeverityError,
-			Invariant: "a statement-form Fail/Block that must propagate an error returns that error, not nil",
-			Why:       "return nil immediately after Fail/Block discards the error the caller needed to propagate — the most common shape of \"the remedy has nowhere to attach\" (49 dotfiles + 41 zq sites).",
+			Invariant: "an ending the Define callback must return (evo.Fail, evo.Refuse) is never called as a statement and dropped",
+			Why:       "return nil immediately after a dropped evo.Fail or evo.Refuse discards the error the caller needed to propagate — the most common shape of \"the remedy has nowhere to attach\" (49 dotfiles + 41 zq sites).",
 			BadCode: `if err := validate(cfg); err != nil {
-  task.Fail("validate policy manifest")
+  evo.Fail("validate policy manifest") // result dropped
   return nil
 }`,
 			GoodCode: `if err := validate(cfg); err != nil {
   return evo.Fail("validate policy manifest", evo.Detail(err.Error()))
 }`,
-			Remediation:     `Replace the Fail + return nil pair with a returned ending: return evo.Fail("<context>", evo.Detail(err.Error())) (plus any evo.Next remedy), or with nothing to add just return err; the returned error is the Task's outcome. For a refusal return evo.Refuse(summary, evo.Detail(...)); returning nil there loses it`,
+			Remediation:     `Replace the dropped-ending + return nil pair with a returned ending: return evo.Fail("<context>", evo.Detail(err.Error())) (plus any evo.Next remedy), or with nothing to add just return err; the returned error is the Task's outcome. For a refusal return evo.Refuse(summary, evo.Detail(...)); returning nil there loses it`,
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-034"},
 			Since:           "0.2.17",
@@ -336,11 +334,11 @@ out.Task("disk space").Define(checkDiskSpace)`,
 			ID:        "API-035",
 			Category:  "API",
 			Severity:  SeverityWarning,
-			Invariant: "a function that Fails/Blocks wires its checked command's output somewhere, never io.Discard",
-			Why:       "io.Discard as a sink in a function that also Fails/Blocks is an evidence-free security-gate shape: the verdict has nothing to show for itself when it matters most.",
+			Invariant: "a function that Fails/Refuses wires its checked command's output somewhere, never io.Discard",
+			Why:       "io.Discard as a sink in a function that also Fails/Refuses is an evidence-free security-gate shape: the verdict has nothing to show for itself when it matters most.",
 			BadCode: `cmd.Stdout = io.Discard
 if err := cmd.Run(); err != nil {
-  task.Block("policy check failed")
+  evo.Refuse("policy check failed") // result dropped
 }`,
 			GoodCode: `cmd.Stdout = task.Writer()
 cmd.Stderr = task.Writer()
@@ -348,7 +346,7 @@ if err := cmd.Run(); err != nil {
   return evo.Refuse("policy check failed", evo.Detail(err.Error()),
     evo.Next(evo.Action{Label: "run git status"}))
 }`,
-			Remediation:     "Wire the checked command's output through task.Writer() instead of io.Discard, so Block/Fail can attach evidence",
+			Remediation:     "Wire the checked command's output through task.Writer() instead of io.Discard, so Refuse/Fail can attach evidence",
 			RelatedGuidance: []string{"streams"},
 			VerificationIDs: []string{"API-035"},
 			Since:           "0.2.17",
@@ -358,13 +356,13 @@ if err := cmd.Run(); err != nil {
 			ID:        "API-036",
 			Category:  "API",
 			Severity:  SeverityWarning,
-			Invariant: "Fail/Block take a summary string; Fail(fmt.Sprintf(...)) is already the 1.1 form (the printf verbs were removed in 1.1)",
-			Why:       "Fail/Block are statements and take (summary, opts...). Formatting the summary with fmt.Sprintf is the 1.1 spelling; the printf verbs were removed in 1.1. A bare Fail/Block statement is already right.",
-			BadCode:   "task.Fail(fmt.Sprintf(\"delete failed on %s\", branch))\nreturn nil",
+			Invariant: "Fail/Refuse take a summary string; Fail(fmt.Sprintf(...)) is already the 1.1 form (the printf verbs were removed in 1.1)",
+			Why:       "Fail/Refuse take (summary, opts...) and return the ending. Formatting the summary with fmt.Sprintf is the 1.1 spelling; the printf verbs were removed in 1.1. A bare Fail or Refuse return is already right.",
+			BadCode:   "evo.Fail(fmt.Sprintf(\"delete failed on %s\", branch)) // result dropped\nreturn nil",
 			GoodCode: `func remove(task *evo.Task, branch string) error {
 	return evo.Fail("delete failed on " + branch)
 }`,
-			Remediation:     "Keep Fail/Block as statements. Inside Define, return fmt.Errorf(...) for Fail and Block then return nil for a refusal",
+			Remediation:     "Return the Fail or Refuse from the Define callback. Inside Define, return fmt.Errorf(...) for a failure and evo.Refuse(summary) for a refusal",
 			RelatedGuidance: []string{"common-api"},
 			VerificationIDs: []string{"API-036"},
 			Since:           "0.2.17",
@@ -422,11 +420,11 @@ t.Doing("running install:fresh-start")`,
 			ID:        "API-040",
 			Category:  "API",
 			Severity:  SeverityError,
-			Invariant: "a Fail or Block inside a Define or mutation callback that then returns the error must add something (Detail, Next, or another ProblemOption); a Fail that only restates the returned error is dropped",
-			Why:       "Define's own contract is \"a non-nil return fails the task\", and the Task's Outcome follows that returned error. A bare Fail or Block(summary) before return err resolves the task a second time and adds nothing the error does not already say. Fail with Detail or a remedy records structured diagnostics, and the callback still returns the error so callers see the real failure (ZYS-1182).",
+			Invariant: "a Fail or Refuse inside a Define or mutation callback that then returns the error must add something (Detail, Next, or another ProblemOption); a Fail that only restates the returned error is dropped",
+			Why:       "Define's own contract is \"a non-nil return fails the task\", and the Task's Outcome follows that returned error. A bare Fail or Refuse(summary) before return err resolves the task a second time and adds nothing the error does not already say. Fail with Detail or a remedy records structured diagnostics, and the callback still returns the error so callers see the real failure (ZYS-1182).",
 			BadCode: `task.Define(func(ctx context.Context) error {
   if err := a.executeCommand(ctx, root, task, item); err != nil {
-    task.Fail("resolve")
+    evo.Fail("resolve") // result dropped
     return err
   }
   return nil
@@ -449,13 +447,13 @@ t.Doing("running install:fresh-start")`,
 			Category:  "API",
 			Severity:  SeverityError,
 			Invariant: "a goroutine/fan-out closure resolves a predeclared Task (Doing/Fail/Progress) only through Define; a bare go func/.Go(func with no Define races the scheduler",
-			Why:       "`go func(){ task.Doing(\"x\"); task.Fail(\"x\") }()` over a predeclared Task compiles and renders identically to scheduled work (zq axis-11 P1) — nothing tells the author evo never scheduled it, so the row and the actual concurrency model silently disagree.",
-			BadCode: `t := out.Task("a")
+			Why:       "`go func(){ task.Doing(\"x\"); _ = evo.Fail(\"x\") }()` over a predeclared Task compiles and renders identically to scheduled work (zq axis-11 P1) — nothing tells the author evo never scheduled it, so the row and the actual concurrency model silently disagree.",
+			BadCode: `t := r.Task("a")
 go func() {
   t.Doing("working")
-  t.Fail("work failed")
+  _ = evo.Fail("work failed")
 }()`,
-			GoodCode: `work := out.Group("work")
+			GoodCode: `work := r.Group("work")
 for _, name := range []string{"a"} {
   work.Task(name).Define(func(ctx context.Context) error { return doWork(ctx, name) })
 }`,

@@ -11,7 +11,7 @@ func effectRules() []Rule {
 			Severity:  SeverityError,
 			Invariant: "an evo.Effect callback does the mutation; nil or a no-op callback is theater over work that ran elsewhere",
 			Why:       "A nil Effect callback (zq README.md:39's old Create(\"module\", nil)) and one that only returns installedPythonModuleCount(name, n) (zq setup_python.go:172-181, where the named func only validates a count) both let the bulk work already run outside the callback, then hand Effect an empty gesture the ledger records as a real mutation.",
-			BadCode: `spec := evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: n}
+			BadCode: `spec := evo.EffectSpec{Verb: evo.Create, Object: "module", Quantity: n}
 evo.Effect(ctx, spec, nil)
 evo.Effect(ctx, spec, func(context.Context) error { return installedPythonModuleCount(name, n) })`,
 			GoodCode: `spec := evo.EffectSpec{Verb: evo.Create, Object: "module", Quantity: n}
@@ -30,7 +30,7 @@ evo.Effect(ctx, spec, func(ctx context.Context) error {
 			Severity:        SeverityWarning,
 			Invariant:       "an EffectSpec.Object literal names the singular; evo pluralizes it from Quantity",
 			Why:             "`EffectSpec{Verb: Delete, Object: \"worktrees\", Quantity: 1}` renders \"deleted 1 worktrees\" (zq axis-14 P17) because Pluralize treats an already-plural literal as unchanged; Object must stay singular so pluralization has one job.",
-			BadCode:         `evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktrees", Quantity: 1}`,
+			BadCode:         `evo.EffectSpec{Verb: evo.Delete, Object: "worktrees", Quantity: 1}`,
 			GoodCode:        `evo.EffectSpec{Verb: evo.Delete, Object: "worktree", Quantity: 1}`,
 			Remediation:     "Pass the singular noun as EffectSpec.Object; let Quantity drive pluralization",
 			RelatedGuidance: []string{"tasks"},
@@ -44,9 +44,9 @@ evo.Effect(ctx, spec, func(ctx context.Context) error {
 			Category:   "API",
 			Severity:   SeverityError,
 			Invariant:  "an evo.Effect callback never mutates the filesystem directly; Effect is the opaque-mutation escape hatch for work Evo cannot model declaratively (a git ref, a remote API call, a database row), and file-backed state always routes through evo.File",
-			Why:        "evo.Write and its sibling TaskHandle mutation verbs were removed in 1.1 precisely because a generic write-shaped callback silently loses file resource identity, Basis, stale-write protection, desired-state comparison, AlreadySatisfied, and verification (ZYS-851). evo.Effect is the reduced opaque-mutation primitive that replaced them; a caller who reaches for it to write a file recreates the exact footgun 1.1 removed, just one layer deeper, and the object string alone (\"config file\", \"manifest.json\") is not reliable evidence — only a known filesystem mutator call inside the callback is (ZYS-851 Decisions, 2026-09-23). evo.File is the route for file-backed state, including writes derived from an existing file's own contents; a write derived from a unified diff instead goes through evo.Patch (API-058, ZYS-934/ZYS-935) — neither is a second write API layered under Effect.",
+			Why:        "evo.Write and its sibling Task mutation verbs were removed in 1.1 precisely because a generic write-shaped callback silently loses file resource identity, Inputs, stale-write protection, desired-state comparison, AlreadySatisfied, and verification (ZYS-851). evo.Effect is the reduced opaque-mutation primitive that replaced them; a caller who reaches for it to write a file recreates the exact footgun 1.1 removed, just one layer deeper, and the object string alone (\"config file\", \"manifest.json\") is not reliable evidence — only a known filesystem mutator call inside the callback is (ZYS-851 Decisions, 2026-09-23). evo.File is the route for file-backed state, including writes derived from an existing file's own contents; a write derived from a unified diff instead goes through evo.Patch (API-058, ZYS-934/ZYS-935) — neither is a second write API layered under Effect.",
 			BadCode: `task.Define(func(ctx context.Context) error {
-  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectUpdate, Object: "config file", Quantity: 1}, func(context.Context) error {
+  return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Update, Object: "config file", Quantity: 1}, func(context.Context) error {
     return os.WriteFile(path, contents, 0o644)
   })
 })`,

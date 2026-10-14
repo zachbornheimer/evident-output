@@ -183,7 +183,7 @@ func detectRawExecWithManualFreshness(filename string, file *ast.File, fset *tok
 				File:       filename,
 				Line:       pos.Line,
 				Column:     pos.Column,
-				Suggestion: "Replace the raw exec plus manual freshness check with one evo.Exec(ctx, evo.ExecSpec{...}) call that declares Basis and Outputs",
+				Suggestion: "Replace the raw exec plus manual freshness check with one evo.Exec(ctx, evo.ExecSpec{...}) call that declares Inputs and Outputs",
 			})
 			return true
 		})

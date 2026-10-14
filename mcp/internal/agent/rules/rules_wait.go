@@ -13,7 +13,7 @@ func waitRules() []Rule {
 			Severity:   SeverityError,
 			Invariant:  "the container that owns child Task scheduling also owns deriving their aggregate outcome; a caller does not store child handles merely to loop over them and hand-count failures",
 			Why:        "zq's runParallel (internal/app/app.go) keeps a []*evo.Task, checks each child, counts failed children, and builds its own \"N of N failed\" error; waitDefinedRunOperations (internal/app/run_execute.go) loops Tasks, special-cases a Task that never started, and returns the first remaining error. Both reimplement what a Group already does: its outcome folds its members', and work declared After(group) runs only once the members succeeded or were Excluded.",
-			BadCode: `var handles []*evo.TaskHandle
+			BadCode: `var handles []*evo.Task
 for _, item := range items {
   t := jobs.Task(item.Name)
   t.Define(func(ctx context.Context) error { return run(item) })
@@ -46,7 +46,7 @@ r.Task("report").After(jobs).Define(report)`,
 			Severity:   SeverityError,
 			Invariant:  "generic resource access holds at most one Resource at a time (ZYS-840); code that already holds a Resource — directly, or through any helper it hands its context to — never asks for a second one",
 			Why:        "evo.Effect only claims EffectSpec.Resource for its fn callback's duration when it is set; a second evo.File or Resource-claiming evo.Effect call made with that same held context — moving a worktree's Effect whose fn also writes a marker File at the destination, say — is misuse (CONTRACT.md: holding two claims at once) and fails at apply time, even when the second resource is free, because holding at most one claim at a time is what makes deadlock impossible by construction. Catching it in review turns a runtime failure into a review finding before it ships.",
-			BadCode: `spec := evo.EffectSpec{Object: "worktree", Verb: evo.EffectUpdate, Resource: evo.FSResource(from)}
+			BadCode: `spec := evo.EffectSpec{Object: "worktree", Verb: evo.Update, Path: from}
 return evo.Effect(ctx, spec, func(ctx context.Context) error {
   return evo.File(ctx, evo.FileSpec{Path: to, Contents: marker}) // nested: ctx already holds "from"
 })`,

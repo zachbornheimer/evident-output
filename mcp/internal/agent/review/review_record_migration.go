@@ -66,7 +66,7 @@ func detectDeprecatedRecordCall(filename string, file *ast.File, fset *token.Fil
 
 // recordRouting is the three-way migration every removed Record* call
 // shares, appended to each suggestion so the reader sees the whole rule.
-const recordRouting = "Record* has no record-only replacement (ZYS-974): route a real mutation through evo.Effect, information/classification through task.Fact, and a file write through evo.File/evo.Patch"
+const recordRouting = "Record, RecordLabel and RecordName were removed in 1.1 and have no record-only replacement (ZYS-974): route a real mutation through evo.Effect, information/classification through task.Fact, and a file write through evo.File/evo.Patch"
 
 // deprecatedRecordCallFinding builds API-061's Finding, with the exact
 // rewrite when the call's verb literal determines one.

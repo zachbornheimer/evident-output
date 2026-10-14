@@ -1,21 +1,14 @@
 package guards_test
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/catalog"
-	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
-	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/rules"
 )
 
 // contractSymbolRow matches the first cell of a CONTRACT.md symbol table
@@ -64,7 +57,8 @@ func readContractSurface(t *testing.T, path string) contractSurface {
 func (c contractSurface) unknownReferences(text string) []string {
 	var unknown []string
 	check := func(name string, at int) {
-		if !removedNote.MatchString(sentenceAround(text, at)) {
+		sentence, start := sentenceAround(text, at)
+		if !removedNote.MatchString(sentence) && !inReplacedPart(sentence, at-start) {
 			unknown = append(unknown, name)
 		}
 	}
@@ -79,12 +73,25 @@ func (c contractSurface) unknownReferences(text string) []string {
 		}
 	}
 	for _, m := range c.memberReference().FindAllStringSubmatchIndex(text, -1) {
-		if owner, member := text[m[2]:m[3]], text[m[4]:m[5]]; !c.members[owner][member] {
-			check(owner+"."+member, m[2])
+		owner, member := text[m[2]:m[3]], text[m[4]:m[5]]
+		if typeName, aliased := receiverTypes[owner]; aliased {
+			owner = typeName
+		}
+		if !c.members[owner][member] {
+			check(text[m[2]:m[3]]+"."+member, m[2])
+		}
+	}
+	for _, m := range bareRetiredName.FindAllStringSubmatchIndex(text, -1) {
+		if !strings.HasSuffix(text[:m[2]], testkitQualifier) {
+			check(text[m[2]:m[3]], m[2])
 		}
 	}
 	return unknown
 }
+
+// testkitQualifier precedes names that belong to the testkit package (its own
+// Width and NoColor options), not to the evo package the table retires.
+const testkitQualifier = "testkit."
 
 // bareEffectName matches an Effect-prefixed name written without the evo.
 // qualifier (EffectSpec{Verb: EffectDelete}), the spelling 1.x taught for the
@@ -94,9 +101,10 @@ var bareEffectName = regexp.MustCompile(`(?:^|[^\w.])(Effect[A-Z]\w*)`)
 // sentenceBreak ends a sentence or clause: a period or semicolon, then a space.
 var sentenceBreak = regexp.MustCompile(`[.;] `)
 
-// sentenceAround is the sentence of text that holds offset at.
-func sentenceAround(text string, at int) string {
-	start, end := 0, len(text)
+// sentenceAround is the sentence of text that holds offset at, and the offset
+// where that sentence starts.
+func sentenceAround(text string, at int) (sentence string, start int) {
+	end := len(text)
 	for _, b := range sentenceBreak.FindAllStringIndex(text, -1) {
 		if b[1] <= at {
 			start = b[1]
@@ -105,7 +113,20 @@ func sentenceAround(text string, at int) string {
 			break
 		}
 	}
-	return text[start:end]
+	return text[start:end], start
+}
+
+// inReplacedPart reports whether offset at (relative to sentence) falls in
+// the code a "replace X with Y" suggestion tells the reader to remove: the
+// X, which quotes the call site under review and so names removed API by
+// definition. The Y is checked like any other text.
+func inReplacedPart(sentence string, at int) bool {
+	const verb = "replace "
+	if len(sentence) < len(verb) || !strings.EqualFold(sentence[:len(verb)], verb) {
+		return false
+	}
+	replacedEnd := strings.Index(sentence, " with ")
+	return replacedEnd >= 0 && at < replacedEnd
 }
 
 // knows reports whether tag is a contract symbol: a package-level name, a
@@ -125,139 +146,24 @@ func (c contractSurface) knows(tag string) bool {
 	return false
 }
 
-// memberReference matches Type.Member for each type with listed members,
-// not preceded by an identifier character (so ErrInvalidConfig.X, or a
-// package path ending in a type name, never match).
+// receiverTypes are the variable names the docs and rule examples give a
+// Task, Group or Sequence, so task.Fail is checked as Task.Fail.
+var receiverTypes = map[string]string{"task": "Task", "group": "Group", "seq": "Sequence"}
+
+// memberReference matches Type.Member for each type with listed members, and
+// for the receiver names in receiverTypes, not preceded by an identifier
+// character (so ErrInvalidConfig.X, or a package path ending in a type name,
+// never match).
 func (c contractSurface) memberReference() *regexp.Regexp {
-	types := make([]string, 0, len(c.members))
+	types := make([]string, 0, len(c.members)+len(receiverTypes))
 	for owner := range c.members {
 		types = append(types, regexp.QuoteMeta(owner))
 	}
+	for receiver := range receiverTypes {
+		types = append(types, receiver)
+	}
 	sort.Strings(types)
 	return regexp.MustCompile(`(?:^|[^\w.])(` + strings.Join(types, "|") + `)\.([A-Z]\w*)`)
-}
-
-// docCorpus is every text the MCP serves or ships as guidance, keyed by a
-// readable origin: docs, skills, the embedded sections, the catalog guides,
-// the rule texts and the review suggestions. A rule's BadCode and BadOutput
-// are left out: they show the mistake on purpose.
-func docCorpus(t *testing.T, root string) map[string]string {
-	t.Helper()
-	corpus := map[string]string{}
-	for _, dir := range []string{"mcp/docs", "mcp/skills", "mcp/internal/agent/sections/embedded"} {
-		walkFiles(t, filepath.Join(root, dir), ".md", func(rel, body string) { corpus[filepath.ToSlash(rel)] = body })
-	}
-	for _, guide := range catalog.All() {
-		corpus["catalog guide "+guide.ID] = guide.Body
-	}
-	for _, rule := range rules.All() {
-		if rule.MaxDialect != "" {
-			continue // teaches the dialect below its ceiling, on purpose
-		}
-		for field, text := range map[string]string{
-			"invariant": rule.Invariant, "why": rule.Why, "remediation": rule.Remediation,
-			"good code": rule.GoodCode, "good output": rule.GoodOutput, "exceptions": strings.Join(rule.Exceptions, "\n"),
-		} {
-			corpus["rule "+rule.ID+" "+field] = text
-		}
-	}
-	for _, dir := range []string{"mcp/internal/agent/review", "mcp/internal/agent/adopt"} {
-		for site, text := range suggestionLiterals(t, filepath.Join(root, dir)) {
-			corpus["suggestion "+site] = text
-		}
-	}
-	for site, text := range detectorOutputs() {
-		corpus["detector output "+site] = text
-	}
-	return corpus
-}
-
-// walkFiles calls visit with the module-relative path and body of every file
-// under dir that ends in suffix.
-func walkFiles(t *testing.T, dir, suffix string, visit func(rel, body string)) {
-	t.Helper()
-	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, suffix) {
-			return err
-		}
-		body, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		rel, _ := filepath.Rel(moduleRoot(t), path)
-		visit(rel, string(body))
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk %s: %v", dir, err)
-	}
-}
-
-// detectorFieldNames are the fields detector code assigns the fix text to.
-var detectorFieldNames = map[string]bool{"Suggestion": true, "Remediation": true}
-
-// suggestionLiterals are the string literals Go code in dir assigns to a
-// Suggestion or Remediation field, keyed by file:line. A value built by
-// concatenation or fmt.Sprintf contributes every literal piece.
-func suggestionLiterals(t *testing.T, dir string) map[string]string {
-	t.Helper()
-	literals := map[string]string{}
-	fset := token.NewFileSet()
-	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") ||
-			strings.Contains(filepath.ToSlash(path), "/testdata/") {
-			return err
-		}
-		file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
-		if err != nil {
-			return err
-		}
-		rel, _ := filepath.Rel(moduleRoot(t), path)
-		ast.Inspect(file, func(n ast.Node) bool {
-			if value := detectorFieldValue(n); value != nil {
-				if text := stringPieces(value); text != "" {
-					literals[filepath.ToSlash(rel)+":"+strconv.Itoa(fset.Position(value.Pos()).Line)] = text
-				}
-			}
-			return true
-		})
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("parse %s: %v", dir, err)
-	}
-	return literals
-}
-
-// detectorFieldValue is the expression n assigns to a field named in
-// detectorFieldNames, in a composite literal key or an assignment, else nil.
-func detectorFieldValue(n ast.Node) ast.Expr {
-	switch n := n.(type) {
-	case *ast.KeyValueExpr:
-		if key, ok := n.Key.(*ast.Ident); ok && detectorFieldNames[key.Name] {
-			return n.Value
-		}
-	case *ast.AssignStmt:
-		if len(n.Lhs) == 1 && len(n.Rhs) == 1 {
-			if sel, ok := n.Lhs[0].(*ast.SelectorExpr); ok && detectorFieldNames[sel.Sel.Name] {
-				return n.Rhs[0]
-			}
-		}
-	}
-	return nil
-}
-
-// stringPieces joins every string literal inside expr, in source order.
-func stringPieces(expr ast.Expr) string {
-	var pieces []string
-	ast.Inspect(expr, func(n ast.Node) bool {
-		if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING {
-			text, _ := strconv.Unquote(lit.Value)
-			pieces = append(pieces, text)
-		}
-		return true
-	})
-	return strings.Join(pieces, "")
 }
 
 // TestDocsNameOnlyContractSymbols fails on any evo.X, Config.X, Run.X,
@@ -295,37 +201,3 @@ func isCapitalized(tag string) bool { return tag != "" && tag[0] >= 'A' && tag[0
 
 // removedNote marks a sentence that says a name was removed.
 var removedNote = regexp.MustCompile(`(?i)\bremoved in\b`)
-
-// retiredMutationSources are call sites of every removed mutation verb and
-// every Record shape, in both removed argument orders, as the detectors see
-// them in a reviewed file.
-func retiredMutationSources() map[string]string {
-	const header = "package p\nimport evo \"github.com/zachbornheimer/evident-output/v2\"\nfunc run(task *evo.TaskHandle, n int, path string) {\n  "
-	const footer = "\n}\n"
-	sources := map[string]string{}
-	for _, verb := range []string{"Add", "Create", "Delete", "Push", "Remove", "Update", "Write"} {
-		sources[verb+" quantity-first"] = header + `task.` + verb + `(n, "item")` + footer
-		sources[verb+" object-first"] = header + `task.` + verb + `("item", func() error { return nil })` + footer
-	}
-	for _, spelling := range []string{"add", "create", "delete", "install", "push", "remove", "uninstall", "update", "write", "fetch-prune"} {
-		sources["Record "+spelling] = header + `task.Record("` + spelling + `", n, "item")` + footer
-		sources["RecordName "+spelling] = header + `task.RecordName("` + spelling + `", "item")` + footer
-	}
-	sources["RecordLabel"] = header + `task.RecordLabel("ready", n, "worker")` + footer
-	return sources
-}
-
-// detectorOutputs are the Message and Suggestion texts the review detectors
-// produce for retiredMutationSources, keyed by source and rule. These are
-// computed from the call site's own identifiers, so no literal in the
-// detector code holds them whole.
-func detectorOutputs() map[string]string {
-	outputs := map[string]string{}
-	for name, src := range retiredMutationSources() {
-		for _, finding := range review.GoSource("p.go", src).Findings {
-			outputs[name+" "+finding.RuleID+" message"] = finding.Message
-			outputs[name+" "+finding.RuleID+" suggestion"] = finding.Suggestion
-		}
-	}
-	return outputs
-}

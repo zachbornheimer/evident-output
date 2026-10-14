@@ -32,7 +32,7 @@ if partial {
 			BadCode:   `out.Println(strings.Join(failures, "\n")) // duplicates Conclusion`,
 			GoodCode: `for _, f := range failures {
   f := f
-  r.Task(f.Name).Define(func(context.Context) error { return evo.Fail(f.Reason) })
+  r.Task(f.Name).Define(func(context.Context) error { return evo.Fail(f.Message) })
 }
 // Conclusion renders the one summary; add evo.Next(evo.Action{Label: ...}) for guidance`,
 			Remediation:     "Resolve each failure on its own Item/Task and let Conclusion summarize; use Next for follow-up guidance",

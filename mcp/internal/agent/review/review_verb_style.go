@@ -161,10 +161,10 @@ func detectDiscardSinkInFailingBlock(filename, src string) []Finding {
 		idx := strings.Index(fb.body, "io.Discard")
 		findings = append(findings, Finding{
 			RuleID:     "API-035",
-			Message:    "io.Discard sink in a function that also Fails/Blocks discards the evidence a security gate needs to explain its own verdict",
+			Message:    "io.Discard sink in a function that also Fails/Refuses discards the evidence a security gate needs to explain its own verdict",
 			File:       filename,
 			Line:       lineAt(src, fb.offset+idx),
-			Suggestion: "wire the checked command's output through task.Writer() (on cmd.Stdout/Stderr) or evo.Exec instead of io.Discard, so Block/Fail can attach DetailTail",
+			Suggestion: "wire the checked command's output through task.Writer() (on cmd.Stdout/Stderr) or evo.Exec instead of io.Discard, so Refuse/Fail can attach DetailTail",
 		})
 	}
 	return findings
@@ -434,7 +434,7 @@ func detectShadowedHandle(filename, src string) []Finding {
 							"the earlier row is orphaned Running forever",
 						File:       filename,
 						Line:       lineAt(src, fb.offset+m[0]),
-						Suggestion: "resolve " + name + " (Define, Fail, Block, Cancel, or Skipped) before reassigning it, or give the second declaration its own variable name",
+						Suggestion: "resolve " + name + " (Define, returning evo.Fail, evo.Refuse or evo.Exclude) before reassigning it, or give the second declaration its own variable name",
 					})
 				}
 			}
