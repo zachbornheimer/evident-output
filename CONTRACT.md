@@ -149,7 +149,7 @@ goroutine is not caught. A goroutine that a finished nested Task left running
 is found by a change in the count of the process's running goroutines, so it
 can be missed when as many other goroutines end in the same moment.
 `Compute` on a Task that has a
-`Verify` is `ErrInvalidConfig` at declaration: a satisfied `Verify` skips the
+`Verify` is refused at declaration (section 7): a satisfied `Verify` skips the
 callback, so a value would exist only when the world says so. A `Build` runs
 once when its container becomes eligible, declares topology only, and closes
 the container's declaration phase; declaring work from inside a Task's
@@ -216,8 +216,8 @@ appears once in the ledger as `[planned]` or `[changed]`; per-item mutations
 with one Verb and Object fold into one counted row. `EffectSpec.Path` claims
 that path for the Effect's callback, so Effects whose Paths are equal or one
 contains the other wait for each other; two Resources overlap only by equal
-name; an `EffectSpec` that sets both `Path` and `Resource` is
-`ErrInvalidConfig` and its callback never runs; holding two claims at once is
+name; an `EffectSpec` that sets both `Path` and `Resource` is refused
+(section 7) and its callback never runs; holding two claims at once is
 misuse. Two Tasks that declare the same Output both fail, but the conflict
 is found at the second claim of that Output path, so the first Task's command
 may already have run and rewritten it; the next Run restores it. A Patch whose
@@ -253,7 +253,7 @@ re-executes; it never reports Satisfied.
 | `EffectSpec`           | type  |                                                                                                             |
 | `EffectSpec.Verb`      | field | `Verb`                                                                                                      |
 | `EffectSpec.Object`    | field | `string`; singular noun; Evo pluralizes                                                                     |
-| `EffectSpec.Quantity`  | field | `int`; > 0                                                                                                  |
+| `EffectSpec.Quantity`  | field | `int`; > 0; zero is refused (section 7)                                                                     |
 | `EffectSpec.Path`      | field | `string`; filesystem claim, overlaps by ancestry; optional                                                  |
 | `EffectSpec.Resource`  | field | `string`; logical resource name, overlaps by equal name; optional                                           |
 | `Verb`                 | type  | closed set                                                                                                  |
@@ -397,7 +397,15 @@ no gap, so a missing number means a lost line.
 | `ErrStaleBasis`        | a Patch source changed between read and commit |
 | `ErrPatchDoesNotApply` | the diff does not match the source             |
 | `ErrComputedUnordered` | `Get` from work not ordered after the producer |
-| `ErrInvalidConfig`     | a declaration Evo refuses; misuse wraps it     |
+| `ErrInvalidConfig`     | a declaration or spec Evo refuses              |
+
+Every declaration or spec Evo refuses is refused one way: the error wraps
+`ErrInvalidConfig`, is joined into `Result.Err`, and `Conclusion.Explanation`
+names it. That covers a duplicate sibling name, a Task, Group or Sequence
+declared from inside a `Define` callback, a nil `Define` callback, `Compute` on
+a Task with a `Verify`, an `EffectSpec` that sets both `Path` and `Resource`,
+and an `EffectSpec` whose `Quantity` is not above 0. The refused call's
+callback never runs. Other sections say "refused" and mean this rule.
 
 ## 8. What Evo promises
 
