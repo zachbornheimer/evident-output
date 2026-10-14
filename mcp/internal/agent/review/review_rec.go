@@ -5,7 +5,7 @@ import (
 	"go/token"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/v2/mcp/internal/modpin"
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/modpin"
 )
 
 // supersededOptionFuncs are Option constructors removed in 1.1; Config fields replace them.
