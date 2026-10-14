@@ -37,6 +37,8 @@ type Task struct {
 	// settlements counts the Settle calls. A Task settles again only when
 	// a Done Task is overturned to Failed.
 	settlements int
+	// settleOrder is the run-wide count of settles when the Task last settled: it orders endings in time.
+	settleOrder uint64
 
 	// logged is set while the Task waits in the run's change log; the log
 	// guards it.
@@ -86,6 +88,7 @@ type TaskTruth struct {
 	VerifyEvidence TaskEvidence
 	Skipped        []TaxonomyRecord
 	Kept           []TaxonomyRecord
+	SettleOrder    uint64
 }
 
 // Truth is the shared view of the Task's record.
@@ -96,6 +99,7 @@ func (t *Task) Truth() TaskTruth {
 		State: t.state, Phase: t.phase, Progress: t.progress, Summary: t.summary,
 		Problems: t.problems, Warnings: t.warnings, Facts: t.facts, Actions: t.actions, ActivityAt: t.activityAt, Verification: t.verification,
 		DefineRan: t.defineRan, VerifyEvidence: t.verifyEvidence, Skipped: t.skipped, Kept: t.kept,
+		SettleOrder: t.settleOrder,
 	}
 }
 
@@ -146,7 +150,7 @@ func (t *Task) TimesSettled() int {
 func (t *Task) swapSettledState(to State) (from State) {
 	t.lockForWrite()
 	defer t.run.mu.Unlock()
-	t.run.settledTasks.Add(1)
+	t.settleOrder = t.run.settledTasks.Add(1)
 	t.settlements++
 	from, t.state = t.state, to
 	return from

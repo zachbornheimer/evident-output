@@ -51,8 +51,10 @@ var zeroInformationFields = map[string]taskFieldRole{
 	// Tracked is wire-document detail the human rows never draw.
 	"Tracked": roleIdentity,
 	// Timing is a wire-document fact the human rows never draw.
-	"Timing":    roleIdentity,
-	"synthetic": roleOutcome,
+	"Timing": roleIdentity,
+	// SettleOrder only orders the run's endings; no row draws it.
+	"SettleOrder": roleIdentity,
+	"synthetic":   roleOutcome,
 	// liveTail is a live-frame window onto Writer lines whose newest entry
 	// Phase already carries; it adds no information of its own.
 	"liveTail": roleIdentity,

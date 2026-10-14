@@ -148,7 +148,7 @@ func (r *Rows) View(id record.TaskID) record.TaskSnapshot {
 		Summary: truth.Summary, Problems: truth.Problems, Warnings: truth.Warnings, Facts: truth.Facts,
 		Verification: truth.Verification, Actions: truth.Actions, Skipped: truth.Skipped, Kept: truth.Kept,
 		Collection: group, Declaration: t.Declaration, DefineRan: truth.DefineRan, Evidence: truth.VerifyEvidence,
-		Timing: t.Timing,
+		Timing: t.Timing, SettleOrder: truth.SettleOrder,
 	}
 	return record.WithLiveTail(record.NewTaskSnapshot(base, r.lens.FirstSeen(id), t.Synthetic), r.lens.Tail(id))
 }

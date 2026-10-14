@@ -132,6 +132,9 @@ type TaskSnapshot struct {
 	Tracked TaskOperations
 	// Timing is when the Task was declared, started and settled.
 	Timing TaskTiming
+	// SettleOrder numbers the run's settles in the order they happened, so the earliest ending is the lowest
+	// number. Zero while the Task has not settled.
+	SettleOrder uint64
 	// synthetic marks a task the library invented to carry an output-level
 	// outcome (Output.Fail/Cancel) rather than one the caller declared —
 	// presentation-internal bookkeeping (coalescing), never part of the

@@ -52,7 +52,9 @@ methods, so a test can implement each one.
 
 When the run is Refused, Failed or Cancelled, `Conclusion.Explanation` is the
 deciding ending: the summary or error of the Task (or run body) whose Outcome
-became the Conclusion's, or what interrupted the run. `evo.run` and
+became the Conclusion's, or what interrupted the run. When several Tasks end
+the run's way, the earliest-settled ending decides, whatever the declaration
+order. `evo.run` and
 `run.finished` carry the same text as `explanation`. It is empty for
 Succeeded, Satisfied and Excluded.
 

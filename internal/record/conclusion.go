@@ -170,24 +170,34 @@ func settledStates(into []State, tasks []TaskSnapshot, collections []TasksSnapsh
 	return into
 }
 
-// decidingEnding is the ending of the first Task, at any depth, that settled
-// with outcome: why its Outcome became the run's. It is the Task's Summary,
-// which its ending writes, else the Problem its ending recorded last; a
-// non-fatal Problem recorded before the ending never explains the run.
+// decidingEnding is the ending of the Task, at any depth, that settled first
+// with outcome: why its Outcome became the run's. When several Tasks end the
+// run's way, the earliest settle decides, whatever the declaration order. It
+// is the Task's Summary, which its ending writes, else the Problem its ending
+// recorded last; a non-fatal Problem recorded before the ending never
+// explains the run.
 func decidingEnding(outcome Outcome, tasks []TaskSnapshot, collections []TasksSnapshot) string {
-	for _, t := range tasks {
-		if t.State.Outcome() != outcome {
-			continue
+	var earliest *TaskSnapshot
+	visitTasks(tasks, collections, func(t *TaskSnapshot) {
+		if t.State.Outcome() == outcome && (earliest == nil || t.SettleOrder < earliest.SettleOrder) {
+			earliest = t
 		}
-		if t.Summary != "" || len(t.Problems) == 0 {
-			return t.Summary
-		}
-		return t.Problems[len(t.Problems)-1].Summary
+	})
+	switch {
+	case earliest == nil:
+		return ""
+	case earliest.Summary != "" || len(earliest.Problems) == 0:
+		return earliest.Summary
+	}
+	return earliest.Problems[len(earliest.Problems)-1].Summary
+}
+
+// visitTasks calls visit with every Task in tasks and, recursively, in collections.
+func visitTasks(tasks []TaskSnapshot, collections []TasksSnapshot, visit func(*TaskSnapshot)) {
+	for i := range tasks {
+		visit(&tasks[i])
 	}
 	for _, col := range collections {
-		if why := decidingEnding(outcome, col.Tasks, col.Collections); why != "" {
-			return why
-		}
+		visitTasks(col.Tasks, col.Collections, visit)
 	}
-	return ""
 }
