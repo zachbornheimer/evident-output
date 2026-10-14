@@ -410,8 +410,7 @@ func (r secretRedactor) RedactString(s string) string {
 // one Task's Define (the Define scope keys off ctx, not goroutine) so the test
 // controls ordering directly instead of racing the scheduler's own Task
 // start order — the scheduler is deliberately not exercised here; a real
-// pipeline still declares After()/Sequence for real ordering, proven
-// end-to-end in conformance/future/behavior/exec's §64 fixtures.
+// pipeline still declares After()/Sequence for real ordering.
 func TestExecFreshnessBarrierWaitsForProducerThenConsumesFinalOutput(t *testing.T) {
 	dir := t.TempDir()
 	schemaPath := filepath.Join(dir, "schema.json")

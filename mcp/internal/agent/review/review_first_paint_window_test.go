@@ -9,8 +9,8 @@ import (
 )
 
 // entityBeforeInit declares a Task inside a closure that textually precedes
-// the function's evo.Init call — the conformance/future/behavior/file shape
-// that sliced body[init:entity] with entity < init and panicked.
+// the function's evo.Init call — the shape that sliced body[init:entity]
+// with entity < init and panicked.
 const entityBeforeInit = `package app
 import evo "github.com/zachbornheimer/evident-output/v2"
 func run(roots []string) {
