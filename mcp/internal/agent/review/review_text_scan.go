@@ -100,20 +100,6 @@ func balancedBraceBody(src string, fromIdx int) (body string, start int, ok bool
 	return "", 0, false
 }
 
-// earliestMarker returns the smallest index of any marker in s and the
-// matched marker text itself, or (-1, "") if none match.
-func earliestMarker(s string, markers []string) (int, string) {
-	best := -1
-	bestMarker := ""
-	for _, m := range markers {
-		if idx := strings.Index(s, m); idx >= 0 && (best < 0 || idx < best) {
-			best = idx
-			bestMarker = m
-		}
-	}
-	return best, bestMarker
-}
-
 // identBefore scans backward from idx over a dotted identifier chain
 // (letters, digits, '_', '.') to recover the receiver name immediately
 // preceding a call, e.g. "task" from "...\n  task.Doing(". Returns "" when
