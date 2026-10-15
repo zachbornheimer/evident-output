@@ -2,52 +2,136 @@
 package review
 
 import (
+	"go/ast"
+	"go/token"
 	"regexp"
+	"slices"
 	"strings"
 )
 
-// subprocessRunMarkers are the calls that start an os/exec child a Task
-// callback then waits on.
-var subprocessRunMarkers = []string{"exec.Command(", "exec.CommandContext(", ".Run()"}
-
-// detectStaleDoingBeforeSubprocess flags a function whose only Doing call
-// sits ahead of an os/exec child with no further Doing/Progress/Writer — the
-// spinner keeps animating over a silent child (FP-003).
-func detectStaleDoingBeforeSubprocess(filename, src string) []Finding {
+// detectStaleDoingBeforeSubprocess is FP-003: a Task callback whose only
+// Doing call sits ahead of an os/exec child with no further Doing, Progress
+// or Writer, so the spinner keeps animating over a silent child. Each
+// function body and each callback literal is judged on its own statements:
+// a Doing in one Task's callback says nothing about a child another
+// callback starts.
+func detectStaleDoingBeforeSubprocess(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	var findings []Finding
-	for _, fn := range allFuncBodies(src) {
-		doingIdx := strings.Index(fn.body, ".Doing(")
-		if doingIdx < 0 {
-			continue
+	ast.Inspect(file, func(n ast.Node) bool {
+		var body *ast.BlockStmt
+		switch fn := n.(type) {
+		case *ast.FuncDecl:
+			body = fn.Body
+		case *ast.FuncLit:
+			body = fn.Body
 		}
-		if strings.Count(fn.body, ".Doing(") != 1 {
-			continue
+		if body == nil {
+			return true
 		}
-		if strings.Contains(fn.body, ".Writer(") {
-			continue // child output wired to the live Doing; not stale
+		if doing, ok := staleDoingIn(body); ok {
+			findings = append(findings, staleDoingFinding(filename, fset, doing))
 		}
-		runIdx := earliestIndex(fn.body, subprocessRunMarkers)
-		if runIdx < 0 || runIdx < doingIdx {
-			continue
-		}
-		after := fn.body[runIdx:]
-		if strings.Contains(after, ".Doing(") || strings.Contains(after, ".Progress(") {
-			continue
-		}
-		recv := identBefore(fn.body, doingIdx)
-		suggestion := "wire the subprocess's Stdout/Stderr to Task.Writer(), or call Doing/Progress again after it exits"
-		if recv != "" {
-			suggestion = "wire the subprocess's Stdout/Stderr to " + recv + ".Writer(), or call " + recv + ".Doing(...)/" + recv + ".Progress(...) again after it exits"
-		}
-		findings = append(findings, Finding{
-			RuleID:     "FP-003",
-			Message:    "Doing is set once before a subprocess run with no further Doing/Progress/Writer; wire child output through Task.Writer or advance Doing as evidence arrives",
-			File:       filename,
-			Line:       lineAt(src, fn.offset+doingIdx),
-			Suggestion: suggestion,
-		})
-	}
+		return true
+	})
 	return findings
+}
+
+// callbackNarration is what one callback body, nested callbacks excluded,
+// says about a running child: its Doing and Progress calls, whether it wires
+// a Writer, and where its first child starts.
+type callbackNarration struct {
+	doing    []*ast.SelectorExpr
+	progress []token.Pos
+	writer   bool
+	childAt  token.Pos // token.NoPos when the body starts no child
+}
+
+// narrationOf reads body's own statements; a nested func literal is another
+// callback and is read when the walk reaches it.
+func narrationOf(body *ast.BlockStmt) callbackNarration {
+	var n callbackNarration
+	ast.Inspect(body, func(node ast.Node) bool {
+		switch node := node.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.CallExpr:
+			n.record(node)
+		}
+		return true
+	})
+	return n
+}
+
+// record files one call under what it narrates or starts.
+func (n *callbackNarration) record(call *ast.CallExpr) {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return
+	}
+	switch sel.Sel.Name {
+	case "Doing":
+		n.doing = append(n.doing, sel)
+	case "Progress":
+		n.progress = append(n.progress, sel.Sel.Pos())
+	case "Writer":
+		n.writer = true
+	case "Run":
+		if len(call.Args) == 0 {
+			n.startsChild(sel.Sel.Pos())
+		}
+	case "Command", "CommandContext":
+		if isIdentNamed(sel.X, "exec") {
+			n.startsChild(call.Pos())
+		}
+	}
+}
+
+func (n *callbackNarration) startsChild(at token.Pos) {
+	if n.childAt == token.NoPos || at < n.childAt {
+		n.childAt = at
+	}
+}
+
+// staleDoingIn returns the one Doing of body that a silent child follows.
+func staleDoingIn(body *ast.BlockStmt) (*ast.SelectorExpr, bool) {
+	n := narrationOf(body)
+	if len(n.doing) != 1 || n.writer || n.childAt == token.NoPos || n.childAt < n.doing[0].Sel.Pos() {
+		return nil, false
+	}
+	if slices.ContainsFunc(n.progress, func(at token.Pos) bool { return at >= n.childAt }) {
+		return nil, false
+	}
+	return n.doing[0], true
+}
+
+// staleDoingFinding reports doing, naming the Task it narrates when that is
+// a plain variable or field chain.
+func staleDoingFinding(filename string, fset *token.FileSet, doing *ast.SelectorExpr) Finding {
+	suggestion := "wire the subprocess's Stdout/Stderr to Task.Writer(), or call Doing/Progress again after it exits"
+	if recv := plainReceiver(doing.X); recv != "" {
+		suggestion = "wire the subprocess's Stdout/Stderr to " + recv + ".Writer(), or call " + recv + ".Doing(...)/" + recv + ".Progress(...) again after it exits"
+	}
+	return Finding{
+		RuleID:     "FP-003",
+		Message:    "Doing is set once before a subprocess run with no further Doing/Progress/Writer; wire child output through Task.Writer or advance Doing as evidence arrives",
+		File:       filename,
+		Line:       fset.Position(doing.Sel.Pos()).Line,
+		Suggestion: suggestion,
+	}
+}
+
+// plainReceiver is e as source when it is an identifier or a selector chain
+// of identifiers, and "" for anything else (a call result, an index).
+func plainReceiver(e ast.Expr) string {
+	switch e := e.(type) {
+	case *ast.Ident:
+		return e.Name
+	case *ast.SelectorExpr:
+		if base := plainReceiver(e.X); base != "" {
+			return base + "." + e.Sel.Name
+		}
+	}
+	return ""
 }
 
 // taxonomyReasonPattern matches the reason words a hand-assembled skip/keep

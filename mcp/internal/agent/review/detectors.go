@@ -98,7 +98,7 @@ var fileDetectors = []detector{
 	// FP-003: a task's only Doing call precedes a subprocess run with no
 	// further Doing/Progress/Writer — the spinner keeps spinning over a
 	// silent child with no way to tell slow from hung.
-	{name: "detectStaleDoingBeforeSubprocess", needsEvo: true, run: textRule(detectStaleDoingBeforeSubprocess)},
+	{name: "detectStaleDoingBeforeSubprocess", needsEvo: true, run: astRule(detectStaleDoingBeforeSubprocess)},
 	// TAX-001: a hand-assembled "%d skipped/kept/retained" string bypasses
 	// the reason-partitioned taxonomy evo derives from Skipped/Kept.
 	{name: "detectHandAssembledTaxonomyCount", needsEvo: true, run: textRule(detectHandAssembledTaxonomyCount)},

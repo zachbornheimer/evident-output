@@ -100,12 +100,6 @@ func balancedBraceBody(src string, fromIdx int) (body string, start int, ok bool
 	return "", 0, false
 }
 
-// earliestIndex returns the smallest index of any marker in s, or -1 if none match.
-func earliestIndex(s string, markers []string) int {
-	idx, _ := earliestMarker(s, markers)
-	return idx
-}
-
 // earliestMarker returns the smallest index of any marker in s and the
 // matched marker text itself, or (-1, "") if none match.
 func earliestMarker(s string, markers []string) (int, string) {

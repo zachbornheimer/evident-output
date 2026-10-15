@@ -231,6 +231,68 @@ func run(t *evo.Task, cmd *exec.Cmd) {
 	}
 }
 
+// fp003Program wraps two Task callbacks the way run bodies declare them: a
+// progress loop in one, a silent child in the other.
+const fp003Program = `package main
+
+import (
+	"context"
+	"fmt"
+	"os/exec"
+
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+
+func run(ctx context.Context, r *evo.Run) error {
+	idx := r.Task("index")
+	idx.Define(func(ctx context.Context) error {
+		for i := range 3 {
+			idx.Progress(i, 3).Doing(fmt.Sprintf("chunk %d", i))
+		}
+		return nil
+	})
+	r.Task("upload").After(idx).Define(func(ctx context.Context) error {
+CALLBACK_BODY
+	})
+	return nil
+}
+`
+
+func fp003Findings(t *testing.T, callbackBody string) []review.Finding {
+	t.Helper()
+	res := review.GoSource("main.go", strings.Replace(fp003Program, "CALLBACK_BODY", callbackBody, 1))
+	var found []review.Finding
+	for _, f := range res.Findings {
+		if f.RuleID == "FP-003" {
+			found = append(found, f)
+		}
+	}
+	return found
+}
+
+// TestFP003IgnoresExecInAnotherTasksCallback pins that FP-003 judges one
+// callback body at a time: a Doing in one Task's callback is not stale
+// because a different Task's callback starts a child.
+func TestFP003IgnoresExecInAnotherTasksCallback(t *testing.T) {
+	if found := fp003Findings(t, `		return exec.CommandContext(ctx, "true").Run()`); len(found) != 0 {
+		t.Fatalf("FP-003 paired a Doing with a child in another callback: %+v", found)
+	}
+	if found := fp003Findings(t, `		return nil`); len(found) != 0 {
+		t.Fatalf("FP-003 fired with no child anywhere: %+v", found)
+	}
+}
+
+// TestFP003StillFiresInsideOneCallback pins the other half: the stale Doing
+// and the silent child in the same callback are reported at the Doing, and a
+// Writer wired in a different callback does not excuse them.
+func TestFP003StillFiresInsideOneCallback(t *testing.T) {
+	found := fp003Findings(t, `		idx.Doing("uploading")
+		return exec.CommandContext(ctx, "true").Run()`)
+	if len(found) != 1 || found[0].Line != 20 {
+		t.Fatalf("FP-003 findings = %+v, want one at line 20 (the Doing)", found)
+	}
+}
+
 func TestTAX001_HandAssembledSkipCount(t *testing.T) {
 	bad := `package p
 import (
