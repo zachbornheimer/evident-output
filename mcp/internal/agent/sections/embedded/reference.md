@@ -185,14 +185,14 @@ Reads share. Any overlapping pair that includes a write waits: filesystem claims
 | `Task`       | One atomic unit — submitted with Define; it ends by returning (`Fail`, `Refuse`, `Exclude` or `nil`)                  |
 | `Group`      | Independent collection of tasks (state is **derived**); scheduler may overlap eligible children                       |
 | `Sequence`   | Ordered dependency of tasks (state is **derived**); failure cascades to NotStarted                                    |
-| `Problem`    | Structured evidence for warn / block / fail; a Task accumulates many via `Problem(...)` before it resolves once       |
+| `Problem`    | Non-fatal evidence a Task records via `Problem(...)`, as many as it needs; it never ends the Task                     |
 | `Effect`     | One opaque mutation (`EffectSpec{Verb, Object, Quantity}`); `Config.DryRun` picks planned vs changed at one call site |
 | `Conclusion` | Headline + `Outcome` / `Changed` / `DryRun` + exit code                                                               |
 | `Main`       | process exit code for CLI entrypoints                                                                                 |
 
 Evo owns scheduling through Group, Sequence, Define, and After (`Group.Each`/`Sequence.Each` were removed in 1.0).
 
-`After(g)` on a Group or Sequence waits for the Tasks declared into it. A collection already populated when it is named in `After` (or as the step before in a Sequence) is taken as declared: that edge waits for the Tasks declared so far, and a Task declared into `g` later never gates it. One named while still empty stays open, so a Task wired `After(g)` before the loop that fills `g` waits for every child; `g.Wait()`, a Wait on the dependent, or the end of the run closes it, and an empty collection closed that way counts as done. A Task declared into a Sequence step the Sequence has already moved past runs after the Sequence's latest step and becomes its latest step, so a Sequence still runs one step at a time in declaration order.
+`After(g)` on a Group or Sequence waits for the Tasks declared into it. A collection already populated when it is named in `After` (or as the step before in a Sequence) is taken as declared: that edge waits for the Tasks declared so far, and a Task declared into `g` later never gates it. Naming a Group that has no members yet waits for every member it later gets, so a Task wired `After(g)` before the loop that fills `g` waits for every child. A Task declared into a Sequence step the Sequence has already moved past runs after the Sequence's latest step and becomes its latest step, so a Sequence still runs one step at a time in declaration order.
 
 ## Status
 

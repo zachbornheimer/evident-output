@@ -2,11 +2,16 @@ package guards_test
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 )
 
 // backtickSpan matches one inline code span on a line.
 var backtickSpan = regexp.MustCompile("`([^`]+)`")
+
+// stringLiteral matches a double-quoted string, so an argument such as
+// t.Warn("x") is read as Go and not skipped as a shell command.
+var stringLiteral = regexp.MustCompile(`"[^"]*"`)
 
 // dottedIdentifier matches an identifier chain: Run, Task.Doing, evo.Main.
 var dottedIdentifier = regexp.MustCompile(`[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*`)
@@ -38,6 +43,15 @@ var nonEvoIdentifiers = map[string]bool{
 	"Type": true, // the placeholder in CONTRACT.md's notation: Type.Name
 }
 
+// retiredMethodNames are 1.x Task, Group, Sequence and Output methods that 2.0
+// removed and that no other type of evo has again. A span that calls one on
+// any variable (`t.Warn("x")`, `g.Wait()`) teaches a method 2.0 does not
+// have, so resolvesChain rejects it whatever the variable is called. Names
+// the standard library also uses (Done, Add, Close) stay out: only a name
+// whose reader would take it for evo's belongs here.
+// TestRetiredMethodNamesAreRetired keeps the list honest.
+var retiredMethodNames = []string{"Wait", "Warn", "Failf", "Blockf", "Kept", "Step", "Key"}
+
 // goTestName matches a Go test function, which the docs cite as proof.
 var goTestName = regexp.MustCompile(`^Test[A-Z]`)
 
@@ -52,7 +66,7 @@ func (c contractSurface) backtickedUnknowns(text string) []retiredNameHit {
 	var hits []retiredNameHit
 	for _, span := range backtickSpan.FindAllStringSubmatchIndex(text, -1) {
 		body := text[span[2]:span[3]]
-		if strings.ContainsAny(body, "/\"$") {
+		if strings.ContainsAny(stringLiteral.ReplaceAllString(body, `""`), "/$") {
 			continue // a path, URL or shell command, not Go
 		}
 		for _, chain := range dottedIdentifier.FindAllStringIndex(body, -1) {
@@ -78,7 +92,9 @@ func (c contractSurface) resolvesChain(chain string) bool {
 	} else if owner, receiver := receiverTypes[parts[0]]; receiver {
 		parts[0] = owner
 	} else if !isCapitalized(parts[0]) {
-		return true // a local variable or another package's name
+		// A local variable or another package's name, unless it calls a
+		// method evo retired.
+		return len(parts) < 2 || !slices.Contains(retiredMethodNames, parts[1])
 	}
 	if nonEvoIdentifiers[parts[0]] || goTestName.MatchString(parts[0]) || c.names[parts[0]] && len(parts) == 1 {
 		return true
