@@ -119,6 +119,9 @@ func (s *Stream) streamInto(out *strings.Builder, r *row) {
 		return
 	}
 	s.reopen(r.block)
+	if s.holdExcluded(out, r) {
+		return
+	}
 	if r.block.isOwn(r) && r.Rec.State().Succeeded() {
 		r.block.own = r
 		return
@@ -245,6 +248,7 @@ func hasUnclosedChild(root, b *block) bool {
 func (s *Stream) writeClose(out *strings.Builder, b *block) {
 	header := s.cfg.Source.Header(b.id)
 	var line strings.Builder
+	tally := s.writeKeptExcluded(out, b)
 	s.openChain(out, b.parent)
 	switch own := b.own; {
 	case own != nil && header.Summary == "":
@@ -262,6 +266,7 @@ func (s *Stream) writeClose(out *strings.Builder, b *block) {
 		line.Reset()
 	}
 	indentInto(out, line.String(), b.depth)
+	out.WriteString(tally)
 	s.tail = b.parent
 	b.closed, b.root.written = true, true
 }
@@ -273,7 +278,7 @@ func (s *Stream) finishStreamed(out *strings.Builder, b *block, col record.Tasks
 	for _, t := range col.Tasks {
 		r := s.rows[record.TaskID(t.ID)]
 		switch {
-		case r == nil || (r.emitted && r.emittedAs == t.State):
+		case r == nil || r.excluded || (r.emitted && r.emittedAs == t.State):
 		case b.isOwn(r):
 			b.own = r
 		default:

@@ -163,8 +163,9 @@ type row struct {
 	// 0 before; late is set when Finish's sweep ended it.
 	place int
 	late  bool
-	// held is set while a root row waits on an open block to close.
-	held bool
+	// held is set while a root row waits on an open block to close; excluded
+	// while its block holds it for the tally (block_excluded.go).
+	held, excluded bool
 }
 
 // NewStream starts a run's durable stream.

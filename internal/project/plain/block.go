@@ -78,6 +78,9 @@ type block struct {
 	// cancels the grace timer.
 	pending []*row
 	stop    func()
+	// excluded are the Excluded items of its Group that settled, held for
+	// the tally it writes when it closes (block_excluded.go).
+	excluded []*row
 	// dirty is set when a member resolved or changed since an atomic block
 	// was last written; queued when the block waits in Stream.waiting.
 	dirty, queued bool
