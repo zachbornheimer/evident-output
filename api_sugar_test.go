@@ -128,8 +128,8 @@ func TestAPISugar_DoingDeclaresWithPhaseSet(t *testing.T) {
 	if snap.Phase != "resolving tag" {
 		t.Fatalf("phase = %q, want %q", snap.Phase, "resolving tag")
 	}
-	if snap.State != running {
-		t.Fatalf("state = %q, want Running", snap.State)
+	if snap.State != pending {
+		t.Fatalf("state = %q, want Pending: only the scheduler starting a callback makes a Task Running", snap.State)
 	}
 }
 

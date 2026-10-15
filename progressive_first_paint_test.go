@@ -39,7 +39,7 @@ func TestDoing_PlainModeEmitsTheFirstBeatBeforeTheTaskResolves(t *testing.T) {
 	t.Cleanup(func() { _ = o.close() })
 
 	start := time.Now()
-	o.Task("zq ci resolve").Doing("resolving repository root")
+	o.Task("zq ci resolve").startForTest().Doing("resolving repository root")
 
 	for time.Since(start) < firstBeatBudget {
 		if strings.Contains(out.String(), "resolving repository root") {

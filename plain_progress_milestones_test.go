@@ -15,7 +15,7 @@ func TestPlainProgress_StreamsMilestones_NotOnlyFirstTick(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
-	task := out.Task("download")
+	task := out.Task("download").startForTest()
 	for i := 0; i <= 100; i += 10 {
 		task.Progress(i, 100)
 	}

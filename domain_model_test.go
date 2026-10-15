@@ -28,7 +28,7 @@ func TestDOM014_DetailOnBlock(t *testing.T) {
 func TestDOM023_SealedTotalRejectsChange(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
-	task := out.Task("t")
+	task := out.Task("t").startForTest()
 	task.Progress(1, 2)
 	task.Progress(2, 5)
 	if task.snapshot().Progress.Total != 2 {

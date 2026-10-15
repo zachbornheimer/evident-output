@@ -65,17 +65,19 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("dependencies")
-	task.Doing("resolving packages")
+	task.startForTest().Doing("resolving packages")
 	out.debugForTest("package index loaded", field{Key: "packages", Value: 18})
 	succeed(task, "installed 18 packages")
 	_ = out.finish()
 
 	// History mode: timestamp (FixedClock) + bracketed level above live region.
-	// Declare is Pending (○). Doing starts submitted evidence so the row
-	// spins. Done commits the resolved row durably at resolution time.
+	// Declare is Pending (○). The scheduler starting the callback makes the row
+	// spin; Doing then names the step. Done commits the resolved row durably
+	// at resolution time.
 	want := []testkit.Operation{
 		testkit.DrawLive("⠋  " + testProgramName),
 		testkit.DrawLive("○ dependencies"),
+		testkit.DrawLive("⠋ dependencies  working…"),
 		testkit.DrawLive("⠋ dependencies  resolving packages"),
 		testkit.ClearLive(),
 		testkit.WriteDurable("00:00:00.000 [DEBUG] package index loaded  packages=18"),
@@ -102,9 +104,9 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 
 	dependencies := out.Group("dependencies")
-	react := dependencies.Task("react")
-	esbuild := dependencies.Task("esbuild")
-	sharp := dependencies.Task("sharp")
+	react := dependencies.Task("react").startForTest()
+	esbuild := dependencies.Task("esbuild").startForTest()
+	sharp := dependencies.Task("sharp").startForTest()
 
 	// Update and resolve in a different order than declaration.
 	sharp.Doing("verifying")
@@ -217,7 +219,7 @@ func TestLive_RepeatedStyledPhasesFitTerminalWidth(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("goimports check")
-	task.Doing("goimports -d " + strings.Repeat("file.go ", 20))
+	task.startForTest().Doing("goimports -d " + strings.Repeat("file.go ", 20))
 	task.Doing("goimports -d " + strings.Repeat("1️⃣ ", 20))
 
 	for _, operation := range screen.Operations() {
@@ -230,8 +232,8 @@ func TestLive_RepeatedStyledPhasesFitTerminalWidth(t *testing.T) {
 			}
 		}
 	}
-	if frames := screen.LiveFrameCount(); frames != 4 {
-		t.Fatalf("live frames=%d, want 4 (armed title + three doing frames)", frames)
+	if frames := screen.LiveFrameCount(); frames != 5 {
+		t.Fatalf("live frames=%d, want 5 (armed title + declare + start + two doing frames)", frames)
 	}
 	if got := txt.StripANSI(screen.LatestLiveText()); !strings.HasSuffix(got, "…") {
 		t.Fatalf("truncated live line must signal omitted text:\n%s", got)

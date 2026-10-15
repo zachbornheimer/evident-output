@@ -25,7 +25,7 @@ func TestVisibilityDelay_WithholdsLiveUntilElapsed(t *testing.T) {
 	}
 
 	clock.Advance(150 * time.Millisecond)
-	task.Doing("fetching")
+	task.startForTest().Doing("fetching")
 	if got := screen.LiveFrameCount(); got == 0 {
 		t.Fatal("expected live frame after VisibilityDelay elapsed")
 	}

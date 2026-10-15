@@ -30,7 +30,7 @@ func liveFrameAfter(out *Run, screen *countingLiveSurface, clock *manualClock, a
 
 func TestLiveQuiet_WriterRowGoesQuietThenNewLineClearsIt(t *testing.T) {
 	out, screen, clock := quietLiveOutput(t)
-	task := out.Task("controller")
+	task := out.Task("controller").startForTest()
 	writeNumberedLines(t, task, 1)
 
 	if frame := liveFrameAfter(out, screen, clock, 59*time.Second); strings.Contains(frame, quietFrameSuffix) {

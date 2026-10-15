@@ -141,7 +141,7 @@ func observeQuietWindow(t *testing.T) (frames []quietCadenceFrame, activated, en
 	out := newOutput("job", withTerminal(surface), visibilityDelay(0), withNoColor())
 	defer func() { _ = out.close() }()
 
-	task := out.Task("quiet")
+	task := out.Task("quiet").startForTest()
 	task.Doing("working")
 	activated = time.Now()
 	time.Sleep(quietCadenceWindow)

@@ -31,8 +31,8 @@ func TestLive_SpinnerGlyphAdvancesWithClock(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 
 	g := out.Group("work")
-	indeterminate := g.Task("verify")
-	bar := g.Task("scan")
+	indeterminate := g.Task("verify").startForTest()
+	bar := g.Task("scan").startForTest()
 
 	// First paint.
 	indeterminate.Doing("checking")

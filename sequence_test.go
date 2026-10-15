@@ -198,8 +198,8 @@ func TestSequence_TwoRunningChildrenRecordsMisuse(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 
 	setup := out.Sequence("python")
-	scan := setup.Task("scan")
-	venv := setup.Task("venv")
+	scan := setup.Task("scan").startForTest()
+	venv := setup.Task("venv").startForTest()
 
 	scan.Doing("scanning")      // promotes scan to Running
 	venv.Doing("creating venv") // second sibling Running while scan still is

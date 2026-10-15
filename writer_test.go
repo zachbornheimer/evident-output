@@ -185,7 +185,7 @@ func TestWriter_IdenticalLiveOnlyPhaseIsNoOp(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
-	task := out.Task("push")
+	task := out.Task("push").startForTest()
 	w := task.Writer()
 
 	if _, err := w.Write([]byte("cloning repo\n")); err != nil {

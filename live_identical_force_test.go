@@ -51,7 +51,7 @@ func TestLive_ForcedIdenticalFrameSkipsWriteLive(t *testing.T) {
 	out := newOutput("job", withTerminal(screen), visibilityDelay(0), withClock(clock), withNoColor())
 	t.Cleanup(func() { _ = out.close() })
 
-	task := out.Task("verify")
+	task := out.Task("verify").startForTest()
 	task.Doing("checking")
 
 	framesAfterFirst := screen.frameCount()

@@ -22,7 +22,7 @@ func TestLive_OneExplicitChildKeepsSubjectName(t *testing.T) {
 	out := newOutput("zq", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor())
 	t.Cleanup(func() { _ = out.close() })
 
-	classify := out.Group("worktrees").Task("classify")
+	classify := out.Group("worktrees").Task("classify").startForTest()
 	classify.Doing("../.worktrees/agent-a254279")
 	classify.Progress(24, 111)
 

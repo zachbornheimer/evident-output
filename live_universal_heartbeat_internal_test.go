@@ -109,7 +109,7 @@ func TestLiveHeartbeat_RunningNoPhaseZeroTotalAnimates(t *testing.T) {
 	out := newOutput("job", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor())
 	t.Cleanup(func() { _ = out.close() })
 
-	task := out.Task("resolve")
+	task := out.Task("resolve").startForTest()
 	task.Progress(0, 0) // Determinate, Total==0, no Phase — promotes to Running
 
 	clock.Advance(15 * time.Second)

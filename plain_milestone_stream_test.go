@@ -24,7 +24,7 @@ func TestPlain_CollectionChildStreamsMilestones(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
-	classify := out.Group("worktrees").Task("classify")
+	classify := out.Group("worktrees").Task("classify").startForTest()
 	const total = 111
 	for i := 1; i <= total; i++ {
 		classify.Progress(i, total)

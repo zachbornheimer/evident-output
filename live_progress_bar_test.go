@@ -18,9 +18,9 @@ func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 
 	g := out.Group("work")
-	units := g.Task("scan")
-	bytes := g.Task("fetch")
-	spin := g.Task("verify")
+	units := g.Task("scan").startForTest()
+	bytes := g.Task("fetch").startForTest()
+	spin := g.Task("verify").startForTest()
 
 	units.Progress(3, 10)
 	bytes.bytes(4_000_000, 10_000_000)
@@ -56,7 +56,7 @@ func TestLive_DeterminateProgressPhaseIsFullIntensityActivityChild(t *testing.T)
 	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorAlways})
 	t.Cleanup(func() { _ = out.close() })
 
-	task := out.Task("scan")
+	task := out.Task("scan").startForTest()
 	task.Progress(3, 10)
 	task.Doing("reading manifest")
 

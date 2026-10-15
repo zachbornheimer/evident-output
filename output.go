@@ -114,8 +114,8 @@ func (r *Run) manifestConfig() freshness.ManifestConfig {
 	return freshness.ManifestConfig{AppID: r.cfg.appID, StateDir: r.cfg.stateDir, Workspace: r.changes.Workspace()}
 }
 
-// promoteRunningLocked moves a Pending task to Running on its first unit of evidence (Phase, Progress,
-// Advance, Bytes, Step, Writer). A work callback starting is announced by taskStarted: the claim moved the row.
+// promoteRunningLocked moves a Pending task to Running as the scheduler starts its callback, the only way a Task
+// becomes Running (CONTRACT.md section 4). Narration it carried while it waited shows from here.
 func (r *Run) promoteRunningLocked(st *taskState) {
 	st.node.MarkRunning()
 	r.announceRunningLocked(st)

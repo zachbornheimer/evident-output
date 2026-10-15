@@ -17,9 +17,9 @@ func TestPlainHeartbeat_NamesOnlyWhatStillRunsInAGroup(t *testing.T) {
 	t.Cleanup(func() { _ = out.close() })
 
 	pool := out.Group("pool")
-	slow := pool.Task("slow")
+	slow := pool.Task("slow").startForTest()
 	slow.Doing("working")
-	fast := pool.Task("fast")
+	fast := pool.Task("fast").startForTest()
 	fast.Doing("working")
 	clock.Advance(10 * time.Second)
 	fast.succeed("")

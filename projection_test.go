@@ -48,7 +48,7 @@ func TestProjection_StandaloneTaskPlainLiveParity(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
-	build := out.Task("build")
+	build := out.Task("build").startForTest()
 	build.Progress(3, 10)
 	build.Doing("compiling") // forces a fresh render (Progress alone coalesces)
 

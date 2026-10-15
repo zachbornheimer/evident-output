@@ -199,9 +199,7 @@ func (t *Task) setLiveOnlyPhase(text string) {
 }
 
 func (r *Run) setPhaseLocked(st *taskState, text string) {
-	if st.node.Doing(text, r.cfg.clock.Now()) {
-		r.announceRunningLocked(st)
-	}
+	st.node.Doing(text, r.cfg.clock.Now())
 	r.bumpLocked()
 	r.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
 	r.show.Live.Signal(true)
@@ -211,12 +209,8 @@ func (r *Run) setPhaseLocked(st *taskState, text string) {
 // setLiveOnlyPhaseLocked is setPhaseLocked for non-narrated sources.
 func (r *Run) setLiveOnlyPhaseLocked(st *taskState, text string) {
 	// An identical live-only phase is a no-op: repeated Writer lines must not bump, emit or repaint.
-	changed, started := st.node.Mirror(text, r.cfg.clock.Now())
-	if !changed {
+	if !st.node.Mirror(text, r.cfg.clock.Now()) {
 		return
-	}
-	if started {
-		r.announceRunningLocked(st)
 	}
 	r.bumpLocked()
 	r.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})

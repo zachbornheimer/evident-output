@@ -281,7 +281,9 @@ return evo.Exclude("protected")                         // Excluded, folds into 
 t.Problem("protected ref", evo.On("origin/main"), evo.Code("protected"))  // non-fatal
 ```
 
-A Task ends exactly once, by returning. Problems never end a Task: a Task
+A Task is Running only while the scheduler is executing its callback, so
+`Doing`, `Progress` and `Writer` text before then is held and shows once the
+callback starts, and a Task that never starts never reads as Running. A Task ends exactly once, by returning. Problems never end a Task: a Task
 that records Problems keeps the Outcome its return gives, and the Problems
 stay attached, so a Problem and a nil return are Succeeded with exit 0. A Task with no Define
 never returns, so it ends NotStarted at Finish whatever Facts, Problems,

@@ -131,7 +131,7 @@ func TestWriter_LiveFrameShowsOwnerTailAndFooter(t *testing.T) {
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	out := newOutput("job", withTerminal(screen), visibilityDelay(0), withClock(clock), withNoColor())
 	t.Cleanup(func() { _ = out.close() })
-	task := out.Task("build")
+	task := out.Task("build").startForTest()
 
 	writeNumberedLines(t, task, 10)
 

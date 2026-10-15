@@ -16,11 +16,11 @@ import (
 // Appendix H normative red tests (v0.1-alpha subset).
 // Interactive H.2/H.17/H.20–H.22 require testkit terminal (v0.2).
 
-func TestH1_Task_PhaseStartsPendingTask(t *testing.T) {
+func TestH1_Task_PhaseOnStartedTaskIsIndeterminate(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
-	dependencies := out.Task("dependencies")
+	dependencies := out.Task("dependencies").startForTest()
 	dependencies.Doing("reading lockfile")
 
 	got := dependencies.snapshot()
@@ -35,11 +35,11 @@ func TestH1_Task_PhaseStartsPendingTask(t *testing.T) {
 	}
 }
 
-func TestH3_Task_ProgressStartsDeterminateTask(t *testing.T) {
+func TestH3_Task_ProgressOnStartedTaskIsDeterminate(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
-	dependencies := out.Task("dependencies")
+	dependencies := out.Task("dependencies").startForTest()
 	dependencies.Progress(12, 18)
 
 	got := dependencies.snapshot()
@@ -72,7 +72,7 @@ func TestH5_Task_BackwardProgressIsRejected(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
-	task := out.Task("download")
+	task := out.Task("download").startForTest()
 	task.bytes(500, 1_000)
 	task.bytes(400, 1_000)
 

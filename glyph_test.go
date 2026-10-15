@@ -123,7 +123,7 @@ func TestGlyphsAuto_UTF8LocaleKeepsUnicode(t *testing.T) {
 	t.Setenv("LC_ALL", "en_US.UTF-8")
 	screen := testkit.NewScreen(testkit.Interactive())
 	out := initRun(Config{Name: "demo", Facades: Facades{Stderr: &bytes.Buffer{}, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0)})
-	task := out.Task("install")
+	task := out.Task("install").startForTest()
 	task.Doing("working")
 	frame := screen.LatestLiveText()
 	if !strings.ContainsAny(frame, "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏") {

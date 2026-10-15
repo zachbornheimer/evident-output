@@ -329,7 +329,7 @@ func (t *Task) setProgress(completed, total int64, kind progressKind) *Task {
 // guard (invalid values, regression, sealed-total mismatch) rejected it and
 // recorded misuse.
 func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind progressKind) bool {
-	verdict, started := st.node.Progress(completed, total, kind, t.out.cfg.clock.Now())
+	verdict := st.node.Progress(completed, total, kind, t.out.cfg.clock.Now())
 	switch verdict {
 	case record.ProgressInvalid:
 		t.out.recordMisuse(errInvalidProgress)
@@ -337,9 +337,6 @@ func (t *Task) applyProgressLocked(st *taskState, completed, total int64, kind p
 	case record.ProgressRegressed:
 		t.out.recordMisuse(errProgressRegression)
 		return false
-	}
-	if started {
-		t.out.announceRunningLocked(st)
 	}
 	t.out.bumpLocked()
 	t.out.appendEventLocked(recEvent{Type: "task.progress_changed", EntityID: t.id})

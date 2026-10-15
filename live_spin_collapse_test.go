@@ -35,7 +35,7 @@ func TestLive_DeclaredToolTaskSpinsBeforeCheck(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
-	task := out.Task("go@1.25.11")
+	task := out.Task("go@1.25.11").startForTest()
 	live := screen.LatestLiveText()
 	row := lineFor(live, "go@1.25.11")
 	if row == "" {
@@ -104,7 +104,7 @@ func TestLive_FastBindSpinnerVisibleOnWallClock(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
-	task := out.Task("go@1.25.11")
+	task := out.Task("go@1.25.11").startForTest()
 	task.Doing("resolving go@1.25.11")
 	live := screen.LatestLiveText()
 	row := lineFor(live, "go@1.25.11")

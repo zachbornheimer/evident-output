@@ -26,7 +26,7 @@ func TestHeartbeat_AppearsAfterElapsedThreshold(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
-	push := out.Task("push")
+	push := out.Task("push").startForTest()
 	ticker := out.Task("ticker")
 
 	push.Doing("pushing feat/a")
@@ -57,7 +57,7 @@ func TestHeartbeat_NeverResetsOnPhaseUpdate(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
-	push := out.Task("push")
+	push := out.Task("push").startForTest()
 	ticker := out.Task("ticker")
 
 	push.Doing("pushing feat/a")
@@ -89,7 +89,7 @@ func TestHeartbeat_AppearsRegardlessOfProgressActivity(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
 	t.Cleanup(func() { _ = out.close() })
 
-	install := out.Task("install")
+	install := out.Task("install").startForTest()
 	install.Progress(0, 3) // first live render: anchors install's elapsed clock
 
 	clock.Advance(5 * time.Second)

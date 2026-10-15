@@ -82,7 +82,7 @@ func TestPlainHeartbeat_SilentRunningTaskEmitsEvery30s(t *testing.T) {
 	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf, Clock: clock}})
 	t.Cleanup(func() { _ = out.close() })
 
-	task := out.Task("generate schema")
+	task := out.Task("generate schema").startForTest()
 	task.Doing("working") // promotes to Running; arms the first heartbeat.
 
 	clock.Advance(10 * time.Second)
@@ -122,7 +122,7 @@ func TestPlainHeartbeat_RealMilestoneDefersIt(t *testing.T) {
 	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf, Clock: clock}})
 	t.Cleanup(func() { _ = out.close() })
 
-	task := out.Task("install dependencies")
+	task := out.Task("install dependencies").startForTest()
 	task.Progress(0, 100)
 
 	clock.Advance(20 * time.Second)
@@ -168,7 +168,7 @@ func TestPlain_DoingWritesNoDurableLinePerCall(t *testing.T) {
 	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf, Clock: clock}})
 	t.Cleanup(func() { _ = out.close() })
 
-	task := out.Task("copy")
+	task := out.Task("copy").startForTest()
 	for i := range items {
 		task.Progress(i, items).Doing(fmt.Sprintf("f%04d", i))
 	}
@@ -197,7 +197,7 @@ func TestPlain_DoingAloneWritesTheFirstCallThenThins(t *testing.T) {
 	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf, Clock: clock}})
 	t.Cleanup(func() { _ = out.close() })
 
-	task := out.Task("copy")
+	task := out.Task("copy").startForTest()
 	task.Doing("f0000")
 	if got := buf.String(); strings.Count(got, "\n") != 1 || !strings.Contains(got, "f0000") {
 		t.Fatalf("the first Doing call should write one line at once, got:\n%s", got)

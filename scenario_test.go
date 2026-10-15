@@ -395,11 +395,11 @@ func TestScenario_StressLive(t *testing.T) {
 	deploy := out.Group("deploy production")
 	commit(deploy.Task("discover"), EffectSpec{Verb: Delete, Object: "local tip", Quantity: 5})
 
-	hosts := deploy.Task("prepare hosts")
+	hosts := deploy.Task("prepare hosts").startForTest()
 	hosts.Doing("host-031")
 	hosts.Progress(31, 100)
 
-	services := deploy.Task("services")
+	services := deploy.Task("services").startForTest()
 	services.Doing("payments-api")
 	services.Progress(14, 40)
 
@@ -411,7 +411,7 @@ func TestScenario_StressLive(t *testing.T) {
 
 	// cleanup has committed its Effect and is still running when the frame
 	// is captured: its callback parks on release until the test ends.
-	cleanup := deploy.Task("cleanup")
+	cleanup := deploy.Task("cleanup").startForTest()
 	committed, release := make(chan struct{}), make(chan struct{})
 	t.Cleanup(func() { close(release) })
 	cleanup.Define(func(ctx context.Context) error {
@@ -476,7 +476,7 @@ func TestScenario_DependencyInstall(t *testing.T) {
 		tuning{visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000})
 	t.Cleanup(func() { _ = out.close() })
 
-	install := out.Task("install dependencies")
+	install := out.Task("install dependencies").startForTest()
 	install.Doing("urllib3")
 	install.Progress(14, 40)
 	clock.Advance(7 * time.Second)
@@ -528,9 +528,9 @@ func TestScenario_LiveParallelPrune(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever, maxFrameRate: 1_000_000})
 	t.Cleanup(func() { _ = out.close() })
 
-	branches := out.Task("branches")
-	worktrees := out.Task("worktrees")
-	remotes := out.Task("remote-tracking")
+	branches := out.Task("branches").startForTest()
+	worktrees := out.Task("worktrees").startForTest()
+	remotes := out.Task("remote-tracking").startForTest()
 
 	branches.Doing("feat/style-contract")
 	branches.Progress(120, 459)
@@ -577,7 +577,7 @@ func TestScenario_GenericSuccessPlusActiveWork(t *testing.T) {
 	succeed(agent.Task("register"))
 	succeed(agent.Task("start"))
 
-	install := out.Task("install dependencies")
+	install := out.Task("install dependencies").startForTest()
 	install.Doing("requests")
 	install.Progress(18, 40)
 	clock.Advance(6 * time.Second)

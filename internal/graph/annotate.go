@@ -10,54 +10,53 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
-// startOnActivity moves a pending Task to Running on its first evidence of
-// work and reports whether it did.
-func (t *Task) startOnActivity(at time.Time) (started bool) {
-	t.Rec.MarkActivity(at)
-	if t.Rec.State() != record.Pending {
-		return false
-	}
+// MarkRunning moves the Task to Running: the scheduler calls it as it starts
+// the Task's callback, and nothing else makes a Task Running. A step the Task
+// narrated while it waited is held on the record and shows from here, with
+// the indeterminate progress a step without a count implies.
+func (t *Task) MarkRunning() {
 	t.Rec.Transition(record.Running)
-	return true
-}
-
-// MarkRunning moves the Task to Running.
-func (t *Task) MarkRunning() { t.Rec.Transition(record.Running) }
-
-// Doing makes text the Task's current step, as of at. A pending Task starts
-// Running, with indeterminate progress; started reports that it did.
-func (t *Task) Doing(text string, at time.Time) (started bool) {
-	t.Rec.SetPhase(text)
-	started = t.startOnActivity(at)
-	if started {
+	if t.Rec.Phase() != "" {
 		t.Rec.EnsureIndeterminateProgress()
 	}
-	return started
+}
+
+// Doing makes text the Task's current step, as of at. It never starts the
+// Task: a step set before the callback runs is held until MarkRunning. A
+// Task already Running gets indeterminate progress if it has none.
+func (t *Task) Doing(text string, at time.Time) {
+	t.Rec.SetPhase(text)
+	t.Rec.MarkActivity(at)
+	t.ensureIndeterminateWhileRunning()
 }
 
 // Mirror is Doing for a step the Task's own output narrated: a repeat of
 // the current step is no change at all. changed reports whether the step
 // moved.
-func (t *Task) Mirror(text string, at time.Time) (changed, started bool) {
+func (t *Task) Mirror(text string, at time.Time) (changed bool) {
 	if !t.Rec.SetPhaseIfChanged(text) {
-		return false, false
+		return false
 	}
-	started = t.startOnActivity(at)
-	if started {
-		t.Rec.EnsureIndeterminateProgress()
-	}
-	return true, started
+	t.Rec.MarkActivity(at)
+	t.ensureIndeterminateWhileRunning()
+	return true
 }
 
 // Progress records completed of total, as of at; see record.Task.ApplyProgress.
-// A rejected update records nothing else. An accepted one starts a pending
-// Task Running; started reports that it did.
-func (t *Task) Progress(completed, total int64, kind record.ProgressKind, at time.Time) (verdict record.ProgressVerdict, started bool) {
-	verdict = t.Rec.ApplyProgress(completed, total, kind)
-	if verdict == record.ProgressInvalid || verdict == record.ProgressRegressed {
-		return verdict, false
+// A rejected update records nothing else. An accepted one never starts the
+// Task: a count reported before the callback runs is held until MarkRunning.
+func (t *Task) Progress(completed, total int64, kind record.ProgressKind, at time.Time) record.ProgressVerdict {
+	verdict := t.Rec.ApplyProgress(completed, total, kind)
+	if verdict == record.ProgressApplied {
+		t.Rec.MarkActivity(at)
 	}
-	return verdict, t.startOnActivity(at)
+	return verdict
+}
+
+func (t *Task) ensureIndeterminateWhileRunning() {
+	if t.Rec.State() == record.Running {
+		t.Rec.EnsureIndeterminateProgress()
+	}
 }
 
 // Summarize sets the Task's one line of result text; empty clears it.

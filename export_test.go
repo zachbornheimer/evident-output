@@ -483,6 +483,19 @@ func (t *Task) fail(summary string, options ...ProblemOption) {
 	t.resolveWithProblem(failed, summary, options)
 }
 
+// startForTest does what the scheduler does as it starts t's callback, so a
+// test can drive a Running row without one: only the scheduler makes a Task
+// Running (CONTRACT.md section 4), never narration.
+func (t *Task) startForTest() *Task {
+	t.out.mu.Lock()
+	st := t.out.taskStates[t.id]
+	t.out.mu.Unlock()
+	if st != nil {
+		runHost{out: t.out}.Started(st.node)
+	}
+	return t
+}
+
 // neverDefined reports whether st is still waiting on its caller: declared,
 // never Defined, and not resolved by a verb either.
 func (st *taskState) neverDefined() bool { return st.node.NeverDefined() }

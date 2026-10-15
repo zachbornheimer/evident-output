@@ -7,11 +7,12 @@ import (
 	"testing"
 )
 
-// TestTask_DeclaresRunningSoTheRowCanSpin pins the lifecycle CONTRACT section 2 states:
-// declare is Pending until submitted work starts. Doing is first evidence
-// that promotes to Running so the row can spin. Sequence children stay
-// Pending so later siblings do not all spin at once.
-func TestTask_DeclaresRunningSoTheRowCanSpin(t *testing.T) {
+// TestTask_RunsOnlyWhenTheSchedulerStartsIt pins the lifecycle CONTRACT section 4
+// states: a Task is Pending from its declaration until the scheduler starts
+// its callback, whatever it was narrated before then. The scheduler's start
+// is what moves it to Running so the row can spin, and a Sequence child that
+// has not started stays Pending so later siblings do not all spin at once.
+func TestTask_RunsOnlyWhenTheSchedulerStartsIt(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
@@ -20,8 +21,12 @@ func TestTask_DeclaresRunningSoTheRowCanSpin(t *testing.T) {
 		t.Fatalf("standalone state at declare = %v, want Pending", got)
 	}
 	task.Doing("working")
+	if got := task.snapshot().State; got != pending {
+		t.Fatalf("state after narration = %v, want Pending", got)
+	}
+	task.startForTest()
 	if got := task.snapshot().State; got != running {
-		t.Fatalf("state after submitted evidence = %v, want Running", got)
+		t.Fatalf("state after the scheduler started it = %v, want Running", got)
 	}
 
 	seq := out.Sequence("steps")
@@ -31,26 +36,31 @@ func TestTask_DeclaresRunningSoTheRowCanSpin(t *testing.T) {
 	}
 }
 
-// TestTask_PromotesToRunningOnFirstEvidence pins the promotion side: Phase,
-// Progress, and Bytes are all first-evidence calls that move a Pending task
-// to Running. Advance shares applyProgressLocked with Progress/Bytes, so the
-// same promotion applies there too, but Advance needs a total already
-// established (it is a relative helper) so it is not exercised standalone
-// here.
-func TestTask_PromotesToRunningOnFirstEvidence(t *testing.T) {
-	cases := map[string]func(*Task){
-		"Phase":    func(h *Task) { h.Doing("working") },
-		"Progress": func(h *Task) { h.Progress(1, 2) },
-		"Bytes":    func(h *Task) { h.bytes(1, 2) },
+// TestTask_NarrationBeforeStartIsHeldNotStarting pins the other side: Phase,
+// Progress and Bytes before the scheduler starts a Task leave it Pending and
+// keep what they reported, so the row shows it once the callback runs.
+func TestTask_NarrationBeforeStartIsHeldNotStarting(t *testing.T) {
+	cases := map[string]struct {
+		narrate func(*Task)
+		held    func(taskSnapshot) bool
+	}{
+		"Phase":    {func(h *Task) { h.Doing("working") }, func(s taskSnapshot) bool { return s.Phase == "working" }},
+		"Progress": {func(h *Task) { h.Progress(1, 2) }, func(s taskSnapshot) bool { return s.Progress.Completed == 1 && s.Progress.Total == 2 }},
+		"Bytes":    {func(h *Task) { h.bytes(1, 2) }, func(s taskSnapshot) bool { return s.Progress.Completed == 1 && s.Progress.Total == 2 }},
 	}
-	for name, evidence := range cases {
+	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 			t.Cleanup(func() { _ = out.close() })
 			task := out.Task("install")
-			evidence(task)
-			if got := task.snapshot().State; got != running {
-				t.Fatalf("state after %s = %v, want Running", name, got)
+			c.narrate(task)
+			if got := task.snapshot().State; got != pending {
+				t.Fatalf("state after %s = %v, want Pending", name, got)
+			}
+			task.startForTest()
+			snap := task.snapshot()
+			if snap.State != running || !c.held(snap) {
+				t.Fatalf("after start: state %v, snapshot %+v; want Running holding the %s", snap.State, snap, name)
 			}
 		})
 	}
