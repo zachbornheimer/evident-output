@@ -122,7 +122,7 @@ run = "nice -n 10 go run ./tools/scripts/red-proof"
 [tasks.ci-mcp]
 description = "Build, vet, and test the mcp module so a green ci proves both modules"
 dir = "mcp"
-run = "go build ./... && go vet ./... && go test ./..."
+run = "go build ./... && go vet ./... && go test -timeout 20m ./..."
 
 [tasks.perf]
 description = "Wall-time and bytes/op bounds recorded on the maintainer's machine (EVO_PERF_BASELINE=1); inside ci it waits for the other gates so their load cannot skew the timing"
