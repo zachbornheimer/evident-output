@@ -34,11 +34,12 @@ func (c *stepClock) advance(d time.Duration) {
 	}
 }
 
-// TestPlainDoesNotStreamALinePerDoingCall pins CONTRACT §2: Task.Doing is
-// live only. A loop naming its current item writes nothing durable per call
-// (progress thins to milestones); the periodic heartbeat row carries the
-// latest item and count for a Task that stays running.
-func TestPlainDoesNotStreamALinePerDoingCall(t *testing.T) {
+// TestPlainDoingFirstCallIsDurableThenMilestones pins CONTRACT §2: in Plain
+// the first call of Doing is a durable line at once, and later calls thin
+// into milestones that carry the latest text. A loop naming a thousand items
+// never writes a line per name; Progress with Doing stays at its own
+// milestones; the heartbeat carries the latest item and count after them.
+func TestPlainDoingFirstCallIsDurableThenMilestones(t *testing.T) {
 	const items = 1000
 	newCopy := func() (*blockRun, *stepClock) {
 		b, clk := newBlockRun(t), &stepClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
@@ -48,28 +49,55 @@ func TestPlainDoesNotStreamALinePerDoingCall(t *testing.T) {
 		return b, clk
 	}
 	itemName := func(i int) string { return fmt.Sprintf("f%04d", i) }
+	narrate := func(b *blockRun, clk *stepClock, i int) {
+		b.rows.Task("copy").Rec.SetPhase(itemName(i))
+		b.stream.Narrated("copy", clk.Now())
+	}
 
-	t.Run("a bare Doing loop writes no line", func(t *testing.T) {
-		b, _ := newCopy()
-		rec := b.rows.Task("copy").Rec
-		for i := range items {
-			rec.SetPhase(itemName(i))
-		}
-		if got := b.written(); got != "" {
-			t.Fatalf("%d Doing calls wrote %d lines, want none:\n%s", items, strings.Count(got, "\n"), got)
+	t.Run("the first call is a line at once", func(t *testing.T) {
+		b, clk := newCopy()
+		narrate(b, clk, 0)
+		if got := b.written(); strings.Count(got, "\n") != 1 || !strings.Contains(got, itemName(0)) {
+			t.Fatalf("first Doing call wrote:\n%s\nwant one line naming %s", got, itemName(0))
 		}
 	})
 
-	t.Run("Progress with Doing thins to milestones", func(t *testing.T) {
+	t.Run("a thousand calls thin into a handful of milestones", func(t *testing.T) {
+		b, clk := newCopy()
+		for i := range items {
+			narrate(b, clk, i)
+			clk.advance(10 * time.Millisecond)
+		}
+		lines := strings.Count(b.written(), "\n")
+		if lines < 2 || lines > progressMilestones+2 {
+			t.Fatalf("%d Doing calls wrote %d lines, want 2 to %d:\n%s", items, lines, progressMilestones+2, b.written())
+		}
+		if strings.Contains(b.written(), itemName(1)+"\n") {
+			t.Fatalf("a call %v after the first wrote its own line:\n%s", 10*time.Millisecond, b.written())
+		}
+	})
+
+	t.Run("a later milestone carries the latest text", func(t *testing.T) {
+		b, clk := newCopy()
+		narrate(b, clk, 0)
+		clk.now = clk.now.Add(firstNarrationGap)
+		narrate(b, clk, 1)
+		if got := b.written(); !strings.HasSuffix(got, itemName(1)+"\n") {
+			t.Fatalf("milestone after %v should end with %s, got:\n%s", firstNarrationGap, itemName(1), got)
+		}
+	})
+
+	t.Run("Progress with Doing thins to the Progress milestones", func(t *testing.T) {
 		b, clk := newCopy()
 		rec := b.rows.Task("copy").Rec
 		for i := range items {
 			rec.ApplyProgress(int64(i), items, record.Determinate)
-			rec.SetPhase(itemName(i))
+			narrate(b, clk, i)
 			b.stream.Progressed("copy", clk.Now())
+			clk.now = clk.now.Add(time.Second)
 		}
-		if lines := strings.Count(b.written(), "\n"); lines > progressMilestones+1 {
-			t.Fatalf("%d Progress+Doing calls wrote %d lines, want at most %d:\n%s", items, lines, progressMilestones+1, b.written())
+		if lines := strings.Count(b.written(), "\n"); lines > progressMilestones+2 {
+			t.Fatalf("%d Progress+Doing calls wrote %d lines, want at most %d:\n%s", items, lines, progressMilestones+2, b.written())
 		}
 	})
 
@@ -78,13 +106,15 @@ func TestPlainDoesNotStreamALinePerDoingCall(t *testing.T) {
 		rec := b.rows.Task("copy").Rec
 		for i := range items / 2 {
 			rec.ApplyProgress(int64(i), items, record.Determinate)
-			rec.SetPhase(itemName(i))
+			narrate(b, clk, i)
 		}
+		first := strings.Count(b.written(), "\n")
 		clk.advance(heartbeatInterval)
 
 		want := fmt.Sprintf("%d/%d  %s", items/2-1, items, itemName(items/2-1))
-		if got := b.written(); strings.Count(got, "\n") != 1 || !strings.Contains(got, want) || !strings.Contains(got, "— 30s") {
-			t.Fatalf("want one heartbeat row naming %q and 30s, got:\n%s", want, got)
+		got := b.written()
+		if strings.Count(got, "\n") != first+1 || !strings.HasSuffix(strings.TrimSpace(got), "— 30s") || !strings.Contains(got, want) {
+			t.Fatalf("want one heartbeat row naming %q and 30s after %d lines, got:\n%s", want, first, got)
 		}
 	})
 }

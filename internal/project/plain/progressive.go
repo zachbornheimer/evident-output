@@ -3,41 +3,10 @@ package plain
 import (
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/project"
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
-
-// progressMilestones is how many roughly even steps a determinate total is
-// cut into for plain streaming (beginner-8): a line per increment would
-// flood a CI log, one line and then silence until Done would say nothing.
-const progressMilestones = 10
-
-// mark is what plain streaming already wrote for a Running Task's progress.
-// progressStarted is false until the first progress tick streamed;
-// progressEmitted is the last completed value streamed.
-type mark struct {
-	progressStarted bool
-	progressEmitted int64
-}
-
-// crossesMilestone reports whether completed of total crosses a milestone
-// since the last streamed tick. The first and the final tick always do
-// (beginner-8's "always a final n/n").
-func (m mark) crossesMilestone(completed, total int64) bool {
-	if !m.progressStarted {
-		return true
-	}
-	if completed == m.progressEmitted {
-		return false
-	}
-	if total <= 0 || completed >= total {
-		return true
-	}
-	step := max(total/progressMilestones, 1)
-	return completed/step != m.progressEmitted/step
-}
 
 // streamName qualifies a streamed row with the subject it belongs to. The
 // durable transcript indents a collection's children under their header,
@@ -72,39 +41,6 @@ func (r *row) containerNames() []string {
 	}
 	slices.Reverse(path)
 	return path
-}
-
-// Progressed streams the Task id's progress as a durable line when no live
-// region shows it (evo-rec.md Problem 10), once per milestone. A Task's
-// current item (Doing) is live only and never streams: the heartbeat row
-// carries the latest item for a Task that stays running. A Task inside a
-// collection streams too: "never silent between the first line and Done"
-// does not depend on where the Running Task sits in the tree.
-func (s *Stream) Progressed(id record.TaskID, now time.Time) {
-	r := s.rows[id]
-	if r == nil || s.cfg.Region.Interactive() {
-		return
-	}
-	truth := r.Rec.Truth()
-	if truth.State != record.Running {
-		return
-	}
-	if !r.mark.crossesMilestone(truth.Progress.Completed, truth.Progress.Total) {
-		return
-	}
-	r.mark.progressStarted = true
-	r.mark.progressEmitted = truth.Progress.Completed
-	snap := s.cfg.Source.Snapshot(id)
-	snap.Name = r.streamName()
-	var b strings.Builder
-	project.WriteTask(&b, snap, s.cfg.Style)
-	if b.Len() == 0 {
-		return
-	}
-	s.Write(b.String())
-	// This line proved the Task alive; the heartbeat covers only the
-	// silence after it.
-	r.milestone(now)
 }
 
 // HeldBack reports whether a resolved root Task is a zero-information row

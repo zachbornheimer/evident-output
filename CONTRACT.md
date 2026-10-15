@@ -162,39 +162,39 @@ runs, cancels only that Task's context and ends it Succeeded; it does not
 cancel the run, so a run with nothing else left exits 0. A signal it does not
 name still cancels the run.
 
-| Symbol              | Kind   | Meaning                                                                        |
-| ------------------- | ------ | ------------------------------------------------------------------------------ |
-| `Task`              | type   | one independently meaningful schedulable promise                               |
-| `Predecessor`       | type   | sealed interface After accepts: Task, Group, Sequence or Computed              |
-| `Task.After`        | method | `After(preds ...Predecessor) *Task`; a Task, Group, Sequence or Computed       |
-| `Task.Verify`       | method | `Verify(fn func(context.Context) (bool, error)) *Task`; read-only              |
-| `Task.Define`       | method | `Define(fn func(context.Context) error, opts ...DefineOption) *Task`           |
-| `Task.Doing`        | method | `Doing(text string, args ...any) *Task`; current item, live only               |
-| `Task.Progress`     | method | `Progress(completed, total int) *Task`; Plain: milestone lines only            |
-| `Task.Writer`       | method | `Writer() io.Writer`; its lines become the live tail                           |
-| `Task.Fact`         | method | `Fact(name, value string) *Task`; hidden until Verbose                         |
-| `Task.Summary`      | method | `Summary(text string) *Task`; the settled row's headline                       |
-| `Task.Problem`      | method | `Problem(summary string, opts ...ProblemOption) *Task`; non-fatal              |
-| `Group`             | type   | independent children; eligible siblings may run concurrently                   |
-| `Group.Task`        | method | `Task(name string) *Task`; declare a child Task                                |
-| `Group.Group`       | method | `Group(name string) *Group`; declare a child Group                             |
-| `Group.Sequence`    | method | `Sequence(name string) *Sequence`; declare a child Sequence                    |
-| `Group.After`       | method | `After(preds ...Predecessor) *Group`                                           |
-| `Group.Build`       | method | `Build(fn func(*Group))`; topology once eligible                               |
-| `Group.Summary`     | method | `Summary(text string) *Group`; the container row's headline                    |
-| `Sequence`          | type   | ordered children; one Running child                                            |
-| `Sequence.Task`     | method | `Task(name string) *Task`; declare a child Task                                |
-| `Sequence.Group`    | method | `Group(name string) *Group`; declare a child Group                             |
-| `Sequence.Sequence` | method | `Sequence(name string) *Sequence`; declare a child Sequence                    |
-| `Sequence.After`    | method | `After(preds ...Predecessor) *Sequence`                                        |
-| `Sequence.Build`    | method | `Build(fn func(*Sequence))`                                                    |
-| `Sequence.Summary`  | method | `Summary(text string) *Sequence`; the container row's headline                 |
-| `Container`         | type   | interface `{Task; Group; Sequence}` satisfied by Run, Group, Sequence          |
-| `Compute`           | func   | `Compute[T any](task *Task, fn func(context.Context) (T, error)) *Computed[T]` |
-| `Computed`          | type   | the value a successful Task produced                                           |
-| `Computed.Get`      | method | `Get() T`                                                                      |
-| `DefineOption`      | type   | option for `Define`                                                            |
-| `CleanStop`         | func   | `CleanStop(signals ...os.Signal) DefineOption`; these end the Task Succeeded   |
+| Symbol              | Kind   | Meaning                                                                                                                |
+| ------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `Task`              | type   | one independently meaningful schedulable promise                                                                       |
+| `Predecessor`       | type   | sealed interface After accepts: Task, Group, Sequence or Computed                                                      |
+| `Task.After`        | method | `After(preds ...Predecessor) *Task`; a Task, Group, Sequence or Computed                                               |
+| `Task.Verify`       | method | `Verify(fn func(context.Context) (bool, error)) *Task`; read-only                                                      |
+| `Task.Define`       | method | `Define(fn func(context.Context) error, opts ...DefineOption) *Task`                                                   |
+| `Task.Doing`        | method | `Doing(text string, args ...any) *Task`; current item; Plain: first call durable, then milestones with the latest text |
+| `Task.Progress`     | method | `Progress(completed, total int) *Task`; Plain: first call durable, then milestones with the latest text                |
+| `Task.Writer`       | method | `Writer() io.Writer`; its lines become the live tail                                                                   |
+| `Task.Fact`         | method | `Fact(name, value string) *Task`; hidden until Verbose                                                                 |
+| `Task.Summary`      | method | `Summary(text string) *Task`; the settled row's headline                                                               |
+| `Task.Problem`      | method | `Problem(summary string, opts ...ProblemOption) *Task`; non-fatal                                                      |
+| `Group`             | type   | independent children; eligible siblings may run concurrently                                                           |
+| `Group.Task`        | method | `Task(name string) *Task`; declare a child Task                                                                        |
+| `Group.Group`       | method | `Group(name string) *Group`; declare a child Group                                                                     |
+| `Group.Sequence`    | method | `Sequence(name string) *Sequence`; declare a child Sequence                                                            |
+| `Group.After`       | method | `After(preds ...Predecessor) *Group`                                                                                   |
+| `Group.Build`       | method | `Build(fn func(*Group))`; topology once eligible                                                                       |
+| `Group.Summary`     | method | `Summary(text string) *Group`; the container row's headline                                                            |
+| `Sequence`          | type   | ordered children; one Running child                                                                                    |
+| `Sequence.Task`     | method | `Task(name string) *Task`; declare a child Task                                                                        |
+| `Sequence.Group`    | method | `Group(name string) *Group`; declare a child Group                                                                     |
+| `Sequence.Sequence` | method | `Sequence(name string) *Sequence`; declare a child Sequence                                                            |
+| `Sequence.After`    | method | `After(preds ...Predecessor) *Sequence`                                                                                |
+| `Sequence.Build`    | method | `Build(fn func(*Sequence))`                                                                                            |
+| `Sequence.Summary`  | method | `Summary(text string) *Sequence`; the container row's headline                                                         |
+| `Container`         | type   | interface `{Task; Group; Sequence}` satisfied by Run, Group, Sequence                                                  |
+| `Compute`           | func   | `Compute[T any](task *Task, fn func(context.Context) (T, error)) *Computed[T]`                                         |
+| `Computed`          | type   | the value a successful Task produced                                                                                   |
+| `Computed.Get`      | method | `Get() T`                                                                                                              |
+| `DefineOption`      | type   | option for `Define`                                                                                                    |
+| `CleanStop`         | func   | `CleanStop(signals ...os.Signal) DefineOption`; these end the Task Succeeded                                           |
 
 ## 3. Change
 
