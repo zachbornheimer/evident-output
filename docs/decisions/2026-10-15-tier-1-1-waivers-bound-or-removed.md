@@ -9,9 +9,9 @@ Some 1.x sentences have no 2.0 counterpart. They left with nothing to bind: nil-
 | Removed 1.x entries                                                                                  | 2.0 successor and its requirement                    |
 | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | C02-003, C02-013, C02-014 (`Block`, `Next`)                                                          | `Refuse` and `Next`: C44-002, C44-007                |
-| C02-005, C02-038, C30-003, C30-007, C30-037, C30-038, C30-039 (severity, `Warn`)                     | Problems never end a Task: C44-001; options: C44-010 |
+| C02-005, C02-038, C30-003, C30-007, C30-037, C30-038, C30-039 (severity and `Warn`, removed in 1.1)  | Problems never end a Task: C44-001; options: C44-010 |
 | C02-008, C02-012, C05-008, C05-010, C13-001, C13-003, C17-008, C18-006, C30-005, C30-009 (`Skipped`) | `Exclude`: C44-006, C48-006                          |
-| C02-016 (`Init`)                                                                                     | `Main` and `Execute`: C41-001, C41-002, C41-003      |
+| C02-016 (`Init`, removed in 2.0)                                                                     | `Main` and `Execute`: C41-001, C41-002, C41-003      |
 | C02-022, C30-001, C30-010 (handles)                                                                  | `Container`: C42-020                                 |
 | C02-032, C02-033 (`EntityState`, `Resolution`)                                                       | `Outcome` and `state`: C44-009, C44-011              |
 | C02-036, C21-011 (`Evidence`)                                                                        | `Task.Writer` and Facts: C42-013, C42-014            |
