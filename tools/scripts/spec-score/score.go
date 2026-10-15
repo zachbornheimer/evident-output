@@ -2,8 +2,22 @@ package main
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
+	"sync"
 )
+
+// packageRunners bounds how many packages are tested at once: the packages
+// are independent, and the run is dominated by compiling and running the
+// root package, so a few in flight cut the wall time without flooding the
+// machine.
+const packageRunners = 4
+
+// namesPerRun caps the tests one `go test` invocation runs, so a package with
+// many bound tests (the root package binds most of them) splits into several
+// invocations that run side by side.
+const namesPerRun = 20
 
 // scoreEntries runs every bound test once per package and scores each entry.
 // An entry passes only when every listed test reported pass.
@@ -33,15 +47,31 @@ func runPackages(entries []Entry, runner TestRunner, root, tags string) map[stri
 		}
 	}
 	outcomes := map[string]map[string]string{}
-	for pkg, names := range byPkg {
-		names = uniqueSorted(names)
-		stream, err := runner.Run(root, pkg, tags, names)
-		if err != nil {
-			outcomes[pkg] = map[string]string{}
-			continue
-		}
-		outcomes[pkg] = parseOutcomes(stream)
+	var (
+		mu   sync.Mutex
+		wg   sync.WaitGroup
+		slot = make(chan struct{}, packageRunners)
+	)
+	for pkg := range byPkg {
+		outcomes[pkg] = map[string]string{}
 	}
+	for pkg, names := range byPkg {
+		for batch := range slices.Chunk(uniqueSorted(names), namesPerRun) {
+			wg.Add(1)
+			slot <- struct{}{}
+			go func() {
+				defer func() { <-slot; wg.Done() }()
+				var result map[string]string
+				if stream, err := runner.Run(root, pkg, tags, batch); err == nil {
+					result = parseOutcomes(stream)
+				}
+				mu.Lock()
+				maps.Copy(outcomes[pkg], result)
+				mu.Unlock()
+			}()
+		}
+	}
+	wg.Wait()
 	return outcomes
 }
 

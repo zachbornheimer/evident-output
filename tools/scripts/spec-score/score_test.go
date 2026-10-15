@@ -177,3 +177,25 @@ func TestGatePassesWhenRatchetedIDIsWaived(t *testing.T) {
 		t.Fatalf("waived entries must not run tests, calls %v", runner.calls)
 	}
 }
+
+// TestScoreKeepsEachPackagesOutcomeWhenPackagesRunTogether: packages are
+// tested concurrently, so each must still be scored against its own stream.
+func TestScoreKeepsEachPackagesOutcomeWhenPackagesRunTogether(t *testing.T) {
+	streams := map[string]string{}
+	var entries []Entry
+	for _, pkg := range []string{"./a", "./b", "./c", "./d", "./e", "./f", "./g"} {
+		streams[pkg] = event("pass", "Test"+pkg)
+		entries = append(entries, entry("C01-00"+pkg[2:], "1", Tier11, ref(pkg, "Test"+pkg), ref(pkg, "Missing")))
+		entries = append(entries, entry("C02-00"+pkg[2:], "1", Tier11, ref(pkg, "Test"+pkg)))
+	}
+	score := scoreEntries(entries, &fakeRunner{streams: streams}, "r", "evopending")
+	for _, e := range entries {
+		want := StatusPass
+		if len(e.Tests) == 2 {
+			want = StatusFail
+		}
+		if got := score.IDs[e.ID]; got != want {
+			t.Errorf("%s = %v, want %v", e.ID, got, want)
+		}
+	}
+}
