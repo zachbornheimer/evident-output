@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 )
 
-// Holds is the sensor that tells a Wait whether its caller sits on a
+// Holds is the sensor that tells a waiting caller whether it sits on a
 // resource claim. The code that grants a claim reports into it (Enter, then
 // Leave); the scheduler only reads it (Any, Frame, Blocked). It keeps the
 // graph from importing the claims it must not wait under.
@@ -17,7 +17,7 @@ import (
 // then blocks on that goroutine, is caught through the starting goroutine's
 // identity (Blocked).
 type Holds struct {
-	// count is the claims held across the process, so a Wait while none is
+	// count is the claims held across the process, so a wait while none is
 	// held skips reading its own stack.
 	count atomic.Int64
 	frame FrameMarker

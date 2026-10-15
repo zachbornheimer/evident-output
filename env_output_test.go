@@ -50,8 +50,8 @@ func TestEVOOutput_Plain_NoLiveRegionOnTTYShapedWriter(t *testing.T) {
 	}
 }
 
-// EVO_OUTPUT=json selects the run document (FormatJSON) when the
-// caller chose no Format: the one machine document that carries every
+// EVO_OUTPUT=json selects the run document when the
+// caller chose no Output: the one machine document that carries every
 // structured Fact, disposition and Problem (E-090).
 func TestEVOOutput_JSON_FinishWritesRunDocument(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "json"})
@@ -77,7 +77,7 @@ func TestEVOOutput_JSON_FinishWritesRunDocument(t *testing.T) {
 	}
 }
 
-// EVO_OUTPUT=jsonl selects the event stream (FormatJSONL).
+// EVO_OUTPUT=jsonl selects the event stream.
 func TestEVOOutput_JSONL_WritesEventLines(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "jsonl"})
 	var buf bytes.Buffer

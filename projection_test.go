@@ -24,8 +24,8 @@ func TestOUT021_DataProjectionOption(t *testing.T) {
 
 // TestAPI016_ExternalProjectionSnapshots is C8: the streaming Snapshots()
 // channel is deleted (Output.Snapshot() — singular, poll-based — is the
-// surviving accessor); FormatExternal's "snapshots only" promise still
-// holds via that path.
+// surviving accessor); the snapshots-only promise of an external projection
+// still holds via that path.
 func TestAPI016_ExternalProjectionSnapshots(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })

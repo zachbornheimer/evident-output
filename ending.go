@@ -117,8 +117,8 @@ func (r *Run) concludeLocked() snapshot {
 }
 
 // runErrorLocked is the error Finish returns: the recorded misuse, joined with any machine-stream write failure.
-// FormatJSON's final "evo.run" document (§32.1) is written here, independent of the human projection;
-// a write failure there, or a mid-run "evo.event" JSONL failure (§32.2), is a real Run failure.
+// The JSON Output's final "evo.run" document is written here, independent of the human projection;
+// a write failure there, or a mid-run "evo.event" JSONL failure, is a real Run failure.
 func (r *Run) runErrorLocked(conc Conclusion) error {
 	misuse := r.allMisuse()
 	if r.cfg.wireFormat == JSON {
@@ -232,7 +232,7 @@ func undefinedTaskHint(name string, others int) string {
 }
 
 // rejectedTask is the handle a refused Task declaration (duplicate name or key, entity limit, closed Output)
-// returns, so a chained call never panics. err is never nil: Define on it is misuse, and Wait says the work never ran.
+// returns, so a chained call never panics. err is never nil: Define on it is misuse, and Finish reports that the work never ran.
 func (r *Run) rejectedTask(err error) *Task {
 	return &Task{out: r, id: r.graph.NextID("task"), rejected: err}
 }

@@ -9,7 +9,7 @@ import (
 )
 
 // runDocument is the finished run's "evo.run" document, built from its
-// conclusion exactly as Finish writes it under FormatJSON.
+// conclusion exactly as Finish writes it under the JSON Output.
 func (r *Run) runDocument(t testing.TB) []byte {
 	t.Helper()
 	snap := r.snapshot()

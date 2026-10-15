@@ -277,7 +277,7 @@ func ToRunDocument(result record.Result, evoVersion string) RunDocument {
 }
 
 // EncodeRun encodes result as the final "evo.run" document plus no trailing
-// newline (callers that need the newline — WriteJSON, FormatJSON's stdout
+// newline (callers that need the newline — WriteJSON, the JSON Output's stdout
 // write — append it themselves; see WriteJSON).
 func EncodeRun(result record.Result, evoVersion string) ([]byte, error) {
 	return json.MarshalIndent(ToRunDocument(result, evoVersion), "", "  ")

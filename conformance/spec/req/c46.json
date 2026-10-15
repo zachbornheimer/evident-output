@@ -24,7 +24,7 @@
     "tests": [
       {
         "pkg": ".",
-        "run": "TestFormatJSON_StdoutHasOneRunDocumentStderrHasHuman"
+        "run": "TestOutputJSON_StdoutHasOneRunDocumentStderrHasHuman"
       },
       {
         "pkg": ".",
@@ -41,7 +41,7 @@
     "tests": [
       {
         "pkg": ".",
-        "run": "TestFormatJSONL_StdoutStreamsEventLinesStderrHasHuman"
+        "run": "TestOutputJSONL_StdoutStreamsEventLinesStderrHasHuman"
       },
       {
         "pkg": ".",

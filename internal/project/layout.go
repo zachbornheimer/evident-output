@@ -136,8 +136,7 @@ func WriteTask(b *strings.Builder, t record.TaskSnapshot, s Style) {
 
 // WriteTaskAligned renders a root task row with its name padded to
 // nameWidth (0 = no padding) before any annotation, so a run of sibling
-// tasks with inline warnings/facts line up in one column ("✓ branches
-// ! kept 13...", fixture-repo-retire-dryrun.md). See taskRow.
+// tasks with inline problems/facts line up in one column. See taskRow.
 func WriteTaskAligned(b *strings.Builder, t record.TaskSnapshot, nameWidth int, s Style) {
 	RootRow(t, nameWidth).Write(b, s)
 }

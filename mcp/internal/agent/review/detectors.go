@@ -100,7 +100,7 @@ var fileDetectors = []detector{
 	// silent child with no way to tell slow from hung.
 	{name: "detectStaleDoingBeforeSubprocess", needsEvo: true, run: astRule(detectStaleDoingBeforeSubprocess)},
 	// TAX-001: a hand-assembled "%d skipped/kept/retained" string bypasses
-	// the reason-partitioned taxonomy evo derives from Skipped/Kept.
+	// the reason-partitioned tally evo derives from Excluded Tasks.
 	{name: "detectHandAssembledTaxonomyCount", needsEvo: true, run: textRule(detectHandAssembledTaxonomyCount)},
 	// PROG-001 (Doing form): a Doing string smuggling "%d/%d" is progress
 	// hidden in narration text instead of a real Progress call.

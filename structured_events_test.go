@@ -556,8 +556,8 @@ func TestWireEvents_ProblemRecordedCarriesItsProblemOptions(t *testing.T) {
 // TestWireEvents_VerificationObservedCarriesFacts is ZYS-823 gap 8:
 // change.Host.AttachVerification recorded a Task's per-attribute
 // File/Patch VerificationDetails for Snapshot/JSON but emitted no
-// "verification.observed" JSONL line, so a FormatJSONL consumer never saw
-// the same per-attribute Facts (error/path/mode) FormatJSON's evo.run
+// "verification.observed" JSONL line, so a JSONL consumer never saw
+// the same per-attribute Facts (error/path/mode) the JSON Output's evo.run
 // document carries — breaking one-runtime-truth parity across the two
 // projections.
 func TestWireEvents_VerificationObservedCarriesFacts(t *testing.T) {
@@ -613,7 +613,7 @@ func TestWireEvents_VerificationObservedCarriesFacts(t *testing.T) {
 // carrying control/ANSI bytes (e.g. an OS error string) therefore reached
 // JSONL unsanitized while the final "evo.run" JSON document (which reads
 // the stored, sanitized st.verification) carried the sanitized form. That
-// breaks one-runtime-truth parity between FormatJSON and FormatJSONL for
+// breaks one-runtime-truth parity between the JSON and JSONL Outputs for
 // the exact same underlying data.
 func TestWireEvents_VerificationObservedUsesSanitizedFacts(t *testing.T) {
 	const rawErr = "permission denied\x1b[31m\x07 (control bytes)"

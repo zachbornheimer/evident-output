@@ -118,7 +118,7 @@ type config struct {
 	maxEntities     int
 	maxEvents       int
 	maxConcurrency  int
-	// verbose shows Facts and expands each Skipped/Kept row into one line per reason.
+	// verbose shows Facts and expands each folded Excluded tally into one line per reason.
 	verbose       bool
 	stateDir      string
 	appID         string

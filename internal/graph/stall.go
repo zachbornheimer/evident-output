@@ -9,7 +9,7 @@ package graph
 //
 // The steps run in the order that leaves every row most truthful:
 //
-//  1. a Task in an After cycle settles Blocked, naming the cycle;
+//  1. a Task in an After cycle settles Refused, naming the cycle;
 //  2. any Task still parked settles NotStarted.
 func (g *Graph) resolveStallLocked() (moved bool, notes []misuseNote) {
 	defer func() { notes = g.takeMisuseNotesLocked() }()

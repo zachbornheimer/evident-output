@@ -124,7 +124,7 @@ func cycleThrough(path []cycleFrame, to depNode) []depNode {
 	return append(cycle, to)
 }
 
-// BlockCycles settles Blocked every parked Task caught in an After cycle —
+// BlockCycles settles Refused every parked Task caught in an After cycle —
 // it can never start, and the row says why — and tells the MisuseSink once
 // per cycle. Its dependents then settle NotStarted through the ordinary
 // cascade. It reports whether it found any cycle.
@@ -146,7 +146,7 @@ func (g *Graph) blockCyclesLocked() bool {
 		return false
 	}
 	cycles := g.dependencyCyclesLocked()
-	// Every Task in a cycle is Blocked, so none may cascade NotStarted into
+	// Every Task in a cycle is Refused, so none may cascade NotStarted into
 	// another before its own turn.
 	release := g.holdWakesLocked()
 	defer release()
@@ -166,7 +166,7 @@ func (g *Graph) blockCyclesLocked() bool {
 	return len(cycles) > 0
 }
 
-// blockInCycleLocked settles t Blocked the way Block does: one Problem
+// blockInCycleLocked settles t Refused the way Refuse does: one Problem
 // with no Subject of its own, so the row states the cycle once rather
 // than again on a child line under the Task's own name.
 func (g *Graph) blockInCycleLocked(t *Task, path string) {

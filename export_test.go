@@ -285,7 +285,7 @@ func (r *Run) debugWriter() io.WriteCloser {
 
 // WriteJSON serializes result as the stable v2 "evo.run" wire document plus
 // one trailing newline (schema/run.v3.json) — the HTTP/embedding counterpart of
-// FormatJSON's automatic Stdout write. It never serializes internal
+// JSON Output's automatic Stdout write. It never serializes internal
 // snapshots directly, and applies the same redaction Result's Conclusion
 // already carries. HTTP status (or any other transport-level outcome) is
 // the embedding application's own concern; Evo's outcome/exit semantics

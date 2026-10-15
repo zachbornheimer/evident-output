@@ -81,7 +81,7 @@ type TaskSnapshot struct {
 	Summary         string
 	Problems        []Problem
 	// Facts holds Task.Fact's accumulated annotations (P8): discovered
-	// information about the task, at info severity — never a lifecycle state,
+	// information about the task, never a lifecycle state,
 	// never work of its own. Renders as a dim "name  value" line, inline when
 	// it is the task's only annotation, nested otherwise (same DisplayUnit
 	// annotations-slot placement rule).

@@ -23,7 +23,7 @@ func (erroringWriter) Write(p []byte) (int, error) {
 	return 0, errors.New("erroringWriter: write failed")
 }
 
-func TestFormatJSON_StdoutHasOneRunDocumentStderrHasHuman(t *testing.T) {
+func TestOutputJSON_StdoutHasOneRunDocumentStderrHasHuman(t *testing.T) {
 	var stdout, stderr nopFlushWriter
 	out := initRun(Config{Name: "demo", Output: JSON, Facades: Facades{Stdout: &stdout, Stderr: &stderr}})
 	out.Task("build").succeed("")
@@ -43,19 +43,19 @@ func TestFormatJSON_StdoutHasOneRunDocumentStderrHasHuman(t *testing.T) {
 		t.Fatalf("evo.run document must carry the declared task, got:\n%s", stdoutBody)
 	}
 	if strings.Contains(stdoutBody, "evo.event") {
-		t.Fatalf("FormatJSON must never write evo.event lines to stdout, got:\n%s", stdoutBody)
+		t.Fatalf("JSON Output must never write evo.event lines to stdout, got:\n%s", stdoutBody)
 	}
 
 	stderrBody := stderr.String()
 	if stderrBody == "" {
-		t.Fatalf("human presentation must still stream to stderr under FormatJSON")
+		t.Fatalf("human presentation must still stream to stderr under the JSON Output")
 	}
 	if strings.Contains(stderrBody, `"object": "evo.run"`) {
 		t.Fatalf("the evo.run document must never appear on stderr, got:\n%s", stderrBody)
 	}
 }
 
-func TestFormatJSON_StdoutWriteFailureEscalatesToExitFailed(t *testing.T) {
+func TestOutputJSON_StdoutWriteFailureEscalatesToExitFailed(t *testing.T) {
 	var stderr nopFlushWriter
 	out := initRun(Config{Name: "demo", Output: JSON, Facades: Facades{Stdout: erroringWriter{}, Stderr: &stderr}})
 	result := out.run(context.Background(), func(ctx context.Context, r *Run) error {
@@ -67,7 +67,7 @@ func TestFormatJSON_StdoutWriteFailureEscalatesToExitFailed(t *testing.T) {
 	}
 }
 
-func TestFormatJSONL_StdoutStreamsEventLinesStderrHasHuman(t *testing.T) {
+func TestOutputJSONL_StdoutStreamsEventLinesStderrHasHuman(t *testing.T) {
 	var stdout, stderr nopFlushWriter
 	out := initRun(Config{Name: "demo", Output: JSONL, Facades: Facades{Stdout: &stdout, Stderr: &stderr}})
 	out.Task("build").succeed("")
@@ -95,11 +95,11 @@ func TestFormatJSONL_StdoutStreamsEventLinesStderrHasHuman(t *testing.T) {
 		lastSeq = seq
 	}
 	if strings.Contains(stdout.String(), `"object":"evo.run"`) {
-		t.Fatalf("FormatJSONL must never write an evo.run document to stdout, got:\n%s", stdout.String())
+		t.Fatalf("JSONL Output must never write an evo.run document to stdout, got:\n%s", stdout.String())
 	}
 
 	if stderr.String() == "" {
-		t.Fatalf("human presentation must still stream to stderr under FormatJSONL")
+		t.Fatalf("human presentation must still stream to stderr under the JSONL Output")
 	}
 }
 
@@ -111,12 +111,12 @@ func hasLiveRegionExt(s string) bool {
 	return strings.Contains(s, "\x1b[?25") || strings.Contains(s, "\x1b[2K")
 }
 
-// spec §32.1 routes FormatJSON/FormatJSONL human presentation to Stderr
-// exactly like FormatData — including the interactive live region when
+// The JSON and JSONL Outputs route human presentation to Stderr
+// exactly like any other machine Output — including the interactive live region when
 // Stderr is a TTY. A plain-only stderr (no live region ever, even on an
 // interactive terminal) would silently regress every JSON/JSONL CLI to the
 // durable/plain renderer.
-func TestFormatJSON_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
+func TestOutputJSON_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 	var stdout, stderr nopFlushWriter
 	defer markWriterAsCharDevice(&stderr)()
 	out := initRun(Config{Name: "demo", Output: JSON, Facades: Facades{Stdout: &stdout, Stderr: &stderr}}, tuning{visibilityDelay: delay(0)})
@@ -125,14 +125,14 @@ func TestFormatJSON_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 		t.Fatalf("Finish: %v", err)
 	}
 	if !hasLiveRegionExt(stderr.String()) {
-		t.Fatalf("FormatJSON must open a live region on an interactive stderr:\n%q", stderr.String())
+		t.Fatalf("JSON Output must open a live region on an interactive stderr:\n%q", stderr.String())
 	}
 	if !strings.Contains(stdout.String(), `"object": "evo.run"`) {
-		t.Fatalf("FormatJSON must still write the evo.run document to stdout:\n%s", stdout.String())
+		t.Fatalf("JSON Output must still write the evo.run document to stdout:\n%s", stdout.String())
 	}
 }
 
-func TestFormatJSONL_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
+func TestOutputJSONL_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 	var stdout, stderr nopFlushWriter
 	defer markWriterAsCharDevice(&stderr)()
 	out := initRun(Config{Name: "demo", Output: JSONL, Facades: Facades{Stdout: &stdout, Stderr: &stderr}}, tuning{visibilityDelay: delay(0)})
@@ -141,11 +141,11 @@ func TestFormatJSONL_StderrGetsLiveRegionWhenInteractive(t *testing.T) {
 		t.Fatalf("Finish: %v", err)
 	}
 	if !hasLiveRegionExt(stderr.String()) {
-		t.Fatalf("FormatJSONL must open a live region on an interactive stderr:\n%q", stderr.String())
+		t.Fatalf("JSONL Output must open a live region on an interactive stderr:\n%q", stderr.String())
 	}
 }
 
-func TestFormatJSON_RunReturnsResultUsableByWireEncoder(t *testing.T) {
+func TestOutputJSON_RunReturnsResultUsableByWireEncoder(t *testing.T) {
 	var stdout, stderr nopFlushWriter
 	out := initRun(Config{Name: "demo", Output: JSON, Facades: Facades{Stdout: &stdout, Stderr: &stderr}})
 	result := out.run(context.Background(), func(ctx context.Context, r *Run) error { return nil })

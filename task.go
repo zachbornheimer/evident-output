@@ -241,7 +241,7 @@ func (t *Task) Problem(summary string, opts ...ProblemOption) *Task {
 	})
 }
 
-// Fact accumulates a name/value annotation (info severity), the non-terminal sibling of Problem.
+// Fact accumulates a name/value annotation (information, not a verdict), the non-terminal sibling of Problem.
 // Renders as a dim "name  value" line, inline when it is the only annotation.
 func (t *Task) Fact(name, value string) *Task {
 	f := record.SanitizeFact(factRecord{Name: project.Text(name), Value: project.Text(value)})

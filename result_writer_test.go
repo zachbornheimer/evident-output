@@ -5,12 +5,11 @@ import (
 	"testing"
 )
 
-// FormatData's whole contract is "domain payload on stdout, presentation on
-// stderr", and the only way a caller can hold up its end is to be handed the
-// payload stream. The rec-dialect rename made that method unexported while
-// every doc comment kept pointing at the exported name, so callers could
-// configure FormatData and then had nowhere to write — zq went back to a raw
-// os.Stdout write and spliced its own task rows into its JSON.
+// A payload Output's whole contract is "domain payload on stdout, presentation
+// on stderr", and the only way a caller can hold up its end is to be handed the
+// payload stream. When that method was unexported while the doc comments kept
+// pointing at the exported name, callers had nowhere to write — zq went back to
+// a raw os.Stdout write and spliced its own task rows into its JSON.
 func TestResultWriter_FormatDataHandsTheCallerItsPayloadStream(t *testing.T) {
 	var payload, human bytes.Buffer
 	out := initRun(Config{Name: "zq", Facades: Facades{Stdout: &payload, Stderr: &human}})
