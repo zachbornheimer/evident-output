@@ -143,8 +143,9 @@ func (s *Stream) check(id record.TaskID) {
 // heartbeat writes one "• <name>  <count>  <item>  — <elapsed>" line in the
 // row grammar every plain row shares, with its own glyph so it never reads as
 // a real update. The count and item are the Task's latest progress and
-// Doing text (CONTRACT §2: Doing is live only, so this row is where a log
-// reader sees it); a Task with neither reads "• <name>  — <elapsed>".
+// Doing text (CONTRACT §2: later Doing calls thin into milestones, so this
+// row carries the latest one after them); a Task with neither reads
+// "• <name>  — <elapsed>".
 func (s *Stream) heartbeat(r *row, now time.Time) {
 	st := s.cfg.Style
 	truth := r.Rec.Truth()

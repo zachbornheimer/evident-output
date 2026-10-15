@@ -184,3 +184,36 @@ func TestPlain_DoingWritesNoDurableLinePerCall(t *testing.T) {
 		t.Fatalf("want the heartbeat to carry %q, got:\n%s", want, buf.String())
 	}
 }
+
+// TestPlain_DoingAloneWritesTheFirstCallThenThins is CONTRACT §2 for a Task
+// with no Progress: the first Doing call is a line at once, a thousand calls
+// in a tight loop add at most a milestone, and the heartbeat then carries the
+// latest item.
+func TestPlain_DoingAloneWritesTheFirstCallThenThins(t *testing.T) {
+	const items = 1000
+	clock := newHeartbeatFakeClock()
+	var buf strings.Builder
+	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf, Clock: clock}})
+	t.Cleanup(func() { _ = out.close() })
+
+	task := out.Task("copy")
+	task.Doing("f0000")
+	if got := buf.String(); strings.Count(got, "\n") != 1 || !strings.Contains(got, "f0000") {
+		t.Fatalf("the first Doing call should write one line at once, got:\n%s", got)
+	}
+	for i := 1; i < items; i++ {
+		task.Doing(fmt.Sprintf("f%04d", i))
+		clock.Advance(10 * time.Millisecond)
+	}
+	if lines, limit := strings.Count(buf.String(), "\n"), 12; lines > limit {
+		t.Fatalf("%d Doing calls wrote %d lines, want at most %d:\n%s", items, lines, limit, buf.String())
+	}
+	if strings.Contains(buf.String(), "f0500") {
+		t.Fatalf("an item name between milestones was written durably:\n%s", buf.String())
+	}
+
+	clock.Advance(30 * time.Second)
+	if want := "• copy  f0999  — "; !strings.Contains(buf.String(), want) {
+		t.Fatalf("want the heartbeat to carry %q, got:\n%s", want, buf.String())
+	}
+}

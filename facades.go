@@ -25,13 +25,14 @@ type (
 type processRunner = process.Runner
 
 // Spawn wires one Exec spawn's capture: stdout and stderr both feed the task's Capture ring (sanitized,
-// redacted, bounded), and each completed line becomes the task's Doing activity, never parsed for totals.
+// redacted, bounded), and each completed line becomes the task's live activity, never parsed for totals and
+// never a durable Plain line: the child narrated it, the caller did not.
 // Cancelling ctx kills the child. ExecResult output comes from that ring and is zero-valued alongside a
 // spawn error. Failures are wrapped with the resolved executable path, which the caller's wrap does not know.
 func (e runHost) Spawn(ctx context.Context, id record.TaskID, cmd change.SpawnCommand) (change.ExecResult, error) {
 	o := e.out
 	task := &Task{out: o, id: string(id)}
-	ev := task.capture(activityFeed(func(line string) { task.Doing(line) }))
+	ev := task.capture(activityFeed(task.setLiveOnlyPhase))
 
 	argv := append([]string{cmd.Path}, cmd.Args...)
 	exitCode, runErr := o.cfg.processRunner.Run(ctx, argv, cmd.Dir, cmd.Env, ev.Stdout(), ev.Stderr())

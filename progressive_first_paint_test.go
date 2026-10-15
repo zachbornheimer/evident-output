@@ -2,8 +2,10 @@ package evo
 
 import (
 	"bytes"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // syncBuffer is a bytes.Buffer safe to read while the Output writes to it.
@@ -24,18 +26,26 @@ func (b *syncBuffer) String() string {
 	return b.buf.String()
 }
 
-// Doing is live only (CONTRACT §2): off a terminal it writes no durable line,
-// so a narrated item reaches the stream through the row that settles or the
-// heartbeat, never at the call.
-func TestDoing_PlainModeWritesNoLineBeforeTheTaskResolves(t *testing.T) {
+// Off a terminal there is no live region to carry "I have started", so the
+// first Doing call is a durable line (CONTRACT §2) that reaches the stream
+// when it is narrated, not when the Task resolves. A CLI that resolves
+// toolchains for ten seconds before its first byte looks hung, and zq pins
+// that as a wall-clock budget.
+func TestDoing_PlainModeEmitsTheFirstBeatBeforeTheTaskResolves(t *testing.T) {
+	const firstBeatBudget = 500 * time.Millisecond
 	var out syncBuffer
 	var payload syncBuffer
 	o := initRun(Config{Name: "zq", Facades: Facades{Stdout: &payload, Stderr: &out}}, tuning{visibilityDelay: DelayForTest(0)})
 	t.Cleanup(func() { _ = o.close() })
 
+	start := time.Now()
 	o.Task("zq ci resolve").Doing("resolving repository root")
 
-	if got := out.String(); got != "" {
-		t.Fatalf("Doing wrote a durable line before the task resolved: %q", got)
+	for time.Since(start) < firstBeatBudget {
+		if strings.Contains(out.String(), "resolving repository root") {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
+	t.Fatalf("first narrated beat never reached the stream within %v while the task was unresolved; got %q", firstBeatBudget, out.String())
 }

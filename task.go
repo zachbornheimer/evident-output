@@ -145,8 +145,8 @@ func (r *Run) nodeOfContainer(id string) *graph.Container {
 }
 
 // Doing sets the live step text and starts the task if pending; text is a printf format when
-// args are present. Chained right after Task, it sets the first step. Live only: off a TTY Doing writes no
-// durable line per call, and the periodic heartbeat row carries the latest text.
+// args are present. Chained right after Task, it sets the first step. Off a TTY the first call is a durable
+// line and later calls thin into milestones carrying the latest text; the heartbeat row covers the silence.
 func (t *Task) Doing(text string, args ...any) *Task {
 	if len(args) > 0 {
 		text = fmt.Sprintf(text, args...)
@@ -205,6 +205,7 @@ func (r *Run) setPhaseLocked(st *taskState, text string) {
 	r.bumpLocked()
 	r.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
 	r.show.Live.Signal(true)
+	r.show.Stream.Narrated(st.node.TaskID(), r.cfg.clock.Now())
 }
 
 // setLiveOnlyPhaseLocked is setPhaseLocked for non-narrated sources.
