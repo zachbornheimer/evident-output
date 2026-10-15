@@ -282,6 +282,28 @@ func TestEncodeRun_ProblemLocationAndRemediesSurviveEncoding(t *testing.T) {
 	}
 }
 
+// TestToRunDocumentPutsRunWarningsInDataProblems pins that the warnings a
+// Conclusion carries about the run itself are data.problems, while a Task's
+// own Problems stay on the Task.
+func TestToRunDocumentPutsRunWarningsInDataProblems(t *testing.T) {
+	doc := ToRunDocument(record.Result{Conclusion: withConc(func(c *record.Conclusion) {
+		c.Warnings = []record.Problem{{Summary: "manifest not saved: disk full"}}
+		c.Tasks = []record.TaskSnapshot{
+			record.NewTaskSnapshot(record.TaskSnapshot{
+				ID: "task_1", Name: "build", State: record.Succeeded,
+				Problems: []record.Problem{{Summary: "task finding"}},
+			}, time.Time{}, false),
+		}
+	})}, testEvoVersion)
+
+	if got := doc.Data.Problems; len(got) != 1 || got[0].Message != "manifest not saved: disk full" {
+		t.Errorf("data.problems = %+v, want only the run warning", got)
+	}
+	if got := doc.Data.Tasks[0].Problems; len(got) != 1 || got[0].Message != "task finding" {
+		t.Errorf("task problems = %+v, want the Task's own finding", got)
+	}
+}
+
 func TestModeFor(t *testing.T) {
 	if got := modeFor(true); got != ModeDryRun {
 		t.Errorf("modeFor(true) = %s, want %s", got, ModeDryRun)

@@ -153,3 +153,36 @@ func TestRunSchemaRejectsUnknownStateAndOutcome(t *testing.T) {
 func firstOf(doc map[string]any, list string) map[string]any {
 	return doc["data"].(map[string]any)[list].([]any)[0].(map[string]any)
 }
+
+// TestRunSchemaPinsRunWarningsAsProblems pins that data.problems, where
+// CONTRACT.md §4 puts the warnings a run records about itself, is a required
+// list of problems a stock validator checks: a run warning conforms, and a
+// list of anything else does not.
+func TestRunSchemaPinsRunWarningsAsProblems(t *testing.T) {
+	schema := []byte(readFile(t, runSchemaFile))
+	check := func(problems any) error {
+		doc := runDocument(t)
+		if problems == nil {
+			delete(doc["data"].(map[string]any), "problems")
+		} else {
+			doc["data"].(map[string]any)["problems"] = problems
+		}
+		body, err := json.Marshal(doc)
+		if err != nil {
+			t.Fatalf("marshal document: %v", err)
+		}
+		return wireschema.Validate(schema, body)
+	}
+	if err := check([]any{map[string]any{"message": "manifest not saved: disk full"}}); err != nil {
+		t.Errorf("a run warning does not conform to %s: %v", runSchemaFile, err)
+	}
+	for name, problems := range map[string]any{
+		"a missing list":                  nil,
+		"a string":                        "manifest not saved",
+		"a problem with a number message": []any{map[string]any{"message": 7}},
+	} {
+		if check(problems) == nil {
+			t.Errorf("the schema accepts data.problems as %s", name)
+		}
+	}
+}

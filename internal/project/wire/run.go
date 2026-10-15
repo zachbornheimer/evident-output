@@ -90,6 +90,8 @@ type RunDocument struct {
 }
 
 // RunData is the "evo.run" envelope's "data" payload (schema/run.v3.json).
+// Problems are the warnings about the run itself, such as a manifest it could
+// not save; a Task's Problems stay on the Task.
 type RunData struct {
 	Collections []CollectionDoc `json:"collections"`
 	Tasks       []TaskDoc       `json:"tasks"`
