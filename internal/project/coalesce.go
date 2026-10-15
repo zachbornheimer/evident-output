@@ -20,7 +20,7 @@ func ShouldSuppressStandaloneConclusion(s record.Snapshot) bool {
 	c := *s.Conclusion
 
 	if semanticResultCount(s) == 0 {
-		return c.Explanation == "" && len(c.Actions) == 0 && !c.Partial && !c.Cancelled && !c.Warned
+		return c.Explanation == "" && len(c.Actions) == 0 && !c.Partial && !c.Cancelled && !c.Warned()
 	}
 
 	// Extra visible conclusion dimensions — never suppress. Warned joins
@@ -28,7 +28,7 @@ func ShouldSuppressStandaloneConclusion(s record.Snapshot) bool {
 	// must not have its "· warned" modifier silently swallowed along with
 	// the band it rides on (the same class of gap release-gate round 8
 	// finding 3 fixed for the non-suppressed case).
-	if c.Explanation != "" || len(c.Actions) > 0 || c.Partial || c.Cancelled || c.Warned {
+	if c.Explanation != "" || len(c.Actions) > 0 || c.Partial || c.Cancelled || c.Warned() {
 		return false
 	}
 

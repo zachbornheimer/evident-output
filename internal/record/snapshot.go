@@ -41,7 +41,7 @@ type Snapshot struct {
 	// to announce it.
 	DryRun bool
 	// Warnings holds warnings about the run itself, not about any one Task.
-	// They feed Conclusion.Warned and are never a headline state of their own.
+	// They feed Conclusion.Warnings and are never a headline state of their own.
 	Warnings []Problem
 	// Facts holds evo.Fact's run-scoped annotations (P8) — discovered
 	// information about the run itself (evo.Fact("language", "go")), fire-

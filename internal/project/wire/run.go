@@ -250,7 +250,7 @@ func ToRunDocument(result record.Result, evoVersion string) RunDocument {
 			Collections: make([]CollectionDoc, 0, len(c.Collections)),
 			Tasks:       make([]TaskDoc, 0, len(c.Tasks)),
 			Facts:       toFactDocs(c.Facts),
-			Problems:    []ProblemDoc{},
+			Problems:    toProblemDocs(c.Warnings),
 			Effects:     make([]EffectDoc, 0, len(c.Changes)+len(c.Plans)),
 			Actions:     make([]ActionDoc, 0, len(c.Actions)),
 		},

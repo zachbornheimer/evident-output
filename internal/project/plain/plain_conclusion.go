@@ -30,7 +30,7 @@ func conclusionBandTag(c record.Conclusion) string {
 	if c.Partial && c.Outcome != record.OutcomeCancelled {
 		tag += conclusionPartialModifier
 	}
-	if c.Warned {
+	if c.Warned() {
 		tag += conclusionWarnedModifier
 	}
 	return fmt.Sprintf("[%s]", tag)
@@ -86,6 +86,6 @@ const conclusionPartialModifier = " · partial"
 // removed in 1.1) while its
 // headline settled on an OK-family state (e.g. [ready]) must not read as
 // silently clean — the exit code is unchanged, only the band gains this
-// suffix. record.Conclusion.Warned is already false when State is itself
+// suffix. record.Conclusion.Warned() is already false when State is itself
 // record.StateWarning, so the two never double up.
 const conclusionWarnedModifier = " · warned"

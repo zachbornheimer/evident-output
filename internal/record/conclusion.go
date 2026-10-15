@@ -11,9 +11,9 @@ type Conclusion struct {
 	Summary string
 	Changed bool
 	Partial bool
-	// Warned reports a warning about the run itself (a manifest that could
-	// not be saved): a modifier on the Outcome, never a verdict.
-	Warned      bool
+	// Warnings are the warnings about the run itself (a manifest that could
+	// not be saved): a modifier on the Outcome, never a verdict. See Warned.
+	Warnings    []Problem
 	Cancelled   bool
 	Explanation string
 	Tasks       []TaskSnapshot
@@ -110,10 +110,14 @@ func InferConclusion(s Snapshot) Conclusion {
 	if c.Outcome.ExitCode() != ExitOK {
 		c.Explanation = decidingEnding(c.Outcome, s.Tasks, s.Collections)
 	}
-	c.Warned = len(s.Warnings) > 0
+	c.Warnings = s.Warnings
 	c.ExitCode = c.Outcome.ExitCode()
 	return c
 }
+
+// Warned reports a warning about the run itself, the `· warned` modifier on
+// the band.
+func (c Conclusion) Warned() bool { return len(c.Warnings) > 0 }
 
 // unsettled reports whether s is a Task or collection the run left without
 // an Outcome: Partial marks the Outcome incomplete instead of replacing it.

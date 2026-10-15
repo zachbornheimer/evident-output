@@ -310,7 +310,10 @@ committed a mutation and `planned` in a dry run. The band adds `· partial`
 when some declared Task never reached an Outcome: a predecessor or an earlier
 Sequence step left it NotStarted, or the run ended while it was still pending
 or running. `· partial` qualifies the headline and never replaces it, so
-`[failed · partial]` is still exit 2. A Cancelled band omits it, since
+`[failed · partial]` is still exit 2. The band adds `· warned` when the run
+itself recorded a warning, such as a manifest it could not save (the next run
+re-executes this one's work); `data.problems` in `evo.run` carries each such
+warning. A Cancelled band omits it, since
 Cancelled already says the run stopped short. A Cancelled band ends with what
 interrupted the run, `[cancelled]  <name>  by user`: the cause
 `Conclusion.Explanation` holds, which no Task row owns. A Failed or Cancelled
