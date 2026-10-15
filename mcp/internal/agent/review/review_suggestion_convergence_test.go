@@ -102,7 +102,6 @@ var guidanceOnly = map[string]string{
 	"detectUnboundedSliceIntoNarration":       reasonAlternatives,
 	"detectUndocumentedWireSchemaVersion":     reasonNeedsAuthorText,
 	"detectUnorderedComputedGet":              reasonInsertion,
-	"detectUnresolvedTask":                    reasonPlaceholderShape,
 	"detectWrapperMethod":                     reasonRestructures,
 }
 

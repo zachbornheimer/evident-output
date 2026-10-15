@@ -166,3 +166,57 @@ func TestDOM021StaysSilentOnDefinedOrHandedOnStatements(t *testing.T) {
 		}
 	}
 }
+
+const afterOnlyTasksSrc = `package main
+
+import (
+	"context"
+
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+
+func run(ctx context.Context, r *evo.Run) error {
+	deploy := r.Task("deploy")
+	r.Task("after").After(deploy).Define(func(context.Context) error { return nil })
+	g := r.Group("g")
+	pkg := g.Task("pkg").Summary("x")
+	r.Task("after2").After(pkg.Summary("y")).Define(func(context.Context) error { return nil })
+	defined := r.Task("defined").Define(func(context.Context) error { return nil })
+	r.Task("after3").After(defined).Define(func(context.Context) error { return nil })
+	return nil
+}
+`
+
+// TestDOM021FiresOnTaskUsedOnlyInAfter pins that naming a Task as another
+// Task's predecessor does not hand it on: After gives the predecessor no
+// work, so it still ends NotStarted and stops its dependents. A predecessor
+// that is Defined stays silent, and the finding's rewrite is applicable.
+func TestDOM021FiresOnTaskUsedOnlyInAfter(t *testing.T) {
+	res := review.GoSource("main.go", afterOnlyTasksSrc)
+	var found []review.Finding
+	for _, f := range res.Findings {
+		if f.RuleID == "DOM-021" {
+			found = append(found, f)
+		}
+	}
+	var lines []int
+	for _, f := range found {
+		lines = append(lines, f.Line)
+	}
+	if want := []int{10, 13}; !slices.Equal(lines, want) {
+		t.Fatalf("DOM-021 lines = %v, want %v (deploy and pkg, the After-only Tasks)", lines, want)
+	}
+	rewritten := afterOnlyTasksSrc
+	for _, f := range found {
+		next, ok := applySuggestion(rewritten, f.Suggestion)
+		if !ok {
+			t.Fatalf("DOM-021 suggestion is not a rewrite of the declaration: %q", f.Suggestion)
+		}
+		rewritten = next
+	}
+	for _, f := range review.GoSource("main.go", rewritten).Findings {
+		if f.RuleID == "DOM-021" {
+			t.Fatalf("DOM-021 still fires after its rewrite: %+v\n%s", f, rewritten)
+		}
+	}
+}

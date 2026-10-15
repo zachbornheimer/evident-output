@@ -3,6 +3,7 @@ package review
 import (
 	"go/ast"
 	"go/token"
+	"go/types"
 	"slices"
 	"strings"
 )
@@ -45,7 +46,7 @@ func detectUnresolvedTask(filename string, file *ast.File, fset *token.FileSet) 
 			}
 			findings = append(findings, Finding{
 				RuleID:     "DOM-021",
-				Message:    declared.subject() + " is declared but never Defined or handed on. " + noDefineSentence,
+				Message:    declared.subject() + " is declared but never Defined or handed on; naming it in After does not give it work. " + noDefineSentence + " The rewrite adds a Define whose body is the place for the work.",
 				File:       filename,
 				Line:       fset.Position(declared.pos).Line,
 				Suggestion: declared.fix(),
@@ -56,10 +57,12 @@ func detectUnresolvedTask(filename string, file *ast.File, fset *token.FileSet) 
 }
 
 // taskDeclaration is one Task a function declares and no Define reaches
-// yet: where, and the variable that keeps it ("" when nothing does).
+// yet: where, the variable that keeps it ("" when nothing does), and the
+// Task(...) chain that declares it.
 type taskDeclaration struct {
-	pos  token.Pos
-	name string
+	pos   token.Pos
+	name  string
+	chain ast.Expr
 }
 
 func (d taskDeclaration) subject() string {
@@ -69,12 +72,11 @@ func (d taskDeclaration) subject() string {
 	return "Task " + d.name
 }
 
+// fix is the rewrite of the declaring chain into the same chain with a
+// Define, so the Task has work and the author replaces the body with it.
 func (d taskDeclaration) fix() string {
-	const work = ".Define(func(ctx context.Context) error { ... }) and return nil, evo.Fail, evo.Refuse or evo.Exclude"
-	if d.name == "" {
-		return "chain" + work + " onto the declaration, or keep the Task in a variable and Define it"
-	}
-	return "run the work inside " + d.name + work
+	chain := types.ExprString(d.chain)
+	return "replace " + chain + " with " + chain + ".Define(func(ctx context.Context) error { return nil })"
 }
 
 // declaredTasks is every Task body declares with a Task(...) chain that
@@ -83,19 +85,19 @@ func (d taskDeclaration) fix() string {
 // in a field, element or channel is handed on and is not listed.
 func declaredTasks(body *ast.BlockStmt) []taskDeclaration {
 	var declared []taskDeclaration
-	add := func(pos token.Pos, name *ast.Ident) {
+	add := func(pos token.Pos, name *ast.Ident, chain ast.Expr) {
 		if name.Name == "_" {
-			declared = append(declared, taskDeclaration{pos: pos})
+			declared = append(declared, taskDeclaration{pos: pos, chain: chain})
 			return
 		}
-		declared = append(declared, taskDeclaration{pos: name.Pos(), name: name.Name})
+		declared = append(declared, taskDeclaration{pos: name.Pos(), name: name.Name, chain: chain})
 	}
 	undefined := func(e ast.Expr) bool { return isTaskChain(e) && !chainResolvesTask(e) }
 	ast.Inspect(body, func(n ast.Node) bool {
 		switch n := n.(type) {
 		case *ast.ExprStmt:
 			if undefined(n.X) {
-				declared = append(declared, taskDeclaration{pos: n.Pos()})
+				declared = append(declared, taskDeclaration{pos: n.Pos(), chain: n.X})
 			}
 		case *ast.AssignStmt:
 			if (n.Tok != token.DEFINE && n.Tok != token.ASSIGN) || len(n.Lhs) != len(n.Rhs) {
@@ -103,13 +105,13 @@ func declaredTasks(body *ast.BlockStmt) []taskDeclaration {
 			}
 			for i, rhs := range n.Rhs {
 				if id, isIdent := n.Lhs[i].(*ast.Ident); isIdent && undefined(rhs) {
-					add(n.Pos(), id)
+					add(n.Pos(), id, rhs)
 				}
 			}
 		case *ast.ValueSpec:
 			for i, name := range n.Names {
 				if i < len(n.Values) && undefined(n.Values[i]) {
-					add(n.Pos(), name)
+					add(n.Pos(), name, n.Values[i])
 				}
 			}
 		}
@@ -193,6 +195,9 @@ func useSettlesTask(use *ast.Ident, parents []ast.Node) bool {
 				current = p
 				continue
 			}
+			if namesPredecessor(p) {
+				return false // After(x) orders x; it gives x no work
+			}
 		case *ast.AssignStmt:
 			if current == use && isAssignTarget(p, use) {
 				return false // the binding itself, not a use
@@ -208,6 +213,14 @@ func useSettlesTask(use *ast.Ident, parents []ast.Node) bool {
 		return current == use || (isCall && builders)
 	}
 	return false
+}
+
+// namesPredecessor reports whether call is evo's After, whose arguments are
+// the Tasks the receiver waits for. Naming a Task there neither Defines it
+// nor passes it to code that might.
+func namesPredecessor(call *ast.CallExpr) bool {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	return ok && sel.Sel.Name == "After"
 }
 
 // isAssignTarget reports whether id is one of assign's left-hand sides.

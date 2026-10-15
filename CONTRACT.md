@@ -116,7 +116,7 @@ Succeeded, Satisfied and Excluded.
 repo := r.Group("repository")                // children may overlap
 seq  := r.Sequence("consolidate packages")   // children run in declaration order
 t    := repo.Task("prune landed branches")   // one atomic promise; never a container
-tags := repo.Task("prune stale tags")        // a sibling; a Group of one child is just a Task
+tags := repo.Task("prune stale tags").Define(pruneTags) // a sibling; a Group of one child is just a Task
 
 t.After(tags).Verify(isDone).Define(func(ctx context.Context) error { ... })
 
