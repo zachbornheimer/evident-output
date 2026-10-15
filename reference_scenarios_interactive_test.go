@@ -1,15 +1,15 @@
-package evo_test
+package evo
 
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
-	"github.com/zachbornheimer/evident-output/testkit"
+	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 // Appendix H interactive cases (v0.2) — written red-first against live terminal.
@@ -22,14 +22,14 @@ func TestH2_Task_InstantCompletionDoesNotFlashSpinner(t *testing.T) {
 	)
 	clock := testkit.NewClock()
 
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(150 * time.Millisecond)})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(150 * time.Millisecond)})
+	t.Cleanup(func() { _ = out.close() })
 
 	dependencies := out.Task("dependencies")
 	dependencies.Doing("installing")
 	succeed(dependencies, "installed 18 packages")
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -59,22 +59,22 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	)
 
 	// FixedClock freezes spinner glyphs for stable operation expectations.
-	fixed := evo.TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	fixed := TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	discard := io.Discard
-	out := evo.Init(evo.Config{Isolated: true, Clock: fixed, Terminal: screen, Stdout: discard, Stderr: discard, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: discard, Stderr: discard, Clock: fixed, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("dependencies")
 	task.Doing("resolving packages")
-	out.DebugForTest("package index loaded", evo.Field{Key: "packages", Value: 18})
+	out.debugForTest("package index loaded", field{Key: "packages", Value: 18})
 	succeed(task, "installed 18 packages")
-	_ = out.Finish()
+	_ = out.finish()
 
 	// History mode: timestamp (FixedClock) + bracketed level above live region.
 	// Declare is Pending (○). Doing starts submitted evidence so the row
 	// spins. Done commits the resolved row durably at resolution time.
 	want := []testkit.Operation{
-		testkit.DrawLive("⠋  starting"),
+		testkit.DrawLive("⠋  " + testProgramName),
 		testkit.DrawLive("○ dependencies"),
 		testkit.DrawLive("⠋ dependencies  resolving packages"),
 		testkit.ClearLive(),
@@ -82,7 +82,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 		testkit.DrawLive("⠋ dependencies  resolving packages"),
 		testkit.ClearLive(),
 		testkit.WriteDurable("✓ dependencies  installed 18 packages\n"),
-		testkit.WriteFinal(""),
+		testkit.WriteFinal("\n[succeeded]  " + testProgramName),
 	}
 
 	if diff := testkit.DiffOperations(want, screen.Operations()); diff != "" {
@@ -97,9 +97,9 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 		testkit.NoColor(),
 	)
 
-	fixed := evo.TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: fixed, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	fixed := TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: fixed, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	dependencies := out.Group("dependencies")
 	react := dependencies.Task("react")
@@ -108,8 +108,8 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 
 	// Update and resolve in a different order than declaration.
 	sharp.Doing("verifying")
-	esbuild.Bytes(12_400_000, 18_000_000)
-	react.Bytes(8_100_000, 8_100_000)
+	esbuild.bytes(12_400_000, 18_000_000)
+	react.bytes(8_100_000, 8_100_000)
 	succeed(react)
 
 	got := screen.LatestLiveText()
@@ -142,19 +142,19 @@ func TestH21_Tasks_ScreenBudgetSelectsImportantRowsAndReportsOmission(t *testing
 		testkit.NoColor(),
 	)
 
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0)})
+	t.Cleanup(func() { _ = out.close() })
 
 	dependencies := out.Group("dependencies")
 	for n := range 120 {
 		task := dependencies.Task(fmt.Sprintf("package-%03d", n))
 		switch n {
 		case 7:
-			task.Fail("checksum mismatch")
+			task.fail("checksum mismatch")
 		case 12, 18:
 			task.Doing("downloading")
 		case 20:
-			task.Problem("using cached fallback", evo.Severity(evo.SeverityWarning))
+			task.Problem("using cached fallback")
 		default:
 			succeed(task)
 		}
@@ -182,8 +182,8 @@ func TestH22_Task_HighFrequencyProgressIsCoalesced(t *testing.T) {
 	)
 	clock := testkit.NewClock()
 
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0)})
+	t.Cleanup(func() { _ = out.close() })
 
 	download := out.Task("download")
 	for completed := 0; completed <= 10_000; completed++ {
@@ -192,11 +192,11 @@ func TestH22_Task_HighFrequencyProgressIsCoalesced(t *testing.T) {
 	}
 	succeed(download)
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
-	if got := download.Snapshot().Progress.Completed; got != 10_000 {
+	if got := download.snapshot().Progress.Completed; got != 10_000 {
 		t.Fatalf("completed = %d, want 10000", got)
 	}
 	if frames := screen.LiveFrameCount(); frames >= 10_000 {
@@ -213,8 +213,8 @@ func TestLive_RepeatedStyledPhasesFitTerminalWidth(t *testing.T) {
 		testkit.Interactive(),
 		testkit.Width(columns),
 	)
-	out := evo.Init(evo.Config{Isolated: true, Clock: evo.TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0)})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("goimports check")
 	task.Doing("goimports -d " + strings.Repeat("file.go ", 20))

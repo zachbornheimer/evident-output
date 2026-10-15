@@ -4,6 +4,7 @@
 # Repo structure
 !/.gitignore
 !/.golangci.yml
+!/.markdownlint.json
 !/.prettierignore
 !/.prettierrc.json
 !/LICENSE
@@ -17,9 +18,12 @@
 !/README.md
 !/AGENTS.md
 !/LAYOUT.md
+!/CONTRACT.md
 !/mise.toml
 !/go.mod
 !/go.sum
+!/go.work
+!/go.work.sum
 !/.trunk/
 !/.trunk/trunk.yaml
 !/.github/
@@ -43,13 +47,8 @@
 !/schema/**
 !/internal/
 !/internal/**
-!/eval/
-!/eval/**
-/eval/results/
 !/examples/
 !/examples/**
-!/scripts/
-!/scripts/**
 !/*.go
 !/agent/
 !/agent/**
@@ -59,16 +58,10 @@
 !/logbridge/**
 !/render/
 !/render/**
-!/terminal/
-!/terminal/**
-!/cmd/
-!/cmd/**
-!/skills/
-!/skills/**
 !/agents/
 !/agents/**
-!/integrations/
-!/integrations/**
 !/tools/
 !/tools/**
+!/mcp/
+!/mcp/**
 __pycache__/

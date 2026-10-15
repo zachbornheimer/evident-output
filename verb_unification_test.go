@@ -1,35 +1,35 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
 // TestVerbVocabulary_UnifiedAcrossMutationVerbsAndRunModes is C10: every
-// TaskHandle mutation verb (Add/Create/Update/Remove/Delete/Write/Push)
+// Task mutation verb (Add/Create/Update/Remove/Delete/Write/Push)
 // shares one call shape and conjugates consistently — imperative under
 // DryRun's Plan ledger, past tense on the applied Changes ledger. P1
 // deleted the standalone Output.Changes/Output.Plan entry points (and their
 // past-tense builder methods), so this now proves the same unification
-// through TaskHandle alone, across both run modes, instead of across three
+// through Task alone, across both run modes, instead of across three
 // separate types.
 func TestVerbVocabulary_UnifiedAcrossMutationVerbsAndRunModes(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	cleanup := out.Task("cleanup")
-	cleanup.Define(effectOf(evo.EffectAdd, "worktree", 2))
+	cleanup.Define(engineEffectOf(change.EffectAdd, "worktree", 2))
 
 	applied := out.Task("changes-section")
-	applied.Define(effectOf(evo.EffectDelete, "branch", 1))
+	applied.Define(effectOf(Delete, "branch", 1))
 
 	pushed := out.Task("tags")
-	pushed.Define(effectOf(evo.EffectPush, "tag", 1))
+	pushed.Define(engineEffectOf(change.EffectPush, "tag", 1))
 
-	_ = out.Finish()
+	_ = out.finish()
 
 	rendered := buf.String()
 	for _, want := range []string{"add", "2 worktree", "deleted", "1 branch", "pushed", "1 tag"} {
@@ -44,12 +44,12 @@ func TestVerbVocabulary_UnifiedAcrossMutationVerbsAndRunModes(t *testing.T) {
 // ("push"), never conjugated, under Config.DryRun.
 func TestVerbVocabulary_PlanKeepsImperativeUnderDryRun(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, DryRun: true})
+	out := initRun(Config{DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	plan := out.Task("plan-section")
-	plan.Define(effectOf(evo.EffectPush, "commit", 3))
+	plan.Define(engineEffectOf(change.EffectPush, "commit", 3))
 
-	_ = out.Finish()
+	_ = out.finish()
 
 	rendered := buf.String()
 	for _, want := range []string{"push", "3 commit"} {

@@ -1,8 +1,0 @@
-{
-  "id": "X4",
-  "task": "T1-zq-prune",
-  "banned_pattern": "giant-loop-task",
-  "review_rules": [
-    "API-070"
-  ]
-}

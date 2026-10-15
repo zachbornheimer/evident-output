@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"sort"
-	"strings"
 )
 
 // scoreEntries runs every bound test once per package and scores each entry.
@@ -26,7 +25,7 @@ func scoreEntries(entries []Entry, runner TestRunner, root, tags string) Score {
 func runPackages(entries []Entry, runner TestRunner, root, tags string) map[string]map[string]string {
 	byPkg := map[string][]string{}
 	for _, e := range entries {
-		if e.Waiver != "" {
+		if e.Waived() {
 			continue
 		}
 		for _, t := range e.Tests {
@@ -47,7 +46,7 @@ func runPackages(entries []Entry, runner TestRunner, root, tags string) map[stri
 }
 
 func entryStatus(e Entry, outcomes map[string]map[string]string) Status {
-	if strings.TrimSpace(e.Waiver) != "" {
+	if e.Waived() {
 		return StatusWaived
 	}
 	if len(e.Tests) == 0 {

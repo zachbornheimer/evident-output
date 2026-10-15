@@ -1,0 +1,49 @@
+Hand-written revert of d4965643 against the current tree: a won output claim opens its
+freshness gate while outputsMu is still held (claimOutput, and claimAll for an Exec), and an
+Exec claim opens each gate as it wins it. A gate call takes graph.mu and its unlock can deliver
+record listeners that take the run's lock, so the gate must open only after outputsMu is released.
+Later edits (producerKind) keep the commit's own hunks from reversing.
+
+diff --git a/internal/change/exec_freshness.go b/internal/change/exec_freshness.go
+index 0469f89f..505a8931 100644
+--- a/internal/change/exec_freshness.go
++++ b/internal/change/exec_freshness.go
+@@ -97,9 +97,6 @@ func (r *Run) claimExecOutputs(id record.TaskID, outputs []string) (release func
+ 	if err := r.claimAll(id, outputs); err != nil {
+ 		return nil, r.reportClash(id, err)
+ 	}
+-	for _, out := range outputs {
+-		r.barrier.Open(out)
+-	}
+ 	return func() {
+ 		for _, out := range outputs {
+ 			r.barrier.Settle(out)
+@@ -116,6 +113,7 @@ func (r *Run) claimAll(id record.TaskID, outputs []string) error {
+ 		if err := r.claimOutputLocked(id, producerExec, out); err != nil {
+ 			return err
+ 		}
++		r.barrier.Open(out)
+ 	}
+ 	return nil
+ }
+diff --git a/internal/change/file_freshness.go b/internal/change/file_freshness.go
+index 018860a5..632f1dbf 100644
+--- a/internal/change/file_freshness.go
++++ b/internal/change/file_freshness.go
+@@ -72,12 +72,11 @@ func (c *outputClash) Error() string { return c.path }
+ func (r *Run) claimOutput(id record.TaskID, path string) error {
+ 	r.outputsMu.Lock()
+ 	err := r.claimOutputLocked(id, producerFile, path)
+-	r.outputsMu.Unlock()
+-	if err != nil {
+-		return r.reportClash(id, err)
++	if err == nil {
++		r.barrier.Open(path)
+ 	}
+-	r.barrier.Open(path)
+-	return nil
++	r.outputsMu.Unlock()
++	return r.reportClash(id, err)
+ }
+
+ // claimOutputLocked records id, claiming through via, as path's producer, or

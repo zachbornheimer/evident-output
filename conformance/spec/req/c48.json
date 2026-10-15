@@ -1,0 +1,120 @@
+[
+  {
+    "id": "C48-001",
+    "section": "2.0 §8 What Evo promises",
+    "quote": "The live frame changes within 100ms of entering Running and at least every 100ms after, with a stable parent row and the current item beneath it.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestLive_QuietRunningTaskKeepsChangingFrames"
+      },
+      {
+        "pkg": ".",
+        "run": "TestLive_FastBindSpinnerVisibleOnWallClock"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C48-002",
+    "section": "2.0 §8 What Evo promises",
+    "quote": "Run Facts print under the Summary at normal verbosity; Task Facts hide until Verbose. Machine output always keeps both; collapse folds routine detail away but never a container's own row: a Group or Sequence whose members all succeed keeps its row with the members indented beneath it, in Human and Plain as `evo.run` nests them, and a container's own Task (the Task named for its Group) folds into that row rather than printing the name twice; passing verification is silent, failing verification is shown.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestTaskFact_HiddenOnNormalSuccess"
+      },
+      {
+        "pkg": ".",
+        "run": "TestRunFactsPrintAndTaskFactsHide"
+      },
+      {
+        "pkg": ".",
+        "run": "TestGroupOwnTaskFoldsIntoItsRow"
+      },
+      {
+        "pkg": ".",
+        "run": "TestRunDocumentStatesOnlyTrueFacts"
+      },
+      {
+        "pkg": ".",
+        "run": "TestWireEvents_VerificationObservedCarriesFacts"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C48-003",
+    "section": "2.0 §8 What Evo promises",
+    "quote": "Per-item Effects with one Verb and Object fold into one counted row, named for the highest container every one of whose direct members contributed to it, so a sibling that did nothing this run never moves the row to a container above it; JSON keeps every item.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestLedgerFoldLeavesJSONLEveryPerItemEffect"
+      },
+      {
+        "pkg": ".",
+        "run": "TestLedgerFoldsZqShapeToOneCategoryRow"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPruneContract_JSONLStreamKeepsEveryTaskAndTheGroup"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C48-004",
+    "section": "2.0 §8 What Evo promises",
+    "quote": "Cancellation preserves committed truth and never implies rollback.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestRun_Interrupt_CancelPreservesCompletedWorkAndCommittedEffects"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPartialEffect_InterruptAfterPartialCommitKeepsTheCommittedSubset"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C48-005",
+    "section": "2.0 §8 What Evo promises",
+    "quote": "Misuse is recorded with a remedy, appears in `Result` as `Result.Err` and `Conclusion.Explanation`, and never crashes the program.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestMisuseAppearsInResult"
+      },
+      {
+        "pkg": ".",
+        "run": "TestRejectedDeclaration_DefineRecordsMisuse"
+      },
+      {
+        "pkg": ".",
+        "run": "TestUnorderedGetIsRefusedInEveryMode"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C48-006",
+    "section": "2.0 §8 What Evo promises",
+    "quote": "Two or more Excluded Tasks of one Group, or one under the Group's own Task, fold into one tally line carrying the count and each Exclude reason, and Verbose names every item; a Sequence and the machine projections keep every item.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestExcludedItemsFoldIntoOneTally"
+      }
+    ],
+    "default": false
+  }
+]

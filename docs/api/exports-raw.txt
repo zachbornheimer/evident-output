@@ -1,5 +1,0 @@
-The exported surface is testdata/api_golden.txt.
-See docs/api/surface-inventory.md.
-
-This file is not a dump of live exports. mise run api-contract
-fails when the live package differs from the golden file.

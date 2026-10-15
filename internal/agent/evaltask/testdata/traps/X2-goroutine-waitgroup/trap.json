@@ -1,8 +1,0 @@
-{
-  "id": "X2",
-  "task": "T1-zq-prune",
-  "banned_pattern": "goroutine-concurrency",
-  "review_rules": [
-    "API-041"
-  ]
-}

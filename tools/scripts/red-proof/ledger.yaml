@@ -1,0 +1,41 @@
+# Round-1/2 concurrency fixes and the tests that must fail without each one.
+# `go run ./tools/scripts/red-proof` (mise run red-proof) replays every entry:
+# it applies the entry's hand-written `patch:` to a scratch copy of HEAD, which
+# re-introduces the bug there, and requires every named test to fail. Every
+# entry carries a patch: reversing the fix commit's own hunks breaks whenever a
+# later edit touches the same lines. Fixed YAML subset; see ledger.go.
+entries:
+  - commit: ddbd70f3
+    note: ring onAppend runs outside the ring lock (Resolve/ring lock-order deadlock)
+    patch: patches/ddbd70f3.patch
+    tests:
+      - pkg: ./internal/graph
+        name: TestRingOnAppendNeverDeadlocksResolve
+      - pkg: ./internal/process
+        name: TestRingCallsOnAppendOutsideItsLock
+  - commit: d4965643
+    note: barrier gates open and settle outside outputsMu
+    patch: patches/d4965643.patch
+    tests:
+      - pkg: ./internal/change
+        name: TestBarrierCallsRunOutsideOutputsLock
+  - commit: 852ea4b8
+    note: dry run marks the basis of planned changes uncertain (freshness Plan)
+    patch: patches/852ea4b8.patch
+    tests:
+      - pkg: .
+        name: TestDryRunPlansDownstreamOfPlannedOutputs
+  - commit: 8c9f44b6
+    note: excluded members fold into the container outcome; NotStarted names its stopper
+    patch: patches/8c9f44b6.patch
+    tests:
+      - pkg: .
+        name: TestAfterGroupProceedsWhenAMemberIsExcluded
+      - pkg: .
+        name: TestNotStartedNamesItsPredecessorWithOneSpelling
+  - commit: f0d90673
+    note: payload on a shared tty is written above the live region
+    patch: patches/f0d90673.patch
+    tests:
+      - pkg: .
+        name: TestResultWriterPayloadSurvivesSharedTerminal

@@ -1,4 +1,6 @@
-// Command debug-history demos a short sequential probe.
+// Command debug-history demos the debug journal: Config.Debug keeps slog
+// records written through Run.SlogHandler, and they print durably beside the
+// rows of the Tasks that wrote them.
 //
 //	go run ./examples/debug-history/ --fast
 package main
@@ -6,10 +8,11 @@ package main
 import (
 	"context"
 	"flag"
+	"log/slog"
 	"os"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func main() {
@@ -20,14 +23,17 @@ func main() {
 		step = 25 * time.Millisecond
 	}
 
-	evo.Init(evo.Config{Title: "repo-probe"})
-	os.Exit(evo.Main(func(ctx context.Context) error {
-		evo.Task("working tree").Define(func(context.Context) error {
+	cfg := evo.Config{Name: "repo-probe", Debug: slog.LevelDebug}
+	os.Exit(evo.Main(cfg, func(ctx context.Context, r *evo.Run) error {
+		log := slog.New(r.SlogHandler())
+		r.Task("working tree").Define(func(context.Context) error {
 			time.Sleep(step)
+			log.Debug("working tree scanned", "files", 214)
 			return nil
 		})
-		evo.Task("branches").Define(func(context.Context) error {
+		r.Task("branches").Define(func(context.Context) error {
 			time.Sleep(step)
+			log.Debug("branches listed", "local", 7, "remote", 12)
 			return nil
 		})
 		return nil

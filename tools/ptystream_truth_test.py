@@ -1,0 +1,239 @@
+"""Unit tests for live-frame monotonicity and final-frame-equals-Plain checks."""
+
+from __future__ import annotations
+
+import unittest
+
+import ptystream_frames as stream
+import ptystream_truth as truth
+
+
+def frame(*rows: str, at_ms: int = 0) -> stream.Frame:
+    return stream.Frame(at_ns=at_ms * stream.NS_PER_MS, rows=tuple(rows))
+
+
+RUNNING = frame("⠋ units  1/3 complete", "   ✓ unit 1", "   ⠋ unit 2     holding")
+LATER = frame("⠙ units  2/3 complete", "   ✓ unit 1", "   ✓ unit 2")
+SETTLED = frame("✓ unit 1", "✓ unit 2", "✓ unit 3")
+
+
+class MonotonicFramesTest(unittest.TestCase):
+    def test_accepts_rows_that_only_settle_forward(self) -> None:
+        truth.check_monotonic([RUNNING, LATER, SETTLED])
+
+    def test_rejects_a_settled_row_that_reverts(self) -> None:
+        reverted = frame("⠙ units  2/3 complete", "   ⠙ unit 1     holding")
+        with self.assertRaisesRegex(truth.TruthError, "unit 1.*reverted"):
+            truth.check_monotonic([RUNNING, reverted])
+
+    def test_rejects_a_settled_row_that_changes_outcome(self) -> None:
+        failed = frame("✗ unit 1")
+        with self.assertRaisesRegex(truth.TruthError, "unit 1.*changed"):
+            truth.check_monotonic([RUNNING, failed])
+
+    def test_rejects_a_completion_count_that_falls(self) -> None:
+        behind = frame("⠙ units  1/3 complete", "   ⠙ unit 3     holding")
+        with self.assertRaisesRegex(truth.TruthError, r"2/3.*1/3"):
+            truth.check_monotonic([RUNNING, LATER, behind])
+
+    def test_waiting_rows_are_not_settled(self) -> None:
+        waiting = frame("⠋ units  0/2 complete", "   ○ unit 2")
+        started = frame("⠙ units  0/2 complete", "   ⠙ unit 2     holding")
+        truth.check_monotonic([waiting, started])
+
+
+class FinalMatchesPlainTest(unittest.TestCase):
+    PLAIN = ("◐ units  unit 3  holding", "✓ unit 1", "✓ unit 2", "✓ unit 3")
+
+    def test_accepts_identical_rows_in_the_same_order(self) -> None:
+        truth.check_final_matches_plain(SETTLED, 0, self.PLAIN, 0)
+
+    def test_rejects_a_reordered_pair_naming_the_index(self) -> None:
+        reordered = frame("✓ unit 1", "✓ unit 3", "✓ unit 2")
+        with self.assertRaisesRegex(truth.TruthError, r"row 1.*unit 3.*unit 2"):
+            truth.check_final_matches_plain(reordered, 0, self.PLAIN, 0)
+
+    def test_accepts_a_streamed_block_against_its_settled_form(self) -> None:
+        streamed = (
+            "◐ units  unit 2  holding",
+            "◐ units  unit 1  holding",
+            "✓ units",
+            "   ✓ unit 1",
+            "   ✓ unit 2",
+        )
+        settled = frame("✓ units", "   ✓ unit 1", "   ✓ unit 2")
+        truth.check_final_matches_plain(settled, 0, streamed, 0)
+
+    def test_container_row_compares_at_its_closing_position(self) -> None:
+        settled = frame("   ✓ unit 1", "✓ units", "   ✓ unit 2")
+        streamed = ("✓ units", "   ✓ unit 1", "   ✓ unit 2")
+        with self.assertRaisesRegex(truth.TruthError, "row 0"):
+            truth.check_final_matches_plain(settled, 0, streamed, 0)
+
+    def test_streamed_block_members_compare_as_a_set(self) -> None:
+        plain = (
+            "◐ units  unit 2  holding",
+            "   ✓ unit 3",
+            "   ✓ unit 1",
+            "   ✓ unit 2",
+            "✓ units",
+            "✓ after",
+        )
+        screen = frame(
+            "✓ units", "   ✓ unit 1", "   ✓ unit 2", "   ✓ unit 3", "✓ after"
+        )
+        truth.check_final_matches_plain(screen, 0, plain, 0)
+
+    def test_nested_streamed_blocks_settle_to_their_declared_form(self) -> None:
+        plain = (
+            "◐ g1",
+            "   ◐ g2",
+            "      ✓ g3",
+            "         ✓ d1",
+            "      ✓ mid",
+            "   ✓ g2",
+            "   ✓ top",
+            "✓ g1",
+            "✓ after",
+        )
+        screen = frame(
+            "✓ g1",
+            "   ✓ top",
+            "   ✓ g2",
+            "      ✓ mid",
+            "      ✓ g3",
+            "         ✓ d1",
+            "✓ after",
+        )
+        truth.check_final_matches_plain(screen, 0, plain, 0)
+
+    NEST_SCREEN = (
+        "✓ clean caches",
+        "   ✓ npm",
+        "      ✓ a",
+        "      ✓ b",
+        "   ✓ pip",
+        "      ✓ a",
+        "      ✓ b",
+    )
+
+    def test_a_block_that_heads_again_after_an_interruption_is_one_block(self) -> None:
+        plain = (
+            "◐ clean caches",
+            "   ◐ npm",
+            "      ✓ a",
+            "   ◐ pip",
+            "      ✓ a",
+            "      ✓ b",
+            "   ✓ pip",
+            "   ◐ npm",
+            "      ✓ b",
+            "   ✓ npm",
+            "✓ clean caches",
+        )
+        truth.check_final_matches_plain(frame(*self.NEST_SCREEN), 0, plain, 0)
+
+    def test_rejects_a_late_member_written_under_the_block_before_it(self) -> None:
+        plain = (
+            "◐ clean caches",
+            "   ◐ npm",
+            "      ✓ a",
+            "   ◐ pip",
+            "      ✓ a",
+            "      ✓ b",
+            "   ✓ pip",
+            "      ✓ b",
+            "   ✓ npm",
+            "✓ clean caches",
+        )
+        with self.assertRaisesRegex(
+            truth.TruthError, r"row 3.*screen '      ✓ b'.*Plain '   ✓ pip'"
+        ):
+            truth.check_final_matches_plain(frame(*self.NEST_SCREEN), 0, plain, 0)
+
+    def test_rejects_a_closing_row_written_under_a_root_row(self) -> None:
+        screen = frame("✓ clean caches", "   ✓ npm", "      ✓ a", "⊘ publish  declined")
+        plain = (
+            "◐ clean caches",
+            "   ◐ npm",
+            "      ✓ a",
+            "⊘ publish  declined",
+            "   ✓ npm",
+        )
+        with self.assertRaises(truth.TruthError):
+            truth.check_final_matches_plain(screen, 0, plain, 0)
+
+    def test_accepts_a_closing_row_headed_again_after_a_root_row(self) -> None:
+        screen = frame("✓ clean caches", "   ✓ npm", "      ✓ a", "⊘ publish  declined")
+        plain = (
+            "◐ clean caches",
+            "   ◐ npm",
+            "      ✓ a",
+            "⊘ publish  declined",
+            "◐ clean caches",
+            "   ✓ npm",
+            "✓ clean caches",
+        )
+        truth.check_final_matches_plain(screen, 0, plain, 0)
+
+    def test_an_unstreamed_container_keeps_its_member_order(self) -> None:
+        plain = ("✓ seq", "   ✓ one", "   ✓ two")
+        screen = frame("✓ seq", "   ✓ two", "   ✓ one")
+        with self.assertRaisesRegex(truth.TruthError, "row 1"):
+            truth.check_final_matches_plain(screen, 0, plain, 0)
+
+    def test_rejects_a_dependent_printed_above_its_block(self) -> None:
+        plain = ("◐ eg", "   ✓ fast", "✓ eg", "- depEx  not started")
+        screen = frame("- depEx  not started", "✓ eg", "   ✓ fast")
+        with self.assertRaisesRegex(truth.TruthError, "row 0"):
+            truth.check_final_matches_plain(screen, 0, plain, 0)
+
+    def test_rejects_held_rows_in_declaration_not_release_order(self) -> None:
+        plain = ("✓ g", "✓ chain", "✓ depdep")
+        screen = frame("✓ g", "✓ depdep", "✓ chain")
+        with self.assertRaisesRegex(truth.TruthError, r"row 1.*depdep.*chain"):
+            truth.check_final_matches_plain(screen, 0, plain, 0)
+
+    def test_rejects_a_free_root_row_above_a_collection_plain_wrote_first(self) -> None:
+        plain = ("✓ fast group", "   ✓ f1", "   ✓ f2", "✓ slow task")
+        screen = frame("✓ slow task", "✓ fast group", "   ✓ f1", "   ✓ f2")
+        with self.assertRaisesRegex(truth.TruthError, r"row 0.*slow task.*fast group"):
+            truth.check_final_matches_plain(screen, 0, plain, 0)
+
+    def test_accepts_a_free_root_row_after_a_streamed_block_in_durable_order(
+        self,
+    ) -> None:
+        plain = ("◐ units", "   ✓ unit 2", "   ✓ unit 1", "✓ units", "✓ late task")
+        screen = frame("✓ units", "   ✓ unit 1", "   ✓ unit 2", "✓ late task")
+        truth.check_final_matches_plain(screen, 0, plain, 0)
+
+    def test_a_heartbeat_is_not_a_block(self) -> None:
+        plain = ("◐ build  compiling", "✓ build")
+        truth.check_final_matches_plain(frame("✓ build"), 0, plain, 0)
+
+    def test_ignores_timing_suffixes(self) -> None:
+        timed = frame("✓ unit 1   12ms", "✓ unit 2", "✓ unit 3")
+        truth.check_final_matches_plain(timed, 0, self.PLAIN, 0)
+
+    def test_rejects_a_row_missing_from_the_final_screen(self) -> None:
+        short = frame("✓ unit 1", "✓ unit 2")
+        with self.assertRaisesRegex(truth.TruthError, "unit 3"):
+            truth.check_final_matches_plain(short, 0, self.PLAIN, 0)
+
+    def test_rejects_a_different_outcome(self) -> None:
+        failed = frame("✓ unit 1", "✓ unit 2", "✗ unit 3")
+        with self.assertRaisesRegex(truth.TruthError, "unit 3"):
+            truth.check_final_matches_plain(failed, 0, self.PLAIN, 0)
+
+    def test_rejects_a_different_exit_code(self) -> None:
+        with self.assertRaisesRegex(truth.TruthError, "exit"):
+            truth.check_final_matches_plain(SETTLED, 0, self.PLAIN, 2)
+
+    def test_run_summary_rows_compare_by_verdict(self) -> None:
+        screen = frame("✓ a", "[succeeded · partial]  probe-dag")
+        plain = ["✓ a", "[succeeded · partial]  probe-dag"]
+        truth.check_final_matches_plain(screen, 0, plain, 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

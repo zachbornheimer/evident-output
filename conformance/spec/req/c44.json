@@ -1,0 +1,121 @@
+[
+  {
+    "id": "C44-001",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "Problems never end a Task",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestProblem_DoesNotResolveTask"
+      },
+      {
+        "pkg": ".",
+        "run": "TestProblem_ResolvesTaskOnceNotChildTasks"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-002",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "a precondition stopped it; exit 1",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestMainWith_BlockedExitOne"
+      },
+      {
+        "pkg": ".",
+        "run": "TestConfirm_Declined_ResolvesBlockedWithExitOne"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-003",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "ran and failed; exit 2",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestOUT012_ExitCodes"
+      },
+      {
+        "pkg": ".",
+        "run": "TestResult_ExitCodeMapping"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-004",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "interrupted; exit 130",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestCancellation_ExitsWithCancelledCode"
+      },
+      {
+        "pkg": ".",
+        "run": "TestSignalDuringDrainExits130"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-005",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "requested state already true; nothing ran",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScenario_AlreadySatisfied"
+      },
+      {
+        "pkg": ".",
+        "run": "TestWireEvents_AlreadySatisfiedSkipsDefinition"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-006",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "policy chose not to run it",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestExcludedPredecessorLeavesDependentsNotStarted"
+      },
+      {
+        "pkg": ".",
+        "run": "TestReturnedEndingSettlesItsOutcome"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-007",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "argv a machine can run",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestRemedy_BlockAndFailReachRunJSONActions"
+      },
+      {
+        "pkg": ".",
+        "run": "TestSEC006_CommandArgvPreservedInAction"
+      }
+    ],
+    "default": false
+  }
+]

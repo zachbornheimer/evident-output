@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"context"
@@ -7,9 +7,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/testkit"
 )
 
 // errProbe is the failure a probe callback returns — one shared sentinel so
@@ -25,20 +22,20 @@ func TestScheduler_P13_FailfInsideDefineDoesNotDoubleResolve(t *testing.T) {
 	out := isolatedScheduler(t, 1, io.Discard, false)
 	task := out.Task("lint")
 	task.Define(func(ctx context.Context) error {
-		task.Fail("lint failed", evo.Detail(errProbe.Error()))
+		task.fail("lint failed", Detail(errProbe.Error()))
 		return errProbe
 	})
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
-	if got := task.Snapshot().State; got != evo.Failed {
+	if got := task.snapshot().State; got != failed {
 		t.Fatalf("task state = %v, want Failed", got)
 	}
-	if err := out.Err(); err != nil {
+	if err := out.err(); err != nil {
 		t.Fatalf("misuse = %v, want none: the callback resolved itself once", err)
 	}
-	testkit.RequireConclusion(t, out, evo.StateFailed)
+	requireConclusion(t, out, headlineFailed)
 }
 
 // TestScheduler_P17_PluralizeNeverInflectsAnAlreadyPluralObject pins the
@@ -49,7 +46,7 @@ func TestScheduler_P13_FailfInsideDefineDoesNotDoubleResolve(t *testing.T) {
 func TestScheduler_P17_PluralizeNeverInflectsAnAlreadyPluralObject(t *testing.T) {
 	t.Parallel()
 	for _, singular := range []string{"worktrees", "children", "logs"} {
-		if got := evo.Pluralize(3, singular); got != singular {
+		if got := pluralize(3, singular); got != singular {
 			t.Fatalf("Pluralize(3, %q) = %q, want it unchanged: already plural", singular, got)
 		}
 	}
@@ -76,40 +73,6 @@ func withinBudget(t *testing.T, what string, work func()) {
 	}
 }
 
-// TestScheduler_P15_WaitOnTerminalTaskReturnsInsteadOfHanging pins the P15
-// probe: defining work on an already-resolved task never runs that work, so
-// a caller waiting on it must be told immediately rather than blocked
-// forever.
-func TestScheduler_P15_WaitOnTerminalTaskReturnsInsteadOfHanging(t *testing.T) {
-	t.Parallel()
-	out := isolatedScheduler(t, 1, io.Discard, false)
-	task := out.Task("venv")
-	task.Skipped(evo.Reason("present"))
-
-	var ran atomic.Bool
-	var waitErr error
-	withinBudget(t, "Define+Wait on a resolved task", func() {
-		task.Define(func(ctx context.Context) error {
-			ran.Store(true)
-			return nil
-		})
-		waitErr = task.Wait()
-	})
-
-	if ran.Load() {
-		t.Fatal("callback ran on an already-resolved task")
-	}
-	if waitErr != nil {
-		t.Fatalf("Wait = %v, want nil", waitErr)
-	}
-	if err := out.Err(); !errors.Is(err, evo.ErrAlreadyResolved) {
-		t.Fatalf("misuse = %v, want ErrAlreadyResolved", err)
-	}
-	if got := task.Snapshot().State; got != evo.Skipped {
-		t.Fatalf("task state = %v, want Skipped", got)
-	}
-}
-
 // TestScheduler_P16_NestedWaitAtCeilingCompletes pins the P16 probe: a
 // goroutine blocked inside Wait is not doing work, so the concurrency
 // ceiling must never be the reason the task it waits on cannot start.
@@ -127,12 +90,12 @@ func TestScheduler_P16_NestedWaitAtCeilingCompletes(t *testing.T) {
 		return nil
 	})
 	outer.Define(func(ctx context.Context) error {
-		innerErr = inner.Wait()
+		innerErr = inner.wait()
 		return innerErr
 	})
 
 	withinBudget(t, "nested Define+Wait at MaxConcurrency 1", func() {
-		if err := out.Finish(); err != nil {
+		if err := out.finish(); err != nil {
 			t.Errorf("Finish: %v", err)
 		}
 	})
@@ -143,7 +106,7 @@ func TestScheduler_P16_NestedWaitAtCeilingCompletes(t *testing.T) {
 	if innerErr != nil {
 		t.Fatalf("inner Wait = %v, want nil", innerErr)
 	}
-	if got := outer.Snapshot().State; got != evo.Done {
+	if got := outer.snapshot().State; got != succeeded {
 		t.Fatalf("outer state = %v, want Done", got)
 	}
 }

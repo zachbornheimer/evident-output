@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -6,28 +6,29 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 // TestConfirm_Yes_ResolvesOKAndReturnsTrue is red-first against the "confirm
 // gate" default (evo-rec.md): "y" answers OK the gate and return true.
 func TestConfirm_Yes_ResolvesOKAndReturnsTrue(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Terminal: screen, Stdout: io.Discard, Stderr: io.Discard, Stdin: strings.NewReader("y\n"), Color: evo.ColorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, Stdin: strings.NewReader("y\n")}}, tuning{color: colorNever})
 
 	if ok := out.Confirm("delete origin/production-hotfix?"); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
 	}
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if out.Conclusion().ExitCode != evo.ExitOK {
-		t.Fatalf("exit = %d, want ExitOK", out.Conclusion().ExitCode)
+	if out.conclusion().exitCode != exitOK {
+		t.Fatalf("exit = %d, want ExitOK", out.conclusion().exitCode)
 	}
-	snap := out.Snapshot()
-	if len(snap.Tasks) != 1 || snap.Tasks[0].State != evo.Done {
+	snap := out.snapshot()
+	if len(snap.Tasks) != 1 || snap.Tasks[0].State != succeeded {
 		t.Fatalf("item state = %+v, want OK", snap.Tasks)
 	}
 }
@@ -36,23 +37,23 @@ func TestConfirm_Yes_ResolvesOKAndReturnsTrue(t *testing.T) {
 // decline (Blocked, exit 1) — never a Failed row, never exit 2.
 func TestConfirm_No_ResolvesBlockedDeclinedAndExitsOne(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Terminal: screen, Stdout: io.Discard, Stderr: io.Discard, Stdin: strings.NewReader("n\n"), Color: evo.ColorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, Stdin: strings.NewReader("n\n")}}, tuning{color: colorNever})
 
 	if ok := out.Confirm("delete origin/production-hotfix?"); ok {
 		t.Fatal("Confirm(\"n\") = true, want false")
 	}
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if out.Conclusion().State != evo.StateBlocked {
-		t.Fatalf("state = %v, want StateBlocked", out.Conclusion().State)
+	if out.conclusion().headline() != headlineRefused {
+		t.Fatalf("state = %v, want StateBlocked", out.conclusion().headline())
 	}
-	if out.Conclusion().ExitCode != evo.ExitBlocked {
-		t.Fatalf("exit = %d, want ExitBlocked (1)", out.Conclusion().ExitCode)
+	if out.conclusion().exitCode != exitRefused {
+		t.Fatalf("exit = %d, want ExitBlocked (1)", out.conclusion().exitCode)
 	}
-	snap := out.Snapshot()
-	if len(snap.Tasks) != 1 || snap.Tasks[0].State != evo.Blocked {
+	snap := out.snapshot()
+	if len(snap.Tasks) != 1 || snap.Tasks[0].State != refused {
 		t.Fatalf("item state = %+v, want Blocked", snap.Tasks)
 	}
 	if len(snap.Tasks[0].Problems) == 0 || snap.Tasks[0].Problems[0].Summary != "declined" {
@@ -64,13 +65,13 @@ func TestConfirm_No_ResolvesBlockedDeclinedAndExitsOne(t *testing.T) {
 // exactly like an explicit "n" — never blocks, never succeeds.
 func TestConfirm_EmptyAnswer_Declines(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Terminal: screen, Stdout: io.Discard, Stderr: io.Discard, Stdin: strings.NewReader("\n"), Color: evo.ColorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, Stdin: strings.NewReader("\n")}}, tuning{color: colorNever})
 
 	if ok := out.Confirm("proceed?"); ok {
 		t.Fatal("Confirm(\"\") = true, want false")
 	}
-	snap := out.Snapshot()
-	if snap.Tasks[0].State != evo.Blocked {
+	snap := out.snapshot()
+	if snap.Tasks[0].State != refused {
 		t.Fatalf("item state = %v, want Blocked", snap.Tasks[0].State)
 	}
 }
@@ -84,7 +85,7 @@ func TestConfirm_EmptyAnswer_Declines(t *testing.T) {
 // deliberate policy refused the prompt.
 // policyBlockActions is the remedy the policy block carries. ZYS-1182: it
 // rides on the block's Problem (Problems[].Actions), not on the Task.
-func policyBlockActions(t *testing.T, item evo.TaskSnapshot) []evo.Action {
+func policyBlockActions(t *testing.T, item taskSnapshot) []record.Action {
 	t.Helper()
 	if len(item.Problems) == 0 {
 		t.Fatalf("task has no Problem to carry the policy hint: %+v", item)
@@ -97,59 +98,42 @@ func policyBlockActions(t *testing.T, item evo.TaskSnapshot) []evo.Action {
 
 func TestConfirm_ZeroByteEOF_BlocksByPolicyNotDecline(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Terminal: screen, Stdout: io.Discard, Stderr: io.Discard, Stdin: strings.NewReader(""), Color: evo.ColorNever})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, Stdin: strings.NewReader("")}}, tuning{color: colorNever})
 
 	if ok := out.Confirm("proceed?"); ok {
 		t.Fatal("Confirm(EOF) = true, want false")
 	}
 
-	snap := out.Snapshot()
+	snap := out.snapshot()
 	item := snap.Tasks[0]
-	if item.State != evo.Blocked {
+	if item.State != refused {
 		t.Fatalf("item state = %v, want Blocked", item.State)
 	}
 	if len(item.Problems) == 0 || item.Problems[0].Summary != "no answer — stdin closed" {
-		t.Fatalf("problems = %+v, want summary %q (not %q or %q)", item.Problems, "no answer — stdin closed", "blocked by policy", "declined")
+		t.Fatalf("problems = %+v, want summary %q (not %q or %q)", item.Problems, "no answer — stdin closed", "no terminal to answer", "declined")
 	}
 	if actions := policyBlockActions(t, item); len(actions) == 0 || !strings.Contains(actions[0].Label, "--yes") {
 		t.Fatalf("actions = %+v, want a --yes hint", actions)
 	}
 }
 
-// TestConfirm_AssumeYes_SkipsPromptAndReadsNothing proves --yes never touches
-// stdin and resolves OK "assumed --yes" without reading a line.
-func TestConfirm_AssumeYes_SkipsPromptAndReadsNothing(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stdin: testkit.UnreadableStdin(t)})
-
-	if ok := out.Confirm("delete origin/production-hotfix?", evo.AssumeYes(true)); !ok {
-		t.Fatal("Confirm with AssumeYes(true) = false, want true")
-	}
-	snap := out.Snapshot()
-	if snap.Tasks[0].State != evo.Done {
-		t.Fatalf("item state = %v, want OK", snap.Tasks[0].State)
-	}
-	if snap.Tasks[0].Summary != "assumed --yes" {
-		t.Fatalf("summary = %q, want %q", snap.Tasks[0].Summary, "assumed --yes")
-	}
-}
-
 // TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin proves a
 // non-interactive run without --yes never blocks waiting on stdin: the gate
-// resolves Blocked "blocked by policy" with a Next hint, immediately.
+// resolves Blocked "no terminal to answer" with a Next hint, immediately.
 func TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stdin: testkit.UnreadableStdin(t), Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard, Stdin: testkit.UnreadableStdin(t)}})
 
 	if ok := out.Confirm("delete origin/production-hotfix?"); ok {
 		t.Fatal("Confirm on non-interactive without AssumeYes = true, want false")
 	}
 
-	snap := out.Snapshot()
+	snap := out.snapshot()
 	item := snap.Tasks[0]
-	if item.State != evo.Blocked {
+	if item.State != refused {
 		t.Fatalf("item state = %v, want Blocked", item.State)
 	}
-	if len(item.Problems) == 0 || item.Problems[0].Summary != "blocked by policy" {
-		t.Fatalf("problems = %+v, want summary %q", item.Problems, "blocked by policy")
+	if len(item.Problems) == 0 || item.Problems[0].Summary != "no terminal to answer" {
+		t.Fatalf("problems = %+v, want summary %q", item.Problems, "no terminal to answer")
 	}
 	if actions := policyBlockActions(t, item); len(actions) == 0 || !strings.Contains(actions[0].Label, "--yes") {
 		t.Fatalf("actions = %+v, want a --yes hint", actions)
@@ -160,36 +144,26 @@ func TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin(t *testing.T) 
 // hardcoded "--yes" hint: without PolicyHint, the policy block still points
 // at --yes (today's behavior, unchanged by the strict-widening option).
 func TestConfirm_NonInteractive_DefaultPolicyHint_IsYesFlag(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stdin: testkit.UnreadableStdin(t), Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard, Stdin: testkit.UnreadableStdin(t)}})
 
 	out.Confirm("delete origin/production-hotfix?")
 
-	item := out.Snapshot().Tasks[0]
+	item := out.snapshot().Tasks[0]
 	if actions := policyBlockActions(t, item); len(actions) == 0 || !strings.Contains(actions[0].Label, "--yes") {
 		t.Fatalf("actions = %+v, want default --yes hint", actions)
 	}
 }
 
-// TestConfirm_NonInteractive_PolicyHint_OverridesDefaultYesHint is red-first
-// for evo.PolicyHint: a caller whose confirm flag isn't --yes (e.g. zq
-// clean-repo's --apply) must see its own flag in the policy-block hint, not
-// the hardcoded "--yes" text.
-func TestConfirm_NonInteractive_PolicyHint_OverridesDefaultYesHint(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stdin: testkit.UnreadableStdin(t), Plain: true})
+// TestConfirm_NonInteractive_EmptyFlagKeepsDefaultHint pins the one-string
+// signature: a zero flag names nothing, so the refusal keeps pointing at --yes.
+func TestConfirm_NonInteractive_EmptyFlagKeepsDefaultHint(t *testing.T) {
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard, Stdin: testkit.UnreadableStdin(t)}})
 
-	out.Confirm("clean the repo?", evo.PolicyHint("zq", "clean-repo", "--apply"))
+	out.Confirm("delete origin/production-hotfix?", NonInteractive(""))
 
-	item := out.Snapshot().Tasks[0]
-	actions := policyBlockActions(t, item)
-	if len(actions) == 0 || actions[0].Command == nil {
-		t.Fatalf("actions = %+v, want a command action", actions)
-	}
-	got := actions[0].Command
-	if got.Executable != "zq" || strings.Join(got.Args, " ") != "clean-repo --apply" {
-		t.Fatalf("hint command = %+v, want zq clean-repo --apply", got)
-	}
-	if strings.Contains(actions[0].Label, "--yes") {
-		t.Fatalf("actions = %+v, want no --yes hint once PolicyHint is set", actions)
+	item := out.snapshot().Tasks[0]
+	if actions := policyBlockActions(t, item); len(actions) == 0 || !strings.Contains(actions[0].Label, "--yes") {
+		t.Fatalf("actions = %+v, want default --yes hint", actions)
 	}
 }
 
@@ -199,12 +173,12 @@ func TestConfirm_NonInteractive_PolicyHint_OverridesDefaultYesHint(t *testing.T)
 // waiting on a human").
 func TestConfirm_QuiescesLiveRegion_NoFramesBetweenPromptAndAnswer(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, Stdin: strings.NewReader("y\n"), VisibilityDelay: evo.DelayForTest(0)})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, Stdin: strings.NewReader("y\n")}}, tuning{visibilityDelay: DelayForTest(0)})
 
 	task := out.Task("branches")
 	task.Doing("scanning")
 
-	if ok := out.Confirm("delete origin/production-hotfix?", evo.Destructive()); !ok {
+	if ok := out.Confirm("delete origin/production-hotfix?", Destructive()); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
 	}
 
@@ -245,10 +219,10 @@ func TestConfirm_QuiescesLiveRegion_NoFramesBetweenPromptAndAnswer(t *testing.T)
 // glyph vocabulary.
 func TestConfirm_Blocked_RendersBlockedGlyph(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stdin: strings.NewReader("n\n")})
+	out := initRun(Config{Facades: Facades{Stderr: &buf, Stdin: strings.NewReader("n\n")}})
 
 	out.Confirm("delete origin/production-hotfix?")
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -266,7 +240,7 @@ func TestConfirm_Blocked_RendersBlockedGlyph(t *testing.T) {
 // process-level exit code is 1 (ExitBlocked), not 2 (ExitFailed).
 func TestConfirm_Declined_ResolvesBlockedWithExitOne(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	// Plain/non-interactive mode without AssumeYes blocks by policy rather
 	// than reading stdin — the same declined-by-policy path a real TTY
@@ -275,14 +249,14 @@ func TestConfirm_Declined_ResolvesBlockedWithExitOne(t *testing.T) {
 		t.Fatal("Confirm() = true, want false")
 	}
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Log(err)
 	}
-	conc := out.Conclusion()
-	if conc.State != evo.StateBlocked {
-		t.Fatalf("state = %v, want StateBlocked (a declined confirm is Blocked, never Failed)", conc.State)
+	conc := out.conclusion()
+	if conc.headline() != headlineRefused {
+		t.Fatalf("state = %v, want StateBlocked (a declined confirm is Blocked, never Failed)", conc.headline())
 	}
-	if conc.ExitCode != evo.ExitBlocked {
-		t.Fatalf("exit code = %d, want %d (ExitBlocked)", conc.ExitCode, evo.ExitBlocked)
+	if conc.exitCode != exitRefused {
+		t.Fatalf("exit code = %d, want %d (ExitBlocked)", conc.exitCode, exitRefused)
 	}
 }

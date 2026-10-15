@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -6,8 +6,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // collapse folds runs of whitespace into single spaces, so an assertion
@@ -18,13 +16,13 @@ func collapse(s string) string { return strings.Join(strings.Fields(s), " ") }
 // mutatedThenFailed runs one mutation per subject and then fails the run, so
 // the conclusion renders its "! already mutated: ..." line over a ledger the
 // test controls exactly.
-func mutatedThenFailed(t *testing.T, mutate func(*evo.Output)) string {
+func mutatedThenFailed(t *testing.T, mutate func(*Run)) string {
 	t.Helper()
 	var buf bytes.Buffer
 	out := isolatedScheduler(t, 1, &buf, false)
 	mutate(out)
 	out.Task("verify").Define(func(ctx context.Context) error { return errProbe })
-	_ = out.Finish()
+	_ = out.finish()
 	return collapse(buf.String())
 }
 
@@ -41,14 +39,14 @@ func TestConclusion_P7_AlreadyMutatedAggregatesAndNamesItsOwner(t *testing.T) {
 
 	t.Run("distinct effects name the task that owns each", func(t *testing.T) {
 		t.Parallel()
-		got := mutatedThenFailed(t, func(out *evo.Output) {
-			out.Task("modules").Define(effectOf(evo.EffectCreate, "module", 1))
-			out.Task("records").Define(effectOf(evo.EffectUpdate, "record", 1))
+		got := mutatedThenFailed(t, func(out *Run) {
+			out.Task("modules").Define(effectOf(Create, "module", 1))
+			out.Task("records").Define(effectOf(Update, "record", 1))
 		})
-		if !strings.Contains(got, "modules: 1 module created") {
+		if !strings.Contains(got, "modules: created 1 module") {
 			t.Fatalf("want the owning task named, got:\n%s", got)
 		}
-		if !strings.Contains(got, "records: 1 record updated") {
+		if !strings.Contains(got, "records: updated 1 record") {
 			t.Fatalf("want the owning task named, got:\n%s", got)
 		}
 	})
@@ -56,20 +54,20 @@ func TestConclusion_P7_AlreadyMutatedAggregatesAndNamesItsOwner(t *testing.T) {
 
 // TestConclusion_AlreadyMutated_CancelledWithChanges is red-first for item 1:
 // a Cancelled run with committed effects must render one derived
-// "! partial changes were applied before cancellation" note (contract §15),
-// never a caller-assembled string and never a second copy of the ledger.
+// "!  already mutated: ..." line (CONTRACT §4), the spelling a Failed run uses,
+// never a caller-assembled string.
 func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	branches := out.Task("branches")
-	branches.Define(effectOf(evo.EffectDelete, "local branch", 8))
-	out.Cancel("interrupted")
-	if err := out.Finish(); err != nil {
+	branches.Define(effectOf(Delete, "local branch", 8))
+	out.cancel("interrupted")
+	if err := out.finish(); err != nil {
 		t.Log(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "! partial changes were applied before cancellation") {
-		t.Fatalf("want the partial-changes note, got:\n%s", got)
+	if !strings.Contains(got, "!  already mutated: deleted 8 local branches") {
+		t.Fatalf("want the already-mutated line, got:\n%s", got)
 	}
 }
 
@@ -79,10 +77,10 @@ func TestConclusion_AlreadyMutated_CancelledWithChanges(t *testing.T) {
 // no attention. Partial truth still holds: there is simply nothing to report.
 func TestConclusion_AlreadyMutated_CancelledEmptyLedger(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	out.Task("scan").Doing("scanning")
-	out.Cancel("interrupted")
-	if err := out.Finish(); err != nil {
+	out.cancel("interrupted")
+	if err := out.finish(); err != nil {
 		t.Log(err)
 	}
 	got := buf.String()
@@ -95,19 +93,19 @@ func TestConclusion_AlreadyMutated_CancelledEmptyLedger(t *testing.T) {
 // on a Failed conclusion, not only Cancelled.
 func TestConclusion_AlreadyMutated_Failed(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	remotes := out.Task("remotes")
 	remotes.Define(func(ctx context.Context) error {
-		if err := effectOf(evo.EffectDelete, "origin tip", 1)(ctx); err != nil {
+		if err := effectOf(Delete, "origin tip", 1)(ctx); err != nil {
 			return err
 		}
 		return errors.New("authentication failed")
 	})
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Log(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "!  already mutated: 1 origin tip deleted") {
+	if !strings.Contains(got, "!  already mutated: deleted 1 origin tip") {
 		t.Fatalf("want derived already-mutated line on Failed, got:\n%s", got)
 	}
 }
@@ -116,10 +114,10 @@ func TestConclusion_AlreadyMutated_Failed(t *testing.T) {
 // specific to abnormal termination — a normal Done run never renders it.
 func TestConclusion_AlreadyMutated_NotRenderedOnSuccess(t *testing.T) {
 	var buf strings.Builder
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	branches := out.Task("branches")
-	branches.Define(effectOf(evo.EffectDelete, "local branch", 8))
-	if err := out.Finish(); err != nil {
+	branches.Define(effectOf(Delete, "local branch", 8))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()

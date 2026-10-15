@@ -1,0 +1,47 @@
+Hand-written revert of ddbd70f3 against the current tree: Ring.announce calls onAppend while
+holding the ring's mutex, and Resolve reads the evidence tail after taking the run's lock.
+onAppend takes the run's lock (Task.Doing) and Resolve reads the ring under it, so the two
+wait on each other. Later edits to internal/process/ring.go and internal/graph/resolution.go
+keep the commit's own hunks from reversing.
+
+diff --git a/internal/graph/resolution.go b/internal/graph/resolution.go
+index 70c9a723..f5eb7db1 100644
+--- a/internal/graph/resolution.go
++++ b/internal/graph/resolution.go
+@@ -18,14 +18,13 @@ import "github.com/zachbornheimer/evident-output/v2/internal/record"
+ func (g *Graph) Resolve(t *Task, r Resolution) {
+ 	h := g.host
+ 	h.Resolving(t)
+-	tail := evidenceTail(t, r.State, r.Problems)
+ 	h.Lock()
+ 	defer h.Unlock()
+ 	if h.CheckOpen() != nil {
+ 		return
+ 	}
+ 	disown := disowns(t, r)
+-	verdict := g.decide(t, r, tail)
++	verdict := g.decide(t, r, evidenceTail(t, r.State, r.Problems))
+ 	if verdict == AlreadyResolved {
+ 		h.AlreadyResolved(t, r.Summary)
+ 		return
+diff --git a/internal/process/ring.go b/internal/process/ring.go
+index cff91c9c..6507c79c 100644
+--- a/internal/process/ring.go
++++ b/internal/process/ring.go
+@@ -130,13 +130,12 @@ func (r *Ring) close(streams []Stream, normalize func(string) string) (kept []st
+ // onAppend takes the run's lock, and the ring is a leaf in the lock order.
+ func (r *Ring) announce(kept []string) {
+ 	r.mu.Lock()
+-	onAppend := r.onAppend
+-	r.mu.Unlock()
+-	if onAppend == nil {
++	defer r.mu.Unlock()
++	if r.onAppend == nil {
+ 		return
+ 	}
+ 	for _, line := range kept {
+-		onAppend(line)
++		r.onAppend(line)
+ 	}
+ }
+

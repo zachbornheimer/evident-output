@@ -1,0 +1,95 @@
+[
+  {
+    "id": "C46-001",
+    "section": "2.0 \u00a76 Output",
+    "quote": "durable text, one line per event, no live region",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestEVOOutput_Plain_NoLiveRegionOnTTYShapedWriter"
+      },
+      {
+        "pkg": ".",
+        "run": "TestConfig_Plain_DisablesLiveFrames"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C46-002",
+    "section": "2.0 \u00a76 Output",
+    "quote": "one `evo.run` document on stdout at Finish, presentation on stderr",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestFormatJSON_StdoutHasOneRunDocumentStderrHasHuman"
+      },
+      {
+        "pkg": ".",
+        "run": "TestEVOOutput_JSON_FinishWritesRunDocument"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C46-003",
+    "section": "2.0 \u00a76 Output",
+    "quote": "`evo.event` lines on stdout as they occur",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestFormatJSONL_StdoutStreamsEventLinesStderrHasHuman"
+      },
+      {
+        "pkg": ".",
+        "run": "TestOUT006_JSONLOneObjectPerLine"
+      },
+      {
+        "pkg": ".",
+        "run": "TestEVOOutput_JSONL_WritesEventLines"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C46-004",
+    "section": "2.0 \u00a76 Output",
+    "quote": "Environment, applied only where `Config` is zero:",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestEVOOutput_HumanDoesNotOverrideExplicitPlain"
+      },
+      {
+        "pkg": ".",
+        "run": "TestEVOOutput_NoColorStillDisablesColor"
+      },
+      {
+        "pkg": ".",
+        "run": "TestEVOVerbose_OneProjectsVerboseMessages"
+      },
+      {
+        "pkg": ".",
+        "run": "TestEVODebug_DebugLevelSurfacesJournal"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C46-005",
+    "section": "2.0 \u00a76 Output",
+    "quote": "Machine output is never inferred from a piped stdout.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestOutput_PipedStdoutNeverInfersMachineOutput"
+      }
+    ],
+    "default": false
+  }
+]

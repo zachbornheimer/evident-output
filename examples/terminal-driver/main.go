@@ -1,5 +1,6 @@
-// Command terminal-driver is an advanced teaching surface: custom TerminalDriver,
-// frame-by-frame logging, and explicit renderer knobs.
+// Command terminal-driver is an advanced teaching surface: a custom
+// Facades.Terminal that logs every redraw as a numbered frame. Without
+// --frames the run uses evo's own terminal on a TTY.
 //
 // Ordinary multi-progress API: see examples/live-progress.
 //
@@ -18,8 +19,7 @@ import (
 	"os"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/terminal"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func main() {
@@ -28,7 +28,7 @@ func main() {
 	step := flag.Bool("step", false, "frame dump + wait for Enter between frames")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: terminal-driver [flags]\n\n")
-		fmt.Fprintf(os.Stderr, "Advanced: custom TerminalDriver / frame log.\n")
+		fmt.Fprintf(os.Stderr, "Advanced: custom Facades.Terminal / frame log.\n")
 		fmt.Fprintf(os.Stderr, "For normal multi-progress, use examples/live-progress.\n\n")
 		flag.PrintDefaults()
 	}
@@ -48,31 +48,14 @@ func main() {
 		stepDur = 20 * time.Millisecond
 	}
 
-	var term evo.TerminalDriver
+	// A nil Facades.Terminal is evo's own terminal; --frames swaps in the log.
+	cfg := evo.Config{Name: "install-deps-advanced"}
 	if *frames {
-		term = newFrameLog(os.Stderr, os.Stdin, *step)
-	} else {
-		term = terminal.NewANSI(os.Stderr,
-			terminal.WithInteractive(true),
-			terminal.WithSize(80, 24),
-		)
+		cfg.Facades.Terminal = newFrameLog(os.Stderr, os.Stdin, *step)
 	}
 
-	// Same Init(Config) dialect as ordinary examples; advanced = Terminal field.
-	out := evo.Init(evo.Config{
-		Title:    "install-deps-advanced",
-		Stdout:   os.Stderr,
-		Stderr:   os.Stderr,
-		Terminal: term,
-		Debug:    evo.DebugConfig{Level: evo.LevelDebug},
-		// Demo tuning: show spinners immediately.
-		VisibilityDelay: func() *time.Duration { d := time.Duration(0); return &d }(),
-		MaxFrameRate:    60,
-		Isolated:        true,
-	})
-
-	result := out.Run(context.Background(), func(ctx context.Context) error {
-		jobs := out.Group("dependencies")
+	os.Exit(evo.Main(cfg, func(ctx context.Context, r *evo.Run) error {
+		jobs := r.Group("dependencies")
 		discover := jobs.Task("discover")
 		discover.Define(func(context.Context) error {
 			for _, phase := range []string{"reading lockfile", "resolving graph"} {
@@ -87,16 +70,15 @@ func main() {
 		download.Define(func(context.Context) error {
 			const total int64 = 4_000_000
 			for i := 1; i <= 12; i++ {
-				download.Bytes(total*int64(i)/12, total)
+				download.Progress(int(total*int64(i)/12), int(total))
 				time.Sleep(stepDur)
 			}
 			download.Summary("4.0 MB")
 			return nil
 		})
-		out.Task("registry").Define(func(context.Context) error { return nil })
+		r.Task("registry").Define(func(context.Context) error { return nil })
 		return nil
-	})
-	os.Exit(result.ExitCode())
+	}))
 }
 
 // frameLog prints each redraw as a numbered scrubable frame (no in-place ANSI).
@@ -122,9 +104,11 @@ func (f *frameLog) ClearLive()          {}
 func (f *frameLog) WriteDurable(line string) {
 	_, _ = fmt.Fprintf(f.w, "  · durable: %s\n", line)
 }
+
 func (f *frameLog) WriteFinal(text string) {
 	_, _ = fmt.Fprintf(f.w, "\n── final ──\n%s\n", text)
 }
+
 func (f *frameLog) WriteLive(text string) {
 	f.n++
 	_, _ = fmt.Fprintf(f.w, "\n── frame %d ──\n%s\n", f.n, text)

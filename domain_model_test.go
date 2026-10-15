@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -7,16 +7,16 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
 func TestDOM014_DetailOnBlock(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	it := out.Task("i")
-	it.Block("b", evo.Detail("user visible"))
-	if it.Snapshot().Problems[0].Detail != "user visible" {
-		t.Fatal(it.Snapshot().Problems)
+	it.block("b", Detail("user visible"))
+	if it.snapshot().Problems[0].Detail != "user visible" {
+		t.Fatal(it.snapshot().Problems)
 	}
 }
 
@@ -26,58 +26,40 @@ func TestDOM014_DetailOnBlock(t *testing.T) {
 // behavior allowed the total to grow silently; that is now recorded misuse
 // and the first total is kept.
 func TestDOM023_SealedTotalRejectsChange(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("t")
 	task.Progress(1, 2)
 	task.Progress(2, 5)
-	if task.Snapshot().Progress.Total != 2 {
-		t.Fatalf("sealed total was not preserved: %#v", task.Snapshot().Progress)
+	if task.snapshot().Progress.Total != 2 {
+		t.Fatalf("sealed total was not preserved: %#v", task.snapshot().Progress)
 	}
-	if !errors.Is(out.Err(), evo.ErrInvalidProgress) {
-		t.Fatalf("error = %v, want ErrInvalidProgress", out.Err())
+	if !errors.Is(out.err(), errInvalidProgress) {
+		t.Fatalf("error = %v, want ErrInvalidProgress", out.err())
 	}
 }
 
 func TestDOM037_FailedConclusion(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Task("i").Fail("no")
-	_ = out.Finish()
-	if out.Conclusion().State != evo.StateFailed {
-		t.Fatal(out.Conclusion().State)
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
+	out.Task("i").fail("no")
+	_ = out.finish()
+	if out.conclusion().headline() != headlineFailed {
+		t.Fatal(out.conclusion().headline())
 	}
-	if out.Conclusion().ExitCode != 2 {
-		t.Fatal(out.Conclusion().ExitCode)
-	}
-}
-
-// TestDOM038_WarningOnly is updated for P2: Warn no longer resolves its
-// task, so a task that only ever calls Warn auto-resolves Done at Finish
-// (the same amnesty a recorded effect gets) — the run reads StateReady, with
-// Conclusion.Warned carrying the warning forward instead of a StateWarning
-// headline.
-func TestDOM038_WarningOnly(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Task("i").Problem("careful", evo.Severity(evo.SeverityWarning))
-	_ = out.Finish()
-	if got := out.Conclusion().State; got != evo.StateReady {
-		t.Fatalf("state = %v, want StateReady (Warn auto-resolves Done, P2)", got)
-	}
-	if !out.Conclusion().Warned {
-		t.Fatal("Conclusion.Warned = false, want true")
+	if out.conclusion().exitCode != 2 {
+		t.Fatal(out.conclusion().exitCode)
 	}
 }
 
 func TestDOM041_ActionsPromoted(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	item := out.Task("i")
-	item.Block("b", evo.NextCommand("fix", "it"))
-	_ = out.Finish()
-	c := out.Conclusion()
-	if len(c.Actions) == 0 {
+	item.block("b", nextCommand("fix", "it"))
+	_ = out.finish()
+	c := out.conclusion()
+	if len(c.actions) == 0 {
 		t.Fatal("expected promoted actions")
 	}
 }
@@ -89,16 +71,16 @@ func TestDOM041_ActionsPromoted(t *testing.T) {
 // one identity, which is unsound once identity drives manifest
 // reconciliation).
 func TestDOM004_SameNameIsDuplicateSibling(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	a := out.Task("same")
 	b := out.Task("same")
 	succeed(a)
-	if a.Snapshot().ID == b.Snapshot().ID {
+	if a.snapshot().ID == b.snapshot().ID {
 		t.Fatal("expected a distinct handle for the duplicate declaration")
 	}
-	if !errors.Is(out.Err(), evo.ErrDuplicateSiblingName) {
-		t.Fatalf("Err() = %v, want ErrDuplicateSiblingName", out.Err())
+	if !errors.Is(out.err(), errDuplicateSiblingName) {
+		t.Fatalf("Err() = %v, want ErrDuplicateSiblingName", out.err())
 	}
 }
 
@@ -106,58 +88,58 @@ func TestDOM004_SameNameIsDuplicateSibling(t *testing.T) {
 // the retired DuplicateDisplayNamesAllowed test named: two genuinely
 // distinct entities may still share a display name under different parents.
 func TestDOM004_DistinctParentsAllowSameDisplayName(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	a := out.Group("first").Task("same")
 	b := out.Group("second").Task("same")
 	succeed(a)
 	succeed(b)
-	if a.Snapshot().ID == b.Snapshot().ID {
+	if a.snapshot().ID == b.snapshot().ID {
 		t.Fatal("IDs must differ")
 	}
 }
 
 func TestDOM013_MutationAfterFinishRejected(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	succeed(out.Task("x"))
-	_ = out.Finish()
+	_ = out.finish()
 	succeed(out.Task("y"))
-	if !errors.Is(out.Err(), evo.ErrClosed) && out.Err() == nil {
+	if !errors.Is(out.err(), errClosed) && out.err() == nil {
 		// ensureOpen records ErrClosed
-		if out.Err() == nil {
+		if out.err() == nil {
 			// Item after finish may still allocate handle but records misuse
-			t.Log("err", out.Err())
+			t.Log("err", out.err())
 		}
 	}
 }
 
 func TestDOM021_NegativeProgressRejected(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("t")
 	task.Progress(-1, 10)
-	if !errors.Is(out.Err(), evo.ErrInvalidProgress) {
-		t.Fatalf("err=%v", out.Err())
+	if !errors.Is(out.err(), errInvalidProgress) {
+		t.Fatalf("err=%v", out.err())
 	}
 }
 
 // TestDOM030_CollectionWarning is updated for P2: Warn annotates a task
 // instead of resolving it, so a task that only ever calls Warn stays
-// non-terminal (Pending) until Finish's amnesty resolves it — before
-// Finish, the collection reads Incomplete (one unresolved child), and the
+// non-terminal (Pending) until Finish ends it — before
+// Finish, the collection reads Pending (one unresolved child), and the
 // warning itself lives on that child's Warnings field.
 func TestDOM030_CollectionWarning(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	g := out.Group("g")
 	succeed(g.Task("a"))
-	g.Task("b").Problem("soft", evo.Severity(evo.SeverityWarning))
-	snap := g.Snapshot()
-	if snap.State != evo.Running && snap.State != evo.Incomplete {
-		t.Fatalf("state = %v, want Running or Incomplete (Warn no longer resolves its task)", snap.State)
+	g.Task("b").Problem("soft")
+	snap := g.snapshot()
+	if snap.State != running && snap.State != pending {
+		t.Fatalf("state = %v, want Running or Pending (Warn no longer resolves its task)", snap.State)
 	}
-	if warnings := snap.Tasks[1].Warnings; len(warnings) != 1 || warnings[0].Summary != "soft" {
-		t.Fatalf("child warnings = %+v, want one warning %q", warnings, "soft")
+	if warnings := snap.Tasks[1].Problems; len(warnings) != 1 || warnings[0].Summary != "soft" {
+		t.Fatalf("child problems = %+v, want one warning %q", warnings, "soft")
 	}
 }
 
@@ -168,12 +150,12 @@ func TestDOM030_CollectionWarning(t *testing.T) {
 // group summary line.
 func TestDOM030b_CollectionWarningDetailIsRendered(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	g := out.Group("capture")
 	succeed(g.Task("Brewfile"))
-	g.Task("Zen").Problem("skipped — zen-bootstrap not available", evo.Severity(evo.SeverityWarning))
-	_ = out.Finish()
-	_ = out.Close()
+	g.Task("Zen").Problem("skipped — zen-bootstrap not available")
+	_ = out.finish()
+	_ = out.close()
 
 	rendered := buf.String()
 	if !strings.Contains(rendered, "Zen") {
@@ -185,17 +167,17 @@ func TestDOM030b_CollectionWarningDetailIsRendered(t *testing.T) {
 }
 
 func TestDOM031_CollectionAllDone(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	g := out.Group("g")
 	g.Summary("all good")
 	succeed(g.Task("a"))
 	succeed(g.Task("b"))
-	if g.Snapshot().State != evo.Done {
-		t.Fatal(g.Snapshot().State)
+	if g.snapshot().State != succeeded {
+		t.Fatal(g.snapshot().State)
 	}
-	if g.Snapshot().Summary != "all good" {
-		t.Fatal(g.Snapshot().Summary)
+	if g.snapshot().Summary != "all good" {
+		t.Fatal(g.snapshot().Summary)
 	}
 }
 
@@ -203,92 +185,82 @@ func TestDOM031_CollectionAllDone(t *testing.T) {
 // 3: an unresolved child with no problems, on a clean finish, reads as an
 // honest Partial outcome, never misuse — Finish returns nil.
 func TestDOM035_UnresolvedChildInCollection(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	g := out.Group("g")
 	succeed(g.Task("a"))
 	g.Task("hanging")
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (clean finish, no amnesty-defeating problems)", err)
 	}
-	if !out.Conclusion().Partial {
+	if !out.conclusion().partial {
 		t.Fatal("want Conclusion.Partial = true for the unresolved hanging child")
 	}
 }
 
 func TestDOM049_OutputFail(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Fail("stopped", evo.Detail("disk"))
-	_ = out.Finish()
-	if out.Conclusion().State != evo.StateFailed {
-		t.Fatal(out.Conclusion().State)
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
+	out.fail("stopped", Detail("disk"))
+	_ = out.finish()
+	if out.conclusion().headline() != headlineFailed {
+		t.Fatal(out.conclusion().headline())
 	}
 }
 
 func TestDOM048_BlockedWithNilErrorReturn(t *testing.T) {
 	// Pattern from spec: presentation negative, callback returns nil
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	var ret error
 	func() {
-		out.Task("branches").Block("local-only")
+		out.Task("branches").block("local-only")
 		ret = nil
 	}()
 	if ret != nil {
 		t.Fatal(ret)
 	}
-	_ = out.Finish()
-	if out.Conclusion().State != evo.StateBlocked {
-		t.Fatal(out.Conclusion().State)
-	}
-}
-
-func TestDOM005_DuplicateKeyRejected(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Task("one").Key("k")
-	out.Task("two").Key("k")
-	if !errors.Is(out.Err(), evo.ErrDuplicateKey) {
-		t.Fatalf("err=%v", out.Err())
+	_ = out.finish()
+	if out.conclusion().headline() != headlineRefused {
+		t.Fatal(out.conclusion().headline())
 	}
 }
 
 func TestDOM024_TotalDecreaseBelowCompletedRejected(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("t")
 	task.Progress(5, 10)
 	task.Progress(5, 3) // total < completed
-	if !errors.Is(out.Err(), evo.ErrInvalidProgress) {
-		t.Fatalf("err=%v", out.Err())
+	if !errors.Is(out.err(), errInvalidProgress) {
+		t.Fatalf("err=%v", out.err())
 	}
-	if task.Snapshot().Progress.Total != 10 {
+	if task.snapshot().Progress.Total != 10 {
 		t.Fatal("last valid total not preserved")
 	}
 }
 
 func TestDOM006_TaskDoneWithoutPhase(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	item := out.Task("working tree")
 	succeed(item)
-	if item.Snapshot().State != evo.Done {
-		t.Fatalf("state = %q", item.Snapshot().State)
+	if item.snapshot().State != succeeded {
+		t.Fatalf("state = %q", item.snapshot().State)
 	}
 }
 
 func TestDOM039_ChangesPlusFailure(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "deps"})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Task("deps").Define(effectOf(evo.EffectAdd, "package", 1))
-	out.Task("install").Fail("disk full")
-	if err := out.Finish(); err != nil {
+	out := initRun(Config{Name: "deps", Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
+	out.Task("deps").Define(engineEffectOf(change.EffectAdd, "package", 1))
+	out.Task("install").fail("disk full")
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	c := out.Conclusion()
-	if c.State != evo.StateFailed {
-		t.Fatalf("state = %q, want failed", c.State)
+	c := out.conclusion()
+	if c.headline() != headlineFailed {
+		t.Fatalf("state = %q, want failed", c.headline())
 	}
 	if !c.Changed {
 		t.Fatal("expected Changed=true with changes present")
@@ -303,50 +275,50 @@ func TestDOM039_ChangesPlusFailure(t *testing.T) {
 // untested.
 
 func TestDOM043_FinishTwice(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task("x"))
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 }
 
 // TestDOM010_WarnAndFailWithStructuredSummary is updated for P2: Warn
-// annotates a task instead of resolving it (evo.Warning as a terminal
+// annotates a task instead of resolving it (Warning as a terminal
 // EntityState is deleted). A warned task stays non-terminal — Pending here,
 // since nothing else touched it — and its warning lands on the Warnings
 // field; a later Done still resolves it normally.
 func TestDOM010_WarnAndFailWithStructuredSummary(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	w := out.Task("w")
-	w.Problem("soft", evo.Severity(evo.SeverityWarning))
-	if got := w.Snapshot().State; got == evo.Done || got == evo.Failed || got == evo.Blocked {
+	w.Problem("soft")
+	if got := w.snapshot().State; got == succeeded || got == failed || got == refused {
 		t.Fatalf("state = %q, want non-terminal: Warn must not resolve the task", got)
 	}
-	if warnings := w.Snapshot().Warnings; len(warnings) != 1 || warnings[0].Summary != "soft" {
+	if warnings := w.snapshot().Problems; len(warnings) != 1 || warnings[0].Summary != "soft" {
 		t.Fatalf("warnings = %+v, want one warning %q", warnings, "soft")
 	}
 	succeed(w)
-	if got := w.Snapshot().State; got != evo.Done {
+	if got := w.snapshot().State; got != succeeded {
 		t.Fatalf("state = %q, want Done after Warn then Done", got)
 	}
 	f := out.Task("f")
-	f.Fail("hard")
-	if f.Snapshot().State != evo.Failed {
-		t.Fatal(f.Snapshot().State)
+	f.fail("hard")
+	if f.snapshot().State != failed {
+		t.Fatal(f.snapshot().State)
 	}
 }
 
 func TestDOM012_NextActionAfterResolve(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	it := out.Task("x")
-	it.Block("b", evo.NextCommand("fix", "it"))
-	if len(it.Snapshot().Problems[0].Actions) != 1 {
+	it.block("b", nextCommand("fix", "it"))
+	if len(it.snapshot().Problems[0].Actions) != 1 {
 		t.Fatal("expected action")
 	}
 }
@@ -355,36 +327,36 @@ func TestDOM012_NextActionAfterResolve(t *testing.T) {
 // never-touched task with no problems, on a clean finish, reads as an honest
 // Partial outcome (Conclusion.Partial), never misuse — Finish returns nil.
 func TestDOM033_UnresolvedItemAtFinish(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	out.Task("hanging")
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (clean finish, no amnesty-defeating problems)", err)
 	}
-	if !out.Conclusion().Partial {
+	if !out.conclusion().partial {
 		t.Fatal("want Conclusion.Partial = true for the unresolved hanging task")
 	}
 }
 
 func TestDOM044_CloseTwice(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	succeed(out.Task("x"))
-	if err := out.Close(); err != nil {
+	if err := out.close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := out.Close(); err != nil {
+	if err := out.close(); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestDOM045_EmptyOutput(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
-	if err := out.Finish(); err != nil {
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	c := out.Conclusion()
-	if c.State != evo.StateReady {
-		t.Fatalf("state=%q, want StateReady (StateUnchanged was deleted, P1)", c.State)
+	c := out.conclusion()
+	if c.headline() != headlineSucceeded {
+		t.Fatalf("state=%q, want StateReady (StateUnchanged was deleted, P1)", c.headline())
 	}
 }

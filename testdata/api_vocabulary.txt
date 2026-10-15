@@ -1,203 +1,140 @@
-# Evident Output 1.1 exported vocabulary (E-122, ZYS-1180 freeze) plus 1.2 composition.
+# Evident Output 2.0 exported vocabulary (CONTRACT.md symbol tables).
 # One line per exported identifier: name, class, concept.
 #   canonical: a word of the vocabulary itself.
-#   helper:    sugar or a part of exactly one concept; never taught alone.
-#   removed:   not part of evo; must not exist in the exported API.
+#   helper:    a part of exactly one concept; never taught alone.
+#   removed:   not part of evo 2.0; must not exist in the exported API.
+# The concept is the root file stem that declares the identifier (a field or
+# method with no declaration of its own takes its type's file).
 # The vocabulary guard (vocabulary_guard_test.go) fails when an exported
 # identifier is missing here or classed removed.
-Action	canonical	Action
+Action	helper	Problem
+Action.Command	helper	Problem
+Action.Label	helper	Problem
 AlsoWrite	removed	Run
-App	helper	Fingerprint
-AssumeYes	helper	Human output
-Attachment	helper	Problem
-Blocked	helper	Conclusion
-BytesKind	helper	Progress
-Cancelled	helper	Conclusion
-Capture	canonical	Capture
-CaptureOption	helper	Capture
-CaptureStream	helper	Capture
-CaptureStreamCombined	helper	Capture
-CaptureStreamStderr	helper	Capture
-CaptureStreamStdout	helper	Capture
-ChangesSnapshot	helper	Snapshot
+Cancelled	helper	Ending
 Checksum	removed	Checksum
-Clock	removed	Run
+CleanStop	helper	Task
+Clock	helper	Facades
 Clone	removed	Tree
 Code	helper	Problem
-ColorAlways	helper	Human output
-ColorAuto	helper	Human output
-ColorMode	helper	Human output
-ColorNever	helper	Human output
-Command	helper	Action
-CommandSpec	helper	Action
 Compute	canonical	Compute
 Computed	canonical	Compute
-Computed.Get	canonical	Compute
-Conclusion	helper	Conclusion
+Computed.Get	helper	Compute
+Conclusion	canonical	Result
+Conclusion.Changed	helper	Result
+Conclusion.DryRun	helper	Result
+Conclusion.Explanation	helper	Result
+Conclusion.Outcome	helper	Result
 ConclusionJSON	removed	Machine output
-ConclusionState	helper	Conclusion
-Config	helper	Run
-Confirm	helper	Human output
-ConfirmDetail	helper	Human output
-ConfirmOption	helper	Human output
-Container	helper	Group
-Count	helper	Problem
+Config	canonical	Config
+Config.Debug	helper	Config
+Config.DryRun	helper	Config
+Config.Facades	helper	Config
+Config.MaxConcurrency	helper	Config
+Config.Name	helper	Config
+Config.Output	helper	Config
+Config.State	helper	Config
+Config.Verbose	helper	Config
+ConfirmOption	helper	Confirm
+Container	helper	Container
+Create	helper	Effect
 DataProjection	removed	Run
 DebugAddSource	removed	Run
-DebugConfig	helper	Debug journal
 DebugHistory	removed	Run
 DebugLevel	removed	Run
 DebugPane	removed	Run
-DebugPaneOption	helper	Debug journal
-DebugPresentation	helper	Debug journal
-DebugPresentationHistory	helper	Debug journal
-DebugPresentationPane	helper	Debug journal
-Default	helper	Run
-DefaultConfig	helper	Run
-DefaultVisibleNames	helper	Human output
-Delay	helper	Run
-Destructive	helper	Human output
+DefineOption	helper	Task
+Delete	helper	Effect
+Destructive	helper	Confirm
 Detail	helper	Problem
-Determinate	helper	Progress
 Diagnostics	removed	Run
-Done	helper	Conclusion
 Download	removed	Download
 DryRun	removed	Run
 Effect	canonical	Effect
-EffectAdd	helper	Effect
-EffectCreate	helper	Effect
-EffectDelete	helper	Effect
-EffectInstall	helper	Effect
-EffectPush	helper	Effect
-EffectRecord	helper	Effect
-EffectRemove	helper	Effect
 EffectSpec	canonical	Effect
-EffectUninstall	helper	Effect
-EffectUpdate	helper	Effect
-EffectVerb	canonical	Effect
-Empty	helper	Conclusion
+EffectSpec.Object	helper	Effect
+EffectSpec.Path	helper	Effect
+EffectSpec.Quantity	helper	Effect
+EffectSpec.Resource	helper	Effect
+EffectSpec.Verb	helper	Effect
 EncodeEventJSON	removed	Machine output
 EncodeJSON	removed	Machine output
 EncodeJSONL	removed	Machine output
-EntityState	helper	Conclusion
-ErrAlreadyResolved	helper	Misuse
-ErrBasisAfterDefine	helper	Basis
-ErrClosed	helper	Misuse
-ErrComputedUnordered	helper	Misuse
-ErrComputedUnsettled	helper	Misuse
-ErrConcurrentRunning	helper	Misuse
-ErrDeclaredInCallback	helper	Misuse
-ErrDryRunDeclaredLate	helper	Misuse
-ErrDuplicateKey	helper	Misuse
-ErrDuplicateSiblingName	helper	Misuse
-ErrEffectCallbackMissing	helper	Effect
-ErrEffectObjectMissing	helper	Effect
-ErrEffectQuantityNotPositive	helper	Effect
-ErrEffectVerbInvalid	helper	Effect
-ErrExecExecutableNotFound	helper	Exec
-ErrExecNonzeroExit	helper	Exec
-ErrExecOutputMissingAfterSuccess	helper	Exec
-ErrExecSpecMissingExecutable	helper	Exec
-ErrFilePathIsSymlink	helper	File
-ErrFilePathTypeMismatch	helper	File
-ErrFileSpecMissingPath	helper	File
-ErrFileUnmanagedContentsMissing	helper	File
-ErrInvalidConfig	helper	Misuse
-ErrInvalidPartialEffect	helper	Effect
-ErrInvalidProgress	helper	Progress
-ErrInvalidResource	helper	Resource
-ErrKeyAfterDefine	helper	Misuse
-ErrLimitExceeded	helper	Misuse
-ErrNestedResourceAcquisition	helper	Resource
-ErrNoTaskContext	helper	Misuse
-ErrNotStarted	helper	Misuse
-ErrPatchBinaryUnsupported	helper	Patch
-ErrPatchDeleteUnsupported	helper	Patch
-ErrPatchDoesNotApply	helper	Patch
-ErrPatchMalformed	helper	Patch
-ErrPatchRenameUnsupported	helper	Patch
-ErrPatchUnsupported	helper	Patch
-ErrProgressRegression	helper	Progress
+ErrComputedUnordered	helper	Errors
+ErrExecNonzeroExit	helper	Errors
+ErrExecOutputMissing	helper	Errors
+ErrInvalidConfig	helper	Errors
+ErrPatchDoesNotApply	helper	Errors
 ErrReasonSkipOnly	removed	Skipped
 ErrReasonWrongTask	removed	Skipped
-ErrRenderer	helper	Misuse
-ErrStaleBasis	helper	Patch
-ErrTaskClosed	helper	Misuse
-ErrTerminalWithoutSink	helper	Misuse
-ErrUnresolvedTask	helper	Misuse
-ErrWaitDeadlock	helper	Misuse
-Event	helper	Snapshot
+ErrStaleBasis	helper	Errors
 EventJSON	removed	Machine output
 EventSchemaVersion	removed	Machine output
 Evidence	removed	Capture
 EvidenceOption	removed	Capture
-EvidencePhase	canonical	Evidence
 EvidenceStream	removed	Capture
 EvidenceStreamCombined	removed	Capture
 EvidenceStreamStderr	removed	Capture
 EvidenceStreamStdout	removed	Capture
+Exclude	canonical	Ending
+Excluded	helper	Ending
 Exec	canonical	Exec
-ExecResult	helper	Exec
+ExecResult	canonical	Exec
+ExecResult.ExitCode	helper	Exec
+ExecResult.Ran	helper	Exec
+ExecResult.Stderr	helper	Exec
+ExecResult.Stdout	helper	Exec
+ExecResult.Truncated	helper	Exec
 ExecSpec	canonical	Exec
-ExitBlocked	helper	Conclusion
-ExitCancelled	helper	Conclusion
-ExitFailed	helper	Conclusion
-ExitOK	helper	Conclusion
+ExecSpec.Argv	helper	Exec
+ExecSpec.Dir	helper	Exec
+ExecSpec.Env	helper	Exec
+ExecSpec.Inputs	helper	Exec
+ExecSpec.Outputs	helper	Exec
+ExecSpec.Values	helper	Exec
+Execute	canonical	Run
 ExternalProjection	removed	Run
 Extract	removed	Extract
-FSPath	helper	Fingerprint
-FSResource	helper	Resource
-Fact	canonical	Fact
-FactRecord	helper	Fact
-Failed	helper	Conclusion
-Failure	helper	Problem
-Failure.Error	helper	Problem
+FS	helper	Facades
+Facades	canonical	Facades
+Facades.Clock	helper	Facades
+Facades.FS	helper	Facades
+Facades.Process	helper	Facades
+Facades.Redactor	helper	Facades
+Facades.Stderr	helper	Facades
+Facades.Stdin	helper	Facades
+Facades.Stdout	helper	Facades
+Facades.Terminal	helper	Facades
+Fail	canonical	Ending
+Failed	helper	Ending
 Failure.Next	removed	Action
 Failure.NextCommand	removed	Action
-Failure.Unwrap	helper	Problem
-Field	helper	Problem
 File	canonical	File
-FileFS	helper	File
-FileSet	helper	Patch
 FileSpec	canonical	File
-Files	canonical	Files
+FileSpec.Contents	helper	File
+FileSpec.Inputs	helper	File
+FileSpec.Mode	helper	File
+FileSpec.Path	helper	File
+FileSpec.Values	helper	File
 Find	removed	Find
-Fingerprint	canonical	Fingerprint
-Fingerprint.Fingerprint	helper	Fingerprint
-FingerprintValue	helper	Fingerprint
-FixedClock	helper	Human output
 ForSkip	removed	Skipped
-Format	helper	Machine output
-FormatData	helper	Machine output
-FormatExternal	helper	Machine output
-FormatHuman	helper	Machine output
-FormatJSON	helper	Machine output
-FormatJSONL	helper	Machine output
-GlyphProfile	helper	Human output
 Glyphs	removed	Run
-GlyphsASCII	helper	Human output
-GlyphsAuto	helper	Human output
-GlyphsUnicode	helper	Human output
-Group	canonical	Group
-GroupHandle	canonical	Group
-GroupHandle.After	canonical	After
-GroupHandle.Define	canonical	Define
-GroupHandle.Group	canonical	Group
-GroupHandle.Sequence	canonical	Sequence
-GroupHandle.Snapshot	helper	Snapshot
-GroupHandle.Summary	canonical	Summary
-GroupHandle.Task	canonical	Task
-GroupHandle.Wait	canonical	Wait
-Incomplete	helper	Conclusion
-Indeterminate	helper	Progress
-Init	canonical	Run
-IsCharDevice	helper	Human output
+Group	canonical	Container
+Group.After	helper	Container
+Group.Build	helper	Container
+Group.Group	helper	Container
+Group.Sequence	helper	Container
+Group.Summary	helper	Container
+Group.Task	helper	Container
+Human	helper	Output
+JSON	helper	Output
 JSONAction	removed	Machine output
 JSONChanges	removed	Machine output
 JSONCollection	removed	Machine output
 JSONCommand	removed	Machine output
 JSONDocument	removed	Machine output
 JSONEffectRecord	removed	Machine output
+JSONL	helper	Output
 JSONMessage	removed	Machine output
 JSONOutputMeta	removed	Machine output
 JSONPlan	removed	Machine output
@@ -205,196 +142,89 @@ JSONProblem	removed	Machine output
 JSONProgress	removed	Machine output
 JSONSchemaVersion	removed	Machine output
 JSONTask	removed	Machine output
-KeepLastLines	helper	Capture
-Label	helper	Action
-LevelDebug	helper	Debug journal
-LevelError	helper	Debug journal
-LevelInfo	helper	Debug journal
-LevelTrace	helper	Debug journal
-LevelUnset	helper	Debug journal
-LevelWarn	helper	Debug journal
-LiveSurface	helper	Human output
-Location	helper	Problem
-LogLevel	helper	Debug journal
-LogRecord	helper	Debug journal
-LogicalResource	helper	Resource
 Main	canonical	Run
-MaxCaptureBytes	helper	Capture
 MaxEntities	removed	Run
 MaxEvents	removed	Run
 MaxEvidenceBytes	removed	Capture
 MaxFrameRate	removed	Run
-MessageSnapshot	helper	Snapshot
-MirrorToDebug	helper	Capture
-MirrorToDiagnostics	helper	Capture
-NewestFirst	helper	Debug journal
-Next	helper	Action
-NextCommand	helper	Action
+Next	helper	Problem
 NoColor	removed	Run
-NoopRedactor	helper	Human output
-NotStarted	helper	Conclusion
-OldestFirst	helper	Debug journal
+NonInteractive	helper	Confirm
 On	helper	Problem
 OnTask	removed	Skipped
 Option	removed	Run
-Output	canonical	Run
-Output.Cancel	canonical	Cancelled
-Output.Close	helper	Run
-Output.Conclusion	helper	Run
-Output.Confirm	helper	Human output
-Output.Context	helper	Define
-Output.Err	helper	Run
-Output.Events	helper	Run
-Output.Fact	canonical	Fact
-Output.Fail	canonical	Failed
+Outcome	canonical	Ending
+Output	canonical	Output
 Output.Failf	removed	Fail
-Output.Finish	helper	Run
-Output.Group	canonical	Group
 Output.Next	removed	Action
 Output.NextCommand	removed	Action
-Output.Print	helper	Human output
-Output.Printf	helper	Human output
-Output.Println	helper	Human output
-Output.ResultWriter	helper	Human output
-Output.Run	canonical	Run
-Output.Sequence	canonical	Sequence
-Output.Snapshot	helper	Snapshot
-Output.Suspend	helper	Human output
-Output.Task	canonical	Task
 Output.Warn	removed	Problem
-Output.Writer	helper	Human output
-PaneHeight	helper	Debug journal
-ParseFormat	helper	Machine output
 PartialEffect	helper	Effect
 Patch	canonical	Patch
-Pending	helper	Conclusion
-Plain	removed	Run
-PlainOptions	helper	Snapshot
-PlanSnapshot	helper	Snapshot
-Pluralize	helper	Human output
-PolicyFlag	helper	Human output
-PolicyHint	helper	Human output
-PreserveDebugTail	helper	Debug journal
-Print	helper	Human output
-Printer	helper	Human output
-Printer.Print	helper	Human output
-Printer.Printf	helper	Human output
-Printer.Println	helper	Human output
-Printer.Writer	helper	Human output
-Printf	helper	Human output
-Println	helper	Human output
-Problem	canonical	Problem
-ProblemCodeDuplicateSiblingName	helper	Problem
-ProblemCodeVerificationUnsatisfied	helper	Problem
+Plain	helper	Output
+Predecessor	helper	Task
 ProblemOption	helper	Problem
-ProblemSeverity	helper	Problem
-ProcessCommand	helper	Exec
-ProcessOutcome	helper	Exec
-ProcessRunner	helper	Exec
-Progress	canonical	Progress
-ProgressKind	helper	Progress
-Projection	helper	Machine output
-ProjectionHuman	helper	Machine output
-ProjectionJSON	helper	Machine output
-ProjectionJSONL	helper	Machine output
-ProjectionPlain	helper	Machine output
-ProjectionStreamJSON	helper	Machine output
-PublishedRelease	helper	Machine output
-Reason	helper	Skipped
+Process	helper	Facades
 ReasonOption	removed	Skipped
 Redact	removed	Run
-Redactor	helper	Human output
-RenderPlain	helper	Snapshot
-Resolution	helper	Conclusion
-ResolutionAlreadySatisfied	helper	Conclusion
-ResolutionExecuted	helper	Conclusion
-ResolutionNoWork	helper	Conclusion
-Resource	canonical	Resource
-Result	canonical	Run
+Redactor	helper	Facades
+Refuse	canonical	Ending
+Refused	helper	Ending
+Result	canonical	Result
+Result.Conclusion	helper	Result
+Result.Err	helper	Result
+Result.ExitCode	helper	Result
 ResultStream	removed	Run
-Run	canonical	Run
+Run	canonical	Output
+Run.Confirm	helper	Confirm
+Run.Fact	helper	Run
+Run.Group	helper	Container
+Run.ResultWriter	helper	Report
+Run.Sequence	helper	Container
+Run.SlogHandler	helper	Report
+Run.Summary	helper	Report
+Run.Suspend	helper	Confirm
+Run.Task	helper	Container
+Run.Text	helper	Report
 RunFunc	canonical	Run
 Runner	removed	Run
-Running	helper	Conclusion
-Sequence	canonical	Sequence
-SequenceHandle	canonical	Sequence
-SequenceHandle.After	canonical	After
-SequenceHandle.Define	canonical	Define
-SequenceHandle.Group	canonical	Group
-SequenceHandle.Sequence	canonical	Sequence
-SequenceHandle.Snapshot	helper	Snapshot
-SequenceHandle.Summary	canonical	Summary
-SequenceHandle.Task	canonical	Task
-SequenceHandle.Wait	canonical	Wait
-SetDefault	helper	Run
-Severity	helper	Problem
-SeverityError	helper	Problem
-SeverityWarning	helper	Problem
-Skipped	helper	Conclusion
-SlogHandler	helper	Debug journal
-Snapshot	helper	Snapshot
-SourceLocation	helper	Problem
-StateBlocked	helper	Conclusion
-StateCancelled	helper	Conclusion
-StateChanged	helper	Conclusion
-StateFailed	helper	Conclusion
-StatePlanned	helper	Conclusion
-StateReady	helper	Conclusion
-StateWarning	helper	Conclusion
+Satisfied	helper	Ending
+Sequence	canonical	Container
+Sequence.After	helper	Container
+Sequence.Build	helper	Container
+Sequence.Group	helper	Container
+Sequence.Sequence	helper	Container
+Sequence.Summary	helper	Container
+Sequence.Task	helper	Container
+State	helper	Config
+State.AppID	helper	Config
+State.Dir	helper	Config
 Stdin	removed	Run
 Strict	removed	Run
-SystemClock	helper	Human output
+Succeeded	helper	Ending
 Task	canonical	Task
-TaskEvidence	canonical	Evidence
-TaskHandle	canonical	Task
-TaskHandle.After	canonical	After
-TaskHandle.Basis	canonical	Basis
-TaskHandle.Block	canonical	Blocked
+Task.After	helper	Task
+Task.Define	helper	Task
+Task.Doing	helper	Task
+Task.Fact	helper	Task
+Task.Problem	helper	Task
+Task.Progress	helper	Report
+Task.Summary	helper	Task
+Task.Verify	helper	Task
+Task.Writer	helper	Report
 TaskHandle.Blockf	removed	Block
-TaskHandle.Bytes	helper	Progress
-TaskHandle.Cancel	canonical	Cancelled
-TaskHandle.Capture	canonical	Capture
-TaskHandle.Context	helper	Define
-TaskHandle.Define	canonical	Define
-TaskHandle.Doing	canonical	Doing
-TaskHandle.Fact	canonical	Fact
-TaskHandle.Fail	canonical	Failed
 TaskHandle.Failf	removed	Fail
 TaskHandle.Kept	removed	Skipped
-TaskHandle.Key	helper	Task
 TaskHandle.Next	removed	Action
 TaskHandle.NextCommand	removed	Action
-TaskHandle.Problem	canonical	Problem
-TaskHandle.Progress	canonical	Progress
-TaskHandle.Skipped	canonical	Skipped
-TaskHandle.Snapshot	helper	Snapshot
 TaskHandle.Step	removed	Progress
-TaskHandle.Summary	canonical	Summary
-TaskHandle.Verify	canonical	Verify
-TaskHandle.Wait	canonical	Wait
 TaskHandle.Warn	removed	Problem
-TaskHandle.Writer	helper	Doing
-TaskSnapshot	helper	Snapshot
-TasksSnapshot	helper	Snapshot
-TaxonomyReason	helper	Skipped
-TaxonomyReason.Name	helper	Skipped
-TaxonomyRecord	helper	Skipped
-Terminal	removed	Run
-TerminalDriver	helper	Human output
-TimeSource	helper	Human output
+Terminal	helper	Facades
 Title	removed	Run
 To	removed	Run
 Tree	removed	Tree
-TruncateNames	helper	Human output
-Value	helper	Fingerprint
-Verbose	helper	Human output
-Verbosity	helper	Human output
-VerbosityNormal	helper	Human output
-VerbosityVerbose	helper	Human output
-Visibility	helper	Human output
+Update	helper	Effect
+Verb	helper	Effect
 VisibilityDelay	removed	Run
-VisibilityNormal	helper	Human output
-VisibilityVerbose	helper	Human output
 Warn	removed	Problem
 Width	removed	Run
-WriteJSON	helper	Machine output

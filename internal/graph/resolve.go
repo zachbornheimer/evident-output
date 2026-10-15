@@ -1,0 +1,151 @@
+package graph
+
+import "github.com/zachbornheimer/evident-output/v2/internal/record"
+
+// Authority names who is resolving a Task: the program that wrote a terminal
+// verb, or the scheduler reporting what the Task's callback returned.
+type Authority uint8
+
+const (
+	// ByCaller is a verb the program wrote by hand.
+	ByCaller Authority = iota
+	// ByScheduler is the scheduler's own report of what the callback
+	// returned. It is the sole authority that may declare submitted work
+	// successful.
+	ByScheduler
+)
+
+// Resolution is what an authority asks of a Task: the state it should reach,
+// the words that say why, and the Problems it found.
+type Resolution struct {
+	State    record.State
+	Summary  string
+	Problems []record.Problem
+	By       Authority
+}
+
+// Verdict is what Admit decided about a Resolution.
+type Verdict uint8
+
+const (
+	// Settling means the Task will reach Admission.State: the caller writes
+	// the Summary and Problems, then calls Conclude.
+	Settling Verdict = iota
+	// Proposed means the Resolution was held, not applied: a submitted Task
+	// takes its success only from its callback's return value.
+	Proposed
+	// AlreadyResolved means the Task was terminal before the Resolution;
+	// nothing changed.
+	AlreadyResolved
+)
+
+// Admission is Admit's answer, handed back to Conclude.
+type Admission struct {
+	// Verdict is what the graph decided.
+	Verdict Verdict
+	// State is, for Settling, the state the Task reaches: the evidence rule
+	// has already turned a success over a Problem into Failed.
+	State record.State
+
+	stopsFollowers bool
+}
+
+// Admit decides what a Resolution does to t. Once a Task is submitted, the
+// scheduler owns the verdict on its work: only the callback's own return
+// value says whether the work succeeded. So a success a caller asks for on a
+// submitted Task is a proposal, held until the callback returns and then
+// either ratified or contradicted (see Task.TakeProposal). Nothing ratifies
+// its own completion.
+//
+// Bad news needs no ratification: Fail, Block and Cancel state an outcome the
+// caller already knows and can only make the row worse, so they settle at
+// once, as does every Resolution the scheduler itself makes.
+//
+// A Settling Task is not settled yet: the caller writes what differs between
+// resolutions (its Summary and Problems), then calls Conclude.
+func (g *Graph) Admit(t *Task, r Resolution) Admission {
+	g.lock()
+	defer g.unlock()
+	return g.admitLocked(t, r)
+}
+
+func (g *Graph) admitLocked(t *Task, r Resolution) Admission {
+	switch {
+	case record.IsTerminalTask(t.Rec.State()):
+		return Admission{Verdict: AlreadyResolved}
+	case t.sched.submitted() && r.By == ByCaller && record.DeclaresSuccess(r.State):
+		t.proposal.Store(&Proposal{State: r.State, Summary: r.Summary, Problems: r.Problems})
+		return Admission{Verdict: Proposed}
+	}
+	return Admission{
+		Verdict:        Settling,
+		State:          r.State,
+		stopsFollowers: t.sched.submitted() && StopsSequenceFollowers(r.State),
+	}
+}
+
+// Conclude settles t as Admit decided, and settles NotStarted the steps its
+// failure keeps from running, in the same critical section: whoever sees t
+// terminal sees its followers settled too. A Task that settled between Admit
+// and Conclude (an interrupt cancelled it) keeps the state it reached; it
+// does not settle twice.
+func (g *Graph) Conclude(t *Task, a Admission) {
+	if a.Verdict != Settling {
+		return
+	}
+	g.lock()
+	defer g.unlock()
+	g.concludeLocked(t, a)
+}
+
+func (g *Graph) concludeLocked(t *Task, a Admission) {
+	if terminal(t) {
+		return
+	}
+	g.settleLocked(t, a.State)
+	if a.stopsFollowers {
+		g.failSequenceFollowersLocked(t)
+	}
+}
+
+// ObservationKind is what the scheduler concluded from a callback's return.
+type ObservationKind uint8
+
+const (
+	// ObservedSuccess means the callback returned nil and held no claim of
+	// its own: the Task is Done.
+	ObservedSuccess ObservationKind = iota
+	// ObservedFailure means the callback returned an error: the Task fails
+	// with its text, and any claim the callback held is discarded.
+	ObservedFailure
+	// ObservedProposal means the callback returned nil after proposing an
+	// outcome: the proposal is ratified, now backed by an observation.
+	ObservedProposal
+)
+
+// Observation is the scheduler's verdict on a callback's return. The caller
+// writes it to the Task.
+type Observation struct {
+	Kind ObservationKind
+	// Failure is the callback's error text, for ObservedFailure.
+	Failure string
+	// Proposal is the ratified claim, for ObservedProposal.
+	Proposal *Proposal
+}
+
+// Observe decides what a callback's return does to t, consuming the success
+// the caller proposed while it ran. A returned error replaces the proposal:
+// it was never a resolution, so it is not misuse. A nil return ratifies a
+// proposal, whose words then supply the row's summary, and otherwise
+// succeeds. Nothing ratifies its own completion: only this return does.
+func (g *Graph) Observe(t *Task, err error) Observation {
+	proposal := t.TakeProposal()
+	switch {
+	case err != nil:
+		return Observation{Kind: ObservedFailure, Failure: err.Error()}
+	case proposal != nil:
+		return Observation{Kind: ObservedProposal, Proposal: proposal}
+	default:
+		return Observation{Kind: ObservedSuccess}
+	}
+}

@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestConclusionBand_NoTitleNeverStutters is the release-gate cosmetic
@@ -16,11 +14,11 @@ import (
 // stuttering; only the bracketed tag carries the state word.
 func TestConclusionBand_NoTitleNeverStutters(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	branches := out.Task("branches")
-	branches.Define(effectOf(evo.EffectDelete, "stale local branch", 3))
-	if err := out.Finish(); err != nil {
+	branches.Define(effectOf(Delete, "stale local branch", 3))
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
 	}
 

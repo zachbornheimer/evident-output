@@ -1,8 +1,10 @@
-// Command generate-pipeline demos spec §64's canonical Exec pipeline shape:
+// Command generate-pipeline demos a canonical Exec pipeline shape:
 // a normalize stage (schema.xlsx -> schema.json) feeding a compile stage
-// (schema.json + compile.py -> output.bin), sequenced with Sequence (declaration order, never concurrent) the way
-// a real pipeline must be (a Basis relationship alone never implies
-// scheduling order — see docs/acceptance/v0.6.md's Increment 3 section).
+// (schema.json + compile.py -> output.bin). Each stage declares the paths
+// that decide its freshness as ExecSpec.Inputs, and compile lists normalize's
+// Output among them, so compile runs again only when schema.json's bytes
+// change. The stages sit in a Sequence because an Input shared with another
+// stage's Output never orders them.
 // Run it twice against the same --state-dir to see the second run spawn
 // neither stage:
 //
@@ -17,7 +19,7 @@ import (
 	"os"
 	"path/filepath"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func main() {
@@ -25,9 +27,8 @@ func main() {
 	workDir := flag.String("work-dir", filepath.Join(os.TempDir(), "evo-generate-pipeline-example-work"), "pipeline working directory (inputs/outputs/stub tools)")
 	flag.Parse()
 
-	evo.Init(evo.Config{Title: "generate pipeline", StateDir: *stateDir})
-	os.Exit(evo.Main(func(ctx context.Context) error {
-		return runPipeline(ctx, *workDir)
+	os.Exit(evo.Main(evo.Config{State: evo.State{Dir: *stateDir}}, func(ctx context.Context, r *evo.Run) error {
+		return runPipeline(ctx, r, *workDir)
 	}))
 }
 
@@ -47,7 +48,7 @@ var workDirSeeds = []struct {
 // seedWorkDir establishes every seed file under dir, creating dir first:
 // File establishes one file, not the directory it lives in.
 func seedWorkDir(ctx context.Context, dir string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("create work dir %q: %w", dir, err)
 	}
 	for _, seed := range workDirSeeds {
@@ -78,12 +79,12 @@ set -eu
 cat schema.json compile.py > output.bin
 `
 
-// runPipeline mirrors spec §64: normalize's Output (schema.json) is
-// compile's Basis input, and compile is declared after normalize in the same Sequence so the
-// pipeline's real execution order matches the data dependency the freshness
-// graph alone does not infer.
-func runPipeline(ctx context.Context, dir string) error {
-	seq := evo.Sequence("pipeline")
+// runPipeline mirrors the pipeline above: normalize's Output (schema.json) is
+// one of compile's Inputs, and compile is declared after normalize in the same
+// Sequence so the real execution order matches the data dependency that the
+// Inputs only describe for freshness.
+func runPipeline(ctx context.Context, r *evo.Run, dir string) error {
+	seq := r.Sequence("pipeline")
 
 	seq.Task("seed work dir").Define(func(ctx context.Context) error {
 		return seedWorkDir(ctx, dir)
@@ -92,10 +93,10 @@ func runPipeline(ctx context.Context, dir string) error {
 	normalize := seq.Task("normalize")
 	normalize.Define(func(ctx context.Context) error {
 		_, err := evo.Exec(ctx, evo.ExecSpec{
-			Executable: filepath.Join(dir, "normalize"),
-			Dir:        dir,
-			Basis:      []evo.Fingerprint{evo.FSPath(filepath.Join(dir, "schema.xlsx"))},
-			Outputs:    []string{"schema.json"},
+			Argv:    []string{filepath.Join(dir, "normalize")},
+			Dir:     dir,
+			Inputs:  inDir(dir, "schema.xlsx", "normalize"),
+			Outputs: []string{"schema.json"},
 		})
 		return err
 	})
@@ -103,16 +104,23 @@ func runPipeline(ctx context.Context, dir string) error {
 	compile := seq.Task("compile")
 	compile.Define(func(ctx context.Context) error {
 		_, err := evo.Exec(ctx, evo.ExecSpec{
-			Executable: filepath.Join(dir, "compile"),
-			Dir:        dir,
-			Basis: []evo.Fingerprint{
-				evo.FSPath(filepath.Join(dir, "schema.json")),
-				evo.FSPath(filepath.Join(dir, "compile.py")),
-			},
+			Argv:    []string{filepath.Join(dir, "compile")},
+			Dir:     dir,
+			Inputs:  inDir(dir, "schema.json", "compile.py", "compile"),
 			Outputs: []string{"output.bin"},
 		})
 		return err
 	})
 
 	return nil
+}
+
+// inDir returns each name as a path under dir. Inputs resolve against the
+// workspace, not ExecSpec.Dir, so they are written as full paths.
+func inDir(dir string, names ...string) []string {
+	paths := make([]string, len(names))
+	for i, name := range names {
+		paths[i] = filepath.Join(dir, name)
+	}
+	return paths
 }

@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -7,13 +7,12 @@ import (
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 func TestWriter_SplitsOnLF_AcrossWrites(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	task := out.Task("push")
 	w := task.Writer()
 
@@ -24,34 +23,34 @@ func TestWriter_SplitsOnLF_AcrossWrites(t *testing.T) {
 	if _, err := w.Write([]byte("ing repo\n")); err != nil {
 		t.Fatal(err)
 	}
-	if got := task.Snapshot().Phase; got != "cloning repo" {
+	if got := task.snapshot().Phase; got != "cloning repo" {
 		t.Fatalf("phase after split LF write = %q, want %q", got, "cloning repo")
 	}
 
 	succeed(task)
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestWriter_UnterminatedWriteBecomesDoing(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &buf, Stderr: &buf}})
+	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("build")
 	w := task.Writer()
 
 	if _, err := w.Write([]byte("Compiling Foo.swift")); err != nil {
 		t.Fatal(err)
 	}
-	if got := task.Snapshot().Phase; got != "Compiling Foo.swift" {
+	if got := task.snapshot().Phase; got != "Compiling Foo.swift" {
 		t.Fatalf("unterminated child write = %q, want it as Doing so progress cannot freeze on the previous line", got)
 	}
 }
 
 func TestWriter_CRDelimitsProgressFrames(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	task := out.Task("download")
 	w := task.Writer()
 
@@ -59,38 +58,38 @@ func TestWriter_CRDelimitsProgressFrames(t *testing.T) {
 	if _, err := w.Write([]byte("50%\r75%\r100%\n")); err != nil {
 		t.Fatal(err)
 	}
-	if got := task.Snapshot().Phase; got != "100%" {
+	if got := task.snapshot().Phase; got != "100%" {
 		t.Fatalf("phase after CR-delimited frames = %q, want %q", got, "100%")
 	}
 
 	succeed(task)
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestWriter_BlankLinesIgnored(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	task := out.Task("sync")
 	w := task.Writer()
 
 	if _, err := w.Write([]byte("first\n\n   \nsecond\n")); err != nil {
 		t.Fatal(err)
 	}
-	if got := task.Snapshot().Phase; got != "second" {
+	if got := task.snapshot().Phase; got != "second" {
 		t.Fatalf("phase = %q, want %q (blank lines must not clear it)", got, "second")
 	}
 
 	succeed(task)
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestWriter_BytesLandInCapture_DetailTailAfterFail(t *testing.T) {
 	var primary bytes.Buffer
-	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &primary, Stderr: &primary}})
 	task := out.Task("push")
 	w := task.Writer()
 
@@ -100,8 +99,8 @@ func TestWriter_BytesLandInCapture_DetailTailAfterFail(t *testing.T) {
 
 	// The task's Capture ring (get-or-create, same instance PhaseWriter fed)
 	// must carry the child output as failure evidence.
-	task.Fail("push failed", task.Capture().DetailTail())
-	if err := out.Finish(); err != nil {
+	task.fail("push failed", detailTail(task.capture()))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(primary.String(), "remote: rejected non-fast-forward") {
@@ -116,7 +115,7 @@ func TestWriter_BytesLandInCapture_DetailTailAfterFail(t *testing.T) {
 // fragment flushes as a phase line on its own.
 func TestWriter_UnboundedPendingFragmentIsCapped(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	task := out.Task("build")
 	w := task.Writer()
 
@@ -131,21 +130,21 @@ func TestWriter_UnboundedPendingFragmentIsCapped(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := task.Snapshot().Phase; len(got) == 0 {
+	if got := task.snapshot().Phase; len(got) == 0 {
 		t.Fatal("oversized line-less fragment never flushed as a phase line")
 	} else if len(got) > oversized {
 		t.Fatalf("phase text longer than the input payload: %d bytes", len(got))
 	}
 
 	succeed(task)
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestWriter_SanitizesHostileLines(t *testing.T) {
 	var primary bytes.Buffer
-	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
+	out := initRun(Config{Name: "t", Facades: Facades{Stdout: &primary, Stderr: &primary}})
 	task := out.Task("push")
 	w := task.Writer()
 
@@ -154,12 +153,12 @@ func TestWriter_SanitizesHostileLines(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := task.Snapshot().Phase; strings.Contains(got, "\x1b") {
+	if got := task.snapshot().Phase; strings.Contains(got, "\x1b") {
 		t.Fatalf("Phase leaked raw ESC: %q", got)
 	}
 
 	succeed(task)
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(primary.String(), "\x1b[31m") {
@@ -167,7 +166,7 @@ func TestWriter_SanitizesHostileLines(t *testing.T) {
 	}
 }
 
-func countPhaseChanged(events []evo.Event) int {
+func countPhaseChanged(events []recEvent) int {
 	n := 0
 	for _, e := range events {
 		if e.Type == "task.phase_changed" {
@@ -183,8 +182,8 @@ func countPhaseChanged(events []evo.Event) int {
 // updates both.
 func TestWriter_IdenticalLiveOnlyPhaseIsNoOp(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Clock: evo.TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: TestClock{T: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("push")
 	w := task.Writer()
@@ -192,11 +191,11 @@ func TestWriter_IdenticalLiveOnlyPhaseIsNoOp(t *testing.T) {
 	if _, err := w.Write([]byte("cloning repo\n")); err != nil {
 		t.Fatal(err)
 	}
-	if got := task.Snapshot().Phase; got != "cloning repo" {
+	if got := task.snapshot().Phase; got != "cloning repo" {
 		t.Fatalf("phase after first write = %q", got)
 	}
 	framesAfterFirst := screen.LiveFrameCount()
-	eventsAfterFirst := countPhaseChanged(out.Events())
+	eventsAfterFirst := countPhaseChanged(out.events())
 	if framesAfterFirst < 1 {
 		t.Fatal("expected at least one live frame after first Writer line")
 	}
@@ -210,20 +209,20 @@ func TestWriter_IdenticalLiveOnlyPhaseIsNoOp(t *testing.T) {
 	if got := screen.LiveFrameCount(); got != framesAfterFirst {
 		t.Fatalf("identical Writer phase re-painted: LiveFrameCount %d → %d", framesAfterFirst, got)
 	}
-	if got := countPhaseChanged(out.Events()); got != eventsAfterFirst {
+	if got := countPhaseChanged(out.events()); got != eventsAfterFirst {
 		t.Fatalf("identical Writer phase re-emitted task.phase_changed: %d → %d", eventsAfterFirst, got)
 	}
 
 	if _, err := w.Write([]byte("pushing feat/a\n")); err != nil {
 		t.Fatal(err)
 	}
-	if got := task.Snapshot().Phase; got != "pushing feat/a" {
+	if got := task.snapshot().Phase; got != "pushing feat/a" {
 		t.Fatalf("phase after different write = %q", got)
 	}
 	if got := screen.LiveFrameCount(); got <= framesAfterFirst {
 		t.Fatalf("different Writer phase did not paint: LiveFrameCount stayed %d", got)
 	}
-	if got := countPhaseChanged(out.Events()); got <= eventsAfterFirst {
+	if got := countPhaseChanged(out.events()); got <= eventsAfterFirst {
 		t.Fatalf("different Writer phase did not emit task.phase_changed: still %d", got)
 	}
 }

@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"io"
@@ -6,8 +6,7 @@ import (
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 // advancingClock is a TimeSource that steps on each Now() for spinner tests.
@@ -28,8 +27,8 @@ func TestLive_SpinnerGlyphAdvancesWithClock(t *testing.T) {
 		t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 		d: 80 * time.Millisecond, // one spinner frame per Now()
 	}
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	g := out.Group("work")
 	indeterminate := g.Task("verify")
@@ -38,7 +37,7 @@ func TestLive_SpinnerGlyphAdvancesWithClock(t *testing.T) {
 	// First paint.
 	indeterminate.Doing("checking")
 	first := screen.LatestLiveText()
-	// Advance clock via progress on sibling — each Progress calls clock.Now() for render.
+	// Advance clock via progress on sibling — each Progress calls clock.Now() for project.
 	bar.Progress(1, 10)
 	second := screen.LatestLiveText()
 	bar.Progress(2, 10)
@@ -79,8 +78,8 @@ func TestLive_SpinnerGlyphAdvancesWithClock(t *testing.T) {
 func TestLive_GroupTwoSpinnerFrame(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	jobs := out.Group("dependencies")
 	a := jobs.Task("discover")
@@ -89,7 +88,7 @@ func TestLive_GroupTwoSpinnerFrame(t *testing.T) {
 	a.Doing("discovering")
 	b.Doing("verifying") // second Running sibling — no misuse, unlike Sequence
 
-	if err := out.Err(); err != nil {
+	if err := out.err(); err != nil {
 		t.Fatalf("Err() = %v, want nil (DisplayGroup permits concurrent Running)", err)
 	}
 
@@ -120,5 +119,5 @@ func TestLive_GroupTwoSpinnerFrame(t *testing.T) {
 
 	succeed(a)
 	succeed(b)
-	_ = out.Finish()
+	_ = out.finish()
 }

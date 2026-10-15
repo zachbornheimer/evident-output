@@ -1,14 +1,11 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
-	"encoding/json"
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
-
-	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
 // TestEffectInstall_PlannedAndChangedTense proves EffectInstall and
@@ -21,9 +18,9 @@ func TestEffectInstall_PlannedAndChangedTense(t *testing.T) {
 	t.Run("planned keeps the imperative", func(t *testing.T) {
 		t.Parallel()
 		var buf bytes.Buffer
-		out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, DryRun: true})
-		out.Task("packages").Define(effectOf(evo.EffectInstall, "package", 3))
-		if err := out.Finish(); err != nil {
+		out := initRun(Config{DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+		out.Task("packages").Define(engineEffectOf(change.EffectInstall, "package", 3))
+		if err := out.finish(); err != nil {
 			t.Fatal(err)
 		}
 		rendered := buf.String()
@@ -35,9 +32,9 @@ func TestEffectInstall_PlannedAndChangedTense(t *testing.T) {
 	t.Run("changed conjugates past tense", func(t *testing.T) {
 		t.Parallel()
 		var buf bytes.Buffer
-		out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-		out.Task("packages").Define(effectOf(evo.EffectInstall, "package", 3))
-		if err := out.Finish(); err != nil {
+		out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+		out.Task("packages").Define(engineEffectOf(change.EffectInstall, "package", 3))
+		if err := out.finish(); err != nil {
 			t.Fatal(err)
 		}
 		rendered := buf.String()
@@ -49,9 +46,9 @@ func TestEffectInstall_PlannedAndChangedTense(t *testing.T) {
 	t.Run("uninstall changed conjugates past tense", func(t *testing.T) {
 		t.Parallel()
 		var buf bytes.Buffer
-		out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-		out.Task("packages").Define(effectOf(evo.EffectUninstall, "package", 1))
-		if err := out.Finish(); err != nil {
+		out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+		out.Task("packages").Define(engineEffectOf(change.EffectUninstall, "package", 1))
+		if err := out.finish(); err != nil {
 			t.Fatal(err)
 		}
 		rendered := buf.String()
@@ -62,23 +59,16 @@ func TestEffectInstall_PlannedAndChangedTense(t *testing.T) {
 
 	t.Run("JSON structured verb data carries the same tense", func(t *testing.T) {
 		t.Parallel()
-		out := evo.Init(evo.Config{Isolated: true, Plain: true})
-		out.Task("packages").Define(effectOf(evo.EffectInstall, "package", 3))
-		if err := out.Finish(); err != nil {
+		out := initRun(Config{Output: Plain})
+		out.Task("packages").Define(engineEffectOf(change.EffectInstall, "package", 3))
+		if err := out.finish(); err != nil {
 			t.Fatal(err)
 		}
-		data, err := render.EncodeJSON(out.Snapshot())
-		if err != nil {
-			t.Fatal(err)
+		doc := out.decodedRunDocument(t)
+		if len(doc.Data.Effects) != 1 {
+			t.Fatalf("want one effect, got %+v", doc.Data.Effects)
 		}
-		var doc render.JSONDocument
-		if err := json.Unmarshal(data, &doc); err != nil {
-			t.Fatal(err)
-		}
-		if len(doc.Changes) != 1 || len(doc.Changes[0].Records) != 1 {
-			t.Fatalf("want one Changes record, got %+v", doc.Changes)
-		}
-		got := doc.Changes[0].Records[0]
+		got := doc.Data.Effects[0]
 		if got.Verb != "installed" {
 			t.Fatalf("want JSON verb %q, got %q", "installed", got.Verb)
 		}

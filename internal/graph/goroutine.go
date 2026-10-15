@@ -1,0 +1,145 @@
+package graph
+
+import (
+	"bytes"
+	"runtime"
+	"runtime/metrics"
+	"strconv"
+)
+
+// GoroutineID names one goroutine as the runtime prints it in a traceback.
+// Zero means unknown. Go exposes no goroutine identity, and Wait takes no
+// context, so the traceback header is the only place "which goroutine is
+// this, and which goroutine started it" can be read from.
+type GoroutineID uint64
+
+// goroutineHeaderBytes holds the traceback's first line,
+// "goroutine 123 [running]:", with room to spare.
+const goroutineHeaderBytes = 64
+
+// goroutineTraceBytes is room for one goroutine's whole traceback: a parked
+// goroutine prints a few hundred bytes, a callback several frames more.
+const goroutineTraceBytes = 2048
+
+var (
+	goroutinePrefix = []byte("goroutine ")
+	creatorMarker   = []byte(" in goroutine ")
+	createdByMarker = []byte("created by ")
+	// pooledWorkerCreator is the function that starts every pooled worker, as
+	// a traceback names it on a worker's "created by" line: package-qualified,
+	// so a same-named method of another package does not pass for it.
+	pooledWorkerCreator = []byte("github.com/zachbornheimer/evident-output/v2/internal/graph.(*spawnLedger).start")
+	// goroutineSeparator is the blank line between two goroutines' tracebacks.
+	goroutineSeparator = []byte("\n\n")
+)
+
+// CurrentGoroutine is the calling goroutine's id, read from the header of
+// its own traceback.
+func CurrentGoroutine() GoroutineID {
+	var buf [goroutineHeaderBytes]byte
+	return parseGoroutineHeader(buf[:runtime.Stack(buf[:], false)])
+}
+
+// CurrentGoroutineLineage is the calling goroutine's id and the id of the
+// goroutine that started it (zero for one the runtime started). It reads
+// the whole traceback, because the creator is named on its last line.
+func CurrentGoroutineLineage() (self, creator GoroutineID) {
+	for size := 4 * goroutineHeaderBytes; ; size *= 2 {
+		buf := make([]byte, size)
+		n := runtime.Stack(buf, false)
+		if n < size {
+			trace := buf[:n]
+			return parseGoroutineHeader(trace), parseGoroutineCreator(trace)
+		}
+	}
+}
+
+// createdMetric counts every goroutine the process ever started.
+const createdMetric = "/sched/goroutines-created:goroutines"
+
+// goroutinesCreated is how many goroutines the process has started so far, and
+// false on a toolchain that does not count them. It never stops the world.
+func goroutinesCreated() (uint64, bool) {
+	sample := [1]metrics.Sample{{Name: createdMetric}}
+	metrics.Read(sample[:])
+	if sample[0].Value.Kind() != metrics.KindUint64 {
+		return 0, false
+	}
+	return sample[0].Value.Uint64(), true
+}
+
+// goroutineOrigins reads a dump of all tracebacks: the goroutine that started
+// each goroutine in it (zero for one the runtime started), and which of them
+// are pooled workers. The worker is told by the traceback itself, so what is
+// known about workers is exactly as large as what is known about goroutines.
+func goroutineOrigins(dump []byte) (creators map[GoroutineID]GoroutineID, workers map[GoroutineID]struct{}) {
+	creators = make(map[GoroutineID]GoroutineID)
+	workers = make(map[GoroutineID]struct{})
+	for trace := range bytes.SplitSeq(dump, goroutineSeparator) {
+		id := parseGoroutineHeader(trace)
+		if id == 0 {
+			continue
+		}
+		creators[id] = parseGoroutineCreator(trace)
+		if startedAsPooledWorker(trace) {
+			workers[id] = struct{}{}
+		}
+	}
+	return creators, workers
+}
+
+// startedAsPooledWorker reports whether a traceback's closing "created by"
+// line names the pooled workers' creator (see spawnLedger.start).
+func startedAsPooledWorker(trace []byte) bool {
+	at := bytes.LastIndex(trace, creatorMarker)
+	if at < 0 {
+		return false
+	}
+	line := trace[:at]
+	from := bytes.LastIndex(line, createdByMarker)
+	return from >= 0 && bytes.Equal(line[from+len(createdByMarker):], pooledWorkerCreator)
+}
+
+// allGoroutineTraces is every goroutine's traceback, the calling goroutine's
+// first, one blank line between them. Each attempt stops the world, so the
+// buffer starts sized for the goroutines alive now and a typical dump takes
+// one attempt.
+func allGoroutineTraces() []byte {
+	for size := (runtime.NumGoroutine() + 1) * goroutineTraceBytes; ; size *= 2 {
+		buf := make([]byte, size)
+		if n := runtime.Stack(buf, true); n < size {
+			return buf[:n]
+		}
+	}
+}
+
+// parseGoroutineHeader reads N from a traceback starting "goroutine N [".
+func parseGoroutineHeader(trace []byte) GoroutineID {
+	rest, ok := bytes.CutPrefix(trace, goroutinePrefix)
+	if !ok {
+		return 0
+	}
+	return parseGoroutineNumber(rest)
+}
+
+// parseGoroutineCreator reads N from the traceback's closing
+// "created by F in goroutine N" line.
+func parseGoroutineCreator(trace []byte) GoroutineID {
+	at := bytes.LastIndex(trace, creatorMarker)
+	if at < 0 {
+		return 0
+	}
+	return parseGoroutineNumber(trace[at+len(creatorMarker):])
+}
+
+func parseGoroutineNumber(b []byte) GoroutineID {
+	end := 0
+	for end < len(b) && b[end] >= '0' && b[end] <= '9' {
+		end++
+	}
+	id, err := strconv.ParseUint(string(b[:end]), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return GoroutineID(id)
+}

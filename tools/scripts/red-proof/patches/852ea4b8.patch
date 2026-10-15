@@ -1,0 +1,17 @@
+Hand-written revert of 852ea4b8 against the current tree: a planned operation no longer
+records the paths it would change, so a dry run judges work that reads one of them
+current again and never plans it. Later edits to internal/change/exec.go keep the commit's
+own hunks from reversing, so this removes the one write all three readers of the plan depend on.
+
+--- a/internal/freshness/task_table.go
++++ b/internal/freshness/task_table.go
+@@ -99,9 +99,6 @@ func (t *TaskTable) PlanOperation(id record.TaskID, changes ...string) {
+ 	t.mu.Lock()
+ 	defer t.mu.Unlock()
+ 	t.entryLocked(id).planned++
+-	for _, path := range changes {
+-		t.planned.add(path)
+-	}
+ }
+
+ // FailOperation notes that id had an operation of the given kind that ran and

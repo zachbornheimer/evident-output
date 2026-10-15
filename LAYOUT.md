@@ -1,86 +1,149 @@
 # Layout
 
-One page that tells a reader where a thing lives. Tests enforce the root package map below.
+Every section of `CONTRACT.md` owns one root file, one internal package and
+one guard. `layout_test.go` fails when a tracked file lives outside this
+list or a listed path is missing. A bare path is one file. A path ending in
+`/` is a directory that must exist and may hold anything beneath it.
+`*_test.go` and `testdata/` are allowed beside any Go file.
 
-## Principles
+```layout
+CONTRACT.md
+LAYOUT.md
+README.md
+CHANGELOG.md
+LICENSE
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+GOVERNANCE.md
+SECURITY.md
+SUPPORT.md
+AGENTS.md
+go.mod
+go.sum
+go.work
+mise.toml
+.gitignore
+.golangci.yml
+.markdownlint.json
+.github/
+.trunk/
+.grok/
+evo.go
+run.go
+config.go
+result.go
+host.go
+facades.go
+task.go
+container.go
+compute.go
+file.go
+exec.go
+patch.go
+effect.go
+report.go
+problem.go
+ending.go
+confirm.go
+output.go
+errors.go
+internal/graph/
+internal/freshness/
+internal/change/
+internal/record/
+internal/project/
+internal/misuse/
+internal/terminal/
+internal/process/
+internal/fs/
+internal/clock/
+mcp/
+conformance/
+examples/
+schema/
+testkit/
+tools/
+docs/migration/
+docs/decisions/
+```
 
-- Public package: one obvious home per canonical concept family.
-- Canonical vocabulary: semantic concepts only.
-- Helpers: live beside the concept.
-- Internal packages: one owner per invariant.
-- Tests: named by concept or contract behavior, never by implementation phase or ticket.
+## Root package `evo`
 
-## Root package map (`evo`)
+One file per contract section; the file holds that section's exported
+surface plus the composition root, and nothing else. The composition root is
+the `Run` aggregate (handles to graph, record, change, freshness, misuse and
+project), its one constructor `openRun` and the signal seam in `run.go`;
+`Config` resolved once into the private `config` in `config.go`; the env
+seam in `output.go`; the `graph.Host`, `freshness.Narration` and
+`change.Engine` adapter in `host.go`; Finish sequencing in `ending.go`; and
+facade wiring in `facades.go`. Root writes no record truth and imports no
+system package, except `os` for the `os.Signal` type `CleanStop` names.
 
-`vocabulary_guard_test.go` enforces this table. `testdata/api_vocabulary.txt` is the concept source: each exported symbol's vocabulary concept decides its file.
-
-| File          | Concept family                                  | Representative symbols                                                 |
-| ------------- | ----------------------------------------------- | ---------------------------------------------------------------------- |
-| `run.go`      | Run                                             | `Init`, `Run`, `Main`, `Config`, `Output`, `Result`, `Delay`           |
-| `task.go`     | Task, Define, Wait, Summary, Doing, Progress    | `Task`, `TaskHandle`, `Progress`                                       |
-| `group.go`    | Group, Sequence, After                          | `Group`, `Sequence`, `GroupHandle`, `SequenceHandle`                   |
-| `outcome.go`  | Skipped, Blocked, Failed, Cancelled, Conclusion | `Conclusion`, `EntityState`, `Reason`, `Resolution`                    |
-| `problem.go`  | Problem                                         | `Problem`, `Failure`, `Severity`, `Detail`, `Code`                     |
-| `action.go`   | Action                                          | `Action`, `Command`, `Label`                                           |
-| `fact.go`     | Fact                                            | `Fact`, `FactRecord`                                                   |
-| `verify.go`   | Verify, Evidence                                | `EvidencePhase`, `TaskEvidence`                                        |
-| `basis.go`    | Fingerprint                                     | `Fingerprint`, `FSPath`, `Value`                                       |
-| `file.go`     | File                                            | `File`, `FileSpec`, `FileFS`                                           |
-| `patch.go`    | Patch, Files                                    | `Patch`, `Files`, `FileSet`                                            |
-| `exec.go`     | Exec                                            | `Exec`, `ExecSpec`, `ExecResult`                                       |
-| `capture.go`  | Capture                                         | `Capture`, `CaptureOption`                                             |
-| `effect.go`   | Effect                                          | `Effect`, `EffectSpec`, `EffectRecord`                                 |
-| `resource.go` | Resource                                        | `Resource`, `FSResource`, `LogicalResource`                            |
-| `snapshot.go` | Snapshot                                        | `Snapshot`, `Event`, `RenderPlain`, `PlainOptions`                     |
-| `format.go`   | Machine output                                  | `Format`, `Projection`, `ParseFormat`, `WriteJSON`, `PublishedRelease` |
-| `human.go`    | Human output                                    | `Print`, `Confirm`, `Printer`, `GlyphProfile`, `Visibility`            |
-| `debug.go`    | Debug journal                                   | `DebugConfig`, `LogLevel`, `SlogHandler`                               |
-| `misuse.go`   | Misuse                                          | `ErrClosed`, `ErrDuplicateKey`, `ErrWaitDeadlock`                      |
-| `doc.go`      | package doc only                                | no exported declarations                                               |
-
-Three override rules take precedence over the concept column:
-
-- Receiver rule: every method of `GroupHandle` and `SequenceHandle` lives in `group.go`.
-- `Output.Context` lives in `run.go`, because it is the run-scoped context.
-- Package-level `Next` and `NextCommand` live in `problem.go`, because they return `ProblemOption`.
+| File           | Contract | Owns                                                                          |
+| -------------- | -------- | ----------------------------------------------------------------------------- |
+| `evo.go`       | thesis   | package doc only                                                              |
+| `run.go`       | §1       | `Main`, `Execute`, `RunFunc`, the one constructor `openRun`, the signal seam  |
+| `config.go`    | §1       | `Config`, `State`, and their resolution into the private `config`             |
+| `result.go`    | §1       | `Result`, `Conclusion`                                                        |
+| `host.go`      | §1       | the adapter graph, freshness and change call the `Run` through                |
+| `facades.go`   | §1       | `Facades`, `Clock`, `Terminal`, `Redactor`, `Process`, `FS`                   |
+| `task.go`      | §2       | `Task`, `Verify`, `Define`, `DefineOption`, `CleanStop`                       |
+| `container.go` | §2       | `Group`, `Sequence`, `Container`, `After`, `Build`                            |
+| `compute.go`   | §2       | `Compute`, `Computed`                                                         |
+| `file.go`      | §3       | `File`, `FileSpec`                                                            |
+| `exec.go`      | §3       | `Exec`, `ExecSpec`, `ExecResult`                                              |
+| `patch.go`     | §3       | `Patch`                                                                       |
+| `effect.go`    | §3       | `Effect`, `EffectSpec`, `Verb`, `Create`, `Update`, `Delete`, `PartialEffect` |
+| `report.go`    | §2       | `Doing`, `Progress`, `Writer`, `Fact`, `Summary` methods                      |
+| `problem.go`   | §4       | `Problem` method, `ProblemOption`, `Detail`, `Code`, `On`, `Next`, `Action`   |
+| `ending.go`    | §4       | `Fail`, `Refuse`, `Exclude`, `Outcome` and its constants                      |
+| `confirm.go`   | §5       | `Confirm`, `Suspend`, `ConfirmOption`, `Destructive`, `NonInteractive`        |
+| `output.go`    | §6       | `Output` and its constants, environment                                       |
+| `errors.go`    | §7       | every exported `Err` sentinel `CONTRACT.md` lists                             |
 
 ## Internal packages
 
-- `internal/core`: domain types (Snapshot, Problem, Action, Event, state, conclusion) and the closed Effect verb set
-- `internal/engine`: presentation engine (Output, tasks, confirm, evidence, print, run); `capture/`, `ledger/`, `schedule/`, `lifecycle/` as they land
-- `internal/render`: shared row model (row geometry, qualify, disposition, glyph, style, JSON) used by both projections
-- `internal/render/live`: interactive live-region projection (spinner, tail, quiet suffix, evidence footer); imports `render`, never `render/plain` outside tests
-- `internal/render/plain`: durable plain-text document and conclusion projection; imports `render`, never `render/live`
-- `internal/text`: glyphs, sanitize, width, conjugate, name truncation
-- `internal/wire`, `internal/wireschema`: wire documents and JSON schema validation
-- `internal/apisurface`: public API golden walk, contract check against the retired table, declaration-file lookup, and `Ident`; reads the retired table from `agent/rules` and never imports `agent/vocabulary`
-- `internal/agent/*`: MCP tools (adopt, review, catalog, preview, sections, harness, rules, which also owns the retired-symbol table)
-- `internal/agent/vocabulary`: vocabulary classification and the root file layout table (`CheckLayout`); imports `internal/apisurface`, never the reverse
-- `internal/fingerprint`, `internal/patch`, `internal/resource`, `internal/manifest`, `internal/modpin`, `internal/architecture`, `internal/docexamples`: one owner per invariant, named by the package
+Four packages are the four promises, in the order a run executes them.
+`record` is the only package with mutable run state: `graph`, `freshness`
+and `change` append to it; `project` reads it; nothing else touches it. The
+four facades are the only packages that import `os`, `os/exec`, `syscall`
+or a terminal library.
 
-## Tests
-
-- Root `*_test.go` files are named by concept (`effect_test.go`) or contract family (`concurrency_test.go` for CON-xxx).
-- `conformance/` holds release gates, goldens and scenarios.
-- Internal packages use `*_internal_test.go`.
-- Requirement IDs stay in test names; `conformance/TRACEABILITY.md` maps them.
-
-## Frozen files
-
-`.evor/baseline.sha256` lists the frozen files (conformance goldens, two scenarios, `testdata/api_golden.txt`, `testdata/api_golden_released.txt`). Check them with `bash .evor/check-frozen.sh`. Frozen files keep their names even when they do not follow the test naming principle.
+| Package              | Decides | Owns                                                                                                                                                                                   |
+| -------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `internal/graph`     | when    | nodes, edges, eligibility, bounded scheduler, cancellation, Build, Computed; per-Task callback bookkeeping; the run root node, which carries run-scoped annotations and the Conclusion |
+| `internal/freshness` | whether | Inputs, Values, manifest, satisfied-or-stale, Verify                                                                                                                                   |
+| `internal/change`    | what    | File, Exec, Patch, Effect reconciliation; atomic publish; claims                                                                                                                       |
+| `internal/record`    | truth   | the event journal, the run document, outcomes, Conclusion                                                                                                                              |
+| `internal/project`   | how     | shared row model and record follower; `live/` TTY frame, heartbeat, tail, fold; `plain/` durable text; `wire/` evo.run and evo.event; `present/` the one presenter the root holds      |
+| `internal/misuse`    |         | misuse codes, remedy text, recording                                                                                                                                                   |
+| `internal/terminal`  | facade  | ANSI driver, size, char-device                                                                                                                                                         |
+| `internal/process`   | facade  | spawn, capture, redaction                                                                                                                                                              |
+| `internal/fs`        | facade  | filesystem, locks, canonical paths                                                                                                                                                     |
+| `internal/clock`     | facade  | time source, timers, sleep                                                                                                                                                             |
 
 ## Other trees
 
-- `terminal`: ANSI terminal driver
-- `testkit`: test helpers (clock, screen, output assertions)
-- `cmd/evident-output`: CLI (review, adopt, explain, contract)
-- `cmd/evident-output-mcp`: MCP server
-- `examples`: runnable demos (repo-status, doctor, data-command, ...)
-- `conformance`: release gates, goldens, TRACEABILITY
-- `schema`: wire JSON schemas (event.v1, output.v1)
-- `docs`: guides, architecture, API inventory, ADRs
-- `integrations`: editor/agent install notes
-- `skills`: agent skill docs
-- `tools/agents`: engineer prompt (not MCP; that is internal/agent)
-- `tools/scripts`: release, traceability, usage-audit, pin sync
-- `tools/gensections`: embed docs into the MCP server
+| Tree              | Holds                                                                                                                                                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mcp/`            | separate Go module: the MCP server, the CLI, review rules, docs corpus, host integrations, agent skills, API surface walker, go.mod pin tooling, compile-tested doc examples; imports only the root package |
+| `conformance/`    | spec registry keyed to `CONTRACT.md` headings, ratchet, goldens, architecture tests                                                                                                                         |
+| `examples/`       | 16 runnable demo programs, one directory each (`examples/<name>/main.go`), plus `examples/internal/` shared demo helpers and `examples/examples_test.go`, which builds and runs every program               |
+| `schema/`         | `run.v3.json`, `event.v2.json`, and `run_schema_test.go`, which holds the run schema to the closed sets `CONTRACT.md` names                                                                                 |
+| `testkit/`        | clock, screen, fake fs and process for consumers' tests; scale and wire-schema helpers                                                                                                                      |
+| `tools/`          | gate tooling: spec-score, traceability, bisectability, red-proof, gitenv                                                                                                                                    |
+| `docs/migration/` | one file per breaking release                                                                                                                                                                               |
+| `docs/decisions/` | dated rulings; never normative                                                                                                                                                                              |
+
+## Guards
+
+| Test                              | Fails on                                                                                                                                                                                                                                        |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contract_test.go`                | an exported name not in `CONTRACT.md`, or a contract name not exported                                                                                                                                                                          |
+| `layout_test.go`                  | a tracked file outside the layout, or a layout path missing; root over 4,000 non-test code lines or holding a `folded from` seam                                                                                                                |
+| `import_direction_test.go`        | `project` importing `change`; a non-producer writing `record`; a non-misuse package owning the first-misuse store; a non-facade importing `os`, `os/exec`, `syscall`; root importing `mcp`. The record-write and system-import rules cover root |
+| `examples/examples_test.go`       | an example program that fails to build or run                                                                                                                                                                                                   |
+| `examples/flag_behaviour_test.go` | an example whose documented flag exits with a code other than the one its scenario pins, a declared flag or documented invocation with no pin, or an `ExecSpec` with `Outputs` and no `Inputs`                                                  |
+| `spec_ratchet`                    | a requirement that passed once failing now                                                                                                                                                                                                      |
+
+`import_direction_test.go` also fails on `change` importing anything but the standard library, `record`, `graph`, `freshness` and the facades; on `misuse` importing anything but the standard library, `record` and the facades; on `graph` importing anything but `record`, `misuse` and the facades; on any package outside `change` holding a claim; and on any import of the packages `change` absorbed (`internal/patch`, `internal/publish`, `internal/resource`).

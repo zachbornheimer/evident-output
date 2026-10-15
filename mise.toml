@@ -1,8 +1,11 @@
 [tools]
-staticcheck = "2026.2.1"
+# First staticcheck build that reads Go 1.27.2 export data; return to a release pin when 2026.3 ships.
+"go:honnef.co/go/tools/cmd/staticcheck" = "v0.7.0-0.dev.0.20261009230814-452d5bb86b45"
+# Pinned like staticcheck: a new release may flag code the last one passed.
+"go:golang.org/x/tools/cmd/deadcode" = "v0.52.0"
 golangci-lint = "2.14.0"
 gitleaks = "8.30.1"
-go = "1.27.1"
+go = "1.27.2"
 
 [tasks.setup]
 description = "Bootstrap dev environment"
@@ -15,16 +18,26 @@ run = [
 description = "Verify packages compile; stamp evident-output-mcp's --version so a stale host can never read the literal string 'dev'"
 run = [
   "go build ./...",
-  "go build -ldflags \"-X main.Version=$(git describe --tags --always --dirty)\" -o /dev/null ./cmd/evident-output-mcp",
+  "cd mcp && go build -ldflags \"-X main.Version=$(git describe --tags --always --dirty)\" -o /dev/null ./cmd/evident-output-mcp",
 ]
 
 [tasks.lint]
-description = "Format check, vet, staticcheck, golangci-lint, gitleaks — every finding is fatal"
+description = "Format check, vet, staticcheck, deadcode, golangci-lint, gitleaks over the root and mcp modules — every finding is fatal"
+# mcp is its own module, so root `./...` never reaches it; the mcp lines run
+# the same linters the pre-push gate runs there (golangci-lint finds the root
+# .golangci.yml from the parent directory).
 run = [
   "test -z \"$(gofmt -l .)\" || { gofmt -l .; echo 'gofmt: files need formatting'; exit 1; }",
   "go vet ./...",
+  "cd mcp && go vet ./...",
   "staticcheck ./...",
+  "cd mcp && staticcheck ./...",
+  "staticcheck -tests=false -checks U1000 ./...",
+  "cd mcp && staticcheck -tests=false -checks U1000 ./...",
+  "test -z \"$(deadcode -test ./...)\" || { deadcode -test ./...; echo 'deadcode: functions nothing calls, tests included'; exit 1; }",
+  "cd mcp && { test -z \"$(deadcode -test ./...)\" || { deadcode -test ./...; echo 'deadcode: functions nothing calls, tests included'; exit 1; }; }",
   "golangci-lint run ./...",
+  "cd mcp && golangci-lint run ./...",
   "gitleaks detect --no-git -v",
 ]
 
@@ -40,34 +53,12 @@ run = "go test -race -timeout 30m ./..."
 description = "Run roast/conformance suite"
 run = "go test ./conformance/..."
 
-[tasks.acceptance-v06]
-description = """
-Run the v0.6/1.0 future API and behavior acceptance suite. Increments 1-3
-(conformance/future/{api,behavior} and their ./file and ./exec
-subpackages) are implemented and must pass — this is now a plain alias for
-acceptance-v06-green. Earlier increments carried a separate
-acceptance-v06-pending target for Exec's red-by-compile fixtures; increment
-3 (this one) is the last tranche this future suite carries, so
-./conformance/future/... has no remaining pending package and a single
-`go test -tags v06acceptance ./conformance/future/...` is now a valid green
-gate on its own.
-"""
-depends = ["acceptance-v06-green"]
-
-[tasks.acceptance-v06-green]
-description = "The whole v0.6/1.0 future-suite fixture tree — must stay green"
-run = [
-  "go test -tags v06acceptance ./conformance/future/...",
-]
-
 [tasks.fuzz]
 description = "Short fuzz smoke (local)"
-# internal/text now holds two fuzz targets (sanitize's FuzzText, width's
-# FuzzCells, merged from internal/sanitize + internal/width) — go test -fuzz
-# refuses an ambiguous pattern that matches more than one, so each runs by
-# its exact name instead of the old blanket -fuzz=Fuzz.
+# FuzzText lives in internal/record (sanitization) and FuzzCells in
+# internal/text (width); each runs by its exact name in its own package.
 run = [
-  "go test ./internal/text/ -run=Fuzz -fuzz=FuzzText -fuzztime=5s || true",
+  "go test ./internal/record/ -run=Fuzz -fuzz=FuzzText -fuzztime=5s || true",
   "go test ./internal/text/ -run=Fuzz -fuzz=FuzzCells -fuzztime=5s || true",
 ]
 
@@ -82,12 +73,8 @@ description = "Verify every §31 ID is listed in TRACEABILITY"
 run = "go run ./tools/scripts/traceability-check"
 
 [tasks.bisectability]
-description = "Prove every first-parent commit since BASE (default codex/v06-acceptance) builds on its own — run before merging a multi-commit integration branch"
-run = "go run ./tools/scripts/bisectability-check"
-
-[tasks.evo-usage-audit]
-description = "Markdown evo usage inventory for another Go repo (evo-usage-audit <repo-path> [--output FILE]); put flags AFTER the task name — a flag before it is swallowed by mise's own -o/--output"
-run = "go run ./tools/scripts/evo-usage-audit"
+description = "Prove every first-parent commit since BASE (default codex/v06-acceptance) builds and passes the tests of the packages it touched on its own — run before merging a multi-commit integration branch (the fast build-only check is the tool without --test)"
+run = "go run ./tools/scripts/bisectability-check --test"
 
 [tasks.doctor]
 description = "Verify repo contract"
@@ -95,8 +82,7 @@ run = [
   "test -f mise.toml",
   "test -f go.mod",
   "test -f conformance/TRACEABILITY.md",
-  "test -f conformance/schema/scenario.v1.json",
-  "rg -q '^const PublishedRelease = ' format.go",
+  "rg -q '^const Release = ' internal/project/wire/stream.go",
   "go test . -run 'PublishedRelease|VersionDrift' -count=1",
   "echo doctor ok",
 ]
@@ -119,32 +105,78 @@ run = "bash tools/scripts/run-examples.sh"
 
 [tasks.api-contract]
 description = "Public API surface matches testdata/api_golden.txt plus required/retired floors"
-run = "go run ./cmd/evident-output contract"
+run = "go run -C mcp ./cmd/evident-output contract --dir .."
 
 [tasks.spec-score]
-description = "Lint the spec requirement registry against docs/contract.md"
+description = "Lint the spec requirement registry against CONTRACT.md"
 run = "go run ./tools/scripts/spec-score --lint"
 
 [tasks.spec-ratchet]
 description = "Lint the registry and fail if any ratcheted requirement is not passing"
 run = "go run ./tools/scripts/spec-score --lint --gate"
 
-[tasks.eval-replay]
-description = "Deterministic eval replay: references pass the grader, traps are rejected (model-free; already part of ci via go test ./...)"
-run = "go test ./internal/agent/evaltask/"
+[tasks.red-proof]
+description = "Each ledgered concurrency fix's guarding tests fail with the fix reverted"
+run = "nice -n 10 go run ./tools/scripts/red-proof"
 
-[tasks.eval]
-description = "PAID Claude-API pit-of-success eval. Needs ANTHROPIC_API_KEY, --max-usd N and --confirm-spend (put flags after `--`, before task ids); --dry-run prints the plan and worst-case cost and spends nothing. Not part of ci"
-run = "bash eval/run.sh"
+[tasks.ci-mcp]
+description = "Build, vet, and test the mcp module so a green ci proves both modules"
+dir = "mcp"
+run = "go build ./... && go vet ./... && go test -timeout 20m ./..."
+
+[tasks.perf]
+description = "Wall-time and bytes/op bounds recorded on the maintainer's machine (EVO_PERF_BASELINE=1); inside ci it waits for the other gates so their load cannot skew the timing"
+env = { EVO_PERF_BASELINE = "1" }
+wait_for = [
+  "lint",
+  "test",
+  "ci-mcp",
+  "scan",
+  "conformance",
+  "traceability",
+  "api-contract",
+  "spec-ratchet",
+  "red-proof",
+]
+run = "go test . -run '^(TestGroup1kPlainWallTimeWithinTwentyPercentOfV1|TestGroup1kPlainBytesPerOpUnderV1)$' -count=1 -v"
 
 [tasks.ci]
-description = "Full gate: lint + test + scan + conformance + traceability + api-contract + spec-ratchet + v0.6/1.0 acceptance (increments 1-3)"
-depends = ["lint", "test", "scan", "conformance", "traceability", "api-contract", "spec-ratchet", "acceptance-v06-green"]
+description = "Full local gate: ci-hosted's checks + perf (machine-specific baselines)"
+depends = [
+  "lint",
+  "test",
+  "ci-mcp",
+  "scan",
+  "conformance",
+  "traceability",
+  "api-contract",
+  "spec-ratchet",
+  "red-proof",
+  "test-race",
+  "examples",
+  "perf",
+]
+
+[tasks.ci-hosted]
+description = "ci without perf: what a CI runner can prove (its hardware is not the baseline's); GitHub Actions runs exactly this"
+depends = [
+  "lint",
+  "test",
+  "ci-mcp",
+  "scan",
+  "conformance",
+  "traceability",
+  "api-contract",
+  "spec-ratchet",
+  "red-proof",
+  "test-race",
+  "examples",
+]
 
 [tasks.verify-quiet-pty-stream]
 description = "Prove a quiet Writer task keeps its live frame changing <100ms, measured from the pty byte stream (no tmux)"
-run = "python3 ./scripts/verify-quiet-pty-stream.py"
+run = "uv run ./tools/verify-quiet-pty-stream.py"
 
 [tasks.test-evo]
 description = "Capture timed PNG/TXT frames of a command in a real tmux PTY. Flags AFTER the task name. Requires --start-dir, exactly one of --timeout-ms/--timeout-s, exactly one of --screenshot-interval-ms/--screenshot-interval-s, then -- CMD"
-run = "python3 ./scripts/test-evo.py"
+run = "uv run ./tools/test-evo.py"

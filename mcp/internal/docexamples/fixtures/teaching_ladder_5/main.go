@@ -1,0 +1,24 @@
+// Package main compiles mcp/docs/teaching-ladder.md's "Suspend (handing
+// the tty to a child)" fence verbatim. See TestDocFencesMatchFixtures.
+// Never run.
+package main
+
+import (
+	"os"
+	"os/exec"
+
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+
+func doWork(out *evo.Run) error {
+	// docexamples:snippet start
+	cmd := exec.Command("zq", "setup")
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	_ = out.Suspend(func() error { return cmd.Run() })
+	// docexamples:snippet end
+	return nil
+}
+
+func main() {
+	_ = doWork(nil)
+}

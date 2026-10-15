@@ -1,0 +1,171 @@
+package graph
+
+import (
+	"slices"
+
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+)
+
+// builderPhase is where a container's topology builder stands.
+type builderPhase uint8
+
+const (
+	// builderPending: Defined, and not finished: waiting on the
+	// container's predecessors, or running.
+	builderPending builderPhase = iota
+	// builderDone: the builder returned; its children were declared.
+	builderDone
+	// builderNotStarted: a predecessor can never succeed, so the builder
+	// never ran.
+	builderNotStarted
+	// builderFailed: the builder panicked before declaring every child.
+	builderFailed
+)
+
+// builder is the declaration work a Group or Sequence deferred until its
+// predecessors succeed. gate is the scheduler's entity for that work: it
+// waits on the container's After edges like a Task does, but it is no row,
+// and no collection counts it.
+type builder struct {
+	gate  *Task
+	phase builderPhase
+}
+
+// AddGate defers c's children: the returned gate runs work once every After
+// predecessor of c succeeded, and the membership of c and of every container
+// above it stays open until the gate concludes. It returns nil, changing
+// nothing, once c has a builder or a member. The gate still has to be
+// enqueued and placed.
+func (g *Graph) AddGate(c *Container, work func() error) *Task {
+	g.lock()
+	defer g.unlock()
+	if c.builder != nil || len(c.tasks)+len(c.children) > 0 {
+		return nil
+	}
+	id := g.NextID("gate")
+	gate := &Task{
+		graph: g, ID: id, Name: c.Name,
+		Declaration: g.nextDeclarationLocked(),
+		Rec:         g.run.NewTask(record.TaskInit{ID: record.TaskID(id), State: record.Pending}),
+		gateFor:     c,
+	}
+	gate.sched.preds = slices.Clone(c.entry)
+	gate.sched.work = Work{Run: work, Exited: func(summary string) { g.failGate(gate, summary) }}
+	c.builder = &builder{gate: gate, phase: builderPending}
+	for p := c; p != nil; p = p.Parent {
+		p.tally.holds++
+	}
+	g.gates = append(g.gates, gate)
+	return gate
+}
+
+// failGate settles gate Failed on behalf of its container, whose row says
+// cause: the builder never finished declaring, so the container can never
+// succeed and the Tasks after it are stopped by it.
+func (g *Graph) failGate(gate *Task, cause string) {
+	g.lock()
+	defer g.unlock()
+	g.failGateLocked(gate, cause)
+}
+
+func (g *Graph) failGateLocked(gate *Task, cause string) {
+	if cause != "" {
+		gate.gateFor.Rec.SetSummary(cause)
+	}
+	g.settleLocked(gate, record.Failed)
+}
+
+// BuilderGate is the gate of c's deferred declaration work, nil when c has
+// none.
+func (c *Container) BuilderGate() *Task {
+	c.graph.lock()
+	defer c.graph.unlock()
+	if c.builder == nil {
+		return nil
+	}
+	return c.builder.gate
+}
+
+// HasBuilder reports whether c's children come from a Build callback rather
+// than direct declaration.
+func (c *Container) HasBuilder() bool {
+	c.graph.lockRead()
+	defer c.graph.unlockRead()
+	return c.builder != nil
+}
+
+// BuilderFailed reports whether c's builder panicked before declaring every
+// child.
+func (c *Container) BuilderFailed() bool {
+	c.graph.lockRead()
+	defer c.graph.unlockRead()
+	return c.builder != nil && c.builder.phase == builderFailed
+}
+
+// BuilderNotStarted reports whether c's builder never ran because a
+// predecessor can never succeed.
+func (c *Container) BuilderNotStarted() bool {
+	c.graph.lockRead()
+	defer c.graph.unlockRead()
+	return c.builder != nil && c.builder.phase == builderNotStarted
+}
+
+// MembershipClosed reports whether c's membership is taken as declared: no
+// builder beneath it is pending, and either an edge or a Wait sealed it or
+// the run's drain began. A Task may still be declared into a closed
+// collection (a later member never gates the edge that sealed it), so a
+// reader treats closed as "nothing more is expected", not "nothing more
+// can come".
+func (c *Container) MembershipClosed() bool {
+	c.graph.lockRead()
+	defer c.graph.unlockRead()
+	return c.tally.holds == 0 && (c.tally.sealed || c.graph.sched.draining)
+}
+
+// concludeGateLocked is settle's tail for a gate: it records the builder's
+// outcome, releases the membership holds the pending builder placed on its
+// container and ancestors, and places every Task that was waiting on them.
+func (g *Graph) concludeGateLocked(gate *Task) {
+	c, state := gate.gateFor, gate.Rec.State()
+	switch state {
+	case record.Succeeded:
+		c.builder.phase = builderDone
+	case record.NotStarted:
+		c.builder.phase = builderNotStarted
+	default:
+		c.builder.phase = builderFailed
+	}
+	if gate.sched.awaitingStart() {
+		g.abandonLocked(gate)
+	}
+	stop, stopped := builderStopOf(gate)
+	if stopped && !stop.failed {
+		c.Rec.SetSummary(stop.cause)
+	}
+	var woken []*Task
+	for p := c; p != nil; p = p.Parent {
+		if stopped {
+			woken = append(woken, p.tally.stopBuilder(stop)...)
+		}
+		woken = append(woken, p.tally.release(p == c, g.declSeq)...)
+	}
+	g.wakeLocked(woken)
+}
+
+// builderStopOf is why gate's builder never finished declaring, false when
+// it did. A gate that never ran says what stopped it, as the Task after it
+// would; one that ran and did not succeed failed.
+func builderStopOf(gate *Task) (builderStop, bool) {
+	switch gate.Rec.State() {
+	case record.Succeeded:
+		return builderStop{}, false
+	case record.NotStarted:
+		cause := gate.Rec.Summary()
+		if cause == "" {
+			cause = NotStartedSummary
+		}
+		return builderStop{cause: cause}, true
+	default:
+		return builderStop{failed: true}, true
+	}
+}

@@ -1,9 +1,11 @@
 // Command migrate demonstrates the two mutation boundaries: evo.Effect for
 // opaque mutations evo cannot model (a database column, an index) and
-// evo.File for file state. The same call site records a planned effect
-// under --dry-run (Config.DryRun) or a committed one when it actually runs,
-// and evo derives Changed/Ready/Planned from what happened — the caller never
-// chooses which ledger a mutation lands in.
+// evo.File for file state. It plans by default: Config.DryRun is !--apply, so
+// the same call sites record [planned] rows without --apply and [changed]
+// rows with it. The caller never chooses which ledger a mutation lands in.
+//
+// The schema steps run After the backup, and a failed backup returns
+// evo.Fail: the run exits 2 and no schema step starts.
 //
 //	go run ./examples/migrate/
 //	go run ./examples/migrate/ --apply
@@ -14,8 +16,9 @@ import (
 	"context"
 	"flag"
 	"os"
+	"path/filepath"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func main() {
@@ -23,41 +26,43 @@ func main() {
 	fail := flag.Bool("fail", false, "with --apply, simulate backup failure")
 	flag.Parse()
 
-	evo.Init(evo.Config{Title: "schema migration", DryRun: !*apply})
-	os.Exit(evo.Main(func(ctx context.Context) error {
+	os.Exit(evo.Main(evo.Config{Name: "migrate", DryRun: !*apply}, func(ctx context.Context, r *evo.Run) error {
+		migrationsDir, err := os.MkdirTemp("", "evo-migrate-")
+		if err != nil {
+			return evo.Refuse("cannot create the migrations directory", evo.Detail(err.Error()))
+		}
 		backups := &backupStore{}
-		backup := evo.Task("backup")
+		backup := r.Task("backup")
 		backup.Define(func(ctx context.Context) error {
 			backup.Doing("snapshotting production")
 			if *apply && *fail {
-				backup.Fail(
+				return evo.Fail(
 					"backup failed",
 					evo.Detail("check the backup destination and credentials"),
 				)
-				return nil
 			}
-			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "snapshot", Quantity: 1}, func(ctx context.Context) error {
+			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, Object: "snapshot", Quantity: 1}, func(ctx context.Context) error {
 				return backups.Snapshot(ctx, "production")
 			})
 		})
-		if err := backup.Wait(); err != nil {
-			return nil
-		}
 
-		schema := evo.Sequence("schema")
+		schema := r.Sequence("schema").After(backup)
 		db := &database{}
 		schema.Task("email column").Define(func(ctx context.Context) error {
-			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "column", Quantity: 1}, func(ctx context.Context) error {
+			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, Object: "column", Quantity: 1}, func(ctx context.Context) error {
 				return db.ExecContext(ctx, addColumnDDL)
 			})
 		})
 		schema.Task("email index").Define(func(ctx context.Context) error {
-			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "index", Quantity: 1}, func(ctx context.Context) error {
+			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.Create, Object: "index", Quantity: 1}, func(ctx context.Context) error {
 				return db.ExecContext(ctx, createIndexDDL)
 			})
 		})
-		schema.Task("migration file").Define(func(ctx context.Context) error {
-			return evo.File(ctx, evo.FileSpec{Path: migrationPath, Contents: []byte(migrationSQL), Mode: 0o644})
+		migrationFile := schema.Task("migration file")
+		migrationFile.Define(func(ctx context.Context) error {
+			path := filepath.Join(migrationsDir, migrationName)
+			migrationFile.Doing("writing %s", path)
+			return evo.File(ctx, evo.FileSpec{Path: path, Contents: []byte(migrationSQL), Mode: 0o644})
 		})
 		return nil
 	}))
@@ -66,7 +71,7 @@ func main() {
 const (
 	addColumnDDL   = "ALTER TABLE users ADD COLUMN email_verified boolean NOT NULL DEFAULT false;"
 	createIndexDDL = "CREATE INDEX idx_users_email ON users (email);"
-	migrationPath  = "20260727_email_verified.sql"
+	migrationName  = "20260727_email_verified.sql"
 	migrationSQL   = addColumnDDL + "\n" + createIndexDDL + "\n"
 )
 

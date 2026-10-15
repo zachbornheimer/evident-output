@@ -1,0 +1,380 @@
+package record
+
+import (
+	"time"
+)
+
+// TaskID names one Task in the record, the key every projection of it uses.
+type TaskID string
+
+// Task is the truth of one Task: where it stands, what it reported, and what
+// it found. It lives inside a Run and shares the Run's mutex, so a write is
+// an append method and a read is a copy. What decides when the Task may run
+// (the scheduler's state) is not truth and stays with the scheduler.
+type Task struct {
+	run *Run
+	id  TaskID
+
+	state          State
+	phase          string
+	progress       Progress
+	summary        string
+	problems       []Problem
+	facts          []Fact
+	actions        []Action
+	activityAt     time.Time
+	verification   []VerificationDetail
+	defineRan      bool
+	verifyEvidence TaskEvidence
+	// capture is the output the Task's child processes wrote, once any
+	// writer asked for it.
+	capture *Capture
+
+	// settlements counts the Settle calls. A Task settles again only when
+	// a Done Task is overturned to Failed.
+	settlements int
+	// settleOrder is the run-wide count of settles when the Task last settled: it orders endings in time.
+	settleOrder uint64
+
+	// logged is set while the Task waits in the run's change log; the log
+	// guards it.
+	logged bool
+}
+
+// TaskInit is what a Task's record starts with. Zero fields stay zero.
+type TaskInit struct {
+	ID        TaskID
+	State     State
+	Progress  Progress
+	DefineRan bool
+	Summary   string
+	Problems  []Problem
+}
+
+// NewTask starts the record of a Task in this run.
+func (r *Run) NewTask(init TaskInit) *Task {
+	return &Task{
+		run: r, id: init.ID, state: init.State, progress: init.Progress, defineRan: init.DefineRan,
+		summary: init.Summary, problems: init.Problems,
+	}
+}
+
+// DeclaresSuccess reports whether state claims the work went well — the
+// class of claim only the scheduler's observation can ratify.
+func DeclaresSuccess(state State) bool {
+	return state.Succeeded() || state == Excluded
+}
+
+// TaskTruth is a view of a Task's record that shares its slices: read it
+// under the lock that guards the run and never let it escape, since the next
+// write to the Task can change what it shows. It costs no allocation, so a
+// live frame can classify every Task by it and copy only the ones it shows.
+type TaskTruth struct {
+	State          State
+	Phase          string
+	Progress       Progress
+	Summary        string
+	Problems       []Problem
+	Facts          []Fact
+	Actions        []Action
+	ActivityAt     time.Time
+	Verification   []VerificationDetail
+	DefineRan      bool
+	VerifyEvidence TaskEvidence
+	SettleOrder    uint64
+}
+
+// Truth is the shared view of the Task's record.
+func (t *Task) Truth() TaskTruth {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return TaskTruth{
+		State: t.state, Phase: t.phase, Progress: t.progress, Summary: t.summary,
+		Problems: t.problems, Facts: t.facts, Actions: t.actions, ActivityAt: t.activityAt, Verification: t.verification,
+		DefineRan: t.defineRan, VerifyEvidence: t.verifyEvidence,
+		SettleOrder: t.settleOrder,
+	}
+}
+
+// ID is the name the record knows this Task by.
+func (t *Task) ID() TaskID { return t.id }
+
+// State is where the Task stands.
+func (t *Task) State() State {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return t.state
+}
+
+// Transition moves the Task to state and returns the state it left.
+func (t *Task) Transition(to State) (from State) {
+	from = t.swapState(to)
+	t.changedState(from, to)
+	return from
+}
+
+// Settle ends the Task in state to and returns the state it left. It is the
+// one write that settles a Task, and what tells a projection to answer a
+// settle: the listener hears it as TaskSettled after the TaskChanged of the
+// same write.
+func (t *Task) Settle(to State) (from State) {
+	from = t.swapSettledState(to)
+	t.changedState(from, to)
+	t.settledState(from, to)
+	return from
+}
+
+// IsSettled reports whether Settle ended the Task.
+func (t *Task) IsSettled() bool {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return t.settlements > 0
+}
+
+// TimesSettled is how many times Settle ended the Task: once, or twice when
+// it settled Done and was then overturned to Failed.
+func (t *Task) TimesSettled() int {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return t.settlements
+}
+
+// swapSettledState is swapState that also marks the Task settled.
+func (t *Task) swapSettledState(to State) (from State) {
+	t.lockForWrite()
+	defer t.run.mu.Unlock()
+	t.settleOrder = t.run.settledTasks.Add(1)
+	t.settlements++
+	from, t.state = t.state, to
+	return from
+}
+
+// swapState sets the state under the run lock and returns the one it left.
+func (t *Task) swapState(to State) (from State) {
+	t.lockForWrite()
+	defer t.run.mu.Unlock()
+	from, t.state = t.state, to
+	return from
+}
+
+// Phase is the Task's current-step text.
+func (t *Task) Phase() string {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return t.phase
+}
+
+// SetPhase replaces the current-step text with a sanitized text.
+func (t *Task) SetPhase(text string) {
+	defer t.changed()
+	t.lockForWrite()
+	defer t.run.mu.Unlock()
+	t.phase = SanitizeText(text)
+}
+
+// SetPhaseIfChanged is SetPhase that reports false, changing nothing, when
+// the sanitized text is already the phase.
+func (t *Task) SetPhaseIfChanged(text string) bool {
+	text = SanitizeText(text)
+	if !t.replacePhase(text) {
+		return false
+	}
+	t.changed()
+	return true
+}
+
+// replacePhase sets the phase under the run lock and reports whether it differed.
+func (t *Task) replacePhase(text string) bool {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	if text == t.phase {
+		return false
+	}
+	t.run.changes.add(t)
+	t.phase = text
+	return true
+}
+
+// ClearPhase ends the current step.
+func (t *Task) ClearPhase() {
+	defer t.changed()
+	t.lockForWrite()
+	defer t.run.mu.Unlock()
+	t.phase = ""
+}
+
+// Progress is the Task's absolute measurement.
+func (t *Task) Progress() Progress {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return t.progress
+}
+
+// EnsureIndeterminateProgress gives a Task that has reported no measurement
+// the Indeterminate kind, so a live row knows it is working.
+func (t *Task) EnsureIndeterminateProgress() {
+	defer t.changed()
+	t.lockForWrite()
+	defer t.run.mu.Unlock()
+	if t.progress.Kind == "" {
+		t.progress.Kind = Indeterminate
+	}
+}
+
+// ProgressVerdict is what a progress report did to a Task's measurement.
+type ProgressVerdict int
+
+const (
+	// ProgressApplied means the measurement was recorded.
+	ProgressApplied ProgressVerdict = iota
+	// ProgressInvalid means the values or the sealed total were rejected.
+	ProgressInvalid
+	// ProgressRegressed means a running measurement of the same kind went backward.
+	ProgressRegressed
+)
+
+// ApplyProgress records an absolute measurement unless a guard rejects it:
+// values must be non-negative and consistent, a running measurement of the
+// same kind may not regress, and once a nonzero total is reported for a kind
+// it cannot change (retry-safety depends on the denominator staying put).
+// Switching kind is a deliberate re-declaration and resets both freely.
+func (t *Task) ApplyProgress(completed, total int64, kind ProgressKind) ProgressVerdict {
+	verdict := t.applyProgress(completed, total, kind)
+	if verdict == ProgressApplied {
+		t.changed()
+	}
+	return verdict
+}
+
+func (t *Task) applyProgress(completed, total int64, kind ProgressKind) ProgressVerdict {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	switch {
+	case completed < 0 || total < 0:
+		return ProgressInvalid
+	case total == 0 && completed != 0:
+		return ProgressInvalid
+	case completed > total && total > 0:
+		return ProgressInvalid
+	}
+	sameKindRunning := t.state == Running && t.progress.Kind != Indeterminate && t.progress.Total > 0 && kind == t.progress.Kind
+	if sameKindRunning {
+		if completed < t.progress.Completed {
+			return ProgressRegressed
+		}
+		if total != t.progress.Total {
+			return ProgressInvalid
+		}
+	}
+	t.run.changes.add(t)
+	t.progress = Progress{Kind: kind, Completed: completed, Total: total}
+	return ProgressApplied
+}
+
+// Summary is the one line of result text for the Task's terminal row.
+func (t *Task) Summary() string {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return t.summary
+}
+
+// SetSummary replaces the result text with a sanitized text; empty clears it.
+func (t *Task) SetSummary(text string) {
+	defer t.changed()
+	t.lockForWrite()
+	defer t.run.mu.Unlock()
+	t.summary = SanitizeText(text)
+}
+
+// DefineRan reports whether the Task's Define callback was entered and
+// returned successfully.
+func (t *Task) DefineRan() bool {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return t.defineRan
+}
+
+// MarkDefineRan records that the Task's Define callback was entered and
+// returned successfully.
+func (t *Task) MarkDefineRan() {
+	defer t.changed()
+	t.lockForWrite()
+	defer t.run.mu.Unlock()
+	t.defineRan = true
+}
+
+// VerifyEvidence is both observation phases a Verify recorded.
+func (t *Task) VerifyEvidence() TaskEvidence {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return t.verifyEvidence
+}
+
+// RecordBeforeEvidence records the observation made before Define ran.
+func (t *Task) RecordBeforeEvidence(p EvidencePhase) {
+	defer t.changed()
+	t.lockForWrite()
+	defer t.run.mu.Unlock()
+	t.verifyEvidence.Before = p
+}
+
+// RecordAfterEvidence records the observation made after Define ran.
+func (t *Task) RecordAfterEvidence(p EvidencePhase) {
+	defer t.changed()
+	t.lockForWrite()
+	defer t.run.mu.Unlock()
+	t.verifyEvidence.After = p
+}
+
+// ActivityAt is when the Task last reported a phase, progress or the start
+// of its work.
+func (t *Task) ActivityAt() time.Time {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return t.activityAt
+}
+
+// MarkActivity records that the Task reported something at at.
+func (t *Task) MarkActivity(at time.Time) {
+	defer t.changed()
+	t.lockForWrite()
+	defer t.run.mu.Unlock()
+	t.activityAt = at
+}
+
+// Verification is a copy of the per-attribute evidence File and Exec recorded.
+func (t *Task) Verification() []VerificationDetail {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return CloneVerificationDetails(t.verification)
+}
+
+// AttachVerification records details, sanitized, and returns the stored copy.
+func (t *Task) AttachVerification(details []VerificationDetail) []VerificationDetail {
+	defer t.changed()
+	stored := StoreVerificationDetails(details)
+	t.lockForWrite()
+	defer t.run.mu.Unlock()
+	t.verification = append(t.verification, stored...)
+	return stored
+}
+
+// CaptureOr is the Task's retained process output, made by newCapture on
+// first use: every writer the Task hands out shares the one Capture, so the
+// tail a failure shows holds every line any of them wrote.
+func (t *Task) CaptureOr(newCapture func() *Capture) *Capture {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	if t.capture == nil {
+		t.capture = newCapture()
+	}
+	return t.capture
+}
+
+// Captured is the Task's retained process output, nil when nothing asked for
+// it.
+func (t *Task) Captured() *Capture {
+	t.run.mu.Lock()
+	defer t.run.mu.Unlock()
+	return t.capture
+}

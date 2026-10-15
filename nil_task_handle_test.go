@@ -1,19 +1,17 @@
-package evo_test
+package evo
 
 import (
 	"reflect"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
-// TestNilTaskHandleIsSafeForEveryMethod: a nil *TaskHandle is documented
+// TestNilTaskHandleIsSafeForEveryMethod: a nil *Task is documented
 // safe for the type as a whole, so every exported method must be a no-op
 // on it, not a panic. Reflection walks the whole method set, so a verb
 // added later is covered without editing this test.
 func TestNilTaskHandleIsSafeForEveryMethod(t *testing.T) {
-	var nilHandle *evo.TaskHandle
-	for _, handle := range []*evo.TaskHandle{nilHandle, {}} {
+	var nilHandle *Task
+	for _, handle := range []*Task{nilHandle, {}} {
 		v := reflect.ValueOf(handle)
 		for i := range v.NumMethod() {
 			m := v.Type().Method(i)

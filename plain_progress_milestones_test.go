@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestPlainProgress_StreamsMilestones_NotOnlyFirstTick is beginner-8: a
@@ -15,14 +13,14 @@ import (
 // logs for anything that takes a while.
 func TestPlainProgress_StreamsMilestones_NotOnlyFirstTick(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	task := out.Task("download")
 	for i := 0; i <= 100; i += 10 {
 		task.Progress(i, 100)
 	}
 	succeed(task)
-	_ = out.Finish()
+	_ = out.finish()
 
 	rendered := buf.String()
 	if strings.Count(rendered, "download") < 3 {
@@ -39,7 +37,7 @@ func TestPlainProgress_StreamsMilestones_NotOnlyFirstTick(t *testing.T) {
 // misleading, not informative.
 func TestPlainProgress_NoSpinnerGlyph(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	out.Task("download").Progress(0, 100)
 

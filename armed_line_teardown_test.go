@@ -1,10 +1,8 @@
-package evo_test
+package evo
 
 import (
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // flakyLiveSurface is a LiveSurface whose IsInteractive() can be flipped mid-test
@@ -26,12 +24,15 @@ func (s *flakyLiveSurface) IsInteractive() bool { return s.interactive }
 func (s *flakyLiveSurface) WriteLive(text string) {
 	s.ops = append(s.ops, "live:"+text)
 }
+
 func (s *flakyLiveSurface) ClearLive() {
 	s.ops = append(s.ops, "clear")
 }
+
 func (s *flakyLiveSurface) WriteDurable(line string) {
 	s.ops = append(s.ops, "durable:"+line)
 }
+
 func (s *flakyLiveSurface) WriteFinal(text string) {
 	s.ops = append(s.ops, "final:"+text)
 }
@@ -56,13 +57,8 @@ func (s *flakyLiveSurface) Write(p []byte) (int, error) {
 // spinner line is never cleared and the durable text lands glued to it.
 func TestArmedLine_ClearedBeforeDurableWriteAfterInteractivityLost(t *testing.T) {
 	surface := &flakyLiveSurface{interactive: true}
-	out := evo.Init(evo.Config{
-		Title:           "zq",
-		Terminal:        surface,
-		Stdout:          surface,
-		VisibilityDelay: evo.DelayForTest(0),
-	})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Name: "zq", Facades: Facades{Stderr: surface, Terminal: surface}}, tuning{visibilityDelay: DelayForTest(0)})
+	t.Cleanup(func() { _ = out.close() })
 
 	// arm()'s first-paint: title-only live line before any Task/Item exists.
 	if len(surface.ops) == 0 || !strings.HasPrefix(surface.ops[0], "live:") {
@@ -73,7 +69,7 @@ func TestArmedLine_ClearedBeforeDurableWriteAfterInteractivityLost(t *testing.T)
 	// the armed spinner line is still on screen.
 	surface.interactive = false
 
-	out.Println("zq setup: resolving repository and tools…")
+	out.println("zq setup: resolving repository and tools…")
 
 	// Find the last live-region write before the durable write we just made,
 	// and confirm a clear happened between them.

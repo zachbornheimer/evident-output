@@ -1,0 +1,310 @@
+package evo
+
+import (
+	"bytes"
+	"context"
+	"encoding/hex"
+	"errors"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	sysfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
+
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+)
+
+// contentionDeadline bounds how long a test waits for a claim it expects
+// to be contended to show as waiting activity.
+const contentionDeadline = 2 * time.Second
+
+// contentionPollInterval is how often awaitWaitingActivity re-reads a
+// task's activity text.
+const contentionPollInterval = time.Millisecond
+
+// taskPhase reads a task's current live activity text.
+func taskPhase(o *Run, taskID string) string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if st := o.taskStates[taskID]; st != nil {
+		return st.node.Rec.Phase()
+	}
+	return ""
+}
+
+// awaitWaitingActivity reports whether taskID shows resource-waiting
+// activity before deadline elapses.
+func awaitWaitingActivity(o *Run, taskID string, deadline time.Duration) bool {
+	poll := time.NewTicker(contentionPollInterval)
+	defer poll.Stop()
+	timeout := time.NewTimer(deadline)
+	defer timeout.Stop()
+	for {
+		if strings.HasPrefix(taskPhase(o, taskID), resourceWaitingPrefix) {
+			return true
+		}
+		select {
+		case <-poll.C:
+		case <-timeout.C:
+			return false
+		}
+	}
+}
+
+// tornWriteFS commits target in two halves with a visible gap between
+// them — the widest window a concurrent observer could ever race into.
+// Every other path passes straight through to the real filesystem.
+type tornWriteFS struct {
+	sysfs.Disk
+	target    string
+	midCommit chan struct{}
+	// resume blocks the second half until it returns.
+	resume func()
+}
+
+func (f *tornWriteFS) WriteAtomic(path string, contents []byte, mode fs.FileMode) error {
+	if path != f.target {
+		return f.Disk.WriteAtomic(path, contents, mode)
+	}
+	if err := os.WriteFile(path, contents[:len(contents)/2], mode); err != nil {
+		return err
+	}
+	close(f.midCommit)
+	f.resume()
+	return os.WriteFile(path, contents, mode)
+}
+
+func fsPathDigest(t *testing.T, path string) string {
+	t.Helper()
+	v, err := freshness.FSPath(path).Fingerprint(context.Background())
+	if err != nil {
+		t.Fatalf("fingerprint %q: %v", path, err)
+	}
+	return hex.EncodeToString(v.Digest[:])
+}
+
+// A File whose Basis observes a path another Task is committing must see
+// either the whole old state or the whole new state — never the torn
+// middle of the commit.
+func TestBasisObservationCannotRaceFileCommit(t *testing.T) {
+	dir := t.TempDir()
+	shared := filepath.Join(dir, "shared.txt")
+	derived := filepath.Join(dir, "derived.txt")
+	if err := os.WriteFile(shared, []byte("old old old old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var out *Run
+	var readerID string
+	fsys := &tornWriteFS{target: shared, midCommit: make(chan struct{})}
+	fsys.resume = func() {
+		// Give the observer every chance to race: hold the torn state until
+		// it is visibly waiting, or long enough that it would have read.
+		awaitWaitingActivity(out, readerID, 300*time.Millisecond)
+	}
+	out = newOutput("race", to(io.Discard), plain(), withNoColor(), withStateDir(t.TempDir()), withFileFS(fsys), maxConcurrency(4))
+	t.Cleanup(func() { _ = out.close() })
+
+	writer := out.Task("write shared")
+	reader := out.Task("derive from shared")
+	readerID = reader.id
+	writer.Define(func(ctx context.Context) error {
+		return File(ctx, FileSpec{Path: shared, Contents: []byte("new new new new new new")})
+	})
+	reader.Define(func(ctx context.Context) error {
+		<-fsys.midCommit
+		return File(ctx, FileSpec{Path: derived, Contents: []byte("derived"), basis: []freshness.Fingerprint{freshness.FSPath(shared)}})
+	})
+	if err := writer.wait(); err != nil {
+		t.Fatalf("writer: %v", err)
+	}
+	if err := reader.wait(); err != nil {
+		t.Fatalf("reader: %v", err)
+	}
+
+	ops := out.freshness.Tasks().Operations(record.TaskID(reader.id))
+	if len(ops) != 1 || len(ops[0].Basis) != 1 {
+		t.Fatalf("reader recorded %d ops, want 1 with one Basis entry: %+v", len(ops), ops)
+	}
+	if got, want := ops[0].Basis[0].Digest, fsPathDigest(t, shared); got != want {
+		t.Fatalf("Basis observed a torn commit: digest %s, want the committed state %s", got, want)
+	}
+}
+
+// File claims write-side ownership of its own path with no caller code, so
+// it waits out an Effect's coarse claim on an ancestor directory — and the
+// wait is visible as activity while it lasts.
+func TestFileWaitsForCoarseEffectClaim(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "go.mod")
+	out := newOutput("module", to(io.Discard), plain(), withNoColor(), withStateDir(t.TempDir()), maxConcurrency(4))
+	t.Cleanup(func() { _ = out.close() })
+
+	entered, release := make(chan struct{}), make(chan struct{})
+	tidy := out.Task("tidy module")
+	tidy.Define(func(ctx context.Context) error {
+		spec := EffectSpec{Verb: Update, Object: "module", Quantity: 1, Path: dir}
+		return Effect(ctx, spec, func(context.Context) error {
+			close(entered)
+			<-release
+			return nil
+		})
+	})
+	write := out.Task("write go.mod")
+	write.Define(func(ctx context.Context) error {
+		<-entered
+		return File(ctx, FileSpec{Path: target, Contents: []byte("module x\n")})
+	})
+
+	<-entered
+	waiting := awaitWaitingActivity(out, write.id, contentionDeadline)
+	_, statErr := os.Stat(target)
+	close(release)
+	if err := tidy.wait(); err != nil {
+		t.Fatalf("tidy: %v", err)
+	}
+	if err := write.wait(); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if !errors.Is(statErr, fs.ErrNotExist) {
+		t.Fatalf("File wrote %s while an Effect held its directory (stat err %v)", target, statErr)
+	}
+	if !waiting {
+		t.Fatalf("contended File never showed waiting activity; phase = %q", taskPhase(out, write.id))
+	}
+	if got, err := os.ReadFile(target); err != nil || string(got) != "module x\n" {
+		t.Fatalf("File after release = %q, %v", got, err)
+	}
+}
+
+// holdBriefly keeps a claim held across enough scheduler turns that an
+// overlapping holder, if coordination were missing, would be observed.
+func holdBriefly() {
+	for range 200 {
+		runtime.Gosched()
+	}
+}
+
+// Effects claiming one coarse logical resource never overlap, and the
+// caller writes no locking code to get that.
+func TestEffectsOnOneLogicalResourceNeverOverlap(t *testing.T) {
+	name := "package-db " + t.Name()
+	out := newOutput("install", to(io.Discard), plain(), withNoColor(), maxConcurrency(8))
+	t.Cleanup(func() { _ = out.close() })
+
+	var active, peak atomic.Int32
+	group := out.Group("packages")
+	tasks := make([]*Task, 0, 8)
+	for _, pkg := range []string{"a", "b", "c", "d", "e", "f", "g", "h"} {
+		task := group.Task("install " + pkg)
+		// Surrounding whitespace names the same logical resource.
+		resource := name
+		if pkg == "b" {
+			resource = "  " + name + "\t"
+		}
+		task.Define(func(ctx context.Context) error {
+			spec := change.EffectSpec{Verb: change.EffectAdd, Object: "package", Quantity: 1, Resource: resource}
+			return change.Effect(ctx, spec, func(context.Context) error {
+				n := active.Add(1)
+				for p := peak.Load(); n > p && !peak.CompareAndSwap(p, n); p = peak.Load() {
+				}
+				holdBriefly()
+				active.Add(-1)
+				return nil
+			})
+		})
+		tasks = append(tasks, task)
+	}
+	for _, task := range tasks {
+		if err := task.wait(); err != nil {
+			t.Fatalf("%s: %v", task.id, err)
+		}
+	}
+	if got := peak.Load(); got != 1 {
+		t.Fatalf("peak concurrent holders of one logical resource = %d, want 1", got)
+	}
+}
+
+// An Effect naming an invalid resource is refused on every run, dry or
+// not, before its callback runs.
+func TestEffectRejectsInvalidResource(t *testing.T) {
+	for _, dry := range []bool{false, true} {
+		opts := []option{to(io.Discard), plain(), withNoColor()}
+		if dry {
+			opts = append(opts, dryRun())
+		}
+		out := newOutput("invalid", opts...)
+		task := out.Task("push")
+		invoked := false
+		var effectErr error
+		task.Define(func(ctx context.Context) error {
+			spec := change.EffectSpec{Verb: change.EffectPush, Object: "tag", Quantity: 1, Resource: " "}
+			effectErr = change.Effect(ctx, spec, func(context.Context) error { invoked = true; return nil })
+			return effectErr
+		})
+		_ = task.wait()
+		_ = out.close()
+		if !errors.Is(effectErr, change.ErrInvalidResource) {
+			t.Fatalf("dry=%v: Effect err = %v, want ErrInvalidResource", dry, effectErr)
+		}
+		if invoked {
+			t.Fatalf("dry=%v: Effect invoked its callback despite an invalid resource", dry)
+		}
+	}
+}
+
+// An uncontended resource claim is invisible: an Effect that names a
+// resource renders byte-for-byte like one that does not.
+func TestUncontendedEffectResourceIsSilent(t *testing.T) {
+	render := func(path string) string {
+		var buf bytes.Buffer
+		out := newOutput("prune", to(&buf), plain(), withNoColor())
+		task := out.Task("prune worktrees")
+		task.Define(func(ctx context.Context) error {
+			spec := EffectSpec{Verb: Delete, Object: "worktree", Quantity: 2, Path: path}
+			return Effect(ctx, spec, func(context.Context) error { return nil })
+		})
+		if err := task.wait(); err != nil {
+			t.Fatalf("prune: %v", err)
+		}
+		_ = out.finish()
+		return buf.String()
+	}
+	bare := render("")
+	claimed := render(t.TempDir())
+	if bare != claimed {
+		t.Fatalf("uncontended claim changed the rendering:\n--- bare ---\n%s\n--- claimed ---\n%s", bare, claimed)
+	}
+}
+
+// An Effect's callback runs holding the Effect's resource, so tracked work
+// inside it that would need a second resource is misuse, not a deadlock.
+func TestFileInsideResourceEffectIsNestedMisuse(t *testing.T) {
+	dir := t.TempDir()
+	out := newOutput("nested", to(io.Discard), plain(), withNoColor(), withStateDir(t.TempDir()))
+	t.Cleanup(func() { _ = out.close() })
+	task := out.Task("publish")
+	var fileErr error
+	task.Define(func(ctx context.Context) error {
+		spec := change.EffectSpec{Verb: change.EffectPush, Object: "tag", Quantity: 1, Resource: "remote " + t.Name()}
+		return change.Effect(ctx, spec, func(held context.Context) error {
+			fileErr = File(held, FileSpec{Path: filepath.Join(dir, "stamp"), Contents: []byte("x")})
+			return fileErr
+		})
+	})
+	_ = task.wait()
+	if !errors.Is(fileErr, change.ErrNestedResourceAcquisition) {
+		t.Fatalf("File inside a resource-holding Effect = %v, want ErrNestedResourceAcquisition", fileErr)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "stamp")); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("nested File still wrote its path (stat err %v)", err)
+	}
+}

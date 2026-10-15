@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/terminal"
+	"github.com/zachbornheimer/evident-output/v2/internal/terminal"
 )
 
 // TestInteractive_MisuseHintReachesLiveTerminal is release-gate round 5
@@ -22,14 +21,14 @@ import (
 func TestInteractive_MisuseHintReachesLiveTerminal(t *testing.T) {
 	var screen bytes.Buffer
 	drv := terminal.NewANSI(&screen, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: drv, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: drv}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("branches")
-	task.Block("local-only branch")
-	task.Block("second call ignored") // already resolved — misuse
+	task.block("local-only branch")
+	task.block("second call ignored") // already resolved — misuse
 
-	if err := out.Finish(); err == nil {
+	if err := out.finish(); err == nil {
 		t.Fatal("Finish() = nil, want the recorded misuse")
 	}
 

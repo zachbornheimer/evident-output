@@ -1,18 +1,16 @@
-package evo_test
+package evo
 
 import (
 	"context"
 	"fmt"
 	"os"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // ExampleFingerprint observes one Basis input's current content identity —
 // FSPath, Value, and App are its three constructors; a custom
 // implementation may observe anything else Basis needs to track.
 func ExampleFingerprint() {
-	fp := evo.Value("go-version", "1.23")
+	fp := value("go-version", "1.23")
 	v, err := fp.Fingerprint(context.Background())
 	fmt.Println(err == nil, v.Kind != "")
 	// Output:
@@ -23,7 +21,7 @@ func ExampleFingerprint() {
 // machine Kind, a stable non-secret Key, and a SHA-256 Digest — only the
 // digest and name are ever persisted, never the raw value.
 func ExampleFingerprintValue() {
-	v, err := evo.Value("go-version", "1.23").Fingerprint(context.Background())
+	v, err := value("go-version", "1.23").Fingerprint(context.Background())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -45,7 +43,7 @@ func ExampleFSPath() {
 	defer func() { _ = os.Remove(f.Name()) }()
 	_ = f.Close()
 
-	fp := evo.FSPath(f.Name())
+	fp := fSPath(f.Name())
 	v, err := fp.Fingerprint(context.Background())
 	fmt.Println(err == nil, v.Key == f.Name())
 	// Output:
@@ -55,7 +53,7 @@ func ExampleFSPath() {
 // ExampleValue fingerprints a caller-supplied scalar under a stable, safe
 // name — only the digest and name are ever persisted, never the raw value.
 func ExampleValue() {
-	fp := evo.Value("feature-flag", true)
+	fp := value("feature-flag", true)
 	v, err := fp.Fingerprint(context.Background())
 	fmt.Println(err == nil, v.Key)
 	// Output:
@@ -66,7 +64,7 @@ func ExampleValue() {
 // an operation's Basis only when the application's own implementation is a
 // semantic input to that operation's result.
 func ExampleApp() {
-	fp := evo.App()
+	fp := app()
 	v, err := fp.Fingerprint(context.Background())
 	fmt.Println(err == nil, v.Kind != "")
 	// Output:

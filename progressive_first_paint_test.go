@@ -1,13 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
-	"strings"
 	"sync"
 	"testing"
-	"time"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // syncBuffer is a bytes.Buffer safe to read while the Output writes to it.
@@ -28,31 +24,18 @@ func (b *syncBuffer) String() string {
 	return b.buf.String()
 }
 
-// Off a terminal there is no live region to carry "I have started", so the
-// caller's own narrated beat has to reach the stream when it is narrated —
-// not at Finish. A CLI that resolves toolchains for ten seconds before its
-// first byte looks hung, and zq pins that as a 500ms wall-clock budget.
-func TestDoing_PlainModeEmitsTheFirstBeatBeforeTheTaskResolves(t *testing.T) {
+// Doing is live only (CONTRACT §2): off a terminal it writes no durable line,
+// so a narrated item reaches the stream through the row that settles or the
+// heartbeat, never at the call.
+func TestDoing_PlainModeWritesNoLineBeforeTheTaskResolves(t *testing.T) {
 	var out syncBuffer
 	var payload syncBuffer
-	o := evo.Init(evo.Config{
-		Title:           "zq",
-		Isolated:        true,
-		Format:          evo.FormatData,
-		Stdout:          &payload,
-		Stderr:          &out,
-		VisibilityDelay: evo.DelayForTest(0),
-	})
-	t.Cleanup(func() { _ = o.Close() })
+	o := initRun(Config{Name: "zq", Facades: Facades{Stdout: &payload, Stderr: &out}}, tuning{visibilityDelay: DelayForTest(0)})
+	t.Cleanup(func() { _ = o.close() })
 
 	o.Task("zq ci resolve").Doing("resolving repository root")
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if strings.Contains(out.String(), "resolving repository root") {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
+	if got := out.String(); got != "" {
+		t.Fatalf("Doing wrote a durable line before the task resolved: %q", got)
 	}
-	t.Fatalf("first narrated beat never reached the stream before the task resolved; got %q", out.String())
 }

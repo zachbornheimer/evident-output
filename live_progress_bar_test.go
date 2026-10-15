@@ -1,12 +1,11 @@
-package evo_test
+package evo
 
 import (
 	"io"
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 // TestLive_DeterminateProgressBarAndIndeterminatePhase asserts the bar's
@@ -15,8 +14,8 @@ import (
 // in progressBar (internal/render/live.go) alongside this test.
 func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24), testkit.NoColor())
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	g := out.Group("work")
 	units := g.Task("scan")
@@ -24,7 +23,7 @@ func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 	spin := g.Task("verify")
 
 	units.Progress(3, 10)
-	bytes.Bytes(4_000_000, 10_000_000)
+	bytes.bytes(4_000_000, 10_000_000)
 	spin.Doing("checking signatures")
 
 	got := screen.LatestLiveText()
@@ -54,8 +53,8 @@ func TestLive_DeterminateProgressBarAndIndeterminatePhase(t *testing.T) {
 // Task name, never subordinate.
 func TestLive_DeterminateProgressPhaseIsFullIntensityActivityChild(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.Height(24))
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorAlways})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorAlways})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("scan")
 	task.Progress(3, 10)

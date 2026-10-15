@@ -1,12 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"context"
 	"errors"
 	"io"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestTaskSnapshot_ResolutionNoWorkByDefault proves §29/§30's default: a
@@ -14,18 +12,18 @@ import (
 // warned Task Finish settles Done — carries ResolutionNoWork and an
 // unevaluated (zero-value) Evidence.
 func TestTaskSnapshot_ResolutionNoWorkByDefault(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("no-define")
-	task.Problem("nothing to define", evo.Severity(evo.SeverityWarning))
-	if err := out.Finish(); err != nil {
+	task.Problem("nothing to define")
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	snap := task.Snapshot()
+	snap := task.snapshot()
 
-	if snap.Resolution != evo.ResolutionNoWork {
-		t.Fatalf("Resolution = %q, want ResolutionNoWork", snap.Resolution)
+	if snap.DefineRan {
+		t.Fatal("DefineRan = true for a Task with no Define")
 	}
 	if snap.Evidence.Before.Evaluated || snap.Evidence.After.Evaluated {
 		t.Fatalf("Evidence = %+v, want both phases unevaluated", snap.Evidence)
@@ -38,16 +36,16 @@ func TestTaskSnapshot_ResolutionNoWorkByDefault(t *testing.T) {
 // Verify-less Define reaches the same success it always has, just now with
 // a Resolution recorded.
 func TestTaskSnapshot_ResolutionExecutedWithoutVerify(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("plain-define")
 	task.Define(func(context.Context) error { return nil })
-	_ = task.Wait()
-	snap := task.Snapshot()
+	_ = task.wait()
+	snap := task.snapshot()
 
-	if snap.Resolution != evo.ResolutionExecuted {
-		t.Fatalf("Resolution = %q, want ResolutionExecuted", snap.Resolution)
+	if !snap.DefineRan || snap.State != succeeded {
+		t.Fatalf("DefineRan = %v, State = %q, want a Succeeded Task whose Define ran", snap.DefineRan, snap.State)
 	}
 	if snap.Evidence.Before.Evaluated || snap.Evidence.After.Evaluated {
 		t.Fatalf("Evidence = %+v, want both phases unevaluated (no Verify registered)", snap.Evidence)
@@ -60,17 +58,17 @@ func TestTaskSnapshot_ResolutionExecutedWithoutVerify(t *testing.T) {
 // "verify"} and resolution ResolutionAlreadySatisfied, with After left
 // unevaluated since Define never ran.
 func TestTaskSnapshot_ResolutionAlreadySatisfiedPreservesBeforeEvidence(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("already-satisfied")
 	task.Verify(func(context.Context) (bool, error) { return true, nil })
 	task.Define(func(context.Context) error { return nil })
-	_ = task.Wait()
-	snap := task.Snapshot()
+	_ = task.wait()
+	snap := task.snapshot()
 
-	if snap.Resolution != evo.ResolutionAlreadySatisfied {
-		t.Fatalf("Resolution = %q, want ResolutionAlreadySatisfied", snap.Resolution)
+	if snap.State != entityState(Satisfied) {
+		t.Fatalf("State = %q, want Satisfied", snap.State)
 	}
 	before := snap.Evidence.Before
 	if !before.Evaluated || !before.Satisfied || before.Source != "verify" {
@@ -88,8 +86,8 @@ func TestTaskSnapshot_ResolutionAlreadySatisfiedPreservesBeforeEvidence(t *testi
 // final boolean." Before is recorded false, then After true, and both
 // survive on the snapshot simultaneously.
 func TestTaskSnapshot_BeforeFalseAfterTruePreservesBothPhases(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("before-false-after-true")
 	checks := 0
@@ -98,11 +96,11 @@ func TestTaskSnapshot_BeforeFalseAfterTruePreservesBothPhases(t *testing.T) {
 		return checks > 1, nil
 	})
 	task.Define(func(context.Context) error { return nil })
-	_ = task.Wait()
-	snap := task.Snapshot()
+	_ = task.wait()
+	snap := task.snapshot()
 
-	if snap.Resolution != evo.ResolutionExecuted {
-		t.Fatalf("Resolution = %q, want ResolutionExecuted", snap.Resolution)
+	if !snap.DefineRan || snap.State != succeeded {
+		t.Fatalf("DefineRan = %v, State = %q, want a Succeeded Task whose Define ran", snap.DefineRan, snap.State)
 	}
 	before, after := snap.Evidence.Before, snap.Evidence.After
 	if !before.Evaluated || before.Satisfied {
@@ -120,32 +118,32 @@ func TestTaskSnapshot_BeforeFalseAfterTruePreservesBothPhases(t *testing.T) {
 func TestResult_ExitCodeMapping(t *testing.T) {
 	cases := []struct {
 		name string
-		run  func(out *evo.Output) evo.RunFunc
+		run  func(out *Run) RunFunc
 		want int
 	}{
-		{"ok", func(out *evo.Output) evo.RunFunc {
-			return func(ctx context.Context) error { return nil }
-		}, evo.ExitOK},
-		{"blocked", func(out *evo.Output) evo.RunFunc {
-			return func(ctx context.Context) error {
-				out.Task("gate").Block("no")
+		{"ok", func(out *Run) RunFunc {
+			return func(ctx context.Context, r *Run) error { return nil }
+		}, exitOK},
+		{"blocked", func(out *Run) RunFunc {
+			return func(ctx context.Context, r *Run) error {
+				out.Task("gate").block("no")
 				return nil
 			}
-		}, evo.ExitBlocked},
-		{"failed", func(out *evo.Output) evo.RunFunc {
-			return func(ctx context.Context) error { return errors.New("boom") }
-		}, evo.ExitFailed},
+		}, exitRefused},
+		{"failed", func(out *Run) RunFunc {
+			return func(ctx context.Context, r *Run) error { return errors.New("boom") }
+		}, exitFailed},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-			t.Cleanup(func() { _ = out.Close() })
-			result := out.Run(context.Background(), c.run(out))
+			out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+			t.Cleanup(func() { _ = out.close() })
+			result := out.run(context.Background(), c.run(out))
 			if result.ExitCode() != c.want {
 				t.Fatalf("ExitCode() = %d, want %d", result.ExitCode(), c.want)
 			}
-			if result.Conclusion.ExitCode != result.ExitCode() {
-				t.Fatalf("Conclusion.ExitCode = %d disagrees with Result.ExitCode() = %d", result.Conclusion.ExitCode, result.ExitCode())
+			if result.Conclusion.exitCode != result.ExitCode() {
+				t.Fatalf("Conclusion.ExitCode = %d disagrees with Result.ExitCode() = %d", result.Conclusion.exitCode, result.ExitCode())
 			}
 		})
 	}

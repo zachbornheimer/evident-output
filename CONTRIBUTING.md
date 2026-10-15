@@ -19,10 +19,16 @@ git commit -s -m "feat: your change"
 
 ## CI
 
-`mise run ci` is the gate. GitHub Actions (`.github/workflows/ci.yml`) runs it
-on `main` pushes and pull requests with the toolchain pinned in `mise.toml`.
+`mise run ci` is the gate. It is `mise run ci-hosted` plus `mise run perf`,
+the wall-time bounds recorded on the maintainer's machine (`EVO_PERF_BASELINE=1`;
+plain `go test ./...` skips them). GitHub Actions (`.github/workflows/ci.yml`)
+runs `ci-hosted` on `main` pushes and pull requests with the toolchain pinned
+in `mise.toml`, because a hosted runner is not the baseline's hardware.
+`ci` runs `go test -race ./...` (30 m timeout) beside the plain `test` run, so
+expect a local `mise run ci` to take several minutes longer than before.
 
-- `gate`: `mise run ci` on the pinned Go, plus the nested `eval/` module tests.
+- `gate`: `mise run ci-hosted` on the pinned Go. It includes `test-race` and `examples`,
+  so the local `mise run ci` cannot pass what this job fails.
 - `min-go`: build, vet, and test on the Go version in `go.mod` (no lint).
 - `cross`: library build for linux, darwin, and windows.
 
@@ -48,5 +54,4 @@ defect**. Do not edit them ad hoc.
 2. `mise run sync-release-pins` (or `go run ./tools/scripts/sync-release-pins`).
 3. `go test . -run VersionDrift` (also part of `mise run doctor`).
 
-Full procedure: [`docs/guides/cutting-a-release.md`](docs/guides/cutting-a-release.md).
 Never move a previously published git tag to fix a stale README — ship a patch.

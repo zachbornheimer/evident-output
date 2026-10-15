@@ -1,0 +1,559 @@
+package evo
+
+import (
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io/fs"
+	"path"
+	"path/filepath"
+	"slices"
+	"sort"
+	"strconv"
+	"strings"
+)
+
+// facadePackages are the only internal packages allowed to touch the system.
+var facadePackages = []string{
+	"internal/terminal",
+	"internal/process",
+	"internal/fs",
+	"internal/clock",
+}
+
+// clockPackage is the one facade that reads and waits on the wall clock.
+const clockPackage = "internal/clock"
+
+// modulePath prefixes every in-module import path.
+const modulePath = "github.com/zachbornheimer/evident-output/v2"
+
+// scanProductionFiles runs inspect on every non-test Go file under root,
+// except beneath a directory skip reports true for. It returns the sorted
+// findings and how many files it inspected.
+func scanProductionFiles(root string, skip func(dir string) bool, inspect func(file string) ([]string, error)) ([]string, int, error) {
+	var found []string
+	checked := 0
+	walkErr := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return fmt.Errorf("walk %s: %w", p, err)
+		}
+		slashed := filepath.ToSlash(p)
+		if d.IsDir() {
+			if skip(slashed) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !isProductionGoFile(slashed) {
+			return nil
+		}
+		checked++
+		hits, inspectErr := inspect(slashed)
+		if inspectErr != nil {
+			return fmt.Errorf("inspect %s: %w", slashed, inspectErr)
+		}
+		found = append(found, hits...)
+		return nil
+	})
+	sort.Strings(found)
+	return found, checked, walkErr
+}
+
+func isProductionGoFile(slashed string) bool {
+	return strings.HasSuffix(slashed, ".go") && !strings.HasSuffix(slashed, "_test.go")
+}
+
+func skipNothing(string) bool { return false }
+
+func isFacadePackage(dir string) bool {
+	return slices.Contains(facadePackages, dir)
+}
+
+// isFacadeImport reports whether importPath is one of the four facade packages.
+func isFacadeImport(importPath string) bool {
+	return slices.Contains(facadePackages, strings.TrimPrefix(importPath, modulePath+"/"))
+}
+
+// isStandardLibrary reports whether importPath is a standard-library import:
+// its first element carries no dot.
+func isStandardLibrary(importPath string) bool {
+	first, _, _ := strings.Cut(importPath, "/")
+	return !strings.Contains(first, ".")
+}
+
+// isNonClockModuleImport reports whether importPath is another package of
+// this module other than internal/clock.
+func isNonClockModuleImport(importPath string) bool {
+	local, inModule := strings.CutPrefix(importPath, modulePath+"/")
+	return inModule && local != clockPackage
+}
+
+// isNonFacadeImport reports whether importPath is neither the standard
+// library nor a facade.
+func isNonFacadeImport(importPath string) bool {
+	return !isStandardLibrary(importPath) && !isFacadeImport(importPath)
+}
+
+// isGraphForbiddenImport reports whether importPath is a package of this
+// module other than record, misuse and the facades: the only packages
+// internal/graph may import. Misuse it finds leaves through graph.MisuseSink
+// (implemented by misuse.Recorder) and the sentinel codes owned by misuse.
+func isGraphForbiddenImport(importPath string) bool {
+	local, inModule := strings.CutPrefix(importPath, modulePath+"/")
+	if !inModule {
+		return false
+	}
+	return local != recordPackage && local != misusePackage && !isFacadeImport(importPath)
+}
+
+// isFreshnessForbiddenImport reports whether importPath is a package of this
+// module other than record, graph and the facades: the only packages
+// internal/freshness may import. Claims it needs held leave through
+// freshness.Claimer, a consumer-defined interface the caller implements,
+// never through an import of the packages that own claims.
+func isFreshnessForbiddenImport(importPath string) bool {
+	local, inModule := strings.CutPrefix(importPath, modulePath+"/")
+	if !inModule {
+		return false
+	}
+	return local != recordPackage && local != graphPackage && !isFacadeImport(importPath)
+}
+
+// isMisuseForbiddenImport reports whether importPath is a package of this
+// module other than record and the facades: the only packages
+// internal/misuse may import.
+func isMisuseForbiddenImport(importPath string) bool {
+	local, inModule := strings.CutPrefix(importPath, modulePath+"/")
+	if !inModule {
+		return false
+	}
+	return local != recordPackage && !isFacadeImport(importPath)
+}
+
+// isProjectForbiddenImport reports whether importPath is a package of this
+// module other than record, the facades, and internal/project itself
+// (including live, plain and wire). project may read record; it must not
+// reach into graph, freshness, change, engine, or the packages it folded.
+func isProjectForbiddenImport(importPath string) bool {
+	local, inModule := strings.CutPrefix(importPath, modulePath+"/")
+	if !inModule {
+		return false
+	}
+	if local == recordPackage || isFacadeImport(importPath) {
+		return false
+	}
+	return local != projectPackage && !strings.HasPrefix(local, projectPackage+"/")
+}
+
+// isChangeForbiddenImport reports whether importPath is a package of this
+// module other than record, graph, freshness and the facades: the only
+// packages internal/change may import.
+func isChangeForbiddenImport(importPath string) bool {
+	local, inModule := strings.CutPrefix(importPath, modulePath+"/")
+	if !inModule {
+		return false
+	}
+	return local != recordPackage && local != graphPackage && local != freshnessPackage && !isFacadeImport(importPath)
+}
+
+// isGraphImport reports whether importPath is internal/graph.
+func isGraphImport(importPath string) bool {
+	return importPath == modulePath+"/"+graphPackage
+}
+
+// neverBanned is the import rule that bans no import.
+func neverBanned(string) bool { return false }
+
+// dotImportName is the local name of an import that merges the package's
+// exported names into the file scope, where a selector scan cannot see them.
+const dotImportName = "."
+
+// touches parses file and reports each import for which banned reports true,
+// each dot-import of a package in calls, and each reference to a function in
+// calls (import path to function names), whether called or taken as a value,
+// as "file:line:col import|dot-import|call name".
+func touches(file string, banned func(importPath string) bool, calls map[string]map[string]bool) ([]string, error) {
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, file, nil, 0)
+	if err != nil {
+		return nil, fmt.Errorf("parse: %w", err)
+	}
+	var found []string
+	localNames := map[string]string{} // local package name -> import path
+	for _, spec := range parsed.Imports {
+		importPath, unquoteErr := strconv.Unquote(spec.Path.Value)
+		if unquoteErr != nil {
+			return nil, fmt.Errorf("unquote import %s: %w", spec.Path.Value, unquoteErr)
+		}
+		if banned(importPath) {
+			found = append(found, fset.Position(spec.Pos()).String()+" import "+importPath)
+		}
+		if _, watched := calls[importPath]; watched {
+			if isDotImport(spec) {
+				found = append(found, fset.Position(spec.Pos()).String()+" dot-import "+importPath)
+				continue
+			}
+			localNames[localPackageName(spec, importPath)] = importPath
+		}
+	}
+	if len(localNames) == 0 {
+		return found, nil
+	}
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		sel, ok := n.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		pkg, ok := sel.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		importPath, imported := localNames[pkg.Name]
+		if imported && calls[importPath][sel.Sel.Name] {
+			found = append(found, fset.Position(sel.Pos()).String()+" call "+path.Base(importPath)+"."+sel.Sel.Name)
+		}
+		return true
+	})
+	return found, nil
+}
+
+func isDotImport(spec *ast.ImportSpec) bool {
+	return spec.Name != nil && spec.Name.Name == dotImportName
+}
+
+// localPackageName is the name a file refers to an import by.
+func localPackageName(spec *ast.ImportSpec, importPath string) string {
+	if spec.Name != nil {
+		return spec.Name.Name
+	}
+	return path.Base(importPath)
+}
+
+// claimHolderNames are the names by which code holds a claim or reports one
+// held: the registry's HoldResource, and the sensor graph.ProcessHolds the
+// code that grants a claim reports into.
+var claimHolderNames = map[string]bool{
+	"HoldResource": true,
+	"ProcessHolds": true,
+}
+
+// claimHolds parses file and reports each selection of a claimHolderNames
+// name ("file:line:col call Name") and each method or function the file
+// declares under the name HoldResource ("file:line:col declaration Name"):
+// a second registry beside the one in internal/change.
+func claimHolds(file string) ([]string, error) {
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, file, nil, 0)
+	if err != nil {
+		return nil, fmt.Errorf("parse: %w", err)
+	}
+	var found []string
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.SelectorExpr:
+			if claimHolderNames[node.Sel.Name] {
+				found = append(found, fset.Position(node.Sel.Pos()).String()+" call "+node.Sel.Name)
+			}
+		case *ast.FuncDecl:
+			if node.Name.Name == "HoldResource" {
+				found = append(found, fset.Position(node.Name.Pos()).String()+" declaration "+node.Name.Name)
+			}
+		}
+		return true
+	})
+	return found, nil
+}
+
+// misuseStoreFields are the first-misuse store fields that may exist only
+// inside internal/misuse.
+var misuseStoreFields = map[string]bool{
+	"misuseMu":              true,
+	"misuseSubject":         true,
+	"misuseRejectedSummary": true,
+}
+
+// misuseStoreFuncs are the methods that write the first-misuse store. Engine
+// may call into a Recorder; it may not declare these itself.
+var misuseStoreFuncs = map[string]bool{
+	"keepMisuse": true,
+	"noteMisuse": true,
+}
+
+// misuseRecording parses file and reports each first-misuse store that is
+// not a call into internal/misuse: a keepMisuse/noteMisuse declaration, a
+// RecordMisuseFor implementation with a body, the old Output store fields,
+// or a field named misuse of type error.
+func misuseRecording(file string) ([]string, error) {
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, file, nil, 0)
+	if err != nil {
+		return nil, fmt.Errorf("parse: %w", err)
+	}
+	var found []string
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.FuncDecl:
+			name := node.Name.Name
+			if misuseStoreFuncs[name] {
+				found = append(found, fset.Position(node.Name.Pos()).String()+" declaration "+name)
+			}
+			if name == "RecordMisuseFor" && !emptyFuncBody(node.Body) {
+				found = append(found, fset.Position(node.Name.Pos()).String()+" declaration "+name)
+			}
+		case *ast.StructType:
+			if node.Fields == nil {
+				return true
+			}
+			for _, field := range node.Fields.List {
+				for _, ident := range field.Names {
+					if misuseStoreFields[ident.Name] {
+						found = append(found, fset.Position(ident.Pos()).String()+" field "+ident.Name)
+					}
+					if ident.Name == "misuse" && isBareErrorType(field.Type) {
+						found = append(found, fset.Position(ident.Pos()).String()+" store misuse error")
+					}
+				}
+			}
+			return false
+		}
+		return true
+	})
+	return found, nil
+}
+
+func emptyFuncBody(body *ast.BlockStmt) bool {
+	return body == nil || len(body.List) == 0
+}
+
+func isBareErrorType(expr ast.Expr) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && ident.Name == "error"
+}
+
+// recordMutatorPrefixes begin the name of every method that writes run truth
+// into package record.
+var recordMutatorPrefixes = []string{
+	"Record", "Append", "Apply", "Resolve", "Set", "Transition", "Settle", "Mark", "Clear",
+}
+
+// recordHandleName is the field and variable name the producers give a
+// record.Run or record.Task handle (o.rec, t.rec, rec).
+const recordHandleName = "rec"
+
+func isRecordMutator(method string) bool {
+	return slices.ContainsFunc(recordMutatorPrefixes, func(prefix string) bool {
+		return strings.HasPrefix(method, prefix)
+	})
+}
+
+// recordWriteCalls parses file and reports each call of a record-mutating
+// method as "file:line:col call Method". See recordWriteCallsIn.
+func recordWriteCalls(file string) ([]string, error) {
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, file, nil, 0)
+	if err != nil {
+		return nil, fmt.Errorf("parse: %w", err)
+	}
+	return recordWriteCallsIn(fset, parsed)
+}
+
+// recordWriteCallsIn reports each call x.Method(...) where Method begins with
+// one of recordMutatorPrefixes and x is a record value. Without type
+// information x counts as a record value when
+//   - x, or the field x selects, is declared in the same file with a type
+//     from the record package (a parameter, field, result or var of
+//     record.X or *record.X, or a variable assigned record.F(...) or
+//     &record.X{}), or
+//   - x is, or selects a field named, recordHandleName (o.rec, t.rec, rec).
+//
+// The heuristic is scope-blind (a name declared record-typed anywhere in the
+// file counts everywhere in it) and sees only same-file declarations; a
+// record value reached through a method result or another file's type is
+// missed. That is why the producers keep the recordHandleName convention.
+func recordWriteCallsIn(fset *token.FileSet, parsed *ast.File) ([]string, error) {
+	pkgName, imported, err := importedRecordName(parsed)
+	if err != nil {
+		return nil, err
+	}
+	recordNames := map[string]bool{recordHandleName: true}
+	if imported {
+		collectRecordTypedNames(parsed, pkgName, recordNames)
+	}
+	var found []string
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || !isRecordMutator(sel.Sel.Name) || !isRecordValue(sel.X, recordNames) {
+			return true
+		}
+		found = append(found, fset.Position(sel.Pos()).String()+" call "+sel.Sel.Name)
+		return true
+	})
+	return found, nil
+}
+
+// importedRecordName is the name parsed refers to package record by.
+func importedRecordName(parsed *ast.File) (name string, imported bool, err error) {
+	for _, spec := range parsed.Imports {
+		importPath, unquoteErr := strconv.Unquote(spec.Path.Value)
+		if unquoteErr != nil {
+			return "", false, fmt.Errorf("unquote import %s: %w", spec.Path.Value, unquoteErr)
+		}
+		if importPath == modulePath+"/"+recordPackage {
+			return localPackageName(spec, importPath), true, nil
+		}
+	}
+	return "", false, nil
+}
+
+// collectRecordTypedNames adds to names every identifier parsed declares with
+// a type from the package pkgName refers to record by.
+func collectRecordTypedNames(parsed *ast.File, pkgName string, names map[string]bool) {
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		switch decl := n.(type) {
+		case *ast.Field:
+			if isRecordType(decl.Type, pkgName) {
+				addIdentNames(decl.Names, names)
+			}
+		case *ast.ValueSpec:
+			if decl.Type != nil && isRecordType(decl.Type, pkgName) {
+				addIdentNames(decl.Names, names)
+			}
+		case *ast.AssignStmt:
+			for i, rhs := range decl.Rhs {
+				if i < len(decl.Lhs) && isRecordConstruction(rhs, pkgName) {
+					if lhs, ok := decl.Lhs[i].(*ast.Ident); ok {
+						names[lhs.Name] = true
+					}
+				}
+			}
+		}
+		return true
+	})
+}
+
+func addIdentNames(idents []*ast.Ident, names map[string]bool) {
+	for _, ident := range idents {
+		names[ident.Name] = true
+	}
+}
+
+// isRecordType reports whether expr is record.X or *record.X.
+func isRecordType(expr ast.Expr, pkgName string) bool {
+	if star, ok := expr.(*ast.StarExpr); ok {
+		expr = star.X
+	}
+	return selectsPackage(expr, pkgName)
+}
+
+// isRecordConstruction reports whether expr is record.F(...), &record.X{} or
+// record.X{}.
+func isRecordConstruction(expr ast.Expr, pkgName string) bool {
+	switch e := expr.(type) {
+	case *ast.CallExpr:
+		return selectsPackage(e.Fun, pkgName)
+	case *ast.UnaryExpr:
+		return isRecordConstruction(e.X, pkgName)
+	case *ast.CompositeLit:
+		return selectsPackage(e.Type, pkgName)
+	}
+	return false
+}
+
+func selectsPackage(expr ast.Expr, pkgName string) bool {
+	sel, ok := expr.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	ident, ok := sel.X.(*ast.Ident)
+	return ok && ident.Name == pkgName
+}
+
+// isRecordValue reports whether receiver names a record value: an identifier
+// or a selected field whose name is in names.
+func isRecordValue(receiver ast.Expr, names map[string]bool) bool {
+	switch r := receiver.(type) {
+	case *ast.Ident:
+		return names[r.Name]
+	case *ast.SelectorExpr:
+		return names[r.Sel.Name]
+	}
+	return false
+}
+
+// scanRootProductionFiles runs inspect on every non-test Go file of the root
+// package itself, not its subdirectories. It returns the sorted findings and
+// the files it inspected.
+func scanRootProductionFiles(inspect func(file string) ([]string, error)) ([]string, []string, error) {
+	matches, err := filepath.Glob("*.go")
+	if err != nil {
+		return nil, nil, fmt.Errorf("glob root files: %w", err)
+	}
+	var found, checked []string
+	for _, file := range matches {
+		if !isProductionGoFile(file) {
+			continue
+		}
+		checked = append(checked, file)
+		hits, inspectErr := inspect(file)
+		if inspectErr != nil {
+			return nil, nil, fmt.Errorf("inspect %s: %w", file, inspectErr)
+		}
+		found = append(found, hits...)
+	}
+	sort.Strings(found)
+	return found, checked, nil
+}
+
+// signalOnlyImport is the one system import the root package may make: os,
+// used for nothing but the os.Signal type CleanStop names.
+const signalOnlyImport = "os"
+
+// rootSystemTouches is touches for a root file, less an os import the file
+// uses only to name os.Signal.
+func rootSystemTouches(file string) ([]string, error) {
+	found, err := touches(file, isSystemImport, bannedCalls)
+	if err != nil {
+		return nil, err
+	}
+	signalOnly, err := usesOSOnlyForSignal(file)
+	if err != nil || !signalOnly {
+		return found, err
+	}
+	return slices.DeleteFunc(found, func(hit string) bool {
+		return strings.HasSuffix(hit, " import "+signalOnlyImport)
+	}), nil
+}
+
+// usesOSOnlyForSignal reports whether file imports os and every reference
+// to it is os.Signal.
+func usesOSOnlyForSignal(file string) (bool, error) {
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, file, nil, 0)
+	if err != nil {
+		return false, fmt.Errorf("parse: %w", err)
+	}
+	name := ""
+	for _, spec := range parsed.Imports {
+		if importPath, _ := strconv.Unquote(spec.Path.Value); importPath == signalOnlyImport && !isDotImport(spec) {
+			name = localPackageName(spec, importPath)
+		}
+	}
+	if name == "" {
+		return false, nil
+	}
+	signalOnly := true
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		if sel, ok := n.(*ast.SelectorExpr); ok {
+			if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == name && sel.Sel.Name != "Signal" {
+				signalOnly = false
+			}
+		}
+		return signalOnly
+	})
+	return signalOnly, nil
+}

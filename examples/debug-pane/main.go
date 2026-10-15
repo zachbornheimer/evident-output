@@ -1,4 +1,6 @@
-// Command debug-pane demos a sequential audit with an optional blocker.
+// Command debug-pane demos a sequential audit with an optional blocker. With
+// --fail the compare step returns evo.Refuse: the run exits 1 and the Task
+// declared After the audit never starts.
 //
 //	go run ./examples/debug-pane/
 //	go run ./examples/debug-pane/ --fail
@@ -10,7 +12,7 @@ import (
 	"os"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 func main() {
@@ -23,9 +25,8 @@ func main() {
 		step = 20 * time.Millisecond
 	}
 
-	evo.Init(evo.Config{Title: "branch audit"})
-	os.Exit(evo.Main(func(ctx context.Context) error {
-		jobs := evo.Sequence("audit")
+	os.Exit(evo.Main(evo.Config{Name: "branch audit"}, func(ctx context.Context, r *evo.Run) error {
+		jobs := r.Sequence("audit")
 		scan := jobs.Task("scan")
 		compare := jobs.Task("compare")
 
@@ -39,20 +40,13 @@ func main() {
 			compare.Doing("diffing")
 			time.Sleep(step)
 			if *fail {
-				compare.Summary("1 blocker found")
+				return evo.Refuse("feat/sdk-full-consolidation is local-only",
+					evo.Detail("push, merge, or delete local-only work before retiring this repository"))
 			}
 			return nil
 		})
-		if err := compare.Wait(); err != nil {
-			return err
-		}
 
-		branches := evo.Task("branches")
-		if *fail {
-			branches.Block("feat/sdk-full-consolidation is local-only")
-		} else {
-			branches.Define(func(context.Context) error { return nil })
-		}
+		r.Task("branches").After(jobs).Define(func(context.Context) error { return nil })
 		return nil
 	}))
 }

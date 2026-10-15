@@ -1,0 +1,79 @@
+[
+  {
+    "id": "C45-001",
+    "section": "2.0 \u00a75 Confirm",
+    "quote": "`Confirm(question string, opts ...ConfirmOption) bool`; decline is Refused",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestConfirm_No_ResolvesBlockedDeclinedAndExitsOne"
+      },
+      {
+        "pkg": ".",
+        "run": "TestConfirm_Declined_ResolvesBlockedWithExitOne"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C45-002",
+    "section": "2.0 \u00a75 Confirm",
+    "quote": "default answer is no",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestConfirm_EmptyAnswer_Declines"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C45-003",
+    "section": "2.0 \u00a75 Confirm",
+    "quote": "`NonInteractive(flag string) ConfirmOption`; how to pass unattended",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestConfirm_NonInteractive_BlocksByPolicyWithoutReadingStdin"
+      },
+      {
+        "pkg": ".",
+        "run": "TestConfirm_PolicyFlag_FillsExecutableFromTitle"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C45-004",
+    "section": "2.0 \u00a75 Confirm",
+    "quote": "`Suspend(fn func() error) error`; pause the live region around `fn`",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestSuspend_PaintsNoFrameInsideTheWindowWhenASiblingStartsInIt"
+      },
+      {
+        "pkg": ".",
+        "run": "TestSuspend_CallbackErrorPropagates"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C45-005",
+    "section": "2.0 \u00a75 Confirm",
+    "quote": "`Detail` is also a `ConfirmOption`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestConfirm_Detail_RendersContextLines"
+      }
+    ],
+    "default": false
+  }
+]

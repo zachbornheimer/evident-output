@@ -1,12 +1,10 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"fmt"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestPlain_CollectionChildStreamsMilestones is the red-first proof for the
@@ -24,9 +22,7 @@ import (
 func TestPlain_CollectionChildStreamsMilestones(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true, Plain: true, Color: evo.ColorNever, Title: "zq", Stdout: &buf,
-	})
+	out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	classify := out.Group("worktrees").Task("classify")
 	const total = 111
@@ -35,7 +31,7 @@ func TestPlain_CollectionChildStreamsMilestones(t *testing.T) {
 	}
 	midRun := buf.String()
 	succeed(classify, "111 worktrees")
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -43,8 +39,8 @@ func TestPlain_CollectionChildStreamsMilestones(t *testing.T) {
 		t.Fatalf("plain must never be silent while work is Running; whole run:\n%s", buf.String())
 	}
 	lines := strings.Split(strings.TrimRight(midRun, "\n"), "\n")
-	if len(lines) < 5 || len(lines) > 20 {
-		t.Fatalf("want ~10 thinned milestones, got %d:\n%s", len(lines), midRun)
+	if len(lines) < 5 || len(lines) > 12 {
+		t.Fatalf("want first + about ten + final (5 to 12) milestone lines (CONTRACT §2 Task.Progress), got %d:\n%s", len(lines), midRun)
 	}
 	if !strings.Contains(lines[0], "1/111") {
 		t.Fatalf("the first tick always streams, got %q", lines[0])

@@ -1,12 +1,11 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"io"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 // TestFinish_InteractiveWithMultiWriterStdout_MirrorsPlainProjection proves the
@@ -16,13 +15,13 @@ func TestFinish_InteractiveWithMultiWriterStdout_MirrorsPlainProjection(t *testi
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	var mirror bytes.Buffer
 
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, Color: evo.ColorNever})
-	out.AlsoWriteForTest(&mirror)
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{color: colorNever})
+	out.alsoWriteForTest(&mirror)
 
-	out.Task("dependencies").Fail("dependency graph has a cycle")
+	out.Task("dependencies").fail("dependency graph has a cycle")
 	succeed(out.Task("build"))
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 

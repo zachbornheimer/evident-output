@@ -1,0 +1,316 @@
+package review_test
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/zachbornheimer/evident-output/mcp/v2/internal/agent/review"
+)
+
+// readFixture loads a fixture from testdata/evo_rules by name.
+func readFixture(t *testing.T, name string) string {
+	t.Helper()
+	src, err := os.ReadFile(filepath.Join("testdata", "evo_rules", name))
+	if err != nil {
+		t.Fatalf("read fixture %s: %v", name, err)
+	}
+	return string(src)
+}
+
+// assertFinding requires ruleID among res.Findings and returns it.
+func assertFinding(t *testing.T, res review.Result, ruleID string) review.Finding {
+	t.Helper()
+	for _, f := range res.Findings {
+		if f.RuleID == ruleID {
+			return f
+		}
+	}
+	t.Fatalf("%s did not fire; findings: %+v", ruleID, res.Findings)
+	return review.Finding{}
+}
+
+// assertNoFinding requires ruleID absent from res.Findings.
+func assertNoFinding(t *testing.T, res review.Result, ruleID string) {
+	t.Helper()
+	for _, f := range res.Findings {
+		if f.RuleID == ruleID {
+			t.Fatalf("false positive %s: %+v", ruleID, f)
+		}
+	}
+}
+
+func TestEVOVERIFY001_MutatingVerify_Fires(t *testing.T) {
+	res := review.GoSource("verify_001_bad.go", readFixture(t, "verify_001_bad.go"))
+	f := assertFinding(t, res, "EVO-VERIFY-001")
+	if f.Severity != "error" {
+		t.Fatalf("severity = %q, want error", f.Severity)
+	}
+	if !strings.Contains(f.Message, "read-only") {
+		t.Fatalf("message does not say read-only: %q", f.Message)
+	}
+}
+
+func TestEVOVERIFY001_ReadOnlyVerify_StaysSilent(t *testing.T) {
+	res := review.GoSource("verify_001_good.go", readFixture(t, "verify_001_good.go"))
+	assertNoFinding(t, res, "EVO-VERIFY-001")
+}
+
+func TestEVOVERIFY001_AmbiguouslyNamedHandle_StillFires(t *testing.T) {
+	res := review.GoSource("verify_001_bad_ambiguous_name.go", readFixture(t, "verify_001_bad_ambiguous_name.go"))
+	assertFinding(t, res, "EVO-VERIFY-001")
+}
+
+func TestEVODRYRUN001_RawMutationInDefine_Fires(t *testing.T) {
+	res := review.GoSource("bad.go", readDialectFixture(t, "detectRawMutationInDefine", "bad.go"))
+	f := assertFinding(t, res, "EVO-DRYRUN-001")
+	if f.Severity != "error" {
+		t.Fatalf("severity = %q, want error", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "evo.File") {
+		t.Fatalf("suggestion does not name evo.File: %q", f.Suggestion)
+	}
+}
+
+func TestEVODRYRUN001_MutationRoutedThroughEvoFile_StaysSilent(t *testing.T) {
+	res := review.GoSource("good.go", readDialectFixture(t, "detectRawMutationInDefine", "good.go"))
+	assertNoFinding(t, res, "EVO-DRYRUN-001")
+}
+
+// Inline fixtures (not testdata/evo_rules): EVO-DRYRUN-001's database and
+// Effect-wrapped cases.
+
+const dryRunDatabaseBareSrc = `// Fixture: EVO-DRYRUN-001 must fire. Define raw-calls db.ExecContext, a
+// database mutation Evo's dry-run cannot intercept.
+package dryrun001
+
+import (
+	"context"
+	"database/sql"
+
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+
+func addColumn(task *evo.Task, db *sql.DB) {
+	task.Define(func(ctx context.Context) error {
+		_, err := db.ExecContext(ctx, "ALTER TABLE users ADD COLUMN email_verified boolean")
+		return err
+	})
+}
+`
+
+const dryRunDatabaseInEffectSrc = `// Fixture: EVO-DRYRUN-001 must stay silent. The database mutation runs
+// inside an evo.Effect callback, which dry-run never invokes.
+package dryrun001
+
+import (
+	"context"
+	"database/sql"
+
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+
+func addColumn(task *evo.Task, db *sql.DB) {
+	task.Define(func(ctx context.Context) error {
+		spec := evo.EffectSpec{Verb: evo.Create, Object: "column", Quantity: 1}
+		return evo.Effect(ctx, spec, func(ctx context.Context) error {
+			_, err := db.ExecContext(ctx, "ALTER TABLE users ADD COLUMN email_verified boolean")
+			return err
+		})
+	})
+}
+`
+
+const dryRunFileWriteInEffectSrc = `// Fixture: EVO-DRYRUN-001 must still fire. An os.WriteFile inside an
+// evo.Effect callback is file state hidden behind an opaque Effect; evo.File
+// owns it.
+package dryrun001
+
+import (
+	"context"
+	"os"
+
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+
+func writeConfig(task *evo.Task, path string, data []byte) {
+	task.Define(func(ctx context.Context) error {
+		spec := evo.EffectSpec{Verb: evo.Update, Object: "config", Quantity: 1}
+		return evo.Effect(ctx, spec, func(context.Context) error {
+			return os.WriteFile(path, data, 0o644)
+		})
+	})
+}
+`
+
+func TestEVODRYRUN001_BareDatabaseMutationInDefine_FiresWithEffectRoute(t *testing.T) {
+	res := review.GoSource("db_bad.go", dryRunDatabaseBareSrc)
+	f := assertFinding(t, res, "EVO-DRYRUN-001")
+	if !strings.Contains(f.Suggestion, "evo.Effect") {
+		t.Fatalf("a database mutation's suggestion must name evo.Effect: %q", f.Suggestion)
+	}
+}
+
+func TestEVODRYRUN001_DatabaseMutationInsideEffect_StaysSilent(t *testing.T) {
+	res := review.GoSource("db_good.go", dryRunDatabaseInEffectSrc)
+	assertNoFinding(t, res, "EVO-DRYRUN-001")
+}
+
+func TestEVODRYRUN001_FileWriteInsideEffect_LeftToAPI057(t *testing.T) {
+	res := review.GoSource("effect_file_bad.go", dryRunFileWriteInEffectSrc)
+	assertNoFinding(t, res, "EVO-DRYRUN-001")
+	f := assertFinding(t, res, "API-057")
+	if !strings.Contains(f.Suggestion, "evo.File") {
+		t.Fatalf("a file write inside Effect must still be steered to evo.File by API-057: %q", f.Suggestion)
+	}
+}
+
+const dryRunEffectMutationsSrc = `// Fixture: filesystem and process mutations inside an evo.Effect callback
+// are the declared opaque mutation (dry run skips the callback); the one
+// os.WriteFile left directly in Define is the only true positive.
+package dryrun001
+
+import (
+	"context"
+	"os"
+	"os/exec"
+
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+
+func prune(r *evo.Run, f string) {
+	r.Task("prune").Define(func(ctx context.Context) error {
+		spec := evo.EffectSpec{Verb: evo.Delete, Object: "stale copy", Quantity: 1, Path: "old/" + f}
+		return evo.Effect(ctx, spec, func(context.Context) error { return os.RemoveAll("old/" + f) })
+	})
+	r.Task("reload").Define(func(ctx context.Context) error {
+		spec := evo.EffectSpec{Verb: evo.Update, Object: "daemon", Quantity: 1}
+		return evo.Effect(ctx, spec, func(context.Context) error { return exec.Command("reload").Run() })
+	})
+	r.Task("audit").Define(func(context.Context) error {
+		return os.WriteFile("audit.ok", nil, 0o644)
+	})
+}
+`
+
+func TestEVODRYRUN001_BareDeletionInDefine_SuggestsEffectWithPath(t *testing.T) {
+	src := `package p
+import (
+	"context"
+	"os"
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+func prune(r *evo.Run, f string) {
+	r.Task("prune").Define(func(ctx context.Context) error { return os.RemoveAll("old/" + f) })
+}
+`
+	f := assertFinding(t, review.GoSource("bare_delete.go", src), "EVO-DRYRUN-001")
+	want := `replace os.RemoveAll("old/" + f) with evo.Effect(ctx, evo.EffectSpec{Verb: evo.Delete, Object: "file", Quantity: 1, Path: "old/" + f}, func(context.Context) error { return os.RemoveAll("old/" + f) })`
+	if f.Suggestion != want {
+		t.Fatalf("a bare deletion must be steered to the exact evo.Effect rewrite with a Path claim:\n got: %s\nwant: %s", f.Suggestion, want)
+	}
+}
+
+// With no named context parameter the exact rewrite would not compile, so
+// the suggestion stays advice and says to name it.
+func TestEVODRYRUN001_BareDeletionWithUnnamedContext_AsksToNameIt(t *testing.T) {
+	src := `package p
+import (
+	"context"
+	"os"
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+func prune(r *evo.Run) {
+	r.Task("prune").Define(func(context.Context) error { return os.Remove("app.lock") })
+}
+`
+	f := assertFinding(t, review.GoSource("unnamed_ctx.go", src), "EVO-DRYRUN-001")
+	if strings.HasPrefix(f.Suggestion, "replace ") || !strings.Contains(f.Suggestion, "name the Define callback's context parameter") {
+		t.Fatalf("without a ctx name the suggestion must ask for one, not offer a rewrite that does not compile: %q", f.Suggestion)
+	}
+}
+
+func TestDryRunRuleAllowsMutationInsideEffect(t *testing.T) {
+	res := review.GoSource("effect_mutations.go", dryRunEffectMutationsSrc)
+	var hits []review.Finding
+	for _, f := range res.Findings {
+		if f.RuleID == "EVO-DRYRUN-001" {
+			hits = append(hits, f)
+		}
+	}
+	if len(hits) != 1 {
+		t.Fatalf("EVO-DRYRUN-001 fired %d times, want exactly 1 (the bare os.WriteFile in Define): %+v", len(hits), hits)
+	}
+	if !strings.Contains(hits[0].Message, "os.WriteFile") {
+		t.Fatalf("the surviving finding must be the bare os.WriteFile, got %q", hits[0].Message)
+	}
+}
+
+func TestEVODAG001_GoroutineWrapsDefine_Fires(t *testing.T) {
+	res := review.GoSource("dag_001_bad.go", readFixture(t, "dag_001_bad.go"))
+	f := assertFinding(t, res, "EVO-DAG-001")
+	if f.Severity != "warning" {
+		t.Fatalf("severity = %q, want warning", f.Severity)
+	}
+	if !strings.Contains(f.Suggestion, "delete the goroutine") {
+		t.Fatalf("suggestion does not say delete the goroutine: %q", f.Suggestion)
+	}
+}
+
+func TestEVODAG001_NoGoroutine_StaysSilent(t *testing.T) {
+	res := review.GoSource("dag_001_good.go", readFixture(t, "dag_001_good.go"))
+	assertNoFinding(t, res, "EVO-DAG-001")
+}
+
+// Baselines: no EVO-* finding on ordinary, current usage.
+
+func evoFindings(res review.Result) []review.Finding {
+	var out []review.Finding
+	for _, f := range res.Findings {
+		if strings.HasPrefix(f.RuleID, "EVO-") {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+func TestEVORules_BeginnerTaskDefine_NoFinding(t *testing.T) {
+	res := review.GoSource("beginner_task_define.go", readFixture(t, "beginner_task_define.go"))
+	if got := evoFindings(res); len(got) != 0 {
+		t.Fatalf("beginner Task+Define produced EVO-* findings: %+v", got)
+	}
+}
+
+func TestEVORules_GroupIndependentSequenceOrdered_NoFinding(t *testing.T) {
+	res := review.GoSource("group_sequence.go", readFixture(t, "group_sequence.go"))
+	if got := evoFindings(res); len(got) != 0 {
+		t.Fatalf("Group/Sequence usage produced EVO-* findings: %+v", got)
+	}
+}
+
+// Every EVO-EVIDENCE/VERIFY/DRYRUN/DAG rule's Suggestion requires
+// 1.0.0-only API (Verify, evo.File, evo.Exec, Sequence/After) and carries
+// RequiredVersion "1.0.0" — so none of them may fire for a pin older than
+// 1.0.0, matching detectDeprecatedSpellings' dialectAtLeast gating pattern.
+func TestEVORules_PreOneZeroPin_StaySilent(t *testing.T) {
+	const preOneZero = "0.6.0"
+	cases := []struct {
+		ruleID  string
+		fixture string
+	}{
+		{"EVO-VERIFY-001", "verify_001_bad.go"},
+		{"EVO-DAG-001", "dag_001_bad.go"},
+	}
+	for _, c := range cases {
+		t.Run(c.ruleID, func(t *testing.T) {
+			src := readFixture(t, c.fixture)
+			res := review.GoSourceAt(c.fixture, src, preOneZero)
+			assertNoFinding(t, res, c.ruleID)
+		})
+	}
+	t.Run("EVO-DRYRUN-001", func(t *testing.T) {
+		src := readDialectFixture(t, "detectRawMutationInDefine", "bad.go")
+		assertNoFinding(t, review.GoSourceAt("bad.go", src, preOneZero), "EVO-DRYRUN-001")
+	})
+}

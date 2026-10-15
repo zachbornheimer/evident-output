@@ -2,10 +2,9 @@ package testkit
 
 import (
 	"io/fs"
-	"os"
 	"sync"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evfs "github.com/zachbornheimer/evident-output/v2/internal/fs"
 )
 
 // FileFS is a deterministic evo.FileFS fake: Lstat/ReadFile/WriteAtomic
@@ -33,16 +32,16 @@ func (f *FileFS) FailChmod(path string, err error) {
 }
 
 // Lstat implements evo.FileFS.
-func (f *FileFS) Lstat(path string) (fs.FileInfo, error) { return os.Lstat(path) }
+func (f *FileFS) Lstat(path string) (fs.FileInfo, error) { return evfs.Lstat(path) }
 
 // ReadFile implements evo.FileFS.
-func (f *FileFS) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
+func (f *FileFS) ReadFile(path string) ([]byte, error) { return evfs.ReadFile(path) }
 
 // WriteAtomic implements evo.FileFS by writing directly — this fake exists
 // to script Chmod outcomes, not to prove atomic-replace semantics (already
 // covered by evo.File's own unit tests).
 func (f *FileFS) WriteAtomic(path string, contents []byte, mode fs.FileMode) error {
-	return os.WriteFile(path, contents, mode)
+	return evfs.Disk{}.WriteAtomic(path, contents, mode)
 }
 
 // Chmod implements evo.FileFS, returning the canned failure scripted via
@@ -52,7 +51,7 @@ func (f *FileFS) Chmod(path string, mode fs.FileMode) error {
 	if scriptedFailure, ok := f.scriptedChmodFailure(path); ok {
 		return scriptedFailure
 	}
-	return os.Chmod(path, mode)
+	return evfs.Chmod(path, mode)
 }
 
 // scriptedChmodFailure returns the canned error FailChmod registered for
@@ -63,5 +62,3 @@ func (f *FileFS) scriptedChmodFailure(path string) (error, bool) {
 	err, scripted := f.chmodFails[path]
 	return err, scripted
 }
-
-var _ evo.FileFS = (*FileFS)(nil)

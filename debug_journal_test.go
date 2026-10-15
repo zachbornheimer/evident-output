@@ -1,27 +1,26 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"errors"
 	"io"
+	"log/slog"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/internal/render"
-	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 func TestLOG012_DebugDisabledOmitsHuman(t *testing.T) {
 	var buf bytes.Buffer
 	// default debug level is Info — Debug should be omitted from human when not enabled
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-	out.DebugForTest("hidden-debug-line")
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}})
+	t.Cleanup(func() { _ = out.close() })
+	out.debugForTest("hidden-debug-line")
 	succeed(out.Task("a"))
-	_ = out.Finish()
+	_ = out.finish()
 	// Debug still journals but may still appear via Line path — with default level Debug is skipped entirely
 	if strings.Contains(buf.String(), "hidden-debug-line") {
 		// if it appears, ensure it's not required; our Debug skips when level too high
@@ -30,19 +29,19 @@ func TestLOG012_DebugDisabledOmitsHuman(t *testing.T) {
 }
 
 func TestLOG010_SlogErrorValues(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}}, tuning{})
+	t.Cleanup(func() { _ = out.close() })
 	// use Debug with error field
-	out.DebugForTest("fail", evo.Field{Key: "err", Value: errors.New("boom")})
-	_ = out.Finish()
+	out.debugForTest("fail", field{Key: "err", Value: errors.New("boom")})
+	_ = out.finish()
 }
 
 func TestLOG002_DebugUsesClock(t *testing.T) {
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Clock: clock, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
-	t.Cleanup(func() { _ = out.Close() })
-	out.DebugForTest("x")
-	ev := out.Events()
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Clock: clock}}, tuning{})
+	t.Cleanup(func() { _ = out.close() })
+	out.debugForTest("x")
+	ev := out.events()
 	if len(ev) == 0 {
 		t.Fatal("no events")
 	}
@@ -55,11 +54,11 @@ func TestLOG002_DebugUsesClock(t *testing.T) {
 
 func TestLOG014_WarnMessageDistinctFromItemWarn(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Println("log warning")
-	out.Task("i").Problem("item warning", evo.Severity(evo.SeverityWarning))
-	_ = out.Finish()
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
+	out.println("log warning")
+	out.Task("i").Problem("item warning")
+	_ = out.finish()
 	s := buf.String()
 	if !strings.Contains(s, "log warning") || !strings.Contains(s, "item warning") {
 		t.Fatal(s)
@@ -67,28 +66,28 @@ func TestLOG014_WarnMessageDistinctFromItemWarn(t *testing.T) {
 }
 
 func TestLOG008_ConcurrentDebugWriters(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}}, tuning{})
+	t.Cleanup(func() { _ = out.close() })
 	var wg sync.WaitGroup
 	for i := range 8 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			w := out.DebugWriterForTest()
+			w := out.debugWriterForTest()
 			_, _ = w.Write([]byte("line\n"))
 			_ = w.Close()
 		}(i)
 	}
 	wg.Wait()
-	_ = out.Finish()
+	_ = out.finish()
 }
 
 func TestLOG003_FieldOrderStable(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: &buf, Debug: evo.DebugConfig{Level: evo.LevelDebug}, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-	out.DebugForTest("m", evo.Field{Key: "a", Value: 1}, evo.Field{Key: "b", Value: 2})
-	_ = out.Finish()
+	out := initRun(Config{Debug: slog.LevelDebug, Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}}, tuning{})
+	t.Cleanup(func() { _ = out.close() })
+	out.debugForTest("m", field{Key: "a", Value: 1}, field{Key: "b", Value: 2})
+	_ = out.finish()
 	// insertion order a then b
 	s := buf.String()
 	if i, j := strings.Index(s, "a=1"), strings.Index(s, "b=2"); i < 0 || j < 0 || i > j {
@@ -97,34 +96,34 @@ func TestLOG003_FieldOrderStable(t *testing.T) {
 }
 
 func TestLOG015_LogBurstPreservesOrder(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}}, tuning{})
+	t.Cleanup(func() { _ = out.close() })
 	for range 100 {
-		out.DebugForTest("x")
+		out.debugForTest("x")
 	}
-	_ = out.Finish()
+	_ = out.finish()
 	// sequences strictly increasing already tested
 }
 
 func TestLOG011_RecursiveValuesBounded(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}}, tuning{})
+	t.Cleanup(func() { _ = out.close() })
 	// don't create real cycle in Field — use deep map
 	m := map[string]any{"a": 1}
-	out.DebugForTest("m", evo.Field{Key: "m", Value: m})
-	_ = out.Finish()
+	out.debugForTest("m", field{Key: "m", Value: m})
+	_ = out.finish()
 }
 
 func TestLOG013_DebugWithJSONStdout(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Debug: evo.DebugConfig{Level: evo.LevelDebug}, Plain: true})
-	out.DebugForTest("d")
+	out := initRun(Config{Debug: slog.LevelDebug, Output: Plain, Facades: Facades{Stdout: io.Discard, Stderr: &buf}}, tuning{})
+	out.debugForTest("d")
 	succeed(out.Task("a"))
-	_ = out.Finish()
+	_ = out.finish()
 	// JSON encode separate stream
-	j, _ := render.EncodeJSON(out.Snapshot())
+	j := out.runDocument(t)
 	if !strings.Contains(string(j), "schema_version") {
 		t.Fatal(string(j))
 	}
-	_ = out.Close()
+	_ = out.close()
 }

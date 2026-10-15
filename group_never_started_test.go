@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // A NotStarted child is normally not a source of incompleteness: an earlier
@@ -16,18 +14,18 @@ import (
 // over its own `- classify  not started` row.
 func TestGroup_EveryChildNotStartedIsNotStartedNotDone(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "clean", Isolated: true, Plain: true, Stdout: &buf, Stderr: &buf})
+	out := initRun(Config{Name: "clean", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}})
 
 	failing := out.Group("branches")
-	failing.Task("classify").Fail("not a git work tree")
+	failing.Task("classify").fail("not a git work tree")
 
 	untouched := out.Group("remotes")
 	untouched.Task("classify")
 
-	_ = out.Finish()
-	_ = out.Close()
+	_ = out.finish()
+	_ = out.close()
 
-	if got := untouched.Snapshot().State; got != evo.NotStarted {
+	if got := untouched.snapshot().State; got != notStarted {
 		t.Fatalf("group state = %v, want NotStarted; transcript:\n%s", got, buf.String())
 	}
 	if strings.Contains(buf.String(), "✓ remotes") {

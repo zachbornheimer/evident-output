@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -7,19 +7,17 @@ import (
 	"os"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 func TestMainWith_SuccessExitZero(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Color: evo.ColorNever, Plain: true})
-	code := out.Run(context.Background(), func(ctx context.Context) error {
+	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		succeed(out.Task("working tree"))
 		return nil
 	}).ExitCode()
-	if code != evo.ExitOK {
-		t.Fatalf("exit %d, want %d; out:\n%s", code, evo.ExitOK, buf.String())
+	if code != exitOK {
+		t.Fatalf("exit %d, want %d; out:\n%s", code, exitOK, buf.String())
 	}
 	if !strings.Contains(buf.String(), "working tree") {
 		t.Fatalf("missing item:\n%s", buf.String())
@@ -28,25 +26,25 @@ func TestMainWith_SuccessExitZero(t *testing.T) {
 
 func TestMainWith_BlockedExitOne(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Color: evo.ColorNever, Plain: true})
-	code := out.Run(context.Background(), func(ctx context.Context) error {
-		out.Task("working tree").Block("dirty")
+	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
+		out.Task("working tree").block("dirty")
 		return nil
 	}).ExitCode()
-	if code != evo.ExitBlocked {
-		t.Fatalf("exit %d, want %d", code, evo.ExitBlocked)
+	if code != exitRefused {
+		t.Fatalf("exit %d, want %d", code, exitRefused)
 	}
 }
 
 func TestMainWith_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Color: evo.ColorNever, Plain: true})
-	code := out.Run(context.Background(), func(ctx context.Context) error {
+	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
 		succeed(out.Task("x"))
 		return errors.New("app boom")
 	}).ExitCode()
-	if code != evo.ExitFailed {
-		t.Fatalf("exit %d, want %d", code, evo.ExitFailed)
+	if code != exitFailed {
+		t.Fatalf("exit %d, want %d", code, exitFailed)
 	}
 	got := buf.String()
 	if !strings.Contains(got, "app boom") {
@@ -59,13 +57,13 @@ func TestMainWith_RunErrorMapsToFailedWhenCleanConclusion(t *testing.T) {
 
 func TestMainWith_RunErrorDoesNotDuplicateWhenAlreadyFailed(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "demo", Stdout: &buf, Stderr: &buf})
-	code := out.Run(context.Background(), func(ctx context.Context) error {
-		out.Task("fetch").Fail("network down", evo.Detail("connection refused"))
+	out := initRun(Config{Name: "demo", Facades: Facades{Stdout: &buf, Stderr: &buf}})
+	code := out.run(context.Background(), func(ctx context.Context, r *Run) error {
+		out.Task("fetch").fail("network down", Detail("connection refused"))
 		return errors.New("network down")
 	}).ExitCode()
-	if code != evo.ExitFailed {
-		t.Fatalf("exit %d, want %d", code, evo.ExitFailed)
+	if code != exitFailed {
+		t.Fatalf("exit %d, want %d", code, exitFailed)
 	}
 	// Synthetic "command failed" row only when no prior Fail.
 	if strings.Count(buf.String(), "command failed") > 0 {
@@ -77,8 +75,8 @@ func TestMainWith_RunErrorDoesNotDuplicateWhenAlreadyFailed(t *testing.T) {
 }
 
 func TestMainWith_NilOutput(t *testing.T) {
-	var nilOut *evo.Output
-	if code := nilOut.Run(context.Background(), nil).ExitCode(); code != evo.ExitFailed {
+	var nilOut *Run
+	if code := nilOut.run(context.Background(), nil).ExitCode(); code != exitFailed {
 		t.Fatalf("exit %d", code)
 	}
 }
@@ -92,12 +90,12 @@ func TestConfig_PipeWriterIsNoColor(t *testing.T) {
 	defer func() { _ = r.Close() }()
 	defer func() { _ = w.Close() }()
 
-	if evo.IsCharDevice(w) {
+	if isCharDevice(w) {
 		t.Fatal("pipe write end must not be a char device")
 	}
-	out := evo.Init(evo.Config{Title: "pipe", Stdout: w, Stderr: w})
-	out.Task("x").Fail("boom")
-	if err := out.Finish(); err != nil {
+	out := initRun(Config{Name: "pipe", Facades: Facades{Stdout: w, Stderr: w}})
+	out.Task("x").fail("boom")
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	_ = w.Close()
@@ -112,41 +110,16 @@ func TestConfig_PipeWriterIsNoColor(t *testing.T) {
 	}
 }
 
-// TestMain_FailedExitCodeConfigurable is the P5 contract: Config.FailedExitCode
-// overrides the default ExitFailed (2) when the conclusion is failed.
-func TestRun_FailedExitCodeConfigurable(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Title:          "zq",
-		Stdout:         &buf,
-		Stderr:         &buf,
-		Plain:          true,
-		Color:          evo.ColorNever,
-		FailedExitCode: 1,
-	})
-	code := out.Run(context.Background(), func(ctx context.Context) error {
-		o := out
-		o.Task("gofmt check").Fail("gofmt check exited 1")
-		return nil
-	}).ExitCode()
-	if code != 1 {
-		t.Fatalf("P5: Main exit = %d, want FailedExitCode 1; out:\n%s", code, buf.String())
-	}
-	// Default remains 2 when FailedExitCode is unset.
+// TestRun_FailedExitCodeIsTwo pins the failed run's exit code at ExitFailed (2).
+func TestRun_FailedExitCodeIsTwo(t *testing.T) {
 	var buf2 bytes.Buffer
-	out2 := evo.Init(evo.Config{
-		Title:  "zq",
-		Stdout: &buf2,
-		Stderr: &buf2,
-		Plain:  true,
-		Color:  evo.ColorNever,
-	})
-	code2 := out2.Run(context.Background(), func(ctx context.Context) error {
+	out2 := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stdout: &buf2, Stderr: &buf2}}, tuning{color: colorNever})
+	code2 := out2.run(context.Background(), func(ctx context.Context, r *Run) error {
 		o := out2
-		o.Task("x").Fail("boom")
+		o.Task("x").fail("boom")
 		return nil
 	}).ExitCode()
-	if code2 != evo.ExitFailed {
-		t.Fatalf("default failed exit = %d, want %d", code2, evo.ExitFailed)
+	if code2 != exitFailed {
+		t.Fatalf("default failed exit = %d, want %d", code2, exitFailed)
 	}
 }

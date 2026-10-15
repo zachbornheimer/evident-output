@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // Cancellation resolves a row underneath whoever was narrating it. A worker
@@ -18,8 +16,8 @@ import (
 // A row the CALLER resolved is different: narrating that one is a real
 // mistake and still reports.
 func TestDoing_AfterCancellationIsSilentNotMisuse(t *testing.T) {
-	transcript := narrateAfterResolve(t, func(task *evo.TaskHandle) {
-		task.Cancel("interrupted")
+	transcript := narrateAfterResolve(t, func(task *Task) {
+		task.cancel("interrupted")
 	})
 	if strings.Contains(transcript, "resolve each task once") {
 		t.Fatalf("narrating a cancelled row blamed the caller:\n%s", transcript)
@@ -27,7 +25,7 @@ func TestDoing_AfterCancellationIsSilentNotMisuse(t *testing.T) {
 }
 
 func TestDoing_AfterCallerResolvedIsStillMisuse(t *testing.T) {
-	transcript := narrateAfterResolve(t, func(task *evo.TaskHandle) {
+	transcript := narrateAfterResolve(t, func(task *Task) {
 		succeed(task)
 	})
 	if !strings.Contains(transcript, "resolve each task once") {
@@ -35,10 +33,10 @@ func TestDoing_AfterCallerResolvedIsStillMisuse(t *testing.T) {
 	}
 }
 
-func narrateAfterResolve(t *testing.T, resolve func(*evo.TaskHandle)) string {
+func narrateAfterResolve(t *testing.T, resolve func(*Task)) string {
 	t.Helper()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "zq", Isolated: true, Plain: true, Stdout: &buf, Stderr: &buf})
+	out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	task := out.Group("worktrees").Task("classify")
 	task.Doing("scanning")
 	resolve(task)
@@ -47,7 +45,7 @@ func narrateAfterResolve(t *testing.T, resolve func(*evo.TaskHandle)) string {
 	task.Progress(27, 111)
 	task.Doing("/Users/zb/Developer/Zysys/.worktrees/flight-land-docker")
 
-	_ = out.Finish()
-	_ = out.Close()
+	_ = out.finish()
+	_ = out.close()
 	return buf.String()
 }
