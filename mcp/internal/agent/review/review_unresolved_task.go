@@ -22,13 +22,13 @@ var taskResolvingMethods = map[string]bool{
 
 // noDefineSentence is CONTRACT.md §4's rule for a Task nobody Defined, which
 // DOM-021 states verbatim in every finding and in its explanation.
-const noDefineSentence = "A Task with no Define never returns, so it ends NotStarted at Finish whatever Facts, Problems, Progress or Verify it carries, and a Task After it names it as the one that stopped it."
+const noDefineSentence = "A Task with no Define never returns, so it ends NotStarted at Finish whatever Facts, Problems, Progress or Verify it carries, a Task After it names it as the one that stopped it, and the run fails by misuse (section 7)."
 
 // detectUnresolvedTask is DOM-021: a Task declared in a function that
 // neither Defines it nor hands it on, in whatever form the declaration
 // takes (a statement that keeps nothing, a blank assignment, a var, an
 // assignment). Wiring its Writer or adding Facts gives it no work, so the
-// Task ends NotStarted and the run concludes partial. Test files are skipped.
+// Task ends NotStarted and the run fails by misuse. Test files are skipped.
 func detectUnresolvedTask(filename string, file *ast.File, fset *token.FileSet) []Finding {
 	if strings.HasSuffix(filename, "_test.go") {
 		return nil // a test declares a Task to probe how an unresolved row renders

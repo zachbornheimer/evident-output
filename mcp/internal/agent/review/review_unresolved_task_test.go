@@ -8,7 +8,7 @@ import (
 )
 
 // DOM-021: a Task declared in a function that never Defines it or hands
-// it on never runs, and the run concludes partial.
+// it on never runs, and the run fails by misuse.
 
 const writerOnlyTaskSrc = `package main
 

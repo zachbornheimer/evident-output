@@ -191,7 +191,7 @@ for _, item := range items {
 			Category:  "DOM",
 			Severity:  SeverityWarning,
 			Invariant: "a variable holding a Task is Defined before it is assigned another Task",
-			Why:       "Assigning a second Task to a variable whose first Task never got Define drops the only handle to the first. It never runs: it ends NotStarted and the run concludes partial. DOM-021 misses it because the later Define on the same variable counts as settling the name.",
+			Why:       "Assigning a second Task to a variable whose first Task never got Define drops the only handle to the first. It never runs: it ends NotStarted and the run fails by misuse. DOM-021 misses it because the later Define on the same variable counts as settling the name.",
 			BadCode: `t := r.Task("scan")
 t.Doing("walking")
 t = r.Task("build") // the "scan" Task never runs
@@ -229,7 +229,7 @@ t.Define(build)`,
 			Category:  "DOM",
 			Severity:  SeverityError,
 			Invariant: "a Task a function declares is Defined or handed on before the function returns",
-			Why:       "A Task with no Define never returns, so it ends NotStarted at Finish whatever Facts, Problems, Progress or Verify it carries, and a Task After it names it as the one that stopped it. The run concludes partial with a next step that names the Task, and a child process run off the row never becomes its outcome.",
+			Why:       "A Task with no Define never returns, so it ends NotStarted at Finish whatever Facts, Problems, Progress or Verify it carries, a Task After it names it as the one that stopped it, and the run fails by misuse (section 7). Its next step names the Task, and a child process run off the row never becomes its outcome.",
 			BadCode: `t := r.Task("fetch")
 cmd.Stdout = t.Writer()
 return cmd.Run()`,

@@ -49,7 +49,7 @@ func scanBlockForOrphanedTasks(filename string, block *ast.BlockStmt, fset *toke
 			if tracked && !taskSettledIn(&ast.BlockStmt{List: block.List[prev.index+1 : i]}, id.Name) {
 				findings = append(findings, Finding{
 					RuleID:     "DOM-019",
-					Message:    "variable " + id.Name + " is assigned another Task before the Task it held was Defined; the earlier Task never runs and the run concludes partial",
+					Message:    "variable " + id.Name + " is assigned another Task before the Task it held was Defined; the earlier Task never runs and the run fails by misuse",
 					File:       filename,
 					Line:       fset.Position(assign.Pos()).Line,
 					Suggestion: "call " + id.Name + ".Define(func(ctx context.Context) error { ... }) before reassigning " + id.Name + ", or give the second declaration its own variable name",

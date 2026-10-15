@@ -285,8 +285,8 @@ A Task ends exactly once, by returning. Problems never end a Task: a Task
 that records Problems keeps the Outcome its return gives, and the Problems
 stay attached, so a Problem and a nil return are Succeeded with exit 0. A Task with no Define
 never returns, so it ends NotStarted at Finish whatever Facts, Problems,
-Progress or Verify it carries, and a Task After it names it as the one that
-stopped it. The value a Define callback or the run body returns settles its Outcome, wrapped
+Progress or Verify it carries, a Task After it names it as the one that
+stopped it, and the run fails by misuse (section 7). The value a Define callback or the run body returns settles its Outcome, wrapped
 or not: nil is Succeeded, `Refuse` Refused, `Exclude` Excluded, and `Fail` or
 any other error Failed. A callback that leaves through `runtime.Goexit`
 never returned, so its Task ends Failed with the reason "callback exited without
@@ -453,7 +453,7 @@ no gap, so a missing number means a lost line.
 Every declaration or spec Evo refuses is refused one way: the error wraps
 `ErrInvalidConfig`, is joined into `Result.Err`, and `Conclusion.Explanation`
 states what was refused. That covers a duplicate sibling name, a Task, Group or Sequence
-declared from inside a `Define` callback, a nil `Define` callback, `Compute` on
+declared from inside a `Define` callback, a nil `Define` callback, a Task still undefined at Finish, `Compute` on
 a Task with a `Verify`, an `EffectSpec` that sets both `Path` and `Resource`,
 an `EffectSpec` whose `Quantity` is not above 0, a `FileSpec` with no `Path`,
 and an `ExecSpec` with no `Argv`. The refused call's callback never runs. Other sections say "refused" and mean this rule.
