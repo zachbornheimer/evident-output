@@ -17,7 +17,7 @@ import (
 // interactive user got exit 2 with an all-green ledger and zero explanation
 // on the actual terminal. A double-resolve (Block then Block again) records
 // ErrAlreadyResolved; the corrective hint line must reach the live
-// terminal's WriteFinal text, not just a primary/AlsoWrite mirror.
+// terminal's WriteFinal text, not just the primary writer.
 func TestInteractive_MisuseHintReachesLiveTerminal(t *testing.T) {
 	var screen bytes.Buffer
 	drv := terminal.NewANSI(&screen, terminal.WithInteractive(true), terminal.WithSize(80, 24))

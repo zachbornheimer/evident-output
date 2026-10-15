@@ -1,12 +1,10 @@
 package evo
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -227,10 +225,8 @@ func TestCON008_JournalBackpressureDropsNonCritical(t *testing.T) {
 }
 
 func TestCON009_MultiRendererOneFailure(t *testing.T) {
-	var good bytes.Buffer
 	bad := &failWriter{}
 	out := initRun(Config{Name: "s", Output: Plain, Facades: Facades{Stderr: bad}}, tuning{color: colorNever})
-	out.alsoWriteForTest(&good)
 	succeed(out.Task("a"))
 	err := out.finish()
 	if err == nil {
@@ -238,9 +234,6 @@ func TestCON009_MultiRendererOneFailure(t *testing.T) {
 	}
 	if !errors.Is(err, errRenderer) {
 		t.Fatalf("want ErrRenderer, got %v", err)
-	}
-	if !strings.Contains(good.String(), "a") {
-		t.Fatalf("healthy writer missed projection: %q", good.String())
 	}
 	if bad.n == 0 {
 		t.Fatal("failed writer never invoked")

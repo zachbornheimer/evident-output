@@ -139,16 +139,14 @@ func (r *Run) finishHumanLocked(snap snapshot) (residual string, interactive boo
 	return residual, false
 }
 
-// writeResidual fans the residual out to the primary writer and every AlsoWrite mirror (CON-009). On an
-// interactive run the terminal already rendered the conclusion, so primary is skipped when it shares a writer
-// with the terminal. AlsoWrite mirrors are never skipped.
+// writeResidual writes the residual to the primary writer. On an interactive run the terminal already
+// rendered the conclusion, so primary is skipped when it shares a writer with the terminal.
 func writeResidual(cfg config, residual string, interactive bool) error {
-	writers := make([]io.Writer, 0, 1+len(cfg.extraWriters))
+	writers := make([]io.Writer, 0, 1)
 	terminalHasIt := interactive && cfg.samePrimaryAsTerminal
 	if cfg.primary != nil && !terminalHasIt {
 		writers = append(writers, cfg.primary)
 	}
-	writers = append(writers, cfg.extraWriters...)
 	var writeErr error
 	for _, w := range writers {
 		if _, err := io.WriteString(w, residual); err != nil && writeErr == nil {

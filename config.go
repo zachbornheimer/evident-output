@@ -106,7 +106,6 @@ type config struct {
 	primary         io.Writer
 	diagnostic      io.Writer
 	result          io.Writer
-	extraWriters    []io.Writer
 	plain           bool
 	noColor         bool
 	width           int

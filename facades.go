@@ -143,20 +143,13 @@ type flusher interface {
 	Flush() error
 }
 
-// humanSinks are the writers human text reaches: the primary stream, its mirrors, and the diagnostic stream.
+// humanSinks are the writers human text reaches: the primary stream and the diagnostic stream.
 type humanSinks struct{ o *Run }
 
 func (s humanSinks) Human(text string) {
 	cfg := &s.o.cfg
-	writers := make([]io.Writer, 0, 1+len(cfg.extraWriters))
 	if cfg.primary != nil {
-		writers = append(writers, cfg.primary)
-	}
-	writers = append(writers, cfg.extraWriters...)
-	for _, w := range writers {
-		if w != nil {
-			writeFlushed(w, text)
-		}
+		writeFlushed(cfg.primary, text)
 	}
 }
 

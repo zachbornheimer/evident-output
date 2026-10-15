@@ -130,13 +130,6 @@ func (r *Run) debugForTest(message string, fields ...field) {
 	r.debug(message, fields...)
 }
 
-func (r *Run) alsoWriteForTest(w io.Writer) {
-	if w == nil {
-		return
-	}
-	r.cfg.extraWriters = append(r.cfg.extraWriters, w)
-}
-
 func (r *Run) dropDiagnosticForTest() { r.cfg.diagnostic = nil }
 
 func (r *Run) forceLiveVisibleForTest() {
