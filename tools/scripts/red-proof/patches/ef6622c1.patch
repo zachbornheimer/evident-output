@@ -5,11 +5,11 @@ The pinned tests fail on their heartbeat assertions by output, not by compilatio
 the commit (no line per call) moved to milestone.go in fb0a15a2, which ef6622c1 did not change.
 
 diff --git a/internal/project/plain/heartbeat.go b/internal/project/plain/heartbeat.go
-index d7344de9..f18404a8 100644
+index 63e6590a..68fbb910 100644
 --- a/internal/project/plain/heartbeat.go
 +++ b/internal/project/plain/heartbeat.go
-@@ -147,11 +147,7 @@ func (s *Stream) check(id record.TaskID) {
- // reader sees it); a Task with neither reads "• <name>  — <elapsed>".
+@@ -150,11 +150,7 @@ func (s *Stream) check(id record.TaskID) {
+ // "• <name>  — <elapsed>".
  func (s *Stream) heartbeat(r *row, now time.Time) {
  	st := s.cfg.Style
 -	truth := r.Rec.Truth()
