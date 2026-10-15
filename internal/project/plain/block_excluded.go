@@ -57,7 +57,7 @@ func (s *Stream) writeKeptExcluded(out *strings.Builder, b *block) (tally string
 	for _, r := range held {
 		r.excluded, r.emitted, r.emittedAs = false, true, r.Rec.State()
 	}
-	rest, items := s.foldedExcluded(b)
+	_, items := s.foldedExcluded(b)
 	if items.Empty() {
 		for _, r := range held {
 			s.openChain(out, b)
@@ -65,9 +65,8 @@ func (s *Stream) writeKeptExcluded(out *strings.Builder, b *block) (tally string
 		}
 		return ""
 	}
-	_, body, _ := project.SplitOwnTask(rest)
 	var line strings.Builder
-	project.WriteTally(&line, project.HeaderTallyIndent(body), items, s.cfg.Style)
+	project.WriteTally(&line, project.GroupChildIndent, items, s.cfg.Style)
 	var indented strings.Builder
 	indentInto(&indented, line.String(), b.depth)
 	return indented.String()
