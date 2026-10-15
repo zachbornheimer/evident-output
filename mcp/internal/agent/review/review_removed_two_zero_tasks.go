@@ -16,6 +16,8 @@ func (d *removedTwoZeroDetector) inspectTaskCall(call *ast.CallExpr, sel *ast.Se
 		d.reportReturnedEnding(call, name, "Refuse", "a precondition that stopped the work is evo.Refuse", d.endingArgs(call.Args, name == "Blockf"))
 	case "Fail", "Failf":
 		d.reportReturnedEnding(call, name, "Fail", "a failure is evo.Fail, returned from Define", d.endingArgs(call.Args, name == "Failf"))
+	case "Wait":
+		d.reportWait(call)
 	case "Skipped":
 		d.reportReturnedEnding(call, name, "Exclude", "a policy exclusion is evo.Exclude", d.excludeArgs(call.Args))
 	case "Kept":
@@ -124,18 +126,53 @@ func (d *removedTwoZeroDetector) guide(call *ast.CallExpr, recv removedReceiver,
 }
 
 // reportReturnedEnding leaves the call uncovered: a removed evo.NextCommand
-// inside its arguments is its own finding.
+// inside its arguments is its own finding. A call that is already the value
+// of a return statement is replaced by the 2.0 constructor alone, so the
+// rewrite never doubles the return.
 func (d *removedTwoZeroDetector) reportReturnedEnding(call *ast.CallExpr, name, constructor, instead, args string) {
 	sel := call.Fun.(*ast.SelectorExpr)
-	ending := "return " + d.pkg + "." + constructor + "(" + args + ")"
+	ending := d.pkg + "." + constructor + "(" + args + ")"
 	message := removedPhrase(taskReceiver, name) + "; " + instead
 	if d.insideOwnDefine(exprDottedName(sel.X), d.offset(call)) {
-		d.report(call, message, "replace "+d.nodeSrc(call)+" with `"+ending+"` in this Task's Define callback")
+		if d.isReturned(call) {
+			d.report(call, message, "replace "+d.nodeSrc(call)+" with "+ending)
+			return
+		}
+		d.report(call, message, "replace "+d.nodeSrc(call)+" with `return "+ending+"` in this Task's Define callback")
 		return
 	}
 	d.need("context")
-	d.report(call, message, "replace "+d.nodeSrc(call)+" with "+d.recvSrc(sel.X)+".Define(func(ctx context.Context) error { "+ending+" })")
+	d.report(call, message, "replace "+d.nodeSrc(call)+" with "+d.recvSrc(sel.X)+".Define(func(ctx context.Context) error { return "+ending+" })")
 	d.cover(sel.X)
+}
+
+// isReturned reports whether call is the only value of a return statement.
+func (d *removedTwoZeroDetector) isReturned(call *ast.CallExpr) bool {
+	returned := false
+	ast.Inspect(d.file, func(n ast.Node) bool {
+		if ret, ok := n.(*ast.ReturnStmt); ok && len(ret.Results) == 1 && ret.Results[0] == ast.Expr(call) {
+			returned = true
+		}
+		return !returned
+	})
+	return returned
+}
+
+// reportWait maps a 1.x Wait (removed in 2.0) onto returning from run: Evo
+// waits for all declared work, so a returned Wait becomes nil and a Wait
+// statement goes.
+func (d *removedTwoZeroDetector) reportWait(call *ast.CallExpr) {
+	message := removedPhrase(taskReceiver, "Wait") + "; return from run, Evo waits for all declared work"
+	old := d.nodeSrc(call)
+	switch {
+	case d.isReturned(call):
+		d.report(call, message, "replace "+old+" with nil")
+	case d.stmtOf(call) != nil:
+		d.report(call, message, "delete "+old+"; Evo waits for all declared work before it finishes")
+	default:
+		d.report(call, message, "nothing waits in 2.0, so "+old+" has no value to use: order the work with After and read a produced value with Computed.Get")
+	}
+	d.cover(call)
 }
 
 // endingArgs renders a removed Fail/Block call's arguments as evo.Fail and
@@ -151,6 +188,7 @@ func (d *removedTwoZeroDetector) endingArgs(args []ast.Expr, printf bool) string
 			return strconv.Quote(text) + ", " + d.pkg + ".Detail(" + d.nodeSrc(args[1]) + ".Error())"
 		}
 		if len(args) > 1 && !d.allEvoCalls(options) {
+			d.need("fmt")
 			return "fmt.Sprintf(" + d.callArgsSrc(args) + ")"
 		}
 	}

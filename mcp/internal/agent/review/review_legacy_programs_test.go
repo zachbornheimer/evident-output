@@ -104,3 +104,22 @@ func TestLegacyNineConverges(t *testing.T) {
 		}
 	}
 }
+
+// TestLegacyTenConverges holds legacy10, a v1.0.0 program of the shape most
+// 1.x programs have, to the whole loop: "return t.Failf(...)" and
+// "return up.Wait()" are rewritten or flagged on the 1.x source itself, so
+// the first round already yields a program that parses and type-checks.
+func TestLegacyTenConverges(t *testing.T) {
+	path := filepath.Join(legacyProgramDir, "legacy10.go")
+	src, _ := readLegacyProgram(t, path)
+	findings := review.GoSource("main.go", src).Findings
+	var failf, wait bool
+	for _, f := range findings {
+		failf = failf || (strings.Contains(f.Message, "Failf was removed") && strings.Contains(f.Suggestion, "replace up.Failf(") && !strings.Contains(f.Suggestion, "return return"))
+		wait = wait || strings.Contains(f.Message, "Wait was removed")
+	}
+	if !failf || !wait {
+		t.Errorf("round one lacks the return-aware Failf rewrite (%v) or the Wait finding (%v):\n%s", failf, wait, describeFindings(findings))
+	}
+	requireLegacyProgramConverges(t, path)
+}
