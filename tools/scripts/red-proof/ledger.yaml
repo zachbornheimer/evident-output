@@ -39,3 +39,17 @@ entries:
     tests:
       - pkg: .
         name: TestResultWriterPayloadSurvivesSharedTerminal
+  - commit: 7ca76bf1
+    note: a line wrapping a failed attribute's Failure keeps the caller's context in front of it
+    patch: patches/7ca76bf1.patch
+    tests:
+      - pkg: ./internal/project
+        name: TestProblemDetailSurvivesWrappedAttributeError
+  - commit: ef6622c1
+    note: the Plain heartbeat row carries the Task's latest count and Doing text
+    patch: patches/ef6622c1.patch
+    tests:
+      - pkg: .
+        name: TestPlain_DoingWritesNoDurableLinePerCall
+      - pkg: ./internal/project/plain
+        name: TestPlainDoingFirstCallIsDurableThenMilestones
