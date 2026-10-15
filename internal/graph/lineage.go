@@ -134,12 +134,14 @@ func (l *lineage) isWorkerLocked(id GoroutineID) bool {
 }
 
 // learnLocked replaces what is remembered with one dump of every goroutine
-// alive now, keeping the exited goroutines a live one still names as its
-// ancestor, so a chain through an exited creator survives while it is useful
-// and the memory follows the live goroutines rather than every goroutine ever.
-// A chain ends at a pooled worker, so nothing above one is ever read: a live
-// worker's ancestors are not kept, and the walk up from any other goroutine
-// stops at the first worker, which is kept so the chain still ends there.
+// alive now. A goroutine whose creator has exited is pointed at its nearest
+// ancestor that is alive or a pooled worker and the exited generations between
+// are dropped: an exited goroutine carries no frame, so it never changes whom
+// a chain attributes to, and a relay that starts its successor and exits would
+// otherwise leave one remembered ancestor per generation. A chain ends at a
+// pooled worker, so nothing above one is ever read: a live worker's ancestors
+// are not kept, and the walk up from any other goroutine stops at the first
+// worker, which is kept so the chain still ends there.
 func (l *lineage) learnLocked() {
 	l.dumps.Add(1)
 	l.created, l.counted = goroutinesCreated()
@@ -148,23 +150,42 @@ func (l *lineage) learnLocked() {
 		if _, worker := workers[child]; worker {
 			continue
 		}
-		for id := live[child]; id != 0; {
-			if _, seen := live[id]; seen {
-				break
-			}
-			older, remembered := l.creators[id]
-			if !remembered {
-				break
-			}
-			live[id] = older
-			if l.isWorkerLocked(id) {
-				workers[id] = struct{}{}
-				break
-			}
-			id = older
-		}
+		live[child] = l.nearestKeptAncestorLocked(child, live[child], live, workers)
 	}
 	l.creators, l.workers = live, workers
+}
+
+// nearestKeptAncestorLocked is the nearest ancestor of child that is alive in
+// live or is a pooled worker, 0 when the walk reaches a goroutine nothing
+// remembers first. creator is who started child. A pooled worker found on the
+// way is added to workers and live, so the chain still ends there. The walk
+// starts from the shortcut an earlier dump left for child when creator has
+// since exited, and every hop lands on a goroutine an earlier dump saw alive,
+// so the walk is as long as the generations since the last dump, not since the
+// run began.
+func (l *lineage) nearestKeptAncestorLocked(child, creator GoroutineID, live map[GoroutineID]GoroutineID, workers map[GoroutineID]struct{}) GoroutineID {
+	id := creator
+	if _, alive := live[id]; !alive {
+		if shortcut, remembered := l.creators[child]; remembered {
+			id = shortcut
+		}
+	}
+	for id != 0 {
+		if _, alive := live[id]; alive {
+			return id
+		}
+		if l.isWorkerLocked(id) {
+			workers[id] = struct{}{}
+			live[id] = 0
+			return id
+		}
+		older, remembered := l.creators[id]
+		if !remembered {
+			return 0
+		}
+		id = older
+	}
+	return 0
 }
 
 // GoroutineDumps is how many stops of the world the process's lineage has

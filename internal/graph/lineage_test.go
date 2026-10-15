@@ -72,23 +72,30 @@ func goneFromDumps(t *testing.T, id GoroutineID) {
 	t.Fatalf("goroutine %d is still alive", id)
 }
 
-// A goroutine whose creator has exited keeps the chain it was first seen
-// with, however many later goroutines trigger a fresh dump.
-func TestLineageKeepsAnExitedCreatorALiveGoroutineNames(t *testing.T) {
+// A goroutine whose creator has exited keeps the attribution it was first seen
+// with, however many later goroutines trigger a fresh dump: the chain still
+// names the goroutines that were alive above it. The exited creator itself is
+// not named, since it carries no frame and so never changes whom the chain
+// attributes to.
+func TestLineageKeepsTheLiveAncestorsOfAnExitedCreator(t *testing.T) {
 	var l lineage
 	tr := startLineageTree(&l)
 	defer close(tr.exitChild)
-	want := l.chain(tr.child, nil)
-	if len(want) < 3 || want[0] != tr.child || want[1] != tr.parent {
-		t.Fatalf("chain(child) = %v, want the child, then the parent %d, then who started it", want, tr.parent)
+	first := l.chain(tr.child, nil)
+	if len(first) < 3 || first[0] != tr.child || first[1] != tr.parent {
+		t.Fatalf("chain(child) = %v, want the child, then the parent %d, then who started it", first, tr.parent)
 	}
+	want := slices.Delete(slices.Clone(first), 1, 2)
 
 	close(tr.exitParent)
 	goneFromDumps(t, tr.parent)
 	dumpFromANewGoroutine(&l)
 
 	if got := l.chain(tr.child, nil); !slices.Equal(got, want) {
-		t.Fatalf("chain(child) after the parent exited = %v, want %v", got, want)
+		t.Fatalf("chain(child) after the parent exited = %v, want %v: the child, then the goroutines alive above the parent", got, want)
+	}
+	if l.remembers(tr.parent) {
+		t.Errorf("exited creator %d is still remembered, though no chain needs it", tr.parent)
 	}
 }
 
