@@ -19,11 +19,16 @@ var removedValueCalls = map[string]bool{"Location": true, "Count": true, "Confir
 
 // inspectRemovedValueCall migrates one such call wherever it stands.
 func (d *removedTwoZeroDetector) inspectRemovedValueCall(call *ast.CallExpr, name string) {
+	message := "evo." + name + " was removed in 2.0; " + removedValueInstead[name]
 	spelling, ok := d.valueCallSpelling(call, name)
-	if !ok {
+	switch {
+	case ok:
+		d.report(call, message, "replace "+d.nodeSrc(call)+" with "+spelling)
+	case name == "Count" && !call.Ellipsis.IsValid():
+		d.report(call, message, "write the text yourself with the unit plural unless the count is one (v1 rendered 2 tags, 1 tag): evo.Detail(text)")
+	default:
 		return
 	}
-	d.report(call, "evo."+name+" was removed in 2.0; "+removedValueInstead[name], "replace "+d.nodeSrc(call)+" with "+spelling)
 	d.cover(call)
 }
 
@@ -44,8 +49,9 @@ func (d *removedTwoZeroDetector) valueCallSpelling(call *ast.CallExpr, name stri
 	switch {
 	case name == "Location" && len(call.Args) == 3:
 		return d.pkg + ".On(" + d.locationText(call.Args) + ")", true
-	case name == "Count" && (len(call.Args) == 1 || len(call.Args) == 2):
-		return d.pkg + ".Detail(" + d.countText(call.Args) + ")", true
+	case name == "Count":
+		text, ok := d.countText(call.Args)
+		return d.pkg + ".Detail(" + text + ")", ok
 	case name == "ConfirmDetail" && len(call.Args) > 0:
 		details := make([]string, len(call.Args))
 		for i, line := range call.Args {
@@ -75,12 +81,32 @@ func (d *removedTwoZeroDetector) locationText(args []ast.Expr) string {
 	return d.joinedText(args, "%s:%d:%d", ":")
 }
 
-// countText is the "<n> <unit>" text of a Count.
-func (d *removedTwoZeroDetector) countText(args []ast.Expr) string {
-	if len(args) == 1 {
-		return d.joinedText(args, "%d", " ")
+// countText is the "<n> <unit>" text of a Count, with the unit plural unless
+// n is one as v1 rendered it. Only literals have a plural the rewrite can
+// choose; ok is false for a count or unit known at run time.
+func (d *removedTwoZeroDetector) countText(args []ast.Expr) (text string, ok bool) {
+	switch len(args) {
+	case 1:
+		return d.joinedText(args, "%d", " "), true
+	case 2:
+		count, isCount := intLit(args[0])
+		unit, isUnit := stringLit(args[1])
+		if !isCount || !isUnit {
+			return "", false
+		}
+		return strconv.Quote(strconv.FormatInt(count, 10) + " " + pluralUnit(count, unit)), true
 	}
-	return d.joinedText(args, "%d %s", " ")
+	return "", false
+}
+
+// intLit is the value of an integer literal.
+func intLit(e ast.Expr) (int64, bool) {
+	lit, ok := e.(*ast.BasicLit)
+	if !ok || lit.Kind != token.INT {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(lit.Value, 0, 64)
+	return n, err == nil
 }
 
 // joinedText is the string the args make when joined by sep: a single

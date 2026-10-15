@@ -68,7 +68,7 @@ func requireLegacyProgramConverges(t *testing.T, path string) string {
 var legacyNineEntries = []struct{ name, message, spelling string }{
 	{"AssumeYes", "Output.Confirm was removed", "(len(os.Args) > 1 || r.Confirm("},
 	{"ConfirmDetail", "Output.Confirm was removed", `evo.Detail("2 tags")`},
-	{"Count", "evo.Count was removed", `evo.Detail("2 tag")`},
+	{"Count", "evo.Count was removed", `evo.Detail("2 tags")`},
 	{"Location", "evo.Location was removed", `evo.On("NOTES.md:1:1")`},
 	{"Command", "Task.Next was removed", `evo.Action{Command: []string{"git", "push", "--tags"}}`},
 	{"Output.ResultWriter", "Output.ResultWriter was removed", "r.ResultWriter()"},

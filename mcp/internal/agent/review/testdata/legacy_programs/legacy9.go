@@ -11,7 +11,7 @@
 // author-step: r *evo.Run) error { => r *evo.Run) error { r.Fact("subject", "~/repo")
 // author-step: pinned.Kept(evo.Reason("pinned")) => pinned.Verify(func(ctx context.Context) (bool, error) { _, err := os.Stat("v0.9.tag"); return err == nil, nil }); pinned.Define(func(ctx context.Context) error { return exec.CommandContext(ctx, "git", "tag", "v0.9").Run() })
 // author-step: push.Next(evo.Command("git", "push", "--tags")) =>
-// author-step: evo.On("NOTES.md:1:1"), evo.Detail("2 tag")) => evo.On("NOTES.md:1:1"), evo.Detail("2 tag"), evo.Next(evo.Action{Command: []string{"git", "push", "--tags"}}))
+// author-step: evo.On("NOTES.md:1:1"), evo.Detail("2 tags")) => evo.On("NOTES.md:1:1"), evo.Detail("2 tags"), evo.Next(evo.Action{Command: []string{"git", "push", "--tags"}}))
 // author-step: out.Warn("signing skipped") => push.Problem("signing skipped")
 package main
 
