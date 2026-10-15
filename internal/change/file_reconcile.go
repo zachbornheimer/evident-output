@@ -170,7 +170,7 @@ func (r *Run) mutateFile(fsys sysfs.FS, op fileOperation, delta fileDelta) error
 	spec, path := op.spec, op.path
 	if delta.writeNeeded {
 		if err := writeContents(fsys, path, spec.Contents, delta); err != nil {
-			return fmt.Errorf("evo: File write %q: %w", path, err)
+			return r.fileFailureOf(path, err)
 		}
 	}
 	var chmodErr error

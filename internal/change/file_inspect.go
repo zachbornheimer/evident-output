@@ -43,7 +43,7 @@ func (r *Run) inspectFile(fsys sysfs.FS, op fileOperation) (fileDelta, error) {
 	spec, path := op.spec, op.path
 	info, exists, statErr := inspectFilePath(fsys, path)
 	if statErr != nil {
-		return fileDelta{}, statErr
+		return fileDelta{}, r.fileFailureOf(path, statErr)
 	}
 	r.host.Observe(Observation{Task: op.taskID, Kind: ResourceObserved, Subject: Subject{Kind: SubjectFile, Name: path}, Exists: exists})
 
@@ -52,7 +52,7 @@ func (r *Run) inspectFile(fsys sysfs.FS, op fileOperation) (fileDelta, error) {
 	}
 	writeNeeded, readErr := fileNeedsContentWrite(fsys, path, exists, op.contentsManaged(), spec.Contents)
 	if readErr != nil {
-		return fileDelta{}, fmt.Errorf("evo: File inspect %q: %w", path, readErr)
+		return fileDelta{}, r.fileFailureOf(path, readErr)
 	}
 	modeDiffers := spec.Mode != 0 && (!exists || info.Mode().Perm() != spec.Mode.Perm())
 	return fileDelta{
@@ -91,7 +91,7 @@ func inspectFilePath(fsys sysfs.FS, path string) (info fs.FileInfo, exists bool,
 	case statErr == nil && !info.Mode().IsRegular():
 		return nil, false, fmt.Errorf("%w: %s", ErrFilePathTypeMismatch, path)
 	case statErr != nil && !errors.Is(statErr, fs.ErrNotExist):
-		return nil, false, fmt.Errorf("evo: File inspect %q: %w", path, statErr)
+		return nil, false, statErr
 	}
 	return info, statErr == nil, nil
 }

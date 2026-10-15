@@ -117,7 +117,8 @@ type FS interface {
 	// ReadFile reads path's contents.
 	ReadFile(path string) ([]byte, error)
 	// WriteAtomic replaces path's contents with contents at mode, so no
-	// reader ever sees a partial write.
+	// reader ever sees a partial write. It creates any missing parent
+	// directories.
 	WriteAtomic(path string, contents []byte, mode iofs.FileMode) error
 	// Chmod sets path's permission bits.
 	Chmod(path string, mode iofs.FileMode) error

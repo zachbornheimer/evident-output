@@ -236,7 +236,7 @@ re-executes; it never reports Satisfied.
 
 | Symbol                 | Kind  | Meaning                                                                                                     |
 | ---------------------- | ----- | ----------------------------------------------------------------------------------------------------------- |
-| `File`                 | func  | `File(ctx context.Context, spec FileSpec) error`; desired state of one file                                 |
+| `File`                 | func  | `File(ctx context.Context, spec FileSpec) error`; desired state of one file and its parent directories      |
 | `FileSpec`             | type  |                                                                                                             |
 | `FileSpec.Path`        | field | `string`; relative paths resolve against the [workspace](#3-change)                                         |
 | `FileSpec.Contents`    | field | `[]byte`; nil leaves contents unmanaged                                                                     |

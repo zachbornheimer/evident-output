@@ -26,7 +26,8 @@ type FS interface {
 	ReadFile(path string) ([]byte, error)
 	// WriteAtomic replaces path's contents with contents at mode, atomically
 	// (spec §8.2's "write replacement contents") — never a partial write a
-	// concurrent reader could observe. mode is always a real permission:
+	// concurrent reader could observe, and creates any missing parent
+	// directories. mode is always a real permission:
 	// the managed Mode, an existing file's own mode, or 0666 for a new
 	// file whose mode is unmanaged.
 	WriteAtomic(path string, contents []byte, mode fs.FileMode) error
@@ -68,6 +69,10 @@ func CreateOrdinary(fsys FS, path string, contents []byte) error {
 // UnmanagedCreateMode is the permission a new file whose mode is unmanaged
 // is created with, before the umask.
 const UnmanagedCreateMode fs.FileMode = 0o666
+
+// parentDirectoryMode is the permission, before the umask, of a parent
+// directory WriteAtomic creates for a file whose directory is missing.
+const parentDirectoryMode fs.FileMode = 0o755
 
 // tempNameAttempts bounds createTempFile's search for an unused name.
 const tempNameAttempts = 10000
@@ -131,26 +136,32 @@ func (p permission) tempPermission() fs.FileMode {
 // into place — the same atomic-replace contract the manifest store's
 // writeAtomic uses — so a reader never observes a partially written file.
 // The file ends with perm (spec §8.1: unmanaged mode is never claimed).
+// A missing parent directory is created first: a file's desired state
+// includes the directory it lives in. Every error wraps an operating-system
+// error that already names its path, so none repeats it.
 func writeFileAtomic(path string, contents []byte, perm permission) error {
 	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, parentDirectoryMode); err != nil {
+		return fmt.Errorf("create parent directory: %w", err)
+	}
 	tmp, err := createTempFile(dir, perm.tempPermission())
 	if err != nil {
-		return fmt.Errorf("create temp file in %q: %w", dir, err)
+		return fmt.Errorf("create temp file: %w", err)
 	}
 	tmpPath := tmp.Name()
 	if err := writeAndClose(tmp, contents); err != nil {
 		_ = os.Remove(tmpPath)
-		return fmt.Errorf("fill temp file %q: %w", tmpPath, err)
+		return fmt.Errorf("fill temp file: %w", err)
 	}
 	if perm.exact {
 		if err := os.Chmod(tmpPath, perm.mode); err != nil {
 			_ = os.Remove(tmpPath)
-			return fmt.Errorf("chmod temp file %q: %w", tmpPath, err)
+			return fmt.Errorf("chmod temp file: %w", err)
 		}
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
 		_ = os.Remove(tmpPath)
-		return fmt.Errorf("rename %q to %q: %w", tmpPath, path, err)
+		return fmt.Errorf("rename temp file: %w", err)
 	}
 	return nil
 }
@@ -165,7 +176,7 @@ func createTempFile(dir string, perm fs.FileMode) (*os.File, error) {
 			continue
 		}
 		if err != nil {
-			return nil, fmt.Errorf("open %q: %w", name, err)
+			return nil, err
 		}
 		return f, nil
 	}

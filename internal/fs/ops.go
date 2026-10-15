@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -150,3 +151,19 @@ func Abs(path string) (string, error) { return filepath.Abs(path) }
 // EvalSymlinks returns path with every symlink resolved: its canonical
 // spelling.
 func EvalSymlinks(path string) (string, error) { return filepath.EvalSymlinks(path) }
+
+// FailureReason is the reason the operating system gave inside err ("permission
+// denied", "not a directory"), without the operation and path text the
+// system error also carries. It reports false for an error the system did
+// not raise.
+func FailureReason(err error) (string, bool) {
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		return pathErr.Err.Error(), true
+	}
+	var linkErr *os.LinkError
+	if errors.As(err, &linkErr) {
+		return linkErr.Err.Error(), true
+	}
+	return "", false
+}
