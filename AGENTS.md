@@ -156,7 +156,10 @@ Declare work on the `*evo.Run` the body receives (`r.Task`, `r.Group`,
 - **Done** and **Record/RecordLabel/RecordName** were removed in 1.1. Success
   is a `Define` callback returning `nil`; result text is `task.Summary(text)`
   (non-terminal). Information is `task.Fact`, never a ledger row.
-- Dry-run skips **Effect** callbacks (and File writes) only. `Define` still runs.
+- Dry-run runs every `Define` callback and plans every mutation. It runs no
+  **Effect** callback, makes no File write, and runs no **Exec** either, so a
+  callback that reads an Exec's Output finds no file; skip that read under
+  `Config.DryRun`.
 - Callers do not `errgroup` / `go func` to
   make evo rows parallel either — predeclare one named child `Task` per item
   under a `Group` + `Define` and let evo’s scheduler run them. A domain graph
