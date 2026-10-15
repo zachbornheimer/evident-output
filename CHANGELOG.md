@@ -85,6 +85,16 @@ and its replacement, and
   `Exclude` takes `ProblemOption`s like `Fail` and `Refuse`; `ProblemOption`
   and `ConfirmOption` are sealed. `CleanStop` names signals that end a Task
   Succeeded.
+- **A Task with no `Define` is a refused declaration.** A Task still
+  undefined at Finish ends NotStarted whatever Facts, Problems, Progress or
+  `Verify` it carries (1.x settled it Succeeded), a Task `After` it names it as
+  the one that stopped it, and the run fails by misuse: `ErrInvalidConfig` is
+  joined into `Result.Err` and the exit code is 2, the same as a nil `Define`
+  callback (`CONTRACT.md` section 7).
+- **The band adds `· warned`** when the run itself recorded a warning, such as
+  a manifest it could not save (the next run re-executes this one's work).
+  `data.problems` in `evo.run` carries each such warning (`CONTRACT.md`
+  section 4).
 - `EffectSpec.Path` claims that path while the callback runs, so Effects on
   equal or nested paths wait for each other; an `EffectSpec` that sets both
   `Path` and `Resource` is `ErrInvalidConfig` and its callback never runs.
@@ -108,10 +118,10 @@ spelling to its 2.0 replacement.
     (`CONTRACT.md` section 8). A container's own Task folds into that row.
     JSON and JSONL nest the same members.
   - A finished no-op row (Succeeded with no work, or Satisfied, with
-    no Summary, Problem, Warning, Fact, Progress, Action or effect) is hidden
+    no Summary, Problem, Fact, Progress, Action or effect) is hidden
     from human output when other content is visible, in a Group or, if
-    proven already-satisfied by `Verify`, at the root. Never on a failed,
-    blocked or cancelled run; never in JSON/JSONL.
+    proven already-satisfied by `Verify`, at the root. Never on a Failed,
+    Refused or Cancelled run; never in JSON/JSONL.
   - `[planned]` and `[changed]` ledger rows print in Task declaration order,
     whatever order the Tasks finished in.
   - A cancelled run ends on a band that names what interrupted it,
