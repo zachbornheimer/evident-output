@@ -86,12 +86,17 @@ def _check_count(completed: dict[str, int], name: str, row: str, number: int) ->
 
 
 class Row(NamedTuple):
-    """One final row: its depth, normalized text, name, and whether Plain streamed it as a block."""
+    """One final row: its depth, normalized text, name, and whether Plain streamed it as a block.
+
+    ``detail`` marks a ``◐`` row that says more than its name: a block header names
+    the block and nothing else, so such a row is a Task's progress line.
+    """
 
     depth: int
     text: str
     name: str
     streamed: bool = False
+    detail: bool = False
 
 
 def _rows(raw: Iterable[str]) -> list[Row]:
@@ -104,8 +109,20 @@ def _rows(raw: Iterable[str]) -> list[Row]:
             continue
         depth = (len(row) - len(row.lstrip(" "))) // INDENT
         parts = split_row(row)
-        rows.append(Row(depth, DURATION_RE.sub("", text), parts[1] if parts else text))
+        rows.append(
+            Row(
+                depth,
+                DURATION_RE.sub("", text),
+                parts[1] if parts else text,
+                detail=text[:1] == PROGRESS and _says_more_than_name(row),
+            )
+        )
     return rows
+
+
+def _says_more_than_name(row: str) -> bool:
+    """Whether a glyph row carries text after its name column."""
+    return len(NAME_END_RE.split(row.strip()[2:].strip(), maxsplit=1)) > 1
 
 
 class _Node:
@@ -125,8 +142,11 @@ def _tree(rows: Sequence[Row]) -> list[_Node]:
     of one name under one parent is one block: it takes the place of its first
     header, the members of all its stretches, and the closing verdict as its row.
     A ``◐`` row no verdict closes is a heartbeat for a long Task and is dropped,
-    its members, if any, staying where they were. Each node knows its path of
-    names from the root, so a member's parent is part of what a row is.
+    its members, if any, staying where they were. A ``◐`` row that says more than
+    its name and has no member is a Task's progress line, not a block: the verdict
+    that closes it takes its own place, where the Human screen settled the row.
+    Each node knows its path of names from the root, so a member's parent is part
+    of what a row is.
     """
     roots: list[_Node] = []
     stack: list[_Node] = []
@@ -144,6 +164,12 @@ def _tree(rows: Sequence[Row]) -> list[_Node]:
             (parent.children if parent else roots).append(node)
             if node.open:
                 blocks[key] = node
+        elif glyph in FINAL and node.row.detail and not node.children:
+            siblings = parent.children if parent else roots
+            siblings.remove(node)
+            node = _Node(row, path + (row.name,))
+            siblings.append(node)
+            del blocks[key]
         elif glyph in FINAL:
             node.row, node.open = row._replace(streamed=True), False
             del blocks[key]
@@ -207,7 +233,7 @@ def normalize_rows(
 def check_final_matches_plain(
     final: stream.Frame, screen_exit: int, plain_rows: Iterable[str], plain_exit: int
 ) -> None:
-    """The last pty frame holds the Plain run's final rows, in order, and the exit codes agree.
+    """The final screen (ptystream_frames.final_screen) holds the Plain run's final rows, in order, and the exit codes agree.
 
     The sorted comparison runs first so a missing or extra row gets its specific
     diagnostic. Only when the row sets match is the order checked, row by row. The

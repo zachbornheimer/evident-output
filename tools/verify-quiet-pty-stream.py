@@ -20,9 +20,9 @@ interval, from the last Writer evidence line to the settle:
 - the owner row stays named, all evidence lines stay on screen, no fake progress.
 
 With --compare-plain, the frames must also settle forward only (a settled row
-never reverts, a completion count never falls), and the last frame plus the exit
-code must equal the Plain rows and exit code of an identical run with
-EVO_OUTPUT=plain (ptystream_truth).
+never reverts, a completion count never falls), and the final screen (scrollback
+included) plus the exit code must equal the Plain rows and exit code of an
+identical run with EVO_OUTPUT=plain (ptystream_truth).
 
 A reader that was itself descheduled for the bound or more cannot prove the
 bound, so that attempt is retried (up to ATTEMPTS) and never passes.
@@ -160,13 +160,15 @@ def run_plain(
 
 
 def verify_truth(
-    frames: list[stream.Frame], exit_code: int, binary: Path, scenario: Scenario
+    chunks: list[stream.Chunk], exit_code: int, binary: Path, scenario: Scenario
 ) -> None:
     """Frames settle forward, and the final screen is the Plain run's rows."""
     plain_rows, plain_exit = run_plain(binary, scenario.args, scenario.timeout_s)
     try:
-        truth.check_monotonic(frames)
-        truth.check_final_matches_plain(frames[-1], exit_code, plain_rows, plain_exit)
+        truth.check_monotonic(stream.split_frames(chunks))
+        truth.check_final_matches_plain(
+            stream.final_screen(chunks), exit_code, plain_rows, plain_exit
+        )
     except truth.TruthError as err:
         raise VerifyError(str(err)) from err
 
@@ -296,7 +298,7 @@ def attempt(
     frames = stream.split_frames(chunks)
     result = scenario.verify(frames, max_gap_ms)
     if compare_plain:
-        verify_truth(frames, exit_code, binary, scenario)
+        verify_truth(chunks, exit_code, binary, scenario)
         result = result | {"final_equals_plain": True}
     return result | {"reader_max_loop_ms": round(reader_max_loop_ms, 1)}
 

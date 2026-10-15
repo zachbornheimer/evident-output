@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+import sys
 import unittest
+from pathlib import Path
+
+# `python3 -I` leaves the script's directory off sys.path.
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import ptystream_frames as stream
 
@@ -61,6 +67,47 @@ class SplitFramesTest(unittest.TestCase):
         self.assertEqual(
             stream.split_frames([stream.Chunk(1, UP + ERASE + UP + b"\r")]), []
         )
+
+
+class ScreenTest(unittest.TestCase):
+    """The screen a stream leaves, scrollback included.
+
+    A pty turns each LF the program writes into CR LF, so streams here do too.
+    """
+
+    def screen(self, data: bytes) -> tuple[str, ...]:
+        screen = stream.Screen()
+        screen.feed(data.decode("utf-8"))
+        return screen.rows()
+
+    def test_rows_that_settle_one_by_one_stay_in_scrollback(self) -> None:
+        data = (
+            b"\r\x1b[2K\x1b[2mo\x1b[0m a\r\n\r\x1b[2K\x1b[2mo\x1b[0m b"
+            + b"\x1b[1A\r\x1b[2K\r\n\r\x1b[2K\x1b[1A\r"
+            + b"\x1b[2m-\x1b[0m a  not started\r\n"
+            + b"\r\x1b[2K\x1b[2mo\x1b[0m b\r\x1b[2K\x1b[2m-\x1b[0m b  not started\r\n"
+        )
+        self.assertEqual(self.screen(data), ("- a  not started", "- b  not started"))
+
+    def test_a_repaint_replaces_the_live_region_in_place(self) -> None:
+        data = FIRST + repaint("\u2819") + repaint("\u2839")
+        self.assertEqual(
+            self.screen(data),
+            ("\u2839  title", "  \u2839  build  waiting", "    compile unit 1 of 6"),
+        )
+
+    def test_erase_line_modes(self) -> None:
+        self.assertEqual(self.screen(b"abcdef\r\x1b[K"), ())
+        self.assertEqual(self.screen(b"abcdef\r\x1b[2Kxy"), ("xy",))
+
+    def test_colour_cursor_and_title_sequences_are_dropped(self) -> None:
+        data = b"\x1b[?25l\x1b[36mhi\x1b[0m\x1b]0;title\x07 there\x1b[?25h\n"
+        self.assertEqual(self.screen(data), ("hi there",))
+
+    def test_final_screen_reads_every_chunk(self) -> None:
+        chunks = [stream.Chunk(5, b"one\r\n"), stream.Chunk(9, b"two\r\n")]
+        final = stream.final_screen(chunks)
+        self.assertEqual((final.at_ns, final.rows), (9, ("one", "two")))
 
 
 class OwnerGlyphTest(unittest.TestCase):

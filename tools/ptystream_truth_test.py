@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+import sys
 import unittest
+from pathlib import Path
+
+# `python3 -I` leaves the script's directory off sys.path.
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import ptystream_frames as stream
 import ptystream_truth as truth
@@ -233,6 +239,160 @@ class FinalMatchesPlainTest(unittest.TestCase):
         screen = frame("✓ a", "[succeeded · partial]  probe-dag")
         plain = ["✓ a", "[succeeded · partial]  probe-dag"]
         truth.check_final_matches_plain(screen, 0, plain, 0)
+
+
+class LiveTerminal:
+    """The bytes internal/terminal/ansi.go writes, as a pty delivers them.
+
+    A live region repaints under the durable rows that settled above it: erase
+    the region (cursor up, erase each row, cursor up), write the settled rows
+    with CR LF, then paint the rows still running.
+    """
+
+    def __init__(self) -> None:
+        self.chunks: list[stream.Chunk] = []
+        self.live = 0
+
+    def _write(self, text: str) -> None:
+        self.chunks.append(stream.Chunk(len(self.chunks), text.encode()))
+
+    def _erase_live(self) -> None:
+        if self.live > 1:
+            self._write(f"\x1b[{self.live - 1}A")
+        for row in range(self.live):
+            self._write("\r\x1b[2K" + ("\r\n" if row < self.live - 1 else ""))
+        if self.live > 1:
+            self._write(f"\x1b[{self.live - 1}A")
+        self._write("\r")
+        self.live = 0
+
+    def paint(self, *rows: str) -> None:
+        self._erase_live()
+        self._write("\r\n".join("\r\x1b[2K" + row for row in rows))
+        self.live = len(rows)
+
+    def settle(self, *rows: str) -> None:
+        self._erase_live()
+        self._write("".join(row + "\r\n" for row in rows))
+
+    def final_screen(self) -> stream.Frame:
+        return stream.final_screen(self.chunks)
+
+
+class ScrollbackFixturesTest(unittest.TestCase):
+    """Programs whose rows settle one by one, or fold, leave more than the last repaint."""
+
+    NODEFINE_PLAIN = (
+        "\u25d0 progress  3/3",
+        "- problem2       not started",
+        "   \u2514\u2500 x",
+        "- after-problem  not started \u2014 problem2 not started",
+        "- progress       not started",
+        "- deploy         not started \u2014 progress not started",
+        "- bare           not started",
+        "- fact           not started",
+        "- problem        not started",
+        "   \u2514\u2500 heads up",
+        "- verify         not started",
+        "- summary        not started",
+        "",
+        "[succeeded \u00b7 partial]  nodefine",
+    )
+
+    def nodefine_terminal(self) -> LiveTerminal:
+        """Tasks with no Define settle NotStarted one at a time, not in declaration order."""
+        waiting = [
+            "bare",
+            "fact",
+            "problem",
+            "verify",
+            "summary",
+            "after-problem",
+            "problem2",
+        ]
+        waiting += ["deploy", "progress"]
+        term = LiveTerminal()
+        term.paint(*(f"\u25cb {name}" for name in waiting))
+        for name, rows in (
+            ("problem2", ["- problem2       not started", "   \u2514\u2500 x"]),
+            (
+                "after-problem",
+                ["- after-problem  not started \u2014 problem2 not started"],
+            ),
+            ("progress", ["- progress       not started"]),
+            ("deploy", ["- deploy         not started \u2014 progress not started"]),
+            ("bare", ["- bare           not started"]),
+            ("fact", ["- fact           not started"]),
+            ("problem", ["- problem        not started", "   \u2514\u2500 heads up"]),
+            ("verify", ["- verify         not started"]),
+            ("summary", ["- summary        not started"]),
+        ):
+            waiting.remove(name)
+            term.settle(*rows)
+            if waiting:
+                term.paint(*(f"\u25cb {n}" for n in waiting))
+        term.settle("", "[succeeded \u00b7 partial]  nodefine")
+        return term
+
+    def test_the_final_screen_holds_every_row_that_settled_into_scrollback(
+        self,
+    ) -> None:
+        term = self.nodefine_terminal()
+        last_repaint = stream.split_frames(term.chunks)[-1]
+        self.assertLess(len(last_repaint.rows), len(self.NODEFINE_PLAIN) - 1)
+        truth.check_final_matches_plain(term.final_screen(), 0, self.NODEFINE_PLAIN, 0)
+
+    def test_a_progress_line_before_the_row_settles_is_not_a_block(self) -> None:
+        plain = ("\u25d0 slow  2/3", "\u2713 quick", "\u2713 slow")
+        truth.check_final_matches_plain(
+            frame("\u2713 quick", "\u2713 slow"), 0, plain, 0
+        )
+
+    SLOWFOLD_SCREEN = (
+        "\u2713 branches",
+        "   \u25cb excluded 2 (protected)",
+        "   \u2713 feature-01",
+        "   \u2713 feature-02",
+        "   \u2713 feature-04",
+    )
+
+    def slowfold_terminal(self) -> LiveTerminal:
+        """A Group of five branches, two Excluded, written whole at the end of the run."""
+        term = LiveTerminal()
+        term.paint("\u280b branches", "   \u280b feature-00", "   \u280b feature-01")
+        term.paint("\u2819 branches", "   \u2819 feature-02", "   \u2819 feature-04")
+        term.settle(*self.SLOWFOLD_SCREEN)
+        return term
+
+    def test_a_folded_tally_in_a_streamed_block_agrees_with_the_final_screen(
+        self,
+    ) -> None:
+        plain = (
+            "\u25d0 branches",
+            "   \u2713 feature-01",
+            "   \u2713 feature-04",
+            "   \u2713 feature-02",
+            "\u2713 branches",
+            "   \u25cb excluded 2 (protected)",
+        )
+        truth.check_final_matches_plain(
+            self.slowfold_terminal().final_screen(), 0, plain, 0
+        )
+
+    def test_rejects_plain_that_streams_each_excluded_member_as_a_row(self) -> None:
+        unfolded = (
+            "\u25d0 branches",
+            "   \u25cb feature-03  protected",
+            "   \u2713 feature-01",
+            "   \u25cb feature-00  protected",
+            "   \u2713 feature-04",
+            "   \u2713 feature-02",
+            "\u2713 branches",
+        )
+        with self.assertRaisesRegex(truth.TruthError, "excluded 2"):
+            truth.check_final_matches_plain(
+                self.slowfold_terminal().final_screen(), 0, unfolded, 0
+            )
 
 
 if __name__ == "__main__":
