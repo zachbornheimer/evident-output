@@ -175,7 +175,8 @@ func TestPlain_DoingWritesNoDurableLinePerCall(t *testing.T) {
 	if lines, limit := strings.Count(buf.String(), "\n"), 11; lines > limit {
 		t.Fatalf("%d Progress+Doing calls wrote %d lines, want at most %d:\n%s", items, lines, limit, buf.String())
 	}
-	if strings.Contains(buf.String(), "f0500") {
+	// f0500 is a milestone (every 100th count) and names its own item; f0550 falls between.
+	if strings.Contains(buf.String(), "f0550") {
 		t.Fatalf("an item name between milestones was written durably:\n%s", buf.String())
 	}
 
@@ -208,7 +209,8 @@ func TestPlain_DoingAloneWritesTheFirstCallThenThins(t *testing.T) {
 	if lines, limit := strings.Count(buf.String(), "\n"), 12; lines > limit {
 		t.Fatalf("%d Doing calls wrote %d lines, want at most %d:\n%s", items, lines, limit, buf.String())
 	}
-	if strings.Contains(buf.String(), "f0500") {
+	// f0500 is a milestone (every 100th count) and names its own item; f0550 falls between.
+	if strings.Contains(buf.String(), "f0550") {
 		t.Fatalf("an item name between milestones was written durably:\n%s", buf.String())
 	}
 

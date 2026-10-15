@@ -87,6 +87,7 @@ func (s *Stream) Settled(id record.TaskID) {
 		return
 	}
 	r.stopBeat()
+	s.flushOwed(r)
 	s.Commit(id)
 }
 
@@ -136,6 +137,7 @@ func (s *Stream) check(id record.TaskID) {
 		return
 	}
 	s.heartbeat(r, now)
+	r.mark.owed = false
 	r.beat.due = now.Add(heartbeatInterval)
 	s.schedule(sched, r, heartbeatInterval)
 }
