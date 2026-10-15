@@ -25,6 +25,3 @@ Some 1.x sentences have no 2.0 counterpart. They left with nothing to bind: nil-
 | C30-026, C30-031 (`Wait`)                                                                            | `After` and Group overlap: C42-002                   |
 | C30-041 (bounded problem list)                                                                       | no 2.0 sentence                                      |
 | C30-048 (Effect callback verdicts)                                                                   | no 2.0 sentence                                      |
-
-C47-006 (a Task still undefined at Finish) fails until at-851p69 lands its runtime change, so it is not in the ratchet yet.
-Run `spec-score --update` after that change merges.
