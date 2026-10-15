@@ -2,6 +2,7 @@ package evo
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"strings"
 	"testing"
@@ -53,7 +54,8 @@ func TestGlyphsASCII_NotStartedAndPendingRows(t *testing.T) {
 	group := out.Sequence("pipeline")
 	first := group.Task("first")
 	second := group.Task("second")
-	_ = group.Task("third")
+	third := group.Task("third")
+	third.Define(func(context.Context) error { return nil })
 	succeed(first)
 	second.fail("boom")
 	if err := out.finish(); err != nil {

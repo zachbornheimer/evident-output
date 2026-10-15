@@ -2,7 +2,9 @@ package evo
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"testing"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
@@ -63,4 +65,14 @@ func distinctBranchDeletes(n int) []EffectSpec {
 func satisfied(task *Task) {
 	task.Verify(func(context.Context) (bool, error) { return true, nil })
 	_ = task.Define(func(context.Context) error { return nil }).wait()
+}
+
+// finishRefusingUndefined finishes out and requires the refusal CONTRACT.md
+// section 7 gives a Task nobody Defined: the error wraps ErrInvalidConfig. A
+// test that leaves a Task undefined on purpose calls it in place of finish.
+func finishRefusingUndefined(t *testing.T, out *Run) {
+	t.Helper()
+	if err := out.finish(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("Finish() = %v, want an error wrapping ErrInvalidConfig for a Task nobody Defined", err)
+	}
 }

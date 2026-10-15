@@ -140,9 +140,7 @@ func TestH10_Task_ConcurrentResolutionPreservesDeclarationOrder(t *testing.T) {
 	group.Go(func() { <-branchResolved; succeed(workingTree) })
 	group.Wait()
 
-	if err := out.finish(); err != nil {
-		t.Fatal(err)
-	}
+	finishRefusingUndefined(t, out)
 	conclusion := out.conclusion()
 	got := []string{
 		conclusion.tasks[0].Name,
@@ -191,10 +189,8 @@ func TestH12_Tasks_SuccessSummaryIsSuppressedOnFailure(t *testing.T) {
 
 // TestH13_Output_FinishLeavesUnresolvedTaskPartial pins the release-gate
 // round 4 finding 3 policy: an unresolved task with no problems of its own,
-// on an otherwise clean finish, reads as an honest incomplete outcome
-// (Conclusion.Partial), never as misuse — the caller simply forgot a
-// terminal verb, and a clean finish must never escalate that to
-// ErrUnresolvedTask (previously pinned here as the old behavior).
+// reads as an incomplete outcome (Conclusion.Partial), and since nobody
+// Defined it Finish refuses it as ErrInvalidConfig (CONTRACT.md section 7).
 func TestH13_Output_FinishLeavesUnresolvedTaskPartial(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
@@ -203,10 +199,7 @@ func TestH13_Output_FinishLeavesUnresolvedTaskPartial(t *testing.T) {
 	succeed(dependencies.Task("react"))
 	dependencies.Task("esbuild")
 
-	err := out.finish()
-	if err != nil {
-		t.Fatalf("error = %v, want nil (clean finish, no amnesty-defeating problems)", err)
-	}
+	finishRefusingUndefined(t, out)
 	if !out.conclusion().partial {
 		t.Fatal("want Conclusion.Partial = true for the unresolved esbuild task")
 	}

@@ -182,17 +182,15 @@ func TestDOM031_CollectionAllDone(t *testing.T) {
 }
 
 // TestDOM035_UnresolvedChildInCollection pins release-gate round 4 finding
-// 3: an unresolved child with no problems, on a clean finish, reads as an
-// honest Partial outcome, never misuse — Finish returns nil.
+// 3: an unresolved child with no problems reads as Partial, and since nobody
+// Defined it Finish refuses it (CONTRACT.md section 7).
 func TestDOM035_UnresolvedChildInCollection(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	g := out.Group("g")
 	succeed(g.Task("a"))
 	g.Task("hanging")
-	if err := out.finish(); err != nil {
-		t.Fatalf("Finish() = %v, want nil (clean finish, no amnesty-defeating problems)", err)
-	}
+	finishRefusingUndefined(t, out)
 	if !out.conclusion().partial {
 		t.Fatal("want Conclusion.Partial = true for the unresolved hanging child")
 	}
@@ -324,15 +322,13 @@ func TestDOM012_NextActionAfterResolve(t *testing.T) {
 }
 
 // TestDOM033_UnresolvedItemAtFinish pins release-gate round 4 finding 3: a
-// never-touched task with no problems, on a clean finish, reads as an honest
-// Partial outcome (Conclusion.Partial), never misuse — Finish returns nil.
+// never-touched task with no problems reads as Partial (Conclusion.Partial),
+// and since nobody Defined it Finish refuses it (CONTRACT.md section 7).
 func TestDOM033_UnresolvedItemAtFinish(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 	out.Task("hanging")
-	if err := out.finish(); err != nil {
-		t.Fatalf("Finish() = %v, want nil (clean finish, no amnesty-defeating problems)", err)
-	}
+	finishRefusingUndefined(t, out)
 	if !out.conclusion().partial {
 		t.Fatal("want Conclusion.Partial = true for the unresolved hanging task")
 	}

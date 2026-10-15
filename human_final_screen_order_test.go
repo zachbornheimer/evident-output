@@ -21,7 +21,9 @@ var timingSuffix = regexp.MustCompile(`\s+—?\s*\d+(\.\d+)?(ms|s|m)$`)
 
 // orderedRows is the order a run's rows reach a reader: one entry per row,
 // indented by depth, as "<depth><name>". It keeps the row's name and drops
-// its glyph, detail and timing suffix, and stops at the conclusion band.
+// its glyph, detail and timing suffix, skips the misuse line (a message the
+// Human terminal prints above its rows and Plain below them, not a row), and
+// stops at the conclusion band.
 // Plain streams a container that outlasts its grace as a header (`◐ name`)
 // and later a closing verdict row (`✓ name`); the Human final screen shows
 // that container once, at the position of its first row, so a name repeated
@@ -32,6 +34,9 @@ var timingSuffix = regexp.MustCompile(`\s+—?\s*\d+(\.\d+)?(ms|s|m)$`)
 func orderedRows(text string, streamed map[string]bool) []string {
 	var rows []string
 	for line := range strings.SplitSeq(text, "\n") {
+		if strings.HasPrefix(line, "!  ") {
+			continue
+		}
 		if strings.HasPrefix(line, "[") || strings.TrimSpace(line) == "" {
 			if len(rows) > 0 && strings.HasPrefix(line, "[") {
 				break

@@ -60,21 +60,22 @@ func (r *Run) warnManifestUnsavedLocked(err error) {
 
 // settleUnresolvedTasksLocked ends every Task still unresolved at Finish NotStarted: a Task nobody Defined never
 // returned, whatever Facts, Problems or Progress it carries (CONTRACT.md §4). Most were ended already, when a
-// dependent found them; the sweep ends the rest. On a clean finish the first Task nobody Defined also carries the
-// fix, since forgetting its Define is the caller's omission; a failed or cancelled run has a cause of its own to
-// report.
+// dependent found them; the sweep ends the rest and keeps the Summary a caller gave them. A Task nobody Defined is
+// also a refused declaration (CONTRACT.md §7), unless a signal or Close cancelled the run before it was reached.
 func (r *Run) settleUnresolvedTasksLocked() {
 	r.show.Stream.BeginSweep()
 	for _, t := range r.tasks {
 		if record.IsTerminalTask(t.node.Rec.State()) {
 			continue
 		}
-		t.node.Summarize(notStartedSummary)
+		if t.node.Rec.Summary() == "" {
+			t.node.Summarize(notStartedSummary)
+		}
 		r.graph.Settle(t.node, notStarted)
 		r.followRecordLocked()
 	}
-	if undefined := r.undefinedTasksLocked(); len(undefined) > 0 && !r.abnormalFinishLocked() {
-		r.attachUndefinedTaskHintLocked(undefined)
+	if undefined := r.undefinedTasksLocked(); len(undefined) > 0 && !r.cancelledFinishLocked() {
+		r.refuseUndefinedTasksLocked(undefined)
 	}
 	if r.firstMisuse() != nil {
 		r.appendMisuseLineLocked()
@@ -171,20 +172,26 @@ func joinErrors(a, b error) error {
 	}
 }
 
-// abnormalFinishLocked reports whether a Failed or Cancelled task exists: evidence that something interrupted
-// the run, not a caller who forgot to resolve a task. It gates whether a leftover Running task reads Cancelled/130.
-func (r *Run) abnormalFinishLocked() bool {
+// cancelledFinishLocked reports whether a signal or Close stopped the run: a Task it left undefined was never
+// reached, not forgotten.
+func (r *Run) cancelledFinishLocked() bool {
+	if r.graph.CancelCause() != "" {
+		return true
+	}
 	for _, t := range r.tasks {
-		if t.node.Rec.State() == failed || t.node.Rec.State() == cancelled {
+		if t.node.Rec.State() == cancelled {
 			return true
 		}
 	}
 	return false
 }
 
-// attachUndefinedTaskHintLocked attaches the fix to the first of tasks directly: the sweep runs after r.finishing,
-// when Task.Problem refuses records.
-func (r *Run) attachUndefinedTaskHintLocked(tasks []*taskState) {
+// refuseUndefinedTasksLocked records each Task nobody Defined as a refused declaration and attaches the fix to
+// the first one directly: the sweep runs after r.finishing, when Task.Problem refuses records.
+func (r *Run) refuseUndefinedTasksLocked(tasks []*taskState) {
+	for _, t := range tasks {
+		r.recordMisuseFor(t.name, fmt.Errorf("%w: Task %q has no Define callback", ErrInvalidConfig, t.name))
+	}
 	first := tasks[0]
 	first.node.Recommend(asRecordAction(label(undefinedTaskHint(first.name, len(tasks)-1))))
 	r.show.Board.Changed(first.node.TaskID())

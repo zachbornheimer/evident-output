@@ -7,19 +7,16 @@ import (
 	"testing"
 )
 
-// TestTaskSnapshot_ResolutionNoWorkByDefault proves §29/§30's default: a
-// Task that resolves successfully without ever reaching Define — here a
-// warned Task Finish settles Done — carries ResolutionNoWork and an
-// unevaluated (zero-value) Evidence.
+// TestTaskSnapshot_ResolutionNoWorkByDefault proves a Task nobody Defined
+// reports DefineRan false and an unevaluated (zero-value) Evidence, though
+// Finish refuses it.
 func TestTaskSnapshot_ResolutionNoWorkByDefault(t *testing.T) {
 	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("no-define")
 	task.Problem("nothing to define")
-	if err := out.finish(); err != nil {
-		t.Fatal(err)
-	}
+	finishRefusingUndefined(t, out)
 	snap := task.snapshot()
 
 	if snap.DefineRan {

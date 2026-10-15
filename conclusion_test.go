@@ -43,7 +43,7 @@ func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 	var buf bytes.Buffer
 	out := initRun(Config{Name: "repo-retire", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	succeed(out.Task("clean"))
-	out.Task("kept").Fact("kept", "1")
+	succeed(out.Task("kept").Fact("kept", "1"))
 	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}

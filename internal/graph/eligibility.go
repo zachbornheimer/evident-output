@@ -306,11 +306,17 @@ func (g *Graph) placeLocked(t *Task, scan predScan) {
 
 // settleNeverDefinedLocked ends p NotStarted when it is a Task nobody Defined,
 // the cause settling before the dependent it stops (CONTRACT.md §4). Any
-// other predecessor already settled itself.
+// other predecessor already settled itself. The Summary its caller gave it
+// stays: the row reads NotStarted by its outcome, not by replacing that text.
 func (g *Graph) settleNeverDefinedLocked(p *Task) {
-	if p != nil && p.neverDefinedLocked() {
-		g.markNotStartedLocked(p)
+	if p == nil || !p.neverDefinedLocked() {
+		return
 	}
+	if p.Rec.Summary() == "" {
+		g.markNotStartedLocked(p)
+		return
+	}
+	g.settleLocked(p, record.NotStarted)
 }
 
 // wakeLocked re-places every parked Task in deps, now that what it was

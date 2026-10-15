@@ -46,9 +46,7 @@ func TestTask_SummaryDoesNotResolveTheTask(t *testing.T) {
 	if snap.State != pending && snap.State != notStarted {
 		t.Fatalf("Summary alone must not resolve the task; got state %v", snap.State)
 	}
-	if err := out.finish(); err != nil {
-		t.Fatalf("Finish: %v", err)
-	}
+	finishRefusingUndefined(t, out)
 	_ = out.close()
 }
 

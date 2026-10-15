@@ -536,7 +536,8 @@ func TestWireEvents_ProblemRecordedCarriesEvidenceTail(t *testing.T) {
 func TestWireEvents_ProblemRecordedCarriesItsProblemOptions(t *testing.T) {
 	var stdout nopFlushWriter
 	out := initRun(Config{Output: JSONL, Facades: Facades{Stdout: &stdout}})
-	out.Task("disk").Problem("disk nearly full", Code("W_DISK"), Detail("92% used"), location("/var", 0, 0))
+	disk := out.Task("disk").Problem("disk nearly full", Code("W_DISK"), Detail("92% used"), location("/var", 0, 0))
+	succeed(disk)
 	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}

@@ -2,6 +2,7 @@ package evo
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"strings"
 	"testing"
@@ -20,6 +21,7 @@ func TestSequence_FailureAutoResolvesLaterSiblingsToNotStarted(t *testing.T) {
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	install := setup.Task("install")
+	install.Define(func(context.Context) error { return nil })
 
 	succeed(scan)
 	venv.fail("uv exited 1")
@@ -31,8 +33,8 @@ func TestSequence_FailureAutoResolvesLaterSiblingsToNotStarted(t *testing.T) {
 	if got := install.snapshot().State; got != notStarted {
 		t.Fatalf("install state = %v, want NotStarted", got)
 	}
-	if got := install.snapshot().Summary; got != "not started" {
-		t.Fatalf("install summary = %q, want %q", got, "not started")
+	if got := install.snapshot().Summary; got != "not started — venv failed" {
+		t.Fatalf("install summary = %q, want %q", got, "not started — venv failed")
 	}
 	if !strings.Contains(buf.String(), "- install  not started") {
 		t.Fatalf("rendered output missing \"- install  not started\":\n%s", buf.String())
@@ -221,6 +223,7 @@ func TestSequence_CascadeFailureNotStartsLaterSiblings(t *testing.T) {
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	install := setup.Task("install")
+	install.Define(func(context.Context) error { return nil })
 
 	succeed(scan)
 	venv.fail("uv exited 1")

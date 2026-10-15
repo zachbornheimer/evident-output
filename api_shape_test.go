@@ -38,10 +38,8 @@ func TestAPI018_LibraryDoesNotCallOsExit(t *testing.T) {
 	// Static guarantee: no os.Exit in evo package files is checked by this
 	// behavioral test — reaching this assertion at all is the proof: an
 	// os.Exit inside Finish would have already killed the test process.
-	// An unresolved task with no problems on a clean finish reads as an
-	// honest Partial outcome now (release-gate round 4 finding 3), not
-	// misuse, so Finish returning nil here is expected, not evidence of a
-	// process exit either way.
+	// A Task nobody Defined is a refused declaration (CONTRACT.md section 7),
+	// so Finish returns that error here, not a process exit.
 	//
 	// 1.0 removed MainWith (the pre-v0.6 func(*Run) error entrypoint)
 	// and its exitProcess facade outright — Run/Main are the only
@@ -50,9 +48,7 @@ func TestAPI018_LibraryDoesNotCallOsExit(t *testing.T) {
 	// proves it directly): the caller writes os.Exit(Main(Config{}, run)).
 	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
 	out.Task("x")
-	if err := out.finish(); err != nil {
-		t.Fatalf("Finish() = %v, want nil (clean finish, no amnesty-defeating problems)", err)
-	}
+	finishRefusingUndefined(t, out)
 }
 
 func TestAPI010_DonefFormatting(t *testing.T) {

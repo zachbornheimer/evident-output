@@ -41,7 +41,7 @@ func undefinedRun(t *testing.T, annotation annotatedUndefined, output evo.Output
 // TestUndefinedTaskEndsNotStarted pins CONTRACT.md §4: a Task with no Define
 // never returns, so it ends NotStarted at Finish whatever Facts, Problems,
 // Progress or Verify it carries, its dependent names it in that state, and
-// the run reads partial instead of a plain success.
+// the run fails by misuse (§7) instead of reading as a success.
 func TestUndefinedTaskEndsNotStarted(t *testing.T) {
 	for _, annotation := range undefinedAnnotations {
 		t.Run(annotation.name, func(t *testing.T) {
@@ -60,10 +60,10 @@ func TestUndefinedTaskEndsNotStarted(t *testing.T) {
 				t.Errorf("after summary = %q, want %q", got, "not started — stalled not started")
 			}
 			plain := undefinedRun(t, annotation, evo.Plain)
-			if got, want := plain.Result.ExitCode(), 0; got != want {
-				t.Errorf("exit code = %d, want %d: partial qualifies a Succeeded run and never replaces it", got, want)
+			if got, want := plain.Result.ExitCode(), 2; got != want {
+				t.Errorf("exit code = %d, want %d: an undefined Task is a refused declaration", got, want)
 			}
-			if !strings.Contains(plain.Stderr, "[succeeded · partial]  undefined") {
+			if !strings.Contains(plain.Stderr, "[failed · partial]  undefined") {
 				t.Errorf("Plain band is not [succeeded · partial]:\n%s", plain.Stderr)
 			}
 		})
@@ -71,8 +71,8 @@ func TestUndefinedTaskEndsNotStarted(t *testing.T) {
 }
 
 // TestUndefinedTaskPlainGolden pins what a reader sees: the undefined Task's
-// row, the dependent naming it as "not started", and a Next step that names
-// the Task to give a Define.
+// row, the dependent naming it as "not started", the misuse line, and a Next
+// step that names the Task to give a Define.
 func TestUndefinedTaskPlainGolden(t *testing.T) {
 	ok := func(context.Context) error { return nil }
 	run := executeContract(context.Background(), t, evo.Config{Name: "undefined", Output: evo.Plain},
@@ -85,8 +85,9 @@ func TestUndefinedTaskPlainGolden(t *testing.T) {
 	want := "- audit    not started\n" +
 		"   └─ audit.cfg  audit is advisory\n" +
 		"- publish  not started — audit not started\n" +
-		"- lint     not started\n\n" +
-		"[succeeded · partial]  undefined\n" +
+		"- lint     not started\n" +
+		"!  Task \"audit\" has no Define callback\n\n" +
+		"[failed · partial]  undefined\n" +
 		"→  give Task \"audit\" (and 1 more) a Define callback that returns nil, evo.Fail, evo.Refuse or evo.Exclude\n"
 	if run.Stderr != want {
 		t.Errorf("Plain output =\n%s\nwant\n%s", run.Stderr, want)
