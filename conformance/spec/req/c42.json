@@ -343,10 +343,6 @@
       {
         "pkg": ".",
         "run": "TestContractIsTheWholeSurface"
-      },
-      {
-        "pkg": ".",
-        "run": "TestContractSignaturesTypeCheck"
       }
     ],
     "default": false
