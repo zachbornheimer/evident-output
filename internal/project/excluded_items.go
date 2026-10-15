@@ -128,18 +128,6 @@ func WithoutExcludedItems(col record.TasksSnapshot) (record.TasksSnapshot, Tally
 	return WithChildTally(col, ChildTally{All: tally.Rest, Rest: tally.Rest}), tally.Items
 }
 
-// HeaderTallyIndent is where a Group header's folded tallies start. Beside
-// surviving child rows they are the header's children too and share the
-// child column; with no child row left they annotate the header itself,
-// as a Task's tallies annotate its row ("✓ branches  6 checked" /
-// "  ○ excluded 3 (...)", §26/§27).
-func HeaderTallyIndent(folded record.TasksSnapshot) string {
-	if len(folded.Tasks) > 0 || len(folded.Collections) > 0 {
-		return GroupChildIndent
-	}
-	return TaskAnnotationIndent
-}
-
 // HeaderlessRowNameWidth is the shared name column of a header-less
 // Group's rows: its own Tasks plus every child collection that collapses
 // into one row. Zero when fewer than two rows share it.

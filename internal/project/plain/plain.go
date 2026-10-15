@@ -105,7 +105,7 @@ func writeCollectionAligned(b *strings.Builder, col record.TasksSnapshot, nameWi
 		} else {
 			writeCollectionHeader(b, col, s)
 		}
-		project.WriteTally(b, project.HeaderTallyIndent(body), items, s)
+		project.WriteTally(b, project.GroupChildIndent, items, s)
 		writeCollectionBody(b, body, s)
 	}
 }

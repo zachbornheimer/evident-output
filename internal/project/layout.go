@@ -44,9 +44,8 @@ const (
 	// continuation text; the blank continuation of a closing branch plus
 	// this gap is problemDetailIndent less the tree indent.
 	problemDetailGap = "  "
-	// TaskAnnotationIndent nests a standalone task's annotations — taxonomy
-	// tallies, verification details, warnings, facts — under its row
-	// (spec §26/§27: "✓ branches  50 checked" / "  ! kept 13 (...)").
+	// TaskAnnotationIndent nests a standalone task's annotations — folded
+	// tallies, verification details, problems, facts — under its row.
 	TaskAnnotationIndent = "  "
 	// GroupChildIndent nests a Group header's children: its child rows and
 	// the tallies its folded items leave behind, in one column.

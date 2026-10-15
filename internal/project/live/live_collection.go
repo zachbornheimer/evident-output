@@ -78,7 +78,7 @@ func writeAlignedLiveCollection(b *strings.Builder, col record.TasksSnapshot, he
 	default:
 		done, total = liveHeaderProgress(col, done, total)
 		headRows, body := writeLiveGroupHead(b, col, done, total, st)
-		tallyRows := writeLiveTally(b, project.HeaderTallyIndent(body), items, height-headRows-omissionRows-minLiveChildRows, st.Style)
+		tallyRows := writeLiveTally(b, project.GroupChildIndent, items, height-headRows-omissionRows-minLiveChildRows, st.Style)
 		writeLiveBody(b, body, max(height-headRows-tallyRows, minLiveChildRows+omissionRows), underHeader, st)
 	}
 	return rowsSince(b, start)
