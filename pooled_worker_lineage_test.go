@@ -10,8 +10,9 @@ import (
 
 // A goroutine's lineage ends at any goroutine that served as a pooled worker:
 // a worker's creator never authored the work the worker ran. k (not after
-// make) Defines a1 (after make) while every other worker is busy, so k's kick
-// starts a new worker for a1. a1 starts goroutine Y, whose grandchild read
+// make), a container builder, Defines a1 (after make) while every other worker
+// is busy, so k's kick starts a new worker for a1. A builder is the place a
+// Define may still come once the run body has returned. a1 starts goroutine Y, whose grandchild read
 // teaches the lineage Y, the new worker, k's worker. a1 returns and its worker
 // exits while k still runs. Y then reads make: it is a1's hands, and a1 is
 // ordered after make, so the read is lawful and k, which never read anything,
@@ -31,8 +32,8 @@ func TestLineageChainEndsAtPooledWorkers(t *testing.T) {
 	learned, readDone := occurrence(), occurrence()
 	var late atomic.Int64
 
-	k := out.Task("k")
-	k.Define(func(context.Context) error {
+	k := out.Group("k")
+	k.Build(func(*Group) {
 		<-made
 		// make has settled and its worker runs hold3, so a1 needs a new worker.
 		time.Sleep(attributionSettle / 2)
@@ -52,7 +53,6 @@ func TestLineageChainEndsAtPooledWorkers(t *testing.T) {
 		})
 		<-readDone
 		close(release)
-		return nil
 	})
 
 	_ = out.finish()

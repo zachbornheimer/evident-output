@@ -453,7 +453,9 @@ no gap, so a missing number means a lost line.
 Every declaration or spec Evo refuses is refused one way: the error wraps
 `ErrInvalidConfig`, is joined into `Result.Err`, and `Conclusion.Explanation`
 states what was refused. That covers a duplicate sibling name, a Task, Group or Sequence
-declared from inside a `Define` callback, a nil `Define` callback, a Task still undefined at Finish, `Compute` on
+declared from inside a `Define` callback, a nil `Define` callback, a Task still undefined at Finish, a `Define` that
+arrives after the run body returned (from a callback or any goroutine, whether or not a Task waits After the
+Task it names; the Task ends NotStarted, and a Build may still Define), `Compute` on
 a Task with a `Verify`, an `EffectSpec` that sets both `Path` and `Resource`,
 an `EffectSpec` whose `Quantity` is not above 0, a `FileSpec` with no `Path`,
 and an `ExecSpec` with no `Argv`. The refused call's callback never runs. Other sections say "refused" and mean this rule.

@@ -16,7 +16,9 @@ type nestedOutcome struct {
 // Y lives. outer then Defines n2, which is NOT ordered after make, and waits.
 // While n2 runs, Y reads make's Computed. Y is n1's hands (n1 is After make)
 // and runs on outer's goroutine lineage (outer is After make): neither n2
-// nor anyone else did anything unordered. n2 never reads anything.
+// nor anyone else did anything unordered. n2 never reads anything. The run
+// body waits for outer to Define both, since a Define after the body returned
+// is refused (CONTRACT.md section 7).
 func runFinishedNested(t *testing.T, ceiling int) nestedOutcome {
 	t.Helper()
 	out := initRun(Config{MaxConcurrency: ceiling, Output: Plain, Facades: Facades{Stderr: io.Discard}})
@@ -25,10 +27,11 @@ func runFinishedNested(t *testing.T, ceiling int) nestedOutcome {
 	producer := Compute(made, func(context.Context) (int, error) { return 7, nil })
 	n1 := out.Group("nested").Task("n1").After(made)
 	n2 := out.Group("other").Task("n2")
-	n2Running, readDone := make(chan struct{}), make(chan struct{})
+	n2Running, readDone, bodyHeld := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	var read int
 	outer := out.Group("consumers").Task("outer").After(made)
 	outer.Define(func(context.Context) error {
+		defer close(bodyHeld)
 		n1.Define(func(context.Context) error {
 			go func() {
 				<-n2Running
@@ -47,6 +50,7 @@ func runFinishedNested(t *testing.T, ceiling int) nestedOutcome {
 		})
 		return n2.wait()
 	})
+	<-bodyHeld
 	_ = out.finish()
 	return nestedOutcome{outer: outer.wait(), n1: n1.wait(), n2: n2.wait(), read: read}
 }

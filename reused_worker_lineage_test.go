@@ -16,6 +16,8 @@ const attributionSettle = 100 * time.Millisecond
 // callback. A goroutine the nested Task then starts is traced to the first
 // Task's worker, which by then runs an unrelated Task. The read must still be
 // judged as the callback's that started the goroutine, not as that Task's.
+// Both Defines come before the run body returns: a Define after that is
+// refused (CONTRACT.md section 7).
 func TestReusedWorkerNeverInheritsAnotherCallbacksLineage(t *testing.T) {
 	out := initRun(Config{Output: Plain, MaxConcurrency: 4, Facades: Facades{Stderr: io.Discard}})
 	defer func() { _ = out.close() }()
@@ -24,6 +26,7 @@ func TestReusedWorkerNeverInheritsAnotherCallbacksLineage(t *testing.T) {
 	nested := out.Task("n").After(mk)
 	unrelated := out.Task("b")
 	nestedDefined, unrelatedRunning, learned, finalRead := occurrence(), occurrence(), occurrence(), occurrence()
+	bodyHeld := occurrence()
 	var late atomic.Int64
 
 	out.Task("a").After(mk).Define(func(context.Context) error {
@@ -47,6 +50,7 @@ func TestReusedWorkerNeverInheritsAnotherCallbacksLineage(t *testing.T) {
 		return nil
 	})
 	out.Task("f").Define(func(context.Context) error {
+		defer close(bodyHeld)
 		<-nestedDefined
 		// a has returned, so its worker idles and takes the next claim.
 		time.Sleep(attributionSettle)
@@ -58,6 +62,7 @@ func TestReusedWorkerNeverInheritsAnotherCallbacksLineage(t *testing.T) {
 		return nil
 	})
 
+	<-bodyHeld
 	_ = out.finish()
 
 	if late.Load() != 7 || out.err() != nil {

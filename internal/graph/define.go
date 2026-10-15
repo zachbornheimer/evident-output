@@ -65,9 +65,15 @@ func WorkOf[O any](g *Graph, t *Task, d Definition[O]) Work {
 // start. Misuse is recorded once the lock is free.
 func (g *Graph) submitDefined(t *Task, work Work) {
 	h := g.host
+	late := g.DefineIsLate()
 	h.Lock()
 	if h.CheckOpen() != nil {
 		h.Unlock()
+		return
+	}
+	if late && g.RefuseLateDefine(t) {
+		h.Unlock()
+		g.misuse.RecordMisuseFor(t.Name, lateDefineRefusal(t.Name))
 		return
 	}
 	switch g.Submit(t, work) {

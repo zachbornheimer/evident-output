@@ -21,6 +21,10 @@ const (
 	PhaseRunning
 	// PhaseAbandoned: Defined, but settled NotStarted without ever running.
 	PhaseAbandoned
+	// PhaseRefused: a Define arrived after the run body returned and was
+	// refused (CONTRACT.md section 7). The Task has no work and ends
+	// NotStarted; the refusal already says what to fix.
+	PhaseRefused
 )
 
 // schedule is one Task's scheduling state: its phase, the work Define
