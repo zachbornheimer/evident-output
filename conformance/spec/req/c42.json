@@ -333,5 +333,39 @@
       }
     ],
     "default": false
+  },
+  {
+    "id": "C42-020",
+    "section": "2.0 \u00a72 Work",
+    "quote": "interface `{Task; Group; Sequence}` satisfied by Run, Group, Sequence",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestContractIsTheWholeSurface"
+      },
+      {
+        "pkg": ".",
+        "run": "TestContractSignaturesTypeCheck"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-021",
+    "section": "2.0 \u00a72 Work",
+    "quote": "`Summary(text string) *Group`; the container row's headline",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestGroup_SummaryKeepsTheGroupRowOverASingleExplicitChild"
+      },
+      {
+        "pkg": "./internal/record",
+        "run": "TestContainerSetSummarySanitizesAndClears"
+      }
+    ],
+    "default": false
   }
 ]

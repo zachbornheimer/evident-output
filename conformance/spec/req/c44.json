@@ -151,5 +151,35 @@
       }
     ],
     "default": false
+  },
+  {
+    "id": "C44-010",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "`Fail`, `Refuse` and `Exclude` record every `ProblemOption` on the Problem their ending creates.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestEndingCarriesProblemOptions"
+      },
+      {
+        "pkg": ".",
+        "run": "TestProblem_AcceptsStructuredProblemOptions"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-011",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "closed set; the only verdict type",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestConclusionOutcomeCoversAllSix"
+      }
+    ],
+    "default": false
   }
 ]

@@ -1,11 +1,1 @@
-[
-  {
-    "id": "C17-008",
-    "section": "17",
-    "quote": "Skipped does not warn.",
-    "tier": "1.1",
-    "tests": [],
-    "default": false,
-    "waiver": "removed in 2.0: Skipped (now Exclude); superseded by CONTRACT \u00a74; see docs/migration/2.0.md"
-  }
-]
+[]

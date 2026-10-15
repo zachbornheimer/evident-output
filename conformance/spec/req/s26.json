@@ -1,27 +1,5 @@
 [
   {
-    "id": "C26-003",
-    "section": "26",
-    "quote": "`File` is the normal write-side semantic declaration because it says what state should be established, enabling dry-run, Evidence, Effects, verification, and stale-write protection.",
-    "tier": "1.1",
-    "tests": [
-      {
-        "pkg": "./internal/engine",
-        "run": "TestFileWaitsForCoarseEffectClaim"
-      },
-      {
-        "pkg": "./internal/engine",
-        "run": "TestFilesRefusesToOverwriteStaleSource"
-      },
-      {
-        "pkg": "./internal/engine",
-        "run": "TestFileManifestDryRunNeverCommitsAndRecordsPlannedEffect"
-      }
-    ],
-    "default": false,
-    "waiver": "removed in 2.0: Evidence (now Task.Writer and Facts); superseded by CONTRACT \u00a72; see docs/migration/2.0.md"
-  },
-  {
     "id": "C26-006",
     "section": "26",
     "quote": "holding two claims at once is misuse",

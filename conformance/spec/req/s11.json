@@ -1,11 +1,1 @@
-[
-  {
-    "id": "C11-001",
-    "section": "11",
-    "quote": "Ordinary Facts (`TaskHandle.Fact`, `Output.Fact`, `evo.Fact`) are hidden in normal human output on every Task outcome: success, warned, and failed alike.",
-    "tier": "1.1",
-    "tests": [],
-    "default": false,
-    "waiver": "removed in 2.0: TaskHandle/GroupHandle/SequenceHandle (now Task, Group, Sequence); superseded by CONTRACT \u00a72; see docs/migration/2.0.md"
-  }
-]
+[]
