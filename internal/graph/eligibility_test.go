@@ -185,7 +185,7 @@ func TestFailedPredecessorSettlesItsDependentNotStarted(t *testing.T) {
 	if got := second.Rec.State(); got != record.NotStarted {
 		t.Errorf("second state = %q, want not_started", got)
 	}
-	if got, want := second.Rec.Summary(), stoppedBy("first", record.Failed); got != want {
+	if got, want := second.Rec.Summary(), (&stopper{name: "first", state: record.Failed}).summary(); got != want {
 		t.Errorf("second summary = %q, want %q", got, want)
 	}
 	if g.Parked() != 0 {

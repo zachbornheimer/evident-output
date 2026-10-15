@@ -140,7 +140,7 @@ func (g *Graph) concludeGateLocked(gate *Task) {
 	}
 	stop, stopped := builderStopOf(gate)
 	if stopped && !stop.failed {
-		c.Rec.SetSummary(stop.cause)
+		c.Rec.SetSummary(stop.by.summary())
 	}
 	var woken []*Task
 	for p := c; p != nil; p = p.Parent {
@@ -160,11 +160,7 @@ func builderStopOf(gate *Task) (builderStop, bool) {
 	case record.Succeeded:
 		return builderStop{}, false
 	case record.NotStarted:
-		cause := gate.Rec.Summary()
-		if cause == "" {
-			cause = NotStartedSummary
-		}
-		return builderStop{cause: cause}, true
+		return builderStop{by: gate.stoppedBy}, true
 	default:
 		return builderStop{failed: true}, true
 	}

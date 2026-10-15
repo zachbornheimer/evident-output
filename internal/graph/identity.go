@@ -66,6 +66,10 @@ type Task struct {
 	Parent *Container
 
 	key string // guarded by graph.mu
+	// stoppedBy is who kept the Task from running, when a predecessor or an
+	// earlier Sequence step stopped it; nil for a Task that ran or only never
+	// started. Guarded by graph.mu.
+	stoppedBy *stopper
 
 	// The rest is scheduling state, guarded by graph.mu.
 
@@ -138,9 +142,8 @@ type Container struct {
 	// stoppedAfter is, for a Sequence, the declaration of the earliest step
 	// a failure already stopped its later steps after (0: none yet).
 	stoppedAfter int
-	// stoppedBy is the summary the steps stoppedAfter stopped carry: who
-	// stopped them.
-	stoppedBy string
+	// stoppedBy is who stopped the steps stoppedAfter stopped.
+	stoppedBy *stopper
 	// tally counts this container's descendant Tasks by outcome, for the
 	// Tasks that run After it.
 	tally tally

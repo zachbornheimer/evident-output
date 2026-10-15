@@ -54,18 +54,18 @@ type tally struct {
 type builderStop struct {
 	// failed is set when the builder ran and did not finish declaring.
 	failed bool
-	// cause is the summary of a builder that never ran: what its
-	// predecessor's state says. Unused when failed.
-	cause string
+	// by is who stopped a builder that never ran: what its predecessor
+	// answers to. Unused when failed.
+	by *stopper
 }
 
-// summary is the summary of a Task kept from running by the collection
-// named name, whose builder stopped this way.
-func (b builderStop) summary(name string) string {
+// stopper is who a Task kept from running by the collection named name
+// answers to, whose builder stopped this way.
+func (b builderStop) stopper(name string) *stopper {
 	if b.failed {
-		return stoppedBy(name, record.Failed)
+		return &stopper{name: name, state: record.Failed}
 	}
-	return b.cause
+	return b.by
 }
 
 // parkedTask is a Task parked on a collection edge that reads members

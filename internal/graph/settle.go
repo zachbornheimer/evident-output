@@ -9,24 +9,35 @@ import (
 // NotStartedSummary is the fixed detail a Task that never ran carries: the
 // text is not caller-composed, so every site that settles a Task NotStarted
 // spells it the same way. A Task a predecessor stopped adds who stopped it
-// (see stoppedBy).
+// (see stopper).
 const NotStartedSummary = "not started"
 
-// stoppedBy is the summary of a Task that never ran because the Task named
-// name settled in state, which no dependent accepts.
-func stoppedBy(name string, state record.State) string {
-	return NotStartedSummary + " — " + name + " " + strings.ReplaceAll(string(state), "_", " ")
+// stopper is the Task, or the collection whose builder failed, that can never
+// succeed and so keeps the Tasks After it from running: the root of a chain
+// of NotStarted dependents, which all name it. It is a value the node carries,
+// so no site recovers it from rendered text.
+type stopper struct {
+	name  string
+	state record.State
 }
 
-// stoppedByTask is the summary of a Task kept from running by the Task p.
-// p that never ran already says what stopped it, and that is the root of the
-// chain, so its dependents repeat it; any other p is the root itself, named in
-// the state it ended in.
-func stoppedByTask(p *Task) string {
-	if summary := p.Rec.Summary(); p.Rec.State() == record.NotStarted && strings.HasPrefix(summary, NotStartedSummary+" — ") {
-		return summary
+// summary is the detail of a Task this stopper kept from running.
+func (s *stopper) summary() string {
+	if s == nil {
+		return NotStartedSummary
 	}
-	return stoppedBy(p.Name, p.Rec.State())
+	return NotStartedSummary + " — " + s.name + " " + strings.ReplaceAll(string(s.state), "_", " ")
+}
+
+// stoppedByTask is who stopped the Tasks kept from running by the Task p. A
+// p that never ran because something stopped it passes that root on, so its
+// dependents repeat it; any other p is the root itself, named in the state it
+// ended in.
+func stoppedByTask(p *Task) *stopper {
+	if p.stoppedBy != nil && p.Rec.State() == record.NotStarted {
+		return p.stoppedBy
+	}
+	return &stopper{name: p.Name, state: p.Rec.State()}
 }
 
 // Settle is the one way a Task reaches a terminal state. Every path that
@@ -71,33 +82,34 @@ func (g *Graph) MarkNotStarted(t *Task) {
 }
 
 func (g *Graph) markNotStartedLocked(t *Task) {
-	g.markStoppedLocked(t, NotStartedSummary)
+	g.markStoppedLocked(t, nil)
 }
 
-// markStoppedLocked settles t NotStarted with summary, which says what
-// stopped it.
-func (g *Graph) markStoppedLocked(t *Task, summary string) {
-	t.Rec.SetSummary(summary)
+// markStoppedLocked settles t NotStarted, stopped by by: nil when nothing
+// stopped it, so it only never started.
+func (g *Graph) markStoppedLocked(t *Task, by *stopper) {
+	t.stoppedBy = by
+	t.Rec.SetSummary(by.summary())
 	g.settleLocked(t, record.NotStarted)
 }
 
-// stopperLocked is the summary of a Task that failed predecessor p keeps
-// from running: it names the Task that can never succeed, the earliest such
-// member of a collection, or a collection whose builder never declared its
-// members.
-func (g *Graph) stopperLocked(p Predecessor) string {
+// stopperLocked is who a Task that failed predecessor p keeps from running
+// answers to: the Task that can never succeed, the earliest such member of a
+// collection, or a collection whose builder never declared its members. Nil
+// when p names no one.
+func (g *Graph) stopperLocked(p Predecessor) *stopper {
 	switch {
 	case p.task != nil:
 		return stoppedByTask(p.task)
 	case p.col == nil:
-		return NotStartedSummary
+		return nil
 	case p.col.tally.stoppedBuilder != nil:
-		return p.col.tally.stoppedBuilder.summary(p.col.Name)
+		return p.col.tally.stoppedBuilder.stopper(p.col.Name)
 	}
 	if m := p.col.tally.firstFailedMember(); m != nil {
 		return stoppedByTask(m)
 	}
-	return NotStartedSummary
+	return nil
 }
 
 // abandonLocked releases the scheduler's hold on submitted work that
@@ -167,13 +179,13 @@ func (g *Graph) stopIfFollowerLocked(t *Task) {
 	}
 }
 
-// stopUnstartedLocked settles t NotStarted with summary unless it already
+// stopUnstartedLocked settles t NotStarted, stopped by by, unless it already
 // started or resolved.
-func (g *Graph) stopUnstartedLocked(t *Task, summary string) {
+func (g *Graph) stopUnstartedLocked(t *Task, by *stopper) {
 	if record.IsTerminalTask(t.Rec.State()) || t.sched.phase == PhaseRunning {
 		return
 	}
-	g.markStoppedLocked(t, summary)
+	g.markStoppedLocked(t, by)
 }
 
 // FollowerChecks counts the Sequence followers examined, so a test can prove
