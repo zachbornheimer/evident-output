@@ -221,5 +221,43 @@
       }
     ],
     "default": false
+  },
+  {
+    "id": "C43-012",
+    "section": "2.0 \u00a73 Change",
+    "quote": "It runs no Exec either, so a Define callback that opens a planned Exec's Output finds no file: a later Exec or File that names that Output in `Inputs` is planned instead (the `cp` line above), and opaque code skips the read under its own `Config.DryRun`.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestExecDryRunNeverSpawns"
+      },
+      {
+        "pkg": ".",
+        "run": "TestDryRunPlansDownstreamOfPlannedOutputs"
+      },
+      {
+        "pkg": ".",
+        "run": "TestContractShowsPlannedExecOutputIdiom"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C43-013",
+    "section": "2.0 \u00a73 Change",
+    "quote": "`File(ctx context.Context, spec FileSpec) error`; desired state of one file and its parent directories",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestFileCreatesParentAndFailsInOneClause"
+      },
+      {
+        "pkg": "./internal/fs",
+        "run": "TestDiskWriteAtomicCreatesMissingParents"
+      }
+    ],
+    "default": false
   }
 ]

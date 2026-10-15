@@ -75,5 +75,18 @@
       }
     ],
     "default": false
+  },
+  {
+    "id": "C47-006",
+    "section": "2.0 \u00a77 Errors",
+    "quote": "a Task still undefined at Finish",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestUndefinedTaskIsRefusedDeclaration"
+      }
+    ],
+    "default": false
   }
 ]

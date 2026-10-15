@@ -282,5 +282,56 @@
       }
     ],
     "default": false
+  },
+  {
+    "id": "C42-017",
+    "section": "2.0 \u00a72 Work",
+    "quote": "A NotStarted Task's summary names the Task at the root of its chain of predecessors, in that Task's state, whether a Group it ran After got its members from `Build` or declared them directly.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestNotStartedNamesPredecessorRegardlessOfBuild"
+      },
+      {
+        "pkg": ".",
+        "run": "TestNotStartedNamesRealStopperForBuiltGroups"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-018",
+    "section": "2.0 \u00a72 Work",
+    "quote": "`Doing(text string, args ...any) *Task`; current item; Plain: first call durable, then milestones with the latest text",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./internal/project/plain",
+        "run": "TestPlainDoingFirstCallIsDurableThenMilestones"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPlain_DoingWritesNoDurableLinePerCall"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C42-019",
+    "section": "2.0 \u00a72 Work",
+    "quote": "`Progress(completed, total int) *Task`; Plain: first call durable, then milestones with the latest text",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestPlainProgress_StreamsMilestones_NotOnlyFirstTick"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPlain_DoingWritesNoDurableLinePerCall"
+      }
+    ],
+    "default": false
   }
 ]

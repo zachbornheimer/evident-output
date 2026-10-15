@@ -116,5 +116,18 @@
       }
     ],
     "default": false
+  },
+  {
+    "id": "C48-007",
+    "section": "2.0 §8 What Evo promises",
+    "quote": "then the rows Finish itself ended (a Task with no Define), then the rows that ran After a collection but never started (a NotStarted dependent)",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestHumanFinalScreenOrderMatchesPlain"
+      }
+    ],
+    "default": false
   }
 ]

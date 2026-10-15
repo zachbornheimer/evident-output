@@ -117,5 +117,39 @@
       }
     ],
     "default": false
+  },
+  {
+    "id": "C44-008",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "A Task with no Define never returns, so it ends NotStarted at Finish whatever Facts, Problems, Progress or Verify it carries, a Task After it names it as the one that stopped it, and the run fails by misuse (section 7).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestUndefinedTaskEndsNotStarted"
+      },
+      {
+        "pkg": ".",
+        "run": "TestUndefinedTaskPlainGolden"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-009",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "In `evo.run` a Task's `state` is its Outcome's value or `not_started`, and a collection's adds `empty` for one with no members; no other state is written.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./schema",
+        "run": "TestRunSchemaEnumeratesStateAndOutcome"
+      },
+      {
+        "pkg": "./schema",
+        "run": "TestRunSchemaRejectsUnknownStateAndOutcome"
+      }
+    ],
+    "default": false
   }
 ]
