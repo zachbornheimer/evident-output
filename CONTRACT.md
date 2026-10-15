@@ -336,8 +336,8 @@ run that committed a mutation adds one line under the band,
 | `Failed`         | const | `Failed Outcome`; ran and failed; exit 2                                                         |
 | `Cancelled`      | const | `Cancelled Outcome`; interrupted; exit 130                                                       |
 
-A Task row leads with the glyph of its Outcome, in Human and Plain. ASCII
-locales draw the bracketed forms.
+A Task row leads with the glyph of its Outcome. On a live terminal whose
+locale is not UTF-8, Human draws the bracketed forms; Plain always draws Unicode.
 
 | Glyph | Row                                                                     |
 | ----- | ----------------------------------------------------------------------- |
@@ -431,8 +431,8 @@ Environment, applied only where `Config` is zero:
 
 These are the only variables Evo reads, and a value outside its list is
 ignored. Machine output is never inferred from a piped stdout. A locale
-containing `UTF-8` or `utf8` draws Unicode glyphs; any other locale draws ASCII
-glyphs in the live status column. With none of the three set, Evo assumes UTF-8.
+containing `UTF-8` or `utf8` is a UTF-8 locale. With none of the three set, Evo
+assumes UTF-8.
 
 A JSONL run emits exactly one `task.finished` event for every Task it
 declared, including a Task that never started because a predecessor failed
