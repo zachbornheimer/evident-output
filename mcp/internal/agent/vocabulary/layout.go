@@ -20,6 +20,8 @@ var conceptFile = map[string]string{
 	"Effect": "effect.go", "Patch": "patch.go", "Report": "report.go",
 	"Problem": "problem.go", "Ending": "ending.go", "Confirm": "confirm.go",
 	"Output": "output.go", "Errors": "errors.go",
+	"Define": "define.go", "Predecessor": "predecessor.go", "Annotation": "annotation.go",
+	"Logging": "logging.go", "Text": "text.go",
 }
 
 // LayoutReport lists every way the root package departs from the layout.
@@ -41,7 +43,9 @@ func Home(entry Entry) string {
 
 // compositionFiles are root files of the composition root that declare no
 // exported identifier.
-var compositionFiles = []string{"host.go"}
+var compositionFiles = []string{
+	"aliases.go", "conclude.go", "host.go", "host_observe.go", "host_task.go", "identity.go", "misuse.go",
+}
 
 // ExpectedRootFiles is the sorted set of non-test root files: one per
 // concept family, plus the package doc and the composition files.

@@ -1,8 +1,11 @@
 package evo
 
 import (
+	"fmt"
+	"io"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
@@ -58,4 +61,58 @@ func asRecordConclusion(c Conclusion) record.Conclusion {
 		RunID: c.runID, StartedAt: c.startedAt, FinishedAt: c.finishedAt,
 		DryRun: c.DryRun, Facts: c.facts,
 	}
+}
+
+// ResultWriter returns the stdout data payload; presentation never writes to it. Human and Plain runs
+// reserve stdout for it and pass the bytes through unchanged. A JSON run embeds what it receives as the
+// evo.run document's result, and a JSONL run streams each write as a result.written event, so stdout stays
+// machine-readable; both carry bytes that are not valid UTF-8 as base64. Writing after the run finished is
+// misuse in every mode and returns an error. A run with no payload stream returns io.Discard.
+func (r *Run) ResultWriter() io.Writer {
+	if r == nil {
+		return io.Discard
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.cfg.result != nil || r.cfg.wireFormat == JSON || r.cfg.wireFormat == JSONL {
+		return resultWriter{r}
+	}
+	return io.Discard
+}
+
+// resultWriter is the payload stream of a run: it folds a write into the machine document or event stream
+// that owns stdout, routes it through the live region when stdout shares the region's terminal, and
+// otherwise passes it to stdout as it is.
+type resultWriter struct{ o *Run }
+
+func (w resultWriter) Write(b []byte) (int, error) {
+	sink, err := w.o.routeResult(b)
+	if err != nil {
+		return 0, err
+	}
+	if sink == nil {
+		return len(b), nil
+	}
+	return sink.Write(b)
+}
+
+// routeResult delivers b when the run itself owns the destination, and otherwise returns the raw payload
+// stream for the caller to write after the run lock is released, so a slow reader never stalls the run.
+func (r *Run) routeResult(b []byte) (io.Writer, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.ensureOpen(); err != nil {
+		r.recordMisuse(err)
+		return nil, fmt.Errorf("write result: %w", err)
+	}
+	switch {
+	case r.cfg.wireFormat == JSONL:
+		r.emitWireEventLocked(wire.EventResultWritten, "", wire.NewResultWrittenPayload(b).EventPayload())
+	case r.cfg.wireFormat == JSON:
+		r.resultText.Write(b)
+	case r.cfg.resultSharesTerminal && r.show.Stream.WritePayload(string(b)):
+	default:
+		return r.cfg.result, nil
+	}
+	return nil, nil
 }

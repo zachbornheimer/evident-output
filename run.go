@@ -3,17 +3,12 @@ package evo
 import (
 	"context"
 	"errors"
-	"fmt"
-	"path/filepath"
 	"sync/atomic"
 	"time"
 
 	"github.com/zachbornheimer/evident-output/v2/internal/graph"
-	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
 	"github.com/zachbornheimer/evident-output/v2/internal/process"
 	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
-	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
-	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
 var errRunExitedWithoutReturn = errors.New("run callback exited without returning (runtime.Goexit)")
@@ -126,95 +121,12 @@ func awaitInterrupted(sigCh <-chan process.Signal, done <-chan Result) Result {
 type watchedContext struct{ parent context.Context }
 
 func (w watchedContext) Deadline() (time.Time, bool) { return w.parent.Deadline() }
-func (w watchedContext) Done() <-chan struct{}       { return nil }
-func (w watchedContext) Err() error                  { return nil }
-func (w watchedContext) Value(key any) any           { return w.parent.Value(key) }
 
-func concludeInterruptible(out *Run, interrupted *atomic.Bool, runErr error) Result {
-	if interrupted.Load() {
-		return concludeCancelled(out, runErr)
-	}
-	return concludeRun(out, runErr)
-}
+func (w watchedContext) Done() <-chan struct{} { return nil }
 
-func concludeRunAfterExit(out *Run, interrupted *atomic.Bool, returned bool, runErr error) Result {
-	if !returned {
-		runErr = errRunExitedWithoutReturn
-	}
-	return concludeInterruptible(out, interrupted, runErr)
-}
+func (w watchedContext) Err() error { return nil }
 
-func concludeRun(out *Run, runErr error) Result {
-	if runErr != nil && !out.anyFailed() {
-		// Record the application error only when no entity already Failed (avoids a duplicate Fail row).
-		out.end(runErr)
-	}
-	finishErr := out.finish()
-	closeErr := out.close()
-	conclusion := out.conclusion()
-	// Bookkeeping misuse is already in the Conclusion. A renderer or write failure surfaces after
-	// the band is flushed, so it escalates an otherwise-OK exit code here.
-	if conclusion.exitCode == exitOK && (errors.Is(finishErr, errRenderer) || errors.Is(closeErr, errRenderer)) {
-		conclusion.exitCode = exitFailed
-	}
-	return Result{Conclusion: conclusion, Err: out.resultErr(runErr)}
-}
-
-// concludeCancelled: the recorded Cancel's Conclusion alone yields ExitCancelled; runErr rides as Result.Err.
-func concludeCancelled(out *Run, runErr error) Result {
-	_ = out.finish()
-	_ = out.close()
-	return Result{Conclusion: out.conclusion(), Err: out.resultErr(runErr)}
-}
-
-// resultErr is Result.Err: what the body returned, joined with every misuse the run recorded.
-func (r *Run) resultErr(runErr error) error {
-	return joinErrors(runErr, r.allMisuse())
-}
-
-func (r *Run) anyFailed() bool {
-	if r == nil {
-		return false
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, t := range r.tasks {
-		if t.node.Rec.State() == failed {
-			return true
-		}
-	}
-	return false
-}
-
-// processArgv0 is the facade over the program name; a var so tests can inject it.
-var processArgv0 = func() string {
-	args := process.Args()
-	if len(args) == 0 {
-		return ""
-	}
-	return args[0]
-}
-
-// selfName is the resolved Config.Name: the binary's basename when none was given.
-func (r *Run) selfName() string {
-	return r.cfg.subject
-}
-
-// identityFallbackName is the executable's basename or "command"; never a Subject.
-func identityFallbackName() string {
-	if base := filepath.Base(processArgv0()); base != "." && base != string(filepath.Separator) {
-		return base
-	}
-	return "command"
-}
-
-// rendererError reports a renderer failure as a genuine Run failure (§32.2); nil stays nil.
-func rendererError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%w: %v", errRenderer, err)
-}
+func (w watchedContext) Value(key any) any { return w.parent.Value(key) }
 
 func (r *Run) ensureOpen() error {
 	if r.closed || r.finishing || r.finished {
@@ -258,164 +170,8 @@ func (r *Run) beginRunContext(ctx context.Context) context.Context {
 	return r.graph.BeginRunContext(ctx)
 }
 
-func (r *Run) conclusion() Conclusion {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if c, ok := r.rec.Conclusion(); ok {
-		return asEvoConclusion(c)
-	}
-	snap := r.snapshotLocked()
-	c := record.InferConclusion(snap)
-	r.explainCancellationLocked(&c)
-	return asEvoConclusion(c)
-}
-
-const cancelCauseUser = "by user"
-
-const cancelCauseClose = "run closed"
-
-// explainCancellationLocked names what interrupted a cancelled run as its Explanation.
-func (r *Run) explainCancellationLocked(c *record.Conclusion) {
-	if c.Outcome != record.OutcomeCancelled {
-		return
-	}
-	if cause := r.graph.CancelCause(); cause != "" {
-		c.Explanation = cause
-	}
-}
-
-// Domain types live in internal/core and internal/txt; engine aliases them.
-
-type entityState = record.State
-
-const (
-	pending    = record.Pending
-	running    = record.Running
-	succeeded  = record.Succeeded
-	refused    = record.Refused
-	failed     = record.Failed
-	excluded   = record.Excluded
-	cancelled  = record.Cancelled
-	empty      = record.Empty
-	notStarted = record.NotStarted
-)
-
-type progressKind = record.ProgressKind
-
-const (
-	indeterminate = record.Indeterminate
-	determinate   = record.Determinate
-	bytesKind     = record.BytesKind
-)
-
-type (
-	factRecord = record.Fact
-	recEvent   = record.Event
-)
-
-const eventSchemaVersion = record.EventSchemaVersion
-
-type (
-	snapshot        = record.Snapshot
-	taskSnapshot    = record.TaskSnapshot
-	tasksSnapshot   = record.TasksSnapshot
-	changesSnapshot = record.ChangesSnapshot
-	planSnapshot    = record.PlanSnapshot
-)
-
-const (
-	exitOK        = record.ExitOK
-	exitRefused   = record.ExitRefused
-	exitFailed    = record.ExitFailed
-	exitCancelled = record.ExitCancelled
-)
-
-type (
-	problem      = record.Problem
-	field        = record.Field
-	commandSpec  = record.CommandSpec
-	glyphProfile = txt.GlyphProfile
-)
-
-const (
-	glyphsAuto    = txt.GlyphsAuto
-	glyphsUnicode = txt.GlyphsUnicode
-	glyphsASCII   = txt.GlyphsASCII
-)
-
 func (r *Run) humanStyle() txt.Style {
 	return txt.Style{Color: !r.cfg.noColor, Verbose: r.cfg.verbose, Profile: r.cfg.glyphs}
-}
-
-func (r *Run) recordMisuse(err error) {
-	r.misuse.Record(err)
-}
-
-func (r *Run) recordMisuseFor(subject string, err error) {
-	r.misuse.RecordMisuseFor(subject, err)
-}
-
-func (r *Run) firstMisuse() error {
-	return r.misuse.First()
-}
-
-// allMisuse is every distinct misuse recorded, joined in record order.
-func (r *Run) allMisuse() error {
-	return r.misuse.All()
-}
-
-// appendMisuseLineLocked renders the one required line for the first recorded misuse, so an exit code
-// never disagrees with what was printed. It is the corrective sentence; machine detail stays in JSON/debug.
-func (r *Run) appendMisuseLineLocked() {
-	r.graph.Root().Log(txt.MisuseLine(r.misuse.Hint(), !r.cfg.noColor))
-}
-
-// recordAlreadyResolvedLocked records ErrAlreadyResolved for a second terminal verb on task name.
-func (r *Run) recordAlreadyResolvedLocked(name, rejectedSummary string) {
-	r.misuse.Note(misuse.ErrAlreadyResolved, name, rejectedSummary)
-}
-
-// redactString applies the configured redactor. It takes no lock: locking Run.mu here deadlocked a
-// scheduled failure auto-attaching its evidence tail, where resolve already holds it.
-func (r *Run) redactString(s string) string {
-	if r == nil {
-		return s
-	}
-	redactor := r.cfg.redactor
-	if redactor == nil {
-		return s
-	}
-	return redactor.RedactString(s)
-}
-
-// Fact accumulates a run-scoped name/value annotation (like Task.Fact): it renders a durable dim line
-// at once and stores it for Snapshot/JSON. A nil Run records nothing.
-func (r *Run) Fact(name, value string) *Run {
-	if r == nil {
-		return r
-	}
-	f := record.SanitizeFact(factRecord{Name: txt.Text(name), Value: txt.Text(value)})
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if err := r.ensureOpen(); err != nil {
-		r.recordMisuse(err)
-		return r
-	}
-	r.graph.Root().Note(f)
-	r.bumpLocked()
-	r.emitWireEventLocked(wire.EventFactRecorded, "", wire.ToFactDoc(f).EventPayload())
-	r.show.Stream.Write(txt.Dim(f.Name+"  "+f.Value, !r.cfg.noColor) + "\n")
-	return r
-}
-
-// warnLocked records p as a run-scoped warning and renders it; callers hold r.mu.
-func (r *Run) warnLocked(p problem) {
-	r.graph.Root().Warn(p)
-	r.bumpLocked()
-	r.appendEventLocked(recEvent{Type: "run.warned", OutputID: r.outputID})
-	r.emitWireEventLocked(wire.EventWarningRecorded, "", wire.ToProblemDoc(p).EventPayload())
-	glyph := txt.StyleGlyph(txt.GlyphWarningState.Render(r.cfg.glyphs), txt.SGRYellow, !r.cfg.noColor)
-	r.show.Stream.Write(glyph + " " + p.Summary + "\n")
 }
 
 // interrupt stops the run at the first signal; graph.Graph.Interrupt owns the order that keeps the ledger honest.

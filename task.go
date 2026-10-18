@@ -1,12 +1,8 @@
 package evo
 
 import (
-	"context"
 	"fmt"
-	"os"
 
-	"github.com/zachbornheimer/evident-output/v2/internal/change"
-	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
 	"github.com/zachbornheimer/evident-output/v2/internal/graph"
 	"github.com/zachbornheimer/evident-output/v2/internal/project"
 	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
@@ -60,88 +56,6 @@ func (t *Task) finish(state entityState, summary string, problems []problem) *Ta
 		o.graph.Resolve(st.node, graph.Resolution{State: state, Summary: summary, Problems: problems, By: graph.ByCaller})
 	}
 	return t
-}
-
-// Predecessor is a handle After accepts: *Task, *Group, *Sequence or *Computed[T]. Sealed.
-type Predecessor interface {
-	predecessor()
-}
-
-func (*Task) predecessor()     {}
-func (*Group) predecessor()    {}
-func (*Sequence) predecessor() {}
-
-// After declares predecessors: this Task starts only once all succeeded, never if one cannot.
-func (t *Task) After(preds ...Predecessor) *Task {
-	if t == nil || t.out == nil {
-		return t
-	}
-	o := t.out
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	st := o.taskStates[t.id]
-	if st == nil {
-		return t
-	}
-	o.graph.After(st.node, o.predecessorsOfLocked(preds)...)
-	return t
-}
-
-func (r *Run) predecessorsOfLocked(args []Predecessor) []graph.Predecessor {
-	preds := make([]graph.Predecessor, 0, len(args))
-	for _, arg := range args {
-		if pred, ok := r.predecessorOfLocked(arg); ok {
-			preds = append(preds, pred)
-		}
-	}
-	return preds
-}
-
-// predecessorOfLocked resolves one After argument; a handle from another Output yields the empty predecessor, which never succeeds.
-func (r *Run) predecessorOfLocked(p Predecessor) (pred graph.Predecessor, ok bool) {
-	switch x := p.(type) {
-	case *Task:
-		if x == nil || x.id == "" {
-			return graph.Predecessor{}, false
-		}
-		if x.out == r {
-			return graph.AfterTask(r.nodeOfTask(x.id)), true
-		}
-	case *Group:
-		if x == nil || x.id == "" {
-			return graph.Predecessor{}, false
-		}
-		if x.out == r {
-			return graph.AfterContainer(r.nodeOfContainer(x.id)), true
-		}
-	case *Sequence:
-		if x == nil || x.tasks == nil {
-			return graph.Predecessor{}, false
-		}
-		return r.predecessorOfLocked(x.tasks)
-	case interface{ producer() *Task }:
-		if x == nil {
-			return graph.Predecessor{}, false
-		}
-		return r.predecessorOfLocked(x.producer())
-	default:
-		return graph.Predecessor{}, false
-	}
-	return graph.Predecessor{}, true
-}
-
-func (r *Run) nodeOfTask(id string) *graph.Task {
-	if st := r.taskStates[id]; st != nil {
-		return st.node
-	}
-	return nil
-}
-
-func (r *Run) nodeOfContainer(id string) *graph.Container {
-	if st := r.containerStates[id]; st != nil {
-		return st.node
-	}
-	return nil
 }
 
 // Doing sets the live step text and starts the task if pending; text is a printf format when
@@ -259,78 +173,4 @@ func (t *Task) appendLiveTail(line string, retained int) {
 		t.out.show.Board.PushTail(st.node.TaskID(), line, retained, t.out.cfg.clock.Now())
 		t.out.setLiveOnlyPhaseLocked(st, line)
 	})
-}
-
-type DefineOption func(*defineConfig)
-
-type defineConfig struct{ cleanStopSignals []os.Signal }
-
-func CleanStop(signals ...os.Signal) DefineOption {
-	return func(c *defineConfig) { c.cleanStopSignals = append(c.cleanStopSignals, signals...) }
-}
-
-// Verify registers a read-only check of the world's current state, ANDed with any earlier Verify on this Task.
-// Call it before Define, which freezes configuration; a later call is ignored and recorded as misuse.
-//
-// Evo runs every Verify twice. Before the callback, all true skips it and settles the Task Satisfied, any
-// false runs it, and an error fails the Task. After a callback that returned nil, any false fails the Task,
-// because the work did not produce the state it promised. The second check is skipped when the callback
-// ended the Task with an error, or when a dry run planned its changes without making them.
-func (t *Task) Verify(fn func(context.Context) (bool, error)) *Task {
-	if t == nil || t.out == nil || fn == nil {
-		return t
-	}
-	o := t.out
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	st := o.taskStates[t.id]
-	if st == nil {
-		return t
-	}
-	if st.node.Submitted() {
-		o.recordMisuseFor(st.name, ErrInvalidConfig)
-		return t
-	}
-	o.freshness.Tasks().AddVerifier(st.node.TaskID(), freshness.Verifier(fn))
-	return t
-}
-
-// Define freezes this Task's After and Verify configuration and submits fn to the scheduler. It returns the
-// same *Task at once and never runs fn inline; Evo decides when fn runs and owns its goroutine, so callers
-// declare work and return. What fn returns is the Task's outcome: nil Succeeded, Refuse Refused, Exclude
-// Excluded, and Fail or any other error Failed. A second Define on the same Task is misuse.
-func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Task {
-	if t == nil || t.out == nil {
-		return t
-	}
-	o := t.out
-	st := t.declared()
-	if st == nil {
-		o.recordMisuse(t.rejected)
-		return t
-	}
-	if fn == nil {
-		o.refuseNilDefine(st)
-		return t
-	}
-	var cfg defineConfig
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-	graph.Define(o.graph, st.node, o.definition(st, o.cleanStops.Wrap(cfg.cleanStopSignals, fn)))
-	return t
-}
-
-// refuseNilDefine records the refusal of Define(nil) on st and settles its row NotStarted: a Task with no
-// callback can never run, so it is work the refusal took away, not a forgotten terminal verb.
-func (r *Run) refuseNilDefine(st *taskState) {
-	r.mu.Lock()
-	st.refused = true
-	r.mu.Unlock()
-	r.recordMisuseFor(st.name, fmt.Errorf("%w: nil Define callback for task %q", ErrInvalidConfig, st.name))
-}
-
-// definition is st's Define with fn as its callback; freshness checks it.
-func (r *Run) definition(st *taskState, fn func(context.Context) error) graph.Definition[*change.Run] {
-	return graph.Definition[*change.Run]{Owner: r.changes, Checks: r.freshness.Checks(st.node.TaskID()), Callback: fn}
 }
