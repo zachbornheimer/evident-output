@@ -160,9 +160,7 @@ through it is not caught either.
 callback, so a value would exist only when the world says so. A `Build` runs
 once when its container becomes eligible, declares topology only, and closes
 the container's declaration phase; declaring work from inside a Task's
-callback is misuse. Members declared before a `Build` callback exits through `runtime.Goexit` or panics still run. A signal named in `CleanStop`, arriving while that Task
-runs, cancels only that Task's context and ends it Succeeded; it does not
-cancel the run, so a run with nothing else left exits 0. A signal it does not
+callback is misuse. Members declared before a `Build` callback exits through `runtime.Goexit` or panics still run. Main subscribes each signal named in `CleanStop` for exactly the time a callback naming it runs, and that signal, arriving then, cancels only that Task's context and ends it Succeeded without cancelling the run, so a run with nothing else left exits 0; `CleanStop` under `Execute` is refused at `Define` with `ErrInvalidConfig`, because the host owns signals there. A signal it does not
 name still cancels the run.
 
 | Symbol              | Kind   | Meaning                                                                                                                |

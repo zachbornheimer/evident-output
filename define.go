@@ -14,6 +14,7 @@ type DefineOption func(*defineConfig)
 
 type defineConfig struct{ cleanStopSignals []os.Signal }
 
+// CleanStop names the signals that end a Task cleanly; see CONTRACT.md section signals.
 func CleanStop(signals ...os.Signal) DefineOption {
 	return func(c *defineConfig) { c.cleanStopSignals = append(c.cleanStopSignals, signals...) }
 }
