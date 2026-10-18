@@ -63,6 +63,7 @@ var documentedPayloads = []payloadSchema{
 	bind[OperationFinishedPayload](EventOperationFinished),
 	bind[DefinitionFinishedPayload](EventDefinitionFinished),
 	bind[TaskFinishedPayload](EventTaskFinished),
+	bind[MisuseDoc](EventRunMisuse),
 	bind[RunFinishedPayload](EventRunFinished),
 	bind[ResultWrittenPayload](EventResultWritten),
 }

@@ -99,6 +99,27 @@ type RunData struct {
 	Problems    []ProblemDoc    `json:"problems"`
 	Effects     []EffectDoc     `json:"effects"`
 	Actions     []ActionDoc     `json:"actions"`
+	// Misuse lists every misuse the run recorded, each a record of its own however the run ended.
+	Misuse []MisuseDoc `json:"misuse"`
+}
+
+// MisuseDoc is one misuse: the refused declaration or call, the entity it names, and the fix.
+type MisuseDoc struct {
+	Message string `json:"message"`
+	Subject string `json:"subject,omitempty"`
+	Remedy  string `json:"remedy"`
+}
+
+// ToMisuseDoc is the one record.MisuseRecord projection, shared by evo.run's data.misuse and the run.misuse event.
+func ToMisuseDoc(m record.MisuseRecord) MisuseDoc {
+	return MisuseDoc{Message: m.Message, Subject: m.Subject, Remedy: m.Remedy}
+}
+
+// EventPayload is d as a run.misuse payload.
+func (d MisuseDoc) EventPayload() map[string]any {
+	payload := map[string]any{"message": d.Message, "remedy": d.Remedy}
+	putNonZero(payload, "subject", d.Subject)
+	return payload
 }
 
 // CollectionDoc is a Group/Sequence wire record (schema/run.v3.json: kind
@@ -255,6 +276,7 @@ func ToRunDocument(result record.Result, evoVersion string) RunDocument {
 			Problems:    toProblemDocs(c.Warnings),
 			Effects:     make([]EffectDoc, 0, len(c.Changes)+len(c.Plans)),
 			Actions:     make([]ActionDoc, 0, len(c.Actions)),
+			Misuse:      make([]MisuseDoc, 0, len(c.Misuse)),
 		},
 	}
 	doc.Result, doc.ResultBase64 = TextOrBase64(result.Payload)
@@ -272,6 +294,9 @@ func ToRunDocument(result record.Result, evoVersion string) RunDocument {
 	}
 	for _, a := range c.Actions {
 		doc.Data.Actions = append(doc.Data.Actions, ToActionDoc(a))
+	}
+	for _, m := range c.Misuse {
+		doc.Data.Misuse = append(doc.Data.Misuse, ToMisuseDoc(m))
 	}
 	return doc
 }

@@ -40,6 +40,17 @@ type Conclusion struct {
 	// Facts mirrors Snapshot.Facts (run-scoped evo.Fact annotations) — the
 	// wire v2 envelope's top-level "data.facts" (schema/run.v3.json).
 	Facts []Fact
+	// Misuse is every distinct misuse the run recorded, in record order: the evo.run "data.misuse" list and
+	// the run.misuse events, whatever ending decided Explanation.
+	Misuse []MisuseRecord
+}
+
+// MisuseRecord is one misuse as a machine consumer reads it: what was refused, the entity it happened on
+// (empty when none), and the sentence that corrects it.
+type MisuseRecord struct {
+	Message string
+	Subject string
+	Remedy  string
 }
 
 // Exit codes CONTRACT §1 assigns each Outcome (see Outcome.ExitCode).

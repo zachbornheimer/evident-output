@@ -172,6 +172,24 @@
       ],
       "type": "object"
     },
+    "misuse": {
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "remedy": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "message",
+        "remedy"
+      ],
+      "type": "object"
+    },
     "operationFinishedPayload": {
       "properties": {
         "changed": {
@@ -852,6 +870,30 @@
       "if": {
         "properties": {
           "type": {
+            "const": "run.misuse"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/misuse"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
             "const": "run.finished"
           }
         },
@@ -940,6 +982,7 @@
         "operation.finished",
         "definition.finished",
         "task.finished",
+        "run.misuse",
         "run.finished",
         "result.written"
       ],

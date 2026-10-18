@@ -230,6 +230,7 @@ func (r *Run) recordMisuse()
 func (r *Run) recordMisuseFor()
 func (r *Run) firstMisuse()
 func (r *Run) allMisuse()
+func (r *Run) misuseRecords()
 func (r *Run) appendMisuseLineLocked()
 func (r *Run) recordAlreadyResolvedLocked()
 

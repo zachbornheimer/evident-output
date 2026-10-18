@@ -38,6 +38,7 @@ type Conclusion struct {
 	startedAt   time.Time
 	finishedAt  time.Time
 	facts       []factRecord
+	misuse      []record.MisuseRecord
 }
 
 func asEvoConclusion(c record.Conclusion) Conclusion {
@@ -48,7 +49,7 @@ func asEvoConclusion(c record.Conclusion) Conclusion {
 		tasks: c.Tasks, collections: c.Collections, changes: c.Changes,
 		plans: c.Plans, actions: asEvoActions(c.Actions), exitCode: c.ExitCode,
 		runID: c.RunID, startedAt: c.StartedAt, finishedAt: c.FinishedAt,
-		facts: c.Facts,
+		facts: c.Facts, misuse: c.Misuse,
 	}
 }
 
@@ -59,7 +60,7 @@ func asRecordConclusion(c Conclusion) record.Conclusion {
 		Tasks: c.tasks, Collections: c.collections, Changes: c.changes,
 		Plans: c.plans, Actions: asRecordActions(c.actions), ExitCode: c.exitCode,
 		RunID: c.runID, StartedAt: c.startedAt, FinishedAt: c.finishedAt,
-		DryRun: c.DryRun, Facts: c.facts,
+		DryRun: c.DryRun, Facts: c.facts, Misuse: c.misuse,
 	}
 }
 

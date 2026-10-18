@@ -100,6 +100,7 @@ func (r *Run) concludeLocked() snapshot {
 	conc := record.InferConclusion(snap)
 	r.explainCancellationLocked(&conc)
 	record.FoldLeftoverMisuse(&conc, r.firstMisuse())
+	conc.Misuse = r.misuseRecords()
 	conc.RunID = r.outputID
 	conc.StartedAt = r.startedAt
 	conc.FinishedAt = r.cfg.clock.Now()
@@ -109,6 +110,9 @@ func (r *Run) concludeLocked() snapshot {
 		Type:  "output.finished",
 		State: string(conc.Outcome),
 	})
+	for _, m := range conc.Misuse {
+		r.emitWireEventLocked(wire.EventRunMisuse, "", wire.ToMisuseDoc(m).EventPayload())
+	}
 	// run.finished fires on every path through Finish, failure and cancel included.
 	r.emitWireEventLocked(wire.EventRunFinished, "", wire.RunFinishedPayload{
 		Outcome: string(conc.Outcome), ExitCode: conc.ExitCode, Explanation: conc.Explanation, Summary: conc.Summary,
