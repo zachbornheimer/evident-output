@@ -1,10 +1,11 @@
 # Layout
 
-Every section of `CONTRACT.md` owns one root file, one internal package and
-one guard. `layout_test.go` fails when a tracked file lives outside this
+Each section of `CONTRACT.md` owns the root files and internal package
+listed below; some own several root files and some own none. `layout_test.go` fails when a tracked file lives outside this
 list or a listed path is missing. A bare path is one file. A path ending in
 `/` is a directory that must exist and may hold anything beneath it.
-`*_test.go` and `testdata/` are allowed beside any Go file.
+`*_test.go` files are allowed at the repository root only, and a top-level
+`testdata/` directory is allowed. Beneath a listed directory, anything goes.
 
 ```layout
 CONTRACT.md
