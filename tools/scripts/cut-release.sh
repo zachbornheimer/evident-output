@@ -7,63 +7,72 @@
 #   mise run test && mise run cut-release
 #   mise run test && VERSION=v0.2.12 mise run cut-release
 #
-# Never moves an existing tag. Never force-pushes.
+# Never moves an existing tag. Never force-pushes. Tags the root module, then
+# the mcp module one commit later with its local replace dropped (see
+# "Release order" below).
 #
-# CHANGELOG hygiene: ## Unreleased body must be promoted to ## [X.Y.Z] before
-# (or during) the cut. This script stages CHANGELOG.md with the pin commit and
-# refuses to tag if Unreleased still holds release notes while ## [X.Y.Z] is
-# missing (set CUT_RELEASE_ALLOW_CHANGELOG_DRIFT=1 to override).
+# CHANGELOG hygiene: the in-flight section is headed "## X.Y.Z (unreleased)".
+# This script rewrites it to "## [X.Y.Z] - YYYY-MM-DD" (CUT_RELEASE_DATE
+# overrides today's date) and stages CHANGELOG.md with the pin commit. It
+# refuses to tag if the changelog has neither that section nor a released
+# "## [X.Y.Z]" heading (set CUT_RELEASE_ALLOW_CHANGELOG_DRIFT=1 to override).
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$root"
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  echo "cut-release: not a git repository" >&2
-  exit 1
+	echo "cut-release: not a git repository" >&2
+	exit 1
 fi
 
 branch="$(git rev-parse --abbrev-ref HEAD)"
-if [[ "${branch}" != "main" && "${CUT_RELEASE_ALLOW_BRANCH:-}" != "1" ]]; then
-  echo "cut-release: must run on main (got ${branch}); set CUT_RELEASE_ALLOW_BRANCH=1 to override" >&2
-  exit 1
+if [[ "$branch" != "main" && "${CUT_RELEASE_ALLOW_BRANCH:-}" != "1" ]]; then
+	echo "cut-release: must run on main (got ${branch}); set CUT_RELEASE_ALLOW_BRANCH=1 to override" >&2
+	exit 1
 fi
 
 if [[ -n "$(git status --porcelain)" && "${CUT_RELEASE_ALLOW_DIRTY:-}" != "1" ]]; then
-  # Allow only if we're about to commit pin files; still refuse unknown dirty.
-  echo "cut-release: working tree dirty. Commit implementation first, or set CUT_RELEASE_ALLOW_DIRTY=1" >&2
-  git status --short >&2
-  exit 1
+	# Allow only if we're about to commit pin files; still refuse unknown dirty.
+	echo "cut-release: working tree dirty. Commit implementation first, or set CUT_RELEASE_ALLOW_DIRTY=1" >&2
+	git status --short >&2
+	exit 1
 fi
 
-current="$(sed -n 's/^const PublishedRelease = "\(v[^"]*\)"/\1/p' format.go | head -1)"
-if [[ -z "${current}" ]]; then
-  echo "cut-release: could not parse PublishedRelease from format.go" >&2
-  exit 1
+release_file="internal/project/wire/stream.go"
+current="$(sed -n 's/^const Release = "\(v[^"]*\)"/\1/p' "$release_file" | head -1)"
+if [[ -z "$current" ]]; then
+	echo "cut-release: could not parse Release from $release_file" >&2
+	exit 1
 fi
 
 next="${VERSION:-}"
-if [[ -z "${next}" ]]; then
-  # Auto patch bump: v0.2.11 → v0.2.12
-  if [[ "${current}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-    major="${BASH_REMATCH[1]}"
-    minor="${BASH_REMATCH[2]}"
-    patch="${BASH_REMATCH[3]}"
-    next="v${major}.${minor}.$((patch + 1))"
-  else
-    echo "cut-release: current ${current} is not vMAJOR.MINOR.PATCH; pass VERSION=..." >&2
-    exit 1
-  fi
+if [[ -z "$next" ]]; then
+	# Auto patch bump: v0.2.11 → v0.2.12
+	if [[ "$current" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+		major="${BASH_REMATCH[1]}"
+		minor="${BASH_REMATCH[2]}"
+		patch="${BASH_REMATCH[3]}"
+		next="v${major}.${minor}.$((patch + 1))"
+	else
+		echo "cut-release: current ${current} is not vMAJOR.MINOR.PATCH; pass VERSION=..." >&2
+		exit 1
+	fi
 fi
 
-if [[ ! "${next}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "cut-release: VERSION must be vMAJOR.MINOR.PATCH (got ${next})" >&2
-  exit 1
+if [[ ! "$next" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+	echo "cut-release: VERSION must be vMAJOR.MINOR.PATCH (got ${next})" >&2
+	exit 1
+fi
+
+if git rev-parse -q --verify "refs/tags/mcp/${next}" >/dev/null 2>&1; then
+	echo "cut-release: tag mcp/${next} already exists — refuse to move it" >&2
+	exit 1
 fi
 
 if git rev-parse -q --verify "refs/tags/${next}" >/dev/null 2>&1; then
-  echo "cut-release: tag ${next} already exists — refuse to move it" >&2
-  exit 1
+	echo "cut-release: tag ${next} already exists — refuse to move it" >&2
+	exit 1
 fi
 
 echo "cut-release: ${current} → ${next}"
@@ -72,62 +81,88 @@ echo "cut-release: ${current} → ${next}"
 # Bare version for Keep-a-Changelog headings: v0.5.0 → 0.5.0
 bare="${next#v}"
 changelog="CHANGELOG.md"
-if [[ -f "${changelog}" && "${CUT_RELEASE_ALLOW_CHANGELOG_DRIFT:-}" != "1" ]]; then
-  has_heading=0
-  if command grep -Eq "^## \\[${bare}\\]( |$)" "${changelog}"; then
-    has_heading=1
-  fi
-
-  # Non-empty Unreleased body = any non-blank line between ## Unreleased and the next ##
-  unreleased_body="$(awk '
-    /^## Unreleased$/ {p=1; next}
-    /^## / && p {exit}
-    p && NF {print; exit}
-  ' "${changelog}")"
-
-  if [[ "${has_heading}" -eq 0 && -n "${unreleased_body}" ]]; then
-    echo "cut-release: CHANGELOG.md still has Unreleased notes but no ## [${bare}] heading." >&2
-    echo "cut-release: promote ## Unreleased → ## [${bare}] (Keep a Changelog), then re-run." >&2
-    echo "cut-release: override with CUT_RELEASE_ALLOW_CHANGELOG_DRIFT=1 only if intentional." >&2
-    exit 1
-  fi
-  if [[ "${has_heading}" -eq 0 ]]; then
-    echo "cut-release: warning: CHANGELOG.md has no ## [${bare}] heading (Unreleased empty)." >&2
-  fi
+unreleased_heading="## ${bare} (unreleased)"
+release_date="${CUT_RELEASE_DATE:-$(date +%Y-%m-%d)}"
+if [[ -f "$changelog" && "${CUT_RELEASE_ALLOW_CHANGELOG_DRIFT:-}" != "1" ]]; then
+	if command grep -Eq "^## \\[${bare}\\]( |$)" "$changelog"; then
+		:
+	elif command grep -Fxq "$unreleased_heading" "$changelog"; then
+		tmp_changelog="$(mktemp)"
+		awk -v old="$unreleased_heading" -v new="## [${bare}] - ${release_date}" '$0 == old {print new; next} {print}' "$changelog" >"$tmp_changelog"
+		mv "$tmp_changelog" "$changelog"
+		echo "cut-release: CHANGELOG.md: ${unreleased_heading} → ## [${bare}] - ${release_date}"
+	else
+		echo "cut-release: CHANGELOG.md has neither '${unreleased_heading}' nor '## [${bare}]'." >&2
+		echo "cut-release: name the in-flight section '${unreleased_heading}', then re-run." >&2
+		echo "cut-release: override with CUT_RELEASE_ALLOW_CHANGELOG_DRIFT=1 only if intentional." >&2
+		exit 1
+	fi
 fi
 
-# Bump PublishedRelease in format.go
+# Bump Release in the wire package
 tmp="$(mktemp)"
-sed "s/^const PublishedRelease = \"v[^\"]*\"/const PublishedRelease = \"${next}\"/" format.go >"${tmp}"
-mv "${tmp}" format.go
+sed "s/^const Release = \"v[^\"]*\"/const Release = \"${next}\"/" "$release_file" >"$tmp"
+mv "$tmp" "$release_file"
 
 go run ./tools/scripts/sync-release-pins
 # The released API contract is the baseline TestChangelogCoversEveryAPIChange
-# diffs the next Unreleased section against.
+# diffs the next unreleased section against.
 cp testdata/api_golden.txt testdata/api_golden_released.txt
-# docs/mcp.md is embedded into the MCP binary; regenerate or the staleness gate goes red
-go generate ./internal/agent/sections
+# mcp/docs/mcp.md is embedded into the MCP binary; regenerate or the staleness gate goes red
+(cd mcp && go generate ./internal/agent/sections)
 go test . -run 'PublishedRelease|VersionDrift' -count=1
 
 msg="${CUT_RELEASE_MESSAGE:-chore(${next}): cut release}"
-git add format.go README.md docs/mcp.md internal/agent/sections/embedded skills integrations CHANGELOG.md testdata/api_golden_released.txt 2>/dev/null || true
+git add "$release_file" README.md mcp/docs/mcp.md mcp/internal/agent/sections/embedded mcp/skills mcp/integrations mcp/go.mod mcp/internal/buildversion/buildversion.go CHANGELOG.md testdata/api_golden_released.txt 2>/dev/null || true
 # Stage any pin surface the syncer touched (and CHANGELOG if promoted in-tree)
-git add -u README.md docs/mcp.md internal/agent/sections/embedded skills integrations format.go CHANGELOG.md 2>/dev/null || true
+git add -u README.md mcp/docs/mcp.md mcp/internal/agent/sections/embedded mcp/skills mcp/integrations mcp/go.mod mcp/internal/buildversion/buildversion.go "$release_file" CHANGELOG.md 2>/dev/null || true
 if [[ -n "$(git status --porcelain)" ]]; then
-  git commit -m "${msg}"
+	git commit -m "$msg"
 else
-  echo "cut-release: no pin-file changes to commit (PublishedRelease already ${next}?)"
+	echo "cut-release: no pin-file changes to commit (Release already ${next}?)"
 fi
 
-git tag -a "${next}" -m "${next}"
-echo "cut-release: tagged ${next} at $(git rev-parse --short HEAD)"
+# --- Release order -----------------------------------------------------------
+# 1. Tag the root module and publish it: the mcp module cannot resolve its
+#    dependency on the root until the Go proxy can fetch that tag.
+# 2. In a following commit, drop mcp/go.mod's local replace and tidy it against
+#    the published root. `go install <mcp>@version` refuses any module whose
+#    go.mod holds a replace, so mcp/<version> points at this commit, not the
+#    root's. The mcp module lives in mcp/, so Go resolves its versions from
+#    mcp/-prefixed tags. Local development keeps working through go.work.
+root_module="github.com/zachbornheimer/evident-output/v2"
+push="${CUT_RELEASE_PUSH:-1}"
 
-if [[ "${CUT_RELEASE_PUSH:-1}" == "1" ]]; then
-  git push origin HEAD
-  git push origin "refs/tags/${next}"
-  echo "cut-release: pushed HEAD and ${next}"
+git tag -a "$next" -m "$next"
+echo "cut-release: tagged ${next} at $(git rev-parse --short HEAD)"
+if [[ "$push" == "1" ]]; then
+	git push origin HEAD
+	git push origin "refs/tags/${next}"
+	echo "cut-release: pushed HEAD and ${next}"
+fi
+
+if ! (cd mcp && go mod edit -dropreplace="$root_module" && go mod tidy); then
+	echo "cut-release: could not resolve ${root_module}@${next} for mcp/go.mod." >&2
+	echo "cut-release: ${next} is tagged (pushed: ${push}). Once the Go proxy serves it, run in mcp/:" >&2
+	echo "cut-release:   go mod edit -dropreplace=${root_module} && go mod tidy" >&2
+	echo "cut-release: then commit mcp/go.mod and mcp/go.sum and tag mcp/${next}." >&2
+	exit 1
+fi
+if command grep -Eq '^replace[[:space:]]|=>' mcp/go.mod; then
+	echo "cut-release: mcp/go.mod still holds a replace directive; refusing to tag mcp/${next}" >&2
+	exit 1
+fi
+git add mcp/go.mod mcp/go.sum
+git commit -m "chore(mcp/${next}): resolve the published root module"
+git tag -a "mcp/${next}" -m "mcp/${next}"
+echo "cut-release: tagged mcp/${next} at $(git rev-parse --short HEAD)"
+
+if [[ "$push" == "1" ]]; then
+	git push origin HEAD
+	git push origin "refs/tags/mcp/${next}"
+	echo "cut-release: pushed HEAD and mcp/${next}"
 else
-  echo "cut-release: skip push (CUT_RELEASE_PUSH=0)"
+	echo "cut-release: skip push (CUT_RELEASE_PUSH=0)"
 fi
 
 echo "cut-release: done ${next}"

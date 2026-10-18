@@ -1,0 +1,8 @@
+go 1.25.0
+
+use (
+	.
+	./mcp
+)
+
+replace github.com/zachbornheimer/evident-output/v2 v2.0.0 => .

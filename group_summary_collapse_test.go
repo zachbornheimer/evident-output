@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // A group's header row carries two things its child rows cannot: the
@@ -69,16 +67,16 @@ func resolvedRows(transcript string) string {
 func renderSubject(t *testing.T, groupName, childName, summary string) string {
 	t.Helper()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Title: "zq", Isolated: true, Plain: true, Stdout: &buf, Stderr: &buf})
+	out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	group := out.Group(groupName)
 	succeed(group.Task(childName).Doing("classifying tips"), "146 tips")
 	if summary != "" {
 		group.Summary(summary)
 	}
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
-	if err := out.Close(); err != nil {
+	if err := out.close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
 	return buf.String()

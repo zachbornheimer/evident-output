@@ -1,8 +1,0 @@
-{
-  "id": "X1",
-  "task": "T1-zq-prune",
-  "banned_pattern": "outer-mutable-handoff",
-  "review_rules": [
-    "API-066"
-  ]
-}

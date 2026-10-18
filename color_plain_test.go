@@ -1,27 +1,24 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
-// TestPlain_ColorOnByDefault is updated for P2: Warn no longer resolves its
-// own yellow-glyph terminal state — a single short warning now inlines
-// invisibly on the task's own green ✓ row (evo-rec.md's documented form).
-// Two warnings force the nested "!" form instead, which is where the yellow
-// attention color still lives (writeNestedTaskWarnings).
+// TestPlain_ColorOnByDefault: a Task that returns with Problems still
+// succeeds, and its "!" attention glyph is where the yellow color lives.
 func TestPlain_ColorOnByDefault(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Plain: true, Color: evo.ColorAlways})
+	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorAlways})
 	succeed(out.Task("ok"))
-	out.Task("bad").Fail("x")
+	out.Task("bad").fail("x")
 	warn := out.Task("warn")
-	warn.Problem("y", evo.Severity(evo.SeverityWarning))
-	warn.Problem("z", evo.Severity(evo.SeverityWarning))
-	if err := out.Finish(); err != nil {
+	warn.Problem("y")
+	warn.Problem("z")
+	warn.Define(func(context.Context) error { return nil })
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	s := buf.String()
@@ -42,10 +39,10 @@ func TestPlain_ColorOnByDefault(t *testing.T) {
 
 func TestPlain_NoColorSuppressesSGR(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Name: "demo", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	succeed(out.Task("ok"))
-	out.Task("bad").Fail("x")
-	if err := out.Finish(); err != nil {
+	out.Task("bad").fail("x")
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	s := buf.String()

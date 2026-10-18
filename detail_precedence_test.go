@@ -1,30 +1,28 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"fmt"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestFail_ExplicitDetailAndDetailTail_BothRender pins the precedence bug
-// surfaced by the consumer re-syncs: an explicit evo.Detail and an explicit
-// output.DetailTail() passed to the same Fail/Block call used to silently
+// surfaced by the consumer re-syncs: an explicit Detail and an explicit
+// detailTail(output) passed to the same Fail/Block call used to silently
 // overwrite one another (last ProblemOption applied wins) instead of both
 // surviving. An explicit Detail is never silently discarded — it renders
 // first, with the evidence tail as an additional evidence line underneath.
 func TestFail_ExplicitDetailAndDetailTail_BothRender(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	task := out.Task("deploy")
-	output := task.Capture()
+	output := task.capture()
 	_, _ = fmt.Fprintln(output, "raw evidence: connection refused")
-	task.Fail("deploy failed", evo.Detail("friendly summary"), output.DetailTail())
+	task.fail("deploy failed", Detail("friendly summary"), detailTail(output))
 
-	_ = out.Finish()
+	_ = out.finish()
 
 	rendered := buf.String()
 	if !strings.Contains(rendered, "friendly summary") {
@@ -43,14 +41,14 @@ func TestFail_ExplicitDetailAndDetailTail_BothRender(t *testing.T) {
 // evidence tail either, and Detail still renders first.
 func TestFail_ExplicitDetailTailThenDetail_BothRender(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	task := out.Task("deploy")
-	output := task.Capture()
+	output := task.capture()
 	_, _ = fmt.Fprintln(output, "raw evidence: connection refused")
-	task.Fail("deploy failed", output.DetailTail(), evo.Detail("friendly summary"))
+	task.fail("deploy failed", detailTail(output), Detail("friendly summary"))
 
-	_ = out.Finish()
+	_ = out.finish()
 
 	rendered := buf.String()
 	if !strings.Contains(rendered, "friendly summary") {

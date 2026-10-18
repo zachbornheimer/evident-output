@@ -1,17 +1,958 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "action": {
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/command"
+        },
+        "label": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "basisFingerprintedPayload": {
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "current": {
+          "type": "boolean"
+        },
+        "executable": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "count"
+      ],
+      "type": "object"
+    },
+    "collectionDeclaredPayload": {
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parent_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "parent_id"
+      ],
+      "type": "object"
+    },
+    "command": {
+      "properties": {
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "executable": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "executable"
+      ],
+      "type": "object"
+    },
+    "definitionFinishedPayload": {
+      "properties": {
+        "failed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "failed"
+      ],
+      "type": "object"
+    },
+    "effectPayload": {
+      "properties": {
+        "object": {
+          "type": "string"
+        },
+        "quantity": {
+          "type": "integer"
+        },
+        "verb": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "verb",
+        "object"
+      ],
+      "type": "object"
+    },
+    "emptyPayload": {
+      "properties": {},
+      "type": "object"
+    },
+    "evidenceEvaluatedPayload": {
+      "properties": {
+        "evaluated": {
+          "type": "boolean"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "satisfied": {
+          "type": "boolean"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "phase",
+        "evaluated",
+        "satisfied",
+        "source"
+      ],
+      "type": "object"
+    },
+    "fact": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "type": "object"
+    },
+    "location": {
+      "properties": {
+        "column": {
+          "type": "integer"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    },
+    "manifestTaskCommittedPayload": {
+      "properties": {
+        "operations": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "operations"
+      ],
+      "type": "object"
+    },
+    "operationFinishedPayload": {
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "executable": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "changed"
+      ],
+      "type": "object"
+    },
+    "operationObservedPayload": {
+      "properties": {
+        "executable": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "problemRecordedPayload": {
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "evidence_tail": {
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/$defs/location"
+        },
+        "remedies": {
+          "items": {
+            "$ref": "#/$defs/action"
+          },
+          "type": "array"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary"
+      ],
+      "type": "object"
+    },
+    "resultWrittenPayload": {
+      "properties": {
+        "base64": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "runFinishedPayload": {
+      "properties": {
+        "exit_code": {
+          "type": "integer"
+        },
+        "explanation": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "outcome",
+        "exit_code"
+      ],
+      "type": "object"
+    },
+    "runStartedPayload": {
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "taskDeclaredPayload": {
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "taskFinishedPayload": {
+      "properties": {
+        "outcome": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "trackedResourceObservedPayload": {
+      "properties": {
+        "executable": {
+          "type": "string"
+        },
+        "exists": {
+          "type": "boolean"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "exists"
+      ],
+      "type": "object"
+    },
+    "verification": {
+      "properties": {
+        "facts": {
+          "items": {
+            "$ref": "#/$defs/fact"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "status"
+      ],
+      "type": "object"
+    }
+  },
   "$id": "https://evident-output.dev/schema/v2/event.json",
-  "title": "Evident Output JSONL event v2 (evo.event)",
-  "type": "object",
-  "required": ["object", "schema_version", "seq", "at", "type"],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "run.started"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/runStartedPayload"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "collection.declared"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/collectionDeclaredPayload"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "task.declared"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/taskDeclaredPayload"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "task.eligible"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/emptyPayload"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "evidence.evaluated"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/evidenceEvaluatedPayload"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "task.started"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/emptyPayload"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "definition.started"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/emptyPayload"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "operation.started"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/operationObservedPayload"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "operation.skipped_current"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/operationObservedPayload"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "tracked_resource.observed"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/trackedResourceObservedPayload"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "basis.fingerprinted"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/basisFingerprintedPayload"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "verification.observed"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/verification"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "fact.recorded"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/fact"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "warning.recorded"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/problemRecordedPayload"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "problem.recorded"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/problemRecordedPayload"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "effect.planned"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/effectPayload"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "effect.committed"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/effectPayload"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "manifest.task_committed"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/manifestTaskCommittedPayload"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "operation.finished"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/operationFinishedPayload"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "definition.finished"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/definitionFinishedPayload"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "task.finished"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/taskFinishedPayload"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "run.finished"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/runFinishedPayload"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "result.written"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/resultWrittenPayload"
+          }
+        },
+        "type": "object"
+      }
+    }
+  ],
   "properties": {
-    "object": { "const": "evo.event" },
-    "schema_version": { "const": "1.0" },
-    "run_id": { "type": "string" },
-    "seq": { "type": "integer", "minimum": 1 },
-    "at": { "type": "string" },
-    "type": { "type": "string" },
-    "entity_id": { "type": "string" },
-    "payload": { "type": "object" }
-  }
+    "at": {
+      "type": "string"
+    },
+    "entity_id": {
+      "type": "string"
+    },
+    "object": {
+      "const": "evo.event"
+    },
+    "payload": {
+      "type": "object"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "2.0"
+    },
+    "seq": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "type": {
+      "enum": [
+        "run.started",
+        "collection.declared",
+        "task.declared",
+        "task.eligible",
+        "evidence.evaluated",
+        "task.started",
+        "definition.started",
+        "operation.started",
+        "operation.skipped_current",
+        "tracked_resource.observed",
+        "basis.fingerprinted",
+        "verification.observed",
+        "fact.recorded",
+        "warning.recorded",
+        "problem.recorded",
+        "effect.planned",
+        "effect.committed",
+        "manifest.task_committed",
+        "operation.finished",
+        "definition.finished",
+        "task.finished",
+        "run.finished",
+        "result.written"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "object",
+    "schema_version",
+    "seq",
+    "at",
+    "type"
+  ],
+  "title": "Evident Output JSONL event v2 (evo.event)",
+  "type": "object"
 }

@@ -1,21 +1,22 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
 func TestCoalesce_SingleMatchingChanges_SuppressesTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "librarian", Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Name: "librarian", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
-	out.Task("librarian").Define(effectOf(evo.EffectAdd, "file", 1))
-	if err := out.Finish(); err != nil {
+	out.Task("librarian").Define(engineEffectOf(change.EffectAdd, "file", 1))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -27,18 +28,18 @@ func TestCoalesce_SingleMatchingChanges_SuppressesTrailingConclusion(t *testing.
 		t.Fatalf("missing body:\n%s", got)
 	}
 	// Structured model still has conclusion.
-	if out.Conclusion().State != evo.StateChanged {
-		t.Fatalf("conclusion state = %v", out.Conclusion().State)
+	if out.conclusion().headline() != headlineChanged {
+		t.Fatalf("conclusion state = %v", out.conclusion().headline())
 	}
 }
 
 func TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "librarian", Color: evo.ColorNever, Plain: true, DryRun: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Name: "librarian", DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
-	out.Task("librarian").Define(effectOf(evo.EffectUpdate, "file", 1))
-	if err := out.Finish(); err != nil {
+	out.Task("librarian").Define(effectOf(Update, "file", 1))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Count(buf.String(), "[planned]") != 1 {
@@ -46,67 +47,14 @@ func TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion(t *testing.T) 
 	}
 }
 
-// TestCoalesce_DryRunPlannedWithHeader_SuppressesTrailingConclusion is
-// red-first against fixture-repo-retire-dryrun.md's binding reading: "NO
-// ledger row for tasks/binaries with no effects (current `[planned]
-// repo-retire` trailing row is a bug)". A dry-run run that already rendered
-// its Config.Subject header and settled on a pure StatePlanned verdict
-// across MULTIPLE effect sections (not just the single-section case
-// TestCoalesce_SingleMatchingPlan_SuppressesTrailingConclusion already
-// covers) must not also print a trailing "[planned]" band — the header plus
-// the per-section ledger rows already told the whole story.
-func TestCoalesce_DryRunPlannedWithHeader_SuppressesTrailingConclusion(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "repo  /demo", Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-
-	branches := out.Task("branches")
-	branches.Define(effectOf(evo.EffectDelete, "local tip", 2))
-
-	worktrees := out.Task("worktrees")
-	worktrees.Define(effectOf(evo.EffectRemove, "worktree", 1))
-
-	if err := out.Finish(); err != nil {
-		t.Fatal(err)
-	}
-
-	got := buf.String()
-	if strings.Count(got, "[planned]") != 2 {
-		t.Fatalf("want exactly the two per-section [planned] rows, no trailing band:\n%s", got)
-	}
-}
-
-// TestCoalesce_DryRunWarned_KeepsTrailingConclusion proves the suppression
-// above does not overreach: a dry-run header plus a warned task still needs
-// the trailing band to carry the "· warned" modifier, since the header and
-// per-section ledger rows never show it.
-func TestCoalesce_DryRunWarned_KeepsTrailingConclusion(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "repo  /demo", Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-
-	branches := out.Task("branches")
-	branches.Problem("origin unreachable", evo.Severity(evo.SeverityWarning))
-	branches.Define(effectOf(evo.EffectDelete, "local tip", 2))
-
-	if err := out.Finish(); err != nil {
-		t.Fatal(err)
-	}
-
-	got := buf.String()
-	if !strings.Contains(got, "[planned · warned]") {
-		t.Fatalf("warned dry-run must keep its trailing band:\n%s", got)
-	}
-}
-
 func TestCoalesce_ChangedPlusFailure_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "librarian", Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Name: "librarian", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
-	out.Task("librarian").Define(effectOf(evo.EffectAdd, "file", 7))
-	out.Task("placement").Fail("not writable", evo.On("arr/x"))
-	if err := out.Finish(); err != nil {
+	out.Task("librarian").Define(engineEffectOf(change.EffectAdd, "file", 7))
+	out.Task("placement").fail("not writable", On("arr/x"))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -120,12 +68,12 @@ func TestCoalesce_ChangedPlusFailure_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_MultipleChanges_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "tool", Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Name: "tool", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
-	out.Task("files").Define(effectOf(evo.EffectAdd, "file", 1))
-	out.Task("manifest").Define(effectOf(evo.EffectUpdate, "entry", 1))
-	if err := out.Finish(); err != nil {
+	out.Task("files").Define(engineEffectOf(change.EffectAdd, "file", 1))
+	out.Task("manifest").Define(effectOf(Update, "entry", 1))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	// Two section headers + trailing conclusion.
@@ -136,11 +84,11 @@ func TestCoalesce_MultipleChanges_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_SubjectMismatch_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "tool", Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Name: "tool", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
-	out.Task("other-subject").Define(effectOf(evo.EffectAdd, "x", 1))
-	if err := out.Finish(); err != nil {
+	out.Task("other-subject").Define(engineEffectOf(change.EffectAdd, "x", 1))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Count(buf.String(), "[changed]") < 2 {
@@ -150,13 +98,22 @@ func TestCoalesce_SubjectMismatch_KeepsConclusion(t *testing.T) {
 
 func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "tool", Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Name: "tool", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
+	// The Task stays unresolved until the Problem is recorded: a Problem on
+	// a settled Task is misuse, so the callback waits on a gate this test
+	// opens after Problem instead of racing the scheduler.
+	problemRecorded := make(chan struct{})
+	effect := engineEffectOf(change.EffectAdd, "x", 1)
 	tool := out.Task("tool")
-	tool.Define(effectOf(evo.EffectAdd, "x", 1))
-	tool.Problem("working tree state not checked", evo.Severity(evo.SeverityWarning), evo.NextCommand("git", "status"))
-	if err := out.Finish(); err != nil {
+	tool.Define(func(ctx context.Context) error {
+		<-problemRecorded
+		return effect(ctx)
+	})
+	tool.Problem("working tree state not checked", nextCommand("git", "status"))
+	close(problemRecorded)
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	// Conclusion band carries next action — must remain (or action visible).
@@ -167,17 +124,17 @@ func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 }
 
 func TestCoalesce_JSONStillHasConclusion(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "tool"})
-	t.Cleanup(func() { _ = out.Close() })
-	out.Task("tool").Define(effectOf(evo.EffectAdd, "x", 1))
-	if err := out.Finish(); err != nil {
+	out := initRun(Config{Name: "tool", Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
+	out.Task("tool").Define(engineEffectOf(change.EffectAdd, "x", 1))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	// Projection may suppress human footer; model retains conclusion + changes.
-	if out.Conclusion().State != evo.StateChanged {
-		t.Fatalf("conclusion state = %v", out.Conclusion().State)
+	if out.conclusion().headline() != headlineChanged {
+		t.Fatalf("conclusion state = %v", out.conclusion().headline())
 	}
-	snap := out.Snapshot()
+	snap := out.snapshot()
 	if snap.Conclusion == nil || len(snap.Changes) != 1 {
 		t.Fatalf("snapshot must keep Conclusion and Changes: %#v", snap)
 	}
@@ -185,33 +142,33 @@ func TestCoalesce_JSONStillHasConclusion(t *testing.T) {
 
 func TestCoalesce_TitleWithoutSemanticReport_OmitsHumanConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "zq", Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
-	out.Println("zq v0.2.14")
-	if err := out.Finish(); err != nil {
+	out.println("zq v0.2.14")
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
-	if strings.Contains(buf.String(), "[ready]") || strings.Contains(buf.String(), "[unchanged]") {
+	if strings.Contains(buf.String(), "[succeeded]") || strings.Contains(buf.String(), "[unchanged]") {
 		t.Fatalf("title alone must not fabricate a human conclusion:\n%s", buf.String())
 	}
-	if out.Conclusion().State != evo.StateReady {
-		t.Fatalf("title-only conclusion = %q, want ready (StateUnchanged was deleted, P1)", out.Conclusion().State)
+	if out.conclusion().headline() != headlineSucceeded {
+		t.Fatalf("title-only conclusion = %q, want ready (StateUnchanged was deleted, P1)", out.conclusion().headline())
 	}
 }
 
 func TestCoalesce_SingleMatchingItem_OmitsRepeatedConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "database", Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Name: "database", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	succeed(out.Task("database"))
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
-	if strings.Contains(buf.String(), "[ready]") {
+	if strings.Contains(buf.String(), "[succeeded]") {
 		t.Fatalf("matching item already carries the conclusion:\n%s", buf.String())
 	}
 	if strings.Count(buf.String(), "database") != 1 {
@@ -221,31 +178,31 @@ func TestCoalesce_SingleMatchingItem_OmitsRepeatedConclusion(t *testing.T) {
 
 func TestCoalesce_SingleItemForBroaderSubject_KeepsConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "release v1.4", Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Name: "release v1.4", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
-	out.Task("release signature").Block("signature is missing")
-	if err := out.Finish(); err != nil {
+	out.Task("release signature").block("signature is missing")
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
-	if !strings.Contains(buf.String(), "[blocked]  release v1.4") {
+	if !strings.Contains(buf.String(), "[refused]  release v1.4") {
 		t.Fatalf("broader subject conclusion adds information:\n%s", buf.String())
 	}
 }
 
 func TestCoalesce_MultipleItems_KeepsAggregateConclusion(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "repository", Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Name: "repository", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	succeed(out.Task("working tree"))
 	succeed(out.Task("branches"))
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
-	if !strings.Contains(buf.String(), "[ready]  repository") {
+	if !strings.Contains(buf.String(), "[succeeded]  repository") {
 		t.Fatalf("multiple results need an aggregate conclusion:\n%s", buf.String())
 	}
 }

@@ -1,0 +1,22 @@
+Hand-written revert of the heartbeat half of ef6622c1 against the current tree: the 30 s heartbeat
+row in Plain is "• <name>  — <elapsed>" again, without the Task's latest count and Doing text, so a
+log reader who gets no durable line per Doing call (ef6622c1) never sees the current item either.
+The pinned tests fail on their heartbeat assertions by output, not by compilation. The other half of
+the commit (no line per call) moved to milestone.go in fb0a15a2, which ef6622c1 did not change.
+
+diff --git a/internal/project/plain/heartbeat.go b/internal/project/plain/heartbeat.go
+index 63e6590a..68fbb910 100644
+--- a/internal/project/plain/heartbeat.go
++++ b/internal/project/plain/heartbeat.go
+@@ -150,11 +150,7 @@ func (s *Stream) check(id record.TaskID) {
+ // "• <name>  — <elapsed>".
+ func (s *Stream) heartbeat(r *row, now time.Time) {
+ 	st := s.cfg.Style
+-	truth := r.Rec.Truth()
+ 	elapsed := project.Dim("— "+project.FormatElapsed(now.Sub(r.beat.runningAt)), st.Color)
+-	if latest := project.RunningDetail(truth.Phase, truth.Progress); latest != "" {
+-		elapsed = latest + "  " + elapsed
+-	}
+ 	unit := project.DisplayUnit{
+ 		Glyph:  project.StyleGlyph(project.GlyphHeartbeat.Render(st.Profile), project.StateColor(record.Running), st.Color),
+ 		Name:   r.streamName(),

@@ -1,27 +1,23 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"fmt"
 	"strings"
 	"testing"
-
-	"github.com/zachbornheimer/evident-output/internal/render"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 func TestPrint_MatchesFmtConstruction(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
-	out.Printf("Found %d packages\n", 18)
-	out.Println("done")
-	_ = out.Finish()
+	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf}})
+	out.printf("Found %d packages\n", 18)
+	out.println("done")
+	_ = out.finish()
 	s := buf.String()
 	if !strings.Contains(s, "Found 18 packages") || !strings.Contains(s, "done") {
 		t.Fatalf("%s", s)
 	}
-	snap := out.Snapshot()
+	snap := out.snapshot()
 	if len(snap.Messages) < 2 {
 		t.Fatalf("messages: %+v", snap.Messages)
 	}
@@ -29,24 +25,24 @@ func TestPrint_MatchesFmtConstruction(t *testing.T) {
 
 func TestPrint_FragmentsCombine(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
-	out.Print("down")
-	out.Print("loading")
-	out.Print("...\n")
-	_ = out.Finish()
+	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf}})
+	out.print("down")
+	out.print("loading")
+	out.print("...\n")
+	_ = out.finish()
 	if !strings.Contains(buf.String(), "downloading...") {
 		t.Fatalf("%s", buf.String())
 	}
-	if len(out.Snapshot().Messages) != 1 {
-		t.Fatalf("want 1 message, got %+v", out.Snapshot().Messages)
+	if len(out.snapshot().Messages) != 1 {
+		t.Fatalf("want 1 message, got %+v", out.snapshot().Messages)
 	}
 }
 
 func TestPrint_TrailingFragmentFlushedAtFinish(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
-	out.Print("partial-no-nl")
-	_ = out.Finish()
+	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf}})
+	out.print("partial-no-nl")
+	_ = out.finish()
 	if !strings.Contains(buf.String(), "partial-no-nl") {
 		t.Fatalf("%s", buf.String())
 	}
@@ -54,10 +50,10 @@ func TestPrint_TrailingFragmentFlushedAtFinish(t *testing.T) {
 
 func TestVerbose_HiddenAtNormal(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
-	out.Println("visible")
-	out.AtForTest(evo.VisibilityVerbose).Println("hidden detail")
-	_ = out.Finish()
+	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf}})
+	out.println("visible")
+	out.atForTest(visibilityVerbose).println("hidden detail")
+	_ = out.finish()
 	if !strings.Contains(buf.String(), "visible") {
 		t.Fatal("normal missing")
 	}
@@ -66,25 +62,21 @@ func TestVerbose_HiddenAtNormal(t *testing.T) {
 	}
 	// Canonical model still holds verbose message.
 	var found bool
-	for _, m := range out.Snapshot().Messages {
-		if m.Visibility == evo.VisibilityVerbose && strings.Contains(m.Text, "hidden detail") {
+	for _, m := range out.snapshot().Messages {
+		if m.Visibility == visibilityVerbose && strings.Contains(m.Text, "hidden detail") {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("verbose message missing from snapshot: %+v", out.Snapshot().Messages)
+		t.Fatalf("verbose message missing from snapshot: %+v", out.snapshot().Messages)
 	}
 }
 
 func TestVerbose_ShownWhenConfigured(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Stdout:    &buf,
-		Stderr:    &buf,
-		Verbosity: evo.VerbosityVerbose,
-	})
-	out.AtForTest(evo.VisibilityVerbose).Printf("Cache: %s\n", "/tmp/x")
-	_ = out.Finish()
+	out := initRun(Config{Verbose: true, Facades: Facades{Stdout: &buf, Stderr: &buf}})
+	out.atForTest(visibilityVerbose).printf("Cache: %s\n", "/tmp/x")
+	_ = out.finish()
 	if !strings.Contains(buf.String(), "Cache: /tmp/x") {
 		t.Fatalf("%s", buf.String())
 	}
@@ -92,9 +84,9 @@ func TestVerbose_ShownWhenConfigured(t *testing.T) {
 
 func TestPrint_CRLFAndSanitize(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
-	out.Print("a\r\nb\x1b[31mx\n")
-	_ = out.Finish()
+	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf}})
+	out.print("a\r\nb\x1b[31mx\n")
+	_ = out.finish()
 	s := buf.String()
 	if strings.Contains(s, "\r") {
 		t.Fatalf("CR remained: %q", s)
@@ -106,10 +98,10 @@ func TestPrint_CRLFAndSanitize(t *testing.T) {
 
 func TestPrint_WriterAdapter(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
-	w := out.Writer()
+	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf}})
+	w := out.writer()
 	_, _ = w.Write([]byte("from-writer\n"))
-	_ = out.Finish()
+	_ = out.finish()
 	if !strings.Contains(buf.String(), "from-writer") {
 		t.Fatal(buf.String())
 	}
@@ -119,40 +111,23 @@ func TestPrint_WriterAdapter(t *testing.T) {
 // deleted; Item folded into Task).
 func TestTask_PrintfNames(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
+	out := initRun(Config{Facades: Facades{Stdout: &buf, Stderr: &buf}})
 	succeed(out.Task(fmt.Sprintf("repo %s", "x")))
 	succeed(out.Task(fmt.Sprintf("check %d", 1)), "ok")
-	_ = out.Finish()
+	_ = out.finish()
 	if !strings.Contains(buf.String(), "repo x") || !strings.Contains(buf.String(), "check 1") {
 		t.Fatal(buf.String())
 	}
 }
 
-// TestEncodeJSON_ContainsTasks is C8: WriteJSON (an io.Writer wrapper adding
-// a trailing newline) is deleted — EncodeJSON is the surviving encoder; a
-// caller who wants the newline appends it themselves.
-func TestEncodeJSON_ContainsTasks(t *testing.T) {
-	out := evo.Init(evo.Config{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
+// TestRunDocument_ContainsTasks is C8: the evo.run document is the one JSON
+// encoding of a finished run, and it carries the run's tasks.
+func TestRunDocument_ContainsTasks(t *testing.T) {
+	out := initRun(Config{Facades: Facades{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}})
 	succeed(out.Task("a"))
-	_ = out.Finish()
-	b, err := render.EncodeJSON(out.Snapshot())
-	if err != nil {
-		t.Fatal(err)
-	}
+	_ = out.finish()
+	b := out.runDocument(t)
 	if !strings.Contains(string(b), `"tasks"`) {
 		t.Fatalf("json: %s", b)
-	}
-}
-
-func TestAbout_DeclareDryRun_MergesRepoPath(t *testing.T) {
-	t.Parallel()
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
-	out.AboutForTest("repo  /Users/zbornheimer/Developer/Zysys/flight")
-	out.DeclareDryRunForTest()
-	got := buf.String()
-	if !strings.Contains(got, "repo  /Users/zbornheimer/Developer/Zysys/flight") {
-		t.Fatalf("dry-run header missing repo path: %q", got)
 	}
 }

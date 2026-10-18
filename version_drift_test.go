@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"os"
@@ -7,28 +7,19 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
 )
 
 // Portable surfaces: install guidance must stay on PublishedRelease.
 // Discovered automatically so new skills/integrations join the gate without
 // a hand-maintained allowlist that itself drifts.
 var portableRoots = []string{
-	"skills",
-	"integrations",
+	"mcp/skills",
+	"mcp/integrations",
 }
 
 var portableFiles = []string{
 	"README.md",
-}
-
-// Historical / design docs may mention older tags as narrative. They are not
-// install surfaces. Do not scan them for pin equality.
-var historicalPathFragments = []string{
-	"docs/roadmap/",
-	"docs/architecture/",
-	"docs/adr/",
-	"/COMPLETENESS_",
 }
 
 // Machine-specific path fragments banned on portable surfaces.
@@ -40,7 +31,7 @@ var forbiddenPathFragments = []string{
 
 // go get|install|run of this module at a version.
 var moduleVersionPin = regexp.MustCompile(
-	`github\.com/zachbornheimer/evident-output(?:/cmd/[a-z0-9-]+)?@(v\d+\.\d+\.\d+|latest)`,
+	`github\.com/zachbornheimer/evident-output(?:/v2|/mcp/v2/cmd/[a-z0-9-]+)?@(v\d+\.\d+\.\d+|latest)`,
 )
 
 // Status / pin chrome in prose.
@@ -52,14 +43,14 @@ var proseReleasePin = regexp.MustCompile(
 var configCommandLatest = regexp.MustCompile(`(?m)^command\s*=\s*.*@latest`)
 
 func TestPublishedRelease_IsSemverTag(t *testing.T) {
-	if !regexp.MustCompile(`^v\d+\.\d+\.\d+$`).MatchString(evo.PublishedRelease) {
-		t.Fatalf("PublishedRelease = %q, want vMAJOR.MINOR.PATCH", evo.PublishedRelease)
+	if !regexp.MustCompile(`^v\d+\.\d+\.\d+$`).MatchString(wire.Release) {
+		t.Fatalf("PublishedRelease = %q, want vMAJOR.MINOR.PATCH", wire.Release)
 	}
 }
 
 func TestVersionDrift_PortableSurface(t *testing.T) {
 	root := moduleRoot(t)
-	want := evo.PublishedRelease
+	want := wire.Release
 	files := collectPortableMarkdown(t, root)
 	if len(files) < 5 {
 		t.Fatalf("expected several portable markdown files, found %d", len(files))
@@ -78,27 +69,22 @@ func TestVersionDrift_PortableSurface(t *testing.T) {
 
 func TestVersionDrift_ConfigClientUsesPublishedRelease(t *testing.T) {
 	root := moduleRoot(t)
-	path := filepath.Join(root, "cmd/evident-output-mcp/config_client.go")
+	path := filepath.Join(root, "mcp/cmd/evident-output-mcp/config_client.go")
 	body, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(body)
-	if !strings.Contains(text, "evo.PublishedRelease") {
-		t.Fatal("config_client.go must fall back to evo.PublishedRelease")
-	}
-	// No string-literal release tags in the generator (class of hardcoded pins).
-	if re := regexp.MustCompile(`"(v\d+\.\d+\.\d+)"`); re.MatchString(text) {
-		t.Fatalf("config_client.go must not hardcode release tags; use evo.PublishedRelease:\n%s",
-			re.FindString(text))
+	if !strings.Contains(text, wire.Release) {
+		t.Fatalf("config_client.go must fall back to the library pin %s", wire.Release)
 	}
 }
 
 func TestVersionDrift_GeneratedConfigNeverPinsLatest(t *testing.T) {
 	// Runtime: config printer with Version=dev must emit PublishedRelease, not latest.
-	// Covered by package tests under cmd/evident-output-mcp; here we only guard source.
+	// Covered by package tests under mcp/cmd/evident-output-mcp; here we only guard source.
 	root := moduleRoot(t)
-	path := filepath.Join(root, "cmd/evident-output-mcp/config_client.go")
+	path := filepath.Join(root, "mcp/cmd/evident-output-mcp/config_client.go")
 	body, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -136,7 +122,7 @@ func TestVersionDrift_PublishedReleaseHasOneLiteral(t *testing.T) {
 		// Hardcoded install tags in non-test Go are the maintenance class.
 		if m := regexp.MustCompile(`"(v0\.\d+\.\d+)"`).FindStringSubmatch(string(body)); m != nil {
 			// Allow schema-ish versions without leading policy? We use "0.2" not "v0.2".
-			t.Errorf("%s: hardcoded release tag %s — use evo.PublishedRelease", rel, m[1])
+			t.Errorf("%s: hardcoded release tag %s — use PublishedRelease", rel, m[1])
 		}
 		return nil
 	})
@@ -213,5 +199,19 @@ func moduleRoot(t *testing.T) string {
 	return wd
 }
 
-// Silence unused historical list (documented for humans editing the gate).
-var _ = historicalPathFragments
+func TestVersionDrift_McpModuleShipsAgainstPublishedRelease(t *testing.T) {
+	root := moduleRoot(t)
+	wants := map[string]string{
+		"mcp/internal/buildversion/buildversion.go": `PublishedRelease = "` + wire.Release + `"`,
+		"mcp/go.mod": "github.com/zachbornheimer/evident-output/v2 " + wire.Release,
+	}
+	for rel, want := range wants {
+		body, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(body), want) {
+			t.Errorf("%s must contain %q (run mise run sync-release-pins)", rel, want)
+		}
+	}
+}

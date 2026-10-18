@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
+	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
 )
 
 func TestTXT008_OSCNeutralized(t *testing.T) {
@@ -26,31 +26,31 @@ func TestTXT009_CRLFNeutralized(t *testing.T) {
 }
 
 func TestTXT010_NewlineInNameNormalized(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	it := out.Task("a\nb")
-	if strings.Contains(it.Snapshot().Name, "\n") {
-		t.Fatal(it.Snapshot().Name)
+	if strings.Contains(it.snapshot().Name, "\n") {
+		t.Fatal(it.snapshot().Name)
 	}
 }
 
 func TestTXT020_EmptyNameStillCreates(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	succeed(out.Task(""))
-	_ = out.Finish()
+	_ = out.finish()
 }
 
 func TestTXT001_ASCIIWidthStable(t *testing.T) {
 	var wide, narrow bytes.Buffer
 	mk := func(w io.Writer, width int) {
-		out := evo.Init(evo.Config{Isolated: true, Stdout: w, Title: "s", Width: width, Color: evo.ColorNever, Plain: true})
+		out := initRun(Config{Name: "s", Output: Plain, Facades: Facades{Stderr: w}}, tuning{width: width, color: colorNever})
 		commit(out.Task("c"),
-			evo.EffectSpec{Verb: evo.EffectAdd, Object: "x", Quantity: 1},
-			evo.EffectSpec{Verb: evo.EffectCreate, Object: "f", Quantity: 1},
+			change.EffectSpec{Verb: change.EffectAdd, Object: "x", Quantity: 1},
+			EffectSpec{Verb: Create, Object: "f", Quantity: 1}.toChange(),
 		)
-		_ = out.Finish()
-		_ = out.Close()
+		_ = out.finish()
+		_ = out.close()
 	}
 	mk(&wide, 80)
 	mk(&narrow, 30)
@@ -75,24 +75,24 @@ func TestTXT012_LongPathTruncationPolicy(t *testing.T) {
 
 func TestTXT017_DuplicateNamesReadable(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 	// Output.Task get-or-creates by name (L1); two distinct rows sharing a
-	// display name need distinct evo.ID.
+	// display name need distinct ID.
 	succeed(out.Task("same"))
-	out.Task("same").Block("x")
-	_ = out.Finish()
+	out.Task("same").block("x")
+	_ = out.finish()
 	if strings.Count(buf.String(), "same") < 2 {
 		t.Fatal(buf.String())
 	}
 }
 
 func TestTXT018_BidiInNames(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 	it := out.Task("ok\u202Ebad")
-	if strings.ContainsRune(it.Snapshot().Name, '\u202e') {
-		t.Fatal(it.Snapshot().Name)
+	if strings.ContainsRune(it.snapshot().Name, '\u202e') {
+		t.Fatal(it.snapshot().Name)
 	}
 }
 
@@ -113,10 +113,10 @@ func TestTXT014_OSC8ZeroCells(t *testing.T) {
 
 func TestTXT015_NarrowStackDetailParent(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "repo", Width: 28, Color: evo.ColorNever, Plain: true})
-	out.Task("working tree").Block("dirty", evo.Detail("commit or stash"))
+	out := initRun(Config{Name: "repo", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{width: 28, color: colorNever})
+	out.Task("working tree").block("dirty", Detail("commit or stash"))
 	succeed(out.Task("remote"))
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	s := buf.String()
@@ -132,12 +132,12 @@ func TestTXT015_NarrowStackDetailParent(t *testing.T) {
 func TestTXT016_LeaderBoundedAndOmittedNarrow(t *testing.T) {
 	var wide, narrow bytes.Buffer
 	mk := func(w io.Writer, cols int) {
-		out := evo.Init(evo.Config{Isolated: true, Stdout: w, Title: "x", Width: cols, Color: evo.ColorNever, Plain: true})
+		out := initRun(Config{Name: "x", Output: Plain, Facades: Facades{Stderr: w}}, tuning{width: cols, color: colorNever})
 		ch := out.Task("files")
-		ch.Define(effectOf(evo.EffectAdd, "a.go", 1))
-		ch.Define(effectOf(evo.EffectRemove, "b.go", 2))
-		_ = out.Finish()
-		_ = out.Close()
+		ch.Define(engineEffectOf(change.EffectAdd, "a.go", 1))
+		ch.Define(engineEffectOf(change.EffectRemove, "b.go", 2))
+		_ = out.finish()
+		_ = out.close()
 	}
 	mk(&wide, 80)
 	mk(&narrow, 30)

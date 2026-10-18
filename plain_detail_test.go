@@ -1,23 +1,15 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // nonTTYConfig builds a Plain/NoColor Config that writes into buf.
 // Buffers are never TTYs, so this is the flat/CI path zq pilots use.
-func nonTTYConfig(title string, buf *bytes.Buffer) evo.Config {
-	return evo.Config{
-		Title:  title,
-		Stdout: buf,
-		Stderr: buf,
-		Plain:  true,
-		Color:  evo.ColorNever,
-	}
+func nonTTYConfig(title string, buf *bytes.Buffer) Config {
+	return Config{Name: title, Output: Plain, Facades: Facades{Stdout: buf, Stderr: buf}}
 }
 
 // TestPlain_MultiLineDetailPreservedAsBlock is the P3 contract: multi-line
@@ -25,14 +17,14 @@ func nonTTYConfig(title string, buf *bytes.Buffer) evo.Config {
 // block under the fail row, not a single joined line with newlines collapsed.
 func TestPlain_MultiLineDetailPreservedAsBlock(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(nonTTYConfig("tool", &buf))
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.close() })
 
 	// Multi-line detail matching a gofmt-style diff (the zq pilot shape).
 	detail := "diff main.go.orig main.go\n--- main.go.orig\n+++ main.go\n@@ -1,3 +1,5 @@\n package main"
 	task := out.Task("gofmt check")
-	task.Fail("gofmt check exited 1", evo.Detail(detail))
-	if err := out.Finish(); err != nil {
+	task.fail("gofmt check exited 1", Detail(detail))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -59,13 +51,13 @@ func TestPlain_MultiLineDetailPreservedAsBlock(t *testing.T) {
 // present, the └─ block is the tail only — not "summary     detail".
 func TestPlain_FailDetailDoesNotEchoSummary(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(nonTTYConfig("tool", &buf))
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.close() })
 
 	summary := "gofmt check exited 1"
 	detail := "diff main.go.orig main.go\n--- main.go.orig\n+++ main.go"
-	out.Task("gofmt check").Fail(summary, evo.Detail(detail))
-	if err := out.Finish(); err != nil {
+	out.Task("gofmt check").fail(summary, Detail(detail))
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -98,20 +90,20 @@ func TestPlain_FailDetailDoesNotEchoSummary(t *testing.T) {
 // appear above the task row.
 func TestPlain_StandaloneTaskBeforeTrailingPrintf(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(nonTTYConfig("zq", &buf))
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(nonTTYConfig("zq", &buf))
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("gofmt check")
-	task.Fail("gofmt check exited 1", evo.Detail("diff main.go.orig main.go\n--- a\n+++ b"))
+	task.fail("gofmt check exited 1", Detail("diff main.go.orig main.go\n--- a\n+++ b"))
 	// After Fail, progressive plain path should already show the task row.
 	mid := buf.String()
 	if !strings.Contains(mid, "gofmt check") || !strings.Contains(mid, "✗") {
 		t.Fatalf("P2: standalone Task must stream on Fail before Printf; mid=%q", mid)
 	}
 
-	out.Printf("[SUMMARY] failed: gofmt check\n")
-	out.Printf("[SUMMARY] run `zq fix` to auto-fix formatting\n")
-	if err := out.Finish(); err != nil {
+	out.printf("[SUMMARY] failed: gofmt check\n")
+	out.printf("[SUMMARY] run `zq fix` to auto-fix formatting\n")
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -135,16 +127,16 @@ func TestPlain_StandaloneTaskBeforeTrailingPrintf(t *testing.T) {
 // already-streamed content.
 func TestPlain_MixedPrintfThenTaskStillDeterministic(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(nonTTYConfig("tool", &buf))
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(nonTTYConfig("tool", &buf))
+	t.Cleanup(func() { _ = out.close() })
 
-	out.Printf("starting checks\n")
+	out.printf("starting checks\n")
 	task := out.Task("shellcheck")
 	// Task still pending; mid-run message.
-	out.Printf("still running\n")
+	out.printf("still running\n")
 	succeed(task)
-	out.Printf("all done\n")
-	if err := out.Finish(); err != nil {
+	out.printf("all done\n")
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()

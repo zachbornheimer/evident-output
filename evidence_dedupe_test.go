@@ -1,30 +1,28 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"fmt"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestFail_EvidenceDedupedAgainstSummary is red-first for P7's dedupe
 // addition (user-13-problems.md Problem 7: "deduplicate it against the
 // failure message"). The exact anti-pattern the doc names —
-// task.Fail("install failed", evo.Detail(capture.Text())) — folds the retained
+// task.Fail("install failed", Detail(capture.Text())) — folds the retained
 // output straight into the summary; the auto-attached evidence tail must
 // not then render the same text a second time underneath it.
 func TestFail_EvidenceDedupedAgainstSummary(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	task := out.Task("install")
-	output := task.Capture()
+	output := task.capture()
 	_, _ = fmt.Fprint(output, "npm ERR! 404 not found")
-	task.Fail("install failed", evo.Detail(output.Text()))
+	task.fail("install failed", Detail(output.Text()))
 
-	_ = out.Finish()
+	_ = out.finish()
 
 	rendered := buf.String()
 	if got := strings.Count(rendered, "npm ERR! 404 not found"); got != 1 {
@@ -38,14 +36,14 @@ func TestFail_EvidenceDedupedAgainstSummary(t *testing.T) {
 // renders underneath.
 func TestFail_EvidenceStillRenders_WhenNotContainedInSummary(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	task := out.Task("build")
-	output := task.Capture()
+	output := task.capture()
 	_, _ = fmt.Fprintln(output, "error: undefined symbol foo")
-	task.Fail("compile failed")
+	task.fail("compile failed")
 
-	_ = out.Finish()
+	_ = out.finish()
 
 	if rendered := buf.String(); !strings.Contains(rendered, "undefined symbol foo") {
 		t.Fatalf("want the distinct evidence line still rendered, got:\n%s", rendered)

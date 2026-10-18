@@ -1,27 +1,25 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // TestTaskFact_RendersInlineDimNoBang proves task.Fact renders inline on a
 // Done task's own row, dim, with no "!" — the P8 contrast with
-// TaskHandle.Warn's attention glyph (user-13-problems.md Problem 8: "Tasks
+// Task.Warn's attention glyph (user-13-problems.md Problem 8: "Tasks
 // are work. Facts are information.").
 func TestTaskFact_RendersInlineDimNoBang(t *testing.T) {
 	var buf bytes.Buffer
-	// Contract §13/§21: a Task Fact is verbose-only; this block is the verbose view.
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, Verbosity: evo.VerbosityVerbose})
+	// CONTRACT §8: a Task Fact hides until Verbose; this block is the verbose view.
+	out := initRun(Config{Verbose: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	scan := out.Task("remote-tracking")
 	scan.Fact("stale", "1")
 	succeed(scan)
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
@@ -35,14 +33,14 @@ func TestTaskFact_RendersInlineDimNoBang(t *testing.T) {
 
 // TestTaskFact_NeverResolvesTask proves Fact is a pure annotation: it does
 // not resolve the task, so a subsequent Done still succeeds (mirrors
-// TaskHandle.Warn's non-terminal contract).
+// Task.Warn's non-terminal contract).
 func TestTaskFact_NeverResolvesTask(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Color: evo.ColorNever})
+	out := initRun(Config{}, tuning{color: colorNever})
 	task := out.Task("t")
 	task.Fact("language", "go")
 	succeed(task)
-	snap := out.Snapshot()
-	if len(snap.Tasks) != 1 || snap.Tasks[0].State != evo.Done {
+	snap := out.snapshot()
+	if len(snap.Tasks) != 1 || snap.Tasks[0].State != succeeded {
 		t.Fatalf("Fact must not resolve the task, got %+v", snap.Tasks)
 	}
 	if len(snap.Tasks[0].Facts) != 1 || snap.Tasks[0].Facts[0].Value != "go" {
@@ -50,43 +48,15 @@ func TestTaskFact_NeverResolvesTask(t *testing.T) {
 	}
 }
 
-// TestProblemWarning_FeedsWarnedModifierNotHeadline proves a warning-severity
-// Problem contributes to Conclusion.Warned/"· warned" without becoming a
-// new headline state — a run with only that Problem concludes StateReady, warned.
-func TestProblemWarning_FeedsWarnedModifierNotHeadline(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-
-	out.Task("config").Problem("no config file found, using defaults", evo.Severity(evo.SeverityWarning))
-
-	if err := out.Finish(); err != nil {
-		t.Fatal(err)
-	}
-	c := out.Conclusion()
-	if c.State != evo.StateReady {
-		t.Fatalf("state = %v, want StateReady (a bare Warn must not invent a headline)", c.State)
-	}
-	if !c.Warned {
-		t.Fatal("want Conclusion.Warned = true after a warning-severity Problem")
-	}
-	got := buf.String()
-	if !strings.Contains(got, "no config file found, using defaults") {
-		t.Fatalf("want the run-scoped warning text rendered, got:\n%s", got)
-	}
-	if !strings.Contains(got, "· warned") {
-		t.Fatalf("want the \"· warned\" band, got:\n%s", got)
-	}
-}
-
-// TestOutputFact_RendersDurableDimLine proves evo.Fact (run-scoped) renders
+// TestOutputFact_RendersDurableDimLine proves Fact (run-scoped) renders
 // as a fire-and-forget durable dim line, distinct from any task.
 func TestOutputFact_RendersDurableDimLine(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	out.Fact("language", "go")
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	if got := buf.String(); !strings.Contains(got, "language  go") {

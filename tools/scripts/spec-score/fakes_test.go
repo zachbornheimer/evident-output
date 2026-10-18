@@ -6,6 +6,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"sync"
 )
 
 // fakeFS is an in-memory FileSystem keyed by slash paths.
@@ -52,11 +53,14 @@ func (f *fakeFS) WalkFiles(root, suffix string) ([]string, error) {
 type fakeRunner struct {
 	streams map[string]string
 	errs    map[string]error
+	mu      sync.Mutex
 	calls   []string
 }
 
 func (r *fakeRunner) Run(_, pkg, _ string, names []string) ([]byte, error) {
+	r.mu.Lock()
 	r.calls = append(r.calls, pkg+" "+strings.Join(names, ","))
+	r.mu.Unlock()
 	if err := r.errs[pkg]; err != nil {
 		return nil, err
 	}

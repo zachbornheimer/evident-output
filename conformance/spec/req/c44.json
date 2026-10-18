@@ -1,0 +1,185 @@
+[
+  {
+    "id": "C44-001",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "Problems never end a Task",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestProblem_DoesNotResolveTask"
+      },
+      {
+        "pkg": ".",
+        "run": "TestProblem_ResolvesTaskOnceNotChildTasks"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-002",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "a precondition stopped it; exit 1",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestMainWith_BlockedExitOne"
+      },
+      {
+        "pkg": ".",
+        "run": "TestConfirm_Declined_ResolvesBlockedWithExitOne"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-003",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "ran and failed; exit 2",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestOUT012_ExitCodes"
+      },
+      {
+        "pkg": ".",
+        "run": "TestResult_ExitCodeMapping"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-004",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "interrupted; exit 130",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestCancellation_ExitsWithCancelledCode"
+      },
+      {
+        "pkg": ".",
+        "run": "TestSignalDuringDrainExits130"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-005",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "requested state already true; nothing ran",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScenario_AlreadySatisfied"
+      },
+      {
+        "pkg": ".",
+        "run": "TestWireEvents_AlreadySatisfiedSkipsDefinition"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-006",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "policy chose not to run it",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestExcludedPredecessorLeavesDependentsNotStarted"
+      },
+      {
+        "pkg": ".",
+        "run": "TestReturnedEndingSettlesItsOutcome"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-007",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "argv a machine can run",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestRemedy_BlockAndFailReachRunJSONActions"
+      },
+      {
+        "pkg": ".",
+        "run": "TestSEC006_CommandArgvPreservedInAction"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-008",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "A Task with no Define never returns, so it ends NotStarted at Finish whatever Facts, Problems, Progress or Verify it carries, a Task After it names it as the one that stopped it, and the run fails by misuse (section 7).",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestUndefinedTaskEndsNotStarted"
+      },
+      {
+        "pkg": ".",
+        "run": "TestUndefinedTaskPlainGolden"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-009",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "In `evo.run` a Task's `state` is its Outcome's value or `not_started`, and a collection's adds `empty` for one with no members; no other state is written.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": "./schema",
+        "run": "TestRunSchemaEnumeratesStateAndOutcome"
+      },
+      {
+        "pkg": "./schema",
+        "run": "TestRunSchemaRejectsUnknownStateAndOutcome"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-010",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "`Fail`, `Refuse` and `Exclude` record every `ProblemOption` on the Problem their ending creates.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestEndingCarriesProblemOptions"
+      },
+      {
+        "pkg": ".",
+        "run": "TestProblem_AcceptsStructuredProblemOptions"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C44-011",
+    "section": "2.0 \u00a74 Endings and findings",
+    "quote": "closed set; the only verdict type",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestConclusionOutcomeCoversAllSix"
+      }
+    ],
+    "default": false
+  }
+]

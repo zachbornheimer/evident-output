@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -6,47 +6,44 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"strings"
 	"testing"
 
-	"github.com/zachbornheimer/evident-output/internal/render"
-
-	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
 // refDelete is the aggregate every PartialEffect test requests: delete 3
 // remote refs.
-var refDelete = evo.EffectSpec{Verb: evo.EffectDelete, Object: "remote ref", Quantity: 3}
+var refDelete = EffectSpec{Verb: Delete, Object: "remote ref", Quantity: 3}
 
 // partialResult is what one partialRun observed.
 type partialResult struct {
-	out       *evo.Output
+	out       *Run
 	rendered  string
 	effectErr error
-	state     evo.EntityState
+	state     entityState
 }
 
 // partialRun runs one Task whose Define returns Effect(refDelete, fn) in
 // the given wire format.
-func partialRun(t *testing.T, format evo.Format, fn func(context.Context) error) partialResult {
+func partialRun(t *testing.T, output Output, fn func(context.Context) error) partialResult {
 	t.Helper()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "prune", Color: evo.ColorNever, Plain: true, Format: format, Stderr: io.Discard})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Name: "prune", Output: output, Facades: readFrom(output, &buf)}, tuning{color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 	var effectErr error
 	task := out.Task("refs")
 	task.Define(func(ctx context.Context) error {
-		effectErr = evo.Effect(ctx, refDelete, fn)
+		effectErr = Effect(ctx, refDelete, fn)
 		return effectErr
 	})
-	_ = out.Finish()
-	return partialResult{out: out, rendered: buf.String(), effectErr: effectErr, state: task.Snapshot().State}
+	_ = out.finish()
+	return partialResult{out: out, rendered: buf.String(), effectErr: effectErr, state: task.snapshot().State}
 }
 
 // changedQuantities lists every changed Effect record's quantity.
-func changedQuantities(snap evo.Snapshot) []int64 {
+func changedQuantities(snap snapshot) []int64 {
 	var qs []int64
 	for _, c := range snap.Changes {
 		for _, r := range c.Records {
@@ -59,19 +56,19 @@ func changedQuantities(snap evo.Snapshot) []int64 {
 func TestPartialEffect_TwoOfThreeRecordsCommittedAndFailsTheTask(t *testing.T) {
 	t.Parallel()
 	cause := errors.New("git push --delete: remote rejected")
-	r := partialRun(t, evo.FormatHuman, func(context.Context) error {
-		return evo.PartialEffect(2, cause)
+	r := partialRun(t, Plain, func(context.Context) error {
+		return PartialEffect(2, cause)
 	})
 	if !errors.Is(r.effectErr, cause) {
 		t.Fatalf("Effect err = %v, want the supplied cause", r.effectErr)
 	}
-	if r.state != evo.Failed {
+	if r.state != failed {
 		t.Fatalf("task state = %v, want Failed", r.state)
 	}
-	if qs := changedQuantities(r.out.Snapshot()); len(qs) != 1 || qs[0] != 2 {
+	if qs := changedQuantities(r.out.snapshot()); len(qs) != 1 || qs[0] != 2 {
 		t.Fatalf("changed quantities = %v, want exactly [2]", qs)
 	}
-	if plain := collapse(r.rendered); !strings.Contains(plain, "2 remote refs deleted") || strings.Contains(plain, "3 remote refs") {
+	if plain := collapse(r.rendered); !strings.Contains(plain, "deleted 2 remote refs") || strings.Contains(plain, "3 remote refs") {
 		t.Fatalf("human output must report 2 committed, never 3:\n%s", r.rendered)
 	}
 }
@@ -79,27 +76,27 @@ func TestPartialEffect_TwoOfThreeRecordsCommittedAndFailsTheTask(t *testing.T) {
 func TestPartialEffect_ZeroOfThreeRecordsNothingAndFails(t *testing.T) {
 	t.Parallel()
 	cause := errors.New("auth expired")
-	r := partialRun(t, evo.FormatHuman, func(context.Context) error {
-		return evo.PartialEffect(0, cause)
+	r := partialRun(t, Plain, func(context.Context) error {
+		return PartialEffect(0, cause)
 	})
-	if !errors.Is(r.effectErr, cause) || errors.Is(r.effectErr, evo.ErrInvalidPartialEffect) {
+	if !errors.Is(r.effectErr, cause) || errors.Is(r.effectErr, change.ErrInvalidPartialEffect) {
 		t.Fatalf("Effect err = %v, want the supplied cause and not ErrInvalidPartialEffect", r.effectErr)
 	}
-	if r.state != evo.Failed {
+	if r.state != failed {
 		t.Fatalf("task state = %v, want Failed", r.state)
 	}
-	if snap := r.out.Snapshot(); len(snap.Changes) != 0 {
+	if snap := r.out.snapshot(); len(snap.Changes) != 0 {
 		t.Fatalf("changes = %d, want none for 0 committed", len(snap.Changes))
 	}
 }
 
 func TestPartialEffect_FullSuccessIsUnchanged(t *testing.T) {
 	t.Parallel()
-	r := partialRun(t, evo.FormatHuman, func(context.Context) error { return nil })
-	if r.effectErr != nil || r.state != evo.Done {
+	r := partialRun(t, Plain, func(context.Context) error { return nil })
+	if r.effectErr != nil || r.state != succeeded {
 		t.Fatalf("err = %v state = %v, want nil and Done", r.effectErr, r.state)
 	}
-	if qs := changedQuantities(r.out.Snapshot()); len(qs) != 1 || qs[0] != 3 {
+	if qs := changedQuantities(r.out.snapshot()); len(qs) != 1 || qs[0] != 3 {
 		t.Fatalf("changed quantities = %v, want [3]", qs)
 	}
 }
@@ -120,19 +117,19 @@ func TestPartialEffect_InvalidDataIsRejectedAndRecordsNothing(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			r := partialRun(t, evo.FormatHuman, func(context.Context) error {
-				return evo.PartialEffect(tc.committed, tc.err)
+			r := partialRun(t, Plain, func(context.Context) error {
+				return PartialEffect(tc.committed, tc.err)
 			})
-			if !errors.Is(r.effectErr, evo.ErrInvalidPartialEffect) {
+			if !errors.Is(r.effectErr, change.ErrInvalidPartialEffect) {
 				t.Fatalf("Effect err = %v, want ErrInvalidPartialEffect", r.effectErr)
 			}
 			if tc.keepCause && !errors.Is(r.effectErr, cause) {
 				t.Fatalf("Effect err = %v, want the supplied cause still reachable", r.effectErr)
 			}
-			if r.state != evo.Failed {
+			if r.state != failed {
 				t.Fatalf("task state = %v, want Failed", r.state)
 			}
-			if snap := r.out.Snapshot(); len(snap.Changes) != 0 {
+			if snap := r.out.snapshot(); len(snap.Changes) != 0 {
 				t.Fatalf("changes = %d, want no invented partial count", len(snap.Changes))
 			}
 		})
@@ -142,8 +139,8 @@ func TestPartialEffect_InvalidDataIsRejectedAndRecordsNothing(t *testing.T) {
 func TestPartialEffect_CauseStaysErrorsIsAndAsCompatible(t *testing.T) {
 	t.Parallel()
 	cause := &fs.PathError{Op: "unlink", Path: "refs/heads/old", Err: fs.ErrPermission}
-	r := partialRun(t, evo.FormatHuman, func(context.Context) error {
-		return fmt.Errorf("deleting refs: %w", evo.PartialEffect(1, cause))
+	r := partialRun(t, Plain, func(context.Context) error {
+		return fmt.Errorf("deleting refs: %w", PartialEffect(1, cause))
 	})
 	var pathErr *fs.PathError
 	if !errors.As(r.effectErr, &pathErr) || pathErr != cause {
@@ -157,34 +154,18 @@ func TestPartialEffect_CauseStaysErrorsIsAndAsCompatible(t *testing.T) {
 func TestPartialEffect_ErrorTextIsTheCause(t *testing.T) {
 	t.Parallel()
 	cause := errors.New("remote rejected")
-	if got := evo.PartialEffect(2, cause).Error(); !strings.Contains(got, "remote rejected") {
+	if got := PartialEffect(2, cause).Error(); !strings.Contains(got, "remote rejected") {
 		t.Fatalf("PartialEffect error text = %q, want it to carry the cause", got)
 	}
 }
 
 func TestPartialEffect_MachineProjectionsAgreeOnCommittedCount(t *testing.T) {
 	t.Parallel()
-	partial := func(context.Context) error { return evo.PartialEffect(2, errors.New("rejected")) }
-
-	t.Run("snapshot JSON", func(t *testing.T) {
-		t.Parallel()
-		r := partialRun(t, evo.FormatHuman, partial)
-		data, err := render.EncodeJSON(r.out.Snapshot())
-		if err != nil {
-			t.Fatal(err)
-		}
-		var doc render.JSONDocument
-		if err := json.Unmarshal(data, &doc); err != nil {
-			t.Fatal(err)
-		}
-		if len(doc.Changes) != 1 || len(doc.Changes[0].Records) != 1 || *doc.Changes[0].Records[0].Quantity != 2 {
-			t.Fatalf("JSON changes = %s, want one record with quantity 2", data)
-		}
-	})
+	partial := func(context.Context) error { return PartialEffect(2, errors.New("rejected")) }
 
 	t.Run("final JSON document", func(t *testing.T) {
 		t.Parallel()
-		r := partialRun(t, evo.FormatJSON, partial)
+		r := partialRun(t, JSON, partial)
 		var doc struct {
 			Data struct {
 				Effects []struct {
@@ -203,7 +184,7 @@ func TestPartialEffect_MachineProjectionsAgreeOnCommittedCount(t *testing.T) {
 
 	t.Run("JSONL stream", func(t *testing.T) {
 		t.Parallel()
-		r := partialRun(t, evo.FormatJSONL, partial)
+		r := partialRun(t, JSONL, partial)
 		committed := 0
 		for line := range strings.SplitSeq(strings.TrimSpace(r.rendered), "\n") {
 			var ev struct {

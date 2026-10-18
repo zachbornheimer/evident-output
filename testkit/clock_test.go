@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 // TestClock_AfterFunc_FiresOnceDeadlinePasses proves the fake-timer

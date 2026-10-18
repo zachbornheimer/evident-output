@@ -1,0 +1,25 @@
+// A hand-chained After list reproduces what evo.Sequence already does.
+package dag002
+
+import (
+	"context"
+
+	evo "github.com/zachbornheimer/evident-output/v2"
+)
+
+func launchAgent(seq *evo.Sequence) {
+	write := seq.Task("write plist")
+	write.Define(writePlist)
+
+	register := seq.Task("register")
+	register.After(write)
+	register.Define(registerAgent)
+
+	start := seq.Task("start")
+	start.After(register)
+	start.Define(startAgent)
+}
+
+func writePlist(ctx context.Context) error    { return nil }
+func registerAgent(ctx context.Context) error { return nil }
+func startAgent(ctx context.Context) error    { return nil }

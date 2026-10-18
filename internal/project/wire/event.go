@@ -1,0 +1,99 @@
+package wire
+
+import (
+	"encoding/json"
+	"time"
+
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+)
+
+// EventSchemaVersion is the "evo.event" JSONL line's schema_version
+// (schema/event.v2.json), published as schema/event.v2.json.
+const EventSchemaVersion = "2.0"
+
+// EventObject is the "evo.event" envelope's object discriminator (schema/event.v2.json).
+const EventObject = "evo.event"
+
+// Required event families (schema/event.v2.json). Increment 1's runtime event model does
+// not yet emit every family below (operation/basis/manifest families arrive
+// with increment 2's File/manifest work) — the constants are defined now so
+// call sites converge on one name instead of ad hoc strings, per the work
+// order's "keep the type constants defined now."
+const (
+	EventRunStarted              = "run.started"
+	EventCollectionDeclared      = "collection.declared"
+	EventTaskDeclared            = "task.declared"
+	EventTaskEligible            = "task.eligible"
+	EventEvidenceEvaluated       = "evidence.evaluated"
+	EventTaskStarted             = "task.started"
+	EventDefinitionStarted       = "definition.started"
+	EventOperationStarted        = "operation.started"
+	EventOperationSkippedCurrent = "operation.skipped_current"
+	EventTrackedResourceObserved = "tracked_resource.observed"
+	EventBasisFingerprinted      = "basis.fingerprinted"
+	EventVerificationObserved    = "verification.observed"
+	EventFactRecorded            = "fact.recorded"
+	EventWarningRecorded         = "warning.recorded"
+	// EventProblemRecorded is Task.Problem's accumulation event
+	// (1.1/ZYS-848) — distinct from EventWarningRecorded because a Problem
+	// is blocking evidence a Task owns before it resolves, not a warning
+	// annotation; a wire consumer must be able to tell the two apart.
+	EventProblemRecorded       = "problem.recorded"
+	EventEffectPlanned         = "effect.planned"
+	EventEffectCommitted       = "effect.committed"
+	EventManifestTaskCommitted = "manifest.task_committed"
+	EventOperationFinished     = "operation.finished"
+	EventDefinitionFinished    = "definition.finished"
+	EventTaskFinished          = "task.finished"
+	EventRunFinished           = "run.finished"
+	// EventResultWritten carries one write to Run.ResultWriter as payload "text", or "base64" when the bytes are not valid UTF-8.
+	EventResultWritten = "result.written"
+)
+
+// Payload "kind" values of the operation, tracked_resource and basis events
+// (schema/event.v2.json): what the event is about, on the wire. The manifest keeps its own
+// record kinds in internal/freshness; the two vocabularies are independent.
+const (
+	PayloadKindFile       = "file"
+	PayloadKindExec       = "exec"
+	PayloadKindExecOutput = "exec-output"
+)
+
+// EventDocument is one "evo.event" JSONL line (schema/event.v2.json). seq is the
+// ordering authority; timestamp (at) is informational only.
+type EventDocument struct {
+	Object        string         `json:"object"`
+	SchemaVersion string         `json:"schema_version"`
+	RunID         string         `json:"run_id,omitempty"`
+	Seq           uint64         `json:"seq"`
+	At            time.Time      `json:"at"`
+	Type          string         `json:"type"`
+	EntityID      string         `json:"entity_id,omitempty"`
+	Payload       map[string]any `json:"payload,omitempty"`
+}
+
+// ToEventDocument builds the "evo.event" wire line from one runtime journal
+// Event. The runtime Event.Type vocabulary (output.started, task.blocked,
+// ...) predates the event family names above; increment 4 does not remap it —
+// that migration is a runtime-model change (increment 2/3 territory), not a
+// wire-encoder one. The wire shape (object/schema_version/run_id/seq/at/
+// type/entity_id/payload) is final now regardless of which Type strings the
+// runtime currently emits.
+func ToEventDocument(e record.Event) EventDocument {
+	return EventDocument{
+		Object:        EventObject,
+		SchemaVersion: EventSchemaVersion,
+		RunID:         e.OutputID,
+		Seq:           e.Sequence,
+		At:            e.Timestamp,
+		Type:          e.Type,
+		EntityID:      e.EntityID,
+		Payload:       e.Payload,
+	}
+}
+
+// EncodeEvent encodes one journal event as a single "evo.event" JSON object
+// (no trailing newline — JSONL callers append it themselves, one per line).
+func EncodeEvent(e record.Event) ([]byte, error) {
+	return json.Marshal(ToEventDocument(e))
+}

@@ -12,7 +12,7 @@ import (
 	"os"
 	"time"
 
-	evo "github.com/zachbornheimer/evident-output"
+	evo "github.com/zachbornheimer/evident-output/v2"
 )
 
 // errTestsFailed is the simulated test failure.
@@ -28,9 +28,8 @@ func main() {
 		step = 20 * time.Millisecond
 	}
 
-	evo.Init(evo.Config{Title: "install"})
-	os.Exit(evo.Main(func(ctx context.Context) error {
-		pipeline := evo.Sequence("pipeline")
+	os.Exit(evo.Main(evo.Config{Name: "install"}, func(ctx context.Context, r *evo.Run) error {
+		pipeline := r.Sequence("pipeline")
 
 		modules := pipeline.Task("go mod download")
 		modules.Define(func(ctx context.Context) error {
@@ -46,7 +45,7 @@ func main() {
 		generate.Define(func(ctx context.Context) error {
 			generate.Doing("running generators")
 			time.Sleep(step)
-			generate.Bytes(256*1024, 256*1024)
+			generate.Progress(int(256*1024), int(256*1024))
 			return nil
 		})
 

@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/terminal"
+	"github.com/zachbornheimer/evident-output/v2/internal/terminal"
 )
 
 // TestInteractive_DryRunDeleteReachesLiveTerminalLedger is release-gate round
@@ -15,19 +14,19 @@ import (
 // body) never called writeEffects, so a TTY dry-run rendered "[planned]" with
 // zero planned rows — the third parity gap between it and residualPlainLocked
 // (after the misuse line and the debug tail in earlier rounds). A
-// TaskHandle.Delete under Config.DryRun true must render its "[planned]
+// Task.Delete under Config.DryRun true must render its "[planned]
 // delete N <object>" row on the real interactive terminal, not just a
 // plain/primary mirror.
 func TestInteractive_DryRunDeleteReachesLiveTerminalLedger(t *testing.T) {
 	var screen bytes.Buffer
 	drv := terminal.NewANSI(&screen, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: drv, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever, DryRun: true})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{DryRun: true, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: drv}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("branches")
-	task.Define(effectOf(evo.EffectDelete, "stale local branch", 3))
+	task.Define(effectOf(Delete, "stale local branch", 3))
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
 	}
 
@@ -46,13 +45,13 @@ func TestInteractive_DryRunDeleteReachesLiveTerminalLedger(t *testing.T) {
 func TestInteractive_ChangesDeleteReachesLiveTerminalLedger(t *testing.T) {
 	var screen bytes.Buffer
 	drv := terminal.NewANSI(&screen, terminal.WithInteractive(true), terminal.WithSize(80, 24))
-	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: drv, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: drv}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
 	task := out.Task("branches")
-	task.Define(effectOf(evo.EffectDelete, "stale local branch", 3))
+	task.Define(effectOf(Delete, "stale local branch", 3))
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
 	}
 

@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -6,8 +6,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // syncBuffer is a bytes.Buffer safe to read while the Output writes to it.
@@ -29,30 +27,25 @@ func (b *syncBuffer) String() string {
 }
 
 // Off a terminal there is no live region to carry "I have started", so the
-// caller's own narrated beat has to reach the stream when it is narrated —
-// not at Finish. A CLI that resolves toolchains for ten seconds before its
-// first byte looks hung, and zq pins that as a 500ms wall-clock budget.
+// first Doing call is a durable line (CONTRACT §2) that reaches the stream
+// when it is narrated, not when the Task resolves. A CLI that resolves
+// toolchains for ten seconds before its first byte looks hung, and zq pins
+// that as a wall-clock budget.
 func TestDoing_PlainModeEmitsTheFirstBeatBeforeTheTaskResolves(t *testing.T) {
+	const firstBeatBudget = 500 * time.Millisecond
 	var out syncBuffer
 	var payload syncBuffer
-	o := evo.Init(evo.Config{
-		Title:           "zq",
-		Isolated:        true,
-		Format:          evo.FormatData,
-		Stdout:          &payload,
-		Stderr:          &out,
-		VisibilityDelay: evo.DelayForTest(0),
-	})
-	t.Cleanup(func() { _ = o.Close() })
+	o := initRun(Config{Name: "zq", Facades: Facades{Stdout: &payload, Stderr: &out}}, tuning{visibilityDelay: DelayForTest(0)})
+	t.Cleanup(func() { _ = o.close() })
 
-	o.Task("zq ci resolve").Doing("resolving repository root")
+	start := time.Now()
+	o.Task("zq ci resolve").startForTest().Doing("resolving repository root")
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	for time.Since(start) < firstBeatBudget {
 		if strings.Contains(out.String(), "resolving repository root") {
 			return
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Fatalf("first narrated beat never reached the stream before the task resolved; got %q", out.String())
+	t.Fatalf("first narrated beat never reached the stream within %v while the task was unresolved; got %q", firstBeatBudget, out.String())
 }

@@ -1,0 +1,205 @@
+[
+  {
+    "id": "C41-001",
+    "section": "2.0 \u00a71 Run",
+    "quote": "`Main` wires SIGINT/SIGTERM to cancellation, runs, finishes and returns the exit code; it never exits.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestSignalDuringDrainExits130"
+      },
+      {
+        "pkg": ".",
+        "run": "TestAPI018_LibraryDoesNotCallOsExit"
+      },
+      {
+        "pkg": ".",
+        "run": "TestMainWith_SuccessExitZero"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C41-002",
+    "section": "2.0 \u00a71 Run",
+    "quote": "`Execute` runs without signals, for embedding: the caller owns the context and the exit.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestAPI018_LibraryDoesNotCallOsExit"
+      },
+      {
+        "pkg": ".",
+        "run": "TestBeginRunContext_SecondRunStartsFresh"
+      },
+      {
+        "pkg": ".",
+        "run": "TestDefine_CallerContextCancellation_CancelsTaskScope"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C41-003",
+    "section": "2.0 \u00a71 Run",
+    "quote": "A zero `Config` is complete: `Name` defaults to the binary name and `Output` to Human on a TTY, Plain otherwise.",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestNew_ZeroConfig_Defaults"
+      },
+      {
+        "pkg": ".",
+        "run": "TestConfigNameAndVerboseApply"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C41-004",
+    "section": "2.0 \u00a71 Run",
+    "quote": "bound on executing callbacks; zero means GOMAXPROCS",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestScheduler_GroupOverlapRespectsCeiling"
+      },
+      {
+        "pkg": ".",
+        "run": "TestPlainWaitOnItsOwnTaskKeepsTheCeiling"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C41-005",
+    "section": "2.0 \u00a71 Run",
+    "quote": "plan every change, run no mutation",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestDryRun_TrueRendersPlannedImperative"
+      },
+      {
+        "pkg": ".",
+        "run": "TestEffect_DryRunNeverExecutesCallAndPlansEffect"
+      },
+      {
+        "pkg": ".",
+        "run": "TestScheduler_DryRunMutationNeverCallsCallback"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C41-006",
+    "section": "2.0 \u00a71 Run",
+    "quote": "show hidden Facts and per-reason items",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestTaskFact_ShownUnderVerbose"
+      },
+      {
+        "pkg": ".",
+        "run": "TestEVOVerbose_OneProjectsVerboseMessages"
+      },
+      {
+        "pkg": ".",
+        "run": "TestVerbose_ShownWhenConfigured"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C41-007",
+    "section": "2.0 \u00a71 Run",
+    "quote": "every system boundary Evo touches",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestOnlyFacadesTouchTheSystem"
+      },
+      {
+        "pkg": ".",
+        "run": "TestFacadeSurfaceLeaksNoSystemTypes"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C41-008",
+    "section": "2.0 \u00a71 Run",
+    "quote": "the stdout data payload",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestResultWriter_FormatDataPurity"
+      },
+      {
+        "pkg": ".",
+        "run": "TestResultWriter_FormatDataHandsTheCallerItsPayloadStream"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C41-009",
+    "section": "2.0 \u00a71 Run",
+    "quote": "writes into the debug journal",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestSlogHandler_EmitsDebugAboveLiveRegion"
+      },
+      {
+        "pkg": ".",
+        "run": "TestSlogHandler_PreservesTimeLevelAttrs"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C41-010",
+    "section": "2.0 \u00a71 Run",
+    "quote": "the error the application body returned",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestMainWith_RunErrorMapsToFailedWhenCleanConclusion"
+      },
+      {
+        "pkg": ".",
+        "run": "TestRunErrorOutranksBlockedConclusion"
+      }
+    ],
+    "default": false
+  },
+  {
+    "id": "C41-011",
+    "section": "2.0 \u00a71 Run",
+    "quote": "the worst Task outcome",
+    "tier": "1.1",
+    "tests": [
+      {
+        "pkg": ".",
+        "run": "TestSequence_ConclusionAndExitCodeComeFromFailedChildNotFromNotStarted"
+      },
+      {
+        "pkg": ".",
+        "run": "TestRunErrorOutranksBlockedConclusion"
+      }
+    ],
+    "default": false
+  }
+]

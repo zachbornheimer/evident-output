@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
 )
 
 // createNotesDiff creates a file that does not exist in the workspace, so
@@ -22,42 +22,58 @@ new file mode 100644
 +second
 `
 
-// ExamplePatch derives desired file states from a unified diff inside a
-// Task and mutates nothing. Forms that cannot reduce to a desired file
-// state, such as deletion, fail explicitly.
+// ExamplePatch applies a unified diff inside a Task: it derives the desired
+// file states and commits each through File. Forms that cannot reduce to a
+// desired file state, such as deletion, fail explicitly.
 func ExamplePatch() {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard})
-	task := out.Task("derive notes")
+	dir, err := os.MkdirTemp("", "evo-example-patch")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	restore, err := chdir(dir)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer restore()
+
+	out := initRun(Config{State: State{Dir: dir}, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
+	task := out.Task("apply notes")
 	task.Define(func(ctx context.Context) error {
-		_, err := evo.Patch(ctx, []byte(createNotesDiff))
+		err := Patch(ctx, []byte(createNotesDiff))
 		fmt.Println("create:", err)
 
-		_, err = evo.Patch(ctx, []byte("diff --git a/go.mod b/go.mod\ndeleted file mode 100644\n"))
-		fmt.Println("delete unsupported:", errors.Is(err, evo.ErrPatchDeleteUnsupported))
+		err = Patch(ctx, []byte("diff --git a/go.mod b/go.mod\ndeleted file mode 100644\n"))
+		fmt.Println("delete unsupported:", errors.Is(err, change.ErrPatchDeleteUnsupported))
 		return nil
 	})
-	_ = task.Wait()
-	_ = out.Finish()
+	_ = task.wait()
+	_ = out.finish()
+	written, _ := os.ReadFile(filepath.Join(dir, "example-patch-notes.txt"))
+	fmt.Printf("written: %q\n", written)
 	// Output:
 	// create: <nil>
 	// delete unsupported: true
+	// written: "first\nsecond\n"
 }
 
 // ExampleFileSet is what Patch returns: opaque desired file states, each
 // bound to the Basis it was derived from, with no accessor that could
 // separate the contents from that Basis.
 func ExampleFileSet() {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard})
+	out := initRun(Config{Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	task := out.Task("derive notes")
 	task.Define(func(ctx context.Context) error {
-		var set evo.FileSet
-		set, err := evo.Patch(ctx, []byte(createNotesDiff))
+		var set change.FileSet
+		set, err := derivePatch(ctx, []byte(createNotesDiff))
 		_ = set // opaque: no field or method unpacks it
 		fmt.Println("derived:", err == nil)
 		return err
 	})
-	_ = task.Wait()
-	_ = out.Finish()
+	_ = task.wait()
+	_ = out.finish()
 	// Output:
 	// derived: true
 }
@@ -84,25 +100,25 @@ func ExampleFiles() {
 	}
 	const diff = "--- a/notes.txt\n+++ b/notes.txt\n@@ -1 +1 @@\n-draft\n+final\n"
 
-	out := evo.Init(evo.Config{Isolated: true, StateDir: dir, Stdout: io.Discard, Stderr: io.Discard})
+	out := initRun(Config{State: State{Dir: dir}, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard}})
 	task := out.Task("finalize notes")
 	task.Define(func(ctx context.Context) error {
-		set, err := evo.Patch(ctx, []byte(diff))
+		set, err := derivePatch(ctx, []byte(diff))
 		if err != nil {
 			return err
 		}
 		_ = os.WriteFile("notes.txt", []byte("edited meanwhile\n"), 0o644)
-		fmt.Println("stale:", errors.Is(evo.Files(ctx, set), evo.ErrStaleBasis))
+		fmt.Println("stale:", errors.Is(files(ctx, set), ErrStaleBasis))
 
 		_ = os.WriteFile("notes.txt", []byte("draft\n"), 0o644)
-		set, err = evo.Patch(ctx, []byte(diff))
+		set, err = derivePatch(ctx, []byte(diff))
 		if err != nil {
 			return err
 		}
-		return evo.Files(ctx, set)
+		return files(ctx, set)
 	})
-	fmt.Println("applied:", task.Wait())
-	_ = out.Finish()
+	fmt.Println("applied:", task.wait())
+	_ = out.finish()
 	contents, _ := os.ReadFile(filepath.Join(dir, "notes.txt"))
 	fmt.Print("notes: ", string(contents))
 	// Output:

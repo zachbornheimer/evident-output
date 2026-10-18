@@ -35,7 +35,7 @@ func (c *Clock) Now() time.Time {
 // AfterFunc implements engine.Scheduler for the fake clock: fn runs once
 // Advance moves this clock's time to or past deadline (Now()+d) — the
 // deterministic counterpart of time.AfterFunc for code under test (e.g. the
-// §40 plain heartbeat) that schedules future work off the injected
+// plain heartbeat) that schedules future work off the injected
 // TimeSource instead of a real wall timer. The returned func cancels fn if
 // it has not fired yet.
 func (c *Clock) AfterFunc(d time.Duration, fn func()) func() {

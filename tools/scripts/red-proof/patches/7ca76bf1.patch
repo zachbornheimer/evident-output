@@ -1,0 +1,21 @@
+Hand-written revert of 7ca76bf1 against the current tree: a Detail or EvidenceTail line that wraps a
+failed attribute's Failure ("install: failed: permissions") is dropped whole again, as if it were the
+Failure alone, so the caller's context in front of it is lost. unwrapFailure keeps matching the
+wrapped line but returns no context for it. The pinned test fails on its "wrapped failure keeps its
+context" rows by output, not by compilation.
+
+diff --git a/internal/project/row_problem.go b/internal/project/row_problem.go
+index 9db41601..7e296dde 100644
+--- a/internal/project/row_problem.go
++++ b/internal/project/row_problem.go
+@@ -144,8 +144,8 @@ func unwrapFailure(line string, failures []string) (context string, restated boo
+ 		if line == failure {
+ 			return "", true
+ 		}
+-		if context, wrapped := strings.CutSuffix(line, ": "+failure); wrapped {
+-			return context, true
++		if _, wrapped := strings.CutSuffix(line, ": "+failure); wrapped {
++			return "", true
+ 		}
+ 	}
+ 	return "", false

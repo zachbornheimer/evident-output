@@ -29,9 +29,11 @@ func loadRatchet(fsys FileSystem, root string) ([]string, error) {
 func gateRegressions(ratchet []string, score Score) []string {
 	var out []string
 	for _, id := range ratchet {
-		if score.IDs[id] != StatusPass {
-			out = append(out, id)
+		st := score.IDs[id]
+		if st == StatusPass || st == StatusWaived {
+			continue
 		}
+		out = append(out, id)
 	}
 	return out
 }

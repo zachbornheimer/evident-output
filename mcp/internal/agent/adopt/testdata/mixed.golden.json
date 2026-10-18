@@ -1,0 +1,41 @@
+{
+  "directory": "mixed",
+  "findings": [
+    {
+      "file": "main.go",
+      "line": 13,
+      "pattern": "import github.com/briandowns/spinner",
+      "rung": "Task/Define",
+      "suggestion": "evo.Task's live heartbeat renders progress/elapsed automatically — delete the manual spinner and its Start/Stop calls.",
+      "certainty": "high"
+    },
+    {
+      "file": "main.go",
+      "line": 21,
+      "pattern": "fmt.Printf",
+      "rung": "Task/Define",
+      "suggestion": "replace with fmt.Fprintln(r.Text(), ...) (durable notes) or a Task's Doing and Define — never fmt.Print* while a live region may be open.",
+      "certainty": "needs-review"
+    },
+    {
+      "file": "main.go",
+      "line": 22,
+      "pattern": "log.Println",
+      "rung": "Task/Define",
+      "suggestion": "replace with fmt.Fprintln(r.Text(), ...) for a durable note, or task.Doing plus the Task's Define callback if this reports lifecycle state — see the common-api guide.",
+      "certainty": "needs-review"
+    },
+    {
+      "file": "main.go",
+      "line": 25,
+      "pattern": "log.Fatal",
+      "rung": "Main",
+      "suggestion": "this exits/panics directly, bypassing evo's exit-code contract — resolve the active Task by returning evo.Fail or evo.Refuse from its Define and return, then let os.Exit(evo.Main(cfg, run)) derive the exit code.",
+      "certainty": "high"
+    }
+  ],
+  "rungs_touched": [
+    "Main",
+    "Task/Define"
+  ]
+}

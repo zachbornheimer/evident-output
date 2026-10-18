@@ -1,131 +1,176 @@
 package evo
 
 import (
-	"context"
-	"io"
+	"fmt"
 
-	"github.com/zachbornheimer/evident-output/internal/core"
-	"github.com/zachbornheimer/evident-output/internal/engine"
+	"github.com/zachbornheimer/evident-output/v2/internal/graph"
+	"github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
-type TaskHandle struct{ inner *engine.TaskHandle }
-
-var (
-	ErrInvalidProgress    = engine.ErrInvalidProgress
-	ErrProgressRegression = engine.ErrProgressRegression
-)
-
-// Task declares a Task on the default instance.
-func Task(name string) *TaskHandle { return wrapTask(engine.Task(name)) }
-
-func (o *Output) Task(name string) *TaskHandle { return wrapTask(o.impl().Task(name)) }
-
-func wrapTask(inner *engine.TaskHandle) *TaskHandle {
-	return wrap(inner, func() *TaskHandle { return &TaskHandle{inner: inner} })
+// Task is a handle for one operation with phases or progress.
+type Task struct {
+	out *Run
+	id  string
+	// state is the render state, guarded by o.mu; nil for a handle rebuilt from an id.
+	state *taskState
+	// rejected is why the declaration was refused; nil for a declared Task.
+	rejected error
 }
 
-func (t *TaskHandle) impl() *engine.TaskHandle {
-	if t == nil {
-		return nil
+func (t *Task) declared() *taskState {
+	if t.state != nil {
+		return t.state
 	}
-	return t.inner
+	o := t.out
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.taskStates[t.id]
 }
 
-// ProgressKind classifies task measurement.
-type ProgressKind = core.ProgressKind
-
-// ProgressKind values — which measurement a task's Progress reports.
-const (
-	Indeterminate = core.Indeterminate
-	Determinate   = core.Determinate
-	BytesKind     = core.BytesKind
-)
-
-// Progress is absolute measurement for a task.
-type Progress = core.Progress
-
-func (t *TaskHandle) Bytes(completed, total int64) *TaskHandle {
-	t.impl().Bytes(completed, total)
-	return t
+func (t *Task) succeed(summary string) {
+	t.finish(succeeded, project.Text(summary), nil)
 }
 
-func (t *TaskHandle) Context() context.Context {
-	if t == nil || t.inner == nil {
-		return context.Background()
+func (t *Task) resolveWithProblem(state entityState, summary string, options []ProblemOption) {
+	p := applyProblemOptions(project.Text(summary), options)
+	t.finish(state, project.Text(summary), []problem{p})
+}
+
+func (t *Task) block(summary string, options ...ProblemOption) {
+	t.resolveWithProblem(refused, summary, options)
+}
+
+// finish is the resolution path behind every terminal verb. Once a task is
+// submitted, a requested success is only a proposal the callback's return ratifies.
+func (t *Task) finish(state entityState, summary string, problems []problem) *Task {
+	if t == nil || t.out == nil {
+		return t
 	}
-	return t.inner.Context()
-}
-
-// Define freezes this Task's configuration (After, Verify, Key) and submits
-// fn to the scheduler. It returns immediately, before fn runs; the
-// scheduler starts fn once the Task is eligible, and fn's error becomes the
-// Task's outcome. evo.Run and evo.Main wait for every submitted Task. A
-// second Define on the same Task is misuse.
-//
-// Define returns this same *TaskHandle so the single-Task shape reads
-// `return task.Define(fn).Wait()`. That is fluent sugar only: fn still runs
-// on the scheduler, not inline.
-func (t *TaskHandle) Define(fn func(context.Context) error) *TaskHandle {
-	t.impl().Define(fn)
-	return t
-}
-
-func (t *TaskHandle) Doing(text string, args ...any) *TaskHandle {
-	t.impl().Doing(text, args...)
-	return t
-}
-
-// Key sets an advanced override for this Task's stable identity, so a
-// rename or refactor keeps its manifest history. Call it before Define; a
-// call after Define or after the Task settled records ErrKeyAfterDefine and
-// leaves the key unchanged. Repeating the Task's own key is a no-op. A key
-// another Task already claims is ErrDuplicateKey.
-func (t *TaskHandle) Key(key string) *TaskHandle {
-	t.impl().Key(key)
-	return t
-}
-
-func (t *TaskHandle) Progress(completed, total int) *TaskHandle {
-	t.impl().Progress(completed, total)
-	return t
-}
-
-// Summary sets one line of result text rendered after the Task name on its
-// terminal row, and exposed as "summary" in Snapshot and JSON/JSONL. The
-// last call wins and an empty string clears it. It never resolves the Task
-// and is not live activity (Doing, Progress, and Bytes are). Calling
-// it after the Task resolved is misuse, unless an interrupt resolved it.
-func (t *TaskHandle) Summary(text string) *TaskHandle {
-	t.impl().Summary(text)
-	return t
-}
-
-// Wait blocks until the Task is terminal and returns the error its callback
-// returned: nil on success, ErrNotStarted when the work never ran (a failed
-// predecessor, a run that drained first, or a refused declaration such as a
-// duplicate name, wrapping the refusal), its cancellation when it was
-// cancelled, and ErrWaitDeadlock when nothing in the run can ever reach it.
-// A waiting callback lends its own goroutine to the awaited work, so nested
-// Define+Wait completes even at MaxConcurrency 1. MaxConcurrency bounds
-// every executing callback: a goroutine outside any callback runs work only
-// in a free slot and otherwise waits for the pool. A goroutine a callback
-// started, Waiting while that callback blocks on it and every slot is held,
-// gets ErrWaitDeadlock naming API-041 instead of hanging. Calling Wait
-// while holding a resource claim (inside an Effect, File, or Basis) returns
-// ErrNestedResourceAcquisition without waiting.
-func (t *TaskHandle) Wait() error {
-	if t == nil || t.inner == nil {
-		return nil
+	o := t.out
+	o.mu.Lock()
+	st := o.taskStates[t.id]
+	o.mu.Unlock()
+	if st != nil {
+		o.graph.Resolve(st.node, graph.Resolution{State: state, Summary: summary, Problems: problems, By: graph.ByCaller})
 	}
-	return t.inner.Wait()
+	return t
 }
 
-// Writer returns a line-buffered sink for a child process: each complete
-// line becomes the task's live doing-text, and every byte is retained on
-// the same Capture ring Exec and TaskHandle.Capture share.
-func (t *TaskHandle) Writer() io.Writer {
-	if t == nil || t.inner == nil {
-		return io.Discard
+// Doing sets the live step text and starts the task if pending; text is a printf format when
+// args are present. Chained right after Task, it sets the first step. Off a TTY the first call is a durable
+// line and later calls thin into milestones carrying the latest text; the heartbeat row covers the silence.
+func (t *Task) Doing(text string, args ...any) *Task {
+	if len(args) > 0 {
+		text = fmt.Sprintf(text, args...)
 	}
-	return t.inner.Writer()
+	return t.annotate(func(st *taskState) { t.out.setPhaseLocked(st, text) })
+}
+
+// resolvedByInterrupt: narrating a row the interrupt sweep resolved is not misuse; a worker mid-step cannot stop a straggling update.
+func resolvedByInterrupt(state entityState) bool {
+	return state == cancelled || state == notStarted
+}
+
+// annotate guards every non-terminal annotation verb: under o.mu it applies only while the task is open.
+// A closed Output records misuse; a terminal row records ErrAlreadyResolved unless the interrupt sweep resolved it.
+func (t *Task) annotate(apply func(st *taskState)) *Task {
+	return t.withTask(func(st *taskState) {
+		if err := t.out.ensureOpen(); err != nil {
+			t.out.recordMisuse(err)
+			return
+		}
+		if record.IsTerminalTask(st.node.Rec.State()) {
+			if !resolvedByInterrupt(st.node.Rec.State()) {
+				t.out.recordMisuseFor(st.name, errAlreadyResolved)
+			}
+			return
+		}
+		apply(st)
+	})
+}
+
+// withTask is the one lock-and-lookup for row-editing verbs: under o.mu it hands apply the task's
+// state and does nothing for a nil, zero or unknown Task, so "a nil *Task is safe" holds for every verb.
+func (t *Task) withTask(apply func(st *taskState)) *Task {
+	if t == nil || t.out == nil {
+		return t
+	}
+	t.out.mu.Lock()
+	defer t.out.mu.Unlock()
+	if st := t.out.taskStates[t.id]; st != nil {
+		apply(st)
+		t.out.show.Board.Changed(st.node.TaskID())
+	}
+	return t
+}
+
+// setLiveOnlyPhase sets phase text for non-narrated sources such as Writer's per-line mirror;
+// unlike Doing, repeating the current text is a no-op (the evidence ring holds the output).
+func (t *Task) setLiveOnlyPhase(text string) {
+	t.annotate(func(st *taskState) { t.out.setLiveOnlyPhaseLocked(st, text) })
+}
+
+func (r *Run) setPhaseLocked(st *taskState, text string) {
+	st.node.Doing(text, r.cfg.clock.Now())
+	r.bumpLocked()
+	r.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
+	r.show.Live.Signal(true)
+	r.show.Stream.Narrated(st.node.TaskID(), r.cfg.clock.Now())
+}
+
+// setLiveOnlyPhaseLocked is setPhaseLocked for non-narrated sources.
+func (r *Run) setLiveOnlyPhaseLocked(st *taskState, text string) {
+	// An identical live-only phase is a no-op: repeated Writer lines must not bump, emit or repaint.
+	if !st.node.Mirror(text, r.cfg.clock.Now()) {
+		return
+	}
+	r.bumpLocked()
+	r.appendEventLocked(recEvent{Type: "task.phase_changed", EntityID: st.id})
+	r.show.Live.Signal(true)
+}
+
+// Summary sets one sanitized line of result text for the terminal row; last call wins, empty clears.
+// It never resolves the task. After the task resolved it is misuse unless the interrupt sweep resolved it.
+func (t *Task) Summary(text string) *Task {
+	return t.annotate(func(st *taskState) {
+		st.node.Summarize(text)
+		t.out.bumpLocked()
+		t.out.appendEventLocked(recEvent{Type: "task.summary_set", EntityID: t.id})
+		t.out.show.Live.Signal(true)
+	})
+}
+
+// Problem attaches one structured diagnostic. It never ends the Task or changes its outcome, which settles
+// from the Define callback's return alone; return a fatal finding through Fail.
+func (t *Task) Problem(summary string, opts ...ProblemOption) *Task {
+	p := applyProblemOptions(project.Text(summary), opts)
+	return t.annotate(func(st *taskState) {
+		st.node.Report(p)
+		t.out.bumpLocked()
+		t.out.appendEventLocked(recEvent{Type: "task.problem_recorded", EntityID: t.id})
+		t.out.emitWireEventLocked(wire.EventProblemRecorded, t.id, wire.ToProblemDoc(p).EventPayload())
+		t.out.show.Live.Signal(true)
+	})
+}
+
+// Fact accumulates a name/value annotation (information, not a verdict), the non-terminal sibling of Problem.
+// Renders as a dim "name  value" line, inline when it is the only annotation.
+func (t *Task) Fact(name, value string) *Task {
+	f := record.SanitizeFact(factRecord{Name: project.Text(name), Value: project.Text(value)})
+	return t.annotate(func(st *taskState) {
+		st.node.Note(f)
+		t.out.bumpLocked()
+		t.out.emitWireEventLocked(wire.EventFactRecorded, t.id, wire.ToFactDoc(f).EventPayload())
+		t.out.show.Live.Signal(true)
+	})
+}
+
+func (t *Task) appendLiveTail(line string, retained int) {
+	t.annotate(func(st *taskState) {
+		line := project.Text(line)
+		t.out.show.Board.PushTail(st.node.TaskID(), line, retained, t.out.cfg.clock.Now())
+		t.out.setLiveOnlyPhaseLocked(st, line)
+	})
 }

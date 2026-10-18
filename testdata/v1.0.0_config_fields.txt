@@ -1,0 +1,37 @@
+# Fields of the Config struct at tag v1.0.0, one per line, in declaration
+# order. TestMigrationGuideMapsEveryRemovedName requires docs/migration/2.0.md
+# to name each as Config.<Field> in the first cell of a row, so a field 2.0
+# drops, renames or moves is found by searching the guide for the 1.x name.
+Title
+Subject
+Facts
+Stdout
+Stderr
+Result
+Stdin
+Verbosity
+Color
+Format
+Projection
+Debug
+Clock
+Redactor
+Terminal
+Strict
+Width
+VisibilityDelay
+MaxFrameRate
+MaxEntities
+MaxEvents
+Plain
+Glyphs
+FailedExitCode
+DryRun
+Preview
+Isolated
+Options
+MaxConcurrency
+StateDir
+AppID
+ProcessRunner
+FileFS

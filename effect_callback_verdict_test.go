@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -7,46 +7,7 @@ import (
 	"io"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
-
-// TestEffect_CallbackThatSkippedItsOwnTaskRecordsNoEffect is the red-first
-// proof for the canary's `create-skipped` probe: an Effect callback that
-// resolved its own task as Skipped and returned nil still put a `[changed]`
-// row in the ledger, so the ledger counted the package the installer had
-// just rejected. A nil return after the callback said "skipped" means "I
-// handled it", not "I did it"; the effect ledger must not count what the row
-// itself denies.
-func TestEffect_CallbackThatSkippedItsOwnTaskRecordsNoEffect(t *testing.T) {
-	t.Parallel()
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-
-	install := out.Group("install")
-	broken := install.Task("broken")
-	broken.Define(func(ctx context.Context) error {
-		return evo.Effect(ctx, createModule, func(context.Context) error {
-			broken.Skipped(evo.Reason("install failed"))
-			return nil
-		})
-	})
-	ok := install.Task("ok")
-	ok.Define(func(ctx context.Context) error {
-		return evo.Effect(ctx, createModule, func(context.Context) error { return nil })
-	})
-	if err := out.Finish(); err != nil {
-		t.Log(err)
-	}
-
-	got := buf.String()
-	if strings.Contains(got, "[changed] broken") {
-		t.Fatalf("a skipped callback must record no effect:\n%s", got)
-	}
-	if !strings.Contains(got, "created 1 module") {
-		t.Fatalf("the callback that did create must still be in the ledger:\n%s", got)
-	}
-}
 
 // TestEffect_CallbackThatFailedItsOwnTaskRecordsNoEffect is the same rule
 // on the other terminal verdict: an Effect callback that called Fail on its
@@ -54,23 +15,23 @@ func TestEffect_CallbackThatSkippedItsOwnTaskRecordsNoEffect(t *testing.T) {
 func TestEffect_CallbackThatFailedItsOwnTaskRecordsNoEffect(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := initRun(Config{Name: "setup", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	broken := out.Task("broken")
 	broken.Define(func(ctx context.Context) error {
-		return evo.Effect(ctx, createModule, func(context.Context) error {
-			broken.Fail("uv rejected the package", evo.Detail("resolution impossible"))
+		return Effect(ctx, createModule, func(context.Context) error {
+			broken.fail("uv rejected the package", Detail("resolution impossible"))
 			return nil
 		})
 	})
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Log(err)
 	}
 
 	if got := buf.String(); strings.Contains(got, "[changed]") {
 		t.Fatalf("a failed callback must record no effect:\n%s", got)
 	}
-	if err := out.Err(); err != nil {
+	if err := out.err(); err != nil {
 		t.Fatalf("a callback that disowned its own Effect is not misuse, got %v", err)
 	}
 }
@@ -81,16 +42,16 @@ func TestEffect_CallbackThatFailedItsOwnTaskRecordsNoEffect(t *testing.T) {
 func TestEffect_CallbackThatSummarizesItsOwnTaskKeepsTheEffect(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := initRun(Config{Name: "setup", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	pkg := out.Task("numpy")
 	pkg.Define(func(ctx context.Context) error {
-		return evo.Effect(ctx, createModule, func(context.Context) error {
+		return Effect(ctx, createModule, func(context.Context) error {
 			pkg.Summary("installed from cache")
 			return nil
 		})
 	})
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 
@@ -100,7 +61,7 @@ func TestEffect_CallbackThatSummarizesItsOwnTaskKeepsTheEffect(t *testing.T) {
 }
 
 // createModule is the one-module Effect these verdict tests share.
-var createModule = evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quantity: 1}
+var createModule = EffectSpec{Verb: Create, Object: "module", Quantity: 1}
 
 // TestEffect_ConcurrentEffectsBothHonorTheRowsDenial pins that the denial
 // verdict belongs to every Effect in flight when the row disowns its work,
@@ -110,7 +71,7 @@ var createModule = evo.EffectSpec{Verb: evo.EffectCreate, Object: "module", Quan
 func TestEffect_ConcurrentEffectsBothHonorTheRowsDenial(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	out := initRun(Config{Name: "setup", Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	broken := out.Task("broken")
 	broken.Define(func(ctx context.Context) error {
@@ -118,15 +79,15 @@ func TestEffect_ConcurrentEffectsBothHonorTheRowsDenial(t *testing.T) {
 		release := make(chan struct{})
 		second := make(chan error, 1)
 		go func() {
-			second <- evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "cache", Quantity: 1}, func(context.Context) error {
+			second <- Effect(ctx, EffectSpec{Verb: Create, Object: "cache", Quantity: 1}, func(context.Context) error {
 				close(entered)
 				<-release
 				return nil
 			})
 		}()
-		first := evo.Effect(ctx, createModule, func(context.Context) error {
+		first := Effect(ctx, createModule, func(context.Context) error {
 			<-entered
-			broken.Fail("uv rejected the package")
+			broken.fail("uv rejected the package")
 			return nil
 		})
 		close(release)
@@ -135,7 +96,7 @@ func TestEffect_ConcurrentEffectsBothHonorTheRowsDenial(t *testing.T) {
 		}
 		return first
 	})
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Log(err)
 	}
 	if got := buf.String(); strings.Contains(got, "[changed]") {
@@ -148,15 +109,15 @@ func TestEffect_ConcurrentEffectsBothHonorTheRowsDenial(t *testing.T) {
 // ledger — evo derives StateChanged, the caller never chose it.
 func TestEffect_SuccessCommitsChangedEffect(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	branches := out.Task("branches")
-	branches.Define(effectOf(evo.EffectDelete, "stale local branch", 2))
+	branches.Define(effectOf(Delete, "stale local branch", 2))
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if got := out.Conclusion().State; got != evo.StateChanged {
+	if got := out.conclusion().headline(); got != headlineChanged {
 		t.Fatalf("state = %v, want StateChanged", got)
 	}
 	if !strings.Contains(buf.String(), "deleted 2 stale local branches") {
@@ -169,15 +130,15 @@ func TestEffect_SuccessCommitsChangedEffect(t *testing.T) {
 // fail) on a normal run.
 func TestEffect_NilCallRecordsWithoutExecuting(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	branches := out.Task("branches")
-	branches.Define(effectOf(evo.EffectDelete, "stale local branch", 2))
+	branches.Define(effectOf(Delete, "stale local branch", 2))
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if got := out.Conclusion().State; got != evo.StateChanged {
+	if got := out.conclusion().headline(); got != headlineChanged {
 		t.Fatalf("state = %v, want StateChanged", got)
 	}
 }
@@ -186,22 +147,22 @@ func TestEffect_NilCallRecordsWithoutExecuting(t *testing.T) {
 // commits no effect and returns the error verbatim — the caller decides
 // Fail/Block from there, evo never guesses.
 func TestEffect_CallErrorCommitsNothing(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: io.Discard}}, tuning{color: colorNever})
 
 	branches := out.Task("branches")
 	wantErr := errors.New("permission denied")
-	branches.Fail("delete stale branches", evo.Detail(wantErr.Error()))
+	branches.fail("delete stale branches", Detail(wantErr.Error()))
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	snap := out.Snapshot()
+	snap := out.snapshot()
 	for _, ch := range snap.Changes {
 		if len(ch.Records) > 0 {
 			t.Fatalf("want no committed records after a call error, got %+v", ch.Records)
 		}
 	}
-	if got := out.Conclusion().State; got != evo.StateFailed {
+	if got := out.conclusion().headline(); got != headlineFailed {
 		t.Fatalf("state = %v, want StateFailed", got)
 	}
 }
@@ -211,24 +172,24 @@ func TestEffect_CallErrorCommitsNothing(t *testing.T) {
 // planned, never changed.
 func TestEffect_DryRunNeverExecutesCallAndPlansEffect(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, DryRun: true})
+	out := initRun(Config{DryRun: true, Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 
 	branches := out.Task("branches")
 	called := false
 	branches.Define(func(ctx context.Context) error {
-		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "stale local branch", Quantity: 2}, func(context.Context) error {
+		return Effect(ctx, EffectSpec{Verb: Delete, Object: "stale local branch", Quantity: 2}, func(context.Context) error {
 			called = true
 			return nil
 		})
 	})
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	if called {
 		t.Fatal("dry-run must not invoke the mutation callback")
 	}
-	if got := out.Conclusion().State; got != evo.StatePlanned {
+	if got := out.conclusion().headline(); got != headlinePlanned {
 		t.Fatalf("state = %v, want StatePlanned", got)
 	}
 	if !strings.Contains(buf.String(), "delete 2 stale local branches") {

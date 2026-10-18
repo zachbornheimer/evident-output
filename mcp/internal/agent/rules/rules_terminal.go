@@ -1,0 +1,136 @@
+package rules
+
+// terminalRules is terminal ownership, signals, and confirm gates (TERM/SIG/CONFIRM).
+func terminalRules() []Rule {
+	return []Rule{
+		{
+			ID:              "TERM-001",
+			Category:        "TERM",
+			Severity:        SeverityWarning,
+			Invariant:       "instant completion does not flash spinner",
+			Why:             "A sub-threshold Task should not paint a live spinner that disappears immediately.",
+			BadCode:         `// custom spinner without VisibilityDelay`,
+			GoodCode:        `// rely on evo VisibilityDelay (default 80ms)`,
+			Remediation:     "Rely on visibility delay; do not paint custom spinners",
+			RelatedGuidance: []string{"interactive"},
+			VerificationIDs: []string{"TERM-001", "H.17"},
+			Since:           "0.1.0",
+			Certainty:       CertaintyDeterministic,
+		},
+		{
+			ID:        "SIG-001",
+			Category:  "SIG",
+			Severity:  SeverityWarning,
+			Invariant: "an interrupt reaches the run through its context; a signal handler never ends the process itself",
+			Why:       "evo.Main cancels the run's context on SIGINT and SIGTERM, so the ledger shows the run Cancelled and the exit code is 130. A signal.Notify handler that calls os.Exit skips both, and the report and the exit code can disagree.",
+			BadCode: `c := make(chan os.Signal, 1)
+signal.Notify(c, os.Interrupt)
+go func() { <-c; os.Exit(1) }()`,
+			GoodCode:        `os.Exit(evo.Main(evo.Config{}, run)) // wires SIGINT and SIGTERM to the context run and every Define callback receive`,
+			Remediation:     "Delete the handler and use evo.Main; with evo.Execute, cancel the context you pass it instead of calling os.Exit",
+			RelatedGuidance: []string{"streams", "interactive"},
+			VerificationIDs: []string{"SIG-001"},
+			Since:           "0.4.0",
+			Certainty:       CertaintyHeuristic,
+		},
+		{
+			ID:              "TERM-008",
+			Category:        "TERM",
+			Severity:        SeverityError,
+			Invariant:       "cursor hide is always paired with cursor show in a transcript",
+			Why:             "An unmatched hide sequence leaves the terminal cursor invisible after the process exits, corrupting the user's shell.",
+			BadCode:         `// transcript: \x1b[?25l ... (no matching \x1b[?25h)`,
+			GoodCode:        `// transcript: \x1b[?25l ... \x1b[?25h paired on every live region open/close`,
+			Remediation:     "Ensure every live-region start restores the cursor on exit, including error/interrupt paths",
+			RelatedGuidance: []string{"interactive"},
+			VerificationIDs: []string{"TERM-008"},
+			Since:           "0.1.0",
+			Certainty:       CertaintyDeterministic,
+		},
+		{
+			ID:              "TERM-014",
+			Category:        "TERM",
+			Severity:        SeverityWarning,
+			Invariant:       "transcripts contain only text evo itself wrote through managed streams",
+			Why:             "A NUL byte means something wrote raw/binary data into the terminal stream outside evo's sanitize path.",
+			BadCode:         `// transcript contains \x00 from an unmanaged binary write`,
+			GoodCode:        `// all writes go through r.Text()/task.Writer, which sanitize text before it reaches the terminal`,
+			Remediation:     "Route the binary-producing writer through Task.Writer or a text-only channel; never write raw child bytes straight to the terminal",
+			RelatedGuidance: []string{"interactive", "streams"},
+			VerificationIDs: []string{"TERM-014"},
+			Since:           "0.1.0",
+			Certainty:       CertaintyHeuristic,
+		},
+		{
+			ID:        "TERM-015",
+			Category:  "TERM",
+			Severity:  SeverityWarning,
+			Invariant: "a child process either runs through Task.Writer or inside Run.Suspend, never on the inherited terminal while the live frame is up",
+			Why:       "A child that inherits os.Stdout paints on the same TTY as the live row. Route it through Task.Writer so the spinner keeps moving and the child's lines become the live tail; a child that must own the terminal (an interactive login) runs inside Run.Suspend, which pauses the live region around it.",
+			BadCode: `cmd := exec.Command("zq", "setup")
+cmd.Stdout = os.Stdout
+cmd.Stderr = os.Stderr
+cmd.Run()`,
+			GoodCode: `cmd := exec.Command("go", "build", "./...")
+cmd.Stdout = task.Writer()
+cmd.Stderr = task.Writer()
+if err := cmd.Run(); err != nil {
+    return evo.Fail("build failed")
+}`,
+			Remediation:     "Use cmd.Stdout = task.Writer(); for an interactive child run it inside r.Suspend; do not inherit os.Stdout while the live region is up",
+			RelatedGuidance: []string{"interactive"},
+			VerificationIDs: []string{"TERM-015"},
+			Since:           "0.6.0",
+			Certainty:       CertaintyHeuristic,
+		},
+		{
+			ID:        "CONFIRM-001",
+			Category:  "CONFIRM",
+			Severity:  SeverityWarning,
+			Invariant: "confirmation gates go through Run.Confirm, not a hand-rolled stdin prompt",
+			Why:       "A hand-rolled bufio/fmt.Scan prompt redraws under the live spinner, hangs CI when non-interactive, and reports a declined answer as a Go error instead of Refused.",
+			BadCode: `reader := bufio.NewReader(os.Stdin)
+fmt.Print("delete origin/production-hotfix? [y/N] ")
+answer, _ := reader.ReadString('\n')`,
+			GoodCode: `if !r.Confirm("delete origin/production-hotfix?", evo.NonInteractive("--yes")) {
+  return evo.Refuse("declined")
+}`,
+			Remediation:     "Replace hand-rolled stdin prompts with r.Confirm; it owns spinner pause, the prompt line, and OK/⊘ resolution",
+			RelatedGuidance: []string{"interactive", "common-api"},
+			VerificationIDs: []string{"CONFIRM-001"},
+			Since:           "0.6.0",
+			Certainty:       CertaintyHeuristic,
+		},
+		{
+			ID:              "CONFIRM-002",
+			Category:        "CONFIRM",
+			Severity:        SeverityWarning,
+			Invariant:       "a destructive confirm question is marked evo.Destructive()",
+			Why:             "A remote force-delete or trash confirm rendered like an ordinary yes/no question lets a user approve a severe action without the \"(destructive)\" cue evo-rec.md \"confirm gate\" requires.",
+			BadCode:         `r.Confirm("delete origin/production-hotfix?")`,
+			GoodCode:        `r.Confirm("delete origin/production-hotfix?", evo.Destructive())`,
+			Remediation:     "Add evo.Destructive() to any Confirm question containing delete/remove/trash/retire/force",
+			RelatedGuidance: []string{"interactive", "common-api"},
+			VerificationIDs: []string{"CONFIRM-002"},
+			Since:           "0.7.0",
+			Certainty:       CertaintyHeuristic,
+		},
+		{
+			ID:              "TERM-006",
+			Category:        "TERM",
+			Severity:        SeverityWarning,
+			Invariant:       "a debug/log line written during live UI erases the region, appends the line, and redraws — never interleaves raw",
+			Why:             "A log line written straight to the terminal while a spinner/live region is open tears the frame and corrupts the display until the next redraw.",
+			BadCode:         `fmt.Fprintln(os.Stderr, "[DEBUG] cache miss") // interleaves under the live spinner`,
+			GoodCode:        `fmt.Fprintln(r.Text(), "[DEBUG] cache miss") // clears the region, writes, redraws atomically`,
+			Remediation:     "Route debug/log lines through fmt.Fprintln(r.Text(), ...) (or slog via SlogHandler) instead of writing to the raw stream while a live region is open",
+			RelatedGuidance: []string{"interactive"},
+			VerificationIDs: []string{"TERM-006"},
+			Since:           "0.2.0",
+			Certainty:       CertaintyHeuristic,
+			Detection:       DetectionGuidance, // no cheap detector: whether a live region is open at a given fmt call site is a runtime property, not visible in source
+		},
+	}
+}
+
+func init() { registerFamily(terminalRules()) }

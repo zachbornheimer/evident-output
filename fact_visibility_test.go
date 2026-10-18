@@ -1,34 +1,30 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
-// Contract §13: "normal successful Task    hide ordinary Facts ...
-// verbose    show Task/run Facts ... JSON/JSONL    retain structured Facts
-// regardless of human verbosity", and "A generic Task-scoped or run-scoped
-// Fact is not promoted merely because some Task failed". §21: "Normal
-// successful Tasks do not show routine Facts by default" and "Unrelated
-// configuration Facts stay hidden in normal mode even if the Task fails".
+// CONTRACT §8: Task Facts hide at normal verbosity, show under Verbose, and
+// machine output keeps them regardless. A Task-scoped Fact is not promoted
+// merely because its Task failed.
 
-func renderFactTask(t *testing.T, verbosity evo.Verbosity, resolve func(*evo.TaskHandle)) (string, *evo.Output) {
+func renderFactTask(t *testing.T, verbose bool, resolve func(*Task)) (string, *Run) {
 	t.Helper()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, Verbosity: verbosity})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Output: Plain, Verbose: verbose, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 	task := out.Task("worktrees")
 	task.Fact("on disk", "508.8 MB")
 	resolve(task)
-	_ = out.Finish()
+	_ = out.finish()
 	return buf.String(), out
 }
 
 func TestTaskFact_HiddenOnNormalSuccess(t *testing.T) {
-	got, out := renderFactTask(t, evo.VerbosityNormal, func(task *evo.TaskHandle) { succeed(task, "168 checked") })
+	got, out := renderFactTask(t, false, func(task *Task) { succeed(task, "168 checked") })
 	if strings.Contains(got, "on disk") || !strings.Contains(got, "✓ worktrees  168 checked") {
 		t.Fatalf("a routine task Fact must be hidden at normal verbosity:\n%s", got)
 	}
@@ -38,15 +34,57 @@ func TestTaskFact_HiddenOnNormalSuccess(t *testing.T) {
 }
 
 func TestTaskFact_ShownUnderVerbose(t *testing.T) {
-	got, _ := renderFactTask(t, evo.VerbosityVerbose, func(task *evo.TaskHandle) { succeed(task, "168 checked") })
+	got, _ := renderFactTask(t, true, func(task *Task) { succeed(task, "168 checked") })
 	if !strings.Contains(got, "  on disk  508.8 MB") {
 		t.Fatalf("verbose must show the task Fact:\n%s", got)
 	}
 }
 
 func TestTaskFact_NotPromotedByFailure(t *testing.T) {
-	got, _ := renderFactTask(t, evo.VerbosityNormal, func(task *evo.TaskHandle) { task.Fail("remove failed") })
+	got, _ := renderFactTask(t, false, func(task *Task) { task.fail("remove failed") })
 	if strings.Contains(got, "on disk") || !strings.Contains(got, "remove failed") {
 		t.Fatalf("a task-scoped Fact is not promoted merely because its Task failed:\n%s", got)
+	}
+}
+
+// runFactRule is the sentence CONTRACT §8 states for who sees which Fact.
+const runFactRule = "Run Facts print under the Summary at normal verbosity; Task Facts hide until Verbose"
+
+// TestRunFactsPrintAndTaskFactsHide pins both halves of the §8 rule: a
+// Run's own Facts print under its Summary at normal verbosity (they are
+// facts about the invocation, not routine Task detail), a Task's Facts hide
+// until Verbose, and CONTRACT.md states the rule where a reader looks for it.
+func TestRunFactsPrintAndTaskFactsHide(t *testing.T) {
+	render := func(verbose bool) string {
+		var buf bytes.Buffer
+		out := initRun(Config{Output: Plain, Verbose: verbose, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
+		t.Cleanup(func() { _ = out.close() })
+		out.Summary("release 1.4")
+		out.Fact("branch", "main")
+		task := out.Task("tag")
+		task.Fact("on disk", "508.8 MB")
+		succeed(task)
+		_ = out.finish()
+		return buf.String()
+	}
+
+	normal := render(false)
+	if !strings.Contains(normal, "release 1.4\nbranch  main\n") {
+		t.Errorf("a Run Fact must print under the Summary at normal verbosity:\n%s", normal)
+	}
+	if strings.Contains(normal, "on disk") {
+		t.Errorf("a Task Fact must hide at normal verbosity:\n%s", normal)
+	}
+	verbose := render(true)
+	if !strings.Contains(verbose, "branch  main") || !strings.Contains(verbose, "on disk  508.8 MB") {
+		t.Errorf("Verbose must show Run and Task Facts:\n%s", verbose)
+	}
+
+	contract, err := os.ReadFile("CONTRACT.md")
+	if err != nil {
+		t.Fatalf("read CONTRACT.md: %v", err)
+	}
+	if !strings.Contains(string(contract), runFactRule) {
+		t.Errorf("CONTRACT.md must state the Fact rule: %q", runFactRule)
 	}
 }

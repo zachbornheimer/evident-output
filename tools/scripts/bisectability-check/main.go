@@ -7,22 +7,29 @@
 //
 // Usage:
 //
-//	go run ./tools/scripts/bisectability-check [BASE] [HEAD]
+//	go run ./tools/scripts/bisectability-check [--test] [BASE] [HEAD]
 //
 // BASE defaults to $BISECTABILITY_BASE, then "codex/v06-acceptance". HEAD
 // defaults to "HEAD". Each commit in `git rev-list --first-parent
 // BASE..HEAD` (oldest first) is checked out into its own temporary git
 // worktree and built with `go build ./...`; the first commit that fails to
 // build is reported and the tool exits nonzero.
+//
+// With --test, each commit also runs `go test` for the packages it touched
+// (`./...` when it changed a root file), so a red test cannot land in a
+// commit apart from its fix.
 package main
 
 import (
+	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
 
-	"github.com/zachbornheimer/evident-output/internal/gitenv"
+	"github.com/zachbornheimer/evident-output/v2/tools/gitenv"
 )
 
 func main() {
@@ -39,9 +46,41 @@ func main() {
 // the range this tool exists to guard.
 const defaultBase = "codex/v06-acceptance"
 
+// options are the parsed command line; empty base and head take their defaults.
+type options struct {
+	base, head string
+	runTests   bool
+}
+
+// parseOptions parses the command line. flag.ErrHelp is returned for --help,
+// after the usage text is written to usage.
+func parseOptions(args []string, usage io.Writer) (options, error) {
+	var opts options
+	flags := flag.NewFlagSet("bisectability-check", flag.ContinueOnError)
+	flags.SetOutput(usage)
+	flags.Usage = func() {
+		_, _ = fmt.Fprintln(usage, "usage: bisectability-check [--test] [BASE] [HEAD]")
+		flags.PrintDefaults()
+	}
+	flags.BoolVar(&opts.runTests, "test", false,
+		"also run go test for the packages each commit touched (./... when a root file changed)")
+	if err := flags.Parse(args); err != nil {
+		return options{}, err
+	}
+	opts.base, opts.head = argAt(flags.Args(), 0), argAt(flags.Args(), 1)
+	return opts, nil
+}
+
 func run(args []string) error {
-	base := firstNonEmpty(argAt(args, 0), os.Getenv("BISECTABILITY_BASE"), defaultBase)
-	head := firstNonEmpty(argAt(args, 1), "HEAD")
+	opts, err := parseOptions(args, os.Stderr)
+	if errors.Is(err, flag.ErrHelp) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	base := firstNonEmpty(opts.base, os.Getenv("BISECTABILITY_BASE"), defaultBase)
+	head := firstNonEmpty(opts.head, "HEAD")
 
 	commits, err := firstParentCommits(".", base, head)
 	if err != nil {
@@ -62,11 +101,41 @@ func run(args []string) error {
 		if err := checkoutDetached(worktree, sha); err != nil {
 			return err
 		}
-		if out, err := buildAll(worktree); err != nil {
-			return fmt.Errorf("commit %d/%d %s does not build on its own:\n%s\n%w",
-				i+1, len(commits), sha, out, err)
+		if err := verifyCommit(worktree, sha, opts.runTests); err != nil {
+			return fmt.Errorf("commit %d/%d %s: %w", i+1, len(commits), sha, err)
 		}
-		fmt.Printf("bisectability-check: %d/%d %s builds\n", i+1, len(commits), sha)
+		fmt.Printf("bisectability-check: %d/%d %s %s\n", i+1, len(commits), sha, passedSummary(opts.runTests))
+	}
+	return nil
+}
+
+func passedSummary(runTests bool) string {
+	if runTests {
+		return "builds and passes its tests"
+	}
+	return "builds"
+}
+
+// verifyCommit proves the commit checked out in worktree builds and, with
+// runTests, that the tests of the packages it touched pass: a red test must
+// land with its fix, or `git bisect run go test` lands on it.
+func verifyCommit(worktree, sha string, runTests bool) error {
+	if out, err := buildAll(worktree); err != nil {
+		return fmt.Errorf("does not build on its own:\n%s\n%w", out, err)
+	}
+	if !runTests {
+		return nil
+	}
+	packages, err := commitTestPackages(worktree, sha)
+	if err != nil {
+		return err
+	}
+	if len(packages) == 0 {
+		return nil
+	}
+	if out, err := testPackages(worktree, packages); err != nil {
+		return fmt.Errorf("builds but its tests (%s) fail on their own:\n%s\n%w",
+			strings.Join(packages, " "), out, err)
 	}
 	return nil
 }
@@ -92,24 +161,59 @@ func firstParentCommits(repo, base, head string) ([]string, error) {
 // repeatedly re-checks-out to a different commit — one worktree reused
 // across every commit, rather than one per commit, keeps a long range cheap.
 // The worktree is added to repo.
+//
+// No hook runs in it. The tool proves commits in isolation, and a hook the
+// developer's git configuration installs would fail the proof for a reason
+// that is not the commit's. Every git command that touches the checkout points
+// core.hooksPath at an empty directory the tool owns beside it (see
+// withoutHooks).
 func newScratchWorktree(repo string) (dir string, cleanup func(), err error) {
 	dir, err = os.MkdirTemp("", "evo-bisectability-")
 	if err != nil {
 		return "", nil, fmt.Errorf("create scratch dir: %w", err)
 	}
-	if _, err := runGit(repo, "worktree", "add", "--detach", "--force", dir, "HEAD"); err != nil {
+	if err := os.Mkdir(noHooksDir(dir), scratchDirMode); err != nil {
 		_ = os.RemoveAll(dir)
+		return "", nil, fmt.Errorf("create empty hooks dir for %s: %w", dir, err)
+	}
+	remove := func() {
+		_ = os.RemoveAll(dir)
+		_ = os.RemoveAll(noHooksDir(dir))
+	}
+	if _, err := runGit(repo, withoutHooks(dir, "worktree", "add", "--detach", "--force", dir, "HEAD")...); err != nil {
+		remove()
 		return "", nil, fmt.Errorf("worktree add %s: %w", dir, err)
 	}
 	cleanup = func() {
-		_, _ = runGit(repo, "worktree", "remove", "--force", dir)
-		_ = os.RemoveAll(dir)
+		_, _ = runGit(repo, withoutHooks(dir, "worktree", "remove", "--force", dir)...)
+		remove()
 	}
 	return dir, cleanup, nil
 }
 
+// scratchDirMode is the permission of the directories the tool creates.
+const scratchDirMode = 0o750
+
+// noHooksDir is the empty directory beside worktree that git is told to look
+// for hooks in.
+func noHooksDir(worktree string) string { return worktree + ".nohooks" }
+
+// checkoutHookEvent is the hook event worktree add and checkout fire. Hooks
+// the developer's config defines by name (hook.<name>.command) ignore
+// core.hooksPath, so the event is switched off as well.
+const checkoutHookEvent = "post-checkout"
+
+// withoutHooks is the git arguments args with hooks switched off for the
+// scratch checkout worktree.
+func withoutHooks(worktree string, args ...string) []string {
+	return append([]string{
+		"-c", "core.hooksPath=" + noHooksDir(worktree),
+		"-c", "hook." + checkoutHookEvent + ".enabled=false",
+	}, args...)
+}
+
 func checkoutDetached(worktree, sha string) error {
-	if _, err := runGit(worktree, "checkout", "--detach", "--force", sha); err != nil {
+	if _, err := runGit(worktree, withoutHooks(worktree, "checkout", "--detach", "--force", sha)...); err != nil {
 		return fmt.Errorf("git checkout %s in %s: %w", sha, worktree, err)
 	}
 	return nil

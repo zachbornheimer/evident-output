@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-const teachingLadderPath = "../../../docs/guides/teaching-ladder.md"
+const teachingLadderPath = "../../../mcp/docs/teaching-ladder.md"
 
 // contractTeachingOrder is contract §21's teaching order, each step named
 // by the phrase the ladder uses for it.
@@ -17,7 +17,7 @@ var contractTeachingOrder = []string{
 	"2. Group / Sequence",
 	"3. evo.File",
 	"4. evo.Exec",
-	"5. FileSpec.Basis",
+	"5. FileSpec.Inputs",
 	"6. After for exceptional",
 	"7. Facts / warnings / Effects",
 	"8. Task.Verify",

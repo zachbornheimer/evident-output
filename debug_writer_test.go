@@ -1,23 +1,23 @@
-package evo_test
+package evo
 
 import (
 	"io"
+	"log/slog"
 	"strings"
 	"testing"
 
-	evo "github.com/zachbornheimer/evident-output"
-	"github.com/zachbornheimer/evident-output/testkit"
+	"github.com/zachbornheimer/evident-output/v2/testkit"
 )
 
 func TestDebugWriter_SplitsLinesAndSanitizes(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Debug: slog.LevelDebug, Facades: Facades{Stdout: io.Discard, Stderr: io.Discard, Terminal: screen}}, tuning{visibilityDelay: DelayForTest(0), color: colorNever})
+	t.Cleanup(func() { _ = out.close() })
 
-	w := out.DebugWriterForTest()
+	w := out.debugWriterForTest()
 	_, _ = w.Write([]byte("hello\x1b[31m\npartial"))
 	_ = w.Close()
-	_ = out.Finish()
+	_ = out.finish()
 
 	var durable []string
 	for _, op := range screen.Operations() {

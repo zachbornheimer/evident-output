@@ -1,0 +1,79 @@
+package rules
+
+// processRules is the EVO-EXIT-*/EVO-LIVE-* family plus SIG-002:
+// process-level control (exit code, raw stdout writes, interrupt wiring)
+// that bypasses evo's own conclusion, live rendering, or signal ownership
+// rather than going through it.
+func processRules() []Rule {
+	return []Rule{
+		{
+			ID:              "EVO-EXIT-001",
+			Category:        "EXIT",
+			Severity:        SeverityError,
+			Invariant:       "the process exit code always derives from the Evo conclusion, never a caller-chosen literal",
+			Why:             "A literal os.Exit(1) (or any exit not derived from evo.Main/evo.Run's result) can disagree with the ledger the human/JSON report just showed — evo.MainWith, the earlier shortcut for this, was removed in 1.0 because it hid the same bypass behind a wrapper instead of closing it.",
+			BadCode:         `os.Exit(1) // literal, disagrees with what the report just showed`,
+			GoodCode:        `os.Exit(evo.Main(evo.Config{}, run)) // or: result := evo.Execute(ctx, cfg, run); os.Exit(result.ExitCode())`,
+			Remediation:     "Derive the exit code from evo.Main(evo.Config{}, run) or a Run result's ExitCode(); never pass a literal or independently computed code to os.Exit",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"EVO-EXIT-001"},
+			Since:           "1.0.0",
+			Certainty:       CertaintyDeterministic,
+		},
+		{
+			ID:              "EVO-EXIT-002",
+			Category:        "EXIT",
+			Severity:        SeverityError,
+			Invariant:       "the exit code evo.Main returns reaches os.Exit",
+			Why:             "evo.Main returns the run's exit code and never calls os.Exit itself. A bare evo.Main(evo.Config{}, run) statement discards that code, so a failed or blocked run prints [failed] or [blocked] and then exits 0, and a script or CI job reads it as success.",
+			BadCode:         `evo.Main(evo.Config{}, run) // failed or blocked run still exits 0`,
+			GoodCode:        `os.Exit(evo.Main(evo.Config{}, run))`,
+			BadOutput:       "[blocked]  tool\n$ echo $?\n0",
+			GoodOutput:      "[blocked]  tool\n$ echo $?\n1",
+			Remediation:     "Wrap the call: os.Exit(evo.Main(evo.Config{}, run))",
+			RelatedGuidance: []string{"common-api"},
+			VerificationIDs: []string{"EVO-EXIT-002"},
+			Since:           "1.1.0",
+			Certainty:       CertaintyDeterministic,
+		},
+		{
+			ID:        "EVO-LIVE-001",
+			Category:  "LIVE",
+			Severity:  SeverityError,
+			Invariant: "fmt.Print* never writes while Evo owns the live region",
+			Why:       "Evo's live renderer redraws the terminal in place; an unmanaged fmt.Print* call lands mid-redraw and tears the frame — the same class of corruption STREAM-003 already flags for any managed stream, called out here specifically for the active live-rendering case the spec's migration guidance targets.",
+			BadCode: `r.Task("scan").Doing("walking")
+fmt.Println("still going...") // tears the live frame`,
+			GoodCode:        `fmt.Fprintln(r.Text(), "still going...") // routed through the same writer the live region owns`,
+			BadOutput:       "garbled/duplicated live-region frame with a stray printf line spliced in",
+			GoodOutput:      "clean live-region redraw with the line rendered in its place",
+			Remediation:     "Replace fmt.Print, fmt.Printf and fmt.Println with fmt.Fprint*(r.Text(), ...) so the line is rendered through the live region, not spliced across it",
+			Exceptions:      []string{"output printed after evo.Execute or evo.Main has returned: no run is live"},
+			RelatedGuidance: []string{"streams"},
+			VerificationIDs: []string{"EVO-LIVE-001", "STREAM-003"},
+			Since:           "1.0.0",
+			Certainty:       CertaintyDeterministic,
+		},
+		{
+			ID:         "SIG-002",
+			MinDialect: "1.0.0",
+			Category:   "SIG",
+			Severity:   SeverityWarning,
+			Invariant:  "evo.Main owns SIGINT/SIGTERM/os.Interrupt cancellation; a host does not build a second interrupt layer around it",
+			Why:        "evo.Main cancels the run's context on SIGINT/SIGTERM/os.Interrupt and keeps honouring both until the run has finished; a host-built signal.NotifyContext/signal.Notify wired for the same signals solely to wrap that call duplicates the lifecycle and can let the ledger's ■ glyph and the process's real exit path diverge.",
+			BadCode: `ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+defer stop()
+os.Exit(evo.Main(evo.Config{}, func(_ context.Context, r *evo.Run) error { return run(ctx, r) }))`,
+			GoodCode: `os.Exit(evo.Main(evo.Config{}, run)) // run(ctx, r) — Main cancels ctx on SIGINT/SIGTERM itself
+// signal.Notify for anything unrelated to Evo's own lifecycle (e.g. SIGHUP) is unaffected`,
+			Remediation:     "Delete the duplicate signal.NotifyContext/signal.Notify wiring and read cancellation from the ctx evo.Main already passes into the run callback; keep signal.Notify only for signals Evo does not own (SIGHUP, SIGUSR1, ...)",
+			Exceptions:      []string{"signal.Notify/NotifyContext for a signal other than SIGINT/SIGTERM/os.Interrupt"},
+			RelatedGuidance: []string{"streams", "interactive"},
+			VerificationIDs: []string{"SIG-002"},
+			Since:           "1.0.0",
+			Certainty:       CertaintyDeterministic,
+		},
+	}
+}
+
+func init() { registerFamily(processRules()) }

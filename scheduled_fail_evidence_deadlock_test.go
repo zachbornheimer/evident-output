@@ -1,4 +1,4 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
@@ -6,8 +6,6 @@ import (
 	"errors"
 	"testing"
 	"time"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // A callback that wrote evidence and then returned an error is the ordinary
@@ -24,15 +22,15 @@ func TestScheduledFail_AutoAttachedEvidenceDoesNotDeadlock(t *testing.T) {
 	go func() {
 		defer close(done)
 		var buf bytes.Buffer
-		out := evo.Init(evo.Config{Title: "zq", Isolated: true, Plain: true, Stdout: &buf, Stderr: &buf})
+		out := initRun(Config{Name: "zq", Output: Plain, Facades: Facades{Stdout: &buf, Stderr: &buf}})
 		group := out.Group("fix")
 		task := group.Task("gofmt")
 		task.Define(func(ctx context.Context) error {
 			_, _ = task.Writer().Write([]byte("main.go:1:1: needs formatting"))
 			return errors.New("gofmt reported issues")
 		})
-		_ = out.Finish()
-		_ = out.Close()
+		_ = out.finish()
+		_ = out.close()
 	}()
 
 	select {

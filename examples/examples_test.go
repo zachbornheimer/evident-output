@@ -16,26 +16,32 @@ func TestExamples_NonTTYSmoke(t *testing.T) {
 	type spec struct {
 		name string
 		args []string
-		// allowExit lists acceptable process exit codes (0 always implied if empty means 0 only).
-		allowExit []int
+		// wantExit is the exact exit code the example's scenario produces:
+		// 1 when it returns evo.Refuse, 2 when it returns a failure. The
+		// examples are deterministic simulations, so the code never depends
+		// on the host. A Problem never ends a Task. TestExamplesPinDocumentedFlagBehaviour
+		// pins the code of every documented flag; this test only proves each
+		// example builds and runs without a terminal.
+		wantExit int
 	}
 	specs := []spec{
 		{name: "print"},
 		{name: "verbose"},
 		{name: "verbose", args: []string{"--verbose"}},
-		{name: "repo-status", args: []string{"--fast"}, allowExit: []int{0, 1}},
+		{name: "repo-status", args: []string{"--fast"}, wantExit: 1},
 		{name: "install-pipeline", args: []string{"--fast"}},
-		{name: "install-pipeline", args: []string{"--fast", "--fail-tests"}, allowExit: []int{0, 1, 2}},
+		{name: "install-pipeline", args: []string{"--fast", "--fail-tests"}, wantExit: 2},
 		{name: "migrate"},
-		{name: "migrate", args: []string{"--apply", "--fail"}, allowExit: []int{0, 1, 2}},
-		{name: "doctor", args: []string{"--fast"}, allowExit: []int{0, 1, 2}},
-		{name: "doctor", args: []string{"--fast", "--verbose"}, allowExit: []int{0, 1, 2}},
+		{name: "migrate", args: []string{"--apply", "--fail"}, wantExit: 2},
+		{name: "doctor", args: []string{"--fast"}},
+		{name: "doctor", args: []string{"--fast", "--verbose"}},
 		{name: "data-command"},
 		{name: "named-tasks"},
+		{name: "many-tasks", args: []string{"--tasks", "20"}},
 		{name: "live-progress", args: []string{"--fast"}},
 		{name: "debug-history", args: []string{"--fast"}},
 		{name: "debug-pane", args: []string{"--fast"}},
-		{name: "debug-pane", args: []string{"--fast", "--fail"}, allowExit: []int{0, 1}},
+		{name: "debug-pane", args: []string{"--fast", "--fail"}, wantExit: 1},
 		{name: "terminal-driver", args: []string{"--fast", "--frames"}},
 	}
 	for _, s := range specs {
@@ -63,14 +69,8 @@ func TestExamples_NonTTYSmoke(t *testing.T) {
 				}
 				code = ee.ExitCode()
 			}
-			ok := code == 0
-			for _, a := range s.allowExit {
-				if code == a {
-					ok = true
-				}
-			}
-			if !ok {
-				t.Fatalf("exit %d not allowed; allow %v\n%s", code, s.allowExit, out)
+			if code != s.wantExit {
+				t.Fatalf("exit %d, want %d\n%s", code, s.wantExit, out)
 			}
 		})
 	}
@@ -159,6 +159,33 @@ func joinArgs(args []string) string {
 		out.WriteString(a)
 	}
 	return out.String()
+}
+
+// TestMigrateExample_LeavesRepoTreeClean runs the migrate example from the
+// examples/ directory, as the smoke test does, and asserts it created no
+// untracked file in the checkout.
+func TestMigrateExample_LeavesRepoTreeClean(t *testing.T) {
+	root := findRepoRoot(t)
+	bin := filepath.Join(t.TempDir(), "migrate")
+	build := buildExampleBinary(bin, filepath.Join(root, "examples", "migrate"))
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
+	run := runExampleBinary(bin)
+	run.Dir = filepath.Join(root, "examples")
+	run.Env = append(os.Environ(), "NO_COLOR=1")
+	if out, err := run.CombinedOutput(); err != nil {
+		t.Fatalf("run: %v\n%s", err, out)
+	}
+	untracked := newCommand("git", "ls-files", "--others", "--exclude-standard")
+	untracked.Dir = root
+	out, err := untracked.Output()
+	if err != nil {
+		t.Fatalf("git ls-files: %v", err)
+	}
+	if got := strings.TrimSpace(string(out)); got != "" {
+		t.Fatalf("migrate example left untracked files:\n%s", got)
+	}
 }
 
 func findRepoRoot(t *testing.T) string {

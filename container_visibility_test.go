@@ -1,11 +1,9 @@
-package evo_test
+package evo
 
 import (
 	"bytes"
 	"strings"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // ZYS-838 acceptance: "Renderer tests prove a container may be visible or
@@ -19,10 +17,10 @@ import (
 // no nested container, collapses into that Task's single row.
 func TestContainerVisibility_CollapsesLoneSameNameTask(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	g := out.Group("same")
 	succeed(g.Task("same"))
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
 	lines := nonEmptyLines(buf.String())
@@ -31,26 +29,23 @@ func TestContainerVisibility_CollapsesLoneSameNameTask(t *testing.T) {
 	}
 }
 
-// TestContainerVisibility_HidesHeaderOfGroupWithoutOwnInformation proves the
+// TestContainerVisibility_KeepsHeaderOfGroupWithoutOwnInformation proves the
 // container-visibility decision is independent of whether the child is a
-// Task: a Group with no Summary of its own has nothing to say beyond its
-// children, whatever kind they are, so its header row is not rendered
-// (contract §3/§18) and the nested Group's content still shows.
-func TestContainerVisibility_HidesHeaderOfGroupWithoutOwnInformation(t *testing.T) {
+// Task: collapse folds routine detail but never a container's own row
+// (contract §8), so a Group with no Summary keeps its header and the
+// nested Group's content renders indented beneath it.
+func TestContainerVisibility_KeepsHeaderOfGroupWithoutOwnInformation(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out := initRun(Config{Output: Plain, Facades: Facades{Stderr: &buf}}, tuning{color: colorNever})
 	outer := out.Group("outer")
 	inner := outer.Group("inner")
 	succeed(inner.Task("inner"))
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	s := buf.String()
-	if strings.Contains(s, "outer") {
-		t.Fatalf("outer Group has no information of its own, so no header row:\n%s", s)
-	}
-	if !strings.Contains(s, "inner") {
-		t.Fatalf("nested inner Group's content must still render:\n%s", s)
+	lines := nonEmptyLines(buf.String())
+	if len(lines) < 2 || !strings.HasPrefix(lines[0], "✓ outer") || !strings.HasPrefix(lines[1], "   ✓ inner") {
+		t.Fatalf("want the outer row with the inner row indented beneath it, got:\n%s", buf.String())
 	}
 }
 

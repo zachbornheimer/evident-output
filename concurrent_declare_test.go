@@ -1,22 +1,20 @@
-package evo_test
+package evo
 
 import (
 	"fmt"
 	"io"
 	"sync"
 	"testing"
-
-	evo "github.com/zachbornheimer/evident-output"
 )
 
 // WS-6: predeclared Tasks keep declaration order under concurrent updates.
 func TestConcurrent_PredeclaredTaskOrderStable(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "batch"})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Name: "batch", Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 
 	jobs := out.Group("placement")
 	const n = 20
-	tasks := make([]*evo.TaskHandle, n)
+	tasks := make([]*Task, n)
 	for i := range n {
 		tasks[i] = jobs.Task(fmt.Sprintf("file-%02d", i))
 	}
@@ -33,10 +31,10 @@ func TestConcurrent_PredeclaredTaskOrderStable(t *testing.T) {
 	}
 	wg.Wait()
 
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	snap := out.Snapshot()
+	snap := out.snapshot()
 	if len(snap.Collections) != 1 {
 		t.Fatalf("collections = %d", len(snap.Collections))
 	}
@@ -66,8 +64,8 @@ func TestConcurrent_PredeclaredTaskOrderStable(t *testing.T) {
 }
 
 func TestConcurrent_AggregateProgress_NotPerFile(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "huge"})
-	t.Cleanup(func() { _ = out.Close() })
+	out := initRun(Config{Name: "huge", Facades: Facades{Stderr: io.Discard}})
+	t.Cleanup(func() { _ = out.close() })
 
 	// Model-by-scale: one aggregate Task for huge batches.
 	t0 := out.Task("placement")
@@ -76,10 +74,10 @@ func TestConcurrent_AggregateProgress_NotPerFile(t *testing.T) {
 		t0.Progress(done, total)
 	}
 	succeed(t0)
-	if err := out.Finish(); err != nil {
+	if err := out.finish(); err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Snapshot().Tasks) != 1 {
-		t.Fatalf("want 1 aggregate task, got %d", len(out.Snapshot().Tasks))
+	if len(out.snapshot().Tasks) != 1 {
+		t.Fatalf("want 1 aggregate task, got %d", len(out.snapshot().Tasks))
 	}
 }

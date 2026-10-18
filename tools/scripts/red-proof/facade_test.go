@@ -1,0 +1,80 @@
+package main
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestCleanPathRejectsEmptyAndNul(t *testing.T) {
+	for _, bad := range []string{"", "a\x00b"} {
+		if _, err := cleanPath(bad); err == nil {
+			t.Errorf("cleanPath(%q) accepted an invalid path", bad)
+		}
+	}
+	got, err := cleanPath("a/../b//c")
+	if err != nil || got != filepath.Join("b", "c") {
+		t.Errorf("cleanPath = %q, %v; want b/c", got, err)
+	}
+}
+
+func TestGoTestJSONRejectsUnvalidatedOperands(t *testing.T) {
+	dir := t.TempDir()
+	cases := map[string]struct {
+		pkg   string
+		names []string
+	}{
+		"option as package":  {"-exec=evil", []string{"TestX"}},
+		"absolute package":   {"/etc", []string{"TestX"}},
+		"regex in test name": {".", []string{"TestX|.*"}},
+	}
+	for label, c := range cases {
+		if _, err := goTestJSON(dir, c.pkg, c.names); err == nil {
+			t.Errorf("%s: goTestJSON accepted pkg=%q names=%q", label, c.pkg, c.names)
+		}
+	}
+}
+
+func TestGitArchiveIntoRejectsNonCommitRevision(t *testing.T) {
+	err := gitArchiveInto(t.TempDir(), "--output=x", t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "neither HEAD nor a hex commit id") {
+		t.Fatalf("got %v, want the revision check to refuse an option", err)
+	}
+}
+
+func TestReadFileMissingIsAnOSError(t *testing.T) {
+	_, err := readFile(filepath.Join(t.TempDir(), "absent"))
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("got %v, want os.ErrNotExist", err)
+	}
+}
+
+func TestGitApplyAppliesAPatchOrLeavesTheTreeAlone(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("one\ntwo\nthree\n"), filePerm); err != nil {
+		t.Fatal(err)
+	}
+	patch := []byte("--- a/a.txt\n+++ b/a.txt\n@@ -1,3 +1,2 @@\n one\n-two\n three\n")
+	if err := gitApply(dir, patch); err != nil {
+		t.Fatalf("gitApply: %v", err)
+	}
+	got, _ := readFile(filepath.Join(dir, "a.txt"))
+	if string(got) != "one\nthree\n" {
+		t.Fatalf("a.txt = %q after the patch", got)
+	}
+	if err := gitApply(dir, patch); err == nil {
+		t.Fatal("gitApply accepted a patch whose context is gone")
+	}
+}
+
+func TestGitCommitFilesReportsAMissingCommitAndRefusesNonCommitRevisions(t *testing.T) {
+	if _, _, err := gitCommitFiles(t.TempDir(), "--output=x"); err == nil || !strings.Contains(err.Error(), "neither HEAD nor a hex commit id") {
+		t.Fatalf("got %v, want the revision check to refuse an option", err)
+	}
+	files, available, err := gitCommitFiles(t.TempDir(), "abcdef1")
+	if err != nil || available || len(files) != 0 {
+		t.Fatalf("gitCommitFiles outside a repository = %v, %t, %v; want no files, unavailable, no error", files, available, err)
+	}
+}
