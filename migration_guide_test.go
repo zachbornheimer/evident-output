@@ -87,6 +87,25 @@ func TestChangelogRemovedNamesAreNotContractNames(t *testing.T) {
 	}
 }
 
+// TestMigrationGuideRemovedNamesAreNotContractNames fails when the first
+// (1.x) cell of a row of docs/migration/2.0.md names a symbol CONTRACT.md
+// declares, which would tell a consumer a live name was removed.
+func TestMigrationGuideRemovedNamesAreNotContractNames(t *testing.T) {
+	contract := contractSymbols(t, "CONTRACT.md")
+
+	var live []string
+	for name := range migrationGuideBareNames(t) {
+		if contract[name] {
+			live = append(live, name)
+		}
+	}
+	sort.Strings(live)
+	if len(live) > 0 {
+		t.Errorf("%s lists %d names in a 1.x cell that CONTRACT.md declares:\n  %s",
+			migrationGuidePath, len(live), strings.Join(live, "\n  "))
+	}
+}
+
 // alphaExportsAbsentFromContract is every name v1.2.0-alpha.1 exported at the
 // top level that CONTRACT.md does not declare at the top level; a name 2.0
 // keeps only as a method or field (Confirm, now Run.Confirm) counts as absent.
@@ -169,6 +188,28 @@ func TestMigrationGuideMatchesWholeSymbols(t *testing.T) {
 	if names := firstCellSymbols(guide); names["Strict"] || !names["Config.Strict"] || !names["Other"] {
 		t.Errorf("first-cell symbols = %v, want whole symbols only", names)
 	}
+}
+
+// migrationGuideBareNames is every first-cell code span of the migration
+// guide that is a lone exported name (`Plain`), not a qualified or called one
+// (`Config.Plain`, `Output.Task(`), which refer to a member or a 1.x form.
+func migrationGuideBareNames(t *testing.T) map[string]bool {
+	t.Helper()
+	body, err := os.ReadFile(migrationGuidePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", migrationGuidePath, err)
+	}
+	names := map[string]bool{}
+	for line := range strings.SplitSeq(string(body), "\n") {
+		if !strings.HasPrefix(line, "|") {
+			continue
+		}
+		firstCell, _, _ := strings.Cut(strings.TrimPrefix(line, "|"), "|")
+		for _, m := range backtickedName.FindAllStringSubmatch(firstCell, -1) {
+			names[m[1]] = true
+		}
+	}
+	return names
 }
 
 // v1ConfigFields is every field of the v1.0.0 Config struct.
