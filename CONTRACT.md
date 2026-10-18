@@ -457,8 +457,7 @@ no gap, so a missing number means a lost line.
 | `ErrInvalidConfig`     | a declaration or spec Evo refuses              |
 
 Every declaration or spec Evo refuses is refused one way: the error wraps
-`ErrInvalidConfig`, is joined into `Result.Err`, and `Conclusion.Explanation`
-states what was refused. That covers a duplicate sibling name, a Task, Group or Sequence
+`ErrInvalidConfig`, is joined into `Result.Err`. `Conclusion.Explanation` names a refusal only when that refusal is the deciding ending (section 1). Every refusal is a record of its own: a misuse entry in `evo.run` and a `run.misuse` event in JSONL, whatever ended the run. That covers a duplicate sibling name, a Task, Group or Sequence
 declared from inside a `Define` callback, a nil `Define` callback, a Task still undefined at Finish, a `Define` that
 arrives after the run body returned (from a callback or any goroutine, whether or not a Task waits After the
 Task it names; the Task ends NotStarted, and a Build may still Define), `Compute` on

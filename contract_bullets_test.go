@@ -167,3 +167,26 @@ func TestContractBulletGuardFlagsARestatedShortRule(t *testing.T) {
 		t.Fatal("a short rule restated in a longer bullet was not flagged")
 	}
 }
+
+const (
+	misuseExplanationSentence = "`Conclusion.Explanation` names a refusal only when that refusal is the deciding ending (section 1)."
+	misuseRecordSentence      = "Every refusal is a record of its own: a misuse entry in `evo.run` and a `run.misuse` event in JSONL, whatever ended the run."
+)
+
+// TestContractMisuseRecordRuleIsStatedOnce pins the §7 rule: the earliest
+// ending decides Explanation, and every misuse has its own record.
+func TestContractMisuseRecordRuleIsStatedOnce(t *testing.T) {
+	raw, err := os.ReadFile("CONTRACT.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := strings.Join(strings.Fields(string(raw)), " ")
+	for _, s := range []string{misuseExplanationSentence, misuseRecordSentence} {
+		if n := strings.Count(text, s); n != 1 {
+			t.Errorf("CONTRACT.md states %q %d times, want once", s, n)
+		}
+	}
+	if strings.Contains(text, "`Conclusion.Explanation` states what was refused") {
+		t.Error("section 7 still says Explanation states what was refused, contradicting section 1")
+	}
+}
