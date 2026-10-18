@@ -424,7 +424,7 @@ r.Task("report").After(link).Define(func(ctx context.Context) error {
 })
 ```
 
-Environment, applied only where `Config` is zero:
+Environment, applied only where the matching `Config` field is zero:
 
 | Variable    | Values                            | Effect                                                                                          |
 | ----------- | --------------------------------- | ----------------------------------------------------------------------------------------------- |
