@@ -120,16 +120,18 @@ func writeCollectionHeader(b *strings.Builder, col record.TasksSnapshot, s proje
 	b.WriteByte('\n')
 }
 
-// writeCollectionBody writes a headed container's child rows, then its
-// nested containers indented one level per nesting depth (P3).
+// writeCollectionBody writes a headed container's members in declaration
+// order: Tasks as child rows, nested containers indented one level per
+// nesting depth (P3).
 func writeCollectionBody(b *strings.Builder, col record.TasksSnapshot, s project.Style) {
 	childNameWidth := maxTaskNameWidth(col.Tasks)
-	for _, t := range col.Tasks {
-		project.ChildRow(t, childNameWidth).Write(b, s)
-	}
-	for _, child := range col.Collections {
+	for _, m := range col.Members() {
+		if m.Task != nil {
+			project.ChildRow(*m.Task, childNameWidth).Write(b, s)
+			continue
+		}
 		var nested strings.Builder
-		WriteCollection(&nested, child, s)
+		WriteCollection(&nested, *m.Collection, s)
 		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
 			fmt.Fprintf(b, "%s%s\n", project.GroupChildIndent, line)
 		}

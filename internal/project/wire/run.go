@@ -301,12 +301,13 @@ func modeFor(dryRun bool) string {
 // nests — into data.Collections/data.Tasks.
 func appendCollectionDoc(data *RunData, parentID string, col record.TasksSnapshot) {
 	children := make([]string, 0, len(col.Tasks)+len(col.Collections))
-	for _, t := range col.Tasks {
-		children = append(children, t.ID)
-		data.Tasks = append(data.Tasks, toTaskDoc(col.ID, t))
-	}
-	for _, child := range col.Collections {
-		children = append(children, child.ID)
+	for _, m := range col.Members() {
+		if m.Task != nil {
+			children = append(children, m.Task.ID)
+			data.Tasks = append(data.Tasks, toTaskDoc(col.ID, *m.Task))
+			continue
+		}
+		children = append(children, m.Collection.ID)
 	}
 	kind := CollectionKindGroup
 	if col.Sequential {
