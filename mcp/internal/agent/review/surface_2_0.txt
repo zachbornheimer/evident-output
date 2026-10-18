@@ -11,12 +11,20 @@ import (
 	"time"
 )
 
+func (r *Run) redactString()
+func (r *Run) Fact(name, value string) *Run
+func (r *Run) warnLocked()
+
 type Computed[T any] struct{}
 
 func Compute[T any](task *Task, fn func(context.Context) (T, error)) *Computed[T]
 func (c *Computed[T]) producer()
 func (c *Computed[T]) Get() T
 func (*Computed[T]) predecessor()
+func (r *Run) resultErr()
+func (r *Run) anyFailed()
+func (r *Run) conclusion()
+func (r *Run) explainCancellationLocked()
 
 type Config struct {
 	Name		string
@@ -78,6 +86,15 @@ func (s *Sequence) Sequence(name string) *Sequence
 func (s *Sequence) Group(name string) *Group
 func (g *Group) Build(fn func(*Group))
 func (s *Sequence) Build(fn func(*Sequence))
+
+type DefineOption func(*defineConfig)
+type defineConfig struct{}
+
+func CleanStop(signals ...os.Signal) DefineOption
+func (t *Task) Verify(fn func(context.Context) (bool, error)) *Task
+func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Task
+func (r *Run) refuseNilDefine()
+func (r *Run) definition()
 
 type Verb uint8
 
@@ -202,6 +219,19 @@ func (r *Run) taskNameLocked()
 func (r *Run) stateOf()
 func (r *Run) fileSettledLocked()
 func (r *Run) commitManifestLocked()
+func (r *Run) selfName()
+func (r *Run) slogHandler()
+func (r *Run) emitLogRecord()
+func (r *Run) emitDebugRecordLocked()
+func (r *Run) newDebugRecordLocked()
+func (r *Run) projectDebugRecordLocked()
+func (r *Run) SlogHandler() slog.Handler
+func (r *Run) recordMisuse()
+func (r *Run) recordMisuseFor()
+func (r *Run) firstMisuse()
+func (r *Run) allMisuse()
+func (r *Run) appendMisuseLineLocked()
+func (r *Run) recordAlreadyResolvedLocked()
 
 type Run struct{}
 
@@ -227,6 +257,17 @@ const (
 
 func Patch(ctx context.Context, diff []byte) error
 
+type Predecessor interface{ predecessor() }
+
+func (*Task) predecessor()
+func (*Group) predecessor()
+func (*Sequence) predecessor()
+func (t *Task) After(preds ...Predecessor) *Task
+func (r *Run) predecessorsOfLocked()
+func (r *Run) predecessorOfLocked()
+func (r *Run) nodeOfTask()
+func (r *Run) nodeOfContainer()
+
 type ProblemOption interface{ recordOption() }
 
 func Detail(text string) interface {
@@ -242,21 +283,6 @@ type Action struct {
 	Label	string
 }
 
-func (r *Run) at()
-func (r *Run) println()
-func (r *Run) subject()
-func (r *Run) writer()
-func (r *Run) ResultWriter() io.Writer
-func (r *Run) routeResult()
-func (r *Run) emitMessageLocked()
-func (r *Run) projectsVisibilityLocked()
-func (r *Run) slogHandler()
-func (r *Run) emitLogRecord()
-func (r *Run) emitDebugRecordLocked()
-func (r *Run) newDebugRecordLocked()
-func (r *Run) projectDebugRecordLocked()
-func (r *Run) Text() io.Writer
-func (r *Run) SlogHandler() slog.Handler
 func (r *Run) Summary(text string) *Run
 func (t *Task) Progress(completed, total int) *Task
 func (t *Task) setProgress()
@@ -277,26 +303,14 @@ type Conclusion struct {
 	Explanation	string
 }
 
+func (r *Run) ResultWriter() io.Writer
+func (r *Run) routeResult()
 func Execute(ctx context.Context, cfg Config, run RunFunc) Result
 func Main(cfg Config, run RunFunc) int
-func (r *Run) resultErr()
-func (r *Run) anyFailed()
-func (r *Run) selfName()
 func (r *Run) ensureOpen()
 func (r *Run) close()
 func (r *Run) beginRunContext()
-func (r *Run) conclusion()
-func (r *Run) explainCancellationLocked()
 func (r *Run) humanStyle()
-func (r *Run) recordMisuse()
-func (r *Run) recordMisuseFor()
-func (r *Run) firstMisuse()
-func (r *Run) allMisuse()
-func (r *Run) appendMisuseLineLocked()
-func (r *Run) recordAlreadyResolvedLocked()
-func (r *Run) redactString()
-func (r *Run) Fact(name, value string) *Run
-func (r *Run) warnLocked()
 func (r *Run) interrupt()
 
 type RunFunc func(context.Context, *Run) error
@@ -307,17 +321,6 @@ func (t *Task) succeed()
 func (t *Task) resolveWithProblem()
 func (t *Task) block()
 func (t *Task) finish()
-
-type Predecessor interface{ predecessor() }
-
-func (*Task) predecessor()
-func (*Group) predecessor()
-func (*Sequence) predecessor()
-func (t *Task) After(preds ...Predecessor) *Task
-func (r *Run) predecessorsOfLocked()
-func (r *Run) predecessorOfLocked()
-func (r *Run) nodeOfTask()
-func (r *Run) nodeOfContainer()
 func (t *Task) Doing(text string, args ...any) *Task
 func (t *Task) annotate()
 func (t *Task) withTask()
@@ -328,12 +331,10 @@ func (t *Task) Summary(text string) *Task
 func (t *Task) Problem(summary string, opts ...ProblemOption) *Task
 func (t *Task) Fact(name, value string) *Task
 func (t *Task) appendLiveTail()
-
-type DefineOption func(*defineConfig)
-type defineConfig struct{}
-
-func CleanStop(signals ...os.Signal) DefineOption
-func (t *Task) Verify(fn func(context.Context) (bool, error)) *Task
-func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Task
-func (r *Run) refuseNilDefine()
-func (r *Run) definition()
+func (r *Run) at()
+func (r *Run) println()
+func (r *Run) subject()
+func (r *Run) writer()
+func (r *Run) emitMessageLocked()
+func (r *Run) projectsVisibilityLocked()
+func (r *Run) Text() io.Writer
