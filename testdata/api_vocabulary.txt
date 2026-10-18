@@ -175,7 +175,7 @@ Result.Conclusion	helper	Result
 Result.Err	helper	Result
 Result.ExitCode	helper	Result
 ResultStream	removed	Run
-Run	canonical	Output
+Run	canonical	Run
 Run.Confirm	helper	Confirm
 Run.Fact	helper	Annotation
 Run.Group	helper	Container

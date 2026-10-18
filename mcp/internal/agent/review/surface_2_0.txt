@@ -94,6 +94,7 @@ func CleanStop(signals ...os.Signal) DefineOption
 func (t *Task) Verify(fn func(context.Context) (bool, error)) *Task
 func (t *Task) Define(fn func(context.Context) error, opts ...DefineOption) *Task
 func (r *Run) refuseNilDefine()
+func (r *Run) refuseDefine()
 func (r *Run) definition()
 
 type Verb uint8
@@ -299,7 +300,7 @@ func (r *Run) ensureOpen()
 func (r *Run) close()
 func (r *Run) beginRunContext()
 func (r *Run) humanStyle()
-func (r *Run) interrupt()
+func (r *Run) interruptBecause()
 
 type RunFunc func(context.Context, *Run) error
 type Run struct{}
