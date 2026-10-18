@@ -130,6 +130,10 @@ func (d *removedTwoZeroDetector) configFromLiteral(cl *ast.CompositeLit) string 
 					fields = append(fields, mapped)
 				}
 			}
+		case configTypeChanges[key].field != "":
+			if field, present, ok := d.configTypeChangeField(key, kv.Value); ok && present && set[configTypeChanges[key].field] == nil {
+				fields = append(fields, field)
+			}
 		case configKeyRenames[key] != "" && (key == "Title" || set[configKeyRenames[key]] == nil):
 			fields = append(fields, configKeyRenames[key]+": "+d.nodeSrc(kv.Value))
 		case configKeyRenames[key] != "":

@@ -25,10 +25,10 @@ func compileFindings(res review.Result) []review.Finding {
 func TestReviewReportsCompileErrorsAgainstTwoZeroSurface(t *testing.T) {
 	for name, tc := range map[string]struct{ body, message, suggestion string }{
 		"invented function":  {`func f() { evo.Frobnicate("x") }`, "undefined: evo.Frobnicate", "CONTRACT.md"},
-		"retired export":     {`func f(ctx context.Context) { evo.Wait() }`, "undefined: evo.Wait", "instead:"},
+		"retired export":     {`func f(ctx context.Context) { evo.Wait() }`, "evo.Wait was removed in 2.0", "instead:"},
 		"wrong arity":        {`func f(r *evo.Run) { r.Task("a", "b") }`, "too many arguments", "CONTRACT.md"},
 		"wrong callback":     {`func f(r *evo.Run) { r.Task("a").Define(func() error { return nil }) }`, "cannot use", "CONTRACT.md"},
-		"unknown field":      {`var cfg = evo.Config{Verbosity: 2}`, "unknown field Verbosity", "CONTRACT.md"},
+		"unknown field":      {`var cfg = evo.Config{Colour: 2}`, "unknown field Colour", "CONTRACT.md"},
 		"package-level Task": {`func f() { evo.Task("a").Define(func(context.Context) error { return nil }) }`, "does not compile", ""},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -40,6 +40,9 @@ func TestReviewReportsCompileErrorsAgainstTwoZeroSurface(t *testing.T) {
 				return // reported by the entry-point rewrite, not a bare compile error
 			}
 			found := compileFindings(res)
+			if name == "retired export" {
+				found = res.Findings // a retired 1.x export is reported by name before the type check runs
+			}
 			if len(found) == 0 || !strings.Contains(found[0].Message, tc.message) || !strings.Contains(found[0].Suggestion, tc.suggestion) {
 				t.Fatalf("want a compile finding mentioning %q and %q, got %+v", tc.message, tc.suggestion, res.Findings)
 			}

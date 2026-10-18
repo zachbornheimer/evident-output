@@ -52,7 +52,7 @@ func (d *removedTwoZeroDetector) reportExecReturn(ret *ast.ReturnStmt) {
 	if !ok {
 		return
 	}
-	d.report(ret, execResultMessage, "replace "+d.nodeSrc(ret)+" with if _, err := "+d.nodeSrc(call)+"; err != nil { return err }; return nil")
+	d.report(ret, execResultMessage, "replace "+d.nodeSrc(ret)+" with if _, err := "+d.migratedSrc(call)+"; err != nil { return err }; return nil")
 }
 
 func (d *removedTwoZeroDetector) reportExecAssign(as *ast.AssignStmt) {
@@ -60,5 +60,5 @@ func (d *removedTwoZeroDetector) reportExecAssign(as *ast.AssignStmt) {
 	if !ok || (as.Tok != token.DEFINE && as.Tok != token.ASSIGN) {
 		return
 	}
-	d.report(as, execResultMessage, "replace "+d.nodeSrc(as)+" with _, "+d.nodeSrc(as.Lhs[0])+" "+as.Tok.String()+" "+d.nodeSrc(call))
+	d.report(as, execResultMessage, "replace "+d.nodeSrc(as)+" with _, "+d.nodeSrc(as.Lhs[0])+" "+as.Tok.String()+" "+d.migratedSrc(call))
 }
