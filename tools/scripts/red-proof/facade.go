@@ -92,6 +92,51 @@ func gitCommitFiles(root, rev string) (files []string, available bool, err error
 	return strings.Fields(string(out)), true, nil
 }
 
+// gitBlameOrigins returns the origin path of each given line of file at HEAD,
+// following moved and copied lines across files (blame -C -C).
+func gitBlameOrigins(root, file string, lines []int) ([]string, error) {
+	repo, err := cleanPath(root)
+	if err != nil {
+		return nil, err
+	}
+	path, err := cleanPath(file)
+	if err != nil {
+		return nil, err
+	}
+	args := []string{"-C", repo, "blame", "-C", "-C", "--porcelain"}
+	for _, n := range lines {
+		args = append(args, "-L", fmt.Sprintf("%d,%d", n, n))
+	}
+	out, err := exec.Command(gitCommand, append(args, headRev, "--", path)...).Output()
+	if err != nil {
+		return nil, fmt.Errorf("git blame %s: %w", path, err)
+	}
+	var origins []string
+	for line := range strings.SplitSeq(string(out), "\n") {
+		if name, ok := strings.CutPrefix(line, "filename "); ok {
+			origins = append(origins, name)
+		}
+	}
+	return origins, nil
+}
+
+// gitShowHead returns file as committed at HEAD.
+func gitShowHead(root, file string) ([]byte, error) {
+	repo, err := cleanPath(root)
+	if err != nil {
+		return nil, err
+	}
+	path, err := cleanPath(file)
+	if err != nil {
+		return nil, err
+	}
+	out, err := exec.Command(gitCommand, "-C", repo, "show", headRev+":"+path).Output()
+	if err != nil {
+		return nil, fmt.Errorf("git show %s:%s: %w", headRev, path, err)
+	}
+	return out, nil
+}
+
 // gitApply applies patch to the tree in dir, all hunks or none. dir is not a
 // repository, so git works on the files alone.
 func gitApply(dir string, patch []byte) error {

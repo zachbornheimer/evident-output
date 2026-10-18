@@ -8,8 +8,20 @@ import (
 
 type fakeGit struct {
 	exportErr error
-	changed   []string // files the fix commit changed
-	missing   bool     // the repository lacks the fix commit
+	changed   []string          // files the fix commit changed
+	missing   bool              // the repository lacks the fix commit
+	head      string            // content of every HEAD file
+	origins   map[string]string // blame origin path per HEAD file
+}
+
+func (g fakeGit) HeadFile(string) ([]byte, error) { return []byte(g.head), nil }
+
+func (g fakeGit) BlameOrigins(file string, lines []int) ([]string, error) {
+	var out []string
+	for range lines {
+		out = append(out, g.origins[file])
+	}
+	return out, nil
 }
 
 func (g fakeGit) Export(string, string) error { return g.exportErr }

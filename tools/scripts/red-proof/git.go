@@ -26,3 +26,13 @@ func (g repoGit) Export(rev, dir string) error {
 func (g repoGit) ChangedFiles(rev string) (files []string, available bool, err error) {
 	return gitCommitFiles(g.root, rev)
 }
+
+// BlameOrigins names the path each of the given lines of a HEAD file came from.
+func (g repoGit) BlameOrigins(file string, lines []int) ([]string, error) {
+	return gitBlameOrigins(g.root, file, lines)
+}
+
+// HeadFile reads a file as committed at HEAD.
+func (g repoGit) HeadFile(file string) ([]byte, error) {
+	return gitShowHead(g.root, file)
+}

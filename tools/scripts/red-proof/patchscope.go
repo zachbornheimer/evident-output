@@ -49,3 +49,41 @@ func outsideFix(patched, fixChanged []string) []string {
 	}
 	return outside
 }
+
+// outsideFixFollowingMoves is outsideFix, except that a non-test file the fix
+// did not change is in scope when the patch removes lines from it and every
+// removed line was written (git blame -C -C) in a file the fix changed: the
+// fix's code moved there afterwards.
+func outsideFixFollowingMoves(git Git, patch []byte, fixChanged []string) ([]string, error) {
+	removed, err := patchRemovedLines(patch, git.HeadFile)
+	if err != nil {
+		return nil, err
+	}
+	var outside []string
+	for _, path := range outsideFix(patchPaths(patch), fixChanged) {
+		moved, err := removesOnlyFixCode(git, path, removed[path], fixChanged)
+		if err != nil {
+			return nil, err
+		}
+		if !moved {
+			outside = append(outside, path)
+		}
+	}
+	return outside, nil
+}
+
+func removesOnlyFixCode(git Git, path string, lines []int, fixChanged []string) (bool, error) {
+	if strings.HasSuffix(path, testFileSuffix) || len(lines) == 0 {
+		return false, nil
+	}
+	origins, err := git.BlameOrigins(path, lines)
+	if err != nil {
+		return false, err
+	}
+	for _, origin := range origins {
+		if !slices.Contains(fixChanged, origin) {
+			return false, nil
+		}
+	}
+	return len(origins) > 0, nil
+}

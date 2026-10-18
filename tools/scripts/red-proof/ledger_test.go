@@ -115,7 +115,11 @@ func TestLedgerPatchTouchesOnlyTheFixCommitsFiles(t *testing.T) {
 			if len(patched) == 0 {
 				t.Fatalf("%s patches no file", e.Patch)
 			}
-			if outside := outsideFix(patched, fixFiles); len(outside) > 0 {
+			outside, err := outsideFixFollowingMoves(repo, patch, fixFiles)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(outside) > 0 {
 				t.Errorf("%s patches %v, which commit %s did not change (or are test files)", e.Patch, outside, e.Commit)
 			}
 		})

@@ -12,6 +12,11 @@ type Git interface {
 	// ChangedFiles lists the files commit rev changed; available is false
 	// when the repository does not hold that commit.
 	ChangedFiles(rev string) (files []string, available bool, err error)
+	// BlameOrigins returns, for each given line of a HEAD file, the path the
+	// line was first written in, following moves and copies.
+	BlameOrigins(file string, lines []int) ([]string, error)
+	// HeadFile returns a file's content at HEAD.
+	HeadFile(file string) ([]byte, error)
 }
 
 // Sandbox is the scratch-tree boundary; tests substitute a fake.
@@ -101,7 +106,7 @@ func (p Prover) Prove(e Entry) Result {
 }
 
 // checkPatchScope requires the patch to touch only non-test files the fix
-// commit changed: a patch that reaches further no longer re-introduces that
+// commit changed, or whose removed lines the fix commit's files originally held: a patch that reaches further no longer re-introduces that
 // commit's bug. When the repository lacks the commit the scope cannot be
 // checked, and the returned note says so.
 func (p Prover) checkPatchScope(e Entry, patch []byte) (note string, err error) {
@@ -112,7 +117,11 @@ func (p Prover) checkPatchScope(e Entry, patch []byte) (note string, err error) 
 	if !available {
 		return fmt.Sprintf("scope unchecked: commit %s is not in this repository", e.Commit), nil
 	}
-	if outside := outsideFix(patchPaths(patch), fixFiles); len(outside) > 0 {
+	outside, err := outsideFixFollowingMoves(p.Git, patch, fixFiles)
+	if err != nil {
+		return "", fmt.Errorf("blame lines patch %s removes: %w", e.Patch, err)
+	}
+	if len(outside) > 0 {
 		return "", fmt.Errorf("patch %s touches %v, which fix %s did not change (or are test files)", e.Patch, outside, e.Commit)
 	}
 	return "", nil
