@@ -35,6 +35,7 @@ func Execute(ctx context.Context, cfg Config, run RunFunc) Result {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	out.hostOwnsSignals = true
 	return runInterruptible(ctx, out, run, nil)
 }
 
@@ -211,6 +212,13 @@ var (
 	stopSignals   signalStopper  = process.StopNotify
 )
 
+// subscribeSignals delivers signals on its own channel until release; Main's channel is untouched.
+func subscribeSignals(signals []process.Signal) (<-chan process.Signal, func()) {
+	c := make(chan process.Signal, signalChannelCapacity)
+	notifySignals(c, signals...)
+	return c, func() { stopSignals(c) }
+}
+
 // signalChannelCapacity holds one signal during cancelActive plus one so a second Ctrl-C is never dropped.
 const signalChannelCapacity = 2
 
@@ -265,6 +273,8 @@ type Run struct {
 	// what it remembers about each Task.
 	freshness  *freshness.Run
 	cleanStops graph.CleanStops
+	// hostOwnsSignals is true under Execute, where the caller's context is the only way to stop a run.
+	hostOwnsSignals bool
 }
 
 // runsStarted counts the runs this process has started; it keeps two runs on one frozen Clock apart.
@@ -283,6 +293,7 @@ func newRun(cfg config) *Run {
 		containerStates: make(map[string]*tasksState),
 	}
 	host := runHost{out: o}
+	o.cleanStops.Subscribe = subscribeSignals
 	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(o.misuse), graph.WithHost(host))
 	o.freshness = freshness.NewRun(o.graph, freshness.RunConfig{Where: o.manifestConfig, Closed: errClosed, DryRun: host.DryRun, Narration: host})
 	o.changes = change.NewRun(o.newChangeHost(), o.graph)
