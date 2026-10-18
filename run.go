@@ -3,12 +3,20 @@ package evo
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/zachbornheimer/evident-output/v2/internal/change"
+	"github.com/zachbornheimer/evident-output/v2/internal/freshness"
 	"github.com/zachbornheimer/evident-output/v2/internal/graph"
+	"github.com/zachbornheimer/evident-output/v2/internal/misuse"
 	"github.com/zachbornheimer/evident-output/v2/internal/process"
 	txt "github.com/zachbornheimer/evident-output/v2/internal/project"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/present"
+	"github.com/zachbornheimer/evident-output/v2/internal/project/wire"
+	"github.com/zachbornheimer/evident-output/v2/internal/record"
+	"github.com/zachbornheimer/evident-output/v2/internal/terminal"
 )
 
 var errRunExitedWithoutReturn = errors.New("run callback exited without returning (runtime.Goexit)")
@@ -203,3 +211,95 @@ var (
 
 // signalChannelCapacity holds one signal during cancelActive plus one so a second Ctrl-C is never dropped.
 const signalChannelCapacity = 2
+
+// Run is the root of one invocation, handed to the application body by Main and Execute. It is a Container:
+// declare root work with Task, Group and Sequence, add run-scoped information with Fact and Summary, ask the
+// user with Confirm, and write free text with Text. Evo decides when declared work runs and how it is shown;
+// the body only declares it and returns.
+type Run struct {
+	// mu guards the render state. Its sections hold the run's notifications,
+	// so the engine's listener hears a section's writes once the mutex is free.
+	mu  record.Mutex
+	cfg config
+
+	outputID string
+	// startedAt is the wire envelope's started_at (schema/run.v3.json), read back at Finish, never re-derived.
+	startedAt time.Time
+	closed    bool
+	// closing is non-nil once a Close claimed the teardown and closes when it
+	// ends, so a concurrent Close waits.
+	closing chan struct{}
+	// confirmTurn lets one Confirm at a time own the terminal.
+	confirmTurn *terminal.Turn
+	finishing   bool
+	finished    bool
+	// misuse records the first API misuse. Graph workers call it without Run.mu;
+	// a strict recorder panics after recording, never under graph.mu.
+	misuse *misuse.Recorder
+	// show presents the run: rows, live region, durable stream, evo.event stream.
+	show *present.Presenter
+
+	// changes performs File, Exec, Patch and Effect and owns the workspace paths resolve against.
+	changes *change.Run
+
+	tasks []*taskState
+	// rootTasks are the tasks outside every collection, in declaration order.
+	rootTasks   []*taskState
+	collections []*tasksState
+	// rec holds the run's truth: journal, ledger, lines, messages, facts, warnings, Conclusion.
+	rec *record.Run
+
+	graph *graph.Graph
+	// taskStates and containerStates hold engine state per graph node, keyed by node ID.
+	taskStates      map[string]*taskState
+	containerStates map[string]*tasksState
+
+	// resultText is what ResultWriter received in JSON, whose stdout carries one document the text rides in.
+	resultText strings.Builder
+	// printLines assembles Print fragments into message lines.
+	printLines *txt.PrintLines
+
+	// freshness is this Run's lazily opened reconciliation manifest and
+	// what it remembers about each Task.
+	freshness  *freshness.Run
+	cleanStops graph.CleanStops
+}
+
+// runsStarted counts the runs this process has started; it keeps two runs on one frozen Clock apart.
+var runsStarted atomic.Uint64
+
+// newRun builds the run cfg describes: its graph, freshness, changes and every projection.
+func newRun(cfg config) *Run {
+	resolveGlyphProfileLocked(&cfg)
+	run := record.NewRun()
+	o := &Run{
+		cfg:             cfg,
+		rec:             run,
+		misuse:          misuse.New(),
+		confirmTurn:     terminal.NewTurn(),
+		taskStates:      make(map[string]*taskState),
+		containerStates: make(map[string]*tasksState),
+	}
+	host := runHost{out: o}
+	o.graph = graph.New(run, graph.WithMaxEntities(cfg.maxEntities), graph.WithMaxConcurrency(cfg.maxConcurrency), graph.WithMisuseSink(o.misuse), graph.WithHost(host))
+	o.freshness = freshness.NewRun(o.graph, freshness.RunConfig{Where: o.manifestConfig, Closed: errClosed, DryRun: host.DryRun, Narration: host})
+	o.changes = change.NewRun(o.newChangeHost(), o.graph)
+	o.startedAt = cfg.clock.Now()
+	o.outputID = record.NewRunID(o.startedAt, process.PID(), runsStarted.Add(1))
+	o.show = present.New(present.Config{
+		Run: run, Lock: &o.mu, Clock: cfg.clock, Host: presentHost{o},
+		RunID: o.outputID, Events: cfg.eventStream(),
+		Surface: liveSurfaceOf(cfg), VisibilityDelay: cfg.visibilityDelay, MaxFrameRate: cfg.maxFrameRate,
+		Style: o.humanStyle(), Subject: cfg.subject,
+		Sinks: humanSinks{o},
+	})
+	o.printLines = txt.NewPrintLines(o.emitMessageLocked)
+	o.mu.Bind(run)
+	o.appendEventLocked(recEvent{Type: "output.started", OutputID: o.outputID})
+	o.emitWireEventLocked(wire.EventRunStarted, "", wire.RunStartedPayload{Name: o.cfg.subject}.EventPayload())
+	if cfg.dryRun {
+		// Announce before any task can reach the durable stream; unlocked is safe, o has not been returned yet.
+		o.show.PlannedHeader()
+	}
+	return o
+}

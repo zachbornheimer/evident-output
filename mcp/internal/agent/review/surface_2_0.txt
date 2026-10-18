@@ -117,17 +117,6 @@ type EffectSpec struct {
 func (s EffectSpec) toChange()
 func Effect(ctx context.Context, spec EffectSpec, fn func(context.Context) error) error
 func PartialEffect(committed int, err error) error
-func (r *Run) finish()
-func (r *Run) saveManifest()
-func (r *Run) warnManifestUnsavedLocked()
-func (r *Run) settleUnresolvedTasksLocked()
-func (r *Run) undefinedTasksLocked()
-func (r *Run) concludeLocked()
-func (r *Run) runErrorLocked()
-func (r *Run) finishHumanLocked()
-func (r *Run) cancelledFinishLocked()
-func (r *Run) refuseUndefinedTasksLocked()
-func (r *Run) autoResolveGroupsLocked()
 func (r *Run) rejectedTask()
 func (r *Run) rejectedGroup()
 func (r *Run) end()
@@ -214,6 +203,17 @@ type FileSpec struct {
 }
 
 func (s FileSpec) toChange()
+func (r *Run) finish()
+func (r *Run) saveManifest()
+func (r *Run) warnManifestUnsavedLocked()
+func (r *Run) settleUnresolvedTasksLocked()
+func (r *Run) undefinedTasksLocked()
+func (r *Run) concludeLocked()
+func (r *Run) runErrorLocked()
+func (r *Run) finishHumanLocked()
+func (r *Run) cancelledFinishLocked()
+func (r *Run) refuseUndefinedTasksLocked()
+func (r *Run) autoResolveGroupsLocked()
 func (r *Run) newChangeHost()
 func (r *Run) taskNameLocked()
 func (r *Run) stateOf()
@@ -232,19 +232,6 @@ func (r *Run) firstMisuse()
 func (r *Run) allMisuse()
 func (r *Run) appendMisuseLineLocked()
 func (r *Run) recordAlreadyResolvedLocked()
-
-type Run struct{}
-
-func (r *Run) manifestConfig()
-func (r *Run) promoteRunningLocked()
-func (r *Run) announceRunningLocked()
-func (r *Run) bumpLocked()
-func (r *Run) appendEventLocked()
-func (r *Run) followRecordLocked()
-func (r *Run) appendTaskLocked()
-func (r *Run) arm()
-func (r *Run) snapshotLocked()
-func (r *Run) emitWireEventLocked()
 
 type Output int
 
@@ -314,6 +301,19 @@ func (r *Run) humanStyle()
 func (r *Run) interrupt()
 
 type RunFunc func(context.Context, *Run) error
+type Run struct{}
+
+func (r *Run) manifestConfig()
+func (r *Run) promoteRunningLocked()
+func (r *Run) announceRunningLocked()
+func (r *Run) bumpLocked()
+func (r *Run) appendEventLocked()
+func (r *Run) followRecordLocked()
+func (r *Run) appendTaskLocked()
+func (r *Run) arm()
+func (r *Run) snapshotLocked()
+func (r *Run) emitWireEventLocked()
+
 type Task struct{}
 
 func (t *Task) declared()

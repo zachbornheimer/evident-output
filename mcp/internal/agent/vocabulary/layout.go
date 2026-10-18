@@ -44,7 +44,7 @@ func Home(entry Entry) string {
 // compositionFiles are root files of the composition root that declare no
 // exported identifier.
 var compositionFiles = []string{
-	"aliases.go", "conclude.go", "host.go", "host_observe.go", "host_task.go", "identity.go", "misuse.go",
+	"aliases.go", "conclude.go", "finish.go", "host.go", "host_observe.go", "host_task.go", "identity.go", "misuse.go", "run_state.go",
 }
 
 // ExpectedRootFiles is the sorted set of non-test root files: one per
