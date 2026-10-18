@@ -14,31 +14,6 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
-// execBasisRecords fingerprints spec.Basis for one Exec call (spec §11.1,
-// §11.6): unlike a plain File use, an FSPath entry here is first resolved
-// against the workspace (spec §8.4: "FSPath Basis against workspace") and
-// awaited on the freshness barrier for that canonical path — so a Basis
-// input this Run's own Exec/File output claims is always fingerprinted only
-// after its producing operation has settled (§11.6), never mid-write. Each
-// FSPath entry is then observed under a read claim (ObserveBasis), which
-// also excludes File commits from other Runs.
-func (r *Run) execBasisRecords(ctx context.Context, basis []freshness.Fingerprint) ([]freshness.BasisRecord, error) {
-	resolved := make([]freshness.Fingerprint, len(basis))
-	for i, b := range basis {
-		path, isPath := freshness.PathOf(b)
-		if !isPath {
-			resolved[i] = b
-			continue
-		}
-		canon := r.resolvePath(path)
-		if awaitErr := r.barrier.Await(ctx, canon); awaitErr != nil {
-			return nil, fmt.Errorf("evo: Exec Basis: %w", awaitErr)
-		}
-		resolved[i] = freshness.FSPath(canon)
-	}
-	return r.ObserveBasis(ctx, resolved)
-}
-
 // consultExec resolves this Exec call's freshness against the manifest (spec
 // §11.4/§11.5/§8.4): whether it is current, planned only, or must spawn,
 // with the fresh definition and Basis the caller commits after a successful
@@ -50,7 +25,7 @@ func (r *Run) consultExec(ctx context.Context, id record.TaskID, spec ExecSpec, 
 	}
 	r.host.NoteManifestWarning(store.Warning())
 
-	basis, basisErr := r.execBasisRecords(ctx, spec.Basis)
+	basis, basisErr := r.resolvedBasisRecords(ctx, spec.Basis)
 	if basisErr != nil {
 		return freshness.ExecEvaluation{}, basisErr
 	}
