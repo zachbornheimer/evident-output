@@ -65,7 +65,7 @@ type Run struct {
 	// printLines assembles Print fragments into message lines.
 	printLines *txt.PrintLines
 
-	// freshness is this Run's lazily opened reconciliation manifest (§11.3) and
+	// freshness is this Run's lazily opened reconciliation manifest and
 	// what it remembers about each Task.
 	freshness  *freshness.Run
 	cleanStops graph.CleanStops

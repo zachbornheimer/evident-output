@@ -11,7 +11,7 @@ import (
 	"github.com/zachbornheimer/evident-output/v2/internal/record"
 )
 
-// finish validates, computes the conclusion and emits the final projections; projection I/O runs outside the domain lock (§17.1).
+// finish validates, computes the conclusion and emits the final projections; projection I/O runs outside the domain lock.
 func (r *Run) finish() error {
 	r.graph.Drain()
 	r.saveManifest()

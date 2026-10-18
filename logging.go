@@ -76,7 +76,7 @@ func (r *Run) emitLogRecord(rec logRecord) {
 	r.emitDebugRecordLocked(record.SlogLevelName(rec.Level), rec.Message, fields, rec.Time, true)
 }
 
-// debugRecord is one structured diagnostic journal entry (§21.3).
+// debugRecord is one structured diagnostic journal entry.
 type debugRecord = record.DebugRecord
 
 // emitDebugRecordLocked journals a formed debug record; force bypasses

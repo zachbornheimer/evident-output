@@ -161,7 +161,7 @@ func (r *Run) close() error {
 	r.graph.Close()
 	r.mu.Unlock()
 	r.graph.Cancel()
-	// Finish already wrote the manifest; this releases its lock (spec §11.3) and returns any failure. Close never rolls back committed records.
+	// Finish already wrote the manifest; this releases its lock and returns any failure. Close never rolls back committed records.
 	return r.freshness.Session().Close()
 }
 

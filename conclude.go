@@ -64,7 +64,7 @@ func (r *Run) anyFailed() bool {
 	return false
 }
 
-// rendererError reports a renderer failure as a genuine Run failure (§32.2); nil stays nil.
+// rendererError reports a renderer failure as a genuine Run failure; nil stays nil.
 func rendererError(err error) error {
 	if err == nil {
 		return nil

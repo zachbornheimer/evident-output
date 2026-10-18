@@ -1,6 +1,8 @@
 package evo
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -46,5 +48,50 @@ func TestRetiredCommentPhraseFlagsAStaleComment(t *testing.T) {
 	}
 	if got := retiredCommentPhrases("JSON Output writes the run document"); len(got) != 0 {
 		t.Errorf("a 2.0 comment was flagged: %v", got)
+	}
+}
+
+// sectionCitation matches a "§N" or "§N.M" citation; group 1 is the top-level section.
+var sectionCitation = regexp.MustCompile(`§(\d+)(?:\.\d+)*`)
+
+// contractSectionHeading matches a CONTRACT.md "## N. Title" heading.
+var contractSectionHeading = regexp.MustCompile(`(?m)^## (\d+)\. `)
+
+// citedSections finds the top-level section numbers a comment cites.
+func citedSections(text string) []string {
+	var sections []string
+	for _, m := range sectionCitation.FindAllStringSubmatch(text, -1) {
+		sections = append(sections, m[1])
+	}
+	return sections
+}
+
+// TestCommentsCiteOnlyContractSections: a root comment's §-citation names a
+// section CONTRACT.md has, so a number from the retired spec cannot linger.
+func TestCommentsCiteOnlyContractSections(t *testing.T) {
+	contract, err := os.ReadFile("CONTRACT.md")
+	if err != nil {
+		t.Fatalf("read CONTRACT.md: %v", err)
+	}
+	have := map[string]bool{}
+	for _, m := range contractSectionHeading.FindAllStringSubmatch(string(contract), -1) {
+		have[m[1]] = true
+	}
+	if len(have) == 0 {
+		t.Fatal("CONTRACT.md has no numbered sections")
+	}
+	roots, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatalf("glob root Go files: %v", err)
+	}
+	for _, path := range roots {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		for _, c := range commentCitations(t, path, citedSections) {
+			if !have[c.section] {
+				t.Errorf("%s cites §%s, which CONTRACT.md does not have; cite a CONTRACT.md section or drop the number", c.pos, c.section)
+			}
+		}
 	}
 }
