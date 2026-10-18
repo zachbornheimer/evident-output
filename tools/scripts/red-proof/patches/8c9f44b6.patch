@@ -1,13 +1,12 @@
 Hand-written revert of 8c9f44b6 against the current tree: a Group or Sequence member that
 settled Excluded counts as failed for the Tasks After its container again (tally.go stops
 folding it into the container's success via memberOutcome), and a Task a failed predecessor
-keeps from running settles with the bare "not started" summary instead of the summary
-stopperLocked names (eligibility.go placeLocked). Later edits to internal/project/present/ports.go
-keep the commit's own hunks from reversing, so this removes the two graph behaviours both
-guarding tests depend on.
+keeps from running settles with the bare "not started" summary (a nil stopper) instead of the
+stopper stopperLocked names (eligibility.go placeLocked). Later edits to
+internal/project/present/ports.go keep the commit's own hunks from reversing, so this removes
+the two graph behaviours both guarding tests depend on.
 
 diff --git a/internal/graph/eligibility.go b/internal/graph/eligibility.go
-index 82abe341..feae7d9d 100644
 --- a/internal/graph/eligibility.go
 +++ b/internal/graph/eligibility.go
 @@ -300,7 +300,7 @@ func (g *Graph) placeLocked(t *Task, scan predScan) {
@@ -15,7 +14,7 @@ index 82abe341..feae7d9d 100644
  	case predFailed:
  		g.settleNeverDefinedLocked(blocker.task)
 -		g.markStoppedLocked(t, g.stopperLocked(blocker))
-+		g.markStoppedLocked(t, NotStartedSummary)
++		g.markStoppedLocked(t, nil)
  	}
  }
 
