@@ -27,7 +27,7 @@ func Execute(ctx context.Context, cfg Config, run RunFunc) Result {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return runInterruptible(ctx, out, run)
+	return runInterruptible(ctx, out, run, nil)
 }
 
 // Main runs run under SIGINT and SIGTERM and returns the process exit code; it
@@ -36,7 +36,7 @@ func Execute(ctx context.Context, cfg Config, run RunFunc) Result {
 // Its arguments are Execute's, without the context Main owns.
 func Main(cfg Config, run RunFunc) int {
 	out := openRun(cfg, tuning{})
-	return runInterruptible(context.Background(), out, run).ExitCode()
+	return runSignalled(context.Background(), out, run).ExitCode()
 }
 
 // openRun is the one Run constructor: Execute, Main and this package's tests build every Run here. It
@@ -48,13 +48,18 @@ func openRun(cfg Config, t tuning) *Run {
 	return out
 }
 
-// runInterruptible runs run to completion, turning SIGINT/SIGTERM into cancellation of the
-// active task or the output. A second signal returns ExitCancelled without waiting for run to unwind.
-func runInterruptible(ctx context.Context, out *Run, run RunFunc) Result {
+// runSignalled is runInterruptible under SIGINT and SIGTERM: the one place a run subscribes to signals.
+func runSignalled(ctx context.Context, out *Run, run RunFunc) Result {
 	sigCh := make(chan process.Signal, signalChannelCapacity)
 	notifySignals(sigCh, process.Interrupt, process.Terminate)
 	defer stopSignals(sigCh)
+	return runInterruptible(ctx, out, run, sigCh)
+}
 
+// runInterruptible runs run to completion, turning cancellation of ctx or a signal on sigCh into
+// cancellation of the active task or the output. A second signal returns ExitCancelled without
+// waiting for run to unwind. A nil sigCh never fires: the run watches only ctx.
+func runInterruptible(ctx context.Context, out *Run, run RunFunc, sigCh <-chan process.Signal) Result {
 	// runCtx is r.Context() for this run, detached from the caller's cancellation: the watcher
 	// records the Cancel first, so a task that sees Done ends Cancelled, not Failed with a deadline error.
 	runCtx := out.beginRunContext(watchedContext{ctx})
