@@ -432,7 +432,7 @@ Environment, applied only where `Config` is zero:
 | EVO_VERBOSE | `1`                               | same as `Config.Verbose`                                                                        |
 | EVO_DEBUG   | `debug`, `info`, `warn`, `error`  | the lowest `slog.Level` the journal keeps when `Config.Debug` is nil; a named level beats it    |
 | NO_COLOR    | any non-empty value               | no color; wins over `FORCE_COLOR`                                                               |
-| FORCE_COLOR | any value except empty and `0`    | color in Human even when stdout is not a terminal                                               |
+| FORCE_COLOR | any value except empty and `0`    | color in Human and Plain even when stderr is not a terminal                                     |
 | LC_ALL      | a locale name                     | glyph selection on a live terminal; the first non-empty of `LC_ALL`, `LC_CTYPE`, `LANG` decides |
 | LC_CTYPE    | a locale name                     | the same lookup, consulted when `LC_ALL` is empty                                               |
 | LANG        | a locale name                     | the same lookup, consulted when `LC_ALL` and `LC_CTYPE` are empty                               |
