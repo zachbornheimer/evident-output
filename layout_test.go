@@ -168,6 +168,10 @@ func containsString(list []string, want string) bool {
 // only, so documentation never competes with structure.
 const rootLineBudget = 4000
 
+// rootFileLineBudget is the most code lines one root file may hold; a file
+// past it names a concept that belongs in its own file.
+const rootFileLineBudget = 250
+
 // foldedSeam matches the marker of code folded into the root from a package
 // it absorbed.
 var foldedSeam = regexp.MustCompile(`// --- folded\sfrom `)
@@ -201,8 +205,9 @@ func codeLines(t *testing.T, name string, body []byte) int {
 }
 
 // TestRootIsThin fails when the root package's non-test Go files reach
-// rootLineBudget code lines together (blank and comment lines are not
-// counted), or any of them carries a folded-from seam.
+// rootLineBudget code lines together or any one reaches past
+// rootFileLineBudget (blank and comment lines are not counted), or any of
+// them carries a folded-from seam.
 func TestRootIsThin(t *testing.T) {
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -222,6 +227,10 @@ func TestRootIsThin(t *testing.T) {
 		lines := codeLines(t, name, body)
 		total += lines
 		sizes = append(sizes, fmt.Sprintf("%s %d", name, lines))
+		if lines > rootFileLineBudget {
+			t.Errorf("%s holds %d code lines, want at most %d; split the concept it is missing into its own file",
+				name, lines, rootFileLineBudget)
+		}
 		if foldedSeam.Match(body) {
 			t.Errorf("%s carries a folded-from seam; merge it into the file that owns it", name)
 		}
