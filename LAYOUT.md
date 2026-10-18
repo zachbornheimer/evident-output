@@ -40,6 +40,8 @@ container.go
 aliases.go
 annotation.go
 conclude.go
+finish.go
+run_state.go
 define.go
 host_observe.go
 host_task.go
