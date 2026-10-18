@@ -102,6 +102,7 @@ func runInterruptible(ctx context.Context, out *Run, run RunFunc, sigCh <-chan p
 		finished = true
 	}()
 
+	cause := cancelCauseUser
 	for {
 		select {
 		case result := <-done:
@@ -112,11 +113,12 @@ func runInterruptible(ctx context.Context, out *Run, run RunFunc, sigCh <-chan p
 				continue
 			}
 		case <-ctx.Done():
+			cause = context.Cause(ctx).Error()
 		}
 		break
 	}
 	interrupted.Store(true)
-	out.interrupt(string(cancelled))
+	out.interruptBecause(cause, string(cancelled))
 	return awaitInterrupted(sigCh, done)
 }
 
@@ -187,12 +189,12 @@ func (r *Run) humanStyle() txt.Style {
 	return txt.Style{Color: !r.cfg.noColor, Verbose: r.cfg.verbose, Profile: r.cfg.glyphs}
 }
 
-// interrupt stops the run at the first signal; graph.Graph.Interrupt owns the order that keeps the ledger honest.
-func (r *Run) interrupt(reason string) {
+// interruptBecause stops the run at the first interruption, naming cause as the Explanation; graph.Graph.Interrupt owns the order that keeps the ledger honest.
+func (r *Run) interruptBecause(cause, reason string) {
 	if r == nil {
 		return
 	}
-	r.graph.Interrupt(cancelCauseUser, func() { r.graph.CancelActive(reason) })
+	r.graph.Interrupt(cause, func() { r.graph.CancelActive(reason) })
 }
 
 // RunFunc is the shape of application work; its context carries SIGINT/SIGTERM cancellation.

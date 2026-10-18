@@ -701,3 +701,6 @@ var (
 	errDeclaredInCallback   = misuse.ErrDeclaredInCallback
 	errDuplicateSiblingName = misuse.ErrDuplicateSiblingName
 )
+
+// interrupt stops the run as a user signal would.
+func (r *Run) interrupt(reason string) { r.interruptBecause(cancelCauseUser, reason) }
