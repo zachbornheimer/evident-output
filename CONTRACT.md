@@ -139,8 +139,11 @@ Satisfied and the callback never runs; false after a successful callback
 fails the Task. A Failed, Refused, Excluded or Cancelled predecessor leaves
 its dependents NotStarted. A NotStarted Task's summary names the Task at the
 root of its chain of predecessors, in that Task's state, whether a Group it ran
-After got its members from `Build` or declared them directly. `After(group)` and `After(sequence)` wait on the container's own
-outcome, which folds an Excluded member into success, so only a direct
+After got its members from `Build` or declared them directly. `After(group)` and `After(sequence)` wait for the members the container held
+when `After` was called and never consult the container's own later outcome, so
+a member declared afterward that fails leaves the container Failed and the
+dependent still runs; a container whose `Build` was refused counts as a Failed
+predecessor. An Excluded member counts as success there, so only a direct
 `After(task)` on an Excluded Task leaves its dependent NotStarted. `Get` is valid only from work ordered after the
 producer by Sequence position or `After`; an unordered `Get` fails the run
 with `ErrComputedUnordered` in every mode. A goroutine a callback started is
