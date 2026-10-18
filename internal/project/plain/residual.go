@@ -33,16 +33,16 @@ func (s *Stream) Residual(snap record.Snapshot) (plain, final string) {
 }
 
 // compose is the one ordered sequence every human destination renders at
-// Finish: the lines not yet streamed, the root rows and collections (when
-// entities), the ledger sections that did not stream, then the conclusion band.
+// Finish: the root rows and collections (when entities), the lines not yet
+// streamed (the run's misuse line, which belongs to no row), the ledger sections that did not stream, then the conclusion band.
 func (s *Stream) compose(snap record.Snapshot, linesFrom int, entities bool) string {
 	style := s.cfg.Style
 	var b strings.Builder
-	for i := linesFrom; i < len(snap.Lines); i++ {
-		WriteDebugOrLine(&b, snap.Lines[i], style.Color)
-	}
 	if entities {
 		s.writeEntities(&b, snap)
+	}
+	for i := linesFrom; i < len(snap.Lines); i++ {
+		WriteDebugOrLine(&b, snap.Lines[i], style.Color)
 	}
 	// A blank line separates the Task block from the ledger
 	// (fixture-repo-retire-dryrun.md), judged on the run's whole shape: a
