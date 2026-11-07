@@ -60,7 +60,8 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	for _, want := range []string{
 		"✓ branches 8 deleted",
 		"✗ worktrees remove failed",
-		"path locked: ../.worktrees/app-sah-1"} {
+		"path locked: ../.worktrees/app-sah-1",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -105,7 +106,8 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 	for _, want := range []string{
 		"8 branches deleted",
 		"git: cannot lock ref 'refs/heads/feat/x'",
-		"another git process seems to be running"} {
+		"another git process seems to be running",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -147,7 +149,8 @@ func TestSpecP1_CleanBatch_EarlyTermination(t *testing.T) {
 	for _, want := range []string{
 		"✓ branches 8 deleted",
 		"■ worktrees cancelled — 0 removed",
-		"partial changes were applied before cancellation"} {
+		"partial changes were applied before cancellation",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -185,7 +188,8 @@ func TestSpecP2_RemoteSeparation_Error(t *testing.T) {
 		"12 branches deleted",
 		"✗ remotes authentication failed",
 		"remote: Invalid username or token",
-		"local already mutated; remotes untouched"} {
+		"local already mutated; remotes untouched",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -220,7 +224,8 @@ func TestSpecP2_RemoteSeparation_EarlyTermination(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"✓ branches 5 deleted (local)",
-		"■ remotes cancelled before any delete-remote"} {
+		"■ remotes cancelled before any delete-remote",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -267,8 +272,12 @@ func TestSpecP3_DryRunTense_Success(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "salvage", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	salvage := out.Task("salvage")
-	salvage.Define(effectOf(evo.EffectPush, "branch", 3))
+	// Define submits its callback to the scheduler and returns before the
+	// callback runs, so the Task may resolve at any point after it. The
+	// warning is attached while the Task is still open; annotating after
+	// Define races the resolution and records ErrAlreadyResolved misuse.
 	salvage.Problem("demo not retired yet", evo.Severity(evo.SeverityWarning), evo.Next(evo.Label("repo-retire --retire demo")))
+	salvage.Define(effectOf(evo.EffectPush, "branch", 3))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +310,8 @@ func TestSpecP3_DryRunTense_Failure(t *testing.T) {
 	for _, want := range []string{
 		"[planned] salvage",
 		"push 3 feat/a → retire/feat/a",
-		"✗ salvage dry-run only — not applied"} {
+		"✗ salvage dry-run only — not applied",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -335,7 +345,8 @@ func TestSpecP3_DryRunTense_Error(t *testing.T) {
 		"✗ salvage 2/3 non-fast-forward",
 		"tip rejected on retire/feat/b",
 		"[changed] salvage",
-		"pushed 1 branch"} {
+		"pushed 1 branch",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -366,7 +377,8 @@ func TestSpecP3_DryRunTense_EarlyTermination(t *testing.T) {
 	for _, want := range []string{
 		"[changed] salvage",
 		"pushed 1 branch",
-		"■ salvage interrupted"} {
+		"■ salvage interrupted",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -448,7 +460,8 @@ func TestSpecP4_SequentialGroup_Error(t *testing.T) {
 		"✓ scan",
 		"✓ venv",
 		"✗ install uv pip install failed",
-		"Could not find a version that satisfies requests==99.0"} {
+		"Could not find a version that satisfies requests==99.0",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -491,7 +504,8 @@ func TestSpecP4_SequentialGroup_EarlyTermination(t *testing.T) {
 	for _, want := range []string{
 		"✓ scan",
 		"✓ venv",
-		"■ install cancelled at 6/14"} {
+		"■ install cancelled at 6/14",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -524,7 +538,8 @@ func TestSpecP5_DiscoverySealedTotal_Failure(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"✗ scan permission denied under ~/Developer",
-		"open ~/Developer/locked: operation not permitted"} {
+		"open ~/Developer/locked: operation not permitted",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -557,7 +572,8 @@ func TestSpecP5_DiscoverySealedTotal_Error(t *testing.T) {
 	for _, want := range []string{
 		"✗ scan 40/128 git rev-parse failed",
 		"not a git repository",
-		"ready 39 repos"} {
+		"ready 39 repos",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}

@@ -154,8 +154,10 @@ func TestCoalesce_NextCommand_KeepsConclusion(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	tool := out.Task("tool")
-	tool.Define(effectOf(evo.EffectAdd, "x", 1))
+	// Define returns before its callback runs, so the Task can resolve at
+	// any point after it; annotate while the Task is still open.
 	tool.Problem("working tree state not checked", evo.Severity(evo.SeverityWarning), evo.NextCommand("git", "status"))
+	tool.Define(effectOf(evo.EffectAdd, "x", 1))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
