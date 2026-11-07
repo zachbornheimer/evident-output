@@ -116,8 +116,10 @@ func FoldEffectSections(kind string, width int, sources []SectionSource) []Effec
 		}
 		foldedAt[key] = len(out)
 		shown = append(shown, shownSubject{text: target[0].Name, out: len(out), container: target, owner: target[0].ID})
-		out = append(out, EffectSection{Kind: kind, Subject: target[0].Name, Width: width,
-			Records: []core.EffectRecord{{Verb: key.kind.verb, Object: key.kind.object, HasQty: true, Quantity: quantityOf(src.Records)}}})
+		out = append(out, EffectSection{
+			Kind: kind, Subject: target[0].Name, Width: width,
+			Records: []core.EffectRecord{{Verb: key.kind.verb, Object: key.kind.object, HasQty: true, Quantity: quantityOf(src.Records)}},
+		})
 	}
 	qualifyDuplicates(out, shown)
 	alignSubjects(out, shown)

@@ -19,7 +19,9 @@ func handleListSections(id any, args map[string]any, cancelled *atomic.Bool) {
 		"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("%d sections", len(list))}},
 		"structuredContent": map[string]any{
 			"schema":   "evident_output.sections.v1",
-			"sections": summarizeSections(list)}})
+			"sections": summarizeSections(list),
+		},
+	})
 }
 
 // handleGetDocumentation serves evident_output_get_documentation.
@@ -50,7 +52,9 @@ func handleGetDocumentation(id any, args map[string]any, cancelled *atomic.Bool)
 		"structuredContent": map[string]any{
 			"schema":   "evident_output.documentation.v1",
 			"sections": found,
-			"missing":  missing}})
+			"missing":  missing,
+		},
+	})
 }
 
 // summarizeSections strips body text for the list view — evident_output_list_sections
@@ -62,7 +66,8 @@ func summarizeSections(list []sections.Section) []map[string]any {
 			"id":       s.ID,
 			"title":    s.Title,
 			"source":   s.Source,
-			"concepts": s.Concepts})
+			"concepts": s.Concepts,
+		})
 	}
 	return out
 }

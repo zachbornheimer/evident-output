@@ -34,7 +34,9 @@ func TestParseTopology_NestsByParentAndSortsSiblings(t *testing.T) {
 	}
 	want := []evaltask.Node{{Name: "prune", Kind: "group", State: "done", Children: []evaltask.Node{
 		{Name: "repository", Kind: "sequence", State: "done", Children: []evaltask.Node{
-			{Name: "a", Kind: "task", State: "done"}, {Name: "b", Kind: "task", State: "done"}}}}}}
+			{Name: "a", Kind: "task", State: "done"}, {Name: "b", Kind: "task", State: "done"},
+		}},
+	}}}
 	if diff := evaltask.DiffTopology(got, want); diff != "" {
 		t.Fatalf("tree differs:\n%s", diff)
 	}

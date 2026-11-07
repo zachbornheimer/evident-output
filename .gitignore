@@ -4,6 +4,7 @@
 # Repo structure
 !/.gitignore
 !/.golangci.yml
+!/.markdownlint.yaml
 !/LICENSE
 !/NOTICE
 !/CHANGELOG.md

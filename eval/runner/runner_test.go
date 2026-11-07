@@ -122,6 +122,7 @@ func (fakeServer) Close() error { return nil }
 type memoryCache struct{ data map[string][]byte }
 
 func (m *memoryCache) Get(key string) ([]byte, bool, error) { v, ok := m.data[key]; return v, ok, nil }
+
 func (m *memoryCache) Put(key string, v []byte) error {
 	if m.data == nil {
 		m.data = map[string][]byte{}

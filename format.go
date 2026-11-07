@@ -8,8 +8,10 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/wire"
 )
 
-type Format = engine.Format
-type Projection = engine.Projection
+type (
+	Format     = engine.Format
+	Projection = engine.Projection
+)
 
 const (
 	FormatHuman    = engine.FormatHuman

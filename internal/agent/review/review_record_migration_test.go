@@ -155,16 +155,26 @@ func TestAPI061_SuggestsExactRewrite(t *testing.T) {
 	cases := []struct {
 		name, call, want string
 	}{
-		{"install", `task.Record("install", n, "module")`,
-			`task.Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectInstall, Object: "module", Quantity: n}, fn) })`},
-		{"named delete", `task.RecordName("delete", "feat/a")`,
-			`evo.EffectSpec{Verb: evo.EffectDelete, Object: "feat/a", Quantity: 1}`},
-		{"file write", `task.RecordName("write", path)`,
-			`task.Define(func(ctx context.Context) error { return evo.File(ctx, evo.FileSpec{Path: path, Contents: data}) })`},
-		{"label", `task.RecordLabel("ready", n, "worker")`,
-			`task.Fact("ready", fmt.Sprintf("%d %s", n, "worker"))`},
-		{"free-text verb", `task.Record("fetch-prune", n, "ref")`,
-			`no EffectVerb is spelled "fetch-prune"`},
+		{
+			"install", `task.Record("install", n, "module")`,
+			`task.Define(func(ctx context.Context) error { return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectInstall, Object: "module", Quantity: n}, fn) })`,
+		},
+		{
+			"named delete", `task.RecordName("delete", "feat/a")`,
+			`evo.EffectSpec{Verb: evo.EffectDelete, Object: "feat/a", Quantity: 1}`,
+		},
+		{
+			"file write", `task.RecordName("write", path)`,
+			`task.Define(func(ctx context.Context) error { return evo.File(ctx, evo.FileSpec{Path: path, Contents: data}) })`,
+		},
+		{
+			"label", `task.RecordLabel("ready", n, "worker")`,
+			`task.Fact("ready", fmt.Sprintf("%d %s", n, "worker"))`,
+		},
+		{
+			"free-text verb", `task.Record("fetch-prune", n, "ref")`,
+			`no EffectVerb is spelled "fetch-prune"`,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

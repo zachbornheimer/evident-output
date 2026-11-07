@@ -10,16 +10,18 @@ import (
 
 type Printer struct{ inner *engine.Printer }
 
-type ConfirmOption = engine.ConfirmOption
-type ColorMode = engine.ColorMode
-type Verbosity = engine.Verbosity
-type TerminalDriver = engine.TerminalDriver
-type TimeSource = engine.TimeSource
-type SystemClock = engine.SystemClock
-type FixedClock = engine.FixedClock
-type LiveSurface = engine.LiveSurface
-type Redactor = engine.Redactor
-type NoopRedactor = engine.NoopRedactor
+type (
+	ConfirmOption  = engine.ConfirmOption
+	ColorMode      = engine.ColorMode
+	Verbosity      = engine.Verbosity
+	TerminalDriver = engine.TerminalDriver
+	TimeSource     = engine.TimeSource
+	SystemClock    = engine.SystemClock
+	FixedClock     = engine.FixedClock
+	LiveSurface    = engine.LiveSurface
+	Redactor       = engine.Redactor
+	NoopRedactor   = engine.NoopRedactor
+)
 
 const (
 	ColorAuto   = engine.ColorAuto
@@ -125,6 +127,7 @@ func IsCharDevice(w io.Writer) bool { return engine.IsCharDevice(w) }
 func Pluralize(quantity int64, singular string) string {
 	return engine.Pluralize(quantity, singular)
 }
+
 func TruncateNames(names []string, visible int) string {
 	return engine.TruncateNames(names, visible)
 }
