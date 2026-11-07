@@ -48,15 +48,15 @@ type scaleSample struct {
 	bytesPerTask float64
 }
 
-// sampleRun times run and measures the bytes it allocated per Task.
+// sampleRun measures the process CPU time run consumed, so time the OS gave
+// to other processes does not inflate the larger size, and the bytes it
+// allocated per Task.
 func sampleRun(t *testing.T, tasks int, run func()) scaleSample {
 	t.Helper()
 	runtime.GC()
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	start := time.Now()
-	run()
-	elapsed := time.Since(start)
+	elapsed := scaletest.CPUElapsed(run)
 	runtime.ReadMemStats(&after)
 	if elapsed > hangGuard {
 		t.Fatalf("run of %d Tasks took %s: hung", tasks, elapsed)
