@@ -90,7 +90,8 @@ var faultHook func(toolName string)
 var supportedProtocols = map[string]bool{
 	"2024-11-05": true,
 	"2025-03-26": true,
-	"2025-06-18": true}
+	"2025-06-18": true,
+}
 
 // latestProtocol is the highest revision in supportedProtocols. Per the MCP
 // lifecycle spec, a server that does not recognize the client's requested
@@ -213,7 +214,9 @@ func (s *server) handle(msg []byte, mode framingMode) {
 			"resources": []map[string]any{
 				{"uri": "evident-output://guides/common-api", "name": "common-api", "mimeType": "text/plain"},
 				{"uri": "evident-output://rules/API-006", "name": "API-006", "mimeType": "application/json"},
-				{"uri": "evident-output://meta/catalog-checksum", "name": "catalog-checksum", "mimeType": "text/plain"}}})
+				{"uri": "evident-output://meta/catalog-checksum", "name": "catalog-checksum", "mimeType": "text/plain"},
+			},
+		})
 	case "resources/read":
 		handleResourceRead(id, req)
 	case "notifications/initialized", "initialized", "ping":
@@ -251,12 +254,15 @@ func handleInitialize(id any, req map[string]any) {
 		"capabilities": map[string]any{
 			// Empty objects advertise the capability groups we implement.
 			"tools":     map[string]any{},
-			"resources": map[string]any{}},
+			"resources": map[string]any{},
+		},
 		"serverInfo": map[string]any{
 			"name":    "evident-output-mcp",
-			"version": resolvedVersion()},
+			"version": resolvedVersion(),
+		},
 		// Optional human hint (allowed on InitializeResult).
-		"instructions": serverInstructions})
+		"instructions": serverInstructions,
+	})
 }
 
 // truncateForLog reports only length metadata — never payload bytes (may hold secrets/source).
@@ -270,20 +276,26 @@ func toolList() []map[string]any {
 			"type": "object",
 			"properties": map[string]any{
 				"query":       map[string]any{"type": "string"},
-				"deadline_ms": map[string]any{"type": "integer"}}}},
+				"deadline_ms": map[string]any{"type": "integer"},
+			},
+		}},
 		{"name": "evident_output_get_documentation", "description": "Retrieve one or more documentation sections by id (see evident_output_list_sections)", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"ids":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-				"deadline_ms": map[string]any{"type": "integer"}}}},
+				"deadline_ms": map[string]any{"type": "integer"},
+			},
+		}},
 		{"name": "evident_output_adopt_plan", "description": "Inventory non-evo CLI output (fmt.Print*/log.*/os.Stdout/spinner libs) under a directory and return a paged migration plan keyed to the adoption ladder", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"directory":   map[string]any{"type": "string"},
 				"cursor":      map[string]any{"type": "string"},
 				"limit":       map[string]any{"type": "integer"},
-				"deadline_ms": map[string]any{"type": "integer"}},
-			"required": []string{"directory"}}},
+				"deadline_ms": map[string]any{"type": "integer"},
+			},
+			"required": []string{"directory"},
+		}},
 		{"name": "evident_output_review", "description": "Review Go source, a local directory, multi-file package, transcript, or structured JSON for evo misuse. MUST be used when migrating existing evo call sites (the autofixer, same role as svelte-autofixer): pass Go source or kind=directory, apply every suggestion, call again until zero findings", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -293,7 +305,9 @@ func toolList() []map[string]any {
 				"kind":            map[string]any{"type": "string"},
 				"files":           map[string]any{"type": "object"},
 				"desired_version": map[string]any{"type": "string"},
-				"deadline_ms":     map[string]any{"type": "integer"}}}},
+				"deadline_ms":     map[string]any{"type": "integer"},
+			},
+		}},
 		{"name": "evident_output_conformance", "description": "Answer whether a repo's Evo usage is current: what is stale, unsafe, mechanically upgradable, has explicit vs opaque provenance, or needs developer intent. Same inputs as evident_output_review (source/file or kind=directory); returns {target_version, findings[{rule,severity,file,line,summary,migration}]}", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -302,13 +316,17 @@ func toolList() []map[string]any {
 				"directory":      map[string]any{"type": "string"},
 				"kind":           map[string]any{"type": "string"},
 				"target_version": map[string]any{"type": "string"},
-				"deadline_ms":    map[string]any{"type": "integer"}}}},
+				"deadline_ms":    map[string]any{"type": "integer"},
+			},
+		}},
 		{"name": "evident_output_update", "description": "Install a matching evident-output-mcp binary for a go.mod pin (--directory) or a release tag (--version), then symlink into ~/.local/bin. Requires version XOR directory. After it returns, restart the MCP host.", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"version":     map[string]any{"type": "string"},
 				"directory":   map[string]any{"type": "string"},
-				"deadline_ms": map[string]any{"type": "integer"}}}},
+				"deadline_ms": map[string]any{"type": "integer"},
+			},
+		}},
 		{"name": "evident_output_preview", "description": "Preview plain profiles for a declarative scene", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -316,12 +334,17 @@ func toolList() []map[string]any {
 				"item":        map[string]any{"type": "string"},
 				"state":       map[string]any{"type": "string"},
 				"debug":       map[string]any{"type": "string"},
-				"deadline_ms": map[string]any{"type": "integer"}}}},
+				"deadline_ms": map[string]any{"type": "integer"},
+			},
+		}},
 		{"name": "evident_output_explain", "description": "Explain a stable rule ID", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"rule_id":     map[string]any{"type": "string"},
-				"deadline_ms": map[string]any{"type": "integer"}}}}}
+				"deadline_ms": map[string]any{"type": "integer"},
+			},
+		}},
+	}
 	// MCP-042: enforce tool name rules at definition time.
 	for _, t := range tools {
 		name, _ := t["name"].(string)
@@ -347,7 +370,9 @@ func safeToolCall(id any, req map[string]any) {
 				"structuredContent": map[string]any{
 					"schema": "evident_output.tool_error.v1",
 					"code":   "panic_contained",
-					"error":  fmt.Sprint(r)}})
+					"error":  fmt.Sprint(r),
+				},
+			})
 		}
 	}()
 	handleToolCall(id, req)
@@ -432,7 +457,9 @@ func toolError(msg string) map[string]any {
 		"isError": true,
 		"structuredContent": map[string]any{
 			"schema": "evident_output.tool_error.v1",
-			"error":  msg}}
+			"error":  msg,
+		},
+	}
 }
 
 // toolArgAllowlist is the argument-name registry validateArgs enforces —
@@ -442,19 +469,25 @@ func toolArgAllowlist() map[string]map[string]bool {
 	return map[string]map[string]bool{
 		"evident_output_list_guides": {"use_case": true, "max_tokens": true, "deadline_ms": true},
 		"evident_output_get_guidance": {
-			"ids": true, "max_tokens": true, "deadline_ms": true},
+			"ids": true, "max_tokens": true, "deadline_ms": true,
+		},
 		"evident_output_review": {
-			"source": true, "file": true, "directory": true, "kind": true, "files": true, "desired_version": true, "deadline_ms": true},
+			"source": true, "file": true, "directory": true, "kind": true, "files": true, "desired_version": true, "deadline_ms": true,
+		},
 		"evident_output_conformance": {
-			"source": true, "file": true, "directory": true, "kind": true, "desired_version": true, "target_version": true, "deadline_ms": true},
+			"source": true, "file": true, "directory": true, "kind": true, "desired_version": true, "target_version": true, "deadline_ms": true,
+		},
 		"evident_output_update": {"version": true, "directory": true, "deadline_ms": true},
 		"evident_output_preview": {
-			"subject": true, "item": true, "state": true, "debug": true, "deadline_ms": true},
+			"subject": true, "item": true, "state": true, "debug": true, "deadline_ms": true,
+		},
 		"evident_output_explain":       {"rule_id": true, "deadline_ms": true},
 		"evident_output_list_sections": {"query": true, "deadline_ms": true},
 		"evident_output_get_documentation": {
-			"ids": true, "deadline_ms": true},
-		"evident_output_adopt_plan": {"directory": true, "cursor": true, "limit": true, "deadline_ms": true}}
+			"ids": true, "deadline_ms": true,
+		},
+		"evident_output_adopt_plan": {"directory": true, "cursor": true, "limit": true, "deadline_ms": true},
+	}
 }
 
 func validateArgs(name string, args map[string]any) string {
@@ -511,7 +544,9 @@ func handleResourceRead(id any, req map[string]any) {
 	case uri == "evident-output://meta/catalog-checksum":
 		writeRPC(id, map[string]any{
 			"contents": []map[string]any{{
-				"uri": uri, "mimeType": "text/plain", "text": catalog.Checksum()}}})
+				"uri": uri, "mimeType": "text/plain", "text": catalog.Checksum(),
+			}},
+		})
 	case len(uri) > len("evident-output://guides/") && uri[:len("evident-output://guides/")] == "evident-output://guides/":
 		gid := uri[len("evident-output://guides/"):]
 		if containsTraversal(gid) || gid == "" {
@@ -524,7 +559,8 @@ func handleResourceRead(id any, req map[string]any) {
 			return
 		}
 		writeRPC(id, map[string]any{
-			"contents": []map[string]any{{"uri": uri, "mimeType": "text/plain", "text": found[0].Body}}})
+			"contents": []map[string]any{{"uri": uri, "mimeType": "text/plain", "text": found[0].Body}},
+		})
 	case len(uri) > len("evident-output://rules/") && uri[:len("evident-output://rules/")] == "evident-output://rules/":
 		rid := uri[len("evident-output://rules/"):]
 		if containsTraversal(rid) {
@@ -534,7 +570,8 @@ func handleResourceRead(id any, req map[string]any) {
 		if r, ok := rules.Explain(rid); ok {
 			b, _ := json.Marshal(r)
 			writeRPC(id, map[string]any{
-				"contents": []map[string]any{{"uri": uri, "mimeType": "application/json", "text": string(b)}}})
+				"contents": []map[string]any{{"uri": uri, "mimeType": "application/json", "text": string(b)}},
+			})
 			return
 		}
 		writeRPCError(id, -32002, "resource not found")
@@ -574,7 +611,8 @@ func writeRPCError(id any, code int, message string) {
 	}{
 		JSONRPC: "2.0",
 		ID:      id,
-		Error:   map[string]any{"code": code, "message": message}})
+		Error:   map[string]any{"code": code, "message": message},
+	})
 }
 
 func writeFramed(v any) {

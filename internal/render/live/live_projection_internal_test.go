@@ -56,8 +56,10 @@ func projectCollections(cols []core.TasksSnapshot, rows int) *LiveCollections {
 func perItemGroups(name string, n int, summary string) core.TasksSnapshot {
 	col := core.TasksSnapshot{Name: name, State: core.Running}
 	for i := range n {
-		item := core.TasksSnapshot{Name: fmt.Sprintf("item-%d", i), State: core.Running, Summary: summary,
-			Tasks: mixedTasks(fmt.Sprintf("i%d", i), 2)}
+		item := core.TasksSnapshot{
+			Name: fmt.Sprintf("item-%d", i), State: core.Running, Summary: summary,
+			Tasks: mixedTasks(fmt.Sprintf("i%d", i), 2),
+		}
 		if i%4 == 0 {
 			item.Tasks = []core.TaskSnapshot{seen(core.TaskSnapshot{Name: fmt.Sprintf("item-%d", i), State: core.Done}, time.Duration(i)*time.Second)}
 		}
@@ -141,25 +143,38 @@ func workPeers(n int) []core.TaskSnapshot {
 // projectionShapes are the collection shapes whose live frame a projection
 // must not change: large enough that it leaves children out.
 func projectionShapes() map[string]core.Snapshot {
-	ownTask := core.TasksSnapshot{Name: "branches", State: core.Running,
-		Tasks: append([]core.TaskSnapshot{seen(core.TaskSnapshot{Name: "branches", State: core.Running, Phase: "classify"}, time.Minute)}, items("tip", 400)...)}
-	summarized := core.TasksSnapshot{Name: "packages", State: core.Running, Summary: "3 installed",
-		Tasks: append(append(items("pkg", 400), workPeers(30)...), mixedTasks("dep", 60)...)}
-	peers := core.TasksSnapshot{Name: "tags", State: core.Running,
-		Tasks: append(append(workPeers(2), items("tag", 400)...), mixedTasks("t", 5)...)}
-	onlyItems := core.TasksSnapshot{Name: "prune", State: core.Running,
-		Tasks: append(items("wt", 400), seen(core.TaskSnapshot{Name: "wt-last", State: core.Running}, 0))}
+	ownTask := core.TasksSnapshot{
+		Name: "branches", State: core.Running,
+		Tasks: append([]core.TaskSnapshot{seen(core.TaskSnapshot{Name: "branches", State: core.Running, Phase: "classify"}, time.Minute)}, items("tip", 400)...),
+	}
+	summarized := core.TasksSnapshot{
+		Name: "packages", State: core.Running, Summary: "3 installed",
+		Tasks: append(append(items("pkg", 400), workPeers(30)...), mixedTasks("dep", 60)...),
+	}
+	peers := core.TasksSnapshot{
+		Name: "tags", State: core.Running,
+		Tasks: append(append(workPeers(2), items("tag", 400)...), mixedTasks("t", 5)...),
+	}
+	onlyItems := core.TasksSnapshot{
+		Name: "prune", State: core.Running,
+		Tasks: append(items("wt", 400), seen(core.TaskSnapshot{Name: "wt-last", State: core.Running}, 0)),
+	}
 	return map[string]core.Snapshot{
 		"mixed group":                     {Collections: []core.TasksSnapshot{{Name: "items", State: core.Running, Tasks: mixedTasks("item", 500)}}},
 		"own task and items":              {Collections: []core.TasksSnapshot{ownTask}},
 		"summary folds items beside work": {Collections: []core.TasksSnapshot{summarized}},
 		"work peer keeps items as rows":   {Collections: []core.TasksSnapshot{peers}},
 		"items and one running":           {Collections: []core.TasksSnapshot{onlyItems}},
-		"nested categories": {Collections: []core.TasksSnapshot{{Name: "categories", State: core.Running,
-			Collections: []core.TasksSnapshot{ownTask, summarized, {Name: "steps", State: core.Running, Sequential: true, Tasks: mixedTasks("step", 300)}}}}},
-		"root tasks beside a group": {Tasks: mixedTasks("root", 400),
-			Collections: []core.TasksSnapshot{{Name: "small", State: core.Running, Tasks: mixedTasks("s", 4)}}},
-		"finished flat group": {Tasks: []core.TaskSnapshot{{Name: "build", State: core.Failed, Summary: "exit 2"}},
+		"nested categories": {Collections: []core.TasksSnapshot{{
+			Name: "categories", State: core.Running,
+			Collections: []core.TasksSnapshot{ownTask, summarized, {Name: "steps", State: core.Running, Sequential: true, Tasks: mixedTasks("step", 300)}},
+		}}},
+		"root tasks beside a group": {
+			Tasks:       mixedTasks("root", 400),
+			Collections: []core.TasksSnapshot{{Name: "small", State: core.Running, Tasks: mixedTasks("s", 4)}},
+		},
+		"finished flat group": {
+			Tasks: []core.TaskSnapshot{{Name: "build", State: core.Failed, Summary: "exit 2"}},
 			Collections: []core.TasksSnapshot{{Name: "done", State: core.Failed, Tasks: func() []core.TaskSnapshot {
 				var ts []core.TaskSnapshot
 				for i := range 500 {
@@ -170,7 +185,8 @@ func projectionShapes() map[string]core.Snapshot {
 					ts = append(ts, t)
 				}
 				return ts
-			}()}}},
+			}()}},
+		},
 		"per-item groups":             {Collections: []core.TasksSnapshot{perItemGroups("items", 300, "")}},
 		"per-item groups with header": {Collections: []core.TasksSnapshot{perItemGroups("items", 300, "checking")}},
 		"root per-item groups":        {Collections: perItemGroups("items", 300, "").Collections},

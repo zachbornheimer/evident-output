@@ -21,7 +21,8 @@ func handleAdoptPlan(id any, args map[string]any, cancelled *atomic.Bool) {
 	cursor, _ := args["cursor"].(string)
 	page, err := adopt.InventoryPage(directory, adopt.InventoryOptions{
 		Cursor: cursor,
-		Limit:  intFromArgs(args, "limit")})
+		Limit:  intFromArgs(args, "limit"),
+	})
 	if err != nil {
 		writeRPC(id, toolError("adopt_plan: "+err.Error()))
 		return
@@ -41,5 +42,7 @@ func handleAdoptPlan(id any, args map[string]any, cancelled *atomic.Bool) {
 			"next_cursor": page.NextCursor,
 			"next_action": page.NextAction,
 			"facades":     page.Facades,
-			"caveat":      page.Caveat}})
+			"caveat":      page.Caveat,
+		},
+	})
 }

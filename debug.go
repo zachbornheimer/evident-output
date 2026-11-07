@@ -6,11 +6,13 @@ import (
 	"github.com/zachbornheimer/evident-output/internal/engine"
 )
 
-type DebugPaneOption = engine.DebugPaneOption
-type DebugPresentation = engine.DebugPresentation
-type DebugConfig = engine.DebugConfig
-type LogLevel = engine.LogLevel
-type LogRecord = engine.LogRecord
+type (
+	DebugPaneOption   = engine.DebugPaneOption
+	DebugPresentation = engine.DebugPresentation
+	DebugConfig       = engine.DebugConfig
+	LogLevel          = engine.LogLevel
+	LogRecord         = engine.LogRecord
+)
 
 const (
 	LevelUnset = engine.LevelUnset

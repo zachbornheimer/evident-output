@@ -33,6 +33,7 @@ func (s *paintRecorder) WriteLive(text string) {
 	s.mu.Unlock()
 	time.Sleep(s.delay)
 }
+
 func (s *paintRecorder) ClearLive() {
 	s.mu.Lock()
 	s.clears++

@@ -55,7 +55,7 @@ func TestC02_021_OnlyContainersDeclareChildren(t *testing.T) {
 
 func TestC02_022_CaptureNamesReplaceEvidenceCaptureNames(t *testing.T) {
 	var _ evo.Capture
-	var _ = evo.MaxCaptureBytes(64)
+	_ = evo.MaxCaptureBytes(64)
 	streams := map[evo.CaptureStream]bool{
 		evo.CaptureStreamStdout: true, evo.CaptureStreamStderr: true, evo.CaptureStreamCombined: true,
 	}

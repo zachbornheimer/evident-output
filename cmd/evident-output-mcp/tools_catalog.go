@@ -31,7 +31,9 @@ func handleListGuides(id any, args map[string]any, cancelled *atomic.Bool) {
 			"schema":    "evident_output.guides.v1",
 			"guides":    guides,
 			"truncated": truncated,
-			"checksum":  catalog.Checksum()}})
+			"checksum":  catalog.Checksum(),
+		},
+	})
 }
 
 // handleGetGuidance serves evident_output_get_guidance.
@@ -64,7 +66,9 @@ func handleGetGuidance(id any, args map[string]any, cancelled *atomic.Bool) {
 			"schema":    "evident_output.guidance.v1",
 			"guides":    found,
 			"missing":   missing,
-			"truncated": truncated}})
+			"truncated": truncated,
+		},
+	})
 }
 
 // handleExplain serves evident_output_explain.
@@ -75,7 +79,9 @@ func handleExplain(id any, args map[string]any, cancelled *atomic.Bool) {
 			"content": []map[string]any{{"type": "text", "text": r.Invariant}},
 			"structuredContent": map[string]any{
 				"schema": "evident_output.rule.v1",
-				"rule":   r}})
+				"rule":   r,
+			},
+		})
 		return
 	}
 	writeRPC(id, toolError("unknown rule"))

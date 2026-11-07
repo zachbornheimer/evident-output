@@ -12,7 +12,8 @@ import (
 
 func skipTask(parent interface {
 	Task(string) *evo.TaskHandle
-}, name, reason string) {
+}, name, reason string,
+) {
 	task := parent.Task(name)
 	task.Define(func(context.Context) error { task.Skipped(evo.Reason(reason)); return nil })
 }

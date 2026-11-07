@@ -25,7 +25,12 @@ func run() error {
 	if len(os.Args) > 1 {
 		path = os.Args[1]
 	}
-	f, err := os.Open(path)
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return fmt.Errorf("open %s: %w", path, err)
+	}
+	defer func() { _ = root.Close() }()
+	f, err := root.Open(filepath.Base(path))
 	if err != nil {
 		return fmt.Errorf("open %s: %w", path, err)
 	}
@@ -59,9 +64,17 @@ func run() error {
 		prefix string
 		n      int
 	}{
-		{"DOM", 50}, {"CON", 19}, {"TERM", 24}, {"TXT", 20},
-		{"A11Y", 10}, {"LOG", 15}, {"OUT", 24}, {"MCP", 50},
-		{"API", 30}, {"SEC", 15}, {"PORT", 15},
+		{"DOM", 50},
+		{"CON", 19},
+		{"TERM", 24},
+		{"TXT", 20},
+		{"A11Y", 10},
+		{"LOG", 15},
+		{"OUT", 24},
+		{"MCP", 50},
+		{"API", 30},
+		{"SEC", 15},
+		{"PORT", 15},
 	}
 	for _, fam := range families {
 		for i := 1; i <= fam.n; i++ {

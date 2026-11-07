@@ -23,15 +23,15 @@ shift
 
 case "$command" in
 standing | decide)
-  cd "$here" && exec go run ./cmd/hillclimb "$command" "$@"
-  ;;
+	cd "$here" && exec go run ./cmd/hillclimb "$command" "$@"
+	;;
 check)
-  base="${1:?$usage}"
-  (cd "$here" && go run ./cmd/hillclimb guard "$base" "$repo")
-  cd "$repo" && exec mise run ci
-  ;;
+	base="${1:?$usage}"
+	(cd "$here" && go run ./cmd/hillclimb guard "$base" "$repo")
+	cd "$repo" && exec mise run ci
+	;;
 *)
-  echo "$usage" >&2
-  exit 2
-  ;;
+	echo "$usage" >&2
+	exit 2
+	;;
 esac
