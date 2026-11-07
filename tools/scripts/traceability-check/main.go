@@ -25,7 +25,12 @@ func run() error {
 	if len(os.Args) > 1 {
 		path = os.Args[1]
 	}
-	f, err := os.Open(path)
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return fmt.Errorf("open %s: %w", path, err)
+	}
+	defer func() { _ = root.Close() }()
+	f, err := root.Open(filepath.Base(path))
 	if err != nil {
 		return fmt.Errorf("open %s: %w", path, err)
 	}
