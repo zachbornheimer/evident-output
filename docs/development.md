@@ -16,7 +16,7 @@ mise run ci             # lint + test + scan + conformance + traceability
 mise run evo-usage-audit <repo-path> [--output FILE]   # evo usage inventory for another repo
 ```
 
-Trunk is configured **daemonless** (`--monitor=false`). Prefer `mise` over raw tools.
+Formatting is `dprint` and git hooks are `hk`, both from the machine profile; the repo carries no formatter or hook config. Prefer `mise` over raw tools.
 
 ## Conformance (roast)
 
