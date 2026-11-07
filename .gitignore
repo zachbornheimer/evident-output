@@ -4,8 +4,6 @@
 # Repo structure
 !/.gitignore
 !/.golangci.yml
-!/.prettierignore
-!/.prettierrc.json
 !/LICENSE
 !/NOTICE
 !/CHANGELOG.md
@@ -20,8 +18,6 @@
 !/mise.toml
 !/go.mod
 !/go.sum
-!/.trunk/
-!/.trunk/trunk.yaml
 !/.github/
 !/.github/**
 !/.grok/
