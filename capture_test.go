@@ -16,7 +16,7 @@ func TestCaptureSuccessIsSilentByDefault(t *testing.T) {
 	var primary, diag bytes.Buffer
 	out := evo.Init(evo.Config{Title: "brew", Stdout: &primary, Stderr: &diag})
 	task := out.Task("brew")
-	output := task.Evidence()
+	output := task.EvidenceForTest()
 	_, _ = fmt.Fprintln(output, "Downloading bottle...")
 	task.Done()
 	if err := out.Finish(); err != nil {
@@ -40,7 +40,7 @@ func TestTaskCapture_DetailTail_OnFail(t *testing.T) {
 	var primary, diag bytes.Buffer
 	out := evo.Init(evo.Config{Title: "brew", Stdout: &primary, Stderr: &diag})
 	upgrade := out.Task("brew packages")
-	output := upgrade.Evidence()
+	output := upgrade.EvidenceForTest()
 	_, _ = fmt.Fprintln(output, "Error: bottle not found")
 	_, _ = fmt.Fprintln(output, "Error: formula foo conflict")
 	_ = output.Close()
@@ -64,7 +64,7 @@ func TestCapture_MirrorToDiagnostics_OptIn(t *testing.T) {
 	var primary, diag bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &diag})
 	task := out.Task("x")
-	output := task.Evidence(evo.MirrorToDiagnostics())
+	output := task.EvidenceForTest(evo.MirrorToDiagnostics())
 	_, _ = fmt.Fprintln(output, "chatter")
 	_ = output.Close()
 	task.Done()
@@ -78,7 +78,7 @@ func TestCaptureSeparateStreamsDoNotMergePartialLines(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("cmd")
-	output := task.Evidence()
+	output := task.EvidenceForTest()
 	_, _ = io.WriteString(output.Stdout(), "download")
 	_, _ = io.WriteString(output.Stderr(), " failed\n")
 	_, _ = io.WriteString(output.Stdout(), " complete\n")
@@ -102,7 +102,7 @@ func TestCapture_RingBoundsAndTruncation(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("x")
-	output := task.Evidence(evo.KeepLastLines(3))
+	output := task.EvidenceForTest(evo.KeepLastLines(3))
 	for i := 0; i < 10; i++ {
 		_, _ = fmt.Fprintf(output, "line-%d\n", i)
 	}
@@ -157,15 +157,8 @@ func TestConfig_PipeAndDiagnosticsWired(t *testing.T) {
 	defer func() { _ = w.Close() }()
 
 	var diag bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.Title("tool"),
-		evo.To(w),
-		evo.Plain(),
-		evo.NoColor(),
-		evo.Diagnostics(&diag),
-		evo.DebugLevel(evo.LevelDebug),
-	}})
-	out.Debug("diag-line")
+	out := evo.Init(evo.Config{Isolated: true, Stdout: w, Stderr: &diag, Title: "tool", Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever, Plain: true})
+	out.DebugForTest("diag-line")
 	out.Task("gate").Block("dirty")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -180,14 +173,8 @@ func TestConfig_PipeAndDiagnosticsWired(t *testing.T) {
 
 func TestDiagnostics_DualStream_DebugNotOnPrimary(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.To(&primary),
-		evo.Diagnostics(&diag),
-		evo.Plain(),
-		evo.NoColor(),
-		evo.DebugLevel(evo.LevelDebug),
-	}})
-	out.Debug("internal only")
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &primary, Stderr: &diag, Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever, Plain: true})
+	out.DebugForTest("internal only")
 	out.Task("ok").Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -204,7 +191,7 @@ func TestDetailTailIncludesUnterminatedStderr(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "git", Stdout: &primary, Stderr: &primary})
 	task := out.Task("fetch")
-	output := task.Evidence()
+	output := task.EvidenceForTest()
 	// No trailing newline — the usual subprocess final message shape.
 	_, _ = io.WriteString(output.Stderr(), "fatal: authentication failed")
 
@@ -228,7 +215,7 @@ func TestRootCloseFlushesEveryCaptureStream(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("cmd")
-	output := task.Evidence()
+	output := task.EvidenceForTest()
 	_, _ = io.WriteString(output.Stdout(), "stdout-partial")
 	_, _ = io.WriteString(output.Stderr(), "stderr-partial")
 	_, _ = io.WriteString(output, "combined-partial")
@@ -252,7 +239,7 @@ func TestEmptySeesPendingCaptureContent(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("cmd")
-	output := task.Evidence()
+	output := task.EvidenceForTest()
 	if !output.Empty() {
 		t.Fatal("expected empty initially")
 	}
@@ -274,7 +261,7 @@ func TestCaptureTruncateUTF8Safe(t *testing.T) {
 	var primary bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &primary, Stderr: &primary})
 	task := out.Task("x")
-	output := task.Evidence()
+	output := task.EvidenceForTest()
 	_, _ = io.WriteString(output, line+"\n")
 	_ = output.Close()
 	got := output.Text()

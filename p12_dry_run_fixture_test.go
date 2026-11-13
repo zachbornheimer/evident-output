@@ -2,7 +2,6 @@ package evo_test
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -38,14 +37,7 @@ import (
 // shape and typography only).
 func TestP12_DryRunFixtureShape(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{
-		Isolated: true,
-		DryRun:   true,
-		Subject:  "repo  /Users/zbornheimer/Developer/Software-Automation-Holdings/bpp2.0",
-		Options: []evo.Option{
-			evo.To(&buf), evo.NoColor(), evo.Plain(),
-		},
-	})
+	out := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "repo  /Users/zbornheimer/Developer/Software-Automation-Holdings/bpp2.0", Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	// The caller declares its whole known set of sibling tasks up front —
 	// the pattern that lets progressive/immediate rendering (§17.5) still
@@ -58,27 +50,27 @@ func TestP12_DryRunFixtureShape(t *testing.T) {
 	protected := evo.Reason("protected")
 	unpushedBranch := evo.Reason("unpushed")
 	for i := 0; i < 8; i++ {
-		branches.Kept(protected, fmt.Sprintf("protected-%d", i))
+		branches.Kept(protected)
 	}
 	for i := 0; i < 5; i++ {
-		branches.Kept(unpushedBranch, fmt.Sprintf("unpushed-%d", i))
+		branches.Kept(unpushedBranch)
 	}
-	_ = branches.Delete("local tip", nil, evo.Affected(2))
+	branches.Delete("local tip", func() error { return nil }, evo.Affected(2))
 	branches.Done()
 
 	dirty := evo.Reason("dirty")
 	unpushedWorktree := evo.Reason("unpushed")
 	for i := 0; i < 4; i++ {
-		worktrees.Kept(dirty, fmt.Sprintf("dirty-%d", i))
+		worktrees.Kept(dirty)
 	}
 	for i := 0; i < 2; i++ {
-		worktrees.Kept(unpushedWorktree, fmt.Sprintf("unpushed-%d", i))
+		worktrees.Kept(unpushedWorktree)
 	}
-	_ = worktrees.Remove("worktree", nil, evo.Affected(1))
+	worktrees.Remove("worktree", func() error { return nil }, evo.Affected(1))
 	worktrees.Done()
 
 	remoteTracking.Fact("", "1 stale")
-	_ = remoteTracking.Delete("stale origin/*", nil, evo.Affected(1))
+	remoteTracking.Delete("stale origin/*", func() error { return nil }, evo.Affected(1))
 	remoteTracking.Done()
 
 	if err := out.Finish(); err != nil {
