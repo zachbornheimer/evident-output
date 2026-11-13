@@ -68,10 +68,10 @@ func (c *manualClock) Advance(d time.Duration) {
 func TestLiveHeartbeat_PendingRowAnimatesPastElapsedThreshold(t *testing.T) {
 	drv := &fakeHeartbeatSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := newOutput("job", Terminal(drv), VisibilityDelay(0), Clock(clock), NoColor())
+	out := newOutput("job", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor())
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("goimports") // declared, never touched: stays Pending
+	out.Sequence("steps").Task("goimports") // sequential child stays Pending until its turn
 
 	clock.Advance(15 * time.Second)
 
@@ -97,7 +97,7 @@ func TestLiveHeartbeat_PendingRowAnimatesPastElapsedThreshold(t *testing.T) {
 func TestLiveHeartbeat_RunningNoPhaseZeroTotalAnimates(t *testing.T) {
 	drv := &fakeHeartbeatSurface{}
 	clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-	out := newOutput("job", Terminal(drv), VisibilityDelay(0), Clock(clock), NoColor())
+	out := newOutput("job", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor())
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("resolve")
@@ -128,10 +128,10 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 	t.Run("mixed done and pending", func(t *testing.T) {
 		drv := &fakeHeartbeatSurface{}
 		clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-		out := newOutput("fix", Terminal(drv), VisibilityDelay(0), Clock(clock), NoColor(), Glyphs(GlyphsUnicode))
+		out := newOutput("fix", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), glyphs(GlyphsUnicode))
 		t.Cleanup(func() { _ = out.Close() })
 
-		grp := out.DisplayGroup("fix")
+		grp := out.Group("fix")
 		grp.Task("a").Done()
 		grp.Task("b").Done()
 		grp.Task("c").Done()
@@ -151,10 +151,10 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 	t.Run("all pending at start", func(t *testing.T) {
 		drv := &fakeHeartbeatSurface{}
 		clock := &manualClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
-		out := newOutput("fix", Terminal(drv), VisibilityDelay(0), Clock(clock), NoColor(), Glyphs(GlyphsUnicode))
+		out := newOutput("fix", withTerminal(drv), visibilityDelay(0), withClock(clock), withNoColor(), glyphs(GlyphsUnicode))
 		t.Cleanup(func() { _ = out.Close() })
 
-		grp := out.DisplayGroup("fix")
+		grp := out.Group("fix")
 		grp.Task("a")
 		grp.Task("b")
 
