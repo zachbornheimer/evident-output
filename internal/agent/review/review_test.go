@@ -1,6 +1,7 @@
 package review_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
@@ -15,7 +16,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func f() {
-  out := evo.Init(evo.Config{Options: []evo.Option{}})
+  out := evo.Init(evo.Config{})
   t := out.Task("x")
   t.Start()
   fmt.Printf("hi")
@@ -64,7 +65,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func check() error {
-  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("repo")}})
+  out := evo.Init(evo.Config{Title: "repo"})
   defer out.Close()
   out.Task("working tree").Block("dirty")
   return errors.New("dirty")
@@ -96,7 +97,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func check() error {
-  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("repo")}})
+  out := evo.Init(evo.Config{Title: "repo"})
   defer out.Close()
   if err := load(); err != nil {
     out.Task("data").Fail("load failed")
@@ -121,7 +122,7 @@ func TestMCP014_BlockThenFinishOK(t *testing.T) {
 	ok := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func check() error {
-  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("repo")}})
+  out := evo.Init(evo.Config{Title: "repo"})
   defer out.Close()
   out.Task("working tree").Block("dirty")
   return out.Finish()
@@ -191,8 +192,10 @@ import (
 func f() {
   // example: tasks.Map() is not real — do not flag this comment either
   slug := strings.Map(func(r rune) rune { return r }, "ABC")
-  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("x")}})
-  out.Task(slug).Done()
+  out := evo.Init(evo.Config{Title: "x"})
+  t := out.Task(slug)
+  t.Doing("resolving %s", slug)
+  t.Done()
   _ = out.Finish()
 }
 `
@@ -214,7 +217,7 @@ func TestAPI026_DetectsEvoExecutionHelper(t *testing.T) {
 	src := `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f() {
-  out := evo.Init(evo.Config{Options: []evo.Option{}})
+  out := evo.Init(evo.Config{})
   out.Tasks("jobs").Map(func() {})
 }
 `
@@ -240,7 +243,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func main() {
-  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t")}})
+  out := evo.Init(evo.Config{Title: "t"})
   os.Exit(out.Run(func(o *evo.Output) error {
     o.Task("x").Done()
     return nil
@@ -269,7 +272,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func main() {
-  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t")}})
+  out := evo.Init(evo.Config{Title: "t"})
   var childErr *exec.ExitError
   code := evo.Run(func(o *evo.Output) error {
     o.Task("x").Done()
@@ -299,7 +302,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func main() {
-  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t")}})
+  out := evo.Init(evo.Config{Title: "t"})
   out.Task("x").Done()
   os.Exit(1)
 }
@@ -325,7 +328,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func main() {
-  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t")}})
+  out := evo.Init(evo.Config{Title: "t"})
   c := make(chan os.Signal, 1)
   signal.Notify(c, syscall.SIGINT)
   go func() {
@@ -360,7 +363,7 @@ import (
   evo "github.com/zachbornheimer/evident-output"
 )
 func main() {
-  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t")}})
+  out := evo.Init(evo.Config{Title: "t"})
   t := out.Task("scan")
   c := make(chan os.Signal, 1)
   signal.Notify(c, syscall.SIGINT)
@@ -404,28 +407,30 @@ func run(out *evo.Output) error {
 		}
 	}
 	if !found {
-		t.Fatalf("expected TERM-015 on tty passthrough without Suspend: %+v", res.Findings)
+		t.Fatalf("expected TERM-015 on tty passthrough: %+v", res.Findings)
 	}
 }
 
-func TestTERM015_NoFalsePositiveWithSuspend(t *testing.T) {
+func TestTERM015_NoFalsePositiveWithTaskRun(t *testing.T) {
 	good := `package p
 import (
-  "os"
   "os/exec"
   evo "github.com/zachbornheimer/evident-output"
 )
 func run(out *evo.Output) error {
-  cmd := exec.Command("zq", "setup")
-  cmd.Stdout = os.Stdout
-  cmd.Stderr = os.Stderr
-  return out.Suspend(func() error { return cmd.Run() })
+  task := out.Task("build")
+  cmd := exec.Command("go", "build", "./...")
+  if err := task.Run(cmd); err != nil {
+    return task.Failf("build failed: %w", err)
+  }
+  task.Done()
+  return nil
 }
 `
 	res := review.GoSource("good.go", good)
 	for _, f := range res.Findings {
 		if f.RuleID == "TERM-015" {
-			t.Fatalf("false positive TERM-015 when Suspend wraps the child: %+v", res.Findings)
+			t.Fatalf("false positive TERM-015 when Task.Run captures the child: %+v", res.Findings)
 		}
 	}
 }
@@ -899,7 +904,7 @@ import (
 )
 func main() {
   data, _ := os.ReadFile("config.toml")
-  out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t")}})
+  out := evo.Init(evo.Config{Title: "t"})
   out.Task("scan").Doing(string(data))
 }
 `
@@ -1171,6 +1176,9 @@ func run(out *evo.Output) error {
   _, _ = reader.ReadString('\n')
 
   out.Task("working tree").Block("dirty")
+  out.Task("go@1.25.11").Done("/bin/go")
+  jobs := out.DisplayGroup("run")
+  jobs.Task("install:fresh-start")
   return errors.New("dirty")
 }
 `))
@@ -1182,12 +1190,11 @@ func run(out *evo.Output) error {
 	collect(review.GoPackage(map[string]string{
 		"a.go": `package p
 import evo "github.com/zachbornheimer/evident-output"
-func makeOut() *evo.Output { return evo.Init(evo.Config{Options: []evo.Option{}}) }
+func makeOut() *evo.Output { return evo.Init(evo.Config{}) }
 `,
 		"b.go": `package p
 func use() { _ = makeOut() }
-`,
-	}))
+`}))
 
 	if len(emitted) == 0 {
 		t.Fatal("no findings collected; fixtures no longer trigger any rule")
@@ -1210,8 +1217,7 @@ func use() { _ = makeOut() }
 func TestCallSiteFindingsCarrySuggestion(t *testing.T) {
 	structural := map[string]bool{
 		"API-000": true, "SCHEMA-001": true, "TERM-008": true,
-		"TERM-014": true, "MCP-017": true, "API-027": true,
-	}
+		"TERM-014": true, "MCP-017": true, "API-027": true}
 	src := `package p
 import (
   "bufio"
@@ -1249,6 +1255,9 @@ func run(out *evo.Output, svc services, task *evo.TaskHandle, done, total int) e
   _, _ = reader.ReadString('\n')
 
   out.Task("working tree").Block("dirty")
+  out.Task("go@1.25.11").Done("/bin/go")
+  jobs := out.DisplayGroup("run")
+  jobs.Task("install:fresh-start")
   return errors.New("dirty")
 }
 `
@@ -1271,7 +1280,7 @@ func TestGoPackage_CrossFileTypes(t *testing.T) {
 	files := map[string]string{
 		"a.go": `package p
 import evo "github.com/zachbornheimer/evident-output"
-func makeOut() *evo.Output { return evo.Init(evo.Config{Options: []evo.Option{}}) }
+func makeOut() *evo.Output { return evo.Init(evo.Config{}) }
 `,
 		"b.go": `package p
 import "fmt"
@@ -1280,8 +1289,7 @@ func use() {
   out.Task("t").Start()
   fmt.Println("x")
 }
-`,
-	}
+`}
 	res := review.GoPackage(files)
 	// Cross-file: Start and fmt from b.go must surface even though evo import is in a.go.
 	var hasStart, hasStream bool
@@ -1315,9 +1323,8 @@ func findAPI032(res review.Result) []review.Finding {
 }
 
 func TestAPI032_NewInMain(t *testing.T) {
-	// evo.MainWith(out, run) is current again as of v0.4.0 (paired with
-	// Init(Config{Isolated: true}), not New) — only evo.New itself is
-	// still a superseded spelling.
+	// evo.New and evo.MainWith are both superseded: Init is the constructor,
+	// Main/Output.Run are the lifecycle. Flagging MainWith is required.
 	src := `package main
 import evo "github.com/zachbornheimer/evident-output"
 func main() {
@@ -1327,8 +1334,23 @@ func main() {
 `
 	res := review.GoSource("main.go", src)
 	found := findAPI032(res)
-	if len(found) != 1 {
-		t.Fatalf("expected one API-032 finding (New in main), got %+v", found)
+	var sawNew, sawMainWith bool
+	for _, f := range found {
+		if strings.Contains(f.Message, "evo.New") || strings.Contains(f.Suggestion, "evo.New") {
+			sawNew = true
+		}
+		if strings.Contains(f.Message, "MainWith") || strings.Contains(f.Suggestion, "MainWith") {
+			sawMainWith = true
+			if !strings.Contains(f.Suggestion, "out.Run(run)") {
+				t.Errorf("MainWith suggestion must name out.Run(run), got %q", f.Suggestion)
+			}
+		}
+	}
+	if !sawNew {
+		t.Fatalf("expected API-032 finding for evo.New in main, got %+v", found)
+	}
+	if !sawMainWith {
+		t.Fatalf("expected API-032 finding for evo.MainWith, got %+v", found)
 	}
 }
 

@@ -35,9 +35,11 @@ func main() {
 	if *step {
 		*frames = true
 	}
-	if !*frames && !evo.IsCharDevice(os.Stderr) {
-		fmt.Fprintln(os.Stderr, "terminal-driver: stderr is not a TTY; using --frames")
-		*frames = true
+	if !*frames {
+		if fi, err := os.Stderr.Stat(); err != nil || fi.Mode()&os.ModeCharDevice == 0 {
+			fmt.Fprintln(os.Stderr, "terminal-driver: stderr is not a TTY; using --frames")
+			*frames = true
+		}
 	}
 
 	stepDur := 100 * time.Millisecond
@@ -63,7 +65,7 @@ func main() {
 		Terminal: term,
 		Debug:    evo.DebugConfig{Level: evo.LevelDebug},
 		// Demo tuning: show spinners immediately.
-		VisibilityDelay: evo.Delay(0),
+		VisibilityDelay: func() *time.Duration { d := time.Duration(0); return &d }(),
 		MaxFrameRate:    60,
 		Isolated:        true,
 	})

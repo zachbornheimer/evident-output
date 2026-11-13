@@ -1,127 +1,48 @@
 package evo
 
 import (
-	"fmt"
-
 	"github.com/zachbornheimer/evident-output/internal/core"
 	txt "github.com/zachbornheimer/evident-output/internal/text"
 )
 
-// Mutation verbs on TaskHandle are Evo-controlled mutation boundaries (13-
-// problem doc P1): the caller reports success and domain effects; evo
-// derives the result (Changed/Ready/Planned), the tense (imperative vs.
-// past), and the number (evo.Affected). object is always a singular noun
-// phrase ("branch", not "branches") — the ledger pluralizes it from the
-// affected quantity at render time (I4), so a call site never hand-composes
-// its own singular/plural noun.
-//
-// call == nil records the effect without executing anything. Otherwise:
-// normal run executes call and commits the effect only on success; dry run
-// never executes call and records a planned effect instead; a non-nil error
-// from call commits nothing and is returned (see callerEffectError).
+// Mutation verbs on TaskHandle record n of object against the task's
+// Plan (Config.DryRun) or Changes ledger. object is always a singular noun
+// phrase ("branch", not "branches") — the ledger pluralizes it from n at
+// render time. The caller performs the effect; these verbs only record.
 
-// Add records an addition of object.
-func (t *TaskHandle) Add(object string, call func() error, opts ...EffectOption) error {
-	return t.mutate("add", object, call, opts)
-}
+// Add records an addition of n object.
+func (t *TaskHandle) Add(n int, object string) { t.recordCount("add", n, object) }
 
-// Delete records a deletion of object; see Add for the call/dry-run/
-// singular-object contract shared by every mutation verb.
-func (t *TaskHandle) Delete(object string, call func() error, opts ...EffectOption) error {
-	return t.mutate("delete", object, call, opts)
-}
+// Delete records a deletion of n object.
+func (t *TaskHandle) Delete(n int, object string) { t.recordCount("delete", n, object) }
 
-// Create records the creation of object.
-func (t *TaskHandle) Create(object string, call func() error, opts ...EffectOption) error {
-	return t.mutate("create", object, call, opts)
-}
+// Create records the creation of n object.
+func (t *TaskHandle) Create(n int, object string) { t.recordCount("create", n, object) }
 
-// Update records an update of object.
-func (t *TaskHandle) Update(object string, call func() error, opts ...EffectOption) error {
-	return t.mutate("update", object, call, opts)
-}
+// Update records an update of n object.
+func (t *TaskHandle) Update(n int, object string) { t.recordCount("update", n, object) }
 
-// Remove records a removal of object.
-func (t *TaskHandle) Remove(object string, call func() error, opts ...EffectOption) error {
-	return t.mutate("remove", object, call, opts)
-}
+// Remove records a removal of n object.
+func (t *TaskHandle) Remove(n int, object string) { t.recordCount("remove", n, object) }
 
-// Write records the writing of object.
-func (t *TaskHandle) Write(object string, call func() error, opts ...EffectOption) error {
-	return t.mutate("write", object, call, opts)
-}
+// Write records the writing of n object.
+func (t *TaskHandle) Write(n int, object string) { t.recordCount("write", n, object) }
 
-// Push records a push of object.
-func (t *TaskHandle) Push(object string, call func() error, opts ...EffectOption) error {
-	return t.mutate("push", object, call, opts)
-}
+// Push records a push of n object.
+func (t *TaskHandle) Push(n int, object string) { t.recordCount("push", n, object) }
 
-// mutate is the shared mutation boundary behind Add/Delete/Create/Update/
-// Remove/Write/Push: resolve the task's dry-run status, run call (never on
-// a dry run, never when call is nil), then record the resulting effect as
-// committed (Changes) or planned (Plan) depending on the run mode — never
-// both, and never anything at all on a call error.
-//
-// The ledger target resolves exactly once, before call runs (E2.5 finding
-// 5): re-resolving afterward — separately re-locking and re-checking whether
-// the task is still open — created a window where a concurrent Done racing
-// call's execution would see the task already terminal and silently drop
-// the effect call just committed as spurious misuse. subject/dryRun are
-// captured once and carried straight into recordResolvedMutation.
-func (t *TaskHandle) mutate(verb, object string, call func() error, opts []EffectOption) error {
+func (t *TaskHandle) recordCount(verb string, n int, object string) {
 	if t == nil || t.out == nil {
-		// A nil handle or a handle whose Output is already gone is caller
-		// misuse, not a silent no-op (E2.5 finding 2): the caller must never
-		// read a mutation verb's nil error as "it ran."
-		return ErrClosed
+		return
 	}
-	eo := applyEffectOptions(opts)
-	if eo.hasQty && eo.quantity < 0 {
-		// A negative Affected count can never be a real effect quantity
-		// (E2.5 finding 4) — caller misuse, recorded and nothing else
-		// touched (no call, no ledger section).
+	if n < 0 {
 		t.out.recordMisuse(ErrInvalidConfig)
-		return ErrInvalidConfig
+		return
 	}
-	subject, dryRun, err := t.out.resolveLedgerTarget(t.id)
-	if err != nil {
-		return err
+	if n == 0 {
+		return
 	}
-	if !dryRun && call != nil {
-		// P5 concurrency truth: a mutation-verb callback starting counts as
-		// activity, promoting a Pending task to Running the same way
-		// Phase/Progress/Each/Run/PhaseWriter's first write does — a
-		// long-running Delete/Update call must render as working, not sit
-		// parked on a queued-looking spinner-less row.
-		t.out.promoteRunningForActivity(t.id)
-		if err := call(); err != nil {
-			return callerEffectError(err)
-		}
-	}
-	if eo.hasQty && eo.quantity == 0 {
-		// Affected(0): nothing happened, so there is nothing to plan or
-		// declare (E2.5 finding 4) — declaring an empty section here is
-		// exactly the "[planned] repo-retire" phantom-row bug the fixture
-		// reports. Scoped to the Affected-quantity mutation-verb boundary
-		// only: Record's own zero-quantity contract (evo-rec.md Problem 18's
-		// "nothing to <verb> <subject>" empty-section grammar) is untouched.
-		return nil
-	}
-	t.out.recordResolvedMutation(subject, dryRun, verb, int64(eo.quantity), eo.hasQty, object)
-	return nil
-}
-
-// callerEffectError passes a mutation verb's call error back with its
-// message untouched: it is the caller's own callback failing, not an
-// evo-internal operation, so adding evo's own "doing X: " context here
-// would misattribute ownership. The %w wrap keeps errors.Is/As reaching the
-// caller's original error (mirrors TaskHandle.Run's own `return cmd.Run()`
-// passthrough).
-func callerEffectError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%w", err)
+	t.Record(verb, n, object)
 }
 
 // Record records an arbitrary imperative verb/quantity/object mutation

@@ -12,7 +12,7 @@
 //	    evo.Println("Reading configuration")
 //	    evo.Task("working tree").Done()
 //	    t := evo.Task("fetch")
-//	    output := t.Evidence()
+//	    output := t.evidence()
 //	    // run.Run(ctx, "git", args, output); t.Fail(..., output.DetailTail()) on error
 //	    return nil // Block is a presentation outcome, not a Go error
 //	}
@@ -32,7 +32,7 @@
 //     type, drive the same absolute progress with EachN(len(items)) — no []string copy
 //     needed just to get a progress bar.
 //     .Writer() as cmd.Stdout so a talkative child's last line becomes the live doing-text;
-//     Task.Run(cmd) wires an *exec.Cmd through that same capture/doing-text plumbing in one call
+//     Task.run(cmd) wires an *exec.Cmd through that same capture/doing-text plumbing in one call
 //     and hands back the subprocess error verbatim for the caller to resolve. An item that
 //     fails inside the loop body resolves on the loop's own task handle (task.Fail(...); break)
 //     — never a second evo.Task declared per item — leaving Progress sealed at the count
@@ -74,7 +74,7 @@
 //     from stdlib slog.Level — SlogHandler translates between the two internally, but
 //     Config.Debug.Level itself never takes a slog.Level value. LevelUnset (the zero value)
 //     resolves to LevelInfo; LevelTrace/LevelDebug are the two levels that surface Debug
-//     journal lines. Package-level evo.SlogHandler() journals to the default instance,
+//     journal lines. Package-level evo.SlogHandlerForTest() journals to the default instance,
 //     the same default-instance sugar evo.Task/evo.Verbose already offer.
 //
 // Ordinary surface: evo.Init/evo.Main, Print*, evo.Task/evo.Sequence (+ ID), Task.Evidence,
@@ -88,5 +88,5 @@
 // hosted counterpart of Main's run func() error, called on the *Output itself instead
 // of the default instance); Config.Options is the raw-Option escape hatch for exact writer/
 // terminal/clock wiring. Plan/Changes for the would/did split without a Task, session
-// Evidence, terminal drivers, and testkit.
+// evidence, terminal drivers, and testkit.
 package evo
