@@ -25,10 +25,10 @@ func ExampleResource() {
 // overlaps every file beneath it, for an opaque operation that touches the
 // module as a unit.
 func ExampleFSResource() {
-	module := evo.FSResource("./internal/engine")
+	module := evo.FSResource("./internal/graph")
 	fmt.Println(module)
 	// Output:
-	// fs:./internal/engine
+	// fs:./internal/graph
 }
 
 // ExampleLogicalResource names shared state that has no truthful

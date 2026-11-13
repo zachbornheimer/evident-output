@@ -8,7 +8,7 @@ import (
 )
 
 // TestClock_AfterFunc_FiresOnceDeadlinePasses proves the fake-timer
-// primitive engine.Scheduler needs (see internal/engine/clock.go): a
+// primitive evo.Scheduler needs (see the root package/clock.go): a
 // callback armed via AfterFunc must not fire before its deadline, and must
 // fire exactly once the fake clock is advanced at or past it — with no real
 // sleep involved.

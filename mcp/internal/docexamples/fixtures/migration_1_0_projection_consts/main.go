@@ -2,7 +2,7 @@
 
 // This file pins docs/migration/1.0.md's Format/Projection fence. Unlike
 // the other fixtures in this directory it documents current (1.0) names —
-// evo.ProjectionHuman etc. really exist (internal/engine/env.go) — but the
+// evo.ProjectionHuman etc. really exist (the root package/env.go) — but the
 // fence itself elides the `Projection = iota + 1` typing/initializer the
 // real const block carries, showing only the five names and their
 // comments. That shape is not a complete Go const declaration (the first

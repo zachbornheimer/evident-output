@@ -45,7 +45,7 @@ func TestFrozenPathsAreViolations(t *testing.T) {
 }
 
 func TestCleanDiffPasses(t *testing.T) {
-	code, out := run(t, fakeGit{changes: []Change{{"M", "internal/engine/a.go"}}}, "")
+	code, out := run(t, fakeGit{changes: []Change{{"M", "internal/graph/a.go"}}}, "")
 	if code != 0 || out != "" {
 		t.Fatalf("code %d out %q", code, out)
 	}

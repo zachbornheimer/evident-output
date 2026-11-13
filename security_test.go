@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 func TestSEC013_NewlineCannotForgeLogRecords(t *testing.T) {
@@ -186,7 +186,7 @@ func TestSEC002_SensitiveFieldRedactedInDebug(t *testing.T) {
 
 func TestSEC011_BidiControlsStripped(t *testing.T) {
 	// U+202E RTL override
-	got := txt.Text("safe\u202Eevil")
+	got := record.SanitizeText("safe\u202Eevil")
 	if strings.ContainsRune(got, '\u202e') {
 		t.Fatalf("bidi retained: %q", got)
 	}

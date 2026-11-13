@@ -20,7 +20,7 @@ import (
 // output content — testkit.ProcessRunner has no side-effect hook (its
 // contract is "scripted stdout/stderr/exit and a gate"), so a scenario that
 // needs a spawn to actually produce a file uses this small local fake
-// instead, the same way internal/engine's own exec_test.go does.
+// instead, the same way the root package's own exec_test.go does.
 type pipelineRunner struct {
 	byPath map[string]func() (exitCode int)
 }

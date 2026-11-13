@@ -6,7 +6,7 @@
 // machinery package imports core, never the reverse.
 //
 // The root package (github.com/zachbornheimer/evident-output) re-declares
-// every type here as a public alias (type X = core.X) so the published API
+// every type here as a public alias (type X = record.X) so the published API
 // surface is unchanged; root's own doc comment on each alias is the
 // pkg.go.dev-visible one (see EVIDENT_OUTPUT_ARCHITECTURE_SPEC_v0.5.md §38).
 package record

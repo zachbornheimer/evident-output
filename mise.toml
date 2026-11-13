@@ -75,10 +75,10 @@ run = [
 [tasks.fuzz]
 description = "Short fuzz smoke (local)"
 # FuzzText lives in internal/record (sanitization) and FuzzCells in
-# internal/text (width); each runs by its exact name in its own package.
+# internal/project (width); each runs by its exact name in its own package.
 run = [
   "go test ./internal/record/ -run=Fuzz -fuzz=FuzzText -fuzztime=5s || true",
-  "go test ./internal/text/ -run=Fuzz -fuzz=FuzzCells -fuzztime=5s || true",
+  "go test ./internal/project/ -run=Fuzz -fuzz=FuzzCells -fuzztime=5s || true",
 ]
 
 [tasks.scan]

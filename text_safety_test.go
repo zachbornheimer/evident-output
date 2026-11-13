@@ -7,19 +7,20 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/internal/project"
+	"github.com/zachbornheimer/evident-output/internal/record"
 )
 
 func TestTXT008_OSCNeutralized(t *testing.T) {
 	// OSC 8 introducer ESC ]
-	s := txt.Text("x\x1b]8;;http://evil\x07y")
+	s := record.SanitizeText("x\x1b]8;;http://evil\x07y")
 	if strings.Contains(s, "\x1b") {
 		t.Fatal(s)
 	}
 }
 
 func TestTXT009_CRLFNeutralized(t *testing.T) {
-	s := txt.Text("a\rb\bc")
+	s := record.SanitizeText("a\rb\bc")
 	if strings.ContainsAny(s, "\r\b") {
 		t.Fatal(s)
 	}
@@ -64,9 +65,9 @@ func TestTXT001_ASCIIWidthStable(t *testing.T) {
 
 func TestTXT012_LongPathTruncationPolicy(t *testing.T) {
 	long := strings.Repeat("a", 200) + "/file.go"
-	got := txt.Truncate(long, 40)
-	if txt.Cells(got) > 40 {
-		t.Fatal(got, txt.Cells(got))
+	got := project.Truncate(long, 40)
+	if project.Cells(got) > 40 {
+		t.Fatal(got, project.Cells(got))
 	}
 	if !strings.HasSuffix(got, "…") {
 		t.Fatal(got)
@@ -99,15 +100,15 @@ func TestTXT018_BidiInNames(t *testing.T) {
 func TestTXT013_ANSIWidthParity(t *testing.T) {
 	plain := "hello world"
 	styled := "\x1b[31mhello world\x1b[0m"
-	if txt.VisibleCells(plain) != txt.VisibleCells(styled) {
-		t.Fatalf("plain=%d styled=%d", txt.VisibleCells(plain), txt.VisibleCells(styled))
+	if project.VisibleCells(plain) != project.VisibleCells(styled) {
+		t.Fatalf("plain=%d styled=%d", project.VisibleCells(plain), project.VisibleCells(styled))
 	}
 }
 
 func TestTXT014_OSC8ZeroCells(t *testing.T) {
 	link := "\x1b]8;;https://example.com\x07click\x1b]8;;\x07"
-	if txt.VisibleCells(link) != txt.Cells("click") {
-		t.Fatalf("got %d want %d", txt.VisibleCells(link), txt.Cells("click"))
+	if project.VisibleCells(link) != project.Cells("click") {
+		t.Fatalf("got %d want %d", project.VisibleCells(link), project.Cells("click"))
 	}
 }
 

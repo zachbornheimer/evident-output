@@ -34,7 +34,7 @@ func TestArgAt(t *testing.T) {
 
 // TestFirstParentCommits_KnownBrokenCommit is this tool's own red-first
 // proof: 48baff0 is a real, already-merged commit in this repo's history
-// that does not compile on its own (internal/engine/file.go references
+// that does not compile on its own (the root package/file.go references
 // settleOutputBarrier/openOutputBarrierLocked before a later commit in the
 // same range adds them) — bisectability-check must name exactly that
 // commit as the one that fails to build.

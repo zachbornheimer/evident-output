@@ -283,7 +283,6 @@ func TestChangeImportsOnlyRecordGraphFreshnessAndFacades(t *testing.T) {
 // graphImporters are the only packages that may import internal/graph: the
 // engine that wires it today, and the packages that report into it later.
 var graphImporters = []string{
-	"internal/engine",
 	"internal/change",
 	"internal/freshness",
 }
@@ -308,7 +307,6 @@ func TestOnlyEngineChangeAndFreshnessImportGraph(t *testing.T) {
 // recordProducerPackages are the only packages, besides record itself, that
 // may call a method that writes run truth into record.
 var recordProducerPackages = []string{
-	"internal/engine",
 	"internal/graph",
 	"internal/freshness",
 	"internal/change",

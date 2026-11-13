@@ -54,7 +54,7 @@ func mustAbsDirFS(dir string) fs.FS {
 // FileSet, committed through evo.File, must leave the per-attribute
 // verification outcome that commit produced intact all the way through
 // evo.WriteJSON's "evo.run" encoding and schema/run.v2.json validation —
-// not merely round-trip through a hand-built core.VerificationDetail
+// not merely round-trip through a hand-built record.VerificationDetail
 // fixture the way internal/wire/compat_test.go's spliced-document tests
 // do. This is Patch's own machine provenance, one hop past File's (Patch
 // derives the desired state File then commits and verifies).
@@ -119,7 +119,7 @@ func TestPatch_FileVerification_SurvivesEncodeRun(t *testing.T) {
 	// exists": a Patch-committed File reports a "contents" attribute, and
 	// this fixture's contents-only diff (no mode change) must have
 	// satisfied it — the same code/status contract
-	// internal/engine/file.go's toVerificationDetails produces.
+	// the root package/file.go's toVerificationDetails produces.
 	verification := doc.Data.Tasks[0].Verification
 	contentsVerification, ok := findVerification(verification, "contents")
 	if !ok {

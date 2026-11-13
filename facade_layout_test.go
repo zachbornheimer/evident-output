@@ -47,6 +47,8 @@ func TestFacade_RootOutputIsWrapperNotAlias(t *testing.T) {
 }
 
 func TestFacade_EngineDoesNotImportRoot(t *testing.T) {
+	t.Skip("engine folded into the root package")
+
 	root := moduleRoot(t)
 	engineDir := filepath.Join(root, "internal", "engine")
 	matches, err := filepath.Glob(filepath.Join(engineDir, "*.go"))
@@ -54,7 +56,7 @@ func TestFacade_EngineDoesNotImportRoot(t *testing.T) {
 		t.Fatalf("glob engine *.go: %v", err)
 	}
 	if len(matches) == 0 {
-		t.Fatal("no internal/engine *.go files")
+		t.Fatal("no the root package *.go files")
 	}
 	importRoot := regexp.MustCompile(`"github.com/zachbornheimer/evident-output"`)
 	var hits []string
@@ -68,6 +70,6 @@ func TestFacade_EngineDoesNotImportRoot(t *testing.T) {
 		}
 	}
 	if len(hits) > 0 {
-		t.Fatalf("internal/engine must not import the root package; found in %s", strings.Join(hits, ", "))
+		t.Fatalf("the root package must not import the root package; found in %s", strings.Join(hits, ", "))
 	}
 }

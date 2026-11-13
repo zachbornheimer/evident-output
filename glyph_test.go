@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
-	txt "github.com/zachbornheimer/evident-output/internal/text"
+	"github.com/zachbornheimer/evident-output/internal/project"
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
@@ -142,13 +142,13 @@ func TestGlyphUnicode_UnchangedByProfileAxis(t *testing.T) {
 // two-cell "✓"/"✗" dingbats — the glyph table must report this per-face
 // width so layout code can align columns rather than assuming rune count.
 func TestGlyphWidths_BlockedAndCancelledAreNarrow(t *testing.T) {
-	if got := txt.Cells("⊘"); got != 1 {
+	if got := project.Cells("⊘"); got != 1 {
 		t.Fatalf("⊘ width = %d, want 1", got)
 	}
-	if got := txt.Cells("■"); got != 1 {
+	if got := project.Cells("■"); got != 1 {
 		t.Fatalf("■ width = %d, want 1", got)
 	}
-	if got := txt.Cells("✓"); got != 2 {
+	if got := project.Cells("✓"); got != 2 {
 		t.Fatalf("✓ width = %d, want 2", got)
 	}
 }

@@ -785,7 +785,7 @@ func TestAPI049_Remediated_StaysSilent(t *testing.T) {
 // API-047: a Task/Group/Sequence declaration reuses a sibling literal name
 // already used by a different entity kind under the same parent (ZYS-944).
 // Same-kind reuse already fails fast at runtime
-// (engine.ProblemCodeDuplicateSiblingName); this rule closes the cross-kind
+// (evo.ProblemCodeDuplicateSiblingName); this rule closes the cross-kind
 // gap statically.
 
 const crossKindDuplicateSiblingSrc = `package p
@@ -912,7 +912,7 @@ func TestAPI047_PreOneZeroPin_StaysSilent(t *testing.T) {
 // API-048: a Group/Sequence Task re-declared by the same string literal to
 // obtain a later dependency reference — declareGroupTask fails the second
 // call as a duplicate sibling rather than returning the first handle (§3.1;
-// internal/engine/group.go's GroupHandle.Task doc comment), so the fix is a
+// the root package/group.go's GroupHandle.Task doc comment), so the fix is a
 // typed variable (or var (...) block) holding the one handle, per the
 // product contract's own zq prune example.
 

@@ -18,7 +18,7 @@ import (
 // compares within one kind's own name index (ZYS-944).
 
 // siblingEntityKind names the three declarable entity kinds this rule
-// compares across (a package-local mirror of internal/engine's own
+// compares across (a package-local mirror of the root package's own
 // entityKind — review is a static-analysis package and does not import
 // engine, so it keeps its own copy of this small vocabulary).
 type siblingEntityKind string
@@ -168,7 +168,7 @@ func siblingDeclMethod(kind siblingEntityKind) string {
 // ===== API-048: the same Group/Sequence receiver's .Task("literal") called
 // more than once with the identical string in one function — declareGroupTask
 // fails the second call as a duplicate sibling rather than returning the
-// first handle (§3.1; internal/engine/group.go's GroupHandle.Task), so a
+// first handle (§3.1; the root package/group.go's GroupHandle.Task), so a
 // later dependency reference (After, a second Define, ...) must keep the
 // first handle instead of re-declaring by name. The contract's own zq prune
 // fixture (spec §21/§18) extracts these into a typed var (...) block; that
