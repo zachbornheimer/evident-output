@@ -17,7 +17,7 @@ import (
 // OK-family, Partial-marked conclusion.
 func TestFinish_PhaseOnlyTaskCleanReturn_NeverCancels(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	out.Task("connect").Doing("connecting")
 	// early return nil — no Done/Fail/Block/Skip, no signal, no output-level error.
@@ -48,7 +48,7 @@ func TestFinish_PhaseOnlyTaskCleanReturn_NeverCancels(t *testing.T) {
 // behavior must not regress.
 func TestFinish_AbnormalFinish_UnresolvedRunningTaskStillCancels(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	leftover := out.Task("connect")
 	leftover.Doing("connecting")
@@ -72,7 +72,7 @@ func TestFinish_AbnormalFinish_UnresolvedRunningTaskStillCancels(t *testing.T) {
 // explicit with/without-Phase comparison).
 func TestRun_NeverResolvedBareTask_BandAndExitCodeAgree(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	code := out.Run(func(o *evo.Output) error {
 		o.Task("install") // declared, never started, never resolved
@@ -101,7 +101,7 @@ func TestRun_NeverResolvedBareTask_BandAndExitCodeAgree(t *testing.T) {
 // raw "misuse: <name>: evo: ..." sentinel text.
 func TestFinish_UnresolvedTask_HintReplacesRawMisuseLine(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	out.Task("install") // declared, never resolved
 
@@ -110,7 +110,7 @@ func TestFinish_UnresolvedTask_HintReplacesRawMisuseLine(t *testing.T) {
 	if strings.Contains(rendered, "evo: task has no final state") {
 		t.Fatalf("raw sentinel jargon leaked into the user stream:\n%s", rendered)
 	}
-	if !strings.Contains(rendered, "call Done, Fail, Block, Skip, or a mutation verb on this task") {
+	if !strings.Contains(rendered, "call Done, Fail, Block, Skipped, or a mutation verb on this task") {
 		t.Fatalf("want the corrective hint rendered instead, got:\n%s", rendered)
 	}
 }
@@ -121,11 +121,11 @@ func TestFinish_UnresolvedTask_HintReplacesRawMisuseLine(t *testing.T) {
 // row per call plus an overflow ellipsis.
 func TestChanges_RepeatedIdenticalRecordsMergeQuantities(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain(), evo.Width(80)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, Width: 80})
 
 	task := out.Task("cleanup")
 	for i := 0; i < 12; i++ {
-		_ = task.Delete("merged branch", nil, evo.Affected(1))
+		task.Record("delete", 1, "merged branch")
 	}
 	task.Done()
 

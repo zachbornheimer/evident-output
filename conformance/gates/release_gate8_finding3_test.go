@@ -15,7 +15,7 @@ import (
 // it visible without changing the exit code (precedent: "· partial").
 func TestConclusion_WarnedModifierSurvivesOKHeadline(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("fetch").Done()
@@ -50,7 +50,7 @@ func TestConclusion_WarnedModifierSurvivesOKHeadline(t *testing.T) {
 // headline. The "· warned" modifier still carries the warning forward.
 func TestConclusion_WarnOnlyRunStillCarriesWarnedModifier(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("cache").Warn("stale entry ignored")

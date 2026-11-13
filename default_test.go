@@ -3,6 +3,7 @@ package evo_test
 import (
 	"bytes"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -14,7 +15,7 @@ import (
 
 func TestTask_PackageFuncGetOrCreateReturnsSameHandle(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
+	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
 	a := evo.Task("branches")
 	b := evo.Task("branches")
@@ -34,7 +35,7 @@ func TestTask_PackageFuncGetOrCreateReturnsSameHandle(t *testing.T) {
 
 func TestPackageFuncs_DelegateToDefaultInstance(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
+	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
 	evo.Task("working tree").Done()
 	evo.Println("hello from package func")
@@ -70,7 +71,7 @@ func TestVerbose_PackageFuncScopesVisibility(t *testing.T) {
 
 func TestMain_OKExitZero(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
+	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
 	code := evo.Run(func() error {
 		evo.Task("working tree").Done()
@@ -83,7 +84,7 @@ func TestMain_OKExitZero(t *testing.T) {
 
 func TestMain_BlockedExitOne(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
+	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
 	code := evo.Run(func() error {
 		evo.Task("working tree").Block("dirty")
@@ -96,7 +97,7 @@ func TestMain_BlockedExitOne(t *testing.T) {
 
 func TestMain_FailedExitTwo(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
+	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
 	code := evo.Run(func() error {
 		return errors.New("app boom")
@@ -108,7 +109,7 @@ func TestMain_FailedExitTwo(t *testing.T) {
 
 func TestMain_NilRunNeverPanics(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
+	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
 	code := evo.Run(nil)
 	if code != evo.ExitOK {
@@ -118,11 +119,11 @@ func TestMain_NilRunNeverPanics(t *testing.T) {
 
 func TestInit_ArmsFirstPaintBeforeAnyEntity(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := evo.Init(evo.Config{
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard,
 		Title:           "demo",
 		Terminal:        screen,
 		Color:           evo.ColorNever,
-		VisibilityDelay: evo.Delay(0),
+		VisibilityDelay: evo.DelayForTest(0),
 	})
 	t.Cleanup(func() { _ = out.Close() })
 
@@ -153,6 +154,6 @@ func TestDefault_LazyInitNeverPanics(t *testing.T) {
 	cmd.Env = append(os.Environ(), "EVO_LAZY_DEFAULT_SUBPROCESS=1")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("subprocess with no Init() panicked or failed: %v\n%s", err, out)
+		t.Fatalf("subprocess with no Init(Config{}) panicked or failed: %v\n%s", err, out)
 	}
 }
