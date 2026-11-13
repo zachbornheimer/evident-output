@@ -103,32 +103,28 @@ func runScenarioFile(t *testing.T, path string) {
 	}
 
 	var buf bytes.Buffer
-	opts := []evo.Option{evo.To(&buf)}
-	if sc.Options.Plain {
-		opts = append(opts, evo.Plain())
+	cfg := evo.Config{Stdout: &buf}
+	if sc.Options.Plain || sc.Options.NonInteractive {
+		cfg.Plain = true
 	}
 	if sc.Options.NoColor {
-		opts = append(opts, evo.NoColor())
-	}
-	if sc.Options.NonInteractive {
-		opts = append(opts, evo.Plain())
+		cfg.Color = evo.ColorNever
 	}
 	if sc.Options.Width > 0 {
-		opts = append(opts, evo.Width(sc.Options.Width))
+		cfg.Width = sc.Options.Width
 	}
 	if sc.Options.Strict {
-		opts = append(opts, evo.Strict())
+		cfg.Strict = true
 	}
-
 	if sc.Subject != "" {
-		opts = append([]evo.Option{evo.Title(sc.Subject)}, opts...)
+		cfg.Title = sc.Subject
 	}
-	out := evo.Init(evo.Config{Options: opts})
+	out := evo.Init(cfg)
 	t.Cleanup(func() { _ = out.Close() })
 
 	items := map[string]*evo.TaskHandle{}
 	tasks := map[string]*evo.TaskHandle{}
-	cols := map[string]*evo.DisplayGroup{}
+	cols := map[string]*evo.DisplayGroupHandle{}
 	var finishErr error
 
 	for _, m := range sc.Mutations {

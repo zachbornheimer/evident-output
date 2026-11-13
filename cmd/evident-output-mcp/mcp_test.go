@@ -47,12 +47,43 @@ func TestMCP_InitializeAndToolsListStdoutPurity(t *testing.T) {
 	if strings.Contains(stdout.String(), "starting (stdio)") {
 		t.Fatal("server log leaked to stdout")
 	}
-	if !strings.Contains(stdout.String(), "evident_output_list_guides") {
-		t.Fatal("tools/list missing guide tool")
+	listed := listedToolNames(t, stdout.String())
+	if _, ok := listed["evident_output_list_sections"]; !ok {
+		t.Fatal("tools/list missing list_sections")
+	}
+	if _, ok := listed["evident_output_list_guides"]; ok {
+		t.Fatal("tools/list must not advertise list_guides (call alias only)")
 	}
 	if !strings.Contains(stdout.String(), "API-006") && !strings.Contains(stdout.String(), "explicit Start") {
 		t.Fatalf("explain missing API-006: %s", stdout.String())
 	}
+}
+
+func listedToolNames(t *testing.T, stdout string) map[string]bool {
+	t.Helper()
+	out := map[string]bool{}
+	for _, line := range strings.Split(strings.TrimSpace(stdout), "\n") {
+		var msg map[string]any
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			continue
+		}
+		result, _ := msg["result"].(map[string]any)
+		tools, _ := result["tools"].([]any)
+		if len(tools) == 0 {
+			continue
+		}
+		for _, raw := range tools {
+			tm, _ := raw.(map[string]any)
+			name, _ := tm["name"].(string)
+			if name != "" {
+				out[name] = true
+			}
+		}
+	}
+	if len(out) == 0 {
+		t.Fatalf("no tools/list result in stdout: %s", stdout)
+	}
+	return out
 }
 
 func buildMCP(t *testing.T) string {

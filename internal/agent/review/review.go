@@ -401,6 +401,16 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectCrammedSummary(filename, src)...)
 	}
 
+	// FP-005: Task created and Done with no Doing/Progress/Writer window.
+	if hasEvo {
+		findings = append(findings, detectInstantDone(filename, f, fset)...)
+	}
+
+	// API-039: DisplayGroup that only ever has one child in source.
+	if hasEvo {
+		findings = append(findings, detectSingletonDisplayGroup(filename, f, fset)...)
+	}
+
 	// Textual patterns AST may miss (kept narrow; no bare substring of ".Map(")
 	if hasEvo {
 		// Detail(err) misuse — Detail expects string; if Detail(err) or Detail(someErr)
@@ -1066,7 +1076,7 @@ func detectTTYPassthroughWithoutSuspend(filename, src string) []Finding {
 	if !hasPassthrough {
 		return nil
 	}
-	if strings.Contains(src, ".Suspend(") {
+	if strings.Contains(src, ".Writer()") || strings.Contains(src, "task.Run(") {
 		return nil
 	}
 	line := 1
@@ -1080,10 +1090,10 @@ func detectTTYPassthroughWithoutSuspend(filename, src string) []Finding {
 	return []Finding{{
 		RuleID:     "TERM-015",
 		Severity:   "warning",
-		Message:    "tty-passthrough child (Stdout/Stderr inherited) without a surrounding out.Suspend(...) call; the child's own UI can glue onto the live spinner (evo-rec.md #7b)",
+		Message:    "tty-passthrough child (Stdout/Stderr inherited); capture it with Task.Run or task.Writer() so the live row keeps moving",
 		File:       filename,
 		Line:       line,
-		Suggestion: "wrap the call with out.Suspend(func() error { return cmd.Run() })",
+		Suggestion: "if err := task.Run(cmd); err != nil { return task.Failf(\"...: %w\", err) }",
 	}}
 }
 
@@ -1490,6 +1500,11 @@ var captureCallPattern = regexp.MustCompile(`(\w+)\.Capture\(`)
 // one entity, one constructor).
 var itemCallPattern = regexp.MustCompile(`(\w+)\.Item\(`)
 
+// planCallPattern / changesCallPattern match the retired v0.2 Plan/Changes
+// surfaces. Suggestion is Task mutation verbs, not a new Plan/Changes API.
+var planCallPattern = regexp.MustCompile(`(\w+)\.Plan\(`)
+var changesCallPattern = regexp.MustCompile(`(\w+)\.Changes\(`)
+
 // becauseCallPattern matches the retired .Because(text) annotation chain —
 // its text is now the resolving verb's own argument (e.g. Done(text)).
 var becauseCallPattern = regexp.MustCompile(`\.Because\(`)
@@ -1530,6 +1545,30 @@ func detectDeprecatedSpellings(filename, src string) []Finding {
 			File:       filename,
 			Line:       lineAt(src, m[0]),
 			Suggestion: "replace " + recv + ".Item(...) with " + recv + ".Task(...)",
+		})
+	}
+
+	for _, m := range planCallPattern.FindAllStringSubmatchIndex(src, -1) {
+		recv := src[m[2]:m[3]]
+		findings = append(findings, Finding{
+			RuleID:     "API-032",
+			Severity:   "warning",
+			Message:    "Plan was removed in v0.4 — use Task mutation verbs",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: "replace " + recv + ".Plan(...) with Task mutation verbs (Delete/Create/Record/...), not a new Plan API",
+		})
+	}
+
+	for _, m := range changesCallPattern.FindAllStringSubmatchIndex(src, -1) {
+		recv := src[m[2]:m[3]]
+		findings = append(findings, Finding{
+			RuleID:     "API-032",
+			Severity:   "warning",
+			Message:    "Changes was removed in v0.4 — use Task mutation verbs",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: "replace " + recv + ".Changes(...) with Task mutation verbs (Delete/Create/Record/...), not a new Changes API",
 		})
 	}
 

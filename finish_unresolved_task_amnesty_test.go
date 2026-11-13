@@ -16,14 +16,14 @@ import (
 // effect — so it must not read as misuse.
 func TestFinish_ReadmeQuickstart_EachLoopAutoResolvesDone(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	out.Task("working tree").Done()
 	out.Task("branches").Block(
 		"local-only branch",
 		evo.Detail("commit or stash before continuing"),
 	)
-	_ = out.Task("cleanup").Delete("stale local branch", nil, evo.Affected(2))
+	out.Task("cleanup").Delete(2, "stale local branch")
 	packages := []string{"a", "b", "c"}
 	for range out.Task("install").Each(packages) {
 		// install(pkg) — no explicit Done afterward, matching the README.
@@ -50,7 +50,7 @@ func TestFinish_ReadmeQuickstart_EachLoopAutoResolvesDone(t *testing.T) {
 // process.
 func TestFinish_TeachingLadder_EachThenReturnNil_NeverCancels(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	items := []string{"one", "two"}
 	for range out.Task("scan").Each(items) {
@@ -83,7 +83,7 @@ func TestFinish_TeachingLadder_EachThenReturnNil_NeverCancels(t *testing.T) {
 // wins.
 func TestFinish_TaxonomyOnlyTaskWithDeclinedConfirm_BlockedNeverEscalates(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	reason := evo.Reason("protected")
 	out.Task("prune branches").Skipped(reason, "release/2.0")
@@ -118,7 +118,7 @@ func TestFinish_TaxonomyOnlyTaskWithDeclinedConfirm_BlockedNeverEscalates(t *tes
 // the run actually printed.
 func TestRun_BlockedWithLeftoverMisuse_NeverEscalatesToFailed(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	code := out.Run(func(o *evo.Output) error {
 		o.Task("branches").Block("local-only branch")
