@@ -68,7 +68,8 @@ func TestSpecP2_LocalRemoteSeparation_Step2(t *testing.T) {
 		"[planned] branches",
 		"delete 12 local tip",
 		"[planned] remotes",
-		"delete-remote 3 origin tip"} {
+		"delete-remote 3 origin tip",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -103,7 +104,8 @@ func TestSpecP2_LocalRemoteSeparation_Success(t *testing.T) {
 		"[changed] branches",
 		"deleted 12 local tip",
 		"[changed] remotes",
-		"deleted 3 origin tip"} {
+		"deleted 3 origin tip",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -139,7 +141,8 @@ func TestSpecP2_LocalRemoteSeparation_Failure(t *testing.T) {
 		"[changed] branches",
 		"deleted 12 local tip",
 		"✗ remotes push --delete denied",
-		"protected branch rule on origin"} {
+		"protected branch rule on origin",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -203,7 +206,8 @@ func TestSpecP4_SequentialGroup_Failure(t *testing.T) {
 	for _, want := range []string{
 		"✓ scan",
 		"✗ venv     uv exited 1: No such file or directory",
-		"- install  not started"} {
+		"- install  not started",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -238,7 +242,8 @@ func TestSpecP5_DiscoverySealedTotal_Success(t *testing.T) {
 		"[changed] scan",
 		"ready 40 repos",
 		"blocked 80 repos",
-		"error 8 repos"} {
+		"error 8 repos",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -382,7 +387,8 @@ func TestSpecP8_PartialTruthSurvivesRemoteAuthFailure(t *testing.T) {
 		"[changed] remotes",
 		"deleted origin/feat/a",
 		"✗ remotes authentication failed",
-		"remote: Invalid username or token"} {
+		"remote: Invalid username or token",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -593,7 +599,8 @@ func TestSpecP24_DataFormat_PresentationNeverTouchesPayloadStream(t *testing.T) 
 		Format: evo.FormatData,
 		Stderr: &presentation,
 		Result: &payload,
-		Color:  evo.ColorNever})
+		Color:  evo.ColorNever,
+	})
 	scan := out.Task("scan")
 	scan.Done("128 checked")
 	_, err := payload.Write([]byte(`{"ready":40,"blocked":80,"error":8}`))
