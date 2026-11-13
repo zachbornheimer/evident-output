@@ -194,11 +194,12 @@ func (d *recSurfaceDetector) rewriteSkip(recv string, call *ast.CallExpr) (strin
 	}
 	nameArg := d.nodeSrc(call.Args[0])
 	if len(call.Args) > 1 {
-		inner := nameArg
+		var inner strings.Builder
+		inner.WriteString(nameArg)
 		for _, a := range call.Args[1:] {
-			inner += ", " + d.nodeSrc(a)
+			inner.WriteString(", " + d.nodeSrc(a))
 		}
-		nameArg = "fmt.Sprintf(" + inner + ")"
+		nameArg = "fmt.Sprintf(" + inner.String() + ")"
 	}
 	old := d.nodeSrc(call)
 	next := recv + ".Skipped(" + d.pkg + ".Reason(" + nameArg + "), " + nameArg + ")"
@@ -243,11 +244,12 @@ func (d *recSurfaceDetector) rewriteTaskExtras(recv string, call *ast.CallExpr) 
 		}
 		return "replace " + old + " with " + next, true
 	}
-	inner := nameArg
+	var inner strings.Builder
+	inner.WriteString(nameArg)
 	for _, a := range fmtArgs {
-		inner += ", " + a
+		inner.WriteString(", " + a)
 	}
-	return "replace " + old + " with " + recv + ".Task(fmt.Sprintf(" + inner + "))", true
+	return "replace " + old + " with " + recv + ".Task(fmt.Sprintf(" + inner.String() + "))", true
 }
 
 func (d *recSurfaceDetector) optionSliceToFields(cl *ast.CompositeLit) string {
