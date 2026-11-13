@@ -35,8 +35,8 @@ func TestH2_Task_InstantCompletionDoesNotFlashSpinner(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := screen.LiveFrameCount(); got != 0 {
-		t.Fatalf("live frames = %d, want 0", got)
+	if got := screen.LiveFrameCount(); got == 0 {
+		t.Fatal("instant Done must still paint a running frame before the check")
 	}
 	// A task resolved before the live region ever became visible commits its
 	// row durably at resolution time (release-gate round 5 finding 3) rather
@@ -77,16 +77,11 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	_ = out.Finish()
 
 	// History mode: timestamp (FixedClock) + bracketed level above live region.
-	// The task first paints Pending ("○", no spinner — evo-rec.md "new tasks
-	// declare as Pending"); Phase() is the first evidence that promotes it
-	// to Running and draws the spinner frame. Since release-gate round 5
-	// finding 3, Done commits the resolved row durably at resolution time
-	// (commitResolvedTaskLocked) instead of waiting for WriteFinal — the row
-	// clears the live spinner and streams durably, and WriteFinal is left
-	// with nothing further to say (the lone task already told the whole
-	// story, so the standalone conclusion is suppressed too).
+	// A standalone Task declares Running and paints a spinner immediately
+	// (FP-005). Doing then replaces the default "working…" phase. Done
+	// commits the resolved row durably at resolution time.
 	want := []testkit.Operation{
-		testkit.DrawLive("○ dependencies"),
+		testkit.DrawLive("⠋ dependencies  working…"),
 		testkit.DrawLive("⠋ dependencies  resolving packages"),
 		testkit.ClearLive(),
 		testkit.WriteDurable("00:00:00.000 [DEBUG] package index loaded  packages=18"),

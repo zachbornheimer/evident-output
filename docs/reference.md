@@ -8,6 +8,7 @@ wrong or this doc is; file it either way.
 ## Construction, config, lifecycle
 
 **Construction:** `evo.Init(Config{…})` is the sole constructor — the package-level default instance (front door) by default; `Config.Isolated: true` returns an independent hosted instance instead — TTY, `NO_COLOR`, stdout/stderr defaults included. Advanced: `Config.Options: []Option{Title(...), …}` for exact writer/terminal/clock wiring — an explicit `To(w)` under `Options` bypasses TTY/color inference entirely (raw ANSI on `w` unless you also call `NoColor()`); leaving both `To()` and `Terminal(...)` unset instead defaults to `os.Stdout` with the ordinary TTY/`NO_COLOR` inference applied.
+**Presentation env:** when the matching Config field is still zero, `EVO_OUTPUT=human|plain|json|jsonl|stream-json` (`stream_json` accepted) selects encoding, `EVO_COLOR=auto|always|never` selects color, `EVO_VERBOSE=1` selects verbose, and `EVO_DEBUG=info|debug|trace` selects the debug journal level. Explicit Config/Options win over env; env wins over TTY inference. `Format` still only routes streams — `FormatData` keeps domain payload on stdout and puts json/jsonl/stream-json on stderr. Empty `EVO_COLOR` plus `NO_COLOR` still means never-color. `Config.Plain: true` is not cleared by `EVO_OUTPUT=human`.
 **Config honesty:** `VisibilityDelay: evo.Delay(0)` is immediate (nil = default 80ms). `Debug: evo.DebugConfig{Level: evo.LevelDebug}` selects the journal threshold — `evo.LogLevel`, a distinct type from stdlib `slog.Level` (`LevelUnset` → Info).
 **Lifecycle:** `evo.Main(run)` (default instance, `run func() error`) or `evo.MainWith(out, run)` (hosted, `Config.Isolated: true`, `run func(*Output) error`) exits the process itself after Finish + Close; `evo.Run(run)` / `out.Run(run)` return the exit code instead of exiting, for callers composing their own exit path. A non-nil `run` error is recorded as Fail only when nothing already failed. See "Lifecycles" below for the three supported shapes, including `Init` with no `Main`/`Run` at all.
 **Messages:** one human instrument — `Print` / `Printf` / `Println` + `Verbose()`. Infrastructure logs: `slog.New(out.SlogHandler())` (level from `Config.Debug.Level` only), written to `Config.Stderr` (default `os.Stderr`) — a piped run like `prog > log.txt` won't capture them; redirect with `2>` (or `2>&1`) instead. Semantic state: `Task`.
@@ -96,7 +97,7 @@ if err := runDockerInfo(proof); err != nil {
 - **Detail:** `DetailTail()` is a `ProblemOption`; separate `Stdout()`/`Stderr()` buffers. `Failf`'s
   trailing `%w` also renders a summary/evidence split for the wrapped error itself.
 - **Defaults:** last 200 lines / 256KiB via `KeepLastLines` / `MaxEvidenceBytes`.
-- **Session `out.Capture`:** advanced only — prefer entity-owned capture.
+- **Session `out.Evidence`:** advanced only — prefer entity-owned `task.Evidence()`.
 
 ## Platform adapters (contracts, not sugar)
 

@@ -70,11 +70,11 @@ func (w *phaseWriter) Write(p []byte) (int, error) {
 			w.task.setLiveOnlyPhase(trimmed)
 		}
 	}
-	if len(w.buf) > phaseWriterMaxPendingBytes {
-		if trimmed := strings.TrimSpace(string(w.buf)); trimmed != "" {
-			w.task.setLiveOnlyPhase(trimmed)
+	if leftover := strings.TrimSpace(string(w.buf)); leftover != "" {
+		w.task.setLiveOnlyPhase(leftover)
+		if len(w.buf) > phaseWriterMaxPendingBytes {
+			w.buf = w.buf[:0]
 		}
-		w.buf = w.buf[:0]
 	}
 	return len(p), nil
 }

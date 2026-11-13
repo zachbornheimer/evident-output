@@ -67,9 +67,8 @@ func (o *Output) liveLocked() LiveSurface {
 
 // signalLiveLocked marks that interactive presentation may need a redraw.
 // force=true bypasses frame-rate coalescing only (not VisibilityDelay).
-// VisibilityDelay withholds the first live paint after activity starts so
-// Task/Phase→fast Done does not flash a spinner. Instant Done still waits
-// the delay; if delay has not elapsed, no live frames (H.2).
+// VisibilityDelay withholds the first live paint after activity starts, except
+// a newly declared Running task always paints (FP-005: spinner before check).
 func (o *Output) signalLiveLocked(force bool) {
 	live := o.liveLocked()
 	if live == nil || !live.IsInteractive() {
@@ -85,8 +84,10 @@ func (o *Output) signalLiveLocked(force bool) {
 			o.live.activitySince = now
 		}
 		delay := o.cfg.visibilityDelay
-		// delay <= 0 means immediate (tests use VisibilityDelay(0)).
-		if delay <= 0 || now.Sub(o.live.activitySince) >= delay {
+		// delay <= 0 means immediate (tests use VisibilityDelay(0)). A newly
+		// declared Running task bypasses the delay so the first frame is a
+		// spinner, not a popup-complete check (FP-005).
+		if delay <= 0 || now.Sub(o.live.activitySince) >= delay || o.hasUnpaintedRunningLocked() {
 			o.live.visible = true
 			o.live.waitingDelay = false
 		} else {
@@ -108,6 +109,47 @@ func (o *Output) signalLiveLocked(force bool) {
 	}
 	o.renderLiveLocked(force)
 	o.ensureSpinnerAnimatorLocked()
+}
+
+// holdRunningPaint keeps a Running row on screen for one spinner period so a
+// fast bind cannot resolve in the same tick the spinner was painted — the
+// viewer would otherwise see a popup-complete check (FP-005). Skipped when
+// the clock is not the wall clock (tests inject Clock) or the surface is
+// not an interactive live terminal.
+func (o *Output) holdRunningPaint(id string) {
+	o.mu.Lock()
+	if _, ok := o.cfg.clock.(SystemClock); !ok {
+		o.mu.Unlock()
+		return
+	}
+	live := o.liveLocked()
+	if live == nil || !live.IsInteractive() {
+		o.mu.Unlock()
+		return
+	}
+	st := o.taskByRef[id]
+	if st == nil || st.state != Running {
+		o.mu.Unlock()
+		return
+	}
+	seen := st.liveFirstSeenAt
+	o.mu.Unlock()
+	wait := txt.SpinnerPeriod
+	if !seen.IsZero() {
+		wait = txt.SpinnerPeriod - time.Since(seen)
+	}
+	if wait > 0 {
+		time.Sleep(wait)
+	}
+}
+
+func (o *Output) hasUnpaintedRunningLocked() bool {
+	for _, t := range o.tasks {
+		if t.state == Running && t.liveFirstSeenAt.IsZero() {
+			return true
+		}
+	}
+	return false
 }
 
 func (o *Output) hasLiveActivityLocked() bool {

@@ -22,7 +22,7 @@ func TestFinishResolvesRunningTaskAsCancelled(t *testing.T) {
 
 	running := out.Task("download")
 	running.Doing("fetching")
-	pending := out.Task("verify")
+	pending := out.Sequence("steps").Task("verify")
 
 	code := out.Run(func(o *evo.Output) error {
 		return errors.New("boom")

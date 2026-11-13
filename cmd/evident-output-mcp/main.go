@@ -295,22 +295,6 @@ func truncateForLog(b []byte, n int) string {
 
 func toolList() []map[string]any {
 	tools := []map[string]any{
-		{"name": "evident_output_list_guides", "description": "List guidance catalog entries", "inputSchema": map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"use_case":    map[string]any{"type": "string"},
-				"max_tokens":  map[string]any{"type": "integer"},
-				"deadline_ms": map[string]any{"type": "integer"},
-			},
-		}},
-		{"name": "evident_output_get_guidance", "description": "Retrieve guidance sections by id", "inputSchema": map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"ids":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-				"max_tokens":  map[string]any{"type": "integer"},
-				"deadline_ms": map[string]any{"type": "integer"},
-			},
-		}},
 		{"name": "evident_output_list_sections", "description": "List the full docs corpus servable via evident_output_get_documentation (reference, development, MCP wiring, adoption ladder, per-concept guides)", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -325,19 +309,22 @@ func toolList() []map[string]any {
 				"deadline_ms": map[string]any{"type": "integer"},
 			},
 		}},
-		{"name": "evident_output_adopt_plan", "description": "Inventory non-evo CLI output (fmt.Print*/log.*/os.Stdout/spinner libs) under a directory and return a migration plan keyed to the adoption ladder", "inputSchema": map[string]any{
+		{"name": "evident_output_adopt_plan", "description": "Inventory non-evo CLI output (fmt.Print*/log.*/os.Stdout/spinner libs) under a directory and return a paged migration plan keyed to the adoption ladder", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"directory":   map[string]any{"type": "string"},
+				"cursor":      map[string]any{"type": "string"},
+				"limit":       map[string]any{"type": "integer"},
 				"deadline_ms": map[string]any{"type": "integer"},
 			},
 			"required": []string{"directory"},
 		}},
-		{"name": "evident_output_review", "description": "Review Go source, multi-file package, transcript, or structured JSON for evo misuse", "inputSchema": map[string]any{
+		{"name": "evident_output_review", "description": "Review Go source, a local directory, multi-file package, transcript, or structured JSON for evo misuse", "inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"source":      map[string]any{"type": "string"},
 				"file":        map[string]any{"type": "string"},
+				"directory":   map[string]any{"type": "string"},
 				"kind":        map[string]any{"type": "string"},
 				"files":       map[string]any{"type": "object"},
 				"deadline_ms": map[string]any{"type": "integer"},
@@ -561,7 +548,11 @@ func handleToolCall(id any, req map[string]any) {
 			writeRPC(id, toolError("remote path unsupported; pass a local directory (MCP-036)"))
 			return
 		}
-		plan, err := adopt.Inventory(directory)
+		cursor, _ := args["cursor"].(string)
+		page, err := adopt.InventoryPage(directory, adopt.InventoryOptions{
+			Cursor: cursor,
+			Limit:  intFromArgs(args, "limit"),
+		})
 		if err != nil {
 			writeRPC(id, toolError("adopt_plan: "+err.Error()))
 			return
@@ -571,16 +562,27 @@ func handleToolCall(id any, req map[string]any) {
 			return
 		}
 		writeRPC(id, map[string]any{
-			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("%d findings across %d ladder rungs", len(plan.Findings), len(plan.RungsTouched))}},
+			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("%d findings, remaining=%d — %s", len(page.Findings), page.Remaining, page.NextAction)}},
 			"structuredContent": map[string]any{
-				"schema": "evident_output_adopt_plan.v1",
-				"plan":   plan,
+				"schema":      "evident_output_adopt_plan.v1",
+				"directory":   page.Directory,
+				"findings":    page.Findings,
+				"rung":        page.Rung,
+				"remaining":   page.Remaining,
+				"next_cursor": page.NextCursor,
+				"next_action": page.NextAction,
+				"facades":     page.Facades,
+				"caveat":      page.Caveat,
 			},
 		})
 	case "evident_output_review":
 		src, _ := args["source"].(string)
 		file, _ := args["file"].(string)
 		kind, _ := args["kind"].(string)
+		if kind == "directory" {
+			handleReviewDirectory(id, args, &cancelled)
+			return
+		}
 		if file == "" {
 			file = "input.go"
 		}
@@ -647,18 +649,7 @@ func handleToolCall(id any, req map[string]any) {
 			writeRPC(id, toolError("deadline exceeded"))
 			return
 		}
-		nextAction := reviewNextAction(res)
-		text := fmt.Sprintf("findings=%d recheck=%v partial=%v — %s", len(res.Findings), res.RecheckRequired, res.Partial, nextAction)
-		writeRPC(id, map[string]any{
-			"content": []map[string]any{{"type": "text", "text": text}},
-			"structuredContent": map[string]any{
-				"schema":           "evident_output_review.v1",
-				"recheck_required": res.RecheckRequired,
-				"partial":          res.Partial,
-				"findings":         res.Findings,
-				"next_action":      nextAction,
-			},
-		})
+		writeReviewResult(id, res)
 	case "evident_output_preview":
 		subject, _ := args["subject"].(string)
 		item, _ := args["item"].(string)
@@ -718,6 +709,47 @@ func allFileContentEmpty(files map[string]string) bool {
 	return true
 }
 
+func handleReviewDirectory(id any, args map[string]any, cancelled *atomic.Bool) {
+	directory, _ := args["directory"].(string)
+	if directory == "" {
+		writeRPC(id, toolError("directory is required"))
+		return
+	}
+	if isRemotePath(directory) {
+		writeRPC(id, toolError("remote path unsupported; pass a local directory (MCP-036)"))
+		return
+	}
+	if !filepath.IsAbs(directory) {
+		writeRPC(id, toolError("directory must be an absolute local path"))
+		return
+	}
+	res, err := review.GoDirectory(directory)
+	if err != nil {
+		writeRPC(id, toolError("review directory: "+err.Error()))
+		return
+	}
+	if cancelled.Load() {
+		writeRPC(id, toolError("deadline exceeded"))
+		return
+	}
+	writeReviewResult(id, res)
+}
+
+func writeReviewResult(id any, res review.Result) {
+	nextAction := reviewNextAction(res)
+	text := fmt.Sprintf("findings=%d recheck=%v partial=%v — %s", len(res.Findings), res.RecheckRequired, res.Partial, nextAction)
+	writeRPC(id, map[string]any{
+		"content": []map[string]any{{"type": "text", "text": text}},
+		"structuredContent": map[string]any{
+			"schema":           "evident_output_review.v1",
+			"recheck_required": res.RecheckRequired,
+			"partial":          res.Partial,
+			"findings":         res.Findings,
+			"next_action":      nextAction,
+		},
+	})
+}
+
 // reviewNextAction makes the review→fix→re-review loop self-driving: an
 // agent that only reads this field (never the findings count itself) still
 // knows whether to stop or keep going, matching the Svelte MCP's "call this
@@ -765,7 +797,7 @@ func toolArgAllowlist() map[string]map[string]bool {
 			"ids": true, "max_tokens": true, "deadline_ms": true,
 		},
 		"evident_output_review": {
-			"source": true, "file": true, "kind": true, "files": true, "deadline_ms": true,
+			"source": true, "file": true, "directory": true, "kind": true, "files": true, "deadline_ms": true,
 		},
 		"evident_output_preview": {
 			"subject": true, "item": true, "state": true, "debug": true, "deadline_ms": true,
@@ -775,7 +807,7 @@ func toolArgAllowlist() map[string]map[string]bool {
 		"evident_output_get_documentation": {
 			"ids": true, "deadline_ms": true,
 		},
-		"evident_output_adopt_plan": {"directory": true, "deadline_ms": true},
+		"evident_output_adopt_plan": {"directory": true, "cursor": true, "limit": true, "deadline_ms": true},
 	}
 }
 
