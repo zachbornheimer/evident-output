@@ -401,6 +401,16 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectCrammedSummary(filename, src)...)
 	}
 
+	// FP-005: Task created and Done with no Doing/Progress/Writer window.
+	if hasEvo {
+		findings = append(findings, detectInstantDone(filename, f, fset)...)
+	}
+
+	// API-039: DisplayGroup that only ever has one child in source.
+	if hasEvo {
+		findings = append(findings, detectSingletonDisplayGroup(filename, f, fset)...)
+	}
+
 	// Textual patterns AST may miss (kept narrow; no bare substring of ".Map(")
 	if hasEvo {
 		// Detail(err) misuse — Detail expects string; if Detail(err) or Detail(someErr)
@@ -1490,6 +1500,11 @@ var captureCallPattern = regexp.MustCompile(`(\w+)\.Capture\(`)
 // one entity, one constructor).
 var itemCallPattern = regexp.MustCompile(`(\w+)\.Item\(`)
 
+// planCallPattern / changesCallPattern match the retired v0.2 Plan/Changes
+// surfaces. Suggestion is Task mutation verbs, not a new Plan/Changes API.
+var planCallPattern = regexp.MustCompile(`(\w+)\.Plan\(`)
+var changesCallPattern = regexp.MustCompile(`(\w+)\.Changes\(`)
+
 // becauseCallPattern matches the retired .Because(text) annotation chain —
 // its text is now the resolving verb's own argument (e.g. Done(text)).
 var becauseCallPattern = regexp.MustCompile(`\.Because\(`)
@@ -1530,6 +1545,30 @@ func detectDeprecatedSpellings(filename, src string) []Finding {
 			File:       filename,
 			Line:       lineAt(src, m[0]),
 			Suggestion: "replace " + recv + ".Item(...) with " + recv + ".Task(...)",
+		})
+	}
+
+	for _, m := range planCallPattern.FindAllStringSubmatchIndex(src, -1) {
+		recv := src[m[2]:m[3]]
+		findings = append(findings, Finding{
+			RuleID:     "API-032",
+			Severity:   "warning",
+			Message:    "Plan was removed in v0.4 — use Task mutation verbs",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: "replace " + recv + ".Plan(...) with Task mutation verbs (Delete/Create/Record/...), not a new Plan API",
+		})
+	}
+
+	for _, m := range changesCallPattern.FindAllStringSubmatchIndex(src, -1) {
+		recv := src[m[2]:m[3]]
+		findings = append(findings, Finding{
+			RuleID:     "API-032",
+			Severity:   "warning",
+			Message:    "Changes was removed in v0.4 — use Task mutation verbs",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: "replace " + recv + ".Changes(...) with Task mutation verbs (Delete/Create/Record/...), not a new Changes API",
 		})
 	}
 
