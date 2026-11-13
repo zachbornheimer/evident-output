@@ -31,6 +31,21 @@ func TestPhaseWriter_SplitsOnLF_AcrossWrites(t *testing.T) {
 	}
 }
 
+func TestPhaseWriter_UnterminatedWriteBecomesDoing(t *testing.T) {
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})
+	t.Cleanup(func() { _ = out.Close() })
+	task := out.Task("build")
+	w := task.Writer()
+
+	if _, err := w.Write([]byte("Compiling Foo.swift")); err != nil {
+		t.Fatal(err)
+	}
+	if got := task.Snapshot().Phase; got != "Compiling Foo.swift" {
+		t.Fatalf("unterminated child write = %q, want it as Doing so progress cannot freeze on the previous line", got)
+	}
+}
+
 func TestPhaseWriter_CRDelimitsProgressFrames(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "t", Stdout: &buf, Stderr: &buf})

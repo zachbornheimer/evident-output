@@ -192,7 +192,9 @@ func f() {
   // example: tasks.Map() is not real — do not flag this comment either
   slug := strings.Map(func(r rune) rune { return r }, "ABC")
   out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("x")}})
-  out.Task(slug).Done()
+  t := out.Task(slug)
+  t.Doing("resolving %s", slug)
+  t.Done()
   _ = out.Finish()
 }
 `
@@ -1171,6 +1173,9 @@ func run(out *evo.Output) error {
   _, _ = reader.ReadString('\n')
 
   out.Task("working tree").Block("dirty")
+  out.Task("go@1.25.11").Done("/bin/go")
+  jobs := out.DisplayGroup("run")
+  jobs.Task("install:fresh-start")
   return errors.New("dirty")
 }
 `))
@@ -1249,6 +1254,9 @@ func run(out *evo.Output, svc services, task *evo.TaskHandle, done, total int) e
   _, _ = reader.ReadString('\n')
 
   out.Task("working tree").Block("dirty")
+  out.Task("go@1.25.11").Done("/bin/go")
+  jobs := out.DisplayGroup("run")
+  jobs.Task("install:fresh-start")
   return errors.New("dirty")
 }
 `

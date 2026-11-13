@@ -96,6 +96,10 @@ func FitLiveRegion(text string, columns int) string {
 }
 
 func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
+	if !col.Sequential && len(col.Tasks) == 1 && len(col.Collections) == 0 {
+		writeLiveTaskLine(b, col.Tasks[0], 0, width, spin, color, now, profile)
+		return
+	}
 	done, total := 0, len(col.Tasks)
 	for _, t := range col.Tasks {
 		if t.State == core.Done || t.State == core.Skipped {

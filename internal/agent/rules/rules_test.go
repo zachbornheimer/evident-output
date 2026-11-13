@@ -49,7 +49,7 @@ func TestMCP027_ExplainAPI006Examples(t *testing.T) {
 }
 
 func TestExplainFirstPaintRules(t *testing.T) {
-	for _, id := range []string{"FP-001", "FP-002", "FP-003"} {
+	for _, id := range []string{"FP-001", "FP-002", "FP-003", "FP-005"} {
 		r, ok := rules.Explain(id)
 		if !ok {
 			t.Fatalf("%s missing", id)
