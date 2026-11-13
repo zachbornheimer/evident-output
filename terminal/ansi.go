@@ -275,7 +275,7 @@ func (a *ANSI) eraseLiveLocked() {
 	if n > 1 {
 		a.writeStringLocked(fmt.Sprintf("\x1b[%dA", n-1))
 	}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		a.writeStringLocked(seqCR + seqEraseLine)
 		if i < n-1 {
 			a.writeStringLocked("\n")
