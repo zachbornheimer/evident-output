@@ -56,6 +56,10 @@ run = "go run ./tools/scripts/traceability-check"
 description = "Markdown evo usage inventory for another Go repo (evo-usage-audit <repo-path> [--output FILE]); put flags AFTER the task name — a flag before it is swallowed by mise's own -o/--output"
 run = "go run ./tools/scripts/evo-usage-audit"
 
+[tasks.test-evo]
+description = "Capture timed PNG/TXT frames of a command in a real tmux PTY. Flags AFTER the task name. Requires --start-dir, exactly one of --timeout-ms/--timeout-s, exactly one of --screenshot-interval-ms/--screenshot-interval-s, then -- CMD"
+run = "python3 ./scripts/test-evo.py"
+
 [tasks.doctor]
 description = "Verify repo contract"
 run = [

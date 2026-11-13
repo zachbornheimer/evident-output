@@ -23,7 +23,7 @@ func (f *fakeCapabilityScreen) WriteDurable(string) {}
 func (f *fakeCapabilityScreen) WriteFinal(string)   {}
 
 func TestCapability_NoColorForcesNone(t *testing.T) {
-	p := detectCapabilities(NoColor(), Plain())
+	p := detectCapabilities(withNoColor(), plain())
 	if p.Color != colorNone {
 		t.Fatal(p.Color)
 	}
@@ -34,7 +34,7 @@ func TestCapability_NoColorForcesNone(t *testing.T) {
 
 func TestCapability_FromScreen(t *testing.T) {
 	s := &fakeCapabilityScreen{width: 100, height: 40}
-	p := detectCapabilities(Terminal(s), VisibilityDelay(0))
+	p := detectCapabilities(withTerminal(s), visibilityDelay(0))
 	if p.Width != 100 || p.Height != 40 {
 		t.Fatalf("%+v", p)
 	}
