@@ -327,7 +327,7 @@ func newOutput(subject string, options ...Option) *Output {
 	// 2 and 5).
 	if cfg.terminal == nil && cfg.primary == nil {
 		cfg.primary = os.Stdout
-		if !cfg.noColor && (os.Getenv("NO_COLOR") != "" || !IsCharDevice(cfg.primary)) {
+		if !cfg.noColor && (lookupEnv(envKeyNoColor) != "" || !writerIsCharDevice(cfg.primary)) {
 			cfg.noColor = true
 		}
 	}
@@ -1422,6 +1422,25 @@ func (o *Output) appendEventLocked(e Event) {
 	}
 	o.events = append(o.events, e)
 	o.compactJournalLocked()
+	if o.cfg.projection == ProjectionStreamJSON {
+		o.writeStreamJSONLocked(e)
+	}
+}
+
+func (o *Output) writeStreamJSONLocked(e Event) {
+	w := o.cfg.primary
+	if w == nil {
+		return
+	}
+	row, err := EncodeEventJSON(e)
+	if err != nil {
+		return
+	}
+	_, _ = w.Write(row)
+	_, _ = w.Write([]byte{'\n'})
+	if f, ok := w.(flusher); ok {
+		_ = f.Flush()
+	}
 }
 
 // criticalEventTypes are never dropped under journal backpressure (CON-008).
@@ -1640,6 +1659,15 @@ func (o *Output) Finish() error {
 	misuse := o.misuse
 	o.finished = true
 	o.finishing = false
+
+	if cfg.projection.suppressesHuman() {
+		var events []Event
+		if cfg.projection == ProjectionJSONL {
+			events = append([]Event(nil), o.events...)
+		}
+		o.mu.Unlock()
+		return writeMachinePresentation(writer, snap, events, cfg.projection, misuse)
+	}
 
 	// Captured before residualPlainLocked drains o.linesEmitted for its own
 	// copy, so residualInteractiveFinalLocked's copy (below) sees the same
