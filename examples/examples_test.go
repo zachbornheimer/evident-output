@@ -36,7 +36,6 @@ func TestExamples_NonTTYSmoke(t *testing.T) {
 		{name: "terminal-driver", args: []string{"--fast", "--frames"}},
 	}
 	for _, s := range specs {
-		s := s
 		label := s.name
 		if len(s.args) > 0 {
 			label = s.name + "/" + joinArgs(s.args)
@@ -91,7 +90,7 @@ func findRepoRoot(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 6; i++ {
+	for range 6 {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			// When tests run as package examples_test from examples/, go.mod is parent.
 			if filepath.Base(dir) == "examples" {
