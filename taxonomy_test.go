@@ -14,7 +14,7 @@ import (
 // with the same name on the default instance must be the identical value,
 // and a different name must not collide with it.
 func TestReason_GetOrCreateMergesDuplicateNamesOnDefaultInstance(t *testing.T) {
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.Title("t"), evo.NoColor()}}))
+	evo.SetDefault(evo.Init(evo.Config{Title: "t", Color: evo.ColorNever}))
 
 	a := evo.Reason("protected")
 	b := evo.Reason("protected")
@@ -33,12 +33,11 @@ func TestReason_GetOrCreateMergesDuplicateNamesOnDefaultInstance(t *testing.T) {
 // var) must still merge into one taxonomy bucket by name.
 func TestTaskHandle_SkippedInlineReasonMergesByName(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
+	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
-	branches := evo.Task("branches")
-	branches.Skipped(evo.Reason("protected"), "main")
-	branches.Skipped(evo.Reason("protected"), "staging")
-	branches.Done()
+	for _, task := range evo.Group("branches").Each([]string{"main", "staging"}) {
+		task.Skipped(evo.Reason("protected"))
+	}
 
 	if err := evo.Default().Finish(); err != nil {
 		t.Fatal(err)
@@ -54,15 +53,18 @@ func TestTaskHandle_SkippedInlineReasonMergesByName(t *testing.T) {
 // records, so parts mechanically sum to the headline count.
 func TestTaskHandle_SkippedPartitionSumsRendersCountsByReason(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
+	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
 	protected := evo.Reason("protected")
 	dirty := evo.Reason("dirty")
-	branches := evo.Task("branches")
-	branches.Skipped(protected, "main")
-	branches.Skipped(protected, "staging")
-	branches.Skipped(dirty, "tip")
-	branches.Done()
+	g := evo.Group("branches")
+	for name, task := range g.Each([]string{"main", "staging", "wip"}) {
+		if name == "wip" {
+			task.Skipped(dirty)
+			continue
+		}
+		task.Skipped(protected)
+	}
 
 	if err := evo.Default().Finish(); err != nil {
 		t.Fatal(err)
@@ -78,14 +80,12 @@ func TestTaskHandle_SkippedPartitionSumsRendersCountsByReason(t *testing.T) {
 // collapses to its bare name since the count already says N.
 func TestTaskHandle_KeptSingleReasonCollapsesToBareName(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
+	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
 	unpushed := evo.Reason("unpushed")
-	branches := evo.Task("branches")
-	branches.Kept(unpushed, "feat/a")
-	branches.Kept(unpushed, "feat/b")
-	branches.Kept(unpushed, "feat/c")
-	branches.Done()
+	for _, task := range evo.Group("branches").Each([]string{"feat/a", "feat/b", "feat/c"}) {
+		task.Kept(unpushed)
+	}
 
 	if err := evo.Default().Finish(); err != nil {
 		t.Fatal(err)
@@ -107,11 +107,9 @@ func TestTaskHandle_SkippedVerboseEmitsTruncatedNameList(t *testing.T) {
 	}))
 
 	protected := evo.Reason("protected")
-	branches := evo.Task("branches")
-	for _, name := range []string{"a", "b", "c", "d"} {
-		branches.Skipped(protected, name)
+	for _, task := range evo.Group("branches").Each([]string{"a", "b", "c", "d"}) {
+		task.Skipped(protected)
 	}
-	branches.Done()
 
 	if err := evo.Default().Finish(); err != nil {
 		t.Fatal(err)
@@ -129,12 +127,10 @@ func TestTaskHandle_SkippedVerboseEmitsTruncatedNameList(t *testing.T) {
 // Verbose, only the count/partition line renders, never the raw name list.
 func TestTaskHandle_SkippedNonVerboseOmitsNameList(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
+	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
 	protected := evo.Reason("protected")
-	branches := evo.Task("branches")
-	branches.Skipped(protected, "main")
-	branches.Done()
+	evo.Task("branches").Skipped(protected)
 
 	if err := evo.Default().Finish(); err != nil {
 		t.Fatal(err)
@@ -153,14 +149,13 @@ func TestTaskHandle_SkippedNonVerboseOmitsNameList(t *testing.T) {
 // line a standalone task does.
 func TestSequence_ChildRendersKeptTaxonomyLine(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	unpushed := evo.Reason("unpushed")
 	group := out.Sequence("branches")
-	child := group.Task("feature-branches")
-	child.Kept(unpushed, "feat/a")
-	child.Kept(unpushed, "feat/b")
-	child.Done()
+	for _, task := range group.Each([]string{"feat/a", "feat/b"}) {
+		task.Kept(unpushed)
+	}
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
@@ -183,11 +178,9 @@ func TestSequence_ChildVerboseRendersTruncatedNameList(t *testing.T) {
 
 	protected := evo.Reason("protected")
 	group := out.Sequence("branches")
-	child := group.Task("stale-branches")
-	for _, name := range []string{"a", "b", "c", "d"} {
-		child.Skipped(protected, name)
+	for _, task := range group.Each([]string{"a", "b", "c", "d"}) {
+		task.Skipped(protected)
 	}
-	child.Done()
 
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
@@ -206,12 +199,12 @@ func TestSequence_ChildVerboseRendersTruncatedNameList(t *testing.T) {
 // production (non-Strict) still counts the record rather than dropping truth.
 func TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	evo.SetDefault(out)
-	skipOnly := evo.Reason("unpushed", evo.ForSkip())
+	skipOnly := evo.ReasonConstrained("unpushed", evo.ForSkip())
 
 	branches := out.Task("branches")
-	branches.Kept(skipOnly, "feat/a")
+	branches.Kept(skipOnly)
 
 	if out.Err() == nil {
 		t.Fatal("want recorded misuse for a ForSkip reason recorded via Kept")
@@ -230,9 +223,9 @@ func TestReason_ForSkipUsedViaKeptRecordsMisuseAndStillCounts(t *testing.T) {
 // OnTask constraint under Strict: a reason scoped to one task, recorded from
 // a different task, panics instead of silently degrading.
 func TestReason_OnTaskWrongTaskPanicsUnderStrict(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t"), evo.Strict(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "t", Color: evo.ColorNever, Strict: true})
 	evo.SetDefault(out)
-	onlyBranches := evo.Reason("dirty", evo.OnTask("branches"))
+	onlyBranches := evo.ReasonConstrained("dirty", evo.OnTask("branches"))
 	worktrees := out.Task("worktrees")
 
 	// No t.Cleanup(out.Close): Strict re-panics on Finish for the
@@ -244,25 +237,23 @@ func TestReason_OnTaskWrongTaskPanicsUnderStrict(t *testing.T) {
 				t.Error("want panic under Strict for an OnTask constraint violation")
 			}
 		}()
-		worktrees.Skipped(onlyBranches, "x")
+		worktrees.Skipped(onlyBranches)
 	}()
 }
 
-// TestTaskHandle_SkippedDoesNotResolveTask pins "usable pre-resolution and
-// does not resolve the task": Skipped is not itself evidence of work
-// starting (Phase/Progress/Advance/Bytes/Each/PhaseWriter are), so a task
-// declared Pending and only given a Skipped record stays Pending — not
-// terminal, so the caller can keep classifying before calling Done.
+// TestTaskHandle_SkippedDoesNotResolveTask inverts the pre-dialect
+// "Skipped does not resolve" assumption: Skipped/Kept on an atomic Task
+// IS the resolve (Group.Each is how many names accumulate).
 func TestTaskHandle_SkippedDoesNotResolveTask(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t"), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "t", Color: evo.ColorNever})
 	evo.SetDefault(out)
 	t.Cleanup(func() { _ = out.Close() })
 
 	branches := out.Task("branches")
-	branches.Skipped(evo.Reason("protected"), "main")
+	branches.Skipped(evo.Reason("protected"))
 
-	if state := branches.Snapshot().State; state != evo.Pending {
-		t.Fatalf("Skipped must not resolve the task, state = %v", state)
+	if state := branches.Snapshot().State; state != evo.Skipped {
+		t.Fatalf("Skipped must resolve the task, state = %v, want Skipped", state)
 	}
 }
 
@@ -273,12 +264,12 @@ func TestTaskHandle_SkippedDoesNotResolveTask(t *testing.T) {
 // line per record.
 func TestTaskHandle_SkippedCauseRendersOneBoundedEvidenceLine(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
+	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
 	protected := evo.Reason("protected")
 	branches := evo.Task("branches")
-	branches.Skipped(protected, "main", errors.New("required review"))
-	branches.Skipped(protected, "staging", errors.New("required review"))
+	branches.SkippedWithErrs(protected, "main", errors.New("required review"))
+	branches.SkippedWithErrs(protected, "staging", errors.New("required review"))
 	branches.Done()
 
 	if err := evo.Default().Finish(); err != nil {
@@ -304,8 +295,8 @@ func TestTaskHandle_SkippedCauseVerboseListsEveryCause(t *testing.T) {
 
 	protected := evo.Reason("protected")
 	branches := evo.Task("branches")
-	branches.Skipped(protected, "main", errors.New("cause one"))
-	branches.Skipped(protected, "staging", errors.New("cause two"))
+	branches.SkippedWithErrs(protected, "main", errors.New("cause one"))
+	branches.SkippedWithErrs(protected, "staging", errors.New("cause two"))
 	branches.Done()
 
 	if err := evo.Default().Finish(); err != nil {
@@ -324,11 +315,10 @@ func TestTaskHandle_SkippedCauseVerboseListsEveryCause(t *testing.T) {
 // backward-compatible path: no errs, no evidence line.
 func TestTaskHandle_SkippedNoCauseOmitsEvidenceLine(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}}))
+	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
 	branches := evo.Task("branches")
-	branches.Skipped(evo.Reason("protected"), "main")
-	branches.Done()
+	branches.Skipped(evo.Reason("protected"))
 
 	if err := evo.Default().Finish(); err != nil {
 		t.Fatal(err)
@@ -342,20 +332,22 @@ func TestTaskHandle_SkippedNoCauseOmitsEvidenceLine(t *testing.T) {
 // exposure requirement: Skipped/Kept live in TaskSnapshot (disposition side
 // of the model), not the mutation ledger (Plan/Changes).
 func TestTaskSnapshot_ExposesSkippedAndKeptTaxonomy(t *testing.T) {
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("t"), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "t", Color: evo.ColorNever})
 	evo.SetDefault(out)
 	t.Cleanup(func() { _ = out.Close() })
 
 	reason := evo.Reason("protected")
-	branches := out.Task("branches")
-	branches.Skipped(reason, "main")
-	branches.Kept(reason, "feat/a")
+	skipped := out.Task("main")
+	skipped.Skipped(reason)
+	kept := out.Task("feat/a")
+	kept.Kept(reason)
 
-	snap := branches.Snapshot()
-	if len(snap.Skipped) != 1 || snap.Skipped[0].Reason != "protected" || snap.Skipped[0].Name != "main" {
-		t.Fatalf("Skipped taxonomy not exposed on snapshot: %+v", snap.Skipped)
+	skipSnap := skipped.Snapshot()
+	if len(skipSnap.Skipped) != 1 || skipSnap.Skipped[0].Reason != "protected" || skipSnap.Skipped[0].Name != "main" {
+		t.Fatalf("Skipped taxonomy not exposed on snapshot: %+v", skipSnap.Skipped)
 	}
-	if len(snap.Kept) != 1 || snap.Kept[0].Reason != "protected" || snap.Kept[0].Name != "feat/a" {
-		t.Fatalf("Kept taxonomy not exposed on snapshot: %+v", snap.Kept)
+	keepSnap := kept.Snapshot()
+	if len(keepSnap.Kept) != 1 || keepSnap.Kept[0].Reason != "protected" || keepSnap.Kept[0].Name != "feat/a" {
+		t.Fatalf("Kept taxonomy not exposed on snapshot: %+v", keepSnap.Kept)
 	}
 }
