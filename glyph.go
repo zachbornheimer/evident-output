@@ -33,7 +33,7 @@ const (
 )
 
 // Glyphs selects the glyph capability profile (default GlyphsAuto).
-func Glyphs(p GlyphProfile) Option {
+func glyphs(p GlyphProfile) Option {
 	return optionFunc(func(c *config) { c.glyphs = p })
 }
 

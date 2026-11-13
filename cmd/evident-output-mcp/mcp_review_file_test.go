@@ -113,3 +113,34 @@ func TestReview_FilesMapEmptyShapeReturnsExplicitError(t *testing.T) {
 		t.Fatalf("expected explicit empty-decode error, got: %s", out)
 	}
 }
+
+func TestReview_KindDirectoryMergesFiles(t *testing.T) {
+	bin := buildMCP(t)
+	dir := t.TempDir()
+	a := `package a
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output) { out.Plan("a") }
+`
+	b := `package b
+import evo "github.com/zachbornheimer/evident-output"
+func f(out *evo.Output) { out.Changes("b") }
+`
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte(a), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.go"), []byte(b), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dirJSON, _ := json.Marshal(dir)
+	in := strings.Join([]string{
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evident_output_review","arguments":{"kind":"directory","directory":` + string(dirJSON) + `}}}`,
+	}, "\n") + "\n"
+	out := runMCP(t, bin, in)
+	if !strings.Contains(out, "API-032") {
+		t.Fatalf("directory review missing API-032: %s", out)
+	}
+	if !strings.Contains(out, "a.go") || !strings.Contains(out, "b.go") {
+		t.Fatalf("directory review must merge both files: %s", out)
+	}
+}

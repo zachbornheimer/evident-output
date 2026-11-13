@@ -67,9 +67,8 @@ func (o *Output) liveLocked() LiveSurface {
 
 // signalLiveLocked marks that interactive presentation may need a redraw.
 // force=true bypasses frame-rate coalescing only (not VisibilityDelay).
-// VisibilityDelay withholds the first live paint after activity starts so
-// Task/Phase→fast Done does not flash a spinner. Instant Done still waits
-// the delay; if delay has not elapsed, no live frames (H.2).
+// VisibilityDelay withholds the first live paint after activity starts, except
+// a newly declared Running task always paints (FP-005: spinner before check).
 func (o *Output) signalLiveLocked(force bool) {
 	live := o.liveLocked()
 	if live == nil || !live.IsInteractive() {
@@ -85,13 +84,15 @@ func (o *Output) signalLiveLocked(force bool) {
 			o.live.activitySince = now
 		}
 		delay := o.cfg.visibilityDelay
-		// delay <= 0 means immediate (tests use VisibilityDelay(0)).
-		if delay <= 0 || now.Sub(o.live.activitySince) >= delay {
+		// delay <= 0 means immediate (tests use visibilityDelay(0)). A newly
+		// declared Running task bypasses the delay so the first frame is a
+		// spinner, not a popup-complete check (FP-005).
+		if delay <= 0 || now.Sub(o.live.activitySince) >= delay || o.hasUnpaintedRunningLocked() || o.armedTitleLiveLocked() {
 			o.live.visible = true
 			o.live.waitingDelay = false
 		} else {
 			o.live.waitingDelay = true
-			// Wall ticker re-checks delay; FixedClock tests re-enter after Advance.
+			// Wall ticker re-checks delay; fixedClock tests re-enter after Advance.
 			o.ensureSpinnerAnimatorLocked()
 			return
 		}
@@ -108,6 +109,47 @@ func (o *Output) signalLiveLocked(force bool) {
 	}
 	o.renderLiveLocked(force)
 	o.ensureSpinnerAnimatorLocked()
+}
+
+// holdRunningPaint keeps a Running row on screen for one spinner period so a
+// fast bind cannot resolve in the same tick the spinner was painted — the
+// viewer would otherwise see a popup-complete check (FP-005). Skipped when
+// the clock is not the wall clock (tests inject Clock) or the surface is
+// not an interactive live terminal.
+func (o *Output) holdRunningPaint(id string) {
+	o.mu.Lock()
+	if _, ok := o.cfg.clock.(systemClock); !ok {
+		o.mu.Unlock()
+		return
+	}
+	live := o.liveLocked()
+	if live == nil || !live.IsInteractive() {
+		o.mu.Unlock()
+		return
+	}
+	st := o.taskByRef[id]
+	if st == nil || st.state != Running {
+		o.mu.Unlock()
+		return
+	}
+	seen := st.liveFirstSeenAt
+	o.mu.Unlock()
+	wait := txt.SpinnerPeriod
+	if !seen.IsZero() {
+		wait = txt.SpinnerPeriod - time.Since(seen)
+	}
+	if wait > 0 {
+		time.Sleep(wait)
+	}
+}
+
+func (o *Output) hasUnpaintedRunningLocked() bool {
+	for _, t := range o.tasks {
+		if t.state == Running && t.liveFirstSeenAt.IsZero() {
+			return true
+		}
+	}
+	return false
 }
 
 func (o *Output) hasLiveActivityLocked() bool {
@@ -127,10 +169,14 @@ func (o *Output) hasLiveActivityLocked() bool {
 	}
 	// Armed-but-empty: Init promised a paint before any entity exists. Once
 	// the first Task/Tasks is declared, its own state drives activity.
-	if o.armed && len(o.tasks) == 0 && len(o.collections) == 0 {
-		return true
-	}
-	return false
+	return o.armedTitleLiveLocked()
+}
+
+// armedTitleLiveLocked is the title-only live spinner painted by arm() before
+// any Task exists. hasLiveActivityLocked and needsSpinnerAnimLocked must agree
+// on this predicate — otherwise the header spinner is shown and then frozen.
+func (o *Output) armedTitleLiveLocked() bool {
+	return o.armed && len(o.tasks) == 0 && len(o.collections) == 0
 }
 
 // arm marks the live surface as ready to paint before any entity is declared,
@@ -166,7 +212,10 @@ func (o *Output) renderLiveLocked(force bool) {
 	}
 	o.stampLiveFirstSeenLocked(now)
 	text := o.renderLiveRegionWithDebugLocked(cols, rows, now)
-	if !force && text == o.live.lastLiveText {
+	// force bypasses min-gap coalescing in signalLiveLocked, but identical
+	// bytes still skip WriteLive (spinner ticks pass force=true; glyph
+	// changes alter the rendered string and still paint).
+	if text == o.live.lastLiveText && o.live.liveActive {
 		return
 	}
 	live.WriteLive(text)
@@ -176,14 +225,17 @@ func (o *Output) renderLiveLocked(force bool) {
 	o.live.pendingRedraw = false
 }
 
-// needsSpinnerAnimLocked reports whether any live row should keep ticking: a
-// Pending or Running task that is still actually rendered in the current
-// frame — not a standalone task already flushed to durable text and dropped
-// from the ticker (see liveTickerSnapshotLocked's matching filter). Counting
-// only Running here used to let an all-Pending frame (nothing has started
-// yet, or every child is still waiting) freeze forever (evo-rec.md Problem
-// 9's universal heartbeat).
+// needsSpinnerAnimLocked reports whether any live row should keep ticking: the
+// armed title-only spinner, or a Pending/Running task still rendered in the
+// current frame — not a standalone task already flushed to durable text and
+// dropped from the ticker (see liveTickerSnapshotLocked's matching filter).
+// Counting only Running here used to let an all-Pending frame freeze forever
+// (evo-rec.md Problem 9). Omitting the armed title froze "⠦  zq" during
+// Init-to-first-Task work (ensureReady, fingerprint, Inspect).
 func (o *Output) needsSpinnerAnimLocked() bool {
+	if o.armedTitleLiveLocked() {
+		return true
+	}
 	for _, t := range o.tasks {
 		if t.state != Running && t.state != Pending {
 			continue
@@ -274,7 +326,7 @@ func (o *Output) stopResizeWatchLocked() {
 func (o *Output) spinnerAnimateLoop(stop <-chan struct{}) {
 	// Real wall ticker: spinner cadence is independent of the domain clock and
 	// of Progress/Phase call rate. Domain clock still selects the glyph frame
-	// (FixedClock freezes animation for golden tests).
+	// (fixedClock freezes animation for golden tests).
 	t := time.NewTicker(txt.SpinnerPeriod)
 	defer t.Stop()
 	for {
@@ -404,7 +456,7 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 		}
 	}
 	body := render.LiveRegion(o.liveTickerSnapshotLocked(), bodyHeight, width, now, color, profile)
-	if body == "" && o.armed && len(o.tasks) == 0 && len(o.collections) == 0 {
+	if body == "" && o.armedTitleLiveLocked() {
 		body = render.ArmedTitleLine(o.cfg.subject, now, color, profile)
 	}
 	if o.cfg.debugPresentation != DebugPresentationPane || len(o.debugRecords) == 0 {
