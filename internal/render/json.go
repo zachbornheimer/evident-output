@@ -159,7 +159,7 @@ func EncodeJSON(s core.Snapshot) ([]byte, error) {
 func EncodeJSONL(events []core.Event) ([]byte, error) {
 	var out []byte
 	for _, e := range events {
-		row, err := json.Marshal(toEventJSON(e))
+		row, err := EncodeEventJSON(e)
 		if err != nil {
 			return nil, err
 		}
@@ -167,6 +167,11 @@ func EncodeJSONL(events []core.Event) ([]byte, error) {
 		out = append(out, '\n')
 	}
 	return out, nil
+}
+
+// EncodeEventJSON encodes one journal event as a single JSON object (no newline).
+func EncodeEventJSON(e core.Event) ([]byte, error) {
+	return json.Marshal(toEventJSON(e))
 }
 
 func toJSONDocument(s core.Snapshot) JSONDocument {

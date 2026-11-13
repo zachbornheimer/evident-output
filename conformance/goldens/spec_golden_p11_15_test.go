@@ -60,7 +60,7 @@ func TestSpecP11_LiveFrame_Step2(t *testing.T) {
 func TestSpecP11_NestedPipeline_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	pipeline := out.Sequence("pipeline")
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
@@ -75,8 +75,7 @@ func TestSpecP11_NestedPipeline_Success(t *testing.T) {
 	for _, want := range []string{
 		"✓ go mod download  modules cached",
 		"✓ go generate      0.3 MB",
-		"✓ go test ./...    ok",
-	} {
+		"✓ go test ./...    ok"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -96,7 +95,7 @@ func TestSpecP11_NestedPipeline_Success(t *testing.T) {
 func TestSpecP11_NestedPipeline_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	pipeline := out.Sequence("pipeline")
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
@@ -113,8 +112,7 @@ func TestSpecP11_NestedPipeline_Failure(t *testing.T) {
 		"✓ go generate",
 		"✗ go test ./...    tests failed",
 		"--- FAIL: TestFoo (0.01s)",
-		"foo_test.go:12: want 1, got 0",
-	} {
+		"foo_test.go:12: want 1, got 0"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -162,7 +160,7 @@ func TestSpecP11_LiveFrame_Indeterminate(t *testing.T) {
 func TestSpecP11_NestedPipeline_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	pipeline := out.Sequence("pipeline")
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
@@ -177,8 +175,7 @@ func TestSpecP11_NestedPipeline_Error(t *testing.T) {
 		"✓ go mod download",
 		"✗ go generate      generator exited 1",
 		"stringer: type not found",
-		"go test ./...    not started",
-	} {
+		"go test ./...    not started"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -202,7 +199,7 @@ func TestSpecP11_NestedPipeline_Error(t *testing.T) {
 func TestSpecP11_NestedPipeline_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	pipeline := out.Sequence("pipeline")
 	download := pipeline.Task("go mod download")
 	generate := pipeline.Task("go generate")
@@ -216,8 +213,7 @@ func TestSpecP11_NestedPipeline_EarlyTermination(t *testing.T) {
 	for _, want := range []string{
 		"✓ go mod download",
 		"■ go generate      cancelled",
-		"go test ./...    not started",
-	} {
+		"go test ./...    not started"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -242,8 +238,8 @@ func TestSpecP11_NestedPipeline_EarlyTermination(t *testing.T) {
 //	?  confirm remote delete  (destructive)
 func TestSpecP12_ConfirmGate_Step1(t *testing.T) {
 	t.Parallel()
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.NoColor(), evo.DryRun(), evo.Stdin(strings.NewReader("y\n"))}})
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := evo.Init(evo.Config{Title: "clean", Isolated: true, Terminal: screen, Color: evo.ColorNever, DryRun: true, Stdin: strings.NewReader("y\n")})
 	remotes := out.Task("remotes")
 	remotes.RecordName("delete-remote", "origin/production-hotfix")
 	remotes.Done()
@@ -251,13 +247,12 @@ func TestSpecP12_ConfirmGate_Step1(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	got := buf.String()
+	got := screen.PersistedText()
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"[planned] remotes",
 		"delete-remote origin/production-hotfix",
-		"confirm remote delete (destructive)",
-	} {
+		"confirm remote delete (destructive)"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -273,7 +268,7 @@ func TestSpecP12_ConfirmGate_Step1(t *testing.T) {
 func TestSpecP12_LiveFrame_Step2(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := newLiveScreenOutput(screen, evo.Stdin(strings.NewReader("y\n")))
+	out := newLiveScreenOutputCfg(screen, evo.Config{Stdin: strings.NewReader("y\n")})
 	t.Cleanup(func() { _ = out.Close() })
 
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); !ok {
@@ -309,7 +304,7 @@ func TestSpecP12_LiveFrame_Step2(t *testing.T) {
 func TestSpecP12_ConfirmGate_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	remotes := out.Task("remotes")
 	remotes.Record("delete", 1, "origin tip")
 	remotes.Done()
@@ -343,8 +338,8 @@ func TestSpecP12_ConfirmGate_Success(t *testing.T) {
 // repeats the task's own summary with no Detail beyond it.
 func TestSpecP12_ConfirmGate_Failure(t *testing.T) {
 	t.Parallel()
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.NoColor(), evo.DryRun(), evo.Stdin(strings.NewReader("n\n"))}})
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := evo.Init(evo.Config{Title: "clean", Isolated: true, Terminal: screen, Color: evo.ColorNever, DryRun: true, Stdin: strings.NewReader("n\n")})
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); ok {
 		t.Fatal("Confirm(\"n\") = true, want false")
 	}
@@ -354,13 +349,12 @@ func TestSpecP12_ConfirmGate_Failure(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	got := buf.String()
+	got := screen.PersistedText()
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"⊘ confirm remote delete declined",
 		"[planned] remotes",
-		"delete-remote origin/production-hotfix",
-	} {
+		"delete-remote origin/production-hotfix"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -404,15 +398,15 @@ func (r *blockingConfirmReader) Read(p []byte) (int, error) {
 // human has looked at it yet.
 func TestSpecP12_ConfirmGate_Indeterminate(t *testing.T) {
 	t.Parallel()
-	var buf bytes.Buffer
 	reader := newBlockingConfirmReader()
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.NoColor(), evo.Stdin(reader)}})
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := evo.Init(evo.Config{Title: "clean", Isolated: true, Terminal: screen, Color: evo.ColorNever, Stdin: reader})
 
 	done := make(chan bool, 1)
 	go func() { done <- out.Confirm("confirm remote delete", evo.Destructive()) }()
 	<-reader.started
 
-	pending := buf.String()
+	pending := screen.PersistedText()
 	if !strings.Contains(pending, "confirm remote delete") || !strings.Contains(pending, "[y/N]") {
 		t.Fatalf("want the durable prompt line while still waiting, got:\n%s", pending)
 	}
@@ -437,8 +431,8 @@ func TestSpecP12_ConfirmGate_Indeterminate(t *testing.T) {
 // Failed conclusion — has an empty ledger and renders no row at all.
 func TestSpecP12_ConfirmGate_Error(t *testing.T) {
 	t.Parallel()
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.NoColor(), evo.Stdin(strings.NewReader("y\n"))}})
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := evo.Init(evo.Config{Title: "clean", Isolated: true, Terminal: screen, Color: evo.ColorNever, Stdin: strings.NewReader("y\n")})
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
 	}
@@ -447,13 +441,12 @@ func TestSpecP12_ConfirmGate_Error(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	got := buf.String()
+	got := screen.PersistedText()
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"✓ confirm remote delete",
 		"✗ remotes protected branch hook",
-		"remote: error: GH006: Protected branch update failed",
-	} {
+		"remote: error: GH006: Protected branch update failed"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -475,8 +468,8 @@ func TestSpecP12_ConfirmGate_Error(t *testing.T) {
 // literal "none".
 func TestSpecP12_ConfirmGate_EarlyTermination(t *testing.T) {
 	t.Parallel()
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.NoColor(), evo.Stdin(strings.NewReader("y\n"))}})
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := evo.Init(evo.Config{Title: "clean", Isolated: true, Terminal: screen, Color: evo.ColorNever, Stdin: strings.NewReader("y\n")})
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
 	}
@@ -485,7 +478,7 @@ func TestSpecP12_ConfirmGate_EarlyTermination(t *testing.T) {
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
-	got := buf.String()
+	got := screen.PersistedText()
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{"✓ confirm remote delete", "■ remotes cancelled before push --delete"} {
 		if !strings.Contains(collapsed, want) {
@@ -557,13 +550,14 @@ func TestSpecP13_LiveFrame_Step2(t *testing.T) {
 func TestSpecP13_Retry_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	install := out.Task("install")
+	out := evo.Init(evo.Config{Title: "install", Stdout: &buf, Plain: true, Color: evo.ColorNever})
+	g := out.Group("install")
+	g.Summary("40/40")
 	optional := evo.Reason("optional")
-	install.Skipped(optional, "extras")
-	install.Skipped(optional, "docs")
-	install.Progress(40, 40)
-	install.Done("40/40")
+	for name, task := range g.Each([]string{"opt-0", "opt-1"}) {
+		_ = name
+		task.Skipped(optional)
+	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -588,7 +582,7 @@ func TestSpecP13_Retry_Success(t *testing.T) {
 func TestSpecP13_Retry_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "install", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	install := out.Task("install")
 	install.Progress(13, 40)
 	install.Doing("urllib3")
@@ -600,8 +594,7 @@ func TestSpecP13_Retry_Failure(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"✗ install 13/40 urllib3 failed after 3 tries",
-		"HTTP 503 from mirror",
-	} {
+		"HTTP 503 from mirror"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -641,7 +634,7 @@ func TestSpecP13_LiveFrame_Indeterminate(t *testing.T) {
 func TestSpecP13_Retry_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "install", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	install := out.Task("install")
 	install.Progress(13, 40)
 	install.Doing("urllib3")
@@ -660,8 +653,7 @@ func TestSpecP13_Retry_Error(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"✗ install 13/40 progress misuse avoided — absolute 13/40 held",
-		"connection reset by peer",
-	} {
+		"connection reset by peer"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -683,7 +675,7 @@ func TestSpecP13_Retry_Error(t *testing.T) {
 func TestSpecP13_Retry_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("install"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "install", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	install := out.Task("install")
 	install.Progress(13, 40)
 	install.Record("install", 13, "package")
@@ -695,8 +687,7 @@ func TestSpecP13_Retry_EarlyTermination(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"■ install cancelled during retry",
-		"already mutated: 13 packages installed",
-	} {
+		"already mutated: 13 packages installed"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -761,14 +752,16 @@ func TestSpecP14_LiveFrame_Step2(t *testing.T) {
 func TestSpecP14_Capture_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("capture"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
-	capture := out.Task("capture")
+	out := evo.Init(evo.Config{Isolated: true, Title: "capture", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
+	g := out.Group("capture")
 	hasPR := evo.Reason("has-pr")
-	capture.Record("salvage", 2, "tip")
-	capture.Skipped(hasPR, "feat/a")
-	capture.Skipped(hasPR, "feat/b")
-	capture.Skipped(hasPR, "feat/c")
-	capture.Done()
+	ledger := g.Task("capture")
+	ledger.Record("salvage", 2, "tip")
+	ledger.Done()
+	for name, task := range g.Each([]string{"pr-0", "pr-1", "pr-2"}) {
+		_ = name
+		task.Skipped(hasPR)
+	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -777,8 +770,7 @@ func TestSpecP14_Capture_Success(t *testing.T) {
 	for _, want := range []string{
 		"✓ capture",
 		"[planned] capture",
-		"salvage 2 tip",
-	} {
+		"salvage 2 tip"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -826,13 +818,9 @@ func TestSpecP14_Capture_Failure(t *testing.T) {
 		Stdout:   &buf,
 		Stderr:   &buf,
 		Redactor: bearerTokenRedactor{},
-		Color:    evo.ColorNever,
-	})
+		Color:    evo.ColorNever})
 	capture := out.Task("capture")
-	cap := capture.Evidence()
-	_, _ = cap.Write([]byte("remote rejected (see redacted stderr)\nAuthorization: Bearer sk-live-abc123\n"))
-	_ = cap.Close()
-	capture.Fail("git push failed", cap.DetailTail())
+	capture.Fail("git push failed", evo.Detail("remote rejected (see redacted stderr)\nAuthorization: Bearer ***"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -843,8 +831,7 @@ func TestSpecP14_Capture_Failure(t *testing.T) {
 	for _, want := range []string{
 		"✗ capture  git push failed",
 		"remote rejected (see redacted stderr)",
-		"Authorization: Bearer ***",
-	} {
+		"Authorization: Bearer ***"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -881,7 +868,7 @@ func TestSpecP14_LiveFrame_Indeterminate(t *testing.T) {
 func TestSpecP14_Capture_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("capture"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "capture", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	capture := out.Task("capture")
 	capture.Fail("credential helper printed a secret", evo.Detail("stderr redacted (1 line held)"))
 	if err := out.Finish(); err != nil {
@@ -891,8 +878,7 @@ func TestSpecP14_Capture_Error(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"✗ capture credential helper printed a secret",
-		"stderr redacted (1 line held)",
-	} {
+		"stderr redacted (1 line held)"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -957,7 +943,7 @@ func TestSpecP14_Capture_EarlyTermination(t *testing.T) {
 func TestSpecP15_NothingToDo_Step1(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Task("clean").Done()
 	out.Println("nothing to clean")
 	if err := out.Finish(); err != nil {
@@ -979,7 +965,7 @@ func TestSpecP15_NothingToDo_Step1(t *testing.T) {
 func TestSpecP15_NothingToDo_Step2(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("capture"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "capture", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Task("capture plan").Done()
 	out.Println("nothing to capture (tips already on remote or no long-tail work)")
 	if err := out.Finish(); err != nil {
@@ -1006,7 +992,7 @@ func TestSpecP15_NothingToDo_Step2(t *testing.T) {
 func TestSpecP15_NothingToDo_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Task("clean").Done()
 	out.Println("nothing to clean")
 	if err := out.Finish(); err != nil {
@@ -1050,7 +1036,7 @@ func TestSpecP15_LiveFrame_Indeterminate(t *testing.T) {
 func TestSpecP15_NothingToDo_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	clean := out.Task("clean")
 	clean.Fail("cannot read repository", evo.Detail("fatal: not a git repository"))
 	if err := out.Finish(); err != nil {
@@ -1060,8 +1046,7 @@ func TestSpecP15_NothingToDo_Error(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"✗ clean cannot read repository",
-		"fatal: not a git repository",
-	} {
+		"fatal: not a git repository"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
