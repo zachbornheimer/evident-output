@@ -35,7 +35,7 @@ func collapseFields(s string) string {
 func TestSpecP6_BytesVsCounts_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("build"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "build", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	generate := out.Task("generate")
 	generate.Bytes(8_000_000, 8_000_000)
 	generate.Done("8.0 MB")
@@ -48,8 +48,7 @@ func TestSpecP6_BytesVsCounts_Failure(t *testing.T) {
 	for _, want := range []string{
 		"✓ generate 8.0 MB",
 		"✗ test tests failed",
-		"--- FAIL: TestFoo (0.01s)",
-	} {
+		"--- FAIL: TestFoo (0.01s)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -141,7 +140,7 @@ func TestSpecP6_EarlyTermination(t *testing.T) {
 		}
 	}
 
-	_ = generate.Write("partial artifact at /tmp/out (2.1 MB)", nil)
+	generate.Write(1, "partial artifact at /tmp/out (2.1 MB)")
 	generate.Cancel("cancelled")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -152,8 +151,7 @@ func TestSpecP6_EarlyTermination(t *testing.T) {
 	persisted := screen.PersistedText()
 	for _, want := range []string{
 		"■", "generate", "cancelled",
-		"already mutated: 1 partial artifact at /tmp/out (2.1 MB) wrote",
-	} {
+		"already mutated: 1 partial artifact at /tmp/out (2.1 MB) wrote"} {
 		if !strings.Contains(persisted, want) {
 			t.Fatalf("want %q in persisted live surface:\n%s", want, persisted)
 		}
@@ -178,7 +176,7 @@ func TestSpecP6_EarlyTermination(t *testing.T) {
 //	  delete  498 feat/x
 func TestSpecP7_Step1_PlanPreview(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
 	branches := out.Task("branches")
 	branches.RecordName("delete", "feat/a")
 	branches.RecordName("delete", "feat/b")
@@ -314,9 +312,9 @@ func TestSpecP7_EarlyTermination_NotTestable(t *testing.T) {
 func TestSpecP8_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	remotes := out.Task("remotes")
-	_ = remotes.Delete("origin tip", nil, evo.Affected(3))
+	remotes.Delete(3, "origin tip")
 	remotes.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -393,7 +391,7 @@ func TestSpecP8_EarlyTermination_NotTestable(t *testing.T) {
 func TestSpecP9_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "python setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Task("scan").Done()
 	out.Task("venv").Done()
 	out.Task("install").Done()
@@ -417,7 +415,7 @@ func TestSpecP9_Success(t *testing.T) {
 //	-  install  not started
 func TestSpecP9_Failure(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "python setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	setup := out.Sequence("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
@@ -443,7 +441,7 @@ func TestSpecP9_Failure(t *testing.T) {
 func TestSpecP9_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "python setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Task("scan").Done()
 	out.Task("venv").Fail("signal: killed")
 	if err := out.Finish(); err != nil {
@@ -467,13 +465,13 @@ func TestSpecP9_Error(t *testing.T) {
 //	!  already mutated: 1 incomplete .venv directory wrote
 func TestSpecP9_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("python setup"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "python setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	setup := out.Sequence("python")
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	setup.Task("install")
 	scan.Done()
-	_ = venv.Write("incomplete .venv directory", nil)
+	venv.Write(1, "incomplete .venv directory")
 	venv.Cancel("cancelled — .venv partial")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -483,8 +481,7 @@ func TestSpecP9_EarlyTermination(t *testing.T) {
 		"✓ scan",
 		"■ venv cancelled — .venv partial",
 		"- install not started",
-		"already mutated: 1 incomplete .venv directory wrote",
-	} {
+		"already mutated: 1 incomplete .venv directory wrote"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -501,7 +498,7 @@ func TestSpecP9_EarlyTermination(t *testing.T) {
 //   - install  installing
 func TestSpecP10_Step1(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("install").Doing("installing")
@@ -519,7 +516,7 @@ func TestSpecP10_Step1(t *testing.T) {
 //	•  install  14/40  requests
 func TestSpecP10_Step2(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("scan").Done()
@@ -549,7 +546,7 @@ func TestSpecP10_Step2(t *testing.T) {
 func TestSpecP10_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Task("scan").Done()
 	out.Task("venv").Done()
 	out.Task("install").Done("14 modules")
@@ -563,8 +560,7 @@ func TestSpecP10_Success(t *testing.T) {
 		"✓ venv",
 		"✓ install 14 modules",
 		"✓ python setup",
-		"python was set up; 14 modules were installed",
-	} {
+		"python was set up; 14 modules were installed"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -580,7 +576,7 @@ func TestSpecP10_Success(t *testing.T) {
 func TestSpecP10_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Task("scan").Done()
 	out.Task("install").Fail("uv pip install failed", evo.Detail("exit status 1"))
 	if err := out.Finish(); err != nil {
@@ -600,7 +596,7 @@ func TestSpecP10_Failure(t *testing.T) {
 //   - scan  scanning
 func TestSpecP10_LiveFrame_Indeterminate(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("scan").Doing("scanning")
@@ -620,7 +616,7 @@ func TestSpecP10_LiveFrame_Indeterminate(t *testing.T) {
 func TestSpecP10_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Task("scan").Done()
 	out.Task("install").Fail("network unreachable", evo.Detail("dial tcp: lookup pypi.org: no such host"))
 	if err := out.Finish(); err != nil {
@@ -630,8 +626,7 @@ func TestSpecP10_Error(t *testing.T) {
 	for _, want := range []string{
 		"✓ scan",
 		"✗ install network unreachable",
-		"dial tcp: lookup pypi.org: no such host",
-	} {
+		"dial tcp: lookup pypi.org: no such host"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -646,7 +641,7 @@ func TestSpecP10_Error(t *testing.T) {
 //	!  already mutated: 6 packages in .venv installed
 func TestSpecP10_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("install-pipeline"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Task("scan").Done()
 	install := out.Task("install")
 	install.Record("install", 6, "package in .venv")

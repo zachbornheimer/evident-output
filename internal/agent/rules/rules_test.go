@@ -1,10 +1,24 @@
 package rules_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/agent/rules"
 )
+
+func TestAPI032_DoesNotTeachMainWithAsCurrent(t *testing.T) {
+	r, ok := rules.Explain("API-032")
+	if !ok {
+		t.Fatal("API-032 missing")
+	}
+	if strings.Contains(r.GoodCode, "MainWith") {
+		t.Fatalf("API-032 GoodCode must not teach MainWith: %s", r.GoodCode)
+	}
+	if strings.Contains(r.Invariant, "is current") && strings.Contains(r.Invariant, "MainWith") {
+		t.Fatalf("API-032 Invariant still teaches MainWith as current: %s", r.Invariant)
+	}
+}
 
 func TestMCP027_ExplainFullPayload(t *testing.T) {
 	r, ok := rules.Explain("DOM-011")
@@ -49,7 +63,7 @@ func TestMCP027_ExplainAPI006Examples(t *testing.T) {
 }
 
 func TestExplainFirstPaintRules(t *testing.T) {
-	for _, id := range []string{"FP-001", "FP-002", "FP-003"} {
+	for _, id := range []string{"FP-001", "FP-002", "FP-003", "FP-005"} {
 		r, ok := rules.Explain(id)
 		if !ok {
 			t.Fatalf("%s missing", id)
