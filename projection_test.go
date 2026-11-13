@@ -10,13 +10,7 @@ import (
 
 func TestOUT021_DataProjectionOption(t *testing.T) {
 	var primary, diag bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.To(&primary),
-		evo.Diagnostics(&diag),
-		evo.DataProjection(),
-		evo.Plain(),
-		evo.NoColor(),
-	}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &primary, Stderr: &diag, Color: evo.ColorNever, Plain: true, Format: evo.FormatData})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("scan").Doing("walk").Done("ok")
 	_ = out.Finish()

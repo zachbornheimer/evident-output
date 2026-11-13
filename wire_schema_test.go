@@ -21,9 +21,9 @@ func TestWireSchema_RenderedDocumentValidates(t *testing.T) {
 		t.Fatalf("read schema/output.v1.json: %v", err)
 	}
 
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	out.Task("working tree").Done()
-	out.Task("branches").Warn("2 branches need attention", evo.Detail("push before retiring"))
+	out.Task("branches").Warn("2 branches need attention")
 	seq := out.Sequence("cleanup")
 	seq.Task("remove tags").Done()
 	_ = out.Finish()
