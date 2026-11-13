@@ -92,7 +92,9 @@ class AssertionTest(unittest.TestCase):
             [_mandatory(i, "\n") for i in (1, 2, 3, 4, 5)]
         )
         by_name = {c.name: c for c in checks}
-        self.assertEqual(by_name["mandatory-2..5 nonempty not identical"].status, "SKIP")
+        self.assertEqual(
+            by_name["mandatory-2..5 nonempty not identical"].status, "SKIP"
+        )
         self.assertEqual(by_name["mandatory-4 vs 5 spinner moved"].status, "SKIP")
 
     def test_frozen_spinner_fails_vary_and_4_vs_5(self) -> None:
@@ -105,7 +107,9 @@ class AssertionTest(unittest.TestCase):
             ]
         )
         by_name = {c.name: c for c in checks}
-        self.assertEqual(by_name["mandatory-2..5 nonempty not identical"].status, "FAIL")
+        self.assertEqual(
+            by_name["mandatory-2..5 nonempty not identical"].status, "FAIL"
+        )
         self.assertEqual(by_name["mandatory-2 vs 3 spinner moved"].status, "SKIP")
         self.assertEqual(by_name["mandatory-3 vs 4 spinner moved"].status, "SKIP")
         self.assertEqual(by_name["mandatory-4 vs 5 spinner moved"].status, "FAIL")

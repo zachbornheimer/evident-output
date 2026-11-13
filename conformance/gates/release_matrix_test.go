@@ -105,7 +105,8 @@ func TestMCP036_RemotePathRejectedByPolicy(t *testing.T) {
 	for _, p := range []string{
 		"https://evil.example/x.go",
 		"http://evil.example/x.go",
-		"git+ssh://host/repo"} {
+		"git+ssh://host/repo",
+	} {
 		if !isRemotePath(p) {
 			t.Fatalf("expected remote: %s", p)
 		}

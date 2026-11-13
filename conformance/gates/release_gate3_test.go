@@ -126,7 +126,7 @@ func TestChanges_RepeatedIdenticalRecordsMergeQuantities(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, Width: 80})
 
 	task := out.Task("cleanup")
-	for i := 0; i < 12; i++ {
+	for range 12 {
 		task.Record("delete", 1, "merged branch")
 	}
 	task.Done()
