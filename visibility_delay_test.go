@@ -20,16 +20,10 @@ func TestVisibilityDelay_WithholdsLiveUntilElapsed(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("download")
-	task.Doing("fetching") // activity — should wait for delay
-	if got := screen.LiveFrameCount(); got != 0 {
-		t.Fatalf("live frames before delay = %d, want 0", got)
+	if got := screen.LiveFrameCount(); got == 0 {
+		t.Fatal("declared Running task must paint immediately; delay must not hide the first spinner")
 	}
-
-	clock.Advance(50 * time.Millisecond)
-	task.Doing("still fetching") // still within delay
-	if got := screen.LiveFrameCount(); got != 0 {
-		t.Fatalf("live frames mid-delay = %d, want 0", got)
-	}
+	task.Doing("fetching")
 
 	clock.Advance(120 * time.Millisecond) // total 170ms >= 150ms
 	task.Progress(1, 2)                   // re-enter signalLive past delay

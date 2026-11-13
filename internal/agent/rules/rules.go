@@ -1060,6 +1060,38 @@ t = out.Task("build")`,
 			Certainty:       "deterministic",
 		},
 		{
+			ID:        "FP-005",
+			Category:  "FP",
+			Severity:  "warning",
+			Invariant: "a Task that will complete is declared, shown running, then resolved — never created already Done",
+			Why:       "A tool row that first appears as ✓ looks like a lie: the work happened off-screen. Declare the Task, call Doing while resolving, then Done.",
+			BadCode:   `out.Task("go@1.25.11").Done(path)`,
+			GoodCode: `t := out.Task("go@1.25.11")
+t.Doing("resolving %s", path)
+t.Done(path)`,
+			Remediation:     "Call Doing(...) before Done so the live row spins while the work runs",
+			RelatedGuidance: []string{"first-paint", "tasks"},
+			VerificationIDs: []string{"FP-005"},
+			Since:           "0.4.7",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "API-039",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "a DisplayGroup with exactly one child is a lone Task",
+			Why:       "A 1-child group paints a 0/1 complete header over a single row and steals the command name. Use Task, or add more children.",
+			BadCode: `jobs := out.DisplayGroup("run")
+jobs.Task("install:fresh-start")`,
+			GoodCode: `t := out.Task("install:fresh-start")
+t.Doing("running install:fresh-start")`,
+			Remediation:     "Replace the 1-child DisplayGroup with a lone Task",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-039"},
+			Since:           "0.4.7",
+			Certainty:       "deterministic",
+		},
+		{
 			ID:              "DOM-020",
 			Category:        "DOM",
 			Severity:        "warning",

@@ -190,8 +190,8 @@ func TestE1P2_Warn_DoesNotResolveTask(t *testing.T) {
 
 	task := out.Task("cache")
 	task.Warn("stale entry ignored")
-	if got := task.Snapshot().State; got != evo.Pending {
-		t.Fatalf("state = %v, want Pending (Warn must not resolve the task)", got)
+	if got := task.Snapshot().State; got == evo.Done || got == evo.Failed || got == evo.Blocked {
+		t.Fatalf("state = %v, want non-terminal (Warn must not resolve the task)", got)
 	}
 	task.Done()
 	if got := task.Snapshot().State; got != evo.Done {

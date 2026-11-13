@@ -7,18 +7,22 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// TestTask_DeclaresPendingNotRunning is the red-first case for evo-rec.md's
-// state-model gap: a freshly declared Task must not read as Running (which
-// would draw N simultaneous spinners for N predeclared siblings) until it
-// receives its first unit of evidence.
-func TestTask_DeclaresPendingNotRunning(t *testing.T) {
+// TestTask_DeclaresRunningSoTheRowCanSpin is FP-005: a standalone Task
+// paints Running at declare so a fast bind cannot popup-complete. Sequence
+// children stay Pending so later siblings do not all spin at once.
+func TestTask_DeclaresRunningSoTheRowCanSpin(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("install")
+	if got := task.Snapshot().State; got != evo.Running {
+		t.Fatalf("standalone state at declare = %v, want Running", got)
+	}
 
-	if got := task.Snapshot().State; got != evo.Pending {
-		t.Fatalf("state at declare = %v, want Pending", got)
+	seq := out.Sequence("steps")
+	later := seq.Task("two")
+	if got := later.Snapshot().State; got != evo.Pending {
+		t.Fatalf("sequence child state at declare = %v, want Pending", got)
 	}
 }
 
