@@ -7,22 +7,21 @@ package evo
 // identity layer over DisplayGroup (the underlying collection) that adds
 // get-or-create children. Construct one via evo.Sequence or Output.Sequence.
 type SequenceHandle struct {
-	tasks *DisplayGroup
+	tasks *DisplayGroupHandle
 }
 
 // Task declares (or, for a repeated name, returns) a child task in
 // declaration order. name is a printf format when args are present
 // (fmt.Sprintf semantics); the get-or-create key is the formatted name.
 // args may also carry evo.ID to set a stable machine key.
-func (g *SequenceHandle) Task(name string, args ...any) *TaskHandle {
-	formatted, opts := formatEntityName(name, args)
-	return g.tasks.out.groupTaskGetOrCreate(g.tasks.id, formatted, opts...)
+func (g *SequenceHandle) Task(name string) *TaskHandle {
+	return g.tasks.out.groupTaskGetOrCreate(g.tasks.id, name)
 }
 
 // Summary sets a success-oriented sequence summary. text is a printf format
 // when args are present (fmt.Sprintf semantics) — see Task (C6).
-func (g *SequenceHandle) Summary(text string, args ...any) *SequenceHandle {
-	g.tasks.Summary(text, args...)
+func (g *SequenceHandle) Summary(text string) *SequenceHandle {
+	g.tasks.Summary(text)
 	return g
 }
 
@@ -33,12 +32,12 @@ func (g *SequenceHandle) Snapshot() TasksSnapshot {
 
 // Sequence declares (or, for a repeated name, returns) an ordered child
 // container nested under this Sequence (P3's recursive nesting).
-func (g *SequenceHandle) Sequence(name string, args ...any) *SequenceHandle {
-	return g.tasks.Sequence(name, args...)
+func (g *SequenceHandle) Sequence(name string) *SequenceHandle {
+	return g.tasks.Sequence(name)
 }
 
 // DisplayGroup declares a fresh child container nested under this Sequence
 // (P3's recursive nesting).
-func (g *SequenceHandle) DisplayGroup(name string, args ...any) *DisplayGroup {
-	return g.tasks.DisplayGroup(name, args...)
+func (g *SequenceHandle) DisplayGroup(name string) *DisplayGroupHandle {
+	return g.tasks.DisplayGroup(name)
 }

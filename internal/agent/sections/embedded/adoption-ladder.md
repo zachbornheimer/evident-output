@@ -42,10 +42,13 @@ func run() error {
 
 ## Hosted (framework owns exit)
 
+`out.Run` returns an `int` (the exit code). The host inspects it and exits.
+Do not `return out.Run(run)` from `func main()` — that does not compile.
+`evo.MainWith` is the process-exit path (row 1), not this one.
+
 ```go
 out := evo.Init(evo.Config{Title: "tool", Isolated: true})
-defer func() { _ = out.Close() }()
-return out.Run(run) // reconciles a non-nil run error into Fail, then Finish + exit code
+os.Exit(out.Run(run)) // reconciles a non-nil run error into Fail, then Finish
 ```
 
 ## House rules (short)
@@ -69,7 +72,7 @@ Release pin procedure: `docs/guides/cutting-a-release.md`.
 ## Evidence
 
 ```go
-proof := task.Evidence() // or item.Evidence() for tool-backed gates
+proof := task.Evidence()
 // … write to proof.Stdout()/Stderr() …
 return task.Failf("failed: %w", err)
 ```

@@ -88,6 +88,9 @@ func FitLiveRegion(text string, columns int) string {
 	if columns <= 0 {
 		columns = defaultWidth
 	}
+	if liveRegionFitsColumns(text, columns) {
+		return text
+	}
 	lines := strings.Split(text, "\n")
 	for i, line := range lines {
 		lines[i] = txt.TruncateVisible(line, columns)
@@ -95,7 +98,27 @@ func FitLiveRegion(text string, columns int) string {
 	return strings.Join(lines, "\n")
 }
 
+// liveRegionFitsColumns reports whether every line of text already fits
+// within columns, without allocating a Split slice.
+func liveRegionFitsColumns(text string, columns int) bool {
+	start := 0
+	for i := 0; i < len(text); i++ {
+		if text[i] != '\n' {
+			continue
+		}
+		if txt.VisibleCells(text[start:i]) > columns {
+			return false
+		}
+		start = i + 1
+	}
+	return txt.VisibleCells(text[start:]) <= columns
+}
+
 func writeLiveCollection(b *strings.Builder, col core.TasksSnapshot, height, width int, spin string, color bool, now time.Time, profile txt.GlyphProfile) {
+	if !col.Sequential && len(col.Tasks) == 1 && len(col.Collections) == 0 {
+		writeLiveTaskLine(b, col.Tasks[0], 0, width, spin, color, now, profile)
+		return
+	}
 	done, total := 0, len(col.Tasks)
 	for _, t := range col.Tasks {
 		if t.State == core.Done || t.State == core.Skipped {
@@ -325,10 +348,9 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width in
 		}
 		unit.Elapsed = heartbeatSuffix(now, activitySince(t))
 		if t.Phase != "" {
-			// Default intensity: the current phase is diagnostic evidence
-			// while progress stalls, not a subordinate row (evo-rec.md
-			// "Color and txt.Style demotions").
-			detail = detail + "  " + t.Phase + unit.Elapsed
+			// Muted current: N/M is the diagnostic; the current-name/Phase
+			// slot is subordinate (evo-rec.md DURING `:. name  N/M  muted-current`).
+			detail = detail + "  " + txt.Dim(t.Phase, color) + unit.Elapsed
 		} else {
 			// P5: no Phase text yet — still age honestly past elapsedAfter.
 			detail += unit.Elapsed
@@ -344,14 +366,13 @@ func writeLiveTaskLine(b *strings.Builder, t core.TaskSnapshot, indent, width in
 			phase = "working…"
 		}
 		unit.Elapsed = heartbeatSuffix(now, activitySince(t))
-		unit.Detail = phase + unit.Elapsed
+		unit.Detail = txt.Dim(phase, color) + unit.Elapsed
 	case t.State == core.Running && t.Phase != "":
 		unit.Detail = t.Phase
 	case t.State == core.Pending:
 		// A core.Pending row left on screen past elapsedAfter is exactly as
-		// static as a stalled core.Running one — same heartbeat, txt.Dim (subordinate:
-		// nothing is happening yet) rather than the diagnostic-intensity
-		// phase text a core.Running row gets.
+		// static as a stalled core.Running one — same heartbeat, txt.Dim
+		// (subordinate: nothing is happening yet).
 		if hb := heartbeatSuffix(now, activitySince(t)); hb != "" {
 			unit.Elapsed = hb
 			unit.Detail = txt.Dim("waiting"+hb, color)

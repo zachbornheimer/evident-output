@@ -41,10 +41,24 @@ type Result struct {
 	// never partial merely because evo is imported — partial+recheck=false
 	// confuses agents into ignoring a shippable result.
 	Partial bool `json:"partial,omitempty"`
+	// DesiredVersion is the pin the caller asked review to compare against
+	// (MCP desired_version, or the directory go.mod pin when omitted).
+	DesiredVersion string `json:"desired_version,omitempty"`
+	// ModuleVersion is the evident-output require in the reviewed go.mod.
+	ModuleVersion string `json:"module_version,omitempty"`
+	// ReplacePath is a filesystem replace for evident-output, if any.
+	ReplacePath string `json:"replace_path,omitempty"`
 }
 
-// GoSource reviews Go source for evo misuse patterns (AST + textual).
+// GoSource reviews Go source for evo misuse patterns (AST + textual)
+// against the current rec dialect.
 func GoSource(filename, src string) Result {
+	return GoSourceAt(filename, src, "")
+}
+
+// GoSourceAt reviews src as it would be written for desiredVersion
+// (empty means the current rec dialect).
+func GoSourceAt(filename, src, desiredVersion string) Result {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filename, src, parser.SkipObjectResolution)
 	if err != nil {
@@ -326,10 +340,11 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectPlaceholderDoing(filename, src)...)
 	}
 
-	// API-032: every superseded spelling (evo.New/MainWith in main, Cause,
-	// Capture) gets a derived fix, not a lecture.
+	// API-032: every superseded spelling (evo.New in main, Cause, Capture,
+	// rec-surface Options/To/Plain/Affected/old Delete/Skip/MainWith) gets a
+	// derived fix, not a lecture.
 	if hasEvo {
-		findings = append(findings, detectDeprecatedSpellings(filename, src)...)
+		findings = append(findings, detectDeprecatedSpellings(filename, src, desiredVersion)...)
 	}
 
 	// API-033: an entity's own name reused verbatim as its skip/verb argument.
@@ -401,6 +416,16 @@ func GoSource(filename, src string) Result {
 		findings = append(findings, detectCrammedSummary(filename, src)...)
 	}
 
+	// FP-005: Task created and Done with no Doing/Progress/Writer window.
+	if hasEvo {
+		findings = append(findings, detectInstantDone(filename, f, fset)...)
+	}
+
+	// API-039: DisplayGroup that only ever has one child in source.
+	if hasEvo {
+		findings = append(findings, detectSingletonDisplayGroup(filename, f, fset)...)
+	}
+
 	// Textual patterns AST may miss (kept narrow; no bare substring of ".Map(")
 	if hasEvo {
 		// Detail(err) misuse — Detail expects string; if Detail(err) or Detail(someErr)
@@ -423,6 +448,7 @@ func GoSource(filename, src string) Result {
 		Findings:        dedupe(findings),
 		RecheckRequired: hasRequired(findings),
 		Partial:         false,
+		DesiredVersion:  desiredVersion,
 	}
 }
 
@@ -862,8 +888,10 @@ func isLikelyEvoReceiver(x ast.Expr) bool {
 		if knownNonEvoPackages[v.Name] {
 			return false
 		}
-		// Flag bare Start on any non-package ident (t.Start, it.Start, item.Start).
-		// Package.Start is rare; if package is evo, flag.
+		switch v.Name {
+		case "command", "cmd", "child", "process", "watcher", "harness", "grandchild", "proc", "pty":
+			return false
+		}
 		return true
 	case *ast.CallExpr:
 		return true // out.Item("x").Start()
@@ -1066,7 +1094,7 @@ func detectTTYPassthroughWithoutSuspend(filename, src string) []Finding {
 	if !hasPassthrough {
 		return nil
 	}
-	if strings.Contains(src, ".Suspend(") {
+	if strings.Contains(src, ".Writer()") || strings.Contains(src, "task.Run(") {
 		return nil
 	}
 	line := 1
@@ -1080,10 +1108,10 @@ func detectTTYPassthroughWithoutSuspend(filename, src string) []Finding {
 	return []Finding{{
 		RuleID:     "TERM-015",
 		Severity:   "warning",
-		Message:    "tty-passthrough child (Stdout/Stderr inherited) without a surrounding out.Suspend(...) call; the child's own UI can glue onto the live spinner (evo-rec.md #7b)",
+		Message:    "tty-passthrough child (Stdout/Stderr inherited); capture it with Task.Run or task.Writer() so the live row keeps moving",
 		File:       filename,
 		Line:       line,
-		Suggestion: "wrap the call with out.Suspend(func() error { return cmd.Run() })",
+		Suggestion: "if err := task.Run(cmd); err != nil { return task.Failf(\"...: %w\", err) }",
 	}}
 }
 
@@ -1490,6 +1518,11 @@ var captureCallPattern = regexp.MustCompile(`(\w+)\.Capture\(`)
 // one entity, one constructor).
 var itemCallPattern = regexp.MustCompile(`(\w+)\.Item\(`)
 
+// planCallPattern / changesCallPattern match the retired v0.2 Plan/Changes
+// surfaces. Suggestion is Task mutation verbs, not a new Plan/Changes API.
+var planCallPattern = regexp.MustCompile(`(\w+)\.Plan\(`)
+var changesCallPattern = regexp.MustCompile(`(\w+)\.Changes\(`)
+
 // becauseCallPattern matches the retired .Because(text) annotation chain —
 // its text is now the resolving verb's own argument (e.g. Done(text)).
 var becauseCallPattern = regexp.MustCompile(`\.Because\(`)
@@ -1499,14 +1532,16 @@ var becauseCallPattern = regexp.MustCompile(`\.Because\(`)
 var okCallPattern = regexp.MustCompile(`(\w+)\.OK\(\)`)
 
 // detectDeprecatedSpellings is API-032: it catches every superseded spelling
-// with a fix, not a lecture — evo.New (evo.Init is the sole constructor
-// since the item/task fold; evo.MainWith itself is current again as of
-// v0.4.0, paired with Init(Config{Isolated: true}), not New), Item/.OK/
-// .Because (Item folded into Task: Item(name).OK().Because(text) is now
-// Task(name).Done(text)), evo.Cause (Failf/Blockf's trailing %w since
-// Fail/Block are statement-form), and Capture (renamed to Evidence).
-func detectDeprecatedSpellings(filename, src string) []Finding {
+// with a fix, not a lecture — evo.New (evo.Init is the sole constructor;
+// evo.MainWith is unexported — ordinary main uses evo.Main, Isolated
+// instances use Output.Run), Item/.OK/.Because (Item folded into Task:
+// Item(name).OK().Because(text) is now Task(name).Done(text)), evo.Cause
+// (Failf/Blockf's trailing %w since Fail/Block are statement-form), Capture
+// (renamed to Evidence), and the rec-surface spellings (Config.Options,
+// Option funcs, Delete(object, call, opts), Skip, ID, StartPhase).
+func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 	var findings []Finding
+	if dialectAtLeast(desiredVersion, dialectFold) {
 
 	if body, offset := firstFuncBody(src, "main"); offset >= 0 {
 		if idx := strings.Index(body, "evo.New("); idx >= 0 {
@@ -1516,7 +1551,7 @@ func detectDeprecatedSpellings(filename, src string) []Finding {
 				Message:    "evo.New was removed with the item/task fold; evo.Init is the sole constructor",
 				File:       filename,
 				Line:       lineAt(src, offset+idx),
-				Suggestion: "replace evo.New(cfg) with evo.Init(cfg, Config{Isolated: true}) then evo.MainWith(out, run) (no os.Exit wrapper — it exits itself)",
+				Suggestion: "replace evo.New(cfg) with evo.Init(cfg) (Isolated: true for a hosted instance; evo.Main(run) in ordinary main, out.Run(run) when holding *Output)",
 			})
 		}
 	}
@@ -1530,6 +1565,36 @@ func detectDeprecatedSpellings(filename, src string) []Finding {
 			File:       filename,
 			Line:       lineAt(src, m[0]),
 			Suggestion: "replace " + recv + ".Item(...) with " + recv + ".Task(...)",
+		})
+	}
+
+	for _, m := range planCallPattern.FindAllStringSubmatchIndex(src, -1) {
+		recv := src[m[2]:m[3]]
+		if !isEvoSurfaceRecv(recv) {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:     "API-032",
+			Severity:   "warning",
+			Message:    "Plan was removed in v0.4 — use Task mutation verbs",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: "replace " + recv + ".Plan(...) with Task mutation verbs (Delete/Create/Record/...), not a new Plan API",
+		})
+	}
+
+	for _, m := range changesCallPattern.FindAllStringSubmatchIndex(src, -1) {
+		recv := src[m[2]:m[3]]
+		if !isEvoSurfaceRecv(recv) {
+			continue
+		}
+		findings = append(findings, Finding{
+			RuleID:     "API-032",
+			Severity:   "warning",
+			Message:    "Changes was removed in v0.4 — use Task mutation verbs",
+			File:       filename,
+			Line:       lineAt(src, m[0]),
+			Suggestion: "replace " + recv + ".Changes(...) with Task mutation verbs (Delete/Create/Record/...), not a new Changes API",
 		})
 	}
 
@@ -1590,6 +1655,9 @@ func detectDeprecatedSpellings(filename, src string) []Finding {
 
 	for _, m := range captureCallPattern.FindAllStringSubmatchIndex(src, -1) {
 		recv := src[m[2]:m[3]]
+		if !isEvoSurfaceRecv(recv) {
+			continue
+		}
 		findings = append(findings, Finding{
 			RuleID:     "API-032",
 			Severity:   "warning",
@@ -1600,6 +1668,10 @@ func detectDeprecatedSpellings(filename, src string) []Finding {
 		})
 	}
 
+	}
+	if dialectAtLeast(desiredVersion, dialectRec) {
+		findings = append(findings, detectSupersededRecSurface(filename, src)...)
+	}
 	return findings
 }
 
@@ -1782,7 +1854,7 @@ func detectSprintfInVerb(filename, src string) []Finding {
 // Warn/Doing/Skip/Failf all already take (format string, args ...any)
 // directly (P1/P2, C6: the separate *f siblings for these were deleted) —
 // with fmt.Sprintf as (the start of) its argument list.
-var printfVariadicVerbPattern = regexp.MustCompile(`(\w+)\.(Task|DisplayGroup|Sequence|Summary|Done|Warn|Doing|Skip|Failf)\(\s*fmt\.Sprintf\(`)
+var printfVariadicVerbPattern = regexp.MustCompile(`(\w+)\.(Done|Doing|Failf)\(\s*fmt\.Sprintf\(`)
 
 // detectSprintfIntoVariadicVerb is API-038: fmt.Sprintf(...) passed to a
 // method that is already printf-variadic itself is ceremony that also hides

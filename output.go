@@ -154,7 +154,7 @@ type taskState struct {
 	// capture is the get-or-create sink shared by Task.Capture and PhaseWriter
 	// so child-process evidence recorded via either path lands in one ring and
 	// DetailTail sees it after Fail.
-	evidence *Evidence
+	evidence *evidence
 
 	// skipped/kept hold disposition taxonomy accumulated by Skipped/Kept —
 	// the model that "! skipped N (...)" / "! kept N (...)" are derived from
@@ -205,7 +205,7 @@ type tasksState struct {
 	summary     string
 	tasks       []*taskState
 	declaration int
-	handle      *DisplayGroup
+	handle      *DisplayGroupHandle
 
 	// namedTasks backs get-or-create identity for Sequence.Task: repeated
 	// calls with the same name inside this sequence return the one child
@@ -269,12 +269,12 @@ type planState struct {
 func newOutput(subject string, options ...Option) *Output {
 	cfg := config{
 		subject:         subject,
-		clock:           SystemClock{},
+		clock:           systemClock{},
 		visibilityDelay: defaultVisibilityDelay,
 		maxFrameRate:    defaultMaxFrameRate,
 		width:           defaultWidth,
 		debugLevel:      LevelInfo,
-		redactor:        NoopRedactor{},
+		redactor:        noopRedactor{},
 		maxEntities:     defaultMaxEntities,
 		verbosity:       VerbosityNormal,
 	}
@@ -283,7 +283,7 @@ func newOutput(subject string, options ...Option) *Output {
 			opt.apply(&cfg)
 		}
 	}
-	// A Terminal driver supplied without To() must still land its
+	// A Terminal driver supplied without to() must still land its
 	// non-interactive/residual projection somewhere (release-gate round 8
 	// finding 2): default primary to the driver's own Sink() when it
 	// reports one. A driver that explicitly reports no fixed sink (nil —
@@ -292,8 +292,8 @@ func newOutput(subject string, options ...Option) *Output {
 	// all is misuse, recorded below once o exists.
 	//
 	// Whenever the driver's sink IS the primary writer — whether that's this
-	// same defaulting, or an explicit To()/Diagnostics() (Options path) or
-	// Config's own To(c.Stdout)/To(c.Stderr) wiring (Config.Terminal path,
+	// same defaulting, or an explicit to()/withDiagnostics() (Options path) or
+	// Config's own to(c.Stdout)/to(c.Stderr) wiring (Config.Terminal path,
 	// via configToOptions) that happens to coincide — the driver already
 	// rendered the conclusion there once; Finish's dual-write branch must
 	// not render it there again (release-gate round 9 finding 1).
@@ -316,18 +316,18 @@ func newOutput(subject string, options ...Option) *Output {
 			// their own copy by design, not a duplicate.
 		}
 	}
-	// An Options build that installs neither To() nor a Terminal sink must
+	// An Options build that installs neither to() nor a Terminal sink must
 	// still land its residual/conclusion projection somewhere — before this,
 	// primary stayed nil and Finish silently wrote zero bytes, even on a
 	// Fail (exit 2 with no evidence of why). Default to os.Stdout, matching
 	// the non-Options default, and apply the same TTY/color inference the
 	// non-Options path applies to that stream: never override an explicit
-	// NoColor(), only ever strengthen it, so a defaulted destination piped
+	// withNoColor(), only ever strengthen it, so a defaulted destination piped
 	// to a file never leaks raw ANSI into it (release-gate round 9 findings
 	// 2 and 5).
 	if cfg.terminal == nil && cfg.primary == nil {
 		cfg.primary = os.Stdout
-		if !cfg.noColor && (os.Getenv("NO_COLOR") != "" || !IsCharDevice(cfg.primary)) {
+		if !cfg.noColor && (lookupEnv(envKeyNoColor) != "" || !writerIsCharDevice(cfg.primary)) {
 			cfg.noColor = true
 		}
 	}
@@ -368,7 +368,7 @@ func newOutput(subject string, options ...Option) *Output {
 // caller decides (e.g. from a flag parsed after Init) and calls this
 // explicitly, before any Task/Print/Confirm call. A no-op when the run is
 // already dry-run.
-func (o *Output) DeclareDryRun() {
+func (o *Output) declareDryRun() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
@@ -561,9 +561,8 @@ func (o *Output) ensureEntityRoomLocked() error {
 // key. name is a printf format when args are present (fmt.Sprintf
 // semantics) — evo.ID (or any other EntityOption) may be mixed into args in
 // any position and still applies.
-func (o *Output) Task(name string, args ...any) *TaskHandle {
-	formatted, opts := formatEntityName(name, args)
-	return o.taskScoped(formatted, "", opts...)
+func (o *Output) Task(name string) *TaskHandle {
+	return o.taskScoped(name, "")
 }
 
 // taskScoped is the get-or-create identity behind Output.Task and Scope.Task:
@@ -617,6 +616,16 @@ func (o *Output) taskScoped(name, scope string, opts ...EntityOption) *TaskHandl
 	return h
 }
 
+// declaredTaskState is Running for a standalone task or a DisplayGroup child
+// so the live region paints a spinner the moment the row exists. Sequence
+// children stay Pending until their turn — later siblings must not spin.
+func declaredTaskState(col *tasksState) EntityState {
+	if col != nil && col.sequential {
+		return Pending
+	}
+	return Running
+}
+
 func (o *Output) addTaskLocked(name string, col *tasksState, key string) *TaskHandle {
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
@@ -637,7 +646,7 @@ func (o *Output) addTaskLocked(name string, col *tasksState, key string) *TaskHa
 		id:          o.nextID("task"),
 		key:         key,
 		name:        name,
-		state:       Pending,
+		state:       declaredTaskState(col),
 		progress:    Progress{Kind: Indeterminate},
 		collection:  col,
 		declaration: o.nextDecl(),
@@ -767,19 +776,16 @@ func (o *Output) cancelPendingConfirmLocked(reason string) bool {
 // Sequence for the ordered alternative). name is a printf format when args
 // are present (fmt.Sprintf semantics) — one text spelling shared with
 // Task/Sequence/Reason (C6); no args leaves name untouched.
-func (o *Output) DisplayGroup(name string, args ...any) *DisplayGroup {
-	if len(args) > 0 {
-		name = fmt.Sprintf(name, args...)
-	}
+func (o *Output) DisplayGroup(name string) *DisplayGroupHandle {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
-		return &DisplayGroup{out: o, id: o.nextID("tasks")}
+		return &DisplayGroupHandle{out: o, id: o.nextID("tasks")}
 	}
 	st := o.declareContainerLocked(name, false)
 	o.collections = append(o.collections, st)
-	h := &DisplayGroup{out: o, id: st.id}
+	h := &DisplayGroupHandle{out: o, id: st.id}
 	st.handle = h
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "tasks.declared", EntityID: st.id})
@@ -792,10 +798,7 @@ func (o *Output) DisplayGroup(name string, args ...any) *DisplayGroup {
 // cancelled. A second evo.Sequence("python") call returns the same Sequence,
 // mirroring Task's get-or-create identity. name is a printf format when args
 // are present (fmt.Sprintf semantics); no args leaves name untouched.
-func (o *Output) Sequence(name string, args ...any) *SequenceHandle {
-	if len(args) > 0 {
-		name = fmt.Sprintf(name, args...)
-	}
+func (o *Output) Sequence(name string) *SequenceHandle {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if g, ok := o.namedGroups[name]; ok {
@@ -803,11 +806,11 @@ func (o *Output) Sequence(name string, args ...any) *SequenceHandle {
 	}
 	if err := o.ensureOpen(); err != nil {
 		o.recordMisuse(err)
-		return &SequenceHandle{tasks: &DisplayGroup{out: o, id: o.nextID("tasks")}}
+		return &SequenceHandle{tasks: &DisplayGroupHandle{out: o, id: o.nextID("tasks")}}
 	}
 	st := o.declareContainerLocked(name, true)
 	o.collections = append(o.collections, st)
-	h := &DisplayGroup{out: o, id: st.id}
+	h := &DisplayGroupHandle{out: o, id: st.id}
 	st.handle = h
 	o.bumpLocked()
 	o.appendEventLocked(Event{Type: "tasks.declared", EntityID: st.id})
@@ -890,7 +893,7 @@ func (o *Output) groupTaskGetOrCreate(groupID, name string, opts ...EntityOption
 
 // declareChangeLedgerLocked starts a durable-effects section named subject —
 // the internal counterpart of the deleted public Output.Changes entry point
-// (P1/P13: presentation-decision API, callers reach effects only through
+// (P1/P13: presentation-decision aPI, callers reach effects only through
 // TaskHandle's mutation verbs now). Caller must hold o.mu.
 func (o *Output) declareChangeLedgerLocked(subject string) *changeLedger {
 	if err := o.ensureOpen(); err != nil {
@@ -1029,7 +1032,7 @@ func (o *Output) NextCommand(executable string, args ...string) {
 // When Diagnostics is configured and is a different writer than the primary stream,
 // debug lines go to Diagnostics only (not the human Items/Tasks stream). Use
 // Capture for child-process evidence instead of DebugWriter when you need Fail Detail.
-func (o *Output) Debug(message string, fields ...Field) {
+func (o *Output) debug(message string, fields ...Field) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.emitDebugLocked(message, fields, false)
@@ -1112,8 +1115,8 @@ func (o *Output) projectDebugRecordLocked(rec debugRecord) {
 		// as active so a failing Finish can preserve the diagnostics tail on
 		// the live terminal (§21.3.2) — otherwise the promised failure tail
 		// is unreachable whenever the caller uses two distinct real streams
-		// (the realistic default: Config{Stdout, Stderr} routes To(Stdout),
-		// Diagnostics(Stderr)).
+		// (the realistic default: Config{Stdout, Stderr} routes to(Stdout),
+		// withDiagnostics(Stderr)).
 		if interactive && panePresentation {
 			o.debugPaneActive = true
 		}
@@ -1422,6 +1425,25 @@ func (o *Output) appendEventLocked(e Event) {
 	}
 	o.events = append(o.events, e)
 	o.compactJournalLocked()
+	if o.cfg.projection == ProjectionStreamJSON {
+		o.writeStreamJSONLocked(e)
+	}
+}
+
+func (o *Output) writeStreamJSONLocked(e Event) {
+	w := o.cfg.primary
+	if w == nil {
+		return
+	}
+	row, err := encodeEventJSON(e)
+	if err != nil {
+		return
+	}
+	_, _ = w.Write(row)
+	_, _ = w.Write([]byte{'\n'})
+	if f, ok := w.(flusher); ok {
+		_ = f.Flush()
+	}
 }
 
 // criticalEventTypes are never dropped under journal backpressure (CON-008).
@@ -1641,6 +1663,15 @@ func (o *Output) Finish() error {
 	o.finished = true
 	o.finishing = false
 
+	if cfg.projection.suppressesHuman() {
+		var events []Event
+		if cfg.projection == ProjectionJSONL {
+			events = append([]Event(nil), o.events...)
+		}
+		o.mu.Unlock()
+		return writeMachinePresentation(writer, snap, events, cfg.projection, misuse)
+	}
+
 	// Captured before residualPlainLocked drains o.linesEmitted for its own
 	// copy, so residualInteractiveFinalLocked's copy (below) sees the same
 	// unemitted tail instead of finding it already consumed (release-gate
@@ -1740,7 +1771,7 @@ func (o *Output) Conclusion() Conclusion {
 }
 
 // Events returns a copy of durable events (v0.1 journal).
-func (o *Output) Events() []Event {
+func (o *Output) copyEvents() []Event {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	out := make([]Event, len(o.events))

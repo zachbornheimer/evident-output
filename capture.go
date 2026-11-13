@@ -23,7 +23,7 @@ const (
 type EvidenceStream uint8
 
 const (
-	// EvidenceStreamCombined is Write() on the Evidence itself (merged by the runner).
+	// EvidenceStreamCombined is Write() on the evidence itself (merged by the runner).
 	EvidenceStreamCombined EvidenceStream = iota
 	// EvidenceStreamStdout is output.Stdout().
 	EvidenceStreamStdout
@@ -37,27 +37,27 @@ type capturedLine struct {
 	Text     string
 }
 
-// Evidence is the retained/redacted process-output sink owned by a Task
+// evidence is the retained/redacted process-output sink owned by a Task
 // (preferred) or Output. "Stdout" would lie as a name — it also takes
-// stderr and combined writes; Evidence says what it is for: durable,
+// stderr and combined writes; evidence says what it is for: durable,
 // sanitized proof a failure can point back to.
 //
 //	upgrade := out.Task("brew packages")
-//	proof := upgrade.Evidence() // silent retention by default
+//	proof := upgrade.evidence() // silent retention by default
 //	if err := run.Run(ctx, "brew", args, proof); err != nil {
 //	    upgrade.Failf("brew upgrade failed: %w", err)
 //	    return nil
 //	}
 //	upgrade.Done()
 //
-// Prefer task.Run for an *exec.Cmd — it wires Evidence and Phase together in
-// one call. Reach for Evidence directly only when the caller already owns
+// Prefer task.Run for an *exec.Cmd — it wires evidence and Phase together in
+// one call. Reach for evidence directly only when the caller already owns
 // stdout/stderr plumbing (a custom runner, a non-exec.Cmd tool integration).
 //
 // Combined streams by default (P1): Write (merged), Stdout(), and Stderr() all
 // feed the same bounded ring used by Text/Tail/DetailTail. Linters and most
 // subprocess tools write diagnostics on stderr — route both streams into
-// Evidence (or write the combined pipe into it directly) so failure evidence
+// evidence (or write the combined pipe into it directly) so failure evidence
 // cannot escape the owning Task.
 //
 // Semantics:
@@ -67,7 +67,7 @@ type capturedLine struct {
 //   - Opt in with MirrorToDiagnostics / MirrorToDebug.
 //   - Stdout/Stderr have independent pending buffers (no partial-line merge).
 //   - DetailTail prefers stderr when separate streams were used, else combined.
-type Evidence struct {
+type evidence struct {
 	out      *Output
 	taskID   string
 	taskName string
@@ -93,21 +93,21 @@ type Evidence struct {
 
 	// stream is set only on side writers returned by Stdout/Stderr.
 	stream EvidenceStream
-	parent *Evidence
+	parent *evidence
 }
 
 // EvidenceOption configures Evidence.
 type EvidenceOption interface {
-	applyCapture(*Evidence)
+	applyCapture(*evidence)
 }
 
-type captureOptionFunc func(*Evidence)
+type captureOptionFunc func(*evidence)
 
-func (f captureOptionFunc) applyCapture(c *Evidence) { f(c) }
+func (f captureOptionFunc) applyCapture(c *evidence) { f(c) }
 
 // KeepLastLines sets how many trailing lines are retained (default 200).
-func KeepLastLines(n int) EvidenceOption {
-	return captureOptionFunc(func(c *Evidence) {
+func keepLastLines(n int) EvidenceOption {
+	return captureOptionFunc(func(c *evidence) {
 		if n > 0 {
 			c.maxLines = n
 		}
@@ -116,8 +116,8 @@ func KeepLastLines(n int) EvidenceOption {
 
 // MaxEvidenceBytes sets an approximate byte budget for retained lines
 // (default 256KiB).
-func MaxEvidenceBytes(n int) EvidenceOption {
-	return captureOptionFunc(func(c *Evidence) {
+func maxEvidenceBytes(n int) EvidenceOption {
+	return captureOptionFunc(func(c *evidence) {
 		if n > 0 {
 			c.maxBytes = n
 		}
@@ -125,22 +125,22 @@ func MaxEvidenceBytes(n int) EvidenceOption {
 }
 
 // MirrorToDiagnostics copies each completed line to the Diagnostics writer.
-// Default is off — Evidence retains proof without displaying it on success.
-func MirrorToDiagnostics() EvidenceOption {
-	return captureOptionFunc(func(c *Evidence) { c.mirrorDiag = true })
+// Default is off — evidence retains proof without displaying it on success.
+func mirrorToDiagnostics() EvidenceOption {
+	return captureOptionFunc(func(c *evidence) { c.mirrorDiag = true })
 }
 
 // MirrorToDebug journals each completed line via Debug when DebugLevel allows.
 // Default is off.
-func MirrorToDebug() EvidenceOption {
-	return captureOptionFunc(func(c *Evidence) { c.mirrorDebug = true })
+func mirrorToDebug() EvidenceOption {
+	return captureOptionFunc(func(c *evidence) { c.mirrorDebug = true })
 }
 
-// Evidence returns the retained/redacted writer bound to this Task,
-// get-or-create: the first call (from Evidence or PhaseWriter) allocates the
+// evidence returns the retained/redacted writer bound to this Task,
+// get-or-create: the first call (from evidence or PhaseWriter) allocates the
 // ring and every later call returns that same instance, so evidence recorded
 // through either path lands together and survives for DetailTail after Fail.
-func (t *TaskHandle) Evidence(opts ...EvidenceOption) *Evidence {
+func (t *TaskHandle) evidence(opts ...EvidenceOption) *evidence {
 	if t == nil || t.out == nil {
 		return newEvidence(nil, "", "", opts...)
 	}
@@ -156,15 +156,15 @@ func (t *TaskHandle) Evidence(opts ...EvidenceOption) *Evidence {
 	return st.evidence
 }
 
-// Evidence returns a session-level retained/redacted writer with no owning
+// evidence returns a session-level retained/redacted writer with no owning
 // Task. Prefer Task.Evidence so failure evidence attaches to an entity.
-// Session-level Evidence is advanced; ordinary call sites should not use it.
-func (o *Output) Evidence(opts ...EvidenceOption) *Evidence {
+// Session-level evidence is advanced; ordinary call sites should not use it.
+func (o *Output) evidence(opts ...EvidenceOption) *evidence {
 	return newEvidence(o, "", "", opts...)
 }
 
-func newEvidence(out *Output, taskID, taskName string, opts ...EvidenceOption) *Evidence {
-	c := &Evidence{
+func newEvidence(out *Output, taskID, taskName string, opts ...EvidenceOption) *evidence {
+	c := &evidence{
 		out:         out,
 		taskID:      taskID,
 		taskName:    taskName,
@@ -183,23 +183,23 @@ func newEvidence(out *Output, taskID, taskName string, opts ...EvidenceOption) *
 }
 
 // Stdout returns a writer that records lines as stdout with its own pending buffer.
-func (c *Evidence) Stdout() io.Writer {
+func (c *evidence) Stdout() io.Writer {
 	if c == nil {
 		return io.Discard
 	}
-	return &Evidence{out: c.out, parent: c, stream: EvidenceStreamStdout}
+	return &evidence{out: c.out, parent: c, stream: EvidenceStreamStdout}
 }
 
 // Stderr returns a writer that records lines as stderr with its own pending buffer.
-func (c *Evidence) Stderr() io.Writer {
+func (c *evidence) Stderr() io.Writer {
 	if c == nil {
 		return io.Discard
 	}
-	return &Evidence{out: c.out, parent: c, stream: EvidenceStreamStderr}
+	return &evidence{out: c.out, parent: c, stream: EvidenceStreamStderr}
 }
 
 // Write implements io.Writer. Safe for concurrent use with Tail/DetailTail.
-func (c *Evidence) Write(p []byte) (int, error) {
+func (c *evidence) Write(p []byte) (int, error) {
 	root := c.root()
 	if root == nil || root.out == nil {
 		return len(p), nil
@@ -231,10 +231,10 @@ func (c *Evidence) Write(p []byte) (int, error) {
 
 // Close flushes trailing partial lines.
 //
-// On the root Evidence (task.Evidence()), every stream pending buffer is flushed
+// On the root evidence (task.evidence()), every stream pending buffer is flushed
 // so Stdout/Stderr partial lines are retained. On a side writer (Stdout/Stderr),
 // only that stream is flushed.
-func (c *Evidence) Close() error {
+func (c *evidence) Close() error {
 	root := c.root()
 	if root == nil {
 		return nil
@@ -251,13 +251,13 @@ func (c *Evidence) Close() error {
 	return nil
 }
 
-func (c *Evidence) flushIfPresentLocked(stream EvidenceStream) {
+func (c *evidence) flushIfPresentLocked(stream EvidenceStream) {
 	if c.pendingFor(stream).Len() > 0 {
 		c.flushPendingLocked(stream)
 	}
 }
 
-func (c *Evidence) root() *Evidence {
+func (c *evidence) root() *evidence {
 	if c == nil {
 		return nil
 	}
@@ -267,7 +267,7 @@ func (c *Evidence) root() *Evidence {
 	return c
 }
 
-func (c *Evidence) pendingFor(stream EvidenceStream) *bytes.Buffer {
+func (c *evidence) pendingFor(stream EvidenceStream) *bytes.Buffer {
 	switch stream {
 	case EvidenceStreamStdout:
 		return &c.pendingStdout
@@ -279,13 +279,13 @@ func (c *Evidence) pendingFor(stream EvidenceStream) *bytes.Buffer {
 }
 
 // Text returns all retained combined lines joined by newlines.
-func (c *Evidence) Text() string {
+func (c *evidence) Text() string {
 	lines, truncated := c.snapshotTexts(EvidenceStreamCombined, 0)
 	return joinCaptureLines(lines, truncated)
 }
 
 // Empty reports whether no completed lines and no pending fragments exist.
-func (c *Evidence) Empty() bool {
+func (c *evidence) Empty() bool {
 	root := c.root()
 	if root == nil {
 		return true
@@ -306,7 +306,7 @@ func (c *Evidence) Empty() bool {
 // call also carries an explicit Detail, that explicit text still renders (as
 // the primary detail line) and this tail renders as an additional evidence
 // line underneath, regardless of which option was passed first.
-func (c *Evidence) DetailTail() ProblemOption {
+func (c *evidence) DetailTail() ProblemOption {
 	return problemOptionFunc(func(p *Problem) {
 		if text := c.detailText(); text != "" {
 			p.EvidenceTail = text
@@ -314,7 +314,7 @@ func (c *Evidence) DetailTail() ProblemOption {
 	})
 }
 
-func (c *Evidence) detailText() string {
+func (c *evidence) detailText() string {
 	root := c.root()
 	if root == nil {
 		return ""
@@ -356,7 +356,7 @@ func (c *Evidence) detailText() string {
 	return b.String()
 }
 
-func (c *Evidence) streamHasContentLocked(stream EvidenceStream) bool {
+func (c *evidence) streamHasContentLocked(stream EvidenceStream) bool {
 	if c.pendingFor(stream).Len() > 0 {
 		return true
 	}
@@ -371,7 +371,7 @@ func (c *Evidence) streamHasContentLocked(stream EvidenceStream) bool {
 // textsForStreamLocked returns completed lines plus pending fragments for stream.
 // EvidenceStreamCombined includes every stream's completed lines and all pendings.
 // Pending fragments are snapshotted (not flushed) so concurrent Write stays safe.
-func (c *Evidence) textsForStreamLocked(stream EvidenceStream) []string {
+func (c *evidence) textsForStreamLocked(stream EvidenceStream) []string {
 	var texts []string
 	for _, ln := range c.lines {
 		if stream == EvidenceStreamCombined || ln.Stream == stream {
@@ -390,7 +390,7 @@ func (c *Evidence) textsForStreamLocked(stream EvidenceStream) []string {
 	return texts
 }
 
-func (c *Evidence) snapshotTexts(stream EvidenceStream, limit int) ([]string, bool) {
+func (c *evidence) snapshotTexts(stream EvidenceStream, limit int) ([]string, bool) {
 	root := c.root()
 	if root == nil {
 		return nil, false
@@ -406,7 +406,7 @@ func (c *Evidence) snapshotTexts(stream EvidenceStream, limit int) ([]string, bo
 
 // pendingNormalizedLocked returns a sanitized/redacted view of a pending buffer
 // without flushing it into the ring.
-func (c *Evidence) pendingNormalizedLocked(stream EvidenceStream) string {
+func (c *evidence) pendingNormalizedLocked(stream EvidenceStream) string {
 	raw := c.pendingFor(stream).String()
 	if raw == "" {
 		return ""
@@ -414,7 +414,7 @@ func (c *Evidence) pendingNormalizedLocked(stream EvidenceStream) string {
 	return c.normalizeCaptureLine(raw)
 }
 
-func (c *Evidence) normalizeCaptureLine(line string) string {
+func (c *evidence) normalizeCaptureLine(line string) string {
 	if !utf8.ValidString(line) {
 		line = string(bytes.ToValidUTF8([]byte(line), []byte("\uFFFD")))
 	}
@@ -435,7 +435,7 @@ func joinCaptureLines(lines []string, truncated bool) string {
 	return strings.Join(lines, "\n")
 }
 
-func (c *Evidence) flushPendingLocked(stream EvidenceStream) {
+func (c *evidence) flushPendingLocked(stream EvidenceStream) {
 	buf := c.pendingFor(stream)
 	line := buf.String()
 	buf.Reset()
@@ -491,10 +491,10 @@ func (o *Output) mirrorCaptureLine(mirrorDiag, mirrorDebug bool, taskName, line 
 		return
 	}
 	if taskName != "" {
-		o.Debug(line, Field{Key: "task", Value: taskName})
+		o.debug(line, Field{Key: "task", Value: taskName})
 	} else {
-		o.Debug(line)
+		o.debug(line)
 	}
 }
 
-var _ io.WriteCloser = (*Evidence)(nil)
+var _ io.WriteCloser = (*evidence)(nil)
