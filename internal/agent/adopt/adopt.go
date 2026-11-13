@@ -1,10 +1,9 @@
 // Package adopt inventories non-evo CLI output in an existing codebase and
 // proposes a migration plan keyed to the adoption ladder (Init/Main →
-// Task/Done → effects → containers → facts/warnings → confirm/dry-run).
-// Detection is static and AST-based — every finding is a call site or
-// import the compiler itself would resolve the same way, never a guess
-// about intent; ambiguous cases are marked NeedsReview instead of silently
-// picked one way.
+// Task/Done → effects → facts/warnings → confirm/dry-run). Detection is
+// static and AST-based — every finding is a call site or import the
+// compiler itself would resolve the same way, never a guess about intent;
+// ambiguous cases are marked NeedsReview instead of silently picked one way.
 package adopt
 
 import (
@@ -17,23 +16,23 @@ import (
 	"strings"
 )
 
-// Inventory walks dir for Go source and returns the migration plan.
-// It skips vendor/, testdata/, dotfile directories, and generated files it
-// can detect via a "Code generated ... DO NOT EDIT" header, matching go's
-// own convention.
+// Inventory walks dir for Go source and returns the full migration plan.
+// It prefers cmd/ when that subtree exists, skips *_test.go, vendor/,
+// testdata/, dotfile directories, and generated files it can detect via a
+// "Code generated ... DO NOT EDIT" header, matching go's own convention.
 func Inventory(dir string) (Plan, error) {
 	plan := Plan{Directory: dir}
 	fset := token.NewFileSet()
 	var parsed []parsedFile
 
-	walkErr := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+	walkErr := filepath.WalkDir(inventoryRoot(dir), func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("walk %s: %w", path, err)
 		}
 		if d.IsDir() {
 			return skipUninventoried(d)
 		}
-		if !strings.HasSuffix(path, ".go") {
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
 		findings, file, invErr := inventoryPath(fset, path)
@@ -57,6 +56,15 @@ func Inventory(dir string) (Plan, error) {
 		plan.Caveat = facadeInventoryCaveat
 	}
 	return plan, nil
+}
+
+func inventoryRoot(dir string) string {
+	cmd := filepath.Join(dir, "cmd")
+	info, err := os.Stat(cmd)
+	if err == nil && info.IsDir() {
+		return cmd
+	}
+	return dir
 }
 
 func skipUninventoried(d os.DirEntry) error {
@@ -105,13 +113,12 @@ func sortFindings(findings []Finding) {
 }
 
 func rungsTouched(findings []Finding) []Rung {
-	order := []Rung{RungInitMain, RungTaskDone, RungEffects, RungFactsWarnings, RungConfirm}
 	present := map[Rung]bool{}
 	for _, f := range findings {
 		present[f.Rung] = true
 	}
 	var out []Rung
-	for _, r := range order {
+	for _, r := range ladderOrder {
 		if present[r] {
 			out = append(out, r)
 		}

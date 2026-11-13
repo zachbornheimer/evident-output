@@ -17,10 +17,10 @@ import (
 // not then render the same text a second time underneath it.
 func TestFailf_EvidenceDedupedAgainstSummary(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("install")
-	output := task.Evidence()
+	output := task.EvidenceForTest()
 	_, _ = fmt.Fprint(output, "npm ERR! 404 not found")
 	_ = task.Failf("install failed: %s", output.Text())
 
@@ -38,10 +38,10 @@ func TestFailf_EvidenceDedupedAgainstSummary(t *testing.T) {
 // renders underneath.
 func TestFailf_EvidenceStillRenders_WhenNotContainedInSummary(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("build")
-	output := task.Evidence()
+	output := task.EvidenceForTest()
 	_, _ = fmt.Fprintln(output, "error: undefined symbol foo")
 	task.Fail("compile failed")
 

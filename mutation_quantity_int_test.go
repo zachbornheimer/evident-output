@@ -17,8 +17,8 @@ func TestMutationVerbs_AcceptLenDirectly(t *testing.T) {
 	items := []string{"a", "b", "c"}
 
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
-	_ = out.Task("cleanup").Delete("stale local branch", nil, evo.Affected(len(items)))
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	out.Task("cleanup").Delete(len(items), "stale local branch")
 	_ = out.Finish()
 
 	if !strings.Contains(buf.String(), "3") {

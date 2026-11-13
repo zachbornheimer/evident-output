@@ -19,8 +19,8 @@ type SourceLocation = core.SourceLocation
 
 // Attachment is an additional label/value problem attachment.
 //
-// Named Attachment (not Evidence) because Evidence names the retained
-// process-output sink (see Evidence in capture.go) — this is a single
+// Named Attachment (not evidence) because evidence names the retained
+// process-output sink (see evidence in capture.go) — this is a single
 // labeled fact attached to a Problem, a different concept from that sink.
 type Attachment = core.Attachment
 
@@ -63,7 +63,7 @@ func Count(value int64, unit ...string) ProblemOption {
 
 // Location sets a source location on a Problem (renamed from At — C5: a
 // free-function At collided in name, though not in call syntax, with
-// Output.At(visibility), confusing autocomplete and readers alike).
+// Output.at(visibility), confusing autocomplete and readers alike).
 func Location(path string, line, column int) ProblemOption {
 	return problemOptionFunc(func(p *Problem) {
 		p.Location = &SourceLocation{Path: path, Line: line, Column: column}
