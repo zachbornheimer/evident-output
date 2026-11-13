@@ -16,7 +16,7 @@ import (
 // Interactive H.2/H.17/H.20–H.22 require testkit terminal (v0.2).
 
 func TestH1_Task_PhaseStartsPendingTask(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Task("dependencies")
@@ -35,7 +35,7 @@ func TestH1_Task_PhaseStartsPendingTask(t *testing.T) {
 }
 
 func TestH3_Task_ProgressStartsDeterminateTask(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Task("dependencies")
@@ -51,7 +51,7 @@ func TestH3_Task_ProgressStartsDeterminateTask(t *testing.T) {
 }
 
 func TestH4_Task_InvalidProgressIsRecordedWithoutCorruption(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("download")
@@ -68,7 +68,7 @@ func TestH4_Task_InvalidProgressIsRecordedWithoutCorruption(t *testing.T) {
 }
 
 func TestH5_Task_BackwardProgressIsRejected(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("download")
@@ -81,7 +81,7 @@ func TestH5_Task_BackwardProgressIsRejected(t *testing.T) {
 }
 
 func TestH6_Item_BlockCreatesSingleProblem(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	workingTree := out.Task("working tree")
@@ -103,7 +103,7 @@ func TestH6_Item_BlockCreatesSingleProblem(t *testing.T) {
 }
 
 func TestH9_Task_FirstTerminalStateWins(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	item := out.Task("working tree")
@@ -119,7 +119,7 @@ func TestH9_Task_FirstTerminalStateWins(t *testing.T) {
 }
 
 func TestH10_Task_ConcurrentResolutionPreservesDeclarationOrder(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	workingTree := out.Task("working tree")
@@ -151,10 +151,10 @@ func TestH10_Task_ConcurrentResolutionPreservesDeclarationOrder(t *testing.T) {
 }
 
 func TestH11_Tasks_StateIsDerivedFromChildren(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
-	dependencies := out.DisplayGroup("dependencies")
+	dependencies := out.Group("dependencies")
 	react := dependencies.Task("react")
 	sharp := dependencies.Task("sharp")
 
@@ -169,10 +169,10 @@ func TestH11_Tasks_StateIsDerivedFromChildren(t *testing.T) {
 
 func TestH12_Tasks_SuccessSummaryIsSuppressedOnFailure(t *testing.T) {
 	var output bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("dependencies"), evo.To(&output), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &output, Title: "dependencies", Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
-	dependencies := out.DisplayGroup("dependencies")
+	dependencies := out.Group("dependencies")
 	dependencies.Summary("installed 2 packages")
 	dependencies.Task("react").Done()
 	dependencies.Task("sharp").Fail("checksum mismatch")
@@ -191,10 +191,10 @@ func TestH12_Tasks_SuccessSummaryIsSuppressedOnFailure(t *testing.T) {
 // terminal verb, and a clean finish must never escalate that to
 // ErrUnresolvedTask (previously pinned here as the old behavior).
 func TestH13_Output_FinishLeavesUnresolvedTaskPartial(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
-	dependencies := out.DisplayGroup("dependencies")
+	dependencies := out.Group("dependencies")
 	dependencies.Task("react").Done()
 	dependencies.Task("esbuild")
 
@@ -209,19 +209,14 @@ func TestH13_Output_FinishLeavesUnresolvedTaskPartial(t *testing.T) {
 
 func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 	var output bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title(
-		"dependencies"), evo.To(&output),
-		evo.Plain(),
-		evo.NoColor(),
-		evo.Width(80),
-	}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &output, Title: "dependencies", Width: 80, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Task("dependencies")
-	_ = dependencies.Add("package", nil, evo.Affected(14))
-	_ = dependencies.Update("package", nil, evo.Affected(4))
+	dependencies.Record("add", 14, "package")
+	dependencies.Record("update", 4, "package")
 	dependencies.RecordLabel("reused", 63, "cached package")
-	_ = dependencies.Write("app.lock", nil)
+	dependencies.Record("write", 1, "app.lock")
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -236,7 +231,7 @@ func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
   added    14 packages
   updated   4 packages
   reused   63 cached packages
-  wrote       app.lock
+  wrote     1 app.lock
 `
 	got := output.String()
 	if got != want {
@@ -246,18 +241,13 @@ func TestH14_Changes_AlignVerbQuantityAndObject(t *testing.T) {
 
 func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 	var output bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title(
-		"dependencies"), evo.To(&output),
-		evo.Plain(),
-		evo.NoColor(),
-		evo.Width(30),
-	}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &output, Title: "dependencies", Width: 30, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	dependencies := out.Task("dependencies")
-	_ = dependencies.Add("package", nil, evo.Affected(14))
-	_ = dependencies.Update("package", nil, evo.Affected(4))
-	_ = dependencies.Write("app.lock", nil)
+	dependencies.Record("add", 14, "package")
+	dependencies.Record("update", 4, "package")
+	dependencies.Record("write", 1, "app.lock")
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -268,7 +258,7 @@ func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 [changed]  dependencies
   added 14 packages
   updated 4 packages
-  wrote app.lock
+  wrote 1 app.lock
 `
 	got := output.String()
 	if got != want {
@@ -277,11 +267,11 @@ func TestH15_Changes_NarrowOutputUsesCompactLayout(t *testing.T) {
 }
 
 func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("account acme"), evo.To(io.Discard), evo.DryRun()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Title: "account acme", DryRun: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	deleteAcct := out.Task("delete account acme")
-	_ = deleteAcct.Delete("project", nil, evo.Affected(14))
+	deleteAcct.Delete("project", func() error { return nil }, evo.Affected(14))
 	deleteAcct.Record("revoke", 7, "API keys")
 
 	if err := out.Finish(); err != nil {
@@ -296,11 +286,7 @@ func TestH16_Plan_DoesNotInferChangedConclusion(t *testing.T) {
 
 func TestH18_Output_NonInteractiveContainsNoTerminalControls(t *testing.T) {
 	var output bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.To(&output),
-		evo.Plain(),
-		evo.NoColor(),
-	}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &output, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("dependencies")
@@ -319,7 +305,7 @@ func TestH18_Output_NonInteractiveContainsNoTerminalControls(t *testing.T) {
 
 func TestH19_Output_HumanAndJSONPreserveMeaning(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("bpp-csharp"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "bpp-csharp", Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("working tree").Done()

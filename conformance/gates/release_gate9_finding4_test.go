@@ -21,17 +21,14 @@ func TestTaskRun_PlainMode_NoPerLineDurableRows(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
 		Isolated: true,
-		Options: []evo.Option{
-			evo.To(&buf),
-			evo.Plain(),
-			evo.NoColor(),
-		},
-	})
+		Stdout:   &buf, Plain: true, Color: evo.ColorNever})
 
 	task := out.Task("build")
 	cmd := exec.Command("/bin/sh", "-c", "printf 'compiling a.go\\ncompiling b.go\\ncompiling c.go\\ncompiling d.go\\n'")
-	if err := task.Run(cmd); err != nil {
-		t.Fatalf("task.Run: %v", err)
+	cmd.Stdout = task.Writer()
+	cmd.Stderr = task.Writer()
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("cmd.Run: %v", err)
 	}
 	task.Done()
 	if err := out.Finish(); err != nil {
@@ -54,16 +51,13 @@ func TestTaskRun_PlainMode_FailureShowsTailOnce(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
 		Isolated: true,
-		Options: []evo.Option{
-			evo.To(&buf),
-			evo.Plain(),
-			evo.NoColor(),
-		},
-	})
+		Stdout:   &buf, Plain: true, Color: evo.ColorNever})
 
 	task := out.Task("build")
 	cmd := exec.Command("/bin/sh", "-c", "echo 'undefined reference to main' 1>&2; exit 1")
-	if err := task.Run(cmd); err != nil {
+	cmd.Stdout = task.Writer()
+	cmd.Stderr = task.Writer()
+	if err := cmd.Run(); err != nil {
 		_ = task.Failf("build failed: %w", err)
 	}
 	if err := out.Finish(); err != nil {
