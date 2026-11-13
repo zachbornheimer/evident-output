@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/internal/agent/adopt"
 	"github.com/zachbornheimer/evident-output/internal/agent/catalog"
 	"github.com/zachbornheimer/evident-output/internal/agent/preview"
 	"github.com/zachbornheimer/evident-output/internal/agent/review"
@@ -25,13 +27,15 @@ func main() {
 		return
 	}
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: evident-output <review|preview|explain|version> [args…]")
+		fmt.Fprintln(os.Stderr, "usage: evident-output <adopt|review|preview|explain|version> [args…]")
 		os.Exit(2)
 	}
 	var err error
 	switch os.Args[1] {
 	case "version":
 		fmt.Printf("evident-output %s\n", Version)
+	case "adopt":
+		err = cmdAdopt(os.Args[2:])
 	case "review":
 		err = cmdReview(os.Args[2:])
 	case "preview":
@@ -48,16 +52,57 @@ func main() {
 	}
 }
 
-func cmdReview(args []string) error {
-	if len(args) < 1 {
-		return fmt.Errorf("usage: evident-output review <file.go>")
+func cmdAdopt(args []string) error {
+	opts := adopt.InventoryOptions{}
+	dir := ""
+	for _, a := range args {
+		switch {
+		case strings.HasPrefix(a, "--cursor="):
+			opts.Cursor = strings.TrimPrefix(a, "--cursor=")
+		case strings.HasPrefix(a, "--limit="):
+			n, err := strconv.Atoi(strings.TrimPrefix(a, "--limit="))
+			if err != nil {
+				return fmt.Errorf("usage: evident-output adopt [--cursor=...] [--limit=N] <dir>")
+			}
+			opts.Limit = n
+		default:
+			dir = a
+		}
 	}
-	path := args[0]
-	raw, err := os.ReadFile(path)
+	if dir == "" {
+		return fmt.Errorf("usage: evident-output adopt [--cursor=...] [--limit=N] <dir>")
+	}
+	page, err := adopt.InventoryPage(dir, opts)
 	if err != nil {
 		return err
 	}
-	res := review.GoSource(filepath.Base(path), string(raw))
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(page)
+}
+
+func cmdReview(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: evident-output review <file.go|dir>")
+	}
+	path := args[0]
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	var res review.Result
+	if info.IsDir() {
+		res, err = review.GoDirectory(path)
+		if err != nil {
+			return err
+		}
+	} else {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		res = review.GoSource(filepath.Base(path), string(raw))
+	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(res); err != nil {

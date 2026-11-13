@@ -75,9 +75,11 @@ failure on its own Task and use Next(evo.Label(...)) for follow-up guidance inst
 			Title:    "Tasks and progress",
 			UseCases: []string{"progress", "collections", "phase", "bytes", "heartbeat", "loop", "retry", "skip"},
 			Concepts: []string{"Task", "DisplayGroup", "Sequence", "Progress", "Each", "Skipped", "Kept"},
-			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030"},
+			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030", "API-039"},
 			Body: `Task is one operation with optional Doing/Progress. DisplayGroup/Sequence are collections whose state is
-derived from children — never call Done/Fail/Progress on the collection itself (API-027). DisplayGroup's children
+derived from children — never call Done/Fail/Progress on the collection itself (API-027). A DisplayGroup of
+exactly one child is a lone Task (API-039): the live renderer collapses it to one line, and review flags the
+Go shape so agents do not write a DisplayGroup named run plus a single child. DisplayGroup's children
 are independent (safe for concurrent worker-pool fan-out, no ordering assumed, concurrent Running children
 expected); Sequence's children are an ordered dependency that stops later, still-unresolved siblings as
 "-  not started" automatically once one fails or is cancelled (C13). Both offer nested .Sequence(name)/
@@ -166,7 +168,7 @@ Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 			ID:       "interactive",
 			Title:    "Live region and debug",
 			UseCases: []string{"spinner", "debug", "narrow", "confirm", "prompt", "resize", "suspend", "child-ui"},
-			Concepts: []string{"LiveSurface", "VisibilityDelay", "Terminal", "Confirm", "Println", "Suspend"},
+			Concepts: []string{"LiveSurface", "VisibilityDelay", "Terminal", "Confirm", "Println"},
 			Rules:    []string{"TERM-001", "TERM-006", "TERM-015", "CONFIRM-001", "CONFIRM-002", "LOG-001"},
 			Body: `Instant Done before the visibility threshold must not flash a spinner.
 Durable notes go through evo.Println/Print/Printf — never fmt.Print* — while a live region is open: evo clears
@@ -183,11 +185,8 @@ Resize is a rerender: width is re-read every frame; a narrowed pane recomputes t
 live rather than leaving a wrapped remnant.
 Use evo.Terminal with testkit.Screen or terminal.NewANSI.
 
-Handing the tty to a child: out.Suspend(func() error { ... }) clears the live region, holds it invisible for the
-whole call, and redraws after — required only when a child paints its own UI on the shared terminal (its Stdout/
-Stderr are the process's own, tty-passthrough); otherwise the parent's spinner and the child's first line glue
-together. Captured or Writer-wired children (task.Evidence(), cmd.Stdout = task.Writer()) never need
-Suspend — their output already flows through evo's own render loop.`,
+Child processes go through Task.Run (or cmd.Stdout = task.Writer()) so the live row keeps moving.
+Do not inherit os.Stdout, and do not clear the spinner around a child.`,
 			TokenEstimate: 260,
 		},
 		{
@@ -195,14 +194,14 @@ Suspend — their output already flows through evo's own render loop.`,
 			Title:    "First paint and the heart contract",
 			UseCases: []string{"startup", "latency", "blank", "streaming"},
 			Concepts: []string{"Init", "VisibilityDelay", "Doing", "Progress"},
-			Rules:    []string{"FP-001", "FP-002", "FP-003", "FP-004"},
+			Rules:    []string{"FP-001", "FP-002", "FP-003", "FP-004", "FP-005"},
 			Body: `The user is always waiting for input, watching work, or reading a verdict — a blank terminal for the first
 one to three seconds of a run is none of those, and reads as a hang.
 
 evo.Init(evo.Config{...}) arms first paint before any I/O: call it as the very first statement in main, before
 config parsing, git walks, or a network dial. Init + the first declared entity must produce something honest on
-screen within 100ms of process start (FP-001) — VisibilityDelay (default 80ms) only suppresses spinner flash on
-work that finishes instantly; it never excuses a blank window before that.
+screen within 100ms of process start (FP-001). Declaring a Task paints it running (a spinner) immediately —
+VisibilityDelay must not hide that first running frame, so a fast bind cannot popup-complete (FP-005).
 
 Declare before you compute (FP-002): the first Task/Sequence declaration comes before the first read/open/dial
 in main or run — a config load or repo walk that happens first, with the first evo.Task only after, is the exact

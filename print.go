@@ -72,6 +72,19 @@ func (o *Output) Subject(text string) {
 	o.Println(text)
 }
 
+// About names what this run is acting on without emitting a row. Call it
+// before DeclareDryRun so the header reads "[dry-run] repo  /path" instead
+// of the generic marker. Hosts that Init without a path (zq) used to drop
+// the name; the library that knows the path should call About.
+func (o *Output) About(text string) {
+	if o == nil || text == "" {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.cfg.dryRunHeaderText = text
+}
+
 // Print implements Printer.
 func (p *Printer) Print(args ...any) {
 	p.enqueue(fmt.Sprint(args...))

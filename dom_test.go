@@ -84,8 +84,8 @@ func TestDOM010_WarnAndFailWithStructuredSummary(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	w := out.Task("w")
 	w.Warn("soft")
-	if got := w.Snapshot().State; got != evo.Pending {
-		t.Fatalf("state = %q, want Pending: Warn must not resolve the task", got)
+	if got := w.Snapshot().State; got == evo.Done || got == evo.Failed || got == evo.Blocked {
+		t.Fatalf("state = %q, want non-terminal: Warn must not resolve the task", got)
 	}
 	if warnings := w.Snapshot().Warnings; len(warnings) != 1 || warnings[0].Summary != "soft" {
 		t.Fatalf("warnings = %+v, want one warning %q", warnings, "soft")

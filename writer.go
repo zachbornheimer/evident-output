@@ -3,7 +3,28 @@ package evo
 import (
 	"io"
 	"os"
+	"sync"
 )
+
+// charDeviceOverride is the TTY-detection facade construction uses (same
+// idea as processArgv0). Tests mark one concrete writer as a character
+// device so a bytes.Buffer can stand in for a pty without claiming every
+// writer in the process is a TTY.
+var charDeviceOverride struct {
+	mu     sync.RWMutex
+	writer io.Writer
+	on     bool
+}
+
+func writerIsCharDevice(w io.Writer) bool {
+	charDeviceOverride.mu.RLock()
+	marked, on := charDeviceOverride.writer, charDeviceOverride.on
+	charDeviceOverride.mu.RUnlock()
+	if on && w != nil && w == marked {
+		return true
+	}
+	return osCharDevice(w)
+}
 
 // IsCharDevice reports whether w is an *os.File backed by a character device
 // (typical interactive TTY). Pipes, files, and non-file writers return false.
@@ -11,6 +32,10 @@ import (
 // Prefer Config{Stdout, Stderr} for ordinary dual-stream construction. This
 // helper remains for hosts that choose Plain/NoColor from a concrete writer.
 func IsCharDevice(w io.Writer) bool {
+	return osCharDevice(w)
+}
+
+func osCharDevice(w io.Writer) bool {
 	f, ok := w.(*os.File)
 	if !ok {
 		return false

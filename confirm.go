@@ -208,7 +208,7 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 	}()
 
 	var yes bool
-	_ = o.Suspend(func() error {
+	_ = o.suspend(func() error {
 		o.writeConfirmPromptLocked(question, cfg.destructive, cfg.detail)
 		line, cancelled, eof := o.readConfirmLine(abort)
 		if cancelled {

@@ -101,7 +101,13 @@ func (o *Output) setPhaseLocked(st *taskState, text string) {
 // shape: the Evidence ring is its one durable home, not a plain-mode row
 // per line (release-gate round 9 finding 4).
 func (o *Output) setLiveOnlyPhaseLocked(st *taskState, text string) {
-	st.phase = txt.Text(text)
+	text = txt.Text(text)
+	// Identical live-only phase is a no-op: Writer leftover/repeated lines
+	// must not bump, emit task.phase_changed, or force a live paint.
+	if text == st.phase {
+		return
+	}
+	st.phase = text
 	st.activityAt = o.cfg.clock.Now()
 	if st.state == Pending {
 		o.promoteRunningLocked(st)
@@ -446,6 +452,7 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 }
 
 func (t *TaskHandle) finish(state EntityState, summary string, problems []Problem) *TaskHandle {
+	t.out.holdRunningPaint(t.id)
 	t.out.mu.Lock()
 	defer t.out.mu.Unlock()
 	st := t.out.taskByRef[t.id]

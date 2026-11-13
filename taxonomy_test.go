@@ -261,7 +261,7 @@ func TestTaskHandle_SkippedDoesNotResolveTask(t *testing.T) {
 	branches := out.Task("branches")
 	branches.Skipped(evo.Reason("protected"), "main")
 
-	if state := branches.Snapshot().State; state != evo.Pending {
+	if state := branches.Snapshot().State; state == evo.Done || state == evo.Failed || state == evo.Skipped {
 		t.Fatalf("Skipped must not resolve the task, state = %v", state)
 	}
 }

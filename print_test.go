@@ -140,3 +140,16 @@ func TestEncodeJSON_ContainsTasks(t *testing.T) {
 		t.Fatalf("json: %s", b)
 	}
 }
+
+func TestAbout_DeclareDryRun_MergesRepoPath(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	t.Cleanup(func() { _ = out.Close() })
+	out.About("repo  /Users/zbornheimer/Developer/Zysys/flight")
+	out.DeclareDryRun()
+	got := buf.String()
+	if !strings.Contains(got, "repo  /Users/zbornheimer/Developer/Zysys/flight") {
+		t.Fatalf("dry-run header missing repo path: %q", got)
+	}
+}

@@ -88,7 +88,7 @@ func TestSpecP1_LiveFrame_Step2(t *testing.T) {
 
 	out.Task("branches").Done("14 deleted")
 	worktrees := out.Task("worktrees")
-	out.Task("remotes") // declared, not yet started — renders "○ remotes"
+	out.Task("remotes") // declared Running — spinner, not a pending ○
 	for range worktrees.Each([]string{"../.worktrees/app-sah-1", "../.worktrees/app-sah-2", "../.worktrees/app-sah-3"}) {
 		break
 	}
@@ -108,8 +108,8 @@ func TestSpecP1_LiveFrame_Step2(t *testing.T) {
 	if !strings.Contains(lines[0], "worktrees") || !strings.Contains(lines[0], "../.worktrees/app-sah-1") {
 		t.Fatalf("line 1 want Running worktrees with current name, got %q", lines[0])
 	}
-	if !strings.Contains(lines[1], "○") || !strings.Contains(lines[1], "remotes") {
-		t.Fatalf("line 2 want pending remotes with ○, got %q", lines[1])
+	if !strings.Contains(lines[1], "remotes") || strings.Contains(lines[1], "○") {
+		t.Fatalf("line 2 want running remotes (spinner, not ○), got %q", lines[1])
 	}
 }
 
@@ -136,8 +136,8 @@ func TestSpecP1_LiveFrame_Indeterminate(t *testing.T) {
 	if !strings.Contains(lines[0], "branches") || !strings.Contains(lines[0], "classifying…") {
 		t.Fatalf("line 1 want indeterminate phase, got %q", lines[0])
 	}
-	if !strings.Contains(lines[1], "○") || !strings.Contains(lines[1], "worktrees") {
-		t.Fatalf("line 2 want pending ○, got %q", lines[1])
+	if !strings.Contains(lines[1], "worktrees") || strings.Contains(lines[1], "○") {
+		t.Fatalf("line 2 want running worktrees (spinner, not ○), got %q", lines[1])
 	}
 }
 
@@ -480,8 +480,8 @@ func TestSpecP9_LiveFrame_Step2(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("want 2 flat task lines (resolved scan left the ticker), got %d:\n%s", len(lines), got)
 	}
-	if !strings.Contains(lines[1], "○") || !strings.Contains(lines[1], "install") {
-		t.Fatalf("line 2 want pending install, got %q", lines[1])
+	if !strings.Contains(lines[1], "install") || strings.Contains(lines[1], "○") {
+		t.Fatalf("line 2 want running install (spinner, not ○), got %q", lines[1])
 	}
 }
 

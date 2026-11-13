@@ -233,22 +233,3 @@ func TestSlogAddSource_ResolvesSourceField(t *testing.T) {
 		t.Fatalf("AddSource must resolve the call site to source=file.go:line:\n%s", s)
 	}
 }
-
-func TestSuspend_RunsCallbackWithoutLiveCorruption(t *testing.T) {
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
-	t.Cleanup(func() { _ = out.Close() })
-
-	out.Task("pre").Done()
-	err := out.Suspend(func() error {
-		// host writes outside evo
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	out.Task("post").Done()
-	if err := out.Finish(); err != nil {
-		t.Fatal(err)
-	}
-}
