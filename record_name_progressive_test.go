@@ -3,6 +3,7 @@ package evo_test
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
@@ -28,12 +29,7 @@ func TestRecordName_StreamsAtTaskResolution_PlainProfile(t *testing.T) {
 	// dry run suppress its trailing conclusion band, so the only "[planned]"
 	// occurrences left to count are the two per-task ledger rows this test is
 	// actually about.
-	out := evo.Init(evo.Config{
-		Isolated: true,
-		DryRun:   true,
-		Subject:  "repo  /demo",
-		Options:  []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()},
-	})
+	out := evo.Init(evo.Config{Isolated: true, DryRun: true, Subject: "repo  /demo", Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	build := out.Task("go-task")
@@ -76,11 +72,7 @@ func TestRecordName_StreamsAtTaskResolution_InteractiveProfile(t *testing.T) {
 	// Title matches the task's own name so the single-matching-item
 	// conclusion-suppression rule (TestCoalesce_SingleMatchingPlan) applies —
 	// the only "[planned]" left to count is this task's own streamed row.
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{
-		evo.Title("go-task"),
-		evo.Terminal(screen),
-		evo.DryRun(),
-	}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Terminal: screen, Title: "go-task", DryRun: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	build := out.Task("go-task")
@@ -105,7 +97,7 @@ func TestRecordName_StreamsAtTaskResolution_InteractiveProfile(t *testing.T) {
 // bound, since the row cap is one shared ledger bound wherever it renders.
 func TestRecordName_CapsPerTaskRowsWithExactOverflow(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true, DryRun: true})
 	t.Cleanup(func() { _ = out.Close() })
 
 	branches := out.Task("branches")

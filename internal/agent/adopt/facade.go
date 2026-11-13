@@ -71,6 +71,9 @@ func detectFacades(fset *token.FileSet, files []parsedFile) []Facade {
 func confirmedFacades(candidates map[string]*facadeCandidate) []Facade {
 	var facades []Facade
 	for _, c := range candidates {
+		if len(c.writerFields) == 0 {
+			continue
+		}
 		var methods []string
 		for name, body := range c.methodBodies {
 			if wrapsWriter(body, c.writerFields) {
@@ -208,10 +211,9 @@ func targetsWriter(arg ast.Expr, writerFields map[string]bool) bool {
 	if !ok {
 		return false
 	}
-	if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == "os" &&
-		(sel.Sel.Name == "Stdout" || sel.Sel.Name == "Stderr") {
-		return true
-	}
+	// os.Stdout/os.Stderr only count when they are this type's writer
+	// fields (l.Stdout) — a method that fmt.Fprintf(os.Stderr) without
+	// an io.Writer field is not a facade.
 	return writerFields[sel.Sel.Name]
 }
 
