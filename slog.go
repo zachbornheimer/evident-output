@@ -27,11 +27,11 @@ type LogRecord struct {
 //	out := evo.Init(evo.Config{
 //	    Debug: evo.DebugConfig{Level: evo.LevelDebug},
 //	})
-//	logger := slog.New(out.SlogHandler())
+//	logger := slog.New(out.SlogHandlerForTest())
 //
 // Application human prose uses Print/Printf/Println or Task outcomes — not slog.
 // Infrastructure diagnostics use slog through this handler.
-func (o *Output) SlogHandler() slog.Handler {
+func (o *Output) slogHandler() slog.Handler {
 	level := slog.LevelInfo
 	if o != nil {
 		o.mu.Lock()
