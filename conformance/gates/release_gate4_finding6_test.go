@@ -1,11 +1,11 @@
 package gates_test
 
 import (
-	"bytes"
 	"strings"
 	"testing"
 
 	evo "github.com/zachbornheimer/evident-output"
+	"github.com/zachbornheimer/evident-output/testkit"
 )
 
 // TestConfirm_ZeroByteEOF_SummaryDistinctFromNoTTYPolicyBlock is the
@@ -14,18 +14,23 @@ import (
 // wording, so the printed reason matches what actually happened, asserted on
 // rendered bytes.
 func TestConfirm_ZeroByteEOF_SummaryDistinctFromNoTTYPolicyBlock(t *testing.T) {
-	var buf bytes.Buffer
-	// Plain() is deliberately absent: it short-circuits Confirm to the
+	// Plain is deliberately absent: it short-circuits Confirm to the
 	// no-TTY policy block before stdin is ever read, which is a different
-	// code path from the EOF this test targets (Output.Confirm's Resolution
-	// list — "No TTY / NonInteractive / plain" vs "zero-byte EOF").
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Stdin(strings.NewReader(""))}})
+	// code path from the EOF this test targets. An interactive Terminal
+	// keeps Config from inferring Plain on a bytes.Buffer.
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := evo.Init(evo.Config{
+		Isolated: true,
+		Terminal: screen,
+		Color:    evo.ColorNever,
+		Stdin:    strings.NewReader(""),
+	})
 
 	if ok := out.Confirm("proceed?"); ok {
 		t.Fatal("Confirm(EOF) = true, want false")
 	}
 	_ = out.Finish()
-	rendered := buf.String()
+	rendered := screen.PersistedText()
 	if !strings.Contains(rendered, "no answer — stdin closed") {
 		t.Fatalf("want the EOF-specific summary rendered, got:\n%s", rendered)
 	}

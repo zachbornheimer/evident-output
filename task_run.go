@@ -8,11 +8,11 @@ import (
 )
 
 // Run is the ordinary way to shell out from a Task: it executes cmd as this
-// task's subprocess, wiring cmd.Stdout/cmd.Stderr through the same Evidence +
+// task's subprocess, wiring cmd.Stdout/cmd.Stderr through the same evidence +
 // PhaseWriter plumbing PhaseWriter uses directly. Each line becomes the
 // task's live Phase, and every byte is retained (redacted, bounded) in the
-// task's Evidence ring so DetailTail has proof after Fail — reach for
-// Evidence directly only when the caller isn't running an *exec.Cmd. If
+// task's evidence ring so DetailTail has proof after Fail — reach for
+// evidence directly only when the caller isn't running an *exec.Cmd. If
 // cmd.Stdout/cmd.Stderr already point somewhere (a caller wiring its own log
 // file, say), Run tees into it rather than replacing it.
 //
@@ -20,8 +20,9 @@ import (
 // (filepath.Base(cmd.Path) or cmd.Args[0]) so a live view shows what's
 // running before the child ever writes a line.
 //
-// Run does not touch cmd.Stdin and does not Suspend — a subprocess that
-// needs the terminal (a prompt, a pager) stays on the explicit Suspend path.
+// Run does not touch cmd.Stdin. A child that must own the TTY (an editor)
+// still runs through Run with Stdin left as the caller set it; do not
+// clear the live region around it.
 // A context baked into cmd via exec.CommandContext still governs
 // cancellation exactly as it would for a bare cmd.Run(); Run adds no
 // context handling of its own.
@@ -30,14 +31,14 @@ import (
 // the caller chooses Done/Fail from the result:
 //
 //	cmd := exec.Command("go", "build", "./...")
-//	if err := task.Run(cmd); err != nil {
+//	if err := task.run(cmd); err != nil {
 //	    return task.Failf("build failed: %w", err)
 //	}
 //	task.Done()
-func (t *TaskHandle) Run(cmd *exec.Cmd) error {
+func (t *TaskHandle) run(cmd *exec.Cmd) error {
 	if t != nil && t.out != nil {
 		t.ensurePhase(commandPhaseName(cmd))
-		pw := &phaseWriter{task: t, evidence: t.Evidence()}
+		pw := &phaseWriter{task: t, evidence: t.evidence()}
 		cmd.Stdout = teeSubprocessWriter(cmd.Stdout, pw)
 		cmd.Stderr = teeSubprocessWriter(cmd.Stderr, pw)
 	}
