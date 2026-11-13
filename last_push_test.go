@@ -48,7 +48,7 @@ func TestAPI028_AbsoluteProgress(t *testing.T) {
 
 func TestAPI025_PackageNameEvo(t *testing.T) {
 	// Import path uses evo package name — compile proof via this test package.
-	var _ = evo.Done
+	_ = evo.Done
 }
 
 func TestAPI005_NoPublicIntentEnum(t *testing.T) {
