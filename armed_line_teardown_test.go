@@ -60,7 +60,7 @@ func TestArmedLine_ClearedBeforeDurableWriteAfterInteractivityLost(t *testing.T)
 		Title:           "zq",
 		Terminal:        surface,
 		Stdout:          surface,
-		VisibilityDelay: evo.Delay(0),
+		VisibilityDelay: evo.DelayForTest(0),
 	})
 	t.Cleanup(func() { _ = out.Close() })
 

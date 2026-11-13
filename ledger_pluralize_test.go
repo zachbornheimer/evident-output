@@ -14,9 +14,9 @@ import (
 // singular/plural noun or calls evo.Pluralize itself.
 func TestLedger_PluralizesSingularObjectFromQuantity(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	_ = out.Task("cleanup").Delete("stale local branch", nil, evo.Affected(8))
+	out.Task("cleanup").Delete("stale local branch", func() error { return nil }, evo.Affected(8))
 	_ = out.Finish()
 
 	rendered := buf.String()
@@ -32,9 +32,9 @@ func TestLedger_PluralizesSingularObjectFromQuantity(t *testing.T) {
 // singular form unchanged.
 func TestLedger_QuantityOne_StaysSingular(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	_ = out.Task("cleanup").Delete("stale local branch", nil, evo.Affected(1))
+	out.Task("cleanup").Delete("stale local branch", func() error { return nil }, evo.Affected(1))
 	_ = out.Finish()
 
 	rendered := buf.String()
