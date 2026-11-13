@@ -17,10 +17,10 @@ import (
 // first, with the evidence tail as an additional evidence line underneath.
 func TestFail_ExplicitDetailAndDetailTail_BothRender(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("deploy")
-	output := task.Evidence()
+	output := task.EvidenceForTest()
 	_, _ = fmt.Fprintln(output, "raw evidence: connection refused")
 	task.Fail("deploy failed", evo.Detail("friendly summary"), output.DetailTail())
 
@@ -43,10 +43,10 @@ func TestFail_ExplicitDetailAndDetailTail_BothRender(t *testing.T) {
 // evidence tail either, and Detail still renders first.
 func TestFail_ExplicitDetailTailThenDetail_BothRender(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("deploy")
-	output := task.Evidence()
+	output := task.EvidenceForTest()
 	_, _ = fmt.Fprintln(output, "raw evidence: connection refused")
 	task.Fail("deploy failed", output.DetailTail(), evo.Detail("friendly summary"))
 
