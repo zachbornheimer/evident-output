@@ -17,7 +17,7 @@ type PlainOptions struct {
 }
 
 // RenderPlain projects a snapshot to plain text without terminal ownership.
-func RenderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
+func renderPlain(s Snapshot, opts PlainOptions) ([]byte, error) {
 	glyphs := opts.Glyphs
 	if glyphs == GlyphsAuto {
 		glyphs = GlyphsUnicode

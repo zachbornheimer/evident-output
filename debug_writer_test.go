@@ -1,6 +1,7 @@
 package evo_test
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -10,10 +11,10 @@ import (
 
 func TestDebugWriter_SplitsLinesAndSanitizes(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.NoColor())
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.DebugLevel(evo.LevelDebug), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
-	w := out.DebugWriter()
+	w := out.DebugWriterForTest()
 	_, _ = w.Write([]byte("hello\x1b[31m\npartial"))
 	_ = w.Close()
 	_ = out.Finish()

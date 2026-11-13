@@ -7,6 +7,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"os"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -22,7 +23,7 @@ func main() {
 	pretty := flag.Bool("pretty", true, "indent domain JSON")
 	flag.Parse()
 
-	out := evo.Init(evo.Config{
+	evo.Init(evo.Config{
 		Title:  "build",
 		Format: evo.FormatData,
 	})
@@ -37,7 +38,7 @@ func main() {
 		link.Done("bin/app")
 		// Domain payload stays on ResultWriter (stdout); presentation is stderr.
 		result := BuildResult{Artifact: "bin/app", Packages: 14, Duration: "3.2s"}
-		enc := json.NewEncoder(out.ResultWriter())
+		enc := json.NewEncoder(os.Stdout)
 		if *pretty {
 			enc.SetIndent("", "  ")
 		}
