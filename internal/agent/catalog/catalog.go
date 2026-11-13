@@ -27,7 +27,7 @@ func All() []Guide {
 			ID:       "common-api",
 			Title:    "Common API path",
 			UseCases: []string{"items", "finish", "block", "ok", "main", "entity", "severity"},
-			Concepts: []string{"Output", "Task", "Conclusion", "Main", "TaskHandle", "Sequence", "DisplayGroup"},
+			Concepts: []string{"Output", "Task", "Conclusion", "Main", "TaskHandle", "Sequence", "Group"},
 			Rules: []string{
 				"API-001", "API-006", "API-026", "API-028", "API-029", "DOM-006", "DOM-007", "DOM-011", "CON-002",
 				"API-034", "API-035", "API-036", "API-037", "API-038", "DOM-018", "DOM-019", "DOM-020", "TAX-002", "TXT-020", "TXT-021",
@@ -36,19 +36,20 @@ func All() []Guide {
   1) evo.Init(evo.Config{Title, DryRun}) once in main, before any I/O; evo.Main(run) — dry-run wording,
      empty-case, and exit codes are all owned; run returns only error; Main exits the process itself
      (no os.Exit wrapper — evo.Run/Output.Run return the code instead, for a caller that needs it without exiting).
-  2) evo.Task(subject).Delete(obj, call, opts...) (also Add/Create/Update/Remove/Write/Push) — call runs only on
-     a non-dry-run and only commits on success; evo.Affected(n) supplies the count. The run's DryRun mode picks
+  2) task.Delete("worktree", fn, evo.Affected(n)) (also Add/Create/Update/Remove/Write/Push) — the
+     callback is the work; Affected is optional quantity. Config.DryRun picks
      [planned] vs [changed]; no call site ever flips its own tense or chooses Changed/Ready/Planned.
-  3) evo.Task(name).Each(items) for loop progress (absolute, never double-counted); .Writer() as
-     cmd.Stdout so a talkative child's last line becomes the live doing-text.
-  4) evo.Task(name).Skipped(reason, name) / .Kept(reason, name) — taxonomy counted and summed, never a bare
-     "skipped N".
+  3) for path, task := range evo.Group("worktrees").Each(paths) { task.Define(...) } for
+     independent collections; Sequence.Each for ordered ones; .Writer() as cmd.Stdout so a
+     talkative child's last line becomes the live doing-text.
+  4) evo.Task(name).Skipped(reason) / .Kept(reason) — taxonomy counted and summed, never a bare
+     "skipped N". The item name is the Task name (Each child).
   5) evo.Confirm(question, ...) — owns the whole gate (prompt, quiesce, ⊘/OK resolution, exit code).
 
 Types: TaskHandle (work with Doing/Progress/mutations/taxonomy, or a fact-check gate resolved directly with no
 Doing/Progress call), SequenceHandle (evo.Sequence — named children in dependency order, auto-lifecycle
-NotStarted on failure/cancel), DisplayGroup (evo.DisplayGroup — presentation-only children, no ordering; both
-offer nested .Sequence/.DisplayGroup for recursive containers).
+NotStarted on failure/cancel), GroupHandle (evo.Group — independent children; the scheduler may overlap
+eligible work; both offer nested .Sequence/.Group for recursive containers).
 evo.Task/Sequence are get-or-create facades on the package-level default instance (see evo.Init/evo.SetDefault);
 Record/RecordName/RecordLabel stay on TaskHandle for tooling call sites that need a raw ledger row, not a front
 door of their own — Output.Changes/Output.Plan were removed (P1): every effect goes through a Task's mutation
@@ -63,7 +64,7 @@ Exit-code honesty (DOM-020): Block and Fail carry different exit codes (1 vs 2) 
 something wrong" from "something broke while checking". A usage or user mistake (missing flag, declined confirm,
 protected-branch policy) resolves Block, never Fail — routing it through Fail reports a user error as a system
 failure.
-Do not Start (API-006); no RunAll/Map (API-026); Failf/Blockf need % (API-028; Done/Warn/Task/Sequence/Reason
+Do not Start (API-006); no caller RunAll/Map/Retry on evo receivers (API-026 — Group/Sequence/Define/Each/After are the scheduler); Failf/Blockf need % (API-028; Done/Warn/Task/Sequence/Reason
 are printf-variadic themselves — there is no separate Donef/Warnf/Taskf/Reasonf); Capture not DebugWriter (API-029).
 Never print a joined failure list yourself (CON-002): out.Println(strings.Join(failures, "\n")) duplicates the
 one summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows. Resolve each
@@ -74,28 +75,30 @@ failure on its own Task and use Next(evo.Label(...)) for follow-up guidance inst
 			ID:       "tasks",
 			Title:    "Tasks and progress",
 			UseCases: []string{"progress", "collections", "phase", "bytes", "heartbeat", "loop", "retry", "skip"},
-			Concepts: []string{"Task", "DisplayGroup", "Sequence", "Progress", "Each", "Skipped", "Kept"},
-			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030"},
-			Body: `Task is one operation with optional Doing/Progress. DisplayGroup/Sequence are collections whose state is
-derived from children — never call Done/Fail/Progress on the collection itself (API-027). DisplayGroup's children
-are independent (safe for concurrent worker-pool fan-out, no ordering assumed, concurrent Running children
+			Concepts: []string{"Task", "Group", "Sequence", "Progress", "Each", "Define", "Skipped", "Kept"},
+			Rules:    []string{"API-027", "API-028", "DOM-016", "DOM-017", "BOUND-001", "API-030", "API-039"},
+			Body: `Task is one atomic operation with optional Doing/Progress. Group/Sequence are collections whose state is
+derived from children — never call Done/Fail/Progress on the collection itself (API-027). A Group of
+exactly one explicit child is a lone Task (API-039): the live renderer collapses it to one line, and review flags the
+Go shape so agents do not write a Group named run plus a single child. Group's children
+are independent (the scheduler may overlap eligible work; concurrent Running children
 expected); Sequence's children are an ordered dependency that stops later, still-unresolved siblings as
 "-  not started" automatically once one fails or is cancelled (C13). Both offer nested .Sequence(name)/
-.DisplayGroup(name) for recursive containers — a failure three levels deep still surfaces at the root header.
+.Group(name) for recursive containers — a failure three levels deep still surfaces at the root header.
 
 Heartbeat: any unresolved row (Running or Pending), and any unfinished container header, gains an elapsed
 suffix ("pushing feat/a — 5s") 5s after it is first actually painted in the live region — monotonic, never reset
 by Doing/Progress activity, so a stale spinner is never indistinguishable from progress and a queued row ages
 honestly even if nothing ever touches it.
 
-Loops: prefer evo.Task(name).Each(items) (or EachN(n)) over a hand-maintained counter — it owns the absolute
-Progress(completed,total) so a retry can never double-count or move the bar backwards. On manual retry, set
+Loops: prefer evo.Group(name).Each(items) (or Sequence.Each) over a hand-maintained counter — Each-created
+children aggregate on the parent and Define/mutation verbs submit the work. On manual retry, set
 Progress to the true completed count directly — there is no relative/delta counter to misuse (C7: Advance deleted).
 
 Sealed-total invariant: indeterminate → determinate happens once; after a total is sealed it never changes, and
 completed > total is unrepresentable.
 
-Skip/keep taxonomy: task.Skipped(reason, name) / task.Kept(reason, name) — evo counts, sums, and truncates the
+Skip/keep taxonomy: task.Skipped(reason) / task.Kept(reason) — evo counts, sums, and truncates the
 reason partition (never a bare "skipped 6"); reasons come from evo.Reason("protected") (get-or-create — repeated
 calls with the same text merge into one taxonomy bucket, so inline evo.Reason("protected") at every call site is
 correct as written; lifting it to a package-level var is a style choice, never required for correctness).
@@ -104,9 +107,10 @@ Bounded narration (BOUND-001): a slice joined with strings.Join and handed strai
 reproduces the same terminal flood evo.TruncateNames already fixed for Plan/Changes rows — wrap it:
 evo.TruncateNames(names, 8) before it reaches any of those three calls.
 
-Predeclare before fan-out (API-030): call out.Task/DisplayGroup.Task for every child before starting any goroutine
+Predeclare before fan-out (API-030): call out.Task/Group.Task for every child before starting any goroutine
 or g.Go closure, then pass the handle in. Declaring the Task inside the closure races task creation with rendering
 and produces the unordered multi-spinner defect Sequence's "one Running child" heart contract forbids.
+Prefer Group.Each+Define over caller goroutines — Evo's scheduler owns overlap.
 
 Facts vs Tasks (v0.4.0/P8): discovered information ("repository /repo", "language go", "config loaded") is not
 work — never fake a checkmark Task to display it. Use task.Fact(name, value) (attached to the Task that
@@ -135,17 +139,13 @@ failure reads as blocked. SIGINT/SIGTERM already route through Main into Cancel 
 ledger's ■ and the process exit code (130) can never disagree; a caller-written signal.Notify handler that
 calls os.Exit itself bypasses that reconciliation.
 
-Child processes: proof := task.Evidence(); run.Run(ctx, name, args, proof); on error
-task.Failf("...: %w", err) (the trailing %w renders as an evidence line under the summary), then
-proof.DetailTail() as an additional Fail option for the retained tail. Prefer task.Run(cmd) for an *exec.Cmd —
-it wires Evidence and doing-text together in one call. For live narration wire cmd.Stdout = task.Writer()
-instead of a hand-rolled line-splitting writer — every line becomes the current doing-text and is retained for
-DetailTail. Never implement your own io.Writer whose Write method calls TaskHandle.Doing (API-031): that
+Child processes: cmd.Stdout = task.Writer(); cmd.Stderr = task.Writer(); on error
+task.Failf("...: %w", err) (the trailing %w renders as an evidence line under the summary).
+Never implement your own io.Writer whose Write method calls TaskHandle.Doing (API-031): that
 reimplements the exact adapter Writer already owns.
-Evidence is deduplicated for you: never embed proof.Text()/proof.Tail() into a Failf/Blockf summary
+Evidence is deduplicated for you: never embed capture text into a Failf/Blockf summary
 (task.Failf("install failed: %s", capture.Text()) — EV-001) — auto-attach already renders that same
 retained tail as its own evidence line underneath; embedding it in the summary too just repeats it.
-Tool-backed gates: task.Evidence() on the Task evaluating the condition.
 Evidence is task-owned. Ring always retains proof; Config.Debug.Level gates journal display.
 Do not hand-thread DebugWriter for brew/git.
 EncodeJSON/EncodeJSONL for machines. Avoid fmt.Print during live UI — use evo.Println (see interactive guide).`,
@@ -166,7 +166,7 @@ Never put raw ESC/CSI from user data into the terminal. Mark sensitive fields.`,
 			ID:       "interactive",
 			Title:    "Live region and debug",
 			UseCases: []string{"spinner", "debug", "narrow", "confirm", "prompt", "resize", "suspend", "child-ui"},
-			Concepts: []string{"LiveSurface", "VisibilityDelay", "Terminal", "Confirm", "Println", "Suspend"},
+			Concepts: []string{"LiveSurface", "VisibilityDelay", "Terminal", "Confirm", "Println"},
 			Rules:    []string{"TERM-001", "TERM-006", "TERM-015", "CONFIRM-001", "CONFIRM-002", "LOG-001"},
 			Body: `Instant Done before the visibility threshold must not flash a spinner.
 Durable notes go through evo.Println/Print/Printf — never fmt.Print* — while a live region is open: evo clears
@@ -183,11 +183,8 @@ Resize is a rerender: width is re-read every frame; a narrowed pane recomputes t
 live rather than leaving a wrapped remnant.
 Use evo.Terminal with testkit.Screen or terminal.NewANSI.
 
-Handing the tty to a child: out.Suspend(func() error { ... }) clears the live region, holds it invisible for the
-whole call, and redraws after — required only when a child paints its own UI on the shared terminal (its Stdout/
-Stderr are the process's own, tty-passthrough); otherwise the parent's spinner and the child's first line glue
-together. Captured or Writer-wired children (task.Evidence(), cmd.Stdout = task.Writer()) never need
-Suspend — their output already flows through evo's own render loop.`,
+Child processes go through cmd.Stdout = task.Writer() so the live row keeps moving.
+Do not inherit os.Stdout, and do not clear the spinner around a child.`,
 			TokenEstimate: 260,
 		},
 		{
@@ -195,16 +192,16 @@ Suspend — their output already flows through evo's own render loop.`,
 			Title:    "First paint and the heart contract",
 			UseCases: []string{"startup", "latency", "blank", "streaming"},
 			Concepts: []string{"Init", "VisibilityDelay", "Doing", "Progress"},
-			Rules:    []string{"FP-001", "FP-002", "FP-003", "FP-004"},
+			Rules:    []string{"FP-001", "FP-002", "FP-003", "FP-004", "FP-005"},
 			Body: `The user is always waiting for input, watching work, or reading a verdict — a blank terminal for the first
 one to three seconds of a run is none of those, and reads as a hang.
 
 evo.Init(evo.Config{...}) arms first paint before any I/O: call it as the very first statement in main, before
 config parsing, git walks, or a network dial. Init + the first declared entity must produce something honest on
-screen within 100ms of process start (FP-001) — VisibilityDelay (default 80ms) only suppresses spinner flash on
-work that finishes instantly; it never excuses a blank window before that.
+screen within 100ms of process start (FP-001). Declaring a Task paints it running (a spinner) immediately —
+VisibilityDelay must not hide that first running frame, so a fast bind cannot popup-complete (FP-005).
 
-Declare before you compute (FP-002): the first Task/Sequence declaration comes before the first read/open/dial
+Declare before you compute (FP-002): the first Task/Group/Sequence declaration comes before the first read/open/dial
 in main or run — a config load or repo walk that happens first, with the first evo.Task only after, is the exact
 "blank screen for two seconds" bug this guide exists to catch.
 
