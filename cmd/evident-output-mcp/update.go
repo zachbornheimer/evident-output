@@ -7,8 +7,10 @@ import (
 	"strings"
 )
 
-var updateErr io.Writer = os.Stderr
-var updateOut io.Writer = os.Stdout
+var (
+	updateErr io.Writer = os.Stderr
+	updateOut io.Writer = os.Stdout
+)
 
 func runUpdate(args []string) int {
 	if len(args) == 0 || args[0] != "update" {

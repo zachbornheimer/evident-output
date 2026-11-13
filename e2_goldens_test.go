@@ -152,7 +152,7 @@ func TestE2P5_FiveSecondTimer_ContainerHeaderAgesPastThreshold(t *testing.T) {
 	install.Doing("installing")
 	ticker.Progress(1, 100) // first live render: anchors the header's clock
 
-	header := strings.SplitN(screen.LatestLiveText(), "\n", 2)[0]
+	header, _, _ := strings.Cut(screen.LatestLiveText(), "\n")
 	if strings.Contains(header, "—") {
 		t.Fatalf("header must not show an elapsed suffix before the 5s threshold:\n%s", header)
 	}
