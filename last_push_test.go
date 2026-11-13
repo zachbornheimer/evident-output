@@ -48,7 +48,7 @@ func TestAPI028_AbsoluteProgress(t *testing.T) {
 
 func TestAPI025_PackageNameEvo(t *testing.T) {
 	// Import path uses evo package name — compile proof via this test package.
-	var _ = evo.Done
+	_ = evo.Done
 }
 
 func TestAPI005_NoPublicIntentEnum(t *testing.T) {
@@ -168,7 +168,7 @@ func TestLOG003_FieldOrderStable(t *testing.T) {
 func TestLOG015_LogBurstPreservesOrder(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
 	t.Cleanup(func() { _ = out.Close() })
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		out.DebugForTest("x")
 	}
 	_ = out.Finish()
