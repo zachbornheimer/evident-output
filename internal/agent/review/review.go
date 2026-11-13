@@ -2170,7 +2170,7 @@ func detectDeprecatedSpellings(filename, src, desiredVersion string) []Finding {
 
 	}
 	if dialectAtLeast(desiredVersion, dialectRec) {
-		findings = append(findings, detectSupersededRecSurface(filename, src)...)
+		findings = append(findings, detectSupersededRecSurface(filename, src, desiredVersion)...)
 	}
 	return findings
 }

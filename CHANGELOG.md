@@ -14,7 +14,7 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   a Task can own zero, one, or many blocking `Problem`s before it resolves,
   instead of a caller-invented `Task` per finding or every finding
   flattened into one `errors.New` string. If the Task would otherwise
-  resolve `Done` (a nil `Define` return, or a bare `Done()`) while it
+  resolve `Done` (a nil `Define` return) while it
   accumulated at least one `Problem`, it resolves `Failed` instead.
 - **`wire.EventProblemRecorded`:** distinct wire event for `Problem`
   accumulation (previously would have collided with `EventWarningRecorded`).
@@ -53,6 +53,19 @@ See [`docs/migration/1.1.md`](docs/migration/1.1.md) for the full upgrade guide.
   inside `Define`; file state uses `evo.File`. MCP review (API-032) rewrites
   both removed call shapes; API-042/API-043 now check `evo.Effect` callbacks
   and `EffectSpec.Object`.
+- **`TaskHandle.Done`** was removed with no alias (ZYS-812). Success resolves
+  through `Define` (the callback returning `nil`); the text `Done(text)`
+  carried is `TaskHandle.Summary(text)`, result metadata that never resolves
+  the Task. MCP review (API-032) rewrites every call site for a 1.1 target.
+- **`TaskHandle.Record`, `RecordLabel`, and `RecordName`** were removed with
+  no record-only replacement (ZYS-812, ZYS-974). A mutation goes through
+  `evo.Effect` (closed `EffectVerb` set), information through `Fact`, a file
+  write through `evo.File`/`evo.Patch`. MCP review (API-061) names the exact
+  replacement for each call shape.
+- The `ErrInvalidConfig` misuse hint no longer names Done's removed printf
+  summary; it reads "configure After and Verify before Define, and Define
+  each task once with a non-nil callback". The unresolved-task hint reads
+  "call Define, Fail, Block, or Skipped on this task".
 
 ### Fixed
 

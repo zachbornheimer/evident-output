@@ -18,23 +18,21 @@ import (
 
 // TestSpecP2_LocalRemoteSeparation_Step1 covers Problem 2's step1 block: a
 // dry-run plan for one local delete, spelled the documented way
-// (evo.DryRun() + Task.Delete — see "Guess-driven defaults" #1).
+// (Config.DryRun + evo.Effect — see "Guess-driven defaults" #1).
 //
 //	[planned]  branches
-//	  delete  feat/old-billing
+//	  delete  1  feat/old-billing
 func TestSpecP2_LocalRemoteSeparation_Step1(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
-	branches := out.Task("branches")
-	branches.RecordName("delete", "feat/old-billing")
-	branches.Done()
+	commit(out.Task("branches"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "feat/old-billing", Quantity: 1})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
-	for _, want := range []string{"[planned] branches", "delete feat/old-billing"} {
+	for _, want := range []string{"[planned] branches", "delete 1 feat/old-billing"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -43,22 +41,18 @@ func TestSpecP2_LocalRemoteSeparation_Step1(t *testing.T) {
 
 // TestSpecP2_LocalRemoteSeparation_Step2 covers Problem 2's step2 block: a
 // dry-run plan with both a local and a remote-destructive section, kept as
-// two separate Plan subjects with distinct verbs.
+// two separate Plan subjects.
 //
 //	[planned]  branches
-//	  delete         12  local tip
+//	  delete  12  local tip
 //	[planned]  remotes
-//	  delete-remote   3  origin tip
+//	  delete   3  origin tip
 func TestSpecP2_LocalRemoteSeparation_Step2(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
-	branches := out.Task("branches")
-	branches.Record("delete", 12, "local tip")
-	branches.Done()
-	remotes := out.Task("remotes")
-	remotes.Record("delete-remote", 3, "origin tip")
-	remotes.Done()
+	commit(out.Task("branches"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 12})
+	commit(out.Task("remotes"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "origin tip", Quantity: 3})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +62,7 @@ func TestSpecP2_LocalRemoteSeparation_Step2(t *testing.T) {
 		"[planned] branches",
 		"delete 12 local tip",
 		"[planned] remotes",
-		"delete-remote 3 origin tip"} {
+		"delete 3 origin tip"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -88,12 +82,8 @@ func TestSpecP2_LocalRemoteSeparation_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	branches := out.Task("branches")
-	branches.Record("delete", 12, "local tip")
-	branches.Done()
-	remotes := out.Task("remotes")
-	remotes.Record("delete", 3, "origin tip")
-	remotes.Done()
+	commit(out.Task("branches"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 12})
+	commit(out.Task("remotes"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "origin tip", Quantity: 3})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -125,9 +115,7 @@ func TestSpecP2_LocalRemoteSeparation_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	branches := out.Task("branches")
-	branches.Record("delete", 12, "local tip")
-	branches.Done()
+	commit(out.Task("branches"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local tip", Quantity: 12})
 	remotes := out.Task("remotes")
 	remotes.Fail("push --delete denied", evo.Detail("protected branch rule on origin"))
 	if err := out.Finish(); err != nil {
@@ -164,7 +152,7 @@ func TestSpecP4_SequentialGroup_Success(t *testing.T) {
 	setup.Task("venv").Define(func(ctx context.Context) error { return nil })
 	install := setup.Task("install")
 	install.Define(func(ctx context.Context) error {
-		install.Done("14 modules")
+		install.Summary("14 modules")
 		return nil
 	})
 	if err := out.Finish(); err != nil {
@@ -212,22 +200,22 @@ func TestSpecP4_SequentialGroup_Failure(t *testing.T) {
 
 // TestSpecP5_DiscoverySealedTotal_Success covers evo-rec.md Problem 5's full
 // success block: the Done summary after an indeterminate-to-determinate
-// Progress transition, plus a classification ledger reporting the
-// discovered counts verbatim.
+// Progress transition, plus classification Facts reporting the discovered
+// counts verbatim — a classification is information, not a mutation
+// (ZYS-974), so it never lands in the Changes ledger.
 //
 //	✓  scan  128 checked
-//	[changed]  scan
-//	  ready    40  repos
+//	  ready    40 repos
 func TestSpecP5_DiscoverySealedTotal_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	scan := out.Task("scan")
 	scan.Progress(128, 128)
-	scan.RecordLabel("ready", 40, "repos")
-	scan.RecordLabel("blocked", 80, "repos")
-	scan.RecordLabel("error", 8, "repos")
-	scan.Done("128 checked")
+	scan.Fact("ready", "40 repos")
+	scan.Fact("blocked", "80 repos")
+	scan.Fact("error", "8 repos")
+	succeed(scan, "128 checked")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +223,6 @@ func TestSpecP5_DiscoverySealedTotal_Success(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"✓ scan 128 checked",
-		"[changed] scan",
 		"ready 40 repos",
 		"blocked 80 repos",
 		"error 8 repos"} {
@@ -252,30 +239,31 @@ func TestSpecP5_DiscoverySealedTotal_Success(t *testing.T) {
 	}
 }
 
-// TestSpecP5_RecordLabel_NeverMovesUnderPlanDuringDryRun pins the second half
-// of the fix: classifying/observing already happened whether or not other
-// mutations on this run are a dry run, so RecordLabel always lands in the
-// Changes ledger — never [planned] — even when DryRun is set.
-func TestSpecP5_RecordLabel_NeverMovesUnderPlanDuringDryRun(t *testing.T) {
+// TestSpecP5_ClassificationFact_NeverMovesUnderPlanDuringDryRun pins the
+// second half of the fix: classifying/observing already happened whether or
+// not other mutations on this run are a dry run, so a classification Fact
+// renders under its Task and never creates a [planned] section, even when
+// DryRun is set.
+func TestSpecP5_ClassificationFact_NeverMovesUnderPlanDuringDryRun(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
 	scan := out.Task("scan")
-	scan.RecordLabel("ready", 40, "repos")
-	scan.Done("128 checked")
+	scan.Fact("ready", "40 repos")
+	succeed(scan, "128 checked")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	if !strings.Contains(got, "[changed] scan") {
-		t.Fatalf("want RecordLabel in the Changes ledger even under DryRun, got:\n%s", got)
+	if !strings.Contains(strings.Join(strings.Fields(got), " "), "ready 40 repos") {
+		t.Fatalf("want the classification Fact rendered even under DryRun, got:\n%s", got)
 	}
 	// Checked against the structured snapshot, not a substring of the durable
 	// text: the run's own trailing Conclusion trailer legitimately reads
 	// "[planned]  scan" (DryRun's headline state) even when no Plan *section*
 	// exists, so a plain string search on "[planned]  scan" collides with it.
 	if snap := out.Snapshot(); len(snap.Plans) != 0 {
-		t.Fatalf("RecordLabel must never create a Plan section, got %+v", snap.Plans)
+		t.Fatalf("a Fact must never create a Plan section, got %+v", snap.Plans)
 	}
 }
 
@@ -307,10 +295,10 @@ func TestSpecP6_BytesVsCounts_Success(t *testing.T) {
 	out := evo.Init(evo.Config{Title: "build", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	generate := out.Task("generate")
 	generate.Bytes(8_000_000, 8_000_000)
-	generate.Done("8.0 MB")
+	succeed(generate, "8.0 MB")
 	test := out.Task("test")
 	test.Progress(12, 12)
-	test.Done("12/12  ok")
+	succeed(test, "12/12  ok")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -338,11 +326,11 @@ func TestSpecP7_ViewportTruncation_PlanOverflowLine(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	branches := out.Task("branches")
-	for i := range 500 {
-		branches.RecordName("delete", fmt.Sprintf("feat/branch-%d", i))
+	specs := make([]evo.EffectSpec, 500)
+	for i := range specs {
+		specs[i] = evo.EffectSpec{Verb: evo.EffectDelete, Object: fmt.Sprintf("feat/branch-%d", i), Quantity: 1}
 	}
-	branches.Done("500 deleted")
+	commit(out.Task("branches").Summary("500 deleted"), specs...)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -371,8 +359,9 @@ func TestSpecP8_PartialTruthSurvivesRemoteAuthFailure(t *testing.T) {
 	out := evo.Init(evo.Config{Title: "retire", Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 	remotes := out.Task("remotes")
-	remotes.RecordName("delete", "origin/feat/a")
-	remotes.Fail("authentication failed", evo.Detail("remote: Invalid username or token"))
+	commitThen(remotes, evo.EffectSpec{Verb: evo.EffectDelete, Object: "origin/feat/a", Quantity: 1}, func() {
+		remotes.Fail("authentication failed", evo.Detail("remote: Invalid username or token"))
+	})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -380,7 +369,7 @@ func TestSpecP8_PartialTruthSurvivesRemoteAuthFailure(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"[changed] remotes",
-		"deleted origin/feat/a",
+		"deleted 1 origin/feat/a",
 		"✗ remotes authentication failed",
 		"remote: Invalid username or token"} {
 		if !strings.Contains(collapsed, want) {
@@ -403,7 +392,7 @@ func TestSpecP15_NothingToDo_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	out.Task("clean").Done()
+	succeed(out.Task("clean"))
 	out.Println("nothing to clean")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -452,24 +441,23 @@ func TestSpecP3_DryRunTense_Step1(t *testing.T) {
 }
 
 // TestSpecP18_RemoteTrackingVsRemoteDelete_Step1 covers Problem 18's step1
-// block: a dry-run plan for one fetch-prune, using the documented
-// RecordName spelling.
+// block: a dry-run plan for one stale remote-tracking ref removal, using the
+// documented Effect spelling (EffectRemove: a local tracking ref is removed,
+// never deleted on the remote).
 //
 //	[planned]  remote-tracking
-//	  fetch-prune  origin/feat/gone
+//	  remove  1  origin/feat/gone
 func TestSpecP18_RemoteTrackingVsRemoteDelete_Step1(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
-	tracking := out.Task("remote-tracking")
-	tracking.RecordName("fetch-prune", "origin/feat/gone")
-	tracking.Done()
+	commit(out.Task("remote-tracking"), evo.EffectSpec{Verb: evo.EffectRemove, Object: "origin/feat/gone", Quantity: 1})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
-	for _, want := range []string{"[planned] remote-tracking", "fetch-prune origin/feat/gone"} {
+	for _, want := range []string{"[planned] remote-tracking", "remove 1 origin/feat/gone"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -477,36 +465,29 @@ func TestSpecP18_RemoteTrackingVsRemoteDelete_Step1(t *testing.T) {
 }
 
 // TestSpecP18_RemoteTrackingVsRemoteDelete_Step2 covers Problem 18's step2
-// block: two separate Plan subjects — remote-tracking (fetch-prune) and
-// remotes (delete-remote) — never merged into one, even when one side is
-// empty.
+// block: remote-tracking (remove) and remotes (delete) are separate Plan
+// subjects, never merged into one — and a remotes Task with nothing to
+// delete calls no Effect, so it has no section at all rather than a
+// fabricated "0 (none)" row.
 //
 //	[planned]  remote-tracking
-//	  fetch-prune  12  stale origin/*
-//	[planned]  remotes
-//	  delete-remote  0  (none)
+//	  remove  12  stale origin/*
 func TestSpecP18_RemoteTrackingVsRemoteDelete_Step2(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
-	tracking := out.Task("remote-tracking")
-	tracking.Record("fetch-prune", 12, "stale origin/*")
-	tracking.Done()
-	remotes := out.Task("remotes")
-	remotes.Record("delete-remote", 0, "origin refs")
-	remotes.Done()
+	commit(out.Task("remote-tracking"), evo.EffectSpec{Verb: evo.EffectRemove, Object: "stale origin/*", Quantity: 12})
+	commit(out.Task("remotes"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
-	if !strings.Contains(collapsed, "[planned] remote-tracking") || !strings.Contains(collapsed, "fetch-prune 12 stale origin/*") {
-		t.Fatalf("want fetch-prune plan section, got:\n%s", got)
+	if !strings.Contains(collapsed, "[planned] remote-tracking") || !strings.Contains(collapsed, "remove 12 stale origin/*") {
+		t.Fatalf("want the remote-tracking plan section, got:\n%s", got)
 	}
-	// A zero-quantity section still renders an honest empty line, never a
-	// fabricated "0 (none)" row that hides which verb was intended.
-	if !strings.Contains(collapsed, "nothing to delete-remote remotes") {
-		t.Fatalf("want empty-section grammar for the zero-quantity remotes plan, got:\n%s", got)
+	if snap := out.Snapshot(); len(snap.Plans) != 1 {
+		t.Fatalf("want only the remote-tracking Plan section, got %+v", snap.Plans)
 	}
 }
 
@@ -516,20 +497,18 @@ func TestSpecP18_RemoteTrackingVsRemoteDelete_Step2(t *testing.T) {
 // distinct Plan/Changes subjects, distinct verbs.
 //
 //	[changed]  remote-tracking
-//	  pruned  12  stale origin/*
+//	  removed  12  stale origin/*
 func TestSpecP18_RemoteTrackingVsRemoteDelete_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	tracking := out.Task("remote-tracking")
-	tracking.Record("prune", 12, "stale origin/*")
-	tracking.Done()
+	commit(out.Task("remote-tracking"), evo.EffectSpec{Verb: evo.EffectRemove, Object: "stale origin/*", Quantity: 12})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
 	collapsed := strings.Join(strings.Fields(got), " ")
-	for _, want := range []string{"[changed] remote-tracking", "pruned 12 stale origin/*"} {
+	for _, want := range []string{"[changed] remote-tracking", "removed 12 stale origin/*"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -562,12 +541,8 @@ func TestSpecP25_ASCIIGlyphFallback_Success(t *testing.T) {
 	g.Summary("14 deleted")
 	g.Task("protected-0").Skipped(protected)
 	g.Task("dirty-0").Skipped(dirty)
-	deleted := g.Task("deleted")
-	deleted.Record("delete", 14, "branches")
-	deleted.Done("14 deleted")
-	worktrees := out.Task("worktrees")
-	worktrees.Record("remove", 2, "worktrees")
-	worktrees.Done("2 removed")
+	commit(g.Task("deleted").Summary("14 deleted"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 14})
+	commit(out.Task("worktrees").Summary("2 removed"), evo.EffectSpec{Verb: evo.EffectRemove, Object: "worktree", Quantity: 2})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -597,7 +572,7 @@ func TestSpecP24_DataFormat_PresentationNeverTouchesPayloadStream(t *testing.T) 
 		Result: &payload,
 		Color:  evo.ColorNever})
 	scan := out.Task("scan")
-	scan.Done("128 checked")
+	succeed(scan, "128 checked")
 	_, err := payload.Write([]byte(`{"ready":40,"blocked":80,"error":8}`))
 	if err != nil {
 		t.Fatal(err)

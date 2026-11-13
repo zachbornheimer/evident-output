@@ -46,32 +46,36 @@ func main() {
 	os.Exit(evo.Main(func(ctx context.Context) error {
 		evo.Verbose().Printf("Checking repository %s\n", *name)
 
-		time.Sleep(step)
-		evo.Task("working tree").Done()
+		// check runs one repository probe as the Task's work; a probe that
+		// finds nothing wrong leaves the Task to resolve Done on its own.
+		check := func(name string, probe func(*evo.TaskHandle)) {
+			task := evo.Task(name)
+			task.Define(func(context.Context) error {
+				time.Sleep(step)
+				probe(task)
+				return nil
+			})
+		}
+		passes := func(*evo.TaskHandle) {}
 
-		time.Sleep(step)
-		branches := evo.Task("branches")
-		if *clean {
-			branches.Done()
-		} else {
+		check("working tree", passes)
+		check("branches", func(branches *evo.TaskHandle) {
+			if *clean {
+				return
+			}
 			branches.Block("2 branches need attention",
 				evo.Detail("feat/sdk-full-consolidation: local-only branch (1)\n"+
 					"fix/login-flow: ahead of origin (2)\n"+
 					"Push, merge, or delete local-only work before retiring this repository."),
 			)
 			branches.NextCommand("git", "push", "-u", "origin", "feat/sdk-full-consolidation")
-		}
-
-		time.Sleep(step)
-		remotes := evo.Task("remotes")
-		if *clean {
-			remotes.Done()
-		} else {
-			remotes.Warn("origin was not reachable")
-		}
-
-		time.Sleep(step)
-		evo.Task("stashes").Done()
+		})
+		check("remotes", func(remotes *evo.TaskHandle) {
+			if !*clean {
+				remotes.Warn("origin was not reachable")
+			}
+		})
+		check("stashes", passes)
 		return nil
 	}))
 }

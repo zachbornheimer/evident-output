@@ -32,7 +32,7 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	branches := out.Task("branches")
 	branches.Define(func(ctx context.Context) error {
 		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 8}, func(context.Context) error {
-			branches.Done("8 deleted")
+			branches.Summary("8 deleted")
 			return nil
 		})
 	})
@@ -127,7 +127,7 @@ func TestSpecP1_CleanBatch_EarlyTermination(t *testing.T) {
 	branches := out.Task("branches")
 	branches.Define(func(ctx context.Context) error {
 		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 8}, func(context.Context) error {
-			branches.Done("8 deleted")
+			branches.Summary("8 deleted")
 			return nil
 		})
 	})
@@ -167,7 +167,7 @@ func TestSpecP2_RemoteSeparation_Error(t *testing.T) {
 	branches := out.Task("branches")
 	branches.Define(func(ctx context.Context) error {
 		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 12}, func(context.Context) error {
-			branches.Done("12 deleted")
+			branches.Summary("12 deleted")
 			return nil
 		})
 	})
@@ -205,7 +205,7 @@ func TestSpecP2_RemoteSeparation_EarlyTermination(t *testing.T) {
 	branches := out.Task("branches")
 	branches.Define(func(ctx context.Context) error {
 		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 5}, func(context.Context) error {
-			branches.Done("5 deleted (local)")
+			branches.Summary("5 deleted (local)")
 			return nil
 		})
 	})
@@ -291,8 +291,9 @@ func TestSpecP3_DryRunTense_Failure(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "salvage", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
 	salvage := out.Task("salvage")
-	salvage.Record("push", 3, "feat/a → retire/feat/a")
-	salvage.Fail("dry-run only — not applied")
+	commitThen(salvage, evo.EffectSpec{Verb: evo.EffectPush, Object: "feat/a → retire/feat/a", Quantity: 3}, func() {
+		salvage.Fail("dry-run only — not applied")
+	})
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
@@ -322,9 +323,10 @@ func TestSpecP3_DryRunTense_Error(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "salvage", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	salvage := out.Task("salvage")
-	salvage.Record("push", 1, "branch")
-	salvage.Progress(2, 3)
-	salvage.Fail("non-fast-forward", evo.Detail("tip rejected on retire/feat/b"))
+	commitThen(salvage, evo.EffectSpec{Verb: evo.EffectPush, Object: "branch", Quantity: 1}, func() {
+		salvage.Progress(2, 3)
+		salvage.Fail("non-fast-forward", evo.Detail("tip rejected on retire/feat/b"))
+	})
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
@@ -354,8 +356,9 @@ func TestSpecP3_DryRunTense_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "salvage", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	salvage := out.Task("salvage")
-	salvage.Record("push", 1, "branch")
-	salvage.Cancel("interrupted")
+	commitThen(salvage, evo.EffectSpec{Verb: evo.EffectPush, Object: "branch", Quantity: 1}, func() {
+		salvage.Cancel("interrupted")
+	})
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
@@ -477,9 +480,10 @@ func TestSpecP4_SequentialGroup_EarlyTermination(t *testing.T) {
 	setup.Task("scan").Define(func(ctx context.Context) error { return nil })
 	setup.Task("venv").Define(func(ctx context.Context) error { return nil })
 	install := setup.Task("install")
-	install.Record("create", 1, ".venv")
-	install.Progress(6, 14)
-	install.Cancel("cancelled at 6/14")
+	commitThen(install, evo.EffectSpec{Verb: evo.EffectCreate, Object: ".venv", Quantity: 1}, func() {
+		install.Progress(6, 14)
+		install.Cancel("cancelled at 6/14")
+	})
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
@@ -543,7 +547,7 @@ func TestSpecP5_DiscoverySealedTotal_Error(t *testing.T) {
 	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	scan := out.Task("scan")
 	scan.Progress(40, 128)
-	scan.RecordLabel("ready", 39, "repos")
+	scan.Fact("ready", "39 repos")
 	scan.Fail("git rev-parse failed", evo.Detail("not a git repository"))
 	if err := out.Finish(); err != nil {
 		t.Log(err)

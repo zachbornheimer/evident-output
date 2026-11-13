@@ -20,7 +20,6 @@ func TestConclusionBand_NoTitleNeverStutters(t *testing.T) {
 
 	branches := out.Task("branches")
 	branches.Define(effectOf(evo.EffectDelete, "stale local branch", 3))
-	branches.Done()
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
 	}

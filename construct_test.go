@@ -16,7 +16,7 @@ func TestNew_ZeroConfig_Defaults(t *testing.T) {
 		Stdout: &outBuf,
 		Stderr: &errBuf,
 	})
-	out.Task("ok").Done()
+	succeed(out.Task("ok"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +28,7 @@ func TestNew_ZeroConfig_Defaults(t *testing.T) {
 func TestNew_PartialConfig_InheritsDefaults(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "bpp-csharp", Stdout: &buf, Stderr: &buf})
-	out.Task("x").Done()
+	succeed(out.Task("x"))
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "bpp-csharp") {
 		t.Fatalf("title missing:\n%s", buf.String())
@@ -51,7 +51,7 @@ func TestConfig_SubjectRenderedOnceUnderTitle(t *testing.T) {
 		Stderr:  &buf,
 	})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestConfig_SubjectRenderedOnceUnderTitle(t *testing.T) {
 func TestConfig_SubjectEmptyEmitsNothing(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Title: "repo-retire", Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestConfig_DebugLevelUnsetDefaultsToInfo(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "info", Stdout: &buf, Stderr: &buf})
 	out.DebugForTest("should-drop")
-	out.Task("ok").Done()
+	succeed(out.Task("ok"))
 	_ = out.Finish()
 	if strings.Contains(buf.String(), "should-drop") {
 		t.Fatalf("default LevelInfo must suppress Debug:\n%s", buf.String())
@@ -139,7 +139,7 @@ func TestNew_DataFormat_HumanOnStderr(t *testing.T) {
 		Stderr: &stderr,
 		Format: evo.FormatData,
 	})
-	out.Task("compile").Done()
+	succeed(out.Task("compile"))
 	_ = out.Finish()
 	if strings.Contains(stdout.String(), "compile") {
 		t.Fatalf("data mode must not put human UI on stdout:\n%s", stdout.String())
@@ -152,7 +152,7 @@ func TestNew_DataFormat_HumanOnStderr(t *testing.T) {
 func TestNewWithOptions_StillWorks(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
-	out.Task("legacy").Done()
+	succeed(out.Task("legacy"))
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "legacy") {
 		t.Fatal(buf.String())

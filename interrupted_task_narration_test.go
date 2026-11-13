@@ -28,7 +28,7 @@ func TestDoing_AfterCancellationIsSilentNotMisuse(t *testing.T) {
 
 func TestDoing_AfterCallerResolvedIsStillMisuse(t *testing.T) {
 	transcript := narrateAfterResolve(t, func(task *evo.TaskHandle) {
-		task.Done()
+		succeed(task)
 	})
 	if !strings.Contains(transcript, "resolve each task once") {
 		t.Fatalf("narrating a row the caller resolved must still report:\n%s", transcript)

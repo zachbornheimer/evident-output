@@ -24,7 +24,7 @@ func TestMain_SIGINTCancelsGroupChildAndLaterSiblingsRenderNotStarted(t *testing
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	install := setup.Task("install")
-	scan.Done()
+	succeed(scan)
 
 	started := make(chan struct{})
 	go func() {

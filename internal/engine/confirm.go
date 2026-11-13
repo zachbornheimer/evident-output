@@ -157,7 +157,7 @@ func (o *Output) Confirm(question string, opts ...ConfirmOption) bool {
 	gate := o.Task(question)
 
 	if cfg.assumeYes {
-		gate.Done(confirmAssumedYesSummary)
+		gate.succeed(confirmAssumedYesSummary)
 		o.flushGateNow(gate.id)
 		return true
 	}
@@ -231,7 +231,7 @@ func (o *Output) promptConfirm(gate *TaskHandle, question string, cfg confirmCon
 		}
 		yes = isAffirmative(line)
 		if yes {
-			gate.Done()
+			gate.succeed("")
 		} else {
 			gate.Block(confirmDeclinedSummary)
 		}

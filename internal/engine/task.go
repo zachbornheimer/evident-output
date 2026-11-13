@@ -247,40 +247,12 @@ func (t *TaskHandle) Step(completed, total int, name string) *TaskHandle {
 	return t
 }
 
-// Done resolves the task successfully, with no summary (Done()), a literal
-// one (Done("modules cached")), or a printf-formatted one
-// (Done("%d packages", 18), fmt.Sprintf semantics) — one text spelling
-// shared with Task/Group/Reason/Warn (C6), including the same "no args
-// leaves text untouched" rule that keeps a literal "%" safe. A non-string
-// first argument is misuse (ErrInvalidConfig): Done's format position is
-// still meant to be a caller-written string, not an accidental value.
-func (t *TaskHandle) Done(args ...any) {
-	summary, ok := formatSummaryArgs(args)
-	if !ok {
-		t.out.recordMisuse(ErrInvalidConfig)
-		return
-	}
+// succeed resolves the task Done with summary: the engine's synchronous
+// success verb for library-owned rows (Confirm's gate) and engine tests.
+// The public TaskHandle has no equivalent since 1.1 (ZYS-812) — callers
+// resolve through Define, and Summary carries their result text.
+func (t *TaskHandle) succeed(summary string) {
 	t.finish(Done, txt.Text(summary), nil)
-}
-
-// formatSummaryArgs implements Done/Unchanged's no-args/literal/printf-
-// formatted shape (C6): zero args is no summary; one string arg is a
-// literal (never passed through Sprintf, so a caller's own "%" stays
-// intact); two or more requires args[0] to be a printf format string,
-// applied to the rest via fmt.Sprintf. ok is false only when a non-string
-// first argument is given — a genuine caller mistake, not a valid shape.
-func formatSummaryArgs(args []any) (summary string, ok bool) {
-	if len(args) == 0 {
-		return "", true
-	}
-	format, isString := args[0].(string)
-	if !isString {
-		return "", false
-	}
-	if len(args) == 1 {
-		return format, true
-	}
-	return fmt.Sprintf(format, args[1:]...), true
 }
 
 // Warn accumulates a warning annotation on the task (1.1/ZYS-848,
@@ -589,7 +561,7 @@ func (t *TaskHandle) Snapshot() TaskSnapshot {
 // ratified (the work did succeed; the caller's own summary is what renders,
 // which is how a callback declares "✓ branches  8 deleted") or rejected as
 // ErrAlreadyResolved misuse, with the observed failure taking the row (P2:
-// `task.Define(fn); task.Done()` can no longer launder an error into a
+// an engine-side success resolution can no longer launder an error into a
 // green row). Nothing ratifies its own completion.
 //
 // Bad news needs no ratification: Fail/Block/Cancel state an outcome the
@@ -736,7 +708,7 @@ func (t *TaskHandle) resolve(state EntityState, summary string, problems []Probl
 		t.out.signalLiveLocked(true)
 	} else {
 		t.out.commitResolvedTaskLocked(st.id)
-		// A resolving standalone task's own named (RecordName) Plan/Changes
+		// A resolving standalone task's own named (File/Exec) Plan/Changes
 		// rows stream right now too — under this task's own block, the
 		// instant its work is known-final, rather than waiting for every
 		// other task in the run to finish (see commitNamedEffectsLocked).

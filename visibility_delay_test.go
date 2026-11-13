@@ -35,7 +35,7 @@ func TestVisibilityDelay_WithholdsLiveUntilElapsed(t *testing.T) {
 		t.Fatalf("submitted work must spin after delay elapsed, live=%q", live)
 	}
 
-	task.Done()
+	succeed(task)
 	_ = out.Finish()
 }
 
@@ -49,7 +49,7 @@ func TestVisibilityDelay_ZeroIsImmediate(t *testing.T) {
 	if got := screen.LiveFrameCount(); got == 0 {
 		t.Fatal("VisibilityDelay(0) must paint immediately")
 	}
-	task.Done()
+	succeed(task)
 	_ = out.Finish()
 }
 

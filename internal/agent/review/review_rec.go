@@ -21,7 +21,7 @@ func (s srcSpan) contains(offset int) bool {
 }
 
 // recSurfaceDetector is API-032's rec-surface pass: Options/To/Plain,
-// the TaskHandle mutation verbs removed in 1.1 (both shapes), retired collection constructor,
+// the TaskHandle mutation verbs and Done removed in 1.1, retired collection constructor,
 // Skip, Task extras, ID/StartPhase, MainWith (removed in 1.0).
 type recSurfaceDetector struct {
 	filename string
@@ -30,9 +30,12 @@ type recSurfaceDetector struct {
 	fset     *token.FileSet
 	findings []Finding
 	covered  []srcSpan
+	// doneScope is set only when the target dialect is 1.1+, where
+	// TaskHandle.Done no longer exists (see review_rec_done.go).
+	doneScope *removedDoneScope
 }
 
-func detectSupersededRecSurface(filename, src string) []Finding {
+func detectSupersededRecSurface(filename, src, desiredVersion string) []Finding {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filename, src, parser.SkipObjectResolution)
 	if err != nil {
@@ -43,6 +46,10 @@ func detectSupersededRecSurface(filename, src string) []Finding {
 		return nil
 	}
 	d := &recSurfaceDetector{filename: filename, src: src, pkg: pkg, fset: fset}
+	if dialectAtLeast(desiredVersion, dialectOneOne) {
+		scope := newRemovedDoneScope(f, d)
+		d.doneScope = &scope
+	}
 	ast.Inspect(f, d.inspect)
 	ast.Inspect(f, d.inspectLeftover)
 	return d.findings
@@ -107,6 +114,8 @@ func (d *recSurfaceDetector) inspectCall(call *ast.CallExpr) {
 	name := sel.Sel.Name
 	recv := exprDottedName(sel.X)
 	switch {
+	case name == "Done":
+		d.inspectRemovedDone(call, sel)
 	case isLegacyMutationCall(name, call):
 		m, _ := parseLegacyMutation(name, call)
 		d.reportLegacyMutation(recv, call, m)

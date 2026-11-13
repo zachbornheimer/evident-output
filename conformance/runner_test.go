@@ -142,7 +142,7 @@ func runScenarioFile(t *testing.T, path string) {
 			}
 			tasks[m.Ref] = parent.Task(m.Name)
 		case "item.ok":
-			items[m.Ref].Done()
+			succeed(items[m.Ref])
 		case "item.block":
 			var po []evo.ProblemOption
 			if m.Detail != "" {
@@ -160,9 +160,9 @@ func runScenarioFile(t *testing.T, path string) {
 		case "task.bytes":
 			tasks[m.Ref].Bytes(m.Completed, m.Total)
 		case "task.done":
-			tasks[m.Ref].Done()
+			succeed(tasks[m.Ref])
 		case "task.donef":
-			tasks[m.Ref].Done("%s", m.Text)
+			succeed(tasks[m.Ref], m.Text)
 		case "task.fail":
 			tasks[m.Ref].Fail(m.Summary)
 		case "tasks.summary":

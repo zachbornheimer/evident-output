@@ -28,7 +28,6 @@ func TestE1P1_MutationVerb_SuccessCommitsChangedEffect(t *testing.T) {
 
 	branches := out.Task("branches")
 	branches.Define(effectOf(evo.EffectDelete, "stale local branch", 2))
-	branches.Done()
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -50,7 +49,6 @@ func TestE1P1_MutationVerb_NilCallRecordsWithoutExecuting(t *testing.T) {
 
 	branches := out.Task("branches")
 	branches.Define(effectOf(evo.EffectDelete, "stale local branch", 2))
-	branches.Done()
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -124,7 +122,7 @@ func TestE1P2_Warn_SingleShortWarningInlinesOnDoneRow(t *testing.T) {
 
 	branches := out.Task("branches")
 	branches.Warn("kept 11 (7 protected, 4 unpushed)")
-	branches.Done()
+	succeed(branches)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -151,7 +149,7 @@ func TestE1P2_Warn_MultipleWarningsNestUnderneath(t *testing.T) {
 	branches := out.Task("branches")
 	branches.Warn("kept 11 (7 protected, 4 unpushed)")
 	branches.Warn("2 remotes unreachable")
-	branches.Done()
+	succeed(branches)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -175,7 +173,7 @@ func TestE1P2_Warn_DoesNotResolveTask(t *testing.T) {
 	if got := task.Snapshot().State; got == evo.Done || got == evo.Failed || got == evo.Blocked {
 		t.Fatalf("state = %v, want non-terminal (Warn must not resolve the task)", got)
 	}
-	task.Done()
+	succeed(task)
 	if got := task.Snapshot().State; got != evo.Done {
 		t.Fatalf("state = %v, want Done", got)
 	}
@@ -210,7 +208,7 @@ func TestE1P9_LifecycleStatesAreDistinct(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	out.Task("done-task").Done()
+	succeed(out.Task("done-task"))
 	out.Task("failed-task").Fail("build broke")
 	out.Task("blocked-task").Block("needs confirmation")
 

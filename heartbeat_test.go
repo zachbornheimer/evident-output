@@ -43,8 +43,8 @@ func TestHeartbeat_AppearsAfterElapsedThreshold(t *testing.T) {
 		t.Fatalf("expected elapsed suffix after 5s:\n%s", live)
 	}
 
-	push.Done()
-	ticker.Done()
+	succeed(push)
+	succeed(ticker)
 	_ = out.Finish()
 }
 
@@ -75,8 +75,8 @@ func TestHeartbeat_NeverResetsOnPhaseUpdate(t *testing.T) {
 		t.Fatalf("elapsed suffix must survive a Phase update unreset:\n%s", screen.LatestLiveText())
 	}
 
-	push.Done()
-	ticker.Done()
+	succeed(push)
+	succeed(ticker)
 	_ = out.Finish()
 }
 
@@ -102,7 +102,7 @@ func TestHeartbeat_AppearsRegardlessOfProgressActivity(t *testing.T) {
 		t.Fatalf("elapsed suffix must appear past threshold even while progress advances:\n%s", screen.LatestLiveText())
 	}
 
-	install.Done()
+	succeed(install)
 	_ = out.Finish()
 }
 
@@ -127,7 +127,7 @@ func TestHeartbeat_AbsentInPlainProjection(t *testing.T) {
 	push := out.Task("push")
 	push.Doing("pushing feat/a")
 	clock.Advance(90 * time.Second)
-	push.Done()
+	succeed(push)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

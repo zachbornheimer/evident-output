@@ -12,7 +12,7 @@ import (
 // answer the same question once a run has finished.
 func TestAnyBlockedSoFar_BeforeMutate(t *testing.T) {
 	out := Init(Config{Isolated: true})
-	out.Task("a").Done()
+	out.Task("a").succeed("")
 	out.Task("b").Block("policy")
 	if !out.anyBlockedSoFar() {
 		t.Fatal("expected anyBlockedSoFar")

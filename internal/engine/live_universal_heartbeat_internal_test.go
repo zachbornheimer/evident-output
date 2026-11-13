@@ -140,9 +140,9 @@ func TestLiveHeartbeat_CollectionHeaderAnimatesOnUnresolvedPendingChild(t *testi
 		t.Cleanup(func() { _ = out.Close() })
 
 		grp := out.Group("fix")
-		grp.Task("a").Done()
-		grp.Task("b").Done()
-		grp.Task("c").Done()
+		grp.Task("a").succeed("")
+		grp.Task("b").succeed("")
+		grp.Task("c").succeed("")
 		grp.Task("goimports") // stays Pending
 
 		out.mu.Lock()

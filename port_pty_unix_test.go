@@ -20,7 +20,7 @@ func TestPORT_RedirectedStdout(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := evo.Init(evo.Config{Isolated: true, Stdout: w, Color: evo.ColorNever, Plain: true})
-	out.Task("pipe").Done()
+	succeed(out.Task("pipe"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestPORT001_ANSIOnPipe(t *testing.T) {
 	drv := terminal.NewANSI(&buf, terminal.WithInteractive(true), terminal.WithSize(80, 24))
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Stderr: io.Discard, Terminal: drv, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("work").Doing("run").Done("ok")
+	succeed(out.Task("work").Doing("run"), "ok")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

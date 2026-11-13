@@ -390,7 +390,7 @@ type changesState struct {
 	records []EffectRecord
 	// intendedVerb is the first imperative verb recorded for this section
 	// (evo-rec.md "empty effect section grammar"). Set once, by
-	// changes.go's Record/RecordName; it is what lets a section that ends up
+	// recordResolvedMutation; it is what lets a section that ends up
 	// with zero rows still render "nothing to <verb> <subject>" instead of a
 	// generic fallback.
 	intendedVerb string
@@ -785,7 +785,7 @@ func declaredTaskState(col *tasksState) EntityState {
 //
 // Attributing at the record site rather than folding rows in the renderer is
 // what makes the rest fall out: the existing identical-record merge does the
-// tally, and a caller that does want item names gets them through RecordName
+// tally, and item names (evo.File/evo.Exec named rows) land
 // under the collection's subject, inside the same bounded viewport and
 // `… +N more (not shown)` overflow every other subject has.
 func ledgerSubjectFor(st *taskState) string {
@@ -930,7 +930,7 @@ func (o *Output) interrupt(reason string) {
 // interrupt took away just as surely as one sitting in the scheduler's
 // queue. Sweeping only the submitted ones left a declared row Pending, and
 // Finish then charged the caller with ErrUnresolvedTask and told them to
-// "call Done, Fail, Block, Skipped, or Define on this task" about a
+// "call Define, Fail, Block, or Skipped on this task" about a
 // run the user had just cancelled.
 func (o *Output) abandonQueuedWork() {
 	o.mu.Lock()
@@ -1830,7 +1830,7 @@ func (o *Output) abnormalFinishLocked() bool {
 // way Confirm's own policy hint renders (TaskHandle.Next), replacing the raw
 // "misuse: <name>: evo: ..." sentinel text that told the reader nothing
 // about what to do next (release-gate finding 3).
-const unresolvedTaskHint = "call Done, Fail, Block, Skipped, or Define on this task"
+const unresolvedTaskHint = "call Define, Fail, Block, or Skipped on this task"
 
 // attachUnresolvedTaskHintLocked attaches unresolvedTaskHint to t directly.
 // It cannot go through TaskHandle.Next, which refuses once Finish has set

@@ -40,20 +40,20 @@ func collapsed(s string) string {
 //
 //	[changed] clean
 //	  deleted 3 local
-//	  pruned 2 stale
+//	  removed 2 stale
 func TestSpecP16_CompactLayout_Step2(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever, Width: 30})
-	clean := out.Task("clean")
-	clean.Record("delete", 3, "local")
-	clean.Record("prune", 2, "stale")
-	clean.Done()
+	commit(out.Task("clean"),
+		evo.EffectSpec{Verb: evo.EffectDelete, Object: "local", Quantity: 3},
+		evo.EffectSpec{Verb: evo.EffectRemove, Object: "stale", Quantity: 2},
+	)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := collapsed(buf.String())
-	for _, want := range []string{"[changed] clean", "deleted 3 local", "pruned 2 stale"} {
+	for _, want := range []string{"[changed] clean", "deleted 3 local", "removed 2 stale"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -83,7 +83,7 @@ func TestSpecP16_CompactLayout_Success(t *testing.T) {
 		g.Task(name).Skipped(protected)
 	}
 	worktrees := out.Task("worktrees")
-	worktrees.Done("2 rm")
+	succeed(worktrees, "2 rm")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -162,9 +162,7 @@ func TestSpecP16_CompactLayout_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever, Width: 30})
-	branches := out.Task("branches")
-	branches.Record("delete", 3, "local")
-	branches.Done("3 del")
+	commit(out.Task("branches").Summary("3 del"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local", Quantity: 3})
 	remotes := out.Task("remotes")
 	remotes.Cancel("")
 	if err := out.Finish(); err != nil {
@@ -326,9 +324,7 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 	evo.SetDefault(evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever}))
 	out := evo.Default()
 	g := out.Group("branches")
-	deleted := g.Task("deleted")
-	deleted.Record("delete", 10, "branch")
-	deleted.Done("10 deleted")
+	commit(g.Task("deleted").Summary("10 deleted"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 10})
 	g.Task("feat/x").Fail("delete failed on feat/x")
 	unchanged := evo.Reason("unchanged")
 	notAttempted := evo.Reason("unpushed, not attempted")
@@ -410,9 +406,7 @@ func TestSpecP17_Taxonomy_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	done := out.Task("branches")
-	done.Record("delete", 10, "branch")
-	done.Done("10 deleted")
+	commit(out.Task("branches").Summary("10 deleted"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "branch", Quantity: 10})
 
 	cancelled := out.Task("keep-pass")
 	cancelled.Cancel("cancelled during keep pass")
@@ -599,23 +593,23 @@ func TestSpecP19_FirstPaint_Step2(t *testing.T) {
 }
 
 // TestSpecP19_FirstPaint_Success covers Problem 19's success block: a
-// Done summary plus a [changed] section reporting the discovered total.
+// result Summary plus a Fact reporting the discovered total — a count of
+// classified repos is information, not a mutation (ZYS-974).
 //
 //	✓  scan  128 checked
-//	[changed]  scan
-//	  ready  40  repos
+//	  ready  40 repos
 func TestSpecP19_FirstPaint_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	scan := out.Task("scan")
-	scan.RecordLabel("ready", 40, "repos")
-	scan.Done("128 checked")
+	scan.Fact("ready", "40 repos")
+	succeed(scan, "128 checked")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := collapsed(buf.String())
-	for _, want := range []string{"✓ scan 128 checked", "[changed] scan", "ready 40 repos"} {
+	for _, want := range []string{"✓ scan 128 checked", "ready 40 repos"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -762,7 +756,7 @@ func TestSpecP20_Heartbeat_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	out.Task("salvage").Done("3 pushed")
+	succeed(out.Task("salvage"), "3 pushed")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -946,7 +940,7 @@ func TestSpecP21_DurableNote_Success(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	out.Println("using cached wheel index")
-	out.Task("install").Done("40/40")
+	succeed(out.Task("install"), "40/40")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -1045,8 +1039,9 @@ func TestSpecP21_DurableNote_EarlyTermination(t *testing.T) {
 	out.Println("using cached wheel index")
 	install := out.Task("install")
 	install.Progress(5, 40)
-	install.Record("install", 5, "package in .venv")
-	install.Cancel("cancelled at 5/40")
+	commitThen(install, evo.EffectSpec{Verb: evo.EffectInstall, Object: "package in .venv", Quantity: 5}, func() {
+		install.Cancel("cancelled at 5/40")
+	})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

@@ -144,9 +144,7 @@ func TestSpecP22_ConfirmGate_Success(t *testing.T) {
 	if ok := out.Confirm("confirm remote delete", evo.Destructive()); !ok {
 		t.Fatal("Confirm(\"y\") = false, want true")
 	}
-	remotes := out.Task("remotes")
-	remotes.Record("delete", 1, "origin tip")
-	remotes.Done()
+	commit(out.Task("remotes"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "origin tip", Quantity: 1})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +287,7 @@ func TestSpecP23_SignalConclusion_Step1(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := evo.Init(evo.Config{Terminal: screen, VisibilityDelay: new(time.Duration), MaxFrameRate: 1_000_000, Color: evo.ColorNever})
 
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	out.Task("venv").Doing("creating")
 
 	// scan resolved: it commits durably at resolution time (release-gate
@@ -320,9 +318,9 @@ func TestSpecP23_SignalConclusion_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	out.Task("scan").Done()
-	out.Task("venv").Done()
-	out.Task("install").Done()
+	succeed(out.Task("scan"))
+	succeed(out.Task("venv"))
+	succeed(out.Task("install"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -348,7 +346,7 @@ func TestSpecP23_SignalConclusion_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	out.Task("venv").Fail("uv exited 1")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -376,7 +374,7 @@ func TestSpecP23_SignalConclusion_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	out.Task("venv").Fail("signal: killed (SIGKILL — no cleanup possible)")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -419,7 +417,7 @@ func TestSpecP23_SignalConclusion_Step2(t *testing.T) {
 	}()
 
 	code := evo.Run(context.Background(), func(ctx context.Context) error {
-		scan.Done()
+		succeed(scan)
 		venv.Doing("creating")
 		close(started)
 		deadline := time.Now().Add(2 * time.Second)
@@ -491,13 +489,17 @@ func TestSpecP23_SignalConclusion_EarlyTermination(t *testing.T) {
 	}()
 
 	code := evo.Run(context.Background(), func(ctx context.Context) error {
-		scan.Done()
-		venv.Record("create", 1, ".venv directory")
-		close(started)
-		deadline := time.Now().Add(2 * time.Second)
-		for venv.Snapshot().State != evo.Cancelled && time.Now().Before(deadline) {
-			time.Sleep(time.Millisecond)
-		}
+		succeed(scan)
+		venv.Define(func(ctx context.Context) error {
+			spec := evo.EffectSpec{Verb: evo.EffectCreate, Object: ".venv directory", Quantity: 1}
+			if err := evo.Effect(ctx, spec, func(context.Context) error { return nil }); err != nil {
+				return err
+			}
+			return untilInterrupted(ctx, started)
+		})
+		// Stay inside run until the interrupt lands: runInterruptible only
+		// watches for the signal while run is still executing.
+		_ = venv.Wait()
 		return nil
 	}).ExitCode()
 
@@ -732,7 +734,7 @@ func TestSpecP25_ASCIIGlyphFallback_Step2(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	out := evo.Init(evo.Config{Terminal: screen, VisibilityDelay: new(time.Duration), MaxFrameRate: 1_000_000, Color: evo.ColorNever, Glyphs: evo.GlyphsASCII})
 
-	out.Task("branches").Done("14 deleted")
+	succeed(out.Task("branches"), "14 deleted")
 	worktrees := out.Task("worktrees")
 	worktrees.Progress(1, 3)
 	worktrees.Doing("../.worktrees/app-sah-1")
@@ -835,14 +837,10 @@ func TestSpecP25_ASCIIGlyphFallback_EarlyTermination(t *testing.T) {
 	}()
 
 	code := evo.Run(context.Background(), func(ctx context.Context) error {
-		branches.Record("delete", 8, "local")
-		branches.Done("8 deleted")
-		worktrees.Record("remove", 0, "worktrees")
-		close(started)
-		deadline := time.Now().Add(2 * time.Second)
-		for worktrees.Snapshot().State != evo.Cancelled && time.Now().Before(deadline) {
-			time.Sleep(time.Millisecond)
-		}
+		commit(branches.Summary("8 deleted"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local", Quantity: 8})
+		// Stay inside run until the interrupt lands: runInterruptible only
+		// watches for the signal while run is still executing.
+		_ = worktrees.Define(func(ctx context.Context) error { return untilInterrupted(ctx, started) }).Wait()
 		return nil
 	}).ExitCode()
 
@@ -998,14 +996,10 @@ func TestSpecP26_NarrowTerminal_EarlyTermination(t *testing.T) {
 	}()
 
 	code := evo.Run(context.Background(), func(ctx context.Context) error {
-		branches.Record("delete", 15, "local")
-		branches.Done("15 del")
-		worktrees.Record("remove", 0, "worktrees")
-		close(started)
-		deadline := time.Now().Add(2 * time.Second)
-		for worktrees.Snapshot().State != evo.Cancelled && time.Now().Before(deadline) {
-			time.Sleep(time.Millisecond)
-		}
+		commit(branches.Summary("15 del"), evo.EffectSpec{Verb: evo.EffectDelete, Object: "local", Quantity: 15})
+		// Stay inside run until the interrupt lands: runInterruptible only
+		// watches for the signal while run is still executing.
+		_ = worktrees.Define(func(ctx context.Context) error { return untilInterrupted(ctx, started) }).Wait()
 		return nil
 	}).ExitCode()
 
@@ -1023,4 +1017,13 @@ func TestSpecP26_NarrowTerminal_EarlyTermination(t *testing.T) {
 	if !strings.Contains(collapsed, "partial changes were applied before cancellation") {
 		t.Fatalf("want the real derived already-mutated line, got:\n%s", got)
 	}
+}
+
+// untilInterrupted marks the Task running by closing started, then parks
+// until the run's interrupt cancels ctx — the in-flight work a SIGINT
+// early-termination golden cancels.
+func untilInterrupted(ctx context.Context, started chan<- struct{}) error {
+	close(started)
+	<-ctx.Done()
+	return ctx.Err()
 }

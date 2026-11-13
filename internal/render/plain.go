@@ -963,7 +963,7 @@ func writeCollectionChild(b *strings.Builder, t core.TaskSnapshot, nameWidth int
 }
 
 // maxVisibleEffectRows bounds how many plan/changes rows the human view
-// renders per section (evo-rec.md "bound visible RecordName rows... model
+// renders per section (evo-rec.md "bound visible named rows... model
 // keeps all records"). The snapshot always retains the full record list;
 // only this presentation loop is capped. Mirrors maxVisibleProblems's bound.
 const maxVisibleEffectRows = maxVisibleProblems

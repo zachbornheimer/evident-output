@@ -88,7 +88,7 @@ func TestDurableWrite_TearFreeUnderConcurrentProgress(t *testing.T) {
 		}
 	}()
 	wg.Wait()
-	task.Done()
+	succeed(task)
 	_ = out.Finish()
 
 	ops := screen.Operations()

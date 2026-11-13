@@ -14,10 +14,10 @@ import (
 func TestSEC003_MaxEntitiesEnforced(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, MaxEntities: 3})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("a").Done()
-	out.Task("b").Done()
-	out.Task("c").Done()
-	out.Task("d").Done() // should record limit
+	succeed(out.Task("a"))
+	succeed(out.Task("b"))
+	succeed(out.Task("c"))
+	succeed(out.Task("d")) // should record limit
 	if !errors.Is(out.Err(), evo.ErrLimitExceeded) {
 		t.Fatalf("err=%v", out.Err())
 	}

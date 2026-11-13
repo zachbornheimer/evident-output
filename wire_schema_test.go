@@ -22,10 +22,10 @@ func TestWireSchema_RenderedDocumentValidates(t *testing.T) {
 	}
 
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	out.Task("working tree").Done()
+	succeed(out.Task("working tree"))
 	out.Task("branches").Warn("2 branches need attention")
 	seq := out.Sequence("cleanup")
-	seq.Task("remove tags").Done()
+	succeed(seq.Task("remove tags"))
 	_ = out.Finish()
 
 	doc, err := evo.EncodeJSON(out.Snapshot())

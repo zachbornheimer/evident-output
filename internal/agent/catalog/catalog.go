@@ -62,25 +62,27 @@ Doing/Progress call), SequenceHandle (evo.Sequence — named children in depende
 NotStarted on failure/cancel), GroupHandle (evo.Group — independent children; the scheduler may overlap
 eligible work; both offer nested .Sequence/.Group for recursive containers).
 evo.Task/Sequence are get-or-create facades on the package-level default instance (see evo.Init/evo.SetDefault);
-Record/RecordName/RecordLabel stay on TaskHandle for tooling call sites that need a raw ledger row, not a front
-door of their own — Output.Changes/Output.Plan were removed (P1): every effect goes through a Task's mutation
-verb now. Item/ItemHandle were removed v0.2.x shims over Task/TaskHandle — new code always uses Task.
-Record/RecordLabel are quantity tallies and always render at Finish; RecordName names one item individually and
-streams its row the instant its owning task resolves (Done/Fail/Block), bounded by the same viewport cap and
-"… +N more (not shown)" overflow the Finish ledger uses.
+Success resolves through Define (the callback returning nil); TaskHandle.Done was removed in 1.1 (ZYS-812), and
+task.Summary(text) is the non-terminal result text Done(text) carried (ZYS-971). Record/RecordName/RecordLabel were
+removed in 1.1 with no record-only replacement (ZYS-974): a mutation goes through evo.Effect (closed EffectVerb
+set, incl. EffectInstall/EffectUninstall), information through task.Fact, a file write through evo.File/evo.Patch.
+Output.Changes/Output.Plan were removed (P1). Item/ItemHandle were removed v0.2.x shims over Task/TaskHandle.
+Effect quantities tally and always render at Finish; a named row (evo.File "write <path>", evo.Exec "run <exe>")
+streams the instant its owning task resolves, bounded by the same viewport cap and "… +N more (not shown)"
+overflow the Finish ledger uses.
 
-Severity: Warn = non-terminal annotation (does not resolve the task — call it any number of times before Done/
-Fail/Block); Block = stop before mutate; Fail = evaluation failed.
+Severity: Warn = non-terminal annotation (does not resolve the task — call it any number of times before the
+Task resolves); Block = stop before mutate; Fail = evaluation failed.
 One Task, many Problems (1.1/ZYS-848): task.Problem(summary, opts...) appends one blocking Problem without
-resolving the task — call it once per finding instead of a Task per finding. A nil Define return (or bare Done())
+resolving the task — call it once per finding instead of a Task per finding. A nil Define return
 after any accumulated Problem resolves the Task Failed, never Done. Warn also takes the same ProblemOptions
 (Detail/Code/On/Location/Next) as Problem/Fail/Block. See docs/migration/1.1.md.
 Exit-code honesty (DOM-020): Block and Fail carry different exit codes (1 vs 2) so a caller can tell "you did
 something wrong" from "something broke while checking". A usage or user mistake (missing flag, declined confirm,
 protected-branch policy) resolves Block, never Fail — routing it through Fail reports a user error as a system
 failure.
-Do not Start (API-006); no caller RunAll/Map/Retry on evo receivers (API-026 — Group/Sequence/Define/After are the scheduler; Group.Each/Sequence.Each were removed in 1.0); Failf/Blockf need % (API-028; Done/Warn/Task/Sequence/Reason
-are printf-variadic themselves — there is no separate Donef/Warnf/Taskf/Reasonf); Capture not DebugWriter (API-029).
+Do not Start (API-006); no caller RunAll/Map/Retry on evo receivers (API-026 — Group/Sequence/Define/After are the scheduler; Group.Each/Sequence.Each were removed in 1.0); Failf/Blockf need % (API-028; Warn/Task/Sequence/Reason
+are printf-variadic themselves — there is no separate Warnf/Taskf/Reasonf; Summary takes one literal string); Capture not DebugWriter (API-029).
 Never print a joined failure list yourself (CON-002): out.Println(strings.Join(failures, "\n")) duplicates the
 one summary Conclusion already owns and can drift from the glyphs/exit code the ledger shows. Resolve each
 failure on its own Task and use Next(evo.Label(...)) for follow-up guidance instead.`,
@@ -319,7 +321,7 @@ pre-definition Verify (or a tracked evo.File/evo.Exec check) that proves the cur
 			UseCases: []string{"spinner", "debug", "narrow", "confirm", "prompt", "resize", "suspend", "child-ui"},
 			Concepts: []string{"LiveSurface", "VisibilityDelay", "Terminal", "Confirm", "Println"},
 			Rules:    []string{"TERM-001", "TERM-006", "TERM-015", "CONFIRM-001", "CONFIRM-002", "LOG-001"},
-			Body: `Instant Done before the visibility threshold must not flash a spinner.
+			Body: `A Task that resolves before the visibility threshold must not flash a spinner.
 Durable notes go through evo.Println/Print/Printf — never fmt.Print* — while a live region is open: evo clears
 the region, writes the line, redraws, atomically. fmt bypassing that path is how frames tear.
 evo.Confirm(question, ...) quiesces the live region for the whole ask-decide-resolve window before it prompts:

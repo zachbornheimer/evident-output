@@ -20,7 +20,7 @@ func TestFinish_InteractiveWithAlsoWrite_MirrorsPlainProjection(t *testing.T) {
 	out.AlsoWriteForTest(&mirror)
 
 	out.Task("dependencies").Fail("dependency graph has a cycle")
-	out.Task("build").Done()
+	succeed(out.Task("build"))
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

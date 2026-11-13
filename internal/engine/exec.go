@@ -304,5 +304,5 @@ func verifiedExecOutputs(ctx context.Context, outputs []string) ([]manifest.Outp
 // Effect under taskID's own ledger section — the same routing recordFileEffect
 // uses for File (spec §8.4/§27/§51).
 func (o *Output) recordExecEffect(taskID, displayExecutable string) {
-	(&TaskHandle{out: o, id: taskID}).RecordName("run", displayExecutable)
+	(&TaskHandle{out: o, id: taskID}).recordName("run", displayExecutable)
 }

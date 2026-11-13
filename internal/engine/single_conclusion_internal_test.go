@@ -63,7 +63,7 @@ func TestFinish_SharedPrimaryTerminalRendersConclusionOnce(t *testing.T) {
 	)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("work").Done()
+	out.Task("work").succeed("")
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestFinish_DistinctPrimaryAndTerminalKeepBothConclusions(t *testing.T) {
 	)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("work").Done()
+	out.Task("work").succeed("")
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}

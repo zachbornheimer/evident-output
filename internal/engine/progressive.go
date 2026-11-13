@@ -196,10 +196,10 @@ func (o *Output) commitResolvedTaskLocked(id string) {
 }
 
 // hasNamedEffectRecord reports whether records holds at least one no-qty
-// (RecordName) row — the "named record enumerates" half of "Quantity
-// records tally; named records enumerate": Record/Effect rows and
-// RecordLabel's classification rows always carry a quantity (HasQty true)
-// and stay Finish-only, tallied and bounded there exactly as before.
+// (evo.File/evo.Exec named) row — the "named record enumerates" half of
+// "Quantity records tally; named records enumerate": Effect rows always
+// carry a quantity (HasQty true) and stay Finish-only, tallied and bounded
+// there exactly as before.
 func hasNamedEffectRecord(records []core.EffectRecord) bool {
 	for _, r := range records {
 		if !r.HasQty {
@@ -211,12 +211,12 @@ func hasNamedEffectRecord(records []core.EffectRecord) bool {
 
 // commitNamedEffectsLocked streams subject's Plan/Changes ledger section the
 // instant its owning standalone task resolves (task.go's finish), provided
-// the section holds at least one named (RecordName) record — evo-rec.md's
+// the section holds at least one named (File/Exec) record — evo-rec.md's
 // "a --dry user loses 'what would run' per item" fix: a caller working
 // through several tasks in sequence sees each task's planned/changed items
 // the moment that task's own work finishes, instead of every task's rows
 // piling up at the very end of the whole run's Finish. A pure-quantity
-// section (Record/Effect, RecordLabel) is untouched — it always
+// section (Effect) is untouched — it always
 // waits for Finish, exactly as before (see hasNamedEffectRecord).
 //
 // This calls the same render.WriteEffects Finish already uses (merge,

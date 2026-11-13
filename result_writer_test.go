@@ -22,7 +22,7 @@ func TestResultWriter_FormatDataHandsTheCallerItsPayloadStream(t *testing.T) {
 		Stderr: &human,
 	})
 
-	out.Task("gitleaks").Done()
+	succeed(out.Task("gitleaks"))
 	if _, err := out.ResultWriter().Write([]byte(`{"findings":[]}`)); err != nil {
 		t.Fatalf("write payload: %v", err)
 	}

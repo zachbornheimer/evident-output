@@ -21,7 +21,7 @@ func TestPlainProgress_StreamsMilestones_NotOnlyFirstTick(t *testing.T) {
 	for i := 0; i <= 100; i += 10 {
 		task.Progress(i, 100)
 	}
-	task.Done()
+	succeed(task)
 	_ = out.Finish()
 
 	rendered := buf.String()

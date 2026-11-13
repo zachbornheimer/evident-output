@@ -94,17 +94,16 @@ func TestTaskHandle_DeleteForwardsToChangesLedger(t *testing.T) {
 }
 
 // TestTaskHandle_MultipleMutationsAccumulateOnOneSubject exercises the
-// get-or-create Plan/Changes identity: repeated Record calls on the same
-// task accumulate into one section instead of one per call. Named mutation
-// verbs submit work and resolve the Task (one per Task); Record is the
-// ledger primitive that can stack rows on one subject.
+// get-or-create Plan/Changes identity: repeated Effect calls in one Task's
+// Define accumulate into one section instead of one per call.
 func TestTaskHandle_MultipleMutationsAccumulateOnOneSubject(t *testing.T) {
 	t.Parallel()
 	out := evo.Init(evo.Config{Isolated: true, Title: "retire", Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
-	branches := out.Task("branches")
-	branches.Record("delete", 3, "local branch")
-	branches.Record("update", 1, "tip")
+	commit(out.Task("branches"),
+		evo.EffectSpec{Verb: evo.EffectDelete, Object: "local branch", Quantity: 3},
+		evo.EffectSpec{Verb: evo.EffectUpdate, Object: "tip", Quantity: 1},
+	)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -118,25 +117,26 @@ func TestTaskHandle_MultipleMutationsAccumulateOnOneSubject(t *testing.T) {
 }
 
 // TestConjugatePast_TableIncludingIrregulars pins the display-facing tense
-// conjugation: default +d/+ed rule plus the write->wrote irregular.
+// conjugation of every EffectVerb: the default +d/+ed rule, the doubled
+// consonant, and install/uninstall. (write->wrote belongs to evo.File.)
 func TestConjugatePast_TableIncludingIrregulars(t *testing.T) {
 	t.Parallel()
-	cases := map[string]string{
-		"delete": "deleted",
-		"create": "created",
-		"update": "updated",
-		"remove": "removed",
-		"push":   "pushed",
-		"write":  "wrote",
+	cases := map[evo.EffectVerb]string{
+		evo.EffectAdd:       "added",
+		evo.EffectDelete:    "deleted",
+		evo.EffectCreate:    "created",
+		evo.EffectUpdate:    "updated",
+		evo.EffectRemove:    "removed",
+		evo.EffectPush:      "pushed",
+		evo.EffectInstall:   "installed",
+		evo.EffectUninstall: "uninstalled",
 	}
 	for imperative, want := range cases {
-		t.Run(imperative, func(t *testing.T) {
+		t.Run(string(imperative), func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
 			out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "t", Color: evo.ColorNever, Plain: true})
-			subject := out.Task("subject")
-			subject.RecordName(imperative, "object")
-			subject.Done()
+			commit(out.Task("subject"), evo.EffectSpec{Verb: imperative, Object: "object", Quantity: 1})
 			if err := out.Finish(); err != nil {
 				t.Fatal(err)
 			}
@@ -155,7 +155,7 @@ func TestTaskHandle_MutationOnResolvedTaskRecordsMisuse(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Title: "t", Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("branches")
-	task.Done()
+	succeed(task)
 
 	task.Define(effectOf(evo.EffectDelete, "thing", 1))
 

@@ -55,7 +55,7 @@ func ExampleTaskHandle_Verify() {
 func ExampleTaskHandle_Key() {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true})
-	out.Task("migrate 003_add_users.sql").Key("migration:003").Done()
+	out.Task("migrate 003_add_users.sql").Key("migration:003").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Print(buf.String())
 	// Output:
@@ -103,7 +103,7 @@ func ExampleTaskHandle_Fact() {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true})
 	scan := out.Task("remote-tracking")
 	scan.Fact("stale", "1")
-	scan.Done()
+	scan.Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Print(buf.String())
 	// Output:

@@ -24,7 +24,7 @@ func TestDebugHistory_AppendAboveLiveRegion(t *testing.T) {
 	task := out.Task("branches")
 	task.Doing("comparing")
 	out.DebugForTest("opened repository", evo.Field{Key: "path", Value: "/work/repo"})
-	task.Done()
+	succeed(task)
 	_ = out.Finish()
 
 	var durable strings.Builder
@@ -89,7 +89,7 @@ func TestDebugPane_RollingViewportNewestFirst(t *testing.T) {
 		}
 	}
 
-	task.Done()
+	succeed(task)
 	_ = out.Finish()
 	// Success: pane removed; no diagnostics tail.
 	final := screen.FinalText()
@@ -141,7 +141,7 @@ func TestDebugPane_PreserveDebugTailAlways(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.DebugForTest("cache warm", evo.Field{Key: "dir", Value: "/tmp/x"})
-	out.Task("ok").Done()
+	succeed(out.Task("ok"))
 	_ = out.Finish()
 	got := buf.String()
 	if !strings.Contains(got, "── diagnostics ──") {

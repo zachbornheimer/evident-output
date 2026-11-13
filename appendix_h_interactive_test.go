@@ -27,7 +27,7 @@ func TestH2_Task_InstantCompletionDoesNotFlashSpinner(t *testing.T) {
 
 	dependencies := out.Task("dependencies")
 	dependencies.Doing("installing")
-	dependencies.Done("installed %d packages", 18)
+	succeed(dependencies, "installed 18 packages")
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestH17_Debug_MessageIsInsertedAboveLiveRegion(t *testing.T) {
 	task := out.Task("dependencies")
 	task.Doing("resolving packages")
 	out.DebugForTest("package index loaded", evo.Field{Key: "packages", Value: 18})
-	task.Done("installed %d packages", 18)
+	succeed(task, "installed 18 packages")
 	_ = out.Finish()
 
 	// History mode: timestamp (FixedClock) + bracketed level above live region.
@@ -110,7 +110,7 @@ func TestH20_Tasks_MultipleProgressRowsPreserveDeclarationOrder(t *testing.T) {
 	sharp.Doing("verifying")
 	esbuild.Bytes(12_400_000, 18_000_000)
 	react.Bytes(8_100_000, 8_100_000)
-	react.Done()
+	succeed(react)
 
 	got := screen.LatestLiveText()
 	// Column layout: child names pad to width 9 (spec H.20 semantics: declaration
@@ -156,7 +156,7 @@ func TestH21_Tasks_ScreenBudgetSelectsImportantRowsAndReportsOmission(t *testing
 		case 20:
 			task.Warn("using cached fallback")
 		default:
-			task.Done()
+			succeed(task)
 		}
 	}
 
@@ -190,7 +190,7 @@ func TestH22_Task_HighFrequencyProgressIsCoalesced(t *testing.T) {
 		download.Progress(completed, 10_000)
 		// Keep wall-clock zero; coalescing uses frame budget, not only time.
 	}
-	download.Done()
+	succeed(download)
 
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

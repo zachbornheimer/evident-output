@@ -50,7 +50,7 @@ func TestEVOOutput_Plain_NoLiveRegionOnTTYShapedWriter(t *testing.T) {
 		Stderr:          &buf,
 		VisibilityDelay: evo.Delay(0),
 	})
-	out.Task("scan").Doing("walk").Done("ok")
+	succeed(out.Task("scan").Doing("walk"), "ok")
 	_ = out.Finish()
 	if hasLiveRegion(buf.String()) {
 		t.Fatalf("EVO_OUTPUT=plain must not open a live region on a TTY-shaped writer:\n%q", buf.String())
@@ -61,7 +61,7 @@ func TestEVOOutput_JSON_FinishWritesJSONDocument(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "json"})
 	var buf bytes.Buffer
 	out := isolatedInit(t, evo.Config{Stdout: &buf, Stderr: io.Discard})
-	out.Task("scan").Done("ok")
+	succeed(out.Task("scan"), "ok")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestEVOOutput_JSONL_FinishWritesEventLines(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "jsonl"})
 	var buf bytes.Buffer
 	out := isolatedInit(t, evo.Config{Stdout: &buf, Stderr: io.Discard})
-	out.Task("scan").Done("ok")
+	succeed(out.Task("scan"), "ok")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestEVOOutput_StreamJSON_TaskDoneEmitsEventJSONBeforeFinish(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "stream-json"})
 	var buf bytes.Buffer
 	out := isolatedInit(t, evo.Config{Stdout: &buf, Stderr: io.Discard})
-	out.Task("scan").Done("ok")
+	succeed(out.Task("scan"), "ok")
 	got := strings.TrimSpace(buf.String())
 	if got == "" {
 		t.Fatal("stream-json wrote nothing at Task.Done")
@@ -141,7 +141,7 @@ func TestEVOOutput_StreamJSON_FormatDataKeepsPayloadOnStdout(t *testing.T) {
 		Stdout: &stdout,
 		Stderr: &stderr,
 	})
-	out.Task("scan").Done("ok")
+	succeed(out.Task("scan"), "ok")
 	const payload = `{"ready":true}`
 	if _, err := io.WriteString(out.ResultWriter(), payload); err != nil {
 		t.Fatal(err)
@@ -185,7 +185,7 @@ func TestEVOOutput_HumanDoesNotOverrideExplicitPlain(t *testing.T) {
 		Stderr:          &buf,
 		VisibilityDelay: evo.Delay(0),
 	})
-	out.Task("scan").Doing("walk").Done("ok")
+	succeed(out.Task("scan").Doing("walk"), "ok")
 	_ = out.Finish()
 	if hasLiveRegion(buf.String()) {
 		t.Fatalf("Config.Plain: true must not be overridden by EVO_OUTPUT=human:\n%q", buf.String())
@@ -201,7 +201,7 @@ func TestEVOOutput_NoColorStillDisablesColor(t *testing.T) {
 		Stdout: &buf,
 		Stderr: &buf,
 	})
-	out.Task("ok").Done()
+	succeed(out.Task("ok"))
 	out.Task("bad").Fail("x")
 	_ = out.Finish()
 	if strings.Contains(buf.String(), "\x1b[") {
@@ -213,7 +213,7 @@ func TestEVOOutput_StreamJSONAliasUnderscore(t *testing.T) {
 	withLookupEnv(t, map[string]string{"EVO_OUTPUT": "stream_json"})
 	var buf bytes.Buffer
 	out := isolatedInit(t, evo.Config{Stdout: &buf, Stderr: io.Discard})
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	got := strings.TrimSpace(buf.String())
 	if got == "" {
 		t.Fatal("EVO_OUTPUT=stream_json alias wrote nothing at Task.Done")
@@ -242,7 +242,7 @@ func TestEVODebug_DebugLevelSurfacesJournal(t *testing.T) {
 	var buf bytes.Buffer
 	out := isolatedInit(t, evo.Config{Stdout: &buf, Stderr: &buf})
 	out.DebugForTest("trace-visible")
-	out.Task("ok").Done()
+	succeed(out.Task("ok"))
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "trace-visible") {
 		t.Fatalf("EVO_DEBUG=debug must surface Debug journal:\n%s", buf.String())

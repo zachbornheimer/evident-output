@@ -17,7 +17,7 @@ func TestConfig_Plain_DisablesLiveFrames(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf, Plain: true})
 
-	out.Task("build").Done()
+	succeed(out.Task("build"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

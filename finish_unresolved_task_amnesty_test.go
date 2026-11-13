@@ -19,7 +19,7 @@ func TestFinish_ReadmeQuickstart_EachLoopAutoResolvesDone(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	out.Task("working tree").Done()
+	succeed(out.Task("working tree"))
 	out.Task("branches").Block(
 		"local-only branch",
 		evo.Detail("commit or stash before continuing"),
@@ -124,7 +124,7 @@ func TestRun_BlockedWithLeftoverMisuse_NeverEscalatesToFailed(t *testing.T) {
 	code := out.Run(context.Background(), func(ctx context.Context) error {
 		task := out.Task("branches")
 		task.Block("local-only branch")
-		task.Done() // already resolved — leftover bookkeeping misuse
+		succeed(task) // already resolved — leftover bookkeeping misuse
 		return nil
 	}).ExitCode()
 

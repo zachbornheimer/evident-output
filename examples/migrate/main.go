@@ -25,20 +25,24 @@ func main() {
 
 	evo.Init(evo.Config{Title: "schema migration", DryRun: !*apply})
 	os.Exit(evo.Main(func(ctx context.Context) error {
+		backups := &backupStore{}
 		backup := evo.Task("backup")
-		backup.Doing("snapshotting production")
-		if *apply && *fail {
-			backup.Fail(
-				"backup failed",
-				evo.Detail("check the backup destination and credentials"),
-			)
+		backup.Define(func(ctx context.Context) error {
+			backup.Doing("snapshotting production")
+			if *apply && *fail {
+				backup.Fail(
+					"backup failed",
+					evo.Detail("check the backup destination and credentials"),
+				)
+				return nil
+			}
+			return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "snapshot", Quantity: 1}, func(ctx context.Context) error {
+				return backups.Snapshot(ctx, "production")
+			})
+		})
+		if err := backup.Wait(); err != nil {
 			return nil
 		}
-		backup.Done("snapshot created")
-
-		migration := evo.Task("migration")
-		migration.Doing("applying schema changes")
-		migration.Done("applied")
 
 		schema := evo.Sequence("schema")
 		db := &database{}
@@ -65,6 +69,16 @@ const (
 	migrationPath  = "20260727_email_verified.sql"
 	migrationSQL   = addColumnDDL + "\n" + createIndexDDL + "\n"
 )
+
+// backupStore stands in for the backup service a real migration snapshots
+// before touching the schema. Snapshot records the database name instead of
+// copying it.
+type backupStore struct{ snapshots []string }
+
+func (b *backupStore) Snapshot(_ context.Context, database string) error {
+	b.snapshots = append(b.snapshots, database)
+	return nil
+}
 
 // database stands in for the *sql.DB a real migration holds: evo cannot
 // model a schema as desired state, so each DDL statement is an opaque

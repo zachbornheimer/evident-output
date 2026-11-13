@@ -105,7 +105,7 @@ func TestOUT012_ExitCodes(t *testing.T) {
 		fn   func(*evo.Output)
 		code int
 	}{
-		{"ok", func(o *evo.Output) { o.Task("a").Done() }, 0},
+		{"ok", func(o *evo.Output) { succeed(o.Task("a")) }, 0},
 		{"blocked", func(o *evo.Output) { o.Task("a").Block("b") }, 1},
 		{"failed", func(o *evo.Output) { o.Task("a").Fail("f") }, 2},
 	}
@@ -127,7 +127,7 @@ func TestAPI026_NoRunAllSymbol(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	// If RunAll existed tests might call it; absence is compile-time.
-	out.Task("x").Done()
+	succeed(out.Task("x"))
 	_ = out.Finish()
 }
 
@@ -135,7 +135,7 @@ func TestSEC003_ManyEntitiesBounded(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	for i := range 500 {
-		out.Task(string(rune('A'+(i%26))) + string(rune('a'+(i/26)))).Done()
+		succeed(out.Task(string(rune('A'+(i%26))) + string(rune('a'+(i/26)))))
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

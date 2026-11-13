@@ -2,6 +2,7 @@ package gates_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -19,14 +20,16 @@ func TestFinish_MisuseSentinel_RendersHintNotRawSentinelText(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	out.Task("a").Done(42) // a non-string summary is ErrInvalidConfig misuse
+	a := out.Task("a")
+	a.Define(func(context.Context) error { return nil })
+	a.Define(func(context.Context) error { return nil }) // a second Define is ErrInvalidConfig misuse
 
 	_ = out.Finish()
 	rendered := buf.String()
 	if strings.Contains(rendered, "evo: invalid config") {
 		t.Fatalf("raw sentinel jargon leaked into the user stream:\n%s", rendered)
 	}
-	if !strings.Contains(rendered, "pass a string") {
+	if !strings.Contains(rendered, "Define each task once") {
 		t.Fatalf("want a corrective hint, got:\n%s", rendered)
 	}
 }

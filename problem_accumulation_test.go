@@ -113,7 +113,7 @@ func TestProblem_BareDoneWithAccumulatedProblemsPromotesToFailed(t *testing.T) {
 	task := out.Task("manual check")
 	task.Problem("finding one", evo.Code("A"))
 	task.Problem("finding two", evo.Code("B"))
-	task.Done("looks fine")
+	succeed(task, "looks fine")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +256,7 @@ func TestWarn_AcceptsStructuredProblemOptions(t *testing.T) {
 		evo.Code("CACHE-001"),
 		evo.Location("cache/entry-42.json", 0, 0),
 	)
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +282,7 @@ func TestWarn_ReturnsHandleForChaining(t *testing.T) {
 	out := evo.Init(nonTTYConfig("tool", &buf))
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("chain").Warn("heads up").Done("finished anyway")
+	succeed(out.Task("chain").Warn("heads up"), "finished anyway")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

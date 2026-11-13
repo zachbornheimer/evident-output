@@ -47,8 +47,8 @@ func TestCapture_RedactsOnRetention(t *testing.T) {
 func TestEntityID_StableKeyInSnapshotAndJSON(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "id", Stdout: &buf, Stderr: &buf})
-	out.TaskIdentified("working tree", "gate.working-tree").Done()
-	out.TaskIdentified("download base", "build.base.download").Done()
+	succeed(out.TaskIdentified("working tree", "gate.working-tree"))
+	succeed(out.TaskIdentified("download base", "build.base.download"))
 	_ = out.Finish()
 
 	snap := out.Snapshot()
@@ -81,8 +81,8 @@ func TestEntityID_StableKeyInSnapshotAndJSON(t *testing.T) {
 func TestEntityID_DuplicateIsMisuse(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "dup", Stdout: &buf, Stderr: &buf})
-	out.TaskIdentified("a", "same").Done()
-	out.TaskIdentified("b", "same").Done()
+	succeed(out.TaskIdentified("a", "same"))
+	succeed(out.TaskIdentified("b", "same"))
 	if out.Err() == nil {
 		t.Fatal("expected ErrDuplicateKey misuse")
 	}
@@ -92,9 +92,9 @@ func TestScope_QualifiesKeys(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Title: "scope", Stdout: &buf, Stderr: &buf})
 	reg := out.ScopeForTest("registry")
-	reg.TaskIdentified("credentials", "auth").Done()
-	reg.TaskIdentified("pull", "image.pull").Done()
-	reg.TaskIdentified("ready", "registry.ready").Done()
+	succeed(reg.TaskIdentified("credentials", "auth"))
+	succeed(reg.TaskIdentified("pull", "image.pull"))
+	succeed(reg.TaskIdentified("ready", "registry.ready"))
 	_ = out.Finish()
 
 	snap := out.Snapshot()
@@ -118,8 +118,8 @@ func TestResultWriter_FormatDataPurity(t *testing.T) {
 		Stdout: &result,
 		Stderr: &human,
 	})
-	out.Task("compile").Done()
-	out.Task("link").Done("bin/app")
+	succeed(out.Task("compile"))
+	succeed(out.Task("link"), "bin/app")
 	if _, err := io.WriteString(out.ResultWriter(), `{"artifact":"bin/app"}`+"\n"); err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestScope_NamespacedItemAndSessionTools(t *testing.T) {
 		t.Fatalf("name %q", sc.Name())
 	}
 	// Scope only declares entities; session tools remain on Output.
-	sc.TaskIdentified("credentials", "auth").Done()
+	succeed(sc.TaskIdentified("credentials", "auth"))
 	if out.Writer() == nil {
 		t.Fatal("Writer nil")
 	}

@@ -30,7 +30,7 @@ func TestTaskRun_PlainMode_NoPerLineDurableRows(t *testing.T) {
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("cmd.Run: %v", err)
 	}
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil", err)
 	}

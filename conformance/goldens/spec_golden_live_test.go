@@ -288,7 +288,7 @@ func TestSpecP6_LiveFrame_Step2(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("generate").Done("8.0 MB")
+	succeed(out.Task("generate"), "8.0 MB")
 	test := out.Task("test")
 	test.Progress(4, 12)
 	test.Doing("") // forces a repaint reflecting the just-set Progress
@@ -369,7 +369,7 @@ func TestSpecP8_LiveFrame_Step2(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	remotes := out.Group("remotes")
-	remotes.Task("origin/feat/a").Done("deleted origin/feat/a")
+	succeed(remotes.Task("origin/feat/a"), "deleted origin/feat/a")
 	running := remotes.Task("origin/feat/b")
 	running.Progress(2, 3)
 	running.Doing("origin/feat/b")
@@ -395,7 +395,7 @@ func TestSpecP9_LiveFrame_Step1(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	out.Task("venv").Doing("creating")
 
 	// scan resolved: it commits durably at resolution time (release-gate
@@ -427,7 +427,7 @@ func TestSpecP9_LiveFrame_Step2(t *testing.T) {
 	out := newLiveScreenOutput(screen)
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	out.Task("venv").Doing("creating")
 	out.Task("install")
 

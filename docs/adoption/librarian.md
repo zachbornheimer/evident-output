@@ -50,7 +50,7 @@ os.Exit(evo.MainWith(out, run)) // removed in 1.0 — current equivalent: os.Exi
 
 | Mistake                      | Fix                                    |
 | ---------------------------- | -------------------------------------- |
-| `Added(1, "files placed")`   | `Record("placed", n, noun(...))`       |
+| `Added(1, "files placed")`   | `evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectCreate, Object: "file", Quantity: n}, place)` |
 | Vanity `✓ dry-run plan` Item | removed                                |
 | slog-only failure            | `fileFailure` + FailedBy               |
 | Duplicate conclusion band    | evo DEC-COAL projection (library-side) |

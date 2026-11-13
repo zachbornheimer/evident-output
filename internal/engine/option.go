@@ -186,7 +186,7 @@ func strict() Option {
 }
 
 // DryRun declares this run a dry run: evo.Effect, evo.File, and
-// TaskHandle.Record/RecordName render as
+// evo.Exec render as
 // [planned] rows with imperative verbs instead of [changed] rows with
 // past-tense verbs. Set once via Config.DryRun in ordinary application code;
 // this Option exists for the advanced NewWithOptions surface and tests.

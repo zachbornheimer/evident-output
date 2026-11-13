@@ -3,6 +3,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -137,7 +138,7 @@ func cmdPreview(args []string) error {
 	case "failed":
 		it.Fail("failed for preview")
 	default:
-		it.Done()
+		it.Define(func(context.Context) error { return nil })
 	}
 	_ = out.Finish()
 	profiles := preview.DefaultProfiles(out.Snapshot())

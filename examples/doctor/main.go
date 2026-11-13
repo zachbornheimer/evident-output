@@ -45,14 +45,20 @@ func main() {
 		evo.Verbose().Printf("Strict policy: %t\n", *strict)
 		evo.Verbose().Printf("Probe interval: %s\n", step)
 
-		probe := func(name string, resolve func(*evo.TaskHandle)) {
+		// probe runs one check as the Task's work; a check that finds
+		// nothing wrong leaves the Task to resolve Done on its own.
+		probe := func(name string, check func(*evo.TaskHandle)) {
 			it := evo.Task(name)
-			time.Sleep(step)
-			resolve(it)
+			it.Define(func(context.Context) error {
+				time.Sleep(step)
+				check(it)
+				return nil
+			})
 		}
+		passes := func(*evo.TaskHandle) {}
 
-		probe("go toolchain", func(it *evo.TaskHandle) { it.Done() })
-		probe("mise tasks", func(it *evo.TaskHandle) { it.Done() })
+		probe("go toolchain", passes)
+		probe("mise tasks", passes)
 		probe("git commit signing", func(it *evo.TaskHandle) {
 			if *strict {
 				it.Block("commit.gpgsign is not enabled", evo.Detail("required in strict mode"))

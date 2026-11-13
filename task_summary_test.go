@@ -125,7 +125,7 @@ func TestTask_SummaryDoesNotReplaceDoingWhileRunning(t *testing.T) {
 	if snap.Phase != "scanning refs" {
 		t.Fatalf("Summary must not overwrite the live Doing phase, got phase %q", snap.Phase)
 	}
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}

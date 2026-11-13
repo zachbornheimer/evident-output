@@ -19,7 +19,7 @@ func TestProgressive_ItemResolutionsStreamBeforeFinish(t *testing.T) {
 	a := out.Task("working tree")
 	b := out.Task("branches")
 
-	a.Done()
+	succeed(a)
 	// After first resolve, human stream already has the line (fmt-like).
 	if !strings.Contains(buf.String(), "working tree") {
 		t.Fatalf("expected working tree line before Finish; buf=%q", buf.String())
@@ -83,7 +83,7 @@ func TestProgressive_NoDoublePrintOnFinish(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("once").Done()
+	succeed(out.Task("once"))
 	_ = out.Finish()
 	if n := strings.Count(buf.String(), "once"); n != 1 {
 		t.Fatalf("item printed %d times, want 1:\n%s", n, buf.String())
@@ -108,7 +108,7 @@ func TestProgressive_InteractiveNoDoublePrint(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &primary, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("working tree").Done()
+	succeed(out.Task("working tree"))
 	out.Task("branches").Block("local-only")
 	_ = out.Finish()
 
@@ -160,7 +160,7 @@ func TestProgressive_ColorOnImmediateResolve(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorAlways})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("working tree").Done()
+	succeed(out.Task("working tree"))
 	if !strings.Contains(buf.String(), "\x1b[32m") {
 		t.Fatalf("progressive OK must be green immediately:\n%q", buf.String())
 	}
@@ -179,7 +179,7 @@ func TestProgressive_FlushesBufferedWriters(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: w, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	if w.flushCount == 0 {
 		t.Fatal("expected Flush after progressive item write")
 	}

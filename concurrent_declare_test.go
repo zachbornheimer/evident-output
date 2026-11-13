@@ -28,7 +28,7 @@ func TestConcurrent_PredeclaredTaskOrderStable(t *testing.T) {
 			defer wg.Done()
 			tasks[i].Doing("work")
 			tasks[i].Progress(1, 1)
-			tasks[i].Done()
+			succeed(tasks[i])
 		}(i)
 	}
 	wg.Wait()
@@ -75,7 +75,7 @@ func TestConcurrent_AggregateProgress_NotPerFile(t *testing.T) {
 	for done := 0; done <= total; done += 1000 {
 		t0.Progress(done, total)
 	}
-	t0.Done()
+	succeed(t0)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

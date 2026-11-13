@@ -25,7 +25,7 @@ func TestCON008_JournalBackpressureDropsNonCritical(t *testing.T) {
 	for range 40 {
 		out.Println("noise")
 	}
-	out.Task("done").Done()
+	succeed(out.Task("done"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestCON009_MultiRendererOneFailure(t *testing.T) {
 	bad := &failWriter{}
 	out := evo.Init(evo.Config{Isolated: true, Stdout: bad, Title: "s", Color: evo.ColorNever, Plain: true})
 	out.AlsoWriteForTest(&good)
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	err := out.Finish()
 	if err == nil {
 		t.Fatal("expected renderer error")
@@ -87,7 +87,7 @@ func TestCON004_ResizeWhileLive(t *testing.T) {
 	screen.SetSize(40, 20)
 	task.Progress(1, 2)
 	clock.Advance(200 * time.Millisecond)
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestCON003_LogWhileLiveNoSplit(t *testing.T) {
 	task := out.Task("t")
 	task.Doing("running")
 	out.DebugForTest("durable note")
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestTXT015_NarrowStackDetailParent(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "repo", Width: 28, Color: evo.ColorNever, Plain: true})
 	out.Task("working tree").Block("dirty", evo.Detail("commit or stash"))
-	out.Task("remote").Done()
+	succeed(out.Task("remote"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ func TestMCP050_TokenBudgetExplicit(t *testing.T) {
 func TestMCP025_PreviewDebugInterleave(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Title: "demo", Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever, Plain: true})
-	out.Task("status").Done()
+	succeed(out.Task("status"))
 	out.DebugForTest("index ok")
 	_ = out.Finish()
 	profiles := preview.DefaultProfiles(out.Snapshot())
@@ -296,7 +296,7 @@ func TestCON003_ConcurrentDebugAndProgress(t *testing.T) {
 		}
 	}()
 	wg.Wait()
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

@@ -16,7 +16,7 @@ func TestA11Y001_NoColorOption(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("x").Done()
+	succeed(out.Task("x"))
 	_ = out.Finish()
 	if strings.Contains(buf.String(), "\x1b[") {
 		t.Fatal("ANSI with NoColor")
@@ -28,7 +28,7 @@ func TestA11Y005_PlainHasNoUnicodeRequirement(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	out.Task("b").Block("no")
 	_ = out.Finish()
 	s := buf.String()
@@ -41,9 +41,10 @@ func TestTXT001_ASCIIWidthStable(t *testing.T) {
 	var wide, narrow bytes.Buffer
 	mk := func(w io.Writer, width int) {
 		out := evo.Init(evo.Config{Isolated: true, Stdout: w, Title: "s", Width: width, Color: evo.ColorNever, Plain: true})
-		c := out.Task("c")
-		c.Record("add", 1, "x")
-		c.Record("write", 1, "f")
+		commit(out.Task("c"),
+			evo.EffectSpec{Verb: evo.EffectAdd, Object: "x", Quantity: 1},
+			evo.EffectSpec{Verb: evo.EffectCreate, Object: "f", Quantity: 1},
+		)
 		_ = out.Finish()
 		_ = out.Close()
 	}
@@ -68,7 +69,7 @@ func TestDOM004_SameNameIsDuplicateSibling(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	a := out.Task("same")
 	b := out.Task("same")
-	a.Done()
+	succeed(a)
 	if a.Snapshot().ID == b.Snapshot().ID {
 		t.Fatal("expected a distinct handle for the duplicate declaration")
 	}
@@ -85,8 +86,8 @@ func TestDOM004_DistinctIDsAllowSameDisplayName(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	a := out.TaskIdentified("same", "a")
 	b := out.TaskIdentified("same", "b")
-	a.Done()
-	b.Done()
+	succeed(a)
+	succeed(b)
 	if a.Snapshot().ID == b.Snapshot().ID {
 		t.Fatal("IDs must differ")
 	}
@@ -94,9 +95,9 @@ func TestDOM004_DistinctIDsAllowSameDisplayName(t *testing.T) {
 
 func TestDOM013_MutationAfterFinishRejected(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
-	out.Task("x").Done()
+	succeed(out.Task("x"))
 	_ = out.Finish()
-	out.Task("y").Done()
+	succeed(out.Task("y"))
 	if !errors.Is(out.Err(), evo.ErrClosed) && out.Err() == nil {
 		// ensureOpen records ErrClosed
 		if out.Err() == nil {
@@ -119,7 +120,7 @@ func TestDOM021_NegativeProgressRejected(t *testing.T) {
 func TestOUT006_JSONLOneObjectPerLine(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish()
 	raw, err := evo.EncodeJSONL(out.Events())
 	if err != nil {

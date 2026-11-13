@@ -19,7 +19,7 @@ func TestCaptureSuccessIsSilentByDefault(t *testing.T) {
 	task := out.Task("brew")
 	output := task.EvidenceForTest()
 	_, _ = fmt.Fprintln(output, "Downloading bottle...")
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestCapture_MirrorToDiagnostics_OptIn(t *testing.T) {
 	output := task.EvidenceForTest(evo.MirrorToDiagnostics())
 	_, _ = fmt.Fprintln(output, "chatter")
 	_ = output.Close()
-	task.Done()
+	succeed(task)
 	_ = out.Finish()
 	if !strings.Contains(diag.String(), "chatter") {
 		t.Fatalf("opt-in mirror missing: %q", diag.String())
@@ -177,7 +177,7 @@ func TestDiagnostics_DualStream_DebugNotOnPrimary(t *testing.T) {
 	var primary, diag bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &primary, Stderr: &diag, Debug: evo.DebugConfig{Level: evo.LevelDebug}, Color: evo.ColorNever, Plain: true})
 	out.DebugForTest("internal only")
-	out.Task("ok").Done()
+	succeed(out.Task("ok"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

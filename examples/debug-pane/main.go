@@ -29,18 +29,29 @@ func main() {
 		scan := jobs.Task("scan")
 		compare := jobs.Task("compare")
 
-		scan.Doing("enumerating")
-		time.Sleep(step)
-		scan.Done("7 branches")
+		scan.Define(func(context.Context) error {
+			scan.Doing("enumerating")
+			time.Sleep(step)
+			scan.Summary("7 branches")
+			return nil
+		})
+		compare.Define(func(context.Context) error {
+			compare.Doing("diffing")
+			time.Sleep(step)
+			if *fail {
+				compare.Summary("1 blocker found")
+			}
+			return nil
+		})
+		if err := compare.Wait(); err != nil {
+			return err
+		}
 
-		compare.Doing("diffing")
-		time.Sleep(step)
+		branches := evo.Task("branches")
 		if *fail {
-			compare.Done("1 blocker found")
-			evo.Task("branches").Block("feat/sdk-full-consolidation is local-only")
+			branches.Block("feat/sdk-full-consolidation is local-only")
 		} else {
-			compare.Done()
-			evo.Task("branches").Done()
+			branches.Define(func(context.Context) error { return nil })
 		}
 		return nil
 	}))

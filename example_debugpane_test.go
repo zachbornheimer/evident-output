@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 
@@ -43,7 +44,7 @@ func ExampleNewestFirst() {
 		Debug:   evo.DebugConfig{Level: evo.LevelDebug, View: evo.DebugPresentationPane},
 		Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugPane(evo.NewestFirst())},
 	})
-	out.Task("demo").Done()
+	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Print(buf.String())
 	// Output:
@@ -57,7 +58,7 @@ func ExampleOldestFirst() {
 		Isolated: true, Stdout: io.Discard, Stderr: io.Discard,
 		Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugPane(evo.OldestFirst())},
 	})
-	out.Task("demo").Done()
+	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Print(buf.String())
 	// Output:
@@ -71,7 +72,7 @@ func ExamplePaneHeight() {
 		Isolated: true, Stdout: io.Discard, Stderr: io.Discard,
 		Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugPane(evo.PaneHeight(3))},
 	})
-	out.Task("demo").Done()
+	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Print(buf.String())
 	// Output:
@@ -86,7 +87,7 @@ func ExamplePreserveDebugTail() {
 		Isolated: true, Stdout: io.Discard, Stderr: io.Discard,
 		Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DebugPane(evo.PreserveDebugTail())},
 	})
-	out.Task("demo").Done()
+	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Print(buf.String())
 	// Output:

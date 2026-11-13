@@ -28,13 +28,13 @@ import (
 // context handling of its own.
 //
 // Run returns the subprocess error verbatim and never resolves the task —
-// the caller chooses Done/Fail from the result:
+// the caller's Define callback turns the result into the outcome:
 //
 //	cmd := exec.Command("go", "build", "./...")
 //	if err := task.run(cmd); err != nil {
-//	    return task.Failf("build failed: %w", err)
+//	    return fmt.Errorf("build failed: %w", err)
 //	}
-//	task.Done()
+//	return nil
 func (t *TaskHandle) run(cmd *exec.Cmd) error {
 	if t != nil && t.out != nil {
 		t.ensurePhase(commandPhaseName(cmd))

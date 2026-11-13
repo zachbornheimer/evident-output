@@ -178,7 +178,7 @@ func ExampleRunner() {
 		Isolated: true, Stdout: &buf, Stderr: io.Discard, Plain: true,
 		Options: []evo.Option{evo.Runner(runner)},
 	})
-	out.Task("demo").Done()
+	out.Task("demo").Define(func(context.Context) error { return nil })
 	_ = out.Finish()
 	fmt.Print(buf.String())
 	// Output:

@@ -21,7 +21,7 @@ func TestContainerVisibility_CollapsesLoneSameNameTask(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	g := out.Group("same")
-	g.Task("same").Done()
+	succeed(g.Task("same"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestContainerVisibility_HidesHeaderOfGroupWithoutOwnInformation(t *testing.
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	outer := out.Group("outer")
 	inner := outer.Group("inner")
-	inner.Task("inner").Done()
+	succeed(inner.Task("inner"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}

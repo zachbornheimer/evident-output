@@ -304,7 +304,7 @@ func TestStep_IsolatedPlainDoesNotEmitPerNamePhase(t *testing.T) {
 		t.Fatalf("phase = %q, want last Step name %q", got, last)
 	}
 
-	task.Done()
+	succeed(task)
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}

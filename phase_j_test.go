@@ -78,7 +78,7 @@ func TestDryRun_ConclusionReadsPlannedEvenWithoutAPlanSection(t *testing.T) {
 	t.Parallel()
 	out := evo.Init(evo.Config{Title: "retire", Color: evo.ColorNever, DryRun: true})
 	t.Cleanup(func() { _ = out.Close() })
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -98,8 +98,8 @@ func TestWriteCollection_DoneChildrenSurviveWithSummaries(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Title: "pipeline", Color: evo.ColorNever, Plain: true})
 	g := out.Group("pipeline")
-	g.Task("branches").Done("14 deleted")
-	g.Task("worktrees").Done("2 removed")
+	succeed(g.Task("branches"), "14 deleted")
+	succeed(g.Task("worktrees"), "2 removed")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestConclusion_WarningDoesNotOverrideOKOutcome(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Title: "repo-retire", Color: evo.ColorNever, Plain: true})
-	out.Task("clean").Done()
+	succeed(out.Task("clean"))
 	out.Task("kept").Warn("kept 1")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)

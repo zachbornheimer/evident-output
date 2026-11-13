@@ -38,7 +38,7 @@ func TestSpecP6_BytesVsCounts_Failure(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Title: "build", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	generate := out.Task("generate")
 	generate.Bytes(8_000_000, 8_000_000)
-	generate.Done("8.0 MB")
+	succeed(generate, "8.0 MB")
 	test := out.Task("test")
 	test.Fail("tests failed", evo.Detail("--- FAIL: TestFoo (0.01s)"))
 	if err := out.Finish(); err != nil {
@@ -140,8 +140,9 @@ func TestSpecP6_EarlyTermination(t *testing.T) {
 		}
 	}
 
-	generate.Record("write", 1, "partial artifact at /tmp/out (2.1 MB)")
-	generate.Cancel("cancelled")
+	commitThen(generate, evo.EffectSpec{Verb: evo.EffectCreate, Object: "partial artifact", Quantity: 1}, func() {
+		generate.Cancel("cancelled")
+	})
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
@@ -164,30 +165,32 @@ func TestSpecP6_EarlyTermination(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestSpecP7_Step1_PlanPreview covers evo-rec.md Problem 7's step1 block: a
-// dry-run plan preview for 500 named deletes. Identical (verb, object)
-// records merge into one summed row (release-gate round 3 finding 6) rather
-// than one row per call, so the 498 identical "delete feat/x" calls render
-// as a single "delete 498 feat/x" line — 3 rows total, well under
+// dry-run plan preview for 500 one-branch deletes. Identical (verb, object)
+// Effects merge into one summed row (release-gate round 3 finding 6) rather
+// than one row per call, so the 498 identical "delete 1 feat/x" Effects
+// render as a single "delete 498 feat/x" line — 3 rows total, well under
 // maxVisibleEffectRows, no overflow line.
 //
 //	[planned]  branches
-//	  delete      feat/a
-//	  delete      feat/b
+//	  delete    1 feat/a
+//	  delete    1 feat/b
 //	  delete  498 feat/x
 func TestSpecP7_Step1_PlanPreview(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
-	branches := out.Task("branches")
-	branches.RecordName("delete", "feat/a")
-	branches.RecordName("delete", "feat/b")
-	for range 498 {
-		branches.RecordName("delete", "feat/x")
+	specs := []evo.EffectSpec{
+		{Verb: evo.EffectDelete, Object: "feat/a", Quantity: 1},
+		{Verb: evo.EffectDelete, Object: "feat/b", Quantity: 1},
 	}
+	for range 498 {
+		specs = append(specs, evo.EffectSpec{Verb: evo.EffectDelete, Object: "feat/x", Quantity: 1})
+	}
+	commit(out.Task("branches"), specs...)
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
 	got := collapseFields(buf.String())
-	for _, want := range []string{"[planned] branches", "delete feat/a", "delete feat/b", "delete 498 feat/x"} {
+	for _, want := range []string{"[planned] branches", "delete 1 feat/a", "delete 1 feat/b", "delete 498 feat/x"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -433,9 +436,9 @@ func TestSpecP9_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "python setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	out.Task("scan").Done()
-	out.Task("venv").Done()
-	out.Task("install").Done()
+	succeed(out.Task("scan"))
+	succeed(out.Task("venv"))
+	succeed(out.Task("install"))
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -461,7 +464,7 @@ func TestSpecP9_Failure(t *testing.T) {
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	setup.Task("install")
-	scan.Done()
+	succeed(scan)
 	venv.Fail("uv exited 2")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -483,7 +486,7 @@ func TestSpecP9_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "python setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	out.Task("venv").Fail("signal: killed")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -503,7 +506,7 @@ func TestSpecP9_Error(t *testing.T) {
 //	✓  scan
 //	■  venv     cancelled — .venv partial
 //	-  install  not started
-//	!  already mutated: 1 incomplete .venv directory wrote
+//	!  partial changes were applied before cancellation
 func TestSpecP9_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "python setup", Stdout: &buf, Plain: true, Color: evo.ColorNever})
@@ -511,9 +514,10 @@ func TestSpecP9_EarlyTermination(t *testing.T) {
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	setup.Task("install")
-	scan.Done()
-	venv.Record("write", 1, "incomplete .venv directory")
-	venv.Cancel("cancelled — .venv partial")
+	succeed(scan)
+	commitThen(venv, evo.EffectSpec{Verb: evo.EffectCreate, Object: "incomplete .venv directory", Quantity: 1}, func() {
+		venv.Cancel("cancelled — .venv partial")
+	})
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}
@@ -560,7 +564,7 @@ func TestSpecP10_Step2(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	install := out.Task("install")
 	install.Progress(14, 40)
 	install.Doing("requests")
@@ -588,10 +592,10 @@ func TestSpecP10_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	out.Task("scan").Done()
-	out.Task("venv").Done()
-	out.Task("install").Done("14 modules")
-	out.Task("python setup").Done("python was set up; 14 modules were installed")
+	succeed(out.Task("scan"))
+	succeed(out.Task("venv"))
+	succeed(out.Task("install"), "14 modules")
+	succeed(out.Task("python setup"), "python was set up; 14 modules were installed")
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -618,7 +622,7 @@ func TestSpecP10_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	out.Task("install").Fail("uv pip install failed", evo.Detail("exit status 1"))
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -658,7 +662,7 @@ func TestSpecP10_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	out.Task("install").Fail("network unreachable", evo.Detail("dial tcp: lookup pypi.org: no such host"))
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -683,10 +687,11 @@ func TestSpecP10_Error(t *testing.T) {
 func TestSpecP10_EarlyTermination(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "install-pipeline", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	out.Task("scan").Done()
+	succeed(out.Task("scan"))
 	install := out.Task("install")
-	install.Record("install", 6, "package in .venv")
-	install.Cancel("cancelled at 6/14")
+	commitThen(install, evo.EffectSpec{Verb: evo.EffectInstall, Object: "package in .venv", Quantity: 6}, func() {
+		install.Cancel("cancelled at 6/14")
+	})
 	if err := out.Finish(); err != nil {
 		t.Log(err)
 	}

@@ -36,7 +36,7 @@ func TestE2P3_SequenceCascade_FailureNotStartsLaterSiblings(t *testing.T) {
 	venv := setup.Task("venv")
 	install := setup.Task("install")
 
-	scan.Done()
+	succeed(scan)
 	venv.Fail("uv exited 1")
 
 	if err := out.Finish(); err != nil {
@@ -59,13 +59,13 @@ func TestE2P3_SequenceCascade_NestedSequenceFailurePropagatesToRootHeader(t *tes
 	t.Cleanup(func() { _ = out.Close() })
 
 	root := out.Sequence("release")
-	root.Task("build").Done()
+	succeed(root.Task("build"))
 	python := root.Sequence("python")
 	scan := python.Task("scan")
 	venv := python.Task("venv")
 	install := python.Task("install")
 
-	scan.Done()
+	succeed(scan)
 	venv.Fail("uv exited 1")
 	_ = out.Finish()
 
@@ -127,8 +127,8 @@ func TestE2P4_DisplayGroupTwoSpinnerFrame(t *testing.T) {
 		t.Fatalf("two concurrent Running children must share one spinner frame:\n%s", frame)
 	}
 
-	a.Done()
-	b.Done()
+	succeed(a)
+	succeed(b)
 	_ = out.Finish()
 }
 
@@ -165,8 +165,8 @@ func TestE2P5_FiveSecondTimer_ContainerHeaderAgesPastThreshold(t *testing.T) {
 		t.Fatalf("expected the container header to gain a 5s elapsed suffix:\n%s", header)
 	}
 
-	install.Done()
-	ticker.Done()
+	succeed(install)
+	succeed(ticker)
 	_ = out.Finish()
 }
 
@@ -195,6 +195,6 @@ func TestE2_DisplayUnitRefactor_StandaloneTaskRenderingByteParity(t *testing.T) 
 		t.Fatalf("a task under the 5s threshold must render with no elapsed suffix:\n%s", frame)
 	}
 
-	build.Done()
+	succeed(build)
 	_ = out.Finish()
 }

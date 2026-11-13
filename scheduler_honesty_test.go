@@ -17,37 +17,6 @@ import (
 // happened".
 var errProbe = errors.New("probe failure")
 
-// TestScheduler_P2_DoneAfterVerbKeepsCallbackOutcome pins the P2 probe: a
-// caller that follows a mutation verb with its own Done() must not launder
-// the callback's failure into a green row. Done asserts a success the
-// scheduler has not observed, so it is recorded misuse and resolves nothing.
-func TestScheduler_P2_DoneAfterVerbKeepsCallbackOutcome(t *testing.T) {
-	t.Parallel()
-	out := isolatedScheduler(t, 1, io.Discard, false)
-	task := out.Task("cleanup")
-	release := make(chan struct{})
-	task.Define(func(ctx context.Context) error {
-		return evo.Effect(ctx, evo.EffectSpec{Verb: evo.EffectDelete, Object: "worktree", Quantity: 1}, func(context.Context) error {
-			<-release
-			return errProbe
-		})
-	})
-	task.Done()
-	close(release)
-	// Finish surfaces the recorded misuse; the row underneath it must still
-	// carry the callback's outcome.
-	if err := out.Finish(); !errors.Is(err, evo.ErrAlreadyResolved) {
-		t.Fatalf("Finish = %v, want ErrAlreadyResolved", err)
-	}
-
-	if got := task.Snapshot().State; got != evo.Failed {
-		t.Fatalf("task state = %v, want Failed (the callback's outcome)", got)
-	}
-	if err := out.Err(); !errors.Is(err, evo.ErrAlreadyResolved) {
-		t.Fatalf("misuse = %v, want ErrAlreadyResolved recorded at the Done call", err)
-	}
-}
-
 // TestScheduler_P13_FailfInsideDefineDoesNotDoubleResolve pins the P13
 // probe: a callback that resolves itself and returns that error is one
 // outcome, not two — the scheduler must not re-Fail it or record misuse.

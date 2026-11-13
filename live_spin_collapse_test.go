@@ -53,7 +53,7 @@ func TestLive_DeclaredToolTaskSpinsBeforeCheck(t *testing.T) {
 	}
 
 	clock.Advance(10 * time.Millisecond)
-	task.Done("/usr/bin/go")
+	succeed(task, "/usr/bin/go")
 	after := screen.LatestLiveText() + "\n" + screen.PersistedText()
 	if !strings.Contains(after, "✓") || !strings.Contains(after, "go@1.25.11") {
 		t.Fatalf("after Done, check glyph missing:\nlive=%q\npersisted=%q", screen.LatestLiveText(), screen.PersistedText())
@@ -112,7 +112,7 @@ func TestLive_FastBindSpinnerVisibleOnWallClock(t *testing.T) {
 	if !hasSpinnerGlyph(row) {
 		t.Fatalf("want spinner before Done on wall clock:\n%s", live)
 	}
-	task.Done("/usr/bin/go")
+	succeed(task, "/usr/bin/go")
 	after := screen.PersistedText()
 	if !strings.Contains(after, "✓") || !strings.Contains(after, "go@1.25.11") {
 		t.Fatalf("want check after hold:\n%s", after)

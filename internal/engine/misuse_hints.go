@@ -38,7 +38,7 @@ func misuseHintFor(err error, subject, rejectedSummary string) string {
 	case errors.Is(err, ErrDuplicateKey):
 		return "reuse evo.ID only for the same task name; give a new task its own evo.ID"
 	case errors.Is(err, ErrInvalidConfig):
-		return "pass a string, optionally with fmt-style args, as the summary"
+		return "configure After and Verify before Define, and Define each task once with a non-nil callback"
 	case errors.Is(err, ErrRenderer):
 		return "the configured writer failed; check the output destination"
 	case errors.Is(err, ErrLimitExceeded):

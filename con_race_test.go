@@ -24,7 +24,7 @@ func TestCON001_ConcurrentTaskUpdates(t *testing.T) {
 		go func(task *evo.TaskHandle) {
 			defer wg.Done()
 			task.Progress(1, 1)
-			task.Done()
+			succeed(task)
 		}(children[i])
 	}
 	wg.Wait()
@@ -48,7 +48,7 @@ func TestCON012_ConcurrentItemOK(t *testing.T) {
 		wg.Add(1)
 		go func(it *evo.TaskHandle) {
 			defer wg.Done()
-			it.Done()
+			succeed(it)
 		}(it)
 	}
 	wg.Wait()

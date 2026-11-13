@@ -127,7 +127,7 @@ out := evo.Init(evo.Config{Options: []evo.Option{
     evo.VisibilityDelay(150 * time.Millisecond),
     evo.MaxFrameRate(20),
 }})
-// Phase/Progress draw a live region; instant Done before the threshold does not flash.
+// Phase/Progress draw a live region; a Task that resolves before the threshold does not flash.
 // DebugHistory (default): out.Debug → durable above live (timestamp + [DEBUG]).
 // DebugPane(...): rolling slog viewport in the live region; optional failure tail.
 ```

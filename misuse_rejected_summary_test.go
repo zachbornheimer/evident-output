@@ -21,7 +21,7 @@ func TestMisuse_AlreadyResolvedCarriesRejectedSummary(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("build")
-	task.Done("compiled")
+	succeed(task, "compiled")
 	task.Fail("second outcome carrying text") // already resolved — rejected
 
 	if err := out.Finish(); err == nil {
@@ -46,7 +46,7 @@ func TestMisuse_AlreadyResolvedCarriesRejectedSummary_Interactive(t *testing.T) 
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("build")
-	task.Done("compiled")
+	succeed(task, "compiled")
 	task.Fail("second outcome carrying text") // already resolved — rejected
 
 	if err := out.Finish(); err == nil {

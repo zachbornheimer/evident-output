@@ -118,8 +118,8 @@ func TestPrint_WriterAdapter(t *testing.T) {
 func TestTask_PrintfNames(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Stderr: &buf})
-	out.Task(fmt.Sprintf("repo %s", "x")).Done()
-	out.Task(fmt.Sprintf("check %d", 1)).Done("ok")
+	succeed(out.Task(fmt.Sprintf("repo %s", "x")))
+	succeed(out.Task(fmt.Sprintf("check %d", 1)), "ok")
 	_ = out.Finish()
 	if !strings.Contains(buf.String(), "repo x") || !strings.Contains(buf.String(), "check 1") {
 		t.Fatal(buf.String())
@@ -131,7 +131,7 @@ func TestTask_PrintfNames(t *testing.T) {
 // caller who wants the newline appends it themselves.
 func TestEncodeJSON_ContainsTasks(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
-	out.Task("a").Done()
+	succeed(out.Task("a"))
 	_ = out.Finish()
 	b, err := evo.EncodeJSON(out.Snapshot())
 	if err != nil {
