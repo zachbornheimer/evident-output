@@ -71,7 +71,7 @@ func TestLiveHeartbeat_PendingRowAnimatesPastElapsedThreshold(t *testing.T) {
 	out := newOutput("job", Terminal(drv), VisibilityDelay(0), Clock(clock), NoColor())
 	t.Cleanup(func() { _ = out.Close() })
 
-	out.Task("goimports") // declared, never touched: stays Pending
+	out.Sequence("steps").Task("goimports") // sequential child stays Pending until its turn
 
 	clock.Advance(15 * time.Second)
 
