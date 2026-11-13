@@ -32,7 +32,8 @@ func TestTerminalOption_DefaultsPrimaryToDriverSink(t *testing.T) {
 	var sink bytes.Buffer
 	out := evo.Init(evo.Config{
 		Isolated: true,
-		Terminal: sinkTerminal{w: &sink}, Plain: true, Color: evo.ColorNever})
+		Terminal: sinkTerminal{w: &sink}, Plain: true, Color: evo.ColorNever,
+	})
 
 	out.Task("branches").Done()
 	if err := out.Finish(); err != nil {
