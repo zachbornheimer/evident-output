@@ -700,6 +700,15 @@ func partitionTaxonomyByReason(records []core.TaxonomyRecord) (map[string][]stri
 // line and erasing the children whose evidence lived only in the live
 // region while it was running.
 func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose bool, profile txt.GlyphProfile) {
+	fromEach, explicit := partitionEachChildren(col.Tasks)
+	if len(fromEach) > 0 {
+		writePlainEachAggregate(b, col, fromEach, explicit, color, verbose, profile)
+		return
+	}
+	if !col.Sequential && len(col.Tasks) == 1 && len(col.Collections) == 0 {
+		WriteTaskAligned(b, col.Tasks[0], maxTaskNameWidth(col.Tasks), color, verbose, profile)
+		return
+	}
 	glyph := txt.StyleGlyph(TaskGlyph(col.State, profile), StateColor(col.State), color)
 	if col.Summary != "" {
 		fmt.Fprintf(b, "%s %s  %s\n", glyph, col.Name, txt.Dim(col.Summary, color))
@@ -712,6 +721,34 @@ func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose 
 	}
 	// Nested containers (P3's recursive .Sequence/.DisplayGroup nesting)
 	// render as an indented sub-group, one level per nesting depth.
+	for _, child := range col.Collections {
+		var nested strings.Builder
+		WriteCollection(&nested, child, color, verbose, profile)
+		for _, line := range strings.Split(strings.TrimRight(nested.String(), "\n"), "\n") {
+			fmt.Fprintf(b, "   %s\n", line)
+		}
+	}
+}
+
+func writePlainEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEach, explicit []core.TaskSnapshot, color, verbose bool, profile txt.GlyphProfile) {
+	glyph := txt.StyleGlyph(TaskGlyph(col.State, profile), StateColor(col.State), color)
+	if col.Summary != "" {
+		fmt.Fprintf(b, "%s %s  %s\n", glyph, col.Name, txt.Dim(col.Summary, color))
+	} else {
+		fmt.Fprintf(b, "%s %s\n", glyph, col.Name)
+	}
+	skipped, kept := collectEachTaxonomy(fromEach)
+	writeTaxonomy(b, problemTreeIndent, "skipped", skipped, false, verbose, color, profile)
+	writeTaxonomy(b, problemTreeIndent, "kept", kept, false, verbose, color, profile)
+	childNameWidth := maxTaskNameWidth(col.Tasks)
+	for _, t := range fromEach {
+		if eachChildNeedsSurface(t) {
+			writeCollectionChild(b, t, childNameWidth, color, verbose, profile)
+		}
+	}
+	for _, t := range explicit {
+		writeCollectionChild(b, t, childNameWidth, color, verbose, profile)
+	}
 	for _, child := range col.Collections {
 		var nested strings.Builder
 		WriteCollection(&nested, child, color, verbose, profile)
