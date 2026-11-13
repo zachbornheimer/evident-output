@@ -62,14 +62,14 @@ failure even when user-scope `doctor` is green.
 ```bash
 # Process handshake
 grok mcp doctor evident-output --json
-# expect: healthy=true, 8 tools, protocol 2025-06-18
+# expect: healthy=true, 6 tools, protocol 2025-06-18
 
 # Fresh agent process (same attach path as the TUI)
-grok -p 'Call use_tool on evident-output__evident_output_list_guides with {}. Reply CONNECTED and the text field, or FAILED.' \
+grok -p 'Call use_tool on evident-output__evident_output_list_sections with {}. Reply CONNECTED and the text field, or FAILED.' \
   --output-format plain \
   --max-turns 5 \
   --always-approve
-# expect: CONNECTED / "5 guides"
+# expect: CONNECTED / "N sections"
 ```
 
 ### Debugging
@@ -78,7 +78,7 @@ In `~/.grok/sessions/…/events.jsonl`:
 
 | Event                                     | Meaning                               |
 | ----------------------------------------- | ------------------------------------- |
-| `mcp_server_connected` + `"tool_count":8` | Good                                  |
+| `mcp_server_connected` + `"tool_count":6` | Good                                  |
 | `mcp_server_connected` + `"tool_count":0` | Tools rejected (use underscore names) |
 | `mcp_server_failed`                       | Spawn/handshake error (path/PATH)     |
 

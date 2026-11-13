@@ -145,6 +145,7 @@ func TestE2P5_FiveSecondTimer_ContainerHeaderAgesPastThreshold(t *testing.T) {
 
 	jobs := out.DisplayGroup("dependencies")
 	install := jobs.Task("install")
+	jobs.Task("link")
 	ticker := out.Task("ticker")
 
 	install.Doing("installing")
