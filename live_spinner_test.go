@@ -46,7 +46,7 @@ func TestLive_SpinnerGlyphAdvancesWithClock(t *testing.T) {
 
 	// Extract first rune of the verify line spinner (child line containing "verify").
 	glyph := func(live string) string {
-		for _, line := range strings.Split(live, "\n") {
+		for line := range strings.SplitSeq(live, "\n") {
 			if strings.Contains(line, "verify") {
 				fields := strings.Fields(line)
 				if len(fields) > 0 {
