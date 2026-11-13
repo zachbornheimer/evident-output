@@ -86,7 +86,7 @@ func TestMCP042_ToolNamesValid(t *testing.T) {
 	stdout := runMCP(t, bin, in)
 	// Parse last JSON line
 	var last map[string]any
-	for _, line := range strings.Split(strings.TrimSpace(stdout), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(stdout), "\n") {
 		_ = json.Unmarshal([]byte(line), &last)
 	}
 	result, _ := last["result"].(map[string]any)

@@ -389,7 +389,7 @@ func TestWireEvents_SeqStrictlyMonotonic_UnderConcurrentTasks(t *testing.T) {
 	out := Init(Config{Isolated: true, Format: FormatJSONL, Stdout: &stdout, MaxConcurrency: 8})
 
 	var wg sync.WaitGroup
-	for i := 0; i < taskCount; i++ {
+	for i := range taskCount {
 		task := out.Task(fmt.Sprintf("task-%d", i))
 		wg.Add(1)
 		task.Define(func(context.Context) error {
