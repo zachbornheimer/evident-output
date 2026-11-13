@@ -22,7 +22,8 @@ func TestTerminalOption_ReadmeShapeRendersConclusionOnce(t *testing.T) {
 	out := evo.Init(evo.Config{
 		Title:    "retire",
 		Isolated: true,
-		Terminal: drv})
+		Terminal: drv,
+	})
 
 	out.Task("build").Fail("boom")
 	_ = out.Finish()
@@ -45,7 +46,8 @@ func TestTerminalOption_SeparateStreamsNoStrayBandOnStdout(t *testing.T) {
 		Isolated: true,
 		Stdout:   &stdout,
 		Stderr:   &stderr,
-		Terminal: drv})
+		Terminal: drv,
+	})
 
 	out.Task("build").Fail("boom")
 	_ = out.Finish()

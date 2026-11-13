@@ -28,7 +28,8 @@ func TestOptionsWithNoWriterDefaultsPrimaryToStdout(t *testing.T) {
 
 	out := evo.Init(evo.Config{
 		Isolated: true,
-		Title:    "retire"})
+		Title:    "retire",
+	})
 	out.Task("build").Fail("boom")
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (Fail is not a Go error)", err)

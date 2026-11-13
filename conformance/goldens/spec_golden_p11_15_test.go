@@ -75,7 +75,8 @@ func TestSpecP11_NestedPipeline_Success(t *testing.T) {
 	for _, want := range []string{
 		"✓ go mod download  modules cached",
 		"✓ go generate      0.3 MB",
-		"✓ go test ./...    ok"} {
+		"✓ go test ./...    ok",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -112,7 +113,8 @@ func TestSpecP11_NestedPipeline_Failure(t *testing.T) {
 		"✓ go generate",
 		"✗ go test ./...    tests failed",
 		"--- FAIL: TestFoo (0.01s)",
-		"foo_test.go:12: want 1, got 0"} {
+		"foo_test.go:12: want 1, got 0",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -175,7 +177,8 @@ func TestSpecP11_NestedPipeline_Error(t *testing.T) {
 		"✓ go mod download",
 		"✗ go generate      generator exited 1",
 		"stringer: type not found",
-		"go test ./...    not started"} {
+		"go test ./...    not started",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -213,7 +216,8 @@ func TestSpecP11_NestedPipeline_EarlyTermination(t *testing.T) {
 	for _, want := range []string{
 		"✓ go mod download",
 		"■ go generate      cancelled",
-		"go test ./...    not started"} {
+		"go test ./...    not started",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -252,7 +256,8 @@ func TestSpecP12_ConfirmGate_Step1(t *testing.T) {
 	for _, want := range []string{
 		"[planned] remotes",
 		"delete-remote origin/production-hotfix",
-		"confirm remote delete (destructive)"} {
+		"confirm remote delete (destructive)",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -354,7 +359,8 @@ func TestSpecP12_ConfirmGate_Failure(t *testing.T) {
 	for _, want := range []string{
 		"⊘ confirm remote delete declined",
 		"[planned] remotes",
-		"delete-remote origin/production-hotfix"} {
+		"delete-remote origin/production-hotfix",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -446,7 +452,8 @@ func TestSpecP12_ConfirmGate_Error(t *testing.T) {
 	for _, want := range []string{
 		"✓ confirm remote delete",
 		"✗ remotes protected branch hook",
-		"remote: error: GH006: Protected branch update failed"} {
+		"remote: error: GH006: Protected branch update failed",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -592,7 +599,8 @@ func TestSpecP13_Retry_Failure(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"✗ install 13/40 urllib3 failed after 3 tries",
-		"HTTP 503 from mirror"} {
+		"HTTP 503 from mirror",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -651,7 +659,8 @@ func TestSpecP13_Retry_Error(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"✗ install 13/40 progress misuse avoided — absolute 13/40 held",
-		"connection reset by peer"} {
+		"connection reset by peer",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -685,7 +694,8 @@ func TestSpecP13_Retry_EarlyTermination(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"■ install cancelled during retry",
-		"already mutated: 13 packages installed"} {
+		"already mutated: 13 packages installed",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -767,7 +777,8 @@ func TestSpecP14_Capture_Success(t *testing.T) {
 	for _, want := range []string{
 		"✓ capture",
 		"[planned] capture",
-		"salvage 2 tip"} {
+		"salvage 2 tip",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -815,7 +826,8 @@ func TestSpecP14_Capture_Failure(t *testing.T) {
 		Stdout:   &buf,
 		Stderr:   &buf,
 		Redactor: bearerTokenRedactor{},
-		Color:    evo.ColorNever})
+		Color:    evo.ColorNever,
+	})
 	capture := out.Task("capture")
 	capture.Fail("git push failed", evo.Detail("remote rejected (see redacted stderr)\nAuthorization: Bearer ***"))
 	if err := out.Finish(); err != nil {
@@ -828,7 +840,8 @@ func TestSpecP14_Capture_Failure(t *testing.T) {
 	for _, want := range []string{
 		"✗ capture  git push failed",
 		"remote rejected (see redacted stderr)",
-		"Authorization: Bearer ***"} {
+		"Authorization: Bearer ***",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -875,7 +888,8 @@ func TestSpecP14_Capture_Error(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"✗ capture credential helper printed a secret",
-		"stderr redacted (1 line held)"} {
+		"stderr redacted (1 line held)",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -1043,7 +1057,8 @@ func TestSpecP15_NothingToDo_Error(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"✗ clean cannot read repository",
-		"fatal: not a git repository"} {
+		"fatal: not a git repository",
+	} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
