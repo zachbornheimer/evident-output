@@ -772,7 +772,7 @@ func WriteCollection(b *strings.Builder, col core.TasksSnapshot, color, verbose 
 	for _, child := range col.Collections {
 		var nested strings.Builder
 		WriteCollection(&nested, child, color, verbose, profile)
-		for _, line := range strings.Split(strings.TrimRight(nested.String(), "\n"), "\n") {
+		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
 			fmt.Fprintf(b, "   %s\n", line)
 		}
 	}
@@ -843,7 +843,7 @@ func writePlainEachAggregate(b *strings.Builder, col core.TasksSnapshot, fromEac
 	for _, child := range col.Collections {
 		var nested strings.Builder
 		WriteCollection(&nested, child, color, verbose, profile)
-		for _, line := range strings.Split(strings.TrimRight(nested.String(), "\n"), "\n") {
+		for line := range strings.SplitSeq(strings.TrimRight(nested.String(), "\n"), "\n") {
 			fmt.Fprintf(b, "   %s\n", line)
 		}
 	}
@@ -1084,10 +1084,7 @@ func WriteEffects(b *strings.Builder, kind, subject string, nameWidth int, recor
 			fmt.Fprintf(b, "  %s  %s %s\n", verb, qty, ledgerObject(r))
 			continue
 		}
-		gap := maxVerb - len(r.Verb)
-		if gap > maxLeader {
-			gap = maxLeader
-		}
+		gap := min(maxVerb-len(r.Verb), maxLeader)
 		if gap > 2 {
 			leader := strings.Repeat("·", gap)
 			fmt.Fprintf(b, "  %s%s %s\n", r.Verb, txt.Dim(leader, color), r.Object)
