@@ -134,7 +134,7 @@ func TestAPI026_NoRunAllSymbol(t *testing.T) {
 func TestSEC003_ManyEntitiesBounded(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	for i := 0; i < 500; i++ {
+	for i := range 500 {
 		out.Task(string(rune('A'+(i%26))) + string(rune('a'+(i/26)))).Done()
 	}
 	if err := out.Finish(); err != nil {
