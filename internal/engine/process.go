@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"sort"
@@ -75,13 +76,11 @@ func mergedExecEnv(overrides map[string]string) []string {
 	}
 	merged := make(map[string]string, len(base)+len(overrides))
 	for _, kv := range base {
-		if i := strings.IndexByte(kv, '='); i >= 0 {
-			merged[kv[:i]] = kv[i+1:]
+		if before, after, ok := strings.Cut(kv, "="); ok {
+			merged[before] = after
 		}
 	}
-	for k, v := range overrides {
-		merged[k] = v
-	}
+	maps.Copy(merged, overrides)
 	keys := make([]string, 0, len(merged))
 	for k := range merged {
 		keys = append(keys, k)
