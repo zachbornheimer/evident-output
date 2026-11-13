@@ -21,7 +21,8 @@ func TestTaskRun_PlainMode_NoPerLineDurableRows(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
 		Isolated: true,
-		Stdout:   &buf, Plain: true, Color: evo.ColorNever})
+		Stdout:   &buf, Plain: true, Color: evo.ColorNever,
+	})
 
 	task := out.Task("build")
 	cmd := exec.Command("/bin/sh", "-c", "printf 'compiling a.go\\ncompiling b.go\\ncompiling c.go\\ncompiling d.go\\n'")
@@ -51,7 +52,8 @@ func TestTaskRun_PlainMode_FailureShowsTailOnce(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
 		Isolated: true,
-		Stdout:   &buf, Plain: true, Color: evo.ColorNever})
+		Stdout:   &buf, Plain: true, Color: evo.ColorNever,
+	})
 
 	task := out.Task("build")
 	cmd := exec.Command("/bin/sh", "-c", "echo 'undefined reference to main' 1>&2; exit 1")

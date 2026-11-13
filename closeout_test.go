@@ -89,13 +89,13 @@ func TestOUT013_ExitCodeOnConclusion(t *testing.T) {
 func TestOUT015_EventStreamBounded(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		out.DebugForTest("x")
 	}
 	// with default debug level, Debug may no-op — enable
 	_ = out.Close()
 	out2 := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, Debug: evo.DebugConfig{Level: evo.LevelDebug}})
-	for i := 0; i < 500; i++ {
+	for range 500 {
 		out2.DebugForTest("x")
 	}
 	_ = out2.Finish()
@@ -134,7 +134,7 @@ func TestCON007_DirtyCoalesce(t *testing.T) {
 	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0)})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		task.Progress(i, 100)
 	}
 	if screen.LiveFrameCount() >= 100 {
@@ -155,7 +155,7 @@ func TestCON017_ConcurrentDeclareSafe(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 	done := make(chan struct{})
 	go func() {
-		for i := 0; i < 50; i++ {
+		for range 50 {
 			out.Task("n").Done()
 		}
 		close(done)
@@ -194,7 +194,7 @@ func TestA11Y010_UnknownPaletteSafe(t *testing.T) {
 func TestSEC004_RenderTreeBounded(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard, MaxEntities: 100})
 	t.Cleanup(func() { _ = out.Close() })
-	for i := 0; i < 150; i++ {
+	for range 150 {
 		out.Task("x").Done()
 	}
 	// limit hit recorded
