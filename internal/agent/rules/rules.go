@@ -56,7 +56,7 @@ t.Doing("walking")`,
 			Severity:  "error",
 			Invariant: "evo has no execution helpers (RunAll/Map/Retry/Parallel/Timeout)",
 			Why:       "Presentation library must not grow schedulers. Substring detection false-positives on strings.Map; review uses AST on evo receivers only.",
-			BadCode: `out.DisplayGroup("jobs").Map(func() {})
+			BadCode: `out.Group("jobs").Map(func() {})
 out.Task("x").Retry(3)`,
 			GoodCode: `// application owns execution
 for _, j := range jobs {
@@ -79,9 +79,9 @@ for _, j := range jobs {
 			Severity:  "error",
 			Invariant: "Task cannot contain children; DisplayGroup/Sequence have no leaf lifecycle",
 			Why:       "Collection state is derived from children; calling Done/Fail on DisplayGroup/Sequence invents false authority.",
-			BadCode: `g := out.DisplayGroup("deps")
+			BadCode: `g := out.Group("deps")
 g.Done() // forbidden`,
-			GoodCode: `g := out.DisplayGroup("deps")
+			GoodCode: `g := out.Group("deps")
 g.Task("a").Done()
 g.Task("b").Done()`,
 			Remediation:     "Use DisplayGroup.Task/Sequence.Task for children; never Done/Fail/Progress on the collection",
@@ -416,17 +416,18 @@ go func() { <-c; task.Cancel("interrupted") }()
 			ID:        "TERM-015",
 			Category:  "TERM",
 			Severity:  "warning",
-			Invariant: "tty-passthrough child processes run inside out.Suspend",
-			Why:       "A child that paints its own UI on the shared terminal collides with the parent's live spinner; no in-process fix helps once the child owns stdout/stderr directly (evo-rec.md \"#7b\").",
+			Invariant: "child processes run through Task.Run or Writer, never inherited stdout",
+			Why:       "A child that inherits os.Stdout paints on the same TTY as the live row. Capture it so the spinner keeps moving and the child's lines become Doing. Turning the spinner off is not a product state.",
 			BadCode: `cmd := exec.Command("zq", "setup")
 cmd.Stdout = os.Stdout
 cmd.Stderr = os.Stderr
 cmd.Run()`,
-			GoodCode: `cmd := exec.Command("zq", "setup")
-cmd.Stdout = os.Stdout
-cmd.Stderr = os.Stderr
-out.Suspend(func() error { return cmd.Run() })`,
-			Remediation:     "Wrap tty-passthrough child execution in out.Suspend(fn); captured children (Writer/Capture) don't need it",
+			GoodCode: `cmd := exec.Command("go", "build", "./...")
+if err := task.Run(cmd); err != nil {
+    return task.Failf("build failed: %w", err)
+}
+task.Done()`,
+			Remediation:     "Use Task.Run (or cmd.Stdout = task.Writer()); do not inherit os.Stdout and do not clear the live region",
 			RelatedGuidance: []string{"interactive"},
 			VerificationIDs: []string{"TERM-015"},
 			Since:           "0.6.0",
@@ -579,29 +580,30 @@ func (w *livePhase) Write(p []byte) (int, error) {
 			ID:        "API-032",
 			Category:  "API",
 			Severity:  "warning",
-			Invariant: "evo.New (removed with the item/task fold), Item/.OK/.Because (folded into Task/.Done), Cause, and Capture are superseded spellings; evo.MainWith(out, run) is current again (v0.4.0) as the Isolated-instance lifecycle — it exits itself, so it is never wrapped in os.Exit",
-			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New was deleted, not merely advanced; MainWith returned to pair with Isolated *Output but now exits via evo's own facade instead of returning an int for the caller to pass to os.Exit); Item folded into Task — one entity, one constructor; Cause no longer affects the returned error since Fail/Block are statement-form (use Failf/Blockf's trailing %w); Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr.",
+			Invariant: "superseded spellings are rewritten, not taught: evo.New, Item/.OK/.Because, Cause, Capture, Config.Options / []evo.Option / Option funcs (To/Plain/NoColor/Stdin/DryRun/VisibilityDelay/Diagnostics/Affected), Delete(object, call, opts), Skip, evo.ID, evo.StartPhase, evo.MainWith",
+			Why:       "evo.Init+evo.Main is the sole constructor/ordinary main() lifecycle (New and MainWith were deleted; Isolated *Output uses Output.Run); Config fields replaced Option funcs; mutation verbs take (n, object) not (object, call, Affected(n)); Item folded into Task; Cause no longer affects the returned error since Fail/Block are statement-form (use Failf/Blockf's trailing %w); Capture was renamed to Evidence — \"Stdout\" would lie as a name since it also takes stderr; Skip is Skipped; ID/StartPhase are unexported (Task takes only the name; Doing sets the first phase).",
 			BadCode: `func main() {
-	out := evo.New(evo.Config{Title: "tool"})
-	os.Exit(evo.MainWith(out, run)) // New is gone; MainWith no longer returns an int
+	out := evo.New(evo.Config{Options: []evo.Option{evo.To(&buf), evo.Plain()}})
+	os.Exit(evo.MainWith(out, run))
 }
 func run(out *evo.Output) error {
-	output := out.Item("x").Capture()
-	out.Item("x").OK()
-	out.Item("y").OK().Because("no incumbent configuration found")
+	task := out.Task("branches", evo.StartPhase("classifying tips"))
+	_ = task.Delete("local tip", nil, evo.Affected(n))
+	task.Skip("skipped")
 	return out.Task("z").Fail("failed", evo.Cause(err))
 }`,
 			GoodCode: `func main() {
-	out := evo.Init(evo.Config{Title: "tool", Isolated: true})
-	evo.MainWith(out, run) // exits itself; Output.Run(run) if the caller needs the code without exiting
+	evo.Init(evo.Config{Title: "tool", Stdout: &buf, Plain: true})
+	evo.Main(run)
 }
-func run(out *evo.Output) error {
-	proof := out.Task("x").Evidence()
-	out.Task("x").Done()
-	out.Task("y").Done("no incumbent configuration found")
-	return out.Task("z").Failf("failed: %w", err)
+func run() error {
+	task := evo.Task("branches")
+	task.Doing("classifying tips")
+	task.Delete(n, "local tip")
+	task.Skipped(reason, "local tip")
+	return evo.Task("z").Failf("failed: %w", err)
 }`,
-			Remediation:     "Replace evo.New with evo.Init(Config{Isolated: true}); drop os.Exit around evo.MainWith (it exits itself) — or call Output.Run for the code without exiting; replace Item(...) with Task(...); replace OK() with Done(); fold Because(text) into the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with .Evidence()",
+			Remediation:     "Replace evo.New with evo.Init; evo.Main in ordinary main, Output.Run when holding Isolated *Output; replace Config.Options / evo.To/Plain/NoColor with Config fields (Stdout, Plain, Color: ColorNever); replace Delete(object, call, evo.Affected(n)) with Delete(n, object); replace Skip with Skipped; drop evo.ID / evo.StartPhase (Doing for the first phase); replace Item(...) with Task(...); replace OK() with Done(); fold Because(text) into the resolving verb's own argument; replace evo.Cause(err) with Failf/Blockf's trailing \": %w\"; replace .Capture() with .Evidence()",
 			RelatedGuidance: []string{"common-api", "tasks", "streams"},
 			VerificationIDs: []string{"API-032"},
 			Since:           "0.3.0",
@@ -615,7 +617,7 @@ func run(out *evo.Output) error {
 			Why:       "out.Task(note).Skip(note) tells the reader nothing a bare \"skipped 1 (note)\" wouldn't already — the name and the reason/verb argument are the identical expression, so the second one carries zero new information.",
 			BadCode:   `out.Task(note).Skip(note)`,
 			GoodCode: `item := out.Task("branch check")
-item.Skip(note)`,
+item.Skipped(reason, name)`,
 			Remediation:     "Give the entity a real label distinct from the reason/verb text it also carries",
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-033"},
@@ -1057,6 +1059,38 @@ t = out.Task("build")`,
 			RelatedGuidance: []string{"tasks", "common-api"},
 			VerificationIDs: []string{"API-038"},
 			Since:           "0.4.1",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "FP-005",
+			Category:  "FP",
+			Severity:  "warning",
+			Invariant: "a Task that will complete is declared, shown running, then resolved — never created already Done",
+			Why:       "A tool row that first appears as ✓ looks like a lie: the work happened off-screen. Declare the Task, call Doing while resolving, then Done.",
+			BadCode:   `out.Task("go@1.25.11").Done(path)`,
+			GoodCode: `t := out.Task("go@1.25.11")
+t.Doing("resolving %s", path)
+t.Done(path)`,
+			Remediation:     "Call Doing(...) before Done so the live row spins while the work runs",
+			RelatedGuidance: []string{"first-paint", "tasks"},
+			VerificationIDs: []string{"FP-005"},
+			Since:           "0.4.7",
+			Certainty:       "deterministic",
+		},
+		{
+			ID:        "API-039",
+			Category:  "API",
+			Severity:  "warning",
+			Invariant: "a DisplayGroup with exactly one child is a lone Task",
+			Why:       "A 1-child group paints a 0/1 complete header over a single row and steals the command name. Use Task, or add more children.",
+			BadCode: `jobs := out.Group("run")
+jobs.Task("install:fresh-start")`,
+			GoodCode: `t := out.Task("install:fresh-start")
+t.Doing("running install:fresh-start")`,
+			Remediation:     "Replace the 1-child DisplayGroup with a lone Task",
+			RelatedGuidance: []string{"tasks"},
+			VerificationIDs: []string{"API-039"},
+			Since:           "0.4.7",
 			Certainty:       "deterministic",
 		},
 		{

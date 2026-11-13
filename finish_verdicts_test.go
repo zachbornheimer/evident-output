@@ -18,11 +18,11 @@ import (
 // rules).
 func TestFinishResolvesRunningTaskAsCancelled(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	running := out.Task("download")
 	running.Doing("fetching")
-	pending := out.Task("verify")
+	pending := out.Sequence("steps").Task("verify")
 
 	code := out.Run(func(o *evo.Output) error {
 		return errors.New("boom")

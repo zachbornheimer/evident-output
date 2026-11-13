@@ -21,15 +21,15 @@ license: Apache-2.0
 | -------------------- | ---------------------------------------------------------------------------------------------------------- |
 | Module               | `github.com/zachbornheimer/evident-output`                                                                 |
 | MCP binary target    | `$HOME/.local/bin/evident-output-mcp`                                                                      |
-| MCP install (pinned) | `GOBIN=$HOME/.local/bin go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6` |
+| MCP install (pinned) | `go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6` then symlink `$(go env GOPATH)/bin/evident-output-mcp` → `$HOME/.local/bin/evident-output-mcp` |
 
 ## Workflow when MCP is connected
 
-1. `evident_output_list_guides` / `evident_output_get_guidance` (or, for the full
-   docs corpus, `evident_output_list_sections` / `evident_output_get_documentation`)
+1. `evident_output_list_sections` / `evident_output_get_documentation`
 2. Implement with `Init(Config)`, `Print*`, `Task`, `Evidence`, `Main`
 3. `evident_output_review` until `recheck_required=false` (loop until its
-   `next_action` field says `clean`)
+   `next_action` field says `clean`). If it reports `update_needed`, call
+   `evident_output_update` then restart the MCP host first.
 4. `evident_output_preview` for profiles
 5. `evident_output_explain` with `rule_id` (not `id`)
 
@@ -42,10 +42,10 @@ On Grok: `evident-output__evident_output_*` (underscores, not dots).
 ## Quick MCP wire-up
 
 ```bash
-GOBIN="$HOME/.local/bin" go install \
-  github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6
-# Or from a local clone of the repo:
-#   go build -o "$HOME/.local/bin/evident-output-mcp" ./cmd/evident-output-mcp
+go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v0.4.6
+mkdir -p "$HOME/.local/bin"
+ln -sfn "$(go env GOPATH)/bin/evident-output-mcp" "$HOME/.local/bin/evident-output-mcp"
+# After bumping evo: evident-output-mcp update --directory <repo> then restart the host.
 
 grok mcp add evident-output -- "$HOME/.local/bin/evident-output-mcp"
 grok mcp doctor evident-output --json

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/zachbornheimer/evident-output/internal/agent/adopt"
@@ -124,5 +125,78 @@ func TestInventoryDetectsOutputFacade(t *testing.T) {
 
 	if plan.Caveat == "" {
 		t.Error("plan with a detected facade must disclose that inventory is a floor, not a census")
+	}
+}
+
+// TestInventorySkipsTestFiles proves *_test.go is not an adoption finding —
+// tests print; migrating them is not the adoption unit of work.
+func TestInventorySkipsTestFiles(t *testing.T) {
+	dir := t.TempDir()
+	prod := "package p\nimport \"fmt\"\nfunc F() { fmt.Println(\"prod\") }\n"
+	testSrc := "package p\nimport \"fmt\"\nfunc TestF() { fmt.Println(\"test\") }\n"
+	if err := os.WriteFile(filepath.Join(dir, "prod.go"), []byte(prod), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "prod_test.go"), []byte(testSrc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := adopt.Inventory(dir)
+	if err != nil {
+		t.Fatalf("Inventory: %v", err)
+	}
+	for _, f := range plan.Findings {
+		if strings.HasSuffix(f.File, "_test.go") {
+			t.Errorf("*_test.go must not be an adopt finding: %+v", f)
+		}
+	}
+	if len(plan.Findings) != 1 {
+		t.Fatalf("want 1 production finding, got %d: %+v", len(plan.Findings), plan.Findings)
+	}
+	if plan.Findings[0].Pattern != "fmt.Println" {
+		t.Errorf("production finding pattern = %q, want fmt.Println", plan.Findings[0].Pattern)
+	}
+}
+
+// TestInventoryDoesNotTreatDefaultsLogfAsFacade proves a Config.defaults
+// closure that fmt.Fprintf(os.Stderr) is not a facade — the type has no
+// io.Writer fields. testdata/facade (writer fields + wrap-through) stays
+// a facade; this fixture is the false-positive that used to match.
+func TestInventoryDoesNotTreatDefaultsLogfAsFacade(t *testing.T) {
+	plan, err := adopt.Inventory(filepath.Join("testdata", "defaults"))
+	if err != nil {
+		t.Fatalf("Inventory: %v", err)
+	}
+	if len(plan.Facades) != 0 {
+		t.Fatalf("defaults() Logf assignment is not a facade, got %d: %+v", len(plan.Facades), plan.Facades)
+	}
+}
+
+// TestInventoryPrefersCmdSubtree proves that when dir/cmd exists, inventory
+// walks that subtree instead of every Go file under dir.
+func TestInventoryPrefersCmdSubtree(t *testing.T) {
+	dir := t.TempDir()
+	rootSrc := "package main\nimport \"fmt\"\nfunc main() { fmt.Println(\"root\") }\n"
+	cmdDir := filepath.Join(dir, "cmd", "app")
+	if err := os.MkdirAll(cmdDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cmdSrc := "package main\nimport \"log\"\nfunc main() { log.Fatal(\"cmd\") }\n"
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(rootSrc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cmdDir, "main.go"), []byte(cmdSrc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := adopt.Inventory(dir)
+	if err != nil {
+		t.Fatalf("Inventory: %v", err)
+	}
+	if len(plan.Findings) != 1 {
+		t.Fatalf("want 1 cmd/ finding, got %d: %+v", len(plan.Findings), plan.Findings)
+	}
+	if plan.Findings[0].Pattern != "log.Fatal" {
+		t.Errorf("pattern = %q, want log.Fatal (cmd/), not the root fmt.Println", plan.Findings[0].Pattern)
 	}
 }

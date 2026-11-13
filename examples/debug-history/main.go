@@ -1,11 +1,10 @@
-// Command debug-history demos durable debug scrollback via slog.
+// Command debug-history demos a short sequential probe.
 //
 //	go run ./examples/debug-history/ --fast
 package main
 
 import (
 	"flag"
-	"log/slog"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -19,21 +18,11 @@ func main() {
 		step = 25 * time.Millisecond
 	}
 
-	out := evo.Init(evo.Config{
-		Title: "repo-probe",
-		Debug: evo.DebugConfig{Level: evo.LevelDebug},
-	})
-	log := slog.New(out.SlogHandler())
-
+	evo.Init(evo.Config{Title: "repo-probe"})
 	evo.Main(func() error {
 		time.Sleep(step)
-		log.Debug("opened repository", "path", "/work/bpp-csharp")
 		evo.Task("working tree").Done()
-
 		time.Sleep(step)
-		log.Debug("enumerated local branches", "count", 7)
-		time.Sleep(step)
-		log.Debug("branch comparison completed", "blockers", 0, "duration", 11*time.Millisecond)
 		evo.Task("branches").Done()
 		return nil
 	})
