@@ -287,7 +287,8 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 	got := collapsed(buf.String())
 	for _, want := range []string{
 		"✓ branches 14 deleted",
-		"repo-retire salvage --dry-run"} {
+		"repo-retire salvage --dry-run",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -348,7 +349,8 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 		"✗",
 		"delete failed on feat/x",
 		"! skipped 1 (unchanged)",
-		"! kept 1 (unpushed, not attempted)"} {
+		"! kept 1 (unpushed, not attempted)",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -458,7 +460,8 @@ func TestSpecP18_RemoteTracking_Failure(t *testing.T) {
 	for _, want := range []string{
 		"✗ remote-tracking fetch --prune failed",
 		"could not lock packed-refs",
-		"! no remotes delete-remote attempted"} {
+		"! no remotes delete-remote attempted",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -504,7 +507,8 @@ func TestSpecP18_RemoteTracking_Error(t *testing.T) {
 	for _, want := range []string{
 		"✗ remote-tracking network error during fetch",
 		"fatal: unable to access 'https://…'",
-		"! stale tracking refs unchanged; origin untouched"} {
+		"! stale tracking refs unchanged; origin untouched",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -833,7 +837,8 @@ func TestSpecP20_Heartbeat_Error(t *testing.T) {
 	for _, want := range []string{
 		"✗ salvage connection reset at 91s",
 		"read tcp: connection reset by peer",
-		"! feat/a state on remote unknown — verify before retry"} {
+		"! feat/a state on remote unknown — verify before retry",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
@@ -1020,7 +1025,8 @@ func TestSpecP21_DurableNote_Error(t *testing.T) {
 	got := collapsed(buf.String())
 	for _, want := range []string{
 		"✗ install torn frame avoided — durable write serialized",
-		"(caller used out.Println; no fmt in live window)"} {
+		"(caller used out.Println; no fmt in live window)",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}

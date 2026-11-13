@@ -20,7 +20,7 @@ func TestConfigClient_GrokPrintsTOML(t *testing.T) {
 		}
 	}
 	// Persistent command line must not be unpinned @latest (comments may mention go install @latest).
-	for _, line := range strings.Split(body, "\n") {
+	for line := range strings.SplitSeq(body, "\n") {
 		trim := strings.TrimSpace(line)
 		if strings.HasPrefix(trim, "command") && strings.Contains(trim, "@latest") {
 			t.Fatalf("persistent command must not use @latest:\n%s", line)
