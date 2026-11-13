@@ -13,8 +13,6 @@ var (
 	ErrInvalidConfig      = errors.New("evo: invalid configuration")
 	ErrRenderer           = errors.New("evo: renderer failure")
 	ErrLimitExceeded      = errors.New("evo: resource limit exceeded")
-	ErrReasonSkipOnly     = errors.New("evo: reason restricted to Skipped was recorded via Kept")
-	ErrReasonWrongTask    = errors.New("evo: reason restricted to another task")
 	ErrConcurrentRunning  = errors.New("evo: two siblings in the same collection are Running simultaneously")
 	ErrDryRunDeclaredLate = errors.New("evo: DeclareDryRun called after a durable row was already emitted")
 	// ErrTerminalWithoutSink is recorded when Config.Options supplies a

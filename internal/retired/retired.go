@@ -71,6 +71,13 @@ var symbols = []Symbol{
 	{Contract: "ID", RemovedIn: Release1_1, Replacement: "TaskHandle.Key"},
 	{Contract: "EntityOption", RemovedIn: Release1_1, Replacement: "TaskHandle.Key for identity, Doing for the first step"},
 	{Contract: "StartPhase", RemovedIn: Release1_1, Replacement: "Doing"},
+
+	// ZYS-1180 vocabulary freeze (E-122): exports that serve no concept.
+	{Contract: "ForSkip", RemovedIn: Release1_1, Replacement: "evo.Reason(name)", Taught: regexp.MustCompile(`\bForSkip\(`)},
+	{Contract: "OnTask", RemovedIn: Release1_1, Replacement: "evo.Reason(name)", Taught: regexp.MustCompile(`\bevo\.OnTask\(`)},
+	{Contract: "ReasonOption", RemovedIn: Release1_1, Replacement: "evo.Reason(name)", Taught: regexp.MustCompile(`\bReasonOption\b`)},
+	{Contract: "ErrReasonSkipOnly", RemovedIn: Release1_1, Replacement: "nothing: a Reason has no usage constraints"},
+	{Contract: "ErrReasonWrongTask", RemovedIn: Release1_1, Replacement: "nothing: a Reason has no usage constraints"},
 }
 
 // mutationVerb matches a removed TaskHandle mutation verb taught as prose

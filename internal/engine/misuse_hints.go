@@ -45,10 +45,6 @@ func misuseHintFor(err error, subject, rejectedSummary string) string {
 		return "the configured writer failed; check the output destination"
 	case errors.Is(err, ErrLimitExceeded):
 		return "raise Config.MaxEntities or declare fewer tasks in this run"
-	case errors.Is(err, ErrReasonSkipOnly):
-		return "a Reason built with ForSkip only attaches to Skip, not Kept"
-	case errors.Is(err, ErrReasonWrongTask):
-		return "a Reason built with OnTask only attaches to that named task"
 	case errors.Is(err, ErrConcurrentRunning):
 		return "only one child of a Sequence runs at a time; use Group for independent children"
 	case errors.Is(err, ErrDryRunDeclaredLate):

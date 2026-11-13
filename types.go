@@ -20,7 +20,6 @@ type Evidence = engine.Evidence
 type EvidenceOption = engine.EvidenceOption
 type EvidenceStream = engine.EvidenceStream
 type ConfirmOption = engine.ConfirmOption
-type ReasonOption = engine.ReasonOption
 type DebugPaneOption = engine.DebugPaneOption
 type DebugPresentation = engine.DebugPresentation
 type DebugConfig = engine.DebugConfig
@@ -110,8 +109,6 @@ var (
 	ErrInvalidConfig        = engine.ErrInvalidConfig
 	ErrRenderer             = engine.ErrRenderer
 	ErrLimitExceeded        = engine.ErrLimitExceeded
-	ErrReasonSkipOnly       = engine.ErrReasonSkipOnly
-	ErrReasonWrongTask      = engine.ErrReasonWrongTask
 	ErrConcurrentRunning    = engine.ErrConcurrentRunning
 	ErrDryRunDeclaredLate   = engine.ErrDryRunDeclaredLate
 	ErrTerminalWithoutSink  = engine.ErrTerminalWithoutSink

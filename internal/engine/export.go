@@ -107,7 +107,3 @@ func (o *Output) SchedulerMaxObserved() int {
 	defer o.mu.Unlock()
 	return o.sched.maxObserved
 }
-
-func ReasonConstrained(name string, opts ...ReasonOption) TaxonomyReason {
-	return Default().reasonGetOrCreate(name, opts...)
-}

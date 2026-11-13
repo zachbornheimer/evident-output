@@ -18,10 +18,7 @@ type TestRedactor = engine.NoopRedactor
 type TestEvidence = engine.Evidence
 
 func DelayForTest(d time.Duration) *time.Duration { return Delay(d) }
-func ReasonConstrained(name string, opts ...ReasonOption) TaxonomyReason {
-	return TaxonomyReason{inner: engine.ReasonConstrained(name, opts...)}
-}
-func SlogHandlerForTest() slog.Handler { return SlogHandler() }
+func SlogHandlerForTest() slog.Handler            { return SlogHandler() }
 
 func (o *Output) AboutForTest(text string) {
 	if o != nil && o.inner != nil {
