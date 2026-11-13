@@ -186,7 +186,9 @@ def find_timeout_bin() -> str:
 
 
 def write_meta(path: Path, payload: dict) -> None:
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def write_runner(
@@ -245,7 +247,9 @@ def write_final_frames(
     return widths
 
 
-def capture_record(session: str, kind: str, index: int, reason: str) -> testevo_frames.FrameRecord:
+def capture_record(
+    session: str, kind: str, index: int, reason: str
+) -> testevo_frames.FrameRecord:
     text = testevo_session.capture_pane(session)
     return testevo_frames.FrameRecord(
         kind=kind,
@@ -370,7 +374,9 @@ def run_harness(args: argparse.Namespace) -> int:
                     skip = int((now - next_t) / interval_s) + 1
                     next_t += skip * interval_s
 
-        timed_thread = threading.Thread(target=run_timed, name="test-evo-timed", daemon=True)
+        timed_thread = threading.Thread(
+            target=run_timed, name="test-evo-timed", daemon=True
+        )
         timed_thread.start()
 
         due = submit_t
@@ -389,8 +395,12 @@ def run_harness(args: argparse.Namespace) -> int:
             timed_thread.join(timeout=2.0)
         widths = testevo_frames.widths_for(records)
         meta["child_exit"] = read_child_exit(child_exit_path)
-        meta["timed_count"] = sum(1 for r in records if r.kind == testevo_frames.KIND_TIMED)
-        meta["mandatory_count"] = sum(1 for r in records if r.kind == testevo_frames.KIND_MANDATORY)
+        meta["timed_count"] = sum(
+            1 for r in records if r.kind == testevo_frames.KIND_TIMED
+        )
+        meta["mandatory_count"] = sum(
+            1 for r in records if r.kind == testevo_frames.KIND_MANDATORY
+        )
         meta["frames"] = [
             {
                 "kind": r.kind,

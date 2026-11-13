@@ -33,7 +33,8 @@ func writeReviewResult(id any, res review.Result) {
 			"module_version":   res.ModuleVersion,
 			"replace_path":     res.ReplacePath,
 			"update_needed":    needed,
-		}})
+		},
+	})
 }
 
 func reviewNextAction(res review.Result, updateNeeded bool) string {

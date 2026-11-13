@@ -24,7 +24,8 @@ func TestInit_WithOptionsInstallsDefault(t *testing.T) {
 	var buf bytes.Buffer
 	evo.Init(evo.Config{
 		Title:  "retire",
-		Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
+		Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true,
+	})
 	t.Cleanup(func() { evo.SetDefault(nil) })
 
 	branches := evo.Task("branches")
@@ -60,7 +61,8 @@ func TestInit_WithOptionsAndIsolatedSkipsDefaultInstall(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
 		Isolated: true,
-		Stdout:   &buf, Plain: true, Color: evo.ColorNever})
+		Stdout:   &buf, Plain: true, Color: evo.ColorNever,
+	})
 
 	if evo.Default() == out {
 		t.Fatal("Isolated: true must never install the built Output as the package-level default")

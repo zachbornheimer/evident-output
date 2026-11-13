@@ -20,7 +20,8 @@ func New(t *testing.T) *evo.Output {
 		Isolated: true,
 		Plain:    true,
 		Stdout:   io.Discard,
-		Stderr:   io.Discard})
+		Stderr:   io.Discard,
+	})
 	t.Cleanup(func() { _ = out.Close() })
 	return out
 }
