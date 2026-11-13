@@ -26,12 +26,15 @@ func (s *flakyLiveSurface) IsInteractive() bool { return s.interactive }
 func (s *flakyLiveSurface) WriteLive(text string) {
 	s.ops = append(s.ops, "live:"+text)
 }
+
 func (s *flakyLiveSurface) ClearLive() {
 	s.ops = append(s.ops, "clear")
 }
+
 func (s *flakyLiveSurface) WriteDurable(line string) {
 	s.ops = append(s.ops, "durable:"+line)
 }
+
 func (s *flakyLiveSurface) WriteFinal(text string) {
 	s.ops = append(s.ops, "final:"+text)
 }
