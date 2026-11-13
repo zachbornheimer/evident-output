@@ -1,6 +1,7 @@
 package evo_test
 
 import (
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -23,7 +24,7 @@ func forceRender(ticker *evo.TaskHandle, n int) {
 func TestHeartbeat_AppearsAfterElapsedThreshold(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(clock), evo.NoColor()}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	push := out.Task("push")
@@ -54,7 +55,7 @@ func TestHeartbeat_AppearsAfterElapsedThreshold(t *testing.T) {
 func TestHeartbeat_NeverResetsOnPhaseUpdate(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(clock), evo.NoColor()}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	push := out.Task("push")
@@ -86,7 +87,7 @@ func TestHeartbeat_NeverResetsOnPhaseUpdate(t *testing.T) {
 func TestHeartbeat_AppearsRegardlessOfProgressActivity(t *testing.T) {
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Terminal(screen), evo.VisibilityDelay(0), evo.Clock(clock), evo.NoColor()}})
+	out := evo.Init(evo.Config{Stdout: io.Discard, Stderr: io.Discard, Isolated: true, Clock: clock, Terminal: screen, VisibilityDelay: evo.DelayForTest(0), Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 
 	install := out.Task("install")
@@ -108,7 +109,7 @@ func TestHeartbeat_AppearsRegardlessOfProgressActivity(t *testing.T) {
 func TestHeartbeat_AbsentInPlainProjection(t *testing.T) {
 	var buf strings.Builder
 	clock := testkit.NewClock()
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.Clock(clock)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Clock: clock, Plain: true})
 
 	push := out.Task("push")
 	push.Doing("pushing feat/a")
