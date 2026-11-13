@@ -19,8 +19,8 @@ func main() {
     out := evo.Init(evo.Config{Title: "runner"})
 
     var childErr *exec.ExitError
-    code := evo.Run(func(o *evo.Output) error {
-        cmd := o.Task("build")
+    code := evo.Run(func() error {
+        cmd := evo.Task("build")
         err := run(cmd, ...) // wires cmd.Stdout/Stderr into evo evidence
         errors.As(err, &childErr)
         return err

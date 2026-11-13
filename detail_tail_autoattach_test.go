@@ -16,10 +16,10 @@ import (
 // DetailTail is no longer an opt-in step a caller has to remember.
 func TestFail_AutoAttachesDetailTail_WhenEvidenceNonEmptyAndNoExplicitDetail(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("build")
-	output := task.Evidence()
+	output := task.EvidenceForTest()
 	_, _ = fmt.Fprintln(output, "error: undefined symbol foo")
 	task.Fail("compile failed")
 
@@ -34,10 +34,10 @@ func TestFail_AutoAttachesDetailTail_WhenEvidenceNonEmptyAndNoExplicitDetail(t *
 // TestBlockf_AutoAttachesDetailTail mirrors the Fail case for Blockf.
 func TestBlockf_AutoAttachesDetailTail(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("policy check")
-	output := task.Evidence()
+	output := task.EvidenceForTest()
 	_, _ = fmt.Fprintln(output, "policy violation: missing signature")
 	_ = task.Blockf("policy check failed")
 
@@ -54,10 +54,10 @@ func TestBlockf_AutoAttachesDetailTail(t *testing.T) {
 // clobbers a caller's own wording.
 func TestFail_ExplicitDetail_NotOverwrittenByEvidence(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
 	task := out.Task("build")
-	output := task.Evidence()
+	output := task.EvidenceForTest()
 	_, _ = fmt.Fprintln(output, "raw evidence noise")
 	task.Fail("compile failed", evo.Detail("caller-chosen detail"))
 
