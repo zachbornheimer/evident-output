@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -127,18 +128,7 @@ func checkNoUnexplainedStaleAPI(t *testing.T, rel, body string) {
 // staleAPIAllowedNearby reports whether the allow phrase appears on line i
 // or any of the staleAPIWindow lines before or after it.
 func staleAPIAllowedNearby(lines []string, i int) bool {
-	start := i - staleAPIWindow
-	if start < 0 {
-		start = 0
-	}
-	end := i + staleAPIWindow + 1
-	if end > len(lines) {
-		end = len(lines)
-	}
-	for _, line := range lines[start:end] {
-		if staleAPIAllowPattern.MatchString(line) {
-			return true
-		}
-	}
-	return false
+	start := max(i-staleAPIWindow, 0)
+	end := min(i+staleAPIWindow+1, len(lines))
+	return slices.ContainsFunc(lines[start:end], staleAPIAllowPattern.MatchString)
 }
