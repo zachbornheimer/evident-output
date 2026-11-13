@@ -61,7 +61,7 @@ func (writerStub) Write(p []byte) (int, error) { return len(p), nil }
 // sets diagnosticSharesTerminal when Config.Stdout (the live terminal's
 // writer) and Config.Stderr (Diagnostics) resolve to the same physical
 // device, even though they are distinct io.Writer values — the realistic
-// default construction (To(Stdout), Diagnostics(Stderr)) on an interactive
+// default construction (to(Stdout), withDiagnostics(Stderr)) on an interactive
 // shell without redirection.
 func TestConfigToOptions_DiagnosticSharingTerminalIsDetected(t *testing.T) {
 	stdout, stderr := openCharDevice(t)

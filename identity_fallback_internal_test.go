@@ -16,7 +16,7 @@ func TestFailf_NoTitle_UsesExecutableBasename(t *testing.T) {
 	defer func() { processArgv0 = restore }()
 
 	var buf bytes.Buffer
-	out := newOutput("", To(&buf), NoColor(), Plain())
+	out := newOutput("", to(&buf), withNoColor(), plain())
 	out.Failf("boom")
 	_ = out.Finish()
 

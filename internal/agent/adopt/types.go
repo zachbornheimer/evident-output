@@ -12,6 +12,37 @@ const (
 	RungConfirm       Rung = "confirm/dry-run"
 )
 
+// ladderOrder is the rung sequence a paged inventory walks. There is no
+// containers rung — containers were never a classifier output.
+var ladderOrder = []Rung{RungInitMain, RungTaskDone, RungEffects, RungFactsWarnings, RungConfirm}
+
+const (
+	// DefaultPageSize is the findings cap per adopt_plan page.
+	DefaultPageSize = 40
+	// NextActionClean is the empty-inventory done-condition.
+	NextActionClean = "clean"
+	// NextActionFacade tells the agent to migrate the type, not each call site.
+	NextActionFacade = "migrate the facade, not the call sites"
+)
+
+// InventoryOptions pages a full Plan. Cursor is opaque; Limit 0 means DefaultPageSize.
+type InventoryOptions struct {
+	Cursor string
+	Limit  int
+}
+
+// Page is one cursor-window of an adoption inventory.
+type Page struct {
+	Directory  string    `json:"directory"`
+	Findings   []Finding `json:"findings"`
+	Rung       Rung      `json:"rung,omitempty"`
+	Remaining  int       `json:"remaining"`
+	NextCursor string    `json:"next_cursor,omitempty"`
+	NextAction string    `json:"next_action"`
+	Facades    []Facade  `json:"facades,omitempty"`
+	Caveat     string    `json:"caveat,omitempty"`
+}
+
 // Certainty reports how confident a finding's suggestion is.
 type Certainty string
 
