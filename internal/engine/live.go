@@ -450,10 +450,7 @@ func (o *Output) renderLiveRegionWithDebugLocked(width, height int, now time.Tim
 		if paneRows < 0 {
 			paneRows = 0
 		}
-		bodyHeight = height - paneRows
-		if bodyHeight < 1 {
-			bodyHeight = 1
-		}
+		bodyHeight = max(height-paneRows, 1)
 	}
 	body := render.LiveRegion(o.liveTickerSnapshotLocked(), bodyHeight, width, now, color, profile)
 	if body == "" && o.armedTitleLiveLocked() {
