@@ -89,10 +89,7 @@ func skipUnreviewed(d os.DirEntry) error {
 }
 
 func generatedHeader(src []byte) bool {
-	n := len(src)
-	if n > 4096 {
-		n = 4096
-	}
+	n := min(len(src), 4096)
 	head := string(src[:n])
 	return strings.Contains(head, "Code generated ") && strings.Contains(head, "DO NOT EDIT")
 }

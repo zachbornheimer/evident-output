@@ -59,9 +59,17 @@ func run() error {
 		prefix string
 		n      int
 	}{
-		{"DOM", 50}, {"CON", 19}, {"TERM", 24}, {"TXT", 20},
-		{"A11Y", 10}, {"LOG", 15}, {"OUT", 24}, {"MCP", 50},
-		{"API", 30}, {"SEC", 15}, {"PORT", 15},
+		{"DOM", 50},
+		{"CON", 19},
+		{"TERM", 24},
+		{"TXT", 20},
+		{"A11Y", 10},
+		{"LOG", 15},
+		{"OUT", 24},
+		{"MCP", 50},
+		{"API", 30},
+		{"SEC", 15},
+		{"PORT", 15},
 	}
 	for _, fam := range families {
 		for i := 1; i <= fam.n; i++ {
