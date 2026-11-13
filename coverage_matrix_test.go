@@ -14,7 +14,7 @@ import (
 
 func TestA11Y001_NoColorOption(t *testing.T) {
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.NoColor(), evo.Plain()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("x").Done()
 	_ = out.Finish()
@@ -26,7 +26,7 @@ func TestA11Y001_NoColorOption(t *testing.T) {
 func TestA11Y005_PlainHasNoUnicodeRequirement(t *testing.T) {
 	// Plain mode may use unicode glyphs; meaning must remain without color (A11Y-004).
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("a").Done()
 	out.Task("b").Block("no")
@@ -40,10 +40,10 @@ func TestA11Y005_PlainHasNoUnicodeRequirement(t *testing.T) {
 func TestTXT001_ASCIIWidthStable(t *testing.T) {
 	var wide, narrow bytes.Buffer
 	mk := func(w io.Writer, width int) {
-		out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.Title("s"), evo.To(w), evo.Plain(), evo.NoColor(), evo.Width(width)}})
+		out := evo.Init(evo.Config{Isolated: true, Stdout: w, Title: "s", Width: width, Color: evo.ColorNever, Plain: true})
 		c := out.Task("c")
-		_ = c.Add("x", nil, evo.Affected(1))
-		_ = c.Write("f", nil)
+		c.Record("add", 1, "x")
+		c.Record("write", 1, "f")
 		_ = out.Finish()
 		_ = out.Close()
 	}
@@ -64,7 +64,7 @@ func TestTXT001_ASCIIWidthStable(t *testing.T) {
 // already in use produced a duplicate row and ErrDuplicateKey instead of the
 // one live handle).
 func TestDOM004_SameNameGetsOrCreates(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	a := out.Task("same")
 	b := out.Task("same")
@@ -78,10 +78,10 @@ func TestDOM004_SameNameGetsOrCreates(t *testing.T) {
 // retired DuplicateDisplayNamesAllowed test named: two genuinely distinct
 // entities may still share a display name, using an explicit evo.ID.
 func TestDOM004_DistinctIDsAllowSameDisplayName(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
-	a := out.Task("same", evo.ID("a"))
-	b := out.Task("same", evo.ID("b"))
+	a := out.TaskIdentified("same", "a")
+	b := out.TaskIdentified("same", "b")
 	a.Done()
 	b.Done()
 	if a.Snapshot().ID == b.Snapshot().ID {
@@ -90,7 +90,7 @@ func TestDOM004_DistinctIDsAllowSameDisplayName(t *testing.T) {
 }
 
 func TestDOM013_MutationAfterFinishRejected(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	out.Task("x").Done()
 	_ = out.Finish()
 	out.Task("y").Done()
@@ -104,7 +104,7 @@ func TestDOM013_MutationAfterFinishRejected(t *testing.T) {
 }
 
 func TestDOM021_NegativeProgressRejected(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("t")
 	task.Progress(-1, 10)
@@ -114,7 +114,7 @@ func TestDOM021_NegativeProgressRejected(t *testing.T) {
 }
 
 func TestOUT006_JSONLOneObjectPerLine(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	out.Task("a").Done()
 	_ = out.Finish()
@@ -137,7 +137,7 @@ func TestOUT006_JSONLOneObjectPerLine(t *testing.T) {
 }
 
 func TestSEC006_CommandArgvPreservedInAction(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	item := out.Task("x")
 	item.Block("b")
@@ -182,7 +182,7 @@ func TestAPI018_LibraryDoesNotCallOsExit(t *testing.T) {
 	// TestMain_ExitsThroughExitProcessFacade (run_exit_facade_internal_test.go),
 	// which swaps the facade for a fake and asserts Main/MainWith never
 	// call the real os.Exit.
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	out.Task("x")
 	if err := out.Finish(); err != nil {
 		t.Fatalf("Finish() = %v, want nil (clean finish, no amnesty-defeating problems)", err)
