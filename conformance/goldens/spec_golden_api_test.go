@@ -133,7 +133,7 @@ func TestSpecAfter_FetchWaitsForGroups(t *testing.T) {
 
 func eachSkipNames(prefix string, n int) []string {
 	items := make([]string, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		items[i] = fmt.Sprintf("%s-%d", prefix, i)
 	}
 	return items
