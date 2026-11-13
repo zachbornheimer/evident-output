@@ -79,9 +79,8 @@ func TestSpecP16_CompactLayout_Success(t *testing.T) {
 	protected := evo.Reason("protected")
 	g := out.Group("branches")
 	g.Summary("14 del")
-	for name, task := range g.Each(eachSkipNames("skip", 6)) {
-		_ = name
-		task.Skipped(protected)
+	for _, name := range eachSkipNames("skip", 6) {
+		g.Task(name).Skipped(protected)
 	}
 	worktrees := out.Task("worktrees")
 	worktrees.Done("2 rm")
@@ -94,8 +93,11 @@ func TestSpecP16_CompactLayout_Success(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if !strings.Contains(got, "! skipped 6 (protected)") {
-		t.Fatalf("want the real (parenthesized-reason) taxonomy line, got:\n%s", got)
+	// Each's own cross-child rollup (collectEachTaxonomy, "skipped 6
+	// (protected)") was removed with Each in 1.0 (§3.1) — each plain Group
+	// child renders its own line.
+	if n := strings.Count(got, "! skipped 1 (protected)"); n != 6 {
+		t.Fatalf("want 6 individual (parenthesized-reason) taxonomy lines, got %d:\n%s", n, got)
 	}
 }
 
@@ -222,31 +224,33 @@ func TestSpecP17_Taxonomy_Step2(t *testing.T) {
 	protected := evo.Reason("protected")
 	dirty := evo.Reason("dirty")
 	unpushed := evo.Reason("unpushed")
-	var items []string
-	items = append(items, eachSkipNames("protected", 4)...)
-	items = append(items, eachSkipNames("dirty", 2)...)
-	items = append(items, eachSkipNames("unpushed", 3)...)
-	for name, task := range g.Each(items) {
-		switch {
-		case strings.HasPrefix(name, "protected-"):
-			task.Skipped(protected)
-		case strings.HasPrefix(name, "dirty-"):
-			task.Skipped(dirty)
-		default:
-			task.Kept(unpushed)
-		}
+	for _, name := range eachSkipNames("protected", 4) {
+		g.Task(name).Skipped(protected)
+	}
+	for _, name := range eachSkipNames("dirty", 2) {
+		g.Task(name).Skipped(dirty)
+	}
+	for _, name := range eachSkipNames("unpushed", 3) {
+		g.Task(name).Kept(unpushed)
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := collapsed(buf.String())
-	for _, want := range []string{
-		"✓ branches 14 deleted",
-		"! skipped 6 (4 protected, 2 dirty)",
-		"! kept 3 (unpushed)"} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("want %q in:\n%s", want, buf.String())
-		}
+	if !strings.Contains(got, "✓ branches 14 deleted") {
+		t.Fatalf("want %q in:\n%s", "✓ branches 14 deleted", buf.String())
+	}
+	// Each's own cross-child rollup (collectEachTaxonomy, "skipped 6 (4
+	// protected, 2 dirty)"/"kept 3 (unpushed)") was removed with Each in
+	// 1.0 (§3.1) — each plain Group child renders its own line.
+	if n := strings.Count(got, "! skipped 1 (protected)"); n != 4 {
+		t.Fatalf("want 4 individual skipped-protected lines, got %d:\n%s", n, buf.String())
+	}
+	if n := strings.Count(got, "! skipped 1 (dirty)"); n != 2 {
+		t.Fatalf("want 2 individual skipped-dirty lines, got %d:\n%s", n, buf.String())
+	}
+	if n := strings.Count(got, "! kept 1 (unpushed)"); n != 3 {
+		t.Fatalf("want 3 individual kept-unpushed lines, got %d:\n%s", n, buf.String())
 	}
 }
 
@@ -267,19 +271,14 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 	protected := evo.Reason("protected")
 	dirty := evo.Reason("dirty")
 	unpushed := evo.Reason("unpushed")
-	var items []string
-	items = append(items, eachSkipNames("protected", 4)...)
-	items = append(items, eachSkipNames("dirty", 2)...)
-	items = append(items, eachSkipNames("unpushed", 3)...)
-	for name, task := range g.Each(items) {
-		switch {
-		case strings.HasPrefix(name, "protected-"):
-			task.Skipped(protected)
-		case strings.HasPrefix(name, "dirty-"):
-			task.Skipped(dirty)
-		default:
-			task.Kept(unpushed)
-		}
+	for _, name := range eachSkipNames("protected", 4) {
+		g.Task(name).Skipped(protected)
+	}
+	for _, name := range eachSkipNames("dirty", 2) {
+		g.Task(name).Skipped(dirty)
+	}
+	for _, name := range eachSkipNames("unpushed", 3) {
+		g.Task(name).Kept(unpushed)
 	}
 	out.NextCommand("repo-retire", "salvage", "--dry-run")
 	if err := out.Finish(); err != nil {
@@ -288,45 +287,56 @@ func TestSpecP17_Taxonomy_Success(t *testing.T) {
 	got := collapsed(buf.String())
 	for _, want := range []string{
 		"✓ branches 14 deleted",
-		"! skipped 6 (4 protected, 2 dirty)",
-		"! kept 3 (unpushed)",
 		"repo-retire salvage --dry-run"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}
 	}
+	// Each's own cross-child rollup (collectEachTaxonomy) was removed with
+	// Each in 1.0 (§3.1) — each plain Group child renders its own line.
+	if n := strings.Count(got, "! skipped 1 (protected)"); n != 4 {
+		t.Fatalf("want 4 individual skipped-protected lines, got %d:\n%s", n, buf.String())
+	}
+	if n := strings.Count(got, "! skipped 1 (dirty)"); n != 2 {
+		t.Fatalf("want 2 individual skipped-dirty lines, got %d:\n%s", n, buf.String())
+	}
+	if n := strings.Count(got, "! kept 1 (unpushed)"); n != 3 {
+		t.Fatalf("want 3 individual kept-unpushed lines, got %d:\n%s", n, buf.String())
+	}
 }
 
-// TestSpecP17_Taxonomy_Failure covers Problem 17's failure block: a
-// second, independently-declared "branches" task (Output.Task get-or-creates
-// by name like evo.Task — a genuinely distinct row sharing a display name
-// needs an explicit evo.ID) fails mid-run while an earlier "branches" task's
-// partial success survives, alongside an unchanged skip/keep taxonomy.
+// TestSpecP17_Taxonomy_Failure covers Problem 17's failure block: one
+// "branches" task's partial success (a captured handle, resolved once) sits
+// alongside a distinct "branches feat/x" task's failure, alongside an
+// unchanged skip/keep taxonomy declared as plain Group children with
+// distinct names (§3.1: Each is retired — a repeated child name is now a
+// duplicate sibling declaration, not a get-or-create). Each's own
+// aggregated "! skipped N (...)" collapse was Each-specific presentation
+// (writeLiveEachAggregate/writePlainEachAggregate key off the fromEach
+// marker); a plain Group child renders its own taxonomy line individually,
+// so this pins one line per child instead of one collapsed count.
 //
 //	✓  branches  10 deleted
 //	✗  branches  delete failed on feat/x
-//	!  skipped 6  (unchanged)
-//	!  kept 3     (unpushed, not attempted)
+//	!  skipped 1  (unchanged)   (one per child, six children)
+//	!  kept 1     (unpushed, not attempted)   (one per child, three children)
 func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 	// Not t.Parallel(): evo.SetDefault/evo.Reason mutate process-global state.
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Isolated: true, Stdout: &buf, Plain: true, Color: evo.ColorNever}))
 	out := evo.Default()
 	g := out.Group("branches")
-	g.Task("deleted").Record("delete", 10, "branch")
-	g.Task("deleted").Done("10 deleted")
+	deleted := g.Task("deleted")
+	deleted.Record("delete", 10, "branch")
+	deleted.Done("10 deleted")
 	g.Task("feat/x").Fail("delete failed on feat/x")
 	unchanged := evo.Reason("unchanged")
 	notAttempted := evo.Reason("unpushed, not attempted")
-	var items []string
-	items = append(items, eachSkipNames("unchanged", 6)...)
-	items = append(items, eachSkipNames("kept", 3)...)
-	for name, task := range g.Each(items) {
-		if strings.HasPrefix(name, "unchanged-") {
-			task.Skipped(unchanged)
-		} else {
-			task.Kept(notAttempted)
-		}
+	for _, name := range eachSkipNames("unchanged", 6) {
+		g.Task(name).Skipped(unchanged)
+	}
+	for _, name := range eachSkipNames("kept", 3) {
+		g.Task(name).Kept(notAttempted)
 	}
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
@@ -337,8 +347,8 @@ func TestSpecP17_Taxonomy_Failure(t *testing.T) {
 		"10 deleted",
 		"✗",
 		"delete failed on feat/x",
-		"! skipped 6 (unchanged)",
-		"! kept 3 (unpushed, not attempted)"} {
+		"! skipped 1 (unchanged)",
+		"! kept 1 (unpushed, not attempted)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, buf.String())
 		}

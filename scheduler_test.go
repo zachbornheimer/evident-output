@@ -2,6 +2,8 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"io"
 	"strings"
 	"sync"
@@ -44,7 +46,7 @@ func TestScheduler_GroupOverlapRespectsCeiling(t *testing.T) {
 
 	for _, name := range []string{"a", "b", "c"} {
 		task := g.Task(name)
-		task.Define(func() error {
+		task.Define(func(ctx context.Context) error {
 			mu.Lock()
 			inflight++
 			if inflight > maxObserved {
@@ -78,6 +80,38 @@ func TestScheduler_GroupOverlapRespectsCeiling(t *testing.T) {
 	}
 }
 
+// TestScheduler_GroupSiblingsReportTruthfulIndependentOutcomes proves a
+// Group is not a Sequence: one child failing does not cascade its siblings
+// to NotStarted (§4's "independent child work" contract) — each sibling
+// settles into its own true, observed outcome (Done or Failed) instead.
+func TestScheduler_GroupSiblingsReportTruthfulIndependentOutcomes(t *testing.T) {
+	t.Parallel()
+	out := isolatedScheduler(t, schedulerTestCeiling, nil, false)
+	g := out.Group("checks")
+
+	g.Task("ok-a").Define(func(ctx context.Context) error { return nil })
+	g.Task("broken").Define(func(ctx context.Context) error { return errors.New("boom") })
+	g.Task("ok-b").Define(func(ctx context.Context) error { return nil })
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	snap := g.Snapshot()
+	states := make(map[string]evo.EntityState, len(snap.Tasks))
+	for _, child := range snap.Tasks {
+		states[child.Name] = child.State
+	}
+	if states["ok-a"] != evo.Done {
+		t.Fatalf("ok-a state = %s, want Done", states["ok-a"])
+	}
+	if states["broken"] != evo.Failed {
+		t.Fatalf("broken state = %s, want Failed", states["broken"])
+	}
+	if states["ok-b"] != evo.Done {
+		t.Fatalf("ok-b state = %s, want Done — a Group sibling's failure must not cascade to NotStarted (that is Sequence's contract, not Group's)", states["ok-b"])
+	}
+}
+
 func TestScheduler_SequenceDeclarationOrderMaxOne(t *testing.T) {
 	t.Parallel()
 	out := isolatedScheduler(t, schedulerTestCeiling, nil, false)
@@ -93,7 +127,7 @@ func TestScheduler_SequenceDeclarationOrderMaxOne(t *testing.T) {
 	bStarted := make(chan struct{})
 	cStarted := make(chan struct{})
 
-	seq.Task("a").Define(func() error {
+	seq.Task("a").Define(func(ctx context.Context) error {
 		mu.Lock()
 		inflight++
 		if inflight > maxObserved {
@@ -108,7 +142,7 @@ func TestScheduler_SequenceDeclarationOrderMaxOne(t *testing.T) {
 		mu.Unlock()
 		return nil
 	})
-	seq.Task("b").Define(func() error {
+	seq.Task("b").Define(func(ctx context.Context) error {
 		mu.Lock()
 		inflight++
 		if inflight > maxObserved {
@@ -123,7 +157,7 @@ func TestScheduler_SequenceDeclarationOrderMaxOne(t *testing.T) {
 		mu.Unlock()
 		return nil
 	})
-	seq.Task("c").Define(func() error {
+	seq.Task("c").Define(func(ctx context.Context) error {
 		mu.Lock()
 		inflight++
 		if inflight > maxObserved {
@@ -179,12 +213,12 @@ func TestScheduler_AfterWaitsForPredecessors(t *testing.T) {
 
 	a := out.Task("scan")
 	b := out.Task("fetch")
-	a.Define(func() error {
+	a.Define(func(ctx context.Context) error {
 		close(aStarted)
 		<-aRelease
 		return nil
 	})
-	b.After(a).Define(func() error {
+	b.After(a).Define(func(ctx context.Context) error {
 		close(bStarted)
 		return nil
 	})
@@ -202,55 +236,69 @@ func TestScheduler_AfterWaitsForPredecessors(t *testing.T) {
 	}
 }
 
-func TestScheduler_EachRangeSettlesSubmittedWork(t *testing.T) {
+// TestScheduler_GroupChildrenSettleSubmittedWork proves multiple Group
+// children declared and Defined in a loop (the plain-Group-children shape
+// §3.1's identity reversal and Each's removal both point callers to) settle
+// Done once Finish drains the scheduler — Each's own "range-end waits only
+// for Defined children" framing no longer applies (there is no range), but
+// the underlying settle-on-Finish guarantee is the same one Define always
+// gave.
+func TestScheduler_GroupChildrenSettleSubmittedWork(t *testing.T) {
 	t.Parallel()
 	out := isolatedScheduler(t, schedulerTestCeiling, nil, false)
 	g := out.Group("worktrees")
 	paths := []string{"alpha", "beta"}
 
-	for path, task := range g.Each(paths) {
-		task.Define(func() error { return nil })
-		_ = path
+	for _, path := range paths {
+		g.Task(path).Define(func(ctx context.Context) error { return nil })
+	}
+	if err := out.Finish(); err != nil {
+		t.Fatalf("Finish: %v", err)
 	}
 
 	snap := g.Snapshot()
 	if len(snap.Tasks) != len(paths) {
-		t.Fatalf("Each children = %d, want %d", len(snap.Tasks), len(paths))
+		t.Fatalf("children = %d, want %d", len(snap.Tasks), len(paths))
 	}
 	for _, child := range snap.Tasks {
 		if child.State != evo.Done {
-			t.Fatalf("child %q state = %s, want Done after Each range", child.Name, child.State)
+			t.Fatalf("child %q state = %s, want Done", child.Name, child.State)
 		}
 	}
 }
 
-func TestScheduler_EachRangeDoesNotHangOnUndefinedChildren(t *testing.T) {
+// TestScheduler_UndefinedGroupChildDoesNotBlockItsSibling proves declaring
+// one Group child that never receives Define does not block a sibling that
+// does: waiting on the defined child alone (not draining the whole run via
+// Finish, which would report the never-defined sibling as an unresolved
+// task) settles it Done while the undefined one stays Pending.
+func TestScheduler_UndefinedGroupChildDoesNotBlockItsSibling(t *testing.T) {
 	t.Parallel()
 	out := isolatedScheduler(t, schedulerTestCeiling, nil, false)
 	g := out.Group("worktrees")
-	paths := []string{"defined", "undefined"}
 
-	for path, task := range g.Each(paths) {
-		if path == "defined" {
-			task.Define(func() error { return nil })
-		}
+	defined := g.Task("defined")
+	defined.Define(func(ctx context.Context) error { return nil })
+	g.Task("undefined")
+	if err := defined.Wait(); err != nil {
+		t.Fatalf("Wait: %v", err)
 	}
 
 	snap := g.Snapshot()
-	var defined, undefined evo.TaskSnapshot
+	var definedSnap, undefinedSnap evo.TaskSnapshot
 	for _, child := range snap.Tasks {
 		switch child.Name {
 		case "defined":
-			defined = child
+			definedSnap = child
 		case "undefined":
-			undefined = child
+			undefinedSnap = child
 		}
 	}
-	if defined.State != evo.Done {
-		t.Fatalf("defined child state = %s, want Done", defined.State)
+	if definedSnap.State != evo.Done {
+		t.Fatalf("defined child state = %s, want Done", definedSnap.State)
 	}
-	if undefined.State != evo.Pending {
-		t.Fatalf("undefined child state = %s, want Pending (range must not wait)", undefined.State)
+	if undefinedSnap.State != evo.Pending {
+		t.Fatalf("undefined child state = %s, want Pending (its sibling's Define must not resolve it)", undefinedSnap.State)
 	}
 }
 
@@ -280,4 +328,18 @@ func TestScheduler_DryRunMutationNeverCallsCallback(t *testing.T) {
 	if strings.Contains(collapsed, "deleted") {
 		t.Fatalf("dry-run used committed tense:\n%s", got)
 	}
+}
+
+// equalStrings reports whether a and b hold the same strings in the same
+// order — used to pin the scheduler's observed task-start order exactly.
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

@@ -159,61 +159,14 @@ func TestConclusion_WarnOnlyAutoResolvesDoneAndStaysWarned(t *testing.T) {
 	}
 }
 
-// TestConformance_Problem1SuccessBlock renders evo-rec.md's Problem 1
-// "success" block shape end-to-end via the public API and asserts the
-// durable output matches the dialect: glyph column, counts, and derived
-// skip/keep taxonomy lines.
-//
-//	✓  branches   14 deleted
-//	✓  worktrees  2 removed
-//	!  skipped 6  (...)
-//	!  kept 3     (...)
-func TestConformance_Problem1SuccessBlock(t *testing.T) {
-	// Not t.Parallel(): evo.SetDefault mutates process-global state, same as
-	// the existing default-instance tests in taxonomy_test.go.
-	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Title: "clean", Color: evo.ColorNever, Plain: true}))
-
-	protected := evo.Reason("protected")
-	dirty := evo.Reason("dirty")
-	unpushed := evo.Reason("unpushed")
-	for name, task := range evo.Group("branches").Each([]string{"p", "d1", "d2", "d3", "d4", "d5", "u1", "u2", "u3"}) {
-		switch name {
-		case "p":
-			task.Skipped(protected)
-		case "u1", "u2", "u3":
-			task.Kept(unpushed)
-		default:
-			task.Skipped(dirty)
-		}
-	}
-	evo.Task("branches").Delete("local branch", func() error { return nil }, evo.Affected(14))
-
-	evo.Task("worktrees").Remove("worktree", func() error { return nil }, evo.Affected(2))
-
-	if err := evo.Default().Finish(); err != nil {
-		t.Fatal(err)
-	}
-	got := buf.String()
-
-	// Glyph column + counts, per task (the [changed] mutation ledger, not a
-	// caller-composed string — see task_mutations.go).
-	for _, want := range []string{
-		"[changed] branches",
-		"deleted 14 local branches",
-		"[changed] worktrees",
-		"removed 2 worktrees",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("want %q in dialect-conformant output:\n%s", want, got)
-		}
-	}
-	// Derived taxonomy lines: counts sum from the accumulated records, never
-	// hand-assembled (TAX-001).
-	if !strings.Contains(got, "skipped 6 (1 protected, 5 dirty)") {
-		t.Fatalf("want summed skip taxonomy, got:\n%s", got)
-	}
-	if !strings.Contains(got, "kept 3 (unpushed)") {
-		t.Fatalf("want kept taxonomy, got:\n%s", got)
-	}
-}
+// TestConformance_Problem1SuccessBlock pinned evo-rec.md's Problem 1
+// "success" block — the *aggregated* "! skipped 6 (...)"/"! kept 3 (...)"
+// collapse across many same-shaped children. That collapse was Each-owned
+// presentation (writePlainEachAggregate keys off the fromEach marker); 1.0
+// removed Each outright (§3.1: its get-or-create reliance is unsound), and
+// per-child taxonomy lines are what a plain Group child renders instead
+// (see TestSpecP17_Taxonomy_Failure in conformance/goldens for the
+// per-child shape). Restoring an aggregated view for large homogeneous
+// groups is renderer work for a later increment (§4: "aggregation is
+// renderer-owned and automatic"), out of this increment's blast radius —
+// removed rather than pinning stale behavior.

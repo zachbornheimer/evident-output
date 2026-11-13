@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -24,9 +25,9 @@ func TestFinishResolvesRunningTaskAsCancelled(t *testing.T) {
 	running.Doing("fetching")
 	pending := out.Sequence("steps").Task("verify")
 
-	code := out.Run(func(o *evo.Output) error {
+	code := out.Run(context.Background(), func(ctx context.Context) error {
 		return errors.New("boom")
-	})
+	}).ExitCode()
 
 	if code != evo.ExitFailed {
 		t.Fatalf("exit code = %d, want ExitFailed (%d)", code, evo.ExitFailed)

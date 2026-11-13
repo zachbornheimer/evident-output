@@ -5,7 +5,9 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"os"
 
 	evo "github.com/zachbornheimer/evident-output"
 )
@@ -20,7 +22,7 @@ func main() {
 		cfg.Verbosity = evo.VerbosityVerbose
 	}
 	evo.Init(cfg)
-	evo.Main(func() error {
+	os.Exit(evo.Main(func(ctx context.Context) error {
 		evo.Println("Reading configuration")
 		evo.Printf("Found %d packages\n", 18)
 		// Hidden unless --verbose (still present in Snapshot.Messages).
@@ -29,5 +31,5 @@ func main() {
 
 		evo.Task("lockfile").Done()
 		return nil
-	})
+	}))
 }

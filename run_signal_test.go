@@ -4,6 +4,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"syscall"
 	"testing"
@@ -23,14 +24,14 @@ func TestMain_SIGINTCancelsActiveTaskAndExits130(t *testing.T) {
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Run(func() error {
+	code := evo.Run(context.Background(), func(ctx context.Context) error {
 		close(started)
 		deadline := time.Now().Add(2 * time.Second)
 		for task.Snapshot().State != evo.Cancelled && time.Now().Before(deadline) {
 			time.Sleep(time.Millisecond)
 		}
 		return nil
-	})
+	}).ExitCode()
 
 	if code != evo.ExitCancelled {
 		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())
@@ -55,10 +56,10 @@ func TestMain_SecondSIGINTExits130WithoutWaitingForRun(t *testing.T) {
 
 	done := make(chan int, 1)
 	go func() {
-		done <- evo.Run(func() error {
+		done <- evo.Run(context.Background(), func(ctx context.Context) error {
 			close(started)
 			select {} // a run that never unwinds on its own; only the 2nd signal ends the call
-		})
+		}).ExitCode()
 	}()
 
 	select {

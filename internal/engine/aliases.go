@@ -50,6 +50,7 @@ type Event = core.Event
 
 const EventSchemaVersion = core.EventSchemaVersion
 
+type Result = core.Result
 type Snapshot = core.Snapshot
 type TaskSnapshot = core.TaskSnapshot
 type TaxonomyRecord = core.TaxonomyRecord
@@ -65,6 +66,17 @@ const (
 	ExitFailed    = core.ExitFailed
 	ExitCancelled = core.ExitCancelled
 )
+
+type Resolution = core.Resolution
+
+const (
+	ResolutionExecuted         = core.ResolutionExecuted
+	ResolutionAlreadySatisfied = core.ResolutionAlreadySatisfied
+	ResolutionNoWork           = core.ResolutionNoWork
+)
+
+type EvidencePhase = core.EvidencePhase
+type TaskEvidence = core.TaskEvidence
 
 type Problem = core.Problem
 type SourceLocation = core.SourceLocation

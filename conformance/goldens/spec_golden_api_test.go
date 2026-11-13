@@ -2,6 +2,7 @@ package goldens_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -10,31 +11,14 @@ import (
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
-func TestSpecP1_CollectionEach_Success(t *testing.T) {
-	t.Parallel()
-	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Isolated: true, Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
-	branches := []string{"feat/a", "feat/b", "feat/c"}
-	g := out.Group("branches")
-	g.Summary("3 deleted")
-	for name, task := range g.Each(branches) {
-		n := name
-		task.Delete("branch", func() error {
-			_ = n
-			return nil
-		})
-	}
-	if err := out.Finish(); err != nil {
-		t.Fatal(err)
-	}
-	got := collapseFields(buf.String())
-	if !strings.Contains(got, "✓ branches") {
-		t.Fatalf("want aggregate Done parent, got:\n%s", buf.String())
-	}
-	if strings.Contains(got, "✓ feat/a") || strings.Contains(got, "✓ feat/b") {
-		t.Fatalf("successful Each children must stay collapsed, got:\n%s", buf.String())
-	}
-}
+// TestSpecP1_CollectionEach_Success pinned Each's own collapse-on-success
+// aggregation: successful fromEach children stay invisible under one
+// "✓ branches" parent row. 1.0 removed Each outright (§3.1: its
+// get-or-create reliance is unsound) — a plain Group child now renders its
+// own row regardless of outcome. Restoring a collapsed view for large
+// homogeneous groups is renderer work for a later increment (§4:
+// "aggregation is renderer-owned and automatic") — removed rather than
+// pinning stale behavior.
 
 func TestSpecP3_DryRunMutation_NeverCallsCallback(t *testing.T) {
 	t.Parallel()
@@ -50,14 +34,10 @@ func TestSpecP3_DryRunMutation_NeverCallsCallback(t *testing.T) {
 	})
 	called := false
 	g := out.Group("branches")
-	for name, task := range g.Each([]string{"feat/old-billing"}) {
-		n := name
-		task.Delete("branch", func() error {
-			_ = n
-			called = true
-			return nil
-		})
-	}
+	g.Task("feat/old-billing").Delete("branch", func() error {
+		called = true
+		return nil
+	})
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -78,10 +58,10 @@ func TestSpecP4_SequenceDefine_DeclarationOrder(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Title: "python", Stdout: &buf, Plain: true, Color: evo.ColorNever, Clock: testkit.NewClock()})
 	seq := out.Sequence("python")
-	seq.Task("scan").Define(func() error { return nil })
-	seq.Task("venv").Define(func() error { return nil })
+	seq.Task("scan").Define(func(ctx context.Context) error { return nil })
+	seq.Task("venv").Define(func(ctx context.Context) error { return nil })
 	install := seq.Task("install")
-	install.Define(func() error {
+	install.Define(func(ctx context.Context) error {
 		install.Done("14 modules")
 		return nil
 	})
@@ -121,17 +101,17 @@ func TestSpecAfter_FetchWaitsForGroups(t *testing.T) {
 		}
 	}()
 
-	worktrees.Task("wt-a").Define(func() error {
+	worktrees.Task("wt-a").Define(func(ctx context.Context) error {
 		close(wtStarted)
 		<-wtRelease
 		return nil
 	})
-	branches.Task("br-a").Define(func() error {
+	branches.Task("br-a").Define(func(ctx context.Context) error {
 		close(brStarted)
 		<-brRelease
 		return nil
 	})
-	out.Task("fetch").After(worktrees, branches).Define(func() error {
+	out.Task("fetch").After(worktrees, branches).Define(func(ctx context.Context) error {
 		close(fetchStarted)
 		return nil
 	})

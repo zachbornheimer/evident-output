@@ -35,14 +35,22 @@ func TestAPISugar_TaskNameUnchangedWithoutArgs(t *testing.T) {
 	}
 }
 
-func TestAPISugar_TaskGetOrCreateKeysOnFormattedName(t *testing.T) {
+// TestAPISugar_TaskDuplicateFormattedNameIsRejected proves identity keys off
+// the *formatted* name (not the raw format string): a second evo.Task call
+// producing the same formatted text is a duplicate sibling declaration
+// (§3.1), while a differently formatted name declares a distinct sibling.
+func TestAPISugar_TaskDuplicateFormattedNameIsRejected(t *testing.T) {
 	var buf strings.Builder
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
+	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	evo.SetDefault(out)
 
 	first := evo.Task(fmt.Sprintf("branch %s", "main"))
 	second := evo.Task(fmt.Sprintf("branch %s", "main"))
-	if first != second {
-		t.Fatal("expected get-or-create identity on the formatted name")
+	if second == first {
+		t.Fatal("expected a distinct (failed, orphaned) handle for the duplicate declaration")
+	}
+	if err := out.Err(); !errors.Is(err, evo.ErrDuplicateSiblingName) {
+		t.Fatalf("Err() = %v, want ErrDuplicateSiblingName", err)
 	}
 	other := evo.Task(fmt.Sprintf("branch %s", "dev"))
 	if other == first {

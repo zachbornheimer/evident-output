@@ -4,6 +4,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"strings"
 	"syscall"
@@ -42,11 +43,11 @@ func TestConfirm_SIGINT_CancelsGateNotDeclined(t *testing.T) {
 	}()
 
 	var confirmResult bool
-	code := evo.Run(func() error {
+	code := evo.Run(context.Background(), func(ctx context.Context) error {
 		close(started)
 		confirmResult = evo.Confirm("delete origin/production-hotfix?")
 		return nil
-	})
+	}).ExitCode()
 
 	if code != evo.ExitCancelled {
 		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())

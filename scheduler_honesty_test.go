@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"strings"
@@ -54,7 +55,7 @@ func TestScheduler_P13_FailfInsideDefineDoesNotDoubleResolve(t *testing.T) {
 	t.Parallel()
 	out := isolatedScheduler(t, 1, io.Discard, false)
 	task := out.Task("lint")
-	task.Define(func() error {
+	task.Define(func(ctx context.Context) error {
 		return task.Failf("lint failed: %w", errProbe)
 	})
 	if err := out.Finish(); err != nil {
@@ -144,7 +145,7 @@ func TestScheduler_P15_WaitOnTerminalTaskReturnsInsteadOfHanging(t *testing.T) {
 	var ran atomic.Bool
 	var waitErr error
 	withinBudget(t, "Define+Wait on a resolved task", func() {
-		task.Define(func() error {
+		task.Define(func(ctx context.Context) error {
 			ran.Store(true)
 			return nil
 		})
@@ -176,9 +177,9 @@ func TestScheduler_P16_NestedWaitAtCeilingCompletes(t *testing.T) {
 	var innerRan atomic.Bool
 	var innerErr error
 	outer := group.Task("outer")
-	outer.Define(func() error {
+	outer.Define(func(ctx context.Context) error {
 		inner := group.Task("inner")
-		inner.Define(func() error {
+		inner.Define(func(ctx context.Context) error {
 			innerRan.Store(true)
 			return nil
 		})

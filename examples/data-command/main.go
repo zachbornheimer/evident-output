@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"os"
@@ -27,7 +28,7 @@ func main() {
 		Title:  "build",
 		Format: evo.FormatData,
 	})
-	evo.Main(func() error {
+	os.Exit(evo.Main(func(ctx context.Context) error {
 		evo.Task("compile").Done()
 		evo.Task("tests").Done()
 		link := evo.Task("link")
@@ -46,5 +47,5 @@ func main() {
 			return err
 		}
 		return nil
-	})
+	}))
 }

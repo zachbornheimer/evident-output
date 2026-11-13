@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -13,18 +14,24 @@ import (
 	"github.com/zachbornheimer/evident-output/testkit"
 )
 
-func TestTask_PackageFuncGetOrCreateReturnsSameHandle(t *testing.T) {
+// TestTask_PackageFuncRepeatedNameIsDuplicateSibling proves evo.Task(name)
+// called twice with the same name is a duplicate sibling declaration
+// (§3.1), not a get-or-create — handles are values, so a caller that wants
+// to keep using one declaration keeps the *TaskHandle it got instead of
+// re-declaring by name.
+func TestTask_PackageFuncRepeatedNameIsDuplicateSibling(t *testing.T) {
 	var buf bytes.Buffer
-	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
+	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
+	evo.SetDefault(out)
 
 	a := evo.Task("branches")
 	b := evo.Task("branches")
 
-	if a != b {
-		t.Fatal("evo.Task(name) called twice must return the same *TaskHandle")
+	if a == b {
+		t.Fatal("evo.Task(name) called twice must return distinct handles")
 	}
-	if a.Snapshot().ID != b.Snapshot().ID {
-		t.Fatalf("same handle reported different ids: %q vs %q", a.Snapshot().ID, b.Snapshot().ID)
+	if !errors.Is(out.Err(), evo.ErrDuplicateSiblingName) {
+		t.Fatalf("Err() = %v, want ErrDuplicateSiblingName", out.Err())
 	}
 
 	other := evo.Task("worktrees")
@@ -73,10 +80,10 @@ func TestMain_OKExitZero(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
-	code := evo.Run(func() error {
+	code := evo.Run(context.Background(), func(ctx context.Context) error {
 		evo.Task("working tree").Done()
 		return nil
-	})
+	}).ExitCode()
 	if code != evo.ExitOK {
 		t.Fatalf("exit %d, want %d; out:\n%s", code, evo.ExitOK, buf.String())
 	}
@@ -86,10 +93,10 @@ func TestMain_BlockedExitOne(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
-	code := evo.Run(func() error {
+	code := evo.Run(context.Background(), func(ctx context.Context) error {
 		evo.Task("working tree").Block("dirty")
 		return nil
-	})
+	}).ExitCode()
 	if code != evo.ExitBlocked {
 		t.Fatalf("exit %d, want %d", code, evo.ExitBlocked)
 	}
@@ -99,9 +106,9 @@ func TestMain_FailedExitTwo(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
-	code := evo.Run(func() error {
+	code := evo.Run(context.Background(), func(ctx context.Context) error {
 		return errors.New("app boom")
-	})
+	}).ExitCode()
 	if code != evo.ExitFailed {
 		t.Fatalf("exit %d, want %d", code, evo.ExitFailed)
 	}
@@ -111,7 +118,7 @@ func TestMain_NilRunNeverPanics(t *testing.T) {
 	var buf bytes.Buffer
 	evo.SetDefault(evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true}))
 
-	code := evo.Run(nil)
+	code := evo.Run(context.Background(), nil).ExitCode()
 	if code != evo.ExitOK {
 		t.Fatalf("exit %d, want %d", code, evo.ExitOK)
 	}

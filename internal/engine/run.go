@@ -1,53 +1,36 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"os"
-	"os/signal"
 	"syscall"
 )
 
-// signalNotifier and signalStopper abstract os/signal (facade rule) so
-// SIGINT/SIGTERM handling in Main/MainWith is exercised in tests without
-// sending real process signals.
-type signalNotifier func(c chan<- os.Signal, sig ...os.Signal)
-type signalStopper func(c chan<- os.Signal)
-
-var (
-	notifySignals signalNotifier = signal.Notify
-	stopSignals   signalStopper  = signal.Stop
-)
-
-// exitProcess abstracts os.Exit (facade rule, mirroring notifySignals above)
-// so Main/MainWith's process-terminating behavior is the only thing that
-// isn't unit-testable in isolation — Run/evo.Run stay pure functions that
-// return a code and never exit, and aPI-018 ("library does not call
-// os.Exit") is restated as "only through this facade, only from Main/MainWith".
-var exitProcess = os.Exit
-
-// signalChannelCapacity holds one signal while cancelActive is in flight plus
-// one more so a second Ctrl-C arriving during cleanup is never dropped.
-const signalChannelCapacity = 2
-
 // Run executes a CLI presentation lifecycle against this Output and returns
-// the process exit code — the Isolated-instance counterpart of Main, for a
-// caller holding its own *Output (evo.Init(evo.Config{Isolated: true})).
+// the Result (Conclusion plus the application error, if any) — the
+// Isolated-instance counterpart of Main, for a caller holding its own
+// *Output (evo.Init(evo.Config{Isolated: true})).
 //
 // Typical entrypoint:
 //
 //	func main() {
 //	    out := evo.Init(evo.Config{Title: "tool", Isolated: true})
-//	    os.Exit(out.Run(run))
+//	    os.Exit(out.Run(context.Background(), run).ExitCode())
 //	}
+//
+// ctx carries caller-driven cancellation into run in addition to the
+// SIGINT/SIGTERM wiring below; a nil ctx runs as context.Background().
 //
 // Lifecycle: arm first paint → run → (reconcile run error into model) →
 // Finish → Close.
 //
-// Exit codes:
+// Result.Conclusion.ExitCode:
 //   - nil Output → ExitFailed (2)
 //   - SIGINT/SIGTERM → Cancel on the active task (or the output) → ExitCancelled (130)
 //   - a second SIGINT/SIGTERM → ExitCancelled (130) returned immediately, without
-//     waiting for run to unwind, so the caller's os.Exit(out.Run(...)) exits now
+//     waiting for run to unwind, so the caller's
+//     os.Exit(out.Run(...).ExitCode()) exits now
 //   - Finish/Close bookkeeping misuse (a leftover unresolved task, a
 //     double-resolve, ...) is folded into the Conclusion before it renders,
 //     so the printed band and Conclusion.ExitCode already agree; a Blocked
@@ -62,78 +45,72 @@ const signalChannelCapacity = 2
 // conclusion so CLIs that contract on exit 1 can set FailedExitCode: 1.
 //
 // A non-nil application error is recorded as an output-level Fail before Finish
-// so the human conclusion cannot show [ready] while the process fails.
-func (o *Output) Run(run func(*Output) error) int {
+// so the human conclusion cannot show [ready] while the process fails, and is
+// also returned as Result.Err so embedders can distinguish work failure from
+// presentation/transport failure.
+func (o *Output) Run(ctx context.Context, run RunFunc) Result {
 	if o == nil {
-		return ExitFailed
+		return Result{Conclusion: Conclusion{State: StateFailed, ExitCode: ExitFailed}}
 	}
 	o.arm()
-	return runInterruptible(o, run)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return runInterruptible(ctx, o, run)
 }
 
 // Run executes a CLI presentation lifecycle against the package-level default
-// instance (see Init) and returns the process exit code, never exiting — the
+// instance (see Init) and returns the Result, never exiting — the
 // package-level counterpart of Output.Run, for callers (tests, or a caller
-// composing its own exit path) that need the code without Main's os.Exit.
+// composing its own exit path) that need the Result without Main's exit-code
+// derivation.
 //
 // run reports only an error; the Conclusion (0/1/2/130) is the sole source of
 // the exit code — see Output.Run for the full lifecycle and signal contract.
-func Run(run func() error) int {
+func Run(ctx context.Context, run RunFunc) Result {
 	out := Default()
 	out.arm()
-	return runInterruptible(out, func(o *Output) error {
-		if run == nil {
-			return nil
-		}
-		return run()
-	})
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return runInterruptible(ctx, out, run)
 }
 
 // Main runs a CLI presentation lifecycle against the package-level default
-// instance (see Init) and exits the process with the resulting code via the
-// exitProcess facade — the library still never calls os.Exit directly
-// (aPI-018); Main is the sole sanctioned path to it.
+// instance (see Init) and returns the derived exit code; it does not itself
+// call os.Exit — the library still never calls os.Exit directly (aPI-018),
+// so the caller owns process termination:
 //
 //	func main() {
 //	    evo.Init(evo.Config{Title: "tool"})
-//	    evo.Main(run)
+//	    os.Exit(evo.Main(run))
 //	}
 //
-// Callers that need the exit code without exiting (tests, or composing a
-// larger CLI) call Run instead.
-func Main(run func() error) {
-	exitProcess(Run(run))
-}
-
-// MainWith runs a CLI presentation lifecycle against a caller-held *Output
-// (evo.Init(evo.Config{Isolated: true})) and exits the process with the
-// resulting code via the exitProcess facade — the Isolated-instance
-// counterpart of Main, for a caller holding its own *Output. Output.Run
-// stays the non-exiting form Main/MainWith are both built on.
-//
-//	func main() {
-//	    out := evo.Init(evo.Config{Title: "tool", Isolated: true})
-//	    evo.MainWith(out, run)
-//	}
-func mainWith(out *Output, run func(*Output) error) {
-	exitProcess(out.Run(run))
+// Callers that need the full Result (Conclusion plus application error, for
+// embedding or JSON projection) call Run instead.
+func Main(run RunFunc) int {
+	return Run(context.Background(), run).ExitCode()
 }
 
 // runInterruptible executes run to completion, wiring SIGINT/SIGTERM into
-// cancellation of the active task (or the output itself) so the ledger and
-// exit code always agree. A second signal returns ExitCancelled immediately
-// instead of waiting for run to unwind — the process-level os.Exit that wraps
-// Main/MainWith is what actually terminates.
-func runInterruptible(out *Output, run func(*Output) error) int {
+// cancellation of the active task (or the output itself) — and of the
+// derived ctx passed to run — so the ledger and exit code always agree. A
+// second signal returns ExitCancelled immediately instead of waiting for run
+// to unwind — the process-level os.Exit that wraps a caller's
+// os.Exit(evo.Main(run)) is what actually terminates.
+func runInterruptible(ctx context.Context, out *Output, run RunFunc) Result {
 	sigCh := make(chan os.Signal, signalChannelCapacity)
 	notifySignals(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	defer stopSignals(sigCh)
+
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	done := make(chan error, 1)
 	go func() {
 		var err error
 		if run != nil {
-			err = run(out)
+			err = run(runCtx)
 		}
 		done <- err
 	}()
@@ -143,18 +120,19 @@ func runInterruptible(out *Output, run func(*Output) error) int {
 		return concludeRun(out, runErr)
 	case <-sigCh:
 		out.interrupt("interrupted")
+		cancel()
 		select {
-		case <-done:
-			return concludeCancelled(out)
+		case runErr := <-done:
+			return concludeCancelled(out, runErr)
 		case <-sigCh:
-			return ExitCancelled
+			return Result{Conclusion: Conclusion{State: StateCancelled, Cancelled: true, ExitCode: ExitCancelled}}
 		}
 	}
 }
 
 // concludeRun reconciles an ordinary (non-interrupted) run outcome into the
-// process exit code.
-func concludeRun(out *Output, runErr error) int {
+// Result.
+func concludeRun(out *Output, runErr error) Result {
 	if runErr != nil && !out.anyFailed() {
 		// Synchronize the presentation model with the application error only when
 		// no entity already recorded Failed — avoids a duplicate synthetic Fail row
@@ -163,25 +141,27 @@ func concludeRun(out *Output, runErr error) int {
 	}
 	finishErr := out.Finish()
 	closeErr := out.Close()
-	code := out.Conclusion().ExitCode
+	conclusion := out.Conclusion()
 	// Bookkeeping misuse (a leftover unresolved task, a duplicate key, ...)
 	// is already folded into the Conclusion itself before the band renders
 	// (release-gate finding 2) — ExitCode already agrees with what printed.
 	// A genuine renderer/write failure is different: it surfaces only after
 	// the band is already flushed, so the band never had a chance to
 	// reflect it — that still escalates an otherwise-OK exit code here.
-	if code == ExitOK && (errors.Is(finishErr, ErrRenderer) || errors.Is(closeErr, ErrRenderer)) {
-		return ExitFailed
+	if conclusion.ExitCode == ExitOK && (errors.Is(finishErr, ErrRenderer) || errors.Is(closeErr, ErrRenderer)) {
+		conclusion.ExitCode = ExitFailed
 	}
-	return code
+	return Result{Conclusion: conclusion, Err: runErr}
 }
 
 // concludeCancelled finalizes an interrupted run; the Conclusion computed
 // from the Cancel already recorded is the sole source of ExitCancelled.
-func concludeCancelled(out *Output) int {
+// runErr is the (usually context.Canceled-flavored) error run returned after
+// cancellation, carried through as Result.Err for embedders.
+func concludeCancelled(out *Output, runErr error) Result {
 	_ = out.Finish()
 	_ = out.Close()
-	return ExitCancelled
+	return Result{Conclusion: out.Conclusion(), Err: runErr}
 }
 
 // anyBlockedSoFar reports whether any Task is currently in the Blocked

@@ -57,20 +57,23 @@ func TestTXT001_ASCIIWidthStable(t *testing.T) {
 	}
 }
 
-// TestDOM004_SameNameGetsOrCreates pins L1: repeated Output.Task calls with
-// the same name return the live handle instead of a second declared row —
-// the same get-or-create identity evo.Task already gives the default
-// instance (the repo-retire P0 this closes: a second call site under a name
-// already in use produced a duplicate row and ErrDuplicateKey instead of the
-// one live handle).
-func TestDOM004_SameNameGetsOrCreates(t *testing.T) {
+// TestDOM004_SameNameIsDuplicateSibling pins §3.1: repeated Output.Task
+// calls with the same name are a duplicate sibling declaration, not a
+// get-or-create — two distinct call sites sharing a name is exactly the
+// ambiguity 1.0 refuses at declaration time (get-or-create merged them into
+// one identity, which is unsound once identity drives manifest
+// reconciliation).
+func TestDOM004_SameNameIsDuplicateSibling(t *testing.T) {
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 	a := out.Task("same")
 	b := out.Task("same")
 	a.Done()
-	if a.Snapshot().ID != b.Snapshot().ID {
-		t.Fatal("expected the same handle for a repeated name")
+	if a.Snapshot().ID == b.Snapshot().ID {
+		t.Fatal("expected a distinct handle for the duplicate declaration")
+	}
+	if !errors.Is(out.Err(), evo.ErrDuplicateSiblingName) {
+		t.Fatalf("Err() = %v, want ErrDuplicateSiblingName", out.Err())
 	}
 }
 
@@ -176,12 +179,11 @@ func TestAPI018_LibraryDoesNotCallOsExit(t *testing.T) {
 	// misuse, so Finish returning nil here is expected, not evidence of a
 	// process exit either way.
 	//
-	// P6 restated the invariant rather than deleting it once Main/MainWith
-	// gained a real os.Exit call: the library's *only* path to it is the
-	// injectable exitProcess facade, proven from inside the package by
-	// TestMain_ExitsThroughExitProcessFacade (run_exit_facade_internal_test.go),
-	// which swaps the facade for a fake and asserts Main/MainWith never
-	// call the real os.Exit.
+	// 1.0 removed MainWith (the pre-v0.6 func(*Output) error entrypoint)
+	// and its exitProcess facade outright — Run/Main are the only
+	// entrypoints left, and neither calls os.Exit at all
+	// (run_exit_facade_internal_test.go's TestMain_ReturnsCodeWithoutExiting
+	// proves it directly): the caller writes os.Exit(evo.Main(run)).
 	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	out.Task("x")
 	if err := out.Finish(); err != nil {

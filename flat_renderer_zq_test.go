@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"strings"
 	"testing"
@@ -187,7 +188,7 @@ func TestCapture_StderrOnlyFeedsDetailTail(t *testing.T) {
 
 // TestMain_FailedExitCodeConfigurable is the P5 contract: Config.FailedExitCode
 // overrides the default ExitFailed (2) when the conclusion is failed.
-func TestMainWith_FailedExitCodeConfigurable(t *testing.T) {
+func TestRun_FailedExitCodeConfigurable(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{
 		Title:          "zq",
@@ -197,10 +198,11 @@ func TestMainWith_FailedExitCodeConfigurable(t *testing.T) {
 		Color:          evo.ColorNever,
 		FailedExitCode: 1,
 	})
-	code := out.Run(func(o *evo.Output) error {
+	code := out.Run(context.Background(), func(ctx context.Context) error {
+		o := out
 		o.Task("gofmt check").Fail("gofmt check exited 1")
 		return nil
-	})
+	}).ExitCode()
 	if code != 1 {
 		t.Fatalf("P5: Main exit = %d, want FailedExitCode 1; out:\n%s", code, buf.String())
 	}
@@ -213,10 +215,11 @@ func TestMainWith_FailedExitCodeConfigurable(t *testing.T) {
 		Plain:  true,
 		Color:  evo.ColorNever,
 	})
-	code2 := out2.Run(func(o *evo.Output) error {
+	code2 := out2.Run(context.Background(), func(ctx context.Context) error {
+		o := out2
 		o.Task("x").Fail("boom")
 		return nil
-	})
+	}).ExitCode()
 	if code2 != evo.ExitFailed {
 		t.Fatalf("default failed exit = %d, want %d", code2, evo.ExitFailed)
 	}

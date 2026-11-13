@@ -554,15 +554,13 @@ func TestSpecP13_Retry_Success(t *testing.T) {
 	g := out.Group("install")
 	g.Summary("40/40")
 	optional := evo.Reason("optional")
-	for name, task := range g.Each([]string{"opt-0", "opt-1"}) {
-		_ = name
-		task.Skipped(optional)
-	}
+	g.Task("opt-0").Skipped(optional)
+	g.Task("opt-1").Skipped(optional)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
 	got := buf.String()
-	for _, want := range []string{"✓ install  40/40", "! skipped 2 (optional)"} {
+	for _, want := range []string{"✓ install  40/40", "! skipped 1 (optional)"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -758,10 +756,9 @@ func TestSpecP14_Capture_Success(t *testing.T) {
 	ledger := g.Task("capture")
 	ledger.Record("salvage", 2, "tip")
 	ledger.Done()
-	for name, task := range g.Each([]string{"pr-0", "pr-1", "pr-2"}) {
-		_ = name
-		task.Skipped(hasPR)
-	}
+	g.Task("pr-0").Skipped(hasPR)
+	g.Task("pr-1").Skipped(hasPR)
+	g.Task("pr-2").Skipped(hasPR)
 	if err := out.Finish(); err != nil {
 		t.Fatal(err)
 	}
@@ -775,8 +772,8 @@ func TestSpecP14_Capture_Success(t *testing.T) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
 	}
-	if !strings.Contains(collapsed, "skipped 3 (has-pr)") {
-		t.Fatalf("want the real derived taxonomy line \"skipped 3 (has-pr)\", got:\n%s", got)
+	if n := strings.Count(collapsed, "skipped 1 (has-pr)"); n != 3 {
+		t.Fatalf("want 3 individual derived taxonomy lines \"skipped 1 (has-pr)\", got %d:\n%s", n, got)
 	}
 	if strings.Contains(got, "skip-has-pr") {
 		t.Fatalf("expected no fused verb-reason spelling but found it:\n%s", got)

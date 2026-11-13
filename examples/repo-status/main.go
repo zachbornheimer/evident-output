@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -42,7 +43,7 @@ func main() {
 		cfg.Verbosity = evo.VerbosityVerbose
 	}
 	evo.Init(cfg)
-	evo.Main(func() error {
+	os.Exit(evo.Main(func(ctx context.Context) error {
 		evo.Verbose().Printf("Checking repository %s\n", *name)
 
 		time.Sleep(step)
@@ -72,7 +73,7 @@ func main() {
 		time.Sleep(step)
 		evo.Task("stashes").Done()
 		return nil
-	})
+	}))
 }
 
 // parseColorMode maps the --color flag's always|never|auto (and common

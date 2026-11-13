@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -24,9 +25,9 @@ func TestFinish_ReadmeQuickstart_EachLoopAutoResolvesDone(t *testing.T) {
 		evo.Detail("commit or stash before continuing"),
 	)
 	out.Task("cleanup").Delete("stale local branch", func() error { return nil }, evo.Affected(2))
-	packages := []string{"a", "b", "c"}
-	for _, task := range out.Group("install").Each(packages) {
-		task.Define(func() error { return nil })
+	install := out.Group("install")
+	for _, pkg := range []string{"a", "b", "c"} {
+		install.Task(pkg).Define(func(ctx context.Context) error { return nil })
 	}
 
 	if err := out.Finish(); err != nil {
@@ -52,9 +53,9 @@ func TestFinish_TeachingLadder_EachThenReturnNil_NeverCancels(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	items := []string{"one", "two"}
-	for _, task := range out.Group("scan").Each(items) {
-		task.Define(func() error { return nil })
+	scan := out.Group("scan")
+	for _, name := range []string{"one", "two"} {
+		scan.Task(name).Define(func(ctx context.Context) error { return nil })
 	}
 
 	if err := out.Finish(); err != nil {
@@ -120,11 +121,12 @@ func TestRun_BlockedWithLeftoverMisuse_NeverEscalatesToFailed(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	code := out.Run(func(o *evo.Output) error {
-		o.Task("branches").Block("local-only branch")
-		o.Task("branches").Done() // already resolved — leftover bookkeeping misuse
+	code := out.Run(context.Background(), func(ctx context.Context) error {
+		task := out.Task("branches")
+		task.Block("local-only branch")
+		task.Done() // already resolved — leftover bookkeeping misuse
 		return nil
-	})
+	}).ExitCode()
 
 	if code != evo.ExitBlocked {
 		t.Fatalf("exit code = %d, want %d (ExitBlocked) — leftover misuse must not escalate the printed Block band to Failed:\n%s", code, evo.ExitBlocked, buf.String())

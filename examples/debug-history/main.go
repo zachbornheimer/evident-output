@@ -4,7 +4,9 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"os"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -19,11 +21,11 @@ func main() {
 	}
 
 	evo.Init(evo.Config{Title: "repo-probe"})
-	evo.Main(func() error {
+	os.Exit(evo.Main(func(ctx context.Context) error {
 		time.Sleep(step)
 		evo.Task("working tree").Done()
 		time.Sleep(step)
 		evo.Task("branches").Done()
 		return nil
-	})
+	}))
 }

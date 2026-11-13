@@ -40,7 +40,7 @@ const doingDoneChainFixedSrc = `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f(a *evo.Output) {
   t := a.Task("file integrity")
-  t.Define(func() error {
+  t.Define(func(ctx context.Context) error {
     return nil
   })
 }
@@ -85,7 +85,7 @@ const doingProgressDoneSrc = `package p
 import evo "github.com/zachbornheimer/evident-output"
 func f(t *evo.TaskHandle) {
   t.Doing("scanning")
-  t.Define(func() error {
+  t.Define(func(ctx context.Context) error {
     return nil
   })
   t.Done()
@@ -107,7 +107,7 @@ func TestFP006_DefineBetween_StaysSilent(t *testing.T) {
 const failfInDefineSrc = `package p
 import evo "github.com/zachbornheimer/evident-output"
 func run(task *evo.TaskHandle) {
-  task.Define(func() error {
+  task.Define(func(ctx context.Context) error {
     if err := doWork(task); err != nil {
       return err
     }
@@ -137,7 +137,7 @@ func TestAPI040_FailfReachableFromDefine_Fires(t *testing.T) {
 const failThenReturnErrSrc = `package p
 import evo "github.com/zachbornheimer/evident-output"
 func run(task *evo.TaskHandle) {
-  task.Define(func() error {
+  task.Define(func(ctx context.Context) error {
     err := doWork()
     if err != nil {
       task.Fail("resolve failed")
@@ -157,7 +157,7 @@ func TestAPI040_FailThenReturnErr_Fires(t *testing.T) {
 const returnErrOnlySrc = `package p
 import evo "github.com/zachbornheimer/evident-output"
 func run(task *evo.TaskHandle) {
-  task.Define(func() error {
+  task.Define(func(ctx context.Context) error {
     if err := doWork(task); err != nil {
       return err
     }
@@ -208,7 +208,7 @@ import evo "github.com/zachbornheimer/evident-output"
 func run(out *evo.Output) {
   t := out.Task("a")
   go func() {
-    t.Define(func() error { return nil })
+    t.Define(func(ctx context.Context) error { return nil })
   }()
 }
 `
@@ -326,7 +326,7 @@ const channelWaitAroundDefineSrc = `package p
 import evo "github.com/zachbornheimer/evident-output"
 func defineAndWait(task *evo.TaskHandle, fn func() error) error {
   done := make(chan error, 1)
-  task.Define(func() error {
+  task.Define(func(ctx context.Context) error {
     err := fn()
     done <- err
     return err

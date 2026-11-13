@@ -2,6 +2,7 @@ package gates_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -74,10 +75,11 @@ func TestRun_NeverResolvedBareTask_BandAndExitCodeAgree(t *testing.T) {
 	var buf bytes.Buffer
 	out := evo.Init(evo.Config{Isolated: true, Stdout: &buf, Color: evo.ColorNever, Plain: true})
 
-	code := out.Run(func(o *evo.Output) error {
+	code := out.Run(context.Background(), func(ctx context.Context) error {
+		o := out
 		o.Task("install") // declared, never started, never resolved
 		return nil
-	})
+	}).ExitCode()
 
 	rendered := buf.String()
 	bandIsOKFamily := strings.Contains(rendered, "[ready") ||

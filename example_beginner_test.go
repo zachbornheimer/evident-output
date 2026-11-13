@@ -2,6 +2,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 
@@ -21,7 +22,7 @@ func Example_beginnerAPI() {
 	worktrees := out.Sequence("worktrees")
 	for _, path := range []string{"repo-a", "repo-b"} {
 		task := worktrees.Task(path)
-		task.Define(func() error { return check(path) })
+		task.Define(func(ctx context.Context) error { return check(path) })
 	}
 	if err := out.Finish(); err != nil {
 		fmt.Println(err)

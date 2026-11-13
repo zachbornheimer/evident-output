@@ -123,23 +123,22 @@ func Default() *Output {
 	return defaultOut
 }
 
-// Task declares (or, for a repeated name, returns) a Task on the default
-// instance. Calling Task with the same name twice returns the same handle —
-// the identity a caller doing evo.Task("branches") from two call sites
-// expects. name is a printf format when args are present (fmt.Sprintf
-// semantics); the get-or-create key is the formatted name.
+// Task declares a Task on the default instance. A repeated name is a
+// duplicate sibling declaration (§3.1), not a get-or-create — see
+// Output.Task/taskScoped. name is a printf format when args are present
+// (fmt.Sprintf semantics).
 func Task(name string) *TaskHandle {
-	return Default().taskGetOrCreate(name)
+	return Default().taskScoped(name, "")
 }
 
-// Sequence declares (or, for a repeated name, returns) an ordered task
-// container on the default instance — see Output.Sequence.
+// Sequence declares an ordered task container on the default instance —
+// see Output.Sequence.
 func Sequence(name string) *SequenceHandle {
 	return Default().Sequence(name)
 }
 
-// Group declares (or, for a repeated name, returns) an independent
-// collection of child tasks on the default instance — see Output.Group.
+// Group declares an independent collection of child tasks on the default
+// instance — see Output.Group.
 func Group(name string) *GroupHandle {
 	return Default().Group(name)
 }

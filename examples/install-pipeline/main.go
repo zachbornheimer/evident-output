@@ -5,7 +5,9 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"os"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -22,11 +24,11 @@ func main() {
 	}
 
 	evo.Init(evo.Config{Title: "install"})
-	evo.Main(func() error {
+	os.Exit(evo.Main(func(ctx context.Context) error {
 		pipeline := evo.Sequence("pipeline")
 
 		modules := pipeline.Task("go mod download")
-		modules.Define(func() error {
+		modules.Define(func(ctx context.Context) error {
 			modules.Doing("resolving modules")
 			for completed := 1; completed <= 4; completed++ {
 				time.Sleep(step)
@@ -36,7 +38,7 @@ func main() {
 		})
 
 		generate := pipeline.Task("go generate")
-		generate.Define(func() error {
+		generate.Define(func(ctx context.Context) error {
 			generate.Doing("running generators")
 			time.Sleep(step)
 			generate.Bytes(256*1024, 256*1024)
@@ -44,7 +46,7 @@ func main() {
 		})
 
 		tests := pipeline.Task("go test ./...")
-		tests.Define(func() error {
+		tests.Define(func(ctx context.Context) error {
 			time.Sleep(step)
 			if *failTests {
 				tests.Fail("tests failed: exit status 1", evo.Detail("=== RUN   TestFoo\n--- FAIL: TestFoo (0.01s)\n    foo_test.go:12: want 1, got 0"))
@@ -54,5 +56,5 @@ func main() {
 			return nil
 		})
 		return nil
-	})
+	}))
 }

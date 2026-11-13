@@ -4,6 +4,7 @@ package evo_test
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"strings"
 	"syscall"
@@ -31,14 +32,14 @@ func TestMain_SIGINTCancelsGroupChildAndLaterSiblingsRenderNotStarted(t *testing
 		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 	}()
 
-	code := evo.Run(func() error {
+	code := evo.Run(context.Background(), func(ctx context.Context) error {
 		close(started)
 		deadline := time.Now().Add(2 * time.Second)
 		for venv.Snapshot().State != evo.Cancelled && time.Now().Before(deadline) {
 			time.Sleep(time.Millisecond)
 		}
 		return nil
-	})
+	}).ExitCode()
 
 	if code != evo.ExitCancelled {
 		t.Fatalf("exit %d, want %d (ExitCancelled); out:\n%s", code, evo.ExitCancelled, buf.String())

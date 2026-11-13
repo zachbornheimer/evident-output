@@ -30,9 +30,8 @@ type waitTicket struct {
 	abort  chan struct{}
 }
 
-func (t *TaskHandle) Define(fn func() error) {
-	t.submitWork(fn, nil)
-}
+// Define lives in verify.go, alongside its Verify-aware execution wiring
+// (runDefine) — both are one concern (§7, §9.1).
 
 func (t *TaskHandle) After(preds ...any) *TaskHandle {
 	if t == nil || t.out == nil {
