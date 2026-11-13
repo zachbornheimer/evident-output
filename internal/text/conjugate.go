@@ -66,6 +66,9 @@ func Pluralize(quantity int64, singular string) string {
 		return singular
 	}
 	switch {
+	case strings.HasSuffix(singular, "ies"), strings.HasSuffix(singular, "es"):
+		// Already plural ("local branches", "boxes"). Do not emit "brancheses".
+		return singular
 	case strings.HasSuffix(singular, "y") && !endsInVowelPlusY(singular):
 		return singular[:len(singular)-1] + "ies"
 	case strings.HasSuffix(singular, "s"), strings.HasSuffix(singular, "x"), strings.HasSuffix(singular, "z"),
