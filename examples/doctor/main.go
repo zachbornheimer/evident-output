@@ -6,6 +6,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -56,28 +57,23 @@ func main() {
 				it.Block("commit.gpgsign is not enabled", evo.Detail("required in strict mode"))
 				it.NextCommand("git", "config", "--global", "commit.gpgsign", "true")
 			} else {
-				it.Warn("commit signing not verified", evo.Detail("optional for local work"))
+				it.Warn("commit signing not verified")
 			}
 		})
 		probe("disk free space", func(it *evo.TaskHandle) {
 			it.Block("less than 2 GiB free on /", evo.Detail("large builds need headroom. CI and local builds fail unpredictably when the volume fills."))
 		})
 		probe("docker daemon", func(it *evo.TaskHandle) {
-			// Tool-backed gate: Task.Evidence holds process evidence (not session Capture).
-			cap := it.Evidence()
-			_, _ = cap.Stderr().Write([]byte("Cannot connect to the Docker daemon at unix:///var/run/docker.sock"))
-			dialErr := fmt.Errorf("dial unix /var/run/docker.sock: connection refused")
 			it.Fail(
 				"cannot connect to docker socket",
-				evo.Detail(dialErr.Error()+"\nstart Colima or Docker Desktop"),
-				cap.DetailTail(), // user-visible tool tail
+				evo.Detail("dial unix /var/run/docker.sock: connection refused\nstart Colima or Docker Desktop"),
 			)
 		})
 		return nil
 	})
 
 	if *asJSON {
-		b, err := evo.EncodeJSON(out.Snapshot())
+		b, err := json.Marshal(out.Snapshot())
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(evo.ExitFailed)

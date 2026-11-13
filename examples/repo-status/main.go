@@ -66,7 +66,7 @@ func main() {
 		if *clean {
 			remotes.Done()
 		} else {
-			remotes.Warn("origin was not reachable", evo.Detail("last fetch failed; remote state is unverified"))
+			remotes.Warn("origin was not reachable")
 		}
 
 		time.Sleep(step)

@@ -7,18 +7,27 @@ import (
 	evo "github.com/zachbornheimer/evident-output"
 )
 
-// TestTask_DeclaresPendingNotRunning is the red-first case for evo-rec.md's
-// state-model gap: a freshly declared Task must not read as Running (which
-// would draw N simultaneous spinners for N predeclared siblings) until it
-// receives its first unit of evidence.
-func TestTask_DeclaresPendingNotRunning(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+// TestTask_DeclaresRunningSoTheRowCanSpin is FP-005 under the rec dialect:
+// declare is Pending until submitted work starts. Doing is first evidence
+// that promotes to Running so the row can spin. Sequence children stay
+// Pending so later siblings do not all spin at once.
+func TestTask_DeclaresRunningSoTheRowCanSpin(t *testing.T) {
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("install")
-
 	if got := task.Snapshot().State; got != evo.Pending {
-		t.Fatalf("state at declare = %v, want Pending", got)
+		t.Fatalf("standalone state at declare = %v, want Pending", got)
+	}
+	task.Doing("working")
+	if got := task.Snapshot().State; got != evo.Running {
+		t.Fatalf("state after submitted evidence = %v, want Running", got)
+	}
+
+	seq := out.Sequence("steps")
+	later := seq.Task("two")
+	if got := later.Snapshot().State; got != evo.Pending {
+		t.Fatalf("sequence child state at declare = %v, want Pending", got)
 	}
 }
 
@@ -36,7 +45,7 @@ func TestTask_PromotesToRunningOnFirstEvidence(t *testing.T) {
 	}
 	for name, evidence := range cases {
 		t.Run(name, func(t *testing.T) {
-			out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+			out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 			t.Cleanup(func() { _ = out.Close() })
 			task := out.Task("install")
 			evidence(task)
@@ -51,7 +60,7 @@ func TestTask_PromotesToRunningOnFirstEvidence(t *testing.T) {
 // "one Running child" heart contract on a Sequence: promoting a
 // second sibling to Running while the first is still Running is misuse.
 func TestSequence_TwoRunningChildrenRecordsMisuse(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
 	setup := out.Sequence("python")
@@ -71,10 +80,10 @@ func TestSequence_TwoRunningChildrenRecordsMisuse(t *testing.T) {
 // independent (worker-pool fan-out), so two Running siblings there is a
 // supported pattern, not misuse.
 func TestDisplayGroup_ConcurrentIndependentChildrenAreNotMisuse(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	t.Cleanup(func() { _ = out.Close() })
 
-	jobs := out.DisplayGroup("dependencies")
+	jobs := out.Group("dependencies")
 	a := jobs.Task("discover")
 	b := jobs.Task("verify")
 
@@ -95,7 +104,7 @@ func TestDisplayGroup_ConcurrentIndependentChildrenAreNotMisuse(t *testing.T) {
 // killed that dead enum member (it was never assigned by inferConclusion)
 // rather than keep two competing models of the same fact.
 func TestConclusion_LoneIncompleteTaskIsNotPartialHeadline(t *testing.T) {
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(io.Discard)}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: io.Discard})
 	out.Task("install") // declared, never resolved
 
 	_ = out.Finish()

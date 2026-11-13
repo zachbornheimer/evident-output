@@ -27,14 +27,14 @@ import (
 func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
-	_ = branches.Delete("branch", nil, evo.Affected(8))
+	branches.Delete("branch", func() error { return nil }, evo.Affected(8))
 	branches.Done("8 deleted")
 	worktrees := out.Task("worktrees")
 	protected := evo.Reason("protected")
 	for i := 0; i < 6; i++ {
-		worktrees.Skipped(protected, "wt")
+		worktrees.Skipped(protected)
 	}
 	worktrees.Fail("remove failed", evo.Detail("path locked: ../.worktrees/app-sah-1"))
 	if err := out.Finish(); err != nil {
@@ -51,8 +51,7 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 		"✓ branches 8 deleted",
 		"✗ worktrees remove failed",
 		"path locked: ../.worktrees/app-sah-1",
-		"skipped 6 (protected)",
-	} {
+		"skipped 6 (protected)"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -70,12 +69,12 @@ func TestSpecP1_CleanBatch_Failure(t *testing.T) {
 func TestSpecP1_CleanBatch_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
-	_ = branches.Delete("branch", nil, evo.Affected(8))
+	branches.Delete("branch", func() error { return nil }, evo.Affected(8))
 	protected := evo.Reason("protected")
 	for i := 0; i < 6; i++ {
-		branches.Skipped(protected, "b")
+		branches.Skipped(protected)
 	}
 	branches.Fail("git: cannot lock ref 'refs/heads/feat/x'", evo.Detail("another git process seems to be running"))
 	if err := out.Finish(); err != nil {
@@ -92,8 +91,7 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 		"8 branches deleted",
 		"✗ branches git: cannot lock ref 'refs/heads/feat/x'",
 		"another git process seems to be running",
-		"skipped 6 (protected)",
-	} {
+		"skipped 6 (protected)"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -110,9 +108,9 @@ func TestSpecP1_CleanBatch_Error(t *testing.T) {
 func TestSpecP1_CleanBatch_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("clean"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "clean", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
-	_ = branches.Delete("branch", nil, evo.Affected(8))
+	branches.Delete("branch", func() error { return nil }, evo.Affected(8))
 	branches.Done("8 deleted")
 	worktrees := out.Task("worktrees")
 	worktrees.Cancel("cancelled — 0 removed")
@@ -128,8 +126,7 @@ func TestSpecP1_CleanBatch_EarlyTermination(t *testing.T) {
 	for _, want := range []string{
 		"✓ branches 8 deleted",
 		"■ worktrees cancelled — 0 removed",
-		"already mutated: 8 branches deleted",
-	} {
+		"already mutated: 8 branches deleted"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -147,9 +144,9 @@ func TestSpecP1_CleanBatch_EarlyTermination(t *testing.T) {
 func TestSpecP2_RemoteSeparation_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
-	_ = branches.Delete("branch", nil, evo.Affected(12))
+	branches.Delete("branch", func() error { return nil }, evo.Affected(12))
 	branches.Done("12 deleted")
 	remotes := out.Task("remotes")
 	remotes.Fail("authentication failed", evo.Detail("remote: Invalid username or token"))
@@ -163,8 +160,7 @@ func TestSpecP2_RemoteSeparation_Error(t *testing.T) {
 		"12 branches deleted",
 		"✗ remotes authentication failed",
 		"remote: Invalid username or token",
-		"local already mutated; remotes untouched",
-	} {
+		"local already mutated; remotes untouched"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -182,9 +178,9 @@ func TestSpecP2_RemoteSeparation_Error(t *testing.T) {
 func TestSpecP2_RemoteSeparation_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("retire"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "retire", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	branches := out.Task("branches")
-	_ = branches.Delete("branch", nil, evo.Affected(5))
+	branches.Delete("branch", func() error { return nil }, evo.Affected(5))
 	branches.Done("5 deleted (local)")
 	remotes := out.Task("remotes")
 	remotes.Cancel("cancelled before any delete-remote")
@@ -195,8 +191,7 @@ func TestSpecP2_RemoteSeparation_EarlyTermination(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"✓ branches 5 deleted (local)",
-		"■ remotes cancelled before any delete-remote",
-	} {
+		"■ remotes cancelled before any delete-remote"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -237,9 +232,9 @@ func TestSpecP2_RemoteSeparation_Indeterminate_NotTestable(t *testing.T) {
 func TestSpecP3_DryRunTense_Success(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "salvage", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	salvage := out.Task("salvage")
-	_ = salvage.Push("branch", nil, evo.Affected(3))
+	salvage.Push("branch", func() error { return nil }, evo.Affected(3))
 	salvage.Done()
 	salvage.Next(evo.Label("repo-retire --retire demo"))
 	if err := out.Finish(); err != nil {
@@ -251,8 +246,7 @@ func TestSpecP3_DryRunTense_Success(t *testing.T) {
 		"[changed] salvage",
 		"pushed 3 branch",
 		"✓ salvage",
-		"→ repo-retire --retire demo",
-	} {
+		"→ repo-retire --retire demo"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -269,9 +263,9 @@ func TestSpecP3_DryRunTense_Success(t *testing.T) {
 func TestSpecP3_DryRunTense_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor(), evo.DryRun()}})
+	out := evo.Init(evo.Config{Title: "salvage", Stdout: &buf, Plain: true, Color: evo.ColorNever, DryRun: true})
 	salvage := out.Task("salvage")
-	_ = salvage.Push("feat/a → retire/feat/a", nil, evo.Affected(3))
+	salvage.Push("feat/a → retire/feat/a", func() error { return nil }, evo.Affected(3))
 	salvage.Fail("dry-run only — not applied")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -281,8 +275,7 @@ func TestSpecP3_DryRunTense_Failure(t *testing.T) {
 	for _, want := range []string{
 		"[planned] salvage",
 		"push 3 feat/a → retire/feat/a",
-		"✗ salvage dry-run only — not applied",
-	} {
+		"✗ salvage dry-run only — not applied"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -301,9 +294,9 @@ func TestSpecP3_DryRunTense_Failure(t *testing.T) {
 func TestSpecP3_DryRunTense_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "salvage", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	salvage := out.Task("salvage")
-	_ = salvage.Push("branch", nil, evo.Affected(1))
+	salvage.Push("branch", func() error { return nil }, evo.Affected(1))
 	salvage.Progress(2, 3)
 	salvage.Fail("non-fast-forward", evo.Detail("tip rejected on retire/feat/b"))
 	if err := out.Finish(); err != nil {
@@ -315,8 +308,7 @@ func TestSpecP3_DryRunTense_Error(t *testing.T) {
 		"✗ salvage 2/3 non-fast-forward",
 		"tip rejected on retire/feat/b",
 		"[changed] salvage",
-		"pushed 1 branch",
-	} {
+		"pushed 1 branch"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -334,9 +326,9 @@ func TestSpecP3_DryRunTense_Error(t *testing.T) {
 func TestSpecP3_DryRunTense_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("salvage"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "salvage", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	salvage := out.Task("salvage")
-	_ = salvage.Push("branch", nil, evo.Affected(1))
+	salvage.Push("branch", func() error { return nil }, evo.Affected(1))
 	salvage.Cancel("interrupted")
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -346,8 +338,7 @@ func TestSpecP3_DryRunTense_EarlyTermination(t *testing.T) {
 	for _, want := range []string{
 		"[changed] salvage",
 		"pushed 1 branch",
-		"■ salvage interrupted",
-	} {
+		"■ salvage interrupted"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -412,14 +403,14 @@ func TestSpecP4_SequentialGroup_Indeterminate(t *testing.T) {
 func TestSpecP4_SequentialGroup_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("python"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "python", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	setup := out.Sequence("python")
 	scan, venv, install := setup.Task("scan"), setup.Task("venv"), setup.Task("install")
 	scan.Done()
 	venv.Done()
 	optional := evo.Reason("optional extras")
-	install.Skipped(optional, "extraA")
-	install.Skipped(optional, "extraB")
+	install.Skipped(optional)
+	install.Skipped(optional)
 	install.Fail("uv pip install failed", evo.Detail("Could not find a version that satisfies requests==99.0"))
 	if err := out.Finish(); err != nil {
 		t.Log(err)
@@ -431,8 +422,7 @@ func TestSpecP4_SequentialGroup_Error(t *testing.T) {
 		"✓ venv",
 		"✗ install uv pip install failed",
 		"skipped 2 (optional extras)",
-		"Could not find a version that satisfies requests==99.0",
-	} {
+		"Could not find a version that satisfies requests==99.0"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -452,12 +442,12 @@ func TestSpecP4_SequentialGroup_Error(t *testing.T) {
 func TestSpecP4_SequentialGroup_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("python"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "python", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	setup := out.Sequence("python")
 	scan, venv, install := setup.Task("scan"), setup.Task("venv"), setup.Task("install")
 	scan.Done()
 	venv.Done()
-	_ = install.Create(".venv", nil)
+	install.Create(".venv", func() error { return nil }, evo.Affected(1))
 	install.Progress(6, 14)
 	install.Cancel("cancelled at 6/14")
 	if err := out.Finish(); err != nil {
@@ -468,8 +458,7 @@ func TestSpecP4_SequentialGroup_EarlyTermination(t *testing.T) {
 	for _, want := range []string{
 		"✓ scan",
 		"✓ venv",
-		"■ install cancelled at 6/14",
-	} {
+		"■ install cancelled at 6/14"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -492,7 +481,7 @@ func TestSpecP4_SequentialGroup_EarlyTermination(t *testing.T) {
 func TestSpecP5_DiscoverySealedTotal_Failure(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("scan"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	scan := out.Task("scan")
 	scan.Fail("permission denied under ~/Developer", evo.Detail("open ~/Developer/locked: operation not permitted"))
 	if err := out.Finish(); err != nil {
@@ -502,8 +491,7 @@ func TestSpecP5_DiscoverySealedTotal_Failure(t *testing.T) {
 	collapsed := strings.Join(strings.Fields(got), " ")
 	for _, want := range []string{
 		"✗ scan permission denied under ~/Developer",
-		"open ~/Developer/locked: operation not permitted",
-	} {
+		"open ~/Developer/locked: operation not permitted"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -522,7 +510,7 @@ func TestSpecP5_DiscoverySealedTotal_Failure(t *testing.T) {
 func TestSpecP5_DiscoverySealedTotal_Error(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("scan"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	scan := out.Task("scan")
 	scan.Progress(40, 128)
 	scan.RecordLabel("ready", 39, "repos")
@@ -535,8 +523,7 @@ func TestSpecP5_DiscoverySealedTotal_Error(t *testing.T) {
 	for _, want := range []string{
 		"✗ scan 40/128 git rev-parse failed",
 		"not a git repository",
-		"ready 39 repos",
-	} {
+		"ready 39 repos"} {
 		if !strings.Contains(collapsed, want) {
 			t.Fatalf("want %q in:\n%s", want, got)
 		}
@@ -559,7 +546,7 @@ func TestSpecP5_DiscoverySealedTotal_Error(t *testing.T) {
 func TestSpecP5_DiscoverySealedTotal_EarlyTermination(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Title("scan"), evo.To(&buf), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Title: "scan", Stdout: &buf, Plain: true, Color: evo.ColorNever})
 	scan := out.Task("scan")
 	scan.Progress(40, 128)
 	scan.Cancel("cancelled")
