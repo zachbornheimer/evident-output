@@ -5,9 +5,7 @@
 package main
 
 import (
-	"errors"
 	"flag"
-	"fmt"
 	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
@@ -27,35 +25,34 @@ func main() {
 	evo.Main(func() error {
 		pipeline := evo.Sequence("pipeline")
 
-		modules := pipeline.Task("go mod download", evo.ID("pipeline.mod-download"))
-		modules.Doing("resolving modules")
-		for completed := 1; completed <= 4; completed++ {
-			time.Sleep(step)
-			modules.Progress(completed, 4)
-		}
-		modules.Done("modules cached")
-
-		generate := pipeline.Task("go generate", evo.ID("pipeline.generate"))
-		generate.Doing("running generators")
-		time.Sleep(step)
-		generate.Bytes(256*1024, 256*1024)
-		generate.Done()
-
-		tests := pipeline.Task("go test ./...", evo.ID("pipeline.test"))
-		output := tests.Evidence()
-		time.Sleep(step)
-		if *failTests {
-			// Command-runner shape: Capture gets streams; Failf wraps the process
-			// error with %w while DetailTail supplies the user-visible tail.
-			// No Close required for partial lines.
-			_, _ = fmt.Fprintln(output.Stdout(), "=== RUN   TestFoo")
-			_, _ = fmt.Fprint(output.Stderr(), "--- FAIL: TestFoo (0.01s)\n    foo_test.go:12: want 1, got 0")
-			runErr := errors.New("exit status 1")
-			tests.Fail("tests failed: "+runErr.Error(), output.DetailTail())
+		modules := pipeline.Task("go mod download")
+		modules.Define(func() error {
+			modules.Doing("resolving modules")
+			for completed := 1; completed <= 4; completed++ {
+				time.Sleep(step)
+				modules.Progress(completed, 4)
+			}
 			return nil
-		}
-		tests.Progress(12, 12)
-		tests.Done("ok")
+		})
+
+		generate := pipeline.Task("go generate")
+		generate.Define(func() error {
+			generate.Doing("running generators")
+			time.Sleep(step)
+			generate.Bytes(256*1024, 256*1024)
+			return nil
+		})
+
+		tests := pipeline.Task("go test ./...")
+		tests.Define(func() error {
+			time.Sleep(step)
+			if *failTests {
+				tests.Fail("tests failed: exit status 1", evo.Detail("=== RUN   TestFoo\n--- FAIL: TestFoo (0.01s)\n    foo_test.go:12: want 1, got 0"))
+				return nil
+			}
+			tests.Progress(12, 12)
+			return nil
+		})
 		return nil
 	})
 }

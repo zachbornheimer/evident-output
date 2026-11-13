@@ -7,20 +7,20 @@ Order for learning and documentation. Advanced paths are studio notes, not the l
 ```text
 1. evo.Init(Config) + evo.Main(run) — arms first paint, owns dry-run wording and exit codes
 2. Print / Printf / Println / Verbose
-3. Task — everything: a gate/condition resolved directly (Done/Warn/Block/Fail/Skip, no Doing/
-   Progress) or work with phases, progress, or mutation verbs (Delete/Create/Update/…); Evidence
-   on either shape
-4. Each / Writer — loop progress and child-process narration
+3. Task.Define — one atomic operation; mutation verbs (Delete/Create/Update/…) are the
+   dry-run-aware equivalent of Define
+4. Group.Each / Sequence.Each — independent vs ordered collections; After for a DAG edge
+   nesting cannot express
 5. Skipped / Kept — skip/keep taxonomy (reason + name, never a bare count)
 6. Confirm — the whole ask-decide-resolve gate
 7. ResultWriter or app machine contract (FormatData)
 8. Scope — namespaced IDs only
 9. slog via SlogHandler (Config.Debug.Level)
-10. Advanced: Config.Isolated + Output.Run (hosted instance), Config.Options (raw-Option escape
-    hatch), terminal drivers, testkit, Suspend
+10. Advanced: Config.Isolated + Output.Run (hosted instance), terminal drivers, testkit, Suspend
 
 Task's mutation verbs (Delete/Create/…) pick [planned] vs [changed] from Config.DryRun on the
-ordinary path — no separate Plan/Changes call site exists to reach for.
+ordinary path — no separate Plan/Changes call site exists to reach for. Quantity is
+evo.Affected(n) when one atomic operation touches more than one item.
 ```
 
 ## Standalone (package-level default instance)
@@ -32,9 +32,8 @@ func main() {
 }
 
 func run() error {
-    for range evo.Task("scan").Each(items) {
-        // scan each item — no explicit Done needed: a completed Each loop
-        // auto-resolves Done at Finish, same as a recorded mutation effect.
+    for path, task := range evo.Group("worktrees").Each(items) {
+        task.Define(func() error { return check(path) })
     }
     return nil
 }
@@ -42,10 +41,13 @@ func run() error {
 
 ## Hosted (framework owns exit)
 
+`out.Run` returns an `int` (the exit code). The host inspects it and exits.
+Do not `return out.Run(run)` from `func main()` — that does not compile.
+`evo.Main` is the process-exit path (row 1), not this one.
+
 ```go
 out := evo.Init(evo.Config{Title: "tool", Isolated: true})
-defer func() { _ = out.Close() }()
-return out.Run(run) // reconciles a non-nil run error into Fail, then Finish + exit code
+os.Exit(out.Run(run)) // reconciles a non-nil run error into Fail, then Finish
 ```
 
 ## House rules (short)
@@ -69,13 +71,14 @@ Release pin procedure: `docs/guides/cutting-a-release.md`.
 ## Evidence
 
 ```go
-proof := task.Evidence() // or item.Evidence() for tool-backed gates
-// … write to proof.Stdout()/Stderr() …
-return task.Failf("failed: %w", err)
+cmd.Stdout = task.Writer()
+cmd.Stderr = task.Writer()
+if err := cmd.Run(); err != nil {
+    return task.Failf("failed: %w", err)
+}
 ```
 
-Pending unterminated fragments are included in DetailTail. Prefer `task.Run(cmd)` for an
-`*exec.Cmd` — it wires Evidence and doing-text together in one call.
+`Writer()` turns the child's last line into live doing-text and retains a bounded ring for Fail evidence.
 
 ## Confirm
 
