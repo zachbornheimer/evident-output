@@ -37,7 +37,7 @@ func semverOlder(a, b string) bool {
 	if !aok || !bok {
 		return false
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if av[i] < bv[i] {
 			return true
 		}

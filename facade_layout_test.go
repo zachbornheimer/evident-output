@@ -8,8 +8,10 @@ import (
 	"testing"
 )
 
-var rootOutputAliasDecl = regexp.MustCompile(`(?m)^type Output = `)
-var rootOutputStructDecl = regexp.MustCompile(`(?m)^type Output struct\b`)
+var (
+	rootOutputAliasDecl  = regexp.MustCompile(`(?m)^type Output = `)
+	rootOutputStructDecl = regexp.MustCompile(`(?m)^type Output struct\b`)
+)
 
 // TestFacade_RootOutputIsWrapperNotAlias locks the public surface: Output is
 // declared in evo so engine test helpers cannot leak through a type alias.
