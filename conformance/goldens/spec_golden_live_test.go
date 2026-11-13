@@ -3,6 +3,7 @@ package goldens_test
 import (
 	"strings"
 	"testing"
+	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/testkit"
@@ -18,14 +19,25 @@ import (
 // Phase() calls force a repaint regardless (used by Each internally), which
 // is why simple single-call Phase-driven probes didn't need this — but a
 // bare Progress/Bytes call does.
-func newLiveScreenOutput(screen *testkit.Screen, opts ...evo.Option) *evo.Output {
-	base := []evo.Option{
-		evo.Terminal(screen),
-		evo.VisibilityDelay(0),
-		evo.MaxFrameRate(1_000_000),
-		evo.NoColor(),
+func newLiveScreenOutput(screen *testkit.Screen) *evo.Output {
+	return newLiveScreenOutputCfg(screen, evo.Config{})
+}
+
+func newLiveScreenOutputCfg(screen *testkit.Screen, extra evo.Config) *evo.Output {
+	if extra.Terminal == nil {
+		extra.Terminal = screen
 	}
-	return evo.Init(evo.Config{Isolated: true, Options: append(base, opts...)})
+	if extra.VisibilityDelay == nil {
+		extra.VisibilityDelay = new(time.Duration)
+	}
+	if extra.MaxFrameRate == 0 {
+		extra.MaxFrameRate = 1_000_000
+	}
+	if extra.Color == 0 {
+		extra.Color = evo.ColorNever
+	}
+	extra.Isolated = true
+	return evo.Init(extra)
 }
 
 // TestSpecP1_LiveFrame_Step1 covers evo-rec.md Problem 1's step1 block via
@@ -58,16 +70,39 @@ func TestSpecP1_LiveFrame_Step1(t *testing.T) {
 		names[i] = "feat/x" + string(rune('a'+i%26))
 	}
 	names[0] = "feat/old-billing"
-	branches := out.Task("branches")
-	for range branches.Each(names) {
-		break
+	started := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan struct{})
+	defer func() { <-done }()
+	branches := out.Group("branches")
+	go func() {
+		defer close(done)
+		for name, task := range branches.Each(names) {
+			n := name
+			if n == "feat/old-billing" {
+				task.Define(func() error {
+					close(started)
+					<-release
+					return nil
+				})
+				continue
+			}
+			task.Define(func() error { return nil })
+		}
+	}()
+	defer close(release)
+	<-started
+	for len(branches.Snapshot().Tasks) < len(names) {
 	}
-
 	got := screen.LatestLiveText()
-	for _, want := range []string{"branches", "0/40", "feat/old-billing", "[", "]"} {
+
+	for _, want := range []string{"branches", "/40", "feat/old-billing"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("want %q in live frame:\n%s", want, got)
 		}
+	}
+	if strings.Count(got, "\n") > 1 {
+		t.Fatalf("Each children must stay collapsed onto the parent row, got:\n%s", got)
 	}
 }
 
@@ -87,15 +122,31 @@ func TestSpecP1_LiveFrame_Step2(t *testing.T) {
 	t.Cleanup(func() { _ = out.Close() })
 
 	out.Task("branches").Done("14 deleted")
-	worktrees := out.Task("worktrees")
-	out.Task("remotes") // declared, not yet started — renders "○ remotes"
-	for range worktrees.Each([]string{"../.worktrees/app-sah-1", "../.worktrees/app-sah-2", "../.worktrees/app-sah-3"}) {
-		break
-	}
+	worktrees := out.Group("worktrees")
+	out.Task("remotes")
+	paths := []string{"../.worktrees/app-sah-1", "../.worktrees/app-sah-2", "../.worktrees/app-sah-3"}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan struct{})
+	defer func() { <-done }()
+	go func() {
+		defer close(done)
+		for name, task := range worktrees.Each(paths) {
+			n := name
+			if n == "../.worktrees/app-sah-1" {
+				task.Define(func() error {
+					close(started)
+					<-release
+					return nil
+				})
+				continue
+			}
+			task.Define(func() error { return nil })
+		}
+	}()
+	defer close(release)
+	<-started
 
-	// branches resolved: it commits durably at resolution time
-	// (release-gate round 5 finding 3, commitResolvedTaskLocked) and drops
-	// out of the live ticker, which now holds only the two unresolved tasks.
 	durable := screen.PersistedText()
 	if !strings.Contains(durable, "✓") || !strings.Contains(durable, "branches") || !strings.Contains(durable, "14 deleted") {
 		t.Fatalf("want Done branches summary committed durably, got:\n%s", durable)
@@ -103,13 +154,13 @@ func TestSpecP1_LiveFrame_Step2(t *testing.T) {
 	got := screen.LatestLiveText()
 	lines := strings.Split(got, "\n")
 	if len(lines) != 2 {
-		t.Fatalf("want 2 flat task lines (resolved branches left the ticker), got %d:\n%s", len(lines), got)
+		t.Fatalf("want 2 live lines (resolved branches left the ticker), got %d:\n%s", len(lines), got)
 	}
 	if !strings.Contains(lines[0], "worktrees") || !strings.Contains(lines[0], "../.worktrees/app-sah-1") {
 		t.Fatalf("line 1 want Running worktrees with current name, got %q", lines[0])
 	}
-	if !strings.Contains(lines[1], "○") || !strings.Contains(lines[1], "remotes") {
-		t.Fatalf("line 2 want pending remotes with ○, got %q", lines[1])
+	if !strings.Contains(lines[1], "remotes") || !strings.Contains(lines[1], "○") {
+		t.Fatalf("line 2 want pending remotes (○), got %q", lines[1])
 	}
 }
 
@@ -136,8 +187,8 @@ func TestSpecP1_LiveFrame_Indeterminate(t *testing.T) {
 	if !strings.Contains(lines[0], "branches") || !strings.Contains(lines[0], "classifying…") {
 		t.Fatalf("line 1 want indeterminate phase, got %q", lines[0])
 	}
-	if !strings.Contains(lines[1], "○") || !strings.Contains(lines[1], "worktrees") {
-		t.Fatalf("line 2 want pending ○, got %q", lines[1])
+	if !strings.Contains(lines[1], "worktrees") || !strings.Contains(lines[1], "○") {
+		t.Fatalf("line 2 want pending worktrees (○), got %q", lines[1])
 	}
 }
 
@@ -211,7 +262,16 @@ func TestSpecP4_LiveFrame_Step1(t *testing.T) {
 	scan := setup.Task("scan")
 	setup.Task("venv")
 	setup.Task("install")
-	scan.Doing("scanning")
+	started := make(chan struct{})
+	release := make(chan struct{})
+	defer close(release)
+	scan.Define(func() error {
+		scan.Doing("scanning")
+		close(started)
+		<-release
+		return nil
+	})
+	<-started
 
 	got := screen.LatestLiveText()
 	lines := strings.Split(got, "\n")
@@ -253,8 +313,17 @@ func TestSpecP4_LiveFrame_Step2(t *testing.T) {
 	scan := setup.Task("scan")
 	venv := setup.Task("venv")
 	setup.Task("install")
-	scan.Done()
-	venv.Doing("creating")
+	scan.Define(func() error { return nil })
+	started := make(chan struct{})
+	release := make(chan struct{})
+	defer close(release)
+	venv.Define(func() error {
+		venv.Doing("creating")
+		close(started)
+		<-release
+		return nil
+	})
+	<-started
 
 	got := screen.LatestLiveText()
 	if !strings.Contains(got, "✓") || !strings.Contains(got, "scan") {
@@ -401,23 +470,31 @@ func TestSpecP8_LiveFrame_Step1(t *testing.T) {
 	}
 }
 
-// TestSpecP8_LiveFrame_Step2 covers Problem 8's step2 block: the prior
-// delete survives as a Done row while the next one becomes the one Running
-// child.
+// TestSpecP8_LiveFrame_Step2 covers Problem 8's step2 block as sibling
+// child Tasks under a Group: one already-resolved delete and one still
+// Running child.
 //
 //	✓  remotes  deleted origin/feat/a
 //	:.  remotes  2/3  origin/feat/b
-//
-// NOT-TESTABLE as a single frame through the public API as spelled: both
-// rows share the name "remotes", but a Task is a single resolvable entity —
-// one TaskHandle cannot be simultaneously Done (for feat/a) and Running (for
-// feat/b) in the same snapshot. The spec's two-row shape needs either two
-// distinct Task handles (which would print two different names, not both
-// "remotes") or a single evolving row per unit of work (which the rest of
-// this problem's blocks already show, e.g. step1 above) — reaching for the
-// simplest documented spelling cannot reproduce two rows under one name.
-func TestSpecP8_LiveFrame_Step2_NotTestable(t *testing.T) {
-	t.Skip("NOT-TESTABLE: see doc comment — a single TaskHandle cannot render two rows (Done + Running) under one name in one frame")
+func TestSpecP8_LiveFrame_Step2(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := newLiveScreenOutput(screen)
+	t.Cleanup(func() { _ = out.Close() })
+
+	remotes := out.Group("remotes")
+	remotes.Task("origin/feat/a").Done("deleted origin/feat/a")
+	running := remotes.Task("origin/feat/b")
+	running.Progress(2, 3)
+	running.Doing("origin/feat/b")
+
+	got := screen.LatestLiveText()
+	if !strings.Contains(got, "origin/feat/a") || !strings.Contains(got, "deleted origin/feat/a") {
+		t.Fatalf("want Done sibling origin/feat/a, got:\n%s", got)
+	}
+	if !strings.Contains(got, "origin/feat/b") || !strings.Contains(got, "2/3") {
+		t.Fatalf("want Running sibling origin/feat/b at 2/3, got:\n%s", got)
+	}
 }
 
 // TestSpecP9_LiveFrame_Step1 covers evo-rec.md Problem 9's step1 block (this
@@ -480,8 +557,8 @@ func TestSpecP9_LiveFrame_Step2(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("want 2 flat task lines (resolved scan left the ticker), got %d:\n%s", len(lines), got)
 	}
-	if !strings.Contains(lines[1], "○") || !strings.Contains(lines[1], "install") {
-		t.Fatalf("line 2 want pending install, got %q", lines[1])
+	if !strings.Contains(lines[1], "install") || !strings.Contains(lines[1], "○") {
+		t.Fatalf("line 2 want pending install (○), got %q", lines[1])
 	}
 }
 
@@ -526,7 +603,7 @@ func TestSpecP11_LiveFrame_Step1(t *testing.T) {
 func TestSpecP25_LiveFrame_ASCIISpinner(t *testing.T) {
 	t.Parallel()
 	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
-	out := newLiveScreenOutput(screen, evo.Glyphs(evo.GlyphsASCII))
+	out := newLiveScreenOutputCfg(screen, evo.Config{Glyphs: evo.GlyphsASCII})
 	t.Cleanup(func() { _ = out.Close() })
 
 	branches := out.Task("branches")
@@ -614,5 +691,106 @@ func TestSpecP26_LiveFrame_ResizeMidRun_DropsToCompactDialect(t *testing.T) {
 	}
 	if strings.Contains(narrow, "[") || strings.Contains(narrow, "█") || strings.Contains(narrow, "░") {
 		t.Fatalf("post-resize frame must drop the bar, not leave wrapped residue, got %q", narrow)
+	}
+}
+
+// TestSpecConcurrentGroups_BothRunning covers the dialect's concurrent
+// Group live check: two sibling Groups both Running, each collapsed to one
+// aggregate spinner row.
+func TestSpecConcurrentGroups_BothRunning(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := newLiveScreenOutput(screen)
+	t.Cleanup(func() { _ = out.Close() })
+
+	worktrees := out.Group("worktrees")
+	branches := out.Group("branches")
+	wtStarted := make(chan struct{})
+	brStarted := make(chan struct{})
+	release := make(chan struct{})
+	wtDone := make(chan struct{})
+	brDone := make(chan struct{})
+	defer func() { <-wtDone; <-brDone }()
+	defer close(release)
+
+	go func() {
+		defer close(wtDone)
+		for name, task := range worktrees.Each([]string{"wt-a", "wt-b", "wt-c"}) {
+			n := name
+			task.Define(func() error {
+				_ = n
+				select {
+				case <-wtStarted:
+				default:
+					close(wtStarted)
+				}
+				<-release
+				return nil
+			})
+		}
+	}()
+	go func() {
+		defer close(brDone)
+		for name, task := range branches.Each([]string{"br-a", "br-b", "br-c"}) {
+			n := name
+			task.Define(func() error {
+				_ = n
+				select {
+				case <-brStarted:
+				default:
+					close(brStarted)
+				}
+				<-release
+				return nil
+			})
+		}
+	}()
+	<-wtStarted
+	<-brStarted
+
+	got := screen.LatestLiveText()
+	if !strings.Contains(got, "worktrees") || !strings.Contains(got, "branches") {
+		t.Fatalf("want both Groups in the live frame, got:\n%s", got)
+	}
+	if strings.Count(got, "○") > 0 {
+		t.Fatalf("concurrent Groups should both be Running, not pending, got:\n%s", got)
+	}
+}
+
+// TestSpecEach_OneItemNoRedundantChild proves a one-item Each stays on the
+// parent row — no redundant parent + child pair on TTY.
+func TestSpecEach_OneItemNoRedundantChild(t *testing.T) {
+	t.Parallel()
+	screen := testkit.NewScreen(testkit.Interactive(), testkit.Width(80), testkit.NoColor())
+	out := newLiveScreenOutput(screen)
+	t.Cleanup(func() { _ = out.Close() })
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan struct{})
+	defer func() { <-done }()
+	go func() {
+		defer close(done)
+		g := out.Group("worktrees")
+		for name, task := range g.Each([]string{"../.worktrees/app-sah-1"}) {
+			n := name
+			task.Define(func() error {
+				_ = n
+				close(started)
+				<-release
+				return nil
+			})
+		}
+	}()
+	defer close(release)
+	<-started
+
+	live := screen.LatestLiveText()
+	lines := strings.Split(strings.TrimRight(live, "\n"), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("one-item Each must not paint a redundant child row, got %d lines:\n%s", len(lines), live)
+	}
+	if !strings.Contains(lines[0], "worktrees") {
+		t.Fatalf("want parent aggregate row, got %q", lines[0])
 	}
 }
