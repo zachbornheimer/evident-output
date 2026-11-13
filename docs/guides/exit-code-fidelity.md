@@ -22,7 +22,7 @@ func main() {
     var childErr *exec.ExitError
     code := out.Run(ctx, func(ctx context.Context) error {
         cmd := out.Task("build")
-        err := run(cmd, exec.Command("make", "build")) // wires cmd.Stdout/Stderr into evo evidence
+        err := run(cmd, exec.Command("make", "build")) // wires cmd.Stdout/Stderr into evo capture
         errors.As(err, &childErr)
         return err
     }).ExitCode()

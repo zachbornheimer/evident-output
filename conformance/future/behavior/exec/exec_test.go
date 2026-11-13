@@ -173,7 +173,7 @@ func TestV06ExecCapturedLineBecomesActivityAndRedactsSecrets(t *testing.T) {
 	}
 	for _, p := range task.Snapshot().Problems {
 		if strings.Contains(p.CaptureTail, "super-secret") {
-			t.Fatalf("evidence tail leaked the secret: %q", p.CaptureTail)
+			t.Fatalf("capture tail leaked the secret: %q", p.CaptureTail)
 		}
 	}
 }

@@ -41,7 +41,7 @@ type taskState struct {
 	// heartbeat is the §40 plain-mode durable heartbeat's state.
 	heartbeat plainHeartbeat
 
-	// capture is the get-or-create sink shared by Task.Capture and PhaseWriter
+	// capture is the get-or-create sink shared by task.Writer() and PhaseWriter
 	// so child-process output recorded via either path lands in one ring and
 	// DetailTail sees it after Fail.
 	capture *capture

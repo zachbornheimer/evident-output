@@ -19,7 +19,7 @@ import (
 //
 // — must render the failed child's captured stderr lines in the final
 // report. Failf built its Problem from the wrapped error text alone
-// (Problem.Detail), leaving no room for the task's retained Evidence to
+// (Problem.Detail), leaving no room for the task's retained capture to
 // render: the auto-attach in finishTagged only fired when Detail was still
 // empty, so a Failf's wrapped-error text silently occupied that slot and the
 // child's own stderr — the actual proof of the failure — never appeared
