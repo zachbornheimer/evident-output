@@ -72,7 +72,7 @@ func TestAPI013_ExampleCLIsBuild(t *testing.T) {
 func TestTERM009_CancelCleanupPath(t *testing.T) {
 	// TERM-009: SIGINT handling documents Cancel → cancelled conclusion cleanup.
 	// Full PTY signal injection remains host-dependent; library path is Cancel.
-	out := evo.Init(evo.Config{Isolated: true, Options: []evo.Option{evo.To(os.Stderr), evo.Plain(), evo.NoColor()}})
+	out := evo.Init(evo.Config{Isolated: true, Stdout: os.Stderr, Plain: true, Color: evo.ColorNever})
 	t.Cleanup(func() { _ = out.Close() })
 	task := out.Task("long")
 	task.Doing("working")
@@ -105,8 +105,7 @@ func TestMCP036_RemotePathRejectedByPolicy(t *testing.T) {
 	for _, p := range []string{
 		"https://evil.example/x.go",
 		"http://evil.example/x.go",
-		"git+ssh://host/repo",
-	} {
+		"git+ssh://host/repo"} {
 		if !isRemotePath(p) {
 			t.Fatalf("expected remote: %s", p)
 		}

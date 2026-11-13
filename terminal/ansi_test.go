@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	evo "github.com/zachbornheimer/evident-output"
 	"github.com/zachbornheimer/evident-output/terminal"
@@ -13,12 +14,11 @@ func TestANSI_LiveRegionUsesCursorControl(t *testing.T) {
 	var buf bytes.Buffer
 	drv := terminal.NewANSI(&buf, terminal.WithSize(80, 24), terminal.WithInteractive(true))
 
-	out := evo.Init(evo.Config{Options: []evo.Option{evo.Terminal(drv), evo.VisibilityDelay(0), evo.DebugLevel(evo.LevelDebug)}})
+	out := evo.Init(evo.Config{Terminal: drv, VisibilityDelay: new(time.Duration), Debug: evo.DebugConfig{Level: evo.LevelDebug}})
 	t.Cleanup(func() { _ = out.Close() })
 
 	task := out.Task("work")
 	task.Doing("running")
-	out.Debug("note")
 	task.Done("done")
 	_ = out.Finish()
 
